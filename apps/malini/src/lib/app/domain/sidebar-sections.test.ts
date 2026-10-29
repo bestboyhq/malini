@@ -11,6 +11,7 @@ function status(change: Partial<StatusInput>): string {
 describe('statusSection', () => {
 	it('puts work that waits on you or failed first, then running work', () => {
 		expect(status({ dot: 'needs' })).toBe('needs-you');
+		expect(status({ dot: 'blocked', pullRequest: 'needs-you' })).toBe('needs-you');
 		expect(status({ dot: 'failed', activeAt: at(1, 0) })).toBe('needs-you');
 		expect(status({ dot: 'running' })).toBe('in-progress');
 		expect(status({ dot: 'merged' })).toBe('merged');

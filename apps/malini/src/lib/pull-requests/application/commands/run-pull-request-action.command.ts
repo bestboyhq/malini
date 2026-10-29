@@ -2,7 +2,6 @@ import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { goto } from '$shared/router/navigation';
 import { REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
-import { restartWorkstreamOnBaseCommand } from '$shared/repositories/repositories.api';
 import { externalUrlService } from '$shared/system/external-url.service';
 import { refreshRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/refresh-repository-surface.command';
 import { reopenPullRequestCommand } from '$lib/pull-requests/application/commands/reopen-pull-request.command';
@@ -49,6 +48,10 @@ function runPullRequestActionCommand(
 		sendShipIntentCommand('keep-workstream', workstreamId);
 		return;
 	}
+	if (kind === 'retry-now') {
+		sendShipIntentCommand('retry-now', workstreamId);
+		return;
+	}
 	if (kind === 'reconnect') {
 		void goto(REPOSITORIES_HREF);
 		return;
@@ -70,25 +73,11 @@ function runPullRequestActionCommand(
 		reopenPullRequestCommand(workstreamId, pullRequestNumber);
 		return;
 	}
-	const baseBranch = surface?.baseBranch;
-	const mergedHeadSha = surface?.pullRequest?.headSha;
-	if (kind === 'continue' && baseBranch && mergedHeadSha) {
-		continueOnBase(workstreamId, baseBranch, mergedHeadSha);
-		return;
-	}
 	if (kind === 'open-job' && ship?.needsYou?.jobRunId) {
 		openJobTranscript(workstreamId, ship.needsYou.jobRunId, url);
 		return;
 	}
 	if (kind === 'open-pull-request' && url) openPullRequest(url);
-}
-
-function continueOnBase(workstreamId: string, baseBranch: string, mergedHeadSha: string): void {
-	const revision = pullRequestActionStore.claim('Continuing');
-	restartWorkstreamOnBaseCommand(workstreamId, { baseBranch, mergedHeadSha }, () => {
-		pullRequestActionStore.release(revision);
-		refreshRepositorySurfaceCommand();
-	});
 }
 
 function openJobTranscript(workstreamId: string, jobRunId: string, url: string | null): void {

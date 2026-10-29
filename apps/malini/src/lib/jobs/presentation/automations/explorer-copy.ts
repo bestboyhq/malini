@@ -27,6 +27,7 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'job-started': { label: 'Job started', icon: 'play' },
 	'job-finished': { label: 'Job finished', icon: 'check' },
 	'head-moved': { label: 'Head moved', icon: 'commit' },
+	'files-changed': { label: 'Files changed', icon: 'files' },
 	'branch-pushed': { label: 'Branch pushed', icon: 'arrow-up' },
 	'merge-conflicted': { label: 'Merge conflicted', icon: 'swap' },
 	'pull-request-changed': { label: 'Pull request changed', icon: 'pr-open' },
@@ -43,6 +44,7 @@ export const RULE_LABELS: Readonly<Record<ReconcilerRule, string>> = {
 	thens: 'Thens',
 	shipping: 'Shipping',
 	resume: 'Resume',
+	deliveries: 'Deliveries',
 	schedules: 'Schedules',
 	compatibility: 'Compatibility',
 	model: 'Choose a reaction',
@@ -59,7 +61,7 @@ export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
 
 const MERGED: Mark = { label: 'merged', tone: 'text-merged-content' };
 const FAILED: Mark = { label: 'failed', tone: 'text-error-content' };
-const NEEDS_YOU: Mark = { label: 'needs you', tone: 'text-warning-content' };
+const NEEDS_YOU: Mark = { label: 'needs you', tone: 'text-brand-foreground' };
 const SHORT_SHA = 7;
 const HOUR_FORMAT = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
@@ -97,7 +99,11 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 );
 
 const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(
-	Object.entries({ retry: 'Retry', checks: 'Checks rerun' } satisfies Record<ShippingWait, string>),
+	Object.entries({
+		retry: 'Retry',
+		checks: 'Checks rerun',
+		idle: 'Agent settled',
+	} satisfies Record<ShippingWait, string>),
 );
 
 const YOU_DID: Readonly<Partial<Record<EventRow, string>>> = {
@@ -232,7 +238,9 @@ export function itemWhy(item: ExplorerItem, explorer: Explorer): string {
 	switch (item.kind) {
 		case 'turn':
 			if (item.turn.resumed) return 'Malini resumed it';
-			if (item.turn.causeEventId !== null) return 'Choose a reaction woke it';
+			if (item.turn.causeEventId !== null) {
+				return cause?.kind === 'decision' ? 'Choose a reaction woke it' : 'Deliveries woke it';
+			}
 			if (item.turn.from !== null) {
 				return `Asked by ${explorer.workstreams.get(item.turn.from)?.name ?? 'a chat'}`;
 			}

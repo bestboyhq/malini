@@ -46,14 +46,22 @@
 
 	function seek(to: number): void {
 		time = Math.min(duration, Math.max(0, to));
-		both((video) => (video.currentTime = time));
+		both((video) => {
+			if (!video.seeking) video.currentTime = time;
+		});
+	}
+
+	function onseeked(event: Event & { currentTarget: HTMLVideoElement }): void {
+		const video = event.currentTarget;
+		if (!playing && Math.abs(video.currentTime - time) > 1e-3) video.currentTime = time;
 	}
 
 	function follow(): void {
 		if (!before || !after || !playing) return;
+		requestAnimationFrame(follow);
+		if (after.readyState === HTMLMediaElement.HAVE_NOTHING) return;
 		time = after.currentTime;
 		if (Math.abs(before.currentTime - after.currentTime) > 2 / FPS) before.currentTime = time;
-		requestAnimationFrame(follow);
 	}
 
 	function toggle(): void {
@@ -81,6 +89,8 @@
 		}
 		if (marker !== null && time === 0) time = Math.min(marker, duration);
 		video.currentTime = time;
+		video.playbackRate = speed;
+		if (playing) void video.play();
 	}
 
 	function onkeydown(event: KeyboardEvent): void {
@@ -106,6 +116,7 @@
 				class="block w-full object-contain"
 				style:aspect-ratio={aspect}
 				{onloadedmetadata}
+				{onseeked}
 			></video>
 		{:else}
 			<video
@@ -118,6 +129,7 @@
 				class="block w-full object-contain"
 				style:aspect-ratio={aspect}
 				{onloadedmetadata}
+				{onseeked}
 			></video>
 		{/if}
 		<span

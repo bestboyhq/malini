@@ -28,7 +28,7 @@
 		"@codemirror/view": "catalog:",
 		"@malini/extension-api": "workspace:*",
 		"dompurify": "^3.4.15",
-		"marked": "^15.0.12"
+		"marked": "catalog:"
 	},
 	"devDependencies": {
 		"@malini/eslint-plugin-hyper-ui": "workspace:*",

@@ -56,7 +56,17 @@ export type RecordedScenario =
 	| 'nonStreamingFallback'
 	| 'autoModeBlock'
 	| 'blockedRetry'
-	| 'compact';
+	| 'classifierBlip'
+	| 'classifierOutage'
+	| 'compact'
+	| 'usageLimit'
+	| 'rateLimit'
+	| 'overloaded'
+	| 'serverError'
+	| 'network'
+	| 'signedOut'
+	| 'billing'
+	| 'promptTooLong';
 
 export interface FakeRun {
 	readonly options: Options;

@@ -1,12 +1,15 @@
 import { access } from 'node:fs/promises';
+import { isAbsolute, relative } from 'node:path';
 import { protocol, type CustomScheme } from 'electron';
 import { parseWorkstreamImageUrl, WORKSTREAM_IMAGE_SCHEME } from '$contract/workstream-images';
 import { agentHasReadFile, getRunWorkstreamId, shownMediaPaths } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
+import { isInsideDirectory } from '$main/fs/paths';
 import type { CheckoutResolver } from './checkout-resolver';
 import { parseWorkstreamId, shownFileKey, workstreamFile, workstreamMediaResponse } from './images';
 import { keepShownFile, shownFile } from './kept-folders';
+import { listStartedWorkstreams } from './workstreams.repository';
 
 export const WORKSTREAM_IMAGE_SCHEME_PRIVILEGES: CustomScheme = {
 	scheme: WORKSTREAM_IMAGE_SCHEME,
@@ -20,6 +23,8 @@ export const WORKSTREAM_IMAGE_SCHEME_PRIVILEGES: CustomScheme = {
 };
 
 export type WorkstreamFileResolver = (workstreamId: string, path: string) => Promise<string | null>;
+
+type ShownMedia = Readonly<{ workstreamId: string; path: string }>;
 
 export function workstreamMedia(
 	{ db, events, appDataRoot }: Pick<MainContext, 'db' | 'events' | 'appDataRoot'>,
@@ -36,13 +41,24 @@ export function workstreamMedia(
 	};
 	const liveFile = (workstreamId: string, worktree: string, path: string) =>
 		workstreamFile(worktree, path, (file) => agentHasRead(workstreamId, file));
+	const owning = (workstreamId: string, path: string): ShownMedia => {
+		const started = isAbsolute(path)
+			? listStartedWorkstreams(db, workstreamId).find((child) =>
+					isInsideDirectory(child.path, path),
+				)
+			: undefined;
+		return started
+			? { workstreamId: started.id, path: relative(started.path, path) }
+			: { workstreamId, path };
+	};
 
 	const keep = async (workstreamId: string, paths: readonly string[]): Promise<void> => {
-		const worktree = await checkouts.resolveCheckout(workstreamId);
-		for (const path of paths) {
-			const file = await liveFile(workstreamId, worktree, path).catch(() => null);
+		for (const shown of paths.map((path) => owning(workstreamId, path))) {
+			const worktree = await checkouts.resolveCheckout(shown.workstreamId);
+			const file = await liveFile(shown.workstreamId, worktree, shown.path).catch(() => null);
 			if (file === null) continue;
-			await keepShownFile(appDataRoot, workstreamId, await shownFileKey(worktree, path), file);
+			const key = await shownFileKey(worktree, shown.path);
+			await keepShownFile(appDataRoot, shown.workstreamId, key, file);
 		}
 	};
 	events.subscribe('chat:agent-event', ({ ephemeral, runId, event }) => {
@@ -57,10 +73,11 @@ export function workstreamMedia(
 	});
 
 	return async (workstreamId, path) => {
-		const worktree = await checkouts.resolveCheckout(workstreamId);
-		const file = await liveFile(workstreamId, worktree, path);
+		const shown = owning(workstreamId, path);
+		const worktree = await checkouts.resolveCheckout(shown.workstreamId);
+		const file = await liveFile(shown.workstreamId, worktree, shown.path);
 		if (file !== null && (await exists(file))) return file;
-		return shownFile(appDataRoot, workstreamId, await shownFileKey(worktree, path));
+		return shownFile(appDataRoot, shown.workstreamId, await shownFileKey(worktree, shown.path));
 	};
 }
 

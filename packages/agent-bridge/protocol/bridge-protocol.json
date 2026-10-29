@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 41,
+	"protocolVersion": 43,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -85,6 +85,9 @@
 		"workstreams_create",
 		"workstreams_send",
 		"workstreams_archive",
-		"files_open"
+		"files_open",
+		"decisions_ask",
+		"decisions_answer",
+		"plan_write"
 	]
 }

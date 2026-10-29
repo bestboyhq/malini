@@ -1,4 +1,4 @@
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { isCancellationError, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import {
 	CHAT_AGENT_EVENT_CHANNEL,
 	CHAT_MCP_SERVER_CHANGED_CHANNEL,
@@ -6,10 +6,12 @@ import {
 } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
+import { clearAlarm, setAlarm } from '$lib/jobs/jobs.platform';
 import { getCheckpointForRun } from '../checkpoints.repository';
 import { getRunChange } from '../changes.repository';
 import { FinishedTurns } from '../finished-turns';
 import { replyOverCommands, resumesTurn } from '../../domain/background-work';
+import { resumeAlarmKey, runResumeAt } from '../../domain/run-recovery';
 import { hasTurnReport } from '../../domain/turn-report';
 import {
 	appendEvent,
@@ -27,7 +29,9 @@ import {
 import { matchPermissionRule } from '../permissions.repository';
 import {
 	activeRunWorkstreamIdentity,
+	automaticRetriesBefore,
 	finalizeRunLifecycle,
+	getRunWorkstreamId,
 	listOpenRunIds,
 	listOpenRuns,
 	openTurnReply,
@@ -53,7 +57,7 @@ import {
 	type BridgeAgentRequest,
 	type BridgeEvent,
 } from './protocol';
-import { withMaliniApproval } from './malini-approvals.service';
+import { allowedInTree, withMaliniApproval } from './malini-approvals.service';
 import {
 	persistedBridgeSession,
 	persistedBridgeSessions,
@@ -138,7 +142,9 @@ export function envelopeWithSeq(resolved: ResolvedEnvelope, seq: number): LiveEv
 		seq,
 		event: { ...resolved.event },
 	};
-	return resolved.ephemeral ? { ...envelope, ephemeral: true } : envelope;
+	return resolved.ephemeral
+		? { ...envelope, ephemeral: true }
+		: { ...envelope, emittedAt: nowIso8601() };
 }
 
 interface RecordedBridgeInteraction {
@@ -193,6 +199,23 @@ export function recordBridgeInteractionRequest(
 	return { outcome, normalizedPermission };
 }
 
+function safelyAllowedInTree(
+	db: MaliniDatabase,
+	toolName: string | undefined,
+	input: unknown,
+	workstreamId: string,
+	log: (line: string) => void,
+): boolean {
+	try {
+		return allowedInTree(db, toolName, input, workstreamId);
+	} catch (error) {
+		log(
+			`agent: could not tell whether \`${toolName ?? 'a call'}\` stays in its tree: ${describe(error)}`,
+		);
+		return false;
+	}
+}
+
 function suppressed(outcome: InteractionRecordOutcome): boolean {
 	return outcome === 'dispatching' || outcome === 'resolved' || outcome === 'closed';
 }
@@ -225,8 +248,13 @@ export async function tryAutoApprove(
 		log(`agent: could not match remembered permission for \`${approvalId}\`: ${describe(error)}`);
 		return false;
 	}
-	if (!rule) return false;
-	const response = { decision: 'allow', scope: rule.scope, permission };
+	const inTree =
+		!rule && safelyAllowedInTree(db, event.toolName, event.input, identity.workstreamId, log);
+	if (!rule && !inTree) return false;
+	const scope = rule ? rule.scope : 'once';
+	const response = rule
+		? { decision: 'allow', scope, permission }
+		: { decision: 'allow', scope, permission, tree: true };
 	try {
 		const outcome = prepareInteractionResponse(db, {
 			kind: 'approval',
@@ -261,7 +289,7 @@ export async function tryAutoApprove(
 			runId,
 			approvalId,
 			decision: 'allow',
-			scope: rule.scope,
+			scope,
 		});
 	} catch (error) {
 		abortInteractionDispatch(db, 'approval', sessionId, runId, approvalId, response);
@@ -278,10 +306,10 @@ export async function tryAutoApprove(
 			requestId: approvalId,
 			intendedResponse: response,
 			decision: 'allow',
-			scope: rule.scope,
+			scope,
 			source: 'auto',
 			decidedAt: nowIso8601(),
-			matchedRuleId: rule.id,
+			matchedRuleId: rule?.id ?? null,
 		});
 	} catch (error) {
 		log(
@@ -319,7 +347,11 @@ export function pumpStep(
 ): LiveEventEnvelope | null {
 	const correlated = correlator.resolve(event);
 	if (correlated === null) return null;
-	const resolved = summarizedByReport(db, completedOnceTurnEnded(db, correlated, log), log);
+	const resolved = pausedOnFailure(
+		db,
+		summarizedByReport(db, completedOnceTurnEnded(db, correlated, log), log),
+		log,
+	);
 
 	try {
 		const recorded = recordBridgeInteractionRequest(db, resolved.event);
@@ -368,6 +400,7 @@ export function pumpStep(
 					now,
 				);
 			} else {
+				const { failure, resumeAt } = resolved.event;
 				finalizeRunLifecycle(
 					db,
 					resolved.sessionId,
@@ -376,7 +409,9 @@ export function pumpStep(
 					null,
 					resolved.event.error,
 					now,
+					failure ? { kind: failure.kind, resumeAt: resumeAt ?? null } : null,
 				);
+				if (resumeAt !== undefined) scheduleResume(db, resolved, resumeAt);
 			}
 		} catch (error) {
 			log(
@@ -384,6 +419,7 @@ export function pumpStep(
 			);
 		}
 	} else {
+		if (resolved.event.type === 'run.started') clearAlarm(db, resumeAlarmKey(resolved.sessionId));
 		const status = durableSessionStatus(resolved.event);
 		if (status !== null) {
 			try {
@@ -399,6 +435,38 @@ export function pumpStep(
 		}
 	}
 	return envelopeWithSeq(resolved, persistedSeq);
+}
+
+function pausedOnFailure(
+	db: MaliniDatabase,
+	resolved: ResolvedEnvelope,
+	log: (line: string) => void,
+): ResolvedEnvelope {
+	const { event } = resolved;
+	if (event.type !== 'run.failed' || !event.failure || isCancellationError(event.error)) {
+		return resolved;
+	}
+	let retries: number;
+	try {
+		retries = automaticRetriesBefore(db, resolved.sessionId, resolved.runId);
+	} catch (error) {
+		log(`agent: could not count the retries before run \`${resolved.runId}\`: ${describe(error)}`);
+		return resolved;
+	}
+	const resumeAt = runResumeAt(event.failure, retries, Date.now());
+	return resumeAt === null ? resolved : { ...resolved, event: { ...event, resumeAt } };
+}
+
+function scheduleResume(db: MaliniDatabase, resolved: ResolvedEnvelope, due: string): void {
+	const workstreamId = getRunWorkstreamId(db, resolved.runId);
+	if (workstreamId === null) return;
+	setAlarm(db, resumeAlarmKey(resolved.sessionId), {
+		workstreamId,
+		sessionId: resolved.sessionId,
+		runId: resolved.runId,
+		wait: 'resume',
+		due,
+	});
 }
 
 function recordTurnReply(db: MaliniDatabase, runId: string, event: BridgeEvent): void {

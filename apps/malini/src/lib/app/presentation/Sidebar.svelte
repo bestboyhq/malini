@@ -803,7 +803,7 @@
 	const CHAT_TONE_ICON: Readonly<Record<ChatTone, string>> = {
 		running: 'text-fg-secondary',
 		background: 'text-fg-secondary',
-		waiting: 'text-warning-content',
+		waiting: 'text-brand-icon',
 		queued: 'text-fg-secondary',
 		failed: 'text-error-content',
 		completed: 'text-fg-secondary',
@@ -878,7 +878,7 @@
 
 	function attentionColor(chat: ChatSummary): string | null {
 		if (!chat.attention || !chat.needsYou) return null;
-		return chat.attention.kind === 'failed' ? 'text-error-content' : 'text-warning-content';
+		return chat.attention.kind === 'failed' ? 'text-error-content' : 'text-brand-icon';
 	}
 
 	function unknownPullRequestBadge(): PullRequestBadge {

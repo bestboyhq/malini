@@ -50,7 +50,6 @@ export type TranscriptContext = {
 	readonly latestImplementablePlanKey: string | null;
 	readonly implementingPlanKey: string | null;
 	implementPlan(runId: string, itemKey: string, plan: string): void;
-	runShellCommand(command: string, language: string | null): void;
 	liveInputJsonForRunningTool(runId: string, tool: ToolAggregate): string | null;
 	openFileMention(target: FileMentionTarget, mention: HTMLElement): void;
 	readonly canOpenFileMention: ((path: string) => boolean) | undefined;

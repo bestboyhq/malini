@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
+import { lstat, mkdir, realpath, rm } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { basename, dirname } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import {
 	deriveBranchFromPath,
@@ -9,7 +10,10 @@ import {
 	validateBranch,
 	WORKSTREAM_BRANCH_PREFIX,
 } from './paths';
-import { GitError } from '$main/errors';
+import { describeError, GitError } from '$main/errors';
+import { cloneInto } from '$main/fs/copy-on-write';
+import { isInsideDirectory } from '$main/fs/paths';
+import { fastForwardCheckout } from './remote';
 import { runGit } from './run';
 
 const projectLocks = new Map<string, Promise<void>>();
@@ -131,8 +135,19 @@ export async function addWorktree(
 ): Promise<void> {
 	validateBranch(branchName);
 	await withProjectLock(deriveProjectId(basePath), async () => {
+		await advanceBaseCheckout(basePath);
 		try {
-			await runGit(['-C', basePath, 'worktree', 'add', worktreePath, '-b', branchName, baseBranch]);
+			await runGit([
+				'-C',
+				basePath,
+				'worktree',
+				'add',
+				'--no-checkout',
+				worktreePath,
+				'-b',
+				branchName,
+				baseBranch,
+			]);
 		} catch (error) {
 			if (error instanceof GitError && error.kind === 'git') {
 				const detail = error.detail ?? error.message;
@@ -144,6 +159,83 @@ export async function addWorktree(
 			throw error;
 		}
 	});
+	await populateCheckout(basePath, worktreePath);
+}
+
+async function advanceBaseCheckout(basePath: string): Promise<void> {
+	let upstream: string;
+	try {
+		upstream = (
+			await runGit(['-C', basePath, 'rev-parse', '--symbolic-full-name', '@{upstream}'])
+		).trim();
+	} catch {
+		return;
+	}
+	const outcome = await fastForwardCheckout(basePath, upstream).catch((error: unknown) =>
+		describeError(error),
+	);
+	if (outcome === 'current' || outcome === 'advanced') return;
+	console.warn(
+		`malini: could not fast-forward \`${basePath}\` to \`${upstream}\`, so new workstreams write the files it lacks: ${outcome}`,
+	);
+}
+
+export async function populateCheckout(repository: string, checkout: string): Promise<void> {
+	if (!(await lstat(join(checkout, '.git'))).isFile()) {
+		throw GitError.unsafePath(`not a linked worktree: ${checkout}`);
+	}
+	await cloneTrackedEntries(repository, checkout);
+	await runGit(['-C', checkout, 'read-tree', 'HEAD']);
+	await runGit(['-C', checkout, 'clean', '-ffdxq']);
+	await emptyClonedSubmodules(checkout);
+	await runGit(['-C', checkout, 'update-index', '-q', '--refresh']);
+	await runGit(['-C', checkout, 'reset', '-q', '--hard', 'HEAD']);
+}
+
+async function cloneTrackedEntries(repository: string, checkout: string): Promise<void> {
+	const listed = await runGit(['-C', checkout, 'ls-tree', '-z', 'HEAD']);
+	const sources = listed.split('\0').flatMap((entry) => {
+		const tab = entry.indexOf('\t');
+		if (tab === -1 || entry.startsWith('160000 ')) return [];
+		const source = join(repository, entry.slice(tab + 1));
+		return existsSync(source) ? [source] : [];
+	});
+	try {
+		await cloneInto(sources, checkout);
+	} catch (error) {
+		console.warn(
+			`malini: could not clone every file of \`${repository}\` into \`${checkout}\`; git writes the rest: ${describeError(error)}`,
+		);
+	}
+}
+
+async function emptyClonedSubmodules(checkout: string): Promise<void> {
+	if (!existsSync(join(checkout, '.gitmodules'))) return;
+	let listed: string;
+	try {
+		listed = await runGit([
+			'-C',
+			checkout,
+			'config',
+			'--file',
+			'.gitmodules',
+			'--null',
+			'--get-regexp',
+			'^submodule\\..*\\.path$',
+		]);
+	} catch {
+		return;
+	}
+	const root = await realpath(checkout);
+	for (const entry of listed.split('\0')) {
+		const directory = await realpath(join(checkout, entry.slice(entry.indexOf('\n') + 1))).catch(
+			() => null,
+		);
+		if (directory === null || !isInsideDirectory(root, directory)) continue;
+		if (!existsSync(join(directory, '.git'))) continue;
+		await rm(directory, { recursive: true, force: true });
+		await mkdir(directory, { recursive: true });
+	}
 }
 
 async function branchExists(basePath: string, branchName: string): Promise<boolean> {

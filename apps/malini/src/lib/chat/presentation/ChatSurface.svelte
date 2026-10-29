@@ -19,9 +19,17 @@
 	import { updateQueuedPromptCommand } from '$lib/chat/application/commands/update-queued-prompt.command';
 	import { followChatRouteHook } from '$lib/chat/application/hooks/follow-chat-route.hook.svelte';
 	import { followChildRequestsHook } from '$lib/chat/application/hooks/follow-child-requests.hook.svelte';
+	import { followLeadDecisionsHook } from '$lib/chat/application/hooks/follow-lead-decisions.hook.svelte';
+	import {
+		closeLeadDecisionViewerCommand,
+		focusLeadDecisionCommand,
+		setLeadDecisionsAsideCommand,
+	} from '$lib/chat/application/commands/focus-lead-decision.command';
+	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
 	import { preloadOpenChatsHook } from '$lib/chat/application/hooks/preload-open-chats.hook.svelte';
 	import { watchAgentLifecycleHook } from '$lib/chat/application/hooks/watch-agent-lifecycle.hook.svelte';
 	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
+	import { watchShellRunsHook } from '$lib/chat/application/hooks/watch-shell-runs.hook';
 	import { activeModelQuery } from '$lib/chat/application/queries/active-model.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { askingChildrenQuery } from '$lib/chat/application/queries/asking-children.query.svelte';
@@ -48,6 +56,8 @@
 	import { sessionChangesTargetQuery } from '$lib/chat/application/queries/session-changes-target.query.svelte';
 	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
+	import { waitingElsewhereQuery } from '$lib/chat/application/queries/waiting-elsewhere.query.svelte';
+	import { isUncheckedApproval } from '$lib/chat/domain/child-requests';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
@@ -71,10 +81,13 @@
 	import ChatSessionError from './ChatSessionError.svelte';
 	import ChatTabs from './ChatTabs.svelte';
 	import ChildRequestQueue from './ChildRequestQueue.svelte';
-	import ChildRequestsWaiting from './ChildRequestsWaiting.svelte';
+	import LeadDecisionQueue from './LeadDecisionQueue.svelte';
+	import LeadDecisionViewer from './LeadDecisionViewer.svelte';
+	import LeadTimeline from './LeadTimeline.svelte';
 	import { childRequestSteps } from './child-request-steps';
 	import FreshChatSuggestions from './FreshChatSuggestions.svelte';
 	import QueuedPromptList from './QueuedPromptList.svelte';
+	import RequestsWaiting from './RequestsWaiting.svelte';
 	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
 	import { chatStage } from './chat-stage';
 
@@ -82,20 +95,24 @@
 		workstreamId: string;
 		pullRequestShipped?: boolean;
 		jobRuns?: readonly JobRunRecord[];
+		timeline?: boolean;
 		oncloseworkstream: () => void;
 		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
+		notice?: Snippet | undefined;
 	}
 
 	let {
 		workstreamId,
 		pullRequestShipped = false,
 		jobRuns = [],
+		timeline = false,
 		oncloseworkstream,
 		onsavetoscratchpad,
 		header,
 		workstreamsCard,
+		notice,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -103,10 +120,12 @@
 	const releaseChatRoute = followChatRouteHook();
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
 	const releaseSessionChanges = watchSessionChangesHook();
+	const releaseShellRuns = watchShellRunsHook();
 	const releaseAgentLifecycle = watchAgentLifecycleHook();
 	const releaseChildRequests = followChildRequestsHook(() =>
-		askingChildren.map((child) => child.sessionId),
+		[...askingChildren, ...waitingElsewhere].map((child) => child.sessionId),
 	);
+	const releaseLeadDecisions = followLeadDecisionsHook(() => (timeline ? sessionId : null));
 
 	onMount(() => {
 		loadModelDefaultsCommand();
@@ -114,10 +133,12 @@
 
 	onDestroy(() => {
 		releaseSessionChanges();
+		releaseShellRuns();
 		releaseAgentLifecycle();
 		releaseChatRoute();
 		stopPreloadingOpenChats();
 		releaseChildRequests();
+		releaseLeadDecisions();
 	});
 
 	const sessionId = $derived(activeSessionQuery.data);
@@ -153,6 +174,26 @@
 	const childSteps = $derived(
 		childRequestSteps(askingChildren, childRequestsQuery.approvals, childRequestsQuery.questions),
 	);
+	const waitingElsewhere = $derived(waitingElsewhereQuery.data(sessionId, askingChildren));
+	const uncheckedSteps = $derived(
+		childRequestSteps(
+			waitingElsewhere,
+			(waitingSessionId) =>
+				childRequestsQuery.approvals(waitingSessionId).filter(isUncheckedApproval),
+			() => [],
+		),
+	);
+	const leadDecisions = $derived(leadDecisionsQuery.data(timeline ? sessionId : null));
+	const decisionFocus = $derived(leadDecisionsQuery.focus);
+	const openDecisions = $derived(leadDecisions.filter((decision) => !decision.answer));
+	const changingDecision = $derived(
+		leadDecisions.find(
+			(decision) => decision.id === decisionFocus.focusedId && decision.answer !== null,
+		) ?? null,
+	);
+	const viewedDecision = $derived(
+		leadDecisions.find((decision) => decision.id === decisionFocus.viewing?.decisionId) ?? null,
+	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
@@ -163,6 +204,7 @@
 	const composerHeight = $derived(Math.round(exactFooterHeight - (traySize?.[0]?.blockSize ?? 0)));
 	const trayHeight = $derived(footerHeight - composerHeight);
 	let transcript: ChatMessageList | null = $state(null);
+	let timelineView: LeadTimeline | null = $state(null);
 	let contentBelow = $state(false);
 	let newContentBelow = $state(false);
 	const nudgeMotion = (): { y: number; duration: number } => ({
@@ -219,8 +261,30 @@
 		childSteps.length > 0 && childSteps.every((step) => answerLaterKeys.has(step.key)),
 	);
 	const answeringChildren = $derived(childSteps.length > 0 && !childRequestsAside && !asking);
-	const composerHidden = $derived(asking || answeringChildren);
+	let answeringUnchecked = $state(false);
+	const showsUncheckedQueue = $derived(
+		answeringUnchecked && uncheckedSteps.length > 0 && !asking && !answeringChildren,
+	);
+	const composerHidden = $derived(asking || answeringChildren || showsUncheckedQueue);
+	const decisionsAside = $derived(
+		openDecisions.length > 0 &&
+			openDecisions.every((decision) => decisionFocus.asideIds.has(decision.id)),
+	);
+	const showsDecisions = $derived(
+		timeline &&
+			stage === 'transcript' &&
+			!composerHidden &&
+			(changingDecision !== null || (openDecisions.length > 0 && !decisionsAside)),
+	);
+	const decisionsWaiting = $derived(
+		timeline && decisionsAside && changingDecision === null && !composerHidden,
+	);
 	const childRequestsWaiting = $derived(childRequestsAside && !asking);
+	const uncheckedCallsWaiting = $derived(uncheckedSteps.length > 0 && !showsUncheckedQueue);
+
+	$effect(() => {
+		if (uncheckedSteps.length === 0) answeringUnchecked = false;
+	});
 	let composerSlot: HTMLElement | null = $state(null);
 	let wasHidden = false;
 
@@ -396,6 +460,24 @@
 									footerInset={footerHeight}
 									bind:transcriptReferences
 								/>
+							{:else if stage === 'transcript' && presentedSessionId && timeline}
+								<div
+									class="contents"
+									inert={retainingSourcePresentation ? true : undefined}
+									data-navigation-retained={retainingSourcePresentation ? 'true' : undefined}
+									data-presented-workstream-id={presentedWorkstreamId}
+								>
+									<LeadTimeline
+										bind:this={timelineView}
+										bind:contentBelow
+										bind:newContentBelow
+										workstreamId={presentedWorkstreamId}
+										sessionId={presentedSessionId}
+										envelopes={presentedTranscript.envelopes}
+										running={isRunning}
+										spaceBelow={footerHeight}
+									/>
+								</div>
 							{:else if stage === 'transcript' && presentedSessionId}
 								<div
 									class="contents"
@@ -460,7 +542,8 @@
 										bordered
 										class="shadow-popup pointer-events-auto gap-1.5 pr-3.5 pl-3"
 										data-testid="chat-jump-to-latest"
-										onclick={() => transcript?.jumpToLatest()}
+										onclick={() =>
+											timeline ? timelineView?.jumpToLatest() : transcript?.jumpToLatest()}
 									>
 										<Icon name="arrow-down" size={14} />
 										{newContentBelow ? 'New messages below' : 'Jump to latest'}
@@ -469,17 +552,44 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if (showsSessionChanges && sessionChanges) || childRequestsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
 												data-testid="chat-composer-tray"
 											>
+												{#if notice}
+													<div transition:slide={foldMotion()}>
+														{@render notice()}
+													</div>
+												{/if}
+
 												{#if childRequestsWaiting}
 													<div transition:slide={foldMotion()}>
-														<ChildRequestsWaiting
+														<RequestsWaiting
 															count={childSteps.length}
 															onanswer={() => (answerLaterKeys = new Set())}
+														/>
+													</div>
+												{/if}
+
+												{#if decisionsWaiting}
+													<div transition:slide={foldMotion()}>
+														<RequestsWaiting
+															count={openDecisions.length}
+															decisions
+															onanswer={() =>
+																focusLeadDecisionCommand(openDecisions[0]?.id ?? null)}
+														/>
+													</div>
+												{/if}
+
+												{#if uncheckedCallsWaiting}
+													<div transition:slide={foldMotion()}>
+														<RequestsWaiting
+															count={uncheckedSteps.length}
+															unchecked
+															onanswer={() => (answeringUnchecked = true)}
 														/>
 													</div>
 												{/if}
@@ -537,6 +647,21 @@
 										steps={childSteps}
 										onlater={() => (answerLaterKeys = new Set(childSteps.map(({ key }) => key)))}
 									/>
+								{:else if showsUncheckedQueue}
+									<ChildRequestQueue
+										steps={uncheckedSteps}
+										onlater={() => (answeringUnchecked = false)}
+									/>
+								{/if}
+								{#if showsDecisions}
+									<LeadDecisionQueue
+										decisions={changingDecision ? [changingDecision] : openDecisions}
+										focusedId={changingDecision?.id ?? decisionFocus.focusedId}
+										onlater={() =>
+											changingDecision
+												? focusLeadDecisionCommand(null)
+												: setLeadDecisionsAsideCommand(openDecisions.map(({ id }) => id))}
+									/>
 								{/if}
 								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>
 									<ChatComposer
@@ -551,6 +676,11 @@
 										{isRunning}
 										disabled={bootError !== null || presentationPending}
 										backendSelectionDisabled={bootError !== null || presentationPending}
+										placeholder={timeline
+											? openDecisions.length > 0
+												? 'Answer in your own words, or ask the lead anything…'
+												: 'Ask the lead anything…'
+											: undefined}
 										oncancel={cancelRunCommand}
 										onbackendchange={selectModelCommand}
 										onprofilechange={selectRunProfileCommand}
@@ -558,6 +688,14 @@
 								</div>
 							</div>
 						</div>
+
+						{#if viewedDecision && decisionFocus.viewing}
+							<LeadDecisionViewer
+								decision={viewedDecision}
+								option={decisionFocus.viewing.option}
+								onclose={closeLeadDecisionViewerCommand}
+							/>
+						{/if}
 
 						{#if documentActive}
 							<div class="bg-surface-root absolute inset-0 z-30 flex min-h-0">

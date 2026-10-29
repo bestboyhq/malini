@@ -101,15 +101,6 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 			input: { repository: kennelName, prompt: 'Add a fetch command to kennel' },
 		});
 		await sendPrompt(page, 'MALINI_TOOL');
-		await expect(
-			page.getByRole('heading', { name: `Start a workstream in ‘${kennelName}’` }),
-		).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText('Add a fetch command to kennel', { exact: true })).toBeVisible();
-		await captureFlow(app, 'agent-workstream-approval');
-		await page
-			.getByRole('group', { name: 'Permission decision' })
-			.getByRole('button', { name: 'Allow once' })
-			.click();
 
 		const started = sidebar.locator(
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
@@ -119,6 +110,7 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		).toBeVisible({
 			timeout: 20_000,
 		});
+		await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 		await captureFlow(app, 'agent-workstream-setting-up');
 
 		const startedId = await started.getAttribute('data-workstream-id');
@@ -188,15 +180,6 @@ test('a workstream an agent starts from a release tag stays on that release once
 			input: { repository: kennelName, prompt: 'Fix the release', base: 'v0.17.5' },
 		});
 		await sendPrompt(page, 'MALINI_TOOL');
-		await expect(
-			page.getByRole('heading', { name: `Start a workstream in ‘${kennelName}’` }),
-		).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText('v0.17.5', { exact: true })).toBeVisible();
-		await captureFlow(app, 'agent-workstream-from-tag-approval');
-		await page
-			.getByRole('group', { name: 'Permission decision' })
-			.getByRole('button', { name: 'Allow once' })
-			.click();
 
 		const started = sidebar.locator(
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
@@ -238,7 +221,7 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			tool: 'workstreams_create',
 			input: { repository: 'e2e/hutch', prompt: 'EDIT:fetch.txt COMMIT=feat: add a fetch command' },
 		});
-		await allowOnce(page, 'Start a workstream in ‘e2e/hutch’');
+		await sendPrompt(page, 'MALINI_TOOL');
 		const startedId = await otherWorkstream(page, 'e2e-agent-merges-workstream');
 		const started = page.locator(
 			`[data-testid="sidebar-workstream"][data-workstream-id="${startedId}"]`,

@@ -13,6 +13,7 @@ import { IdSequence } from '../id-sequence';
 import type { AgentRunLeases } from './lifecycle';
 import {
 	PromptsInFlight,
+	continuePausedRun,
 	continuePausedRuns,
 	defineBridgeCommands,
 	type BridgeCommandDeps,
@@ -21,6 +22,7 @@ import {
 import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
 import { recordDeniedMaliniCall } from './malini-approvals.service';
+import { ChatDeliveries } from '../deliveries.service';
 import { answerPlatformRequest } from './platform-tools';
 import {
 	browserResultCommand,
@@ -65,12 +67,16 @@ export interface AgentServiceDeps {
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
 	readonly leases: AgentRunLeases;
 	readonly bridgeScriptPath?: string;
+	readonly readyTimeoutMs?: number;
 	readonly verifyAttachment?: SendPromptHooks['verifyAttachment'];
 	readonly collectAttachmentGarbage?: SendPromptHooks['collectAttachmentGarbage'];
 	readonly prepareAttachments?: SendPromptHooks['prepareAttachments'];
 	readonly theme?: SendPromptHooks['theme'];
+	readonly shippingFailure?: SendPromptHooks['shippingFailure'];
+	readonly shellRuns?: SendPromptHooks['shellRuns'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
+	readonly deliveries?: ChatDeliveries;
 	readonly log?: (line: string) => void;
 }
 
@@ -173,6 +179,10 @@ export interface AgentService {
 	stop(): Promise<void>;
 	closeOpenRunsForExit(): Promise<number>;
 	continuePausedRuns(causeEventId: number | null): Promise<void>;
+	continuePausedRun(
+		paused: Readonly<{ sessionId: string; runId: string }>,
+		causeEventId: number | null,
+	): Promise<void>;
 }
 
 export function selectBridgeScriptPath(resourcesRoot: string, isDev: boolean): string {
@@ -206,6 +216,7 @@ export async function startAgentService(
 	const log = deps.log ?? ((line: string) => console.error(line));
 	const { db } = context;
 	const sending = new PromptsInFlight();
+	const deliveries = deps.deliveries ?? new ChatDeliveries(context, log);
 
 	try {
 		log(`agent: reaped ${reapOrphansOnStartup(db)} orphaned run(s) on startup`);
@@ -238,6 +249,7 @@ export async function startAgentService(
 					MALINI_AGENT_BRIDGE_PRIVATE_RUNTIME_ROOT: privateRuntimeRoot,
 				},
 			},
+			...(deps.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: deps.readyTimeoutMs }),
 			log,
 		},
 		hooks: {
@@ -263,6 +275,7 @@ export async function startAgentService(
 							events: context.events,
 							appDataRoot: context.appDataRoot,
 							sending,
+							deliveries,
 							log,
 						}),
 					)
@@ -303,6 +316,8 @@ export async function startAgentService(
 				: {}),
 			...(deps.prepareAttachments ? { prepareAttachments: deps.prepareAttachments } : {}),
 			...(deps.theme ? { theme: deps.theme } : {}),
+			...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
+			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,
@@ -333,6 +348,14 @@ export async function startAgentService(
 		closeOpenRunsForExit,
 		continuePausedRuns: (causeEventId) =>
 			started ? continuePausedRuns(db, sendPrompt, causeEventId, log) : Promise.resolve(),
+		async continuePausedRun(paused, causeEventId) {
+			if (!started) return;
+			try {
+				await continuePausedRun(db, sendPrompt, paused, causeEventId);
+			} catch (error) {
+				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
+			}
+		},
 		async stop() {
 			stopRecordingDenials();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);

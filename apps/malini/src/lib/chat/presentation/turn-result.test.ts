@@ -29,6 +29,8 @@ describe('which message becomes the result card', () => {
 		items,
 		terminal,
 		terminalText: '',
+		failure: null,
+		resumeAt: null,
 		turnEnded: terminal === 'completed',
 		superseded,
 		obsoleted: false,

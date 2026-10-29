@@ -6,8 +6,10 @@ import {
 	JOBS_TIME_REACHED_CHANNEL,
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 	type EventChannel,
 } from '$contract/events';
@@ -15,6 +17,7 @@ import type {
 	ReconcilerCandidate,
 	ReconcilerDecider,
 	ReconcilerDecisionRecord,
+	WakeAbout,
 } from '$contract/jobs';
 
 export const RECONCILER_RULES = [
@@ -22,6 +25,7 @@ export const RECONCILER_RULES = [
 	'thens',
 	'shipping',
 	'resume',
+	'deliveries',
 	'schedules',
 	'compatibility',
 	'model',
@@ -39,17 +43,17 @@ export const RULE_EVENTS: Readonly<Record<ReconcilerRule, readonly EventChannel[
 		JOBS_RUN_FINISHED_CHANNEL,
 		JOBS_TIME_REACHED_CHANNEL,
 		REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 		REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 		APP_STARTED_CHANNEL,
 	],
-	resume: [APP_STARTED_CHANNEL],
+	resume: [APP_STARTED_CHANNEL, JOBS_TIME_REACHED_CHANNEL],
+	deliveries: [CHAT_TURN_FINISHED_CHANNEL],
 	schedules: [JOBS_TIME_REACHED_CHANNEL],
 	compatibility: [APP_UPDATED_CHANNEL],
-	model: [
-		CHAT_TURN_FINISHED_CHANNEL,
-		JOBS_RUN_FINISHED_CHANNEL,
-		REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
-	],
+	model: [JOBS_RUN_FINISHED_CHANNEL, REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL],
 };
 
 export function ruleHears(rule: ReconcilerRule, channel: EventChannel): boolean {
@@ -59,6 +63,14 @@ export function ruleHears(rule: ReconcilerRule, channel: EventChannel): boolean 
 
 export const RECONCILER_WAKE_LIMIT = 3;
 
+export type ChatWake = Readonly<{
+	sessionId: string;
+	prompt: string;
+	fromWorkstreamId: string | null;
+	chainId: string;
+	causeEventId: number;
+}>;
+
 const REPORT_DETAIL_CHARS = 600;
 
 export type ReconcilerChat = Readonly<{
@@ -67,28 +79,8 @@ export type ReconcilerChat = Readonly<{
 	chatName: string;
 	workstreamName: string;
 	working: boolean;
-	lead: boolean;
 	lastOutcome: string | null;
 	lastNeeds: string | null;
-}>;
-
-export type ReconcilerSiblings = Readonly<{
-	total: number;
-	working: number;
-	needYou: number;
-}>;
-
-export type TurnFinishedSituation = Readonly<{
-	kind: 'turn-finished';
-	workstreamId: string;
-	workstreamName: string;
-	chatName: string;
-	status: 'succeeded' | 'failed' | 'cancelled';
-	outcome: string | null;
-	needs: string | null;
-	starter: ReconcilerChat | null;
-	siblings: ReconcilerSiblings;
-	wakes: number;
 }>;
 
 export type JobRunSituation = Readonly<{
@@ -99,6 +91,7 @@ export type JobRunSituation = Readonly<{
 	workstreamId: string | null;
 	workstreamName: string | null;
 	chat: ReconcilerChat | null;
+	handledBy: string | null;
 	retry: Readonly<{ definitionId: string; workstreamId: string; context: string }> | null;
 	runsInChain: number;
 	wakes: number;
@@ -111,17 +104,32 @@ export type ConflictSituation = Readonly<{
 	conflictedPaths: readonly string[];
 	resolverId: string | null;
 	chat: ReconcilerChat | null;
+	handledBy: string | null;
 	wakes: number;
 }>;
 
-export type ReconcilerSituation = TurnFinishedSituation | JobRunSituation | ConflictSituation;
+export type ReconcilerSituation = JobRunSituation | ConflictSituation;
 
 export type ReconcilerQuestion = Readonly<{
 	facts: readonly string[];
 	candidates: readonly ReconcilerCandidate[];
 }>;
 
+export type HandledSituation = Readonly<{
+	facts: readonly string[];
+	candidates: readonly ReconcilerCandidate[];
+	reason: string;
+}>;
+
 const NOTHING: ReconcilerCandidate = { kind: 'nothing', label: 'Do nothing' };
+
+export function handledSituation(situation: ReconcilerSituation): HandledSituation | null {
+	const reason =
+		situation.kind === 'conflict' || (situation.kind === 'job-run' && situation.chat === null)
+			? situation.handledBy
+			: null;
+	return reason === null ? null : { facts: facts(situation), candidates: [NOTHING], reason };
+}
 
 export function reconcilerQuestion(situation: ReconcilerSituation): ReconcilerQuestion | null {
 	const candidates = [NOTHING, ...actions(situation)];
@@ -131,8 +139,6 @@ export function reconcilerQuestion(situation: ReconcilerSituation): ReconcilerQu
 
 function actions(situation: ReconcilerSituation): ReconcilerCandidate[] {
 	switch (situation.kind) {
-		case 'turn-finished':
-			return turnActions(situation);
 		case 'job-run':
 			return jobRunActions(situation);
 		case 'conflict':
@@ -140,35 +146,10 @@ function actions(situation: ReconcilerSituation): ReconcilerCandidate[] {
 	}
 }
 
-function turnActions(situation: TurnFinishedSituation): ReconcilerCandidate[] {
-	const { starter, needs, status } = situation;
-	if (status === 'cancelled') return [];
-	return [
-		...(starter
-			? [
-					wake(
-						starter,
-						situation.workstreamId,
-						`Wake “${starter.chatName}” with this report`,
-						turnReport(situation),
-					),
-				]
-			: []),
-		...(needs !== null || status === 'failed'
-			? [
-					ask(
-						needs === null
-							? `${chatIn(situation)} failed.`
-							: `${chatIn(situation)} needs you: ${needs}`,
-					),
-				]
-			: []),
-	];
-}
-
 function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
-	const { chat, retry, status, title } = situation;
+	const { chat, retry, status, title, handledBy } = situation;
 	const verb = status === 'failed' ? 'failed' : 'finished';
+	const yours = handledBy === null;
 	return [
 		...(chat
 			? [
@@ -177,10 +158,11 @@ function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
 						situation.workstreamId ?? chat.workstreamId,
 						`Tell “${chat.chatName}” that ${title} ${verb}`,
 						jobReport(situation),
+						'job',
 					),
 				]
 			: []),
-		...(status === 'failed' && retry
+		...(status === 'failed' && retry && yours
 			? [
 					{
 						kind: 'run-job' as const,
@@ -191,7 +173,7 @@ function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
 					},
 				]
 			: []),
-		...(status === 'failed'
+		...(status === 'failed' && yours
 			? [
 					ask(
 						`${title} failed${situation.workstreamName ? ` in ${situation.workstreamName}` : ''}.`,
@@ -222,7 +204,8 @@ function conflictActions(situation: ConflictSituation): ReconcilerCandidate[] {
 						chat,
 						workstreamId,
 						`Tell “${chat.chatName}” about the conflicts`,
-						`A merge in “${workstreamName}” stopped on conflicts in ${files}: ${conflictedPaths.join(', ')}.`,
+						`A merge in “${workstreamName}”, in work you asked for, stopped on conflicts in ${files}: ${conflictedPaths.join(', ')}.`,
+						'conflict',
 					),
 				]
 			: []),
@@ -235,6 +218,7 @@ function wake(
 	from: string,
 	label: string,
 	report: string,
+	about: WakeAbout,
 ): ReconcilerCandidate {
 	return {
 		kind: 'wake-chat',
@@ -243,19 +227,12 @@ function wake(
 		workstreamId: chat.workstreamId,
 		from,
 		report,
+		about,
 	};
 }
 
 function ask(reason: string): ReconcilerCandidate {
 	return { kind: 'ask-you', label: 'Ask you', reason };
-}
-
-function turnReport(situation: TurnFinishedSituation): string {
-	return [
-		`“${situation.workstreamName}”, a workstream you started, ${situation.status === 'failed' ? 'failed its turn' : 'finished a turn'}.`,
-		`Outcome: ${situation.outcome ?? 'none'}`,
-		`Needs: ${situation.needs ?? 'nothing'}`,
-	].join('\n');
 }
 
 function jobReport(situation: JobRunSituation): string {
@@ -267,18 +244,11 @@ function jobReport(situation: JobRunSituation): string {
 
 function facts(situation: ReconcilerSituation): string[] {
 	switch (situation.kind) {
-		case 'turn-finished':
-			return [
-				`Event: the chat ${chatIn(situation)} ${situation.status === 'failed' ? 'failed its turn' : 'finished a turn'}.`,
-				`Outcome: ${situation.outcome ?? 'none'}`,
-				`Needs: ${situation.needs ?? 'nothing'}`,
-				...(situation.starter ? starterFacts(situation.starter, situation.siblings) : []),
-				...wakeFacts(situation.starter, situation.wakes),
-			];
 		case 'job-run':
 			return [
 				`Event: the job ${situation.title}${situation.workstreamName ? ` in “${situation.workstreamName}”` : ''} ${situation.status}.`,
 				...(situation.detail ? [`Its result: ${oneLine(situation.detail)}`] : []),
+				...(situation.handledBy ? [situation.handledBy] : []),
 				...(situation.chat
 					? [`The chat “${situation.chat.chatName}” ran it.`, chatState(situation.chat)]
 					: ['No chat ran it.']),
@@ -289,35 +259,22 @@ function facts(situation: ReconcilerSituation): string[] {
 			return [
 				`Event: a merge in “${situation.workstreamName}” stopped on conflicts in ${situation.conflictedPaths.length} ${situation.conflictedPaths.length === 1 ? 'file' : 'files'}.`,
 				`Conflicted: ${situation.conflictedPaths.slice(0, 8).join(', ')}`,
+				...(situation.handledBy ? [situation.handledBy] : []),
 				...(situation.chat
-					? [`Its chat is “${situation.chat.chatName}”.`, chatState(situation.chat)]
-					: ['No chat works in it.']),
+					? [
+							`“${situation.chat.chatName}” asked for the work that merged.`,
+							chatState(situation.chat),
+						]
+					: ['No chat asked for the work that merged.']),
 				...wakeFacts(situation.chat, situation.wakes),
 			];
 	}
-}
-
-function chatIn({ chatName, workstreamName }: TurnFinishedSituation): string {
-	return chatName === workstreamName ? `“${chatName}”` : `“${chatName}” in “${workstreamName}”`;
 }
 
 function chatState(chat: ReconcilerChat): string {
 	if (chat.working) return `“${chat.chatName}” is working now.`;
 	if (chat.lastOutcome === null) return `“${chat.chatName}” is idle.`;
 	return `“${chat.chatName}” is idle; its last turn ended with Outcome: ${oneLine(chat.lastOutcome)}, Needs: ${chat.lastNeeds === null ? 'nothing' : oneLine(chat.lastNeeds)}.`;
-}
-
-function starterFacts(starter: ReconcilerChat, siblings: ReconcilerSiblings): string[] {
-	const others = siblings.total - 1;
-	return [
-		`The ${starter.lead ? 'lead chat' : 'chat'} “${starter.chatName}” started it.`,
-		chatState(starter),
-		...(others > 0
-			? [
-					`“${starter.chatName}” started ${siblings.total} workstreams: ${siblings.working} working, ${siblings.needYou} need you, ${siblings.total - siblings.working} not working.`,
-				]
-			: []),
-	];
 }
 
 function wakeFacts(chat: ReconcilerChat | null, wakes: number): string[] {
@@ -415,19 +372,4 @@ export function wakesInChain(
 			(decision.status === 'done' || decision.status === 'pending')
 		);
 	}).length;
-}
-
-export function wakePrompt(reports: readonly string[]): string {
-	return [
-		'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and put what only the user can decide in your Needs line.',
-		...reports,
-	].join('\n\n');
-}
-
-export function actionableCandidates(
-	candidates: readonly ReconcilerCandidate[],
-): readonly Readonly<{ index: number; candidate: ReconcilerCandidate }>[] {
-	return candidates.flatMap((candidate, index) =>
-		candidate.kind === 'ask-you' ? [] : [{ index, candidate }],
-	);
 }

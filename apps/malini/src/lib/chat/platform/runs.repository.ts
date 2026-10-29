@@ -1,4 +1,4 @@
-import type { AgentRunProfile } from '$contract/agent';
+import type { AgentRunProfile, RunFailureKind } from '$contract/agent';
 import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/jobs';
 import {
 	isCancellationError,
@@ -10,6 +10,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { closeTerminalInteractions } from './interactions.repository';
+import { promptPlainText } from './sessions.repository';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
 
@@ -28,6 +29,8 @@ export interface AgentRun {
 }
 
 export type TerminalRunStatus = 'completed' | 'failed';
+
+export type RunFailureRecord = Readonly<{ kind: RunFailureKind; resumeAt: string | null }>;
 
 interface RunRow {
 	id: string;
@@ -178,6 +181,7 @@ export function finalizeRunLifecycle(
 	summary: string | null,
 	error: string | null,
 	completedAt: string,
+	failure: RunFailureRecord | null = null,
 ): number {
 	if (status !== 'completed' && status !== 'failed') {
 		throw invariant(`terminal run status \`${String(status)}\` is invalid`);
@@ -185,11 +189,13 @@ export function finalizeRunLifecycle(
 	return db.transaction(() => {
 		const { changes } = run(
 			db,
-			`UPDATE agent_runs SET completed_at = ?, summary = ?, error = ?
+			`UPDATE agent_runs SET completed_at = ?, summary = ?, error = ?, failure_kind = ?, resume_at = ?
 			 WHERE id = ? AND session_id = ? AND completed_at IS NULL`,
 			completedAt,
 			summary,
 			error,
+			failure?.kind ?? null,
+			failure?.resumeAt ?? null,
 			runId,
 			sessionId,
 		);
@@ -215,7 +221,7 @@ export function finalizeRunLifecycle(
 				throw invariant(`cannot finalize run \`${runId}\` for missing session \`${sessionId}\``);
 			}
 			const kind = status === 'completed' ? 'run.completed' : 'run.failed';
-			const next = nextSessionStatus(current.status, kind, error);
+			const next = nextSessionStatus(current.status, kind, error, Boolean(failure?.resumeAt));
 			if (next === 'invalid') {
 				throw invariant(
 					`session \`${sessionId}\` cannot move from \`${current.status}\` on \`${kind}\``,
@@ -284,6 +290,78 @@ export function listPausedRuns(db: MaliniDatabase): PausedRun[] {
 		chainId: row.chain_id,
 		profile: row.profile === null ? null : JSON.parse(row.profile),
 	}));
+}
+
+export interface ContinuableRun extends PausedRun {
+	resumeAt: string | null;
+}
+
+export function continuableRun(db: MaliniDatabase, sessionId: string): ContinuableRun | null {
+	const row = get<{
+		id: string;
+		session_id: string;
+		workstream_id: string;
+		chain_id: string;
+		profile: string | null;
+		error: string | null;
+		resume_at: string | null;
+		completed_at: string | null;
+		obsoleted_at: string | null;
+	}>(
+		db,
+		`SELECT r.id, r.session_id, s.workstream_id, r.chain_id, r.profile, r.error, r.resume_at,
+		        r.completed_at, r.obsoleted_at
+		 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+		 WHERE r.session_id = ? AND s.archived_at IS NULL
+		 ORDER BY r.rowid DESC LIMIT 1`,
+		sessionId,
+	);
+	if (!row || row.completed_at === null || row.obsoleted_at !== null || row.error === null) {
+		return null;
+	}
+	const stopped =
+		row.resume_at !== null ||
+		row.error === PAUSED_FOR_EXIT_ERROR ||
+		!isCancellationError(row.error);
+	if (!stopped) return null;
+	return {
+		runId: row.id,
+		sessionId: row.session_id,
+		workstreamId: row.workstream_id,
+		chainId: row.chain_id,
+		profile: row.profile === null ? null : JSON.parse(row.profile),
+		resumeAt: row.resume_at,
+	};
+}
+
+const RETRY_LOOKBACK = 10;
+
+export function automaticRetriesBefore(
+	db: MaliniDatabase,
+	sessionId: string,
+	runId: string,
+): number {
+	const [current, ...earlier] = all<{
+		automated: number;
+		failure_kind: string | null;
+		resume_at: string | null;
+	}>(
+		db,
+		`SELECT automated, failure_kind, resume_at FROM agent_runs
+		 WHERE session_id = ? AND rowid <= (SELECT rowid FROM agent_runs WHERE id = ?)
+		 ORDER BY rowid DESC LIMIT ?`,
+		sessionId,
+		runId,
+		RETRY_LOOKBACK,
+	);
+	if (current?.automated !== 1) return 0;
+	let retries = 0;
+	for (const previous of earlier) {
+		if (previous.resume_at === null || previous.failure_kind === 'usage-limit') break;
+		retries += 1;
+		if (previous.automated !== 1) break;
+	}
+	return retries;
 }
 
 export function listOpenRuns(db: MaliniDatabase): Array<{ id: string; sessionId: string }> {
@@ -413,6 +491,7 @@ interface ChatTurnRow {
 	started_at: string;
 	completed_at: string | null;
 	error: string | null;
+	resume_at: string | null;
 }
 
 function chatTurnFromRow(row: ChatTurnRow): ChatTurnRecord {
@@ -421,8 +500,10 @@ function chatTurnFromRow(row: ChatTurnRow): ChatTurnRecord {
 		sessionId: row.session_id,
 		workstreamId: row.workstream_id,
 		chatName: row.display_name,
-		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
-		status: chatTurnStatus(row.completed_at, row.error),
+		prompt: firstLine(promptPlainText(row.prompt))
+			.replaceAll(/\s+/gu, ' ')
+			.slice(0, CHAT_TURN_PROMPT_CHARS),
+		status: chatTurnStatus(row.completed_at, row.error, row.resume_at),
 		chainId: row.chain_id || row.id,
 		causeEventId: row.cause_event_id,
 		startedAt: row.started_at,
@@ -438,7 +519,7 @@ export function listChatTurns(
 	return all<ChatTurnRow>(
 		db,
 		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.chain_id,
-		        r.cause_event_id, r.started_at, r.completed_at, r.error
+		        r.cause_event_id, r.started_at, r.completed_at, r.error, r.resume_at
 		 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
 		 WHERE s.origin = 'user' AND r.obsoleted_at IS NULL
 		   AND (r.id IN (SELECT value FROM json_each(?))
@@ -456,11 +537,12 @@ export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineC
 	return all<ChatTurnRow & { sender: string | null; resumed: number }>(
 		db,
 		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.chain_id,
-		        r.cause_event_id, r.started_at, r.completed_at, r.error,
+		        r.cause_event_id, r.started_at, r.completed_at, r.error, r.resume_at,
 		        (r.automated = 1 AND r.cause_event_id IS NOT NULL
-		         AND (SELECT previous.error FROM agent_runs previous
+		         AND (SELECT previous.error = ? OR previous.resume_at IS NOT NULL
+		              FROM agent_runs previous
 		              WHERE previous.session_id = r.session_id AND previous.rowid < r.rowid
-		              ORDER BY previous.rowid DESC LIMIT 1) = ?) AS resumed,
+		              ORDER BY previous.rowid DESC LIMIT 1)) AS resumed,
 		        (SELECT CASE WHEN json_valid(substr(e.event, instr(e.event, char(10)) + 1))
 		                THEN json_extract(substr(e.event, instr(e.event, char(10)) + 1), '$.from') END
 		         FROM agent_events e
@@ -476,10 +558,14 @@ export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineC
 	).map((row) => ({ ...chatTurnFromRow(row), from: row.sender, resumed: row.resumed === 1 }));
 }
 
-function chatTurnStatus(completedAt: string | null, error: string | null): ChatTurnStatus {
+function chatTurnStatus(
+	completedAt: string | null,
+	error: string | null,
+	resumeAt: string | null,
+): ChatTurnStatus {
 	if (completedAt === null) return 'running';
 	if (error === null) return 'succeeded';
-	if (isInterruptionError(error)) return 'interrupted';
+	if (resumeAt !== null || isInterruptionError(error)) return 'interrupted';
 	return isCancellationError(error) ? 'cancelled' : 'failed';
 }
 
@@ -502,6 +588,18 @@ export function workChatTurnInWorkstream(
 		finishedSince,
 	);
 	return row ? { runId: row.id, sessionId: row.session_id, chainId: row.chain_id || row.id } : null;
+}
+
+export function latestRunEndedAt(db: MaliniDatabase, workstreamId: string): string | null {
+	return (
+		get<{ ended: string | null }>(
+			db,
+			`SELECT MAX(r.completed_at) AS ended
+			 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+			 WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL`,
+			workstreamId,
+		)?.ended ?? null
+	);
 }
 
 export function chatTurnChainId(db: MaliniDatabase, runId: string): string | null {

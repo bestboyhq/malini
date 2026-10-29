@@ -1,5 +1,12 @@
 import type { LiveEventEnvelope } from './agent';
-import type { BrowserResizeRequest, BrowserState, BrowserTabArgs } from './browser';
+import type {
+	BrowserResizeRequest,
+	BrowserState,
+	BrowserTabArgs,
+	BrowserThreadOpened,
+} from './browser';
+import type { LeadDecisionChangedEvent } from './leads';
+import type { ChatDeliveryChangedEvent } from './deliveries';
 import type { GithubReach } from './github-failure';
 import type {
 	AgentActionChangedEvent,
@@ -18,6 +25,7 @@ import type {
 	WorkstreamOpenedEvent,
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
+import type { ShellRun } from './shell-runs';
 import type { ProfileState, ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
@@ -179,8 +187,11 @@ export interface ContractEvents {
 	'chat:checkpoint-restored': CheckpointRestoredPayload;
 	'chat:session-renamed': SessionRenamedPayload;
 	'chat:turn-finished': ChatTurnFinishedPayload;
+	'chat:lead-decision-changed': LeadDecisionChangedEvent;
+	'chat:delivery-changed': ChatDeliveryChangedEvent;
 	'chat:mcp-server-changed': McpServerReport;
 	'chat:mcp-servers-listed': McpServerListing;
+	'chat:shell-run-changed': ShellRun;
 	'repositories:workstream-created': WorktreeAddedPayload;
 	'repositories:workstream-removed': WorktreeRemovedPayload;
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
@@ -220,6 +231,7 @@ export interface ContractEvents {
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
 	'browser:resize-requested': BrowserResizeRequest;
+	'browser:thread-opened': BrowserThreadOpened;
 	'extensions:file-open-requested': FileOpenRequestedPayload;
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
@@ -234,8 +246,11 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'chat:checkpoint-restored': null,
 	'chat:session-renamed': null,
 	'chat:turn-finished': null,
+	'chat:lead-decision-changed': null,
+	'chat:delivery-changed': null,
 	'chat:mcp-server-changed': null,
 	'chat:mcp-servers-listed': null,
+	'chat:shell-run-changed': null,
 	'repositories:workstream-created': null,
 	'repositories:workstream-removed': null,
 	'repositories:workstream-files-changed': null,
@@ -275,6 +290,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
 	'browser:resize-requested': null,
+	'browser:thread-opened': null,
 	'extensions:file-open-requested': null,
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
@@ -298,9 +314,16 @@ export const CHAT_SESSION_RENAMED_CHANNEL = 'chat:session-renamed' satisfies Eve
 
 export const CHAT_TURN_FINISHED_CHANNEL = 'chat:turn-finished' satisfies EventChannel;
 
+export const CHAT_LEAD_DECISION_CHANGED_CHANNEL =
+	'chat:lead-decision-changed' satisfies EventChannel;
+
+export const CHAT_DELIVERY_CHANGED_CHANNEL = 'chat:delivery-changed' satisfies EventChannel;
+
 export const CHAT_MCP_SERVER_CHANGED_CHANNEL = 'chat:mcp-server-changed' satisfies EventChannel;
 
 export const CHAT_MCP_SERVERS_LISTED_CHANNEL = 'chat:mcp-servers-listed' satisfies EventChannel;
+
+export const CHAT_SHELL_RUN_CHANGED_CHANNEL = 'chat:shell-run-changed' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_CREATED_CHANNEL =
 	'repositories:workstream-created' satisfies EventChannel;
@@ -358,6 +381,8 @@ export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies E
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
 
 export const BROWSER_RESIZE_REQUESTED_CHANNEL = 'browser:resize-requested' satisfies EventChannel;
+
+export const BROWSER_THREAD_OPENED_CHANNEL = 'browser:thread-opened' satisfies EventChannel;
 
 export const EXTENSIONS_FILE_OPEN_REQUESTED_CHANNEL =
 	'extensions:file-open-requested' satisfies EventChannel;

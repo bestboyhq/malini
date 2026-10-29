@@ -224,7 +224,7 @@ export function sessionAwaitsTitle(db: MaliniDatabase, sessionId: string): boole
 		scalar(
 			db,
 			`SELECT COUNT(*) FROM agent_sessions s
-			 WHERE s.id = ? AND s.origin = 'user'
+			 WHERE s.id = ? AND s.origin IN ('user', 'thread')
 			 AND NOT EXISTS (SELECT 1 FROM agent_runs r WHERE r.session_id = s.id AND r.automated = 0)`,
 			sessionId,
 		) > 0
@@ -307,6 +307,7 @@ export function listSessionSummaries(
 		                WHEN r.completed_at IS NULL THEN
 		                    CASE WHEN s.status = 'waiting_for_approval'
 		                        THEN 'waiting_for_approval' ELSE 'running' END
+		                WHEN r.resume_at IS NOT NULL THEN 'idle'
 		                WHEN r.error IS NOT NULL THEN 'failed'
 		                ELSE 'completed'
 		            END
@@ -397,6 +398,16 @@ export function setSessionStatus(
 	status: SessionStatus,
 ): void {
 	run(db, 'UPDATE agent_sessions SET status = ? WHERE id = ?', status, sessionId);
+}
+
+export function threadWorkstreamId(db: MaliniDatabase, sessionId: string): string | null {
+	return (
+		get<{ workstream_id: string }>(
+			db,
+			"SELECT workstream_id FROM agent_sessions WHERE id = ? AND origin = 'thread' AND archived_at IS NULL",
+			sessionId,
+		)?.workstream_id ?? null
+	);
 }
 
 export function userSessionWorkstreamId(db: MaliniDatabase, sessionId: string): string | null {

@@ -46,7 +46,7 @@
 		</p>
 		<Tooltip content={failure} placement="bottom" onlyWhenTruncated class="block min-w-0">
 			<span
-				class="text-2xs text-fg-tertiary block truncate font-mono leading-4"
+				class="text-2xs text-fg-tertiary line-clamp-3 font-mono leading-4"
 				data-testid="workstream-provisioning-failure-detail"
 			>
 				{failure}

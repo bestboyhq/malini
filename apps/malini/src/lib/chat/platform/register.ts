@@ -1,5 +1,11 @@
 import type { AgentTheme } from '$contract/agent';
-import { APP_STARTED_CHANNEL } from '$contract/events';
+import {
+	APP_STARTED_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
+	JOBS_TIME_REACHED_CHANNEL,
+	type ChatTurnFinishedPayload,
+} from '$contract/events';
+import type { ShipFailure } from '$contract/pull-requests';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
@@ -15,6 +21,7 @@ import type { BridgeProcessFactory } from './agent/process';
 import { startAgentService, type AgentService, type BrowserAutomation } from './agent/service';
 import { installAttachments, type WorkstreamCheckoutResolver } from './attachments/commands';
 import type { FilePicker } from './attachments/picker';
+import { isRecord } from '$main/db/rows';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
 import { stagedAttachmentExpiryFrom } from './attachments.repository';
 import {
@@ -24,8 +31,12 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { ChatDeliveries } from './deliveries.service';
+import { installLeadDecisions } from './lead-decisions.service';
+import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
+import { installShellRuns } from './shell-runs/commands';
 
 export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
@@ -38,6 +49,7 @@ export interface ChatDeps {
 	readonly processFactory?: BridgeProcessFactory;
 	readonly bridgeScriptPath?: string;
 	readonly theme?: () => AgentTheme;
+	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly log?: (line: string) => void;
 }
 
@@ -53,6 +65,8 @@ export interface ChatPlatform {
 	suggestTitle: SuggestWithJob;
 	choose: ChooseWithJob;
 	resume(event: DispatchedEvent): Promise<void>;
+	deliveries(event: DispatchedEvent): Promise<void>;
+	deliver: ChatDeliveries['deliver'];
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -66,6 +80,13 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
 	const stopGrants = installPermissionGrants(context);
+	const deliveries = new ChatDeliveries(context, deps.log ?? ((line) => console.error(line)));
+	installLeadDecisions(context, deliveries);
+	const shellRuns = installShellRuns(context, {
+		checkout: deps.resolveWorkstreamCheckout,
+		environment: deps.spawnEnvironment,
+	});
+	const packing = packArchivedChats(context);
 	let mcpServers: McpServerListings | null = null;
 
 	const agent: AgentService = await startAgentService(context, {
@@ -97,8 +118,11 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			},
 			onMcpServers: (listing) => mcpServers?.received(listing),
 		},
+		deliveries,
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
+		...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
+		shellRuns: (sessionId) => shellRuns.report(sessionId),
 		...(deps.browser ? { browser: deps.browser } : {}),
 		...(deps.processFactory ? { processFactory: deps.processFactory } : {}),
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
@@ -119,9 +143,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
-		stop: () => {
+		stop: async () => {
 			stopGrants();
-			return agent.stop();
+			deliveries.stop();
+			await Promise.all([packing.stop(), agent.stop(), shellRuns.stopAll()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
@@ -130,16 +155,60 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		},
 		stopBackgroundTask: (sessionId, taskId) =>
 			stopBackgroundTask(context.db, agent.runtime, sessionId, taskId),
-		stopWorkstreamBackgroundCommands: (workstreamId) =>
-			stopWorkstreamBackgroundCommands(context.db, agent.runtime, workstreamId),
+		stopWorkstreamBackgroundCommands: async (workstreamId) => {
+			await Promise.all([
+				stopWorkstreamBackgroundCommands(context.db, agent.runtime, workstreamId),
+				shellRuns.stopWorkstream(workstreamId),
+			]);
+		},
 		nameService: (task) => runAutomaticJob(context.db, 'name-services', task, suggestTitle),
 		nameWorkstream: (task) => runAutomaticJob(context.db, 'name-chats', task, suggestTitle),
 		suggestTitle,
 		choose: async (task, job, choices) => (await agent.ensureReady()).choose(task, job, choices),
 		resume: async (event) => {
+			if (event.channel === JOBS_TIME_REACHED_CHANNEL) {
+				const paused = pausedRunReached(event.payload);
+				if (paused) await agent.continuePausedRun(paused, event.id);
+				return;
+			}
 			if (event.channel !== APP_STARTED_CHANNEL || resumed) return;
 			resumed = true;
 			await agent.continuePausedRuns(event.id);
+			await deliveries.flushAll();
 		},
+		deliveries: async (event) => {
+			const turn = finishedTurn(event);
+			if (turn) await deliveries.turnFinished(turn, event.id);
+		},
+		deliver: (delivery) => deliveries.deliver(delivery),
 	};
+}
+
+function finishedTurn(event: DispatchedEvent): ChatTurnFinishedPayload | null {
+	if (event.channel !== CHAT_TURN_FINISHED_CHANNEL || !isRecord(event.payload)) return null;
+	const { workstreamId, sessionId, runId, status, outcome, needs } = event.payload;
+	if (
+		typeof workstreamId !== 'string' ||
+		typeof sessionId !== 'string' ||
+		typeof runId !== 'string' ||
+		(status !== 'succeeded' && status !== 'failed' && status !== 'cancelled')
+	) {
+		return null;
+	}
+	return {
+		workstreamId,
+		sessionId,
+		runId,
+		status,
+		outcome: typeof outcome === 'string' ? outcome : null,
+		needs: typeof needs === 'string' ? needs : null,
+	};
+}
+
+function pausedRunReached(payload: unknown): Readonly<{ sessionId: string; runId: string }> | null {
+	if (!isRecord(payload)) return null;
+	const { wait, sessionId, runId } = payload;
+	return wait === 'resume' && typeof sessionId === 'string' && typeof runId === 'string'
+		? { sessionId, runId }
+		: null;
 }

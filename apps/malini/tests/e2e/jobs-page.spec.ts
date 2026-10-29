@@ -80,8 +80,12 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 			'page',
 		);
 		const detail = page.getByRole('region', { name: 'Update from main', exact: true });
-		await expect(detail).toContainText('Malini updates a branch from main only while it merges it');
-		await expect(detail).toContainText('Resolve conflicts, when the merge stops on conflicts');
+		await expect(detail).toContainText(
+			'Malini runs it before a scheduled job works in its workstream',
+		);
+		await expect(detail).toContainText(
+			'Resolve conflicts, on its trigger, when the merge stops on conflicts',
+		);
 		await expect(detail.getByRole('textbox', { name: 'Instructions' })).toHaveCount(0);
 
 		await page.reload();
@@ -109,6 +113,46 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 
 		await page.getByRole('link', { name: 'Workstreams' }).click();
 		await expect(sections).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Resolve conflicts runs on its own when a merge stops on conflicts, and its page turns that off and resets it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await openJobs(page);
+		await expect(jobCard(page, 'Resolve conflicts')).toContainText(
+			'When a merge stops on conflicts',
+		);
+		const detail = await openJob(page, 'Resolve conflicts');
+		await expect(
+			detail.getByRole('button', {
+				name: 'When Resolve conflicts runs: A merge stops on conflicts',
+			}),
+		).toBeVisible();
+		await expect(detail.getByRole('radio', { name: 'On its own' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await expect(detail).toContainText(
+			'When a merge stops on conflicts, Resolve conflicts runs in the workstream it fires in.',
+		);
+		await captureFlow(app, 'jobs-resolve-conflicts-trigger');
+
+		await detail.getByRole('radio', { name: 'Off' }).click();
+		await expect
+			.poll(async () => (await jobNamed(page, 'Resolve conflicts'))?.trigger)
+			.toEqual({ when: 'on repositories:workstream-merge-conflicted', mode: 'off' });
+
+		await detail.getByRole('button', { name: 'Reset Resolve conflicts' }).click();
+		await detail.getByRole('button', { name: 'Confirm resetting Resolve conflicts' }).click();
+		await expect
+			.poll(async () => (await jobNamed(page, 'Resolve conflicts'))?.trigger)
+			.toEqual({ when: 'on repositories:workstream-merge-conflicted', mode: 'auto' });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

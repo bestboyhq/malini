@@ -6,6 +6,9 @@ import {
 	GitError,
 	gitFailureVerdict,
 	isNotFoundError,
+	remoteRefusal,
+	workflowRefusal as workflowRefusalOf,
+	type GitCommandFailure,
 } from './errors';
 
 const PROXY_UNREACHABLE =
@@ -151,11 +154,91 @@ describe('gitFailureVerdict', () => {
 		);
 	});
 
+	it('names the remote git could not read rather than the generic line after it', () => {
+		expect(
+			gitFailureVerdict(
+				"fatal: '/private/var/folders/x/T/upstream' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+			).message,
+		).toBe("'upstream' does not appear to be a git repository");
+		expect(gitFailureVerdict('fatal: Could not read from remote repository.\n').message).toBe(
+			'Could not read from remote repository.',
+		);
+	});
+
+	it.each([
+		[
+			'OAuth App',
+			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and your gh sign-in can't change workflows. Run `gh auth refresh -s workflow` once, then retry.",
+		],
+		[
+			'Personal Access Token',
+			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and your GitHub token can't change workflows. Give it the workflow scope, then retry.",
+		],
+	])('says how to let a %s push a workflow GitHub refused', (actor, message) => {
+		expect(gitFailureVerdict(workflowRefusal(actor, 'workflow` scope'))).toEqual({
+			kind: 'git',
+			message,
+		});
+	});
+
+	it('says how to let a GitHub App push a workflow, and keeps any other refusal as GitHub said it', () => {
+		expect(gitFailureVerdict(workflowRefusal('GitHub App', 'workflows` permission')).message).toBe(
+			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and the GitHub App Malini pushes with can't change workflows. Give it the Workflows permission, then retry.",
+		);
+		expect(gitFailureVerdict(RULES_REFUSAL).message).toBe(
+			'GitHub refused the push: push declined due to repository rule violations.',
+		);
+	});
+
 	it('falls back to the last line when git printed no verdict, and admits silence', () => {
 		expect(
 			gitFailureVerdict('On branch main\nnothing to commit, working tree clean\n').message,
 		).toBe('nothing to commit, working tree clean');
 		expect(gitFailureVerdict('  \n\n').message).toBe('Git stopped without giving a reason.');
+	});
+});
+
+describe('remoteRefusal', () => {
+	it('keeps what GitHub said when it refused a push, without git progress', () => {
+		expect(remoteRefusal(GitError.commandFailed(refusedPush(RULES_REFUSAL)))).toBe(
+			[
+				'error: GH013: Repository rule violations found for refs/heads/main.',
+				'- Changes must be made through a pull request.',
+				'push declined due to repository rule violations',
+			].join('\n'),
+		);
+		expect(
+			remoteRefusal(
+				GitError.commandFailed(refusedPush(workflowRefusal('OAuth App', 'workflow` scope'))),
+			),
+		).toBe(
+			'refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope',
+		);
+	});
+
+	it('has nothing to say for a failure GitHub did not refuse', () => {
+		expect(remoteRefusal(GitError.commandFailed(refusedPush(DNS_FAILURE)))).toBeNull();
+		expect(remoteRefusal(new Error('boom'))).toBeNull();
+	});
+});
+
+describe('workflowRefusal', () => {
+	const refused = (actor: string, without: string): GitError =>
+		GitError.commandFailed(refusedPush(workflowRefusal(actor, without)));
+
+	it('tells a gh sign-in without the workflow scope from a token Malini cannot widen', () => {
+		expect(workflowRefusalOf(refused('OAuth App', 'workflow` scope'))).toBe('workflow-scope');
+		expect(workflowRefusalOf(refused('Personal Access Token', 'workflow` scope'))).toBe(
+			'workflow-permission',
+		);
+		expect(workflowRefusalOf(refused('GitHub App', 'workflows` permission'))).toBe(
+			'workflow-permission',
+		);
+	});
+
+	it('leaves every other failure to the usual retries', () => {
+		expect(workflowRefusalOf(GitError.commandFailed(refusedPush(RULES_REFUSAL)))).toBeNull();
+		expect(workflowRefusalOf(new Error('boom'))).toBeNull();
 	});
 });
 
@@ -320,4 +403,34 @@ function technicalDetail(error: GitError): string {
 	if (!(error.cause instanceof Error))
 		throw new Error('the git failure carries no technical cause');
 	return error.cause.message;
+}
+
+const RULES_REFUSAL = [
+	'Enumerating objects: 5, done.',
+	'remote: Resolving deltas: 100% (1/1), completed with 1 local object.',
+	'remote: error: GH013: Repository rule violations found for refs/heads/main.',
+	'remote: ',
+	'remote: - Changes must be made through a pull request.',
+	'To https://github.com/acme/atlas.git',
+	' ! [remote rejected] main -> main (push declined due to repository rule violations)',
+	"error: failed to push some refs to 'https://github.com/acme/atlas.git'",
+].join('\n');
+
+function workflowRefusal(actor: string, without: string): string {
+	const article = actor === 'OAuth App' ? 'an' : 'a';
+	return [
+		'To https://github.com/acme/atlas.git',
+		` ! [remote rejected] malini/01J9879BA4 -> malini/01J9879BA4 (refusing to allow ${article} ${actor} to create or update workflow \`.github/workflows/map-tiles.yml\` without \`${without})`,
+		"error: failed to push some refs to 'https://github.com/acme/atlas.git'",
+	].join('\n');
+}
+
+function refusedPush(output: string): GitCommandFailure {
+	return {
+		args: ['push', 'https://github.com/acme/atlas.git', 'HEAD:main'],
+		exitCode: 1,
+		signal: null,
+		output,
+		outputTruncated: false,
+	};
 }

@@ -22,6 +22,11 @@ export class PullRequestShipMapper {
 			pullRequestUrl: raw.pullRequestUrl,
 			needsYou: raw.needsYou,
 			lastError: raw.lastError,
+			githubSaid: raw.githubSaid,
+			failures: raw.failures,
+			failedSince: raw.failedSince,
+			nextAttemptAt: raw.nextAttemptAt,
+			waitsFor: raw.waitsFor,
 			updatedAt: raw.updatedAt,
 		};
 	}

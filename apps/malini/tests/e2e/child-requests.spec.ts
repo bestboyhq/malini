@@ -115,34 +115,30 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 			'Api lead',
 		);
 		await openWorkstream(page, workstreamId);
-		agentCalls(app, {
-			tool: 'workstreams_create',
-			input: { repository: 'acme/api', prompt: 'MALINI_TOOL TITLE="Api child"' },
-		});
-		await sendPrompt(page, 'MALINI_TOOL');
-		const ownDecision = page
-			.getByTestId('transcript-pane')
-			.getByRole('group', { name: 'Permission decision' });
-		await expect(ownDecision).toBeVisible({ timeout: 20_000 });
+		writeFileSync(
+			join(app.home, 'lead-calls.json'),
+			JSON.stringify({
+				calls: [
+					{
+						tool: 'workstreams_create',
+						input: { repository: 'acme/api', prompt: 'MALINI_TOOL TITLE="Api child"' },
+					},
+				],
+				reply: 'Started the api child',
+			}),
+		);
 		agentCalls(app, {
 			tool: 'workstreams_create',
 			input: { repository: 'acme/api', prompt: 'QUESTION TITLE="Api grandchild"' },
 		});
-		await ownDecision.getByRole('button', { name: 'Allow once' }).click();
-		const chat = currentSessionId(page);
+		await sendPrompt(page, 'LEAD_CALLS');
 
 		const asking = page.getByRole('region', { name: /needs you$/u });
-		const childDecision = asking.getByRole('group', { name: 'Permission decision' });
-		await expect(childDecision).toBeVisible({ timeout: 60_000 });
-		await expect(
-			asking.getByRole('heading', { name: 'Start a workstream in ‘acme/api’' }),
-		).toBeVisible();
-		await captureFlow(app, 'child-request-queue-chat-approval');
-		await childDecision.getByRole('button', { name: 'Allow once' }).click();
-
 		const choices = asking.getByRole('radiogroup', { name: 'Which?' });
 		await expect(choices).toBeVisible({ timeout: 60_000 });
 		await expect(page.getByTestId('chat-composer')).toBeHidden();
+		await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
+		const chat = currentSessionId(page);
 		await captureFlow(app, 'child-request-queue-grandchild-question');
 
 		await choices.getByRole('radio', { name: /^B/u }).click();

@@ -15,16 +15,22 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { describeError } from '$main/errors';
 import {
+	getWorkstream,
 	leadScopeKey,
 	listRepositoryCatalog,
 	listWorkstreams,
+	resolveConnectedRepository,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
 import { latestScheduleSlot, scheduledJobOf, type ScheduledJob } from '../domain/schedule';
 import { takeDueAlarms } from './alarms.repository';
 import { triggeredBefore } from './event-log.repository';
 import { findString, type DispatchedEvent } from './event-log.service';
-import { getJobDefinition, listJobDefinitions } from './job-definitions.repository';
+import {
+	getBuiltinJobDefinition,
+	getJobDefinition,
+	listJobDefinitions,
+} from './job-definitions.repository';
 import {
 	countUnfinishedJobRuns,
 	latestScheduledJobRun,
@@ -114,13 +120,18 @@ export function createJobSchedules(
 			return;
 		}
 		try {
+			const target = await placeTarget(db, id, job.schedule.place);
+			const skipped = await updateFirst(context, target.workstreamId ?? null, event);
 			await commands.call('jobs.run', {
 				definitionId: id,
 				origin: 'schedule',
-				context: `Malini started this run on its schedule, ${trigger?.when ?? ''}, due ${DUE_FORMAT.format(due)}.`,
+				context: [
+					`Malini started this run on its schedule, ${trigger?.when ?? ''}, due ${DUE_FORMAT.format(due)}.`,
+					...(skipped === null ? [] : [skipped]),
+				].join('\n\n'),
 				waitForYou: job.mode === 'ask',
 				...(event.id === null ? {} : { causeEventId: event.id }),
-				...(await placeTarget(db, id, job.schedule.place)),
+				...target,
 			});
 		} catch (error) {
 			log(`jobs: ${name} did not start on its schedule: ${describeError(error)}`);
@@ -129,6 +140,7 @@ export function createJobSchedules(
 
 	const notify = async (run: JobRunRecord): Promise<void> => {
 		if (run.origin !== 'schedule' || notified.get(run.id) === run.status) return;
+		if (!scheduled.some(({ definition }) => definition.id === run.definitionId)) return;
 		notified.set(run.id, run.status);
 		if (!NOTIFIED_STATUSES.has(run.status)) return;
 		try {
@@ -174,6 +186,41 @@ export function createJobSchedules(
 			alarms = null;
 		},
 	};
+}
+
+async function updateFirst(
+	context: MainContext,
+	workstreamId: string | null,
+	event: DispatchedEvent,
+): Promise<string | null> {
+	const { db, commands } = context;
+	const workstream = workstreamId === null ? null : getWorkstream(db, workstreamId);
+	if (workstreamId === null || !workstream || workstream.scope !== null) return null;
+	const baseBranch =
+		workstream.baseBranch ||
+		(await resolveConnectedRepository(db, workstream.projectId))?.defaultBranch;
+	if (!baseBranch) return null;
+	const skipped = `Malini did not merge ${baseBranch} into this workstream before this run`;
+	try {
+		const status = await commands.call('repositories.workstream-status', { workstreamId });
+		if (status.operationInProgress !== null) {
+			return `${skipped}: a ${status.operationInProgress} is in progress.`;
+		}
+		if (status.dirtyPaths.length > 0) return `${skipped}: it has uncommitted changes.`;
+		const args = { workstreamId, baseBranch };
+		if ((await commands.call('repositories.count-behind-base', args)) === 0) return null;
+		const updater = getBuiltinJobDefinition(db, 'update-from-main');
+		if (!updater) return null;
+		await commands.call('jobs.run', {
+			definitionId: updater.id,
+			workstreamId,
+			origin: 'schedule',
+			...(event.id === null ? {} : { causeEventId: event.id }),
+		});
+		return null;
+	} catch (error) {
+		return `${skipped}: ${describeError(error)}`;
+	}
 }
 
 async function placeTarget(

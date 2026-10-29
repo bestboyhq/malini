@@ -5,6 +5,8 @@ import {
 	JOBS_RUN_CHANGED_CHANNEL,
 	JOBS_RUN_FINISHED_CHANNEL,
 	JOBS_RUN_STARTED_CHANNEL,
+	JOBS_TIME_REACHED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
@@ -93,6 +95,14 @@ function filesChanged(): void {
 		workstreamId: 'ws-1',
 		changedAt: new Date().toISOString(),
 		paths: ['src/app.ts'],
+	});
+}
+
+function clickMerge(): void {
+	context.events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, {
+		workstreamId: 'ws-1',
+		button: 'merge',
+		state: null,
 	});
 }
 
@@ -281,6 +291,108 @@ describe('the event log', () => {
 		]);
 	});
 
+	it('starts a chain of its own for your click, however recently work ran in that workstream', async () => {
+		start();
+		const now = new Date().toISOString();
+		insertSession(
+			db,
+			{
+				id: 'chat-1',
+				workstreamId: 'ws-1',
+				model: null,
+				providerSessionId: null,
+				status: 'idle',
+				startedAt: now,
+			},
+			{ origin: 'user', displayName: 'Ship it' },
+		);
+		insertRun(db, {
+			id: 'turn-1',
+			sessionId: 'chat-1',
+			prompt: 'Ship it',
+			startedAt: now,
+			completedAt: now,
+			summary: 'Shipped.',
+			error: null,
+			chainId: 'chain-of-turn',
+		});
+
+		clickMerge();
+
+		const [click] = await logged();
+		expect(click).toMatchObject({ channel: PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, cause: null });
+		expect(click?.chainId).not.toBe('chain-of-turn');
+	});
+
+	it('names the event Malini was handling as the cause of what it emits then, and nothing after', async () => {
+		jobs = registerJobs(context, {
+			log: () => {},
+			shipping: {
+				hear: async ({ channel }) => {
+					if (channel !== PULL_REQUESTS_BUTTON_CLICKED_CHANNEL) return [];
+					context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+						workstreamId: 'ws-1',
+						state: null,
+					});
+					setTimeout(filesChanged, 20);
+					return [];
+				},
+				decide: async () => null,
+				merging: () => false,
+			},
+		});
+		jobs.start();
+
+		clickMerge();
+
+		await vi.waitFor(async () => expect(await logged()).toHaveLength(3));
+		const [click, shipChanged, files] = await logged();
+		expect(shipChanged).toMatchObject({
+			channel: PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+			cause: { kind: 'event', id: String(click?.id) },
+			chainId: click?.chainId,
+		});
+		expect(files).toMatchObject({
+			channel: REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
+			cause: null,
+		});
+		expect(files?.chainId).not.toBe(click?.chainId);
+	});
+
+	it('names your last click as the cause of what shipping reports later, until work runs there', async () => {
+		start();
+		clickMerge();
+		await vi.waitFor(async () => expect(await logged()).toHaveLength(1));
+		context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId: 'ws-1', state: null });
+
+		const [click, shipChanged] = await logged();
+		expect(shipChanged).toMatchObject({
+			cause: { kind: 'event', id: String(click?.id) },
+			chainId: click?.chainId,
+		});
+	});
+
+	it('names the event whose decision set a wait as the cause of the Time reached it ends in', async () => {
+		start();
+		clickMerge();
+		await vi.waitFor(async () => expect(await logged()).toHaveLength(1));
+		const [click] = await logged();
+		filesChanged();
+		context.events.emit(JOBS_TIME_REACHED_CHANNEL, {
+			workstreamId: 'ws-1',
+			wait: 'idle',
+			due: new Date().toISOString(),
+			causeEventId: click?.id ?? 0,
+		});
+
+		const reached = (await logged()).at(-1);
+		expect(reached).toMatchObject({
+			channel: JOBS_TIME_REACHED_CHANNEL,
+			cause: { kind: 'event', id: String(click?.id) },
+			chainId: click?.chainId,
+		});
+	});
+
 	it('names a job, not the turn it ran in, as the cause of what follows it', async () => {
 		start();
 		const fix = await fixChecksRun('fix-1', 'chain-of-fix');
@@ -362,6 +474,37 @@ describe('the event log', () => {
 			all<{ id: number }>(db, 'SELECT id FROM event_log WHERE handled_at IS NULL ORDER BY id');
 		await vi.waitFor(() => expect(unhandledIds()).toEqual([{ id: stale }]));
 		expect(recent).toBeGreaterThan(stale);
+	});
+
+	it('leaves an event it was still handling when it stopped for the next start, never touching the database after', async () => {
+		const lines: string[] = [];
+		let hear = (): void => {};
+		const heard = new Promise<void>((resolve) => (hear = resolve));
+		let release = (): void => {};
+		const released = new Promise<void>((resolve) => (release = resolve));
+		jobs = registerJobs(context, {
+			log: (line) => lines.push(line),
+			shipping: {
+				hear: async () => {
+					hear();
+					await released;
+					return [];
+				},
+				decide: async () => null,
+				merging: () => false,
+			},
+		});
+		jobs.start();
+
+		clickMerge();
+		await heard;
+		jobs.dispose();
+		jobs = null;
+		release();
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toHaveLength(1);
+		expect(lines).toEqual([]);
 	});
 
 	it('starts a Then once from the job finished event it hears, even when it hears it again after a restart', async () => {

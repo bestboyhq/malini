@@ -4,10 +4,10 @@ import type { PullRequestActionKind } from '$lib/pull-requests/domain/pull-reque
 const ACTION_ICONS: Readonly<Record<PullRequestActionKind, IconName>> = {
 	'open-draft': 'pr-draft',
 	'queue-merge': 'pr-merged',
-	continue: 'branch',
 	archive: 'archive',
 	reopen: 'pr-open',
 	'cancel-merge': 'close',
+	'retry-now': 'refresh',
 	keep: 'lock',
 	'open-pull-request': 'external-link',
 	'open-job': 'arrow-right',

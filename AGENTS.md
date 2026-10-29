@@ -7,7 +7,7 @@ There is no backend service and no cloud.
 `apps/site` is the public site and its LLMs-first docs, markdown in `apps/site/content/`, served at bestboy.dev/malini (ADR 0031); a feature changes its docs page in the same pull request.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes three outbound calls of its own (ADR 0097).
+The app makes three outbound calls of its own (ADR 0119).
 Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
@@ -97,7 +97,7 @@ Every event channel has one description in `$contract/event-catalog.ts`; `pnpm -
 corepack enable pnpm           # once; package.json pins pnpm 12 and pnpm 10 cannot self-switch to it
 pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
-pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge
+pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge once no agent is mid-turn
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed

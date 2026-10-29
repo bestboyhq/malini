@@ -33,6 +33,7 @@
 	import { watchAgentChangeTriggersHook } from '$lib/chat/application/hooks/watch-agent-change-triggers.hook';
 	import { syncChatNamesHook } from '$lib/chat/application/hooks/sync-chat-names.hook';
 	import { pollPullRequestStatesHook } from '$lib/pull-requests/application/hooks/poll-pull-request-states.hook';
+	import { retryShipsOnGithubCredentialHook } from '$lib/pull-requests/application/hooks/retry-ships-on-github-credential.hook';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { pullRequestRefreshActivityQuery } from '$lib/pull-requests/application/queries/pull-request-refresh-activity.query.svelte';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
@@ -82,6 +83,7 @@
 		refreshRepositoriesCommand();
 		releases.push(
 			resumeProvisioningOnGithubCredentialHook(),
+			retryShipsOnGithubCredentialHook(),
 			followWorkstreamsRouteHook(),
 			pollPullRequestStatesHook(),
 			followOwnPullRequestsHook(),

@@ -1,4 +1,5 @@
 import { rmSync } from 'node:fs';
+import { Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WORKSTREAM_FOLDER_MISSING } from '$main/errors';
 
@@ -7,10 +8,10 @@ vi.mock('electron', () => ({
 	BrowserWindow: { getAllWindows: () => [] },
 }));
 
-import { listEventRowsForSession } from '../events.repository';
+import { appendEvent, listEventRowsForSession, listTimelineEventRows } from '../events.repository';
 import { getInteraction } from '../interactions.repository';
-import { get, isRecord, run, scalar } from '$main/db/rows';
-import { getRun } from '../runs.repository';
+import { all, get, isRecord, run, scalar } from '$main/db/rows';
+import { getRun, insertRun } from '../runs.repository';
 import { getSession } from '../sessions.repository';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
@@ -22,12 +23,15 @@ import { CommandRegistry } from '$main/ipc/registry';
 import {
 	BRIDGE_COMMAND_NAMES,
 	promptWithElementReferences,
+	promptWithShellRuns,
+	promptWithShippingFailure,
 	promptWithWorkstreamContext,
 	type CheckpointCaptureInput,
 } from './commands';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
 import { AgentRunLeases } from './lifecycle';
 import { installPermissionGrants } from '../grants/commands';
+import type { BridgeProcessFactory } from './process';
 import { startAgentService, type AgentService } from './service';
 import type { RunFinishedInput } from './runtime';
 import {
@@ -37,6 +41,7 @@ import {
 	seedOpenRun,
 	seedSession,
 	seedWorkstream,
+	TEST_BRIDGE_READY_TIMEOUT_MS,
 	waitFor,
 	writeFakeBridge,
 	type FakeBridge,
@@ -82,6 +87,7 @@ async function boot(
 	service = await startAgentService(test.context, {
 		processFactory: fake.supervisorConfig().processFactory,
 		bridgeScriptPath: fake.scriptPath,
+		readyTimeoutMs: TEST_BRIDGE_READY_TIMEOUT_MS,
 		spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin', ...env }),
 		leases: new AgentRunLeases(),
 		hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
@@ -235,7 +241,7 @@ describe('session commands', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		expect(await invokeError('chat.start-session', { workstreamId: 'ws-1', origin: 'bot' })).toBe(
-			"invalid args: `origin` must be 'user' or 'job'",
+			"invalid args: `origin` must be 'user', 'job' or 'thread'",
 		);
 		expect(
 			await invokeError('chat.start-session', { workstreamId: 'ws-1', displayName: ' \n ' }),
@@ -433,6 +439,32 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, firstRun)).toMatchObject({ completedAt: null, error: null });
 		expect(getSession(test.db, first)?.status).toBe('running');
 		await invoke('chat.cancel-run', { sessionId: first });
+	});
+
+	it('hands a composer prompt back to its queue while the last turn saves its changes, and holds any other prompt until then', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		const leases = new AgentRunLeases();
+		await boot({}, { leases });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const capture = leases.acquireRunChangeCapture('ws-1');
+
+		expect(
+			await invokeError('chat.send-prompt', {
+				sessionId,
+				prompt: 'From the composer',
+				clientRequestId: 'request-1',
+			}),
+		).toContain('already has an active run');
+		const held = invokeString('chat.send-prompt', { sessionId, prompt: 'From a job' });
+		await new Promise((settle) => setTimeout(settle, 50));
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs WHERE session_id = ?', sessionId)).toBe(
+			0,
+		);
+
+		capture.release();
+		const runId = await held;
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		expect(getRun(test.db, runId)).toMatchObject({ summary: 'done', error: null });
 	});
 
 	it('steers a running chat: the new prompt joins the live run instead of waiting for it', async () => {
@@ -646,6 +678,7 @@ describe('prompt round trips', () => {
 			{
 				processFactory: fake.supervisorConfig().processFactory,
 				bridgeScriptPath: fake.scriptPath,
+				readyTimeoutMs: TEST_BRIDGE_READY_TIMEOUT_MS,
 				spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin' }),
 				leases: new AgentRunLeases(),
 				hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
@@ -767,6 +800,86 @@ describe('prompt round trips', () => {
 
 		await waitFor(() => latestRun(sessionId)?.automated === 1, 2_000, 'the prompt to be sent');
 		expect(latestRun(sessionId)).toMatchObject({ prompt: 'UNANSWERED', cause_event_id: 7 });
+	});
+
+	function resumeAlarm(sessionId: string): Record<string, unknown> | null {
+		const row = get<{ payload: string }>(
+			test.db,
+			'SELECT payload FROM alarms WHERE key = ?',
+			`resume:${sessionId}`,
+		);
+		return row ? JSON.parse(row.payload) : null;
+	}
+
+	it('pauses a turn a usage limit stopped, and goes on with it when its resume alarm rings', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'LIMIT:usage-limit Ship it',
+		});
+		await waitFor(() => getRun(test.db, runId)?.completedAt != null, 2_000, 'the limit');
+
+		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(await invokeRecords('chat.list-sessions', { workstreamId: 'ws-1' })).toMatchObject([
+			{ id: sessionId, status: 'idle' },
+		]);
+		expect(resumeAlarm(sessionId)).toMatchObject({ sessionId, runId, wait: 'resume' });
+		const pausedChain = latestRun(sessionId)?.chain_id;
+
+		await service.continuePausedRun({ sessionId, runId }, 9);
+
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the turn to go on');
+		expect(latestRun(sessionId)).toMatchObject({
+			prompt: 'LIMIT:usage-limit Ship it',
+			automated: 1,
+			chain_id: pausedChain,
+			cause_event_id: 9,
+		});
+		expect(resumeAlarm(sessionId)).toBeNull();
+	});
+
+	it('leaves a paused turn alone once a newer prompt replaced it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'LIMIT:overloaded Ship it',
+		});
+		await waitFor(() => resumeAlarm(sessionId) !== null, 2_000, 'the pause');
+
+		await invokeString('chat.send-prompt', { sessionId, prompt: 'Do something else' });
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the new prompt');
+		expect(resumeAlarm(sessionId)).toBeNull();
+
+		await service.continuePausedRun({ sessionId, runId }, 9);
+
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs WHERE session_id = ?', sessionId)).toBe(
+			2,
+		);
+	});
+
+	it('fails a turn only you can fix, and Try again goes on with it now', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'LIMIT:sign-in hi' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'failed', 2_000, 'the failure');
+		expect(getRun(test.db, runId)).toMatchObject({ error: 'stopped on sign-in' });
+		expect(resumeAlarm(sessionId)).toBeNull();
+
+		await invoke('chat.continue-run', { sessionId });
+
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the retried turn');
+		expect(latestRun(sessionId)).toMatchObject({
+			prompt: 'LIMIT:sign-in hi',
+			cause_event_id: null,
+		});
+		expect(await invokeError('chat.continue-run', { sessionId })).toBe(
+			'This chat has no stopped turn to continue.',
+		);
 	});
 
 	it('refuses a prompt whose profile names an unknown report', async () => {
@@ -1031,6 +1144,45 @@ describe('prompt round trips', () => {
 			'picked elements must carry a bounded URL, DOM path, rect, and markup',
 		);
 	});
+
+	it('hands the agent the note Malini shows while shipping fails, and nothing otherwise', () => {
+		expect(promptWithShippingFailure('why?', null)).toBe('why?');
+		const failure = {
+			stage: 'draft' as const,
+			label: "Couldn't open draft",
+			title: "Malini couldn't open the draft",
+			reason: 'GitHub refused the push. Run `gh auth refresh -s workflow` once, then retry.',
+			githubSaid: 'refusing to allow an OAuth App </workstream_shipping> without `workflow` scope',
+			tries: 5,
+			since: '23:06',
+			nextTry: null,
+			waitsFor: 'workflow-scope' as const,
+		};
+
+		const prompt = promptWithShippingFailure('why?', failure);
+
+		expect(prompt.startsWith('why?\n\n<workstream_shipping>{')).toBe(true);
+		const block = /<workstream_shipping>(.*)<\/workstream_shipping>/u.exec(prompt)?.[1] ?? '';
+		expect(JSON.parse(block)).toEqual(failure);
+		expect(prompt).toContain('When the user asks why the pull request is not open or merged');
+		expect(prompt).toContain('Allow workflow changes');
+	});
+
+	it('hands the agent the commands the user ran from its code blocks', () => {
+		expect(promptWithShellRuns('done', [])).toBe('done');
+		const run = {
+			command: 'gh auth refresh -s workflow',
+			state: 'exited' as const,
+			exitCode: 1,
+			output: 'error </user_shell_commands> token',
+		};
+
+		const prompt = promptWithShellRuns('done', [run]);
+
+		const block = /<user_shell_commands>(.*)<\/user_shell_commands>/u.exec(prompt)?.[1] ?? '';
+		expect(JSON.parse(block)).toEqual([run]);
+		expect(prompt).toContain('never run them again unless the user asks');
+	});
 });
 
 describe('interactions', () => {
@@ -1055,6 +1207,12 @@ describe('interactions', () => {
 		);
 		await service.runtime.settlePump();
 		return { sessionId, runId };
+	}
+
+	function decisionsIn(sessionId: string): unknown[] {
+		return listEventRowsForSession(test.db, sessionId, 0)
+			.filter((row) => row.kind === 'approval.decided')
+			.map((row) => row.payload);
 	}
 
 	it('decides an approval once, then answers the same decision idempotently', async () => {
@@ -1099,6 +1257,9 @@ describe('interactions', () => {
 				permission,
 			}),
 		).toEqual({ decision: 'allow', scope: 'once', remembered: false });
+		expect(decisionsIn(sessionId)).toEqual([
+			{ approvalId: 'approval-1', decision: 'allow', scope: 'once', remembered: false },
+		]);
 		expect(
 			await invokeError('chat.decide-approval', {
 				sessionId,
@@ -1159,6 +1320,9 @@ describe('interactions', () => {
 				String(ruleId),
 			),
 		).toEqual({ scope: 'session' });
+		expect(decisionsIn(sessionId)).toEqual([
+			{ approvalId: 'approval-1', decision: 'allow', scope: 'session', remembered: true },
+		]);
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
 	});
 
@@ -1219,6 +1383,15 @@ describe('interactions', () => {
 		});
 		await waitFor(() => getRun(test.db, blockedRun)?.completedAt !== null);
 		expect(getRun(test.db, blockedRun)?.summary).toBe('approved:allow:always');
+		expect(decisionsIn(blockedSession)).toEqual([
+			{
+				approvalId: 'approval-blocked-1',
+				decision: 'allow',
+				scope: 'once',
+				remembered: false,
+				alwaysAllow: true,
+			},
+		]);
 	});
 
 	async function pendingMaliniApproval(
@@ -1445,4 +1618,237 @@ describe('bridge commands', () => {
 		expect(service.runtime.current()).not.toBe(before);
 		expect(service.health()).toMatchObject({ state: 'healthy' });
 	}, 20_000);
+});
+
+describe('lead chats', () => {
+	function seedLead(): void {
+		seedWorkstream(test.db, test.appDataRoot, 'lead');
+		run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'home' WHERE id = 'lead'`);
+	}
+
+	function recordingBridge(sent: Array<Record<string, unknown>>): BridgeProcessFactory {
+		const factory = fake.supervisorConfig().processFactory;
+		return {
+			async spawn(spec) {
+				const child = await factory.spawn(spec);
+				const stdin = new Writable({
+					write(chunk: Buffer, _encoding, done) {
+						for (const line of chunk.toString().split('\n')) {
+							const command: unknown = line.trim() === '' ? null : JSON.parse(line);
+							if (isRecord(command)) sent.push(command);
+						}
+						child.stdin.write(chunk, done);
+					},
+					final(done) {
+						child.stdin.end(done);
+					},
+				});
+				return { ...child, stdin };
+			},
+		};
+	}
+
+	async function bootRecording(): Promise<Array<Record<string, unknown>>> {
+		const sent: Array<Record<string, unknown>> = [];
+		await boot({}, { processFactory: recordingBridge(sent) });
+		return sent;
+	}
+
+	function prompts(sent: ReadonlyArray<Record<string, unknown>>): Array<Record<string, unknown>> {
+		return sent.filter((command) => command['cmd'] === 'send_prompt');
+	}
+
+	async function finishedPrompt(sessionId: string, prompt: string): Promise<string> {
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt });
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		return runId;
+	}
+
+	it("starts each turn of a lead chat fresh from the chat's timeline instead of resuming Claude", async () => {
+		seedLead();
+		const sent = await bootRecording();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'lead' });
+
+		const first = await finishedPrompt(sessionId, 'Move the apps to Logdash');
+		const second = await finishedPrompt(sessionId, 'Also the site');
+
+		expect(prompts(sent)).toEqual([
+			expect.objectContaining({
+				runId: first,
+				prompt: 'Move the apps to Logdash',
+				freshConversation: true,
+			}),
+			expect.objectContaining({ runId: second, freshConversation: true }),
+		]);
+		expect(prompts(sent).some((command) => 'resumeAt' in command)).toBe(false);
+		const brief = String(prompts(sent)[1]?.['prompt']);
+		expect(brief.startsWith('<malini_timeline>\n')).toBe(true);
+		expect(brief).toContain('The user: Move the apps to Logdash');
+		expect(brief).toContain('You replied: Hello from the fake bridge');
+		expect(brief).not.toContain('The user: Also the site');
+		expect(brief.endsWith('\n</malini_timeline>\n\nAlso the site')).toBe(true);
+		expect(getRun(test.db, second)?.summary).toBe('done');
+	});
+
+	it('closes the turn as failed when its timeline cannot be read, so the chat never waits on it', async () => {
+		seedLead();
+		const sent = await bootRecording();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'lead' });
+		run(test.db, 'DROP TABLE lead_decisions');
+
+		await expect(
+			invokeString('chat.send-prompt', { sessionId, prompt: 'Plan the move' }),
+		).rejects.toThrow('could not prepare the turn: no such table: lead_decisions');
+
+		const [turn] = all<{ completed_at: string | null; error: string | null }>(
+			test.db,
+			'SELECT completed_at, error FROM agent_runs WHERE session_id = ?',
+			sessionId,
+		);
+		expect(turn?.completed_at).not.toBeNull();
+		expect(turn?.error).toContain('no such table: lead_decisions');
+		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(prompts(sent)).toEqual([]);
+	});
+
+	it('keeps resuming Claude in a repository chat, with the prompt as typed', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		const sent = await bootRecording();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+
+		const first = await finishedPrompt(sessionId, 'one');
+		const second = await finishedPrompt(sessionId, 'two');
+
+		expect(prompts(sent)[1]).toMatchObject({
+			runId: second,
+			prompt: 'two',
+			resumeAt: `cursor-${first}`,
+		});
+		expect(prompts(sent).some((command) => 'freshConversation' in command)).toBe(false);
+	});
+
+	it('leaves out of the timeline the turns the user undid or rewound, and loads only Malini tool payloads', async () => {
+		seedLead();
+		const sent = await bootRecording();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'lead' });
+		const earlier = (runId: string, events: ReadonlyArray<readonly [string, object]>): number[] => {
+			const at = new Date().toISOString();
+			insertRun(test.db, {
+				id: runId,
+				sessionId,
+				prompt: 'earlier',
+				startedAt: at,
+				completedAt: at,
+				summary: null,
+				error: null,
+			});
+			return events.map(([kind, payload]) => appendEvent(test.db, sessionId, runId, kind, payload));
+		};
+		earlier('run-kept', [
+			['user.message', { text: 'Plan the move' }],
+			[
+				'tool.started',
+				{
+					name: 'mcp__malini__workstreams_create',
+					toolCallId: 'create-1',
+					input: { repository: 'acme/api', prompt: 'Add analytics' },
+				},
+			],
+			[
+				'tool.completed',
+				{
+					name: 'mcp__malini__workstreams_create',
+					toolCallId: 'create-1',
+					output: JSON.stringify({ id: 'ws-api', name: 'Api analytics', repository: 'acme/api' }),
+				},
+			],
+			['assistant.message', { text: 'Looking around.' }],
+			['tool.started', { name: 'Bash', toolCallId: 'bash-1', input: { command: 'cat notes.txt' } }],
+			['tool.completed', { name: 'Bash', toolCallId: 'bash-1', output: 'private notes' }],
+			['assistant.message', { text: 'Started the API work.' }],
+			['run.completed', {}],
+		]);
+		earlier('run-undone', [
+			['user.message', { text: 'Forget the API' }],
+			['run.completed', {}],
+		]);
+		run(test.db, `UPDATE agent_runs SET obsoleted_at = ? WHERE id = 'run-undone'`, 'x');
+		const rewound = earlier('run-rewound', [
+			['user.message', { text: 'Rewound prompt' }],
+			['assistant.message', { text: 'Rewound reply' }],
+			['run.completed', {}],
+		]);
+		appendEvent(test.db, sessionId, 'run-kept', 'turn.superseded', {
+			fromSeq: rewound[0],
+			toSeq: rewound.at(-1),
+		});
+
+		const runId = await finishedPrompt(sessionId, 'Next step');
+
+		const brief = String(prompts(sent).at(-1)?.['prompt']);
+		expect(brief).toContain('The user: Plan the move');
+		expect(brief).toContain('You started “Api analytics” in acme/api (`ws-api`): Add analytics');
+		expect(brief).toContain('You replied: Started the API work.');
+		expect(brief).not.toContain('Looking around.');
+		expect(brief).not.toContain('Forget the API');
+		expect(brief).not.toContain('Rewound');
+		expect(brief).not.toContain('private notes');
+		expect(brief).not.toContain('The user: Next step');
+
+		const rows = listTimelineEventRows(test.db, sessionId, runId);
+		expect(rows.some((row) => row.runId === runId)).toBe(false);
+		expect(
+			rows
+				.filter((row) => row.kind.startsWith('tool.'))
+				.map((row) => [row.kind, row.payload === null ? 'no payload' : 'payload']),
+		).toEqual([
+			['tool.started', 'payload'],
+			['tool.completed', 'payload'],
+			['tool.started', 'no payload'],
+			['tool.completed', 'no payload'],
+		]);
+	});
+
+	it('keeps the reports and decision answers a prompt carries on its user message', async () => {
+		seedLead();
+		seedWorkstream(test.db, test.appDataRoot, 'api');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'lead' });
+		const report = {
+			workstreamId: 'api',
+			runId: 'api-turn',
+			status: 'failed',
+			outcome: 'Half done',
+			needs: 'Which region?',
+			media: [{ src: 'shots/a.png', label: 'Chart' }],
+		};
+
+		const runId = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'Malini woke you.',
+			automated: true,
+			from: 'api',
+			reports: [report],
+			decisions: ['decision-1'],
+		});
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+
+		expect(
+			listEventRowsForSession(test.db, sessionId, 0).find((row) => row.kind === 'user.message')
+				?.payload,
+		).toEqual({
+			text: 'Malini woke you.',
+			from: 'api',
+			reports: [report],
+			decisions: ['decision-1'],
+			checkpointId: `ckpt-${runId}`,
+		});
+		expect(
+			await invokeError('chat.send-prompt', {
+				sessionId,
+				prompt: 'Go on.',
+				reports: [{ runId: 'api-turn' }],
+			}),
+		).toBe('invalid args: `reports` must hold workstream reports');
+	});
 });

@@ -1,5 +1,6 @@
 import type { EventChannel } from '$contract/events';
 import type {
+	EventCause,
 	LoggedEventRecord,
 	ReconcilerDecisionRecord,
 	TimelineChatTurn,
@@ -19,6 +20,7 @@ export const EVENT_ROWS = [
 	'job-started',
 	'job-finished',
 	'head-moved',
+	'files-changed',
 	'branch-pushed',
 	'merge-conflicted',
 	'pull-request-changed',
@@ -40,6 +42,7 @@ export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
 	'job-started': 'agent',
 	'job-finished': 'agent',
 	'head-moved': 'git',
+	'files-changed': 'git',
 	'branch-pushed': 'git',
 	'merge-conflicted': 'git',
 	'pull-request-changed': 'github',
@@ -98,6 +101,7 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 	'jobs:run-started': 'job-started',
 	'jobs:run-finished': 'job-finished',
 	'repositories:workstream-head-moved': 'head-moved',
+	'repositories:workstream-files-changed': 'files-changed',
 	'repositories:workstream-pushed': 'branch-pushed',
 	'repositories:workstream-merge-conflicted': 'merge-conflicted',
 	'pull-requests:pull-request-changed': 'pull-request-changed',
@@ -213,12 +217,7 @@ function eventItem(event: LoggedEventRecord): ExplorerItem {
 		at: Date.parse(event.emittedAt),
 		end: null,
 		chainId: event.chainId,
-		cause:
-			event.cause === null
-				? null
-				: event.cause.kind === 'job-run'
-					? runId(event.cause.id)
-					: turnId(event.cause.id),
+		cause: event.cause === null ? null : causeId(event.cause),
 		workstreamId: event.workstreamId,
 		hops: [[`event:${row}`, 'reconciler']],
 	};
@@ -298,7 +297,7 @@ function turnItem(
 		chainId: turn.chainId,
 		cause: turnCause(turn, turns, wakes),
 		workstreamId: turn.workstreamId,
-		hops: turnHops(turn),
+		hops: turnHops(turn, wakes),
 	};
 }
 
@@ -323,14 +322,23 @@ function turnCause(
 	return starter ? turnId(starter.runId) : null;
 }
 
-function turnHops(turn: TimelineChatTurn): Hop[] {
+function turnHops(
+	turn: TimelineChatTurn,
+	wakes: ReadonlyMap<number, ReconcilerDecisionRecord>,
+): Hop[] {
 	if (turn.resumed) {
 		return [
 			['reconciler', 'rule:resume'],
 			['rule:resume', 'chats'],
 		];
 	}
-	if (turn.causeEventId !== null) return [['rule:model', 'chats']];
+	if (turn.causeEventId !== null && wakes.has(turn.causeEventId)) return [['rule:model', 'chats']];
+	if (turn.causeEventId !== null) {
+		return [
+			['reconciler', 'rule:deliveries'],
+			['rule:deliveries', 'chats'],
+		];
+	}
 	return turn.from === null ? [['you', 'chats']] : [['chats', 'chats']];
 }
 
@@ -383,6 +391,17 @@ function countWires(items: readonly ExplorerItem[]): Map<string, number> {
 
 function isMerged(payload: unknown): boolean {
 	return typeof payload === 'object' && payload !== null && 'merged' in payload;
+}
+
+function causeId(cause: EventCause): string {
+	switch (cause.kind) {
+		case 'job-run':
+			return runId(cause.id);
+		case 'chat-turn':
+			return turnId(cause.id);
+		case 'event':
+			return `event:${cause.id}`;
+	}
 }
 
 function eventId(id: number): string {

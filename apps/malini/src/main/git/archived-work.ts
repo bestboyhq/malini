@@ -6,7 +6,7 @@ import { ensureStagingPrecondition } from './excludes';
 import { WORKTREE_CONTENT_PATHSPEC, deriveProjectId, validateWorkstreamId } from './paths';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from './run';
 import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
-import { withProjectLock } from './worktrees';
+import { populateCheckout, withProjectLock } from './worktrees';
 
 export const ARCHIVED_WORK_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}archived/`;
 
@@ -115,8 +115,9 @@ export async function restoreArchivedWork(restore: ArchivedWorkRestore): Promise
 		? [checkout, branch]
 		: ['-b', branch, checkout, saved?.head ?? (await restore.baseStart())];
 	await withProjectLock(deriveProjectId(repository), () =>
-		runGit(['-C', repository, 'worktree', 'add', ...target]),
+		runGit(['-C', repository, 'worktree', 'add', '--no-checkout', ...target]),
 	);
+	await populateCheckout(repository, checkout);
 	if (saved?.uncommitted !== true) return;
 	await runGit([
 		'-C',

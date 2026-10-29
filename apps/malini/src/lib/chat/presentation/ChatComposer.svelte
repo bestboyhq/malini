@@ -6,14 +6,9 @@
 		claudeCodeStatusQuery,
 		defaultAgentModel,
 		isValidAgentModel,
-		subscriptionBillingQuery,
 		type AgentModel,
 	} from '$shared/providers/providers.api';
-	import {
-		ClaudeAccountMenu,
-		ModelProfilePicker,
-		RunProfileControls,
-	} from '$shared/providers/providers.api';
+	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
 	import { resetFreshSubmissionIntentCommand } from '$lib/chat/application/commands/reset-fresh-submission-intent.command';
 	import { loadWorkstreamFilesCommand } from '$lib/chat/application/commands/load-workstream-files.command';
 	import { pickAttachmentsCommand } from '$lib/chat/application/commands/pick-attachments.command';
@@ -80,7 +75,6 @@
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
-	import { formatRunUsage } from './session-runtime-metadata';
 	import { TranscriptFactsProjector } from './transcript-facts';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure, sanitizeFailureDetail } from '$shared/errors/failure-copy';
@@ -94,7 +88,7 @@
 		forceFreshSession?: boolean;
 		disabled?: boolean;
 		backendSelectionDisabled?: boolean;
-		placeholder?: string;
+		placeholder?: string | undefined;
 		transcriptReferences?: AgentTranscriptReference[];
 		elementReferences?: AgentElementReference[];
 		oncancel?: () => void;
@@ -198,7 +192,6 @@
 	const resolvedPlaceholder = $derived(placeholder ?? 'Ask Malini to make a change…');
 	const transcriptFactsProjector = new TranscriptFactsProjector();
 	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
-	const runUsage = $derived(transcriptFacts.lastRunUsage);
 
 	const composerChips = $derived<PromptChipDescriptor[]>(
 		draftChipDescriptors({
@@ -976,7 +969,7 @@
 </script>
 
 <form
-	class="chat-column relative z-20 shrink-0 px-4 pb-1"
+	class="chat-column relative z-20 shrink-0 px-4 pb-3"
 	{@attach avoidedByToasts}
 	onsubmit={(event) => {
 		event.preventDefault();
@@ -1280,22 +1273,6 @@
 			<EnterShortcut mod class="text-fg-tertiary justify-self-end" />
 		</span>
 	{/snippet}
-
-	<div class="flex h-6 min-w-0 items-center gap-3 px-3">
-		<ClaudeAccountMenu />
-		{#if runUsage}
-			<p
-				class="text-2xs ml-auto flex h-6 shrink-0 items-center gap-1.5 tabular-nums select-none"
-				data-testid="chat-run-usage"
-			>
-				<span class="text-fg-tertiary">Last run</span>
-				<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
-				<span class="text-fg-tertiary">
-					{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
-				</span>
-			</p>
-		{/if}
-	</div>
 </form>
 
 {#if galleryStartId}

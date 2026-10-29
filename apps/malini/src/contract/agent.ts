@@ -23,9 +23,22 @@ export interface AgentCheckout {
 	path: string;
 }
 
+export interface AgentLead {
+	owner: string | null;
+	repositories: AgentCheckout[];
+	workstreams: AgentCheckout[];
+	plan: string;
+}
+
+export interface AgentStarter {
+	name: string;
+	lead: boolean;
+	plan: string | null;
+}
+
 export interface AgentLineage {
-	lead: { owner: string | null; repositories: AgentCheckout[] } | null;
-	startedBy: { name: string; lead: boolean } | null;
+	lead: AgentLead | null;
+	startedBy: AgentStarter | null;
 	siblings: AgentCheckout[];
 }
 
@@ -78,16 +91,38 @@ export interface AgentQuestionAnswer {
 	values: readonly string[];
 }
 
+export const RUN_FAILURE_KINDS = [
+	'usage-limit',
+	'rate-limit',
+	'overloaded',
+	'server-error',
+	'network',
+	'sign-in',
+	'billing',
+	'model',
+	'request',
+	'unknown',
+] as const;
+
+export type RunFailureKind = (typeof RUN_FAILURE_KINDS)[number];
+
+export interface RunFailure {
+	kind: RunFailureKind;
+	resetsAt?: string;
+	status?: number;
+}
+
 export interface AgentEventEnvelope {
 	sessionId: string;
 	runId: string;
 	seq: number;
 	event: Record<string, unknown>;
+	emittedAt?: string;
 }
 
 export type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };
 
-export type AgentSessionOrigin = 'user' | 'job';
+export type AgentSessionOrigin = 'user' | 'job' | 'thread';
 
 export interface AgentSessionSummary {
 	id: string;

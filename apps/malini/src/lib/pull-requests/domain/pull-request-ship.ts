@@ -3,6 +3,7 @@ import type {
 	ShipNeedsYouReason,
 	ShipPhase,
 	ShipStep,
+	ShipWaitsFor,
 } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
 import { worktreeOperationNoun } from './pull-request-action';
@@ -16,6 +17,11 @@ export type PullRequestShip = Readonly<{
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
+	nextAttemptAt: string | null;
+	waitsFor: ShipWaitsFor | null;
 	updatedAt: string;
 }>;
 
@@ -26,7 +32,13 @@ export type PullRequestShipChange = Readonly<{
 }>;
 
 export type PullRequestShipIntent =
-	'open-draft' | 'queue-merge' | 'cancel-merge' | 'retry-merge' | 'keep-workstream';
+	| 'open-draft'
+	| 'queue-merge'
+	| 'cancel-merge'
+	| 'cancel-draft'
+	| 'retry-merge'
+	| 'retry-now'
+	| 'keep-workstream';
 
 export type PullRequestNeedsYouDestination = 'pull-request' | 'job' | 'repositories';
 
@@ -78,6 +90,17 @@ export function needsYouReasonLabel(
 
 export function needsYouReasonDescription(reason: ShipNeedsYouReason): string {
 	return REASON_DESCRIPTIONS[reason];
+}
+
+export type MergeStoppedOnJob = Readonly<{ jobRunId: string; detail: string }>;
+
+export function mergeStoppedOnJob(ship: PullRequestShip | null): MergeStoppedOnJob | null {
+	const stop = ship?.phase === 'needs-you' ? ship.needsYou : null;
+	if (stop?.reason !== 'fix-gave-up' || !stop.jobRunId) return null;
+	return {
+		jobRunId: stop.jobRunId,
+		detail: stop.detail.trim() || REASON_DESCRIPTIONS['fix-gave-up'],
+	};
 }
 
 export function needsYouDestination(needsYou: ShipNeedsYou): PullRequestNeedsYouDestination | null {

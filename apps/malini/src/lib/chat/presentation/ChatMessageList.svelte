@@ -32,7 +32,6 @@
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
-	import { shellCommandPrompt } from '$lib/chat/domain/shell-command-prompt';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
@@ -154,6 +153,8 @@
 				items: [opening],
 				terminal: null,
 				terminalText: '',
+				failure: null,
+				resumeAt: null,
 				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
@@ -323,80 +324,57 @@
 		});
 	}
 
-	const latestVisibleRun = $derived(visibleRuns.at(-1) ?? null);
-	const openRunId = $derived(latestVisibleRun?.terminal === null ? latestVisibleRun.runId : null);
-
 	const persistedStreamingMembership = $derived(sessionProjectors.streaming.project(envelopes));
 
-	const liveBlocksForOpenRun = $derived(
-		openRunId ? streamingBlocksQuery.data(sessionId, openRunId) : [],
-	);
-	const liveAssistantBlocks = $derived(
-		liveBlocksForOpenRun.filter(
-			(block) =>
-				block.kind === 'assistant' &&
-				!persistedStreamingMembership.finalizedBlockKeys.has(
-					blockKey(sessionId, block.runId, block.contentId),
-				),
-		),
-	);
-	const liveThinkingBlocks = $derived(
-		liveBlocksForOpenRun.filter(
-			(block) =>
-				block.kind === 'thinking' &&
-				!persistedStreamingMembership.finalizedBlockKeys.has(
-					blockKey(sessionId, block.runId, block.contentId),
-				),
-		),
-	);
-	const livePendingToolInputs = $derived(
-		openRunId
-			? liveToolInputsQuery
-					.data(sessionId, openRunId)
-					.filter(
-						(entry) =>
-							!persistedStreamingMembership.startedToolInputKeys.has(
-								toolInputKey(openRunId, entry.toolCallId),
-							),
-					)
-			: [],
-	);
-
-	const livePendingToolItems = $derived(
-		openRunId
-			? livePendingToolInputs.map((pending) => ({
-					kind: 'tool' as const,
-					key: stableToolKey(openRunId, pending.name, pending.toolCallId, 0),
-					seq: Number.MAX_SAFE_INTEGER,
-					tool: {
-						name: pending.name,
-						toolCallId: pending.toolCallId,
-						startedAt: null,
-						completedAt: null,
-						input: summarizeLiveToolInput(pending.json),
-						output: undefined,
-						status: 'running' as const,
-					},
-				}))
-			: [],
-	);
-
-	const liveThoughtItems = $derived(
-		liveThinkingBlocks.map((block): RunTimelineItem => ({
-			kind: 'thought',
-			key: thoughtRowKey(block.runId, block.contentId),
-			contentId: block.contentId,
-			seq: Number.MAX_SAFE_INTEGER,
-			text: block.text,
-			durationSeconds: null,
-			live: true,
-		})),
-	);
-
-	const liveRun = $derived<LiveRunBlocks>({
-		pendingItems: [...liveThoughtItems, ...livePendingToolItems],
-		assistant: liveAssistantBlocks,
-	});
+	function liveBlocksFor(run: RunGroup): LiveRunBlocks | null {
+		if (run.terminal !== null) return null;
+		const runId = run.runId;
+		const unfinalizedBlocks = streamingBlocksQuery
+			.data(sessionId, runId)
+			.filter(
+				(block) =>
+					!persistedStreamingMembership.finalizedBlockKeys.has(
+						blockKey(sessionId, runId, block.contentId),
+					),
+			);
+		const thoughtItems = unfinalizedBlocks
+			.filter((block) => block.kind === 'thinking')
+			.map((block): RunTimelineItem => ({
+				kind: 'thought',
+				key: thoughtRowKey(runId, block.contentId),
+				contentId: block.contentId,
+				seq: Number.MAX_SAFE_INTEGER,
+				text: block.text,
+				durationSeconds: null,
+				live: true,
+			}));
+		const pendingToolItems = liveToolInputsQuery
+			.data(sessionId, runId)
+			.filter(
+				(entry) =>
+					!persistedStreamingMembership.startedToolInputKeys.has(
+						toolInputKey(runId, entry.toolCallId),
+					),
+			)
+			.map((pending) => ({
+				kind: 'tool' as const,
+				key: stableToolKey(runId, pending.name, pending.toolCallId, 0),
+				seq: Number.MAX_SAFE_INTEGER,
+				tool: {
+					name: pending.name,
+					toolCallId: pending.toolCallId,
+					startedAt: null,
+					completedAt: null,
+					input: summarizeLiveToolInput(pending.json),
+					output: undefined,
+					status: 'running' as const,
+				},
+			}));
+		return {
+			pendingItems: [...thoughtItems, ...pendingToolItems],
+			assistant: unfinalizedBlocks.filter((block) => block.kind === 'assistant'),
+		};
+	}
 
 	let finalizedThinkingRevision = $state(0);
 
@@ -458,15 +436,6 @@
 			plan,
 			sourceSessionId: sessionId,
 			sourceRunId: runId,
-		});
-	}
-
-	function runShellCommand(command: string, language: string | null): void {
-		sendCommandPromptCommand({
-			workstreamId,
-			sessionId,
-			prompt: shellCommandPrompt(command, language),
-			subject: 'Command',
 		});
 	}
 
@@ -602,7 +571,6 @@
 			return implementingPlanKey;
 		},
 		implementPlan,
-		runShellCommand,
 		liveInputJsonForRunningTool,
 		openFileMention,
 		get canOpenFileMention() {
@@ -949,7 +917,7 @@
 						<TranscriptRun
 							{run}
 							isLastRun={runIndex === runs.length - 1}
-							live={run.runId === openRunId ? liveRun : null}
+							live={liveBlocksFor(run)}
 							copied={copiedResponseRunId === run.runId}
 						/>
 					{/each}

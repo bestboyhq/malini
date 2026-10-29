@@ -3,6 +3,7 @@ import {
 	PAUSED_FOR_EXIT_ERROR,
 	foldSessionStatus,
 	isCancellationError,
+	isPausedRunEvent,
 	type LifecycleEnvelope,
 	type SessionStatus,
 } from '$contract/agent-state-machine';
@@ -36,6 +37,7 @@ import {
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
+	agentRunWasAlreadyGone,
 	foldedJobContext,
 	isFinishedJobRunStatus,
 	jobPrompt,
@@ -80,6 +82,7 @@ type SessionState = Readonly<{
 	status: SessionStatus;
 	runId: string | null;
 	summary: string | null;
+	paused: boolean;
 }>;
 
 export class JobRunner {
@@ -195,7 +198,13 @@ export class JobRunner {
 				isActive(jobRun.status) && jobRun.workstreamId !== null ? [jobRun.workstreamId] : [],
 			),
 		);
-		for (const queued of unfinished.filter((jobRun) => jobRun.status === 'queued')) {
+		const resolver = getBuiltinJobDefinition(this.#context.db, 'resolve-conflicts')?.id ?? null;
+		const queuedRuns = unfinished.filter((jobRun) => jobRun.status === 'queued');
+		const resolversFirst = [
+			...queuedRuns.filter((jobRun) => jobRun.definitionId === resolver),
+			...queuedRuns.filter((jobRun) => jobRun.definitionId !== resolver),
+		];
+		for (const queued of resolversFirst) {
 			if (this.#stopped || running >= cap) return;
 			const { workstreamId } = queued;
 			if (workstreamId !== null && blocked.has(workstreamId)) continue;
@@ -247,11 +256,6 @@ export class JobRunner {
 			}
 			const workstreamId = jobRun.workstreamId ?? (await this.#createWorkstream(jobRun));
 			if (!this.#dispatching(jobRun.id)) return;
-			const freshness =
-				jobRun.origin === 'schedule' && jobRun.workstreamId !== null
-					? await this.#freshen(workstreamId)
-					: null;
-			if (!this.#dispatching(jobRun.id)) return;
 			const runContext = getJobRunContext(db, jobRun.id);
 			const conflicts =
 				definition.builtin === 'resolve-conflicts'
@@ -275,11 +279,8 @@ export class JobRunner {
 			const agentRunId = await commands.call('chat.send-prompt', {
 				sessionId,
 				prompt: jobPrompt(
-					jobPrompt(
-						jobPrompt(definition.instructions, runContext),
-						conflicts === runContext ? null : conflicts,
-					),
-					freshness,
+					jobPrompt(definition.instructions, runContext),
+					conflicts === runContext ? null : conflicts,
 				),
 				profile: { effort: definition.effort, mode: 'agent', access: 'auto' },
 				automated: true,
@@ -318,41 +319,25 @@ export class JobRunner {
 	}
 
 	async #updateFromMain(jobRun: JobRunRecord, workstreamId: string): Promise<void> {
-		const { db, commands } = this.#context;
 		const workstream = this.#workstream(workstreamId);
 		const baseBranch = await this.#baseBranch(workstream);
 		if (!baseBranch) throw new Error('This workstream has no base branch to update from.');
-		const status = await commands.call('repositories.workstream-status', { workstreamId });
-		const conflicted = hasConflictedMerge(status)
+		const status = await this.#context.commands.call('repositories.workstream-status', {
+			workstreamId,
+		});
+		const stopped = hasConflictedMerge(status);
+		const conflicted = stopped
 			? status
 			: await this.#mergeBase(jobRun.id, status, workstreamId, baseBranch);
 		if (conflicted === null || !this.#dispatching(jobRun.id)) return;
 		const files = conflicted.conflictedPaths.length;
-		const stopped = `Stopped on conflicts in ${files} ${files === 1 ? 'file' : 'files'}.`;
-		const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
-		try {
-			if (!resolver) throw new Error('the Resolve conflicts job is missing');
-			await commands.call('jobs.run', {
-				definitionId: resolver.id,
-				workstreamId,
-				origin: 'then',
-				parentRunId: jobRun.id,
-				context: updateFromMainJobContext({
-					branch: workstream.branch,
-					baseBranch,
-					conflictedPaths: conflicted.conflictedPaths,
-					conflictMarkerPaths: conflicted.conflictMarkerPaths,
-				}),
-			});
-		} catch (error) {
-			this.#finish(
-				jobRun.id,
-				'failed',
-				`${stopped} Could not start Resolve conflicts: ${describeError(error)}`,
-			);
-			return;
-		}
-		this.#succeed(jobRun.id, `${stopped} Resolve conflicts finishes the merge.`);
+		const where = `${files} ${files === 1 ? 'file' : 'files'}`;
+		this.#succeed(
+			jobRun.id,
+			stopped
+				? `A merge had already stopped on conflicts in ${where}.`
+				: `Stopped on conflicts in ${where}.`,
+		);
 	}
 
 	async #conflicts(jobRunId: string, workstreamId: string): Promise<string | null> {
@@ -444,30 +429,6 @@ export class JobRunner {
 		return workstreamId;
 	}
 
-	async #freshen(workstreamId: string): Promise<string | null> {
-		const { commands } = this.#context;
-		const workstream = this.#workstream(workstreamId);
-		const baseBranch = workstream.scope === null ? await this.#baseBranch(workstream) : null;
-		if (!baseBranch) return null;
-		const skipped = `Malini did not merge ${baseBranch} into this workstream before this run`;
-		try {
-			const status = await commands.call('repositories.workstream-status', { workstreamId });
-			if (status.operationInProgress !== null) {
-				return `${skipped}: a ${status.operationInProgress} is in progress.`;
-			}
-			if (status.dirtyPaths.length > 0) return `${skipped}: it has uncommitted changes.`;
-			const args = { workstreamId, baseBranch };
-			if ((await commands.call('repositories.count-behind-base', args)) === 0) return null;
-			await commands.call('repositories.pull-workstream', args);
-			const merged = await commands.call('repositories.workstream-status', { workstreamId });
-			return hasConflictedMerge(merged)
-				? `Malini merged ${baseBranch} into this workstream before this run, and the merge stopped on conflicts in ${merged.conflictedPaths.join(', ')}. Resolve them first.`
-				: null;
-		} catch (error) {
-			return `${skipped}: ${describeError(error)}`;
-		}
-	}
-
 	#requeue(jobRunId: string): boolean {
 		const requeued = this.#update(jobRunId, (current) =>
 			current.status === 'running' ? { ...current, status: 'queued', startedAt: null } : null,
@@ -489,6 +450,7 @@ export class JobRunner {
 				pendingRunId: agentRunId,
 			});
 		} catch (error) {
+			if (agentRunWasAlreadyGone(error)) return;
 			this.#log(`jobs: could not stop the agent run of \`${jobRunId}\`: ${describeError(error)}`);
 		}
 	}
@@ -545,7 +507,7 @@ export class JobRunner {
 			return;
 		}
 		const error = text(envelope.event['error']) ?? 'The agent run failed.';
-		if (error === PAUSED_FOR_EXIT_ERROR) return;
+		if (error === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(envelope.event)) return;
 		this.#pendingRequests.delete(envelope.sessionId);
 		if (isCancellationError(error)) this.#finish(jobRun.id, 'cancelled', null);
 		else this.#finish(jobRun.id, 'failed', error);
@@ -628,6 +590,7 @@ export class JobRunner {
 
 	async #recoverRun(jobRun: JobRunRecord): Promise<void> {
 		const session = jobRun.sessionId === null ? null : await this.#sessionState(jobRun.sessionId);
+		if (session?.paused) return;
 		if (session === null || session.status === 'idle' || session.status === 'failed') {
 			this.#finish(jobRun.id, 'failed', JOB_INTERRUPTED_DETAIL);
 			return;
@@ -655,10 +618,14 @@ export class JobRunner {
 		const completed = envelopes
 			.filter((envelope) => envelope.event['type'] === 'run.completed')
 			.at(-1);
+		const ended = envelopes
+			.filter(({ event }) => event['type'] === 'run.completed' || event['type'] === 'run.failed')
+			.at(-1);
 		return {
 			status: fold.status,
 			runId: fold.currentRunId,
 			summary: text(completed?.event['summary']),
+			paused: fold.status === 'idle' && ended !== undefined && isPausedRunEvent(ended.event),
 		};
 	}
 
@@ -763,6 +730,11 @@ function stringField(value: unknown, key: string): string | null {
 function lifecycleEnvelope(envelope: AgentEventEnvelope): LifecycleEnvelope[] {
 	const type = envelope.event['type'] === 'user.message' ? 'run.started' : envelope.event['type'];
 	return typeof type === 'string'
-		? [{ runId: envelope.runId, event: { type, error: envelope.event['error'] } }]
+		? [
+				{
+					runId: envelope.runId,
+					event: { type, error: envelope.event['error'], resumeAt: envelope.event['resumeAt'] },
+				},
+			]
 		: [];
 }

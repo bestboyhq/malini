@@ -77,6 +77,9 @@
 		run.terminal !== null && !run.superseded && !run.obsoleted && forkSeq !== null,
 	);
 	const hasAssistantAnswer = $derived(run.items.some((item) => item.kind === 'assistant'));
+	const endsQuietly = $derived(
+		run.terminal === 'cancelled' || (run.terminal === 'paused' && !isLastRun),
+	);
 
 	let rowsRendered = false;
 	let seededRows: ReadonlySet<string> | null = null;
@@ -236,7 +239,7 @@
 			{/each}
 		{/if}
 
-		{#if run.terminal === 'cancelled'}
+		{#if endsQuietly}
 			<div class="flex h-6 items-center gap-1.5" data-testid="chat-run-actions">
 				<RunTerminalBanner {run} />
 				{#if hasAssistantAnswer || undoTarget || forkAvailable}
@@ -251,8 +254,8 @@
 			/>
 		{/if}
 
-		{#if run.terminal === 'failed'}
-			<RunTerminalBanner {run} />
+		{#if run.terminal === 'failed' || (run.terminal === 'paused' && isLastRun)}
+			<RunTerminalBanner {run} latest={isLastRun} />
 		{/if}
 
 		{#if run.obsoleted}
@@ -261,8 +264,8 @@
 			</p>
 		{/if}
 
-		{#if run.terminal !== 'cancelled' && (hasAssistantAnswer || undoTarget || forkAvailable)}
-			<div class="flex h-5 items-center justify-end gap-1.5" data-testid="chat-run-actions">
+		{#if !endsQuietly && (hasAssistantAnswer || undoTarget || forkAvailable)}
+			<div class="flex h-6 items-center justify-end gap-1.5" data-testid="chat-run-actions">
 				{@render runActions()}
 			</div>
 		{/if}

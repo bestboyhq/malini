@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	mergeStoppedOnJob,
 	needsYouDestination,
 	pullRequestNeedsYouAnnouncement,
 	type PullRequestShip,
@@ -15,6 +16,11 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
 		lastError: null,
+		githubSaid: null,
+		failures: 0,
+		failedSince: null,
+		nextAttemptAt: null,
+		waitsFor: null,
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides,
 	};
@@ -87,5 +93,54 @@ describe('needsYouDestination', () => {
 		expect(
 			needsYouDestination({ reason: 'operation-in-progress', detail: '', jobRunId: null }),
 		).toBeNull();
+	});
+});
+
+describe('mergeStoppedOnJob', () => {
+	it('names the job a merge stopped on, with why', () => {
+		expect(
+			mergeStoppedOnJob(
+				ship({
+					phase: 'needs-you',
+					needsYou: {
+						reason: 'fix-gave-up',
+						detail: 'Fixing the checks did not work. Malini tried 3 times.',
+						jobRunId: 'run-1',
+					},
+				}),
+			),
+		).toEqual({
+			jobRunId: 'run-1',
+			detail: 'Fixing the checks did not work. Malini tried 3 times.',
+		});
+		expect(
+			mergeStoppedOnJob(
+				ship({
+					phase: 'needs-you',
+					needsYou: { reason: 'fix-gave-up', detail: ' ', jobRunId: 'run-1' },
+				}),
+			)?.detail,
+		).toBe('The agent could not fix the same failure after several attempts');
+	});
+
+	it('names no job for a stop without one, or a merge that moved on', () => {
+		expect(mergeStoppedOnJob(ship({ phase: 'needs-you', needsYou: REVIEWER }))).toBeNull();
+		expect(
+			mergeStoppedOnJob(
+				ship({
+					phase: 'needs-you',
+					needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: null },
+				}),
+			),
+		).toBeNull();
+		expect(
+			mergeStoppedOnJob(
+				ship({
+					phase: 'queued',
+					needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: 'run-1' },
+				}),
+			),
+		).toBeNull();
+		expect(mergeStoppedOnJob(null)).toBeNull();
 	});
 });

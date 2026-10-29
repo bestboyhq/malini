@@ -3,6 +3,7 @@ export {
 	isWorkstreamCheckoutUsable,
 	type ArchivedWorkstream,
 	type CreatedWorkstream,
+	type MergedHead,
 	type MergedPullRequest,
 	type Workstream,
 	type WorkstreamChangeTarget,
@@ -142,8 +143,10 @@ export { workstreamCount } from './domain/workstream-retirement';
 
 export { workstreamsForRepository } from './domain/repository-connection';
 
+export { allowGithubWorkflowChangesCommand } from './application/commands/allow-github-workflow-changes.command';
 export { archiveSavedWorkstreamCommand } from './application/commands/archive-saved-workstream.command';
 export { archiveWorkstreamCommand } from './application/commands/archive-workstream.command';
+export { cancelGithubSignInCommand } from './application/commands/cancel-github-sign-in.command';
 export { clearRepositoryConnectErrorCommand } from './application/commands/clear-repository-connect-error.command';
 export { answerRepositoryConnectionRequestCommand } from './application/commands/answer-repository-connection-request.command';
 export { connectRepositoryCommand } from './application/commands/connect-repository.command';
@@ -158,6 +161,7 @@ export { loadRepositoryAvatarCommand } from './application/commands/load-reposit
 export { moveInSidebarCommand } from './application/commands/move-in-sidebar.command';
 export { loadWorkstreamDiffCommand } from './application/commands/load-workstream-diff.command';
 export { loadWorkstreamGitStatusCommand } from './application/commands/load-workstream-git-status.command';
+export { noteMergedHeadCommand } from './application/commands/note-merged-head.command';
 export { openRepositoryFolderCommand } from './application/commands/open-repository-folder.command';
 export { openWorkstreamInEditorCommand } from './application/commands/open-workstream-in-editor.command';
 export { loadRepositoriesScopeCommand } from './application/commands/load-repositories-scope.command';
@@ -200,8 +204,10 @@ export { changeTotalsQuery } from './application/queries/change-totals.query.sve
 export { connectedRepositoriesQuery } from './application/queries/connected-repositories.query.svelte';
 export { dependencyInstallQuery } from './application/queries/dependency-install.query.svelte';
 export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
+export { mergedHeadQuery } from './application/queries/merged-head.query.svelte';
 export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
+export { githubSignInQuery } from './application/queries/github-sign-in.query.svelte';
 export { connectionProblemQuery } from './application/queries/connection-problem.query.svelte';
 export { projectsQuery } from './application/queries/projects.query.svelte';
 export { provisioningRecordQuery } from './application/queries/provisioning-record.query.svelte';
@@ -239,6 +245,7 @@ export {
 	default as ConnectRepositoryContextMenu,
 	type ConnectRepositoryContextMenuTarget,
 } from './presentation/ConnectRepositoryContextMenu.svelte';
+export { default as GitHubDeviceCode } from './presentation/GitHubDeviceCode.svelte';
 export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';

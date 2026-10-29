@@ -10,7 +10,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order. Malini does not keep it in its event log.',
 			payloadType: 'LiveEventEnvelope',
 			payload:
-				'interface AgentEventEnvelope {\n\tsessionId: string;\n\trunId: string;\n\tseq: number;\n\tevent: Record<string, unknown>;\n}\n\ntype LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };',
+				'interface AgentEventEnvelope {\n\tsessionId: string;\n\trunId: string;\n\tseq: number;\n\tevent: Record<string, unknown>;\n\temittedAt?: string;\n}\n\ntype LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };',
 		},
 		{
 			channel: 'chat:run-changes-captured',
@@ -37,10 +37,26 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'chat:turn-finished',
 			description:
-				"Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
+				"Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
 			payloadType: 'ChatTurnFinishedPayload',
 			payload:
 				"type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';\n\ninterface ChatTurnFinishedPayload {\n\tworkstreamId: string;\n\tsessionId: string;\n\trunId: string;\n\tstatus: ChatTurnFinishedStatus;\n\toutcome: string | null;\n\tneeds: string | null;\n}",
+		},
+		{
+			channel: 'chat:lead-decision-changed',
+			description:
+				'Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.',
+			payloadType: 'LeadDecisionChangedEvent',
+			payload:
+				"type LeadDecisionPicture = Readonly<{ workstreamId: string; path: string }>;\n\ntype LeadDecisionOption = Readonly<{\n\tlabel: string;\n\tnote: string | null;\n\tpicture: LeadDecisionPicture | null;\n}>;\n\ntype LeadDecisionDecider = 'you' | 'lead';\n\ntype LeadDecisionAnswer = Readonly<{\n\toption: number;\n\tby: LeadDecisionDecider;\n\treason: string | null;\n\tat: string;\n}>;\n\ntype LeadDecision = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tworkstreamId: string;\n\ttopic: string;\n\tquestion: string;\n\twhy: string | null;\n\toptions: readonly LeadDecisionOption[];\n\trecommended: number;\n\tmeanwhile: string | null;\n\taskedAt: string;\n\tanswer: LeadDecisionAnswer | null;\n}>;\n\ntype LeadDecisionChangedEvent = Readonly<{ decision: LeadDecision }>;",
+		},
+		{
+			channel: 'chat:delivery-changed',
+			description:
+				'Fires when Malini holds a prompt for a chat that is on a turn, delivers it once that turn ends, or cannot deliver it, such as a prompt one chat sends the chat of a workstream it started. Malini does not keep it in its event log.',
+			payloadType: 'ChatDeliveryChangedEvent',
+			payload:
+				"type ChatDeliveryStatus = 'waiting' | 'delivered' | 'failed';\n\ntype ChatDelivery = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tfromSessionId: string | null;\n\tstatus: ChatDeliveryStatus;\n\trunId: string | null;\n\tdetail: string | null;\n\tcreatedAt: string;\n\tdeliveredAt: string | null;\n}>;\n\ntype ChatDeliveryChangedEvent = Readonly<{ delivery: ChatDelivery }>;",
 		},
 		{
 			channel: 'chat:mcp-server-changed',
@@ -57,6 +73,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'McpServerListing',
 			payload:
 				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;\n\ntype McpServerListing = Readonly<{\n\tworkstreamId: string | null;\n\tservers: readonly McpServerReport[];\n\tsettled: boolean;\n\terror?: string;\n}>;',
+		},
+		{
+			channel: 'chat:shell-run-changed',
+			description:
+				"Fires when you run a command from a code block's Run button, while it prints, and when it ends, with the command, `anchor`: the message and the code block in it it ran from, its output so far, and `state`: `running`, `exited` with its `exitCode`, `stopped`, or `failed` when it could not start. Malini does not keep it in its event log.",
+			payloadType: 'ShellRun',
+			payload:
+				"type ShellRunAnchor = Readonly<{ message: string; block: number }>;\n\ntype ShellRunState = 'running' | 'exited' | 'stopped' | 'failed';\n\ntype ShellRun = Readonly<{\n\tid: string;\n\tworkstreamId: string;\n\tsessionId: string;\n\tanchor: ShellRunAnchor;\n\tcommand: string;\n\tstate: ShellRunState;\n\texitCode: number | null;\n\toutput: string;\n\tstartedAt: string;\n\tfinishedAt: string | null;\n}>;",
 		},
 		{
 			channel: 'repositories:workstream-created',
@@ -165,7 +189,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"Fires whenever a workstream's shipping state changes: its pull request phase, the step Malini is on, or a reason it needs you. A click on the pull request bar's Draft, Merge, Retry or Cancel fires `pull-requests:button-clicked` instead, with the new state.",
 			payloadType: 'ShipChangedEvent',
 			payload:
-				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
+				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipWaitsFor = 'workflow-scope' | 'workflow-permission';\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tgithubSaid: string | null;\n\tfailures: number;\n\tfailedSince: string | null;\n\tnextAttemptAt: string | null;\n\twaitsFor: ShipWaitsFor | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
 		},
 		{
 			channel: 'pull-requests:pull-request-changed',
@@ -181,7 +205,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there. Draft all and Merge all on a chat that started workstreams fire it too, with `draft-all` or `merge-all`, the `workstreamIds` to ship and the `chatSessionId` to report to, and the Shipping rule runs Open draft or Merge in each.",
 			payloadType: 'ShipButtonClickedEvent',
 			payload:
-				"type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';\n\ntype ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipAllButton = 'draft-all' | 'merge-all';\n\ntype ShipAllClicked = Readonly<{\n\tworkstreamId: string;\n\tbutton: ShipAllButton;\n\tworkstreamIds: readonly string[];\n\tchatSessionId: string | null;\n}>;\n\ntype ShipButtonClickedEvent =\n\t| Readonly<{\n\t\t\tworkstreamId: string;\n\t\t\tbutton: ShipButton;\n\t\t\tstate: ShipStateRecord | null;\n\t  }>\n\t| ShipAllClicked;",
+				"type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';\n\ntype ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipWaitsFor = 'workflow-scope' | 'workflow-permission';\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tgithubSaid: string | null;\n\tfailures: number;\n\tfailedSince: string | null;\n\tnextAttemptAt: string | null;\n\twaitsFor: ShipWaitsFor | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipAllButton = 'draft-all' | 'merge-all';\n\ntype ShipAllClicked = Readonly<{\n\tworkstreamId: string;\n\tbutton: ShipAllButton;\n\tworkstreamIds: readonly string[];\n\tchatSessionId: string | null;\n}>;\n\ntype ShipButtonClickedEvent =\n\t| Readonly<{\n\t\t\tworkstreamId: string;\n\t\t\tbutton: ShipButton;\n\t\t\tstate: ShipStateRecord | null;\n\t  }>\n\t| ShipAllClicked;",
 		},
 		{
 			channel: 'pull-requests:workstream-opened',
@@ -257,18 +281,18 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'jobs:decision-changed',
 			description:
-				'Fires when the event reconciler decides what to do about an event no trigger handled, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
+				'Fires when the event reconciler decides what to do about an event no trigger handled, records that it does nothing because other work already takes it, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
 			payloadType: 'ReconcilerDecisionChangedEvent',
 			payload:
-				"type ReconcilerCandidate =\n\t| Readonly<{ kind: 'nothing'; label: string }>\n\t| Readonly<{\n\t\t\tkind: 'wake-chat';\n\t\t\tlabel: string;\n\t\t\tsessionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tfrom: string;\n\t\t\treport: string;\n\t  }>\n\t| Readonly<{\n\t\t\tkind: 'run-job';\n\t\t\tlabel: string;\n\t\t\tdefinitionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tcontext: string;\n\t  }>\n\t| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;\n\ntype ReconcilerDecider = 'model' | 'rules' | 'you';\n\ntype ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';\n\ntype ReconcilerDecisionRecord = Readonly<{\n\tid: string;\n\teventId: number;\n\tchannel: string;\n\tchainId: string;\n\tworkstreamId: string | null;\n\tfacts: readonly string[];\n\tcandidates: readonly ReconcilerCandidate[];\n\tpick: number | null;\n\tchosen: number;\n\tdecidedBy: ReconcilerDecider;\n\tstatus: ReconcilerDecisionStatus;\n\tdetail: string | null;\n\tjobRunId: string | null;\n\tcreatedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;",
+				"type WakeAbout = 'workstream' | 'job' | 'conflict';\n\ntype ReconcilerCandidate =\n\t| Readonly<{ kind: 'nothing'; label: string }>\n\t| Readonly<{\n\t\t\tkind: 'wake-chat';\n\t\t\tlabel: string;\n\t\t\tsessionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tfrom: string;\n\t\t\treport: string;\n\t\t\tabout?: WakeAbout;\n\t  }>\n\t| Readonly<{\n\t\t\tkind: 'run-job';\n\t\t\tlabel: string;\n\t\t\tdefinitionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tcontext: string;\n\t  }>\n\t| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;\n\ntype ReconcilerDecider = 'model' | 'rules' | 'you';\n\ntype ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';\n\ntype ReconcilerDecisionRecord = Readonly<{\n\tid: string;\n\teventId: number;\n\tchannel: string;\n\tchainId: string;\n\tworkstreamId: string | null;\n\tfacts: readonly string[];\n\tcandidates: readonly ReconcilerCandidate[];\n\tpick: number | null;\n\tchosen: number;\n\tdecidedBy: ReconcilerDecider;\n\tstatus: ReconcilerDecisionStatus;\n\tdetail: string | null;\n\tjobRunId: string | null;\n\tcreatedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;",
 		},
 		{
 			channel: 'jobs:time-reached',
 			description:
-				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again.",
+				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
 			payloadType: 'TimeReachedEvent',
 			payload:
-				"type ScheduleTimeReached = Readonly<{\n\tdefinitionId: string;\n\tname: string;\n\twhen: string;\n\tdue: string;\n}>;\n\ntype ShippingWait = 'retry' | 'checks';\n\ntype ShippingTimeReached = Readonly<{\n\tworkstreamId: string;\n\twait: ShippingWait;\n\tdue: string;\n}>;\n\ntype TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;",
+				"type ScheduleTimeReached = Readonly<{\n\tdefinitionId: string;\n\tname: string;\n\twhen: string;\n\tdue: string;\n}>;\n\ntype ShippingWait = 'retry' | 'checks' | 'idle';\n\ntype ShippingTimeReached = Readonly<{\n\tworkstreamId: string;\n\twait: ShippingWait;\n\tdue: string;\n\tcauseEventId?: number;\n}>;\n\ntype ResumeTimeReached = Readonly<{\n\tworkstreamId: string;\n\tsessionId: string;\n\trunId: string;\n\twait: 'resume';\n\tdue: string;\n}>;\n\ntype AlarmTimeReached = ShippingTimeReached | ResumeTimeReached;\n\ntype TimeReachedEvent = ScheduleTimeReached | AlarmTimeReached;",
 		},
 		{
 			channel: 'app:started',
@@ -357,6 +381,13 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'BrowserResizeRequest',
 			payload:
 				'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;\n\ntype BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;',
+		},
+		{
+			channel: 'browser:thread-opened',
+			description:
+				'Fires when you open the thread behind a pin on a page in the browser, with its workstream and chat; Malini shows that chat in a tab of its own. Malini does not keep it in its event log.',
+			payloadType: 'BrowserThreadOpened',
+			payload: 'type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: string }>;',
 		},
 		{
 			channel: 'extensions:file-open-requested',

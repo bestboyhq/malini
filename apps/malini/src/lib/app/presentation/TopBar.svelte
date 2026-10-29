@@ -252,7 +252,8 @@
 {#snippet statusAction(action: GlobalTopBarStatusAction, armId: string, testId: string)}
 	{@const armed = armedDetailId === armId}
 	{@const iconOnly = dockCompact && !armed}
-	<Tooltip content={action.label} placement="bottom" suppressed={!iconOnly}>
+	{@const tooltip = iconOnly ? action.label : action.tooltip}
+	<Tooltip content={tooltip ?? ''} placement="bottom" suppressed={!tooltip}>
 		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 		<button
 			type="button"
@@ -827,7 +828,7 @@
 		--dock-tint: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
 	}
 
-	.topbar-right[data-docked]:has(.topbar-git:not([data-zone='idle'])) {
+	.topbar-right[data-docked]:has(.topbar-git:not([data-zone='idle'], [data-zone='asks'])) {
 		--dock-edge: color-mix(in srgb, var(--dock-ink) 40%, transparent);
 		--dock-stripe: color-mix(in srgb, var(--dock-ink) 16%, transparent);
 	}
@@ -960,7 +961,7 @@
 		--zone-tint: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
 	}
 
-	.topbar-git:not([data-zone='idle']) {
+	.topbar-git:not([data-zone='idle'], [data-zone='asks']) {
 		--zone-edge: color-mix(in srgb, var(--zone-ink) 30%, transparent);
 		--zone-hover: color-mix(in srgb, var(--zone-ink) 10%, transparent);
 		--zone-stripe: color-mix(in srgb, var(--zone-ink) 16%, transparent);
@@ -1084,6 +1085,10 @@
 	.topbar-git__detail {
 		flex: 0 1 auto;
 		color: color-mix(in srgb, var(--zone-ink) 64%, transparent);
+	}
+
+	.topbar-git[data-zone='asks'] .topbar-git__detail {
+		color: var(--color-brand-foreground);
 	}
 
 	.topbar-git__action-slot {

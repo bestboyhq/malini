@@ -416,10 +416,8 @@ export function finalizeInteractionResponse(
 			: source === 'auto'
 				? kind === 'approval' &&
 					decision === 'allow' &&
-					scope !== null &&
-					scope !== 'once' &&
 					remember === null &&
-					matchedRuleId !== null
+					(matchedRuleId === null ? scope === 'once' : scope !== null && scope !== 'once')
 				: false;
 	if (!shapeValid || !sourceValid) throw invariant('invalid interaction resolution shape');
 

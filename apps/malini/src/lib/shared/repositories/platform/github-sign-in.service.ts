@@ -3,16 +3,23 @@ import type { GitHubDeviceCodeDto, GitHubSignInOutcome } from '$contract/reposit
 import { GhError } from '$main/errors';
 import { ghEnvironment } from '$main/process/gh';
 
-const LOGIN_ARGS = [
-	'auth',
-	'login',
-	'--web',
-	'--hostname',
-	'github.com',
-	'--git-protocol',
-	'https',
-	'--skip-ssh-key',
-] as const;
+export type GitHubDeviceFlow = 'sign-in' | 'workflow-access';
+
+const FLOW_ARGS: Readonly<Record<GitHubDeviceFlow, readonly string[]>> = {
+	'sign-in': [
+		'auth',
+		'login',
+		'--web',
+		'--hostname',
+		'github.com',
+		'--git-protocol',
+		'https',
+		'--skip-ssh-key',
+		'--scopes',
+		'workflow',
+	],
+	'workflow-access': ['auth', 'refresh', '--hostname', 'github.com', '--scopes', 'workflow'],
+};
 const USER_CODE = /one-time code\W*([A-Z0-9]{4}-[A-Z0-9]{4})/iu;
 const VERIFICATION_URI = /(https:\/\/[^\s]+)/u;
 const PROGRESS_LINE = /one-time code|^Open this URL|pbcopy/iu;
@@ -43,9 +50,9 @@ export class GitHubSignIn {
 		this.#codeTimeoutMs = deps.codeTimeoutMs ?? CODE_TIMEOUT_MS;
 	}
 
-	start(): Promise<GitHubDeviceCodeDto> {
+	start(flow: GitHubDeviceFlow = 'sign-in'): Promise<GitHubDeviceCodeDto> {
 		this.cancel();
-		const child = spawn(this.#command, [...LOGIN_ARGS], {
+		const child = spawn(this.#command, [...FLOW_ARGS[flow]], {
 			env: this.#environment(),
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});

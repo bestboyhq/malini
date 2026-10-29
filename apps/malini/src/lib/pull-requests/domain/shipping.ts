@@ -48,6 +48,7 @@ export type ShippingSnapshot = Readonly<{
 	attempts: number;
 	fixAttemptLimit: number;
 	backoffUntil: number | null;
+	waitsForYou: boolean;
 	now: number;
 	read: boolean;
 	pullRequest: PullRequestFacts | null;
@@ -57,6 +58,7 @@ export type ShippingMove =
 	| Readonly<{ kind: 'idle'; problem: string | null }>
 	| Readonly<{ kind: 'wait'; step: ShipStep; until?: number }>
 	| Readonly<{ kind: 'backoff' }>
+	| Readonly<{ kind: 'held' }>
 	| Readonly<{ kind: 'read-pull-request' }>
 	| Readonly<{ kind: 'commit' }>
 	| Readonly<{ kind: 'push' }>
@@ -110,7 +112,12 @@ export function scaledShipDelays(scale: number): ShipDelays {
 	};
 }
 
-const ACTIVE_JOB_STATUSES: ReadonlySet<JobRunStatus> = new Set(['queued', 'running', 'needs-you']);
+const ACTIVE_JOB_STATUSES: ReadonlySet<JobRunStatus> = new Set([
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+]);
 const FAILED_CHECK_STATES = new Set([
 	'FAILURE',
 	'ERROR',
@@ -169,6 +176,7 @@ const JOB_LABELS: Readonly<Record<ShippingJobBuiltin, string>> = {
 
 export function nextShippingMove(snapshot: ShippingSnapshot): ShippingMove {
 	if (snapshot.phase === 'needs-you') return { kind: 'idle', problem: null };
+	if (snapshot.waitsForYou) return { kind: 'held' };
 	if (snapshot.backoffUntil !== null && snapshot.backoffUntil > snapshot.now) {
 		return { kind: 'backoff' };
 	}
@@ -374,10 +382,10 @@ export function clampedFixAttempts(value: string | undefined, fallback: number):
 }
 
 export function pullRequestReadEvery(
-	state: Pick<ShipStateRecord, 'phase' | 'step' | 'activeJobRunId'>,
+	state: Pick<ShipStateRecord, 'phase' | 'step' | 'activeJobRunId' | 'waitsFor'>,
 	delays: ShipDelays,
 ): number | null {
-	if (state.activeJobRunId !== null) return null;
+	if (state.activeJobRunId !== null || state.waitsFor !== null) return null;
 	if (state.phase === 'needs-you') return delays.reviewPollMs;
 	if (state.phase !== 'queued') {
 		return state.step === 'waiting-for-github' ? delays.githubPollMs : null;

@@ -32,6 +32,10 @@
 	let videoHeight = $state(0);
 	let resting = $state(false);
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
+	let pendingSeek: number | null = null;
+	let loadedSrc: string | undefined;
+	let reloaded = $state<{ at: number; playing: boolean; speed: typeof speed } | null>(null);
+	const stopped = $derived(reloaded ? !reloaded.playing : paused);
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
 
@@ -43,21 +47,66 @@
 
 	$effect(() => () => clearTimeout(restTimer));
 
+	$effect.pre(() => {
+		if (video && loadedSrc !== undefined && src !== loadedSrc) {
+			reloaded = { at: video.currentTime, playing: !video.paused, speed };
+		}
+		loadedSrc = src;
+	});
+
+	function resume(): void {
+		if (!video || !reloaded) return;
+		time = Math.min(reloaded.at, video.duration);
+		speed = reloaded.speed;
+		if (reloaded.playing) void video.play().catch(() => {});
+		reloaded = null;
+	}
+
 	function wake(): void {
 		resting = false;
 		clearTimeout(restTimer);
 		if (autohide && video && !video.paused) restTimer = setTimeout(() => (resting = true), REST_MS);
 	}
 
+	function running(): boolean {
+		return reloaded ? reloaded.playing : video !== undefined && !video.paused;
+	}
+
 	export function toggle(): void {
-		if (!video) return;
-		if (video.paused) void video.play().catch(() => {});
-		else video.pause();
+		if (running()) hold();
+		else play();
+	}
+
+	function hold(): void {
+		if (reloaded) reloaded = { ...reloaded, playing: false };
+		else video?.pause();
+	}
+
+	function play(): void {
+		if (reloaded) reloaded = { ...reloaded, playing: true };
+		else void video?.play().catch(() => {});
 	}
 
 	function step(frames: number): void {
-		video?.pause();
+		hold();
 		time = Math.min(length, Math.max(0, time + frames / FPS));
+	}
+
+	function scrub(): void {
+		if (!running()) return;
+		hold();
+		addEventListener('pointerup', play, { once: true });
+	}
+
+	function seek(to: number): void {
+		if (reloaded) reloaded = { ...reloaded, at: to };
+		if (video?.seeking) pendingSeek = to;
+		else time = to;
+	}
+
+	function seeked(): void {
+		if (pendingSeek !== null) time = pendingSeek;
+		pendingSeek = null;
 	}
 
 	function cycleSpeed(): void {
@@ -98,11 +147,13 @@
 			class="block size-full rounded-[inherit] object-contain"
 			onplay={wake}
 			onpause={wake}
+			onseeked={seeked}
+			onloadedmetadata={resume}
 			{onerror}
 		></video>
 		<Button
 			bare
-			ariaLabel={onopen ? (openLabel ?? label) : paused ? `Play ${label}` : `Pause ${label}`}
+			ariaLabel={onopen ? (openLabel ?? label) : stopped ? `Play ${label}` : `Pause ${label}`}
 			tabindex={onopen ? 0 : -1}
 			class={['absolute inset-0 rounded-[inherit]', onopen ? 'cursor-zoom-in' : 'cursor-default']}
 			onclick={onopen ?? toggle}
@@ -116,12 +167,12 @@
 			aria-label="Video controls"
 		>
 			<MediaToolbarButton
-				tooltip={paused ? 'Play' : 'Pause'}
-				label={paused ? 'Play' : 'Pause'}
+				tooltip={stopped ? 'Play' : 'Pause'}
+				label={stopped ? 'Play' : 'Pause'}
 				square
 				onclick={toggle}
 			>
-				<Icon name={paused ? 'play' : 'pause'} size={14} />
+				<Icon name={stopped ? 'play' : 'pause'} size={14} />
 			</MediaToolbarButton>
 			<span class="hidden items-center @lg/player:flex">
 				<MediaToolbarButton
@@ -143,7 +194,8 @@
 					step={1 / FPS}
 					marker={null}
 					label="Scrub the recording"
-					onseek={(to) => (time = to)}
+					onseek={seek}
+					ongrab={scrub}
 				/>
 			</span>
 			<span class="text-fg-tertiary shrink-0 px-1 font-mono text-xs tabular-nums">

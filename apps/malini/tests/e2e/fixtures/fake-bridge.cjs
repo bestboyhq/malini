@@ -97,6 +97,10 @@ const repliedRuns = new Set();
 const blockedRuns = new Set();
 const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
+const uncheckedRuns = new Set();
+const heldApprovals = new Set();
+const APPROVAL_RELEASE = 'release-approval';
+const UNCHECKED_INPUT = { command: 'node -e "console.log(6*7)"', description: 'Print 6*7' };
 const lastRuns = new Map();
 const askedQuestions = new Map();
 const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
@@ -153,6 +157,8 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [],
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const STREAM_LINE_MS = 100;
+const LATE_CANCEL_MS = 500;
+const lateCancelRuns = new Set();
 const streamedText = new Map();
 const settleStreamedText = (runId) => {
 	const text = streamedText.get(runId);
@@ -589,6 +595,18 @@ const stopBackgroundCommand = (sessionId) => {
 };
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
 const CHOICE_FILE = nodePath.join(env.HOME || '/tmp', 'malini-choice.txt');
+const PRE_APPROVED_TOOLS = new Set([
+	'jobs_list',
+	'events_list',
+	'repositories_list',
+	'workstreams_list',
+	'workstreams_create',
+	'workstreams_send',
+	'decisions_ask',
+	'decisions_answer',
+	'plan_write',
+	'files_open',
+]);
 
 function fakePick(prompt, choices) {
 	let wanted = '';
@@ -653,6 +671,51 @@ const maliniCalls = new Map();
 const themeOfRun = new Map();
 
 const lineageOfRun = new Map();
+const briefOfRun = new Map();
+const freshRuns = new Set();
+const leadCalls = new Map();
+const BRIEF = /^<malini_timeline>\n[\s\S]*?\n<\/malini_timeline>\n\n/u;
+const callLeadTool = (sessionId, runId) => {
+	const lead = leadCalls.get(runId);
+	const call = lead?.calls[lead.next];
+	if (!lead || !call) return;
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'mcp__malini__' + call.tool,
+		input: call.input,
+		toolCallId: 'lead-call-' + runId + '-' + lead.next,
+		ts: Date.now(),
+	});
+	write({
+		type: 'bridge.platform_request',
+		protocolVersion: version,
+		requestId: 'platform-' + runId,
+		sessionId,
+		runId,
+		tool: call.tool,
+		input: call.input,
+	});
+};
+const stoppedSessions = new Set();
+const STOPS = {
+	LIMIT_PAUSE: (seconds) => ({
+		error: "You've hit your session limit · resets 3pm",
+		failure: {
+			kind: 'usage-limit',
+			resetsAt: new Date(Date.now() + seconds * 1000).toISOString(),
+			status: 429,
+		},
+	}),
+	OVERLOADED_PAUSE: () => ({
+		error: 'API Error: 529 Overloaded',
+		failure: { kind: 'overloaded', status: 529 },
+	}),
+	SIGNIN_FAIL: () => ({
+		error: 'Claude Code is not signed in. Run `claude auth login` in a terminal, then try again.',
+		failure: { kind: 'sign-in', status: 401 },
+	}),
+};
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
 	if (prompt.includes('WHICH_THEME')) {
@@ -665,6 +728,30 @@ const respond = async (sessionId, runId, prompt) => {
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 		return;
+	}
+	if (prompt.includes('WHICH_BRIEF')) {
+		const brief = briefOfRun.get(runId);
+		const lines = brief
+			? brief
+					.split('\n')
+					.filter((line) => line.startsWith('['))
+					.map((line) => line.replace(/^\[[^\]]+\] /u, ''))
+			: ['Brief: none'];
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: ['Fresh: ' + (freshRuns.has(runId) ? 'yes' : 'no'), ...lines].join('\n\n'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('LEAD_CALLS')) {
+		const planned = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'lead-calls.json'), 'utf8'));
+		pendingRuns.set(runId, sessionId);
+		leadCalls.set(runId, { sessionId, calls: planned.calls, reply: planned.reply, next: 0 });
+		return callLeadTool(sessionId, runId);
 	}
 	if (prompt.includes('WHICH_LINEAGE')) {
 		const lineage = lineageOfRun.get(runId);
@@ -771,6 +858,48 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('AUTO_MODE_DOWN')) {
+		pendingRuns.set(runId, sessionId);
+		uncheckedRuns.add(runId);
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-1',
+			input: UNCHECKED_INPUT,
+		});
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-1',
+			error:
+				'The server-side auto mode classifier gave no verdict (error), so auto mode cannot determine the safety of Bash.',
+			autoModeReason: 'Classifier unavailable',
+		});
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-2',
+			input: UNCHECKED_INPUT,
+		});
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-unchecked-1',
+			reason: "Auto mode couldn't check this call: Anthropic's safety check is down.",
+			toolName: 'Bash',
+			input: UNCHECKED_INPUT,
+			permission: {
+				capability: 'execute',
+				resources: [{ kind: 'command', value: UNCHECKED_INPUT.command, boundary: 'unknown' }],
+			},
+			autoModeUnavailable: true,
+		});
+		return;
+	}
 	if (prompt.includes('MALINI_UNASKED_TOOL')) {
 		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
 		pendingRuns.set(runId, sessionId);
@@ -799,6 +928,18 @@ const respond = async (sessionId, runId, prompt) => {
 		const commitLine = /COMMIT=([^"\n]+?)(?:"|$)/.exec(prompt);
 		pendingRuns.set(runId, sessionId);
 		maliniCalls.set(runId, { sessionId, ...call, commit: commitLine ? commitLine[1] : null });
+		if (PRE_APPROVED_TOOLS.has(call.tool)) {
+			write({
+				type: 'bridge.platform_request',
+				protocolVersion: version,
+				requestId: 'platform-' + runId,
+				sessionId,
+				runId,
+				tool: call.tool,
+				input: call.input,
+			});
+			return;
+		}
 		event({
 			type: 'approval.requested',
 			sessionId,
@@ -816,6 +957,7 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	if (prompt.includes('APPROVAL')) {
 		pendingRuns.set(runId, sessionId);
+		if (prompt.includes('APPROVAL_HOLD')) heldApprovals.add(runId);
 		event({
 			type: 'approval.requested',
 			sessionId,
@@ -943,6 +1085,7 @@ const respond = async (sessionId, runId, prompt) => {
 		return toolStreamRun(sessionId, runId, Number(toolStream[1]), Number(toolStream[2] ?? 0));
 	}
 	if (stream) {
+		if (prompt.includes('LATE_CANCEL')) lateCancelRuns.add(runId);
 		const report = prompt.includes('CHAT_TURN_REPORT') ? CHAT_TURN_REPORT : '';
 		return streamRun(sessionId, runId, Number(stream[1]), report);
 	}
@@ -973,6 +1116,12 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			text: '1. Add the health route\n2. Cover it with a test',
 		});
+	}
+	const stop = /(LIMIT_PAUSE|OVERLOADED_PAUSE|SIGNIN_FAIL)(?::(\d+))?/.exec(prompt);
+	if (stop && !stoppedSessions.has(sessionId)) {
+		stoppedSessions.add(sessionId);
+		event({ type: 'run.failed', runId, ...STOPS[stop[1]](Number(stop[2] ?? 4)) });
+		return;
 	}
 	if (prompt.includes('ROUTINE_RUN_FAIL')) {
 		event({ type: 'run.failed', runId, error: 'the tests are still red' });
@@ -1031,6 +1180,47 @@ const respond = async (sessionId, runId, prompt) => {
 		if (heartbeat) clearInterval(heartbeat);
 		pendingRuns.set(runId, sessionId);
 		return;
+	}
+	if (prompt.includes('ECHO_SHIPPING')) {
+		const shipping = /<workstream_shipping>(.*)<\/workstream_shipping>/.exec(prompt);
+		const note = shipping ? JSON.parse(shipping[1]) : null;
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			note ? '\n\nShipping note: ' + note.title + '. ' + note.reason : '\n\nNo shipping note',
+		);
+	}
+	if (prompt.includes('SHELL_BLOCKS')) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n```sh\nprintf \'Your name? \'; read name; echo "hi $name in $(basename "$PWD")"\n```' +
+				'\n\n```sh\necho serving; sleep 300\n```',
+		);
+	}
+	if (prompt.includes('ECHO_SHELL_RUNS')) {
+		const block = /<user_shell_commands>(.*)<\/user_shell_commands>/.exec(prompt);
+		const runs = block ? JSON.parse(block[1]) : [];
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			runs.length === 0
+				? '\n\nNo shell runs'
+				: runs
+						.map(
+							(run) => '\n\nYou ran: ' + run.state + ' ' + run.exitCode + ' ' + run.output.trim(),
+						)
+						.join(''),
+		);
 	}
 	const replyFile = /REPLY_FILE:([^\s]+)/.exec(prompt);
 	const replyPath = replyFile && worktree ? nodePath.join(worktree, replyFile[1]) : null;
@@ -1175,7 +1365,11 @@ const handle = (command) => {
 			if (command.prompt.includes('REFUSED_PROMPT'))
 				return ack(command.id, 'the agent refused this');
 			ack(command.id);
-			const { sessionId, runId, prompt } = command;
+			const { sessionId, runId } = command;
+			const brief = BRIEF.exec(command.prompt)?.[0] ?? null;
+			const prompt = brief === null ? command.prompt : command.prompt.slice(brief.length);
+			if (brief !== null) briefOfRun.set(runId, brief);
+			if (command.freshConversation) freshRuns.add(runId);
 			if (prompt.includes('CRASH')) process.exit(3);
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
@@ -1187,8 +1381,12 @@ const handle = (command) => {
 			for (const [steered, owner] of pendingRuns) {
 				if (!command.steer || owner !== sessionId) continue;
 				pendingRuns.delete(steered);
-				settleStreamedText(steered);
-				event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+				const cancel = () => {
+					settleStreamedText(steered);
+					event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+				};
+				if (lateCancelRuns.delete(steered)) setTimeout(cancel, LATE_CANCEL_MS);
+				else cancel();
 			}
 			const start = () => {
 				event({ type: 'run.started', runId, sessionId });
@@ -1225,6 +1423,34 @@ const handle = (command) => {
 			return ack(command.id);
 		case 'approve': {
 			ack(command.id);
+			if (uncheckedRuns.delete(command.runId)) {
+				event(
+					command.decision === 'allow'
+						? {
+								type: 'tool.completed',
+								runId: command.runId,
+								name: 'Bash',
+								toolCallId: 'unchecked-2',
+								output: '42',
+							}
+						: {
+								type: 'tool.failed',
+								runId: command.runId,
+								name: 'Bash',
+								toolCallId: 'unchecked-2',
+								error:
+									'The user kept this call blocked. Carry on with the rest of the task without it.',
+								autoModeReason: 'Classifier unavailable',
+							},
+				);
+				completeRun(
+					command.sessionId,
+					command.runId,
+					['unchecked', command.decision, command.scope].join(':'),
+				);
+				pendingRuns.delete(command.runId);
+				return;
+			}
 			if (blockedRuns.delete(command.runId)) {
 				event({
 					type: 'tool.failed',
@@ -1283,12 +1509,21 @@ const handle = (command) => {
 				name: 'read_file',
 				output: { decision: command.decision, scope: command.scope },
 			});
-			completeRun(
-				command.sessionId,
-				command.runId,
-				'approved:' + command.decision + ':' + command.scope,
-			);
-			pendingRuns.delete(command.runId);
+			const finish = () => {
+				completeRun(
+					command.sessionId,
+					command.runId,
+					'approved:' + command.decision + ':' + command.scope,
+				);
+				pendingRuns.delete(command.runId);
+			};
+			if (!heldApprovals.delete(command.runId)) return finish();
+			const release = nodePath.join(env.HOME, APPROVAL_RELEASE);
+			const holding = setInterval(() => {
+				if (!fs.existsSync(release)) return;
+				clearInterval(holding);
+				finish();
+			}, 50);
 			return;
 		}
 		case 'answer_question': {
@@ -1432,6 +1667,26 @@ const handle = (command) => {
 		case 'platform_result': {
 			ack(command.id);
 			const runId = command.requestId.replace(/^platform-/, '');
+			const lead = leadCalls.get(runId);
+			if (lead) {
+				const call = lead.calls[lead.next];
+				event({
+					type: 'tool.completed',
+					runId,
+					name: 'mcp__malini__' + (call?.tool ?? 'unknown'),
+					output: command.ok ? command.text : command.error,
+					toolCallId: 'lead-call-' + runId + '-' + lead.next,
+					ts: Date.now(),
+				});
+				lead.next += 1;
+				if (lead.next < lead.calls.length) return callLeadTool(lead.sessionId, runId);
+				leadCalls.delete(runId);
+				pendingRuns.delete(runId);
+				event({ type: 'assistant.message', runId, contentId: 'c1', text: lead.reply });
+				event({ type: 'run.completed', runId, summary: lead.reply });
+				event({ type: 'session.state', sessionId: lead.sessionId, status: 'completed' });
+				return;
+			}
 			const malini = maliniCalls.get(runId);
 			if (!malini) return;
 			maliniCalls.delete(runId);

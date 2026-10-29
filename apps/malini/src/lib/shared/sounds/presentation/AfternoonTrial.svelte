@@ -121,7 +121,7 @@
 								class={[
 									'grid h-4 w-4 shrink-0 place-items-center',
 									state === 'running' && 'text-fg-secondary',
-									state === 'needs-you' && 'text-warning-content',
+									state === 'needs-you' && 'text-brand-icon',
 								]}
 							>
 								{#if state === 'running'}
@@ -173,7 +173,7 @@
 						!heard.includes(index)
 							? 'bg-surface-50-selected'
 							: moment.signal === 'needs-you'
-								? 'bg-warning-content'
+								? 'bg-brand-icon'
 								: 'text-fg-secondary bg-current',
 					]}
 					style:left={`${(moment.at / DURATION_MS) * 100}%`}

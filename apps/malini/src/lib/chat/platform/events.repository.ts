@@ -2,6 +2,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
 import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
+import type { SessionStatus } from '$contract/agent-state-machine';
 import type { WorkstreamTurn } from '$contract/stats';
 import {
 	hasTurnReport,
@@ -9,6 +10,7 @@ import {
 	parseTurnReport,
 	workstreamImagePath,
 } from '../domain/turn-report';
+import { packedEvents, type PackedEvent } from './event-packs.repository';
 
 export type { AgentEventEnvelope };
 
@@ -22,6 +24,7 @@ export interface AgentEvent {
 export interface AgentEventRow extends AgentEvent {
 	seq: number;
 	runId: string;
+	at?: string;
 }
 
 export function encodeEvent(kind: string, payloadJson: string): string {
@@ -46,6 +49,35 @@ function parsePayload(payloadJson: string): unknown {
 function eventFromBlob(blob: string): AgentEvent {
 	const { kind, payloadJson } = decodeEvent(blob);
 	return { kind, payload: parsePayload(payloadJson) };
+}
+
+function rowFromStored(row: {
+	seq: number;
+	run_id: string;
+	event: string;
+	emitted_at?: string;
+}): AgentEventRow {
+	return {
+		seq: row.seq,
+		runId: row.run_id,
+		...eventFromBlob(row.event),
+		...(row.emitted_at === undefined ? {} : { at: row.emitted_at }),
+	};
+}
+
+function withPackedRows(
+	rows: AgentEventRow[],
+	packed: readonly PackedEvent[],
+	includes: (event: PackedEvent) => boolean,
+	toRow: (event: PackedEvent) => AgentEventRow = rowFromPacked,
+): AgentEventRow[] {
+	const unpacked = packed.filter(includes).map(toRow);
+	if (unpacked.length === 0) return rows;
+	return [...rows, ...unpacked].sort((left, right) => left.seq - right.seq);
+}
+
+function rowFromPacked({ seq, runId, event, emittedAt }: PackedEvent): AgentEventRow {
+	return { seq, runId, ...eventFromBlob(event), at: emittedAt };
 }
 
 export interface RunToolCalls {
@@ -109,12 +141,10 @@ export function listEventsForSession(
 	sessionId: string,
 	sinceEventId: number,
 ): AgentEvent[] {
-	return all<{ event: string }>(
-		db,
-		'SELECT event FROM agent_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC',
-		sessionId,
-		sinceEventId,
-	).map((row) => eventFromBlob(row.event));
+	return listEventRowsForSession(db, sessionId, sinceEventId).map(({ kind, payload }) => ({
+		kind,
+		payload,
+	}));
 }
 
 export function listEventRowsForSession(
@@ -122,12 +152,16 @@ export function listEventRowsForSession(
 	sessionId: string,
 	afterSeq: number,
 ): AgentEventRow[] {
-	return all<{ seq: number; run_id: string; event: string }>(
-		db,
-		'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC',
-		sessionId,
-		afterSeq,
-	).map((row) => ({ seq: row.seq, runId: row.run_id, ...eventFromBlob(row.event) }));
+	return withPackedRows(
+		all<{ seq: number; run_id: string; event: string }>(
+			db,
+			'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC',
+			sessionId,
+			afterSeq,
+		).map(rowFromStored),
+		packedEvents(db, sessionId),
+		({ seq }) => seq > afterSeq,
+	);
 }
 
 export interface AgentEventRowPage {
@@ -166,13 +200,18 @@ export function listEventRowPage(
 		budget,
 	);
 	const start = picked?.start ?? afterSeq + 1;
-	const rows = all<{ seq: number; run_id: string; event: string }>(
-		db,
-		'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq >= ? AND seq < ? ORDER BY seq ASC',
-		sessionId,
-		start,
-		beforeSeq,
-	).map((row) => ({ seq: row.seq, runId: row.run_id, ...eventFromBlob(row.event) }));
+	const packed = packedEvents(db, sessionId);
+	const rows = withPackedRows(
+		all<{ seq: number; run_id: string; event: string; emitted_at: string }>(
+			db,
+			'SELECT seq, run_id, event, emitted_at FROM agent_events WHERE session_id = ? AND seq >= ? AND seq < ? ORDER BY seq ASC',
+			sessionId,
+			start,
+			beforeSeq,
+		).map(rowFromStored),
+		packed,
+		({ seq }) => seq >= start && seq < beforeSeq,
+	);
 	const earlier = get<{ seq: number }>(
 		db,
 		'SELECT seq FROM agent_events WHERE session_id = ? AND seq > ? AND seq < ? LIMIT 1',
@@ -183,7 +222,7 @@ export function listEventRowPage(
 	return {
 		rows,
 		startSeq: start,
-		complete: earlier === null,
+		complete: earlier === null && !packed.some(({ seq }) => seq > afterSeq && seq < start),
 		overBudget: picked?.over_budget === 1,
 	};
 }
@@ -195,20 +234,34 @@ export function listEventRowsOfKinds(
 	kindsWithPayload: readonly string[],
 ): AgentEventRow[] {
 	const marks = (list: readonly string[]): string => list.map(() => '?').join(', ') || 'NULL';
-	return all<{ seq: number; run_id: string; kind: string; event: string | null }>(
-		db,
-		`SELECT seq, run_id, kind, CASE WHEN kind IN (${marks(kindsWithPayload)}) THEN event END AS event
-		 FROM (SELECT seq, run_id, event, substr(event, 1, instr(event, char(10)) - 1) AS kind
-		       FROM agent_events WHERE session_id = ?)
-		 WHERE kind IN (${marks(kinds)}) ORDER BY seq ASC`,
-		...kindsWithPayload,
-		sessionId,
-		...kinds,
-	).map((row) => ({
-		seq: row.seq,
-		runId: row.run_id,
-		...(row.event === null ? { kind: row.kind, payload: null } : eventFromBlob(row.event)),
-	}));
+	const rowOf = (
+		seq: number,
+		runId: string,
+		kind: string,
+		event: string | null,
+	): AgentEventRow => ({
+		seq,
+		runId,
+		...(event === null ? { kind, payload: null } : eventFromBlob(event)),
+	});
+	return withPackedRows(
+		all<{ seq: number; run_id: string; kind: string; event: string | null }>(
+			db,
+			`SELECT seq, run_id, kind, CASE WHEN kind IN (${marks(kindsWithPayload)}) THEN event END AS event
+			 FROM (SELECT seq, run_id, event, substr(event, 1, instr(event, char(10)) - 1) AS kind
+			       FROM agent_events WHERE session_id = ?)
+			 WHERE kind IN (${marks(kinds)}) ORDER BY seq ASC`,
+			...kindsWithPayload,
+			sessionId,
+			...kinds,
+		).map((row) => rowOf(row.seq, row.run_id, row.kind, row.event)),
+		packedEvents(db, sessionId),
+		({ event }) => kinds.includes(decodeEvent(event).kind),
+		({ seq, runId, event }) => {
+			const { kind } = decodeEvent(event);
+			return rowOf(seq, runId, kind, kindsWithPayload.includes(kind) ? event : null);
+		},
+	);
 }
 
 export function toolCallOutput(
@@ -216,15 +269,22 @@ export function toolCallOutput(
 	sessionId: string,
 	toolCallId: string,
 ): string | null {
-	const match = all<{ event: string }>(
-		db,
-		`SELECT event FROM agent_events
-		 WHERE session_id = ? AND event LIKE 'tool.completed' || char(10) || '%' AND instr(event, ?) > 0
-		 ORDER BY seq DESC`,
-		sessionId,
-		`"toolCallId":${JSON.stringify(toolCallId)}`,
-	)
-		.map((row) => eventFromBlob(row.event).payload)
+	const mention = `"toolCallId":${JSON.stringify(toolCallId)}`;
+	const match = [
+		...column(
+			db,
+			`SELECT event FROM agent_events
+			 WHERE session_id = ? AND event LIKE 'tool.completed' || char(10) || '%' AND instr(event, ?) > 0
+			 ORDER BY seq DESC`,
+			sessionId,
+			mention,
+		),
+		...packedEvents(db, sessionId)
+			.map(({ event }) => event)
+			.filter((event) => event.startsWith('tool.completed\n') && event.includes(mention))
+			.reverse(),
+	]
+		.map((event) => eventFromBlob(event).payload)
 		.find((payload) => isRecord(payload) && payload['toolCallId'] === toolCallId);
 	const output = isRecord(match) ? match['output'] : null;
 	return typeof output === 'string' ? output : null;
@@ -486,6 +546,54 @@ export function latestSessionReport(db: MaliniDatabase, sessionId: string): Sess
 	};
 }
 
+export type ElementThread = Readonly<{
+	sessionId: string;
+	status: SessionStatus;
+	waiting: boolean;
+	prompt: string;
+	url: string;
+	domPath: string;
+	outcome: string | null;
+}>;
+
+export function listElementThreads(db: MaliniDatabase, workstreamId: string): ElementThread[] {
+	return all<{ id: string; status: SessionStatus; waiting: number; event: string | null }>(
+		db,
+		`SELECT s.id, s.status,
+		        EXISTS (SELECT 1 FROM agent_interactions i
+		                WHERE i.session_id = s.id AND i.state = 'pending') AS waiting,
+		        (SELECT e.event FROM agent_events e
+		         WHERE e.session_id = s.id AND e.event LIKE 'user.message' || char(10) || '%'
+		         ORDER BY e.seq LIMIT 1) AS event
+		 FROM agent_sessions s
+		 WHERE s.workstream_id = ? AND s.origin = 'thread' AND s.archived_at IS NULL
+		 ORDER BY s.started_at`,
+		workstreamId,
+	).flatMap((row) => {
+		const anchor = row.event === null ? null : threadAnchor(eventFromBlob(row.event).payload);
+		if (anchor === null) return [];
+		return [
+			{
+				sessionId: row.id,
+				status: row.status,
+				waiting: row.waiting === 1,
+				...anchor,
+				outcome: latestSessionReport(db, row.id)?.outcome ?? null,
+			},
+		];
+	});
+}
+
+function threadAnchor(payload: unknown): Pick<ElementThread, 'prompt' | 'url' | 'domPath'> | null {
+	if (!isRecord(payload) || typeof payload['text'] !== 'string') return null;
+	const references = payload['elementReferences'];
+	const element = Array.isArray(references) ? references[0] : undefined;
+	if (!isRecord(element)) return null;
+	const { url, domPath } = element;
+	if (typeof url !== 'string' || typeof domPath !== 'string') return null;
+	return { prompt: payload['text'], url, domPath };
+}
+
 export function latestRunReport(db: MaliniDatabase, runId: string): string | null {
 	for (const row of all<{ event: string }>(
 		db,
@@ -549,6 +657,7 @@ export function envelopeJson(
 	runId: string,
 	seq: number,
 	event: Record<string, unknown>,
+	emittedAt?: string,
 ): AgentEventEnvelope {
 	const kind = typeof event['type'] === 'string' ? event['type'] : '';
 	const shaped: Record<string, unknown> = { ...event };
@@ -561,7 +670,9 @@ export function envelopeJson(
 	) {
 		shaped['sessionId'] = sessionId;
 	}
-	return { sessionId, runId, seq, event: shaped };
+	return emittedAt === undefined
+		? { sessionId, runId, seq, event: shaped }
+		: { sessionId, runId, seq, event: shaped, emittedAt };
 }
 
 const TOOL_OUTPUT_PREVIEW_CHARS = 8 * 1024;
@@ -623,4 +734,59 @@ export function supersededRanges(rows: readonly AgentEventRow[]): SupersededRang
 
 export function seqInSupersededRange(seq: number, ranges: readonly SupersededRange[]): boolean {
 	return ranges.some((range) => seq >= range.fromSeq && seq <= range.toSeq);
+}
+
+export type TimelineEventRow = AgentEventRow & Readonly<{ at: string }>;
+
+const TIMELINE_KINDS = [
+	'user.message',
+	'assistant.message',
+	'tool.started',
+	'tool.completed',
+	'run.completed',
+	'run.failed',
+	'turn.superseded',
+	'turn.restored',
+] as const;
+
+const TIMELINE_KINDS_WITH_PAYLOAD = [
+	'user.message',
+	'assistant.message',
+	'run.completed',
+	'run.failed',
+	'turn.superseded',
+	'turn.restored',
+] as const;
+
+export function listTimelineEventRows(
+	db: MaliniDatabase,
+	sessionId: string,
+	exceptRunId: string,
+): TimelineEventRow[] {
+	const marks = (list: readonly string[]): string => list.map(() => '?').join(', ');
+	const rows = all<{ seq: number; run_id: string; kind: string; event: string | null; at: string }>(
+		db,
+		`SELECT e.seq, e.run_id, e.kind, e.emitted_at AS at,
+		   CASE WHEN e.kind IN (${marks(TIMELINE_KINDS_WITH_PAYLOAD)})
+		     OR instr(e.event, '"name":"mcp__malini__') > 0 THEN e.event END AS event
+		 FROM (SELECT seq, run_id, emitted_at, event,
+		         substr(event, 1, instr(event, char(10)) - 1) AS kind
+		       FROM agent_events WHERE session_id = ? AND run_id != ?) e
+		 JOIN agent_runs r ON r.id = e.run_id AND r.obsoleted_at IS NULL
+		 WHERE e.kind IN (${marks(TIMELINE_KINDS)})
+		 ORDER BY e.seq`,
+		...TIMELINE_KINDS_WITH_PAYLOAD,
+		sessionId,
+		exceptRunId,
+		...TIMELINE_KINDS,
+	).map((row) => ({
+		seq: row.seq,
+		runId: row.run_id,
+		at: row.at,
+		...(row.event === null ? { kind: row.kind, payload: null } : eventFromBlob(row.event)),
+	}));
+	const superseded = supersededRanges(rows);
+	return rows.filter(
+		(row) => !isHistoryEventKind(row.kind) && !seqInSupersededRange(row.seq, superseded),
+	);
 }

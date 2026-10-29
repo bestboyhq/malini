@@ -11,6 +11,8 @@ function run(runId: string, items: RenderItem[]): RunGroup {
 		items,
 		terminal: 'completed',
 		terminalText: '',
+		failure: null,
+		resumeAt: null,
 		turnEnded: true,
 		superseded: false,
 		obsoleted: false,

@@ -1084,6 +1084,134 @@ DELETE FROM settings WHERE key = 'merge-queue.update-from-main';
 ALTER TABLE workstream_ship DROP COLUMN update_requests;
 `,
 	`
+CREATE TABLE agent_event_packs (
+  session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  events BLOB NOT NULL
+);
+`,
+	`
+ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
+ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
+`,
+	`
+ALTER TABLE workstream_ship ADD COLUMN github_said TEXT;
+ALTER TABLE workstream_ship ADD COLUMN failed_since TEXT;
+`,
+	`
+CREATE TABLE shell_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  workstream_id TEXT NOT NULL,
+  anchor_message TEXT NOT NULL,
+  anchor_block INTEGER NOT NULL,
+  command TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('exited','stopped','failed')),
+  exit_code INTEGER,
+  output TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  reported INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX idx_shell_runs_anchor ON shell_runs(anchor_message, anchor_block);
+CREATE INDEX idx_shell_runs_session ON shell_runs(session_id);
+`,
+	`
+CREATE TABLE event_log_next (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  workstream_id TEXT,
+  cause_kind TEXT CHECK (cause_kind IS NULL OR cause_kind IN ('job-run','chat-turn','event')),
+  cause_id TEXT,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  emitted_at TEXT NOT NULL,
+  handled_at TEXT,
+  CHECK ((cause_kind IS NULL) = (cause_id IS NULL))
+);
+INSERT INTO event_log_next
+  (id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at)
+  SELECT id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at
+  FROM event_log;
+DELETE FROM sqlite_sequence WHERE name = 'event_log_next';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'event_log_next', seq FROM sqlite_sequence WHERE name = 'event_log';
+DROP TABLE event_log;
+ALTER TABLE event_log_next RENAME TO event_log;
+CREATE INDEX idx_event_log_emitted ON event_log(emitted_at);
+CREATE INDEX idx_event_log_chain ON event_log(chain_id);
+CREATE INDEX idx_event_log_unhandled ON event_log(emitted_at) WHERE handled_at IS NULL;
+CREATE INDEX idx_event_log_workstream_channel ON event_log(workstream_id, channel);
+CREATE INDEX idx_event_log_cause ON event_log(cause_kind, cause_id);
+
+UPDATE job_definitions
+  SET trigger_when = 'on repositories:workstream-merge-conflicted', trigger_mode = 'auto'
+  WHERE builtin = 'resolve-conflicts' AND trigger_when IS NULL;
+`,
+	`
+CREATE TABLE agent_sessions_next (
+  id TEXT PRIMARY KEY,
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id),
+  model TEXT,
+  status TEXT NOT NULL CHECK (status IN ('idle','running','waiting_for_approval','completed','failed')),
+  started_at TEXT NOT NULL,
+  provider_session_id TEXT,
+  display_name TEXT NOT NULL DEFAULT '',
+  archived_at TEXT,
+  forked_from_session_id TEXT,
+  fork_seq INTEGER,
+  origin TEXT NOT NULL DEFAULT 'user' CHECK (origin IN ('user','job','thread'))
+);
+INSERT INTO agent_sessions_next (id, workstream_id, model, status, started_at, provider_session_id,
+  display_name, archived_at, forked_from_session_id, fork_seq, origin)
+SELECT id, workstream_id, model, status, started_at, provider_session_id,
+  display_name, archived_at, forked_from_session_id, fork_seq, origin
+FROM agent_sessions;
+DROP TABLE agent_sessions;
+ALTER TABLE agent_sessions_next RENAME TO agent_sessions;
+CREATE INDEX idx_agent_sessions_workstream_archived_started
+  ON agent_sessions(workstream_id, archived_at, started_at DESC);
+`,
+	`ALTER TABLE workstream_ship ADD COLUMN waits_for TEXT;`,
+	`
+CREATE TABLE lead_decisions (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  topic TEXT NOT NULL,
+  question TEXT NOT NULL,
+  why TEXT,
+  options TEXT NOT NULL,
+  recommended INTEGER NOT NULL,
+  meanwhile TEXT,
+  asked_at TEXT NOT NULL,
+  answer_option INTEGER,
+  answer_by TEXT CHECK (answer_by IS NULL OR answer_by IN ('you','lead')),
+  answer_reason TEXT,
+  answered_at TEXT,
+  CHECK ((answer_option IS NULL) = (answer_by IS NULL) AND (answer_by IS NULL) = (answered_at IS NULL))
+);
+CREATE INDEX idx_lead_decisions_session ON lead_decisions(session_id, asked_at);
+
+CREATE TABLE agent_deliveries (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('prompt','report','decision')),
+  prompt TEXT NOT NULL,
+  from_session_id TEXT,
+  from_workstream_id TEXT,
+  report TEXT,
+  decision_id TEXT,
+  profile TEXT,
+  chain_id TEXT,
+  cause_event_id INTEGER,
+  status TEXT NOT NULL CHECK (status IN ('waiting','delivered','failed')),
+  run_id TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL,
+  delivered_at TEXT
+);
+CREATE INDEX idx_agent_deliveries_waiting ON agent_deliveries(session_id, status, created_at);
+CREATE INDEX idx_agent_deliveries_from ON agent_deliveries(from_session_id, created_at);
+`,
+	`
 CREATE TABLE agent_run_tool_calls (
   run_id TEXT NOT NULL,
   tool TEXT NOT NULL,
@@ -1129,10 +1257,15 @@ export function migrate(db: MaliniDatabase): void {
 			`schema version ${existing} predates the first release; open this database once with Malini 0.33.0 to upgrade it`,
 		);
 	}
-	db.transaction(() => {
-		if (existing === 0) db.exec(SCHEMA);
-		const applied = Math.max(existing, BASELINE_USER_VERSION) - BASELINE_USER_VERSION;
-		for (const migration of MIGRATIONS.slice(applied)) db.exec(migration);
-		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION};`);
-	});
+	db.exec('PRAGMA foreign_keys = OFF;');
+	try {
+		db.transaction(() => {
+			if (existing === 0) db.exec(SCHEMA);
+			const applied = Math.max(existing, BASELINE_USER_VERSION) - BASELINE_USER_VERSION;
+			for (const migration of MIGRATIONS.slice(applied)) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION};`);
+		});
+	} finally {
+		db.exec('PRAGMA foreign_keys = ON;');
+	}
 }

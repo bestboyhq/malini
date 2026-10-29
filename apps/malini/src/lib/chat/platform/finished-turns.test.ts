@@ -98,4 +98,19 @@ describe('FinishedTurns', () => {
 		expect(after('chat', 'run-2', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR })).toBeNull();
 		expect(after('chat', 'run-3', { type: 'assistant.message', text: 'Working on it' })).toBeNull();
 	});
+
+	it('stays quiet for a turn a limit paused, and tells of the turn that goes on from it', () => {
+		expect(
+			after('chat', 'run-4', {
+				type: 'run.failed',
+				error: "You've hit your session limit",
+				failure: { kind: 'usage-limit', resetsAt: '2026-10-26T12:00:00.000Z' },
+				resumeAt: '2026-10-26T12:00:05.000Z',
+			}),
+		).toBeNull();
+		expect(after('chat', 'run-5', { type: 'run.completed', summary: REPORT })).toMatchObject({
+			runId: 'run-5',
+			status: 'succeeded',
+		});
+	});
 });

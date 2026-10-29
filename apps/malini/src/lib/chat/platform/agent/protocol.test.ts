@@ -119,6 +119,35 @@ describe('event frames', () => {
 			error: 'e',
 		});
 		expect(
+			decode({
+				type: 'run.failed',
+				runId: 'r',
+				error: "You've hit your session limit",
+				failure: { kind: 'usage-limit', resetsAt: '2026-10-27T14:31:13.000Z', status: 429 },
+			}),
+		).toEqual({
+			type: 'run.failed',
+			runId: 'r',
+			error: "You've hit your session limit",
+			failure: { kind: 'usage-limit', resetsAt: '2026-10-27T14:31:13.000Z', status: 429 },
+		});
+		expect(
+			decode({
+				type: 'run.failed',
+				runId: 'r',
+				error: 'e',
+				failure: { kind: 'solar-flare', resetsAt: 'soon', status: 'x' },
+			}),
+		).toEqual({ type: 'run.failed', runId: 'r', error: 'e' });
+		expect(
+			decode({
+				type: 'run.failed',
+				runId: 'r',
+				error: 'e',
+				failure: { kind: 'overloaded', resetsAt: 'soon', status: 529.5 },
+			}),
+		).toEqual({ type: 'run.failed', runId: 'r', error: 'e', failure: { kind: 'overloaded' } });
+		expect(
 			decode({ type: 'session.state', sessionId: 's', status: 'idle', providerSessionId: 'p' }),
 		).toEqual({
 			type: 'session.state',
@@ -162,6 +191,18 @@ describe('event frames', () => {
 			error: 'x',
 			parentToolCallId: 'task-1',
 		});
+	});
+
+	it('keeps that auto mode could not check a call it asks about', () => {
+		const unchecked = {
+			type: 'approval.requested',
+			sessionId: 's',
+			runId: 'r',
+			approvalId: 'a',
+			reason: "Auto mode couldn't check this call: Anthropic's safety check is down.",
+			autoModeUnavailable: true,
+		};
+		expect(decode(unchecked)).toEqual(unchecked);
 	});
 
 	it('drops optional fields that arrive as null, like serde Option', () => {

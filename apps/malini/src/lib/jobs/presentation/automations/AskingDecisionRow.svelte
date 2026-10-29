@@ -33,7 +33,7 @@
 >
 	<div class="flex items-center gap-3">
 		<span
-			class="bg-warning text-warning-content grid size-7 shrink-0 place-items-center rounded-md"
+			class="bg-brand/10 text-brand-foreground grid size-7 shrink-0 place-items-center rounded-md"
 			aria-hidden="true"
 		>
 			<Icon name="route" size={14} />

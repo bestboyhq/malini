@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
+import type { ShipWaitsFor } from '$contract/pull-requests';
 
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return (
@@ -176,11 +177,53 @@ const AUTH_FAILURE =
 const REPOSITORY_NOT_FOUND = /repository not found|repository '[^']*' not found/iu;
 const REMOTE_HAS_NEW_COMMITS =
 	/\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)|updates were rejected because the (?:remote|tip)/iu;
+const REMOTE_REJECTED = /^\s*!\s+\[remote rejected\][^\n(]*\((.+)\)[ \t]*$/mu;
+const WORKFLOW_REFUSED =
+	/refusing to allow an? (OAuth App|Personal Access Token|GitHub App) to create or update workflow `([^`]+)` without `workflows?` (?:scope|permission)/u;
+const REMOTE_LINE = /^remote:[ \t]?(.*)$/gmu;
+const REMOTE_PROGRESS = /^(?:Enumerating|Counting|Compressing|Resolving|Total|Writing)\b/u;
+const REMOTE_SAID_MAX_CHARS = 2_000;
 const MERGE_CONFLICT = /^CONFLICT \(/mu;
 const MERGE_CONFLICT_PATH = /^CONFLICT \([^)]*\): Merge conflict in (.+)$/gmu;
 const INDEX_LOCKED = /index\.lock'?: File exists/u;
 const FOLDER_GONE = /cannot change to '([^']+)': No such file or directory/u;
+const GENERIC_REMOTE_FAILURE = /could not read from remote repository/iu;
 const LISTED_CONFLICT_PATHS = 3;
+
+const WORKFLOW_FIXES: Readonly<Record<string, string>> = {
+	'OAuth App':
+		"your gh sign-in can't change workflows. Run `gh auth refresh -s workflow` once, then retry.",
+	'Personal Access Token':
+		"your GitHub token can't change workflows. Give it the workflow scope, then retry.",
+	'GitHub App':
+		"the GitHub App Malini pushes with can't change workflows. Give it the Workflows permission, then retry.",
+};
+
+export function remoteRefusal(error: unknown): string | null {
+	if (!(error instanceof GitError) || error.detail === undefined) return null;
+	const reason = REMOTE_REJECTED.exec(error.detail)?.[1]?.trim();
+	if (!reason) return null;
+	const said = [...error.detail.matchAll(REMOTE_LINE)]
+		.map((match) => (match[1] ?? '').trim())
+		.filter((line) => line.length > 0 && !REMOTE_PROGRESS.test(line));
+	return [...new Set([...said, reason])].join('\n').slice(0, REMOTE_SAID_MAX_CHARS);
+}
+
+export function workflowRefusal(error: unknown): ShipWaitsFor | null {
+	if (!(error instanceof GitError) || error.detail === undefined) return null;
+	const actor = WORKFLOW_REFUSED.exec(error.detail)?.[1];
+	if (actor === undefined) return null;
+	return actor === 'OAuth App' ? 'workflow-scope' : 'workflow-permission';
+}
+
+function refusedPush(output: string, reason: string): string {
+	const workflow = WORKFLOW_REFUSED.exec(output);
+	const fix = workflow?.[1] === undefined ? undefined : WORKFLOW_FIXES[workflow[1]];
+	if (!workflow || fix === undefined) {
+		return `GitHub refused the push: ${/[.!?]$/u.test(reason) ? reason : `${reason}.`}`;
+	}
+	return `GitHub refused the push: this change edits \`${workflow[2] ?? 'a workflow'}\`, and ${fix}`;
+}
 
 function folderMissing(folder: string): GitFailureVerdict {
 	return { kind: 'io', message: `The folder ${basename(folder)} is missing.`, code: 'ENOENT' };
@@ -210,6 +253,8 @@ export function gitFailureVerdict(output: string): GitFailureVerdict {
 			message: 'The remote branch has new commits. Update this branch and try again.',
 		};
 	}
+	const refusal = REMOTE_REJECTED.exec(output)?.[1]?.trim();
+	if (refusal) return { kind: 'git', message: refusedPush(output, refusal) };
 	if (MERGE_CONFLICT.test(output)) {
 		return {
 			kind: 'git',
@@ -265,7 +310,11 @@ function gitVerdictLine(output: string): string {
 		.split('\n')
 		.map((line) => line.trim())
 		.filter((line) => line.length > 0 && !/^hint:/iu.test(line));
-	const verdict = lines.filter((line) => /^(?:fatal|error):/iu.test(line)).at(-1) ?? lines.at(-1);
+	const verdicts = lines.filter((line) => /^(?:fatal|error):/iu.test(line));
+	const verdict =
+		verdicts.filter((line) => !GENERIC_REMOTE_FAILURE.test(line)).at(-1) ??
+		verdicts.at(-1) ??
+		lines.at(-1);
 	const cleaned = withoutAbsolutePaths(verdict?.replace(/^(?:fatal|error):\s*/iu, '') ?? '');
 	return cleaned.length > 0 ? cleaned : 'Git stopped without giving a reason.';
 }

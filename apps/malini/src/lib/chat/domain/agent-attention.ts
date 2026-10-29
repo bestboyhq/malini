@@ -129,7 +129,8 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 	}
 
 	if (input.event.type === 'run.failed') {
-		if (input.queueCount > 0 || isExpectedCancellation(input.event.error)) return null;
+		if (input.queueCount > 0 || input.event.resumeAt !== undefined) return null;
+		if (isExpectedCancellation(input.event.error)) return null;
 		return {
 			kind: 'failed',
 			runId: input.runId,

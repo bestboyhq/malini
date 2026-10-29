@@ -16,6 +16,8 @@ const ALL_TABLES = [
 	'agent_actions',
 	'agent_attachments',
 	'agent_checkpoints',
+	'agent_deliveries',
+	'agent_event_packs',
 	'agent_events',
 	'agent_interactions',
 	'agent_permission_rules',
@@ -42,12 +44,14 @@ const ALL_TABLES = [
 	'job_runs',
 	'job_setups',
 	'job_suggestions',
+	'lead_decisions',
 	'mcp_server_folder_offs',
 	'mcp_server_listings',
 	'projects',
 	'reconciler_decisions',
 	'scratchpads',
 	'settings',
+	'shell_runs',
 	'skill_choices',
 	'workstream_commit_runs',
 	'workstream_opened_files',
@@ -62,6 +66,8 @@ const ALL_INDEXES = [
 	'idx_agent_checkpoints_session_obsoleted',
 	'idx_agent_checkpoints_session_seq',
 	'idx_agent_checkpoints_workstream_created',
+	'idx_agent_deliveries_from',
+	'idx_agent_deliveries_waiting',
 	'idx_agent_events_run',
 	'idx_agent_events_session_seq',
 	'idx_agent_interactions_pending',
@@ -79,9 +85,11 @@ const ALL_INDEXES = [
 	'idx_alarms_due',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
+	'idx_event_log_cause',
 	'idx_event_log_chain',
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
+	'idx_event_log_workstream_channel',
 	'idx_job_experiments_definition',
 	'idx_job_outputs_definition_created',
 	'idx_job_run_events_event',
@@ -93,10 +101,13 @@ const ALL_INDEXES = [
 	'idx_job_runs_status_created',
 	'idx_job_setups_definition_created',
 	'idx_job_suggestions_cluster',
+	'idx_lead_decisions_session',
 	'idx_reconciler_decisions_chain',
 	'idx_reconciler_decisions_created',
 	'idx_reconciler_decisions_event',
 	'idx_reconciler_decisions_open',
+	'idx_shell_runs_anchor',
+	'idx_shell_runs_session',
 	'idx_workstreams_started_by',
 ];
 
@@ -374,6 +385,50 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('lets an event be the cause of another, keeping every event and its id, and turns on Resolve conflicts on a conflict', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const rebuilt = MIGRATIONS.findIndex((migration) => migration.includes('event_log_next'));
+		for (const migration of MIGRATIONS.slice(0, rebuilt)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + rebuilt};`);
+		const at = '2026-10-28T11:09:32.707Z';
+		db.exec(`
+			INSERT INTO event_log (id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at)
+			  VALUES (18147, 'pull-requests:pull-request-changed', '{}', 'w', 'job-run', 'run', 'chain', '${at}', '${at}'),
+			         (18148, 'repositories:workstream-merge-conflicted', '{}', 'w', NULL, NULL, 'own', '${at}', NULL);
+			DELETE FROM event_log WHERE id = 18148;
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at) VALUES
+			  ('resolve', 'Resolve conflicts', 'Resolve.', 'opus', 'high', 'workstream', 'resolve-conflicts', '${at}', '${at}'),
+			  ('fix', 'Fix checks', 'Fix.', 'opus', 'medium', 'workstream', 'fix-checks', '${at}', '${at}');
+		`);
+		const events = all(db, 'SELECT * FROM event_log ORDER BY id');
+
+		migrate(db);
+
+		expect(all(db, 'SELECT * FROM event_log ORDER BY id')).toEqual(events);
+		db.exec(`INSERT INTO event_log (channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at)
+			VALUES ('repositories:workstream-merge-conflicted', '{}', 'w', 'event', '18147', 'chain', '${at}')`);
+		expect(get(db, 'SELECT MAX(id) AS id FROM event_log')).toEqual({ id: 18149 });
+		expect(() =>
+			db.exec(`INSERT INTO event_log (channel, payload, cause_kind, cause_id, chain_id, emitted_at)
+				VALUES ('app:started', '{}', 'elsewhere', 'x', 'chain', '${at}')`),
+		).toThrow();
+		expect(
+			all(
+				db,
+				"SELECT id, trigger_when, trigger_mode FROM job_definitions WHERE id IN ('fix', 'resolve') ORDER BY id",
+			),
+		).toEqual([
+			{ id: 'fix', trigger_when: null, trigger_mode: null },
+			{
+				id: 'resolve',
+				trigger_when: 'on repositories:workstream-merge-conflicted',
+				trigger_mode: 'auto',
+			},
+		]);
+		db.close();
+	});
+
 	it('forgets when to update from main before a merge, and the updates still pending, keeping the rest of shipping', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
@@ -406,6 +461,46 @@ describe('migrate', () => {
 		expect(all(db, "SELECT key FROM settings WHERE key LIKE 'merge-queue.%'")).toEqual([
 			{ key: 'merge-queue.fix-attempts' },
 		]);
+		db.close();
+	});
+
+	it('lets a chat be a thread from a page, keeping every chat and what hangs off it', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const rebuilt = MIGRATIONS.findIndex((migration) => migration.includes('agent_sessions_next'));
+		for (const migration of MIGRATIONS.slice(0, rebuilt)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + rebuilt};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, model, status, started_at, display_name, origin)
+			  VALUES ('s', 'w', 'claude-opus-5-5', 'completed', '2026-10-27T00:00:00Z', 'Chat', 'job');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES ('r', 's', 'hi', '2026-10-27T00:00:00Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES ('s', 'r', 'user.message' || char(10) || '{}', '2026-10-27T00:00:00Z');
+			INSERT INTO agent_event_packs (session_id, events) VALUES ('s', x'00');
+		`);
+
+		migrate(db);
+
+		expect(get(db, 'SELECT origin, display_name, status FROM agent_sessions')).toEqual({
+			origin: 'job',
+			display_name: 'Chat',
+			status: 'completed',
+		});
+		expect(scalar(db, 'SELECT count(*) FROM agent_runs')).toBe(1);
+		expect(scalar(db, 'SELECT count(*) FROM agent_events')).toBe(1);
+		expect(scalar(db, 'SELECT count(*) FROM agent_event_packs')).toBe(1);
+		expect(all(db, 'PRAGMA foreign_key_check')).toEqual([]);
+		expect(scalar(db, 'PRAGMA foreign_keys')).toBe(1);
+		db.exec(
+			"INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES ('t', 'w', 'idle', '2026-10-28T00:00:00Z', 'thread')",
+		);
+		expect(() =>
+			db.exec(
+				"INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES ('x', 'w', 'idle', '2026-10-28T00:00:00Z', 'nonsense')",
+			),
+		).toThrow();
+		db.exec("DELETE FROM agent_event_packs WHERE session_id = 's'");
+		expect(() => db.exec("DELETE FROM agent_sessions WHERE id = 's'")).toThrow();
 		db.close();
 	});
 

@@ -54,7 +54,8 @@
 
 	const TONE: Readonly<Record<ProgressDot, string>> = {
 		merged: 'text-merged-content',
-		needs: 'text-warning-content',
+		blocked: 'text-warning-content',
+		needs: 'text-brand-icon',
 		failed: 'text-error-content',
 		running: 'text-fg-secondary',
 		idle: 'text-fg-tertiary',
@@ -126,7 +127,8 @@
 
 	function glyphOf(dot: ProgressDot, pullRequest: PullRequestPhase): IconName {
 		if (dot === 'merged') return 'pr-merged';
-		if (dot === 'needs') return 'alert';
+		if (dot === 'blocked') return 'alert';
+		if (dot === 'needs') return 'dot';
 		if (dot === 'failed') return 'pr-failed';
 		if (pullRequest === 'open') return 'pr-open';
 		return pullRequest === 'draft' ? 'pr-draft' : 'branch';

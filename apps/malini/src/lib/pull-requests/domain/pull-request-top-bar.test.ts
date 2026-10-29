@@ -79,6 +79,11 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
 		lastError: null,
+		githubSaid: null,
+		failures: 0,
+		failedSince: null,
+		nextAttemptAt: null,
+		waitsFor: null,
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides,
 	};
@@ -710,6 +715,23 @@ describe('the workstream status', () => {
 		).toBe('Octo asked for tests. The merge picks up again on its own once this is resolved.');
 	});
 
+	it('sends a merge whose fix gave up to its job to retry', () => {
+		expect(
+			status(
+				ship({
+					phase: 'needs-you',
+					needsYou: needsYou('fix-gave-up', {
+						detail: 'Fixing the checks did not work. Malini tried 3 times.',
+						jobRunId: 'run-1',
+					}),
+				}),
+				null,
+			)?.tooltip,
+		).toBe(
+			'Fixing the checks did not work. Malini tried 3 times. Open the job to see why, and retry the merge from there.',
+		);
+	});
+
 	it('confirms Cancel and Abort before they run', () => {
 		expect(status(ship({ phase: 'queued' }), null)?.action).toMatchObject({
 			kind: 'cancel-merge',
@@ -776,13 +798,16 @@ describe('the workstream status', () => {
 		).toMatchObject({ tone: 'needs-you', label: 'GitHub blocks the merge' });
 	});
 
-	it('offers Continue beside Archive once the pull request merged', () => {
+	it('offers only Archive once the pull request merged, and says the next prompt continues on main', () => {
 		const shown = status(null, open({ state: 'merged' }));
-		expect([shown?.secondaryAction, shown?.action]).toMatchObject([
-			{ kind: 'continue', label: 'Continue' },
-			{ kind: 'archive', label: 'Archive' },
-		]);
-		expect(status(null, open({ state: 'merged', headSha: null }))?.secondaryAction).toBeUndefined();
+		expect(shown).toMatchObject({
+			tone: 'merged',
+			label: 'Merged',
+			tooltip: 'Your next prompt continues on top of the latest main',
+			action: { kind: 'archive', label: 'Archive' },
+		});
+		expect(shown?.secondaryAction).toBeUndefined();
+		expect(status(null, open({ state: 'merged', headSha: null }))?.tooltip).toBeNull();
 	});
 
 	it('shows a running agent instead of a settled or checks status, with neutral actions', () => {
@@ -874,7 +899,42 @@ describe('the workstream status', () => {
 		});
 	});
 
-	it('says why the last attempt failed while malini retries it, and stays quiet otherwise', () => {
+	it('names what failed and since when while malini retries it, with Retry now', () => {
+		const retrying = {
+			lastError: "Couldn't reach github.com.",
+			failures: 5,
+			failedSince: localTime(23, 6),
+			nextAttemptAt: localTime(23, 22),
+		};
+		expect(
+			status(ship({ step: 'opening-draft', pullRequestNumber: null, ...retrying }), null),
+		).toEqual({
+			tone: 'needs-you',
+			busy: false,
+			label: "Couldn't open draft",
+			detail: '5 tries since 23:06',
+			tooltip: "Couldn't reach github.com.",
+			action: {
+				kind: 'retry-now',
+				label: 'Retry now',
+				ariaLabel: 'Retry now instead of waiting',
+				tone: 'primary',
+				confirmLabel: null,
+			},
+		});
+		expect(
+			status(ship({ phase: 'queued', step: 'merging', ...retrying, failures: 1 }), null),
+		).toMatchObject({ label: "Couldn't merge", detail: '1 try since 23:06' });
+		expect(status(ship({ step: 'pushing', ...retrying }), open())).toMatchObject({
+			tone: 'needs-you',
+			label: "Couldn't push",
+		});
+		expect(
+			status(ship({ phase: 'queued', step: 'merging', ...retrying }), open({ state: 'merged' })),
+		).toMatchObject({ tone: 'queued', label: 'Merging', action: null });
+	});
+
+	it('keeps a problem malini is not retrying in the tooltip', () => {
 		expect(
 			status(ship({ step: 'opening-draft', pullRequestNumber: null }), null)?.tooltip,
 		).toBeNull();
@@ -889,7 +949,8 @@ describe('the workstream status', () => {
 				null,
 			),
 		).toMatchObject({
-			detail: 'Retrying after an error',
+			label: 'Opening draft',
+			detail: null,
 			tooltip: "Couldn't reach github.com.",
 		});
 		expect(
@@ -954,13 +1015,12 @@ describe('the workstream status', () => {
 });
 
 describe('the pull request detail menu', () => {
-	it('keeps Retry and Cancel merge beside a needs-you action', () => {
+	it('keeps Cancel merge beside a needs-you action, and never offers a blind Retry', () => {
 		const bar = topBar(
 			ship({ phase: 'needs-you', needsYou: needsYou('operation-in-progress') }),
 			surface({ operationInProgress: 'cherry-pick' }),
 		);
 		expect(bar.menu).toEqual([
-			{ id: 'retry-merge', label: 'Retry', confirmLabel: null },
 			{ id: 'cancel-merge', label: 'Cancel merge', confirmLabel: 'Confirm cancel' },
 			{ id: 'refresh', label: 'Refresh', confirmLabel: null },
 		]);
@@ -1006,3 +1066,7 @@ describe('the pull request detail menu', () => {
 		expect(topBar(null, surface())).toMatchObject({ pullRequestNumber: null, url: null });
 	});
 });
+
+function localTime(hour: number, minute: number): string {
+	return new Date(2026, 9, 27, hour, minute).toISOString();
+}

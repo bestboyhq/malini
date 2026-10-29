@@ -1,4 +1,4 @@
-# 0097 - Malini publishes your stats to bestboy.dev when you ask
+# 0119 - Malini publishes your stats to bestboy.dev when you ask
 
 Status: accepted
 
@@ -29,7 +29,7 @@ Everything else in 0058 still holds and is restated below.
   `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 - **What goes up.** `PUT /api/stats/malini` sends Stats v1, which `src/lib/stats/domain/published-stats.ts` computes from the local database.
   It counts complete local days only, through yesterday, leads with typical values and sends peaks beside them, and takes names only from closed lists: model families, languages, Claude Code's built-in tools, `Browser`, `MCP`, `malini` and `other`, plus the public repositories you picked while GitHub reports them public.
-  A trigger on `agent_events` keeps tool calls per run in `agent_run_tool_calls` (migration 73), so a snapshot never scans every event.
+  A trigger on `agent_events` keeps tool calls per run in `agent_run_tool_calls` (migration 81), so a snapshot never scans every event.
 - **When.** Malini uploads when the switch turns on, at most once per local day while it stays on, and three seconds after you change your picks, backing off from a minute to an hour on transient errors.
 - **Off.** Turning the switch off sends `DELETE /api/stats/malini`, then `PUT /api/profile { public: false }`, and retries until both succeed.
   Signing out does the same first and then revokes the token, and any 401 drops the token and asks you to sign in again.

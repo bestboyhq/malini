@@ -32,12 +32,15 @@ import {
 	prepareStartedWorkstream,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
-import {
-	latestWorkstreamTurn,
-	sessionHasWorkingRun,
-	workstreamHasWorkingRun,
-} from '../events.repository';
+import { latestWorkstreamTurn, workstreamHasWorkingRun } from '../events.repository';
+import type { ChatDeliveries } from '../deliveries.service';
+import { promptsSentInChain } from '../deliveries.repository';
 import { answeredApprovalsInRun } from '../interactions.repository';
+import {
+	askLeadDecision,
+	recordLeadDecisionAnswer,
+	writeLeadPlan,
+} from '../lead-decisions.service';
 import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { chatTurnChainId, storedRunProfile } from '../runs.repository';
 import { latestSessionForWorkstream } from '../sessions.repository';
@@ -53,7 +56,9 @@ const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
 
 export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events' | 'appDataRoot'> &
-	Readonly<{ sending: PromptsInFlight; log: (line: string) => void }>;
+	Readonly<{ sending: PromptsInFlight; deliveries: ChatDeliveries; log: (line: string) => void }>;
+
+export const SENDS_PER_CHAIN = 6;
 
 type Input = Readonly<Record<string, unknown>>;
 
@@ -100,7 +105,9 @@ function approvalOf(
 			(isRecord(response) && jsonEqual(response['updatedInput'], request.input)),
 	);
 	const answer = exact.at(-1) ?? answers.at(-1);
-	if (!answer) return 'not-needed';
+	if (!answer || (isRecord(answer.response) && answer.response['tree'] === true)) {
+		return 'not-needed';
+	}
 	return isRecord(answer.response) && answer.response['scope'] === 'once'
 		? 'allowed'
 		: 'always-allowed';
@@ -193,6 +200,12 @@ async function runPlatformTool(
 			});
 			return { id: workstream.id, name: workstream.name, archived: true, savedWork };
 		}
+		case 'decisions_ask':
+			return askLeadDecision(deps, request.sessionId, input);
+		case 'decisions_answer':
+			return recordLeadDecisionAnswer(deps, request.sessionId, input);
+		case 'plan_write':
+			return writeLeadPlan(deps, request.sessionId, input);
 		case 'files_open': {
 			const { workstreamId } = requestSession(db, request);
 			return openFileForUser(deps, {
@@ -229,7 +242,7 @@ async function createWorkstream(
 	deps: PlatformRequestDeps,
 	request: BridgePlatformRequest,
 ): Promise<unknown> {
-	const { db, commands, sending, log } = deps;
+	const { db, commands, sending, deliveries, log } = deps;
 	const { input } = request;
 	const prompt = requiredText(input, 'prompt');
 	const base = text(input, 'base') ?? null;
@@ -264,19 +277,21 @@ async function createWorkstream(
 			`Malini started the workstream “${plan.name}” (\`${workstreamId}\`) but could not start its chat, so it did not send the prompt: ${describeError(error)}. Do not start it again.`,
 		);
 	}
-	const profile = parseRunProfile(storedRunProfile(db, request.runId));
-	const chainId = chatTurnChainId(db, request.runId);
 	const sessionId = chat;
+	deliveries.hold(sessionId);
+	await deliveries.deliver({
+		sessionId,
+		kind: 'prompt',
+		prompt,
+		fromSessionId: request.sessionId,
+		fromWorkstreamId: source.workstreamId,
+		profile: parseRunProfile(storedRunProfile(db, request.runId)),
+		chainId: chatTurnChainId(db, request.runId),
+	});
 	void sending.during(workstreamId, async () => {
 		await settingUp;
 		try {
-			await commands.call('chat.send-prompt', {
-				sessionId,
-				prompt,
-				from: source.workstreamId,
-				...(profile === null ? {} : { profile }),
-				...(chainId === null ? {} : { chainId }),
-			});
+			await deliveries.release(sessionId);
 		} catch (error) {
 			log(`agent: could not send the first prompt in \`${workstreamId}\`: ${describeError(error)}`);
 		}
@@ -293,7 +308,7 @@ async function createWorkstream(
 }
 
 async function sendToWorkstream(
-	{ db, commands }: PlatformRequestDeps,
+	{ db, deliveries }: PlatformRequestDeps,
 	request: BridgePlatformRequest,
 ): Promise<unknown> {
 	const { input } = request;
@@ -307,19 +322,33 @@ async function sendToWorkstream(
 	}
 	const chat = latestSessionForWorkstream(db, workstream.id);
 	if (!chat) throw new Error(`“${workstream.name}” has no chat to send the prompt to.`);
-	if (sessionHasWorkingRun(db, chat.id)) {
+	const chainId = chatTurnChainId(db, request.runId);
+	if (
+		chainId !== null &&
+		promptsSentInChain(db, request.sessionId, chat.id, chainId) >= SENDS_PER_CHAIN
+	) {
 		throw new Error(
-			`The chat in “${workstream.name}” is on a turn now, so Malini did not send the prompt. Send it once that turn ends.`,
+			`You already sent “${workstream.name}” ${SENDS_PER_CHAIN} prompts since the user last wrote, so Malini did not send this one. Ask the user with decisions_ask whether to keep going, or put it in your Needs line.`,
 		);
 	}
-	const chainId = chatTurnChainId(db, request.runId);
-	await commands.call('chat.send-prompt', {
+	const delivery = await deliveries.deliver({
 		sessionId: chat.id,
+		kind: 'prompt',
 		prompt,
-		from: source.workstreamId,
-		...(chainId === null ? {} : { chainId }),
+		fromSessionId: request.sessionId,
+		fromWorkstreamId: source.workstreamId,
+		chainId,
 	});
-	return { id: workstream.id, name: workstream.name, chat: chat.id };
+	return {
+		id: workstream.id,
+		name: workstream.name,
+		chat: chat.id,
+		delivery: {
+			id: delivery.id,
+			status: delivery.status,
+			...(delivery.detail ? { detail: delivery.detail } : {}),
+		},
+	};
 }
 
 function workstreamStanding(
@@ -402,7 +431,7 @@ function findRepository(
 	);
 }
 
-function findWorkstream(workstreams: readonly Workstream[], reference: string): Workstream {
+export function findWorkstream(workstreams: readonly Workstream[], reference: string): Workstream {
 	const byId = workstreams.find((workstream) => workstream.id === reference);
 	if (byId) return byId;
 	const wanted = reference.trim().toLocaleLowerCase();

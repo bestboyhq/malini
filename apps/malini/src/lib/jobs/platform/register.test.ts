@@ -28,7 +28,7 @@ import type { MainContext } from '$main/context';
 import { openDatabase, type MaliniDatabase } from '$main/db/driver';
 import { BASELINE_USER_VERSION, SCHEMA, migrate } from '$main/db/migrations';
 import { openMigratedDatabase } from '$main/db/open';
-import { all } from '$main/db/rows';
+import { all, get } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { insertRun } from '$lib/chat/platform/runs.repository';
@@ -158,7 +158,11 @@ function shipState(): ShipStateRecord {
 		attempts: 0,
 		activeJobRunId: null,
 		lastError: null,
+		githubSaid: null,
+		failures: 0,
+		failedSince: null,
 		nextAttemptAt: null,
+		waitsFor: null,
 		updatedAt: NOW,
 	};
 }
@@ -317,7 +321,10 @@ describe('job definitions', () => {
 			'name-services': defaults('Name services', 'low', 'haiku'),
 			'fix-checks': defaults('Fix checks', 'high'),
 			'update-from-main': defaults('Update from main', 'low'),
-			'resolve-conflicts': defaults('Resolve conflicts', 'high'),
+			'resolve-conflicts': {
+				...defaults('Resolve conflicts', 'high'),
+				trigger: { when: 'on repositories:workstream-merge-conflicted', mode: 'auto' },
+			},
 			'address-review': defaults('Address review', 'medium'),
 			'check-compatibility': defaults('Check compatibility', 'high'),
 			'update-docs': {
@@ -963,61 +970,65 @@ describe('update from main', () => {
 		expect(fakes.startSession).not.toHaveBeenCalled();
 	});
 
-	it('asks Resolve conflicts to finish a merge that stopped on conflicts, before it finishes', async () => {
+	it('stops on the conflicts its merge hits, and Resolve conflicts takes them on its own trigger', async () => {
 		const resolver = await builtin('resolve-conflicts');
-		const handOffs: Array<{ run: JobRunRecord; parent: JobRunStatus | undefined }> = [];
-		context.events.subscribe(JOBS_RUN_CHANGED_CHANNEL, ({ run }) => {
-			if (run.parentRunId !== null && run.status === 'queued') {
-				handOffs.push({ run, parent: getJobRun(db, run.parentRunId)?.status });
-			}
-		});
 		fakes.countBehind.mockReturnValueOnce(1);
 		fakes.workstreamStatus
 			.mockReturnValueOnce(worktree())
 			.mockReturnValueOnce(conflictedMerge())
 			.mockReturnValueOnce(conflictedMerge());
+		fakes.pull.mockImplementationOnce(() => {
+			context.events.emit('repositories:workstream-merge-conflicted', {
+				workstreamId: 'ws-a',
+				baseBranch: 'main',
+				conflictedPaths: ['src/shared.ts'],
+			});
+			return 'abc1234';
+		});
 		const queued = await runUpdate('Pull request: #7');
 
 		expect(await until(queued.id, 'succeeded')).toMatchObject({
-			detail: 'Stopped on conflicts in 1 file. Resolve conflicts finishes the merge.',
+			detail: 'Stopped on conflicts in 1 file.',
 		});
 		expect(fakes.pull).toHaveBeenCalledTimes(1);
-		expect(handOffs).toEqual([
-			{
-				run: expect.objectContaining({
-					definitionId: resolver.id,
-					workstreamId: 'ws-a',
-					origin: 'then',
-					parentRunId: queued.id,
-				}),
-				parent: 'running',
-			},
-		]);
-		const child = handOffs[0]?.run;
-		if (!child) throw new Error('no Resolve conflicts run');
-		await session(child.id);
-		expect(fakes.startSession).toHaveBeenCalledTimes(1);
+		const resolving = await vi.waitFor(async () => {
+			const runs = await context.commands.call('jobs.list-runs', undefined);
+			const found = runs.find((run) => run.definitionId === resolver.id);
+			if (!found) throw new Error('no Resolve conflicts run yet');
+			return found;
+		});
+		expect(resolving).toMatchObject({ workstreamId: 'ws-a', origin: 'trigger', parentRunId: null });
+		const conflict = get<{ id: number; cause_kind: string; cause_id: string }>(
+			db,
+			"SELECT id, cause_kind, cause_id FROM event_log WHERE channel = 'repositories:workstream-merge-conflicted'",
+		);
+		expect(conflict).toMatchObject({ cause_kind: 'job-run', cause_id: queued.id });
+		expect(jobRunEventIds(db, [resolving.id]).get(resolving.id)).toEqual([conflict?.id]);
+		expect(resolving.chainId).toBe(queued.chainId);
+		await session(resolving.id);
 		expect(fakes.startSession).toHaveBeenCalledWith(
 			expect.objectContaining({ displayName: 'Resolve conflicts' }),
 		);
 		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
-			prompt: `${resolver.instructions}\n\n${conflictContext}`,
+			prompt: expect.stringContaining(resolver.instructions),
+		});
+		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
+			prompt: expect.stringContaining(conflictContext),
 		});
 	});
 
-	it('hands a merge already stopped on conflicts straight to Resolve conflicts', async () => {
+	it('leaves a merge already stopped on conflicts to Resolve conflicts, starting nothing itself', async () => {
 		const resolver = await builtin('resolve-conflicts');
 		fakes.workstreamStatus.mockReturnValueOnce(conflictedMerge());
 		const queued = await runUpdate();
 
-		await until(queued.id, 'succeeded');
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'A merge had already stopped on conflicts in 1 file.',
+		});
 		expect(fakes.countBehind).not.toHaveBeenCalled();
 		expect(fakes.pull).not.toHaveBeenCalled();
 		const runs = await context.commands.call('jobs.list-runs', undefined);
-		expect(runs.find((run) => run.definitionId === resolver.id)).toMatchObject({
-			origin: 'then',
-			parentRunId: queued.id,
-		});
+		expect(runs.find((run) => run.definitionId === resolver.id)).toBeUndefined();
 	});
 
 	it.each([
@@ -1086,6 +1097,30 @@ describe('tracking', () => {
 		expect(await until(queued.id, 'failed')).toMatchObject({ detail: 'tests still fail' });
 	});
 
+	it('keeps a job running while a limit pauses its turn, and finishes it with the turn that goes on', async () => {
+		const queued = await runFixChecks('ws-a');
+		const sessionId = await session(queued.id);
+
+		agentEvent(sessionId, 'agent-run-1', {
+			type: 'run.failed',
+			error: "You've hit your session limit",
+			failure: { kind: 'usage-limit', resetsAt: '2026-10-27T14:31:13.000Z' },
+			resumeAt: '2026-10-27T14:31:18.000Z',
+		});
+		await settle();
+		expect((await jobRun(queued.id)).status).toBe('running');
+
+		agentEvent(sessionId, 'agent-run-2', { type: 'run.started', sessionId });
+		agentEvent(sessionId, 'agent-run-2', {
+			type: 'run.completed',
+			summary: 'Fixed after the reset.',
+		});
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Fixed after the reset.',
+			agentRunId: 'agent-run-2',
+		});
+	});
+
 	it('marks the job cancelled when its agent run is cancelled', async () => {
 		const queued = await runFixChecks('ws-a');
 		const sessionId = await session(queued.id);
@@ -1114,10 +1149,29 @@ describe('tracking', () => {
 		expect(fakes.startSession).toHaveBeenCalledTimes(1);
 		expect((await jobRun(running.id)).status).toBe('cancelled');
 	});
+
+	it('cancels a job whose agent has no run to stop yet without logging the race as a failure', async () => {
+		jobs.dispose();
+		const logged: string[] = [];
+		context = harness(db);
+		jobs = registerJobs(context, { log: (line) => logged.push(line) });
+		jobs.start();
+		fakes.cancelRun.mockImplementationOnce(() => {
+			throw new Error('cancel race: no active run for session');
+		});
+		const running = await runFixChecks('ws-a');
+		await session(running.id);
+
+		expect(await context.commands.call('jobs.cancel-run', { jobRunId: running.id })).toMatchObject({
+			status: 'cancelled',
+		});
+		await settle();
+		expect(logged.filter((line) => line.includes('could not stop'))).toEqual([]);
+	});
 });
 
 describe('restart', () => {
-	it('keeps tracking runs malini resumed and fails the ones it could not', async () => {
+	it('keeps tracking runs malini resumed or a limit paused, and fails the ones it could not', async () => {
 		jobs.dispose();
 		const definition = await builtin('fix-checks');
 		const left = (
@@ -1152,6 +1206,7 @@ describe('restart', () => {
 		};
 		left('resumed', 'ws-a', 's-resumed', 'running');
 		left('lost', 'ws-b', 's-lost', 'running');
+		left('paused', 'ws-c', 's-paused', 'running');
 		left('finished', 'ws-c', 's-finished', 'needs-you');
 		left('never', 'ws-d', null, 'running');
 		left('waiting-for-b', 'ws-b', null, 'queued');
@@ -1168,6 +1223,15 @@ describe('restart', () => {
 		sessionEvents.set('s-lost', [
 			envelope('s-lost', 'r3', { type: 'run.started' }),
 			envelope('s-lost', 'r3', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR }),
+		]);
+		sessionEvents.set('s-paused', [
+			envelope('s-paused', 'r5', { type: 'run.started' }),
+			envelope('s-paused', 'r5', {
+				type: 'run.failed',
+				error: 'API Error: 529 Overloaded',
+				failure: { kind: 'overloaded', status: 529 },
+				resumeAt: '2026-10-10T00:05:00.000Z',
+			}),
 		]);
 		sessionEvents.set('s-finished', [
 			envelope('s-finished', 'r4', { type: 'run.started' }),
@@ -1188,6 +1252,7 @@ describe('restart', () => {
 		await until('waiting-for-b', 'running');
 		expect(await jobRun('resumed')).toMatchObject({ status: 'running', agentRunId: 'r2' });
 		expect((await jobRun('held')).status).toBe('waiting');
+		expect((await jobRun('paused')).status).toBe('running');
 
 		agentEvent('s-resumed', 'r2', { type: 'run.started', sessionId: 's-resumed' });
 		agentEvent('s-resumed', 'r2', { type: 'run.completed', summary: 'Picked up where it left.' });

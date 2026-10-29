@@ -523,8 +523,15 @@ async function timelineWorkstreams(
 }
 
 function builtinFields(builtin: JobBuiltin): BuiltinFields {
-	const { name, instructions, model, effort, runsIn = 'workstream' } = BUILTIN_JOBS[builtin];
-	return { name, instructions, model, effort, runsIn, trigger: null };
+	const {
+		name,
+		instructions,
+		model,
+		effort,
+		runsIn = 'workstream',
+		trigger = null,
+	} = BUILTIN_JOBS[builtin];
+	return { name, instructions, model, effort, runsIn, trigger };
 }
 
 function defaultThen(db: MaliniDatabase, builtin: JobBuiltin): string | null {

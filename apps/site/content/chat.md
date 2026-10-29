@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -16,14 +16,16 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 
 - It opens at once and sets itself up behind the chat.
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
-- Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
+- The top bar counts how many of the workstreams it started merged and which need you.
+  A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
   Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
+  **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
 - **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
   Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
   A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
-  Those workstreams keep their rows calm, with no unread mark and no amber or red, and play no sound and send no notification when they finish, need you or fail: Malini wakes the chat with their report, or asks you in a notification that opens the chat.
+  Those workstreams keep their rows calm, with no unread mark and no blue, amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
   An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
   The chat's row lights up for the most pressing news of the chat and its workstreams, and grouped by Status it sits where the most pressing of them belongs, with its workstreams under it.
   A pull request of theirs that needs you says so in a toast that names the chat and opens it.
@@ -32,7 +34,37 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
   Hover the chat's row to list them.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
-- The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
+- The agent in that workstream knows which chat started it, reads the chat's [plan](#one-plan), and reads the checkouts of the other workstreams that chat started.
+
+### The timeline
+
+The chat reads as a timeline: one line for each thing that happened, with its time, on one rail.
+Your messages, the reports of the workstreams it started, what the lead started, sent, archived or ran, and the decisions all sit on it, and **Now** marks what is going on at the moment.
+Past turns fade; point at a line to read it.
+Everything the lead read or ran between two messages folds into one line, such as **Lead worked · 4 steps**, and **Show work** lists the steps.
+The lead's latest message shows in full, and each earlier one folds to its Outcome line until you open it.
+A report shows the pictures its workstream embedded; click one to see it full size and flip through the rest.
+An approval the lead waits on, such as running **Merge**, shows as a card on the timeline.
+
+Every turn of the lead starts a fresh Claude Code session from what the timeline shows, with the model, effort and access you picked.
+So a chat that runs for days never fills its context, and the lead keeps what the work needs in its plan.
+
+### Decisions
+
+The lead brings you what only you can decide, one decision at a time, in a card above the composer.
+Each option shows its picture, or its name when it has none, and the lead marks the one it recommends and says what it builds meanwhile.
+Click an option to pick it, or open an option full size to flip between them with the arrow keys and pick one with an optional reason, which the lead hears.
+An option can be a whole page, which opens live.
+**‹ 1 of 3 ›** moves between open decisions, and **Later**, or Escape, folds them into a **decisions wait for you** row above the composer.
+The composer stays under the card: write to the lead in your own words, and it records the decisions your message answers.
+A decision sits on the timeline once made, with **Change** to pick again, and the lead hears every pick and every change.
+The lead names open decisions in its `Needs:` line, so its row says it needs you and Malini plays the sound and sends the notification.
+
+### One plan
+
+The lead keeps one plan, `.context/plan.md` in its own folder: what each workstream builds, the contract between them and the decisions so far.
+It writes the plan before it starts workstreams, and every workstream it starts gets the plan's path and reads it before it begins.
+When the plan changes, the lead tells the workstreams it affects.
 
 ## Queue or steer
 
@@ -47,11 +79,35 @@ A prompt sent while a run only waits on them takes the run over, and they keep r
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
 Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
 
+## Limits and outages
+
+Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
+When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat says **Paused until** a time, with the reason.
+
+- A usage limit on your Claude plan waits until the limit resets.
+- A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
+- An error Malini does not recognize tries again once, after a minute.
+
+The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue.
+**Resume now** goes on at once, and a prompt you send replaces the pause.
+A job whose turn pauses keeps running, so a merge that waits on it loses no attempt.
+A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
+
 ## Run a command from the chat
 
 Every shell code block the agent writes has a **Run** button next to **Copy**.
-It sends the command back to the same chat, so the agent runs it in the workstream, under the chat's access level, and the run can be undone like any other.
-If the agent is busy, the command waits in the queue.
+It runs the command at once, in your shell, in the workstream's folder, with the same tools on your `PATH` as your terminal; the agent is not asked, and its run need not end first.
+Its output opens inside the code block, under the command, as it prints, with how long it has run and its exit code once it ends.
+
+- The command gets a terminal, so a sign-in, a password prompt or a question waits for you.
+  Click the output and type: each key goes to the command, **↵** answers, and what you type shows the way a terminal echoes it.
+- **Stop** sends Control-C, then ends the command if it is still running a few seconds later.
+- **Run** hides while the command runs; once it ends, **Run** runs it again and replaces its output, and **×** clears it.
+- The agent reads what you ran with your next prompt: each command, how it ended, and the end of its output, so "it failed, why?" gets an answer from the real output.
+- Archiving the workstream or quitting Malini stops what still runs.
+  A code block keeps its last output when Malini restarts, until you clear it or delete the chat.
+- Full-screen programs such as `vim` or `top` do not draw; run them in your own terminal.
 
 ## Compact the conversation
 
@@ -70,8 +126,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 ## Claude accounts
 
-The account Claude Code is signed in to always shows under the composer, on the left: click it for every Claude account you used on this Mac.
-The same list sits in **Settings > Accounts** and under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
+Point at the gauge in the composer for the account Claude Code is signed in to and every Claude account you used on this Mac, under **Account**.
+The same list sits in **Settings > Accounts**, and **Accounts…** in Malini's menu bar icon opens Settings there.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
@@ -84,12 +140,21 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 - **Full access** never asks.
 
 When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running a job in its workstream or one it started, goes through without asking, unless the job opens a draft or merges.
+See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
 When auto mode blocks a call, the chat asks you instead of failing it, with the reason auto mode gave.
 **Allow once** lets Claude retry that exact call.
 **Always allow** also adds a permission rule for it to your Claude Code settings, so auto mode lets it through from then on.
 **Keep blocked** leaves the block in place, and the agent carries on without it.
+
+When auto mode cannot check a call because Anthropic's safety check is down, the chat does not ask you right away.
+Malini lets Claude retry the call up to three times over about a minute, so a short outage never reaches you, and each attempt shows as a **not checked** row.
+If the check stays down, the chat trusts edits the way **Sandboxed** does: edits inside the workstream go through, and everything else asks, saying auto mode couldn't check the call.
+Other chats skip the retries while the check is known to be down, and each chat tries auto mode again after five minutes.
+**Keep blocked** on such a call leaves it blocked, and the agent carries on without it.
+Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the work a chat started show.
 
 A chat also answers for the work it started.
 When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
@@ -128,7 +193,9 @@ When you ask for options, or the direction is open, the agent makes two to four 
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
+While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
+Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
@@ -154,7 +221,7 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
+- Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
 
 ## Undo, edit, slice and fork
 

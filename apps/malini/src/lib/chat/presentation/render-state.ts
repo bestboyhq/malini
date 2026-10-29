@@ -1,3 +1,5 @@
+import type { RunFailure } from '$contract/agent';
+import type { WorkstreamReport } from '$contract/deliveries';
 import { isCancellationError } from '$contract/agent-state-machine';
 import type { MaliniEditReview } from '$contract/approvals';
 import type { AgentPermissionDescriptor, AgentQuestion } from '$lib/chat/domain/agent-interaction';
@@ -6,7 +8,7 @@ import {
 	sanitizeAgentElementReferences,
 	type AgentElementReference,
 } from '$lib/chat/domain/element-reference';
-import type { EventEnvelope } from '$lib/chat/domain/events';
+import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import {
@@ -81,9 +83,19 @@ export type RenderItem =
 			transcriptReferences?: AgentTranscriptReference[];
 			elementReferences?: AgentElementReference[];
 			from?: string;
+			reports?: WorkstreamReport[];
+			decisions?: string[];
+			at?: number;
 	  }
 	| { kind: 'plan'; key: string; seq: number; text: string }
-	| { kind: 'assistant'; key: string; seq: number; text: string; contentId?: string }
+	| {
+			kind: 'assistant';
+			key: string;
+			seq: number;
+			text: string;
+			contentId?: string;
+			at?: number;
+	  }
 	| { kind: 'handoff'; key: string; seq: number }
 	| { kind: 'tool'; key: string; seq: number; tool: ToolAggregate }
 	| { kind: 'file'; key: string; seq: number; path: string }
@@ -122,7 +134,9 @@ export type RenderItem =
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: true;
 			review?: MaliniEditReview;
+			at?: number;
 	  }
 	| {
 			kind: 'question';
@@ -141,12 +155,27 @@ export type RenderItem =
 export type RunGroup = {
 	runId: string;
 	items: RenderItem[];
-	terminal: 'completed' | 'failed' | 'cancelled' | null;
+	terminal: 'completed' | 'failed' | 'cancelled' | 'paused' | null;
 	terminalText: string;
+	failure: RunFailure | null;
+	resumeAt: string | null;
 	turnEnded: boolean;
 	superseded: boolean;
 	obsoleted: boolean;
 };
+
+export function failedRunState(
+	event: Extract<AgentEvent, { type: 'run.failed' }>,
+): Pick<RunGroup, 'terminal' | 'terminalText' | 'failure' | 'resumeAt'> {
+	const resumeAt = event.resumeAt ?? null;
+	const cancelled = isCancellationError(event.error);
+	return {
+		terminal: resumeAt !== null ? 'paused' : cancelled ? 'cancelled' : 'failed',
+		terminalText: event.error,
+		failure: event.failure ?? null,
+		resumeAt,
+	};
+}
 
 export function runLastSeq(group: RunGroup): number | null {
 	let max: number | null = null;
@@ -358,6 +387,8 @@ export function renderInteractionItem(
 					}
 				: {}),
 			...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
+			...(event.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
+			...(envelope.at === undefined ? {} : { at: envelope.at }),
 		};
 	}
 	if (event.type === 'question.requested') {
@@ -451,6 +482,8 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				items: [],
 				terminal: null,
 				terminalText: '',
+				failure: null,
+				resumeAt: null,
 				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
@@ -522,6 +555,11 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 						? { elementReferences: sanitizeAgentElementReferences(event.elementReferences) }
 						: {}),
 					...(event.from ? { from: event.from } : {}),
+					...(event.reports?.length
+						? { reports: event.reports.map((report) => ({ ...report })) }
+						: {}),
+					...(event.decisions?.length ? { decisions: [...event.decisions] } : {}),
+					...(env.at === undefined ? {} : { at: env.at }),
 				});
 				break;
 			}
@@ -540,6 +578,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 					seq: env.seq,
 					text: event.text,
 					...(event.contentId ? { contentId: event.contentId } : {}),
+					...(env.at === undefined ? {} : { at: env.at }),
 				});
 				break;
 			}
@@ -720,9 +759,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				}
 				discardOpenToolsForRun(runId);
 				terminal = 'failed';
-				const cancelled = isCancellationError(event.error);
-				group.terminal = cancelled ? 'cancelled' : 'failed';
-				group.terminalText = event.error;
+				Object.assign(group, failedRunState(event));
 				push(runId, {
 					kind: 'terminal',
 					key,

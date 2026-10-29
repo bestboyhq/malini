@@ -157,6 +157,7 @@ export function createEventStream(
 		return (
 			type === 'run.started' ||
 			type === 'approval.requested' ||
+			type === 'approval.decided' ||
 			type === 'run.completed' ||
 			type === 'run.failed' ||
 			type === 'checkpoint.restored' ||

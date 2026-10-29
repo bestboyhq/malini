@@ -1,7 +1,9 @@
 import { isShippingJobBuiltin, type JobDefinitionRecord, type JobRunRecord } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
+import type { DispatchedEvent } from './platform/event-log.service';
 import { getJobDefinition, listJobDefinitions } from './platform/job-definitions.repository';
 import {
+	activeWorkstreamJobRun,
 	findActiveJobRunForSession,
 	getJobRun,
 	latestWorkstreamJobRun,
@@ -9,8 +11,9 @@ import {
 
 export { JOB_CONTEXT_MAX_BYTES } from './domain/job-run';
 export { clearAlarm, setAlarm } from './platform/alarms.repository';
-export { latestLoggedEvent } from './platform/event-log.repository';
-export type { DispatchedEvent } from './platform/event-log.service';
+export { startingSessionId } from './platform/agent-actions.repository';
+export { heardBack, latestLoggedEvent } from './platform/event-log.repository';
+export { handledEvent, type DispatchedEvent } from './platform/event-log.service';
 export {
 	finishAgentAction,
 	recordAgentAction,
@@ -28,6 +31,17 @@ export interface JobsPlatform {
 	start(): void;
 	dispose(): void;
 }
+
+export type ShippingDecision = Readonly<{
+	move: string;
+	act(event: DispatchedEvent): Promise<void>;
+}>;
+
+export type ShippingRule = Readonly<{
+	hear(event: DispatchedEvent): Promise<readonly string[]>;
+	decide(workstreamId: string): Promise<ShippingDecision | null>;
+	merging(workstreamId: string): boolean;
+}>;
 
 export function jobDefinitions(db: MaliniDatabase): JobDefinitionRecord[] {
 	return listJobDefinitions(db);
@@ -49,8 +63,18 @@ export function latestShippingJobRun(
 	db: MaliniDatabase,
 	workstreamId: string,
 ): JobRunRecord | null {
-	const shippingJobs = listJobDefinitions(db)
+	return latestWorkstreamJobRun(db, workstreamId, shippingJobIds(db));
+}
+
+export function activeShippingJobRun(
+	db: MaliniDatabase,
+	workstreamId: string,
+): JobRunRecord | null {
+	return activeWorkstreamJobRun(db, workstreamId, shippingJobIds(db));
+}
+
+function shippingJobIds(db: MaliniDatabase): string[] {
+	return listJobDefinitions(db)
 		.filter(({ builtin }) => isShippingJobBuiltin(builtin))
 		.map(({ id }) => id);
-	return latestWorkstreamJobRun(db, workstreamId, 'merge-queue', shippingJobs);
 }

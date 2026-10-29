@@ -43,18 +43,24 @@ import {
 } from './mcp-servers.js';
 import {
 	approvedInput,
+	AUTO_MODE_STOPPED,
+	AUTO_MODE_UNAVAILABLE,
 	autoModeCategory,
+	AutoModeOutage,
 	autoModeRule,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
+	isMaliniTool,
 	steerToMalini,
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
 	retryKey,
 	sandboxFor,
+	UNCHECKED_CALL_REASON,
 } from './permissions.js';
+import { RunFailureSignals, SIGNED_OUT_TEXT, UNKNOWN_FAILURE } from './run-failure.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicSnapshot, type AnthropicSnapshot } from './usage.js';
@@ -67,6 +73,11 @@ const IDLE_PROCESS_MS = 10 * 60_000;
 const MCP_SETTLE_MS = 5_000;
 const MCP_SETTLE_POLL_MS = 250;
 const BLOCKED_CALL_DECISION_TIMEOUT_S = 24 * 60 * 60;
+const RETRY_BLOCKED_CALL = {
+	hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true },
+} as const;
+const KEPT_BLOCKED_MESSAGE =
+	'The user kept this call blocked. Carry on with the rest of the task without it.';
 const PLAN_HANDOFF_MESSAGE =
 	'Malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
@@ -111,6 +122,7 @@ export interface ClaudeSessionOptions {
 	readonly emit: ProviderEventListener;
 	readonly executable: string | null;
 	readonly query?: QueryFunction;
+	readonly outage?: AutoModeOutage;
 }
 
 interface RunSettings {
@@ -136,6 +148,7 @@ interface ActiveRun {
 	readonly finished: Promise<void>;
 	readonly end: () => void;
 	transcript: ClaudeTranscript;
+	failureSignals: RunFailureSignals;
 	turnEnded: Promise<void>;
 	cancelled: boolean;
 	snapshot: AnthropicSnapshot | null;
@@ -145,6 +158,9 @@ interface ActiveRun {
 	readonly approvedRetries: Set<string>;
 	readonly retriedCalls: Set<string>;
 	readonly allowRules: Set<string>;
+	readonly uncheckedRetries: Map<string, number>;
+	readonly uncheckedFallbacks: Set<string>;
+	fallback: NodeJS.Timeout | null;
 }
 
 type TurnKind = 'fresh' | 'resumed' | 'warm';
@@ -155,6 +171,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #executable: string | null;
 	readonly #query: QueryFunction;
 	readonly #interactions: ProviderInteractionBroker;
+	readonly #outage: AutoModeOutage;
 	readonly #blockedCallRules = new Map<string, string>();
 	#claudeSessionId: string | undefined;
 	#seedHistory: readonly ConversationHistoryMessage[] | undefined;
@@ -170,6 +187,7 @@ export class ClaudeSession implements ProviderHandle {
 		this.#emit = options.emit;
 		this.#executable = options.executable;
 		this.#query = options.query ?? sdkQuery;
+		this.#outage = options.outage ?? new AutoModeOutage();
 		this.#interactions = new ProviderInteractionBroker({
 			sessionId: options.context.sessionId,
 			emit: options.emit,
@@ -285,6 +303,7 @@ export class ClaudeSession implements ProviderHandle {
 			finished,
 			end,
 			transcript: new ClaudeTranscript(runId, this.#emit),
+			failureSignals: new RunFailureSignals(),
 			turnEnded: finished,
 			cancelled: false,
 			snapshot: null,
@@ -294,6 +313,9 @@ export class ClaudeSession implements ProviderHandle {
 			approvedRetries: new Set(),
 			retriedCalls: new Set(),
 			allowRules: new Set(),
+			uncheckedRetries: new Map(),
+			uncheckedFallbacks: new Set(),
+			fallback: null,
 		};
 		this.#active = active;
 		void this.#openOnceMcpSettles(active, open);
@@ -329,6 +351,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.results = [];
 		active.snapshot = null;
 		active.transcript = new ClaudeTranscript(runId, this.#emit);
+		active.failureSignals = new RunFailureSignals();
 		const outcome = await this.#turn(active, prompt, profile, 'warm');
 		return outcome === 'process-ended' ? outcome : 'done';
 	}
@@ -369,13 +392,17 @@ export class ClaudeSession implements ProviderHandle {
 			this.#emit({
 				type: 'run.failed',
 				runId: active.runId,
-				error: active.cancelled ? 'cancelled' : describe(error),
+				...(active.cancelled
+					? { error: 'cancelled' }
+					: { error: describe(error), failure: UNKNOWN_FAILURE }),
 				...cursor(transcript),
 			});
 		} finally {
 			clearInterval(outputPoll);
 			this.#interactions.cancelRun(active.runId);
 			active.approvedRetries.clear();
+			active.uncheckedRetries.clear();
+			active.uncheckedFallbacks.clear();
 			if (keepWarm) void this.#rest(active);
 			else this.#retire(active);
 			endTurn();
@@ -391,6 +418,7 @@ export class ClaudeSession implements ProviderHandle {
 			const message = next.value;
 			if (message.type === 'system' && message.subtype === 'init') this.#acceptInit(message);
 			active.transcript.accept(message);
+			active.failureSignals.accept(message);
 			if (message.type === 'system' && message.subtype === 'session_state_changed') {
 				reportsSessionState = true;
 				const settled = message.state === 'idle' && !active.transcript.hasBackgroundTasks;
@@ -423,7 +451,9 @@ export class ClaudeSession implements ProviderHandle {
 
 	#retire(active: ActiveRun): void {
 		if (active.idleTimeout) clearTimeout(active.idleTimeout);
+		if (active.fallback) clearTimeout(active.fallback);
 		active.idleTimeout = null;
+		active.fallback = null;
 		active.pending = null;
 		active.query.close();
 		if (this.#active === active) this.#active = null;
@@ -458,6 +488,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.results = [];
 		active.snapshot = null;
 		active.transcript.handOff(runId);
+		active.failureSignals = new RunFailureSignals();
 		await this.#applyEffort(active, profile);
 		if (interrupt) await active.query.interrupt().catch(() => undefined);
 		active.turns.push(userTurn(prompt, active.promptId));
@@ -560,6 +591,7 @@ export class ClaudeSession implements ProviderHandle {
 				type: 'run.failed',
 				runId,
 				error: 'Claude Code stopped without finishing the turn.',
+				failure: UNKNOWN_FAILURE,
 				...cursor(transcript),
 			});
 			return;
@@ -574,7 +606,13 @@ export class ClaudeSession implements ProviderHandle {
 			});
 			return;
 		}
-		this.#emit({ type: 'run.failed', runId, error: resultError(result), ...cursor(transcript) });
+		this.#emit({
+			type: 'run.failed',
+			runId,
+			error: resultError(result),
+			failure: active.failureSignals.failure(result),
+			...cursor(transcript),
+		});
 	}
 
 	#options(
@@ -660,17 +698,25 @@ export class ClaudeSession implements ProviderHandle {
 				}
 				return { behavior: 'deny', message: PLAN_HANDOFF_MESSAGE };
 			}
+			const unchecked = Boolean(this.#active?.fallback) && !isMaliniTool(toolName);
 			const resolution = await this.#interactions.requestApproval({
 				runId,
 				approvalId: `approval-${toolCallId}`,
-				reason: options.title ?? options.decisionReason ?? `Claude wants to use ${toolName}`,
+				reason: unchecked
+					? UNCHECKED_CALL_REASON
+					: (options.title ?? options.decisionReason ?? `Claude wants to use ${toolName}`),
 				toolName,
 				input,
 				permission: permissionDescriptor(toolName, input, this.#context.cwd, options.blockedPath),
+				...(unchecked ? { autoModeUnavailable: true } : {}),
 				signal: options.signal,
 			});
 			if (resolution.decision === 'deny') {
 				if (resolution.reason) return { behavior: 'deny', message: resolution.reason };
+				if (unchecked) {
+					this.#active?.transcript.markUnchecked(toolCallId);
+					return { behavior: 'deny', message: KEPT_BLOCKED_MESSAGE };
+				}
 				const active = this.#active;
 				if (active?.runId === runId) {
 					active.cancelled = true;
@@ -696,6 +742,16 @@ export class ClaudeSession implements ProviderHandle {
 			const active = this.#active;
 			if (input.hook_event_name !== 'PermissionDenied' || !active) return {};
 			if (active.retriedCalls.has(input.tool_use_id)) return {};
+			const category = autoModeCategory(input.reason);
+			if (category.startsWith(AUTO_MODE_STOPPED)) {
+				await this.#fallBack(active);
+				return {};
+			}
+			const unchecked = category === AUTO_MODE_UNAVAILABLE;
+			const key = retryKey(input.tool_name, input.tool_input);
+			if (unchecked && (await this.#retriedUnchecked(active, key, signal))) {
+				return RETRY_BLOCKED_CALL;
+			}
 			const { cwd } = this.#context;
 			const toolInput = isRecord(input.tool_input) ? input.tool_input : {};
 			const approvalId = `approval-${input.tool_use_id}`;
@@ -705,19 +761,57 @@ export class ClaudeSession implements ProviderHandle {
 				.requestApproval({
 					runId: active.runId,
 					approvalId,
-					reason: `Blocked by auto mode: ${autoModeCategory(input.reason)}`,
+					reason: unchecked ? UNCHECKED_CALL_REASON : `Blocked by auto mode: ${category}`,
 					toolName: input.tool_name,
 					input: toolInput,
 					permission: permissionDescriptor(input.tool_name, toolInput, cwd, undefined),
 					autoModeRule: rule,
+					...(unchecked ? { autoModeUnavailable: true } : {}),
 					signal,
 				})
 				.finally(() => this.#blockedCallRules.delete(approvalId));
 			if (resolution.decision === 'deny') return {};
 			if (resolution.alwaysAllow) await this.#allowWhileRunning(active, rule);
-			active.approvedRetries.add(retryKey(input.tool_name, input.tool_input));
-			return { hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true } };
+			active.approvedRetries.add(key);
+			return RETRY_BLOCKED_CALL;
 		};
+	}
+
+	async #retriedUnchecked(active: ActiveRun, key: string, signal: AbortSignal): Promise<boolean> {
+		if (active.uncheckedFallbacks.has(key)) return false;
+		const retries = active.uncheckedRetries.get(key) ?? 0;
+		const wait = this.#outage.down ? undefined : this.#outage.retryDelaysMs[retries];
+		if (wait === undefined) {
+			active.uncheckedFallbacks.add(key);
+			await this.#fallBack(active);
+			return true;
+		}
+		active.uncheckedRetries.set(key, retries + 1);
+		return delay(wait, true, { signal, ref: false }).catch(() => false);
+	}
+
+	async #fallBack(active: ActiveRun): Promise<void> {
+		this.#outage.confirm();
+		if (!active.fallback) {
+			await active.query
+				.setPermissionMode('acceptEdits')
+				.catch((error: unknown) =>
+					process.stderr.write(`[claude] could not fall back to acceptEdits: ${describe(error)}\n`),
+				);
+		}
+		this.#restoreAutoOnceUp(active);
+	}
+
+	#restoreAutoOnceUp(active: ActiveRun): void {
+		if (active.fallback) clearTimeout(active.fallback);
+		active.fallback = setTimeout(() => {
+			if (this.#outage.down) {
+				this.#restoreAutoOnceUp(active);
+				return;
+			}
+			active.fallback = null;
+			void active.query.setPermissionMode('auto').catch(() => undefined);
+		}, this.#outage.remainingMs).unref();
 	}
 
 	#allowApprovedRetry(): HookCallback {
@@ -977,7 +1071,7 @@ function cursor(transcript: ClaudeTranscript): { providerCursor?: string } {
 function resultError(result: SDKResultMessage): string {
 	const text =
 		result.subtype === 'success' ? result.result : result.errors.join('\n') || result.subtype;
-	if (/not logged in|\/login|authentication|invalid api key|oauth/iu.test(text)) {
+	if (SIGNED_OUT_TEXT.test(text)) {
 		return `Claude Code is not signed in. Run \`${CLAUDE_LOGIN_COMMAND}\` in a terminal, then try again.`;
 	}
 	return text || 'Claude Code reported an error.';

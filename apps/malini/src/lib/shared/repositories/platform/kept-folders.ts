@@ -1,14 +1,42 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { constants as fsConstants, type Stats } from 'node:fs';
-import { copyFile, lstat, mkdir, readdir, rename, rm, rmdir } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
+import { lstat, mkdir, open, readdir, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isErrnoException } from '$main/errors';
-import { AGENT_ATTACHMENTS_PATH, validateWorkstreamId, workstreamsRoot } from '$main/git/paths';
+import { cloneFile } from '$main/fs/copy-on-write';
+import {
+	AGENT_ATTACHMENTS_PATH,
+	AGENT_CONTEXT_PATH,
+	validateWorkstreamId,
+	workstreamsRoot,
+} from '$main/git/paths';
 
 const KEPT_DIR_NAME = '.kept';
-// ponytail: a workstream keeps these folders and every file its chats showed until it is deleted; age them out, or move chats older than 30 days to storage, if they pile up
-const KEPT_FOLDERS = ['.context', AGENT_ATTACHMENTS_PATH] as const;
+// ponytail: an archived workstream keeps its attachments, the text notes in its context folder and every file its chats showed until it is deleted; age them out if they pile up
+const KEPT_FOLDERS = [AGENT_CONTEXT_PATH, AGENT_ATTACHMENTS_PATH] as const;
 const SHOWN_DIR_NAME = 'shown';
+const PRUNED_MARK = '.pruned';
+const KEPT_TEXT_LIMIT_BYTES = 10 * 1024 * 1024;
+const TEXT_SNIFF_BYTES = 8192;
+const REBUILT_DIRECTORIES = new Set([
+	'.build',
+	'.cache',
+	'.git',
+	'.gradle',
+	'.next',
+	'.nuxt',
+	'.parcel-cache',
+	'.svelte-kit',
+	'.turbo',
+	'.venv',
+	'.vite',
+	'DerivedData',
+	'Pods',
+	'__pycache__',
+	'node_modules',
+	'venv',
+]);
+const BUNDLE_DIRECTORY = /\.(?:app|bundle|dSYM|framework|xcarchive)$/u;
 
 function keptFoldersRoot(appDataRoot: string): string {
 	return join(workstreamsRoot(appDataRoot), KEPT_DIR_NAME);
@@ -52,7 +80,7 @@ export async function keepShownFile(
 	const partial = `${kept}.${randomUUID()}.partial`;
 	await mkdir(dirname(kept), { recursive: true });
 	try {
-		await copyFile(file, partial, fsConstants.COPYFILE_FICLONE);
+		await cloneFile(file, partial);
 		await rename(partial, kept);
 	} catch (error) {
 		await rm(partial, { force: true });
@@ -76,6 +104,54 @@ function shownFileOf(appDataRoot: string, workstreamId: string, key: string): st
 
 export function dropKeptFolders(appDataRoot: string, workstreamId: string): Promise<void> {
 	return rm(keptFoldersOf(appDataRoot, workstreamId), { recursive: true, force: true });
+}
+
+export async function pruneKeptContext(appDataRoot: string, workstreamId: string): Promise<void> {
+	const kept = keptFoldersOf(appDataRoot, workstreamId);
+	if ((await entryAt(kept)) === null) return;
+	await pruneToSmallText(join(kept, AGENT_CONTEXT_PATH));
+	await writeFile(join(kept, PRUNED_MARK), '');
+}
+
+export async function keptContextPruned(
+	appDataRoot: string,
+	workstreamId: string,
+): Promise<boolean> {
+	return (await entryAt(join(keptFoldersOf(appDataRoot, workstreamId), PRUNED_MARK))) !== null;
+}
+
+async function pruneToSmallText(directory: string): Promise<void> {
+	const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+	for (const entry of entries) {
+		const path = join(directory, entry.name);
+		if (
+			entry.isDirectory() &&
+			!REBUILT_DIRECTORIES.has(entry.name) &&
+			!BUNDLE_DIRECTORY.test(entry.name)
+		) {
+			await pruneToSmallText(path);
+			await rmdir(path).catch(() => undefined);
+			continue;
+		}
+		if (entry.isFile() && (await isSmallText(path).catch(() => false))) continue;
+		await rm(path, { recursive: true, force: true });
+	}
+}
+
+async function isSmallText(path: string): Promise<boolean> {
+	const handle = await open(path, 'r');
+	try {
+		if ((await handle.stat()).size > KEPT_TEXT_LIMIT_BYTES) return false;
+		const { buffer, bytesRead } = await handle.read(
+			Buffer.alloc(TEXT_SNIFF_BYTES),
+			0,
+			TEXT_SNIFF_BYTES,
+			0,
+		);
+		return !buffer.subarray(0, bytesRead).includes(0);
+	} finally {
+		await handle.close();
+	}
 }
 
 export async function sweepKeptFolders(

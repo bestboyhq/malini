@@ -23,13 +23,16 @@ import type {
 	StagedAgentAttachmentBytes,
 } from './agent';
 import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
+import type { AnswerLeadDecisionArgs, LeadDecision, ListLeadDecisionsArgs } from './leads';
+import type { ChatDelivery, ListChatDeliveriesArgs, WorkstreamReport } from './deliveries';
 import type {
-	BrowserElementPrompt,
 	BrowserNavigateArgs,
+	BrowserPickArgs,
 	BrowserResizedArgs,
 	BrowserShowArgs,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserThreadStarted,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { GithubReach } from './github-failure';
@@ -75,6 +78,7 @@ import type {
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
+import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from './shell-runs';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
@@ -140,6 +144,8 @@ export type SessionIdArgs = Readonly<{ sessionId: string }>;
 
 export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string | null }>;
 
+export type ContinueRunArgs = Readonly<{ sessionId: string }>;
+
 export type StopBackgroundTaskArgs = Readonly<{ sessionId: string; taskId: string }>;
 
 export type ModelRefreshArgs = Readonly<{ refresh?: boolean }>;
@@ -183,6 +189,8 @@ export type SendAgentPromptArgs = Readonly<{
 	from?: string;
 	chainId?: string;
 	causeEventId?: number;
+	reports?: readonly WorkstreamReport[];
+	decisions?: readonly string[];
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{
@@ -410,7 +418,7 @@ export interface ContractCommands {
 	'browser.reload': { args: BrowserTabArgs; result: void };
 	'browser.state': { args: BrowserTabArgs; result: BrowserState };
 	'browser.snapshot': { args: BrowserTabArgs; result: string | null };
-	'browser.pick-element': { args: BrowserTabArgs; result: BrowserElementPrompt | null };
+	'browser.pick-element': { args: BrowserPickArgs; result: BrowserThreadStarted | null };
 	'browser.cancel-pick': { args: BrowserTabArgs; result: void };
 	'browser.close': { args: BrowserTabArgs; result: void };
 	'browser.resized': { args: BrowserResizedArgs; result: void };
@@ -445,6 +453,7 @@ export interface ContractCommands {
 		result: WorkstreamRetirementReceipt;
 	};
 	'chat.cancel-run': { args: CancelRunArgs; result: void };
+	'chat.continue-run': { args: ContinueRunArgs; result: void };
 	'repositories.claim-docker-service': {
 		args: ClaimDockerServiceArgs;
 		result: DockerOwnershipHandshake;
@@ -486,6 +495,7 @@ export interface ContractCommands {
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
 	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
+	'repositories.start-github-workflow-access': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
 	'repositories.cancel-github-sign-in': { args: undefined; result: void };
 	'pull-requests.create': { args: CreatePullRequestArgs; result: PullRequestStatusDto };
@@ -553,6 +563,9 @@ export interface ContractCommands {
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
 	'chat.list-event-page': { args: ListAgentEventPageArgs; result: AgentEventPage };
+	'chat.list-lead-decisions': { args: ListLeadDecisionsArgs; result: LeadDecision[] };
+	'chat.answer-lead-decision': { args: AnswerLeadDecisionArgs; result: LeadDecision };
+	'chat.list-deliveries': { args: ListChatDeliveriesArgs; result: ChatDelivery[] };
 	'chat.tool-output': { args: ToolOutputArgs; result: string | null };
 	'chat.list-sessions': { args: WorkstreamIdArgs; result: AgentSessionSummary[] };
 	'extensions.list-sources': { args: undefined; result: ExtensionSourceSnapshot[] };
@@ -648,6 +661,11 @@ export interface ContractCommands {
 		result: StagedAgentAttachment;
 	};
 	'chat.stop-background-task': { args: StopBackgroundTaskArgs; result: void };
+	'chat.run-shell-command': { args: RunShellCommandArgs; result: ShellRun };
+	'chat.shell-runs': { args: undefined; result: ShellRun[] };
+	'chat.write-shell-input': { args: ShellInputArgs; result: void };
+	'chat.stop-shell-run': { args: ShellRunArgs; result: void };
+	'chat.dismiss-shell-run': { args: ShellRunArgs; result: void };
 	'chat.start-session': { args: StartAgentSessionArgs; result: string };
 	'extensions.stat-workstream-file': {
 		args: ExtensionFileArgs;
@@ -750,6 +768,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.archive-workstream',
 	'repositories.save-workstream-for-later',
 	'chat.cancel-run',
+	'chat.continue-run',
 	'repositories.claim-docker-service',
 	'repositories.commit-workstream',
 	'repositories.create-repository',
@@ -773,6 +792,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.github-auth-status',
 	'repositories.github-reach',
 	'repositories.start-github-sign-in',
+	'repositories.start-github-workflow-access',
 	'repositories.finish-github-sign-in',
 	'repositories.cancel-github-sign-in',
 	'pull-requests.create',
@@ -825,6 +845,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.set-hidden',
 	'chat.list-events',
 	'chat.list-event-page',
+	'chat.list-lead-decisions',
+	'chat.answer-lead-decision',
+	'chat.list-deliveries',
 	'chat.tool-output',
 	'chat.list-sessions',
 	'extensions.list-sources',
@@ -878,6 +901,11 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.stage-fork-transcript',
 	'chat.start-session',
 	'chat.stop-background-task',
+	'chat.run-shell-command',
+	'chat.shell-runs',
+	'chat.write-shell-input',
+	'chat.stop-shell-run',
+	'chat.dismiss-shell-run',
 	'extensions.stat-workstream-file',
 	'extensions.write-workstream-file',
 	'app.focus-window',
