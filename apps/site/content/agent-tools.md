@@ -27,7 +27,11 @@ Malini moves the divider between the chat and the inspector, the one you drag, a
 The chat and the inspector keep their minimum widths, so the page may end up narrower or wider than asked, and the agent hears how wide it got.
 Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
 
-You can also pick an element on a page, and it lands in your prompt.
+You can also pick an element on a page and ask for a change right there.
+Malini starts a thread of its own for it, on the model you pick in that box, and remembers that model for the next one; your chat stays as it was.
+A pin on the element spins while the thread works, turns amber when it needs you, green when it is done and red when it fails.
+Click the pin for your prompt and the thread's outcome.
+**Open chat** shows the thread in a tab of its own until you switch away, and **Dismiss** removes the pin and stops the thread.
 A page that asks for your microphone or camera asks you first, and Malini remembers your answer until it quits.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 
@@ -91,6 +95,8 @@ The agent answers what its plan covers with `workstreams_send`, which reaches th
 `workstreams_send` reaches only the workstreams the chat started.
 A prompt for a chat on a turn waits until that turn ends, and survives a restart of Malini, so the agent never sends it twice.
 It sends one workstream at most six prompts after your last message; past that, the agent asks you whether to go on.
+Malini may wake the chat the same way when a job it ran finishes or fails, or when a merge in work it asked for stops on conflicts while **Resolve conflicts** is off; that report says "work you asked for moved on" and needs no `workstreams_send`.
+It never wakes a chat only because the chat works in the workstream where something happened.
 Other Malini chats are reachable only through these tools, since Claude Code's own `ListAgents` and `SendMessage` see only its own agents.
 
 To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.

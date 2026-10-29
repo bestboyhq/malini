@@ -1,4 +1,4 @@
-import type { AgentElementReference } from './agent';
+import type { AgentElementReference, AgentRunProfile } from './agent';
 
 export const BROWSER_WORKTREE_SCHEME = 'malini-worktree';
 
@@ -26,9 +26,19 @@ export type BrowserScreenshot = Readonly<{ mediaType: 'image/png'; base64: strin
 
 export type BrowserElementPrompt = Readonly<{
 	prompt: string;
+	model: string;
 	element: AgentElementReference;
 	screenshot: BrowserScreenshot;
 }>;
+
+export type BrowserPickModel = Readonly<{ id: string; label: string }>;
+
+export type BrowserPickArgs = BrowserTabArgs &
+	Readonly<{ model: string; models: readonly BrowserPickModel[]; profile: AgentRunProfile }>;
+
+export type BrowserThreadStarted = Readonly<{ sessionId: string; model: string }>;
+
+export type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: string }>;
 
 export type BrowserShowArgs = BrowserTabArgs & Readonly<{ bounds: BrowserBounds }>;
 

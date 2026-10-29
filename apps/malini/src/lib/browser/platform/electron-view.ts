@@ -43,7 +43,9 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 		events.changed();
 	});
 	contents.on('did-navigate-in-page', (_event, _url, isMainFrame) => {
-		if (isMainFrame) events.changed();
+		if (!isMainFrame) return;
+		events.changed();
+		events.movedInPage();
 	});
 	contents.on('page-title-updated', () => events.changed());
 	contents.on('did-start-navigation', (details) => {
@@ -56,6 +58,7 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 		void contents
 			.executeJavaScriptInIsolatedWorld(MALINI_WORLD_ID, [{ code: ERROR_PAGE_FOLLOWS_THEME }])
 			.catch(() => undefined);
+		events.ready();
 	});
 	let pageVisit = 0;
 	contents.on('did-navigate', () => {

@@ -70,7 +70,7 @@ interface SessionRenamedPayload {
 
 ## `chat:turn-finished`
 
-Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.
+Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.
 
 Payload: `ChatTurnFinishedPayload`
 
@@ -187,6 +187,31 @@ type McpServerListing = Readonly<{
 	servers: readonly McpServerReport[];
 	settled: boolean;
 	error?: string;
+}>;
+```
+
+## `chat:shell-run-changed`
+
+Fires when you run a command from a code block's Run button, while it prints, and when it ends, with the command, `anchor`: the message and the code block in it it ran from, its output so far, and `state`: `running`, `exited` with its `exitCode`, `stopped`, or `failed` when it could not start. Malini does not keep it in its event log.
+
+Payload: `ShellRun`
+
+```ts
+type ShellRunAnchor = Readonly<{ message: string; block: number }>;
+
+type ShellRunState = 'running' | 'exited' | 'stopped' | 'failed';
+
+type ShellRun = Readonly<{
+	id: string;
+	workstreamId: string;
+	sessionId: string;
+	anchor: ShellRunAnchor;
+	command: string;
+	state: ShellRunState;
+	exitCode: number | null;
+	output: string;
+	startedAt: string;
+	finishedAt: string | null;
 }>;
 ```
 
@@ -451,6 +476,9 @@ type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;
@@ -559,6 +587,9 @@ type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;
@@ -869,11 +900,13 @@ type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
 
 ## `jobs:decision-changed`
 
-Fires when the event reconciler decides what to do about an event no trigger handled, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.
+Fires when the event reconciler decides what to do about an event no trigger handled, records that it does nothing because other work already takes it, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.
 
 Payload: `ReconcilerDecisionChangedEvent`
 
 ```ts
+type WakeAbout = 'workstream' | 'job' | 'conflict';
+
 type ReconcilerCandidate =
 	| Readonly<{ kind: 'nothing'; label: string }>
 	| Readonly<{
@@ -883,6 +916,7 @@ type ReconcilerCandidate =
 			workstreamId: string;
 			from: string;
 			report: string;
+			about?: WakeAbout;
 	  }>
 	| Readonly<{
 			kind: 'run-job';
@@ -920,7 +954,7 @@ type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRec
 
 ## `jobs:time-reached`
 
-Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
+Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
 
 Payload: `TimeReachedEvent`
 
@@ -932,12 +966,13 @@ type ScheduleTimeReached = Readonly<{
 	due: string;
 }>;
 
-type ShippingWait = 'retry' | 'checks';
+type ShippingWait = 'retry' | 'checks' | 'idle';
 
 type ShippingTimeReached = Readonly<{
 	workstreamId: string;
 	wait: ShippingWait;
 	due: string;
+	causeEventId?: number;
 }>;
 
 type ResumeTimeReached = Readonly<{
@@ -1101,6 +1136,16 @@ Payload: `BrowserResizeRequest`
 type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
 
 type BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;
+```
+
+## `browser:thread-opened`
+
+Fires when you open the thread behind a pin on a page in the browser, with its workstream and chat; Malini shows that chat in a tab of its own. Malini does not keep it in its event log.
+
+Payload: `BrowserThreadOpened`
+
+```ts
+type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: string }>;
 ```
 
 ## `extensions:file-open-requested`

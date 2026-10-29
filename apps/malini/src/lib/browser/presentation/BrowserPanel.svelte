@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { BrowserElementPrompt } from '$contract/browser';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -29,10 +28,9 @@
 	interface Props {
 		workstreamId: string;
 		tabId: string;
-		onElementPrompt: (workstreamId: string, picked: BrowserElementPrompt) => void;
 	}
 
-	let { workstreamId, tabId, onElementPrompt }: Props = $props();
+	let { workstreamId, tabId }: Props = $props();
 
 	const tab = $derived({ workstreamId, tabId });
 	const tabKey = $derived(browserTabKey(tab));
@@ -48,7 +46,7 @@
 	let draft: string | null = $state(null);
 	let viewport: HTMLElement | null = null;
 
-	const pickElement = pickElementHook((id, picked) => onElementPrompt(id, picked));
+	const pickElement = pickElementHook();
 
 	$effect(() => watchBrowserResizesHook(tab, shownWidth, placeShown));
 
@@ -195,7 +193,7 @@
 				variant={picking ? 'primary-soft' : 'ghost'}
 				size="md"
 				ariaPressed={picking}
-				disabled={!hasPage}
+				disabled={!hasPage || failure !== null}
 				onclick={onPickToggle}
 			>
 				<Icon name="pick-element" size={14} />

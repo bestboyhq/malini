@@ -27,6 +27,9 @@ export type DeliveryBatch = Readonly<{
 export const REPORTS_PREAMBLE =
 	'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and bring the user only what they must decide.';
 
+export const ASKED_PREAMBLE =
+	'Malini woke you: work you asked for moved on. Bring the user only what they must decide.';
+
 const REPORT_BODY_CHARS = 6_000;
 const REPORT_TAIL_CHARS = 800;
 const REPORT_MEDIA_LIMIT = 6;
@@ -36,7 +39,7 @@ export function deliveryBatch(items: readonly DeliveryItem[]): DeliveryBatch {
 	const decisions = items.filter((item) => item.kind === 'decision');
 	const prompts = items.filter((item) => item.kind === 'prompt');
 	const sections = [
-		...(reports.length > 0 ? [REPORTS_PREAMBLE, ...reports.map((item) => item.prompt)] : []),
+		...(reports.length > 0 ? [preamble(reports), ...reports.map((item) => item.prompt)] : []),
 		...decisions.map((item) => item.prompt),
 		...prompts.map((item) => item.prompt),
 	];
@@ -49,6 +52,10 @@ export function deliveryBatch(items: readonly DeliveryItem[]): DeliveryBatch {
 		reports: reports.flatMap((item) => (item.report ? [item.report] : [])),
 		decisions: decisions.flatMap((item) => (item.decisionId ? [item.decisionId] : [])),
 	};
+}
+
+function preamble(reports: readonly DeliveryItem[]): string {
+	return reports.some((item) => item.report !== null) ? REPORTS_PREAMBLE : ASKED_PREAMBLE;
 }
 
 export function reportMedia(report: TurnReport): WorkstreamReportMedia[] {

@@ -120,6 +120,7 @@ export async function registerModules(
 		claudeSettings: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()).settings,
 		browser,
 		theme: () => shellHost.theme(),
+		shippingFailure: (workstreamId) => pullRequests.failure(workstreamId),
 		log,
 		...(overrides.filePicker ? { picker: overrides.filePicker } : {}),
 		...(overrides.bridgeProcessFactory ? { processFactory: overrides.bridgeProcessFactory } : {}),
@@ -149,7 +150,7 @@ export async function registerModules(
 	const jobs = registerJobs(context, {
 		suggestTitle: (task, job) => chat.suggestTitle(task, job),
 		choose: (task, job, choices) => chat.choose(task, job, choices),
-		shipping: (event) => pullRequests.handle(event),
+		shipping: pullRequests.shipping,
 		resume: (event) => chat.resume(event),
 		deliveries: (event) => chat.deliveries(event),
 		deliver: async (wake) => {

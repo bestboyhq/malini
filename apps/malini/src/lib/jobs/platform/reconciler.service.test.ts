@@ -215,6 +215,45 @@ async function decided(count: number): Promise<ReconcilerDecisionRecord[]> {
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 30));
 
+function updateFromMain(): void {
+	const updater = getBuiltinJobDefinition(db, 'update-from-main');
+	if (!updater) throw new Error('the built-in jobs are missing');
+	insertJobRun(
+		db,
+		{
+			id: 'update',
+			definitionId: updater.id,
+			title: 'Update from main',
+			workstreamId: 'api',
+			repositoryId: null,
+			scope: null,
+			sessionId: null,
+			agentRunId: null,
+			origin: 'manual',
+			status: 'running',
+			detail: null,
+			parentRunId: null,
+			chatSessionId: 'lead-chat',
+			chatAfterRunId: null,
+			chainId: 'lead-turn',
+			requests: 1,
+			createdAt: NOW,
+			startedAt: NOW,
+			finishedAt: null,
+		},
+		null,
+	);
+}
+
+async function switchResolveConflicts(mode: 'off' | 'auto'): Promise<void> {
+	const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
+	if (!resolver?.trigger) throw new Error('Resolve conflicts has no trigger');
+	await context.commands.call('jobs.save-definition', {
+		...resolver,
+		trigger: { ...resolver.trigger, mode },
+	});
+}
+
 describe('the event reconciler', () => {
 	it('wakes the chat that ran a job with its report, in the chain and for the event it heard, when the model picks it', async () => {
 		picks.push(2);
@@ -414,8 +453,13 @@ describe('the event reconciler', () => {
 			resume: async ({ channel }) => {
 				heard.push(`resume ${channel}`);
 			},
-			shipping: async ({ channel }) => {
-				heard.push(`shipping ${channel}`);
+			shipping: {
+				hear: async ({ channel }) => {
+					heard.push(`shipping ${channel}`);
+					return [];
+				},
+				decide: async () => null,
+				merging: () => false,
 			},
 			deliveries: async ({ channel }) => {
 				heard.push(`deliveries ${channel}`);
@@ -502,19 +546,82 @@ describe('the event reconciler', () => {
 		shipped('Fix checks', fixChecks.id, null);
 		shipped('Merge', merge.id, 'lead-chat');
 
-		const [decision] = await decided(1);
-		expect(decision?.candidates.map((candidate) => candidate.label)).toEqual([
+		const listed = await decided(2);
+		const merged = listed.find((decision) => decision.candidates.length > 1);
+		expect(merged?.candidates.map((candidate) => candidate.label)).toEqual([
 			'Do nothing',
 			'Tell “Move apps to Logdash” that Merge failed',
 			'Ask you',
 		]);
-		expect(decision?.facts).toContain('It ran 1 time in this chain of events.');
+		expect(merged?.facts).toContain('It ran 1 time in this chain of events.');
+		expect(listed.find((decision) => decision.candidates.length === 1)).toMatchObject({
+			candidates: [{ kind: 'nothing', label: 'Do nothing' }],
+			decidedBy: 'rules',
+			status: 'done',
+			detail: 'Shipping takes Fix checks from here.',
+		});
 		await settle();
-		expect(await decisions()).toHaveLength(1);
+		expect(await decisions()).toHaveLength(2);
+		expect(asked).toHaveLength(1);
 	});
 
-	it('offers Resolve conflicts for a merge nobody in Malini was resolving', async () => {
-		picks.push(2);
+	it('starts Resolve conflicts on a merge that stopped on conflicts through its trigger, and wakes no chat', async () => {
+		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+			workstreamId: 'api',
+			baseBranch: 'main',
+			conflictedPaths: ['src/shared.ts'],
+		});
+
+		await vi.waitFor(async () => {
+			const runs = await context.commands.call('jobs.list-runs', undefined);
+			expect(runs.find((candidate) => candidate.title === 'Resolve conflicts')).toMatchObject({
+				workstreamId: 'api',
+				origin: 'trigger',
+			});
+		});
+		await settle();
+		expect(asked).toEqual([]);
+		expect(await decisions()).toEqual([]);
+		expect(delivered).toEqual([]);
+	});
+
+	it('with its trigger off, offers Resolve conflicts and tells only the chat that asked for the work', async () => {
+		await switchResolveConflicts('off');
+		updateFromMain();
+		picks.push(2, 1);
+		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+			workstreamId: 'api',
+			baseBranch: 'main',
+			conflictedPaths: ['src/shared.ts'],
+		});
+		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+			workstreamId: 'site',
+			baseBranch: 'main',
+			conflictedPaths: ['src/shared.ts'],
+		});
+
+		const listed = await decided(2);
+		const asking = (workstreamId: string) =>
+			listed
+				.find((decision) => decision.workstreamId === workstreamId)
+				?.candidates.map((candidate) => candidate.label);
+		expect(asking('api')).toEqual([
+			'Do nothing',
+			'Run Resolve conflicts',
+			'Tell “Move apps to Logdash” about the conflicts',
+			'Ask you',
+		]);
+		expect(asking('site')).toEqual(['Do nothing', 'Run Resolve conflicts', 'Ask you']);
+		expect(listed.find((decision) => decision.workstreamId === 'site')?.facts).toContain(
+			'No chat asked for the work that merged.',
+		);
+	});
+
+	it('records that it does nothing, and why, when Resolve conflicts is already on the conflicts', async () => {
+		await switchResolveConflicts('off');
+		const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
+		if (!resolver) throw new Error('the built-in jobs are missing');
+		await context.commands.call('jobs.run', { definitionId: resolver.id, workstreamId: 'api' });
 		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
 			workstreamId: 'api',
 			baseBranch: 'main',
@@ -522,21 +629,21 @@ describe('the event reconciler', () => {
 		});
 
 		const [decision] = await decided(1);
-		expect(decision?.candidates.map((candidate) => candidate.label)).toEqual([
-			'Do nothing',
-			'Run Resolve conflicts',
-			'Tell “Api analytics” about the conflicts',
-			'Ask you',
-		]);
-		const runs = await context.commands.call('jobs.list-runs', undefined);
-		expect(runs.find((candidate) => candidate.id === decision?.jobRunId)).toMatchObject({
-			title: 'Resolve conflicts',
-			origin: 'reconciler',
-			status: 'queued',
+		expect(decision).toMatchObject({
+			candidates: [{ kind: 'nothing', label: 'Do nothing' }],
+			chosen: 0,
+			decidedBy: 'rules',
+			status: 'done',
+			detail: 'Resolve conflicts is already resolving them.',
 		});
+		expect(decision?.facts).toContain('Resolve conflicts is already resolving them.');
+		expect(asked).toEqual([]);
+		expect(delivered).toEqual([]);
 	});
 
-	it('tells the chat working in a conflicted workstream about its conflicts as its own news, not a report from another workstream', async () => {
+	it('tells the chat that asked for the work about its conflicts, from the conflicted workstream', async () => {
+		await switchResolveConflicts('off');
+		updateFromMain();
 		picks.push(3);
 		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
 			workstreamId: 'api',
@@ -549,9 +656,10 @@ describe('the event reconciler', () => {
 		expect(decision).toMatchObject({ chosen: 2, status: 'done' });
 		expect(delivered).toEqual([
 			{
-				sessionId: 'api-chat',
-				prompt: 'A merge in “Api analytics” stopped on conflicts in 1 file: src/shared.ts.',
-				fromWorkstreamId: null,
+				sessionId: 'lead-chat',
+				prompt:
+					'A merge in “Api analytics”, in work you asked for, stopped on conflicts in 1 file: src/shared.ts.',
+				fromWorkstreamId: 'api',
 				chainId: decision?.chainId,
 				causeEventId: decision?.eventId,
 			},

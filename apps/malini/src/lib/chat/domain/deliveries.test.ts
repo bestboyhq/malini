@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkstreamReport } from '$contract/deliveries';
 import {
+	ASKED_PREAMBLE,
 	deliveryBatch,
 	parseWorkstreamReport,
 	REPORTS_PREAMBLE,
@@ -95,6 +96,18 @@ describe('deliveryBatch', () => {
 				decisions: [],
 			},
 		);
+	});
+
+	it('says work you asked for moved on when no report comes from a workstream you started', () => {
+		const job = item('report', 'Fix checks, the job you ran, failed.');
+		expect(deliveryBatch([job]).prompt).toBe(
+			[ASKED_PREAMBLE, 'Fix checks, the job you ran, failed.'].join('\n\n'),
+		);
+		expect(
+			deliveryBatch([job, item('report', 'Api report', { report: report('api') })]).prompt.split(
+				'\n\n',
+			)[0],
+		).toBe(REPORTS_PREAMBLE);
 	});
 
 	it('collects only the reports and decision ids the items carry', () => {

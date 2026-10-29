@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { BrowserElementPrompt } from '$contract/browser';
 import type { PageImage, Rectangle } from './page';
 import { cropArea, pickElement, type PickerPage } from './picker';
 import type { PickerCommand } from './picker-page';
@@ -45,31 +46,75 @@ function scriptedPage(script: Script) {
 	return { page, commands, captures };
 }
 
+const MODELS = [
+	{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+	{ id: 'claude-opus-5-5', label: 'Opus 5.5' },
+];
+const REQUEST = { model: 'claude-sonnet-5-5', models: MODELS };
+const ASK = { kind: 'prompt', models: MODELS, model: 'claude-sonnet-5-5', error: null };
+
+function threads(...outcomes: Array<string | Error>) {
+	const started: BrowserElementPrompt[] = [];
+	const start = async (picked: BrowserElementPrompt): Promise<string> => {
+		started.push(picked);
+		const outcome = outcomes.shift() ?? 'session-1';
+		if (outcome instanceof Error) throw outcome;
+		return outcome;
+	};
+	return { started, start };
+}
+
 describe('pickElement', () => {
-	it('returns the prompt with the element, its source, and a padded crop of it', async () => {
+	it('starts a thread with the prompt, the model, the element, its source, and a padded crop of it', async () => {
 		const { page, commands, captures } = scriptedPage({
 			selections: [SELECTION],
-			answers: [{ kind: 'send', prompt: '  Make it green  ' }],
+			answers: [{ kind: 'send', prompt: '  Make it green  ', model: 'claude-opus-5-5' }],
 			source: 'src/routes/pricing/+page.svelte:42:6',
 		});
+		const { started, start } = threads('session-1');
 
-		const picked = await pickElement(page, new AbortController().signal);
+		const picked = await pickElement(page, new AbortController().signal, REQUEST, start);
 
-		expect(picked).toEqual({
-			prompt: 'Make it green',
-			element: {
-				url: SELECTION.url,
-				domPath: SELECTION.domPath,
-				rect: SELECTION.rect,
-				html: SELECTION.html,
-				source: 'src/routes/pricing/+page.svelte:42:6',
+		expect(picked).toEqual({ sessionId: 'session-1', model: 'claude-opus-5-5' });
+		expect(started).toEqual([
+			{
+				prompt: 'Make it green',
+				model: 'claude-opus-5-5',
+				element: {
+					url: SELECTION.url,
+					domPath: SELECTION.domPath,
+					rect: SELECTION.rect,
+					html: SELECTION.html,
+					source: 'src/routes/pricing/+page.svelte:42:6',
+				},
+				screenshot: {
+					mediaType: 'image/png',
+					base64: Buffer.from('element png').toString('base64'),
+				},
 			},
-			screenshot: { mediaType: 'image/png', base64: Buffer.from('element png').toString('base64') },
-		});
+		]);
 		expect(captures).toEqual([{ x: 84, y: 184, width: 432, height: 112 }]);
+		expect(commands).toEqual([{ kind: 'select', reselect: false }, ASK, { kind: 'end' }]);
+	});
+
+	it('keeps the prompt open with the reason when the thread does not start, then starts it', async () => {
+		const { page, commands } = scriptedPage({
+			selections: [SELECTION],
+			answers: [
+				{ kind: 'send', prompt: 'Bigger', model: 'claude-opus-5-5' },
+				{ kind: 'send', prompt: 'Bigger', model: 'claude-opus-5-5' },
+			],
+		});
+		const { started, start } = threads(new Error('Agent runtime unavailable'), 'session-2');
+
+		const picked = await pickElement(page, new AbortController().signal, REQUEST, start);
+
+		expect(picked).toEqual({ sessionId: 'session-2', model: 'claude-opus-5-5' });
+		expect(started).toHaveLength(2);
 		expect(commands).toEqual([
 			{ kind: 'select', reselect: false },
-			{ kind: 'prompt' },
+			ASK,
+			{ ...ASK, model: 'claude-opus-5-5', error: 'Agent runtime unavailable' },
 			{ kind: 'end' },
 		]);
 	});
@@ -77,25 +122,45 @@ describe('pickElement', () => {
 	it('picks again when the user clicks another element while the prompt is open', async () => {
 		const { page, commands } = scriptedPage({
 			selections: [SELECTION, { ...SELECTION, domPath: 'main#app > h1' }],
-			answers: [{ kind: 'reselect' }, { kind: 'send', prompt: 'Bigger' }],
+			answers: [
+				{ kind: 'reselect' },
+				{ kind: 'send', prompt: 'Bigger', model: 'claude-sonnet-5-5' },
+			],
 		});
+		const { started, start } = threads();
 
-		const picked = await pickElement(page, new AbortController().signal);
+		await pickElement(page, new AbortController().signal, REQUEST, start);
 
-		expect(picked?.element.domPath).toBe('main#app > h1');
-		expect(picked?.element.source).toBeUndefined();
+		expect(started[0]?.element.domPath).toBe('main#app > h1');
+		expect(started[0]?.element.source).toBeUndefined();
 		expect(commands).toEqual([
 			{ kind: 'select', reselect: false },
-			{ kind: 'prompt' },
+			ASK,
 			{ kind: 'select', reselect: true },
-			{ kind: 'prompt' },
+			ASK,
 			{ kind: 'end' },
 		]);
 	});
 
+	it('refuses a model malini did not offer', async () => {
+		const { page, commands } = scriptedPage({
+			selections: [SELECTION],
+			answers: [{ kind: 'send', prompt: 'Bigger', model: 'claude-other-1' }],
+		});
+		const { started, start } = threads();
+
+		await expect(pickElement(page, new AbortController().signal, REQUEST, start)).rejects.toThrow(
+			'The element picker returned a prompt Malini cannot read.',
+		);
+		expect(started).toEqual([]);
+		expect(commands.at(-1)).toEqual({ kind: 'end' });
+	});
+
 	it('ends with nothing when the user cancels in the page', async () => {
 		const { page, commands } = scriptedPage({ selections: [null], answers: [] });
-		await expect(pickElement(page, new AbortController().signal)).resolves.toBeNull();
+		await expect(
+			pickElement(page, new AbortController().signal, REQUEST, threads().start),
+		).resolves.toBeNull();
 		expect(commands.at(-1)).toEqual({ kind: 'end' });
 	});
 
@@ -106,7 +171,7 @@ describe('pickElement', () => {
 			answers: [new Promise(() => undefined)],
 		});
 
-		const picking = pickElement(page, controller.signal);
+		const picking = pickElement(page, controller.signal, REQUEST, threads().start);
 		await Promise.resolve();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		controller.abort();
@@ -120,20 +185,21 @@ describe('pickElement', () => {
 			selections: [{ ...SELECTION, domPath: 'body\n> main' }],
 			answers: [],
 		});
-		await expect(pickElement(page, new AbortController().signal)).rejects.toThrow(
-			'The element picker returned a selection Malini cannot read.',
-		);
+		await expect(
+			pickElement(page, new AbortController().signal, REQUEST, threads().start),
+		).rejects.toThrow('The element picker returned a selection Malini cannot read.');
 		expect(commands.at(-1)).toEqual({ kind: 'end' });
 	});
 
 	it('drops a source location that is not one line', async () => {
 		const { page } = scriptedPage({
 			selections: [SELECTION],
-			answers: [{ kind: 'send', prompt: 'x' }],
+			answers: [{ kind: 'send', prompt: 'x', model: 'claude-sonnet-5-5' }],
 			source: 'src/a.svelte:1:1\nsrc/b.svelte:2:2',
 		});
-		const picked = await pickElement(page, new AbortController().signal);
-		expect(picked?.element).not.toHaveProperty('source');
+		const { started, start } = threads();
+		await pickElement(page, new AbortController().signal, REQUEST, start);
+		expect(started[0]?.element).not.toHaveProperty('source');
 	});
 });
 

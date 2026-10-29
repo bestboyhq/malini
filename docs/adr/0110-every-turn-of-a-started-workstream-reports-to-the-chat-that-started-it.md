@@ -1,21 +1,22 @@
-# 0105 - Every turn of a started workstream reports to the chat that started it
+# 0110 - Every turn of a started workstream reports to the chat that started it
 
 Status: accepted
 
 ## Context
 
 0085 handed the end of a turn in a started workstream to the model step, which could wake the chat that started it, ask you, or do nothing, and 0091 made waking the default when the model gave no answer.
+0103 let Malini's rules wake that chat without the model only for a turn it set going that failed or needs something.
 In the "Public profile workstreams" chat, two of five reports skipped the lead and reached the user as a question, and the comparison designs waited three and a half hours until the user typed "continue".
 The user: "my expectation as a user is that I will feel like there is a single chat", "I don't need to go to sub chat", and "I felt like I have very little control ... a lot got shipped, but I wasn't asked a lot of questions".
-A lead that hears every report brings the user what to decide itself (0107), so the choice between waking it and asking the user no longer belongs to a model.
+A lead that hears every report brings the user what to decide itself (0112), so the choice between waking it and asking the user no longer belongs to a model.
 A lead that answers every report could also loop with a workstream forever, which 0085 bounded with three wakes per chain.
 
 ## Decision
 
-- A new reconciler rule, **Deliveries** (`deliveries` in `RECONCILER_RULES`), hears Turn finished, and `ChatDeliveries.turnFinished` (`src/lib/chat/platform/deliveries.service.ts`) flushes what waits for the chat that finished (0104) and reports the turn to the chat that started its workstream.
+- A new reconciler rule, **Deliveries** (`deliveries` in `RECONCILER_RULES`), hears Turn finished, and `ChatDeliveries.turnFinished` (`src/lib/chat/platform/deliveries.service.ts`) flushes what waits for the chat that finished (0109) and reports the turn to the chat that started its workstream.
 - The report goes to the chat whose `workstreams_create` started the workstream (`startingSessionId`), else to the starter's latest chat, unless the turn was stopped, nobody started the workstream, or that chat is archived.
 - It says which workstream ended a turn or failed it and where its checkout is, then the turn's own report with its relative picture paths pointed at that checkout (`reportForLead`), cut to its head and its footer past 6,000 characters, or the turn's `Outcome:` and `Needs:` when it left no report.
-- It carries a `WorkstreamReport` (`src/contract/deliveries.ts`): the workstream, run, status, `Outcome:`, `Needs:` and up to six pictures its report embeds (`reportMedia`), which the user message keeps as `reports`, so the timeline shows each report with its pictures (0109) and the lead's brief gets one line per report (0103).
+- It carries a `WorkstreamReport` (`src/contract/deliveries.ts`): the workstream, run, status, `Outcome:`, `Needs:` and up to six pictures its report embeds (`reportMedia`), which the user message keeps as `reports`, so the timeline shows each report with its pictures (0114) and the lead's brief gets one line per report (0108).
 - The model step hears only Job finished and Merge conflicted (`RULE_EVENTS`); `TurnFinishedSituation`, its candidates and `wakePrompt` are gone, and the model's wakes, now **Tell “chat” that ...**, go through Deliveries too.
 - `workstreams_send` sends one workstream at most `SENDS_PER_CHAIN` (6) prompts from one chat in one chain of events (`promptsSentInChain`); a prompt you type starts a new chain (0085), and past the limit the tool fails and tells the agent to ask you with `decisions_ask` or name it in `Needs:`.
 - The Explorer draws a turn that a report woke through the Deliveries rule (`turnHops`), and its why reads **Deliveries woke it**.

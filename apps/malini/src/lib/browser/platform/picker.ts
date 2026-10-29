@@ -1,7 +1,11 @@
 import type { AgentElementRect, AgentElementReference } from '$contract/agent';
-import type { BrowserElementPrompt, BrowserScreenshot } from '$contract/browser';
+import type {
+	BrowserElementPrompt,
+	BrowserScreenshot,
+	BrowserThreadStarted,
+} from '$contract/browser';
 import { MALINI_WORLD_ID, type PageContents, type PageImage, type Rectangle } from './page';
-import { pickerScript, sourceScript, type PickerCommand } from './picker-page';
+import { pickerScript, sourceScript, type PickerCommand, type PickerModel } from './picker-page';
 
 export const ELEMENT_PADDING = 8;
 
@@ -10,6 +14,7 @@ const MAX_URL_CHARS = 8_192;
 const MAX_DOM_PATH_CHARS = 8_192;
 const MAX_SOURCE_CHARS = 1_024;
 const MAX_PROMPT_CHARS = 20_000;
+const MAX_ERROR_CHARS = 300;
 const LINE_BREAK = /[\n\r\0]/;
 
 export interface PickerPage {
@@ -32,7 +37,16 @@ interface Selection {
 	readonly viewport: Viewport;
 }
 
-type Answer = { readonly kind: 'send'; readonly prompt: string } | { readonly kind: 'reselect' };
+type Answer =
+	| { readonly kind: 'send'; readonly prompt: string; readonly model: string }
+	| { readonly kind: 'reselect' };
+
+export interface PickRequest {
+	readonly model: string;
+	readonly models: readonly PickerModel[];
+}
+
+export type StartThread = (picked: BrowserElementPrompt) => Promise<string>;
 
 export function pickerPage(contents: PageContents): PickerPage {
 	return {
@@ -51,9 +65,12 @@ export function pickerPage(contents: PageContents): PickerPage {
 export async function pickElement(
 	page: PickerPage,
 	signal: AbortSignal,
-): Promise<BrowserElementPrompt | null> {
+	request: PickRequest,
+	start: StartThread,
+): Promise<BrowserThreadStarted | null> {
 	try {
 		let reselect = false;
+		let model = request.model;
 		for (;;) {
 			const selection = readSelection(
 				await untilAborted(page.run({ kind: 'select', reselect }), signal),
@@ -63,12 +80,6 @@ export async function pickElement(
 				await untilAborted(readSourceQuietly(page, selection.domPath), signal),
 			);
 			const screenshot = await captureElement(page, selection);
-			const answer = readAnswer(await untilAborted(page.run({ kind: 'prompt' }), signal));
-			if (answer === null || signal.aborted) return null;
-			if (answer.kind === 'reselect') {
-				reselect = true;
-				continue;
-			}
 			const element: AgentElementReference = {
 				url: selection.url,
 				domPath: selection.domPath,
@@ -76,7 +87,21 @@ export async function pickElement(
 				html: selection.html,
 				...(source === null ? {} : { source }),
 			};
-			return { prompt: answer.prompt, element, screenshot };
+			let error: string | null = null;
+			for (;;) {
+				const asked = page.run({ kind: 'prompt', models: request.models, model, error });
+				const answer = readAnswer(await untilAborted(asked, signal), request);
+				if (answer === null || signal.aborted) return null;
+				if (answer.kind === 'reselect') break;
+				model = answer.model;
+				try {
+					const sessionId = await start({ prompt: answer.prompt, model, element, screenshot });
+					return { sessionId, model };
+				} catch (failure) {
+					error = failureMessage(failure);
+				}
+			}
+			reselect = true;
 		}
 	} finally {
 		void page.run({ kind: 'end' }).catch(() => undefined);
@@ -113,7 +138,7 @@ async function readSourceQuietly(page: PickerPage, domPath: string): Promise<unk
 	}
 }
 
-async function untilAborted(work: Promise<unknown>, signal: AbortSignal): Promise<unknown> {
+export async function untilAborted(work: Promise<unknown>, signal: AbortSignal): Promise<unknown> {
 	void work.catch(() => undefined);
 	if (signal.aborted) return null;
 	const aborted = new Promise<null>((resolve) => {
@@ -150,16 +175,23 @@ function readSelection(value: unknown): Selection | null {
 	};
 }
 
-function readAnswer(value: unknown): Answer | null {
+function readAnswer(value: unknown, request: PickRequest): Answer | null {
 	if (value === null || value === undefined) return null;
 	const kind = field(value, 'kind');
 	if (kind === 'reselect') return { kind };
 	const prompt = field(value, 'prompt');
-	if (kind === 'send' && typeof prompt === 'string') {
+	const model = request.models.length === 0 ? request.model : field(value, 'model');
+	const offered = request.models.length === 0 || request.models.some(({ id }) => id === model);
+	if (kind === 'send' && typeof prompt === 'string' && typeof model === 'string' && offered) {
 		const trimmed = prompt.trim();
-		if (trimmed.length > 0) return { kind, prompt: trimmed.slice(0, MAX_PROMPT_CHARS) };
+		if (trimmed.length > 0) return { kind, prompt: trimmed.slice(0, MAX_PROMPT_CHARS), model };
 	}
 	throw new Error('The element picker returned a prompt Malini cannot read.');
+}
+
+function failureMessage(failure: unknown): string {
+	const message = failure instanceof Error ? failure.message : String(failure);
+	return message.trim().slice(0, MAX_ERROR_CHARS) || 'The thread did not start.';
 }
 
 function readSourceLocation(value: unknown): string | null {

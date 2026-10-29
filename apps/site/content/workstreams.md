@@ -138,13 +138,17 @@ Like every workstream, each one stays on its own commits while main moves, and m
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
-- **Errors are retried.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes, and the top bar says **Retrying after an error**.
+- **Errors are retried, in plain sight.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes.
+  The top bar and the workstream in the sidebar turn amber and say what failed and since when, such as **Couldn't open draft · 3 tries since 14:02**.
+  A note above the composer says why, how many times Malini tried and when it tries next, with **Retry now**, **Cancel draft** while it opens a draft, and **What GitHub said** when GitHub refused the push.
+  The agent reads the same note with your next prompt, so asking it why the pull request is not open gets the real reason.
+  When GitHub refuses a push that adds or changes a workflow file because your `gh` sign-in lacks the `workflow` scope, the note says to run `gh auth refresh -s workflow` once; the next try then goes through.
 - **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, your GitHub sign-in expired, or a git operation stopped part-way.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own: when GitHub shows a change, its branch moves, a turn in the chat ends, a git operation you aborted or finished leaves the checkout, or a retry comes due.
-  There is no **Retry** in the top bar, because a retry without the details does nothing new.
+  There is no **Retry** in the top bar for these, because a retry without the details does nothing new; **Retry now** shows only beside a failure whose reason is on screen.
   When a fix gave up, **Open job** shows that job's chat and why the merge stopped, with **Retry merge**, which queues it again.
 - **A limit doesn't stop it.** A fix job whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.

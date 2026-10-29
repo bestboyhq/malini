@@ -2,6 +2,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
 import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
+import type { SessionStatus } from '$contract/agent-state-machine';
 import type { WorkstreamTurn } from '$contract/stats';
 import {
 	hasTurnReport,
@@ -527,6 +528,54 @@ export function latestSessionReport(db: MaliniDatabase, sessionId: string): Sess
 		outcome: report.outcome,
 		needs: report.needs.length > 0 ? report.needs.join('; ') : null,
 	};
+}
+
+export type ElementThread = Readonly<{
+	sessionId: string;
+	status: SessionStatus;
+	waiting: boolean;
+	prompt: string;
+	url: string;
+	domPath: string;
+	outcome: string | null;
+}>;
+
+export function listElementThreads(db: MaliniDatabase, workstreamId: string): ElementThread[] {
+	return all<{ id: string; status: SessionStatus; waiting: number; event: string | null }>(
+		db,
+		`SELECT s.id, s.status,
+		        EXISTS (SELECT 1 FROM agent_interactions i
+		                WHERE i.session_id = s.id AND i.state = 'pending') AS waiting,
+		        (SELECT e.event FROM agent_events e
+		         WHERE e.session_id = s.id AND e.event LIKE 'user.message' || char(10) || '%'
+		         ORDER BY e.seq LIMIT 1) AS event
+		 FROM agent_sessions s
+		 WHERE s.workstream_id = ? AND s.origin = 'thread' AND s.archived_at IS NULL
+		 ORDER BY s.started_at`,
+		workstreamId,
+	).flatMap((row) => {
+		const anchor = row.event === null ? null : threadAnchor(eventFromBlob(row.event).payload);
+		if (anchor === null) return [];
+		return [
+			{
+				sessionId: row.id,
+				status: row.status,
+				waiting: row.waiting === 1,
+				...anchor,
+				outcome: latestSessionReport(db, row.id)?.outcome ?? null,
+			},
+		];
+	});
+}
+
+function threadAnchor(payload: unknown): Pick<ElementThread, 'prompt' | 'url' | 'domPath'> | null {
+	if (!isRecord(payload) || typeof payload['text'] !== 'string') return null;
+	const references = payload['elementReferences'];
+	const element = Array.isArray(references) ? references[0] : undefined;
+	if (!isRecord(element)) return null;
+	const { url, domPath } = element;
+	if (typeof url !== 'string' || typeof domPath !== 'string') return null;
+	return { prompt: payload['text'], url, domPath };
 }
 
 export function latestRunReport(db: MaliniDatabase, runId: string): string | null {

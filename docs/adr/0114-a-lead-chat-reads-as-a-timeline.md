@@ -1,4 +1,4 @@
-# 0109 - A lead chat reads as a timeline
+# 0114 - A lead chat reads as a timeline
 
 Status: accepted
 
@@ -14,10 +14,10 @@ The transcript had no time per message: envelopes carried a `seq`, and only the 
 
 - `WorkstreamLayout.svelte` passes `timeline` to `ChatSurface.svelte` for a workstream with a `scope`, which then shows `LeadTimeline.svelte` instead of `ChatMessageList`; the composer, the queue, the job tray and the requests of started work stay as they are.
 - `leadTimeline` (`src/lib/chat/presentation/lead-timeline.ts`) projects the session's runs into one line per thing that happened:
-  - your prompts; the reports of started workstreams (0105), with up to four of their pictures; and notes Malini sent;
+  - your prompts; the reports of started workstreams (0110), with up to four of their pictures; and notes Malini sent;
   - the lead's tool calls between two messages folded into one line, such as **Lead worked · 4 steps**, whose **Show work** lists the steps by their descriptions;
-  - what the lead did through Malini: started, sent with the delivery's state (0104), archived, ran a job, rewrote the plan (0108);
-  - each decision made, at the time it was made, with **Change** (0107);
+  - what the lead did through Malini: started, sent with the delivery's state (0109), archived, ran a job, rewrote the plan (0113);
+  - each decision made, at the time it was made, with **Change** (0112);
   - an approval the lead waits on, as its card, and a turn that paused, failed or was cut by a quit;
   - the lead's latest message in full, each earlier one folded to its `Outcome:` line.
 - `timelineRows` starts each day with its label and shows a time only when it changes.

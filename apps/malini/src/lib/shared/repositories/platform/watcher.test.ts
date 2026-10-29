@@ -507,6 +507,24 @@ describe('createWorkstreamWatchers', () => {
 		expect(factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL)).toHaveLength(1);
 	});
 
+	it("reports Malini's own commit the moment it asks, and never again when the watcher catches up", async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		const first = await commitAll(path, 'Seed');
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		writeFileSync(join(path, 'seed.txt'), 'second\n');
+		const second = await commitAll(path, 'Second');
+		await watchers.refresh('ws-1');
+
+		expect(factsOn(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', branch: 'main', head: second, previousHead: first },
+		]);
+		await sleep(SETTLE_MS);
+		expect(factsOn(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL)).toHaveLength(1);
+	});
+
 	it('reports no git facts for a workstream it stopped watching', async () => {
 		const path = join(root, 'ws-1');
 		await initRepo(path);

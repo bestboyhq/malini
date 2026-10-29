@@ -1,4 +1,4 @@
-# 0106 - Nothing inside a chat's own tree asks; only shipping does
+# 0111 - Nothing inside a chat's own tree asks; only shipping does
 
 Status: accepted
 
@@ -11,7 +11,7 @@ What a chat starts, sends and archives inside the work it started changes nothin
 
 ## Decision
 
-- Bridge protocol 43 pre-approves `workstreams_create` and `workstreams_send`, beside the new `decisions_ask`, `decisions_answer` and `plan_write` (0107, 0108), in `PRE_APPROVED_PLATFORM_TOOLS` (`packages/agent-bridge/src/claude/platform-tools.ts`), so Claude Code never asks for them.
+- Bridge protocol 43 pre-approves `workstreams_create` and `workstreams_send`, beside the new `decisions_ask`, `decisions_answer` and `plan_write` (0112, 0113), in `PRE_APPROVED_PLATFORM_TOOLS` (`packages/agent-bridge/src/claude/platform-tools.ts`), so Claude Code never asks for them.
 - `tryAutoApprove` (`src/lib/chat/platform/agent/runtime.ts`) allows, once and without a rule, a Malini call that `allowedInTree` (`malini-approvals.service.ts`) finds inside the caller's tree, its own workstream and every workstream started under it (`descendantWorkstreamIds`):
   - `workstreams_archive` of a workstream in that tree;
   - `jobs_run` of exactly one job, in the caller's workstream or one in its tree, unless the job is Open draft or Merge or its Thens reach one of them (`shipsWork`).
@@ -21,7 +21,7 @@ What a chat starts, sends and archives inside the work it started changes nothin
 
 ## Consequences
 
-- A lead starts, briefs, archives and re-runs its own work without a click; the user is asked only to decide (0107) and to ship.
+- A lead starts, briefs, archives and re-runs its own work without a click; the user is asked only to decide (0112) and to ship.
 - **Always allow** no longer offers starting or sending, since neither asks; rules saved for them stay and match nothing new.
 - A job run inside the tree is trusted like the chat that runs it: every job but Open draft and Merge, and those whose Thens reach them, runs there unasked, whatever its instructions do.
 - The fake bridge's list must follow `PRE_APPROVED_PLATFORM_TOOLS`, or e2e specs assert approvals the product never shows.

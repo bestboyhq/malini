@@ -7,6 +7,7 @@ import {
 import type { ReconcilerCandidate, ReconcilerDecisionRecord } from '$contract/jobs';
 import {
 	RECONCILER_WAKE_LIMIT,
+	handledSituation,
 	outputPick,
 	pickOutput,
 	promptCandidates,
@@ -52,6 +53,7 @@ function jobRun(overrides: Partial<JobRunSituation> = {}): JobRunSituation {
 		workstreamId: 'api',
 		workstreamName: 'Api analytics',
 		chat: LEAD,
+		handledBy: null,
 		retry: { definitionId: 'publish-docs', workstreamId: 'api', context: 'Version 2.1' },
 		runsInChain: 1,
 		wakes: 0,
@@ -67,6 +69,7 @@ function conflict(overrides: Partial<ConflictSituation> = {}): ConflictSituation
 		conflictedPaths: ['src/a.ts', 'src/b.ts'],
 		resolverId: 'resolve-conflicts',
 		chat: API,
+		handledBy: null,
 		wakes: 0,
 		...overrides,
 	};
@@ -117,6 +120,7 @@ describe('reconcilerQuestion', () => {
 				workstreamId: 'lead',
 				from: 'api',
 				report: 'Publish docs, the job you ran in “Api analytics”, finished.\n\nPublished 12 pages',
+				about: 'job',
 			},
 		]);
 		expect(finished.facts).toEqual([
@@ -187,7 +191,7 @@ describe('reconcilerQuestion', () => {
 			facts: [
 				'Event: a merge in “Api analytics” stopped on conflicts in 2 files.',
 				'Conflicted: src/a.ts, src/b.ts',
-				'Its chat is “Api analytics”.',
+				'“Api analytics” asked for the work that merged.',
 				'“Api analytics” is working now.',
 				'Malini woke “Api analytics” about this work 0 of 3 times in this chain of events.',
 			],
@@ -206,7 +210,9 @@ describe('reconcilerQuestion', () => {
 					sessionId: 'api-chat',
 					workstreamId: 'api',
 					from: 'api',
-					report: 'A merge in “Api analytics” stopped on conflicts in 2 files: src/a.ts, src/b.ts.',
+					report:
+						'A merge in “Api analytics”, in work you asked for, stopped on conflicts in 2 files: src/a.ts, src/b.ts.',
+					about: 'conflict',
 				},
 				{
 					kind: 'ask-you',
@@ -221,7 +227,7 @@ describe('reconcilerQuestion', () => {
 			facts: [
 				'Event: a merge in “Api analytics” stopped on conflicts in 1 file.',
 				'Conflicted: src/a.ts',
-				'No chat works in it.',
+				'No chat asked for the work that merged.',
 			],
 			candidates: [
 				{ kind: 'nothing', label: 'Do nothing' },
@@ -240,6 +246,42 @@ describe('reconcilerQuestion', () => {
 		expect(question(conflict({ conflictedPaths: paths })).facts[1]).toBe(
 			`Conflicted: ${paths.slice(0, 8).join(', ')}`,
 		);
+	});
+});
+
+describe('handledSituation', () => {
+	it('records Do nothing with the reason when someone already owns the work, and asks nobody', () => {
+		const owned = conflict({
+			resolverId: 'resolve',
+			chat: null,
+			conflictedPaths: ['src/a.ts'],
+			handledBy: 'Resolve conflicts is already resolving them.',
+		});
+		expect(handledSituation(owned)).toEqual({
+			facts: [
+				'Event: a merge in “Api analytics” stopped on conflicts in 1 file.',
+				'Conflicted: src/a.ts',
+				'Resolve conflicts is already resolving them.',
+				'No chat asked for the work that merged.',
+			],
+			candidates: [{ kind: 'nothing', label: 'Do nothing' }],
+			reason: 'Resolve conflicts is already resolving them.',
+		});
+		expect(handledSituation({ ...owned, handledBy: null })).toBeNull();
+	});
+
+	it('still lets the chat that ran a job hear how it ended when Merge takes the rest', () => {
+		const failed = jobRun({
+			title: 'Resolve conflicts',
+			chat: null,
+			handledBy: 'Merge takes Resolve conflicts from here.',
+		});
+		expect(handledSituation(failed)?.reason).toBe('Merge takes Resolve conflicts from here.');
+		expect(handledSituation({ ...failed, chat: LEAD })).toBeNull();
+		expect(question({ ...failed, chat: LEAD }).candidates.map(({ kind }) => kind)).toEqual([
+			'nothing',
+			'wake-chat',
+		]);
 	});
 });
 

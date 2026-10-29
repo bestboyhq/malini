@@ -11,7 +11,7 @@ export const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
 	'name-services': 'An agent leaves a command running',
 	'fix-checks': 'Checks fail while shipping',
 	'update-from-main': 'When you run it',
-	'resolve-conflicts': 'A merge stops on conflicts while shipping',
+	'resolve-conflicts': 'A merge stops on conflicts',
 	'address-review': 'A bot reviews while shipping',
 	'check-compatibility': 'Malini updates and its events change',
 	'update-docs': 'When you run it, in a new workstream',
@@ -28,9 +28,9 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	'fix-checks':
 		'Malini runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
 	'update-from-main':
-		'Run it yourself from any chat with /. On its own, Malini updates a branch from main only while it merges it.',
+		'Run it yourself from any chat with /. On its own, Malini runs it before a scheduled job works in its workstream, and merges main into a branch itself only while it merges that branch.',
 	'resolve-conflicts':
-		'Malini runs it when merging the base branch into a workstream it is shipping stops on conflicts, and so does Update from main. Run it yourself from any chat with /.',
+		'Its trigger runs it when a merge stops on conflicts in any workstream, whoever started that merge: Merge, Update from main or you. With it off, Merge still runs it for the branch it merges. Run it yourself from any chat with /.',
 	'address-review':
 		'Malini runs it when a bot reviews a pull request it is shipping. Run it yourself from any chat with /.',
 	'check-compatibility':
@@ -42,7 +42,7 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	merge:
 		'Run it from any chat with /, give it a trigger, or make it the Then of another job. It queues the pull request to merge.',
 	reconcile:
-		"Runs on its own when an event no job's trigger handles may need a hand: a turn ends in a workstream a chat started, a job a chat ran finishes or fails, or a merge stops on conflicts. Malini lists what it could do, the model picks one, and Malini checks the pick before it acts. When the model cannot answer, Malini wakes the chat waiting on the work, or asks you.",
+		"Runs on its own when an event no job's trigger handles may need a hand: a turn ends in a workstream a chat started, a job a chat ran finishes or fails, or a merge stops on conflicts. When something already takes the work, Malini records that it does nothing, and why. Otherwise it lists what it could do, the model picks one, and Malini checks the pick before it acts. When the model cannot answer, Malini wakes the chat that asked for the work, or asks you.",
 };
 
 const RUNS_IN_WHEN: Readonly<Record<JobRunsIn, string>> = {

@@ -1,4 +1,4 @@
-# 0110 - Dogfood holds an update while an agent is mid-turn
+# 0115 - Dogfood holds an update while an agent is mid-turn
 
 Status: accepted
 

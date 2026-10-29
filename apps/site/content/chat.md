@@ -97,8 +97,17 @@ An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same
 ## Run a command from the chat
 
 Every shell code block the agent writes has a **Run** button next to **Copy**.
-It sends the command back to the same chat, so the agent runs it in the workstream, under the chat's access level, and the run can be undone like any other.
-If the agent is busy, the command waits in the queue.
+It runs the command at once, in your shell, in the workstream's folder, with the same tools on your `PATH` as your terminal; the agent is not asked, and its run need not end first.
+Its output opens inside the code block, under the command, as it prints, with how long it has run and its exit code once it ends.
+
+- The command gets a terminal, so a sign-in, a password prompt or a question waits for you.
+  Click the output and type: each key goes to the command, **↵** answers, and what you type shows the way a terminal echoes it.
+- **Stop** sends Control-C, then ends the command if it is still running a few seconds later.
+- **Run** hides while the command runs; once it ends, **Run** runs it again and replaces its output, and **×** clears it.
+- The agent reads what you ran with your next prompt: each command, how it ended, and the end of its output, so "it failed, why?" gets an answer from the real output.
+- Archiving the workstream or quitting Malini stops what still runs.
+  A code block keeps its last output when Malini restarts, until you clear it or delete the chat.
+- Full-screen programs such as `vim` or `top` do not draw; run them in your own terminal.
 
 ## Compact the conversation
 

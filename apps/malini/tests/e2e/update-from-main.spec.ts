@@ -3,13 +3,16 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import type { JobDefinitionRecord, TimelineRecord } from '../../src/contract/jobs';
 import {
 	captureFlow,
+	expectAssistantReply,
 	expectCleanConsole,
 	git,
 	invoke,
 	launchMalini,
 	openWorkstream,
+	sendPrompt,
 	type LaunchedApp,
 	type SeededWorkstream,
 } from './harness';
@@ -24,13 +27,15 @@ import {
 const execFileAsync = promisify(execFile);
 const AUTHOR = ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e'];
 
-test('a workstream behind main stays as it is until you merge it, then the merge updates it from main, hands the conflicts to Resolve conflicts and pushes a two-parent merge', async () => {
+test('a workstream behind main stays as it is until you merge it, then the merge updates it from main, Resolve conflicts takes the conflicts on its trigger without waking the chat there, and it pushes a two-parent merge', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page, worktree, github } = await conflictingPullRequest(app, 'e2e-conflict');
 		const branchHead = github.pushedHead();
 		await openWorkstream(page, 'e2e-conflict');
+		await sendPrompt(page, 'Look at the conflict file before we merge');
+		await expectAssistantReply(page);
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
 			timeout: 30_000,
 		});
@@ -64,10 +69,28 @@ test('a workstream behind main stays as it is until you merge it, then the merge
 			{
 				title: 'Resolve conflicts',
 				status: 'succeeded',
-				origin: 'merge-queue',
+				origin: 'trigger',
 				parentRunId: null,
 			},
 		]);
+		expect(await invoke(page, 'jobs.list-decisions', undefined)).toEqual([]);
+		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
+			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
+		});
+		const mergeClick = timeline.events.find(
+			(event) =>
+				event.channel === 'pull-requests:button-clicked' &&
+				JSON.stringify(event.payload).includes('"button":"merge"'),
+		);
+		const conflict = timeline.events.find(
+			(event) => event.channel === 'repositories:workstream-merge-conflicted',
+		);
+		expect(mergeClick?.cause).toBeNull();
+		expect(conflict).toMatchObject({ cause: { kind: 'event' }, chainId: mergeClick?.chainId });
+		expect(timeline.runs.find((run) => run.title === 'Resolve conflicts')).toMatchObject({
+			chainId: mergeClick?.chainId,
+			eventIds: [conflict?.id],
+		});
 		await captureFlow(app, 'update-from-main');
 		expectCleanConsole(app);
 	} finally {
@@ -75,11 +98,12 @@ test('a workstream behind main stays as it is until you merge it, then the merge
 	}
 });
 
-test('Abort merge takes a confirming click in the bar, then returns the worktree to its last commit', async () => {
+test('with Resolve conflicts off, Abort merge takes a confirming click in the bar, then returns the worktree to its last commit', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page, worktree } = await conflictingPullRequest(app, 'e2e-abort-merge');
+		await resolveConflictsOff(page);
 		const head = await output(worktree, ['rev-parse', 'HEAD']);
 		await git(worktree, [...AUTHOR, 'merge', 'main']).catch(() => undefined);
 		expect(await output(worktree, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).not.toBe('');
@@ -148,6 +172,16 @@ async function conflictingPullRequest(
 			await commitFile(basePath, 'main line\n', 'main change');
 		},
 	);
+}
+
+async function resolveConflictsOff(page: Page): Promise<void> {
+	const definitions = await invoke<JobDefinitionRecord[]>(page, 'jobs.list-definitions', undefined);
+	const resolver = definitions.find((definition) => definition.builtin === 'resolve-conflicts');
+	if (!resolver?.trigger) throw new Error('Resolve conflicts has no trigger');
+	await invoke(page, 'jobs.save-definition', {
+		...resolver,
+		trigger: { ...resolver.trigger, mode: 'off' },
+	});
 }
 
 async function commitFile(repo: string, contents: string, message: string): Promise<void> {

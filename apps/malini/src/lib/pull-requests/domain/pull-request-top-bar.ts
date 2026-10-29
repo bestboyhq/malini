@@ -1,5 +1,5 @@
 import { githubFailure } from '$contract/github-failure';
-import type { ShipStep } from '$contract/pull-requests';
+import type { ShipFailure, ShipStep } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
 import { GITHUB_PROBLEM_LABELS } from '$shared/repositories/domain/connection';
 import {
@@ -23,6 +23,7 @@ import {
 	type SurfacePullRequest,
 	type SurfacePullRequestCheck,
 } from './repository-surface';
+import { failureTries, shipFailure } from './ship-failure';
 
 type StatusLine = Omit<WorkstreamStatus, 'action'>;
 
@@ -61,6 +62,8 @@ function workstreamStatus(
 		agentWork ? whileAgentWorks(settled, agentWork) : settled;
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
 	if (ship?.phase === 'needs-you' && !mergedOnGithub) return needsYou(ship, read, url);
+	const failure = mergedOnGithub ? null : shipFailure(ship);
+	if (failure) return failing(failure);
 	if (ship?.phase === 'queued') return queued(ship);
 	if (ship?.phase === 'draft' && ship.step && ship.pullRequestNumber === null) {
 		return openingDraft(ship);
@@ -146,11 +149,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 		tone: 'queued',
 		busy: true,
 		label: merging ? 'Merging' : ship.keep ? 'Queued to merge and keep' : 'Queued for merge',
-		detail: ship.lastError
-			? 'Retrying after an error'
-			: ship.step === null
-				? null
-				: shipStepDetail(ship.step),
+		detail: ship.step === null ? null : shipStepDetail(ship.step),
 		tooltip: ship.lastError,
 		action: merging ? null : CANCEL_MERGE,
 		...(merging || ship.keep ? {} : { secondaryAction: KEEP }),
@@ -162,13 +161,20 @@ function openingDraft(ship: PullRequestShip): WorkstreamStatus {
 		tone: 'idle',
 		busy: true,
 		label: 'Opening draft',
-		detail: ship.lastError
-			? 'Retrying after an error'
-			: ship.step === 'waiting-for-agent'
-				? 'After the agent finishes'
-				: null,
+		detail: ship.step === 'waiting-for-agent' ? 'After the agent finishes' : null,
 		tooltip: ship.lastError,
 		action: null,
+	};
+}
+
+function failing(failure: ShipFailure): WorkstreamStatus {
+	return {
+		tone: 'needs-you',
+		busy: false,
+		label: failure.label,
+		detail: `${failureTries(failure)} since ${failure.since}`,
+		tooltip: failure.reason,
+		action: RETRY_NOW,
 	};
 }
 
@@ -480,6 +486,14 @@ const OPEN_PULL_REQUEST: PullRequestTopBarAction = {
 	kind: 'open-pull-request',
 	label: 'Open PR',
 	ariaLabel: 'Open the pull request on GitHub',
+	tone: 'primary',
+	confirmLabel: null,
+};
+
+const RETRY_NOW: PullRequestTopBarAction = {
+	kind: 'retry-now',
+	label: 'Retry now',
+	ariaLabel: 'Retry now instead of waiting',
 	tone: 'primary',
 	confirmLabel: null,
 };

@@ -26,6 +26,7 @@ let jobs: JobsPlatform;
 let notices: unknown[];
 let prompts: string[];
 let behind: number;
+let dirty: string[];
 let pulls: number;
 
 const at = (day: number, hour: number, minute = 0): Date => new Date(2026, 9, day, hour, minute);
@@ -97,7 +98,7 @@ function harness(): MainContext {
 	});
 	commands.define('repositories.sync-workstream-base', () => 'current' as const);
 	commands.define('repositories.provision-dependencies', () => ({ status: 'succeeded' as const }));
-	commands.define('repositories.workstream-status', () => worktree());
+	commands.define('repositories.workstream-status', () => ({ ...worktree(), dirtyPaths: dirty }));
 	commands.define('repositories.count-behind-base', () => behind);
 	commands.define('repositories.pull-workstream', () => {
 		pulls += 1;
@@ -127,6 +128,7 @@ beforeEach(() => {
 	notices = [];
 	prompts = [];
 	behind = 0;
+	dirty = [];
 	pulls = 0;
 	upsertProject(db, {
 		id: 'malini-lead-space',
@@ -284,14 +286,41 @@ describe('job schedules', () => {
 		finish(first);
 		behind = 3;
 		await passTo(at(MONDAY + 2, 9));
-		await vi.waitFor(async () =>
-			expect((await runs())[1]).toMatchObject({
+		await vi.waitFor(async () => {
+			const all = await runs();
+			expect(all.find((run) => run.title === 'Update from main')).toMatchObject({
+				origin: 'schedule',
+				status: 'succeeded',
+				detail: 'Merged 3 commits from main',
+				workstreamId: first?.workstreamId,
+			});
+			expect(all.filter((run) => run.title === 'Triage').at(-1)).toMatchObject({
 				status: 'running',
 				workstreamId: first?.workstreamId,
-			}),
-		);
+			});
+		});
 		expect(pulls).toBe(1);
 		expect(prompts[1]).not.toContain('did not merge');
+		expect(JSON.stringify(notices)).not.toContain('Update from main');
+	});
+
+	it('runs on its schedule without merging main into a workstream with uncommitted changes, and says why', async () => {
+		await schedule('every day at 09:00 in acme/app');
+		await passTo(at(MONDAY, 9));
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('running'));
+		const [first] = await runs();
+		finish(first);
+		behind = 3;
+		dirty = ['notes.md'];
+
+		await passTo(at(MONDAY + 1, 9));
+
+		await vi.waitFor(async () => expect((await runs())[1]?.status).toBe('running'));
+		expect((await runs()).map((run) => run.title)).toEqual(['Triage', 'Triage']);
+		expect(pulls).toBe(0);
+		expect(prompts[1]).toContain(
+			'Malini did not merge main into this workstream before this run: it has uncommitted changes.',
+		);
 	});
 
 	it('tells you when a run waits for your yes and when it finishes', async () => {

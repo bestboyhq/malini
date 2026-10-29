@@ -9,6 +9,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { closeTerminalInteractions } from './interactions.repository';
+import { promptPlainText } from './sessions.repository';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
 
@@ -444,7 +445,9 @@ function chatTurnFromRow(row: ChatTurnRow): ChatTurnRecord {
 		sessionId: row.session_id,
 		workstreamId: row.workstream_id,
 		chatName: row.display_name,
-		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
+		prompt: firstLine(promptPlainText(row.prompt))
+			.replaceAll(/\s+/gu, ' ')
+			.slice(0, CHAT_TURN_PROMPT_CHARS),
 		status: chatTurnStatus(row.completed_at, row.error, row.resume_at),
 		chainId: row.chain_id || row.id,
 		causeEventId: row.cause_event_id,
@@ -530,6 +533,18 @@ export function workChatTurnInWorkstream(
 		finishedSince,
 	);
 	return row ? { runId: row.id, sessionId: row.session_id, chainId: row.chain_id || row.id } : null;
+}
+
+export function latestRunEndedAt(db: MaliniDatabase, workstreamId: string): string | null {
+	return (
+		get<{ ended: string | null }>(
+			db,
+			`SELECT MAX(r.completed_at) AS ended
+			 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+			 WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL`,
+			workstreamId,
+		)?.ended ?? null
+	);
 }
 
 export function chatTurnChainId(db: MaliniDatabase, runId: string): string | null {

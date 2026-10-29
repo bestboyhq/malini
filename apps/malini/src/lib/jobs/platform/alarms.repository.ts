@@ -2,7 +2,7 @@ import type { AlarmTimeReached, ShippingWait } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, isRecord, run } from '$main/db/rows';
 
-const WAITS: readonly ShippingWait[] = ['retry', 'checks'];
+const WAITS: readonly ShippingWait[] = ['retry', 'checks', 'idle'];
 
 export function setAlarm(db: MaliniDatabase, key: string, reached: AlarmTimeReached): void {
 	run(
@@ -35,7 +35,7 @@ function parsed(payload: string): AlarmTimeReached | null {
 	try {
 		const value: unknown = JSON.parse(payload);
 		if (!isRecord(value)) return null;
-		const { workstreamId, wait, due, sessionId, runId } = value;
+		const { workstreamId, wait, due, sessionId, runId, causeEventId } = value;
 		if (typeof workstreamId !== 'string' || typeof due !== 'string') return null;
 		if (wait === 'resume') {
 			return typeof sessionId === 'string' && typeof runId === 'string'
@@ -43,7 +43,10 @@ function parsed(payload: string): AlarmTimeReached | null {
 				: null;
 		}
 		const known = WAITS.find((candidate) => candidate === wait);
-		return known ? { workstreamId, wait: known, due } : null;
+		if (!known) return null;
+		return typeof causeEventId === 'number'
+			? { workstreamId, wait: known, due, causeEventId }
+			: { workstreamId, wait: known, due };
 	} catch {
 		return null;
 	}

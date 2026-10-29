@@ -42,8 +42,22 @@ export type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
+}>;
+
+export type ShipFailure = Readonly<{
+	stage: 'draft' | 'merge';
+	label: string;
+	title: string;
+	reason: string;
+	githubSaid: string | null;
+	tries: number;
+	since: string;
+	nextTry: string | null;
 }>;
 
 export type ShipWorkstreamArgs = Readonly<{ workstreamId: string }>;

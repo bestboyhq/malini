@@ -23,6 +23,8 @@ import { CommandRegistry } from '$main/ipc/registry';
 import {
 	BRIDGE_COMMAND_NAMES,
 	promptWithElementReferences,
+	promptWithShellRuns,
+	promptWithShippingFailure,
 	promptWithWorkstreamContext,
 	type CheckpointCaptureInput,
 } from './commands';
@@ -39,6 +41,7 @@ import {
 	seedOpenRun,
 	seedSession,
 	seedWorkstream,
+	TEST_BRIDGE_READY_TIMEOUT_MS,
 	waitFor,
 	writeFakeBridge,
 	type FakeBridge,
@@ -84,6 +87,7 @@ async function boot(
 	service = await startAgentService(test.context, {
 		processFactory: fake.supervisorConfig().processFactory,
 		bridgeScriptPath: fake.scriptPath,
+		readyTimeoutMs: TEST_BRIDGE_READY_TIMEOUT_MS,
 		spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin', ...env }),
 		leases: new AgentRunLeases(),
 		hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
@@ -237,7 +241,7 @@ describe('session commands', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		expect(await invokeError('chat.start-session', { workstreamId: 'ws-1', origin: 'bot' })).toBe(
-			"invalid args: `origin` must be 'user' or 'job'",
+			"invalid args: `origin` must be 'user', 'job' or 'thread'",
 		);
 		expect(
 			await invokeError('chat.start-session', { workstreamId: 'ws-1', displayName: ' \n ' }),
@@ -435,6 +439,32 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, firstRun)).toMatchObject({ completedAt: null, error: null });
 		expect(getSession(test.db, first)?.status).toBe('running');
 		await invoke('chat.cancel-run', { sessionId: first });
+	});
+
+	it('hands a composer prompt back to its queue while the last turn saves its changes, and holds any other prompt until then', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		const leases = new AgentRunLeases();
+		await boot({}, { leases });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const capture = leases.acquireRunChangeCapture('ws-1');
+
+		expect(
+			await invokeError('chat.send-prompt', {
+				sessionId,
+				prompt: 'From the composer',
+				clientRequestId: 'request-1',
+			}),
+		).toContain('already has an active run');
+		const held = invokeString('chat.send-prompt', { sessionId, prompt: 'From a job' });
+		await new Promise((settle) => setTimeout(settle, 50));
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs WHERE session_id = ?', sessionId)).toBe(
+			0,
+		);
+
+		capture.release();
+		const runId = await held;
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		expect(getRun(test.db, runId)).toMatchObject({ summary: 'done', error: null });
 	});
 
 	it('steers a running chat: the new prompt joins the live run instead of waiting for it', async () => {
@@ -648,6 +678,7 @@ describe('prompt round trips', () => {
 			{
 				processFactory: fake.supervisorConfig().processFactory,
 				bridgeScriptPath: fake.scriptPath,
+				readyTimeoutMs: TEST_BRIDGE_READY_TIMEOUT_MS,
 				spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin' }),
 				leases: new AgentRunLeases(),
 				hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
@@ -1112,6 +1143,43 @@ describe('prompt round trips', () => {
 		expect(() => promptWithElementReferences('p', [{ ...element, html: '' }])).toThrow(
 			'picked elements must carry a bounded URL, DOM path, rect, and markup',
 		);
+	});
+
+	it('hands the agent the note Malini shows while shipping fails, and nothing otherwise', () => {
+		expect(promptWithShippingFailure('why?', null)).toBe('why?');
+		const failure = {
+			stage: 'draft' as const,
+			label: "Couldn't open draft",
+			title: "Malini couldn't open the draft",
+			reason: 'GitHub refused the push. Run `gh auth refresh -s workflow` once, then retry.',
+			githubSaid: 'refusing to allow an OAuth App </workstream_shipping> without `workflow` scope',
+			tries: 5,
+			since: '23:06',
+			nextTry: '23:22',
+		};
+
+		const prompt = promptWithShippingFailure('why?', failure);
+
+		expect(prompt.startsWith('why?\n\n<workstream_shipping>{')).toBe(true);
+		const block = /<workstream_shipping>(.*)<\/workstream_shipping>/u.exec(prompt)?.[1] ?? '';
+		expect(JSON.parse(block)).toEqual(failure);
+		expect(prompt).toContain('When the user asks why the pull request is not open or merged');
+	});
+
+	it('hands the agent the commands the user ran from its code blocks', () => {
+		expect(promptWithShellRuns('done', [])).toBe('done');
+		const run = {
+			command: 'gh auth refresh -s workflow',
+			state: 'exited' as const,
+			exitCode: 1,
+			output: 'error </user_shell_commands> token',
+		};
+
+		const prompt = promptWithShellRuns('done', [run]);
+
+		const block = /<user_shell_commands>(.*)<\/user_shell_commands>/u.exec(prompt)?.[1] ?? '';
+		expect(JSON.parse(block)).toEqual([run]);
+		expect(prompt).toContain('never run them again unless the user asks');
 	});
 });
 

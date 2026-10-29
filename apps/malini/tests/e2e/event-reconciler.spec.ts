@@ -26,6 +26,7 @@ const JOB = 'Run the tests';
 const TELL = new RegExp(`^Tell “.+” that ${JOB} failed$`, 'u');
 const TOLD = new RegExp(`^Show why Malini decided: Tell “.+” that ${JOB} failed, Done$`, 'u');
 const WOKEN = /^Malini woke you: work you started moved on/u;
+const WOKEN_ABOUT_JOB = /^Malini woke you: work you asked for moved on/u;
 const RESENT = 'Rename the settings button';
 const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 
@@ -226,7 +227,7 @@ test('Malini asks before it acts on a failed job when the model says so, and doe
 				.filter({ hasText: 'Picked by you' }),
 		).toContainText(`that ${JOB} failed`);
 		await openWorkstream(page, workstreamId);
-		await expect(transcript(page).getByText(WOKEN)).toBeVisible({ timeout: 30_000 });
+		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -280,7 +281,7 @@ test('when the model gives no answer on a failed job, Malini decides by its rule
 			.toMatchObject({ status: 'done', decidedBy: 'rules' });
 		expect(askedChoices(app).map(({ pick }) => pick)).toEqual([null]);
 		await openWorkstream(page, workstreamId);
-		await expect(transcript(page).getByText(WOKEN)).toBeVisible({ timeout: 30_000 });
+		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
 
 		await openJobs(page, '#/jobs/activity');
 		const row = page.getByRole('button', { name: TOLD });

@@ -6,6 +6,8 @@ import {
 	GitError,
 	gitFailureVerdict,
 	isNotFoundError,
+	remoteRefusal,
+	type GitCommandFailure,
 } from './errors';
 
 const PROXY_UNREACHABLE =
@@ -162,11 +164,60 @@ describe('gitFailureVerdict', () => {
 		);
 	});
 
+	it.each([
+		[
+			'OAuth App',
+			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and your gh sign-in can't change workflows. Run `gh auth refresh -s workflow` once, then retry.",
+		],
+		[
+			'Personal Access Token',
+			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and your GitHub token can't change workflows. Give it the workflow scope, then retry.",
+		],
+	])('says how to let a %s push a workflow GitHub refused', (actor, message) => {
+		expect(gitFailureVerdict(workflowRefusal(actor, 'workflow` scope'))).toEqual({
+			kind: 'git',
+			message,
+		});
+	});
+
+	it('says how to let a GitHub App push a workflow, and keeps any other refusal as GitHub said it', () => {
+		expect(gitFailureVerdict(workflowRefusal('GitHub App', 'workflows` permission')).message).toBe(
+			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and the GitHub App Malini pushes with can't change workflows. Give it the Workflows permission, then retry.",
+		);
+		expect(gitFailureVerdict(RULES_REFUSAL).message).toBe(
+			'GitHub refused the push: push declined due to repository rule violations.',
+		);
+	});
+
 	it('falls back to the last line when git printed no verdict, and admits silence', () => {
 		expect(
 			gitFailureVerdict('On branch main\nnothing to commit, working tree clean\n').message,
 		).toBe('nothing to commit, working tree clean');
 		expect(gitFailureVerdict('  \n\n').message).toBe('Git stopped without giving a reason.');
+	});
+});
+
+describe('remoteRefusal', () => {
+	it('keeps what GitHub said when it refused a push, without git progress', () => {
+		expect(remoteRefusal(GitError.commandFailed(refusedPush(RULES_REFUSAL)))).toBe(
+			[
+				'error: GH013: Repository rule violations found for refs/heads/main.',
+				'- Changes must be made through a pull request.',
+				'push declined due to repository rule violations',
+			].join('\n'),
+		);
+		expect(
+			remoteRefusal(
+				GitError.commandFailed(refusedPush(workflowRefusal('OAuth App', 'workflow` scope'))),
+			),
+		).toBe(
+			'refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope',
+		);
+	});
+
+	it('has nothing to say for a failure GitHub did not refuse', () => {
+		expect(remoteRefusal(GitError.commandFailed(refusedPush(DNS_FAILURE)))).toBeNull();
+		expect(remoteRefusal(new Error('boom'))).toBeNull();
 	});
 });
 
@@ -331,4 +382,34 @@ function technicalDetail(error: GitError): string {
 	if (!(error.cause instanceof Error))
 		throw new Error('the git failure carries no technical cause');
 	return error.cause.message;
+}
+
+const RULES_REFUSAL = [
+	'Enumerating objects: 5, done.',
+	'remote: Resolving deltas: 100% (1/1), completed with 1 local object.',
+	'remote: error: GH013: Repository rule violations found for refs/heads/main.',
+	'remote: ',
+	'remote: - Changes must be made through a pull request.',
+	'To https://github.com/acme/atlas.git',
+	' ! [remote rejected] main -> main (push declined due to repository rule violations)',
+	"error: failed to push some refs to 'https://github.com/acme/atlas.git'",
+].join('\n');
+
+function workflowRefusal(actor: string, without: string): string {
+	const article = actor === 'OAuth App' ? 'an' : 'a';
+	return [
+		'To https://github.com/acme/atlas.git',
+		` ! [remote rejected] malini/01J9879BA4 -> malini/01J9879BA4 (refusing to allow ${article} ${actor} to create or update workflow \`.github/workflows/map-tiles.yml\` without \`${without})`,
+		"error: failed to push some refs to 'https://github.com/acme/atlas.git'",
+	].join('\n');
+}
+
+function refusedPush(output: string): GitCommandFailure {
+	return {
+		args: ['push', 'https://github.com/acme/atlas.git', 'HEAD:main'],
+		exitCode: 1,
+		signal: null,
+		output,
+		outputTruncated: false,
+	};
 }

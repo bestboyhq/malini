@@ -1,4 +1,5 @@
-import type { DispatchedEvent } from '$lib/jobs/jobs.platform';
+import type { ShipFailure } from '$contract/pull-requests';
+import type { ShippingRule } from '$lib/jobs/jobs.platform';
 
 export type {
 	CheckAnnotationDto,
@@ -21,6 +22,7 @@ export {
 } from './platform/pull-requests.service';
 
 export interface PullRequestsPlatform {
-	handle(event: DispatchedEvent): Promise<void>;
+	readonly shipping: ShippingRule;
+	failure(workstreamId: string): ShipFailure | null;
 	dispose(): void;
 }

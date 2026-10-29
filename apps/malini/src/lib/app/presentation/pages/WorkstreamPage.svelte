@@ -1,12 +1,3 @@
-<script module lang="ts">
-	import type { BrowserElementPrompt } from '$contract/browser';
-	import { submitElementPromptCommand } from '$lib/chat/application/commands/submit-element-prompt.command';
-
-	function submitElementPrompt(workstreamId: string, picked: BrowserElementPrompt): void {
-		submitElementPromptCommand({ requestId: crypto.randomUUID(), workstreamId, picked });
-	}
-</script>
-
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
 	import { loadBrowserTabsCommand } from '$lib/browser/application/commands/load-browser-tabs.command';
@@ -51,7 +42,7 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
-	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, submitElementPrompt));
+	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs));
 	const panelActions = $derived([
 		{
 			id: 'new-browser-tab',

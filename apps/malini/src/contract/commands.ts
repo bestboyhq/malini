@@ -26,12 +26,13 @@ import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approva
 import type { AnswerLeadDecisionArgs, LeadDecision, ListLeadDecisionsArgs } from './leads';
 import type { ChatDelivery, ListChatDeliveriesArgs, WorkstreamReport } from './deliveries';
 import type {
-	BrowserElementPrompt,
 	BrowserNavigateArgs,
+	BrowserPickArgs,
 	BrowserResizedArgs,
 	BrowserShowArgs,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserThreadStarted,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { GithubReach } from './github-failure';
@@ -77,6 +78,7 @@ import type {
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
+import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from './shell-runs';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
@@ -410,7 +412,7 @@ export interface ContractCommands {
 	'browser.reload': { args: BrowserTabArgs; result: void };
 	'browser.state': { args: BrowserTabArgs; result: BrowserState };
 	'browser.snapshot': { args: BrowserTabArgs; result: string | null };
-	'browser.pick-element': { args: BrowserTabArgs; result: BrowserElementPrompt | null };
+	'browser.pick-element': { args: BrowserPickArgs; result: BrowserThreadStarted | null };
 	'browser.cancel-pick': { args: BrowserTabArgs; result: void };
 	'browser.close': { args: BrowserTabArgs; result: void };
 	'browser.resized': { args: BrowserResizedArgs; result: void };
@@ -652,6 +654,11 @@ export interface ContractCommands {
 		result: StagedAgentAttachment;
 	};
 	'chat.stop-background-task': { args: StopBackgroundTaskArgs; result: void };
+	'chat.run-shell-command': { args: RunShellCommandArgs; result: ShellRun };
+	'chat.shell-runs': { args: undefined; result: ShellRun[] };
+	'chat.write-shell-input': { args: ShellInputArgs; result: void };
+	'chat.stop-shell-run': { args: ShellRunArgs; result: void };
+	'chat.dismiss-shell-run': { args: ShellRunArgs; result: void };
 	'chat.start-session': { args: StartAgentSessionArgs; result: string };
 	'extensions.stat-workstream-file': {
 		args: ExtensionFileArgs;
@@ -877,6 +884,11 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.stage-fork-transcript',
 	'chat.start-session',
 	'chat.stop-background-task',
+	'chat.run-shell-command',
+	'chat.shell-runs',
+	'chat.write-shell-input',
+	'chat.stop-shell-run',
+	'chat.dismiss-shell-run',
 	'extensions.stat-workstream-file',
 	'extensions.write-workstream-file',
 	'app.focus-window',

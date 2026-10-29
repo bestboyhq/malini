@@ -110,7 +110,12 @@ export function scaledShipDelays(scale: number): ShipDelays {
 	};
 }
 
-const ACTIVE_JOB_STATUSES: ReadonlySet<JobRunStatus> = new Set(['queued', 'running', 'needs-you']);
+const ACTIVE_JOB_STATUSES: ReadonlySet<JobRunStatus> = new Set([
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+]);
 const FAILED_CHECK_STATES = new Set([
 	'FAILURE',
 	'ERROR',

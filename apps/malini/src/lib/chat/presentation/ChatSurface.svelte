@@ -29,6 +29,7 @@
 	import { preloadOpenChatsHook } from '$lib/chat/application/hooks/preload-open-chats.hook.svelte';
 	import { watchAgentLifecycleHook } from '$lib/chat/application/hooks/watch-agent-lifecycle.hook.svelte';
 	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
+	import { watchShellRunsHook } from '$lib/chat/application/hooks/watch-shell-runs.hook';
 	import { activeModelQuery } from '$lib/chat/application/queries/active-model.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { askingChildrenQuery } from '$lib/chat/application/queries/asking-children.query.svelte';
@@ -119,6 +120,7 @@
 	const releaseChatRoute = followChatRouteHook();
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
 	const releaseSessionChanges = watchSessionChangesHook();
+	const releaseShellRuns = watchShellRunsHook();
 	const releaseAgentLifecycle = watchAgentLifecycleHook();
 	const releaseChildRequests = followChildRequestsHook(() =>
 		[...askingChildren, ...waitingElsewhere].map((child) => child.sessionId),
@@ -131,6 +133,7 @@
 
 	onDestroy(() => {
 		releaseSessionChanges();
+		releaseShellRuns();
 		releaseAgentLifecycle();
 		releaseChatRoute();
 		stopPreloadingOpenChats();

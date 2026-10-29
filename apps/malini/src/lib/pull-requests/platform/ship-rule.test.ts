@@ -26,7 +26,8 @@ import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
-import { all } from '$main/db/rows';
+import { all, get } from '$main/db/rows';
+import { GitError } from '$main/errors';
 import { createEventBus } from '$main/events';
 import { workstreamPath } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -38,6 +39,8 @@ import {
 } from '$lib/jobs/platform/job-definitions.repository';
 import { insertJobRun, saveJobRun } from '$lib/jobs/platform/job-runs.repository';
 import { createJobSchedules, type JobSchedules } from '$lib/jobs/platform/job-schedules.service';
+import { startJobTriggers, type JobTriggers } from '$lib/jobs/platform/job-triggers.service';
+import { Reconciler } from '$lib/jobs/platform/reconciler.service';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
@@ -53,6 +56,8 @@ const DELAYS = {
 };
 
 const SETTLE_MS = 150;
+
+const NO_RULE = (): Promise<void> => Promise.resolve();
 
 const WAIT = { timeout: 8_000, interval: 15 };
 
@@ -330,6 +335,8 @@ let github: FakeGithub;
 let platform: PullRequestsPlatform;
 let eventLog: { dispose(): void } | null;
 let clock: JobSchedules | null;
+let triggers: JobTriggers | null;
+let reconciler: Reconciler;
 let worktrees: Map<string, WorktreeStatus>;
 let openRuns: Set<string>;
 let jobRuns: Map<string, JobRunRecord>;
@@ -342,6 +349,7 @@ let pushes: string[];
 let pulls: string[];
 let archived: string[];
 let pullConflicts: string[];
+let pushRefusal: GitError | null;
 let shaCounter: number;
 let clockOffsetMs: number;
 
@@ -485,6 +493,12 @@ function defineFakes(): void {
 			headSha: sha,
 		});
 		commits.push({ workstreamId, message, runId, sha });
+		events.emit('repositories:workstream-head-moved', {
+			workstreamId,
+			branch: current.branch,
+			head: sha,
+			previousHead: current.headSha ?? null,
+		});
 		if (runId) {
 			db.prepare(
 				`INSERT OR IGNORE INTO workstream_commit_runs (workstream_id, run_id, commit_sha, committed_at)
@@ -496,17 +510,24 @@ function defineFakes(): void {
 	commands.define('repositories.push-workstream', (args: unknown) => {
 		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
 		expect(Reflect.get(Object(args), 'expectedRepositoryFullName')).toBe('acme/app');
+		if (pushRefusal) throw pushRefusal;
 		const current = worktree(workstreamId);
 		worktrees.set(workstreamId, { ...current, ahead: 0, hasUpstream: true });
 		heads.set(current.branch, current.headSha ?? '');
 		pushes.push(workstreamId);
 		github.pushed(current.branch, current.headSha ?? '');
+		events.emit('repositories:workstream-pushed', {
+			workstreamId,
+			branch: current.branch,
+			head: current.headSha ?? '',
+		});
 		return current.branch;
 	});
 	commands.define('repositories.pull-workstream', (args: unknown) => {
 		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
 		const current = worktree(workstreamId);
 		pulls.push(workstreamId);
+		const merged = { ...current, ahead: current.ahead + 1, headSha: nextSha() };
 		worktrees.set(
 			workstreamId,
 			pullConflicts.length > 0
@@ -518,8 +539,22 @@ function defineFakes(): void {
 						conflictedPaths: [...pullConflicts],
 						conflictMarkerPaths: [...pullConflicts],
 					}
-				: { ...current, ahead: current.ahead + 1, headSha: nextSha() },
+				: merged,
 		);
+		if (pullConflicts.length > 0) {
+			events.emit('repositories:workstream-merge-conflicted', {
+				workstreamId,
+				baseBranch: 'main',
+				conflictedPaths: [...pullConflicts],
+			});
+		} else {
+			events.emit('repositories:workstream-head-moved', {
+				workstreamId,
+				branch: current.branch,
+				head: merged.headSha,
+				previousHead: current.headSha ?? null,
+			});
+		}
 		return 'abc1234';
 	});
 	commands.define('repositories.archive-workstream', (args: unknown) => {
@@ -615,19 +650,41 @@ function seedDefinitions(): void {
 
 function start(delays: typeof DELAYS = DELAYS): void {
 	const now = (): number => Date.now() + clockOffsetMs;
-	const shipping = registerPullRequests(context, {
+	platform = registerPullRequests(context, {
 		runner: github.run,
 		ship: { delays, now },
 	});
-	platform = shipping;
+	clock = createJobSchedules(context, () => {}, { alarmCheckMs: 10, now });
+	triggers = startJobTriggers(context, () => {});
+	const schedules = clock;
+	const yourTriggers = triggers;
+	reconciler = new Reconciler(
+		context,
+		() => {},
+		() => Promise.reject(new Error('There is no model in these tests.')),
+		{
+			triggers: (event) => yourTriggers.handle(event),
+			thens: NO_RULE,
+			shipping: platform.shipping,
+			resume: NO_RULE,
+			deliveries: NO_RULE,
+			schedules: (event) => schedules.handle(event),
+			compatibility: NO_RULE,
+		},
+		() => Promise.reject(new Error('There are no chats in these tests.')),
+	);
+	listen();
+	clock.start();
+	context.events.emit(APP_STARTED_CHANNEL, { version: context.appVersion });
+}
+
+function listen(): void {
+	const heard = reconciler;
 	eventLog = startEventLog(
 		context,
 		() => {},
-		(event) => shipping.handle(event),
+		(event) => heard.handle(event),
 	);
-	clock = createJobSchedules(context, () => {}, { alarmCheckMs: 10, now });
-	clock.start();
-	context.events.emit(APP_STARTED_CHANNEL, { version: context.appVersion });
 }
 
 function stop(): void {
@@ -635,6 +692,9 @@ function stop(): void {
 	clock = null;
 	eventLog?.dispose();
 	eventLog = null;
+	triggers?.dispose();
+	triggers = null;
+	reconciler.dispose();
 	platform.dispose();
 }
 
@@ -680,6 +740,20 @@ function readsLogged(): { id: number; payload: Record<string, unknown> }[] {
 	).map((row) => ({ id: row.id, payload: JSON.parse(row.payload) }));
 }
 
+function latestLogged(channel: string): {
+	id: number;
+	cause_kind: string | null;
+	chain_id: string;
+} {
+	const row = get<{ id: number; cause_kind: string | null; chain_id: string }>(
+		db,
+		'SELECT id, cause_kind, chain_id FROM event_log WHERE channel = ? ORDER BY id DESC LIMIT 1',
+		channel,
+	);
+	if (!row) throw new Error(`no ${channel} logged`);
+	return row;
+}
+
 function activeJob(): JobRunRecord {
 	const running = [...jobRuns.values()].filter((run) => run.status === 'running');
 	const [job] = running;
@@ -721,9 +795,11 @@ beforeEach(() => {
 	pulls = [];
 	archived = [];
 	pullConflicts = [];
+	pushRefusal = null;
 	shaCounter = 0;
 	eventLog = null;
 	clock = null;
+	triggers = null;
 	clockOffsetMs = 0;
 	runCounter = 0;
 	seedDefinitions();
@@ -734,6 +810,8 @@ beforeEach(() => {
 afterEach(() => {
 	clock?.dispose();
 	eventLog?.dispose();
+	triggers?.dispose();
+	reconciler?.dispose();
 	platform?.dispose();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
@@ -796,6 +874,95 @@ describe('opening a draft', () => {
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 12, step: null }));
 		expect(github.count(['pr', 'create'])).toBe(0);
 		expect(pushes).toEqual([]);
+	});
+});
+
+describe('a push GitHub refuses', () => {
+	const PATIENT = { ...DELAYS, backoffBaseMs: 60_000, backoffCapMs: 60_000 };
+
+	it('records why, since when and how often, and clears it once the push lands', async () => {
+		seedWorkstream('ws-1');
+		start();
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+
+		await click('ws-1', 'draft');
+
+		await until(() => expect(ship('ws-1')?.failures).toBeGreaterThanOrEqual(2));
+		const failing = ship('ws-1');
+		expect(failing).toMatchObject({
+			phase: 'draft',
+			step: 'opening-draft',
+			lastError: expect.stringContaining('Run `gh auth refresh -s workflow` once'),
+			githubSaid:
+				'refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope',
+		});
+		expect(failing?.failedSince).not.toBeNull();
+		expect(platform.failure('ws-1')).toMatchObject({
+			stage: 'draft',
+			title: "Malini couldn't open the draft",
+		});
+		await until(() => expect(ship('ws-1')?.failures).toBeGreaterThan(failing?.failures ?? 0));
+		expect(ship('ws-1')?.failedSince).toBe(failing?.failedSince);
+
+		pushRefusal = null;
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({
+				pullRequestNumber: 40,
+				lastError: null,
+				githubSaid: null,
+				failures: 0,
+				failedSince: null,
+				nextAttemptAt: null,
+			}),
+		);
+		expect(platform.failure('ws-1')).toBeNull();
+	});
+
+	it('tries again at once on Retry now, instead of waiting out the backoff', async () => {
+		seedWorkstream('ws-1');
+		start(PATIENT);
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
+		pushRefusal = null;
+
+		const retried = await click('ws-1', 'retry');
+
+		expect(retried).toMatchObject({ phase: 'draft', failures: 1, nextAttemptAt: null });
+		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, failures: 0 }));
+	});
+
+	it('stops opening the draft on Cancel', async () => {
+		seedWorkstream('ws-1');
+		start(PATIENT);
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+
+		const cancelled = await click('ws-1', 'cancel');
+
+		expect(cancelled).toMatchObject({
+			phase: 'local',
+			step: null,
+			lastError: null,
+			failures: 0,
+			nextAttemptAt: null,
+		});
+		expect(platform.failure('ws-1')).toBeNull();
+		pushRefusal = null;
+		await settle();
+		expect(github.pulls).toEqual([]);
 	});
 });
 
@@ -1011,6 +1178,7 @@ describe('shipping a queued merge', () => {
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(readsLogged().map(({ payload }) => [payload['state'], payload['checks']])).toEqual([
+			['draft', 'success'],
 			['draft', 'failed'],
 			['open', 'failed'],
 			['open', 'success'],
@@ -1037,7 +1205,8 @@ describe('shipping a queued merge', () => {
 			},
 		]);
 		expect(github.only().isDraft).toBe(true);
-		await platform.handle({
+		listen();
+		await reconciler.handle({
 			id: null,
 			channel: PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 			payload: clicks[0],
@@ -1233,6 +1402,45 @@ describe('shipping a queued merge', () => {
 		expect(pulls).toEqual(['ws-1']);
 		const job = activeJob();
 		expect(job.definitionId).toBe('def-resolve-conflicts');
+
+		pullConflicts = [];
+		finishJob(job.id, 'succeeded', { resolveConflicts: true });
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(commits.at(-1)).toMatchObject({
+			message: 'Merge main into malini/ws-1',
+			runId: job.agentRunId,
+		});
+	});
+
+	it('waits for the Resolve conflicts its trigger starts on the conflict, in the chain of your click, then commits the merge', async () => {
+		db.prepare(
+			`UPDATE job_definitions SET trigger_when = 'on repositories:workstream-merge-conflicted',
+			 trigger_mode = 'auto' WHERE id = 'def-resolve-conflicts'`,
+		).run();
+		await queueWithDraft();
+		Object.assign(github.only(), {
+			isDraft: false,
+			mergeable: 'CONFLICTING',
+			mergeStateStatus: 'DIRTY',
+		});
+		pullConflicts = ['src/search.ts'];
+
+		await click('ws-1', 'merge');
+
+		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
+		const job = activeJob();
+		expect(job).toMatchObject({ definitionId: 'def-resolve-conflicts', origin: 'trigger' });
+		const merge = latestLogged(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL);
+		const conflict = latestLogged('repositories:workstream-merge-conflicted');
+		expect(merge.cause_kind).toBeNull();
+		expect(conflict).toMatchObject({ cause_kind: 'event', chain_id: merge.chain_id });
+		expect(jobCauses.get(job.id)).toBe(conflict.id);
+		await settle();
+		expect(
+			[...jobRuns.values()].filter((run) => run.definitionId === 'def-resolve-conflicts'),
+		).toHaveLength(1);
+		expect(all(db, 'SELECT id FROM reconciler_decisions')).toEqual([]);
 
 		pullConflicts = [];
 		finishJob(job.id, 'succeeded', { resolveConflicts: true });
@@ -1643,3 +1851,16 @@ describe('Draft all and Merge all', () => {
 		expect(jobRuns.size).toBe(0);
 	});
 });
+
+function workflowRefusal(): GitError {
+	return GitError.commandFailed({
+		args: ['push', 'https://github.com/acme/app.git', 'HEAD:malini/ws-1'],
+		exitCode: 1,
+		signal: null,
+		output: [
+			'To https://github.com/acme/app.git',
+			' ! [remote rejected] HEAD -> malini/ws-1 (refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope)',
+			"error: failed to push some refs to 'https://github.com/acme/app.git'",
+		].join('\n'),
+	});
+}

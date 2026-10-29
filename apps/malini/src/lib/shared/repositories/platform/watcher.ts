@@ -44,6 +44,7 @@ export interface WorkstreamWatchers {
 	watch(workstreamId: string): Promise<void>;
 	unwatch(workstreamId: string): void;
 	isWatching(workstreamId: string): boolean;
+	refresh(workstreamId: string): Promise<void>;
 	reportMergeConflict(conflict: MergeConflict): void;
 	dispose(): void;
 }
@@ -195,6 +196,23 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		const baseBranch = getWorkstream(deps.db, workstreamId)?.baseBranch;
 		if (set.closing || conflictedPaths.length === 0 || baseBranch === undefined) return;
 		reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead: next.mergeHead });
+	};
+
+	const refreshAfter = async (set: WatcherSet, previous: Promise<void>): Promise<void> => {
+		await previous;
+		try {
+			await reportFacts(set);
+		} catch (error) {
+			log(`malini: could not read git in workstream \`${set.workstreamId}\`: ${describe(error)}`);
+		}
+	};
+
+	const refresh = async (workstreamId: string): Promise<void> => {
+		const set = sets.get(workstreamId);
+		if (!set || set.closing || set.worktreePath === null || set.facts === null) return;
+		const reading = refreshAfter(set, set.reading);
+		set.reading = reading;
+		await reading;
 	};
 
 	const changedSinceLastReport = async (
@@ -373,6 +391,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			const set = sets.get(workstreamId);
 			return set !== undefined && set.watchers.length > 0;
 		},
+		refresh,
 		reportMergeConflict,
 		dispose() {
 			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
