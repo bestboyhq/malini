@@ -138,9 +138,14 @@ A job that fails, needs you, or is cancelled runs no Then.
 A Then that would loop, such as one job whose Then leads back to itself, is refused when you save it.
 A Then runs through the queue like any other job, so the job that finished never waits for it.
 
+A job whose turn ends while only background commands run, such as a dev server, counts as done at once.
+When its agent goes on once one of those commands ends, the job runs again and counts as done at its next end, with that end's result, and Malini commits what it did after the wait too.
+Its Then starts once per run: at once when the job ended with its report, or else once the job ends for good, with that last result, since an agent that has not reported yet may go on.
+A Then held that way is cancelled when the job goes on and fails.
+
 ### Events or Then
 
-A job emits `jobs:run-started` when its run starts, and `jobs:run-finished` once when it ends, with its `status`: `succeeded`, `failed` or `cancelled`.
+A job emits `jobs:run-started` when its run starts, and `jobs:run-finished` when it ends, with its `status`: `succeeded`, `failed` or `cancelled`, and again at its next end when its agent goes on after its background commands.
 Trigger other jobs on it, such as `on jobs:run-finished where run.status is failed`, or use Then for the planned next step.
 A run never starts a job that already ran earlier in its own chain, so a trigger on `jobs:run-finished` cannot loop.
 `jobs:run-changed` still fires for every status a run moves through, but the event log keeps only the start and the finish.
@@ -189,7 +194,7 @@ Each rule names the events it hears, and the Reconciler hands an event to every 
 It hands each event to your triggers first, then to its own rules at once:
 
 - **Your triggers** handle the events they name.
-- **Thens** start the next job on the **Job finished** of a run that succeeded.
+- **Thens** start the next job on the **Job finished** of a run that succeeded, once per run.
 - **Shipping** takes a workstream from your click to merged, one step per event.
   For each event about a workstream it ships, the Reconciler reads that workstream's state fresh, one workstream at a time: its pull request bar, the jobs in it whoever started them, `git status` and the last read of GitHub.
   Shipping then takes the one next step: commit and push its work, open the draft, mark it ready, merge main into the branch when GitHub says it is behind or conflicts, run **Fix checks** or **Address review** when something blocks the merge, merge, or archive the workstream unless you clicked **Keep**.

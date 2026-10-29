@@ -1,9 +1,10 @@
 import { BoundedHtmlCache, textFingerprint } from '$hyper-ui/components/code-tokens';
+import type { MarkdownRenderMode } from './MarkdownText.svelte';
 
 export const SANITIZED_MARKDOWN_HTML_CACHE_MAX_CHARACTERS = 8_000_000;
 
 export function sanitizedMarkdownHtmlCacheKey(
-	mode: 'markdown' | 'prose' | 'plain',
+	mode: MarkdownRenderMode,
 	masked: boolean,
 	runnable: boolean,
 	source: string,

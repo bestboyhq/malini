@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -22,6 +25,7 @@ type RunRow = Readonly<{
 	origin: string;
 	parentRunId: string | null;
 	workstreamId: string | null;
+	detail: string | null;
 }>;
 
 async function saveJob(
@@ -90,6 +94,50 @@ test('a job whose Then is Open draft asks the runner for it once the job succeed
 			.filter({ hasText: 'After Add alpha' });
 		await expect(followed).toHaveCount(1);
 		await captureFlow(app, 'job-then-open-draft');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a job whose agent goes on after its background command runs again, holds its Then until it ends, and both edits are committed', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page, worktree } = await seedWorkstreamOnFakeGithub(app, 'e2e-goes-on', null);
+		const then = await saveJob(page, { name: 'Note after', instructions: 'EDIT:then.txt' });
+		const job = await saveJob(page, {
+			name: 'Warm-up note',
+			instructions: 'BACKGROUND_GOES_ON',
+			thenJobId: then.id,
+		});
+		await invoke(page, 'jobs.run', { definitionId: job.id, workstreamId: 'e2e-goes-on' });
+		const status = async (title: string) => (await runsOf(page, title))[0]?.status;
+
+		await expect.poll(() => status('Warm-up note'), { timeout: 30_000 }).toBe('succeeded');
+		await expect.poll(() => status('Note after'), { timeout: 30_000 }).toBe('queued');
+		await openJobs(page, '#/jobs/activity');
+		await captureFlow(app, 'job-background-wait');
+
+		writeFileSync(join(app.home, 'end-background-command'), '');
+		await expect.poll(() => status('Warm-up note'), { timeout: 30_000 }).toBe('running');
+		expect(await status('Note after')).toBe('queued');
+
+		writeFileSync(join(app.home, 'end-background-turn'), '');
+		await expect
+			.poll(async () => (await runsOf(page, 'Warm-up note'))[0]?.detail, { timeout: 30_000 })
+			.toContain('Outcome: The e2e suite passes');
+		await expect.poll(() => status('Note after'), { timeout: 30_000 }).toBe('succeeded');
+		expect(await runsOf(page, 'Note after')).toHaveLength(1);
+		const git = (args: readonly string[]) =>
+			execFileSync('git', ['-C', worktree, ...args], { encoding: 'utf8' });
+		await expect
+			.poll(() => git(['log', '--name-only', '--format=', 'main..HEAD']).split('\n').sort(), {
+				timeout: 30_000,
+			})
+			.toEqual(expect.arrayContaining(['flaky.txt', 'then.txt']));
+		expect(git(['status', '--porcelain'])).toBe('');
+		await captureFlow(app, 'job-background-went-on');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

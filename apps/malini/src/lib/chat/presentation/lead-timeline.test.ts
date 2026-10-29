@@ -5,7 +5,13 @@ import {
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { REPORTS_PREAMBLE } from '$lib/chat/domain/deliveries';
-import { leadTimeline, replyParts, timelineRows, type TimelineEntry } from './lead-timeline';
+import {
+	leadTimeline,
+	replyParts,
+	rowSummary,
+	timelineRows,
+	type TimelineEntry,
+} from './lead-timeline';
 import type { RenderItem, RunGroup } from './render-state';
 
 const AT = Date.parse('2026-10-27T10:20:00.000Z');
@@ -364,5 +370,23 @@ describe('a reply of the lead', () => {
 			summary: 'Just an answer.',
 			body: 'Just an answer.',
 		});
+	});
+});
+
+describe('rowSummary', () => {
+	it('keeps a short first line whole', () => {
+		expect(rowSummary('Use `notes.md` for **both** lines.\n\nThe rest.')).toBe(
+			'Use `notes.md` for **both** lines.',
+		);
+	});
+
+	it('cuts a long line between pieces of Markdown, never inside one', () => {
+		expect(
+			rowSummary(
+				'Append the line `second` to `lead-notes.md`, so the file holds `first` then `second`, and nothing else.',
+			),
+		).toBe('Append the line `second` to `lead-notes.md`, so the file holds `first`…');
+		expect(rowSummary(`Read the file \`${'a'.repeat(70)}\` first`)).toBe('Read the file…');
+		expect(rowSummary(`See **${'b'.repeat(70)}** now`)).toBe('See…');
 	});
 });

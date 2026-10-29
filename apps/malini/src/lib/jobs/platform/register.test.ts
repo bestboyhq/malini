@@ -1420,6 +1420,143 @@ describe('then', () => {
 	});
 });
 
+describe('a job whose turn ends over background commands', () => {
+	const warmUp = {
+		taskId: 'b-warm',
+		kind: 'command',
+		description: 'Wait for the warm-up',
+		startedAt: 1,
+	};
+	const REPORT = 'Appended the line.\n\nOutcome: notes.md has the job line\nNeeds: nothing';
+
+	function waitOver(jobSession: string, summary: string): void {
+		agentEvent(jobSession, 'agent-run-1', {
+			type: 'background.updated',
+			waiting: true,
+			tasks: [warmUp],
+			summary,
+		});
+	}
+
+	function goOn(jobSession: string): void {
+		agentEvent(jobSession, 'agent-run-1', {
+			type: 'background.updated',
+			waiting: false,
+			tasks: [],
+		});
+		agentEvent(jobSession, 'agent-run-1', {
+			type: 'tool.started',
+			name: 'Bash',
+			toolCallId: 'append',
+		});
+	}
+
+	async function runsOf(definitionId: string): Promise<JobRunRecord[]> {
+		const runs = await context.commands.call('jobs.list-runs', undefined);
+		return runs.filter((run) => run.definitionId === definitionId);
+	}
+
+	async function thenOf(definitionId: string): Promise<JobRunRecord> {
+		return vi.waitFor(async () => {
+			const [found] = await runsOf(definitionId);
+			if (!found) throw new Error('no Then run yet');
+			return found;
+		});
+	}
+
+	async function chained() {
+		const next = await saveDefinition({ name: 'Note after', instructions: 'Append then.' });
+		const first = await saveDefinition({ name: 'Warm-up note', thenJobId: next.id });
+		const job = await runOf(first);
+		return { next, job, jobSession: await session(job.id) };
+	}
+
+	it('finishes at once, runs again when its agent goes on, and finishes with the end of that run', async () => {
+		const finished: string[] = [];
+		context.events.subscribe(JOBS_RUN_FINISHED_CHANNEL, ({ run }) =>
+			finished.push(`${run.status}: ${run.detail}`),
+		);
+		const job = await runOf(await saveDefinition());
+		const jobSession = await session(job.id);
+
+		waitOver(jobSession, 'Waiting for the warm-up.');
+		expect(await until(job.id, 'succeeded')).toMatchObject({ detail: 'Waiting for the warm-up.' });
+		goOn(jobSession);
+		expect(await until(job.id, 'running')).toMatchObject({ detail: null, finishedAt: null });
+		complete(jobSession, REPORT);
+
+		expect(await until(job.id, 'succeeded')).toMatchObject({ detail: REPORT });
+		expect(finished).toEqual(['succeeded: Waiting for the warm-up.', `succeeded: ${REPORT}`]);
+	});
+
+	it("holds its Then while its agent may go on, then starts it once, with the run's last result", async () => {
+		const { next, job, jobSession } = await chained();
+
+		waitOver(jobSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+		await settle();
+		expect((await jobRun(then.id)).status).toBe('queued');
+		goOn(jobSession);
+		await until(job.id, 'running');
+		complete(jobSession, REPORT);
+		await until(job.id, 'succeeded');
+
+		await session(then.id);
+		expect(fakes.sendPrompt.mock.calls[1]?.[0]).toMatchObject({
+			prompt: `Append then.\n\nThis job runs after “Warm-up note”, which finished with:\n\n${REPORT}`,
+		});
+		expect(await runsOf(next.id)).toHaveLength(1);
+	});
+
+	it('starts its Then at once when it ended with its report, and never twice', async () => {
+		const { next, job, jobSession } = await chained();
+
+		waitOver(jobSession, 'Started the preview.\n\nOutcome: The preview serves the docs');
+		const then = await thenOf(next.id);
+		const thenSession = await session(then.id);
+		agentEvent(thenSession, 'agent-run-2', { type: 'run.completed', summary: 'Done.' });
+		await until(then.id, 'succeeded');
+		goOn(jobSession);
+		await until(job.id, 'running');
+		complete(jobSession, REPORT);
+		await until(job.id, 'succeeded');
+		await settle();
+
+		expect(await runsOf(next.id)).toHaveLength(1);
+	});
+
+	it('starts a held Then once the run ends without its agent going on', async () => {
+		const { next, jobSession } = await chained();
+
+		waitOver(jobSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+		await settle();
+		expect((await jobRun(then.id)).status).toBe('queued');
+		complete(jobSession, 'Waiting for the warm-up.');
+
+		await session(then.id);
+		expect(fakes.sendPrompt.mock.calls[1]?.[0]).toMatchObject({
+			prompt:
+				'Append then.\n\nThis job runs after “Warm-up note”, which finished with:\n\nWaiting for the warm-up.',
+		});
+	});
+
+	it('cancels a held Then when the job goes on and fails', async () => {
+		const { next, job, jobSession } = await chained();
+
+		waitOver(jobSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+		goOn(jobSession);
+		agentEvent(jobSession, 'agent-run-1', { type: 'run.failed', error: 'tests fail' });
+		await until(job.id, 'failed');
+
+		expect(await until(then.id, 'cancelled')).toMatchObject({
+			detail: 'Warm-up note went on and did not succeed.',
+		});
+		expect(fakes.startSession).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe('waiting for you', () => {
 	it('never starts a waiting run or lets it hold its workstream, until you confirm it', async () => {
 		settings[JOBS_MAX_CONCURRENT_SETTING] = '1';

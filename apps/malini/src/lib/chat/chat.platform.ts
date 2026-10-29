@@ -1,3 +1,5 @@
+export { resumesTurn } from './domain/background-work';
+export { hasTurnReport } from './domain/turn-report';
 export { AgentRunLeases, type Lease } from './platform/agent/lifecycle';
 export {
 	agentHasReadFile,
