@@ -17,6 +17,7 @@ Two agents never edit one checkout, so they never clobber each other.
 Workstreams share disk space, so you can keep as many as you like.
 
 - **Checkouts are copy-on-write.** A new or restored workstream clones its files from the repository's clone, so a file takes no extra space until an agent changes it.
+  Malini first moves that clone to the latest default branch it fetched, so files that changed there are shared too.
 - **Dependencies are shared.** With npm or yarn, a workstream copies `node_modules` the same way from another workstream with the same lockfile, instead of installing again.
   pnpm and bun share packages through their own store.
 - **One clone per repository.** A repository you open from a folder on your Mac is cloned from that folder and shares its git objects, then fetches the rest from its remote.
