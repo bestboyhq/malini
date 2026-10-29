@@ -84,8 +84,8 @@
 		},
 		{
 			icon: 'lock',
-			title: 'No account, no server',
-			body: 'Your code leaves your Mac only through the agent you run, Claude Code today, and the GitHub CLI.',
+			title: 'No server, account optional',
+			body: 'Your code leaves your Mac only through the agent you run, Claude Code today, and the GitHub CLI. An account is only for a public profile.',
 		},
 		{
 			icon: 'eye',
@@ -98,7 +98,7 @@
 		{
 			question: 'Is Malini free?',
 			answer:
-				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. Agents run on your own Claude Code today, so they use your own Claude plan.',
+				'Yes. Malini is free and open source under AGPL-3.0, with no subscription and no account needed. Agents run on your own Claude Code today, so they use your own Claude plan.',
 		},
 		{
 			question: 'What do I need?',
@@ -113,7 +113,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. Malini needs no account, and there is no Malini server. Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev, with the public catalog of skill and server names it may show.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. A Bestboy account is optional, only to publish your stats, and there is no Malini server. Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev, with the public catalog of skill and server names it may show.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
@@ -157,7 +157,9 @@
 		</a>
 		<a class="button secondary" href={docHref('/docs')}>Read the docs</a>
 	</div>
-	<p class="fine">macOS 13 or later on Apple silicon · No&nbsp;account · No&nbsp;subscription</p>
+	<p class="fine">
+		macOS 13 or later on Apple silicon · No&nbsp;account&nbsp;needed · No&nbsp;subscription
+	</p>
 </Hero>
 
 <SectionHeading
