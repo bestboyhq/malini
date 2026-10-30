@@ -127,6 +127,10 @@ Like every workstream, each one stays on its own commits while main moves, and m
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
   **Keep**, beside **Cancel** while the merge is queued, leaves it open on **Merged** instead, with **Archive**.
+- **A check that hasn't reported yet still counts.** Some checks, such as Cloudflare Workers Builds, show up on GitHub only once their build finishes.
+  Malini waits while the head commit has a check suite with no check run yet, from an app that reported on the base branch's last 10 commits, for up to 20 minutes after GitHub created the suite, so the merge never lands before the build that deploys it.
+  Once such a suite changes, Malini gives GitHub 30 seconds to list its run with the pull request's checks before it merges.
+  An app that never reports on your repository, such as one whose suites stay queued forever, holds nothing.
 - **Your next prompt continues it.** A prompt you send in a workstream on **Merged** first moves its branch onto the latest main, and the agent works from there.
   When it cannot, because you are offline or GitHub does not answer, a toast says why and the composer keeps your prompt.
 - **It runs on events.** **Draft**, **Merge**, **Cancel** and **Keep** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.

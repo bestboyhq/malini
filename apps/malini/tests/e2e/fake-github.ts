@@ -427,6 +427,12 @@ if (command === 'auth' && sub === 'status') {
 		thread.isResolved = true;
 		save(current);
 		out({ data: { resolveReviewThread: { thread: { isResolved: true } } } });
+	} else if (fields.query.includes('checkSuites')) {
+		const suites = ((current && current.reportingApps) || []).map((databaseId) => ({
+			app: { databaseId },
+			checkRuns: { totalCount: 1 },
+		}));
+		out({ data: { repository: { object: { history: { nodes: [{ checkSuites: { nodes: suites } }] } } } } });
 	} else {
 		const nodes = threads.map((candidate) => ({
 			...candidate,
@@ -510,6 +516,9 @@ if (command === 'auth' && sub === 'status') {
 		String(candidate.detailsUrl || '').endsWith('/job/' + job),
 	);
 	out((check && check.annotations) || []);
+} else if (command === 'api' && /\\/commits\\/[^/]+\\/check-suites/u.test(sub)) {
+	const suites = (read() || {}).checkSuites || [];
+	out({ total_count: suites.length, check_suites: suites });
 } else if (command === 'api' && /\\/commits\\/[^/]+\\/check-runs/u.test(sub)) {
 	out({ total_count: 0, check_runs: [] });
 } else if (command === 'api' && /\\/commits\\/[^/]+\\/statuses/u.test(sub)) {
