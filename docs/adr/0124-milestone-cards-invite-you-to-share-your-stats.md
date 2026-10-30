@@ -1,6 +1,6 @@
 # 0124 - Milestone cards invite you to share your stats
 
-Status: accepted
+Status: superseded by 0131
 
 ## Context
 

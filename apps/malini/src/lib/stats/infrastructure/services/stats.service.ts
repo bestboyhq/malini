@@ -1,6 +1,6 @@
 import type {
 	ActivityStats,
-	MomentCard,
+	RecentMoments,
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ResourceSample,
@@ -25,8 +25,8 @@ class StatsService {
 		return invoke('stats.share-card', undefined);
 	}
 
-	moment(): Promise<MomentCard | null> {
-		return invoke('stats.moment', undefined);
+	moments(): Promise<RecentMoments | null> {
+		return invoke('stats.moments', undefined);
 	}
 
 	onTurnFinished(listener: () => void): () => void {

@@ -48,7 +48,7 @@ const STATS_KEYS = [
 test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again after a 401, and removes the stats when turned off', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin });
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin });
 	try {
 		const { page } = app;
 		await recordBrowser(app);
@@ -162,7 +162,7 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 test('the Stats panel nudges to publish, and copies the heatmap and readout cards once the profile is public', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin });
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin });
 	try {
 		const { page, electronApp } = app;
 		await recordBrowser(app);
@@ -225,10 +225,10 @@ test('the Stats panel nudges to publish, and copies the heatmap and readout card
 	}
 });
 
-test('a 7-day streak peeks out of the sidebar as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
+test('a 7-day streak that ended three days ago peeks out of the sidebar as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7, 3);
 	try {
 		const { page } = app;
 		await recordBrowser(app);
@@ -280,9 +280,10 @@ test('a 7-day streak peeks out of the sidebar as your card, claims your profile 
 	}
 });
 
-async function launchWithYesterdaysRun(
+async function launchWithPastRuns(
 	env: Readonly<Record<string, string>>,
 	streakDays = 1,
+	lastDaysAgo = 1,
 ): Promise<LaunchedApp> {
 	const first = await launchMalini();
 	try {
@@ -298,7 +299,7 @@ async function launchWithYesterdaysRun(
 	}
 	const db = new DatabaseSync(join(first.userDataDir, 'malini.sqlite'));
 	const start = new Date();
-	start.setDate(start.getDate() - 1);
+	start.setDate(start.getDate() - lastDaysAgo);
 	start.setHours(10, 0, 0, 0);
 	db.prepare('UPDATE agent_runs SET started_at = ?, completed_at = ?').run(
 		start.toISOString(),
