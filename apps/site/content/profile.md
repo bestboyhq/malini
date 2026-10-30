@@ -66,6 +66,17 @@ The cards count complete days only, through yesterday, so a card you copy matche
 They show your name and picture from GitHub, and your Bestboy handle.
 Until you publish, **Share card** offers **Publish my stats** instead.
 
+## Milestone cards
+
+When yesterday brought a milestone, your share card peeks out of the sidebar, above the stats readout, with the milestone named beside it.
+A milestone is a 7, 30, 100 or 365-day streak, a streak longer than any before it, a day with more runs than any before it, or another thousand runs.
+The card waits until no agent is working, and hides while streamer mode masks your personal data.
+
+Click the card to see both cards.
+Once you publish, **Copy card** and **Copy link** share them; before that, the card offers to claim your `bestboy.dev/@handle`, the same steps as **Publish my stats**.
+The × dismisses a milestone for good, and **Milestone cards** in Settings, Profile turns them off.
+Milestones are worked out on your Mac and nothing about them leaves it until you publish.
+
 ## Every number Malini sends
 
 Malini sends numbers only.

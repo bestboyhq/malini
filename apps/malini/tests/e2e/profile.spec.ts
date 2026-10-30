@@ -247,8 +247,61 @@ test('the Stats panel nudges to publish, and copies the heatmap and readout card
 	}
 });
 
+test('a 7-day streak peeks out of the sidebar as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
+	test.setTimeout(240_000);
+	const platform = await fakeBestboy();
+	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
+	try {
+		const { page } = app;
+		await recordBrowser(app);
+		const peek = page.getByRole('region', { name: 'Milestone' });
+		await expect(peek.getByText('7-day streak, your longest')).toBeVisible({ timeout: 20_000 });
+		await captureFlow(app, 'moment-peek');
+
+		await peek.getByRole('button', { name: 'Share your card: 7-day streak, your longest' }).click();
+		const sheet = page.getByRole('dialog', { name: 'Share your 7-day streak' });
+		await expect(sheet.getByRole('button', { name: 'Readout' })).toBeVisible();
+		await sheet.getByRole('button', { name: 'Readout' }).click();
+		await expect(sheet.getByRole('button', { name: 'Readout' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await captureFlow(app, 'moment-sheet');
+		await sheet.getByRole('button', { name: 'Claim your profile' }).click();
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await expect(
+			settings.getByText('Sign in to Bestboy in your browser, then come back.'),
+		).toBeVisible();
+		await expect.poll(async () => (await openedUrls(app)).length).toBe(1);
+		await settings.getByRole('button', { name: 'Cancel' }).click();
+
+		const milestones = settings.getByRole('switch', { name: 'Milestone cards' });
+		await milestones.click();
+		await expect(milestones).toHaveAttribute('aria-checked', 'false');
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+		await expect(peek).toHaveCount(0);
+
+		await openProfileSettings(page);
+		await settings.getByRole('switch', { name: 'Milestone cards' }).click();
+		await page.keyboard.press('Escape');
+		await expect(peek.getByText('7-day streak, your longest')).toBeVisible({ timeout: 20_000 });
+		await peek.getByRole('button', { name: 'Dismiss milestone' }).click();
+		await expect(peek).toHaveCount(0);
+		await page.reload();
+		await expect(page.getByTestId('sidebar-open-stats')).toBeVisible({ timeout: 20_000 });
+		await page.waitForTimeout(1_000);
+		await expect(peek).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		platform.close();
+	}
+});
+
 async function launchWithYesterdaysRun(
 	env: Readonly<Record<string, string>>,
+	streakDays = 1,
 ): Promise<LaunchedApp> {
 	const first = await launchMalini();
 	try {
@@ -270,6 +323,17 @@ async function launchWithYesterdaysRun(
 		start.toISOString(),
 		new Date(start.getTime() + 5 * 60_000).toISOString(),
 	);
+	for (let daysBack = 1; daysBack < streakDays; daysBack += 1) {
+		const day = new Date(start);
+		day.setDate(day.getDate() - daysBack);
+		db.exec('CREATE TEMP TABLE earlier_run AS SELECT * FROM agent_runs LIMIT 1');
+		db.prepare('UPDATE earlier_run SET id = ?, started_at = ?, completed_at = ?').run(
+			`e2e-streak-run-${daysBack}`,
+			day.toISOString(),
+			new Date(day.getTime() + 5 * 60_000).toISOString(),
+		);
+		db.exec('INSERT INTO agent_runs SELECT * FROM earlier_run; DROP TABLE earlier_run');
+	}
 	db.close();
 	return launchMalini({ profile: first.root, env });
 }

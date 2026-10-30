@@ -2,7 +2,10 @@ import { net } from 'electron';
 import {
 	STATS_PARTS,
 	type ActivityStats,
+	type MomentCard,
+	type PublishedStats,
 	type SharePartArgs,
+	type StatsMoment,
 	type ShareCard,
 	type StopRunningArgs,
 } from '$contract/stats';
@@ -28,6 +31,7 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
 import { catalogNames, NO_SETUP } from '../domain/catalog-names';
+import { latestMoment } from '../domain/moments';
 import { readAgentSetup, type ClaudeFiles } from './agent-setup';
 import { Bestboy, bestboyOrigin, type BestboyFetch } from './bestboy';
 import { ProfileStore, type TokenCipher } from './profile-store';
@@ -141,11 +145,10 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	commands.define('stats.public-repositories', () =>
 		readPublicRepositories(db, new Date(), visibility),
 	);
-	commands.define('stats.share-card', async (): Promise<ShareCard> => {
-		const [stats, identity] = await Promise.all([
-			readPublishedStats(db, new Date(), [], NOT_PUBLIC, catalogNames(null, NO_SETUP)),
-			github(),
-		]);
+	const cardStats = (): Promise<PublishedStats | null> =>
+		readPublishedStats(db, new Date(), [], NOT_PUBLIC, catalogNames(null, NO_SETUP));
+	const shareCard = async (stats: Promise<PublishedStats | null>): Promise<ShareCard> => {
+		const [shown, identity] = await Promise.all([stats, github()]);
 		const state = profile.state();
 		const avatar = identity
 			? await commands
@@ -153,11 +156,27 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 					.catch(() => null)
 			: null;
 		return {
-			stats,
+			stats: shown,
 			name: identity?.name ?? identity?.login ?? null,
 			handle: state.publishing === 'on' ? (state.profile?.handle ?? null) : null,
 			avatar: avatar ? `data:${avatar.mediaType};base64,${avatar.base64}` : null,
 		};
+	};
+	commands.define('stats.share-card', () => shareCard(cardStats()));
+	let todaysMoment: Readonly<{
+		day: string;
+		stats: PublishedStats | null;
+		moment: StatsMoment | null;
+	}> | null = null;
+	commands.define('stats.moment', async (): Promise<MomentCard | null> => {
+		if (listOpenRuns(db).length > 0) return null;
+		const day = localDate(new Date());
+		if (todaysMoment?.day !== day) {
+			const stats = await cardStats();
+			todaysMoment = { day, stats, moment: stats ? latestMoment(stats) : null };
+		}
+		const { stats, moment } = todaysMoment;
+		return moment ? { moment, card: await shareCard(Promise.resolve(stats)) } : null;
 	});
 
 	return {
