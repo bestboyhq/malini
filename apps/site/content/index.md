@@ -9,7 +9,8 @@ Agents write the code, and Malini owns git: it commits, opens the pull request, 
 It runs on Claude Code today.
 
 Malini is free and open source under AGPL-3.0.
-There is no Malini account, no subscription, and no Malini server.
+Malini needs no account and no subscription, and there is no Malini server.
+A Bestboy account comes in only if you publish your stats to a [public profile](/malini/docs/profile.md).
 
 ## How it works
 
@@ -30,11 +31,12 @@ There is no Malini account, no subscription, and no Malini server.
 - [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): the inspector, its panels, commands, settings, and workflows.
 - [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs working.
+- [Public profile](/malini/docs/profile.md): share cards of your stats, and a profile at bestboy.dev if you publish them.
 
 ## Where your code goes
 
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data to Logdash, stored in the EU.
+Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, with the public catalog of skill and server names it may show.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.

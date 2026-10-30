@@ -23,6 +23,7 @@ const ALL_TABLES = [
 	'agent_permission_rules',
 	'agent_run_change_files',
 	'agent_run_changes',
+	'agent_run_tool_calls',
 	'agent_runs',
 	'agent_session_changes',
 	'agent_sessions',
@@ -687,6 +688,58 @@ describe('migrate', () => {
 
 		db.exec(`UPDATE agent_events SET event = 'ab' WHERE seq = ${first}`);
 		expect(scalar(db, "SELECT event_bytes FROM agent_runs WHERE id = 'r'")).toBe(8);
+		db.close();
+	});
+
+	it('counts the tool calls of each run, from the events before it and as new ones are written', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES ('s', 'w', 'idle', '2026-07-19T00:00:00Z');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES
+			  ('earlier', 's', 'go', '2026-07-19T00:00:01Z'),
+			  ('later', 's', 'go', '2026-07-19T00:01:00Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Bash","input":{}}', '2026-07-19T00:00:02Z'),
+			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Bash"}', '2026-07-19T00:00:03Z'),
+			  ('s', 'earlier', 'tool.completed' || char(10) || '{"name":"Bash"}', '2026-07-19T00:00:04Z'),
+			  ('s', 'earlier', 'tool.started' || char(10) || 'not json', '2026-07-19T00:00:05Z'),
+			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Skill","input":{"skill":"adr"}}', '2026-07-19T00:00:06Z');
+		`);
+
+		migrate(db);
+		db.exec(`
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'later', 'tool.started' || char(10) || '{"input":{},"name":"mcp__malini__browser_open"}', '2026-07-19T00:01:01Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:01:02Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:01:03Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"toolCallId":"nameless"}', '2026-07-19T00:01:04Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":', '2026-07-19T00:01:05Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Skill","input":{"skill":"adr"}}', '2026-07-19T00:01:06Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Skill","input":{"skill":"svelte:svelte-code-writer"}}', '2026-07-19T00:01:07Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read","input":{"skill":"not a skill call"}}', '2026-07-19T00:01:08Z');
+		`);
+		expect(
+			all(
+				db,
+				'SELECT run_id, tool, skill, calls FROM agent_run_tool_calls ORDER BY run_id, tool, skill',
+			),
+		).toEqual([
+			{ run_id: 'earlier', tool: 'Bash', skill: '', calls: 2 },
+			{ run_id: 'earlier', tool: 'Skill', skill: 'adr', calls: 1 },
+			{ run_id: 'later', tool: '', skill: '', calls: 1 },
+			{ run_id: 'later', tool: 'Read', skill: '', calls: 3 },
+			{ run_id: 'later', tool: 'Skill', skill: 'adr', calls: 1 },
+			{ run_id: 'later', tool: 'Skill', skill: 'svelte:svelte-code-writer', calls: 1 },
+			{ run_id: 'later', tool: 'mcp__malini__browser_open', skill: '', calls: 1 },
+		]);
+
+		db.exec("DELETE FROM agent_runs WHERE id = 'earlier'");
+		expect(scalar(db, "SELECT COUNT(*) FROM agent_run_tool_calls WHERE run_id = 'earlier'")).toBe(
+			0,
+		);
 		db.close();
 	});
 });

@@ -1,5 +1,12 @@
-import type { ActivityStats, StopRunningArgs } from '$contract/stats';
-import { STATS_RESOURCES_SAMPLED_CHANNEL } from '$contract/events';
+import { net } from 'electron';
+import {
+	STATS_PARTS,
+	type ActivityStats,
+	type SharePartArgs,
+	type ShareCard,
+	type StopRunningArgs,
+} from '$contract/stats';
+import { STATS_PROFILE_CHANGED_CHANNEL, STATS_RESOURCES_SAMPLED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
@@ -20,7 +27,19 @@ import {
 	managedProjectIdForRepository,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
+import { catalogNames, NO_SETUP } from '../domain/catalog-names';
+import { readAgentSetup, type ClaudeFiles } from './agent-setup';
+import { Bestboy, bestboyOrigin, type BestboyFetch } from './bestboy';
+import { ProfileStore, type TokenCipher } from './profile-store';
+import {
+	createGitHubIdentity,
+	createRepositoryVisibility,
+	NOT_PUBLIC,
+	readPublicRepositories,
+	readPublishedStats,
+} from './published-stats';
 import { ResourceSampler, type BrowserTab } from './resource-sampler';
+import { StatsProfile } from './stats-profile';
 import type { WorkstreamFolder } from './running-docker';
 import { WorkstreamRunningMonitor } from './workstream-running';
 
@@ -31,12 +50,17 @@ export interface StatsDeps {
 	runningContainerIds(): Promise<string[]>;
 	stopBackgroundTask(sessionId: string, taskId: string): Promise<void>;
 	nameService(task: string): Promise<string>;
+	openExternal(url: string): Promise<void>;
+	claudeFiles(): ClaudeFiles;
+	readonly cipher: TokenCipher;
+	readonly fetch?: BestboyFetch;
 }
 
 export interface StatsPlatform {
 	start(): void;
 	stop(): void;
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
+	openUrl(url: string): void;
 }
 
 export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatform {
@@ -76,8 +100,71 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	const liveFolders = (): WorkstreamFolder[] =>
 		listWorkstreams(db).map(({ id, path }) => ({ id, path }));
 
+	const visibility = createRepositoryVisibility();
+	const github = createGitHubIdentity();
+	const profile = new StatsProfile({
+		bestboy: new Bestboy(
+			bestboyOrigin(!context.isDev, process.env),
+			deps.fetch ?? ((url, init) => net.fetch(url, init)),
+		),
+		store: new ProfileStore(context.appDataRoot, deps.cipher),
+		openExternal: (url) => deps.openExternal(url),
+		readStats: async (picked, catalog) => {
+			const setup = await readAgentSetup(
+				deps.claudeFiles(),
+				liveFolders().map(({ path }) => path),
+			);
+			return readPublishedStats(db, new Date(), picked, visibility, catalogNames(catalog, setup));
+		},
+		githubLogin: async () => (await github())?.login ?? null,
+		changed: (state) => events.emit(STATS_PROFILE_CHANGED_CHANNEL, state),
+	});
+	commands.define('stats.profile', () => profile.profile());
+	commands.define('stats.sign-in', () => profile.signIn());
+	commands.define('stats.cancel-sign-in', () => profile.cancelSignIn());
+	commands.define('stats.publish', (args: unknown) =>
+		profile.publish(requiredText(args, 'handle')),
+	);
+	commands.define('stats.unpublish', () => profile.unpublish());
+	commands.define('stats.sign-out', () => profile.signOut());
+	commands.define('stats.pick-repositories', (args: unknown) => {
+		const repositories = isRecord(args) ? args['repositories'] : undefined;
+		if (!Array.isArray(repositories)) {
+			throw new Error('invalid args: `repositories` must be an array of repository names');
+		}
+		return profile.pick(repositories);
+	});
+	commands.define('stats.share-part', (args: unknown) => {
+		const { part, on } = sharePartArgs(args);
+		return profile.share(part, on);
+	});
+	commands.define('stats.public-repositories', () =>
+		readPublicRepositories(db, new Date(), visibility),
+	);
+	commands.define('stats.share-card', async (): Promise<ShareCard> => {
+		const [stats, identity] = await Promise.all([
+			readPublishedStats(db, new Date(), [], NOT_PUBLIC, catalogNames(null, NO_SETUP)),
+			github(),
+		]);
+		const state = profile.state();
+		const published = state.publishing === 'on' ? (state.profile?.handle ?? null) : null;
+		const avatar = identity
+			? await commands
+					.call('repositories.owner-avatar', { owner: identity.login })
+					.catch(() => null)
+			: null;
+		return {
+			stats,
+			name: identity?.name ?? identity?.login ?? null,
+			handle: published ?? identity?.login ?? null,
+			avatar: avatar ? `data:${avatar.mediaType};base64,${avatar.base64}` : null,
+		};
+	});
+
 	return {
+		openUrl: (url) => void profile.completeSignIn(url),
 		start: () => {
+			profile.start();
 			sampler.start();
 			running.start();
 			void running.stopLeftovers({
@@ -86,6 +173,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			});
 		},
 		stop: () => {
+			profile.stop();
 			sampler.stop();
 			running.stop();
 		},
@@ -97,6 +185,21 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			});
 		},
 	};
+}
+
+function requiredText(args: unknown, key: string): string {
+	const value = isRecord(args) ? args[key] : undefined;
+	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	return value;
+}
+
+function sharePartArgs(args: unknown): SharePartArgs {
+	const part = isRecord(args) ? args['part'] : undefined;
+	const on = isRecord(args) ? args['on'] : undefined;
+	const known = STATS_PARTS.find((name) => name === part);
+	if (!known) throw new Error(`invalid args: \`part\` must be one of ${STATS_PARTS.join(', ')}`);
+	if (typeof on !== 'boolean') throw new Error('invalid args: `on` must be a boolean');
+	return { part: known, on };
 }
 
 function stopRunningArgs(args: unknown): StopRunningArgs {

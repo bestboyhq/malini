@@ -146,12 +146,14 @@ The [README](../README.md) has the short version.
 - **What it costs your Mac, right now.** Memory and CPU for Malini, its agents, the tools they started, browser tabs, and Docker, one click from the sidebar.
 - **What you got done.** Agents running, runs today, your streak, six months of activity, and where you work.
   Counted on this Mac only.
+- **Share cards.** Copy a heatmap or a readout card of your stats as a picture, without an account.
+- **A public profile, if you want one.** **Publish my stats** in Settings, Profile puts your numbers on a profile at bestboy.dev, and turning it off removes them.
 
 ## Private by design
 
-There is no Malini account and no Malini server.
+Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data to Logdash, stored in the EU.
+Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, with the public catalog of skill and server names it may show.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.

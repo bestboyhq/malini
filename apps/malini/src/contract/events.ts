@@ -26,7 +26,7 @@ import type {
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ShellRun } from './shell-runs';
-import type { ResourceSample, WorkstreamRunning } from './stats';
+import type { ProfileState, ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
 export type EmptyEventPayload = Readonly<Record<string, never>>;
@@ -235,6 +235,7 @@ export interface ContractEvents {
 	'extensions:file-open-requested': FileOpenRequestedPayload;
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
+	'stats:profile-changed': ProfileState;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -293,6 +294,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'extensions:file-open-requested': null,
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
+	'stats:profile-changed': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {
@@ -389,6 +391,8 @@ export const STATS_RESOURCES_SAMPLED_CHANNEL = 'stats:resources-sampled' satisfi
 
 export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 	'stats:workstream-running-changed' satisfies EventChannel;
+
+export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies EventChannel;
 
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;

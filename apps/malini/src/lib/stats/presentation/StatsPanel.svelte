@@ -12,6 +12,7 @@
 	import { resourceHistoryQuery } from '$lib/stats/application/queries/resource-history.query.svelte';
 	import ActivityHeatmap from './ActivityHeatmap.svelte';
 	import MemoryChart from './MemoryChart.svelte';
+	import ShareCards from './ShareCards.svelte';
 	import StatsBar from './StatsBar.svelte';
 	import { resourceKindDisplay } from './resource-kinds';
 	import { formatAgentTime, formatCount, formatCpu, formatMemory, plural } from './stats-format';
@@ -205,6 +206,8 @@
 					</ul>
 				</div>
 			{/if}
+
+			<ShareCards />
 
 			<p class="text-fg-tertiary px-1 text-xs">
 				{plural(activity.jobRuns, 'run', 'runs')} from jobs · Counted on this Mac only

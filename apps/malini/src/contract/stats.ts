@@ -79,3 +79,118 @@ export type StopRunningArgs = Readonly<{
 	workstreamId: string;
 	itemIds: readonly string[];
 }>;
+
+export type NamedCount = Readonly<{ name: string; count: number }>;
+
+export type Percentiles = Readonly<{ p50: number; p90: number; max: number }>;
+
+export type RepositoryGroup = Readonly<{ repositories: number; runs: number }>;
+
+export type PublishedDay = Readonly<{ date: string; runs: number; agents: number }>;
+
+export type StatsTechniques = Readonly<{
+	browserRuns: number;
+	subagentRuns: number;
+	skillRuns: number;
+	mcpRuns: number;
+	webRuns: number;
+}>;
+
+export const STATS_PARTS = [
+	'techniques',
+	'tools',
+	'models',
+	'languages',
+	'mcpServers',
+	'skills',
+] as const;
+
+export type StatsPart = (typeof STATS_PARTS)[number];
+
+export type SharedParts = Readonly<Record<StatsPart, boolean>>;
+
+export type SharePartArgs = Readonly<{ part: StatsPart; on: boolean }>;
+
+export type PublishedStats = Readonly<{
+	version: 1;
+	through: string;
+	since: string;
+	totals: Readonly<{
+		runs: number;
+		jobRuns: number;
+		changeRuns: number;
+		activeDays: number;
+		toolCalls: number;
+		screenshots: number;
+		workstreams: number;
+		mergedPullRequests: number;
+		linesAdded: number;
+		linesDeleted: number;
+		filesChanged: number;
+	}>;
+	days: readonly PublishedDay[];
+	intensity: Readonly<{
+		agents: Readonly<{ mean: number; p50: number; p90: number; max: number }>;
+		runSeconds: Percentiles;
+		steps: Percentiles;
+		runsPerActiveDay: Percentiles;
+		linesPerChange: Readonly<{ p50: number }>;
+		runsPerWorkstream: Readonly<{ p50: number }>;
+	}>;
+	techniques: StatsTechniques;
+	models: readonly NamedCount[];
+	languages: readonly NamedCount[];
+	tools: readonly NamedCount[];
+	mcpServers: readonly NamedCount[];
+	skills: readonly NamedCount[];
+	repositories: readonly NamedCount[];
+	otherRepositories: Readonly<{ public: RepositoryGroup; private: RepositoryGroup }>;
+}>;
+
+export type SharedStats = Omit<PublishedStats, StatsPart> &
+	Partial<Pick<PublishedStats, StatsPart>>;
+
+export type ShareCard = Readonly<{
+	stats: PublishedStats | null;
+	name: string | null;
+	handle: string | null;
+	avatar: string | null;
+}>;
+
+export type BestboyAccount = Readonly<{ name: string; email: string }>;
+
+export type BestboyProfile = Readonly<{
+	handle: string | null;
+	public: boolean;
+	url: string | null;
+}>;
+
+export type StatsPublishing = 'off' | 'on' | 'removing';
+
+export type StatsUpload =
+	| Readonly<{ state: 'idle' }>
+	| Readonly<{ state: 'sending' }>
+	| Readonly<{ state: 'published'; through: string }>
+	| Readonly<{ state: 'no-full-day' }>
+	| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;
+
+export type ProfileState = Readonly<{
+	account: BestboyAccount | null;
+	profile: BestboyProfile | null;
+	signingIn: boolean;
+	signInNeeded: boolean;
+	signInProblem: string | null;
+	publishing: StatsPublishing;
+	upload: StatsUpload;
+	pickedRepositories: readonly string[];
+	sharedParts: SharedParts;
+	suggestedHandle: string | null;
+}>;
+
+export type PublishStatsArgs = Readonly<{ handle: string }>;
+
+export type PublishStatsResult = Readonly<{ state: ProfileState; problem: string | null }>;
+
+export type PickRepositoriesArgs = Readonly<{ repositories: readonly string[] }>;
+
+export type PublicRepository = Readonly<{ fullName: string; runs: number }>;

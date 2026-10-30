@@ -1228,3 +1228,47 @@ type WorkstreamRunning = Readonly<{
 	turn: WorkstreamTurn | null;
 }>;
 ```
+
+## `stats:profile-changed`
+
+Fires when your Bestboy profile changes in Malini: you sign in or out, **Publish my stats** turns on or off, you pick other public repositories, or an upload or a removal of your stats finishes or fails. Malini does not keep it in its event log.
+
+Payload: `ProfileState`
+
+```ts
+type BestboyAccount = Readonly<{ name: string; email: string }>;
+
+type BestboyProfile = Readonly<{
+	handle: string | null;
+	public: boolean;
+	url: string | null;
+}>;
+
+type StatsPublishing = 'off' | 'on' | 'removing';
+
+type StatsUpload =
+	| Readonly<{ state: 'idle' }>
+	| Readonly<{ state: 'sending' }>
+	| Readonly<{ state: 'published'; through: string }>
+	| Readonly<{ state: 'no-full-day' }>
+	| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;
+
+const STATS_PARTS = ['techniques', 'tools', 'models', 'languages', 'mcpServers', 'skills'] as const;
+
+type StatsPart = (typeof STATS_PARTS)[number];
+
+type SharedParts = Readonly<Record<StatsPart, boolean>>;
+
+type ProfileState = Readonly<{
+	account: BestboyAccount | null;
+	profile: BestboyProfile | null;
+	signingIn: boolean;
+	signInNeeded: boolean;
+	signInProblem: string | null;
+	publishing: StatsPublishing;
+	upload: StatsUpload;
+	pickedRepositories: readonly string[];
+	sharedParts: SharedParts;
+	suggestedHandle: string | null;
+}>;
+```

@@ -39,13 +39,13 @@ Malini is the other way.
 
 **Open source, so we can't rug pull you.**
 The code is public under AGPL.
-There is no account, no subscription and no Malini server.
+It needs no account and no subscription, and there is no Malini server.
 We can't take it back, and if we ever go wrong, you can fork it.
 
 **Transparent, all the way down.**
 Your code goes to Anthropic through your own Claude Code, and to GitHub through the GitHub CLI.
 That's it.
-Malini makes two calls of its own: update checks, and anonymous usage data you can turn off.
+Malini makes three calls of its own: update checks, anonymous usage data you can turn off, and your stats to a public profile, only if you publish them.
 Every big decision is written down in [`docs/adr`](docs/adr).
 
 **On your side of the token.**

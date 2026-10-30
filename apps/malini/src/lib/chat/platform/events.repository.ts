@@ -10,7 +10,12 @@ import {
 	parseTurnReport,
 	workstreamImagePath,
 } from '../domain/turn-report';
-import { packedEvents, type PackedEvent } from './event-packs.repository';
+import {
+	countPackedToolCalls,
+	packedEvents,
+	packsWithUncountedToolCalls,
+	type PackedEvent,
+} from './event-packs.repository';
 
 export type { AgentEventEnvelope };
 
@@ -78,6 +83,24 @@ function withPackedRows(
 
 function rowFromPacked({ seq, runId, event, emittedAt }: PackedEvent): AgentEventRow {
 	return { seq, runId, ...eventFromBlob(event), at: emittedAt };
+}
+
+export interface RunToolCalls {
+	readonly runId: string;
+	readonly tool: string;
+	readonly skill: string;
+	readonly calls: number;
+}
+
+export function listFinishedRunToolCalls(db: MaliniDatabase, before: string): RunToolCalls[] {
+	for (const sessionId of packsWithUncountedToolCalls(db)) countPackedToolCalls(db, sessionId);
+	return all<{ run_id: string; tool: string; skill: string; calls: number }>(
+		db,
+		`SELECT t.run_id, t.tool, t.skill, t.calls FROM agent_run_tool_calls t
+		 JOIN agent_runs r ON r.id = t.run_id
+		 WHERE r.completed_at < ?`,
+		before,
+	).map((row) => ({ runId: row.run_id, tool: row.tool, skill: row.skill, calls: row.calls }));
 }
 
 export function appendEvent(

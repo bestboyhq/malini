@@ -21,6 +21,7 @@
 	import McpServersSection from './McpServersSection.svelte';
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
+	import ProfileSection from './ProfileSection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
 	import SoundsSection from './SoundsSection.svelte';
 
@@ -52,6 +53,7 @@
 		APPEARANCE,
 		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist', content: JobsSection },
+		{ href: '/settings/profile', label: 'Profile', icon: 'globe', content: ProfileSection },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock', content: PrivacySection },
 	];
 
