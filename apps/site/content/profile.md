@@ -33,6 +33,16 @@ When bestboy.dev cannot be reached, Malini keeps trying until it can.
 The `malini://` link opens the Malini you installed.
 A link meant for another sign-in, or one that reaches a Malini that never asked for it, changes nothing.
 
+### Your profile only grows
+
+Your first upload seeds your profile with everything Malini counted until then.
+After that, bestboy.dev only adds the days that follow: a day already on your profile keeps its numbers, and your totals never go down, even when you delete a chat or a repository on your Mac.
+So your profile can count more than the Stats panel, which counts what your Mac still holds.
+Agents at once, run lengths, steps, the parts below and your picked repositories follow your latest upload.
+
+bestboy.dev caps every number far above what anyone reaches, such as 100 agents at once or 3,000 runs a day, and refuses numbers that contradict each other.
+Turn the switch off, and your next upload seeds your profile again.
+
 ### What your profile shows
 
 Under **What your profile shows**, six parts each have their own switch, all on by default:
@@ -151,3 +161,4 @@ The names of your own skills, MCP servers and tools never leave your Mac.
 - Your email address and your team.
 
 Anyone could change the numbers their own Malini sends, so a profile says its stats are self-reported by Malini.
+Once seeded, a profile grows only as days pass, so a made-up history takes as long to build as a real one.
