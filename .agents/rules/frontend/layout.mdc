@@ -27,6 +27,7 @@ apps/malini/src/
     browser/           browser tabs in the inspector, the agent's browser tools
     stats/             sidebar resource readout, stats panel, what keeps running, share cards, public profile
     scratchpad/        a repository's scratchpad, its ideas move into new workstreams
+    secrets/           secrets by name: the keychain adapter, requests on a chat's card, Settings list
     shared/                                                                         alias $shared
       repositories/    SHARED DOMAIN: repositories, clones, workstreams and their lifecycle
       providers/       SHARED DOMAIN: model catalog, model ids, provider auth, capabilities

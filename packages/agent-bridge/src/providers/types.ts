@@ -6,6 +6,7 @@ import type {
 	ConversationHistoryMessage,
 	PlatformRequest,
 	PlatformResult,
+	Secrets,
 } from '../protocol.js';
 import type { ProviderApprovalReply, ProviderQuestionReply } from '../interaction-types.js';
 
@@ -46,6 +47,7 @@ export interface ProviderHandle {
 	adoptMcpServer?(server: McpServerReport): Promise<void>;
 	switchMcpServer?(serverName: string, on: boolean): Promise<boolean>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
+	setSecrets?(secrets: Secrets): Promise<void>;
 	close(): Promise<void>;
 }
 

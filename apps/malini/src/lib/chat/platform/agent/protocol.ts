@@ -113,7 +113,9 @@ export type BridgeCommand =
 			steer?: true;
 			theme?: AgentTheme;
 			lineage?: AgentLineage;
+			secrets?: Readonly<Record<string, string>>;
 	  }
+	| { cmd: 'set_secrets'; id: string; sessionId: string; secrets: Readonly<Record<string, string>> }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }
 	| {

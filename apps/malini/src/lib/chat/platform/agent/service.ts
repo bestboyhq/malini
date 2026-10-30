@@ -9,7 +9,10 @@ import {
 import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
+import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
+import { workstreamRepositoryName } from '$shared/repositories/repositories.platform';
 import { IdSequence } from '../id-sequence';
+import { listOpenRuns } from '../runs.repository';
 import type { AgentRunLeases } from './lifecycle';
 import {
 	PromptsInFlight,
@@ -77,6 +80,7 @@ export interface AgentServiceDeps {
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
 	readonly deliveries?: ChatDeliveries;
+	readonly secrets?: SecretsPlatform;
 	readonly log?: (line: string) => void;
 }
 
@@ -183,6 +187,7 @@ export interface AgentService {
 		paused: Readonly<{ sessionId: string; runId: string }>,
 		causeEventId: number | null,
 	): Promise<void>;
+	handOutSecrets(repository: string | null): Promise<void>;
 }
 
 export function selectBridgeScriptPath(resourcesRoot: string, isDev: boolean): string {
@@ -276,6 +281,7 @@ export async function startAgentService(
 							appDataRoot: context.appDataRoot,
 							sending,
 							deliveries,
+							...(deps.secrets ? { secrets: deps.secrets } : {}),
 							log,
 						}),
 					)
@@ -318,6 +324,7 @@ export async function startAgentService(
 			...(deps.theme ? { theme: deps.theme } : {}),
 			...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
+			...(deps.secrets ? { secrets: secretsReaching(db, deps.secrets) } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,
@@ -356,6 +363,27 @@ export async function startAgentService(
 				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
 			}
 		},
+		async handOutSecrets(repository) {
+			const supervisor = runtime.currentIfRunning();
+			const { secrets } = deps;
+			if (!secrets || !supervisor?.isHealthy()) return;
+			for (const sessionId of new Set(listOpenRuns(db).map((run) => run.sessionId))) {
+				const workstreamId = persistedBridgeSession(db, sessionId)?.workstreamId;
+				const reached =
+					workstreamId === undefined ? null : await workstreamRepositoryName(db, workstreamId);
+				if (repository !== null && reached?.toLowerCase() !== repository.toLowerCase()) continue;
+				try {
+					await supervisor.sendCommand({
+						cmd: 'set_secrets',
+						id: supervisor.nextCommandId(),
+						sessionId,
+						secrets: secrets.valuesReaching(reached),
+					});
+				} catch (error) {
+					log(`agent: could not hand the secrets to \`${sessionId}\`: ${describe(error)}`);
+				}
+			}
+		},
 		async stop() {
 			stopRecordingDenials();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);
@@ -377,6 +405,14 @@ export async function startAgentService(
 		}
 		return reaped.length;
 	}
+}
+
+function secretsReaching(
+	db: MaliniDatabase,
+	secrets: SecretsPlatform,
+): (workstreamId: string) => Promise<Readonly<Record<string, string>>> {
+	return async (workstreamId) =>
+		secrets.valuesReaching(await workstreamRepositoryName(db, workstreamId));
 }
 
 function describe(error: unknown): string {

@@ -421,5 +421,36 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload:
 				"type BestboyAccount = Readonly<{ name: string; email: string }>;\n\ntype BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;\n\ntype StatsPublishing = 'off' | 'on' | 'removing';\n\ntype StatsUpload =\n\t| Readonly<{ state: 'idle' }>\n\t| Readonly<{ state: 'sending' }>\n\t| Readonly<{ state: 'published'; through: string }>\n\t| Readonly<{ state: 'no-full-day' }>\n\t| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;\n\nconst STATS_PARTS = [\n\t'techniques',\n\t'tools',\n\t'models',\n\t'languages',\n\t'mcpServers',\n\t'skills',\n] as const;\n\ntype StatsPart = (typeof STATS_PARTS)[number];\n\ntype SharedParts = Readonly<Record<StatsPart, boolean>>;\n\ntype ProfileState = Readonly<{\n\taccount: BestboyAccount | null;\n\tprofile: BestboyProfile | null;\n\tsigningIn: boolean;\n\tsignInNeeded: boolean;\n\tsignInProblem: string | null;\n\tpublishing: StatsPublishing;\n\tupload: StatsUpload;\n\tpickedRepositories: readonly string[];\n\tsharedParts: SharedParts;\n\tsuggestedHandle: string | null;\n}>;",
 		},
+		{
+			channel: 'secrets:requested',
+			description:
+				'Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.',
+			payloadType: 'SecretsRequestedEvent',
+			payload:
+				'type SecretRequest = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tnames: readonly string[];\n\twhy: string;\n\trepository: string | null;\n\tsaved: readonly string[];\n\taskedAt: string;\n}>;\n\ntype SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;',
+		},
+		{
+			channel: 'secrets:saved',
+			description:
+				'Fires when you save secrets, on the card a chat showed or under Settings, Secrets, with their names, the repository they are for (`null` for everywhere), and the request and chat they answer, or `null` from Settings. It never carries a value.',
+			payloadType: 'SecretsSavedEvent',
+			payload:
+				'type SecretsSavedEvent = Readonly<{\n\tnames: readonly string[];\n\tunsaved: readonly string[];\n\trepository: string | null;\n\trequestId: string | null;\n\tsessionId: string | null;\n}>;',
+		},
+		{
+			channel: 'secrets:request-dismissed',
+			description:
+				'Fires when you dismiss the card where an agent asked you for secrets, with the request and its chat.',
+			payloadType: 'SecretRequestDismissedEvent',
+			payload:
+				'type SecretRequestDismissedEvent = Readonly<{ requestId: string; sessionId: string }>;',
+		},
+		{
+			channel: 'secrets:deleted',
+			description:
+				'Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).',
+			payloadType: 'SecretDeletedEvent',
+			payload: 'type SecretDeletedEvent = Readonly<{ name: string; repository: string | null }>;',
+		},
 	],
 };

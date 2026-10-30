@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, files it opens for you to fill in, your repositories and workstreams, decisions and a plan, your jobs and events - how often they ask, and where you see every call.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, your repositories and workstreams, decisions and a plan, your jobs and events - how often they ask, and where you see every call.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -44,10 +44,32 @@ Commands the agent runs see it as `MALINI_THEME`, `light` or `dark`.
 Any other screenshot, recording, or image the agent makes goes under `.context/` in the worktree, which Malini keeps out of git, so it shows in the chat and stays with the workstream.
 The agent gives each capture a new name and leaves it there, and Malini keeps its own copy of whatever a chat shows until the workstream is deleted.
 
+## Secrets
+
+A secret, such as an API key, is a name to the agent.
+It never sees the value, and you never deal with a file or a path.
+
+| Tool              | What it does                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| `secrets_request` | Asks you for secrets by name, on a card in the chat, and says why. It returns to the agent at once. |
+
+- The card shows a password field for each name, over the composer.
+  Paste a value, pick whether it is for this repository or for **Every repository**, and **Save**.
+  A value of several lines, such as a private key, keeps its line breaks.
+- Malini seals the value with your Mac's keychain, and from then on `$NAME` is set in every command the agent runs: in every chat of that repository, or everywhere, including workstreams you start later and after you archive this one.
+- Malini tells the agent what you saved, and which names you left empty, which wakes it when it waits.
+- Every output the agent sees, a failing or background command's included, shows the value as `[secret]`, and so does the transcript.
+  A value shorter than eight characters is set but not masked.
+- **Dismiss** closes the card without saving anything.
+- Settings, Secrets lists the names you saved, by repository, with **Replace** and **Delete**.
+  Values never show.
+- Commands get the secrets through Claude Code's shell prefix, after permissions are checked, so your **Always allow** rules and auto mode see each command as the agent wrote it.
+- Masking catches a value as it is, not an encoded one, so an agent that sets out to leak a secret can; what stops that is what it may run without asking.
+
 ## Files you fill in
 
-Some things only you should write, such as an API key in `~/.secrets/<repo>.env`.
-The agent never reads or writes those files, so it opens the file for you instead of asking you to paste the secret into the chat.
+Some files only you should write.
+The agent never reads or writes those, so it opens the file for you instead.
 
 | Tool         | What it does                                                                                  |
 | ------------ | --------------------------------------------------------------------------------------------- |
@@ -57,8 +79,6 @@ The agent never reads or writes those files, so it opens the file for you instea
 - The tab opens kept, not as a preview, so the next file you open never replaces it.
 - A file that does not exist yet opens empty, and Malini creates it.
   Outside the worktree it is private to you: the file is readable only by you, and so is a folder Malini creates for it.
-- The agent names the keys it needs, such as `OPENAI_API_KEY`, and Malini adds a `KEY=` line for each one the file does not set yet, so you see what to fill in.
-  It never changes a line that is already there.
 - The agent gets back the path and whether Malini created the file, never what the file holds.
 - A tab can read and save a file outside the worktree only after an agent opened that file in that workstream, and it keeps that access after you quit and reopen Malini.
 - While streamer mode hides personal data, a secrets file or a file from outside the worktree stays hidden behind a **Show** button that names it.
@@ -163,7 +183,7 @@ Merge still waits for checks, fixes what fails and resolves conflicts first, and
 
 ## You decide how often it asks
 
-- The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `workstreams_create`, `workstreams_send`, and the decision and plan tools.
+- The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `secrets_request`, which only asks you, `workstreams_create`, `workstreams_send`, and the decision and plan tools.
 - Nothing inside the chat's own work asks: archiving a workstream it started, or one those started in turn, and running a job in its own workstream or in one it started go through without asking.
 - **Open draft** and **Merge**, and any job whose Thens reach them, always ask, since [shipping is your call](#shipping-is-your-call).
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.

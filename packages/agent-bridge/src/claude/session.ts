@@ -21,7 +21,12 @@ import {
 	type AgentTheme,
 } from '../agent-profile.js';
 import type { ProviderApprovalReply, ProviderQuestionReply } from '../interaction-types.js';
-import type { ConversationHistoryMessage, PlatformResult, PlatformToolCall } from '../protocol.js';
+import type {
+	ConversationHistoryMessage,
+	PlatformResult,
+	PlatformToolCall,
+	Secrets,
+} from '../protocol.js';
 import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
 import type { McpServerReport } from '../types.js';
@@ -61,6 +66,7 @@ import {
 	UNCHECKED_CALL_REASON,
 } from './permissions.js';
 import { RunFailureSignals, SIGNED_OUT_TEXT, UNKNOWN_FAILURE } from './run-failure.js';
+import { claudeShell, type SessionSecrets } from './secrets.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicSnapshot, type AnthropicSnapshot } from './usage.js';
@@ -123,6 +129,7 @@ export interface ClaudeSessionOptions {
 	readonly executable: string | null;
 	readonly query?: QueryFunction;
 	readonly outage?: AutoModeOutage;
+	readonly secrets: SessionSecrets;
 }
 
 interface RunSettings {
@@ -172,6 +179,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #query: QueryFunction;
 	readonly #interactions: ProviderInteractionBroker;
 	readonly #outage: AutoModeOutage;
+	readonly #secrets: SessionSecrets;
 	readonly #blockedCallRules = new Map<string, string>();
 	#claudeSessionId: string | undefined;
 	#seedHistory: readonly ConversationHistoryMessage[] | undefined;
@@ -188,6 +196,7 @@ export class ClaudeSession implements ProviderHandle {
 		this.#executable = options.executable;
 		this.#query = options.query ?? sdkQuery;
 		this.#outage = options.outage ?? new AutoModeOutage();
+		this.#secrets = options.secrets;
 		this.#interactions = new ProviderInteractionBroker({
 			sessionId: options.context.sessionId,
 			emit: options.emit,
@@ -632,6 +641,8 @@ export class ClaudeSession implements ProviderHandle {
 			env: {
 				...claudeEnvironment(),
 				CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
+				CLAUDE_CODE_SHELL: claudeShell(),
+				CLAUDE_CODE_SHELL_PREFIX: this.#secrets.runScript,
 				...(theme ? { MALINI_THEME: theme } : {}),
 			},
 			settingSources: ['user', 'project', 'local'],
@@ -652,6 +663,7 @@ export class ClaudeSession implements ProviderHandle {
 					{ matcher: 'Bash', hooks: [steerToMalini] },
 					{ hooks: [this.#allowApprovedRetry()] },
 				],
+				PostToolUse: [{ hooks: [this.#maskSecrets()] }],
 				PermissionDenied: [
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
@@ -814,6 +826,16 @@ export class ClaudeSession implements ProviderHandle {
 		}, this.#outage.remainingMs).unref();
 	}
 
+	#maskSecrets(): HookCallback {
+		return async (input) => {
+			if (input.hook_event_name !== 'PostToolUse') return {};
+			const masked = this.#secrets.mask(input.tool_response);
+			return masked === input.tool_response
+				? {}
+				: { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: masked } };
+		};
+	}
+
 	#allowApprovedRetry(): HookCallback {
 		return async (input) => {
 			const active = this.#active;
@@ -964,11 +986,16 @@ export class ClaudeSession implements ProviderHandle {
 		return true;
 	}
 
+	setSecrets(secrets: Secrets): Promise<void> {
+		return this.#secrets.set(secrets);
+	}
+
 	async close(): Promise<void> {
 		this.#interactions.close();
 		const active = this.#active;
 		if (active?.idleTimeout) this.#retire(active);
 		else if (active) await this.cancel(active.runId);
+		await this.#secrets.remove();
 	}
 }
 

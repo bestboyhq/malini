@@ -38,7 +38,8 @@ export type AgentCommand =
 	| ChooseCommand
 	| ListSkillsCommand
 	| BrowserResultCommand
-	| PlatformResultCommand;
+	| PlatformResultCommand
+	| SetSecretsCommand;
 
 export interface StartSessionCommand {
 	readonly cmd: 'start_session';
@@ -72,7 +73,21 @@ export interface SendPromptCommand {
 	readonly steer?: boolean;
 	readonly theme?: AgentTheme;
 	readonly lineage?: AgentLineage;
+	readonly secrets?: Secrets;
 }
+
+export type Secrets = Readonly<Record<string, string>>;
+
+export interface SetSecretsCommand {
+	readonly cmd: 'set_secrets';
+	readonly id: string;
+	readonly sessionId: string;
+	readonly secrets: Secrets;
+}
+
+export const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
+const MAX_SECRETS = 1_000;
 
 const MAX_SKILLS = 1_000;
 const MAX_SKILL_NAME_CHARACTERS = 200;
@@ -618,6 +633,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateBrowserResult(obj);
 		case 'platform_result':
 			return validatePlatformResult(obj);
+		case 'set_secrets':
+			return validateSetSecrets(obj);
 	}
 }
 
@@ -747,6 +764,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const steer = obj.steer;
 	const theme = obj.theme;
 	const lineage = obj.lineage;
+	const secrets = obj.secrets;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -789,6 +807,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
+	if (secrets !== undefined && !isSecrets(secrets)) {
+		return err('INVALID_PAYLOAD', `send_prompt: ${SECRETS_SHAPE}`, obj);
+	}
 	return {
 		ok: true,
 		command: {
@@ -804,8 +825,31 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(steer === true ? { steer } : {}),
 			...(theme !== undefined ? { theme } : {}),
 			...(lineage !== undefined ? { lineage } : {}),
+			...(secrets !== undefined ? { secrets } : {}),
 		},
 	};
+}
+
+const SECRETS_SHAPE = `secrets, when present, must map at most ${MAX_SECRETS} names such as API_TOKEN to string values`;
+
+function isSecrets(value: unknown): value is Secrets {
+	if (!isRecord(value)) return false;
+	const entries = Object.entries(value);
+	return (
+		entries.length <= MAX_SECRETS &&
+		entries.every(([name, secret]) => SECRET_NAME.test(name) && typeof secret === 'string')
+	);
+}
+
+function validateSetSecrets(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'set_secrets');
+	if (!id.ok) return id;
+	const { sessionId, secrets } = obj;
+	if (typeof sessionId !== 'string' || sessionId.length === 0) {
+		return err('INVALID_PAYLOAD', 'set_secrets: sessionId required (non-empty string)', obj);
+	}
+	if (!isSecrets(secrets)) return err('INVALID_PAYLOAD', `set_secrets: ${SECRETS_SHAPE}`, obj);
+	return { ok: true, command: { cmd: 'set_secrets', id: id.value, sessionId, secrets } };
 }
 
 function isSkillList(value: unknown): value is string[] {

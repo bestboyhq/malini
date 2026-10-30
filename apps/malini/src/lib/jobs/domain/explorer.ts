@@ -15,6 +15,7 @@ export type Source = 'you' | 'agent' | 'git' | 'github' | 'malini' | 'clock';
 export const EVENT_ROWS = [
 	'button-clicked',
 	'workstream-opened',
+	'secrets-saved',
 	'turn-finished',
 	'tool-called',
 	'job-started',
@@ -37,6 +38,7 @@ export type EventRow = (typeof EVENT_ROWS)[number];
 export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
 	'button-clicked': 'you',
 	'workstream-opened': 'you',
+	'secrets-saved': 'you',
 	'turn-finished': 'agent',
 	'tool-called': 'agent',
 	'job-started': 'agent',
@@ -96,6 +98,7 @@ export type Working = Readonly<{
 const ROWS: Readonly<Record<string, EventRow>> = {
 	'pull-requests:button-clicked': 'button-clicked',
 	'pull-requests:workstream-opened': 'workstream-opened',
+	'secrets:saved': 'secrets-saved',
 	'chat:turn-finished': 'turn-finished',
 	'jobs:tool-called': 'tool-called',
 	'jobs:run-started': 'job-started',
@@ -115,6 +118,7 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 const FACT_CHANNELS: ReadonlySet<string> = new Set<EventChannel>([
 	'pull-requests:button-clicked',
 	'pull-requests:workstream-opened',
+	'secrets:saved',
 	'chat:turn-finished',
 	'repositories:workstream-created',
 	'repositories:workstream-removed',

@@ -27,6 +27,7 @@ import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerScratchpad } from '$lib/scratchpad/platform/register';
+import { registerSecrets } from '$lib/secrets/platform/register';
 import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
 import { registerSkills } from '$lib/skills/platform/register';
 import { registerStats } from '$lib/stats/platform/register';
@@ -112,9 +113,12 @@ export async function registerModules(
 
 	const browser = registerBrowser(context, { getMainWindow: options.getMainWindow });
 
+	const secrets = registerSecrets(context, { sealer: shellHost });
+
 	const chat = await registerChat(context, {
 		resolver: repositories.checkouts,
 		leases: agentRunLeases,
+		secrets,
 		resolveWorkstreamCheckout: (workstreamId) =>
 			repositories.checkouts.resolveCheckout(workstreamId),
 		spawnEnvironment: buildSpawnEnvironment,

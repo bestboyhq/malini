@@ -1273,3 +1273,59 @@ type ProfileState = Readonly<{
 	suggestedHandle: string | null;
 }>;
 ```
+
+## `secrets:requested`
+
+Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.
+
+Payload: `SecretsRequestedEvent`
+
+```ts
+type SecretRequest = Readonly<{
+	id: string;
+	sessionId: string;
+	names: readonly string[];
+	why: string;
+	repository: string | null;
+	saved: readonly string[];
+	askedAt: string;
+}>;
+
+type SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;
+```
+
+## `secrets:saved`
+
+Fires when you save secrets, on the card a chat showed or under Settings, Secrets, with their names, the repository they are for (`null` for everywhere), and the request and chat they answer, or `null` from Settings. It never carries a value.
+
+Payload: `SecretsSavedEvent`
+
+```ts
+type SecretsSavedEvent = Readonly<{
+	names: readonly string[];
+	unsaved: readonly string[];
+	repository: string | null;
+	requestId: string | null;
+	sessionId: string | null;
+}>;
+```
+
+## `secrets:request-dismissed`
+
+Fires when you dismiss the card where an agent asked you for secrets, with the request and its chat.
+
+Payload: `SecretRequestDismissedEvent`
+
+```ts
+type SecretRequestDismissedEvent = Readonly<{ requestId: string; sessionId: string }>;
+```
+
+## `secrets:deleted`
+
+Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).
+
+Payload: `SecretDeletedEvent`
+
+```ts
+type SecretDeletedEvent = Readonly<{ name: string; repository: string | null }>;
+```

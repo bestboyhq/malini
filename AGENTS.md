@@ -68,6 +68,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `browser`              | browser tabs in the inspector and the agent's browser tools                         |
 | `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile |
 | `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                     |
+| `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings     |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                |
 | `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                |
 | `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings          |

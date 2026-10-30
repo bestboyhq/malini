@@ -25,6 +25,12 @@ import type {
 	WorkstreamOpenedEvent,
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
+import type {
+	SecretDeletedEvent,
+	SecretRequestDismissedEvent,
+	SecretsRequestedEvent,
+	SecretsSavedEvent,
+} from './secrets';
 import type { ShellRun } from './shell-runs';
 import type { ProfileState, ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
@@ -237,6 +243,10 @@ export interface ContractEvents {
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
 	'stats:profile-changed': ProfileState;
+	'secrets:requested': SecretsRequestedEvent;
+	'secrets:saved': SecretsSavedEvent;
+	'secrets:request-dismissed': SecretRequestDismissedEvent;
+	'secrets:deleted': SecretDeletedEvent;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -296,6 +306,10 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
 	'stats:profile-changed': null,
+	'secrets:requested': null,
+	'secrets:saved': null,
+	'secrets:request-dismissed': null,
+	'secrets:deleted': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {
@@ -394,6 +408,14 @@ export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 	'stats:workstream-running-changed' satisfies EventChannel;
 
 export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies EventChannel;
+
+export const SECRETS_REQUESTED_CHANNEL = 'secrets:requested' satisfies EventChannel;
+
+export const SECRETS_SAVED_CHANNEL = 'secrets:saved' satisfies EventChannel;
+
+export const SECRETS_REQUEST_DISMISSED_CHANNEL = 'secrets:request-dismissed' satisfies EventChannel;
+
+export const SECRETS_DELETED_CHANNEL = 'secrets:deleted' satisfies EventChannel;
 
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;

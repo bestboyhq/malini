@@ -22,6 +22,7 @@
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
 	import ProfileSection from './ProfileSection.svelte';
+	import SecretsSection from './SecretsSection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
 	import SoundsSection from './SoundsSection.svelte';
 
@@ -48,6 +49,7 @@
 			icon: 'shield-alert',
 			content: AgentAccessSection,
 		},
+		{ href: '/settings/secrets', label: 'Secrets', icon: 'key', content: SecretsSection },
 		{ href: SKILL_SETTINGS_HREF, label: 'Skills', icon: 'puzzle', content: SkillsSection },
 		{ href: MCP_SETTINGS_HREF, label: 'MCP servers', icon: 'plug', content: McpServersSection },
 		APPEARANCE,

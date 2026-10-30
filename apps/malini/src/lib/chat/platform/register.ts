@@ -3,11 +3,15 @@ import {
 	APP_STARTED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_TIME_REACHED_CHANNEL,
+	SECRETS_DELETED_CHANNEL,
+	SECRETS_SAVED_CHANNEL,
 	type ChatTurnFinishedPayload,
 } from '$contract/events';
 import type { ShipFailure } from '$contract/pull-requests';
+import type { SecretsSavedEvent } from '$contract/secrets';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
+import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import {
 	runAutomaticJob,
@@ -37,10 +41,12 @@ import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
 import { installShellRuns } from './shell-runs/commands';
+import { savedSecretsPrompt } from '../domain/saved-secrets';
 
 export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
 	readonly leases: AgentRunLeases;
+	readonly secrets: SecretsPlatform;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
 	readonly claudeSettings: () => string;
@@ -119,6 +125,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			onMcpServers: (listing) => mcpServers?.received(listing),
 		},
 		deliveries,
+		secrets: deps.secrets,
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
 		...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
@@ -127,6 +134,12 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.processFactory ? { processFactory: deps.processFactory } : {}),
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
 	});
+
+	const handOutSecrets = ({ repository }: Readonly<{ repository: string | null }>): void => {
+		void agent.handOutSecrets(repository);
+	};
+	const stopHandingOutSaved = context.events.subscribe(SECRETS_SAVED_CHANNEL, handOutSecrets);
+	const stopHandingOutDeleted = context.events.subscribe(SECRETS_DELETED_CHANNEL, handOutSecrets);
 
 	mcpServers = defineMcpServerCommands(context.commands, {
 		db: context.db,
@@ -145,6 +158,8 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: async () => {
 			stopGrants();
+			stopHandingOutSaved();
+			stopHandingOutDeleted();
 			deliveries.stop();
 			await Promise.all([packing.stop(), agent.stop(), shellRuns.stopAll()]);
 		},
@@ -179,6 +194,15 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		deliveries: async (event) => {
 			const turn = finishedTurn(event);
 			if (turn) await deliveries.turnFinished(turn, event.id);
+			const saved = savedSecrets(event);
+			if (saved?.sessionId) {
+				await deliveries.deliver({
+					sessionId: saved.sessionId,
+					kind: 'prompt',
+					prompt: savedSecretsPrompt(saved),
+					causeEventId: event.id,
+				});
+			}
 		},
 		deliver: (delivery) => deliveries.deliver(delivery),
 	};
@@ -209,6 +233,23 @@ function finishedTurn(event: DispatchedEvent): ChatTurnFinishedPayload | null {
 				)
 			: null,
 	};
+}
+
+function savedSecrets(event: DispatchedEvent): SecretsSavedEvent | null {
+	if (event.channel !== SECRETS_SAVED_CHANNEL || !isRecord(event.payload)) return null;
+	const { names, unsaved, repository, requestId, sessionId } = event.payload;
+	if (!isNameList(names) || !isNameList(unsaved)) return null;
+	return {
+		names,
+		unsaved,
+		repository: typeof repository === 'string' ? repository : null,
+		requestId: typeof requestId === 'string' ? requestId : null,
+		sessionId: typeof sessionId === 'string' ? sessionId : null,
+	};
+}
+
+function isNameList(value: unknown): value is readonly string[] {
+	return Array.isArray(value) && value.every((name: unknown) => typeof name === 'string');
 }
 
 function pausedRunReached(payload: unknown): Readonly<{ sessionId: string; runId: string }> | null {

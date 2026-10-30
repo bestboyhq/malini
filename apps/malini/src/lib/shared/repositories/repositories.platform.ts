@@ -80,7 +80,11 @@ export {
 	type PullRequestAutomationContext,
 	type PullRequestAutomationEvent,
 } from './domain/pull-request-metadata';
-export { listRepositoryCatalog, type CatalogRepository } from './platform/repository-catalog';
+export {
+	listRepositoryCatalog,
+	workstreamRepositoryName,
+	type CatalogRepository,
+} from './platform/repository-catalog';
 export { leadPlanPath, workstreamLineage } from './platform/lineage.service';
 export {
 	clonePlannedRepository,

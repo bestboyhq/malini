@@ -32,6 +32,7 @@ import {
 	type PlatformRequest,
 	type PlatformResult,
 	type ProviderCapability,
+	type SetSecretsCommand,
 	type WatchMcpServersCommand,
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
@@ -343,6 +344,11 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
 				return;
 			}
+			case 'set_secrets': {
+				const error = await handleSetSecrets(cmd);
+				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
+				return;
+			}
 			case 'browser_result':
 			case 'platform_result': {
 				const known = settleRequest(cmd.sessionId, cmd.requestId, cmd);
@@ -557,6 +563,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		activeRunIds.add(cmd.runId);
 		activeRunIdsBySession.set(cmd.sessionId, activeRunIds);
 		try {
+			if (cmd.secrets) await handle.setSecrets?.(cmd.secrets);
 			await handle.sendPrompt(
 				cmd.prompt,
 				cmd.runId,
@@ -884,6 +891,22 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			return null;
 		} catch (error) {
 			return `STOP_TASK_FAILED: ${errorMessage(error)}`;
+		}
+	}
+
+	async function handleSetSecrets(cmd: SetSecretsCommand): Promise<string | null> {
+		const starting = startingSessions.get(cmd.sessionId);
+		if (starting) await starting;
+		const handle = handles.get(cmd.sessionId);
+		if (!handle) return `NO_SESSION: no active session for ${cmd.sessionId}`;
+		if (!handle.setSecrets) {
+			return `SECRETS_UNSUPPORTED: provider for ${cmd.sessionId} cannot take secrets`;
+		}
+		try {
+			await handle.setSecrets(cmd.secrets);
+			return null;
+		} catch (error) {
+			return `SET_SECRETS_FAILED: ${errorMessage(error)}`;
 		}
 	}
 

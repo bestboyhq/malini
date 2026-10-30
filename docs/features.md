@@ -76,6 +76,8 @@ The [README](../README.md) has the short version.
   **Switch to** in the model picker changes accounts in one click: Malini keeps every account you used signed in, so your browser opens only for the first switch to an account, or when Claude asks you to sign in again.
 - **Run a code block.** **Run** on the agent's shell code block runs it at once in the workstream, in a terminal you can type into, with its output, **Stop** and the exit code inside the code block.
   The agent reads its output with your next prompt.
+- **Secrets by name.** When a command needs an API key, the agent asks for it on a card in the chat.
+  Paste it once for the repository or for every repository: Malini seals it with your Mac's keychain, sets `$NAME` in every command the agent runs, and shows `[secret]` wherever the value would appear.
 - **Undo, edit, fork.** Every run can be undone.
   Edit an earlier message to resend from there, or fork to a new chat while the agent is still busy.
 

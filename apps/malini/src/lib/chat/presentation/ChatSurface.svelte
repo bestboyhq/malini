@@ -63,6 +63,7 @@
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
 	import { WorkstreamJobRuns } from '$lib/jobs/jobs.api';
+	import { SecretRequestCard } from '$lib/secrets/secrets.api';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
 	import {
@@ -278,6 +279,14 @@
 	);
 	const decisionsWaiting = $derived(
 		timeline && decisionsAside && changingDecision === null && !composerHidden,
+	);
+	const secretsSessionId = $derived(
+		stage === 'transcript' &&
+			!presentationPending &&
+			presentedSessionId === sessionId &&
+			!composerHidden
+			? sessionId
+			: null,
 	);
 	const childRequestsWaiting = $derived(childRequestsAside && !asking);
 	const uncheckedCallsWaiting = $derived(uncheckedSteps.length > 0 && !showsUncheckedQueue);
@@ -663,6 +672,7 @@
 												: setLeadDecisionsAsideCommand(openDecisions.map(({ id }) => id))}
 									/>
 								{/if}
+								<SecretRequestCard sessionId={secretsSessionId} />
 								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>
 									<ChatComposer
 										bind:this={composer}

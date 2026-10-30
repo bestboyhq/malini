@@ -219,6 +219,36 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it("parses a session's secrets with a prompt or on their own, and refuses a name a shell could not export", () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"send_prompt","id":"c1","sessionId":"s1","runId":"r1","prompt":"deploy","secrets":{"STRIPE_KEY":"sk-live-1234567890"}}',
+				),
+			).toMatchObject({ ok: true, command: { secrets: { STRIPE_KEY: 'sk-live-1234567890' } } });
+			expect(
+				parseCommandLine(
+					'{"cmd":"set_secrets","id":"c2","sessionId":"s1","secrets":{"API_TOKEN":"a b \\"c\\""}}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'set_secrets',
+					id: 'c2',
+					sessionId: 's1',
+					secrets: { API_TOKEN: 'a b "c"' },
+				},
+			});
+			for (const invalid of [
+				'{"cmd":"set_secrets","id":"c3","sessionId":"s1","secrets":{"NOT-A-NAME":"x"}}',
+				'{"cmd":"set_secrets","id":"c4","sessionId":"s1","secrets":{"TOKEN":7}}',
+				'{"cmd":"set_secrets","id":"c5","sessionId":"s1","secrets":[]}',
+				'{"cmd":"set_secrets","id":"c6","sessionId":"","secrets":{}}',
+				'{"cmd":"send_prompt","id":"c7","sessionId":"s1","runId":"r1","prompt":"x","secrets":{"1ST":"x"}}',
+			]) {
+				expect(parseCommandLine(invalid)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('rejects an unknown profile value at the stdio boundary', () => {
 			const r = parseCommandLine(
 				'{"cmd":"send_prompt","id":"cmd-send","sessionId":"s1","runId":"r1","prompt":"hello","profile":{"effort":"unlimited","mode":"plan"}}',
@@ -646,6 +676,7 @@ describe('protocol: parseCommandLine', () => {
 				'list_skills',
 				'browser_result',
 				'platform_result',
+				'set_secrets',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
@@ -680,6 +711,7 @@ describe('protocol: parseCommandLine', () => {
 				'decisions_ask',
 				'decisions_answer',
 				'plan_write',
+				'secrets_request',
 			]);
 		});
 

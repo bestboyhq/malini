@@ -203,6 +203,8 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'jobs.list-decisions': () => [],
 	'jobs.list-suggestions': () => [],
 	'jobs.list-agent-actions': () => [],
+	'secrets.list-requests': () => [],
+	'secrets.list': () => [],
 	'chat.list-sessions': ({ workstreamId }) => sessionSummaries(workstreamId),
 	'chat.get-or-create-session': ({ workstreamId, model }) => startSession(workstreamId, model),
 	'chat.start-session': ({ workstreamId, model }) => startSession(workstreamId, model),

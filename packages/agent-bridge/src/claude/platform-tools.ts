@@ -2,7 +2,12 @@ import { tool, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod';
 import { AGENT_REASONING_EFFORTS } from '../agent-profile.js';
 import { BRIDGE_MODELS } from '../generated/protocol-contract.js';
-import type { PlatformResult, PlatformTool, PlatformToolCall } from '../protocol.js';
+import {
+	SECRET_NAME,
+	type PlatformResult,
+	type PlatformTool,
+	type PlatformToolCall,
+} from '../protocol.js';
 
 type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 
@@ -19,6 +24,7 @@ export const PRE_APPROVED_PLATFORM_TOOLS = [
 	'decisions_answer',
 	'plan_write',
 	'files_open',
+	'secrets_request',
 ] as const satisfies readonly PlatformTool[];
 
 const SHIP_ONLY_WHEN_ASKED =
@@ -317,13 +323,13 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'files_open',
-			"Open a file in a tab beside this chat, where the user reads and edits it. Use it whenever the user has to write something you must not read or write yourself, such as a secret in ~/.secrets/<repo>.env, name each secret you need in `keys`, and say in your report what goes in each. Malini creates the file empty when it does not exist yet, private to the user when it is outside the worktree, and adds a `KEY=` line for each key the file does not set yet, for the user to fill in. Returns the path it opened and whether it created the file, never the file's contents.",
+			"Open a file in a tab beside this chat, where the user reads and edits it. Use it when the user has to write a file you must not read or write yourself, and say in your report what goes in it; a secret never goes in a file, ask for it with secrets_request instead. Malini creates the file empty when it does not exist yet, private to the user when it is outside the worktree. Returns the path it opened and whether it created the file, never the file's contents.",
 			{
 				path: z
 					.string()
 					.min(1)
 					.describe(
-						'The file to open: an absolute path, a path under ~/, or a path relative to the worktree, for example ~/.secrets/malini.env',
+						'The file to open: an absolute path, a path under ~/, or a path relative to the worktree, for example ~/.config/gh/hosts.yml',
 					),
 				line: z
 					.number()
@@ -331,15 +337,29 @@ export function platformTools(request: PlatformToolRequester) {
 					.positive()
 					.optional()
 					.describe('The line to show and put the cursor on'),
-				keys: z
-					.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/u))
-					.max(100)
-					.optional()
-					.describe(
-						'Names of the keys the user fills in, for example ["OPENAI_API_KEY"]. Malini adds `KEY=` for each one the file does not set yet and never tells you which ones it had.',
-					),
 			},
 			(input) => call('files_open', input),
+		),
+		tool(
+			'secrets_request',
+			'Ask the user for secrets by name, such as an API key a command needs. Malini shows a field for each name on a card in this chat, where the user pastes the value and picks whether it is for this repository or everywhere; you never see it. It returns at once: carry on with what does not need them, ask for every name you need in one call, and when nothing else is left, end your turn with the names in `Needs:`. Once the user saves them, Malini tells you in a message, and `$NAME` is set in every command you run from then on, with its value masked as [secret] in every output. Returns the request as JSON.',
+			{
+				names: z
+					.array(z.string().max(100).regex(SECRET_NAME))
+					.min(1)
+					.max(10)
+					.describe(
+						'The names your commands read from the environment, for example ["STRIPE_SECRET_KEY"]',
+					),
+				why: z
+					.string()
+					.min(1)
+					.max(300)
+					.describe(
+						'One sentence the user reads on the card: what you need it for, for example "To create test customers in your Stripe sandbox."',
+					),
+			},
+			(input) => call('secrets_request', input),
 		),
 	];
 }

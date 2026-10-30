@@ -1249,6 +1249,27 @@ END;
 ALTER TABLE agent_event_packs ADD COLUMN tool_calls_counted INTEGER NOT NULL DEFAULT 1;
 UPDATE agent_event_packs SET tool_calls_counted = 0;
 `,
+	`
+CREATE TABLE secrets (
+  repository TEXT NOT NULL COLLATE NOCASE,
+  name TEXT NOT NULL,
+  sealed BLOB NOT NULL,
+  saved_at TEXT NOT NULL,
+  PRIMARY KEY (repository, name)
+);
+CREATE TABLE secret_requests (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  names TEXT NOT NULL CHECK (json_valid(names) AND json_type(names) = 'array'),
+  why TEXT NOT NULL,
+  repository TEXT,
+  asked_at TEXT NOT NULL,
+  settled TEXT CHECK (settled IS NULL OR settled IN ('saved', 'dismissed', 'replaced')),
+  settled_at TEXT,
+  CHECK ((settled IS NULL) = (settled_at IS NULL))
+);
+CREATE INDEX idx_secret_requests_session ON secret_requests(session_id, settled);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

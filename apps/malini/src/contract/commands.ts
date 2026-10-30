@@ -78,6 +78,14 @@ import type {
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
+import type {
+	DeleteSecretArgs,
+	DismissSecretRequestArgs,
+	ListSecretRequestsArgs,
+	SavedSecret,
+	SaveSecretsArgs,
+	SecretRequest,
+} from './secrets';
 import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from './shell-runs';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
@@ -560,6 +568,11 @@ export interface ContractCommands {
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
 	'scratchpad.save': { args: SaveScratchpadArgs; result: void };
+	'secrets.list-requests': { args: ListSecretRequestsArgs; result: SecretRequest[] };
+	'secrets.save': { args: SaveSecretsArgs; result: void };
+	'secrets.dismiss-request': { args: DismissSecretRequestArgs; result: void };
+	'secrets.list': { args: undefined; result: SavedSecret[] };
+	'secrets.delete': { args: DeleteSecretArgs; result: void };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
@@ -843,6 +856,11 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'skills.switch',
 	'scratchpad.load',
 	'scratchpad.save',
+	'secrets.list-requests',
+	'secrets.save',
+	'secrets.dismiss-request',
+	'secrets.list',
+	'secrets.delete',
 	'repositories.list-hidden',
 	'repositories.set-hidden',
 	'chat.list-events',

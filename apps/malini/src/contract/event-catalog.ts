@@ -231,4 +231,20 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 			'Fires when your Bestboy profile changes in Malini: you sign in or out, **Publish my stats** turns on or off, you pick other public repositories, or an upload or a removal of your stats finishes or fails. Malini does not keep it in its event log.',
 		logged: false,
 	},
+	'secrets:requested': {
+		description:
+			'Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.',
+	},
+	'secrets:saved': {
+		description:
+			'Fires when you save secrets, on the card a chat showed or under Settings, Secrets, with their names, the repository they are for (`null` for everywhere), and the request and chat they answer, or `null` from Settings. It never carries a value.',
+	},
+	'secrets:request-dismissed': {
+		description:
+			'Fires when you dismiss the card where an agent asked you for secrets, with the request and its chat.',
+	},
+	'secrets:deleted': {
+		description:
+			'Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).',
+	},
 };
