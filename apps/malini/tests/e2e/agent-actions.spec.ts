@@ -211,7 +211,7 @@ test('an agent clones a repository, starts and archives a workstream in it witho
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch' } });
 	try {
 		const { page } = app;
-		const { workstreamId } = await seedWorkstream(
+		const { workstreamId, worktree } = await seedWorkstream(
 			page,
 			await createSourceRepo(app.root),
 			'e2e-agent-repositories',
@@ -252,6 +252,15 @@ test('an agent clones a repository, starts and archives a workstream in it witho
 		);
 		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u, { timeout: 20_000 });
 		await expect(sidebar.getByRole('list', { name: /^Started by / })).toHaveCount(0);
+		writeFileSync(join(worktree, 'chores.txt'), 'chores\n');
+		const choresRow = sidebar.locator(
+			`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`,
+		);
+		await expect(choresRow.getByTestId('sidebar-progress')).toHaveAccessibleName(/^1 workstream/u);
+		await expect(choresRow.getByTestId('sidebar-workstream-change-totals')).toHaveAccessibleName(
+			'1 additions, 0 deletions',
+			{ timeout: 20_000 },
+		);
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');

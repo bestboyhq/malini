@@ -1485,10 +1485,9 @@
 										{row.repositoryName}
 									</span>
 								{/if}
+								{@render workstreamTrail(view)}
 								{#if dots.length > 0}
 									{@render progress(dots)}
-								{:else}
-									{@render workstreamTrail(view)}
 								{/if}
 							</span>
 						</span>
