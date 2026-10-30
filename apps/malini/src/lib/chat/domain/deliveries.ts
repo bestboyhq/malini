@@ -1,4 +1,5 @@
 import type { WorkstreamReport, WorkstreamReportMedia } from '$contract/deliveries';
+import { backgroundCommandsPhrase } from './background-work';
 import { parseTurnReport, workstreamImagePath, type TurnReport } from './turn-report';
 import { variantLabel } from './variant-pick';
 
@@ -84,6 +85,7 @@ export function workstreamReport(
 		outcome: string | null;
 		needs: string | null;
 		summary: string | null;
+		backgroundCommands: readonly string[] | null;
 	}>,
 ): WorkstreamReport {
 	return {
@@ -93,12 +95,22 @@ export function workstreamReport(
 		outcome: input.outcome,
 		needs: input.needs,
 		media: input.summary === null ? [] : reportMedia(parseTurnReport(input.summary)),
+		...(input.backgroundCommands === null ? {} : { backgroundCommands: input.backgroundCommands }),
 	};
+}
+
+export function reportedTurnEnd(
+	report: Pick<WorkstreamReport, 'status' | 'backgroundCommands'>,
+): string {
+	if (report.backgroundCommands) {
+		return `is waiting on ${backgroundCommandsPhrase(report.backgroundCommands)}, and reports again if it continues`;
+	}
+	return report.status === 'failed' ? 'failed its turn' : 'finished a turn';
 }
 
 export function parseWorkstreamReport(value: unknown): WorkstreamReport | null {
 	if (!isFields(value)) return null;
-	const { workstreamId, runId, status, outcome, needs, media } = value;
+	const { workstreamId, runId, status, outcome, needs, media, backgroundCommands } = value;
 	if (typeof workstreamId !== 'string' || typeof runId !== 'string') return null;
 	return {
 		workstreamId,
@@ -113,6 +125,13 @@ export function parseWorkstreamReport(value: unknown): WorkstreamReport | null {
 						: [],
 				)
 			: [],
+		...(Array.isArray(backgroundCommands)
+			? {
+					backgroundCommands: backgroundCommands.filter(
+						(command: unknown): command is string => typeof command === 'string',
+					),
+				}
+			: {}),
 	};
 }
 

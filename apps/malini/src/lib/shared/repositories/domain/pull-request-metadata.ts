@@ -27,6 +27,7 @@ export type PullRequestAutomationEvent = Readonly<{
 export type PullRequestAutomationContext = Readonly<{
 	sessionTitle?: string;
 	runSummaries?: readonly string[];
+	commitLine?: string;
 	latestRunId?: string;
 	pullRequestTitle?: string;
 	events?: readonly PullRequestAutomationEvent[];
@@ -152,7 +153,7 @@ function commitSubject(
 ): string {
 	return boundedTitle(
 		firstUseful([
-			context.runSummaries.at(-1) ?? '',
+			context.commitLine,
 			context.pullRequestTitle,
 			changedPathTitle(changedPaths),
 			'Update workstream',
@@ -165,10 +166,10 @@ function commitRun(
 	changedPaths: readonly string[],
 	context: Required<PullRequestAutomationContext>,
 ): CommitWorkstreamRun | null {
-	if (!context.latestRunId || context.runSummaries.length === 0) return null;
+	if (!context.latestRunId || !context.commitLine) return null;
 	return {
 		id: context.latestRunId,
-		messageIfAlreadyCommitted: commitSubject(changedPaths, { ...context, runSummaries: [] }),
+		messageIfAlreadyCommitted: commitSubject(changedPaths, { ...context, commitLine: '' }),
 	};
 }
 
@@ -197,6 +198,7 @@ function normalizedContext(
 		return {
 			sessionTitle: '',
 			runSummaries: [],
+			commitLine: '',
 			latestRunId: '',
 			pullRequestTitle: '',
 			events: [],
@@ -212,6 +214,10 @@ function normalizedContext(
 				.map((summary) => proseLine(summary, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem))
 				.filter(Boolean),
 		).slice(0, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItems),
+		commitLine: proseLine(
+			context.commitLine ?? context.runSummaries?.at(-1) ?? '',
+			AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem,
+		),
 		latestRunId: singleLine(
 			context.latestRunId ?? '',
 			AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem,
@@ -242,6 +248,7 @@ function localContext(
 		...(context.sessionTitle ? { sessionTitle: local(context.sessionTitle) } : {}),
 		...(context.pullRequestTitle ? { pullRequestTitle: local(context.pullRequestTitle) } : {}),
 		...(context.runSummaries ? { runSummaries: context.runSummaries.map(local) } : {}),
+		...(context.commitLine ? { commitLine: local(context.commitLine) } : {}),
 		...(context.decisions ? { decisions: context.decisions.map(local) } : {}),
 		...(context.events
 			? {

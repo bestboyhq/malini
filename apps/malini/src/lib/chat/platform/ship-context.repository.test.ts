@@ -94,6 +94,7 @@ describe('workstreamShipContext', () => {
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({
 			sessionTitle: 'Readiness probe',
 			runSummaries: ['Add the /health endpoint'],
+			commitLine: 'Add the /health endpoint',
 			latestRunId: 'run-health',
 			pullRequestTitle: 'Add health and readiness probes',
 			events: [{ kind: 'validation', label: 'pnpm test', status: 'passed' }],
@@ -112,6 +113,30 @@ describe('workstreamShipContext', () => {
 		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
 			runSummaries: ['feat: add alpha'],
 			latestRunId: 'run-alpha',
+		});
+		db.close();
+	});
+
+	it("commits under a job's Commit: line, which never joins the user's summaries", () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, WORKSTREAM);
+		session(db, 'chat', 'user', 'Search');
+		completedRun(db, 'run-user', 'chat', 'Add search', 'Commit: feat: add search');
+		session(db, 'job', 'job', 'Fix checks');
+		completedRun(
+			db,
+			'run-fix',
+			'job',
+			'Fix the failing checks',
+			'Fixed the header test.\n\nCommit: fix(search): keep the header query',
+			true,
+		);
+		completedRun(db, 'run-quiet', 'job', 'Fix the failing checks', 'Nothing to change.', true);
+
+		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
+			runSummaries: ['feat: add search'],
+			commitLine: 'fix(search): keep the header query',
+			latestRunId: 'run-fix',
 		});
 		db.close();
 	});

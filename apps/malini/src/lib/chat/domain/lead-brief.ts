@@ -4,6 +4,7 @@ import {
 	isCancellationError,
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
+import { parseWorkstreamReport, reportedTurnEnd } from './deliveries';
 
 export type BriefEvent = Readonly<{
 	seq: number;
@@ -122,7 +123,7 @@ function promptLine(
 			text: reports
 				.map((report) => {
 					const name = workstreamName(text_(report['workstreamId']) ?? '');
-					const ended = report['status'] === 'failed' ? 'failed its turn' : 'finished a turn';
+					const ended = reportedTurnEnd(parseWorkstreamReport(report) ?? { status: 'succeeded' });
 					return `“${name}” ${ended}. Outcome: ${text_(report['outcome']) ?? 'none'}. Needs: ${text_(report['needs']) ?? 'nothing'}.`;
 				})
 				.join('\n'),

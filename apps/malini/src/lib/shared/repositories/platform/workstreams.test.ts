@@ -361,6 +361,55 @@ describe('the workstream commands', () => {
 		expect(await headSubject()).toBe('feat: add gamma');
 	});
 
+	it('commits a run again under the new line of its later end, never one line twice, and a merge uses up a line', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-1');
+		const { invoke, db } = harness(dir);
+		seed(db, 'ws-1', base, checkout);
+		const job = { id: 'run-job', messageIfAlreadyCommitted: 'Update workstream' };
+		const resolver = { id: 'run-resolver', messageIfAlreadyCommitted: 'Update workstream' };
+		const head = async (format: string): Promise<string> =>
+			(await realGit(checkout, ['log', '-1', `--format=${format}`])).trim();
+		const commitAs = async (
+			run: typeof job,
+			file: string,
+			text: string,
+			message: string,
+		): Promise<string> => {
+			await writeFile(join(checkout, file), text);
+			await invoke('repositories.commit-workstream', { workstreamId: 'ws-1', message, run });
+			return head('%s');
+		};
+
+		expect(await commitAs(job, 'alpha.txt', 'alpha\n', 'test: start the suite')).toBe(
+			'test: start the suite',
+		);
+		expect(await commitAs(job, 'beta.txt', 'beta\n', 'test: fix the flaky test')).toBe(
+			'test: fix the flaky test',
+		);
+		expect(await commitAs(job, 'gamma.txt', 'gamma\n', 'test: fix the flaky test')).toBe(
+			'Update workstream',
+		);
+
+		await writeFile(join(base, 'seed.txt'), 'theirs\n');
+		await realGit(base, ['commit', '-qam', 'theirs']);
+		await realGit(base, ['push', '-q', 'origin', 'main']);
+		await writeFile(join(checkout, 'seed.txt'), 'ours\n');
+		await realGit(checkout, ['commit', '-qam', 'ours']);
+		await invoke('repositories.pull-workstream', { workstreamId: 'ws-1', baseBranch: 'main' });
+		expect(await commitAs(resolver, 'seed.txt', 'both\n', 'fix: keep both sides')).toBe(
+			"Merge remote-tracking branch 'origin/main' into malini/ws-1",
+		);
+		expect((await head('%P')).split(' ')).toHaveLength(2);
+		expect(await commitAs(resolver, 'delta.txt', 'delta\n', 'fix: keep both sides')).toBe(
+			'Update workstream',
+		);
+		expect(await commitAs(job, 'epsilon.txt', 'epsilon\n', 'test: cover the merge')).toBe(
+			'test: cover the merge',
+		);
+	});
+
 	it('announces the conflicts a pull of the base branch stops on, and only those', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

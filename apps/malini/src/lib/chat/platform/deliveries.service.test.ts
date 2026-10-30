@@ -135,6 +135,7 @@ function finished(
 		status: 'succeeded',
 		outcome: 'Added the analytics endpoint',
 		needs: null,
+		backgroundCommands: null,
 		...fields,
 	};
 }
@@ -389,6 +390,69 @@ describe('ChatDeliveries', () => {
 				],
 			},
 		]);
+	});
+
+	it('reports a turn that waits on a background command, then the turn that goes on, and hands the chat what waited', async () => {
+		turn('lead-turn', 'lead-chat');
+		turn('api-turn', 'api-chat', {
+			completedAt: null,
+			chainId: 'lead-turn',
+			summary: 'Waiting for the merge from main to land.',
+		});
+
+		await deliveries.turnFinished(
+			finished('api-turn', { outcome: null, backgroundCommands: ['Wait for the merge'] }),
+			41,
+		);
+		const followUp = await deliveries.deliver(prompt('api-chat', 'Also add the line second.'));
+		expect(followUp.status).toBe('waiting');
+		run(
+			db,
+			'UPDATE agent_runs SET completed_at = ?, summary = ? WHERE id = ?',
+			NOW,
+			'Merged it.\n\nOutcome: The merge landed\nNeeds: nothing',
+			'api-turn',
+		);
+		await deliveries.turnFinished(finished('api-turn', { outcome: 'The merge landed' }), 42);
+
+		const toLead = sent.filter((args) => args['sessionId'] === 'lead-chat');
+		expect(toLead.map((args) => args['prompt'])).toEqual([
+			[
+				REPORTS_PREAMBLE,
+				'“Api analytics” (`api`), a workstream you started, is waiting on its background command “Wait for the merge”, and reports again if it continues.\nIts checkout: /tmp/api\nWaiting for the merge from main to land.',
+			].join('\n\n'),
+			[
+				REPORTS_PREAMBLE,
+				'“Api analytics” (`api`), a workstream you started, finished a turn.\nIts checkout: /tmp/api\nMerged it.\n\nOutcome: The merge landed\nNeeds: nothing',
+			].join('\n\n'),
+		]);
+		expect(toLead.map((args) => args['reports'])).toEqual([
+			[
+				{
+					workstreamId: 'api',
+					runId: 'api-turn',
+					status: 'succeeded',
+					outcome: null,
+					needs: null,
+					media: [],
+					backgroundCommands: ['Wait for the merge'],
+				},
+			],
+			[
+				{
+					workstreamId: 'api',
+					runId: 'api-turn',
+					status: 'succeeded',
+					outcome: 'The merge landed',
+					needs: null,
+					media: [],
+				},
+			],
+		]);
+		expect(sent.filter((args) => args['sessionId'] === 'api-chat')).toEqual([
+			expect.objectContaining({ prompt: 'Also add the line second.', from: 'lead' }),
+		]);
+		expect(status(followUp.id)).toBe('delivered');
 	});
 
 	it('reports the outcome and needs of a failed turn that left no summary', async () => {

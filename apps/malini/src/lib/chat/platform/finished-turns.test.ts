@@ -61,6 +61,15 @@ function after(sessionId: string, runId: string, event: Record<string, unknown>)
 	return turns.after({ sessionId, runId, seq, event: { runId, ...event } });
 }
 
+function waitOver(runId: string, summary: string) {
+	return after('chat', runId, {
+		type: 'background.updated',
+		waiting: true,
+		tasks: [{ taskId: 'ci', kind: 'command', description: 'Wait for CI', startedAt: 1 }],
+		summary,
+	});
+}
+
 describe('FinishedTurns', () => {
 	it("tells once that a chat's turn ended, with its report", () => {
 		expect(after('chat', 'run-1', { type: 'run.completed', summary: REPORT })).toEqual({
@@ -70,6 +79,7 @@ describe('FinishedTurns', () => {
 			status: 'succeeded',
 			outcome: 'The endpoint answers',
 			needs: 'A Logdash key; A project name',
+			backgroundCommands: null,
 		});
 		expect(after('chat', 'run-1', { type: 'run.completed', summary: REPORT })).toBeNull();
 	});
@@ -86,11 +96,72 @@ describe('FinishedTurns', () => {
 			after('chat', 'run-3', { type: 'run.failed', error: 'cancelled by user' }),
 		];
 
-		expect(ended.map((turn) => [turn?.runId, turn?.status, turn?.needs])).toEqual([
-			['run-1', 'succeeded', null],
-			['run-2', 'failed', null],
-			['run-3', 'cancelled', null],
+		expect(
+			ended.map((turn) => [turn?.runId, turn?.status, turn?.needs, turn?.backgroundCommands]),
+		).toEqual([
+			['run-1', 'succeeded', null, ['Dev server']],
+			['run-2', 'failed', null, null],
+			['run-3', 'cancelled', null, null],
 		]);
+	});
+
+	it('tells again, with its own report, when a run goes on after the commands its turn ended over', () => {
+		expect(waitOver('run-1', 'Waiting for CI.\n\nOutcome: CI runs\nNeeds: nothing')).toMatchObject({
+			runId: 'run-1',
+			outcome: 'CI runs',
+			needs: null,
+			backgroundCommands: ['Wait for CI'],
+		});
+		expect(
+			after('chat', 'run-1', { type: 'background.updated', waiting: false, tasks: [] }),
+		).toBeNull();
+		expect(
+			after('chat', 'run-1', { type: 'tool.started', name: 'Bash', toolCallId: 't1' }),
+		).toBeNull();
+		expect(after('chat', 'run-1', { type: 'run.completed', summary: REPORT })).toEqual({
+			workstreamId: 'ws-1',
+			sessionId: 'chat',
+			runId: 'run-1',
+			status: 'succeeded',
+			outcome: 'The endpoint answers',
+			needs: 'A Logdash key; A project name',
+			backgroundCommands: null,
+		});
+		expect(after('chat', 'run-1', { type: 'run.completed', summary: REPORT })).toBeNull();
+
+		expect(waitOver('run-2', 'Waiting for CI.')).not.toBeNull();
+		after('chat', 'run-2', { type: 'assistant.message', text: 'CI failed, fixing it' });
+		expect(after('chat', 'run-2', { type: 'run.failed', error: 'model overloaded' })).toMatchObject(
+			{ runId: 'run-2', status: 'failed', backgroundCommands: null },
+		);
+	});
+
+	it('tells each end of a run that works between its waits, and a run that never goes on once', () => {
+		expect(waitOver('run-1', 'Started CI.')).not.toBeNull();
+		expect(waitOver('run-1', 'Still on CI.')).toBeNull();
+		after('chat', 'run-1', { type: 'thinking.message', text: 'CI failed on one test' });
+		expect(waitOver('run-1', 'Fixed the test.\n\nOutcome: CI runs again')).toMatchObject({
+			outcome: 'CI runs again',
+			backgroundCommands: ['Wait for CI'],
+		});
+		expect(
+			after('chat', 'run-1', {
+				type: 'background.updated',
+				waiting: false,
+				tasks: [],
+				handedOff: true,
+			}),
+		).toBeNull();
+		expect(
+			after('chat', 'run-1', {
+				type: 'run.completed',
+				summary: 'Fixed the test.',
+				handedOff: true,
+			}),
+		).toBeNull();
+
+		expect(waitOver('run-2', 'Started CI.')).not.toBeNull();
+		expect(after('chat', 'run-2', { type: 'run.completed', summary: 'Stopped CI.' })).toBeNull();
 	});
 
 	it('stays quiet for job sessions, for turns Malini paused to quit, and mid-turn', () => {

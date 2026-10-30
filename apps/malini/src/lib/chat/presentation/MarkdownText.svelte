@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import DOMPurify from 'dompurify';
-	import { marked } from 'marked';
+	import { Marked, marked } from 'marked';
 	import { mount, unmount, type Component } from 'svelte';
 	import {
 		escapeCodeText,
@@ -24,7 +24,7 @@
 	import MarkdownCodeCopyButton from './MarkdownCodeCopyButton.svelte';
 	import MarkdownCodeRunButton from './MarkdownCodeRunButton.svelte';
 
-	export type MarkdownRenderMode = 'markdown' | 'prose' | 'plain';
+	export type MarkdownRenderMode = 'markdown' | 'prose' | 'plain' | 'inline';
 
 	export type StreamingMarkdownUpdate = {
 		text: string;
@@ -174,10 +174,15 @@
 		return result + escapeHtml(source.slice(cursor));
 	}
 
+	const inlineMarked = new Marked({
+		gfm: true,
+		renderer: { image: ({ text }) => escapeHtml(text) },
+	});
+
 	function unsanitizedHtml(source: string, renderMode: MarkdownRenderMode): string {
-		return renderMode === 'plain'
-			? linkifyPlainText(source)
-			: marked.parse(source, { async: false, breaks: renderMode !== 'prose', gfm: true });
+		if (renderMode === 'plain') return linkifyPlainText(source);
+		if (renderMode === 'inline') return inlineMarked.parseInline(source, { async: false });
+		return marked.parse(source, { async: false, breaks: renderMode !== 'prose', gfm: true });
 	}
 
 	export function renderSanitizedHtml(source: string, renderMode: MarkdownRenderMode): string {
@@ -995,7 +1000,8 @@
 	handles `streamingTailCharacters === 0` by committing the final sanitized
 	document, so the same node simply stops fading in new text.
 -->
-<div
+<svelte:element
+	this={mode === 'inline' ? 'span' : 'div'}
 	class={['markdown-text', className]}
 	data-render-mode={mode}
 	data-streaming={streamingTailCharacters > 0 ? 'true' : undefined}
@@ -1011,7 +1017,7 @@
 		galleryImages: onopenimage !== undefined,
 		codeRuns: coderuns,
 	}}
-></div>
+></svelte:element>
 
 <style>
 	.markdown-text {
@@ -1023,6 +1029,10 @@
 	.markdown-text[data-render-mode='plain'] {
 		white-space: inherit;
 		overflow-wrap: inherit;
+	}
+
+	.markdown-text[data-render-mode='inline'] :global(:is(code, a[data-file-path])) {
+		line-height: 1;
 	}
 
 	.markdown-text[data-streaming] :global([data-code-run]),

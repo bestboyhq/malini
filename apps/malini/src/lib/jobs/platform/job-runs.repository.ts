@@ -217,6 +217,21 @@ export function listRecentFinishedJobRuns(db: MaliniDatabase, limit: number): Jo
 	).map(fromRow);
 }
 
+export function childJobRun(
+	db: MaliniDatabase,
+	parentRunId: string,
+	definitionId: string,
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE parent_run_id = ? AND definition_id = ?
+		 ORDER BY created_at, rowid LIMIT 1`,
+		parentRunId,
+		definitionId,
+	);
+	return row ? fromRow(row) : null;
+}
+
 export function findActiveJobRunForSession(
 	db: MaliniDatabase,
 	sessionId: string,

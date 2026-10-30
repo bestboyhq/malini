@@ -6,6 +6,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { WorkstreamReportMedia } from '$contract/deliveries';
 import type { LeadDecision } from '$contract/leads';
+import { Lexer } from 'marked';
 import { REPORTS_PREAMBLE } from '$lib/chat/domain/deliveries';
 import type { RenderItem, RunGroup, ToolAggregate } from './render-state';
 import { toolActionKind, toolActivityLabel, toolDescriptionLabel } from './tool-display-name';
@@ -20,6 +21,7 @@ export type TimelineReport = Readonly<{
 	outcome: string | null;
 	needs: string | null;
 	media: readonly WorkstreamReportMedia[];
+	backgroundCommands?: readonly string[];
 }>;
 
 export type TimelineSent = Timed &
@@ -168,9 +170,9 @@ function runEntries(run: RunGroup, current: boolean): TimelineEntry[] {
 function promptEntry(item: Extract<RenderItem, { kind: 'user' }>, current: boolean) {
 	const at = item.at ?? null;
 	if (item.reports && item.reports.length > 0) {
-		const reports = item.reports.map((report) => ({
+		const reports = item.reports.map((report, index) => ({
 			...report,
-			key: `${item.key}-${report.runId}`,
+			key: `${item.key}-${index}`,
 			name: null,
 		}));
 		return { kind: 'reports' as const, key: item.key, at, current, reports };
@@ -381,6 +383,7 @@ export type TimelineRow =
 	| Readonly<{ kind: 'entry'; key: string; time: string; entry: TimelineEntry }>;
 
 const DAY_MS = 86_400_000;
+const SUMMARY_CHARS = 64;
 const TIME = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
 const DAY = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 const FOOTER_LINE =
@@ -402,6 +405,26 @@ export function timelineRows(entries: readonly TimelineEntry[], now: number): Ti
 		if (time !== '') shown = time;
 	}
 	return rows;
+}
+
+export function rowSummary(text: string): string {
+	const line =
+		text
+			.split('\n')
+			.find((candidate) => candidate.trim().length > 0)
+			?.trim() ?? text;
+	let kept = '';
+	let shown = 0;
+	for (const token of Lexer.lexInline(line)) {
+		const visible = 'text' in token && typeof token.text === 'string' ? token.text : token.raw;
+		if (shown + visible.length > SUMMARY_CHARS) {
+			const cut = token.type === 'text' ? token.raw.slice(0, SUMMARY_CHARS - shown) : '';
+			return `${(kept + cut).trimEnd()}…`;
+		}
+		kept += token.raw;
+		shown += visible.length;
+	}
+	return line;
 }
 
 export function replyParts(text: string): Readonly<{ summary: string; body: string }> {

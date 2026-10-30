@@ -138,9 +138,14 @@ A job that fails, needs you, or is cancelled runs no Then.
 A Then that would loop, such as one job whose Then leads back to itself, is refused when you save it.
 A Then runs through the queue like any other job, so the job that finished never waits for it.
 
+A job whose turn ends while only background commands run, such as a dev server, counts as done at once.
+When its agent goes on once one of those commands ends, the job runs again and counts as done at its next end, with that end's result, and Malini commits what it did after the wait under that end's `Commit:` line.
+Its Then starts once per run: at once when the job ended with its report, or else once the job ends for good, with that last result, since an agent that has not reported yet may go on.
+A Then held that way is cancelled when the job goes on and fails.
+
 ### Events or Then
 
-A job emits `jobs:run-started` when its run starts, and `jobs:run-finished` once when it ends, with its `status`: `succeeded`, `failed` or `cancelled`.
+A job emits `jobs:run-started` when its run starts, and `jobs:run-finished` when it ends, with its `status`: `succeeded`, `failed` or `cancelled`, and again at its next end when its agent goes on after its background commands.
 Trigger other jobs on it, such as `on jobs:run-finished where run.status is failed`, or use Then for the planned next step.
 A run never starts a job that already ran earlier in its own chain, so a trigger on `jobs:run-finished` cannot loop.
 `jobs:run-changed` still fires for every status a run moves through, but the event log keeps only the start and the finish.
@@ -163,6 +168,7 @@ A **chain** is everything that traces back to one thing you did, such as a promp
 
 Running a job is fire and forget.
 Every way of starting a job only asks Malini's job runner, which starts it when a slot is free, the workstream has no other job, and its agent is idle.
+When it ends, Malini commits what it changed under the `Commit:` line its agent wrote, the way it commits a chat's turn; that line never titles the pull request.
 A workstream an agent just started counts as busy until the turn of its first prompt ends, so a job run there right away waits for that turn.
 
 - Type **/** in the composer to run a job from a chat.
@@ -189,7 +195,7 @@ Each rule names the events it hears, and the Reconciler hands an event to every 
 It hands each event to your triggers first, then to its own rules at once:
 
 - **Your triggers** handle the events they name.
-- **Thens** start the next job on the **Job finished** of a run that succeeded.
+- **Thens** start the next job on the **Job finished** of a run that succeeded, once per run.
 - **Shipping** takes a workstream from your click to merged, one step per event.
   For each event about a workstream it ships, the Reconciler reads that workstream's state fresh, one workstream at a time: its pull request bar, the jobs in it whoever started them, `git status` and the last read of GitHub.
   Shipping then takes the one next step: commit and push its work, open the draft, mark it ready, merge main into the branch when GitHub says it is behind or conflicts, run **Fix checks** or **Address review** when something blocks the merge, merge, or archive the workstream unless you clicked **Keep**.
@@ -203,6 +209,7 @@ It hands each event to your triggers first, then to its own rules at once:
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
   It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
 - **Deliveries** hears **Turn finished**: it sends the report of every turn a workstream a chat started ends to that chat, with its `Outcome:`, its `Needs:` and the pictures it embeds, and hands each chat what waits for it once its turn ends.
+  A turn that ends while only background commands run is a **Turn finished** at once, whose report names the commands it waits on, and the turn that goes on after them is another one when it ends.
   Everything sent to a chat waits in Malini while that chat is on a turn, and arrives as one prompt when the turn ends: reports, prompts another chat sent it with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back), and your answers to its [decisions](/malini/docs/chat.md#decisions).
   What waits survives a restart: on **Malini started**, Resume sends it on once it has continued the turns the restart cut short.
 - **Schedules** start a job on the **Time reached** its schedule names.

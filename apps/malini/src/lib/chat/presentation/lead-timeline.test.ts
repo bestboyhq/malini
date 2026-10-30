@@ -5,7 +5,13 @@ import {
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { REPORTS_PREAMBLE } from '$lib/chat/domain/deliveries';
-import { leadTimeline, replyParts, timelineRows, type TimelineEntry } from './lead-timeline';
+import {
+	leadTimeline,
+	replyParts,
+	rowSummary,
+	timelineRows,
+	type TimelineEntry,
+} from './lead-timeline';
 import type { RenderItem, RunGroup } from './render-state';
 
 const AT = Date.parse('2026-10-27T10:20:00.000Z');
@@ -229,6 +235,39 @@ describe('the lead timeline', () => {
 		});
 	});
 
+	it('keeps both reports of a turn that waited on a background command and then went on', () => {
+		const ended = {
+			workstreamId: 'ws-a',
+			runId: 'child-run',
+			status: 'succeeded' as const,
+			outcome: null,
+			needs: null,
+			media: [],
+		};
+		const entries = leadTimeline(
+			[
+				run('one', [
+					prompt(`${REPORTS_PREAMBLE}\n\nfull text`, {
+						reports: [
+							{ ...ended, backgroundCommands: ['Wait for CI'] },
+							{ ...ended, outcome: 'CI passes' },
+						],
+					}),
+				]),
+			],
+			[],
+		);
+
+		const reports = entries[0]?.kind === 'reports' ? entries[0].reports : [];
+		expect(reports.map(({ outcome, backgroundCommands }) => [outcome, backgroundCommands])).toEqual(
+			[
+				[null, ['Wait for CI']],
+				['CI passes', undefined],
+			],
+		);
+		expect(new Set(reports.map(({ key }) => key)).size).toBe(2);
+	});
+
 	it('reads the reports of a wake Malini sent before reports carried their own data', () => {
 		const legacy = [
 			'Malini woke you: work you started moved on.',
@@ -331,5 +370,23 @@ describe('a reply of the lead', () => {
 			summary: 'Just an answer.',
 			body: 'Just an answer.',
 		});
+	});
+});
+
+describe('rowSummary', () => {
+	it('keeps a short first line whole', () => {
+		expect(rowSummary('Use `notes.md` for **both** lines.\n\nThe rest.')).toBe(
+			'Use `notes.md` for **both** lines.',
+		);
+	});
+
+	it('cuts a long line between pieces of Markdown, never inside one', () => {
+		expect(
+			rowSummary(
+				'Append the line `second` to `lead-notes.md`, so the file holds `first` then `second`, and nothing else.',
+			),
+		).toBe('Append the line `second` to `lead-notes.md`, so the file holds `first`…');
+		expect(rowSummary(`Read the file \`${'a'.repeat(70)}\` first`)).toBe('Read the file…');
+		expect(rowSummary(`See **${'b'.repeat(70)}** now`)).toBe('See…');
 	});
 });

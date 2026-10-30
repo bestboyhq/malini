@@ -25,6 +25,8 @@ const KIND_NOUNS: Readonly<Record<AgentBackgroundTaskKind, readonly [string, str
 	task: ['background task', 'background tasks'],
 };
 
+const NAMES = new Intl.ListFormat('en', { type: 'conjunction' });
+
 export function latestBackgroundWork(
 	envelopes: readonly EventEnvelope[],
 	live: BackgroundWork | null,
@@ -76,6 +78,13 @@ export function backgroundWorkSummary(tasks: readonly AgentBackgroundTask[]): st
 	const [kind] = kinds;
 	const [one, many] = KIND_NOUNS[kinds.size === 1 && kind ? kind : 'task'];
 	return `${tasks.length} ${tasks.length === 1 ? one : many}`;
+}
+
+export function backgroundCommandsPhrase(commands: readonly string[]): string {
+	const [one, many] = KIND_NOUNS.command;
+	if (commands.length === 0) return `a ${one}`;
+	const names = NAMES.format(commands.map((command) => `“${command}”`));
+	return `its ${commands.length === 1 ? one : many} ${names}`;
 }
 
 export function backgroundTaskElapsed(startedAt: number, nowMs: number): string {

@@ -107,6 +107,27 @@ test('titles the pull request after the whole branch and commits under the lates
 	);
 });
 
+test("commits under a job's Commit: line, and titles after the user's work only", () => {
+	const metadata = automatedPullRequestMetadata({
+		branch: 'malini/workstream-1',
+		baseBranch: 'main',
+		changedPaths: ['src/search.ts'],
+		context: {
+			runSummaries: ['feat(search): add search to the header'],
+			commitLine: 'fix(search): keep the header query',
+			latestRunId: 'run-fix',
+		},
+	});
+
+	expect(metadata.commitMessage).toBe('fix(search): keep the header query');
+	expect(metadata.commitRun).toEqual({
+		id: 'run-fix',
+		messageIfAlreadyCommitted: 'Update search.ts',
+	});
+	expect(metadata.title).toBe('feat(search): add search to the header');
+	expect(metadata.body).toMatch(/## Summary\n\nfeat\(search\): add search to the header\n/u);
+});
+
 test('without authored lines, commits under the changed files and titles after the chat', () => {
 	const input = {
 		branch: 'malini/01J2D8F8AC634774504B54E93A',

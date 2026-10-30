@@ -150,6 +150,7 @@ function finish(sessionId: string, runId: string): void {
 		status: 'succeeded',
 		outcome: 'Added the analytics endpoint',
 		needs: null,
+		backgroundCommands: null,
 	});
 }
 

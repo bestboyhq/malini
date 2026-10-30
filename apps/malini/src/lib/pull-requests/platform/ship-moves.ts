@@ -9,7 +9,7 @@ import type { ShippingJobBuiltin } from '$contract/jobs';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, workflowRefusal } from '$main/errors';
-import { workstreamShipContext } from '$lib/chat/chat.platform';
+import { commitLine, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
 	jobDefinitions,
@@ -62,7 +62,11 @@ export type ShipState = Readonly<{
 	move: ShippingMove;
 }>;
 
-type SettledJob = Readonly<{ builtin: ShippingJobBuiltin | null; agentRunId: string | null }>;
+type SettledJob = Readonly<{
+	builtin: ShippingJobBuiltin | null;
+	agentRunId: string | null;
+	commitLine: string;
+}>;
 
 const SHIPPING_RESULTS: readonly EventChannel[] = [
 	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
@@ -247,11 +251,12 @@ async function commit(deps: ShipDeps, state: ShipState): Promise<AutomatedPullRe
 	const metadata = shipMetadata(target, worktree.dirtyPaths, shipContext);
 	const settled = settledJob(deps, row);
 	if (worktree.dirtyPaths.length > 0 || worktree.operationInProgress === 'merge') {
-		const message = commitMessage(worktree, settled, metadata, target);
+		const fallback = commitMessage(worktree, settled, metadata, target, '');
+		const message = commitMessage(worktree, settled, metadata, target, settled?.commitLine ?? '');
 		const run = settled
 			? settled.agentRunId === null
 				? null
-				: { id: settled.agentRunId, messageIfAlreadyCommitted: message }
+				: { id: settled.agentRunId, messageIfAlreadyCommitted: fallback }
 			: metadata.commitRun;
 		await deps.context.commands.call('repositories.commit-workstream', {
 			workstreamId,
@@ -541,7 +546,13 @@ export function settledJob(deps: ShipDeps, row: ShipRow): SettledJob | null {
 	const current = getShip(deps.context.db, row.workstreamId) ?? row;
 	const job =
 		current.settledJobRunId === null ? null : jobRun(deps.context.db, current.settledJobRunId);
-	return job ? { builtin: shippingBuiltin(deps, job), agentRunId: job.agentRunId } : null;
+	return job
+		? {
+				builtin: shippingBuiltin(deps, job),
+				agentRunId: job.agentRunId,
+				commitLine: commitLine(job.detail ?? ''),
+			}
+		: null;
 }
 
 export function shipMetadata(
@@ -563,10 +574,12 @@ function commitMessage(
 	settled: SettledJob | null,
 	metadata: AutomatedPullRequestMetadata,
 	target: ShipTarget,
+	line: string,
 ): string {
 	if (worktree.operationInProgress === 'merge') {
 		return `Merge ${target.base} into ${target.workstream.branch}`;
 	}
+	if (line !== '') return line;
 	if (settled?.builtin === 'fix-checks') return 'Fix failing checks';
 	if (settled?.builtin === 'address-review') return 'Address review feedback';
 	return metadata.commitMessage;

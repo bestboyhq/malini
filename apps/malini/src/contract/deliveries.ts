@@ -24,4 +24,5 @@ export type WorkstreamReport = Readonly<{
 	outcome: string | null;
 	needs: string | null;
 	media: readonly WorkstreamReportMedia[];
+	backgroundCommands?: readonly string[];
 }>;

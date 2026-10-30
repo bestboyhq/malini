@@ -7,7 +7,12 @@ import { get, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { startingSessionId } from '$lib/jobs/jobs.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
-import { deliveryBatch, reportForLead, workstreamReport } from '../domain/deliveries';
+import {
+	deliveryBatch,
+	reportedTurnEnd,
+	reportForLead,
+	workstreamReport,
+} from '../domain/deliveries';
 import { isAlreadyActiveError } from '../domain/prompt-dispatch-failure';
 import { parseRunProfile } from './agent/commands';
 import {
@@ -144,7 +149,15 @@ export class ChatDeliveries {
 		const starter = starterId === null ? null : getSession(db, starterId);
 		if (!starter || starter.archivedAt !== null || starter.workstreamId === workstream.id) return;
 		const summary = getRun(db, turn.runId)?.summary ?? null;
-		const ended = turn.status === 'failed' ? 'failed its turn' : 'finished a turn';
+		const report = workstreamReport({
+			workstreamId: workstream.id,
+			runId: turn.runId,
+			status: turn.status,
+			outcome: turn.outcome,
+			needs: turn.needs,
+			summary,
+			backgroundCommands: turn.backgroundCommands,
+		});
 		const body =
 			summary && summary.trim().length > 0
 				? reportForLead(summary.trim(), workstream.path)
@@ -153,19 +166,12 @@ export class ChatDeliveries {
 			sessionId: starter.id,
 			kind: 'report',
 			prompt: [
-				`“${workstream.name}” (\`${workstream.id}\`), a workstream you started, ${ended}.`,
+				`“${workstream.name}” (\`${workstream.id}\`), a workstream you started, ${reportedTurnEnd(report)}.`,
 				`Its checkout: ${workstream.path}`,
 				body,
 			].join('\n'),
 			fromWorkstreamId: workstream.id,
-			report: workstreamReport({
-				workstreamId: workstream.id,
-				runId: turn.runId,
-				status: turn.status,
-				outcome: turn.outcome,
-				needs: turn.needs,
-				summary,
-			}),
+			report,
 			chainId: chatTurnChainId(db, turn.runId),
 			causeEventId: eventId,
 		});

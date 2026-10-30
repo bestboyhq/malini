@@ -41,14 +41,19 @@ export function workstreamShipContext(
 		 ORDER BY r.rowid ASC`,
 		workstreamId,
 	);
-	const described = replied
-		.map(({ id, summary }) => ({ id, summary: commitLine(summary) }))
-		.filter(({ summary }) => summary);
 	const runSummaries = takeLastUnique(
-		described.map(({ summary }) => summary),
+		replied.map(({ summary }) => commitLine(summary)),
 		RUN_SUMMARY_LIMIT,
 	);
-	const latestRunId = described.at(-1)?.id;
+	const committing = all<{ id: string; summary: string }>(
+		db,
+		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin IN ('user', 'job') AND ${REPLIED}
+		 ORDER BY r.rowid ASC`,
+		workstreamId,
+	)
+		.map(({ id, summary }) => ({ id, line: commitLine(summary) }))
+		.filter(({ line }) => line)
+		.at(-1);
 	const pullRequestTitle = all<{ summary: string }>(
 		db,
 		`SELECT r.summary FROM ${WORKSTREAM_RUNS} AND ${REPLIED} ORDER BY r.rowid ASC`,
@@ -72,7 +77,7 @@ export function workstreamShipContext(
 	return {
 		...(sessionTitle ? { sessionTitle } : {}),
 		...(runSummaries.length > 0 ? { runSummaries } : {}),
-		...(latestRunId ? { latestRunId } : {}),
+		...(committing ? { commitLine: committing.line, latestRunId: committing.id } : {}),
 		...(pullRequestTitle ? { pullRequestTitle } : {}),
 		...(events.length > 0 ? { events } : {}),
 		...(decisions.length > 0 ? { decisions } : {}),

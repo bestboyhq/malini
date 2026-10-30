@@ -11,6 +11,7 @@
 	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
 	import { workstreamImageSourceHook } from '$lib/chat/application/hooks/workstream-image-source.hook.svelte';
 	import { leadWorkQuery } from '$lib/chat/application/queries/lead-work.query.svelte';
+	import { backgroundCommandsPhrase } from '$lib/chat/domain/background-work';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import AgentInteractionCard from './AgentInteractionCard.svelte';
@@ -22,6 +23,7 @@
 	import {
 		leadTimeline,
 		replyParts,
+		rowSummary,
 		timelineRows,
 		type TimelineEntry,
 		type TimelineReport,
@@ -50,7 +52,6 @@
 
 	const AT_BOTTOM_PX = 4;
 	const THUMBNAILS = 4;
-	const SUMMARY_CHARS = 64;
 
 	const renderState = $derived(sessionProjectorCache.acquire(sessionId).render.project(envelopes));
 	const decisions = $derived(leadDecisionsQuery.data(sessionId));
@@ -133,15 +134,6 @@
 		return text.split('\n').length;
 	}
 
-	function summary(text: string): string {
-		const line =
-			text
-				.split('\n')
-				.find((candidate) => candidate.trim().length > 0)
-				?.trim() ?? text;
-		return line.length > SUMMARY_CHARS ? `${line.slice(0, SUMMARY_CHARS).trimEnd()}…` : line;
-	}
-
 	function minutes(from: number | null, to: number | null): string | null {
 		if (from === null || to === null) return null;
 		const span = Math.round((to - from) / 60_000);
@@ -205,9 +197,20 @@
 		{#if entry.status === 'failed'}
 			<span class="text-error-content">failed its turn:</span>
 		{/if}
-		<span class="text-fg-secondary">{entry.outcome ?? 'finished a turn'}</span>
+		<MarkdownText
+			text={entry.outcome ?? (entry.backgroundCommands ? 'ended its turn' : 'finished a turn')}
+			mode="inline"
+			class="text-fg-secondary"
+		/>
+		{#if entry.backgroundCommands}
+			<span class="text-fg-tertiary">
+				· waits on {backgroundCommandsPhrase(entry.backgroundCommands)}
+			</span>
+		{/if}
 		{#if entry.needs}
-			<span class="text-fg-tertiary">· asks the lead: {entry.needs}</span>
+			<span class="text-fg-tertiary">
+				· asks the lead: <MarkdownText text={entry.needs} mode="inline" />
+			</span>
 		{/if}
 		{#if reporter !== null && entry.media.length > 0}
 			<div class="mt-2 grid max-w-[34rem] grid-cols-4 gap-2">
@@ -269,7 +272,9 @@
 			{/each}
 		</div>
 	{:else if entry.kind === 'notice'}
-		<span class="text-fg-tertiary">Malini told the lead: {summary(entry.text)}</span>
+		<span class="text-fg-tertiary">
+			Malini told the lead: <MarkdownText text={rowSummary(entry.text)} mode="inline" />
+		</span>
 	{:else if entry.kind === 'work'}
 		{@const span = minutes(entry.at, entry.endAt)}
 		{@render lead()}
@@ -310,7 +315,7 @@
 		{@render lead()}
 		<span class="text-fg-secondary">sent</span>
 		<TimelineActor workstreamId={entry.workstreamId} fallback={entry.name} />
-		<span class="text-fg-secondary">{summary(entry.prompt)}</span>
+		<MarkdownText text={rowSummary(entry.prompt)} mode="inline" class="text-fg-secondary" />
 		<span
 			class={[
 				status === 'delivered' && 'text-success-content',
@@ -395,19 +400,19 @@
 			{#if !entry.latest}{@render toggleButton(entry.key, 'Show message', 'Hide message')}{/if}
 		{:else}
 			{@render lead()}
-			<span class="text-fg-secondary">{parts.summary}</span>
+			<MarkdownText text={parts.summary} mode="inline" class="text-fg-secondary" />
 			{@render toggleButton(entry.key, 'Show message', 'Hide message')}
 		{/if}
 	{:else if entry.kind === 'stopped'}
 		{#if entry.terminal === 'failed'}
-			<span class="text-error-content">The lead's turn failed: {summary(entry.text)}</span>
+			<span class="text-error-content">The lead's turn failed: {rowSummary(entry.text)}</span>
 		{:else if entry.terminal === 'closed'}
 			<span class="text-fg-tertiary">
 				Malini closed mid-turn; the lead's next turn starts fresh
 			</span>
 		{:else}
 			<span class="text-fg-tertiary">
-				Paused: {summary(entry.text)}{#if timeOf(entry.resumeAt)}, goes on by itself at {timeOf(
+				Paused: {rowSummary(entry.text)}{#if timeOf(entry.resumeAt)}, goes on by itself at {timeOf(
 						entry.resumeAt,
 					)}{/if}
 			</span>

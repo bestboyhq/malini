@@ -51,6 +51,7 @@ import { findString, type DispatchedEvent } from './event-log.service';
 import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
 import {
 	appendJobRunContext,
+	childJobRun,
 	findActiveJobRunForSession,
 	getJobRun,
 	getJobRunContext,
@@ -58,7 +59,11 @@ import {
 	listUnfinishedJobRuns,
 	saveJobRun,
 } from './job-runs.repository';
-import { turnEndedOverBackgroundCommands } from '$lib/chat/chat.platform';
+import {
+	hasTurnReport,
+	resumesTurn,
+	turnEndedOverBackgroundCommands,
+} from '$lib/chat/chat.platform';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
 
 const SAFETY_INTERVAL_MS = 15_000;
@@ -89,6 +94,7 @@ export class JobRunner {
 	readonly #context: MainContext;
 	readonly #log: (line: string) => void;
 	readonly #pendingRequests = new Map<string, Set<string>>();
+	readonly #waitingRuns = new Map<string, string>();
 	readonly #retryAt = new Map<string, number>();
 	readonly #timers = new Set<ReturnType<typeof setTimeout>>();
 	readonly #unsubscribes: Array<() => void> = [];
@@ -207,6 +213,7 @@ export class JobRunner {
 		for (const queued of resolversFirst) {
 			if (this.#stopped || running >= cap) return;
 			const { workstreamId } = queued;
+			if (this.#awaitsItsJob(queued)) continue;
 			if (workstreamId !== null && blocked.has(workstreamId)) continue;
 			if (workstreamId !== null) blocked.add(workstreamId);
 			if ((this.#retryAt.get(queued.id) ?? 0) > Date.now()) continue;
@@ -458,10 +465,12 @@ export class JobRunner {
 	#onAgentEvent(envelope: AgentEventEnvelope): void {
 		try {
 			const type = envelope.event['type'];
+			if (typeof type === 'string' && resumesTurn({ type })) this.#wentOn(envelope.runId);
 			if (type === 'run.started') this.#resumed(envelope.sessionId, envelope.runId);
 			else if (type === 'approval.requested') this.#waiting(envelope, 'approvalId');
 			else if (type === 'question.requested') this.#waiting(envelope, 'questionId');
 			else if (type === 'run.completed' || type === 'run.failed') {
+				this.#waitingRuns.delete(envelope.runId);
 				this.#ended(envelope);
 				this.kick();
 			} else if (turnEndedOverBackgroundCommands(envelope.event)) {
@@ -519,7 +528,25 @@ export class JobRunner {
 		const jobRun = findActiveJobRunForSession(this.#context.db, envelope.sessionId);
 		if (!jobRun) return;
 		this.#pendingRequests.delete(envelope.sessionId);
+		this.#waitingRuns.set(envelope.runId, jobRun.id);
 		this.#succeed(jobRun.id, summary);
+	}
+
+	#wentOn(agentRunId: string): void {
+		const jobRunId = this.#waitingRuns.get(agentRunId);
+		if (jobRunId === undefined) return;
+		this.#waitingRuns.delete(agentRunId);
+		this.#update(jobRunId, (current) =>
+			current.status === 'succeeded' && current.agentRunId === agentRunId
+				? { ...current, status: 'running', detail: null, finishedAt: null }
+				: null,
+		);
+	}
+
+	#awaitsItsJob({ parentRunId }: JobRunRecord): boolean {
+		const job = parentRunId === null ? null : getJobRun(this.#context.db, parentRunId);
+		if (!job?.agentRunId || this.#waitingRuns.get(job.agentRunId) !== job.id) return false;
+		return !hasTurnReport(job.detail ?? '');
 	}
 
 	#onCommand(outcome: CommandOutcome): void {
@@ -553,9 +580,15 @@ export class JobRunner {
 		if (event.channel !== JOBS_RUN_FINISHED_CHANNEL) return;
 		const runId = findString(isRecord(event.payload) ? event.payload['run'] : null, 'id');
 		const jobRun = runId === null ? null : getJobRun(db, runId);
-		if (jobRun?.status !== 'succeeded' || jobRun.workstreamId === null) return;
+		if (!jobRun || jobRun.workstreamId === null) return;
 		const thenJobId = getJobDefinition(db, jobRun.definitionId)?.thenJobId ?? null;
 		if (thenJobId === null || triggeredBefore(db, thenJobId, event.id)) return;
+		const started = childJobRun(db, jobRun.id, thenJobId);
+		if (started) {
+			this.#followAgain(started, jobRun);
+			return;
+		}
+		if (jobRun.status !== 'succeeded') return;
 		try {
 			await commands.call('jobs.run', {
 				definitionId: thenJobId,
@@ -572,6 +605,15 @@ export class JobRunner {
 				...current,
 				detail: current.detail ? `${current.detail}\n\n${failure}` : failure,
 			}));
+		}
+	}
+
+	#followAgain(then: JobRunRecord, job: JobRunRecord): void {
+		if (then.status !== 'waiting' && then.status !== 'queued') return;
+		if (job.status === 'succeeded') {
+			appendJobRunContext(this.#context.db, then.id, truncateJobContext(thenContext(job)));
+		} else {
+			this.#finish(then.id, 'cancelled', `${job.title} went on and did not succeed.`);
 		}
 	}
 

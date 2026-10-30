@@ -186,7 +186,8 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 
 function finishedTurn(event: DispatchedEvent): ChatTurnFinishedPayload | null {
 	if (event.channel !== CHAT_TURN_FINISHED_CHANNEL || !isRecord(event.payload)) return null;
-	const { workstreamId, sessionId, runId, status, outcome, needs } = event.payload;
+	const { workstreamId, sessionId, runId, status, outcome, needs, backgroundCommands } =
+		event.payload;
 	if (
 		typeof workstreamId !== 'string' ||
 		typeof sessionId !== 'string' ||
@@ -202,6 +203,11 @@ function finishedTurn(event: DispatchedEvent): ChatTurnFinishedPayload | null {
 		status,
 		outcome: typeof outcome === 'string' ? outcome : null,
 		needs: typeof needs === 'string' ? needs : null,
+		backgroundCommands: Array.isArray(backgroundCommands)
+			? backgroundCommands.filter(
+					(command: unknown): command is string => typeof command === 'string',
+				)
+			: null,
 	};
 }
 
