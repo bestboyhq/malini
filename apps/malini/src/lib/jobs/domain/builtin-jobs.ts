@@ -102,6 +102,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 			UNTRUSTED_CONTEXT,
 			'- Reproduce each failure locally with the command the check runs before you change anything.',
 			'- Fix the root cause with the smallest change that works. Never skip, disable or weaken a check or a test to make it pass.',
+			'- Never re-run a check in place of a fix: Malini re-runs a failed GitHub Actions check once before this job starts.',
 			...VERIFY_AND_HAND_BACK,
 			'',
 			'End with a one-paragraph summary: what failed, why, and what you changed.',

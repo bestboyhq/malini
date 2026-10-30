@@ -25,6 +25,7 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { checkFixJobContext, reviewFixJobContext } from '../domain/pull-request-fix-prompt';
 import {
+	checksRerunOf,
 	jobStep,
 	reviewFeedbackToAddress,
 	reviewToAddress,
@@ -188,6 +189,14 @@ async function act(
 		case 'mark-ready':
 			saveShip(deps, workstreamId, { step: 'marking-ready' });
 			await deps.ops.markReady({ repoId: target.repoId, workstreamId, pullRequestNumber });
+			await readAgain(deps, workstreamId);
+			break;
+		case 'rerun-checks':
+			saveShip(deps, workstreamId, { step: 'rerunning-checks' });
+			if (!(await rerunChecks(deps, state, move))) {
+				await runJob(deps, state, fixChecksJob(move), event);
+				return;
+			}
 			await readAgain(deps, workstreamId);
 			break;
 		case 'update-branch': {
@@ -396,6 +405,36 @@ async function runJob(
 	if (!saved) await commands.call('jobs.cancel-run', { jobRunId: run.id }).catch(() => undefined);
 }
 
+async function rerunChecks(
+	deps: ShipDeps,
+	state: ShipState,
+	move: Extract<ShippingMove, { kind: 'rerun-checks' }>,
+): Promise<boolean> {
+	const workstreamId = state.row.workstreamId;
+	try {
+		await deps.ops.rerunFailedChecks({
+			repoId: state.target.repoId,
+			workstreamId,
+			runIds: move.runIds,
+		});
+	} catch (error) {
+		if (githubAuthRejected(error)) throw error;
+		return false;
+	}
+	saveShip(deps, workstreamId, {
+		failureSignature: move.signature,
+		attempts: 0,
+		checksRerun: { headSha: move.headSha, at: new Date(deps.now()).toISOString() },
+	});
+	return true;
+}
+
+function fixChecksJob(
+	move: Extract<ShippingMove, { kind: 'rerun-checks' }>,
+): Extract<ShippingMove, { kind: 'run-job' }> {
+	return { kind: 'run-job', builtin: 'fix-checks', signature: move.signature, attempt: 1 };
+}
+
 function pullRequestRead(
 	deps: ShipDeps,
 	workstreamId: string,
@@ -433,6 +472,7 @@ async function shippingJobContext(
 		case 'fix-checks':
 			return checkFixJobContext({
 				pullRequestNumber,
+				rerun: snapshot.pullRequest !== null && checksRerunOf(snapshot, snapshot.pullRequest),
 				failingChecks: (snapshot.pullRequest?.blockingChecks ?? []).map((check) => ({
 					name: check.name,
 					appId: check.appId,

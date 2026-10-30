@@ -21,6 +21,7 @@ export class PullRequestShipMapper {
 			pullRequestNumber: raw.pullRequestNumber,
 			pullRequestUrl: raw.pullRequestUrl,
 			needsYou: raw.needsYou,
+			checks: raw.checks,
 			lastError: raw.lastError,
 			githubSaid: raw.githubSaid,
 			failures: raw.failures,

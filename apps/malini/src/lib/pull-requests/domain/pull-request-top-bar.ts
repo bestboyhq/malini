@@ -149,7 +149,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 		tone: 'queued',
 		busy: true,
 		label: merging ? 'Merging' : ship.keep ? 'Queued to merge and keep' : 'Queued for merge',
-		detail: ship.step === null ? null : shipStepDetail(ship.step),
+		detail: ship.step === null ? null : shipStepDetail(ship.step, ship.checks),
 		tooltip: ship.lastError,
 		action: merging ? null : CANCEL_MERGE,
 		...(merging || ship.keep ? {} : { secondaryAction: KEEP }),

@@ -336,6 +336,10 @@ export type MergePullRequestArgs = PullRequestNumberArgs &
 		commitMessage?: string | null;
 	}>;
 
+export type RerunFailedChecksArgs = RepositoryIdArgs &
+	PullRequestWorkstreamArgs &
+	Readonly<{ runIds: readonly string[] }>;
+
 export type PullRequestTextUpdate = Readonly<{ expected: string; next: string }>;
 
 export type UpdatePullRequestMetadataArgs = PullRequestNumberArgs &
@@ -519,6 +523,7 @@ export interface ContractCommands {
 		args: PullRequestNumberArgs;
 		result: CheckDiagnosticsDto;
 	};
+	'pull-requests.rerun-failed-checks': { args: RerunFailedChecksArgs; result: void };
 	'pull-requests.review-feedback': {
 		args: PullRequestNumberArgs;
 		result: ReviewFeedbackDto;
@@ -809,6 +814,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.update-metadata',
 	'repositories.owner-avatar',
 	'pull-requests.check-diagnostics',
+	'pull-requests.rerun-failed-checks',
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
 	'pull-requests.status',

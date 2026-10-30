@@ -134,6 +134,10 @@ Like every workstream, each one stays on its own commits while main moves, and m
   A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
 - **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
 - **While it waits, it works.** Malini merges main into the branch when GitHub says it is behind or conflicts, and runs the **Fix checks**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
+- **A failing check gets one re-run first.** When GitHub Actions jobs fail for the first time, Malini re-runs the failed jobs once, and the top bar names them, such as **Queued for merge · Re-running e2e on macOS 3/5**.
+  When the re-run passes, the merge goes on with no agent.
+  When it fails again, **Fix checks** starts, the top bar says **Fixing e2e on macOS 3/5**, and its agent hears that the failure repeated, so it fixes the cause instead of re-running it.
+  A check outside GitHub Actions, or one GitHub will not re-run, goes straight to **Fix checks**.
 - **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, and every 2 minutes while it waits for a review or for you, never while an agent or a job works.
   Each read that finds something new is a `pull-requests:pull-request-changed` event: its checks, its review with each change request and open thread, how far it is behind its base, whether it conflicts, and whether you may merge it.
   Every job Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/jobs.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.

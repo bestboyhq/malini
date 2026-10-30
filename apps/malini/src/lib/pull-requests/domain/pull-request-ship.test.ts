@@ -15,6 +15,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		pullRequestNumber: 42,
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
+		checks: [],
 		lastError: null,
 		githubSaid: null,
 		failures: 0,
