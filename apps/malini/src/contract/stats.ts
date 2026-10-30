@@ -163,7 +163,6 @@ export type StatsMoment = Readonly<{
 	id: string;
 	kind: StatsMomentKind;
 	count: number;
-	longest: boolean;
 }>;
 
 export type MomentCard = Readonly<{ moment: StatsMoment; card: ShareCard }>;

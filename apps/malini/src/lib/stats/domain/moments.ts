@@ -15,26 +15,20 @@ export function latestMoment(stats: PublishedStats): StatsMoment | null {
 	const streak = publishedStreak(stats);
 	const start = shiftDate(stats.through, 1 - streak);
 	const longestBefore = longestStreak(stats.days.filter((day) => day.date < start));
-	const longest = streak > longestBefore;
-	const beatsLongest = longest && streak === longestBefore + 1 && streak >= LONGEST_STREAK_FROM;
+	const beatsLongest = streak === longestBefore + 1 && streak >= LONGEST_STREAK_FROM;
 	if (STREAK_MILESTONES.has(streak) || beatsLongest) {
-		return { id: `streak:${start}:${streak}`, kind: 'streak', count: streak, longest };
+		return { id: `streak:${start}:${streak}`, kind: 'streak', count: streak };
 	}
 
 	const earlier = stats.days.slice(0, -1);
 	const bestBefore = Math.max(0, ...earlier.map((day) => day.runs));
 	if (earlier.length >= BEST_DAY_AFTER_DAYS && yesterday.runs > bestBefore) {
-		return {
-			id: `best-day:${stats.through}`,
-			kind: 'best-day',
-			count: yesterday.runs,
-			longest: false,
-		};
+		return { id: `best-day:${stats.through}`, kind: 'best-day', count: yesterday.runs };
 	}
 
 	const reached = Math.floor(stats.totals.runs / RUNS_STEP) * RUNS_STEP;
 	if (reached > 0 && stats.totals.runs - yesterday.runs < reached) {
-		return { id: `runs:${reached}`, kind: 'runs', count: reached, longest: false };
+		return { id: `runs:${reached}`, kind: 'runs', count: reached };
 	}
 	return null;
 }

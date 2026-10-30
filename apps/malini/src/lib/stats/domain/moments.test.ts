@@ -55,12 +55,11 @@ function streakEndingYesterday(length: number, runs = 2): [string, number][] {
 }
 
 describe('latestMoment', () => {
-	it('marks a streak milestone, and calls it the longest only when it beats every earlier streak', () => {
+	it('marks a streak milestone whether or not an earlier streak was longer', () => {
 		expect(latestMoment(stats(streakEndingYesterday(7)))).toEqual({
 			id: 'streak:2026-10-23:7',
 			kind: 'streak',
 			count: 7,
-			longest: true,
 		});
 		const earlierLongStreak: [string, number][] = Array.from({ length: 9 }, (_, index) => [
 			shiftDate('2026-09-01', index),
@@ -69,7 +68,6 @@ describe('latestMoment', () => {
 		expect(latestMoment(stats([...earlierLongStreak, ...streakEndingYesterday(7)]))).toMatchObject({
 			kind: 'streak',
 			count: 7,
-			longest: false,
 		});
 	});
 
@@ -82,7 +80,6 @@ describe('latestMoment', () => {
 			id: 'streak:2026-10-19:11',
 			kind: 'streak',
 			count: 11,
-			longest: true,
 		});
 		expect(latestMoment(stats([...earlier, ...streakEndingYesterday(12)]))).toBeNull();
 	});
@@ -96,7 +93,6 @@ describe('latestMoment', () => {
 			id: `best-day:${THROUGH}`,
 			kind: 'best-day',
 			count: 9,
-			longest: false,
 		});
 		expect(latestMoment(stats([...week.slice(1), [THROUGH, 9]]))).toBeNull();
 		expect(latestMoment(stats([...week, [THROUGH, 5]]))).toBeNull();
@@ -111,7 +107,6 @@ describe('latestMoment', () => {
 			id: 'runs:1000',
 			kind: 'runs',
 			count: 1000,
-			longest: false,
 		});
 		expect(latestMoment(stats(days, 1004))).toBeNull();
 	});

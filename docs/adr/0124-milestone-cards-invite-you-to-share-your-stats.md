@@ -12,7 +12,7 @@ A moment must feel like a reward, not a nag, and must never interrupt work.
 ## Decision
 
 - **Milestones.** `latestMoment` in `src/lib/stats/domain/moments.ts` reads the same Stats v1 snapshot as the share card, complete days through yesterday, and finds at most one moment, in this order:
-  - a streak of 7, 30, 100 or 365 days, marked as your longest when no earlier streak in the snapshot was as long;
+  - a streak of 7, 30, 100 or 365 days;
   - the first day a streak of at least 7 days beats the longest one before it;
   - yesterday's runs beating every earlier day, once at least 7 active days came before it;
   - the total runs crossing another thousand yesterday.
@@ -20,7 +20,7 @@ A moment must feel like a reward, not a nag, and must never interrupt work.
 - **When.** `stats.moment` in `src/lib/stats/platform/register.ts` answers with the moment and its share card, or nothing while any agent run is open.
   It works the moment out once per local day, since it depends only on complete days.
   The sidebar asks once when it mounts and again on every `chat:turn-finished`, so a card appears only between turns and stays until you act on it.
-- **The card.** `MomentPeek` sits above the sidebar footer: a chip names the milestone, and the heatmap card, drawn by `shareCardPng` exactly as it is copied, peeks out tilted and straightens on hover.
+- **The card.** `MomentPeek` sits above the sidebar footer: a chip cheers and names the milestone ("You're on fire · 7-day streak", "Unstoppable", "Legendary", "A whole year", "New record", "Best day yet", "3,000 runs and counting", from `moment-copy.ts`), and the heatmap card, drawn by `shareCardPng` exactly as it is copied, peeks out tilted and straightens on hover.
   It hides while streamer mode masks personal data.
   Clicking it opens `MomentSheet`: both cards, then **Copy card** and **Copy link** when your profile is public, or "Claim `bestboy.dev/@handle` to share it", which starts the same sign-in and handle steps as **Publish my stats** in Settings, Profile.
   Copying the card dismisses the moment.

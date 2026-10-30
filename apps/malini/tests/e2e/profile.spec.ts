@@ -255,10 +255,12 @@ test('a 7-day streak peeks out of the sidebar as your card, claims your profile 
 		const { page } = app;
 		await recordBrowser(app);
 		const peek = page.getByRole('region', { name: 'Milestone' });
-		await expect(peek.getByText('7-day streak, your longest')).toBeVisible({ timeout: 20_000 });
+		await expect(peek.getByText("You're on fire · 7-day streak")).toBeVisible({ timeout: 20_000 });
 		await captureFlow(app, 'moment-peek');
 
-		await peek.getByRole('button', { name: 'Share your card: 7-day streak, your longest' }).click();
+		await peek
+			.getByRole('button', { name: "Share your card: You're on fire · 7-day streak" })
+			.click();
 		const sheet = page.getByRole('dialog', { name: 'Share your 7-day streak' });
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toBeVisible();
 		await sheet.getByRole('button', { name: 'Readout' }).click();
@@ -285,7 +287,7 @@ test('a 7-day streak peeks out of the sidebar as your card, claims your profile 
 		await openProfileSettings(page);
 		await settings.getByRole('switch', { name: 'Milestone cards' }).click();
 		await page.keyboard.press('Escape');
-		await expect(peek.getByText('7-day streak, your longest')).toBeVisible({ timeout: 20_000 });
+		await expect(peek.getByText("You're on fire · 7-day streak")).toBeVisible({ timeout: 20_000 });
 		await peek.getByRole('button', { name: 'Dismiss milestone' }).click();
 		await expect(peek).toHaveCount(0);
 		await page.reload();
