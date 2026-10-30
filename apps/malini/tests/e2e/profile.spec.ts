@@ -24,7 +24,6 @@ type PlatformRequest = Readonly<{
 	body: unknown;
 	authorization: string | null;
 	contentType: string | null;
-	acceptEncoding: string | null;
 }>;
 
 type FakeBestboy = Readonly<{
@@ -38,16 +37,10 @@ type FakeBestboy = Readonly<{
 const STATS_KEYS = [
 	'days',
 	'intensity',
-	'languages',
-	'mcpServers',
-	'models',
 	'otherRepositories',
 	'repositories',
 	'since',
-	'skills',
-	'techniques',
 	'through',
-	'tools',
 	'totals',
 	'version',
 ];
@@ -122,35 +115,20 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 		expect(stats['through']).toBe(yesterday());
 		expect(stats['since']).toBe(yesterday());
 		expect(stats['days']).toEqual([{ date: yesterday(), runs: 1, agents: 1 }]);
+		expect(stats['totals']).toMatchObject({
+			runs: 1,
+			jobRuns: 0,
+			automatedRuns: 0,
+			inputTokens: 10,
+			outputTokens: 5,
+		});
 		expect(stats['repositories']).toEqual([]);
 		expect(stats['otherRepositories']).toEqual({
 			public: { repositories: 0, runs: 0 },
 			private: { repositories: 1, runs: 1 },
 		});
 		expect(JSON.stringify(stats)).not.toContain('Count this run');
-		expect(
-			platform.requests
-				.filter(({ path }) => path === '/api/catalog')
-				.map(({ method, authorization, acceptEncoding }) => [
-					method,
-					authorization,
-					acceptEncoding?.includes('gzip'),
-				]),
-		).toEqual([['GET', null, true]]);
-
-		const shown = settings.getByRole('region', { name: 'What your profile shows' });
-		await shown.getByRole('checkbox', { name: /^Skills /u }).click();
-		await expect(shown.getByRole('checkbox', { name: /^Skills /u })).not.toBeChecked();
-		await expect
-			.poll(() => platform.requests.filter(({ path }) => path === '/api/stats/malini').length, {
-				timeout: 20_000,
-			})
-			.toBe(3);
-		const withoutSkills = statsBody(
-			platform.requests.filter(({ path }) => path === '/api/stats/malini').at(-1)?.body,
-		);
-		expect(Object.keys(withoutSkills).sort()).toEqual(STATS_KEYS.filter((key) => key !== 'skills'));
-		await captureFlow(app, 'profile-parts');
+		expect(platform.requests.map(({ path }) => path)).not.toContain('/api/catalog');
 
 		await toggle.click();
 		await expect(toggle).toHaveAttribute('aria-checked', 'false');
@@ -402,7 +380,6 @@ async function fakeBestboy(): Promise<FakeBestboy> {
 				body,
 				authorization,
 				contentType: request.headers['content-type'] ?? null,
-				acceptEncoding: request.headers['accept-encoding'] ?? null,
 			});
 			const reply = (status: number, value?: unknown): void => {
 				response.writeHead(status, { 'content-type': 'application/json' });

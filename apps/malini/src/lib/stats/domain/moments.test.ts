@@ -17,6 +17,7 @@ function stats(
 		totals: {
 			runs: totalRuns ?? runsByDay.reduce((sum, [, runs]) => sum + runs, 0),
 			jobRuns: 0,
+			automatedRuns: 0,
 			changeRuns: 0,
 			activeDays: runsByDay.length,
 			toolCalls: 0,
@@ -26,6 +27,8 @@ function stats(
 			linesAdded: 0,
 			linesDeleted: 0,
 			filesChanged: 0,
+			inputTokens: 0,
+			outputTokens: 0,
 		},
 		days: runsByDay.map(([date, runs]) => ({ date, runs, agents: 1 })),
 		intensity: {
@@ -36,12 +39,6 @@ function stats(
 			linesPerChange: { p50: 0 },
 			runsPerWorkstream: { p50: 0 },
 		},
-		techniques: { browserRuns: 0, subagentRuns: 0, skillRuns: 0, mcpRuns: 0, webRuns: 0 },
-		models: [],
-		languages: [],
-		tools: [],
-		mcpServers: [],
-		skills: [],
 		repositories: [],
 		otherRepositories: {
 			public: { repositories: 0, runs: 0 },

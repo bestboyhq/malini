@@ -1,6 +1,6 @@
 # 0123 - Share cards come with your Bestboy profile
 
-Status: accepted
+Status: superseded by 0127
 
 ## Context
 

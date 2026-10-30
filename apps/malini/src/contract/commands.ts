@@ -83,7 +83,6 @@ import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } 
 import type {
 	ActivityStats,
 	PickRepositoriesArgs,
-	SharePartArgs,
 	ProfileState,
 	PublicRepository,
 	PublishStatsArgs,
@@ -725,7 +724,6 @@ export interface ContractCommands {
 	'stats.unpublish': { args: undefined; result: ProfileState };
 	'stats.sign-out': { args: undefined; result: ProfileState };
 	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
-	'stats.share-part': { args: SharePartArgs; result: ProfileState };
 	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
@@ -953,7 +951,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.unpublish',
 	'stats.sign-out',
 	'stats.pick-repositories',
-	'stats.share-part',
 	'stats.public-repositories',
 	'sounds.list',
 	'sounds.read',

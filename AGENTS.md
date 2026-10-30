@@ -9,7 +9,7 @@ Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestb
 Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0119).
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes three outbound calls of its own (ADR 0123).
+The app makes three outbound calls of its own (ADR 0127).
 Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
