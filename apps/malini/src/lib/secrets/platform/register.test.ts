@@ -112,7 +112,7 @@ describe('secrets', () => {
 		expect(() => ask(['DYLD_INSERT_LIBRARIES'])).toThrow('steers how commands run');
 		expect(() => ask(['MALINI_THEME'])).toThrow('steers how commands run');
 		expect(() => ask([])).toThrow('one to 10 names');
-		expect(() => ask(['A_TOKEN'], '   ')).toThrow('`why` must be one to 300 characters');
+		expect(() => ask(['A_TOKEN'], '   ')).toThrow('`why` must be one to 120 characters');
 	});
 
 	it('saves what the card filled for the chat, then tells the chat which names were left', async () => {

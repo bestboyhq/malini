@@ -79,9 +79,10 @@ test('an agent asks for secrets on a card in the chat, the user saves one, and o
 		);
 
 		await sendPrompt(page, 'MALINI_TOOL');
-		const card = page.getByRole('region', { name: 'The agent asks for 2 secrets' });
+		const card = page.getByRole('region', {
+			name: 'To create test customers in your Stripe sandbox.',
+		});
 		await expect(card).toBeVisible({ timeout: 20_000 });
-		await expect(card).toContainText('To create test customers in your Stripe sandbox.');
 		const save = card.getByRole('button', { name: 'Save', exact: true });
 		await expect(save).toBeDisabled();
 		await expect(card.getByLabel('Value for STRIPE_KEY')).toBeFocused();

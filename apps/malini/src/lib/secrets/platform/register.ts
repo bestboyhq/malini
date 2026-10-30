@@ -38,7 +38,7 @@ type SecretsContext = Pick<MainContext, 'db' | 'events'>;
 type Input = Readonly<Record<string, unknown>>;
 
 const NAMES_PER_REQUEST = 10;
-const WHY_MAX_LENGTH = 300;
+const WHY_MAX_LENGTH = 120;
 
 export function registerSecrets(context: MainContext, deps: SecretsPlatformDeps): SecretsPlatform {
 	const { db, commands } = context;

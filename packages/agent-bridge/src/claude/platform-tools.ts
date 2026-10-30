@@ -354,9 +354,9 @@ export function platformTools(request: PlatformToolRequester) {
 				why: z
 					.string()
 					.min(1)
-					.max(300)
+					.max(120)
 					.describe(
-						'One sentence the user reads on the card: what you need it for, for example "To create test customers in your Stripe sandbox."',
+						'The title of the card the user reads: what you need them for, in a few words, for example "To sign and notarize the release build"',
 					),
 			},
 			(input) => call('secrets_request', input),

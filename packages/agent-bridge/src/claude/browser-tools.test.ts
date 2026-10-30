@@ -319,7 +319,7 @@ describe('malini MCP server', () => {
 					maxItems: 10,
 					description: expect.any(String),
 				},
-				why: { type: 'string', minLength: 1, maxLength: 300, description: expect.any(String) },
+				why: { type: 'string', minLength: 1, maxLength: 120, description: expect.any(String) },
 			},
 			required: ['names', 'why'],
 		});
