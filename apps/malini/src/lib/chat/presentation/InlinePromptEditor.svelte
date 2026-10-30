@@ -225,7 +225,9 @@
 	}
 
 	function focusEditor(options?: { scrollIntoView?: boolean }): void {
-		editor?.commands.focus(null, { scrollIntoView: options?.scrollIntoView ?? true });
+		if (!editor) return;
+		editor.view.focus();
+		if (options?.scrollIntoView ?? true) editor.commands.scrollIntoView();
 	}
 
 	function focusNow(options?: { atEnd?: boolean }): void {
