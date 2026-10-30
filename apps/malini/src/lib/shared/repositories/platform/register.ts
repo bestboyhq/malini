@@ -6,6 +6,7 @@ import {
 } from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
 import type { MainContext } from '$main/context';
+import type { MaliniDatabase } from '$main/db/driver';
 import { DEVELOPMENT_BUNDLE_IDENTIFIER, PRODUCTION_BUNDLE_IDENTIFIER } from '$main/docker/labels';
 import { DockerOwnership } from '$main/docker/ownership';
 import {
@@ -53,7 +54,7 @@ import { listBaseFiles } from './base-files.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
-import { commitRunConsumed, recordCommitRun } from './commit-runs.repository';
+import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
 import { createLeadSpace } from './lead-space.service';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
@@ -343,11 +344,15 @@ export function registerRepositories(
 
 	commands.define('repositories.commit-workstream', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
+		const requested = requireString(args, 'message');
 		const run = commitRunArg(args);
-		const freshRun = run && !commitRunConsumed(db, workstreamId, run.id) ? run : null;
-		const message =
-			run && !freshRun ? run.messageIfAlreadyCommitted : requireString(args, 'message');
 		const worktree = await checkout(args);
+		const merging = (await readMergeHead(worktree)) !== null;
+		const used =
+			run !== null &&
+			!merging &&
+			(await runLineCommitted(db, worktree, workstreamId, run.id, requested));
+		const message = run && used ? run.messageIfAlreadyCommitted : requested;
 		const commitMessage = message.trim().length === 0 ? 'Agent changes' : message;
 		try {
 			const sha = await commitWorkstreamBranch(
@@ -355,7 +360,9 @@ export function registerRepositories(
 				recordedBranch(workstreamId),
 				commitMessage,
 			);
-			if (freshRun) recordCommitRun(db, workstreamId, freshRun.id, sha);
+			if (run && !used && !(merging && commitRunConsumed(db, workstreamId, run.id))) {
+				recordCommitRun(db, workstreamId, run.id, sha);
+			}
 			await watchers.refresh(workstreamId);
 			return sha;
 		} catch (error) {
@@ -652,6 +659,25 @@ function commitRunArg(args: unknown): CommitWorkstreamRun | null {
 		id: requireNonEmptyString(value, 'id'),
 		messageIfAlreadyCommitted: requireString(value, 'messageIfAlreadyCommitted'),
 	};
+}
+
+async function runLineCommitted(
+	db: MaliniDatabase,
+	worktree: string,
+	workstreamId: string,
+	runId: string,
+	line: string,
+): Promise<boolean> {
+	const sha = commitRunSha(db, workstreamId, runId);
+	if (sha === null) return false;
+	try {
+		const [parents = '', subject = ''] = (
+			await runGit(['-C', worktree, 'log', '-1', '--format=%P%n%s', sha])
+		).split('\n');
+		return parents.trim().includes(' ') || subject.trim() === line.trim();
+	} catch {
+		return true;
+	}
 }
 
 async function readMergeHead(worktree: string): Promise<string | null> {

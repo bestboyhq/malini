@@ -139,7 +139,7 @@ A Then that would loop, such as one job whose Then leads back to itself, is refu
 A Then runs through the queue like any other job, so the job that finished never waits for it.
 
 A job whose turn ends while only background commands run, such as a dev server, counts as done at once.
-When its agent goes on once one of those commands ends, the job runs again and counts as done at its next end, with that end's result, and Malini commits what it did after the wait too.
+When its agent goes on once one of those commands ends, the job runs again and counts as done at its next end, with that end's result, and Malini commits what it did after the wait under that end's `Commit:` line.
 Its Then starts once per run: at once when the job ended with its report, or else once the job ends for good, with that last result, since an agent that has not reported yet may go on.
 A Then held that way is cancelled when the job goes on and fails.
 
@@ -168,6 +168,7 @@ A **chain** is everything that traces back to one thing you did, such as a promp
 
 Running a job is fire and forget.
 Every way of starting a job only asks Malini's job runner, which starts it when a slot is free, the workstream has no other job, and its agent is idle.
+When it ends, Malini commits what it changed under the `Commit:` line its agent wrote, the way it commits a chat's turn; that line never titles the pull request.
 A workstream an agent just started counts as busy until the turn of its first prompt ends, so a job run there right away waits for that turn.
 
 - Type **/** in the composer to run a job from a chat.

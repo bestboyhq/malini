@@ -16,6 +16,21 @@ export function commitRunConsumed(
 	);
 }
 
+export function commitRunSha(
+	db: MaliniDatabase,
+	workstreamId: string,
+	runId: string,
+): string | null {
+	return (
+		get<{ commit_sha: string }>(
+			db,
+			'SELECT commit_sha FROM workstream_commit_runs WHERE workstream_id = ? AND run_id = ?',
+			workstreamId,
+			runId,
+		)?.commit_sha ?? null
+	);
+}
+
 export function recordCommitRun(
 	db: MaliniDatabase,
 	workstreamId: string,
@@ -26,7 +41,8 @@ export function recordCommitRun(
 		db,
 		`INSERT INTO workstream_commit_runs (workstream_id, run_id, commit_sha, committed_at)
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(workstream_id, run_id) DO NOTHING`,
+		 ON CONFLICT(workstream_id, run_id) DO UPDATE
+		 SET commit_sha = excluded.commit_sha, committed_at = excluded.committed_at`,
 		workstreamId,
 		runId,
 		commitSha,

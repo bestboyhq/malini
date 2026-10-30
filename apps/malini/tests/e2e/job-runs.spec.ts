@@ -100,7 +100,7 @@ test('a job whose Then is Open draft asks the runner for it once the job succeed
 	}
 });
 
-test('a job whose agent goes on after its background command runs again, holds its Then until it ends, and both edits are committed', async () => {
+test('a job whose agent goes on after its background command runs again, holds its Then until it ends, and its edits commit under its own Commit line', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -137,6 +137,9 @@ test('a job whose agent goes on after its background command runs again, holds i
 			})
 			.toEqual(expect.arrayContaining(['flaky.txt', 'then.txt']));
 		expect(git(['status', '--porcelain'])).toBe('');
+		expect(git(['log', '--format=%s', 'main..HEAD']).trim().split('\n')).toContain(
+			'test: fix the flaky test',
+		);
 		await captureFlow(app, 'job-background-went-on');
 		expectCleanConsole(app);
 	} finally {

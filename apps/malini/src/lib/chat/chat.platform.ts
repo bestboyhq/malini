@@ -1,4 +1,5 @@
 export { resumesTurn } from './domain/background-work';
+export { commitLine } from './domain/run-evidence';
 export { hasTurnReport } from './domain/turn-report';
 export { AgentRunLeases, type Lease } from './platform/agent/lifecycle';
 export {

@@ -1072,6 +1072,47 @@ describe('pushing automatically', () => {
 		expect(github.pulls).toHaveLength(0);
 		expect(ship('ws-1')).toMatchObject({ phase: 'local', step: null });
 	});
+
+	it("commits a job's edits under the Commit: line it wrote, never as the pull request's title", async () => {
+		seedWorkstream('ws-1');
+		insertJobDefinition(db, {
+			id: 'def-notes',
+			name: 'Write notes',
+			instructions: 'Write the notes.',
+			model: 'anthropic/claude-sonnet-4-6',
+			effort: 'medium',
+			runsIn: 'workstream',
+			skills: [],
+			builtin: null,
+			trigger: null,
+			thenJobId: null,
+			createdAt: '2026-10-01T00:00:00Z',
+			updatedAt: '2026-10-01T00:00:00Z',
+		});
+		start();
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
+		await until(() => expect(commits).toHaveLength(1));
+		const job = await context.commands.call('jobs.run', {
+			definitionId: 'def-notes',
+			workstreamId: 'ws-1',
+		});
+
+		finishJob(job.id, 'succeeded', {
+			summary:
+				'Wrote the notes.\n\nOutcome: The notes say how search works\nCommit: docs: explain search',
+			dirtyPaths: ['docs/search.md'],
+		});
+
+		await until(() =>
+			expect(commits.at(-1)).toMatchObject({
+				message: 'docs: explain search',
+				runId: job.agentRunId,
+			}),
+		);
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
+		expect(github.only().title).toBe('Add search to the header');
+	});
 });
 
 describe('before you merge', () => {
@@ -1179,6 +1220,27 @@ describe('shipping a queued merge', () => {
 			merged: { pullRequestNumber: 40, pullRequestUrl: 'https://github.com/acme/app/pull/40' },
 		});
 		expect(await invoke('pull-requests.ship-states')).toEqual([]);
+	});
+
+	it('commits a fix under the Commit: line its Fix checks job wrote', async () => {
+		await queueWithDraft();
+		github.ciOutcomes = ['SUCCESS'];
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
+		const job = activeJob();
+
+		finishJob(job.id, 'succeeded', {
+			summary:
+				'Fixed the header test.\n\nOutcome: The checks pass\nNeeds: nothing\nCommit: fix(search): keep the header query',
+			dirtyPaths: ['src/search.ts'],
+		});
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(commits.at(-1)).toMatchObject({
+			message: 'fix(search): keep the header query',
+			runId: job.agentRunId,
+		});
 	});
 
 	it('merges a workstream you chose to keep without archiving it', async () => {
@@ -1460,7 +1522,11 @@ describe('shipping a queued merge', () => {
 		expect(job.definitionId).toBe('def-resolve-conflicts');
 
 		pullConflicts = [];
-		finishJob(job.id, 'succeeded', { resolveConflicts: true });
+		finishJob(job.id, 'succeeded', {
+			resolveConflicts: true,
+			summary:
+				'Kept both changes.\n\nOutcome: The merge is resolved\nCommit: fix: resolve the search conflict',
+		});
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
