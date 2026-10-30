@@ -13,6 +13,6 @@ export function browserTabPanelId(tabId: string): string {
 
 export function browserTabLabel(state: BrowserState | null): string {
 	const title = state?.title.trim() ?? '';
-	if (title) return title;
+	if (title && title !== state?.url) return title;
 	return state?.url ? browserAddressLabel(state.url) : 'New tab';
 }

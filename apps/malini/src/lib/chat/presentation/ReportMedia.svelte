@@ -28,6 +28,7 @@
 	);
 	let video = $state<HTMLVideoElement>();
 	let pageWidth = $state(0);
+	let missingSource = $state<string | null>(null);
 
 	const moving = $derived(playing && !prefersReducedMotion.current);
 
@@ -77,8 +78,28 @@
 			preload="metadata"
 			class={fit}
 		></video>
+	{:else if missingSource === source}
+		<span
+			role={hero ? 'img' : undefined}
+			aria-label={hero ? label : undefined}
+			class={[hero ? 'absolute inset-0' : 'block size-full', 'grid place-items-center']}
+		>
+			{#if hero}
+				<span
+					class="text-fg-tertiary flex max-w-full min-w-0 flex-col items-center gap-1 px-6 text-xs"
+				>
+					Picture not found
+					<span class="text-2xs max-w-full truncate font-mono">{mediaPath(src)}</span>
+				</span>
+			{/if}
+		</span>
 	{:else}
-		<img src={source} alt={hero ? label : ''} class={fit} />
+		<img
+			src={source}
+			alt={hero ? label : ''}
+			class={fit}
+			onerror={() => (missingSource = source)}
+		/>
 		{#if hero && onopen}
 			<Button
 				bare

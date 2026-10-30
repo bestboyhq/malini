@@ -24,12 +24,15 @@ async function seedReport(
 	name: string,
 	report: string,
 	media: readonly string[],
+	pages: Readonly<Record<string, string>> = {},
 ): Promise<Readonly<{ workstreamId: string; worktree: string }>> {
 	const source = await createSourceRepo(root, name);
 	const seeded = await seedWorkstream(page, source, `e2e-${name}`, name);
 	mkdirSync(join(seeded.worktree, '.context'), { recursive: true });
 	for (const file of media)
 		copyFileSync(join(MEDIA, file), join(seeded.worktree, '.context', file));
+	for (const [file, html] of Object.entries(pages))
+		writeFileSync(join(seeded.worktree, '.context', file), html);
 	writeFileSync(join(seeded.worktree, 'report.md'), report);
 	await openWorkstream(page, seeded.workstreamId);
 	await sendPrompt(page, 'Show me REPLY_FILE:report.md');
@@ -383,6 +386,75 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 	}
 });
 
+test('the browser puts a variants strip under a page the report offers and flips between the variants', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const badge = (title: string) => `<!doctype html><title>${title}</title><h1>${title}</h1>`;
+		await seedReport(
+			page,
+			app.root,
+			'report-variant-pages',
+			[
+				'![Variant A: Line - a quiet outline](.context/badge-a.html)',
+				'![Variant B: Hairline - thinner still](.context/badge-b.html)',
+				'![Variant C: Ticks - warming up](.context/badge-c.html)',
+				'',
+				'Outcome: Three badge directions.',
+				'Needs: Pick a badge',
+			].join('\n'),
+			[],
+			{
+				'badge-a.html': badge('Badge A'),
+				'badge-b.html': badge('Badge B'),
+				'badge-c.html': badge('Badge C'),
+				'notes.html': badge('Notes'),
+			},
+		);
+		const offer = page.getByRole('article', { name: 'Turn result' });
+		await expect(offer.getByRole('tablist', { name: 'Report media' }).getByRole('tab')).toHaveCount(
+			3,
+			{ timeout: 30_000 },
+		);
+
+		await page.getByRole('button', { name: 'Open inspector panel' }).click();
+		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		const address = page.getByRole('textbox', { name: 'Page address' }).last();
+		await address.fill('./.context/badge-b.html?v=2');
+		await address.press('Enter');
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		const variants = inspector.getByRole('navigation', { name: 'Variants' });
+		const shows = (title: string) =>
+			expect(inspector.getByRole('tab', { name: title, exact: true })).toBeVisible();
+		await shows('Badge B');
+		await expect(variants.getByRole('button', { name: 'Variant B · Hairline' })).toHaveAttribute(
+			'aria-current',
+			'page',
+		);
+
+		await variants.getByRole('button', { name: 'Variant C · Ticks' }).click();
+		await shows('Badge C');
+		await expect(variants.getByRole('button', { name: 'Variant C · Ticks' })).toHaveAttribute(
+			'aria-current',
+			'page',
+		);
+		await variants.getByRole('button', { name: 'Next variant' }).click();
+		await shows('Badge A');
+		await page.keyboard.press('ArrowLeft');
+		await shows('Badge C');
+		await captureFlow(app, 'browser-variant-strip');
+
+		await address.fill('./.context/notes.html');
+		await address.press('Enter');
+		await shows('Notes');
+		await expect(variants).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a recording keeps its place and keeps playing or paused when its file changes', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -479,6 +551,35 @@ test('a report puts every picture in one frame, and a lone prototype there shows
 		await untilStill(page);
 		await captureFlow(app, 'report-lone-page');
 		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a report picture that is gone from the worktree says so instead of showing a broken image', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-gone-picture',
+			[
+				'![Milestone badge above the peeking card](.context/badge-crop.png)',
+				'',
+				'Outcome: The badge is rebuilt.',
+				'Needs: nothing',
+			].join('\n'),
+			[],
+		);
+		const picture = page
+			.getByRole('article', { name: 'Turn result' })
+			.getByRole('img', { name: 'Milestone badge above the peeking card' });
+		await expect(picture).toContainText('Picture not found', { timeout: 30_000 });
+		await expect(picture).toContainText('.context/badge-crop.png');
+		expect(app.pageErrors).toEqual([]);
+		expect(app.consoleErrors.filter((error) => !error.includes('status of 404'))).toEqual([]);
 	} finally {
 		await app.close();
 	}

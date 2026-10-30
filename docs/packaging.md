@@ -15,7 +15,7 @@ The repository extension is imported as a module and rides inside the renderer b
 The bridge is the one thing electron-vite cannot bundle: it runs as a child process on Electron's own binary with `ELECTRON_RUN_AS_NODE=1`, so `selectBridgeScriptPath` (in `src/lib/chat/platform/agent/service.ts`) reads it from `resourcesPath/agent-bridge/cli.js` at run time.
 `pnpm dist` builds the bridge first, and `extraResources` copies `packages/agent-bridge/dist` there with the bridge's `package.json` beside it.
 
-The bridge's one runtime dependency, the Claude Agent SDK, is resolved out of pnpm's symlink farm into `dist/node_modules` by `scripts/copy-runtime-dependencies.mjs`.
+The bridge's runtime dependencies, the Claude Agent SDK and `zod`, are resolved out of pnpm's symlink farm into `dist/node_modules` by `scripts/copy-runtime-dependencies.mjs`.
 electron-builder drops a `node_modules` folder at the root of an `extraResources` source, so `dist/node_modules` is copied by its own entry.
 The SDK's platform binaries are overridden away in `pnpm-workspace.yaml`, because the bridge always runs the user's own `claude`.
 
