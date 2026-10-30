@@ -98,13 +98,13 @@ function requestSecrets(
 
 function saveSecrets({ db, events }: SecretsContext, keychain: Keychain, input: Input): void {
 	const values = secretValues(input['values']);
-	const repository = repositoryName(input['repository']);
 	const requestId = optionalText(input, 'requestId');
 	const request = requestId === null ? null : getSecretRequest(db, requestId);
 	if (requestId !== null && !request?.open) {
 		throw new Error('That request is no longer waiting for secrets.');
 	}
-	if (request) refuseOutside(request, values, repository);
+	if (request) refuseUnasked(request, values);
+	const repository = request ? request.repository : repositoryName(input['repository']);
 	keychain.save(repository, values);
 	if (request) settleSecretRequest(db, request.id, 'saved', nowIso8601());
 	events.emit(SECRETS_SAVED_CHANNEL, {
@@ -148,16 +148,12 @@ function shown(keychain: Keychain, request: SecretRequestRecord): SecretRequest 
 	};
 }
 
-function refuseOutside(
+function refuseUnasked(
 	request: SecretRequestRecord,
 	values: Readonly<Record<string, string>>,
-	repository: string | null,
 ): void {
-	const outside = Object.keys(values).find((name) => !request.names.includes(name));
-	if (outside !== undefined) throw new Error(`${outside} is not a name this chat asked for.`);
-	if (repository !== null && repository.toLowerCase() !== request.repository?.toLowerCase()) {
-		throw new Error('A chat saves secrets for its own repository or for everywhere.');
-	}
+	const unasked = Object.keys(values).find((name) => !request.names.includes(name));
+	if (unasked !== undefined) throw new Error(`${unasked} is not a name this chat asked for.`);
 }
 
 function askedNames(value: unknown): string[] {

@@ -53,10 +53,12 @@ It never sees the value, and you never deal with a file or a path.
 | ----------------- | --------------------------------------------------------------------------------------------------- |
 | `secrets_request` | Asks you for secrets by name, on a card in the chat, and says why. It returns to the agent at once. |
 
-- The card shows a password field for each name, over the composer.
-  Paste a value, pick whether it is for this repository or for **Every repository**, and **Save**.
+- The card shows a password field for each name, over the composer, and takes the focus unless you are typing.
+  Paste a value and **Save**.
+  Paste `NAME=value` lines, from a `.env` file for example, anywhere in the chat, and they fill every field they name instead of landing in the composer.
   A value of several lines, such as a private key, keeps its line breaks.
-- Malini seals the value with your Mac's keychain, and from then on `$NAME` is set in every command the agent runs: in every chat of that repository, or everywhere, including workstreams you start later and after you archive this one.
+- Malini seals the value with your Mac's keychain, for the chat's repository, or for every repository when the chat is at Home or in an organization.
+  From then on `$NAME` is set in every command the agent runs there, including workstreams you start later and after you archive this one.
 - Malini tells the agent what you saved, and which names you left empty, which wakes it when it waits.
 - Every output the agent sees, a failing or background command's included, shows the value as `[secret]`, and so does the transcript.
   A value shorter than eight characters is set but not masked.

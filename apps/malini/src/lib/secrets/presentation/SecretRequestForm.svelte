@@ -1,9 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
-	import { Checkbox } from '$hyper-ui/components/checkbox';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -12,7 +12,9 @@
 	import { dismissSecretRequestCommand } from '$lib/secrets/application/commands/dismiss-secret-request.command';
 	import { saveRequestedSecretsCommand } from '$lib/secrets/application/commands/save-requested-secrets.command';
 	import { secretSaveQuery } from '$lib/secrets/application/queries/secret-save.query.svelte';
+	import { pastedSecrets } from '$lib/secrets/domain/secret-paste';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
+	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 
 	interface Props {
 		request: SecretRequest;
@@ -23,7 +25,8 @@
 	const VARIABLES = new Intl.ListFormat('en', { type: 'conjunction' });
 
 	let values = $state<Record<string, string>>({});
-	let everywhere = $state(false);
+	let section = $state<HTMLElement | null>(null);
+	let saveButton = $state<HTMLButtonElement | null>(null);
 	const save = $derived(secretSaveQuery.data(request.id));
 	const saving = $derived(save?.status === 'saving');
 	const filled = $derived(
@@ -34,9 +37,6 @@
 			}),
 		),
 	);
-	const scope = $derived(
-		request.repository === null || everywhere ? 'every repository' : request.repository,
-	);
 	const variables = $derived(VARIABLES.format(request.names.map((name) => `$${name}`)));
 	const motion = $derived(prefersReducedMotion.current ? 0 : 1);
 	const headingId = $props.id();
@@ -44,7 +44,53 @@
 	function onSubmit(event: SubmitEvent): void {
 		event.preventDefault();
 		if (saving || Object.keys(filled).length === 0) return;
-		saveRequestedSecretsCommand(request, filled, everywhere || request.repository === null);
+		saveRequestedSecretsCommand(request, filled);
+	}
+
+	onMount(() => {
+		if (mayTakeFocus()) section?.querySelector('input')?.focus({ preventScroll: true });
+	});
+
+	function mayTakeFocus(): boolean {
+		if (overlayIsOpen()) return false;
+		const active = document.activeElement;
+		if (focusIsUnclaimed() || !(active instanceof HTMLElement)) return true;
+		if (active.closest('[role="dialog"]')) return false;
+		const typed =
+			active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+				? active.value
+				: active.textContent;
+		return (typed ?? '').trim().length === 0;
+	}
+
+	function onWindowPaste(event: ClipboardEvent): void {
+		if (saving || event.defaultPrevented || overlayIsOpen()) return;
+		const text = event.clipboardData?.getData('text/plain').trim() ?? '';
+		if (text.length === 0) return;
+		const target = event.target instanceof Element ? event.target : null;
+		const pairs = pastedSecrets(text, request.names);
+		if (Object.keys(pairs).length > 0) {
+			if (!target?.closest('[role="dialog"]')) fill(event, pairs);
+			return;
+		}
+		const name = fieldOf(target) ?? (focusIsUnclaimed() ? firstEmpty() : undefined);
+		if (name !== undefined) fill(event, { [name]: text });
+	}
+
+	function fieldOf(target: Element | null): string | undefined {
+		if (!target || !section?.contains(target)) return undefined;
+		return target.closest('[data-secret-name]')?.getAttribute('data-secret-name') ?? undefined;
+	}
+
+	function firstEmpty(): string | undefined {
+		return request.names.find((name) => !values[name]?.trim());
+	}
+
+	function fill(event: ClipboardEvent, pasted: Readonly<Record<string, string>>): void {
+		event.preventDefault();
+		event.stopPropagation();
+		values = { ...values, ...pasted };
+		if (firstEmpty() === undefined) saveButton?.focus();
 	}
 
 	function onType(name: string, event: Event): void {
@@ -52,19 +98,15 @@
 		if (input instanceof HTMLInputElement) values[name] = input.value;
 	}
 
-	function onPaste(name: string, event: ClipboardEvent): void {
-		const text = event.clipboardData?.getData('text/plain').trim() ?? '';
-		if (!/[\r\n]/u.test(text)) return;
-		event.preventDefault();
-		values[name] = text;
-	}
-
 	function pastedLines(value: string | undefined): number {
 		return value?.includes('\n') ? value.split(/\r?\n/u).length : 0;
 	}
 </script>
 
+<svelte:window onpastecapture={onWindowPaste} />
+
 <section
+	bind:this={section}
 	class="chat-column relative z-20 px-4 pb-2"
 	aria-labelledby={headingId}
 	data-testid="secret-request"
@@ -120,17 +162,16 @@
 								</Button>
 							</div>
 						{:else}
-							<div class="contents" onpastecapture={(event) => onPaste(name, event)}>
-								<TextInput
-									type="password"
-									autocomplete="off"
-									ariaLabel={`Value for ${name}`}
-									placeholder="Paste the value"
-									value={values[name] ?? ''}
-									disabled={saving}
-									oninput={(event) => onType(name, event)}
-								/>
-							</div>
+							<TextInput
+								type="password"
+								autocomplete="off"
+								ariaLabel={`Value for ${name}`}
+								placeholder="Paste the value"
+								value={values[name] ?? ''}
+								disabled={saving}
+								data-secret-name={name}
+								oninput={(event) => onType(name, event)}
+							/>
 						{/if}
 					</div>
 				{/each}
@@ -148,18 +189,16 @@
 			</div>
 
 			{#snippet footer()}
-				{#if request.repository !== null}
-					<Checkbox label="Every repository" bind:checked={everywhere} disabled={saving} />
-				{/if}
 				<Button
+					bind:element={saveButton}
 					type="submit"
 					variant="primary"
 					size="md"
-					class="ml-auto max-w-64 text-xs"
+					class="ml-auto text-xs"
 					disabled={Object.keys(filled).length === 0}
 					loading={saving}
 				>
-					<span class="truncate">Save for {scope}</span>
+					Save
 				</Button>
 			{/snippet}
 		</ComposerShell>

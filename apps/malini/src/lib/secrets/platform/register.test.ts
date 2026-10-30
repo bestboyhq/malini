@@ -120,7 +120,6 @@ describe('secrets', () => {
 
 		await context.commands.call('secrets.save', {
 			requestId: String(request['id']),
-			repository: 'acme/shop',
 			values: { STRIPE_KEY: 'sk-live-1' },
 		});
 
@@ -140,38 +139,44 @@ describe('secrets', () => {
 		await expect(
 			context.commands.call('secrets.save', {
 				requestId: String(request['id']),
-				repository: null,
 				values: { SENDGRID_KEY: 'sg-1' },
 			}),
 		).rejects.toThrow('That request is no longer waiting');
 	});
 
-	it('keeps a card to the names it asked for and to its own repository or everywhere', async () => {
-		const request = ask(['STRIPE_KEY']);
-		const requestId = String(request['id']);
+	it('keeps a card to the names it asked for', async () => {
+		const requestId = String(ask(['STRIPE_KEY'])['id']);
 
 		await expect(
-			context.commands.call('secrets.save', {
-				requestId,
-				repository: 'acme/shop',
-				values: { GITHUB_TOKEN: 'ghp-1' },
-			}),
+			context.commands.call('secrets.save', { requestId, values: { GITHUB_TOKEN: 'ghp-1' } }),
 		).rejects.toThrow('GITHUB_TOKEN is not a name this chat asked for');
 		await expect(
-			context.commands.call('secrets.save', {
-				requestId,
-				repository: 'acme/blog',
-				values: { STRIPE_KEY: 'sk-1' },
-			}),
-		).rejects.toThrow('its own repository or for everywhere');
-		await expect(
-			context.commands.call('secrets.save', {
-				requestId,
-				repository: null,
-				values: { STRIPE_KEY: '  ' },
-			}),
+			context.commands.call('secrets.save', { requestId, values: { STRIPE_KEY: '  ' } }),
 		).rejects.toThrow('Paste a value for STRIPE_KEY');
 		expect(secrets.valuesReaching('acme/shop')).toEqual({});
+	});
+
+	it("saves a card for its chat's repository, and for every repository from a chat without one", async () => {
+		await context.commands.call('secrets.save', {
+			requestId: String(ask(['STRIPE_KEY'])['id']),
+			values: { STRIPE_KEY: 'sk-shop-1' },
+		});
+		const lead = secrets.request({
+			sessionId: 'chat-1',
+			repository: null,
+			names: ['GITHUB_TOKEN'],
+			why: 'To open the pull request.',
+		});
+		await context.commands.call('secrets.save', {
+			requestId: String(lead['id']),
+			values: { GITHUB_TOKEN: 'ghp-1' },
+		});
+
+		expect(secrets.valuesReaching('acme/shop')).toEqual({
+			STRIPE_KEY: 'sk-shop-1',
+			GITHUB_TOKEN: 'ghp-1',
+		});
+		expect(secrets.valuesReaching('acme/blog')).toEqual({ GITHUB_TOKEN: 'ghp-1' });
 	});
 
 	it('dismisses a card, and deletes a saved secret by name and scope', async () => {

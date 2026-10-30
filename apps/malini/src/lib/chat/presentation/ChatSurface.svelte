@@ -64,6 +64,7 @@
 	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
 	import { WorkstreamJobRuns } from '$lib/jobs/jobs.api';
 	import { SecretRequestCard } from '$lib/secrets/secrets.api';
+	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
 	import {
@@ -386,13 +387,6 @@
 		return document.hasFocus() && focusIsUnclaimed();
 	}
 
-	function focusIsUnclaimed(): boolean {
-		const active = document.activeElement;
-		if (!(active instanceof HTMLElement)) return true;
-		if (active.closest('[role="dialog"]')) return false;
-		return !active.matches('input, textarea, select, [contenteditable], [role="textbox"]');
-	}
-
 	function onWindowKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || event.metaKey || event.ctrlKey || !/^\S$/u.test(event.key)) {
 			return;
@@ -405,8 +399,7 @@
 	}
 
 	function composerMayClaimInput(): boolean {
-		if (composerHidden || documentActive || !focusIsUnclaimed()) return false;
-		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
+		return !composerHidden && !documentActive && focusIsUnclaimed() && !overlayIsOpen();
 	}
 
 	function onOpenChangedFile(file: AgentSessionChangedFile): void {

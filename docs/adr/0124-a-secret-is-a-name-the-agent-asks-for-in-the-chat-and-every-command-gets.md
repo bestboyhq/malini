@@ -19,9 +19,12 @@ Masking in a PostToolUse hook misses every command that exits non-zero: Claude C
 - **Keychain adapter.** `src/lib/secrets/platform/keychain.ts` seals each value with Electron's `safeStorage`, whose key lives in the macOS keychain item `malini Safe Storage`, and keeps it in `secrets` (migration 82).
   No command returns a value: the renderer sends values in and gets back names, scopes and when each was saved.
 - **Asking.** Bridge protocol 44 adds the pre-approved platform tool `secrets_request`, with one to ten `names` and a `why`.
-  It returns at once, like `decisions_ask` (0112): Malini keeps the request in `secret_requests`, emits `secrets:requested`, and shows a card over the composer of that chat with a password field for each name, the scope, **Save** and **Dismiss**.
+  It returns at once, like `decisions_ask` (0112): Malini keeps the request in `secret_requests`, emits `secrets:requested`, and shows a card over the composer of that chat with a password field for each name, **Save** and **Dismiss**.
   A second request in the same chat takes over an open one and keeps its names.
-- **Saving** seals every filled name under the chosen scope and emits `secrets:saved` with the names, never the values.
+- The card offers no scope: where a secret sits is Malini's call, not the user's.
+  A request is saved for its chat's repository, or for everywhere from a chat at Home or in an organization, so `secrets.save` with a `requestId` takes no `repository`.
+- Pasting `NAME=value` lines anywhere in the chat outside a dialog fills every field they name, and a bare value fills the first empty field while no input has the focus, so a secret pasted out of habit lands on the card instead of in the composer.
+- **Saving** seals every filled name under the request's scope and emits `secrets:saved` with the names, never the values.
   The chat platform sets the values in every running session they reach, and the Deliveries rule hears the event and delivers "Saved NAME ..." to the chat that asked (0109), which wakes it when it waits.
 - **Using.** `send_prompt` carries the secrets that reach its session, and `set_secrets` replaces them in a running one.
   The bridge keeps them in a `0600` file in a `0700` folder under the system's temporary folder, and starts Claude Code with `CLAUDE_CODE_SHELL_PREFIX` set to that folder's `run` script and `CLAUDE_CODE_SHELL` to the shell Claude Code would pick anyway.

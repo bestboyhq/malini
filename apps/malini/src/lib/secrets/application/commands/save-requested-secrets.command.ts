@@ -8,17 +8,12 @@ export { saveRequestedSecretsCommand };
 function saveRequestedSecretsCommand(
 	request: SecretRequest,
 	values: Readonly<Record<string, string>>,
-	everywhere: boolean,
 ): void {
 	if (secretSavesStore.saves.get(request.id)?.status === 'saving') return;
 	secretSavesStore.set(request.id, { status: 'saving' });
 	void (async () => {
 		try {
-			await secretsService.save({
-				requestId: request.id,
-				repository: everywhere ? null : request.repository,
-				values,
-			});
+			await secretsService.save({ requestId: request.id, values });
 			secretSavesStore.clear(request.id);
 			secretRequestsAggregate.close(request.sessionId, request.id);
 		} catch (error) {

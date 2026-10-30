@@ -16,11 +16,12 @@ export type SavedSecret = Readonly<{
 
 export type ListSecretRequestsArgs = Readonly<{ sessionId: string }>;
 
-export type SaveSecretsArgs = Readonly<{
-	values: Readonly<Record<string, string>>;
-	repository: string | null;
-	requestId?: string;
-}>;
+export type SaveSecretsArgs = Readonly<
+	{ values: Readonly<Record<string, string>> } & (
+		| { requestId: string }
+		| { repository: string | null }
+	)
+>;
 
 export type DismissSecretRequestArgs = Readonly<{ requestId: string }>;
 

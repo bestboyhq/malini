@@ -39,6 +39,16 @@ function filesHolding(folder: string, text: string): string[] {
 	});
 }
 
+async function pasteInto(page: Page, selector: string, text: string): Promise<void> {
+	await page.evaluate(`(() => {
+		const data = new DataTransfer();
+		data.setData('text/plain', ${JSON.stringify(text)});
+		document
+			.querySelector(${JSON.stringify(selector)})
+			.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+	})()`);
+}
+
 async function openSecretsSettings(page: Page): Promise<void> {
 	await page.evaluate(() => {
 		location.hash = '#/settings/secrets';
@@ -72,9 +82,17 @@ test('an agent asks for secrets on a card in the chat, the user saves one, and o
 		const card = page.getByRole('region', { name: 'The agent asks for 2 secrets' });
 		await expect(card).toBeVisible({ timeout: 20_000 });
 		await expect(card).toContainText('To create test customers in your Stripe sandbox.');
-		const save = card.getByRole('button', { name: /^Save for / });
+		const save = card.getByRole('button', { name: 'Save', exact: true });
 		await expect(save).toBeDisabled();
-		await card.getByLabel('Value for STRIPE_KEY').fill(STRIPE);
+		await expect(card.getByLabel('Value for STRIPE_KEY')).toBeFocused();
+		await pasteInto(
+			page,
+			'[data-testid="chat-composer-input"]',
+			`# shop\nexport STRIPE_KEY="${STRIPE}"\nGITHUB_TOKEN=ghp-not-asked\n`,
+		);
+		await expect(card.getByLabel('Value for STRIPE_KEY')).toHaveValue(STRIPE);
+		await expect(card.getByLabel('Value for SENDGRID_KEY')).toHaveValue('');
+		await expect(page.getByTestId('chat-composer-input')).not.toContainText('STRIPE_KEY');
 		await expect(card.getByLabel('Value for STRIPE_KEY')).toHaveAttribute('type', 'password');
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'secrets-1-card');

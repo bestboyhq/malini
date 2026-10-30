@@ -342,7 +342,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'secrets_request',
-			'Ask the user for secrets by name, such as an API key a command needs. Malini shows a field for each name on a card in this chat, where the user pastes the value and picks whether it is for this repository or everywhere; you never see it. It returns at once: carry on with what does not need them, ask for every name you need in one call, and when nothing else is left, end your turn with the names in `Needs:`. Once the user saves them, Malini tells you in a message, and `$NAME` is set in every command you run from then on, with its value masked as [secret] in every output. Returns the request as JSON.',
+			'Ask the user for secrets by name, such as an API key a command needs. Malini shows a field for each name on a card in this chat, where the user pastes the value, which Malini keeps for this repository, or for every repository when this chat has none; you never see it. It returns at once: carry on with what does not need them, ask for every name you need in one call, and when nothing else is left, end your turn with the names in `Needs:`. Once the user saves them, Malini tells you in a message, and `$NAME` is set in every command you run from then on, with its value masked as [secret] in every output. Returns the request as JSON.',
 			{
 				names: z
 					.array(z.string().max(100).regex(SECRET_NAME))
