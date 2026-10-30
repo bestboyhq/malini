@@ -514,6 +514,90 @@ describe('pull request commands', () => {
 		expect(await checksFor('0'.repeat(40))).toBe('none');
 	});
 
+	it('holds checks while a suite from an app that reports on the base has posted no run', async () => {
+		seedRepository();
+		const workersBuilds = 85455;
+		const neverReports = 29110;
+		const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+		const suite = (
+			app: number,
+			status: string,
+			runs: number,
+			created: number,
+			updated = created,
+		) => ({
+			app: { id: app },
+			status,
+			latest_check_runs_count: runs,
+			created_at: ago(created),
+			updated_at: ago(updated),
+		});
+		const actionsPassed = { name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' };
+		let rollup: unknown[] = [];
+		let suites: unknown[] = [];
+		const { run, calls } = fakeRunner((args) => {
+			if (args[0] === 'pr') {
+				const view = {
+					number: 9,
+					state: 'OPEN',
+					headRefOid: 'a'.repeat(40),
+					baseRefName: 'main',
+					statusCheckRollup: rollup,
+				};
+				return ok(JSON.stringify(args[1] === 'list' ? [view] : view));
+			}
+			if (
+				args[1] === `repos/bestboyhq/malini/commits/${'a'.repeat(40)}/check-suites?per_page=100`
+			) {
+				return ok(JSON.stringify({ total_count: suites.length, check_suites: suites }));
+			}
+			if (args[1] === 'graphql' && args.includes('base=main')) {
+				const reported = (app: number, runs: number) => ({
+					app: { databaseId: app },
+					checkRuns: { totalCount: runs },
+				});
+				const history = [
+					{ checkSuites: { nodes: [reported(neverReports, 0)] } },
+					{ checkSuites: { nodes: [reported(workersBuilds, 1), reported(neverReports, 0)] } },
+				];
+				return ok(
+					JSON.stringify({ data: { repository: { object: { history: { nodes: history } } } } }),
+				);
+			}
+			return ok('');
+		});
+		registerPullRequests(context, { runner: run });
+		const checksWith = async (nextRollup: unknown[], nextSuites: unknown[]) => {
+			rollup = nextRollup;
+			suites = nextSuites;
+			const status = await invoke<{ checksState: string }>('pull-requests.status', {
+				repoId: 'repo-1',
+				head: 'malini/ws-1',
+			});
+			return status.checksState;
+		};
+		const failed = { ...actionsPassed, conclusion: 'FAILURE' };
+
+		expect(await checksWith([], [suite(workersBuilds, 'queued', 0, 9_000)])).toBe('pending');
+		expect(await checksWith([actionsPassed], [suite(workersBuilds, 'queued', 0, 9_000)])).toBe(
+			'pending',
+		);
+		expect(
+			await checksWith([actionsPassed], [suite(workersBuilds, 'completed', 1, 90_000, 5_000)]),
+		).toBe('pending');
+		expect(await checksWith([failed], [suite(workersBuilds, 'queued', 0, 9_000)])).toBe('failed');
+		expect(await checksWith([actionsPassed], [suite(neverReports, 'queued', 0, 9_000)])).toBe(
+			'success',
+		);
+		expect(
+			await checksWith([actionsPassed], [suite(workersBuilds, 'queued', 0, 21 * 60_000)]),
+		).toBe('success');
+		expect(
+			await checksWith([actionsPassed], [suite(workersBuilds, 'completed', 1, 90_000, 60_000)]),
+		).toBe('success');
+		expect(calls.filter(({ args }) => args.includes('base=main'))).toHaveLength(1);
+	});
+
 	it('reads local git state from the workstream checkout, not the connected clone', async () => {
 		seedRepository();
 		const worktree = workstreamPath(context.appDataRoot, 'ws-1');

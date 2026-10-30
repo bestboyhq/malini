@@ -21,7 +21,7 @@ import {
 	resolveRepositoryCheckout,
 	type ConnectedRepository,
 } from '$shared/repositories/repositories.platform';
-import { scaledShipDelays } from '../domain/shipping';
+import { blockingFailedChecks, scaledShipDelays } from '../domain/shipping';
 import { addressedReviewThreadIds } from '../domain/pull-request-fix-prompt';
 import {
 	optionalBoolean,
@@ -33,6 +33,7 @@ import {
 	requireStrings,
 } from './args';
 import {
+	checkSuitesStillToReport,
 	fetchCheckDiagnostics,
 	fetchReviewFeedback,
 	firstLine,
@@ -400,9 +401,7 @@ async function openPullRequestStatus(
 	const [threads, merging, checksExpected, lagging, behindBase, checks] = await Promise.all([
 		unresolvedReviewThreadCount(run, checkout, repository, status.number),
 		repositoryMergeSettings(run, checkout),
-		status.checksState === 'none' && status.headSha
-			? checksAreStarting(local, status.headSha)
-			: false,
+		checksStillToReport(run, checkout, local, repository, status),
 		status.headSha ? pullRequestLagsPush(local, status.headRef, status.headSha) : false,
 		status.headSha && status.baseRef
 			? fetchBehindBase(run, checkout, repository, status.baseRef, status.headSha)
@@ -412,7 +411,9 @@ async function openPullRequestStatus(
 	const read: PullRequestStatusDto = {
 		...status,
 		checks,
-		...(checksExpected ? { checksState: 'pending' as const } : {}),
+		...(checksExpected && blockingFailedChecks({ ...status, checks }).length === 0
+			? { checksState: 'pending' as const }
+			: {}),
 		unresolvedReviewThreadCount: threads,
 		...(merging ?? {}),
 		behindBase,
@@ -550,6 +551,18 @@ async function includesLocalHead(
 	} catch {
 		return null;
 	}
+}
+
+async function checksStillToReport(
+	run: GhRunner,
+	checkout: string,
+	local: string,
+	repository: ConnectedRepository,
+	{ headSha, baseRef, checksState }: PullRequestStatusDto,
+): Promise<boolean> {
+	if (!headSha || checksState === 'pending') return false;
+	if (checksState === 'none' && (await checksAreStarting(local, headSha))) return true;
+	return checkSuitesStillToReport(run, checkout, repository, headSha, baseRef);
 }
 
 export const CHECKS_START_GRACE_MS = 5 * 60_000;
