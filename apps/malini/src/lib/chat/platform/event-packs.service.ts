@@ -5,7 +5,9 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { describeError } from '$main/errors';
 import {
 	archivedSessionsToPack,
+	countPackedToolCalls,
 	liveSessionsToUnpack,
+	packsWithUncountedToolCalls,
 	packSessionEvents,
 	unpackSessionEvents,
 } from './event-packs.repository';
@@ -41,6 +43,13 @@ export function packArchivedChats({
 			again = false;
 			await nextTurn();
 			unpackRestoredChats(db);
+			for (const sessionId of packsWithUncountedToolCalls(db)) {
+				if (stopped) return;
+				attempt(`count the tool calls of packed chat \`${sessionId}\``, () =>
+					countPackedToolCalls(db, sessionId),
+				);
+				await nextTurn();
+			}
 			for (const sessionId of archivedSessionsToPack(db)) {
 				if (stopped) return;
 				attempt(`pack archived chat \`${sessionId}\``, () => packSessionEvents(db, sessionId));

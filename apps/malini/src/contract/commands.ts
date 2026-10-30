@@ -82,8 +82,15 @@ import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
+	PickRepositoriesArgs,
+	SharePartArgs,
+	ProfileState,
+	PublicRepository,
+	PublishStatsArgs,
+	PublishStatsResult,
 	ResourceHistory,
 	ResourceKindBreakdown,
+	ShareCard,
 	StopRunningArgs,
 	WorkstreamRunning,
 } from './stats';
@@ -703,6 +710,16 @@ export interface ContractCommands {
 	'stats.resource-breakdown': { args: undefined; result: readonly ResourceKindBreakdown[] };
 	'stats.workstream-running': { args: undefined; result: readonly WorkstreamRunning[] };
 	'stats.stop-running': { args: StopRunningArgs; result: void };
+	'stats.share-card': { args: undefined; result: ShareCard };
+	'stats.profile': { args: undefined; result: ProfileState };
+	'stats.sign-in': { args: undefined; result: ProfileState };
+	'stats.cancel-sign-in': { args: undefined; result: ProfileState };
+	'stats.publish': { args: PublishStatsArgs; result: PublishStatsResult };
+	'stats.unpublish': { args: undefined; result: ProfileState };
+	'stats.sign-out': { args: undefined; result: ProfileState };
+	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
+	'stats.share-part': { args: SharePartArgs; result: ProfileState };
+	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
 	'sounds.add': { args: AddSoundArgs; result: CustomSound };
@@ -919,6 +936,16 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.resource-breakdown',
 	'stats.workstream-running',
 	'stats.stop-running',
+	'stats.share-card',
+	'stats.profile',
+	'stats.sign-in',
+	'stats.cancel-sign-in',
+	'stats.publish',
+	'stats.unpublish',
+	'stats.sign-out',
+	'stats.pick-repositories',
+	'stats.share-part',
+	'stats.public-repositories',
 	'sounds.list',
 	'sounds.read',
 	'sounds.add',

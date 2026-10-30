@@ -50,6 +50,7 @@ export interface Modules {
 	readonly app: AppPlatform;
 	readonly extensions: ExtensionsPlatform;
 	readonly chat: ChatPlatform;
+	openUrl(url: string): void;
 	shutdown(): Promise<void>;
 }
 
@@ -174,6 +175,9 @@ export async function registerModules(
 		},
 		stopBackgroundTask: (sessionId, taskId) => chat.stopBackgroundTask(sessionId, taskId),
 		nameService: (task) => chat.nameService(task),
+		openExternal: (url) => shellHost.openExternal(url),
+		claudeFiles: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()),
+		cipher: shellHost,
 	});
 	stats.start();
 	app.streaming.start();
@@ -210,6 +214,7 @@ export async function registerModules(
 		app,
 		extensions,
 		chat,
+		openUrl: (url) => stats.openUrl(url),
 		shutdown,
 	};
 }

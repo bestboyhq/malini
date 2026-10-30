@@ -78,6 +78,40 @@ function loadRunChange(db: MaliniDatabase, runId: string): AgentRunChange | null
 	};
 }
 
+export interface RunChangedFile {
+	readonly runId: string;
+	readonly projectId: string;
+	readonly path: string;
+	readonly additions: number;
+	readonly deletions: number;
+}
+
+export function listRunChangedFiles(db: MaliniDatabase, before: string): RunChangedFile[] {
+	return all<{
+		run_id: string;
+		project_id: string;
+		path: string;
+		additions: number;
+		deletions: number;
+	}>(
+		db,
+		`SELECT f.run_id, w.project_id, f.path, f.additions, f.deletions
+		 FROM agent_run_change_files f
+		 JOIN agent_run_changes c ON c.run_id = f.run_id
+		 JOIN agent_runs r ON r.id = f.run_id
+		 JOIN agent_sessions s ON s.id = r.session_id
+		 JOIN workstreams w ON w.id = s.workstream_id
+		 WHERE c.captured_at < ?`,
+		before,
+	).map((row) => ({
+		runId: row.run_id,
+		projectId: row.project_id,
+		path: row.path,
+		additions: row.additions,
+		deletions: row.deletions,
+	}));
+}
+
 export function insertRunChange(db: MaliniDatabase, change: AgentRunChange): void {
 	db.transaction(() => {
 		const validContext = scalar(

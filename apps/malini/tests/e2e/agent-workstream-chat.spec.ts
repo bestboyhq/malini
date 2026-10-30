@@ -70,7 +70,7 @@ function holdNpmInstall(app: LaunchedApp): string {
 	const stub = join(app.bin, 'npm');
 	writeFileSync(
 		stub,
-		`#!/bin/sh\nwhile [ ! -f "${release}" ]; do sleep 0.1; done\nmkdir -p node_modules\n`,
+		`#!/bin/sh\nwhile [ ! -f "${release}" ] && [ -d "${app.home}" ]; do sleep 0.1; done\nmkdir -p node_modules\n`,
 	);
 	chmodSync(stub, 0o755);
 	return release;
