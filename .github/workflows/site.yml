@@ -25,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+      - run: pnpm --filter "malini^..." build
       - run: pnpm --filter @malini/site test
       - name: Deploy the Worker
         if: env.CLOUDFLARE_API_TOKEN != ''
