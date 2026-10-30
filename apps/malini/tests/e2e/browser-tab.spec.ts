@@ -222,7 +222,7 @@ test('a browser tab says why its page did not load, hides the page meanwhile, an
 	}
 });
 
-test('a browser tab opens files of its worktree and follows their links without a server', async () => {
+test('a browser tab opens files of its worktree, shows their latest edit on reload, and follows their links without a server', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -232,8 +232,9 @@ test('a browser tab opens files of its worktree and follows their links without 
 		mkdirSync(join(seeded.worktree, 'docs'), { recursive: true });
 		writeFileSync(
 			join(seeded.worktree, 'docs', 'report.html'),
-			'<!doctype html><title>Report</title><a href="next.html">Next</a>',
+			'<!doctype html><script src="title.js"></script><a href="next.html">Next</a>',
 		);
+		writeFileSync(join(seeded.worktree, 'docs', 'title.js'), 'document.title = "Report";');
 		writeFileSync(join(seeded.worktree, 'docs', 'next.html'), '<!doctype html><title>Next</title>');
 		await openWorkstream(page, seeded.workstreamId);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
@@ -245,10 +246,19 @@ test('a browser tab opens files of its worktree and follows their links without 
 			'./docs/report.html',
 		);
 
+		writeFileSync(join(seeded.worktree, 'docs', 'title.js'), 'document.title = "Report edited";');
+		await electronApp.evaluate(({ webContents }) => {
+			webContents
+				.getAllWebContents()
+				.find((contents) => contents.getTitle() === 'Report')
+				?.reload();
+		});
+		await expect(inspector.getByRole('tab', { name: 'Report edited', exact: true })).toBeVisible();
+
 		await electronApp.evaluate(async ({ webContents }) => {
 			const report = webContents
 				.getAllWebContents()
-				.find((contents) => contents.getTitle() === 'Report');
+				.find((contents) => contents.getTitle() === 'Report edited');
 			await report?.executeJavaScript('document.querySelector("a").click()');
 		});
 		await expect(inspector.getByRole('tab', { name: 'Next', exact: true })).toBeVisible();

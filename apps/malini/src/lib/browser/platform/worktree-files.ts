@@ -22,11 +22,17 @@ export function serveWorktreeFiles(worktreeOf: (host: string) => string | null):
 		const worktree = worktreeOf(url.hostname);
 		const file = worktree ? await worktreeFile(worktree, decodeURIComponent(url.pathname)) : null;
 		return file
-			? net.fetch(pathToFileURL(file).href)
+			? uncached(await net.fetch(pathToFileURL(file).href))
 			: new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
 	};
 	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve);
 	protocol.handle(BROWSER_WORKTREE_SCHEME, serve);
+}
+
+function uncached(response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.set('Cache-Control', 'no-store');
+	return new Response(response.body, { status: response.status, headers });
 }
 
 export async function worktreeFile(worktree: string, pathname: string): Promise<string | null> {
