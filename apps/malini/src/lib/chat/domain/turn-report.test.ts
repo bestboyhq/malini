@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { EventEnvelope } from './events';
 import {
 	hasTurnReport,
 	isVideoPath,
 	mediaKind,
 	mediaMarker,
 	mediaPath,
+	offeredVariants,
 	parseTurnReport,
 	turnStatus,
 	workstreamImagePath,
@@ -173,6 +175,30 @@ describe('turn report', () => {
 		expect(report.images).toEqual([]);
 		expect(single.variants).toEqual([]);
 		expect(single.images).toEqual([{ src: 'a.png', alt: 'Calm - lots of air' }]);
+	});
+
+	it('lists the variants each turn offered, oldest first, from its last report', () => {
+		const message = (runId: string, seq: number, text: string): EventEnvelope => ({
+			sessionId: 's1',
+			runId,
+			seq,
+			event: { type: 'assistant.message', runId, text },
+		});
+		const offer = (dir: string) =>
+			`![Variant A: Calm](${dir}/a.html)\n![Variant B: Bold](${dir}/b.html)\n\nOutcome: Two.`;
+
+		expect(
+			offeredVariants([
+				message('r1', 1, offer('.context/old')),
+				message('r1', 2, `Rebuilt.\n\n${offer('.context/hero')}`),
+				message('r2', 3, 'Building the pick now.'),
+				message('r2', 4, '![Variant A: Lone](a.html)\n\nOutcome: Built B.'),
+				message('r3', 5, offer('.context/badges')),
+			]).map((variants) => variants.map(({ src }) => src)),
+		).toEqual([
+			['.context/hero/a.html', '.context/hero/b.html'],
+			['.context/badges/a.html', '.context/badges/b.html'],
+		]);
 	});
 
 	it('tells a recording from a picture and reads the frame a recording marks', () => {

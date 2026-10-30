@@ -53,6 +53,9 @@ for ws in "$P"/workstreams/*/; do
 done
 sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$P');
 	update workstreams set path = replace(path, '$L', '$P');
+	update connected_repositories set local_path = null where local_path not like '$P%';
+	update job_definitions set trigger_mode = 'off' where trigger_mode != 'off';
+	delete from agent_deliveries;
 	delete from workstream_ship;"
 for repo in "$P"/repositories/*/base; do
 	git -C "$repo" config url."https://sandbox-never-pushes.invalid/".pushInsteadOf https://github.com/
@@ -60,6 +63,8 @@ done
 ```
 
 Rewrite those paths before the first launch: `projects.repo_path` is absolute, and a new workstream otherwise branches off the user's live repository.
+A repository opened from a folder keeps that folder in `connected_repositories.local_path`, which wins over the copy; clearing it makes the sandbox use its own clone.
+Turn every job trigger off and drop queued prompts, or the sandbox runs the user's jobs and delivers their prompts in the copies.
 Empty the merge queue too: a snapshot keeps the user's queued pull requests, and the sandbox would mark them ready, push to them and merge them on GitHub.
 
 Block pushes from the copies: each copy tracks the user's real branch on GitHub, so a **Draft**, a **Merge** or an agent's push from a copy lands there.
