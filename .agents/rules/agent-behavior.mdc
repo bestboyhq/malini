@@ -18,6 +18,8 @@ alwaysApply: true
 - Do not amend, rebase, reset, or force-push unless asked.
 
 ## Prototypes
+- When a reply proposes or weighs something the user will see, build the prototype in that turn, even for a question; never end a turn offering to prototype.
+- Make it look like the app: hyper-ui's colors, type, spacing and icons, set in the screen around it, on the user's real content.
 - A prototype, mock-up or set of design variants lives only in `.context/`, for example as standalone HTML pages opened in the browser.
 - It never enters tracked source: no route, component, test, or pull request of it, not even behind a hidden URL.
 - Once the user picks one, build it into the real code path on real data and replace what it supersedes in the same change.

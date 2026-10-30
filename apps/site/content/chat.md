@@ -192,6 +192,8 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 ### Variants
 
 When you ask for options, or the direction is open, the agent makes two to four variants.
+It does not wait to be asked: when its answer proposes something you will see, even an answer to a question, it builds the prototype in the same turn instead of offering to.
+Each one copies your product's look, sits in the screen around it and shows your real content.
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
