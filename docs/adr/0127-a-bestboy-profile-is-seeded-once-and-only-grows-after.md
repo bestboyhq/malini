@@ -18,9 +18,12 @@ Limits are set about ten times above the heaviest real Malini use, measured on t
 - **Then it only grows.** Each later upload is folded into what the platform holds:
   - `since` stays; `through` only moves forward; a day on or before the stored `through` keeps its stored numbers, and only days after it are added.
   - `runs` and `activeDays` grow by exactly the added days.
-  - Every other total grows by how much it grew since the previous upload, never shrinks, and grows only when days are added, at most by what the added runs, plus 100 still open, can account for.
+  - Every other total grows by how much it grew since the previous upload, never shrinks, and grows only when days are added, at most by what the added runs, plus 100 still open, can account for: one job run, change run or workstream each, 25,000 tool calls or screenshots each, 400,000 lines or files each, and merged pull requests at most the workstreams.
   - Agents at once, run lengths, steps, the six parts and the picked repositories follow the latest upload, fitted to the folded totals, since the parts and picks are switches the person controls.
 - **Limits.** Values above them are lowered to them, so a genuine outlier keeps publishing: 100 agents at once, 3,000 runs a day, 25,000 steps in a run, 400,000 lines in a typical change, runs at most 3,000 times active days.
+  When runs are lowered, job runs, change runs, the techniques and the lists are cut to fit.
+  The old ceilings of 10,000,000 runs and 1,000 agents are gone.
+- **Profiles from before.** A profile published before this change has no previous upload to measure against, so its next upload seeds it again under the limits and waits for the daily publish.
 - **Cross-checks.** The platform refuses an upload that breaks one, since Malini never does:
   - every day's agents at once is at most the peak;
   - tool calls are at most runs times the most steps in a run;
