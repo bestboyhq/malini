@@ -26,7 +26,7 @@ export async function playHero(): Promise<void> {
 	try {
 		await inView();
 		const editor = await find('[data-testid="chat-composer-input"]');
-		editor.focus();
+		editor.focus({ preventScroll: true });
 		document.execCommand('selectAll');
 		document.execCommand('insertText', false, LEAD_PROMPT);
 		const send = await find('[data-testid="chat-composer-submit"]:not([disabled])');
