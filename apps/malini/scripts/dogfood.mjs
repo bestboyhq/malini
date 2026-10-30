@@ -27,6 +27,7 @@ const OUTSIDE_THE_WATCH = [
 	/(^|\/)tsconfig[^/]*\.json$/,
 	/^apps\/malini\/(electron\.vite\.config\.ts|svelte\.config\.mjs)$/,
 	/^packages\/agent-bridge\/scripts\//,
+	/^apps\/malini\/scripts\/(dogfood|dev-bundle)\.mjs$/,
 ];
 
 /**
@@ -208,11 +209,20 @@ async function follow() {
 	retryMs = FIRST_RETRY_MS;
 	const fresh = needsFreshDevServer(update.changed);
 	if (fresh) await stop();
-	if (advance(update.target) && fresh) dependenciesStale = true;
-	if (update.changed.includes('apps/malini/scripts/dogfood.mjs')) {
-		say('this script changed, restart pnpm dogfood to run the new one');
-	}
+	const advanced = advance(update.target);
+	if (advanced && fresh) dependenciesStale = true;
+	if (advanced && update.changed.includes('apps/malini/scripts/dogfood.mjs')) runNewScript();
 	if (!app) start();
+}
+
+function runNewScript() {
+	say('this script changed, running the new one');
+	process.execve?.(process.execPath, [
+		process.execPath,
+		...process.execArgv,
+		...process.argv.slice(1),
+	]);
+	say('this Node cannot restart the script, restart pnpm dogfood to run the new one');
 }
 
 async function quit() {

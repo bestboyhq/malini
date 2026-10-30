@@ -59,3 +59,9 @@ test('a build config change needs a fresh dev server', () => {
 	assert.equal(needsFreshDevServer(['tsconfig.base.json']), true);
 	assert.equal(needsFreshDevServer(['packages/agent-bridge/scripts/generate-protocol.mjs']), true);
 });
+
+test('a launcher change needs a fresh dev server', () => {
+	assert.equal(needsFreshDevServer(['apps/malini/scripts/dogfood.mjs']), true);
+	assert.equal(needsFreshDevServer(['apps/malini/scripts/dev-bundle.mjs']), true);
+	assert.equal(needsFreshDevServer(['apps/malini/scripts/version.mjs']), false);
+});
