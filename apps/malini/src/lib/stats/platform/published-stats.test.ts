@@ -117,6 +117,31 @@ describe('readPublishedStats', () => {
 		});
 	});
 
+	it('keeps the cross-checks bestboy.dev refuses an upload without', async () => {
+		const db = openMigratedDatabase(':memory:');
+		seedGitHubRepository(db, 'bestboyhq/malini', 'ws-malini');
+		seedSession(db, 'a', 'ws-malini', 'user', 'opus');
+		seedSession(db, 'b', 'ws-malini', 'user', 'opus');
+		seedSession(db, 'c', 'ws-malini', 'job', 'opus');
+		seedRun(db, 'quick', 'a', at(12, 9), at(12, 9, 1));
+		seedRun(db, 'overnight', 'a', at(13, 22), at(14, 2));
+		seedRun(db, 'beside', 'b', at(13, 23), at(13, 23, 30));
+		seedRun(db, 'third', 'c', at(13, 23, 10), at(13, 23, 20));
+		seedRun(db, 'open', 'b', at(14, 23), null);
+		seedToolCalls(db, 'a', 'overnight', at(14, 1), ['Bash', 'Bash', 'Read', 'Edit']);
+		seedToolCalls(db, 'b', 'beside', at(13, 23, 5), ['Read']);
+		seedToolCalls(db, 'b', 'open', at(14, 23, 30), ['Bash', 'Bash', 'Bash', 'Bash', 'Bash']);
+
+		const stats = await readPublishedStats(db, NOW, [], () => Promise.resolve(true));
+
+		const { totals, days, intensity } = stats ?? expect.unreachable('no stats');
+		expect(intensity.agents.max).toBe(3);
+		expect(days.every((day) => day.agents <= intensity.agents.max)).toBe(true);
+		expect(totals.toolCalls).toBeLessThanOrEqual(totals.runs * intensity.steps.max);
+		expect(totals.runs).toBeLessThanOrEqual(totals.activeDays * intensity.runsPerActiveDay.max);
+		expect(totals.runs).toBeGreaterThanOrEqual(totals.activeDays);
+	});
+
 	it('sends nothing before the first complete day with a run', async () => {
 		const db = openMigratedDatabase(':memory:');
 		seedGitHubRepository(db, 'bestboyhq/malini', 'ws-malini');
@@ -210,7 +235,7 @@ function seedRun(
 	runId: string,
 	sessionId: string,
 	startedAt: string,
-	completedAt: string,
+	completedAt: string | null,
 	error: string | null = null,
 ): void {
 	run(
