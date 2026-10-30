@@ -4,18 +4,28 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import { dayStreak, runsOn } from '$lib/stats/domain/activity';
+	import { loadProfileCommand } from '$lib/stats/application/commands/load-profile.command';
+	import { watchProfileHook } from '$lib/stats/application/hooks/watch-profile.hook';
 	import { watchResourceBreakdownHook } from '$lib/stats/application/hooks/watch-resource-breakdown.hook';
 	import { activityStatsQuery } from '$lib/stats/application/queries/activity-stats.query.svelte';
 	import { latestResourceSampleQuery } from '$lib/stats/application/queries/latest-resource-sample.query.svelte';
 	import { machineMemoryQuery } from '$lib/stats/application/queries/machine-memory.query.svelte';
+	import { profileStateQuery } from '$lib/stats/application/queries/profile-state.query.svelte';
 	import { resourceBreakdownQuery } from '$lib/stats/application/queries/resource-breakdown.query.svelte';
 	import { resourceHistoryQuery } from '$lib/stats/application/queries/resource-history.query.svelte';
 	import ActivityHeatmap from './ActivityHeatmap.svelte';
 	import MemoryChart from './MemoryChart.svelte';
+	import PublishNudge from './PublishNudge.svelte';
 	import ShareCards from './ShareCards.svelte';
 	import StatsBar from './StatsBar.svelte';
 	import { resourceKindDisplay } from './resource-kinds';
 	import { formatAgentTime, formatCount, formatCpu, formatMemory, plural } from './stats-format';
+
+	interface Props {
+		onclose: () => void;
+	}
+
+	let { onclose }: Props = $props();
 
 	const TOP_REPOSITORIES = 3;
 
@@ -24,6 +34,8 @@
 	const history = $derived(resourceHistoryQuery.data);
 	const machineMemory = $derived(machineMemoryQuery.data);
 	const breakdown = $derived(resourceBreakdownQuery.data);
+	const profileState = $derived(profileStateQuery.data);
+	const published = $derived(profileState?.publishing === 'on' && !!profileState.profile?.url);
 
 	const usage = $derived(
 		[...(latest?.usage ?? [])].sort((left, right) => right.memoryBytes - left.memoryBytes),
@@ -41,7 +53,15 @@
 			: [],
 	);
 
-	onMount(() => watchResourceBreakdownHook());
+	onMount(() => {
+		loadProfileCommand();
+		const stopProfile = watchProfileHook();
+		const stopBreakdown = watchResourceBreakdownHook();
+		return () => {
+			stopProfile();
+			stopBreakdown();
+		};
+	});
 
 	function tile(
 		count: number,
@@ -207,7 +227,11 @@
 				</div>
 			{/if}
 
-			<ShareCards />
+			{#if published}
+				<ShareCards />
+			{:else if profileState}
+				<PublishNudge onpublish={onclose} />
+			{/if}
 
 			<p class="text-fg-tertiary px-1 text-xs">
 				{plural(activity.jobRuns, 'run', 'runs')} from jobs · Counted on this Mac only

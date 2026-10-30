@@ -147,7 +147,6 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			github(),
 		]);
 		const state = profile.state();
-		const published = state.publishing === 'on' ? (state.profile?.handle ?? null) : null;
 		const avatar = identity
 			? await commands
 					.call('repositories.owner-avatar', { owner: identity.login })
@@ -156,7 +155,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		return {
 			stats,
 			name: identity?.name ?? identity?.login ?? null,
-			handle: published ?? identity?.login ?? null,
+			handle: state.publishing === 'on' ? (state.profile?.handle ?? null) : null,
 			avatar: avatar ? `data:${avatar.mediaType};base64,${avatar.base64}` : null,
 		};
 	});

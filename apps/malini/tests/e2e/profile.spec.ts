@@ -64,6 +64,7 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 		const toggle = settings.getByRole('switch', { name: 'Publish my stats' });
 		await expect(toggle).toHaveAttribute('aria-checked', 'false');
 		await expect(toggle).toBeEnabled();
+		await expect(settings.getByText('Not signed in to Bestboy')).toBeVisible();
 
 		await openUrl(app, 'malini://auth?code=e2e-code&state=meant-for-another-malini');
 		await page.waitForTimeout(500);
@@ -163,6 +164,7 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 
 		await settings.getByRole('button', { name: 'Sign out' }).click();
 		await expect(settings.getByText(/^Signed in to Bestboy as/u)).toHaveCount(0);
+		await expect(settings.getByText('Not signed in to Bestboy')).toBeVisible();
 		await expect
 			.poll(() => platform.requests.at(-1))
 			.toMatchObject({ method: 'POST', path: '/api/auth/logout' });
@@ -179,15 +181,52 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 	}
 });
 
-test('the Stats panel copies the heatmap and readout cards as PNGs drawn from yesterday and before', async () => {
-	test.setTimeout(180_000);
-	const app = await launchWithYesterdaysRun({});
+test('the Stats panel nudges to publish, and copies the heatmap and readout cards once the profile is public', async () => {
+	test.setTimeout(240_000);
+	const platform = await fakeBestboy();
+	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin });
 	try {
 		const { page, electronApp } = app;
+		await recordBrowser(app);
+		const stats = page.getByRole('dialog', { name: 'Stats' });
+		const cards = stats.getByRole('region', { name: 'Share card' });
 		await page.getByTestId('sidebar-open-stats').click();
-		const cards = page.getByRole('dialog', { name: 'Stats' }).getByRole('region', {
-			name: 'Share card',
+		await expect(cards.getByRole('button', { name: 'Publish my stats' })).toBeVisible();
+		await expect(cards.getByRole('button', { name: /^Copy the / })).toHaveCount(0);
+		await captureFlow(app, 'profile-share-nudge');
+
+		await openProfileSettings(page);
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await expect(
+			settings.getByText('Sign in to Bestboy in your browser, then come back.'),
+		).toBeVisible();
+		const signIn = await signInUrl(app, platform, 1);
+		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
+		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
+		await expect(settings.getByRole('switch', { name: 'Publish my stats' })).toHaveAttribute(
+			'aria-checked',
+			'false',
+		);
+		expect(platform.requests.filter(({ path }) => path === '/api/stats/malini')).toEqual([]);
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+
+		await page.getByTestId('sidebar-open-stats').click();
+		await cards.getByRole('button', { name: 'Publish my stats' }).click();
+		await expect(stats).toHaveCount(0);
+		const handle = settings.getByRole('textbox', { name: 'Your profile address' });
+		await expect(handle).toHaveValue('e2e-user');
+		await handle.fill('e2e-person');
+		await settings.getByRole('button', { name: 'Publish' }).click();
+		await expect(settings.getByTestId('profile-status')).toHaveText(/^Published through /u, {
+			timeout: 20_000,
 		});
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+
+		await page.getByTestId('sidebar-open-stats').click();
+		await expect(cards.getByRole('button', { name: 'Publish my stats' })).toHaveCount(0);
 		for (const kind of ['heatmap', 'readout']) {
 			await electronApp.evaluate(async ({ clipboard }) => clipboard.clear());
 			await cards.getByRole('button', { name: `Copy the ${kind} card` }).click();
@@ -204,6 +243,7 @@ test('the Stats panel copies the heatmap and readout cards as PNGs drawn from ye
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		platform.close();
 	}
 });
 
