@@ -192,12 +192,14 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 ### Variants
 
 When you ask for options, or the direction is open, the agent makes two to four variants.
+It does not wait to be asked: when its answer proposes something you will see, even an answer to a question, it builds the prototype in the same turn instead of offering to.
+Each one copies your product's look, sits in the screen around it and shows your real content.
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
 While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
-Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
+When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.

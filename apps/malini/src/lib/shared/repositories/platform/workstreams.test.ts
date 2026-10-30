@@ -540,7 +540,6 @@ describe('the workstream commands', () => {
 		expect(removed).toEqual([{ workstreamId: 'ws-arch', worktreePath: canonical, archived: true }]);
 		expect(getWorkstream(db, 'ws-arch')?.status).toBe('archived');
 
-		await archivedLeftoversCleared();
 		await invoke('repositories.restore-workstream', { workstreamId: 'ws-arch' });
 		expect(existsSync(join(checkout, 'seed.txt'))).toBe(true);
 		expect(added).toEqual([
