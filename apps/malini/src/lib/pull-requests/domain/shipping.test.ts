@@ -18,6 +18,7 @@ import {
 	reviewSignature,
 	reviewToAddress,
 	shipBackoffMs,
+	signatureChecks,
 	type PullRequestFacts,
 	type ShippingSnapshot,
 } from './shipping';
@@ -143,6 +144,7 @@ function queued(overrides: Fixture = {}): ShippingSnapshot {
 		},
 		threadResolutionRunId: null,
 		failureSignature: null,
+		checksRerun: null,
 		fixSucceededAt: null,
 		attempts: 0,
 		fixAttemptLimit: 3,
@@ -576,6 +578,94 @@ describe('a queued workstream', () => {
 		});
 	});
 
+	it('re-runs a first failure of GitHub Actions jobs once, then hands it to Fix checks', () => {
+		const head = 'a'.repeat(40);
+		const rerunAt = Date.parse('2026-10-30T14:35:40Z');
+		const job = (name: string, run: number, completedAt: string | null): PullRequestCheckDto => ({
+			...check(name, 'FAILURE'),
+			url: `https://github.com/acme/app/actions/runs/${run}/job/${run}0`,
+			completedAt,
+		});
+		const failing = (checks: PullRequestCheckDto[]): PullRequestStatusDto =>
+			pullRequest({ checksState: 'failed', checks });
+		const running = (headSha: string): PullRequestStatusDto =>
+			pullRequest({ headSha, checksState: 'pending', checks: [check('e2e', null, 'IN_PROGRESS')] });
+		const signature = 'checks:["e2e","lint"]';
+		const afterRerun = (read: PullRequestStatusDto, now: number): ShippingSnapshot =>
+			queued({
+				pullRequest: read,
+				failureSignature: signature,
+				checksRerun: { headSha: head, at: rerunAt },
+				now,
+			});
+
+		expect(
+			nextShippingMove(
+				queued({ pullRequest: failing([job('e2e', 41, null), job('lint', 41, null)]) }),
+			),
+		).toEqual({ kind: 'rerun-checks', signature, headSha: head, runIds: ['41'] });
+		expect(
+			nextShippingMove(
+				queued({ pullRequest: failing([job('lint', 41, null), check('vercel', 'FAILURE')]) }),
+			),
+		).toMatchObject({ kind: 'run-job', builtin: 'fix-checks', attempt: 1 });
+
+		expect(nextShippingMove(afterRerun(running(head), rerunAt + 1_000))).toEqual({
+			kind: 'wait',
+			step: 'rerunning-checks',
+		});
+		expect(nextShippingMove(afterRerun(running('b'.repeat(40)), rerunAt + 1_000))).toEqual({
+			kind: 'wait',
+			step: 'waiting-for-checks',
+		});
+		const stale = failing([
+			job('e2e', 41, '2026-10-30T14:23:21Z'),
+			job('lint', 41, '2026-10-30T14:20:02Z'),
+		]);
+		expect(nextShippingMove(afterRerun(stale, rerunAt + 1_000))).toEqual({
+			kind: 'wait',
+			step: 'rerunning-checks',
+			until: rerunAt + 60_000,
+		});
+		expect(nextShippingMove(afterRerun(stale, rerunAt + 60_000))).toEqual({
+			kind: 'run-job',
+			builtin: 'fix-checks',
+			signature,
+			attempt: 1,
+		});
+		const again = failing([
+			job('e2e', 41, '2026-10-30T14:47:00Z'),
+			job('lint', 41, '2026-10-30T14:20:02Z'),
+		]);
+		expect(nextShippingMove(afterRerun(again, rerunAt + 1_000))).toEqual({
+			kind: 'run-job',
+			builtin: 'fix-checks',
+			signature,
+			attempt: 1,
+		});
+		const onlyE2e = failing([job('e2e', 41, '2026-10-30T14:47:00Z')]);
+		expect(nextShippingMove(afterRerun(onlyE2e, rerunAt + 1_000))).toEqual({
+			kind: 'run-job',
+			builtin: 'fix-checks',
+			signature: 'checks:["e2e"]',
+			attempt: 1,
+		});
+		expect(nextShippingMove({ ...afterRerun(again, rerunAt + 1_000), attempts: 1 })).toMatchObject({
+			kind: 'run-job',
+			attempt: 2,
+		});
+	});
+
+	it('reads the checks it re-runs and fixes back from the failure signature', () => {
+		expect(signatureChecks('checks:["e2e on macOS 3/5","lint"]')).toEqual([
+			'e2e on macOS 3/5',
+			'lint',
+		]);
+		expect(signatureChecks('review:{"changeRequests":[],"threads":["t1"]}')).toEqual([]);
+		expect(signatureChecks('checks:not json')).toEqual([]);
+		expect(signatureChecks(null)).toEqual([]);
+	});
+
 	it('waits for running checks', () => {
 		expect(
 			nextShippingMove(
@@ -842,6 +932,7 @@ describe('what a read of the pull request reports', () => {
 			state,
 			required: null,
 			appId: null,
+			url: null,
 			completedAt: null,
 		});
 		expect(pullRequestChange('ws-1', read, null)).toEqual({
@@ -946,6 +1037,7 @@ describe('when Malini reads GitHub on its own', () => {
 		expect(ship('draft', 'waiting-for-github')).toBe(15_000);
 		expect(ship('queued')).toBe(15_000);
 		expect(ship('queued', 'waiting-for-checks')).toBe(45_000);
+		expect(ship('queued', 'rerunning-checks')).toBe(45_000);
 		expect(ship('queued', 'waiting-for-review')).toBe(120_000);
 		expect(ship('needs-you')).toBe(120_000);
 	});

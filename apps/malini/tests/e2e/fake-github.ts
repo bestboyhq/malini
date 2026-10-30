@@ -486,6 +486,24 @@ if (command === 'auth' && sub === 'status') {
 	const [behind, ahead] = [count(headSha, baseSha), count(baseSha, headSha)];
 	const status = behind === 0 ? (ahead === 0 ? 'identical' : 'ahead') : ahead === 0 ? 'behind' : 'diverged';
 	out((flag('--jq') === '.status' ? status : String(behind)) + '\\n');
+} else if (
+	command === 'api' &&
+	flag('-X') === 'POST' &&
+	/\\/actions\\/runs\\/\\d+\\/rerun-failed-jobs$/u.test(args[args.length - 1])
+) {
+	const current = read();
+	if (!current || !current.rerunChecks) {
+		process.stderr.write('gh: Resource not accessible by integration (HTTP 403)\\n');
+		process.exit(1);
+	}
+	const finishedLater = new Date(Date.now() + 60000).toISOString();
+	save({
+		...current,
+		statusCheckRollup: current.rerunChecks.map((check) =>
+			check.conclusion && !check.completedAt ? { ...check, completedAt: finishedLater } : check,
+		),
+	});
+	out('');
 } else if (command === 'api' && /\\/check-runs\\/\\d+\\/annotations/u.test(sub)) {
 	const job = /\\/check-runs\\/(\\d+)\\//u.exec(sub)[1];
 	const check = ((read() || {}).statusCheckRollup || []).find((candidate) =>

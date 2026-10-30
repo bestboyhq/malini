@@ -8,14 +8,18 @@ import type {
 } from '$contract/pull-requests';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, nowIso8601, run, type BindValue } from '$main/db/rows';
+import { signatureChecks } from '../domain/shipping';
 
 export type ShipRequest = 'push' | 'review';
 
 export type ShipRequests = Readonly<Record<ShipRequest, number>>;
 
+export type ChecksRerun = Readonly<{ headSha: string; at: string }>;
+
 export type ShipRow = ShipStateRecord &
 	Readonly<{
 		failureSignature: string | null;
+		checksRerun: ChecksRerun | null;
 		generatedTitle: string | null;
 		generatedBody: string | null;
 		addressedReviews: readonly string[];
@@ -33,6 +37,7 @@ export type ShipPatch = Partial<
 		needsYou: ShipNeedsYou | null;
 		queuedAt: string | null;
 		failureSignature: string | null;
+		checksRerun: ChecksRerun | null;
 		attempts: number;
 		activeJobRunId: string | null;
 		lastError: string | null;
@@ -60,6 +65,8 @@ interface ShipDbRow {
 	needs_you_job_run_id: string | null;
 	queued_at: string | null;
 	failure_signature: string | null;
+	checks_rerun_at: string | null;
+	checks_rerun_head_sha: string | null;
 	attempts: number;
 	active_job_run_id: string | null;
 	last_error: string | null;
@@ -86,6 +93,7 @@ const STEPS: readonly ShipStep[] = [
 	'updating-branch',
 	'updating-from-main',
 	'resolving-conflicts',
+	'rerunning-checks',
 	'fixing-checks',
 	'addressing-review',
 	'waiting-for-checks',
@@ -107,7 +115,8 @@ const WAITS: readonly ShipWaitsFor[] = ['workflow-scope', 'workflow-permission']
 const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
 	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,
 	last_error, github_said, failed_since, next_attempt_at, waits_for, generated_title, generated_body,
-	addressed_reviews, push_requests, review_requests, failures, settled_job_run_id, updated_at`;
+	addressed_reviews, push_requests, review_requests, failures, settled_job_run_id, updated_at,
+	checks_rerun_at, checks_rerun_head_sha`;
 
 const REQUEST_COLUMNS: Readonly<Record<ShipRequest, string>> = {
 	push: 'push_requests',
@@ -137,6 +146,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 					},
 		queuedAt: row.queued_at,
 		attempts: row.attempts,
+		checks: signatureChecks(row.failure_signature),
 		activeJobRunId: row.active_job_run_id,
 		lastError: row.last_error,
 		githubSaid: row.github_said,
@@ -146,6 +156,10 @@ function fromRow(row: ShipDbRow): ShipRow {
 		waitsFor: member(WAITS, row.waits_for),
 		updatedAt: row.updated_at,
 		failureSignature: row.failure_signature,
+		checksRerun:
+			row.checks_rerun_at === null || row.checks_rerun_head_sha === null
+				? null
+				: { headSha: row.checks_rerun_head_sha, at: row.checks_rerun_at },
 		generatedTitle: row.generated_title,
 		generatedBody: row.generated_body,
 		addressedReviews: reviewIds(row.addressed_reviews),
@@ -177,6 +191,7 @@ export function shipRecord(row: ShipRow): ShipStateRecord {
 		needsYou: row.needsYou,
 		queuedAt: row.queuedAt,
 		attempts: row.attempts,
+		checks: row.checks,
 		activeJobRunId: row.activeJobRunId,
 		lastError: row.lastError,
 		githubSaid: row.githubSaid,
@@ -239,6 +254,10 @@ export function updateShip(
 	}
 	if (patch.queuedAt !== undefined) set('queued_at', patch.queuedAt);
 	if (patch.failureSignature !== undefined) set('failure_signature', patch.failureSignature);
+	if (patch.checksRerun !== undefined) {
+		set('checks_rerun_at', patch.checksRerun?.at ?? null);
+		set('checks_rerun_head_sha', patch.checksRerun?.headSha ?? null);
+	}
 	if (patch.attempts !== undefined) set('attempts', patch.attempts);
 	if (patch.activeJobRunId !== undefined) set('active_job_run_id', patch.activeJobRunId);
 	if (patch.lastError !== undefined) set('last_error', patch.lastError);

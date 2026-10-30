@@ -30,6 +30,7 @@ import {
 	optionalTextUpdate,
 	requireNumber,
 	requireString,
+	requireStrings,
 } from './args';
 import {
 	fetchCheckDiagnostics,
@@ -59,6 +60,7 @@ export const PULL_REQUEST_COMMAND_NAMES = [
 	'pull-requests.merge',
 	'pull-requests.update-metadata',
 	'pull-requests.check-diagnostics',
+	'pull-requests.rerun-failed-checks',
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
 	'pull-requests.button-clicked',
@@ -253,6 +255,26 @@ export function registerPullRequests(
 		return fetchCheckDiagnostics(run, checkout, repository, number);
 	};
 
+	const rerunFailedChecks = async (args: unknown): Promise<void> => {
+		const runIds = requireStrings(args, 'runIds');
+		if (!runIds.every((runId) => /^\d+$/u.test(runId))) {
+			throw new Error('invalid args: `runIds` must hold GitHub Actions run ids');
+		}
+		const { repository, checkout } = await targetOrThrow(args);
+		for (const runId of new Set(runIds)) {
+			await runCheckedGh(
+				run,
+				[
+					'api',
+					'-X',
+					'POST',
+					`repos/${repository.fullName}/actions/runs/${runId}/rerun-failed-jobs`,
+				],
+				checkout,
+			);
+		}
+	};
+
 	const reviewFeedback = async (args: unknown): Promise<ReviewFeedbackDto> => {
 		const { repository, checkout } = await targetOrThrow(args);
 		const number = requireNumber(args, 'pullRequestNumber');
@@ -279,6 +301,7 @@ export function registerPullRequests(
 	commands.define('pull-requests.merge', merge);
 	commands.define('pull-requests.update-metadata', updateMetadata);
 	commands.define('pull-requests.check-diagnostics', checkDiagnostics);
+	commands.define('pull-requests.rerun-failed-checks', rerunFailedChecks);
 	commands.define('pull-requests.review-feedback', reviewFeedback);
 	commands.define('pull-requests.resolve-addressed-review-threads', resolveAddressedReviewThreads);
 
@@ -291,6 +314,7 @@ export function registerPullRequests(
 			merge,
 			updateMetadata,
 			checkDiagnostics,
+			rerunFailedChecks,
 			reviewFeedback,
 			resolveAddressedReviewThreads,
 		},

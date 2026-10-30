@@ -156,6 +156,7 @@ function shipState(): ShipStateRecord {
 		needsYou: null,
 		queuedAt: null,
 		attempts: 0,
+		checks: [],
 		activeJobRunId: null,
 		lastError: null,
 		githubSaid: null,

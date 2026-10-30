@@ -258,7 +258,14 @@ describe('the event log', () => {
 			checksPending: false,
 			failingChecks: ['test'],
 			blockingChecks: [
-				{ name: 'test', state: 'FAILURE', required: null, appId: null, completedAt: null },
+				{
+					name: 'test',
+					state: 'FAILURE',
+					required: null,
+					appId: null,
+					url: null,
+					completedAt: null,
+				},
 			],
 			reviewDecision: null,
 			unresolvedThreads: 0,

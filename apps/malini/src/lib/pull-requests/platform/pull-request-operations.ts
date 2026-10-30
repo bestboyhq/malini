@@ -11,6 +11,7 @@ export type PullRequestOperations = Readonly<{
 	merge: Operation<'pull-requests.merge'>;
 	updateMetadata: Operation<'pull-requests.update-metadata'>;
 	checkDiagnostics: Operation<'pull-requests.check-diagnostics'>;
+	rerunFailedChecks: Operation<'pull-requests.rerun-failed-checks'>;
 	reviewFeedback: Operation<'pull-requests.review-feedback'>;
 	resolveAddressedReviewThreads: Operation<'pull-requests.resolve-addressed-review-threads'>;
 }>;

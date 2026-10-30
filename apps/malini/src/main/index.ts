@@ -24,7 +24,10 @@ import { pinStorageName } from './storage-name';
 import { claimsUrlScheme, URL_SCHEME } from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
+const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver'];
+
 const productName = pinStorageName(app);
+app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));
 if (BACKGROUND_WINDOW) app.dock?.hide();
 declareWorktreeScheme([WORKSTREAM_IMAGE_SCHEME_PRIVILEGES]);
 

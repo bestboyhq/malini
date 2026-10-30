@@ -16,6 +16,7 @@ export type PullRequestShip = Readonly<{
 	pullRequestNumber: number | null;
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
+	checks: readonly string[];
 	lastError: string | null;
 	githubSaid: string | null;
 	failures: number;
@@ -47,6 +48,7 @@ const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 	'opening-draft': 'Opening the pull request',
 	'updating-from-main': 'Clearing blockers',
 	'resolving-conflicts': 'Clearing blockers',
+	'rerunning-checks': 'Re-running failed checks',
 	'fixing-checks': 'Clearing blockers',
 	'addressing-review': 'Clearing blockers',
 	'waiting-for-checks': 'Waiting for checks',
@@ -72,8 +74,20 @@ const REASON_DESCRIPTIONS: Readonly<Record<ShipNeedsYouReason, string>> = {
 	'operation-in-progress': 'A git operation stopped part-way in this workstream',
 };
 
-export function shipStepDetail(step: ShipStep): string | null {
+export function shipStepDetail(step: ShipStep, checks: readonly string[]): string | null {
+	const named = checkNames(checks);
+	if (named !== null && step === 'rerunning-checks') return `Re-running ${named}`;
+	if (named !== null && step === 'fixing-checks') return `Fixing ${named}`;
 	return STEP_DETAILS[step] ?? null;
+}
+
+function checkNames(checks: readonly string[]): string | null {
+	const [first, second, ...rest] = checks;
+	if (first === undefined) return null;
+	if (second === undefined) return first;
+	return rest.length === 0
+		? `${first} and ${second}`
+		: `${first} and ${checks.length - 1} more checks`;
 }
 
 export function needsYouReasonLabel(

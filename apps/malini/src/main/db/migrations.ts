@@ -1249,6 +1249,10 @@ END;
 ALTER TABLE agent_event_packs ADD COLUMN tool_calls_counted INTEGER NOT NULL DEFAULT 1;
 UPDATE agent_event_packs SET tool_calls_counted = 0;
 `,
+	`
+ALTER TABLE workstream_ship ADD COLUMN checks_rerun_at TEXT;
+ALTER TABLE workstream_ship ADD COLUMN checks_rerun_head_sha TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

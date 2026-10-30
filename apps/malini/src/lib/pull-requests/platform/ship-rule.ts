@@ -232,6 +232,10 @@ async function decideFromState(
 		worktree,
 		threadResolutionRunId: settled?.builtin === 'address-review' ? settled.agentRunId : null,
 		failureSignature: row.failureSignature,
+		checksRerun:
+			row.checksRerun === null
+				? null
+				: { headSha: row.checksRerun.headSha, at: Date.parse(row.checksRerun.at) },
 		fixSucceededAt:
 			lastJob?.status === 'succeeded' && lastJob.finishedAt !== null
 				? Date.parse(lastJob.finishedAt)
