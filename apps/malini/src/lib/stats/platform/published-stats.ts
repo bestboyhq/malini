@@ -13,7 +13,6 @@ import {
 	listWorkstreams,
 	managedProjectIdForRepository,
 } from '$shared/repositories/repositories.platform';
-import type { CatalogNames } from '../domain/catalog-names';
 import { publishedStats, statsCutoff, type StatsRepository } from '../domain/published-stats';
 
 export type RepositoryVisibility = (fullName: string) => Promise<boolean>;
@@ -31,7 +30,6 @@ export async function readPublishedStats(
 	now: Date,
 	picked: readonly string[],
 	isPublic: RepositoryVisibility,
-	names: CatalogNames,
 ): Promise<PublishedStats | null> {
 	const cutoff = statsCutoff(now);
 	const before = cutoff.toISOString();
@@ -61,7 +59,6 @@ export async function readPublishedStats(
 			workstreams,
 			repositories,
 			picked,
-			names,
 		},
 		cutoff,
 	);

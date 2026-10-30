@@ -35,18 +35,8 @@ A link meant for another sign-in, or one that reaches a Malini that never asked 
 
 ### What your profile shows
 
-Under **What your profile shows**, six parts each have their own switch, all on by default:
-
-- **How runs work**: how many runs used Malini's browser, sub-agents, skills, MCP servers other than Malini's own, and web search or fetch.
-- **Tools**: calls of each tool.
-- **Models**: runs per model family.
-- **Languages**: lines changed per language.
-- **MCP servers**: calls per server.
-- **Skills**: uses per skill.
-
-Turn a part off, and Malini sends your numbers again without it.
-Your profile hides that part, and you drop out of its community figures.
-Runs, active days, agents at once, run lengths and the other totals always go with your numbers while you publish.
+Your profile shows how you work with agents: runs, streaks, agents at once and the rest of the numbers below.
+It also shows how many tokens your agents went through, and your automation score: the share of runs you did not prompt yourself.
 
 ### Public repositories
 
@@ -85,12 +75,13 @@ Every number counts complete days in your time zone, through yesterday; today is
 - **Version**: always 1.
 - **Through**: the last day counted, yesterday.
 - **Since**: the first day you ran an agent.
-- **Runs**: every agent run up to that day, and how many of them a job started.
+- **Runs**: every agent run up to that day, how many of them a job started, and how many you did not prompt: a job started it, Malini started it on its own (a workstream's report, a resume after a usage limit, **Implement** on a plan), or another chat sent its prompt.
 - **Runs that changed code**: runs that changed at least one file.
 - **Active days**: days with at least one run.
 - **Tool calls**: every tool call agents made, sub-agents included, and how many of them were screenshots in Malini's browser.
 - **Workstreams**: workstreams you opened, and how many of them you merged through a pull request.
 - **Lines and files**: lines agents added and removed, and how many different files they changed in each repository.
+- **Tokens**: tokens agents read and wrote in finished runs; read tokens count prompt-cache reads and writes, so they run far above fresh input.
 - **Days**: for each day with a run in the last 53 weeks, the date, how many runs started that day, and how many agents ran at once on average while any ran.
 - **Agents at once**: the average weighted by time, the typical number, the number reached in the busiest tenth of the time, and the peak.
 - **Run length**: the typical run, the run longer than nine in ten, and the longest run.
@@ -98,50 +89,11 @@ Every number counts complete days in your time zone, through yesterday; today is
 - **Runs on an active day**: typical, one in ten, and most.
 - **Lines per change**: lines added plus removed in a typical run that changed code.
 - **Runs per workstream**: runs in a typical workstream.
-- **How runs work**: how many runs used Malini's browser, handed work to a sub-agent, loaded a skill, called an MCP server other than Malini's own, and searched or fetched the web.
-- **Models**: runs per model family.
-- **Languages**: lines added plus removed in each language, told apart by file extension.
-- **Tools**: calls of each tool.
-- **MCP servers**: calls to each server the public catalog names, to Malini's own, and to every other server as one total.
-- **Skills**: uses of each skill the public catalog names, and every other skill use as one total.
 - **Public repositories you picked**: runs in each.
 - **Other repositories**: how many and how many runs, as public and private.
 
-### Names it sends
-
-Every name comes from a fixed list, and anything else goes into **other**:
-
-- **Models**: opus, sonnet, haiku, fable.
-- **Languages**: TypeScript, JavaScript, Svelte, Vue, Astro, HTML, CSS, SCSS, Markdown, MDX, JSON, YAML, TOML, SQL, GraphQL, Python, Ruby, Go, Rust, Swift, Objective-C, Kotlin, Java, Scala, C, C++, C#, PHP, Shell, Dart, Elixir, Erlang, Haskell, Lua, Zig, Nix, Dockerfile, Terraform, GDScript.
-- **Tools**: Claude Code's built-in tools by name, such as Bash, Read and Edit; **Browser** for Malini's browser; **MCP** for every other MCP tool.
-- **MCP servers** and **skills**: only names the public catalog at `bestboy.dev/api/catalog` lists, **malini** for Malini's own server, and **other** for the rest.
-- **Repositories**: only the public ones you picked.
-
-Every list holds at most 40 names, and the rest go into **other**.
-
-#### Skill and MCP server names
-
-A skill or server you wrote yourself can carry the name of a private project, so Malini names one only when a public catalog lists it.
-The catalog holds the skills built into Claude Code, the skills and servers of plugins in Anthropic's official plugin marketplace, and the servers in the official MCP Registry.
-While **Publish my stats** is on, Malini downloads all of it, about 0.9 MB compressed, at most once a day, before it sends your numbers; it needs no account.
-When the download fails, Malini uses the last catalog it downloaded, or none, and sends your numbers anyway.
-
-Malini checks where each skill and server on your Mac came from, never the name alone:
-
-- A built-in skill, such as `code-review`, counts by name only when no skill of yours, personal or in a repository, has the same name.
-- A plugin counts only when Claude Code records that you installed it from Anthropic's official marketplace, `anthropics/claude-plugins-official` on GitHub.
-  Its skills count as `plugin:skill`, such as `cloudflare:wrangler`; a plugin from any other marketplace counts as **other**, because a community plugin's name can be personal.
-- Each MCP server gets one name, the first that fits:
-  1. **malini** for Malini's own server.
-  2. Its registry name, such as `io.github.upstash/context7`, when your Claude Code configuration or the plugin that brings it runs one of its packages or connects to one of its addresses.
-  3. `plugin:server`, such as `cloudflare:cloudflare-api`, for a server of an official plugin that the catalog lists.
-  4. **other** for the rest.
-
-  So a server counts once, however you installed it.
-  Malini reads a server's configuration only to find its package or address, and never keeps or sends anything else from it.
-
-A skill or server that merely shares a catalog name counts as **other**.
-The names of your own skills, MCP servers and tools never leave your Mac.
+The only names Malini sends are the public repositories you picked.
+It sends no tool, skill, MCP server, model or language name.
 
 ## What never leaves your Mac
 

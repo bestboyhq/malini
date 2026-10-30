@@ -113,7 +113,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. A Bestboy account is optional, only to publish your stats, and there is no Malini server. Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev, with the public catalog of skill and server names it may show.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. A Bestboy account is optional, only to publish your stats, and there is no Malini server. Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
