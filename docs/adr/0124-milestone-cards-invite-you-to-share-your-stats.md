@@ -20,7 +20,7 @@ A moment must feel like a reward, not a nag, and must never interrupt work.
 - **When.** `stats.moment` in `src/lib/stats/platform/register.ts` answers with the moment and its share card, or nothing while any agent run is open.
   It works the moment out once per local day, since it depends only on complete days.
   The sidebar asks once when it mounts and again on every `chat:turn-finished`, so a card appears only between turns and stays until you act on it.
-- **The card.** `MomentPeek` sits above the sidebar footer: a chip cheers and names the milestone ("You're on fire · 7-day streak", "Unstoppable", "Legendary", "A whole year", "New record", "Best day yet", "3,000 runs and counting", from `moment-copy.ts`), and the heatmap card, drawn by `shareCardPng` exactly as it is copied, peeks out tilted and straightens on hover.
+- **The card.** `MomentPeek` sits above the sidebar footer: a line badge cheers and names the milestone, a pack glyph in its own semantic tint and no pill (a flickering `flame` for "You're on fire", `bolt` Unstoppable, `crown` Legendary, `sun` A whole year, `trophy` New record, `trend-up` Best day yet, `sparkles` for runs, from `moment-copy.ts`); the user turned down gradient pills, glows and sparks as cheap. Then the heatmap card, drawn by `shareCardPng` exactly as it is copied, peeks out tilted and straightens on hover.
   It hides while streamer mode masks personal data.
   Clicking it opens `MomentSheet`: both cards, then **Copy card** and **Copy link** when your profile is public, or "Claim `bestboy.dev/@handle` to share it", which starts the same sign-in and handle steps as **Publish my stats** in Settings, Profile.
   Copying the card dismisses the moment.

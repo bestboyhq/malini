@@ -68,7 +68,7 @@ Until you publish, **Share card** offers **Publish my stats** instead.
 
 ## Milestone cards
 
-When yesterday brought a milestone, your share card peeks out of the sidebar, above the stats readout, with a badge such as **You're on fire · 7-day streak** beside it.
+When yesterday brought a milestone, your share card peeks out of the sidebar, above the stats readout, with a line above it such as a flame and **You're on fire**, 7-day streak.
 A milestone is a 7, 30, 100 or 365-day streak, a streak longer than any before it, a day with more runs than any before it, or another thousand runs.
 The card waits until no agent is working, and hides while streamer mode masks your personal data.
 

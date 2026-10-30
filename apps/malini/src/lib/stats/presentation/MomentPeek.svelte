@@ -8,11 +8,12 @@
 	import { watchMomentHook } from '$lib/stats/application/hooks/watch-moment.hook';
 	import { momentQuery } from '$lib/stats/application/queries/moment.query.svelte';
 	import MomentSheet from './MomentSheet.svelte';
-	import { momentLabel } from './moment-copy';
+	import { momentBadge, momentLabel } from './moment-copy';
 	import { shareCardPng } from './share-cards';
 
 	const shown = $derived(sensitiveMasking.on ? null : momentQuery.data);
 	const label = $derived(shown ? momentLabel(shown.moment) : '');
+	const badge = $derived(shown ? momentBadge(shown.moment) : null);
 	const png = $derived(
 		shown?.card.stats ? shareCardPng('heatmap', shown.card, shown.card.stats) : null,
 	);
@@ -28,12 +29,17 @@
 		data-testid="moment-peek"
 	>
 		<div class="flex items-center justify-between gap-2">
-			<span
-				class="bg-brand/10 text-brand-foreground inline-flex min-w-0 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-2 text-xs font-medium"
-			>
-				<span class="bg-brand-icon size-1.5 shrink-0 rounded-full"></span>
-				<span class="truncate">{label}</span>
-			</span>
+			{#if badge}
+				<p class="flex min-w-0 items-center gap-1.5 text-xs">
+					<Icon
+						name={badge.icon}
+						size={14}
+						class={['shrink-0', badge.tone, badge.icon === 'flame' && 'moment-peek__flame']}
+					/>
+					<span class="text-fg-default shrink-0 font-medium">{badge.cheer}</span>
+					<span class="text-fg-tertiary truncate">{badge.fact}</span>
+				</p>
+			{/if}
 			<IconButton
 				variant="ghost"
 				size="xs"
@@ -93,7 +99,25 @@
 		}
 	}
 
+	.moment-peek :global(.moment-peek__flame) {
+		transform-origin: 50% 85%;
+		animation: moment-peek-flicker 1.6s ease-in-out infinite;
+	}
+
+	@keyframes moment-peek-flicker {
+		30% {
+			transform: scale(0.96, 1.05);
+		}
+		60% {
+			transform: scale(1.03, 0.97);
+		}
+	}
+
 	@media (prefers-reduced-motion: reduce) {
+		.moment-peek :global(.moment-peek__flame) {
+			animation: none;
+		}
+
 		.moment-peek :global(.moment-peek__card) {
 			transition: none;
 			animation: none;
