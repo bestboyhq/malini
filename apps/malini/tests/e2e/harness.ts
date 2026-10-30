@@ -330,14 +330,15 @@ async function closeOrExplain(
 	const child = electronApp.process();
 	const table = await processTable();
 	const tree = processTree(table, child.pid ?? -1);
-	const { mainThread, everyThread } = await sampleThreads(child.pid ?? -1);
-	for (const line of tree) {
-		const pid = Number(line.trim().split(/\s+/u)[0]);
-		if (Number.isSafeInteger(pid) && pid > 0) {
-			try {
-				process.kill(pid, 'SIGKILL');
-			} catch {}
-		}
+	const pids = treePids(tree);
+	const [{ mainThread, everyThread }, helperSamples] = await Promise.all([
+		sampleThreads(child.pid ?? -1),
+		sampleHelpers(pids.filter((pid) => pid !== child.pid)),
+	]);
+	for (const pid of pids) {
+		try {
+			process.kill(pid, 'SIGKILL');
+		} catch {}
 	}
 	const diagnostics = diagnosticsLogFiles(userDataDir)
 		.filter(fileExists)
@@ -352,11 +353,33 @@ async function closeOrExplain(
 			...tree,
 			`main thread (every thread, with addresses to symbolicate: ${everyThread}):`,
 			...mainThread,
+			...(helperSamples.length > 0 ? ['helper processes sampled to:', ...helperSamples] : []),
 			'last output:',
 			output.join('').split('\n').slice(-60).join('\n'),
 			'last diagnostics:',
 			...diagnostics,
 		].join('\n'),
+	);
+}
+
+function treePids(tree: readonly string[]): number[] {
+	return tree
+		.map((line) => Number(line.trim().split(/\s+/u)[0]))
+		.filter((pid) => Number.isSafeInteger(pid) && pid > 0);
+}
+
+async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
+	mkdirSync(test.info().outputPath(), { recursive: true });
+	return Promise.all(
+		pids.map(async (pid) => {
+			const path = test.info().outputPath(`quit-stall-sample-${pid}.txt`);
+			try {
+				await execFileAsync('sample', [String(pid), '1', '-file', path]);
+				return path;
+			} catch (error) {
+				return `${pid}: ${String(error)}`;
+			}
+		}),
 	);
 }
 

@@ -157,6 +157,16 @@ export type ShareCard = Readonly<{
 	avatar: string | null;
 }>;
 
+export type StatsMomentKind = 'streak' | 'best-day' | 'runs';
+
+export type StatsMoment = Readonly<{
+	id: string;
+	kind: StatsMomentKind;
+	count: number;
+}>;
+
+export type MomentCard = Readonly<{ moment: StatsMoment; card: ShareCard }>;
+
 export type BestboyAccount = Readonly<{ name: string; email: string }>;
 
 export type BestboyProfile = Readonly<{

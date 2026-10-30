@@ -163,6 +163,20 @@ describe('the fix-checks job context', () => {
 		expect(context).not.toContain('spending limit');
 	});
 
+	it('tells the agent the checks already failed twice when Malini re-ran them, and never to re-run', () => {
+		const fix = (rerun: boolean): string =>
+			checkFixJobContext({
+				pullRequestNumber: 42,
+				failingChecks: [failingCheck('Unit tests')],
+				checkDiagnostics: null,
+				rerun,
+			});
+
+		expect(fix(true)).toContain('Malini already re-ran these checks once and they failed again');
+		expect(fix(false)).not.toContain('Malini already re-ran');
+		expect(fix(false)).toContain('Never re-run a check in place of a fix.');
+	});
+
 	it('says when diagnostics are unavailable or incomplete instead of calling them empty', () => {
 		expect(
 			checkFixJobContext({ pullRequestNumber: 42, failingChecks: [], checkDiagnostics: null }),

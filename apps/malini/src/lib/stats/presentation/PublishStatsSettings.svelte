@@ -29,6 +29,9 @@
 	const checked = $derived(publishing === 'on' || flow.turningOn);
 	const choosingHandle = $derived(flow.turningOn && !!profileState?.account && publishing !== 'on');
 	const waitingForSignIn = $derived(flow.turningOn && !profileState?.account);
+	const signedOut = $derived(
+		!!profileState && !profileState.account && !waitingForSignIn && !profileState.signInNeeded,
+	);
 	const handle = $derived(flow.handle ?? profileState?.suggestedHandle ?? '');
 	const status = $derived(profileState ? uploadLine(profileState) : null);
 	const profileUrl = $derived(publishing === 'on' ? (profileState?.profile?.url ?? null) : null);
@@ -186,6 +189,29 @@
 					</p>
 				</div>
 				<Button variant="secondary" size="sm" onclick={signOutOfBestboyCommand}>Sign out</Button>
+			</div>
+		{:else if signedOut}
+			<div class="flex items-center justify-between gap-3 px-4 py-3">
+				{#if profileState?.signingIn}
+					<p class="text-fg-secondary text-xs">
+						Sign in to Bestboy in your browser, then come back.
+					</p>
+					<Button variant="ghost" size="sm" onclick={cancelPublishingCommand}>Cancel</Button>
+				{:else}
+					<div class="min-w-0">
+						<p class="text-fg-default text-sm">Not signed in to Bestboy</p>
+						<p
+							class={[
+								'text-xs',
+								profileState?.signInProblem ? 'text-error-content' : 'text-fg-tertiary',
+							]}
+						>
+							{profileState?.signInProblem ??
+								'Your Bestboy account holds your profile and your share cards.'}
+						</p>
+					</div>
+					<Button variant="secondary" size="sm" onclick={signInToBestboyCommand}>Sign in</Button>
+				{/if}
 			</div>
 		{/if}
 	</div>

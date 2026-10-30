@@ -31,7 +31,7 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 - [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): the inspector, its panels, commands, settings, and workflows.
 - [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs working.
-- [Public profile](/malini/docs/profile.md): share cards of your stats, and a profile at bestboy.dev if you publish them.
+- [Public profile](/malini/docs/profile.md): publish your stats to a profile at bestboy.dev, and share cards of it.
 
 ## Where your code goes
 

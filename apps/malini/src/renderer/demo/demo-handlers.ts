@@ -225,6 +225,7 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'skills.list': () => [],
 	'skills.usage': () => ({ since: null, uses: [], turnedOff: [], plugins: [] }),
 	'stats.workstream-running': () => [],
+	'stats.moment': () => null,
 	'stats.activity': () => ({
 		today: DEMO_DAY,
 		runs: 0,

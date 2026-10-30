@@ -1,26 +1,24 @@
 ---
 title: Public profile
-description: Copy share cards of your Malini stats, and publish them to a public profile at bestboy.dev if you want one. Every number Malini sends, in plain words, and what never leaves your Mac.
+description: Publish your Malini stats to a public profile at bestboy.dev and share cards of it. Every number Malini sends, in plain words, and what never leaves your Mac.
 ---
 
 Malini counts how you work with agents on your Mac, in the Stats panel.
-You can share those stats two ways: copy a share card, or publish them to a public profile at `bestboy.dev/@handle`.
-A share card needs no account, and publishing is off until you turn it on.
+You can publish those stats to a public profile at `bestboy.dev/@handle`, and then share cards of them.
+Your profile lives in your Bestboy account, and publishing is off until you turn it on.
 
-## Share cards
+## Your Bestboy account
 
-Open the Stats panel from the readout at the bottom of the sidebar.
-**Share card** shows two cards drawn from your numbers: **Heatmap** and **Readout**.
-Click one to copy it as a picture, then paste it anywhere.
-
-The cards count complete days only, through yesterday, so a card you copy matches your profile.
-They show your name and picture from GitHub, and your Bestboy handle once you publish, or your GitHub login before that.
+Settings, Profile shows your Bestboy account.
+Signed out, it says **Not signed in to Bestboy**, and **Sign in** opens your browser to sign in with Google or an email code.
+Signing in publishes nothing; it only tells Malini who you are on bestboy.dev.
+Signed in, it shows your name and email, and **Sign out**.
 
 ## Publish my stats
 
-Turn on **Publish my stats** in Settings, Profile.
+Turn on **Publish my stats** in Settings, Profile, or click **Publish my stats** under **Share card** in the Stats panel.
 
-1. Malini opens your browser to sign in to Bestboy, with Google or an email code, and the browser hands you back to Malini through a `malini://` link.
+1. If you are not signed in yet, Malini opens your browser to sign in to Bestboy, and the browser hands you back to Malini through a `malini://` link.
 2. Back in Malini, you choose your profile address, `bestboy.dev/@handle`, filled in with your GitHub login.
 3. Malini sends your numbers, and **Copy link** copies your profile's address.
 
@@ -56,6 +54,28 @@ Your profile names no repository unless you pick it.
 Under **Public repositories**, Settings lists the repositories you ran agents in that GitHub reports public, and you can pick up to 10.
 Malini names a picked repository only while GitHub still reports it public.
 Every other repository counts only toward two totals, public and private, and a repository that is not on GitHub counts as private.
+
+## Share cards
+
+Share cards come with your profile.
+Once you publish, open the Stats panel from the readout at the bottom of the sidebar.
+**Share card** shows two cards drawn from your numbers: **Heatmap** and **Readout**.
+Click one to copy it as a picture, then paste it anywhere.
+
+The cards count complete days only, through yesterday, so a card you copy matches your profile.
+They show your name and picture from GitHub, and your Bestboy handle.
+Until you publish, **Share card** offers **Publish my stats** instead.
+
+## Milestone cards
+
+When yesterday brought a milestone, your share card peeks out of the sidebar, above the stats readout, with a line above it such as a flame and **You're on fire**, 7-day streak.
+A milestone is a 7, 30, 100 or 365-day streak, a streak longer than any before it, a day with more runs than any before it, or another thousand runs.
+The card waits until no agent is working, and hides while streamer mode masks your personal data.
+
+Click the card to see both cards.
+Once you publish, **Copy card** and **Copy link** share them; before that, the card offers to claim your `bestboy.dev/@handle`, the same steps as **Publish my stats**.
+The × dismisses a milestone for good, and **Milestone cards** in Settings, Profile turns them off.
+Milestones are worked out on your Mac and nothing about them leaves it until you publish.
 
 ## Every number Malini sends
 

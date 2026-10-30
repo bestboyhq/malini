@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	currentSessionId,
@@ -36,6 +36,19 @@ const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
 const KEEP_EXPLAINER = 'Skip archiving after the merge';
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+const FLAKY_JOB = 'e2e on macOS 3/5';
+
+function actionsJob(conclusion: string | null, completedAt: string | null = null) {
+	return [
+		{
+			name: FLAKY_JOB,
+			status: conclusion === null ? 'IN_PROGRESS' : 'COMPLETED',
+			conclusion,
+			detailsUrl: 'https://github.com/e2e/hutch/actions/runs/41/job/410',
+			completedAt,
+		},
+	];
+}
 
 test('Merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
 	test.setTimeout(240_000);
@@ -371,9 +384,10 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 
 		await queueMerge(page);
 
-		await expect(topBarStatus(page, 'Queued for merge · Clearing blockers')).toBeVisible({
+		await expect(topBarStatus(page, 'Queued for merge · Fixing test')).toBeVisible({
 			timeout: 30_000,
 		});
+		expect(rerunCalls(github)).toEqual([]);
 		const jobs = page.getByRole('region', { name: 'Jobs: 1 running' });
 		await expect(jobs).toBeVisible({ timeout: 30_000 });
 		const transcript = jobs.getByRole('link', {
@@ -438,6 +452,87 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 				.getByRole('list', { name: 'Button clicked' })
 				.getByRole('button', { name: /^Button clicked: Merge, Pull request workstream, /u }),
 		).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a failing GitHub Actions job is re-run once, and the queue merges when the re-run passes, with no agent', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-rerun-passes', {
+			liveHead: true,
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: actionsJob('FAILURE', '2026-10-30T14:23:21Z'),
+			rerunChecks: actionsJob(null),
+		});
+		github.setPullRequest({ checksHead: github.pushedHead() });
+		await openWorkstream(page, 'e2e-rerun-passes');
+
+		await queueMerge(page);
+
+		await expect(topBarStatus(page, `Queued for merge · Re-running ${FLAKY_JOB}`)).toBeVisible({
+			timeout: 30_000,
+		});
+		expect(rerunCalls(github)).toEqual([
+			['api', '-X', 'POST', 'repos/e2e/hutch/actions/runs/41/rerun-failed-jobs'],
+		]);
+		await captureFlow(app, 'merge-queue-rerunning-checks');
+
+		github.setPullRequest({ statusCheckRollup: actionsJob('SUCCESS', '2026-10-30T14:46:10Z') });
+		await expectMergedAndArchived(page, 'e2e-rerun-passes');
+		expect(rerunCalls(github)).toHaveLength(1);
+		expect(await fixChecksRuns(app.page)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a re-run that fails again starts Fix checks, which hears the failure repeats, and the queue merges its fix', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-rerun-fails', {
+			liveHead: true,
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: actionsJob('FAILURE', '2026-10-30T14:23:21Z'),
+			rerunChecks: actionsJob('FAILURE'),
+			nextChecks: actionsJob('SUCCESS', '2026-10-30T15:02:00Z'),
+		});
+		github.setPullRequest({ checksHead: github.pushedHead() });
+		await openWorkstream(page, 'e2e-rerun-fails');
+		holdAgentRuns(app, true);
+
+		await queueMerge(page);
+
+		await expect(topBarStatus(page, `Queued for merge · Fixing ${FLAKY_JOB}`)).toBeVisible({
+			timeout: 30_000,
+		});
+		expect(rerunCalls(github)).toHaveLength(1);
+		await captureFlow(app, 'merge-queue-fixing-after-rerun');
+		await page
+			.getByRole('region', { name: 'Jobs: 1 running' })
+			.getByRole('link', { name: 'Open transcript: Fix checks · Pull request workstream, Running' })
+			.click();
+		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBeNull();
+		await expect(
+			page.locator(
+				`[data-testid="chat-message-viewport"][data-session-id="${currentSessionId(page)}"]`,
+			),
+		).toContainText('Malini already re-ran these checks once and they failed again', {
+			timeout: 20_000,
+		});
+
+		holdAgentRuns(app, false);
+		await expectAssistantReply(page);
+		await expectMergedAndArchived(page, 'e2e-rerun-fails');
+		expect(rerunCalls(github)).toHaveLength(1);
+		expect(await fixChecksRuns(app.page)).toHaveLength(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -626,6 +721,17 @@ test('a prompt in a workstream whose pull request merged on GitHub first starts 
 		await app.close();
 	}
 });
+
+function rerunCalls(github: FakeGithub): string[][] {
+	return github
+		.calls()
+		.filter((args) => args[0] === 'api' && args.some((arg) => arg.endsWith('/rerun-failed-jobs')));
+}
+
+async function fixChecksRuns(page: Page): Promise<{ title: string }[]> {
+	const runs = await invoke<{ title: string }[]>(page, 'jobs.list-runs', undefined);
+	return runs.filter((run) => run.title === 'Fix checks');
+}
 
 function mergeCalls(github: FakeGithub): string[][] {
 	return github.calls().filter(([command, sub]) => command === 'pr' && sub === 'merge');
