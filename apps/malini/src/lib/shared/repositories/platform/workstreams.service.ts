@@ -63,6 +63,7 @@ import {
 import { recordedBaseRepository } from './checkout-resolver';
 import { restoreKeptFolders } from './kept-folders';
 import {
+	archivedLeftoversCleared,
 	slimKeptContext,
 	teardownWorkstreamCheckout,
 	type TeardownGuard,
@@ -279,6 +280,7 @@ export async function restoreWorkstream(
 	const checkout = workstreamPath(appDataRoot, workstreamId);
 	const branch = archived.branch;
 	validateBranch(branch);
+	await archivedLeftoversCleared();
 	const checkoutExisted = existsSync(checkout);
 	const branchExisted = (await branchList(repository)).includes(branch);
 	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
