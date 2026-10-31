@@ -52,12 +52,12 @@
 		{@const chosen = answer?.channel === channel}
 		<Button
 			variant="ghost"
-			size="lg"
+			size="auto"
 			radius="full"
 			bordered
 			active={chosen}
 			ariaPressed={chosen}
-			class="data-[active=true]:border-button-primary/50 font-normal"
+			class="data-[active=true]:border-button-primary/50 h-9 pr-3 pl-[9.5px] text-base font-normal"
 			onclick={() => choose(channel)}
 		>
 			{#snippet leading()}
