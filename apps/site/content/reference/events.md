@@ -1290,3 +1290,17 @@ type ProfileState = Readonly<{
 	suggestedHandle: string | null;
 }>;
 ```
+
+## `stats:profile-published`
+
+Fires when you claim your `@handle` and **Publish my stats** turns on, with your Bestboy profile: its handle, whether it is public, and its address.
+
+Payload: `BestboyProfile`
+
+```ts
+type BestboyProfile = Readonly<{
+	handle: string | null;
+	public: boolean;
+	url: string | null;
+}>;
+```

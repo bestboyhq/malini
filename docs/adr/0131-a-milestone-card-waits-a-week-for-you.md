@@ -1,6 +1,6 @@
 # 0131 - A milestone card waits a week for you
 
-Status: accepted
+Status: superseded by 0135
 
 ## Context
 

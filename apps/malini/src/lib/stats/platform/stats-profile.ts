@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type {
+	BestboyProfile,
 	ProfileState,
 	PublishedStats,
 	PublishStatsResult,
@@ -17,6 +18,7 @@ export interface StatsProfileDeps {
 	readStats(picked: readonly string[]): Promise<PublishedStats | null>;
 	githubLogin(): Promise<string | null>;
 	changed(state: ProfileState): void;
+	published(profile: BestboyProfile): void;
 	readonly now?: () => Date;
 }
 
@@ -146,6 +148,7 @@ export class StatsProfile {
 			try {
 				const profile = await this.#deps.bestboy.putProfile(token, { handle, public: true });
 				await this.#save({ ...this.#saved, profile, publishing: 'on', publishedThrough: null });
+				this.#deps.published(profile);
 			} catch (error) {
 				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
 				return { state: this.#emit(), problem: described(error) };

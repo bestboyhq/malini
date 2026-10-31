@@ -429,5 +429,13 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload:
 				"type BestboyAccount = Readonly<{ name: string; email: string }>;\n\ntype BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;\n\ntype StatsPublishing = 'off' | 'on' | 'removing';\n\ntype StatsUpload =\n\t| Readonly<{ state: 'idle' }>\n\t| Readonly<{ state: 'sending' }>\n\t| Readonly<{ state: 'published'; through: string }>\n\t| Readonly<{ state: 'no-full-day' }>\n\t| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;\n\ntype ProfileState = Readonly<{\n\taccount: BestboyAccount | null;\n\tprofile: BestboyProfile | null;\n\tsigningIn: boolean;\n\tsignInNeeded: boolean;\n\tsignInProblem: string | null;\n\tpublishing: StatsPublishing;\n\tupload: StatsUpload;\n\tpickedRepositories: readonly string[];\n\tsuggestedHandle: string | null;\n}>;",
 		},
+		{
+			channel: 'stats:profile-published',
+			description:
+				'Fires when you claim your `@handle` and **Publish my stats** turns on, with your Bestboy profile: its handle, whether it is public, and its address.',
+			payloadType: 'BestboyProfile',
+			payload:
+				'type BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;',
+		},
 	],
 };
