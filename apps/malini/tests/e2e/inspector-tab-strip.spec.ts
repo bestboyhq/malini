@@ -46,54 +46,54 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 			timeout: 20_000,
 		});
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'Add extensions' }).click();
+		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
 		const files = inspectorTab(page, 'Files');
-		const extensions = inspectorTab(page, 'Extensions');
-		await expect(extensions).toHaveAttribute('aria-selected', 'true');
+		const newTab = inspectorTab(page, 'New tab');
+		await expect(newTab).toHaveAttribute('aria-selected', 'true');
 		await page.mouse.move(0, 0);
-		await captureFlow(app, 'inspector-tab-strip-1-files-extensions');
+		await captureFlow(app, 'inspector-tab-strip-1-files-new-tab');
 
-		await expectPanels(page, ['tab "Files"', 'tab "Extensions" [selected]']);
-		await expectControlsItsPanel(page, extensions, 'Extensions');
+		await expectPanels(page, ['tab "Files"', 'tab "New tab" [selected]']);
+		await expectControlsItsPanel(page, newTab, 'New tab');
 		await expect(files).not.toHaveAttribute('aria-controls');
 
-		const closeExtensions = page.getByRole('button', { name: 'Close Extensions', exact: true });
-		await closeExtensions.focus();
+		const closeNewTab = page.getByRole('button', { name: 'Close New tab', exact: true });
+		await closeNewTab.focus();
 		await page.keyboard.press('Shift+Tab');
-		await expect(extensions).toBeFocused();
+		await expect(newTab).toBeFocused();
 		await page.keyboard.press('Shift+Tab');
 		await expect(files).not.toBeFocused();
-		await extensions.focus();
+		await newTab.focus();
 		await page.keyboard.press('Tab');
-		await expect(closeExtensions).toBeFocused();
+		await expect(closeNewTab).toBeFocused();
 
-		await extensions.focus();
+		await newTab.focus();
 		await page.keyboard.press('ArrowRight');
 		await expect(files).toBeFocused();
 		await page.keyboard.press('ArrowLeft');
-		await expect(extensions).toBeFocused();
+		await expect(newTab).toBeFocused();
 		await page.keyboard.press('Home');
 		await expect(files).toBeFocused();
 		await page.keyboard.press('End');
-		await expect(extensions).toBeFocused();
-		await expect(extensions).toHaveAttribute('aria-selected', 'true');
+		await expect(newTab).toBeFocused();
+		await expect(newTab).toHaveAttribute('aria-selected', 'true');
 
 		await page.keyboard.press('Home');
 		await page.keyboard.press('Enter');
 		await expect(files).toHaveAttribute('aria-selected', 'true');
 		const filesPanel = await expectControlsItsPanel(page, files, 'Files');
 		await expect(filesPanel.getByRole('treeitem', { name: 'Open seed.txt' })).toBeVisible();
-		await expect(page.getByRole('tabpanel', { name: 'Extensions', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('tabpanel', { name: 'New tab', exact: true })).toHaveCount(0);
 
 		await files.focus();
 		await page.keyboard.press('End');
-		await expect(extensions).toBeFocused();
+		await expect(newTab).toBeFocused();
 		await page.keyboard.press('Space');
-		await expect(extensions).toHaveAttribute('aria-selected', 'true');
+		await expect(newTab).toHaveAttribute('aria-selected', 'true');
 
-		await extensions.focus();
+		await newTab.focus();
 		await page.keyboard.press('Tab');
-		await expect(closeExtensions).toBeFocused();
+		await expect(closeNewTab).toBeFocused();
 		await page.keyboard.press('Enter');
 		await expectPanels(page, ['tab "Files" [selected]']);
 		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(1);

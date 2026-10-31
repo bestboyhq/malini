@@ -194,6 +194,8 @@ export interface SendPromptHooks {
 	readonly theme?: () => AgentTheme;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
+	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
+	readonly plugins?: () => readonly string[];
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -747,7 +749,7 @@ async function sendAgentPromptLeased(
 	}
 	let turn: PreparedTurn;
 	try {
-		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, log);
+		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, hooks, log);
 	} catch (error) {
 		const errorMessage = `could not prepare the turn: ${describe(error)}`;
 		handleSendPromptHandoffFailure(db, sessionId, runId, errorMessage, emit);
@@ -755,6 +757,7 @@ async function sendAgentPromptLeased(
 		throw new LifecycleError('db', errorMessage);
 	}
 	lease.release();
+	const secrets = await secretsForRun(hooks, workstreamId, log);
 	const undelivered = await handPromptToBridge(supervisor, hooks.closing, {
 		cmd: 'send_prompt',
 		id: supervisor.nextCommandId(),
@@ -767,6 +770,8 @@ async function sendAgentPromptLeased(
 		...(input.steer === true ? { steer: true } : {}),
 		...(hooks.theme ? { theme: hooks.theme() } : {}),
 		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
+		...(secrets === null ? {} : { secrets }),
+		...(turn.plugins === null ? {} : { plugins: turn.plugins }),
 	});
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
@@ -799,6 +804,7 @@ async function preparedTurn(
 	runId: string,
 	handsOff: boolean,
 	prompt: string,
+	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ) {
 	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
@@ -811,6 +817,7 @@ async function preparedTurn(
 				? { freshConversation: true as const }
 				: providerResumePoint(db, sessionId),
 		skills: skillsForRun(db, sessionId),
+		plugins: hooks.plugins?.() ?? null,
 		lineage: await lineageForRun(db, workstreamId, log),
 	};
 }
@@ -826,6 +833,20 @@ async function handPromptToBridge(
 		return null;
 	} catch (error) {
 		return closing() ? PAUSED_FOR_EXIT_ERROR : `agent bridge send failed: ${describe(error)}`;
+	}
+}
+
+async function secretsForRun(
+	hooks: SendPromptHooks,
+	workstreamId: string,
+	log: (line: string) => void,
+): Promise<Readonly<Record<string, string>> | null> {
+	if (!hooks.secrets) return null;
+	try {
+		return await hooks.secrets(workstreamId);
+	} catch (error) {
+		log(`agent: could not read the secrets of \`${workstreamId}\`: ${describe(error)}`);
+		return null;
 	}
 }
 

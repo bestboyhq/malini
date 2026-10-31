@@ -9,12 +9,10 @@
 	title="Accounts"
 	description="Every chat runs Claude Code on this Mac with the Claude account in use, your CLAUDE.md, skills and MCP servers. Clones and pull requests go through your GitHub account."
 >
-	<div class="flex flex-col gap-1.5">
-		<Well title="Claude Code" headed={false}>
-			<ClaudeCodeSetup nested />
-		</Well>
-		<Well title="GitHub" headed={false}>
-			<GitHubSetup nested />
-		</Well>
-	</div>
+	<Well title="Claude Code" headed={false}>
+		<ClaudeCodeSetup nested />
+	</Well>
+	<Well title="GitHub" headed={false}>
+		<GitHubSetup nested />
+	</Well>
 </SettingsSection>

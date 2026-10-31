@@ -146,21 +146,6 @@ export class ExtensionRuntimeCoordinator {
 			});
 	}
 
-	reloadWorkstreamConfiguration(
-		workstream: ExtensionWorkstream,
-	): Promise<ExtensionActivationReport> {
-		return this.#enqueue(async () => {
-			const service = this.#requireService();
-			if (!service.workstream) {
-				return this.#recordActivationReport(workstream, await service.start(workstream));
-			}
-			if (!sameWorkstream(service.workstream, workstream)) {
-				throw new Error('The active repository changed before its extension settings were saved');
-			}
-			return this.#recordActivationReport(workstream, await service.setWorkstream(workstream));
-		});
-	}
-
 	async whenIdle(): Promise<void> {
 		await this.#transition;
 	}

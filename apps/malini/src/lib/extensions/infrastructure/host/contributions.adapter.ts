@@ -71,7 +71,7 @@ type DesktopExtensionContributionHostOptions = {
 	openDocument?: DocumentOpener;
 };
 
-export class WebExtensionSettingStorage implements ExtensionSettingStorage {
+class WebExtensionSettingStorage implements ExtensionSettingStorage {
 	readonly #storage: ExtensionStateStorage;
 
 	constructor(storage: ExtensionStateStorage) {

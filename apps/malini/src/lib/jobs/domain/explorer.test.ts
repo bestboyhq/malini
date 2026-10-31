@@ -305,7 +305,7 @@ describe('explorer', () => {
 		expect(map.wires.get('reconciler>rule:thens')).toBe(1);
 	});
 
-	it('names what you click and open, the start of Malini and the times reached as the events their rules heard through the Reconciler', () => {
+	it('names what you click, open and save, the start of Malini and the times reached as the events their rules heard through the Reconciler', () => {
 		const map = explorer({
 			...RECORD,
 			events: [
@@ -337,7 +337,9 @@ describe('explorer', () => {
 		expect(EVENT_ROWS.filter((row) => ROW_SOURCES[row] === 'you')).toEqual([
 			'button-clicked',
 			'workstream-opened',
+			'secrets-saved',
 		]);
+		expect(eventRow('secrets:saved')).toBe('secrets-saved');
 		expect(map.byId.get('event:6')).toMatchObject({ row: 'malini-started' });
 		expect(map.byId.get('event:7')).toMatchObject({ row: 'time-reached' });
 		expect(map.byId.get('event:8')).toMatchObject({

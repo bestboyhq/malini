@@ -24,7 +24,7 @@
 	import JobEditor from '../JobEditor.svelte';
 	import JobRunRow from '../JobRunRow.svelte';
 	import JobRunTarget from '../JobRunTarget.svelte';
-	import AutomationsSection from './AutomationsSection.svelte';
+	import { PageSection } from '$hyper-ui/components/page-section';
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import JobScorecard from './JobScorecard.svelte';
 	import RunModePicker from './RunModePicker.svelte';
@@ -100,7 +100,7 @@
 	}
 </script>
 
-<AutomationsSection title={job.name} description={jobSentence(job, thenName)}>
+<PageSection title={job.name} description={jobSentence(job, thenName)}>
 	{#snippet actions()}
 		<div class="flex shrink-0 items-center gap-1.5">
 			{#if confirming}
@@ -311,4 +311,4 @@
 			</div>
 		</Well>
 	{/if}
-</AutomationsSection>
+</PageSection>

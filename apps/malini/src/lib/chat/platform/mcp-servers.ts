@@ -41,6 +41,7 @@ export interface McpServerDeps {
 	};
 	readonly claudeSettings: () => string;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
+	readonly plugins: () => readonly string[];
 	readonly log: (line: string) => void;
 }
 
@@ -100,7 +101,7 @@ export class McpServerListings {
 		this.#turnedOff = await readTurnedOffMcpServers(this.#deps.claudeSettings());
 		const before = this.#shown.get(cwd);
 		const supervisor = await this.#deps.runtime.ensureReady();
-		await plainly(() => supervisor.watchMcpServers(cwd, restart));
+		await plainly(() => supervisor.watchMcpServers(cwd, this.#deps.plugins(), restart));
 		const after = this.#shown.get(cwd);
 		return {
 			servers: after?.servers ?? this.#cached(cwd),
@@ -140,7 +141,12 @@ export class McpServerListings {
 		try {
 			const supervisor = await this.#deps.runtime.ensureReady();
 			const folders = on ? foldersWithMcpServerOff(this.#deps.db, serverName) : [];
-			const switched = await supervisor.switchMcpServer(serverName, on, folders);
+			const switched = await supervisor.switchMcpServer(
+				serverName,
+				on,
+				folders,
+				this.#deps.plugins(),
+			);
 			if (on) forgetMcpServerOff(this.#deps.db, serverName, switched);
 			else recordMcpServerOff(this.#deps.db, serverName, switched);
 		} catch (error) {
@@ -191,13 +197,16 @@ export function defineMcpServerCommands(
 	commands.define('chat.authorize-mcp-server', async (args: unknown) => {
 		const serverName = requireServerName(args);
 		const { supervisor, target } = await resolveTarget(args, deps);
-		return { authUrl: await plainly(() => supervisor.authorizeMcpServer(target, serverName)) };
+		const authUrl = await plainly(() =>
+			supervisor.authorizeMcpServer(target, serverName, deps.plugins()),
+		);
+		return { authUrl };
 	});
 
 	commands.define('chat.reconnect-mcp-server', async (args: unknown) => {
 		const serverName = requireServerName(args);
 		const { supervisor, target } = await resolveTarget(args, deps);
-		await plainly(() => supervisor.reconnectMcpServer(target, serverName));
+		await plainly(() => supervisor.reconnectMcpServer(target, serverName, deps.plugins()));
 	});
 
 	commands.define('chat.cancel-mcp-sign-in', async (args: unknown) => {

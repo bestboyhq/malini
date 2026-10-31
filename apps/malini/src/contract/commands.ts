@@ -77,7 +77,28 @@ import type {
 } from './mcp-servers';
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
+import type {
+	ClaimHandleArgs,
+	ClaimHandleResult,
+	ExtensionDetail,
+	ExtensionListing,
+	ExtensionRefArgs,
+	InstalledExtension,
+	MarketplaceListings,
+	PublishExtensionArgs,
+	Publishing,
+	SwitchExtensionArgs,
+	UninstallExtensionArgs,
+} from './marketplace';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
+import type {
+	DeleteSecretArgs,
+	DismissSecretRequestArgs,
+	ListSecretRequestsArgs,
+	SavedSecret,
+	SaveSecretsArgs,
+	SecretRequest,
+} from './secrets';
 import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from './shell-runs';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
@@ -127,7 +148,6 @@ import type {
 	ExtensionSourceSnapshot,
 	InstallOutcomeResult,
 	LogicalViewport,
-	ManagedExtensionSourceSnapshot,
 	NotificationPermissionResult,
 	OwnedContainer,
 	RendererErrorPayload,
@@ -135,6 +155,7 @@ import type {
 	ShutdownImpact,
 	ShutdownOutcome,
 	StartedContainerInput,
+	UsageReport,
 } from './system';
 
 export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
@@ -377,10 +398,6 @@ export type RecordOwnedContainersArgs = Readonly<{
 
 export type ReleaseOwnedContainerArgs = Readonly<{ containerId: string }>;
 
-export type ExtensionIdArgs = Readonly<{ extensionId: string }>;
-
-export type SetManagedExtensionEnabledArgs = ExtensionIdArgs & Readonly<{ enabled: boolean }>;
-
 export type AppendExtensionDevelopmentLogArgs = Readonly<{ log: ExtensionDevelopmentLog }>;
 
 export type ListExtensionWorkstreamFilesArgs = Readonly<{
@@ -487,6 +504,7 @@ export interface ContractCommands {
 	'chat.session-changes': { args: SessionChangesArgs; result: AgentSessionChanges };
 	'chat.known-session-changes': { args: SessionChangesArgs; result: AgentSessionChanges };
 	'app.list-settings': { args: undefined; result: Record<string, string> };
+	'app.usage-report': { args: undefined; result: UsageReport | null };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
 		args: WorkstreamBaseBranchArgs;
@@ -566,6 +584,21 @@ export interface ContractCommands {
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
 	'scratchpad.save': { args: SaveScratchpadArgs; result: void };
+	'secrets.list-requests': { args: ListSecretRequestsArgs; result: SecretRequest[] };
+	'secrets.save': { args: SaveSecretsArgs; result: void };
+	'secrets.dismiss-request': { args: DismissSecretRequestArgs; result: void };
+	'secrets.list': { args: undefined; result: SavedSecret[] };
+	'secrets.delete': { args: DeleteSecretArgs; result: void };
+	'extensions.list-listings': { args: undefined; result: MarketplaceListings };
+	'extensions.get-listing': { args: ExtensionRefArgs; result: ExtensionDetail };
+	'extensions.list-installed': { args: undefined; result: InstalledExtension[] };
+	'extensions.install': { args: ExtensionRefArgs; result: InstalledExtension };
+	'extensions.uninstall': { args: UninstallExtensionArgs; result: void };
+	'extensions.switch': { args: SwitchExtensionArgs; result: InstalledExtension };
+	'extensions.publishing': { args: undefined; result: Publishing };
+	'extensions.publish': { args: PublishExtensionArgs; result: ExtensionListing };
+	'extensions.sign-in': { args: undefined; result: void };
+	'extensions.claim-handle': { args: ClaimHandleArgs; result: ClaimHandleResult };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
@@ -580,7 +613,6 @@ export interface ContractCommands {
 		args: ListExtensionWorkstreamFilesArgs;
 		result: string[];
 	};
-	'extensions.list-managed': { args: undefined; result: ManagedExtensionSourceSnapshot[] };
 	'repositories.list-owned-docker-containers': { args: undefined; result: OwnedContainer[] };
 	'repositories.list-repositories': { args: undefined; result: ProjectDto[] };
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
@@ -644,16 +676,8 @@ export interface ContractCommands {
 		result: WorkstreamBaseSyncOutcome;
 	};
 	'repositories.sync-own-pull-requests': { args: undefined; result: string[] };
-	'extensions.rollback-managed': {
-		args: ExtensionIdArgs;
-		result: ManagedExtensionSourceSnapshot;
-	};
 	'chat.send-prompt': { args: SendAgentPromptArgs; result: string };
 	'app.set-setting': { args: SetSettingArgs; result: void };
-	'extensions.set-managed-enabled': {
-		args: SetManagedExtensionEnabledArgs;
-		result: ManagedExtensionSourceSnapshot;
-	};
 	'app.shutdown-gracefully': { args: undefined; result: ShutdownOutcome };
 	'chat.stage-attachment-bytes': {
 		args: StageAttachmentBytesArgs;
@@ -793,6 +817,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.session-changes',
 	'chat.known-session-changes',
 	'app.list-settings',
+	'app.usage-report',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',
 	'repositories.workstream-diff',
@@ -851,6 +876,21 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'skills.switch',
 	'scratchpad.load',
 	'scratchpad.save',
+	'secrets.list-requests',
+	'secrets.save',
+	'secrets.dismiss-request',
+	'secrets.list',
+	'secrets.delete',
+	'extensions.list-listings',
+	'extensions.get-listing',
+	'extensions.list-installed',
+	'extensions.install',
+	'extensions.uninstall',
+	'extensions.switch',
+	'extensions.publishing',
+	'extensions.publish',
+	'extensions.sign-in',
+	'extensions.claim-handle',
 	'repositories.list-hidden',
 	'repositories.set-hidden',
 	'chat.list-events',
@@ -862,7 +902,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.list-sessions',
 	'extensions.list-sources',
 	'extensions.list-workstream-files',
-	'extensions.list-managed',
 	'repositories.list-owned-docker-containers',
 	'repositories.list-repositories',
 	'repositories.workstream-files',
@@ -903,10 +942,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'repositories.sync-own-pull-requests',
-	'extensions.rollback-managed',
 	'chat.send-prompt',
 	'app.set-setting',
-	'extensions.set-managed-enabled',
 	'app.shutdown-gracefully',
 	'chat.stage-attachment-bytes',
 	'chat.stage-fork-transcript',

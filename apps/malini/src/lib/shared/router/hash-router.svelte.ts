@@ -203,14 +203,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPageState(value: unknown): value is PageState {
 	if (!isRecord(value)) return false;
-	if (value.settings !== undefined && typeof value.settings !== 'string') return false;
-	const directory = value.extensionDirectory;
-	if (directory === undefined) return true;
-	if (!isRecord(directory)) return false;
-	return (
-		typeof directory.workstreamId === 'string' &&
-		(directory.extensionId === null || typeof directory.extensionId === 'string')
-	);
+	return value.settings === undefined || typeof value.settings === 'string';
 }
 
 function writeCoordinates(coordinates: HistoryCoordinates): Record<string, unknown> {

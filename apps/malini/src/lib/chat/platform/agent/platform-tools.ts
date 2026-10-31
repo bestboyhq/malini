@@ -20,6 +20,7 @@ import {
 	recordAgentAction,
 } from '$lib/jobs/jobs.platform';
 import { openFileForUser } from '$lib/extensions/extensions.platform';
+import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
 import {
 	clonePlannedRepository,
@@ -30,6 +31,7 @@ import {
 	mergedPullRequestOf,
 	planRepositoryWorkstream,
 	prepareStartedWorkstream,
+	workstreamRepositoryName,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
 import { latestWorkstreamTurn, workstreamHasWorkingRun } from '../events.repository';
@@ -56,7 +58,12 @@ const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
 
 export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events' | 'appDataRoot'> &
-	Readonly<{ sending: PromptsInFlight; deliveries: ChatDeliveries; log: (line: string) => void }>;
+	Readonly<{
+		sending: PromptsInFlight;
+		deliveries: ChatDeliveries;
+		secrets?: SecretsPlatform;
+		log: (line: string) => void;
+	}>;
 
 export const SENDS_PER_CHAIN = 6;
 
@@ -213,7 +220,17 @@ async function runPlatformTool(
 				worktree: worktreePath(deps.appDataRoot, workstreamId),
 				path: requiredText(input, 'path'),
 				line: lineNumber(input, 'line'),
-				keys: textList(input, 'keys'),
+			});
+		}
+		case 'secrets_request': {
+			const { secrets } = deps;
+			if (!secrets) throw new Error('Malini cannot keep secrets in this build.');
+			const { workstreamId } = requestSession(db, request);
+			return secrets.request({
+				sessionId: request.sessionId,
+				repository: await workstreamRepositoryName(db, workstreamId),
+				names: input['names'],
+				why: input['why'],
 			});
 		}
 	}
@@ -579,15 +596,6 @@ function nullableText(input: Input, key: string): string | null | undefined {
 function requiredText(input: Input, key: string): string {
 	const value = text(input, key);
 	if (value === undefined) throw new Error(`\`${key}\` is required.`);
-	return value;
-}
-
-function textList(input: Input, key: string): readonly string[] {
-	const value = input[key];
-	if (value === undefined) return [];
-	if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
-		throw new Error(`\`${key}\` must be a list of strings.`);
-	}
 	return value;
 }
 

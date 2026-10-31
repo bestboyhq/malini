@@ -458,8 +458,10 @@ test('a lead chat has no inspector until its agent opens a page, holds only brow
 		await expect(inspector(page).getByRole('tab')).toHaveCount(1);
 		await expect(page.getByRole('button', { name: 'Open inspector panel' })).toBeEnabled();
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await expect(page.getByRole('menuitem', { name: 'New browser tab' })).toBeVisible();
-		await expect(page.getByRole('menuitem', { name: 'Add extensions' })).toHaveCount(0);
+		const panelMenu = page.getByTestId('extension-inspector-panel-picker');
+		await expect(panelMenu.getByRole('menuitem', { name: 'Select Usage report' })).toBeVisible();
+		await expect(panelMenu.getByRole('menuitem', { name: 'New browser tab' })).toBeVisible();
+		await expect(panelMenu.getByRole('menuitem')).toHaveCount(2);
 		await page.keyboard.press('Escape');
 		await captureFlow(app, 'lead-chat-browser-tab');
 

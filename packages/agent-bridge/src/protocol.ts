@@ -38,7 +38,8 @@ export type AgentCommand =
 	| ChooseCommand
 	| ListSkillsCommand
 	| BrowserResultCommand
-	| PlatformResultCommand;
+	| PlatformResultCommand
+	| SetSecretsCommand;
 
 export interface StartSessionCommand {
 	readonly cmd: 'start_session';
@@ -72,10 +73,28 @@ export interface SendPromptCommand {
 	readonly steer?: boolean;
 	readonly theme?: AgentTheme;
 	readonly lineage?: AgentLineage;
+	readonly secrets?: Secrets;
+	readonly plugins?: readonly string[];
 }
+
+export type Secrets = Readonly<Record<string, string>>;
+
+export interface SetSecretsCommand {
+	readonly cmd: 'set_secrets';
+	readonly id: string;
+	readonly sessionId: string;
+	readonly secrets: Secrets;
+}
+
+export const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
+const MAX_SECRETS = 1_000;
 
 const MAX_SKILLS = 1_000;
 const MAX_SKILL_NAME_CHARACTERS = 200;
+
+const MAX_PLUGINS = 50;
+const MAX_PLUGIN_PATH_CHARACTERS = 1_024;
 
 export interface CancelRunCommand {
 	readonly cmd: 'cancel_run';
@@ -126,6 +145,7 @@ export type McpServerCommand = {
 	readonly cmd: 'authorize_mcp_server' | 'reconnect_mcp_server';
 	readonly id: string;
 	readonly serverName: string;
+	readonly plugins?: readonly string[];
 } & ({ readonly sessionId: string } | { readonly cwd: string });
 
 export interface WatchMcpServersCommand {
@@ -133,6 +153,7 @@ export interface WatchMcpServersCommand {
 	readonly id: string;
 	readonly cwd: string;
 	readonly restart?: true;
+	readonly plugins?: readonly string[];
 }
 
 export interface SwitchMcpServerCommand {
@@ -141,6 +162,7 @@ export interface SwitchMcpServerCommand {
 	readonly serverName: string;
 	readonly on: boolean;
 	readonly folders: readonly string[];
+	readonly plugins?: readonly string[];
 }
 
 export interface CancelMcpAuthorizationCommand {
@@ -618,6 +640,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateBrowserResult(obj);
 		case 'platform_result':
 			return validatePlatformResult(obj);
+		case 'set_secrets':
+			return validateSetSecrets(obj);
 	}
 }
 
@@ -747,6 +771,8 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const steer = obj.steer;
 	const theme = obj.theme;
 	const lineage = obj.lineage;
+	const secrets = obj.secrets;
+	const plugins = obj.plugins;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -789,6 +815,12 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
+	if (secrets !== undefined && !isSecrets(secrets)) {
+		return err('INVALID_PAYLOAD', `send_prompt: ${SECRETS_SHAPE}`, obj);
+	}
+	if (plugins !== undefined && !isPluginList(plugins)) {
+		return err('INVALID_PAYLOAD', `send_prompt: ${PLUGINS_SHAPE}`, obj);
+	}
 	return {
 		ok: true,
 		command: {
@@ -804,8 +836,45 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(steer === true ? { steer } : {}),
 			...(theme !== undefined ? { theme } : {}),
 			...(lineage !== undefined ? { lineage } : {}),
+			...(secrets !== undefined ? { secrets } : {}),
+			...(plugins !== undefined ? { plugins } : {}),
 		},
 	};
+}
+
+const PLUGINS_SHAPE = `plugins, when present, must be at most ${MAX_PLUGINS} absolute folder paths of at most ${MAX_PLUGIN_PATH_CHARACTERS} characters`;
+
+function isPluginList(value: unknown): value is string[] {
+	return (
+		Array.isArray(value) &&
+		value.length <= MAX_PLUGINS &&
+		value.every(
+			(path) =>
+				typeof path === 'string' && path.length <= MAX_PLUGIN_PATH_CHARACTERS && isAbsolute(path),
+		)
+	);
+}
+
+const SECRETS_SHAPE = `secrets, when present, must map at most ${MAX_SECRETS} names such as API_TOKEN to string values`;
+
+function isSecrets(value: unknown): value is Secrets {
+	if (!isRecord(value)) return false;
+	const entries = Object.entries(value);
+	return (
+		entries.length <= MAX_SECRETS &&
+		entries.every(([name, secret]) => SECRET_NAME.test(name) && typeof secret === 'string')
+	);
+}
+
+function validateSetSecrets(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'set_secrets');
+	if (!id.ok) return id;
+	const { sessionId, secrets } = obj;
+	if (typeof sessionId !== 'string' || sessionId.length === 0) {
+		return err('INVALID_PAYLOAD', 'set_secrets: sessionId required (non-empty string)', obj);
+	}
+	if (!isSecrets(secrets)) return err('INVALID_PAYLOAD', `set_secrets: ${SECRETS_SHAPE}`, obj);
+	return { ok: true, command: { cmd: 'set_secrets', id: id.value, sessionId, secrets } };
 }
 
 function isSkillList(value: unknown): value is string[] {
@@ -986,15 +1055,19 @@ function validateMcpServerCommand(
 ): ParseResult {
 	const id = commandId(obj, cmd);
 	if (!id.ok) return id;
-	const { sessionId, cwd, serverName } = obj;
+	const { sessionId, cwd, serverName, plugins } = obj;
 	if (typeof serverName !== 'string' || serverName.length === 0) {
 		return err('INVALID_PAYLOAD', `${cmd}: serverName required (non-empty string)`, obj);
 	}
+	if (plugins !== undefined && !isPluginList(plugins)) {
+		return err('INVALID_PAYLOAD', `${cmd}: ${PLUGINS_SHAPE}`, obj);
+	}
+	const loaded = plugins !== undefined ? { plugins } : {};
 	if (typeof sessionId === 'string' && sessionId.length > 0 && cwd === undefined) {
-		return { ok: true, command: { cmd, id: id.value, sessionId, serverName } };
+		return { ok: true, command: { cmd, id: id.value, sessionId, serverName, ...loaded } };
 	}
 	if (typeof cwd === 'string' && isAbsolute(cwd) && sessionId === undefined) {
-		return { ok: true, command: { cmd, id: id.value, cwd, serverName } };
+		return { ok: true, command: { cmd, id: id.value, cwd, serverName, ...loaded } };
 	}
 	return err(
 		'INVALID_PAYLOAD',
@@ -1006,23 +1079,32 @@ function validateMcpServerCommand(
 function validateWatchMcpServers(obj: Record<string, unknown>): ParseResult {
 	const id = commandId(obj, 'watch_mcp_servers');
 	if (!id.ok) return id;
-	const { cwd, restart } = obj;
+	const { cwd, restart, plugins } = obj;
 	if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
 		return err('INVALID_PAYLOAD', 'watch_mcp_servers: cwd required (absolute path)', obj);
 	}
 	if (restart !== undefined && restart !== true) {
 		return err('INVALID_PAYLOAD', 'watch_mcp_servers: restart must be true when present', obj);
 	}
+	if (plugins !== undefined && !isPluginList(plugins)) {
+		return err('INVALID_PAYLOAD', `watch_mcp_servers: ${PLUGINS_SHAPE}`, obj);
+	}
 	return {
 		ok: true,
-		command: { cmd: 'watch_mcp_servers', id: id.value, cwd, ...(restart ? { restart } : {}) },
+		command: {
+			cmd: 'watch_mcp_servers',
+			id: id.value,
+			cwd,
+			...(restart ? { restart } : {}),
+			...(plugins !== undefined ? { plugins } : {}),
+		},
 	};
 }
 
 function validateSwitchMcpServer(obj: Record<string, unknown>): ParseResult {
 	const id = commandId(obj, 'switch_mcp_server');
 	if (!id.ok) return id;
-	const { serverName, on, folders } = obj;
+	const { serverName, on, folders, plugins } = obj;
 	if (typeof serverName !== 'string' || serverName.length === 0) {
 		return err('INVALID_PAYLOAD', 'switch_mcp_server: serverName required (non-empty string)', obj);
 	}
@@ -1035,9 +1117,19 @@ function validateSwitchMcpServer(obj: Record<string, unknown>): ParseResult {
 	) {
 		return err('INVALID_PAYLOAD', 'switch_mcp_server: folders required (absolute paths)', obj);
 	}
+	if (plugins !== undefined && !isPluginList(plugins)) {
+		return err('INVALID_PAYLOAD', `switch_mcp_server: ${PLUGINS_SHAPE}`, obj);
+	}
 	return {
 		ok: true,
-		command: { cmd: 'switch_mcp_server', id: id.value, serverName, on, folders },
+		command: {
+			cmd: 'switch_mcp_server',
+			id: id.value,
+			serverName,
+			on,
+			folders,
+			...(plugins !== undefined ? { plugins } : {}),
+		},
 	};
 }
 

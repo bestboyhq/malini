@@ -23,7 +23,7 @@
 	import { newJobExperimentStateQuery } from '$lib/jobs/application/queries/new-job-experiment-state.query.svelte';
 	import { selectedJobExperimentQuery } from '$lib/jobs/application/queries/selected-job-experiment.query.svelte';
 	import { brokeRuleCount } from '$lib/jobs/domain/job-output-checks';
-	import AutomationsSection from './AutomationsSection.svelte';
+	import { PageSection } from '$hyper-ui/components/page-section';
 	import ExperimentCard from './ExperimentCard.svelte';
 	import ExperimentResults from './ExperimentResults.svelte';
 	import ExperimentSetup from './ExperimentSetup.svelte';
@@ -82,7 +82,7 @@
 	}
 </script>
 
-<AutomationsSection
+<PageSection
 	title={`Improve ${job.name}`}
 	description={`Try instructions and models on its last ${sample.length} ${sample.length === 1 ? 'run' : 'runs'}. Nothing changes until you use one.`}
 >
@@ -197,4 +197,4 @@
 			<ExperimentResults {builtin} {sample} {experiments} selectedId={selected?.id ?? null} />
 		</Well>
 	{/if}
-</AutomationsSection>
+</PageSection>

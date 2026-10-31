@@ -63,6 +63,8 @@
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
 	import { WorkstreamJobRuns } from '$lib/jobs/jobs.api';
+	import { SecretRequestCard } from '$lib/secrets/secrets.api';
+	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
 	import {
@@ -279,6 +281,14 @@
 	const decisionsWaiting = $derived(
 		timeline && decisionsAside && changingDecision === null && !composerHidden,
 	);
+	const secretsSessionId = $derived(
+		stage === 'transcript' &&
+			!presentationPending &&
+			presentedSessionId === sessionId &&
+			!composerHidden
+			? sessionId
+			: null,
+	);
 	const childRequestsWaiting = $derived(childRequestsAside && !asking);
 	const uncheckedCallsWaiting = $derived(uncheckedSteps.length > 0 && !showsUncheckedQueue);
 
@@ -377,13 +387,6 @@
 		return document.hasFocus() && focusIsUnclaimed();
 	}
 
-	function focusIsUnclaimed(): boolean {
-		const active = document.activeElement;
-		if (!(active instanceof HTMLElement)) return true;
-		if (active.closest('[role="dialog"]')) return false;
-		return !active.matches('input, textarea, select, [contenteditable], [role="textbox"]');
-	}
-
 	function onWindowKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || event.metaKey || event.ctrlKey || !/^\S$/u.test(event.key)) {
 			return;
@@ -396,8 +399,7 @@
 	}
 
 	function composerMayClaimInput(): boolean {
-		if (composerHidden || documentActive || !focusIsUnclaimed()) return false;
-		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
+		return !composerHidden && !documentActive && focusIsUnclaimed() && !overlayIsOpen();
 	}
 
 	function onOpenChangedFile(file: AgentSessionChangedFile): void {
@@ -663,6 +665,7 @@
 												: setLeadDecisionsAsideCommand(openDecisions.map(({ id }) => id))}
 									/>
 								{/if}
+								<SecretRequestCard sessionId={secretsSessionId} />
 								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>
 									<ChatComposer
 										bind:this={composer}

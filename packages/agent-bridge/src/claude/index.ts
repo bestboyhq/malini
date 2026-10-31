@@ -2,6 +2,7 @@ import { defaultProviderRegistry, type ProviderRegistry } from '../providers/reg
 import type { ProviderFactory } from '../providers/types.js';
 import { findClaudeExecutable } from './installation.js';
 import { AutoModeOutage } from './permissions.js';
+import { bridgeSecretsFolder, SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, type QueryFunction } from './session.js';
 
 export interface ClaudeProviderOptions {
@@ -12,14 +13,18 @@ export interface ClaudeProviderOptions {
 export function createClaudeProviderFactory(options: ClaudeProviderOptions = {}): ProviderFactory {
 	const findExecutable = options.findExecutable ?? findClaudeExecutable;
 	const outage = new AutoModeOutage();
-	return async (context, emit) =>
-		new ClaudeSession({
+	let secretsFolder: string | null = null;
+	return async (context, emit) => {
+		secretsFolder ??= bridgeSecretsFolder();
+		return new ClaudeSession({
 			context,
 			emit,
 			executable: findExecutable(),
 			outage,
+			secrets: new SessionSecrets(sessionSecretsFolder(secretsFolder)),
 			...(options.query ? { query: options.query } : {}),
 		});
+	};
 }
 
 export function registerClaudeProvider(

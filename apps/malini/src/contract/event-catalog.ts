@@ -239,4 +239,28 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 		description:
 			'Fires when you claim your `@handle` and **Publish my stats** turns on, with your Bestboy profile: its handle, whether it is public, and its address.',
 	},
+	'secrets:requested': {
+		description:
+			'Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.',
+	},
+	'secrets:saved': {
+		description:
+			'Fires when you save secrets, on the card a chat showed or under Settings, Secrets, with their names, the repository they are for (`null` for everywhere), and the request and chat they answer, or `null` from Settings. It never carries a value.',
+	},
+	'secrets:request-dismissed': {
+		description:
+			'Fires when you dismiss the card where an agent asked you for secrets, with the request and its chat.',
+	},
+	'secrets:deleted': {
+		description:
+			'Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).',
+	},
+	'extensions:changed': {
+		description:
+			'Fires when an extension from the marketplace is installed, updated, uninstalled, turned on or off, or withdrawn because its publisher pulled the version you have, with its publisher, name, version and that `change`. Every chat picks the change up at its next prompt.',
+	},
+	'extensions:published': {
+		description:
+			'Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.',
+	},
 };

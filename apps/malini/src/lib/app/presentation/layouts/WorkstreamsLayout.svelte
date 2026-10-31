@@ -39,9 +39,15 @@
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import ExtensionsSidebar from '../ExtensionsSidebar.svelte';
 	import JobsSidebar from '../JobsSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
-	import { JOBS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
+	import {
+		EXTENSIONS_HREF,
+		JOBS_HREF,
+		REPOSITORIES_HREF,
+		workstreamHref,
+	} from '$shared/router/routes-hrefs';
 	import { globalTopBarBandSlot } from '$shared/shell/global-topbar-actions.svelte';
 	import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
 	import {
@@ -72,6 +78,7 @@
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
 	const onboardingShown = $derived(onboardingQuery.data.shown);
 	const inJobs = $derived(page.route.id?.startsWith(JOBS_HREF) ?? false);
+	const inExtensions = $derived(page.route.id?.startsWith(EXTENSIONS_HREF) ?? false);
 	let lastWorkstreamId = $state<string | null>(null);
 	const jobsBackHref = $derived(
 		lastWorkstreamId ? workstreamHref(lastWorkstreamId) : REPOSITORIES_HREF,
@@ -131,6 +138,8 @@
 >
 	{#if !onboardingShown && inJobs}
 		<JobsSidebar backHref={jobsBackHref} backLabel="Workstreams" />
+	{:else if !onboardingShown && inExtensions}
+		<ExtensionsSidebar backHref={jobsBackHref} backLabel="Workstreams" />
 	{:else if !onboardingShown}
 		<Sidebar
 			repositories={connectedRepositories}

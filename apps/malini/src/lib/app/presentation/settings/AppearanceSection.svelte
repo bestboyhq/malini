@@ -77,69 +77,67 @@
 		</Button>
 	{/snippet}
 
-	<div class="flex flex-col gap-1.5">
-		<Well title="Theme" note={themeMode === 'system' ? theme : undefined}>
-			{#snippet trailing()}
-				<ChoiceSwitch
-					label="Theme"
-					choices={THEME_MODES}
-					labels={THEME_MODE_LABELS}
-					selected={themeMode}
-					onchoose={chooseThemeModeCommand}
-				/>
-			{/snippet}
-		</Well>
-
-		<Well title="Sidebar density">
-			{#snippet trailing()}
-				<ChoiceSwitch
-					label="Sidebar density"
-					choices={SIDEBAR_DENSITIES}
-					labels={SIDEBAR_DENSITY_LABELS}
-					selected={sidebarDensity}
-					onchoose={chooseSidebarDensityCommand}
-				/>
-			{/snippet}
-		</Well>
-
-		<Well title="Gauges">
-			<div class="grid grid-cols-[repeat(2,minmax(min-content,1fr))] gap-1.5">
-				<TintWheel
-					{appearance}
-					driving={driver === 'wheel'}
-					ontune={(patch) => tune('wheel', patch)}
-				/>
-				<Levers
-					{appearance}
-					driving={driver === 'levers'}
-					ontune={(patch) => tune('levers', patch)}
-				/>
-				<FineTune
-					class="col-span-2"
-					{appearance}
-					driving={driver === 'fine-tune'}
-					ontune={(patch) => tune('fine-tune', patch)}
-				/>
-			</div>
-		</Well>
-
-		<Well title="Presets" note={preset ? preset.name.toLowerCase() : 'custom'}>
-			<GreyPresets
-				selected={preset}
-				onchoose={(choice) => tune('presets', { hue: choice.hue, chroma: choice.chroma })}
+	<Well title="Theme" note={themeMode === 'system' ? theme : undefined}>
+		{#snippet trailing()}
+			<ChoiceSwitch
+				label="Theme"
+				choices={THEME_MODES}
+				labels={THEME_MODE_LABELS}
+				selected={themeMode}
+				onchoose={chooseThemeModeCommand}
 			/>
-		</Well>
+		{/snippet}
+	</Well>
 
-		<Well title="History" note="saved on close">
-			<LookHistory
-				{looks}
-				current={appearance}
-				onchoose={(look) => tune('history', look.appearance)}
+	<Well title="Sidebar density">
+		{#snippet trailing()}
+			<ChoiceSwitch
+				label="Sidebar density"
+				choices={SIDEBAR_DENSITIES}
+				labels={SIDEBAR_DENSITY_LABELS}
+				selected={sidebarDensity}
+				onchoose={chooseSidebarDensityCommand}
 			/>
-		</Well>
+		{/snippet}
+	</Well>
 
-		<Well title="Readings" headed={false}>
-			<AppearanceReadings {appearance} {theme} />
-		</Well>
-	</div>
+	<Well title="Gauges">
+		<div class="grid grid-cols-[repeat(2,minmax(min-content,1fr))] gap-1.5">
+			<TintWheel
+				{appearance}
+				driving={driver === 'wheel'}
+				ontune={(patch) => tune('wheel', patch)}
+			/>
+			<Levers
+				{appearance}
+				driving={driver === 'levers'}
+				ontune={(patch) => tune('levers', patch)}
+			/>
+			<FineTune
+				class="col-span-2"
+				{appearance}
+				driving={driver === 'fine-tune'}
+				ontune={(patch) => tune('fine-tune', patch)}
+			/>
+		</div>
+	</Well>
+
+	<Well title="Presets" note={preset ? preset.name.toLowerCase() : 'custom'}>
+		<GreyPresets
+			selected={preset}
+			onchoose={(choice) => tune('presets', { hue: choice.hue, chroma: choice.chroma })}
+		/>
+	</Well>
+
+	<Well title="History" note="saved on close">
+		<LookHistory
+			{looks}
+			current={appearance}
+			onchoose={(look) => tune('history', look.appearance)}
+		/>
+	</Well>
+
+	<Well title="Readings" headed={false}>
+		<AppearanceReadings {appearance} {theme} />
+	</Well>
 </SettingsSection>

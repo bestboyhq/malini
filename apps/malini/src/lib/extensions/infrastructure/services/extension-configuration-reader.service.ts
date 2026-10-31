@@ -9,8 +9,7 @@ import {
 	type LoadedWorkstreamExtensionConfiguration,
 } from '../../domain/workstream-extension-configuration';
 
-export const WORKSTREAM_EXTENSION_CONFIGURATION_READER_ID =
-	'malini.workstream-configuration' as const;
+const WORKSTREAM_EXTENSION_CONFIGURATION_READER_ID = 'malini.workstream-configuration' as const;
 
 class ExtensionConfigurationReaderService {
 	async load(workstreamId: string): Promise<LoadedWorkstreamExtensionConfiguration> {

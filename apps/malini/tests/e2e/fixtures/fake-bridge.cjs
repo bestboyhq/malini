@@ -679,6 +679,7 @@ const PRE_APPROVED_TOOLS = new Set([
 	'decisions_answer',
 	'plan_write',
 	'files_open',
+	'secrets_request',
 ]);
 
 function fakePick(prompt, choices) {
@@ -771,6 +772,16 @@ const callLeadTool = (sessionId, runId) => {
 	});
 };
 const stoppedSessions = new Set();
+const recordSecrets = (entry) =>
+	fs.appendFileSync(
+		nodePath.join(env.HOME || '/tmp', 'malini-secrets.jsonl'),
+		JSON.stringify(entry) + '\n',
+	);
+const recordPlugins = (entry) =>
+	fs.appendFileSync(
+		nodePath.join(env.HOME || '/tmp', 'malini-plugins.jsonl'),
+		JSON.stringify(entry) + '\n',
+	);
 const STOPS = {
 	LIMIT_PAUSE: (seconds) => ({
 		error: "You've hit your session limit · resets 3pm",
@@ -1447,6 +1458,9 @@ const handle = (command) => {
 				return ack(command.id, 'the agent refused this');
 			ack(command.id);
 			const { sessionId, runId } = command;
+			if (command.secrets)
+				recordSecrets({ cmd: 'send_prompt', sessionId, runId, secrets: command.secrets });
+			recordPlugins({ sessionId, runId, plugins: command.plugins ?? [] });
 			const brief = BRIEF.exec(command.prompt)?.[0] ?? null;
 			const prompt = brief === null ? command.prompt : command.prompt.slice(brief.length);
 			if (brief !== null) briefOfRun.set(runId, brief);
@@ -1744,6 +1758,10 @@ const handle = (command) => {
 			pendingRuns.delete(runId);
 			const result = command.ok ? command.text : command.error;
 			return completeRun(command.sessionId, runId, 'browser:' + result, [], [], '\n\n' + result);
+		}
+		case 'set_secrets': {
+			recordSecrets({ cmd: 'set_secrets', sessionId: command.sessionId, secrets: command.secrets });
+			return ack(command.id);
 		}
 		case 'platform_result': {
 			ack(command.id);

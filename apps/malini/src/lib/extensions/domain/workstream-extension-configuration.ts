@@ -152,28 +152,6 @@ export function isWorkstreamExtensionEnabled(
 	return configuration.extensions[extensionId]?.enabled === true;
 }
 
-export function setWorkstreamExtensionEnabled(
-	configuration: WorkstreamExtensionConfiguration,
-	extensionId: string,
-	enabled: boolean,
-): WorkstreamExtensionConfiguration {
-	const existing = configuration.extensions[extensionId];
-	if (existing?.enabled === enabled) return configuration;
-	return parseWorkstreamExtensionConfiguration(
-		JSON.stringify({
-			...configuration,
-			extensions: {
-				...configuration.extensions,
-				[extensionId]: {
-					enabled,
-					settings: existing?.settings ?? {},
-					automations: existing?.automations ?? [],
-				},
-			},
-		}),
-	);
-}
-
 function parseExtensionEntry(
 	extensionId: string,
 	input: unknown,

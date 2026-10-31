@@ -232,7 +232,7 @@ test('a file an agent opens in a workstream the user is not looking at waits the
 	}
 });
 
-test('an agent opens a secrets file outside the worktree for the user, who fills it in beside the chat', async () => {
+test('an agent opens a private file outside the worktree for the user, who fills it in beside the chat', async () => {
 	test.setTimeout(240_000);
 	const first = await launchMalini();
 	const workstreamId = 'e2e-secrets-ws';
@@ -244,7 +244,7 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 			join(first.home, 'malini-tool.json'),
 			JSON.stringify({
 				tool: 'files_open',
-				input: { path: '~/.secrets/kennel.env', keys: ['KENNEL_TOKEN'] },
+				input: { path: '~/.secrets/kennel.env' },
 			}),
 		);
 
@@ -255,8 +255,8 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 		const secretsEditor = editor(page, /^Edit .*kennel\.env$/u);
 		await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
 		await expect(tab).not.toHaveAccessibleDescription('Preview');
-		await expect(secretsEditor).toHaveText('KENNEL_TOKEN=', { timeout: 20_000 });
-		expect(readFileSync(secrets, 'utf8')).toBe('KENNEL_TOKEN=\n');
+		await expect(secretsEditor).toBeVisible({ timeout: 20_000 });
+		expect(readFileSync(secrets, 'utf8')).toBe('');
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
 		const actions = await invoke<AgentActionRecord[]>(page, 'jobs.list-agent-actions');
 		expect(actions.find(({ tool }) => tool === 'files_open')).toMatchObject({
@@ -265,13 +265,12 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 			output: JSON.stringify({ path: realpathSync(secrets), created: true }),
 		});
 
-		await secretsEditor.getByText('KENNEL_TOKEN=').click();
-		await page.keyboard.press('End');
-		await page.keyboard.type('pasted-by-the-user');
+		await secretsEditor.click();
+		await page.keyboard.type('KENNEL_TOKEN=pasted-by-the-user');
 		const panel = page.getByRole('tabpanel', { name: 'kennel.env' });
 		await expect
-			.poll(() => readFileSync(secrets, 'utf8'), { timeout: 20_000 })
-			.toBe('KENNEL_TOKEN=pasted-by-the-user\n');
+			.poll(() => readFileSync(secrets, 'utf8').trimEnd(), { timeout: 20_000 })
+			.toBe('KENNEL_TOKEN=pasted-by-the-user');
 		await expect(panel.getByRole('alert')).toBeHidden();
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
 		await page.mouse.move(0, 0);

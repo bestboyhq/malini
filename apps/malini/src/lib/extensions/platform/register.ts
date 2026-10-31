@@ -3,8 +3,13 @@ import type {
 	ListExtensionWorkstreamFilesArgs,
 	WriteExtensionWorkstreamFileArgs,
 } from '$contract/commands';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import type { MainContext } from '$main/context';
+import {
+	listRepositoryCatalog,
+	resolveConnectedRepository,
+	resolveRepositoryCheckout,
+} from '$shared/repositories/repositories.platform';
 import type { ExtensionsPlatform, ExtensionsPlatformDeps } from '../extensions.platform';
 import {
 	listFiles,
@@ -14,6 +19,8 @@ import {
 	validateOwner,
 	writeFile,
 } from './files';
+import { Marketplace, type PublishSource } from './marketplace';
+import { MarketplaceClient } from './marketplace-client';
 import { readOpenedFile, statOpenedFile, writeOpenedFile } from './opened-files';
 import {
 	ExtensionPackages,
@@ -63,7 +70,90 @@ export function registerExtensions(
 		return readCheckout(workstreamId, (root) => statFile(root, path));
 	});
 
-	return { packages: registerExtensionPackages(context, deps.packages ?? {}) };
+	const marketplace = registerMarketplace(context, deps);
+	return {
+		packages: registerExtensionPackages(context, deps.packages ?? {}),
+		pluginFolders: () => marketplace.pluginFolders(),
+		start: () => void marketplace.refresh(),
+	};
+}
+
+function registerMarketplace(context: MainContext, deps: ExtensionsPlatformDeps): Marketplace {
+	const { commands, db, events, appDataRoot } = context;
+	const marketplace = new Marketplace({
+		db,
+		events,
+		root: join(appDataRoot, 'extensions'),
+		client: new MarketplaceClient(deps.bestboy),
+		bestboy: deps.bestboy,
+		sources: () => publishSources(context),
+	});
+
+	commands.define('extensions.list-listings', () => marketplace.listings());
+	commands.define('extensions.get-listing', (args: unknown) => {
+		const { publisher, name } = extensionRef(args);
+		return marketplace.detail(publisher, name);
+	});
+	commands.define('extensions.list-installed', () => marketplace.installed());
+	commands.define('extensions.install', (args: unknown) => {
+		const { publisher, name } = extensionRef(args);
+		return marketplace.install(publisher, name);
+	});
+	commands.define('extensions.uninstall', (args: unknown) =>
+		marketplace.uninstall(slugArg(args, 'name')),
+	);
+	commands.define('extensions.switch', (args: unknown) => {
+		const enabled = field(args, 'enabled');
+		if (typeof enabled !== 'boolean') throw new Error('extensions.switch needs enabled.');
+		return marketplace.switch(slugArg(args, 'name'), enabled);
+	});
+	commands.define('extensions.publishing', () => marketplace.publishing());
+	commands.define('extensions.publish', (args: unknown) => {
+		const repositoryId = field(args, 'repositoryId');
+		if (
+			typeof repositoryId !== 'string' ||
+			repositoryId.length === 0 ||
+			repositoryId.length > 300
+		) {
+			throw new Error('extensions.publish needs a repositoryId.');
+		}
+		return marketplace.publish(repositoryId);
+	});
+	commands.define('extensions.sign-in', () => deps.bestboy().signIn());
+	commands.define('extensions.claim-handle', async (args: unknown) => {
+		const handle = field(args, 'handle');
+		if (typeof handle !== 'string' || handle.length > 100) {
+			throw new Error('extensions.claim-handle needs a handle.');
+		}
+		return { problem: await deps.bestboy().claimHandle(handle) };
+	});
+	return marketplace;
+}
+
+async function publishSources(context: MainContext): Promise<PublishSource[]> {
+	const { db, appDataRoot } = context;
+	const sources: PublishSource[] = [];
+	for (const repository of await listRepositoryCatalog(db)) {
+		if (repository.hidden) continue;
+		const connected = await resolveConnectedRepository(db, repository.id);
+		const dir = connected ? resolveRepositoryCheckout(db, appDataRoot, connected) : null;
+		if (dir) sources.push({ id: repository.id, fullName: repository.fullName, dir });
+	}
+	return sources;
+}
+
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+function extensionRef(args: unknown): Readonly<{ publisher: string; name: string }> {
+	return { publisher: slugArg(args, 'publisher'), name: slugArg(args, 'name') };
+}
+
+function slugArg(args: unknown, name: string): string {
+	const value = field(args, name);
+	if (typeof value !== 'string' || value.length > 64 || !SLUG.test(value)) {
+		throw new Error(`${name} must be lowercase letters, digits and single hyphens.`);
+	}
+	return value;
 }
 
 function registerExtensionPackages(
@@ -78,20 +168,6 @@ function registerExtensionPackages(
 	const { commands } = context;
 
 	commands.define('extensions.list-sources', () => packages.listSources());
-	commands.define('extensions.list-managed', () => packages.listManaged());
-	commands.define('extensions.set-managed-enabled', (args: unknown) => {
-		const enabled = field(args, 'enabled');
-		if (typeof enabled !== 'boolean') {
-			throw new Error('extensions.set-managed-enabled requires enabled');
-		}
-		return packages.setManagedEnabled(
-			requireString(args, 'extensionId', 'extensions.set-managed-enabled'),
-			enabled,
-		);
-	});
-	commands.define('extensions.rollback-managed', (args: unknown) =>
-		packages.rollbackManaged(requireString(args, 'extensionId', 'extensions.rollback-managed')),
-	);
 	commands.define('extensions.recovery-mode-enabled', () => packages.recoveryModeEnabled());
 	commands.define('extensions.append-development-log', (args: unknown) => {
 		const log = field(args, 'log');
@@ -122,12 +198,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function field(args: unknown, name: string): unknown {
 	return isRecord(args) ? args[name] : undefined;
-}
-
-function requireString(args: unknown, name: string, command: string): string {
-	const value = field(args, name);
-	if (typeof value !== 'string') throw new Error(`${command} requires ${name}`);
-	return value;
 }
 
 function ownerArgs(args: Readonly<{ extensionId: string; workstreamId: string }>): string {
