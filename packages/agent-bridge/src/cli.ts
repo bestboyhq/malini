@@ -92,6 +92,7 @@ const MCP_WATCH_LEASE_MS = 90_000;
 
 interface McpWatcher {
 	readonly watch: McpServerWatch;
+	readonly plugins: readonly string[];
 	lease: NodeJS.Timeout;
 }
 
@@ -574,6 +575,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				cmd.steer,
 				cmd.theme,
 				cmd.lineage,
+				cmd.plugins,
 			);
 		} catch (err) {
 			emitRunFailure(cmd.runId, cmd.sessionId, 'SEND_PROMPT_FAILED', errorMessage(err));
@@ -641,10 +643,15 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		} else {
 			cwd = cmd.cwd;
 		}
+		const plugins = cmd.plugins ?? [];
 		try {
 			if (cmd.cmd === 'authorize_mcp_server') {
 				closeSignIn(cmd.serverName);
-				const { authUrl, settled, cancel } = await mcpServers.authorize(cwd, cmd.serverName);
+				const { authUrl, settled, cancel } = await mcpServers.authorize(
+					cwd,
+					cmd.serverName,
+					plugins,
+				);
 				closeSignIn(cmd.serverName);
 				signIns.set(cmd.serverName, cancel);
 				void announceOnceSettled(settled.finally(() => forgetSignIn(cmd.serverName, cancel)));
@@ -652,12 +659,12 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			} else if (handle) {
 				if (!handle.reconnectMcpServer)
 					throw new Error('the provider cannot reconnect MCP servers');
-				await handle.reconnectMcpServer(cmd.serverName);
+				await handle.reconnectMcpServer(cmd.serverName, plugins);
 			} else {
 				const watch = watchers.get(cwd)?.watch;
 				const server = watch
 					? await watch.reconnect(cmd.serverName)
-					: await mcpServers.probe(cwd, cmd.serverName);
+					: await mcpServers.probe(cwd, cmd.serverName, plugins);
 				if (!server) throw new Error(`Claude Code has no MCP server named ${cmd.serverName}`);
 				await announceMcpServer(server, watch);
 			}
@@ -706,7 +713,9 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 
 	function watchMcpServers(cmd: WatchMcpServersCommand): void {
 		const watching = watchers.get(cmd.cwd);
-		if (watching && cmd.restart) {
+		const plugins = cmd.plugins ?? [];
+		const stale = cmd.restart || JSON.stringify(watching?.plugins) !== JSON.stringify(plugins);
+		if (watching && stale) {
 			clearTimeout(watching.lease);
 			watching.watch.close();
 			watchers.delete(cmd.cwd);
@@ -719,10 +728,12 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			return;
 		}
 		try {
-			const watch = mcpServers.watch(cmd.cwd, (listing) =>
-				emitControl(bridgeMcpServersFrame(cmd.cwd, listing)),
+			const watch = mcpServers.watch(
+				cmd.cwd,
+				(listing) => emitControl(bridgeMcpServersFrame(cmd.cwd, listing)),
+				plugins,
 			);
-			watchers.set(cmd.cwd, { watch, lease: leaseFor(cmd.cwd) });
+			watchers.set(cmd.cwd, { watch, plugins, lease: leaseFor(cmd.cwd) });
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `MCP_SERVERS_FAILED: ${errorMessage(err)}`));
@@ -775,7 +786,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		for (const folder of cmd.folders) {
 			const clear = switched.has(folder)
 				? true
-				: await mcpServers.turnOn(folder, cmd.serverName).catch(() => false);
+				: await mcpServers.turnOn(folder, cmd.serverName, cmd.plugins ?? []).catch(() => false);
 			if (clear) cleared.push(folder);
 		}
 		absorbMcpConfig();

@@ -15,6 +15,15 @@ import { CommandRegistry } from '$main/ipc/registry';
 import type { InvokeResponse } from '$contract/ipc';
 import type { ExtensionsPlatform } from '../extensions.platform';
 import { registerExtensions } from './register';
+import type { BestboyAccess } from '$lib/stats/stats.platform';
+const offlineBestboy = (): BestboyAccess => ({
+	origin: 'https://bestboy.test',
+	fetch: () => Promise.reject(new Error('offline')),
+	session: () => null,
+	signIn: () => undefined,
+	claimHandle: () => Promise.resolve(null),
+	signedOut: () => Promise.resolve(),
+});
 
 const cleanups: (() => void | Promise<void>)[] = [];
 
@@ -44,6 +53,7 @@ function boot(): { context: MainContext; runtime: ExtensionsPlatform; root: stri
 			resolveRepositoryRoot: () => Promise.resolve(root),
 		},
 		readCheckout: (_id, read) => read(root),
+		bestboy: offlineBestboy,
 	});
 	cleanups.push(() => {
 		db.close();
@@ -68,37 +78,31 @@ describe('extensions platform packages', () => {
 		const { context } = boot();
 		expect(context.commands.names()).toEqual([
 			'extensions.append-development-log',
-			'extensions.list-managed',
+			'extensions.claim-handle',
+			'extensions.get-listing',
+			'extensions.install',
+			'extensions.list-installed',
+			'extensions.list-listings',
 			'extensions.list-sources',
 			'extensions.list-workstream-files',
+			'extensions.publish',
+			'extensions.publishing',
 			'extensions.read-repository-file',
 			'extensions.read-workstream-file',
 			'extensions.recovery-mode-enabled',
-			'extensions.rollback-managed',
-			'extensions.set-managed-enabled',
+			'extensions.sign-in',
 			'extensions.stat-workstream-file',
+			'extensions.switch',
+			'extensions.uninstall',
 			'extensions.write-workstream-file',
 		]);
 	});
 
-	it('has no managed sources and refuses every marketplace command', async () => {
+	it('lists no local sources until a development folder registers one', async () => {
 		const { context } = boot();
-		const invoke = (command: string, args: unknown = {}) =>
-			context.commands.invoke({ command, args });
-
-		expect(value(await invoke('extensions.list-sources'))).toEqual([]);
-		expect(value(await invoke('extensions.list-managed'))).toEqual([]);
 		expect(
-			failure(
-				await invoke('extensions.set-managed-enabled', {
-					extensionId: 'malini.repository',
-					enabled: false,
-				}),
-			),
-		).toBe('Managed extension malini.repository is not installed');
-		expect(
-			failure(await invoke('extensions.rollback-managed', { extensionId: 'malini.repository' })),
-		).toBe('Managed extension malini.repository is not installed');
+			value(await context.commands.invoke({ command: 'extensions.list-sources', args: {} })),
+		).toEqual([]);
 	});
 
 	it('reads recovery mode and appends development logs under the app data root', async () => {

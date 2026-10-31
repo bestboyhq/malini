@@ -77,6 +77,7 @@ export interface AgentServiceDeps {
 	readonly theme?: SendPromptHooks['theme'];
 	readonly shippingFailure?: SendPromptHooks['shippingFailure'];
 	readonly shellRuns?: SendPromptHooks['shellRuns'];
+	readonly plugins?: SendPromptHooks['plugins'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
 	readonly deliveries?: ChatDeliveries;
@@ -325,6 +326,7 @@ export async function startAgentService(
 			...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			...(deps.secrets ? { secrets: secretsReaching(db, deps.secrets) } : {}),
+			...(deps.plugins ? { plugins: deps.plugins } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,

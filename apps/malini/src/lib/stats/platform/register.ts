@@ -29,7 +29,7 @@ import {
 import { localDate, summarizeActivity } from '../domain/activity';
 import { catalogNames, NO_SETUP } from '../domain/catalog-names';
 import { readAgentSetup, type ClaudeFiles } from './agent-setup';
-import { Bestboy, bestboyOrigin, type BestboyFetch } from './bestboy';
+import { Bestboy, bestboyOrigin, type BestboyAccess, type BestboyFetch } from './bestboy';
 import { ProfileStore, type TokenCipher } from './profile-store';
 import {
 	createGitHubIdentity,
@@ -57,6 +57,7 @@ export interface StatsDeps {
 }
 
 export interface StatsPlatform {
+	readonly bestboy: BestboyAccess;
 	start(): void;
 	stop(): void;
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
@@ -102,11 +103,10 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 
 	const visibility = createRepositoryVisibility();
 	const github = createGitHubIdentity();
+	const fetcher: BestboyFetch = deps.fetch ?? ((url, init) => net.fetch(url, init));
+	const bestboy = new Bestboy(bestboyOrigin(!context.isDev, process.env), fetcher);
 	const profile = new StatsProfile({
-		bestboy: new Bestboy(
-			bestboyOrigin(!context.isDev, process.env),
-			deps.fetch ?? ((url, init) => net.fetch(url, init)),
-		),
+		bestboy,
 		store: new ProfileStore(context.appDataRoot, deps.cipher),
 		openExternal: (url) => deps.openExternal(url),
 		readStats: async (picked, catalog) => {
@@ -162,6 +162,14 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	});
 
 	return {
+		bestboy: {
+			origin: bestboy.origin,
+			fetch: fetcher,
+			session: () => profile.session(),
+			signIn: () => void profile.signIn(),
+			claimHandle: (handle) => profile.claimHandle(handle),
+			signedOut: () => profile.forgetSignIn(),
+		},
 		openUrl: (url) => void profile.completeSignIn(url),
 		start: () => {
 			profile.start();

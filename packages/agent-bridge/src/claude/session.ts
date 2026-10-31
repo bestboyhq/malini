@@ -137,6 +137,7 @@ interface RunSettings {
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
 	readonly lineage: AgentLineage | undefined;
+	readonly plugins: readonly string[];
 }
 
 interface ActiveRun {
@@ -146,6 +147,7 @@ interface ActiveRun {
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
 	readonly lineage: AgentLineage | undefined;
+	readonly plugins: readonly string[];
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -217,8 +219,9 @@ export class ClaudeSession implements ProviderHandle {
 		steer?: boolean,
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
+		plugins: readonly string[] = [],
 	): Promise<void> {
-		const run: RunSettings = { profile, skills, theme, lineage };
+		const run: RunSettings = { profile, skills, theme, lineage, plugins };
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -303,6 +306,7 @@ export class ClaudeSession implements ProviderHandle {
 			skills: run.skills,
 			theme: run.theme,
 			lineage: run.lineage,
+			plugins: run.plugins,
 			results: [],
 			costBefore: 0,
 			query,
@@ -626,7 +630,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme, lineage }: RunSettings,
+		{ profile, skills, theme, lineage, plugins }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -673,6 +677,7 @@ export class ClaudeSession implements ProviderHandle {
 			...(model ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
 			...(skills ? { skills: [...skills] } : {}),
+			plugins: plugins.map((path) => ({ type: 'local', path })),
 			...(this.#claudeSessionId ? { resume: this.#claudeSessionId } : {}),
 			...(this.#claudeSessionId && resumeAt ? { resumeSessionAt: resumeAt } : {}),
 			stderr: (data) => process.stderr.write(`[claude] ${data}`),
@@ -941,10 +946,10 @@ export class ClaudeSession implements ProviderHandle {
 		});
 	}
 
-	async reconnectMcpServer(serverName: string): Promise<void> {
+	async reconnectMcpServer(serverName: string, plugins: readonly string[] = []): Promise<void> {
 		const active = this.#active;
 		if (!active) {
-			const server = await probeMcpServer(serverName, this.#mcpProbe());
+			const server = await probeMcpServer(serverName, this.#mcpProbe(plugins));
 			if (server) await this.adoptMcpServer(server);
 			return;
 		}
@@ -955,10 +960,11 @@ export class ClaudeSession implements ProviderHandle {
 		}
 	}
 
-	#mcpProbe(): McpProbeOptions {
+	#mcpProbe(plugins: readonly string[]): McpProbeOptions {
 		const executable = this.#executable;
 		if (!executable) throw new Error('Claude Code is not installed');
-		return { cwd: this.#context.cwd, executable, env: claudeEnvironment(), query: this.#query };
+		const { cwd } = this.#context;
+		return { cwd, plugins, executable, env: claudeEnvironment(), query: this.#query };
 	}
 
 	async adoptMcpServer(server: McpServerReport): Promise<void> {
@@ -1052,7 +1058,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canContinue(
 	active: ActiveRun,
-	{ profile, skills, theme, lineage }: RunSettings,
+	{ profile, skills, theme, lineage, plugins }: RunSettings,
 	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -1065,7 +1071,8 @@ function canContinue(
 		profile?.report === active.profile?.report &&
 		theme === active.theme &&
 		skills?.join('\n') === active.skills?.join('\n') &&
-		JSON.stringify(lineage ?? null) === JSON.stringify(active.lineage ?? null)
+		JSON.stringify(lineage ?? null) === JSON.stringify(active.lineage ?? null) &&
+		JSON.stringify(plugins) === JSON.stringify(active.plugins)
 	);
 }
 

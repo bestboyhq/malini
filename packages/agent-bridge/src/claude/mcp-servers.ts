@@ -37,6 +37,7 @@ export type McpProbeQuery = Pick<
 
 export interface McpProbeOptions {
 	readonly cwd: string;
+	readonly plugins: readonly string[];
 	readonly executable: string;
 	readonly env: Record<string, string>;
 	readonly query: (params: {
@@ -60,10 +61,18 @@ export interface McpServerWatch {
 }
 
 export interface McpServerProbes {
-	watch(cwd: string, onListing: (listing: McpServerListing) => void): McpServerWatch;
-	authorize(cwd: string, serverName: string): Promise<McpAuthorization>;
-	probe(cwd: string, serverName: string): Promise<McpServerReport | null>;
-	turnOn(cwd: string, serverName: string): Promise<boolean>;
+	watch(
+		cwd: string,
+		onListing: (listing: McpServerListing) => void,
+		plugins: readonly string[],
+	): McpServerWatch;
+	authorize(cwd: string, serverName: string, plugins: readonly string[]): Promise<McpAuthorization>;
+	probe(
+		cwd: string,
+		serverName: string,
+		plugins: readonly string[],
+	): Promise<McpServerReport | null>;
+	turnOn(cwd: string, serverName: string, plugins: readonly string[]): Promise<boolean>;
 }
 
 export type McpServerEntry = Pick<
@@ -74,17 +83,18 @@ export type McpServerEntry = Pick<
 };
 
 export const claudeMcpServers: McpServerProbes = {
-	watch: (cwd, onListing) => watchMcpServers(claudeProbe(cwd), onListing),
-	authorize: async (cwd, serverName) => startMcpAuthorization(serverName, claudeProbe(cwd)),
-	probe: async (cwd, serverName) => probeMcpServer(serverName, claudeProbe(cwd)),
-	turnOn: async (cwd, serverName) =>
-		!existsSync(cwd) || turnOnMcpServer(serverName, claudeProbe(cwd)),
+	watch: (cwd, onListing, plugins) => watchMcpServers(claudeProbe(cwd, plugins), onListing),
+	authorize: async (cwd, serverName, plugins) =>
+		startMcpAuthorization(serverName, claudeProbe(cwd, plugins)),
+	probe: async (cwd, serverName, plugins) => probeMcpServer(serverName, claudeProbe(cwd, plugins)),
+	turnOn: async (cwd, serverName, plugins) =>
+		!existsSync(cwd) || turnOnMcpServer(serverName, claudeProbe(cwd, plugins)),
 };
 
-function claudeProbe(cwd: string): McpProbeOptions {
+function claudeProbe(cwd: string, plugins: readonly string[]): McpProbeOptions {
 	const executable = findClaudeExecutable();
 	if (!executable) throw new Error('Claude Code is not installed');
-	return { cwd, executable, env: claudeEnvironment(), query: sdkQuery };
+	return { cwd, plugins, executable, env: claudeEnvironment(), query: sdkQuery };
 }
 
 export function mcpServerReport({
@@ -265,7 +275,7 @@ export async function turnOnMcpServer(
 	}
 }
 
-function openProbe({ cwd, executable, env, query }: McpProbeOptions): {
+function openProbe({ cwd, plugins, executable, env, query }: McpProbeOptions): {
 	readonly query: McpProbeQuery;
 	readonly close: () => void;
 } {
@@ -280,6 +290,7 @@ function openProbe({ cwd, executable, env, query }: McpProbeOptions): {
 			env,
 			settingSources: ['user', 'project', 'local'],
 			settings: { disableAllHooks: true },
+			plugins: plugins.map((path) => ({ type: 'local', path })),
 			persistSession: false,
 		},
 	});

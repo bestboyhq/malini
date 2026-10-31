@@ -195,6 +195,7 @@ export interface SendPromptHooks {
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
+	readonly plugins?: () => readonly string[];
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -748,7 +749,7 @@ async function sendAgentPromptLeased(
 	}
 	let turn: PreparedTurn;
 	try {
-		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, log);
+		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, hooks, log);
 	} catch (error) {
 		const errorMessage = `could not prepare the turn: ${describe(error)}`;
 		handleSendPromptHandoffFailure(db, sessionId, runId, errorMessage, emit);
@@ -770,6 +771,7 @@ async function sendAgentPromptLeased(
 		...(hooks.theme ? { theme: hooks.theme() } : {}),
 		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
 		...(secrets === null ? {} : { secrets }),
+		...(turn.plugins === null ? {} : { plugins: turn.plugins }),
 	});
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
@@ -802,6 +804,7 @@ async function preparedTurn(
 	runId: string,
 	handsOff: boolean,
 	prompt: string,
+	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ) {
 	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
@@ -814,6 +817,7 @@ async function preparedTurn(
 				? { freshConversation: true as const }
 				: providerResumePoint(db, sessionId),
 		skills: skillsForRun(db, sessionId),
+		plugins: hooks.plugins?.() ?? null,
 		lineage: await lineageForRun(db, workstreamId, log),
 	};
 }

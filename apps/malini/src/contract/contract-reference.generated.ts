@@ -452,5 +452,21 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'SecretDeletedEvent',
 			payload: 'type SecretDeletedEvent = Readonly<{ name: string; repository: string | null }>;',
 		},
+		{
+			channel: 'extensions:changed',
+			description:
+				'Fires when an extension from the marketplace is installed, updated, uninstalled, turned on or off, or withdrawn because its publisher pulled the version you have, with its publisher, name, version and that `change`. Every chat picks the change up at its next prompt.',
+			payloadType: 'ExtensionChangedEvent',
+			payload:
+				"type ExtensionChange =\n\t'installed' | 'updated' | 'uninstalled' | 'turned-on' | 'turned-off' | 'withdrawn';\n\ntype ExtensionChangedEvent = Readonly<{\n\tpublisher: string;\n\tname: string;\n\tversion: string;\n\tchange: ExtensionChange;\n}>;",
+		},
+		{
+			channel: 'extensions:published',
+			description:
+				'Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.',
+			payloadType: 'ExtensionPublishedEvent',
+			payload:
+				'type ExtensionPublishedEvent = Readonly<{\n\tpublisher: string;\n\tname: string;\n\tversion: string;\n\trepository: string;\n}>;',
+		},
 	],
 };

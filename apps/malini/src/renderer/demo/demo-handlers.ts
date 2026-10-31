@@ -3,6 +3,7 @@ import type {
 	AgentSessionChanges,
 	ProviderCapability,
 } from '$contract/agent';
+import type { ExtensionListing, InstalledExtension } from '$contract/marketplace';
 import type {
 	OwnerAvatar,
 	PullRequestStatusDto,
@@ -28,6 +29,44 @@ import {
 } from './demo-live';
 
 const NOW = `${DEMO_DAY}T10:45:00.000Z`;
+
+const DEMO_EXTENSIONS: readonly ExtensionListing[] = [
+	{
+		publisher: 'acme',
+		name: 'postgres',
+		displayName: 'Postgres',
+		description: 'Agents read your schema and run read-only queries.',
+		version: '1.2.0',
+		publishedOn: DEMO_DAY,
+		repository: null,
+		mcpServers: [{ name: 'postgres', url: 'https://mcp.acme.dev/postgres' }],
+		skills: ['query-plans'],
+	},
+	{
+		publisher: 'acme',
+		name: 'release-notes',
+		displayName: 'Release notes',
+		description: 'Writes release notes from the pull requests a merge brings in.',
+		version: '0.4.1',
+		publishedOn: DEMO_DAY,
+		repository: null,
+		mcpServers: [],
+		skills: ['release-notes'],
+	},
+];
+
+function demoExtension(publisher: string, name: string): ExtensionListing {
+	const listing = DEMO_EXTENSIONS.find(
+		(extension) => extension.publisher === publisher && extension.name === name,
+	);
+	if (!listing) throw new Error(`${publisher}/${name} is not in the marketplace.`);
+	return listing;
+}
+
+function installedDemoExtension(listing: ExtensionListing): InstalledExtension {
+	const { publishedOn: _publishedOn, ...installed } = listing;
+	return { ...installed, enabled: true, withdrawn: false, installedAt: NOW };
+}
 
 async function readImage(path: string): Promise<WorkstreamImageRead> {
 	const url = demoMediaUrl(path);
@@ -239,6 +278,18 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'stats.resources': () => ({ machineMemoryBytes: 32 * 1024 ** 3, samples: [] }),
 	'sounds.list': () => [],
 	'extensions.list-sources': () => [],
-	'extensions.list-managed': () => [],
+	'extensions.list-listings': () => ({ listings: DEMO_EXTENSIONS, unreachable: null }),
+	'extensions.list-installed': () => [],
+	'extensions.get-listing': ({ publisher, name }) => {
+		const listing = demoExtension(publisher, name);
+		return {
+			listing,
+			readme: null,
+			versions: [{ version: listing.version, publishedOn: listing.publishedOn, yanked: false }],
+		};
+	},
+	'extensions.install': ({ publisher, name }) =>
+		installedDemoExtension(demoExtension(publisher, name)),
+	'extensions.publishing': () => ({ signedIn: false, handle: null, extensions: [] }),
 	'extensions.recovery-mode-enabled': () => false,
 });

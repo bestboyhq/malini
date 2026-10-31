@@ -46,13 +46,7 @@ describe('workstreamHref', () => {
 		expect(workstreamHref('workstream/one', { agentSessionId: 'agent?one' })).toBe(
 			'/workstreams/workstream%2Fone?agent=agent%3Fone',
 		);
-		expect(
-			workstreamHref('ws-1', {
-				agentSessionId: 'agent-1',
-				inspector: 'extensions',
-				extension: 'example.terminal',
-			}),
-		).toBe('/workstreams/ws-1?agent=agent-1&inspector=extensions&extension=example.terminal');
+		expect(workstreamHref('ws-1', { agentSessionId: null })).toBe('/workstreams/ws-1');
 	});
 
 	it('reads the id back out of a pathname', () => {

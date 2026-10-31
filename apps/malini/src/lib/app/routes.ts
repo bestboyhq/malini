@@ -1,6 +1,7 @@
 import type { RouteNode } from '$shared/router/hash-router.svelte';
 
 const jobsPage = () => import('./presentation/pages/JobsPage.svelte');
+const extensionsPage = () => import('./presentation/pages/ExtensionsPage.svelte');
 
 export const routes: RouteNode = {
 	segment: '',
@@ -41,6 +42,18 @@ export const routes: RouteNode = {
 							segment: ':jobId',
 							page: jobsPage,
 							children: [{ segment: 'improve', page: jobsPage }],
+						},
+					],
+				},
+				{
+					segment: 'extensions',
+					page: extensionsPage,
+					children: [
+						{ segment: 'installed', page: extensionsPage },
+						{ segment: 'published', page: extensionsPage },
+						{
+							segment: ':publisher',
+							children: [{ segment: ':name', page: extensionsPage }],
 						},
 					],
 				},

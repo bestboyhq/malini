@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	ExtensionPackages,
-	NO_MARKETPLACE_ERROR,
 	resolveExtensionPackagePaths,
 	type ExtensionPackagePaths,
 } from './packages';
@@ -171,44 +170,5 @@ describe('local development sources', () => {
 	it('an absent development folder lists nothing', async () => {
 		const { paths } = layout();
 		expect(await packages(paths).listSources()).toEqual([]);
-	});
-});
-
-describe('managed extensions', () => {
-	it('lists nothing because malini ships no bundled extensions', async () => {
-		const { paths } = layout();
-		expect(await packages(paths).listManaged()).toEqual([]);
-		expect(await packages(paths).listSources()).toEqual([]);
-	});
-
-	it('names an unknown extension in the refusal', async () => {
-		const { paths } = layout();
-		const store = packages(paths);
-		await expect(store.setManagedEnabled('acme.nope', false)).rejects.toThrow(
-			'Managed extension acme.nope is not installed',
-		);
-		await expect(store.rollbackManaged('acme.nope')).rejects.toThrow(
-			'Managed extension acme.nope is not installed',
-		);
-	});
-
-	it('install and download refuse because there is no marketplace', async () => {
-		const { paths } = layout();
-		const store = packages(paths);
-		await expect(
-			store.installManaged({
-				id: 'acme.extension',
-				version: '1.0.0',
-				manifestJson: '{}',
-				entrypoint: 'dist/index.js',
-				sha256: 'a'.repeat(64),
-				installedAt: '2026-07-12T00:00:00Z',
-				releaseJson: '{}',
-				files: [],
-			}),
-		).rejects.toThrow(NO_MARKETPLACE_ERROR);
-		await expect(
-			store.downloadRelease('https://github.com/acme/extension/releases/download/v1/a.tgz'),
-		).rejects.toThrow(NO_MARKETPLACE_ERROR);
 	});
 });

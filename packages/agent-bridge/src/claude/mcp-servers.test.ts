@@ -1,11 +1,12 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { McpServerStatus } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerStatus, Options } from '@anthropic-ai/claude-agent-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { McpServerListing } from '../types.js';
 import { initializeResponse } from './fixtures/fake-claude.js';
 import {
+	probeMcpServer,
 	startMcpAuthorization,
 	switchMcpServerLive,
 	turnOnMcpServer,
@@ -42,6 +43,7 @@ describe('startMcpAuthorization', () => {
 
 		const { authUrl, settled } = await startMcpAuthorization('linear', {
 			cwd: '/repo',
+			plugins: [],
 			executable: 'claude',
 			env: {},
 			query,
@@ -71,6 +73,7 @@ describe('startMcpAuthorization', () => {
 
 		const { settled, cancel } = await startMcpAuthorization('linear', {
 			cwd: '/repo',
+			plugins: [],
 			executable: 'claude',
 			env: {},
 			query,
@@ -79,6 +82,36 @@ describe('startMcpAuthorization', () => {
 
 		await expect(settled).resolves.toBeNull();
 		expect(closed).toBe(true);
+	});
+});
+
+describe('probeMcpServer', () => {
+	it('opens Claude Code with the plugin folders of the extensions, so it reports their servers', async () => {
+		const opened: Options[] = [];
+		const query: McpProbeOptions['query'] = ({ options }) => {
+			opened.push(options);
+			return {
+				initializationResult: async () => initializeResponse([]),
+				mcpServerStatus: async () => [{ name: 'plugin:linear:linear', status: 'needs-auth' }],
+				reconnectMcpServer: async () => undefined,
+				toggleMcpServer: async () => undefined,
+				applyFlagSettings: async () => undefined,
+				close: () => undefined,
+			};
+		};
+
+		const server = await probeMcpServer('plugin:linear:linear', {
+			cwd: '/repo',
+			plugins: ['/extensions/linear'],
+			executable: 'claude',
+			env: {},
+			query,
+		});
+
+		expect(server).toEqual({ name: 'plugin:linear:linear', status: 'needs-auth' });
+		expect(opened.map(({ plugins }) => plugins)).toEqual([
+			[{ type: 'local', path: '/extensions/linear' }],
+		]);
 	});
 });
 
@@ -111,7 +144,7 @@ describe('watchMcpServers', () => {
 		const listings: McpServerListing[] = [];
 
 		const watch = watchMcpServers(
-			{ cwd: '/repo', executable: 'claude', env: {}, query },
+			{ cwd: '/repo', plugins: [], executable: 'claude', env: {}, query },
 			(listing) => listings.push(listing),
 		);
 		await vi.waitFor(() => expect(polls).toBeGreaterThanOrEqual(3), { timeout: 3_000 });
@@ -155,7 +188,7 @@ describe('watchMcpServers', () => {
 		});
 		const listings: McpServerListing[] = [];
 		const watch = watchMcpServers(
-			{ cwd: '/repo', executable: 'claude', env: {}, query },
+			{ cwd: '/repo', plugins: [], executable: 'claude', env: {}, query },
 			(listing) => listings.push(listing),
 		);
 
@@ -231,7 +264,10 @@ describe('turnOnMcpServer', () => {
 			applyFlagSettings: async () => undefined,
 			close: () => undefined,
 		});
-		return { options: { cwd: '/work/one', executable: 'claude', env: {}, query }, toggled };
+		return {
+			options: { cwd: '/work/one', plugins: [], executable: 'claude', env: {}, query },
+			toggled,
+		};
 	}
 
 	it('turns a server back on where an earlier live switch left it off', async () => {

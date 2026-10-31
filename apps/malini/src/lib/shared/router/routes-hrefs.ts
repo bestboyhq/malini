@@ -1,7 +1,5 @@
 export type WorkstreamHrefOptions = Readonly<{
 	agentSessionId?: string | null;
-	inspector?: string | null;
-	extension?: string | null;
 }>;
 
 export const REPOSITORIES_HREF = '/';
@@ -13,6 +11,12 @@ export const JOBS_ACTIVITY_HREF = '/jobs/activity';
 export const JOBS_RECIPES_HREF = '/jobs/recipes';
 
 export const JOBS_EXPLORER_HREF = '/jobs/explorer';
+
+export const EXTENSIONS_HREF = '/extensions';
+
+export const EXTENSIONS_INSTALLED_HREF = '/extensions/installed';
+
+export const EXTENSIONS_PUBLISHED_HREF = '/extensions/published';
 
 export const SETTINGS_HREF = '/settings';
 
@@ -32,6 +36,10 @@ export function jobImproveHref(definitionId: string): string {
 	return `${jobHref(definitionId)}/improve`;
 }
 
+export function extensionHref(publisher: string, name: string): string {
+	return `${EXTENSIONS_HREF}/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`;
+}
+
 export function repositoryHref(repositoryId: string): string {
 	return `/repositories/${encodeURIComponent(repositoryId)}`;
 }
@@ -40,8 +48,6 @@ export function workstreamHref(workstreamId: string, options: WorkstreamHrefOpti
 	const path = `/workstreams/${encodeURIComponent(workstreamId)}`;
 	const search = new URLSearchParams();
 	if (options.agentSessionId) search.set('agent', options.agentSessionId);
-	if (options.inspector) search.set('inspector', options.inspector);
-	if (options.extension) search.set('extension', options.extension);
 	const query = search.toString();
 	return query ? `${path}?${query}` : path;
 }

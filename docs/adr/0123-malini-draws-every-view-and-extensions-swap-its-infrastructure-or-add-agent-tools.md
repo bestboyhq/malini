@@ -1,6 +1,6 @@
 # 0123 - Malini draws every view, and extensions swap its infrastructure or add agent tools
 
-Status: accepted
+Status: superseded by 0125
 
 ## Context
 

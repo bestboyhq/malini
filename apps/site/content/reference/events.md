@@ -1329,3 +1329,36 @@ Payload: `SecretDeletedEvent`
 ```ts
 type SecretDeletedEvent = Readonly<{ name: string; repository: string | null }>;
 ```
+
+## `extensions:changed`
+
+Fires when an extension from the marketplace is installed, updated, uninstalled, turned on or off, or withdrawn because its publisher pulled the version you have, with its publisher, name, version and that `change`. Every chat picks the change up at its next prompt.
+
+Payload: `ExtensionChangedEvent`
+
+```ts
+type ExtensionChange =
+	'installed' | 'updated' | 'uninstalled' | 'turned-on' | 'turned-off' | 'withdrawn';
+
+type ExtensionChangedEvent = Readonly<{
+	publisher: string;
+	name: string;
+	version: string;
+	change: ExtensionChange;
+}>;
+```
+
+## `extensions:published`
+
+Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.
+
+Payload: `ExtensionPublishedEvent`
+
+```ts
+type ExtensionPublishedEvent = Readonly<{
+	publisher: string;
+	name: string;
+	version: string;
+	repository: string;
+}>;
+```

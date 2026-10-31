@@ -456,6 +456,41 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[1]?.options).not.toHaveProperty('skills');
 	});
 
+	it('loads the plugin folders of each prompt, and relaunches the Claude Code a chat keeps running once they change', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([
+			[...script, 'wait-for-prompt', ...script, 'wait-for-prompt'],
+			script,
+		]);
+		const withPlugins = (plugins: readonly string[]) =>
+			[undefined, undefined, undefined, undefined, undefined, undefined, plugins] as const;
+
+		await session.sendPrompt('Hello', 'run-1', profile(), ...withPlugins(['/extensions/linear']));
+		await session.sendPrompt('Again', 'run-2', profile(), ...withPlugins(['/extensions/linear']));
+		await session.sendPrompt(
+			'Now with Figma',
+			'run-3',
+			profile(),
+			...withPlugins(['/extensions/linear', '/extensions/figma']),
+		);
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.options.plugins).toEqual([
+			{ type: 'local', path: '/extensions/linear' },
+		]);
+		expect(claude.runs[0]?.followUps[0]).toBe('Again');
+		expect(claude.runs[0]?.followUps).not.toContain('Now with Figma');
+		expect(claude.runs[0]?.closed).toBe(true);
+		expect(claude.runs[1]?.options).toMatchObject({
+			resume: READ_AND_BASH_SESSION,
+			plugins: [
+				{ type: 'local', path: '/extensions/linear' },
+				{ type: 'local', path: '/extensions/figma' },
+			],
+		});
+		await expect(claude.runs[1]?.prompt).resolves.toBe('Now with Figma');
+	});
+
 	it('starts a new Claude conversation when every earlier turn was undone', async () => {
 		const { session, claude } = harness([recordedScript('readAndBash')], {
 			context: { providerSessionId: 'persisted-session' },

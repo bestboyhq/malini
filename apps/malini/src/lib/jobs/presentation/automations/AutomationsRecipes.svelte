@@ -3,7 +3,7 @@
 	import { goto } from '$shared/router/navigation';
 	import { JOBS_HREF } from '$shared/router/routes-hrefs';
 	import { automationsState } from './automations-state.svelte';
-	import AutomationsSection from './AutomationsSection.svelte';
+	import { PageSection } from '$hyper-ui/components/page-section';
 	import RecipeCard from './RecipeCard.svelte';
 	import { RECIPES, type Recipe } from './recipes';
 
@@ -13,7 +13,7 @@
 	}
 </script>
 
-<AutomationsSection
+<PageSection
 	title="Recipes"
 	description="Ready-made jobs. Use one and Malini drafts it, then you make it yours."
 	testId="automations-recipes"
@@ -27,4 +27,4 @@
 			{/each}
 		</ul>
 	</Well>
-</AutomationsSection>
+</PageSection>

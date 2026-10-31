@@ -18,8 +18,7 @@ export type ListSecretRequestsArgs = Readonly<{ sessionId: string }>;
 
 export type SaveSecretsArgs = Readonly<
 	{ values: Readonly<Record<string, string>> } & (
-		| { requestId: string }
-		| { repository: string | null }
+		{ requestId: string } | { repository: string | null }
 	)
 >;
 

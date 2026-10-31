@@ -35,6 +35,7 @@ const ALL_TABLES = [
 	'docker_containers',
 	'event_log',
 	'hidden_repositories',
+	'installed_extensions',
 	'job_definitions',
 	'job_experiment_results',
 	'job_experiment_samples',

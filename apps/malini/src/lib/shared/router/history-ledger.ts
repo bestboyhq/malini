@@ -160,8 +160,3 @@ function stateCoordinate(state: unknown, key: string): number | null {
 	const value = Reflect.get(state, key);
 	return typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
 }
-
-export function recordShallowHistoryCommit(kind: 'push' | 'replace'): void {
-	const targetUrl = `${globalThis.location.pathname}${globalThis.location.search}`;
-	navigationHistoryTargetLedger.recordShallowCommit(kind, globalThis.history.state, targetUrl);
-}

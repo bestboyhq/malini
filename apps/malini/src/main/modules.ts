@@ -115,10 +115,17 @@ export async function registerModules(
 
 	const secrets = registerSecrets(context, { sealer: shellHost });
 
+	const extensions = registerExtensions(context, {
+		resolver: repositories.checkouts,
+		readCheckout: repositories.readCheckout,
+		bestboy: () => stats.bestboy,
+	});
+
 	const chat = await registerChat(context, {
 		resolver: repositories.checkouts,
 		leases: agentRunLeases,
 		secrets,
+		extensions,
 		resolveWorkstreamCheckout: (workstreamId) =>
 			repositories.checkouts.resolveCheckout(workstreamId),
 		spawnEnvironment: buildSpawnEnvironment,
@@ -145,11 +152,6 @@ export async function registerModules(
 		runner: processRunner,
 		cancelAgentRuns: () => chat.closeOpenRunsForExit(),
 		containerCount: () => repositories.containerCount(),
-	});
-
-	const extensions = registerExtensions(context, {
-		resolver: repositories.checkouts,
-		readCheckout: repositories.readCheckout,
 	});
 
 	const jobs = registerJobs(context, {
@@ -184,6 +186,7 @@ export async function registerModules(
 		cipher: shellHost,
 	});
 	stats.start();
+	extensions.start();
 	app.streaming.start();
 
 	let shuttingDown: Promise<void> | null = null;

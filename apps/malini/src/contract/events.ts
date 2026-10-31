@@ -24,6 +24,7 @@ import type {
 	ShipChangedEvent,
 	WorkstreamOpenedEvent,
 } from './pull-requests';
+import type { ExtensionChangedEvent, ExtensionPublishedEvent } from './marketplace';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type {
 	SecretDeletedEvent,
@@ -247,6 +248,8 @@ export interface ContractEvents {
 	'secrets:saved': SecretsSavedEvent;
 	'secrets:request-dismissed': SecretRequestDismissedEvent;
 	'secrets:deleted': SecretDeletedEvent;
+	'extensions:changed': ExtensionChangedEvent;
+	'extensions:published': ExtensionPublishedEvent;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -310,6 +313,8 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'secrets:saved': null,
 	'secrets:request-dismissed': null,
 	'secrets:deleted': null,
+	'extensions:changed': null,
+	'extensions:published': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {
@@ -416,6 +421,10 @@ export const SECRETS_SAVED_CHANNEL = 'secrets:saved' satisfies EventChannel;
 export const SECRETS_REQUEST_DISMISSED_CHANNEL = 'secrets:request-dismissed' satisfies EventChannel;
 
 export const SECRETS_DELETED_CHANNEL = 'secrets:deleted' satisfies EventChannel;
+
+export const EXTENSIONS_CHANGED_CHANNEL = 'extensions:changed' satisfies EventChannel;
+
+export const EXTENSIONS_PUBLISHED_CHANNEL = 'extensions:published' satisfies EventChannel;
 
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;

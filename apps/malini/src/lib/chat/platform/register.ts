@@ -11,6 +11,7 @@ import type { ShipFailure } from '$contract/pull-requests';
 import type { SecretsSavedEvent } from '$contract/secrets';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
+import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import {
@@ -47,6 +48,7 @@ export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
 	readonly leases: AgentRunLeases;
 	readonly secrets: SecretsPlatform;
+	readonly extensions: Pick<ExtensionsPlatform, 'pluginFolders'>;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
 	readonly claudeSettings: () => string;
@@ -93,6 +95,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		environment: deps.spawnEnvironment,
 	});
 	const packing = packArchivedChats(context);
+	const plugins = (): readonly string[] => deps.extensions.pluginFolders();
 	let mcpServers: McpServerListings | null = null;
 
 	const agent: AgentService = await startAgentService(context, {
@@ -126,6 +129,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		},
 		deliveries,
 		secrets: deps.secrets,
+		plugins,
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
 		...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
@@ -147,6 +151,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		runtime: agent.runtime,
 		claudeSettings: deps.claudeSettings,
 		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
+		plugins,
 		log: deps.log ?? (() => undefined),
 	});
 

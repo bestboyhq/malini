@@ -1,6 +1,3 @@
-import { createHash } from 'node:crypto';
-import { createServer, type IncomingMessage } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
@@ -11,29 +8,12 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
-	openedUrls,
 	recordBrowser,
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
 } from './harness';
-
-type PlatformRequest = Readonly<{
-	method: string;
-	path: string;
-	body: unknown;
-	authorization: string | null;
-	contentType: string | null;
-	acceptEncoding: string | null;
-}>;
-
-type FakeBestboy = Readonly<{
-	origin: string;
-	requests: PlatformRequest[];
-	expectChallenge(challenge: string): void;
-	refuseNextStatsUpload(): void;
-	close(): void;
-}>;
+import { fakeBestboy, openUrl, signInUrl } from './fake-bestboy';
 
 const STATS_KEYS = [
 	'days',
@@ -242,29 +222,6 @@ async function openProfileSettings(page: Page): Promise<void> {
 	await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
 }
 
-async function signInUrl(
-	app: LaunchedApp,
-	platform: FakeBestboy,
-	count: number,
-): Promise<Readonly<{ state: string }>> {
-	await expect.poll(async () => (await openedUrls(app)).length).toBe(count);
-	const opened = new URL((await openedUrls(app)).at(-1) ?? '');
-	expect(`${opened.origin}${opened.pathname}`).toBe(`${platform.origin}/login`);
-	expect(opened.searchParams.get('app')).toBe('malini');
-	const challenge = opened.searchParams.get('challenge') ?? '';
-	const state = opened.searchParams.get('state') ?? '';
-	expect(challenge).toMatch(/^[A-Za-z0-9_-]{43}$/u);
-	expect(state).toMatch(/^[A-Za-z0-9_-]{22}$/u);
-	platform.expectChallenge(challenge);
-	return { state };
-}
-
-async function openUrl(app: LaunchedApp, url: string): Promise<void> {
-	await app.electronApp.evaluate(({ app: electron }, callback) => {
-		electron.emit('open-url', { preventDefault: () => undefined }, callback);
-	}, url);
-}
-
 function statsBody(body: unknown): Readonly<Record<string, unknown>> {
 	if (typeof body !== 'object' || body === null) throw new Error('the upload carried no JSON body');
 	return Object.fromEntries(Object.entries(body));
@@ -275,117 +232,4 @@ function yesterday(): string {
 	day.setDate(day.getDate() - 1);
 	const month = String(day.getMonth() + 1).padStart(2, '0');
 	return `${day.getFullYear()}-${month}-${String(day.getDate()).padStart(2, '0')}`;
-}
-
-async function fakeBestboy(): Promise<FakeBestboy> {
-	const requests: PlatformRequest[] = [];
-	let challenge = '';
-	let tokens = 0;
-	let refuseStats = false;
-	const revoked = new Set<string>();
-	let profile: { handle: string | null; public: boolean } = { handle: null, public: false };
-	const server = createServer((request, response) => {
-		void (async () => {
-			const url = new URL(request.url ?? '/', 'http://localhost');
-			const body = await jsonBody(request);
-			const authorization = request.headers.authorization ?? null;
-			requests.push({
-				method: request.method ?? '',
-				path: url.pathname,
-				body,
-				authorization,
-				contentType: request.headers['content-type'] ?? null,
-				acceptEncoding: request.headers['accept-encoding'] ?? null,
-			});
-			const reply = (status: number, value?: unknown): void => {
-				response.writeHead(status, { 'content-type': 'application/json' });
-				response.end(value === undefined ? '' : JSON.stringify(value));
-			};
-			const profileReply = (): unknown => ({
-				...profile,
-				url: profile.handle ? `${origin}/@${profile.handle}` : null,
-			});
-			const route = `${request.method} ${url.pathname}`;
-			if (route === 'POST /api/auth/token') {
-				const verifier = typeof body === 'object' && body ? Reflect.get(body, 'verifier') : null;
-				const code = typeof body === 'object' && body ? Reflect.get(body, 'code') : null;
-				const hashed =
-					typeof verifier === 'string'
-						? createHash('sha256').update(verifier).digest('base64url')
-						: '';
-				if (code !== 'e2e-code' || hashed !== challenge) {
-					reply(400, { error: 'That sign-in code does not work.' });
-					return;
-				}
-				tokens += 1;
-				reply(200, { token: `e2e-token-${tokens}`, user: { name: 'E2E Person' }, team: {} });
-				return;
-			}
-			if (
-				authorization === null ||
-				revoked.has(authorization) ||
-				authorization !== `Bearer e2e-token-${tokens}`
-			) {
-				reply(401, { error: 'Sign in again.' });
-				return;
-			}
-			if (route === 'GET /api/me') {
-				reply(200, {
-					user: { id: 'u1', email: 'e2e@bestboy.dev', name: 'E2E Person', avatar: null },
-					team: { id: 't1', name: 'E2E', plan: 'early' },
-					profile: profileReply(),
-				});
-				return;
-			}
-			if (route === 'PUT /api/profile') {
-				const handle = typeof body === 'object' && body ? Reflect.get(body, 'handle') : undefined;
-				if (handle === 'taken') {
-					reply(409, { error: 'Someone else has that handle.', field: 'handle' });
-					return;
-				}
-				const shown = typeof body === 'object' && body ? Reflect.get(body, 'public') : undefined;
-				profile = {
-					handle: typeof handle === 'string' ? handle : profile.handle,
-					public: typeof shown === 'boolean' ? shown : profile.public,
-				};
-				reply(200, profileReply());
-				return;
-			}
-			if (route === 'PUT /api/stats/malini' && refuseStats) {
-				refuseStats = false;
-				revoked.add(authorization);
-				reply(401, { error: 'Sign in again.' });
-				return;
-			}
-			if (route === 'PUT /api/stats/malini' || route === 'DELETE /api/stats/malini') {
-				reply(204);
-				return;
-			}
-			if (route === 'POST /api/auth/logout') {
-				reply(204);
-				return;
-			}
-			reply(404, { error: 'Not found.' });
-		})();
-	});
-	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
-	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
-	return {
-		origin,
-		requests,
-		expectChallenge: (next) => {
-			challenge = next;
-		},
-		refuseNextStatsUpload: () => {
-			refuseStats = true;
-		},
-		close: () => server.close(),
-	};
-}
-
-async function jsonBody(request: IncomingMessage): Promise<unknown> {
-	const chunks: Buffer[] = [];
-	for await (const chunk of request) chunks.push(Buffer.from(chunk));
-	const text = Buffer.concat(chunks).toString('utf8');
-	return text ? JSON.parse(text) : null;
 }

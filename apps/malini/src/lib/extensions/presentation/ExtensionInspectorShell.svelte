@@ -23,10 +23,6 @@
 	import type { InspectorPanelAction } from './inspector-panel-action';
 	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
 	import { inspectorMinWidth } from '$shared/extensions/inspector-min-width';
-	import {
-		loadInspectorDirectoryTabOpen,
-		saveInspectorDirectoryTabOpen,
-	} from '$shared/extensions/inspector-directory-tab.store';
 	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { inspectorGutter } from '$shared/extensions/inspector-gutter.store.svelte';
 	import {
@@ -66,16 +62,11 @@
 		panelBadges?: Readonly<
 			Record<string, Readonly<{ count: number; ariaLabel: string }> | null | undefined>
 		>;
-		addExtensionsHref?: string | undefined;
-		closeDirectoryNavigationTarget?: string;
-		addExtensionsActive?: boolean;
-		addExtensionsContent?: Snippet;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		panelActions?: readonly InspectorPanelAction[];
 		workstreamPanelIds?: ReadonlySet<string>;
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
-		onpanelselect?: (panelId: string) => void;
 		requestedPanelId?: string | null;
 		onrequestedpanelhandled?: (panelId: string) => void;
 		onpanelerror?: ExtensionPanelHostErrorHandler;
@@ -92,16 +83,11 @@
 		ready = true,
 		runtimeError = null,
 		panelBadges = {},
-		addExtensionsHref,
-		closeDirectoryNavigationTarget,
-		addExtensionsActive = false,
-		addExtensionsContent,
 		renderIcon,
 		panelActions = [],
 		workstreamPanelIds = new Set(),
 		storage,
 		onactivechange,
-		onpanelselect,
 		requestedPanelId = null,
 		onrequestedpanelhandled,
 		onpanelerror = () => undefined,
@@ -118,8 +104,6 @@
 	let finalizedWorkstreamId: string | null = $state(null);
 	let panelPickerOpen = $state(false);
 	let panelPickerAnchor: HTMLSpanElement | null = $state(null);
-	let directoryTab: HTMLDivElement | null = $state(null);
-	let directoryTabStateRevision = $state(0);
 	let settingsOpen = $state(false);
 	let settingsAnchor: HTMLSpanElement | null = $state(null);
 	let panelMenu: InspectorPanelMenuTarget | null = $state.raw(null);
@@ -155,27 +139,12 @@
 			rendersContextWorkstream(activePanel) &&
 			context.workstream?.id === workstreamId,
 	);
-	const rememberedDirectoryTabOpen = $derived.by(() => {
-		directoryTabStateRevision;
-		return loadInspectorDirectoryTabOpen(workstreamId, storage);
-	});
-	const directoryTabOpen = $derived(addExtensionsActive || rememberedDirectoryTabOpen);
-	const DIRECTORY_TAB_KEY = 'extension-directory';
-	const inspectorTabKeys = $derived([
-		...visiblePanels.map(({ id }) => id),
-		...(addExtensionsHref && directoryTabOpen ? [DIRECTORY_TAB_KEY] : []),
-	]);
-	const selectedInspectorTabKey = $derived(
-		addExtensionsActive ? DIRECTORY_TAB_KEY : presentedPreferences.activeId,
-	);
+	const inspectorTabKeys = $derived(visiblePanels.map(({ id }) => id));
 	const inspectorTabStopKey = $derived(
-		inspectorTabKeys.find((key) => key === selectedInspectorTabKey) ?? inspectorTabKeys[0],
+		inspectorTabKeys.find((key) => key === presentedPreferences.activeId) ?? inspectorTabKeys[0],
 	);
 	const inspectorTabsId = $props.id();
-	const controlledPanelId = $derived.by((): string | null => {
-		if (addExtensionsActive) return addExtensionsContent ? DIRECTORY_TAB_KEY : null;
-		return presentsMountedPanel ? presentedPanelId : null;
-	});
+	const controlledPanelId = $derived(presentsMountedPanel ? presentedPanelId : null);
 	const drawerOpen = $derived(inspectorDrawer.isOpen(workstreamId, storage));
 	const floating = $derived(drawerOpen && inspectorDrawer.overlay);
 	const compactRows = $derived(
@@ -212,7 +181,7 @@
 	$effect(() => {
 		const panel = activePanel;
 		const panelContext = context;
-		if (!inspectorRuntimeReady || addExtensionsActive || !drawerOpen || !panel) {
+		if (!inspectorRuntimeReady || !drawerOpen || !panel) {
 			openedPanelKey = null;
 			return;
 		}
@@ -223,21 +192,7 @@
 	});
 
 	$effect(() => {
-		if (!addExtensionsActive) return;
-		void (async () => {
-			await tick();
-			directoryTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-		})();
-	});
-
-	$effect(() => {
-		if (!addExtensionsActive) return;
-		openDrawer();
-	});
-
-	$effect(() => {
 		if (finalizedWorkstreamId !== workstreamId || !inspectorRuntimeReady) return;
-		if (addExtensionsActive) return;
 		if (visiblePanels.length > 0) inspectorDrawer.unfold(workstreamId, storage);
 		else if (drawerOpen) foldDrawer();
 	});
@@ -249,7 +204,7 @@
 			hiddenPanelIds: presentedPreferences.hidden,
 			activePanelId: activePanel?.id ?? null,
 			ready: inspectorRuntimeReady,
-			allowActivePanelMount: !addExtensionsActive && drawerOpen,
+			allowActivePanelMount: drawerOpen,
 			mountBeforeReady: activePanelMountsBeforeReady,
 			context,
 		});
@@ -381,7 +336,6 @@
 	function selectPanel(panelId: string): void {
 		if (!inspectorInteractive) return;
 		persist((current) => selectInspectorPanel(current, panelId));
-		onpanelselect?.(panelId);
 	}
 
 	function openDrawer(): void {
@@ -408,7 +362,6 @@
 			return selectInspectorPanel(visible, panelId);
 		});
 		panelPickerOpen = false;
-		onpanelselect?.(panelId);
 		void focusPanelTab(panelId);
 	}
 
@@ -440,7 +393,7 @@
 			closingIndex >= 0
 				? (visiblePanels[closingIndex + 1] ?? visiblePanels[closingIndex - 1] ?? null)
 				: null;
-		const wasActive = !addExtensionsActive && presentedPreferences.activeId === panelId;
+		const wasActive = presentedPreferences.activeId === panelId;
 		const next = persist((current) => {
 			let updated = setInspectorPanelVisible(current, panelId, false);
 			if (wasActive && adjacentPanel) {
@@ -450,7 +403,7 @@
 		});
 		clearPanelFailure(panelId);
 		notifyPanelClosed(closingPanel);
-		if (next.activeId === null && !addExtensionsActive) {
+		if (next.activeId === null) {
 			foldDrawer();
 			void focusPanelTab(panelId, 'extension-inspector-gutter-row');
 		} else if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
@@ -475,21 +428,6 @@
 		saveInspectorPanelHiddenEverywhere(panelId, !hiddenEverywhere, storage);
 		if (hiddenEverywhere) openPanel(panelId);
 		else closePanel(panelId);
-	}
-
-	function closeExtensionDirectory(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
-		if (!inspectorInteractive) return;
-		rememberDirectoryTabOpen(false);
-		const panelId = presentedPreferences.activeId;
-		if (panelId) onpanelselect?.(panelId);
-		void focusPanelTab(panelId);
-	}
-
-	function rememberDirectoryTabOpen(open: boolean): void {
-		saveInspectorDirectoryTabOpen(workstreamId, open, storage);
-		directoryTabStateRevision += 1;
 	}
 
 	function togglePanel(panelId: string): void {
@@ -669,11 +607,7 @@
 	{@attach dockInspector(!drawerOpen)}
 	{@attach floating && dismissOnOutside(closeDrawer, '[data-inspector-dock]')}
 	aria-label="Inspector"
-	aria-busy={drawerOpen &&
-		!inspectorRuntimeReady &&
-		!presentsMountedPanel &&
-		!runtimeError &&
-		!addExtensionsActive}
+	aria-busy={drawerOpen && !inspectorRuntimeReady && !presentsMountedPanel && !runtimeError}
 	data-workstream-id={workstreamId}
 	data-navigation-workstream-id={workstreamId}
 	data-workstream-ready={inspectorRuntimeReady}
@@ -693,7 +627,7 @@
 				use:roveTabFocus
 			>
 				{#each visiblePanels as panel, panelIndex (panel.id)}
-					{@const isActive = !addExtensionsActive && panel.id === presentedPreferences.activeId}
+					{@const isActive = panel.id === presentedPreferences.activeId}
 					{@const badge = panelBadges[panel.id]}
 					{@const adjacentPanelId = isActive
 						? (visiblePanels[panelIndex + 1]?.id ?? visiblePanels[panelIndex - 1]?.id ?? null)
@@ -728,14 +662,8 @@
 						data-panel-id={panel.id}
 						tabAttributes={{
 							'data-testid': 'extension-inspector-tab',
-							'data-navigation-target': addExtensionsActive
-								? closeDirectoryNavigationTarget
-								: undefined,
-							'data-navigation-local-target':
-								isActive || addExtensionsActive ? undefined : 'extension-inspector-panel',
-							'data-navigation-path-id': addExtensionsActive
-								? 'expected-path:extension-directory.close'
-								: 'expected-path:extension-inspector.select-panel',
+							'data-navigation-local-target': isActive ? undefined : 'extension-inspector-panel',
+							'data-navigation-path-id': 'expected-path:extension-inspector.select-panel',
 							'data-navigation-target-workstream-id': workstreamId,
 							'data-navigation-panel-id': panel.id,
 							'data-panel-id': panel.id,
@@ -770,38 +698,6 @@
 						{/snippet}
 					</BrowserTab>
 				{/each}
-
-				{#if addExtensionsHref && directoryTabOpen}
-					<div bind:this={directoryTab} class="contents">
-						<BrowserTab
-							label="Extensions"
-							selected={addExtensionsActive}
-							href={addExtensionsHref}
-							tabId={inspectorTabId(DIRECTORY_TAB_KEY)}
-							tabindex={inspectorTabStopKey === DIRECTORY_TAB_KEY ? 0 : -1}
-							ariaControls={controlledPanel(DIRECTORY_TAB_KEY)}
-							closeLabel="Close Extensions"
-							data-active={String(addExtensionsActive)}
-							data-panel-id="extension-directory"
-							tabAttributes={{
-								'data-testid': 'add-extension-panel',
-								'data-navigation-path-id': 'expected-path:extension-directory.open',
-							}}
-							closeAttributes={{
-								'data-testid': 'extension-directory-tab-close',
-								'data-navigation-target': closeDirectoryNavigationTarget,
-								'data-navigation-path-id': 'expected-path:extension-directory.close',
-							}}
-							onclose={closeExtensionDirectory}
-						>
-							{#snippet icon()}
-								<span class="grid place-items-center" aria-hidden="true">
-									<Icon name="grid-plus" size={14} />
-								</span>
-							{/snippet}
-						</BrowserTab>
-					</div>
-				{/if}
 			</div>
 
 			<span class="mr-auto shrink-0" bind:this={panelPickerAnchor}>
@@ -879,22 +775,17 @@
 			<div class="text-fg-tertiary px-2 py-1.5 text-xs">Open panel</div>
 			{#each orderedPanels as panel (panel.id)}
 				{@const isOpen = !presentedPreferences.hidden.includes(panel.id)}
-				{@const isSelected = !addExtensionsActive && panel.id === presentedPreferences.activeId}
+				{@const isSelected = panel.id === presentedPreferences.activeId}
 				<DropdownItem
 					role="menuitem"
 					closeOnSelect={false}
 					focusOnHover={false}
 					aria-label={`${isOpen ? 'Select' : 'Open'} ${panel.label}`}
 					data-testid="extension-inspector-picker-item"
-					data-navigation-target={addExtensionsActive ? closeDirectoryNavigationTarget : undefined}
-					data-navigation-local-target={isSelected || addExtensionsActive
-						? undefined
-						: 'extension-inspector-panel'}
-					data-navigation-path-id={addExtensionsActive
-						? 'expected-path:extension-directory.close'
-						: isOpen
-							? 'expected-path:extension-inspector.select-panel'
-							: 'expected-path:extension-inspector.open-panel'}
+					data-navigation-local-target={isSelected ? undefined : 'extension-inspector-panel'}
+					data-navigation-path-id={isOpen
+						? 'expected-path:extension-inspector.select-panel'
+						: 'expected-path:extension-inspector.open-panel'}
 					data-navigation-target-workstream-id={workstreamId}
 					data-navigation-panel-id={panel.id}
 					data-panel-id={panel.id}
@@ -946,35 +837,6 @@
 					</span>
 				</DropdownItem>
 			{/each}
-			{#if addExtensionsHref}
-				<div class="border-border-subtle my-1 border-t"></div>
-				<a
-					href={addExtensionsHref}
-					data-navigation-path-id="expected-path:extension-directory.open"
-					role="menuitem"
-					aria-current={addExtensionsActive ? 'page' : undefined}
-					aria-label="Add extensions"
-					data-testid="add-extension-panel-option"
-					class="text-fg-secondary hover:bg-surface-elevated-hover hover:text-fg-default focus-visible:bg-surface-elevated-hover flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-xs outline-none"
-					onclick={() => {
-						panelPickerOpen = false;
-						rememberDirectoryTabOpen(true);
-					}}
-				>
-					<span
-						class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
-						aria-hidden="true"
-					>
-						<Icon name="grid-plus" size={13} />
-					</span>
-					<span class="min-w-0 flex-1 truncate">Add extensions</span>
-					{#if addExtensionsActive}
-						<span class="text-fg-default" aria-label="Selected">
-							<Icon name="check" size={11} />
-						</span>
-					{/if}
-				</a>
-			{/if}
 		</DropdownLayer>
 
 		<DropdownLayer
@@ -992,7 +854,7 @@
 				{#each orderedPanels as panel, index (panel.id)}
 					{@const isVisible = !presentedPreferences.hidden.includes(panel.id)}
 					{@const hideActiveTargetPanelId =
-						isVisible && !addExtensionsActive && panel.id === presentedPreferences.activeId
+						isVisible && panel.id === presentedPreferences.activeId
 							? (visiblePanels.find((candidate) => candidate.id !== panel.id)?.id ?? null)
 							: null}
 					<div
@@ -1069,19 +931,7 @@
 			</div>
 		</DropdownLayer>
 
-		{#if addExtensionsActive && addExtensionsContent}
-			<div
-				class="relative flex min-h-0 min-w-0 flex-1"
-				id={inspectorPanelId(DIRECTORY_TAB_KEY)}
-				role="tabpanel"
-				aria-labelledby={inspectorTabId(DIRECTORY_TAB_KEY)}
-				data-testid="extension-inspector-content"
-				data-panel-id="extension-directory"
-				data-navigation-workstream-id={workstreamId}
-			>
-				{@render addExtensionsContent()}
-			</div>
-		{:else if runtimeError}
+		{#if runtimeError}
 			<div
 				class="grid min-h-0 flex-1 place-items-center p-6"
 				role="alert"
@@ -1142,7 +992,6 @@
 		{#each entry.panels as mountedPanel (mountedPanel.id)}
 			{@const isPresented =
 				drawerOpen &&
-				!addExtensionsActive &&
 				entry.workstreamId === workstreamId &&
 				mountedPanel.id === presentedPanelId &&
 				presentable(mountedPanel, inspectorRuntimeReady)}

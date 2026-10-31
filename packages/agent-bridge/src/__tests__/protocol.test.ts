@@ -453,6 +453,24 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses the plugin folders every MCP probe loads and rejects a list that is not absolute folder paths', () => {
+			for (const command of [
+				'"cmd":"authorize_mcp_server","id":"p1","sessionId":"s1","serverName":"plugin:linear:linear"',
+				'"cmd":"reconnect_mcp_server","id":"p2","cwd":"/repo","serverName":"plugin:linear:linear"',
+				'"cmd":"watch_mcp_servers","id":"p3","cwd":"/repo"',
+				'"cmd":"switch_mcp_server","id":"p4","serverName":"plugin:linear:linear","on":true,"folders":["/repo"]',
+			]) {
+				expect(parseCommandLine(`{${command},"plugins":["/extensions/linear"]}`)).toMatchObject({
+					ok: true,
+					command: { plugins: ['/extensions/linear'] },
+				});
+				expect(parseCommandLine(`{${command},"plugins":["extensions/linear"]}`)).toMatchObject({
+					ok: false,
+					code: 'INVALID_PAYLOAD',
+				});
+			}
+		});
+
 		it('parses a stop_task command and rejects one without a task', () => {
 			expect(
 				parseCommandLine(
@@ -598,6 +616,29 @@ describe('protocol: parseCommandLine', () => {
 						`{"cmd":"send_prompt","id":"p3","sessionId":"s1","runId":"r1","prompt":"hi","skills":${skills}}`,
 					).ok,
 				).toBe(false);
+			}
+		});
+
+		it('parses the plugin folders a prompt loads and rejects a list that is not absolute folder paths', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const withPlugins = (plugins: unknown) =>
+				parseCommandLine(`{${prompt},"plugins":${JSON.stringify(plugins)}}`);
+			const folders = ['/extensions/linear', '/extensions/figma'];
+			const extensions = (count: number) =>
+				Array.from({ length: count }, (_, index) => `/extensions/${index}`);
+
+			expect(withPlugins(folders)).toMatchObject({ ok: true, command: { plugins: folders } });
+			expect(withPlugins([])).toMatchObject({ ok: true, command: { plugins: [] } });
+			expect(withPlugins(extensions(50)).ok).toBe(true);
+			expect(withPlugins([`/${'a'.repeat(1_023)}`]).ok).toBe(true);
+			for (const broken of [
+				'/extensions/linear',
+				['extensions/linear'],
+				[7],
+				[`/${'a'.repeat(1_024)}`],
+				extensions(51),
+			]) {
+				expect(withPlugins(broken)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
 			}
 		});
 

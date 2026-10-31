@@ -247,4 +247,12 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 		description:
 			'Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).',
 	},
+	'extensions:changed': {
+		description:
+			'Fires when an extension from the marketplace is installed, updated, uninstalled, turned on or off, or withdrawn because its publisher pulled the version you have, with its publisher, name, version and that `change`. Every chat picks the change up at its next prompt.',
+	},
+	'extensions:published': {
+		description:
+			'Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.',
+	},
 };

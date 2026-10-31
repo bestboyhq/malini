@@ -749,6 +749,11 @@ const recordSecrets = (entry) =>
 		nodePath.join(env.HOME || '/tmp', 'malini-secrets.jsonl'),
 		JSON.stringify(entry) + '\n',
 	);
+const recordPlugins = (entry) =>
+	fs.appendFileSync(
+		nodePath.join(env.HOME || '/tmp', 'malini-plugins.jsonl'),
+		JSON.stringify(entry) + '\n',
+	);
 const STOPS = {
 	LIMIT_PAUSE: (seconds) => ({
 		error: "You've hit your session limit · resets 3pm",
@@ -1420,6 +1425,7 @@ const handle = (command) => {
 			const { sessionId, runId } = command;
 			if (command.secrets)
 				recordSecrets({ cmd: 'send_prompt', sessionId, runId, secrets: command.secrets });
+			recordPlugins({ sessionId, runId, plugins: command.plugins ?? [] });
 			const brief = BRIEF.exec(command.prompt)?.[0] ?? null;
 			const prompt = brief === null ? command.prompt : command.prompt.slice(brief.length);
 			if (brief !== null) briefOfRun.set(runId, brief);
