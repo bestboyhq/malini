@@ -38,6 +38,7 @@ import {
 	BUILTIN_JOB_KEYS,
 	isRunnableJob,
 	isTriggerableJob,
+	takesThen,
 } from '../domain/builtin-jobs';
 import {
 	JOB_INSTRUCTIONS_MAX_LENGTH,
@@ -212,6 +213,12 @@ export function defineJobCommands(
 			throw new JobError(
 				'builtin',
 				`${existing.name} is built in and Malini starts it, so it takes no When or Then.`,
+			);
+		}
+		if (thenJobId && !takesThen(existing)) {
+			throw new JobError(
+				'builtin',
+				`${existing.name} takes no Then: when its merge stops on conflicts, Resolve conflicts takes them on its own trigger.`,
 			);
 		}
 		const agentless = isAgentlessJobBuiltin(existing.builtin);

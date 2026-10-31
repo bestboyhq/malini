@@ -73,7 +73,7 @@
 					variant="ghost"
 					size="xs"
 					ariaLabel="Dismiss milestone"
-					onclick={() => dismissMomentCommand(shown.moment.id)}
+					onclick={() => dismissMomentCommand()}
 				>
 					<Icon name="close" size={12} />
 				</IconButton>

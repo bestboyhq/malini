@@ -2,6 +2,6 @@ import { momentsStore } from '$lib/stats/infrastructure/stores/moments.store.sve
 
 export { dismissMomentCommand };
 
-function dismissMomentCommand(id: string): void {
-	momentsStore.dismiss(id);
+function dismissMomentCommand(): void {
+	momentsStore.dismiss();
 }

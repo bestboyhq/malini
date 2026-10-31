@@ -81,8 +81,9 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 		);
 		const detail = page.getByRole('region', { name: 'Update from main', exact: true });
 		await expect(detail).toContainText(
-			'Malini runs it before a scheduled job works in its workstream',
+			'When main changes a file a workstream changed, Update from main runs in the workstream it fires in.',
 		);
+		await expect(detail.getByRole('button', { name: /^Then: /u })).toHaveCount(0);
 		await expect(detail).toContainText(
 			'Resolve conflicts, on its trigger, when the merge stops on conflicts',
 		);

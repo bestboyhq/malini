@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import type { JobDefinitionRecord, TimelineRecord } from '../../src/contract/jobs';
+import type { JobBuiltin, JobDefinitionRecord, TimelineRecord } from '../../src/contract/jobs';
 import {
 	captureFlow,
 	expectAssistantReply,
@@ -25,12 +25,14 @@ import {
 } from './fake-github';
 
 const execFileAsync = promisify(execFile);
+const TEN_LINES = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n';
 const AUTHOR = ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e'];
 
-test('a workstream behind main stays as it is until you merge it, then the merge updates it from main, Resolve conflicts takes the conflicts on its trigger without waking the chat there, and it pushes a two-parent merge', async () => {
+test('with Update from main off, a workstream that conflicts with main stays as it is until you merge it, then the merge updates it from main, Resolve conflicts takes the conflicts on its trigger without waking the chat there, and it pushes a two-parent merge', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
+		await jobOff(app.page, 'update-from-main');
 		const { page, worktree, github } = await conflictingPullRequest(app, 'e2e-conflict');
 		const branchHead = github.pushedHead();
 		await openWorkstream(page, 'e2e-conflict');
@@ -98,12 +100,259 @@ test('a workstream behind main stays as it is until you merge it, then the merge
 	}
 });
 
+test('a draft that main starts to conflict with gets main merged in, the conflict resolved and the merge pushed, before anyone merges, without waking its chat', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-overlap', null);
+		await openWorkstream(page, 'e2e-overlap');
+		await sendPrompt(page, 'EDIT:conflict.txt COMMIT=feat: add the conflict file');
+		await expectAssistantReply(page);
+		const draft = page.getByRole('button', { name: 'Open a draft pull request' });
+		await expect(draft).toHaveText('Draft', { timeout: 30_000 });
+		await draft.click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
+		expect(github.pushedHead()).toBe(branchHead);
+
+		const mainHead = await commitToMain(app, github.remote, 'conflict.txt', 'main line\n');
+
+		await expect
+			.poll(
+				async () =>
+					(await jobRuns(page)).map(({ title, status, origin }) => [title, status, origin]),
+				{ timeout: 60_000 },
+			)
+			.toEqual([
+				['Resolve conflicts', 'succeeded', 'trigger'],
+				['Update from main', 'succeeded', 'trigger'],
+			]);
+		await expect
+			.poll(() => output(worktree, ['rev-list', '--parents', '-n', '1', 'HEAD']), {
+				timeout: 30_000,
+			})
+			.toMatch(new RegExp(`^[0-9a-f]{40} ${branchHead} ${mainHead}$`, 'u'));
+		const merge = await output(worktree, ['rev-parse', 'HEAD']);
+		expect(await output(worktree, ['show', 'HEAD:conflict.txt'])).toMatch(
+			/^agent edit \S+\nmain line$/u,
+		);
+		await expect.poll(() => github.pushedHead(), { timeout: 30_000 }).toBe(merge);
+		expect(await output(worktree, ['status', '--porcelain'])).toBe('');
+		expect(await invoke(page, 'jobs.list-decisions', undefined)).toEqual([]);
+
+		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
+			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
+		});
+		const overlaps = timeline.events.filter(
+			(event) => event.channel === 'repositories:workstream-base-overlapped',
+		);
+		expect(overlaps.map((event) => event.payload)).toEqual([
+			{
+				workstreamId: 'e2e-overlap',
+				baseBranch: 'main',
+				head: branchHead,
+				baseHead: mainHead,
+				behind: 1,
+				conflicts: true,
+				conflictedPaths: ['conflict.txt'],
+				overlappingPaths: ['conflict.txt'],
+			},
+		]);
+		expect(timeline.runs.find((run) => run.title === 'Update from main')).toMatchObject({
+			eventIds: [overlaps[0]?.id],
+		});
+		await captureFlow(app, 'base-overlap-resolved');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('main changing only files a draft left alone leaves it as it is, and main changing a file it changed merges main in without an agent and keeps the merge local until the draft pushes next', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-overlap-clean',
+			null,
+			async ({ basePath, worktree }: SeededWorkstream) => {
+				await commitFile(worktree, 'lines.txt', TEN_LINES, 'add lines');
+				await git(basePath, ['merge', '-q', '--ff-only', 'malini/e2e-overlap-clean']);
+				await commitFile(worktree, 'lines.txt', TEN_LINES.replace('1\n', 'one\n'), 'line one');
+				await commitFile(basePath, 'other.txt', 'main line\n', 'main changes another file');
+			},
+		);
+		await openWorkstream(page, 'e2e-overlap-clean');
+		const draft = page.getByRole('button', { name: 'Open a draft pull request' });
+		await expect(draft).toHaveText('Draft', { timeout: 30_000 });
+		await draft.click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
+		expect(github.pushedHead()).toBe(branchHead);
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
+			.toBe(await output(github.remote, ['rev-parse', 'main']));
+		await page.waitForTimeout(3_000);
+		expect(await jobRuns(page)).toEqual([]);
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
+
+		const mainHead = await commitToMain(
+			app,
+			github.remote,
+			'lines.txt',
+			TEN_LINES.replace('10\n', 'ten\n'),
+		);
+
+		await expect
+			.poll(
+				async () =>
+					(await jobRuns(page)).map(({ title, status, origin, detail }) => [
+						title,
+						status,
+						origin,
+						detail,
+					]),
+				{ timeout: 60_000 },
+			)
+			.toEqual([['Update from main', 'succeeded', 'trigger', 'Merged 2 commits from main']]);
+		expect(
+			(await output(worktree, ['rev-list', '--parents', '-n', '1', 'HEAD'])).split(' ').slice(1),
+		).toEqual([branchHead, mainHead]);
+		expect(await output(worktree, ['show', 'HEAD:lines.txt'])).toBe(
+			TEN_LINES.replace('1\n', 'one\n').replace('10\n', 'ten\n').trim(),
+		);
+		const merge = await output(worktree, ['rev-parse', 'HEAD']);
+		await page.waitForTimeout(3_000);
+		await captureFlow(app, 'base-overlap-kept-local');
+		expect(github.pushedHead()).toBe(branchHead);
+
+		await sendPrompt(page, 'EDIT:after.txt COMMIT=feat: add the after file');
+		await expectAssistantReply(page);
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'HEAD^']), { timeout: 30_000 })
+			.toBe(merge);
+		await expect
+			.poll(() => github.pushedHead(), { timeout: 30_000 })
+			.toBe(await output(worktree, ['rev-parse', 'HEAD']));
+		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
+			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
+		});
+		expect(
+			timeline.events
+				.filter((event) => event.channel === 'repositories:workstream-base-overlapped')
+				.map((event) => event.payload),
+		).toEqual([
+			{
+				workstreamId: 'e2e-overlap-clean',
+				baseBranch: 'main',
+				head: branchHead,
+				baseHead: mainHead,
+				behind: 2,
+				conflicts: false,
+				conflictedPaths: [],
+				overlappingPaths: ['lines.txt'],
+			},
+		]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('main reaching the files of a workstream while it merges leaves it to its merge, which lands it without a second pull request', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-overlap-merging',
+			null,
+		);
+		await openWorkstream(page, 'e2e-overlap-merging');
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }],
+		});
+		await queueMerge(page);
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
+		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
+
+		const mainHead = await commitToMain(app, github.remote, 'alpha.txt', 'main line\n');
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
+			.toBe(mainHead);
+		await page.waitForTimeout(3_000);
+		expect(await jobRuns(page)).toEqual([]);
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
+
+		github.setPullRequest({
+			statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+		});
+		await expectMergedAndArchived(page, 'e2e-overlap-merging');
+		await page.waitForTimeout(3_000);
+		expect(await jobRuns(page)).toEqual([]);
+		expect(
+			github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create'),
+		).toHaveLength(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a merge behind main stops the background command its agent left running, then updates the branch and merges', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-behind-background',
+			{ liveHead: true, liveMergeable: true },
+			async ({ basePath, worktree }: SeededWorkstream) => {
+				await commitFile(worktree, 'branch.txt', 'branch line\n', 'branch change');
+				await commitFile(basePath, 'main.txt', 'main line\n', 'main change');
+			},
+		);
+		const branchHead = github.pushedHead();
+		await openWorkstream(page, 'e2e-behind-background');
+		await sendPrompt(page, 'BACKGROUND_COMMAND');
+		const strip = page.getByRole('region', { name: '1 background command running' });
+		await expect(strip).toContainText('Run the e2e suite', { timeout: 20_000 });
+
+		await queueMerge(page);
+
+		await expectMergedAndArchived(page, 'e2e-behind-background');
+		const merge = github.pushedHead();
+		expect(
+			(await output(github.remote, ['rev-list', '--parents', '-n', '1', merge])).split(' '),
+		).toEqual([merge, branchHead, await output(github.remote, ['rev-parse', 'main^'])]);
+		await captureFlow(app, 'update-branch-stops-background-command');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('with Resolve conflicts off, Abort merge takes a confirming click in the bar, then returns the worktree to its last commit', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page, worktree } = await conflictingPullRequest(app, 'e2e-abort-merge');
-		await resolveConflictsOff(page);
+		await jobOff(page, 'resolve-conflicts');
 		const head = await output(worktree, ['rev-parse', 'HEAD']);
 		await git(worktree, [...AUTHOR, 'merge', 'main']).catch(() => undefined);
 		expect(await output(worktree, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).not.toBe('');
@@ -168,31 +417,52 @@ async function conflictingPullRequest(
 		workstreamId,
 		{ liveHead: true, liveMergeable: true },
 		async ({ basePath, worktree }: SeededWorkstream) => {
-			await commitFile(worktree, 'branch line\n', 'branch change');
-			await commitFile(basePath, 'main line\n', 'main change');
+			await commitFile(worktree, 'conflict.txt', 'branch line\n', 'branch change');
+			await commitFile(basePath, 'conflict.txt', 'main line\n', 'main change');
 		},
 	);
 }
 
-async function resolveConflictsOff(page: Page): Promise<void> {
+async function jobOff(page: Page, builtin: JobBuiltin): Promise<void> {
 	const definitions = await invoke<JobDefinitionRecord[]>(page, 'jobs.list-definitions', undefined);
-	const resolver = definitions.find((definition) => definition.builtin === 'resolve-conflicts');
-	if (!resolver?.trigger) throw new Error('Resolve conflicts has no trigger');
-	await invoke(page, 'jobs.save-definition', {
-		...resolver,
-		trigger: { ...resolver.trigger, mode: 'off' },
-	});
+	const job = definitions.find((definition) => definition.builtin === builtin);
+	if (!job?.trigger) throw new Error(`${builtin} has no trigger`);
+	await invoke(page, 'jobs.save-definition', { ...job, trigger: { ...job.trigger, mode: 'off' } });
 }
 
-async function commitFile(repo: string, contents: string, message: string): Promise<void> {
-	writeFileSync(join(repo, 'conflict.txt'), contents);
-	await git(repo, ['add', 'conflict.txt']);
+async function commitToMain(
+	app: LaunchedApp,
+	remote: string,
+	file: string,
+	contents: string,
+): Promise<string> {
+	const mover = join(app.root, 'main-mover');
+	await execFileAsync('git', ['clone', '-q', remote, mover]);
+	await commitFile(mover, file, contents, `main changes ${file}`);
+	await git(mover, ['push', '-q', 'origin', 'main']);
+	return output(remote, ['rev-parse', 'main']);
+}
+
+async function commitFile(
+	repo: string,
+	file: string,
+	contents: string,
+	message: string,
+): Promise<void> {
+	writeFileSync(join(repo, file), contents);
+	await git(repo, ['add', file]);
 	await git(repo, [...AUTHOR, 'commit', '-qm', message]);
 }
 
-function jobRuns(
-	page: Page,
-): Promise<{ title: string; status: string; origin: string; parentRunId: string | null }[]> {
+function jobRuns(page: Page): Promise<
+	{
+		title: string;
+		status: string;
+		origin: string;
+		parentRunId: string | null;
+		detail: string | null;
+	}[]
+> {
 	return invoke(page, 'jobs.list-runs', undefined);
 }
 

@@ -5,6 +5,7 @@ import { recentMoments, unseenMoment } from './moments';
 
 const THROUGH = '2026-10-29';
 const NO_PERCENTILES = { p50: 0, p90: 0, max: 0 };
+const CARD = { stats: null, name: null, handle: null, avatar: null };
 
 function stats(
 	runsByDay: readonly (readonly [string, number])[],
@@ -143,35 +144,36 @@ describe('recentMoments', () => {
 });
 
 describe('unseenMoment', () => {
+	const bestDay: StatsMoment = {
+		id: 'best-day:2026-10-28',
+		kind: 'best-day',
+		count: 311,
+		date: '2026-10-28',
+	};
 	const threeThousand: StatsMoment = {
 		id: 'runs:3000',
 		kind: 'runs',
 		count: 3000,
-		date: '2026-10-28',
-	};
-	const bestDay: StatsMoment = {
-		id: 'best-day:2026-10-23',
-		kind: 'best-day',
-		count: 311,
 		date: '2026-10-23',
 	};
-	const twoThousand: StatsMoment = {
-		id: 'runs:2000',
-		kind: 'runs',
-		count: 2000,
-		date: '2026-10-23',
-	};
-	const moments = [threeThousand, bestDay, twoThousand];
+	const recent = { moments: [bestDay, threeThousand], through: THROUGH, card: CARD };
 
-	it('shows the newest milestone you have not dismissed', () => {
-		expect(unseenMoment(moments, [])).toBe(threeThousand);
-		expect(unseenMoment(moments, ['runs:1000'])).toBe(threeThousand);
-		expect(unseenMoment(moments, [bestDay.id])).toBe(threeThousand);
+	it('shows the newest milestone until you close one', () => {
+		expect(unseenMoment(recent, null)).toBe(bestDay);
 	});
 
-	it('hides every milestone older than one you dismissed, but not one from the same day', () => {
-		expect(unseenMoment(moments, [threeThousand.id])).toBeNull();
-		expect(unseenMoment([bestDay, twoThousand], [bestDay.id])).toBe(twoThousand);
-		expect(unseenMoment([bestDay, twoThousand], [bestDay.id, twoThousand.id])).toBeNull();
+	it('shows nothing for a week after you close one, not even a milestone reached since', () => {
+		expect(unseenMoment(recent, '2026-10-29')).toBeNull();
+		expect(unseenMoment(recent, '2026-10-27')).toBeNull();
+		expect(unseenMoment(recent, '2026-10-24')).toBeNull();
+	});
+
+	it('after that week, shows only a milestone reached on or after the day you closed one', () => {
+		expect(unseenMoment(recent, '2026-10-23')).toBe(bestDay);
+		expect(unseenMoment({ ...recent, moments: [threeThousand] }, '2026-10-23')).toBe(threeThousand);
+		expect(unseenMoment({ ...recent, moments: [threeThousand] }, '2026-10-22')).toBe(threeThousand);
+		expect(
+			unseenMoment({ ...recent, through: '2026-11-05', moments: [threeThousand] }, '2026-10-24'),
+		).toBeNull();
 	});
 });

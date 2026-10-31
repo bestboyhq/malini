@@ -41,6 +41,12 @@ describe('the level of a platform log line', () => {
 		).toBe('warn');
 		expect(platformLineLevel('agent: could not name chat `s-1`: db locked')).toBe('error');
 		expect(
+			platformLineLevel('malini: could not fetch main of /repos/app: origin does not exist'),
+		).toBe('warn');
+		expect(
+			platformLineLevel('malini: could not compare workstream `w-1` with its base branch: boom'),
+		).toBe('error');
+		expect(
 			platformLineLevel(
 				'agent: remembered approval `a-1` bridge unavailable; showing prompt: bridge down',
 			),

@@ -10,7 +10,7 @@ export const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
 	'name-chats': 'You start a chat',
 	'name-services': 'An agent leaves a command running',
 	'fix-checks': 'Checks fail while shipping',
-	'update-from-main': 'When you run it',
+	'update-from-main': 'Main changes a file a workstream changed',
 	'resolve-conflicts': 'A merge stops on conflicts',
 	'address-review': 'A bot reviews while shipping',
 	'check-compatibility': 'Malini updates and its events change',
@@ -28,7 +28,7 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	'fix-checks':
 		'Malini runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
 	'update-from-main':
-		'Run it yourself from any chat with /. On its own, Malini runs it before a scheduled job works in its workstream, and merges main into a branch itself only while it merges that branch.',
+		'Its trigger runs it when main conflicts with a workstream or changes a file that workstream changed too, once no agent works there and its changes are committed. Main changing only other files starts nothing until you merge. Malini also runs it before a scheduled job works in its workstream. Run it yourself from any chat with /.',
 	'resolve-conflicts':
 		'Its trigger runs it when a merge stops on conflicts in any workstream, whoever started that merge: Merge, Update from main or you. With it off, Merge still runs it for the branch it merges. Run it yourself from any chat with /.',
 	'address-review':

@@ -43,6 +43,10 @@ export class WorkstreamBaseSync {
 		return { ref: await this.#fetch(repoPath, baseBranch, githubToken), fetched: true };
 	}
 
+	fetchBase(repoPath: string, baseBranch: string): Promise<string> {
+		return this.#fetch(repoPath, baseBranch, null);
+	}
+
 	keepCreationStart(workstreamId: string): void {
 		this.#keptAtCreation.add(workstreamId);
 	}

@@ -118,7 +118,7 @@ Add a repository, and every pull request you have open in it opens as a workstre
 Claude names each one from its title.
 Malini checks again every 5 minutes, on every Mac you use, and skips pull requests from forks.
 A workstream you delete stays deleted.
-Like every workstream, each one stays on its own commits while main moves, and merging it brings it up to date with its base.
+Like every workstream, each one stays on its own commits while main moves elsewhere, and Malini merges main into it once main conflicts with it or changes a file it changed.
 
 ## From prompt to merged
 
@@ -139,6 +139,7 @@ Like every workstream, each one stays on its own commits while main moves, and m
   It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
   A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
 - **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
+  When the branch needs main merged in first, Malini stops those commands before it merges, since the checkout cannot move under the agent's open run.
 - **While it waits, it works.** Malini merges main into the branch when GitHub says it is behind or conflicts, and runs the **Fix checks**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
 - **A failing check gets one re-run first.** When GitHub Actions jobs fail for the first time, Malini re-runs the failed jobs once, and the top bar names them, such as **Queued for merge · Re-running e2e on macOS 3/5**.
   When the re-run passes, the merge goes on with no agent.
@@ -149,7 +150,13 @@ Like every workstream, each one stays on its own commits while main moves, and m
   Every job Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/jobs.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
-- **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
+- **Main reaching your files merges it in.** Malini fetches main every five minutes and compares it with each workstream, and again after every commit there.
+  When merging main would stop on conflicts, or main changed a file the workstream changed too, **Update from main** merges main in once no agent works there, nothing is uncommitted and no merge is queued, **Resolve conflicts** resolves what conflicts, and a workstream with a pull request gets the resolved merge pushed.
+  A merge without conflicts stays local, and the workstream's next push carries it, so it starts no checks of its own.
+  This happens before you click **Draft** or **Merge**, so a conflict never waits for the merge to surface.
+  Main changing only other files starts nothing: the workstream stays on its own commits until you merge it.
+  Lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` count only when they conflict.
+  Turn it off, make it ask, or narrow it to conflicts on **Update from main**'s page in [Jobs](/malini/docs/jobs.md).
 - **Errors are retried, in plain sight.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes.
   The top bar and the workstream in the sidebar turn amber and say what failed and since when, such as **Couldn't open draft · 3 tries since 14:02**.
   A note above the composer says why, how many times Malini tried and when it tries next, with **Retry now**, **Cancel draft** while it opens a draft, and **What GitHub said** when GitHub refused the push.

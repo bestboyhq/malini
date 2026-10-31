@@ -26,7 +26,7 @@ import type {
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ShellRun } from './shell-runs';
-import type { ProfileState, ResourceSample, WorkstreamRunning } from './stats';
+import type { BestboyProfile, ProfileState, ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
 export type EmptyEventPayload = Readonly<Record<string, never>>;
@@ -106,6 +106,17 @@ export interface WorkstreamMergeConflictedPayload {
 	workstreamId: string;
 	baseBranch: string;
 	conflictedPaths: string[];
+}
+
+export interface WorkstreamBaseOverlappedPayload {
+	workstreamId: string;
+	baseBranch: string;
+	head: string;
+	baseHead: string;
+	behind: number;
+	conflicts: boolean;
+	conflictedPaths: string[];
+	overlappingPaths: string[];
 }
 
 export interface WorkstreamHeadMovedPayload {
@@ -200,6 +211,7 @@ export interface ContractEvents {
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
 	'repositories:workstream-setup-status': WorkstreamSetupStatusPayload;
 	'repositories:workstream-merge-conflicted': WorkstreamMergeConflictedPayload;
+	'repositories:workstream-base-overlapped': WorkstreamBaseOverlappedPayload;
 	'repositories:workstream-head-moved': WorkstreamHeadMovedPayload;
 	'repositories:workstream-pushed': WorkstreamPushedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
@@ -237,6 +249,7 @@ export interface ContractEvents {
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
 	'stats:profile-changed': ProfileState;
+	'stats:profile-published': BestboyProfile;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -259,6 +272,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-install-status': null,
 	'repositories:workstream-setup-status': null,
 	'repositories:workstream-merge-conflicted': null,
+	'repositories:workstream-base-overlapped': null,
 	'repositories:workstream-head-moved': null,
 	'repositories:workstream-pushed': null,
 	'repositories:clone-progress': null,
@@ -296,6 +310,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
 	'stats:profile-changed': null,
+	'stats:profile-published': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {
@@ -347,6 +362,9 @@ export const REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL =
 export const REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL =
 	'repositories:workstream-merge-conflicted' satisfies EventChannel;
 
+export const REPOSITORIES_WORKSTREAM_BASE_OVERLAPPED_CHANNEL =
+	'repositories:workstream-base-overlapped' satisfies EventChannel;
+
 export const REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL =
 	'repositories:workstream-head-moved' satisfies EventChannel;
 
@@ -394,6 +412,8 @@ export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 	'stats:workstream-running-changed' satisfies EventChannel;
 
 export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies EventChannel;
+
+export const STATS_PROFILE_PUBLISHED_CHANNEL = 'stats:profile-published' satisfies EventChannel;
 
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;

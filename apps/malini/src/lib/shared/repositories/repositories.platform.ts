@@ -1,5 +1,6 @@
 import type { DockerOwnership, OwnedContainer } from '$main/docker/ownership';
 import type { ContainerReclaim } from '$main/docker/reclaim';
+import type { BaseOverlapWatch } from './platform/base-overlap.service';
 import type { CheckoutResolver } from './platform/checkout-resolver';
 import type { GhRunner } from './platform/github.service';
 import type { WorkstreamFileResolver } from './platform/image-protocol';
@@ -12,6 +13,7 @@ export interface RepositoriesPlatform {
 	readonly ownership: DockerOwnership;
 	readonly installs: InstallRegistry;
 	readonly watchers: WorkstreamWatchers;
+	readonly overlaps: BaseOverlapWatch;
 	readonly bundleIdentifier: string;
 	readonly appInstanceId: string;
 	containerCount(): number;

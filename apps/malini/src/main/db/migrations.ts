@@ -1285,6 +1285,11 @@ END;
 ALTER TABLE workstreams ADD COLUMN cleared_from_starter INTEGER NOT NULL DEFAULT 0
   CHECK (cleared_from_starter IN (0, 1));
 `,
+	`
+UPDATE job_definitions
+  SET trigger_when = 'on repositories:workstream-base-overlapped', trigger_mode = 'auto'
+  WHERE builtin = 'update-from-main' AND trigger_when IS NULL;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -205,7 +205,7 @@ async function fakeGithubFor(
 	const offline = join(state, 'offline');
 	const failure = join(state, 'github-failure');
 	mkdirSync(state, { recursive: true });
-	await git(state, ['init', '-q', '--bare', remote]);
+	await git(state, ['init', '-q', '--bare', '-b', 'main', remote]);
 	const branch = revParse(seeded.worktree, '--abbrev-ref', 'HEAD');
 	await git(seeded.worktree, ['push', '-q', remote, `HEAD:refs/heads/${branch}`]);
 	await git(seeded.basePath, ['push', '-q', remote, 'main:refs/heads/main']);

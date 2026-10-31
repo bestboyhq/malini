@@ -137,6 +137,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'interface WorkstreamMergeConflictedPayload {\n\tworkstreamId: string;\n\tbaseBranch: string;\n\tconflictedPaths: string[];\n}',
 		},
 		{
+			channel: 'repositories:workstream-base-overlapped',
+			description:
+				"Fires when a workstream's base branch has commits the workstream lacks that conflict with it or change files it changed too, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream and each time it fetches the base branch, every five minutes, and only while no agent works there and nothing is left uncommitted. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A base branch that changed only other files fires nothing. Update from main runs on it.",
+			payloadType: 'WorkstreamBaseOverlappedPayload',
+			payload:
+				'interface WorkstreamBaseOverlappedPayload {\n\tworkstreamId: string;\n\tbaseBranch: string;\n\thead: string;\n\tbaseHead: string;\n\tbehind: number;\n\tconflicts: boolean;\n\tconflictedPaths: string[];\n\toverlappingPaths: string[];\n}',
+		},
+		{
 			channel: 'repositories:workstream-head-moved',
 			description:
 				"Fires when the commit a workstream's checkout points to changes, whoever moved it: a commit, a merge, a pull or a reset, with the branch, or `null` when the checkout is detached, and the commits before and after; `previousHead` is `null` for the first commit of a new branch.",
@@ -420,6 +428,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'ProfileState',
 			payload:
 				"type BestboyAccount = Readonly<{ name: string; email: string }>;\n\ntype BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;\n\ntype StatsPublishing = 'off' | 'on' | 'removing';\n\ntype StatsUpload =\n\t| Readonly<{ state: 'idle' }>\n\t| Readonly<{ state: 'sending' }>\n\t| Readonly<{ state: 'published'; through: string }>\n\t| Readonly<{ state: 'no-full-day' }>\n\t| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;\n\ntype ProfileState = Readonly<{\n\taccount: BestboyAccount | null;\n\tprofile: BestboyProfile | null;\n\tsigningIn: boolean;\n\tsignInNeeded: boolean;\n\tsignInProblem: string | null;\n\tpublishing: StatsPublishing;\n\tupload: StatsUpload;\n\tpickedRepositories: readonly string[];\n\tsuggestedHandle: string | null;\n}>;",
+		},
+		{
+			channel: 'stats:profile-published',
+			description:
+				'Fires when you claim your `@handle` and **Publish my stats** turns on, with your Bestboy profile: its handle, whether it is public, and its address.',
+			payloadType: 'BestboyProfile',
+			payload:
+				'type BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;',
 		},
 	],
 };
