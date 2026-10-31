@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({ app: {}, net: {} }));
 
-import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import { CHAT_AGENT_EVENT_CHANNEL, STATS_PROFILE_PUBLISHED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
+import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { setSetting } from './settings.repository';
 import { createTestContext } from './test-support';
@@ -14,12 +15,16 @@ function harness(
 	context: MainContext = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') }),
 ) {
 	const activity: UsageActivity[] = [];
+	const tags: Readonly<Record<string, string>>[] = [];
 	const errors: string[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
 	let goneProcess: (process: string, reason: string, exitCode: number) => void = () => undefined;
 	startUsageData(context, {
 		sink: {
-			activity: (name) => activity.push(name),
+			activity: (name, props) => {
+				activity.push(name);
+				tags.push(props);
+			},
 			error: (message) => errors.push(message),
 			shutdown: () => Promise.resolve(),
 		},
@@ -38,6 +43,7 @@ function harness(
 	return {
 		context,
 		activity,
+		tags,
 		errors,
 		throwUncaught: (error: unknown) => throwUncaught(error),
 		goneProcess: (process: string, reason: string) => goneProcess(process, reason, 9),
@@ -50,6 +56,14 @@ function finishRun(context: MainContext, type: string): void {
 		runId: 'r1',
 		seq: 1,
 		event: { type, runId: 'r1' },
+	});
+}
+
+function publishProfile(context: MainContext): void {
+	context.events.emit(STATS_PROFILE_PUBLISHED_CHANNEL, {
+		handle: 'szymeo',
+		public: true,
+		url: 'https://bestboy.dev/@szymeo',
 	});
 }
 
@@ -72,6 +86,15 @@ describe('usage data', () => {
 		finishRun(context, 'run.completed');
 		finishRun(context, 'run.failed');
 		expect(activity).toEqual(['app_active', 'run_finished', 'run_finished']);
+	});
+
+	it('tags each count with where you heard about Malini, and counts a published profile', () => {
+		const { context, activity, tags } = harness();
+		setSetting(context.db, HEARD_ABOUT_SETTING, 'hacker-news');
+		finishRun(context, 'run.completed');
+		publishProfile(context);
+		expect(activity).toEqual(['app_active', 'run_finished', 'profile_published']);
+		expect(tags).toEqual([{}, { heard_about: 'hacker-news' }, { heard_about: 'hacker-news' }]);
 	});
 
 	it('logs a failed command by its error name, never its message, once per launch', async () => {
@@ -108,6 +131,7 @@ describe('usage data', () => {
 		setSetting(context.db, USAGE_DATA_SETTING, 'off');
 		const { activity, errors } = harness(context);
 		finishRun(context, 'run.completed');
+		publishProfile(context);
 		await failCommand(context, new Error('disk gone'));
 		expect([...activity, ...errors]).toEqual([]);
 	});

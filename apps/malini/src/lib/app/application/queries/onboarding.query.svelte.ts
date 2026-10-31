@@ -1,3 +1,4 @@
+import type { HeardAbout } from '$lib/app/domain/heard-about';
 import { ONBOARDING_STEPS, type OnboardingStep } from '$lib/app/domain/onboarding';
 import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store.svelte';
 
@@ -7,6 +8,7 @@ type Onboarding = Readonly<{
 	index: number;
 	direction: 1 | -1;
 	shown: boolean;
+	heardAbout: HeardAbout | null;
 }>;
 
 class OnboardingQuery {
@@ -16,6 +18,7 @@ class OnboardingQuery {
 		index: onboardingStore.step,
 		direction: onboardingStore.direction,
 		shown: onboardingStore.shown,
+		heardAbout: onboardingStore.heardAbout,
 	});
 }
 
