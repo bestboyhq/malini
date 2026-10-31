@@ -11,7 +11,7 @@ The bridge (`packages/agent-bridge`, a child process on Electron's binary) hands
 ## Who owns what
 
 Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, and model access through the user's own login.
-Malini only picks when a chat compacts, from **Settings → Models**, and puts the chat's record back after it (`docs/adr/0138-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md`).
+Malini only picks when a chat compacts, from **Settings → Models**, and puts the chat's record back after it (`docs/adr/0140-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md`).
 `settingSources` loads the user, project, and local settings, so a run behaves like `claude` in a terminal.
 The one exception is skills: `send_prompt` carries the skills a job names (ADR 0049), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
 

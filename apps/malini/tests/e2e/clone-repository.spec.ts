@@ -77,7 +77,7 @@ test('cloning picks a recent GitHub repository and opens its scratchpad', async 
 	}
 });
 
-test('cloning a repository opens your own pull requests in it as workstreams', async () => {
+test('a cloned repository lists your open pull requests beside its scratchpad without opening any, and Continue here opens one on its own branch', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'OAuth sign-in' } });
 	try {
@@ -94,6 +94,10 @@ test('cloning a repository opens your own pull requests in it as workstreams', a
 		writeFileSync(
 			join(app.home, PULL_REQUEST_FIXTURE),
 			JSON.stringify({
+				number: 12,
+				url: 'https://github.com/e2e/warren/pull/12',
+				isDraft: false,
+				updatedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
 				title: 'feat(auth): add OAuth sign-in with refresh tokens and a remember-me option',
 				headRefName: 'feat/oauth',
 				headRefOid,
@@ -120,11 +124,20 @@ test('cloning a repository opens your own pull requests in it as workstreams', a
 		await dialog.getByRole('button', { name: 'Clone repo' }).click();
 		await expectScratchpadOf(page, 'warren');
 
-		const workstream = page.getByTestId('sidebar-workstream').filter({ hasText: 'OAuth sign-in' });
-		await expect(workstream).toBeVisible({ timeout: 30_000 });
-		await captureFlow(app, 'clone-repository-own-pull-request');
-		await workstream.click();
-		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
+		const title = 'feat(auth): add OAuth sign-in with refresh tokens and a remember-me option';
+		const gutter = page.getByRole('complementary', { name: 'Your open pull requests' });
+		const continueHere = gutter.getByRole('button', { name: `Continue ${title} here` });
+		await expect(continueHere).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
+		expect(await invoke(page, 'repositories.list-workstreams', undefined)).toEqual([]);
+		await continueHere.hover();
+		await captureFlow(app, 'repository-own-pull-requests');
+
+		await continueHere.click();
+		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 30_000 });
+		await expect(
+			page.getByTestId('sidebar-workstream').filter({ hasText: 'OAuth sign-in' }),
+		).toHaveAttribute('aria-current', 'page');
 		const workstreams = await invoke<WorkstreamRow[]>(
 			page,
 			'repositories.list-workstreams',
@@ -133,6 +146,10 @@ test('cloning a repository opens your own pull requests in it as workstreams', a
 		expect(workstreams.map(({ name, branch }) => ({ name, branch }))).toEqual([
 			{ name: 'OAuth sign-in', branch: 'feat/oauth' },
 		]);
+		await page.getByTestId('sidebar-connected-repository').filter({ hasText: 'warren' }).click();
+		await expect(gutter.getByRole('button', { name: `Open ${title}` })).toBeVisible({
+			timeout: 30_000,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

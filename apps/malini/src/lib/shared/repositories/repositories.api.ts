@@ -173,6 +173,10 @@ export { prepareRepositoryCommand } from './application/commands/prepare-reposit
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
 export { requestRepositoryConnectionCommand } from './application/commands/request-repository-connection.command';
 export { restoreWorkstreamCommand } from './application/commands/restore-workstream.command';
+export { continueOwnPullRequestCommand } from './application/commands/continue-own-pull-request.command';
+export { loadOwnPullRequestsCommand } from './application/commands/load-own-pull-requests.command';
+export { ownPullRequestsQuery } from './application/queries/own-pull-requests.query.svelte';
+export type { OwnPullRequest } from './domain/own-pull-requests';
 export { clearMergedFromStarterCommand } from './application/commands/clear-merged-from-starter.command';
 export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
@@ -185,7 +189,6 @@ export { trackWorkstreamChangeTotalsCommand } from './application/commands/track
 export { bindExtensionNavigationHook } from './application/hooks/bind-extension-navigation.hook';
 export { bindExtensionRepositoryHook } from './application/hooks/bind-extension-repository.hook';
 export { followActiveWorkstreamHook } from './application/hooks/follow-active-workstream.hook';
-export { followOwnPullRequestsHook } from './application/hooks/follow-own-pull-requests.hook';
 export { followWorkstreamSetupHook } from './application/hooks/follow-workstream-setup.hook';
 export { keepActiveWorkstreamFreshHook } from './application/hooks/keep-active-workstream-fresh.hook';
 export { resumeProvisioningOnGithubCredentialHook } from './application/hooks/resume-provisioning-on-github-credential.hook';

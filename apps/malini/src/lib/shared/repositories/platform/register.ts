@@ -74,8 +74,12 @@ import { GithubReachWatch } from './github-reach';
 import { workstreamMedia } from './image-protocol';
 import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
-import { syncOwnPullRequests } from './own-pull-requests.service';
-import { cloneSeedFolder } from './repository.service';
+import { continueOwnPullRequest, listOwnPullRequests } from './own-pull-requests.service';
+import {
+	cloneSeedFolder,
+	githubFullNameFromRemote,
+	resolveConnectedRepository,
+} from './repository.service';
 import { InstallRegistry, installDependencies } from './provisioning.service';
 import {
 	WorkstreamRetiredError,
@@ -180,6 +184,17 @@ export function registerRepositories(
 					ship.workstreamId === workstreamId &&
 					(ship.phase === 'queued' || ship.phase === 'needs-you'),
 			),
+		pullRequestEnded: async (workstream) => {
+			const repository = await resolveConnectedRepository(db, workstream.projectId);
+			if (githubFullNameFromRemote(repository?.remoteUrl ?? '') === null) return false;
+			const { state } = await commands.call('pull-requests.status', {
+				repoId: workstream.projectId,
+				workstreamId: workstream.id,
+				head: workstream.branch,
+				base: workstream.baseBranch,
+			});
+			return state === 'merged' || state === 'closed';
+		},
 		fetchEveryMs: baseFetchMs > 0 ? baseFetchMs : BASE_FETCH_EVERY_MS,
 		log: deps.log ?? ((line) => console.error(line)),
 	});
@@ -275,32 +290,23 @@ export function registerRepositories(
 		baseSync.sync(checkedWorkstreamId(args)),
 	);
 
-	let ownPullRequestsSync: Promise<string[]> | null = null;
-	let nextOwnPullRequestsSync: Promise<string[]> | null = null;
-	const syncOwnPullRequestsNow = (): Promise<string[]> => {
-		ownPullRequestsSync = syncOwnPullRequests({
-			workstreams,
-			gh,
-			checkouts,
-			guardCheckoutMove,
-			...(deps.nameWorkstream ? { nameWorkstream: deps.nameWorkstream } : {}),
-		}).finally(() => {
-			ownPullRequestsSync = null;
-		});
-		return ownPullRequestsSync;
+	const ownPullRequests = {
+		workstreams,
+		gh,
+		checkouts,
+		guardCheckoutMove,
+		...(deps.nameWorkstream ? { nameWorkstream: deps.nameWorkstream } : {}),
 	};
-	const syncOwnPullRequestsAfter = async (running: Promise<string[]>): Promise<string[]> => {
-		try {
-			await running;
-		} catch {}
-		nextOwnPullRequestsSync = null;
-		return syncOwnPullRequestsNow();
-	};
-	commands.define('repositories.sync-own-pull-requests', () => {
-		if (ownPullRequestsSync === null) return syncOwnPullRequestsNow();
-		nextOwnPullRequestsSync ??= syncOwnPullRequestsAfter(ownPullRequestsSync);
-		return nextOwnPullRequestsSync;
-	});
+	commands.define('repositories.list-own-pull-requests', (args: unknown) =>
+		listOwnPullRequests(ownPullRequests, requireString(args, 'repoId')),
+	);
+	commands.define('repositories.continue-own-pull-request', (args: unknown) =>
+		continueOwnPullRequest(
+			ownPullRequests,
+			requireString(args, 'repoId'),
+			requireString(args, 'head'),
+		),
+	);
 
 	commands.define('repositories.delete-workstream', (args: unknown) =>
 		retireWorkstream(workstreams, requireString(args, 'workstreamId'), 'deleted'),

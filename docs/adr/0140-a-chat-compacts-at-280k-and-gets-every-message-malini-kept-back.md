@@ -1,4 +1,4 @@
-# 0138 - A chat compacts at 280K and gets every message Malini kept back
+# 0140 - A chat compacts at 280K and gets every message Malini kept back
 
 Status: accepted
 

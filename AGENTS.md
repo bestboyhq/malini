@@ -46,7 +46,7 @@ No `remote`, no `nodeIntegration`, no raw `ipcRenderer` outside the preload.
 ## Rule 5 - Never put the app in front of the user.
 
 The user keeps working on this machine while agents test.
-Every app an agent launches runs in background mode (`MALINI_BACKGROUND_WINDOW=1`): one pixel at the screen edge, behind every window, never focused, no Dock icon.
+Every app an agent launches runs in background mode (`MALINI_BACKGROUND_WINDOW=1`): one pixel at the screen edge, behind every window, never focused, no Dock icon, no GPU.
 The e2e harness and `.agents/skills/test-malini-app/scripts/malini.mjs` set it; any other launcher must set it too.
 Never run `pnpm dev` or `pnpm start`, and never pass `{ foreground: true }`, unless the user asks to watch.
 `apps/malini/tests/e2e/window.spec.ts` fails when a test run's window covers more than one pixel column of any display.

@@ -1290,6 +1290,9 @@ UPDATE job_definitions
   SET trigger_when = 'on repositories:workstream-base-overlapped', trigger_mode = 'auto'
   WHERE builtin = 'update-from-main' AND trigger_when IS NULL;
 `,
+	`
+DROP TABLE deleted_workstreams;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

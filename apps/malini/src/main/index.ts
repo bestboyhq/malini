@@ -28,7 +28,10 @@ const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver'];
 
 const productName = pinStorageName(app);
 app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));
-if (BACKGROUND_WINDOW) app.dock?.hide();
+if (BACKGROUND_WINDOW) {
+	app.dock?.hide();
+	app.disableHardwareAcceleration();
+}
 declareWorktreeScheme([WORKSTREAM_IMAGE_SCHEME_PRIVILEGES]);
 
 const diagnostics = new MainDiagnosticsLog({

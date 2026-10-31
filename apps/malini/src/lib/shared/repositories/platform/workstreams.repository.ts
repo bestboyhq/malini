@@ -337,12 +337,7 @@ export function deleteWorkstream(db: MaliniDatabase, workstreamId: string): void
 		);
 		run(db, 'DELETE FROM agent_sessions WHERE workstream_id = ?', workstreamId);
 		run(db, 'DELETE FROM workstreams WHERE id = ?', workstreamId);
-		run(db, 'INSERT OR IGNORE INTO deleted_workstreams (id) VALUES (?)', workstreamId);
 	});
-}
-
-export function workstreamWasDeleted(db: MaliniDatabase, workstreamId: string): boolean {
-	return scalar(db, 'SELECT COUNT(*) FROM deleted_workstreams WHERE id = ?', workstreamId) > 0;
 }
 
 export function mergedPullRequestOf(
