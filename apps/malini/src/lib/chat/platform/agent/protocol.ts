@@ -113,6 +113,7 @@ export type BridgeCommand =
 			steer?: true;
 			theme?: AgentTheme;
 			lineage?: AgentLineage;
+			compactWindow?: number;
 	  }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }

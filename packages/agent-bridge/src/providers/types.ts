@@ -39,6 +39,7 @@ export interface ProviderHandle {
 		steer?: boolean,
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
+		compactWindow?: number,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

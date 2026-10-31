@@ -26,12 +26,7 @@ import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
 import type { McpServerReport } from '../types.js';
 import { MALINI_MCP_SERVER, maliniTools } from './browser-tools.js';
-import {
-	compactWindowSettings,
-	picksCompactWindow,
-	previousConversation,
-	recordHooks,
-} from './compaction.js';
+import { previousConversation, recordHooks } from './compaction.js';
 import {
 	configChanged,
 	configSnapshot,
@@ -136,7 +131,7 @@ interface RunSettings {
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
 	readonly lineage: AgentLineage | undefined;
-	readonly windowed: boolean;
+	readonly compactWindow: number | undefined;
 }
 
 interface ActiveRun {
@@ -146,7 +141,7 @@ interface ActiveRun {
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
 	readonly lineage: AgentLineage | undefined;
-	readonly windowed: boolean;
+	readonly compactWindow: number | undefined;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -216,14 +211,9 @@ export class ClaudeSession implements ProviderHandle {
 		steer?: boolean,
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
+		compactWindow?: number,
 	): Promise<void> {
-		const run: RunSettings = {
-			profile,
-			skills,
-			theme,
-			lineage,
-			windowed: !picksCompactWindow(prompt),
-		};
+		const run: RunSettings = { profile, skills, theme, lineage, compactWindow };
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -254,7 +244,7 @@ export class ClaudeSession implements ProviderHandle {
 		if (idle?.idleTimeout) {
 			const fresh =
 				canContinue(idle, run, rewinds(idle, resumeAt), freshConversation) &&
-				idle.windowed === run.windowed &&
+				idle.compactWindow === run.compactWindow &&
 				idle.config !== null &&
 				!configChanged(idle.config);
 			if (fresh && (await this.#continue(idle, prompt, runId, profile)) === 'done') return;
@@ -309,7 +299,7 @@ export class ClaudeSession implements ProviderHandle {
 			skills: run.skills,
 			theme: run.theme,
 			lineage: run.lineage,
-			windowed: run.windowed,
+			compactWindow: run.compactWindow,
 			results: [],
 			costBefore: 0,
 			query,
@@ -633,7 +623,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme, lineage, windowed }: RunSettings,
+		{ profile, skills, theme, lineage, compactWindow }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -641,7 +631,6 @@ export class ClaudeSession implements ProviderHandle {
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
-		const settings = windowed ? compactWindowSettings(this.#context.cwd) : undefined;
 		return {
 			cwd: this.#context.cwd,
 			abortController: abort,
@@ -676,7 +665,7 @@ export class ClaudeSession implements ProviderHandle {
 					{ matcher: 'compact', hooks: recordHooks(() => this.#context.requestHistory()) },
 				],
 			},
-			...(settings ? { settings } : {}),
+			...(compactWindow ? { settings: { autoCompactWindow: compactWindow } } : {}),
 			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
 			canUseTool: this.#canUseTool(),
 			...(model ? { model } : {}),

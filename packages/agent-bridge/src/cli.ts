@@ -579,6 +579,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				cmd.steer,
 				cmd.theme,
 				cmd.lineage,
+				cmd.compactWindow,
 			);
 		} catch (err) {
 			emitRunFailure(cmd.runId, cmd.sessionId, 'SEND_PROMPT_FAILED', errorMessage(err));

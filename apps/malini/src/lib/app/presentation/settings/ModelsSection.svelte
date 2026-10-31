@@ -5,6 +5,7 @@
 	import { applyModelDefaultsCommand } from '$lib/chat/application/commands/apply-model-defaults.command';
 	import { loadRememberedModelsCommand } from '$lib/chat/application/commands/load-remembered-models.command';
 	import { rememberedModelsQuery } from '$lib/chat/application/queries/remembered-models.query.svelte';
+	import ContextWindowSettings from './ContextWindowSettings.svelte';
 	import SettingsSection from './SettingsSection.svelte';
 
 	onMount(loadRememberedModelsCommand);
@@ -19,5 +20,6 @@
 			models={rememberedModelsQuery.data}
 			onchange={applyModelDefaultsCommand}
 		/>
+		<ContextWindowSettings />
 	</Well>
 </SettingsSection>

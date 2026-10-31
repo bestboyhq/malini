@@ -11,7 +11,7 @@ The bridge (`packages/agent-bridge`, a child process on Electron's binary) hands
 ## Who owns what
 
 Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, and model access through the user's own login.
-Malini only picks when a chat compacts and puts the chat's record back after it (`docs/adr/0138-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md`).
+Malini only picks when a chat compacts, from **Settings → Models**, and puts the chat's record back after it (`docs/adr/0138-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md`).
 `settingSources` loads the user, project, and local settings, so a run behaves like `claude` in a terminal.
 The one exception is skills: `send_prompt` carries the skills a job names (ADR 0049), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
 
@@ -48,13 +48,14 @@ Malini owns the rest, and the adapter enforces it:
 - Slash commands: a prompt that starts with `/` reaches Claude Code as typed, and its result names the prompt's uuid like any turn.
   A compaction, typed or automatic, is a `Compact` tool call: `system/status` `compacting` starts it, `compact_boundary` completes it with its `trigger`, and a `failed` `compact_result` fails it.
   `compact_metadata.post_tokens` counts only the summary, so the run's context comes from `getContextUsage()` once a compaction clears the measured usage.
-- Compaction: every query passes `settings: { autoCompactWindow: 280000 }` unless the user, project or local settings file sets `autoCompactWindow`, at the top or under `modelSettings`, where `/autocompact` saves it.
-  A running Claude Code keeps the flag over a pick, and `applyFlagSettings` cannot take it away, so a prompt that picks a window (`/autocompact 500k`) runs in a Claude Code started without the flag, and the next prompt starts one that reads the pick.
+- Compaction: `send_prompt` carries `compactWindow`, the **Context window** setting (280,000 tokens unless the user moves it), and the query passes it as `settings: { autoCompactWindow }`.
+  Flag settings rank above the user, project and local files, and a flag `autoCompactWindow` at the top replaces every per-model window under `modelSettings` below it, where `/autocompact` saves one; only `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and managed settings beat it.
+  `applyFlagSettings` cannot change the window of a running Claude Code, so a prompt with another window starts a fresh one, as a new theme does.
   The flag survives `applyFlagSettings` for effort and permissions, and `getContextUsage()` reports it as `rawMaxTokens`, so the context gauge counts against it.
   After a compaction, 48 `SessionStart` callbacks with the matcher `compact` ask main for the chat's record over `bridge.history_request` and return it in parts of at most 10,000 characters, each after the one before.
   Claude Code saves a longer hook context to a file behind a 2 KB preview, runs every callback at once, and joins their contexts with a newline in the order they finish.
 
-`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `compaction.ts` (the compaction window and the record put back after a compaction), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens, and turns the skills and plugins in `turnedOff` back on through flag settings for that query alone), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries), `choices.ts` (the same kind of query for `choose`, with the Choose a reaction job, whose `outputFormat` JSON schema admits only `{ "pick": 1..choices }`; the SDK ends that turn on a `StructuredOutput` tool call and reads the pick from the result's `structured_output`).
+`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `compaction.ts` (the record put back after a compaction), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens, and turns the skills and plugins in `turnedOff` back on through flag settings for that query alone), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries), `choices.ts` (the same kind of query for `choose`, with the Choose a reaction job, whose `outputFormat` JSON schema admits only `{ "pick": 1..choices }`; the SDK ends that turn on a `StructuredOutput` tool call and reads the pick from the result's `structured_output`).
 
 ## Shapes come from tracer bullets
 

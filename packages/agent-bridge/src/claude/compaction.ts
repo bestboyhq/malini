@@ -1,49 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { setImmediate as nextTurn } from 'node:timers/promises';
-import type { HookCallback, Settings } from '@anthropic-ai/claude-agent-sdk';
+import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import type { ConversationHistoryMessage, HistoryResult } from '../protocol.js';
-import { isRecord } from '../type-guards.js';
-import { userSettingsFile } from './user-settings.js';
 
-export const COMPACT_WINDOW_TOKENS = 280_000;
 export const RECORD_PARTS = 48;
 export const HOOK_CONTEXT_CHARACTERS = 10_000;
 const SHORTEST_PART_CHARACTERS = 8_000;
 const RECORD_INTRO =
 	'Malini keeps every message of this chat word for word. Your context was just compacted, so here is the conversation before the compaction as the user saw it in Malini: each message they wrote and each reply you gave, in order. Tool calls and their output are not included.';
-
-export function compactWindowSettings(cwd: string): Settings | undefined {
-	const files = [
-		userSettingsFile(),
-		join(cwd, '.claude', 'settings.json'),
-		join(cwd, '.claude', 'settings.local.json'),
-	];
-	return files.some(setsCompactWindow) ? undefined : { autoCompactWindow: COMPACT_WINDOW_TOKENS };
-}
-
-export function picksCompactWindow(prompt: string): boolean {
-	return /^\/autocompact\s+\S/u.test(prompt);
-}
-
-// ponytail: a window picked for any one model keeps Malini's off for every model; copy the per-model picks into the flag layer if that matters
-function setsCompactWindow(file: string): boolean {
-	let settings: unknown;
-	try {
-		settings = JSON.parse(readFileSync(file, 'utf8'));
-	} catch {
-		return false;
-	}
-	if (!isRecord(settings)) return false;
-	if (settings['autoCompactWindow'] !== undefined) return true;
-	const models = settings['modelSettings'];
-	return (
-		isRecord(models) &&
-		Object.values(models).some(
-			(model) => isRecord(model) && model['autoCompactWindow'] !== undefined,
-		)
-	);
-}
 
 export function previousConversation(messages: readonly ConversationHistoryMessage[]): string {
 	const transcript = messages

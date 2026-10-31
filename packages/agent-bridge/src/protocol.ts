@@ -73,10 +73,12 @@ export interface SendPromptCommand {
 	readonly steer?: boolean;
 	readonly theme?: AgentTheme;
 	readonly lineage?: AgentLineage;
+	readonly compactWindow?: number;
 }
 
 const MAX_SKILLS = 1_000;
 const MAX_SKILL_NAME_CHARACTERS = 200;
+const COMPACT_WINDOW_RANGE = Object.freeze({ min: 100_000, max: 1_000_000 });
 
 export interface CancelRunCommand {
 	readonly cmd: 'cancel_run';
@@ -785,6 +787,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const steer = obj.steer;
 	const theme = obj.theme;
 	const lineage = obj.lineage;
+	const compactWindow = obj.compactWindow;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -827,6 +830,13 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
+	if (compactWindow !== undefined && !isCompactWindow(compactWindow)) {
+		return err(
+			'INVALID_PAYLOAD',
+			`send_prompt: compactWindow, when present, must be whole tokens from ${COMPACT_WINDOW_RANGE.min} to ${COMPACT_WINDOW_RANGE.max}`,
+			obj,
+		);
+	}
 	return {
 		ok: true,
 		command: {
@@ -842,8 +852,18 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(steer === true ? { steer } : {}),
 			...(theme !== undefined ? { theme } : {}),
 			...(lineage !== undefined ? { lineage } : {}),
+			...(compactWindow !== undefined ? { compactWindow } : {}),
 		},
 	};
+}
+
+function isCompactWindow(value: unknown): value is number {
+	return (
+		typeof value === 'number' &&
+		Number.isInteger(value) &&
+		value >= COMPACT_WINDOW_RANGE.min &&
+		value <= COMPACT_WINDOW_RANGE.max
+	);
 }
 
 function isSkillList(value: unknown): value is string[] {

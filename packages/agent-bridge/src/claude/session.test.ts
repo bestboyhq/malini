@@ -12,11 +12,7 @@ import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type { ConversationHistoryMessage } from '../protocol.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
-import {
-	COMPACT_WINDOW_TOKENS,
-	HOOK_CONTEXT_CHARACTERS,
-	previousConversation,
-} from './compaction.js';
+import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
 import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
 import { ClaudeSession } from './session.js';
@@ -440,45 +436,25 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 	});
 
-	it('compacts at 280K unless the user picked a window with /autocompact', async () => {
-		const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
-		vi.stubEnv('CLAUDE_CONFIG_DIR', home);
-		const script = recordedScript('readAndBash');
-		const { session, claude } = harness([script, script]);
-
-		await session.sendPrompt('Hello', 'run-1', profile());
-		await writeFile(
-			join(home, 'settings.json'),
-			JSON.stringify({ modelSettings: { 'claude-opus-5-5': { autoCompactWindow: 500_000 } } }),
-		);
-		await session.sendPrompt('And again', 'run-2', profile());
-
-		expect(claude.runs[0]?.options.settings).toEqual({ autoCompactWindow: COMPACT_WINDOW_TOKENS });
-		expect(claude.runs[1]?.options).not.toHaveProperty('settings');
-		vi.unstubAllEnvs();
-		await rm(home, { recursive: true, force: true });
-	});
-
-	it("answers /autocompact in a Claude Code without Malini's window, then goes back to it", async () => {
-		const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
-		vi.stubEnv('CLAUDE_CONFIG_DIR', home);
+	it('compacts at the window Malini sends, and starts a fresh Claude Code when it changes', async () => {
 		const script = recordedScript('readAndBash');
 		const warm = [...script, 'wait-for-prompt' as const, ...script];
 		const { session, claude } = harness([warm, warm, warm]);
+		const atWindow = (tokens?: number) =>
+			[undefined, undefined, undefined, undefined, undefined, undefined, tokens] as const;
 
-		await session.sendPrompt('Hello', 'run-1', profile());
-		await session.sendPrompt('/autocompact 500k', 'run-2', profile(), READ_AND_BASH_CURSOR);
-		await session.sendPrompt('And again', 'run-3', profile(), READ_AND_BASH_CURSOR);
+		await session.sendPrompt('Hello', 'run-1', profile(), ...atWindow(280_000));
+		await session.sendPrompt('Same window', 'run-2', profile(), ...atWindow(280_000));
+		await session.sendPrompt('Bigger window', 'run-3', profile(), ...atWindow(500_000));
+		await session.sendPrompt('No window', 'run-4', profile(), ...atWindow());
 
 		expect(claude.runs.map(({ options }) => options.settings)).toEqual([
-			{ autoCompactWindow: COMPACT_WINDOW_TOKENS },
+			{ autoCompactWindow: 280_000 },
+			{ autoCompactWindow: 500_000 },
 			undefined,
-			{ autoCompactWindow: COMPACT_WINDOW_TOKENS },
 		]);
-		expect(claude.runs[0]?.followUps).not.toContain('/autocompact 500k');
-		expect(claude.runs[1]?.followUps).not.toContain('And again');
-		vi.unstubAllEnvs();
-		await rm(home, { recursive: true, force: true });
+		expect(claude.runs[0]?.followUps).toContain('Same window');
+		expect(claude.runs[0]?.followUps).not.toContain('Bigger window');
 	});
 
 	it('resumes the persisted Claude session, rewound to the requested message', async () => {

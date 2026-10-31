@@ -643,6 +643,17 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine(`{${prompt},"theme":"sepia"}`).ok).toBe(false);
 		});
 
+		it('parses the window a prompt compacts at and rejects one Claude Code would not take', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			expect(parseCommandLine(`{${prompt},"compactWindow":280000}`)).toMatchObject({
+				ok: true,
+				command: { compactWindow: 280_000 },
+			});
+			for (const broken of ['99999', '1000001', '280000.5', '"280000"']) {
+				expect(parseCommandLine(`{${prompt},"compactWindow":${broken}}`).ok).toBe(false);
+			}
+		});
+
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
 			const r = parseCommandLine(
 				'{"cmd":"approve","id":"cmd-approve","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"maybe"}',

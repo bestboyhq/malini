@@ -34,7 +34,7 @@ test('a typed /compact compacts the chat in its Claude Code and shows the compac
 		await input.click();
 		await page.keyboard.type('Keep this draft /comp', { delay: 10 });
 		const commands = page.getByRole('listbox', { name: 'Claude Code commands' });
-		await expect(commands.getByRole('option')).toHaveText([/^\/compact/u, /^\/autocompact/u]);
+		await expect(commands.getByRole('option')).toHaveText([/^\/compact/u]);
 		const selected = commands.getByRole('option', { name: /^\/compact/u, selected: true });
 		await expect(input).toHaveAttribute(
 			'aria-activedescendant',

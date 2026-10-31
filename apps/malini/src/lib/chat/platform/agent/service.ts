@@ -6,6 +6,7 @@ import {
 	type SessionRenamedPayload,
 	type WorkstreamRenamedPayload,
 } from '$contract/events';
+import { CONTEXT_WINDOW_SETTING, contextWindowOf } from '$contract/agent';
 import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -337,6 +338,12 @@ export async function startAgentService(
 			...(deps.theme ? { theme: deps.theme } : {}),
 			...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
+			async compactWindow() {
+				const settings = await context.commands
+					.call('app.list-settings', undefined)
+					.catch((): Record<string, string> => ({}));
+				return contextWindowOf(settings[CONTEXT_WINDOW_SETTING]);
+			},
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,
