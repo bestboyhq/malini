@@ -22,7 +22,7 @@
 		{@render actions?.()}
 	</header>
 	<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Settings section">
-		<div class="@container px-1.5 pb-1.5">
+		<div class="@container flex flex-col gap-1.5 px-1.5 pb-1.5">
 			{@render children()}
 		</div>
 	</ScrollableDiv>

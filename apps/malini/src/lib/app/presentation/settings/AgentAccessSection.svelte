@@ -6,12 +6,10 @@
 </script>
 
 <SettingsSection title="Agent access" description="What Claude Code may do without asking first.">
-	<div class="flex flex-col gap-1.5">
-		<Well title="Default access" headed={false}>
-			<AgentAccessSettings />
-		</Well>
-		<Well title="Always allowed">
-			<PermissionGrants />
-		</Well>
-	</div>
+	<Well title="Default access" headed={false}>
+		<AgentAccessSettings />
+	</Well>
+	<Well title="Always allowed">
+		<PermissionGrants />
+	</Well>
 </SettingsSection>
