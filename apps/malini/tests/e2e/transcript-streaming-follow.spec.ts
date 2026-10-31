@@ -28,7 +28,9 @@ const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-chi
 const LATEST_PROMPT = `${LATEST_RUN} [data-prompt-row]`;
 const LATEST_COMMAND = `${LATEST_RUN} [data-testid="bash-command-toggle"]`;
 const LATEST_STATUS = `${LATEST_RUN} [data-testid="run-status-line"]`;
+const LATEST_STATUS_ROW = `${LATEST_RUN} > [data-testid="run-status-slot"]`;
 const COMPOSER = '[data-testid="chat-composer"]';
+const FOOTER = '[data-testid="chat-footer-stack"]';
 const STILL_PX = 1;
 const BLANK_PX = 32;
 const SCROLL_TOP = 0;
@@ -236,6 +238,34 @@ async function untilLatestRunShows(page: Page, line: string, timeout = 10_000): 
 	await expect.poll(latestRunText, { intervals: [50], timeout }).toContain(line);
 }
 
+async function expectStatusClosesRunAboveTray(page: Page, when: string): Promise<void> {
+	const run = latestRun(page);
+	await expect(
+		run.getByTestId('run-status-slot').getByRole('button', { name: 'Copy response' }),
+		`the reply's copy button beside the working status ${when}`,
+	).toHaveCount(1);
+	await expect(
+		run.getByTestId('chat-run-actions'),
+		`a row under the working status ${when}`,
+	).toHaveCount(0);
+	const statusHeight = (await page.locator(LATEST_STATUS_ROW).boundingBox())?.height ?? Number.NaN;
+	const reads = await run.getByTestId('tool-file-toggle').count();
+	await startSampling(page, [LATEST_STATUS_ROW, FOOTER], { painted: true });
+	await untilLatestRunShows(page, `row-${reads + 2}.txt`);
+	const samples = await stopSampling(page);
+	const blank = Math.max(
+		...samples.map(([, status = 0, footer = 0]) => footer - status - statusHeight),
+	);
+	expect(
+		Math.round(blank),
+		`px between the working status and the composer tray ${when}`,
+	).toBeLessThanOrEqual(BLANK_PX);
+	expect(
+		drift(samples, 1),
+		`px the working status moved while rows arrived ${when}`,
+	).toBeLessThanOrEqual(STILL_PX);
+}
+
 async function chatWithJobInTray(
 	app: LaunchedApp,
 	workstreamId: string,
@@ -336,6 +366,31 @@ test('the working status holds still above the composer while the reply streams 
 			(streaming.at(-1)?.[SCROLL_TOP] ?? 0) - (streaming[0]?.[SCROLL_TOP] ?? 0),
 			'px the transcript scrolled to follow the reply',
 		).toBeGreaterThan(200);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a run beside a background agent ends on its working status right above the tray, also after the chat reopens', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const sessionId = await longChat(app, 'e2e-streaming-follow-tray-agent-ws');
+		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_AGENT Read every note');
+		await expect(page.getByRole('region', { name: '1 background agent running' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await untilLatestRunShows(page, 'row-3.txt');
+
+		await expectStatusClosesRunAboveTray(page, 'while the agent works');
+
+		await startFreshChat(page);
+		await selectChat(page, sessionId);
+		await expectStatusClosesRunAboveTray(page, 'once the chat reopens');
+		await captureFlow(app, 'transcript-streaming-follow-tray-agent');
 
 		expectCleanConsole(app);
 	} finally {

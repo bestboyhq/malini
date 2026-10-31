@@ -210,8 +210,27 @@ const streamRun = (sessionId, runId, lines, appended = '') => {
 };
 const TOOL_STEP_MS = 40;
 const SLOW_TOOL_STEP_MS = 700;
-const toolStreamRun = (sessionId, runId, count, slowTail) => {
+const toolStreamRun = (sessionId, runId, count, slowTail, background) => {
 	pendingRuns.set(runId, sessionId);
+	const backgroundTasks = (tasks) =>
+		event({ type: 'background.updated', runId, waiting: false, tasks });
+	if (background) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'note-' + runId,
+			text: 'Sleep probe works in the background while I read the notes.',
+		});
+		backgroundTasks([
+			{
+				taskId: 'agent-task-' + runId,
+				kind: 'agent',
+				description: 'Sleep probe',
+				startedAt: Date.now(),
+				toolCallId: 'agent-' + runId,
+			},
+		]);
+	}
 	let read = 0;
 	const step = () => {
 		if (!pendingRuns.has(runId)) return;
@@ -224,6 +243,7 @@ const toolStreamRun = (sessionId, runId, count, slowTail) => {
 			return setTimeout(step, read >= count - slowTail ? SLOW_TOOL_STEP_MS : TOOL_STEP_MS);
 		}
 		pendingRuns.delete(runId);
+		if (background) backgroundTasks([]);
 		completeRun(sessionId, runId, 'done');
 	};
 	setTimeout(step, TOOL_STEP_MS);
@@ -1128,7 +1148,13 @@ const respond = async (sessionId, runId, prompt) => {
 	const stream = /STREAM:(\d+)/.exec(prompt);
 	const toolStream = /TOOL_STREAM:(\d+)(?::(\d+))?/.exec(prompt);
 	if (toolStream) {
-		return toolStreamRun(sessionId, runId, Number(toolStream[1]), Number(toolStream[2] ?? 0));
+		return toolStreamRun(
+			sessionId,
+			runId,
+			Number(toolStream[1]),
+			Number(toolStream[2] ?? 0),
+			prompt.includes('TRAY_AGENT'),
+		);
 	}
 	if (stream) {
 		if (prompt.includes('LATE_CANCEL')) lateCancelRuns.add(runId);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { observeRunStartCommand } from '$lib/chat/application/commands/observe-run-start.command';
 	import { runStartedAtQuery } from '$lib/chat/application/queries/run-started-at.query.svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
@@ -11,9 +12,10 @@
 		run: RunGroup;
 		waitingForUser?: boolean;
 		background?: BackgroundWork | null;
+		children?: Snippet;
 	}
 
-	let { run, waitingForUser = false, background = null }: Props = $props();
+	let { run, waitingForUser = false, background = null, children }: Props = $props();
 	const { stageEnter, timelineKey } = transcriptContext();
 
 	const SECOND_MS = 1_000;
@@ -50,64 +52,67 @@
 </script>
 
 <div
-	class={['flex min-h-6 items-center', !openRun && 'sr-only']}
+	class={['flex min-h-6 items-center gap-1.5', !openRun && 'sr-only']}
 	data-testid="run-status-slot"
-	role="status"
-	aria-live="polite"
 >
-	{#if statusText && openRun}
-		<div
-			class="flex min-w-0 flex-1 items-center gap-2 text-xs"
-			use:stageEnter={timelineKey(openRun, 'status')}
-			data-testid="run-status-line"
-			data-message-kind="assistant-working"
-		>
-			{#if waitingForUser}
-				<span
-					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
-					aria-hidden="true"
-				>
-					<Icon name="circle-pause" size={12} />
-				</span>
-				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
-					Waiting for you
-				</span>
-			{:else if waitingOnBackground}
-				<span
-					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
-					aria-hidden="true"
-				>
-					<Icon name="clock" size={12} />
-				</span>
-				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
-					Waiting on {backgroundSummary}
-				</span>
-			{:else}
-				<span
-					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
-					aria-hidden="true"
-					data-testid="agent-working-loader"
-				>
-					<BusyIcon size={12} />
-				</span>
-				<span class="sr-only">Agent is working</span>
-				<span
-					class="text-fg-tertiary flex min-w-0 overflow-hidden font-mono whitespace-nowrap tabular-nums"
-					aria-hidden="true"
-					data-testid="run-status-text"
-				>
-					<span>{statusText}.</span>
-					<span class="run-status-tenths">
-						<span style:animation-delay="{tenthsDelayMs}ms">0123456789</span>
+	<div class="flex min-w-0 flex-1 items-center" role="status" aria-live="polite">
+		{#if statusText && openRun}
+			<div
+				class="flex min-w-0 flex-1 items-center gap-2 text-xs"
+				use:stageEnter={timelineKey(openRun, 'status')}
+				data-testid="run-status-line"
+				data-message-kind="assistant-working"
+			>
+				{#if waitingForUser}
+					<span
+						class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
+						aria-hidden="true"
+					>
+						<Icon name="circle-pause" size={12} />
 					</span>
-					<span>s</span>
-				</span>
-			{/if}
-			{#if backgroundSummary && !waitingOnBackground && !waitingForUser}
-				<span class="text-fg-tertiary" aria-hidden="true">·</span>
-				<span class="text-fg-tertiary min-w-0 flex-1 truncate">{backgroundSummary} running</span>
-			{/if}
-		</div>
+					<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
+						Waiting for you
+					</span>
+				{:else if waitingOnBackground}
+					<span
+						class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
+						aria-hidden="true"
+					>
+						<Icon name="clock" size={12} />
+					</span>
+					<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
+						Waiting on {backgroundSummary}
+					</span>
+				{:else}
+					<span
+						class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
+						aria-hidden="true"
+						data-testid="agent-working-loader"
+					>
+						<BusyIcon size={12} />
+					</span>
+					<span class="sr-only">Agent is working</span>
+					<span
+						class="text-fg-tertiary flex min-w-0 overflow-hidden font-mono whitespace-nowrap tabular-nums"
+						aria-hidden="true"
+						data-testid="run-status-text"
+					>
+						<span>{statusText}.</span>
+						<span class="run-status-tenths">
+							<span style:animation-delay="{tenthsDelayMs}ms">0123456789</span>
+						</span>
+						<span>s</span>
+					</span>
+				{/if}
+				{#if backgroundSummary && !waitingOnBackground && !waitingForUser}
+					<span class="text-fg-tertiary" aria-hidden="true">·</span>
+					<span class="text-fg-tertiary min-w-0 flex-1 truncate">{backgroundSummary} running</span>
+				{/if}
+			</div>
+		{/if}
+	</div>
+	{#if openRun}
+		{@render children?.()}
 	{/if}
 </div>
 
