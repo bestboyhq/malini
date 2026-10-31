@@ -79,6 +79,61 @@ async function startSampling(
 				);
 				return composerTop - Math.max(...bottoms);
 			};
+			type Row = NonNullable<ReturnType<typeof doc.querySelector>>;
+			const arrival: { underway: boolean; shownBefore: Row[] } = {
+				underway: true,
+				shownBefore: [],
+			};
+			const revealLine = (covers: readonly Row[]): number => {
+				const lines = covers.map((cover) => {
+					let lower = cover.nextElementSibling;
+					while (lower?.hasAttribute('data-cover-fade')) lower = lower.nextElementSibling;
+					return lower?.getBoundingClientRect().top ?? Number.NEGATIVE_INFINITY;
+				});
+				return Math.min(...lines);
+			};
+			const hiddenAboveArrival = (): number => {
+				const run = doc.querySelector(latestRun);
+				const covers = [...doc.querySelectorAll(`${latestRun} > [data-cover-fade]`)];
+				if (!run || covers.length === 0) {
+					arrival.underway = false;
+					return 0;
+				}
+				if (!arrival.underway) {
+					const line = revealLine(covers);
+					arrival.underway = true;
+					arrival.shownBefore = [...run.children].filter(
+						(row) =>
+							!row.hasAttribute('data-cover-fade') && row.getBoundingClientRect().bottom <= line,
+					);
+				}
+				let hidden = 0;
+				for (const cover of covers) {
+					const covering = cover.getBoundingClientRect();
+					for (const shown of arrival.shownBefore) {
+						const row = shown.getBoundingClientRect();
+						const overlap = Math.min(covering.bottom, row.bottom) - Math.max(covering.top, row.top);
+						hidden = Math.max(hidden, overlap);
+					}
+				}
+				return hidden;
+			};
+			const shownBelowCover = (): number => {
+				let shown = 0;
+				for (const block of doc.querySelectorAll(`${latestRun} > [data-cover-fade="block"]`)) {
+					const covering = block.getBoundingClientRect();
+					if (covering.height <= 0) continue;
+					let arriving = block.previousElementSibling;
+					while (arriving?.hasAttribute('data-cover-fade')) {
+						arriving = arriving.previousElementSibling;
+					}
+					for (const part of arriving?.querySelectorAll('*') ?? []) {
+						const box = part.getBoundingClientRect();
+						if (box.height > 0) shown = Math.max(shown, box.bottom - covering.bottom);
+					}
+				}
+				return shown;
+			};
 			const view = doc.defaultView;
 			if (!view) throw new Error('the app page has no window');
 			let frameMs = performance.now();
@@ -87,6 +142,8 @@ async function startSampling(
 				state.samples.push([
 					doc.querySelector(scroller)?.scrollTop ?? Number.NaN,
 					...rows.map((row) => doc.querySelector(row)?.getBoundingClientRect().top ?? Number.NaN),
+					hiddenAboveArrival(),
+					shownBelowCover(),
 					frameMs,
 					blankAboveComposer(),
 				]);
@@ -138,6 +195,14 @@ function drift(
 
 function blankAboveComposer(samples: readonly number[][]): number {
 	return Math.round(Math.max(...samples.map((sample) => sample.at(-1) ?? Number.NaN)));
+}
+
+function hiddenAboveArrival(samples: readonly number[][]): number {
+	return Math.round(Math.max(...samples.map((sample) => sample.at(-4) ?? Number.NaN)) * 10) / 10;
+}
+
+function shownBelowCover(samples: readonly number[][]): number {
+	return Math.round(Math.max(...samples.map((sample) => sample.at(-3) ?? Number.NaN)) * 10) / 10;
 }
 
 function blankClosed(samples: readonly number[][]): number {
@@ -260,10 +325,15 @@ async function expectStatusClosesRunAboveTray(page: Page, when: string): Promise
 		Math.round(blank),
 		`px between the working status and the composer tray ${when}`,
 	).toBeLessThanOrEqual(BLANK_PX);
+	expect(drift(samples, 1), `px the working status moved while rows arrived ${when}`).toBe(0);
 	expect(
-		drift(samples, 1),
-		`px the working status moved while rows arrived ${when}`,
-	).toBeLessThanOrEqual(STILL_PX);
+		hiddenAboveArrival(samples),
+		`px of a row already on screen that an arrival below it hid ${when}`,
+	).toBe(0);
+	expect(
+		shownBelowCover(samples),
+		`px of an arriving row drawn below the cover that hides it ${when}`,
+	).toBe(0);
 }
 
 async function chatWithJobInTray(
@@ -358,10 +428,7 @@ test('the working status holds still above the composer while the reply streams 
 		await expect(reply).toContainText('Streamed line 20 of 80.', { timeout: 10_000 });
 		const streaming = await stopSampling(page);
 
-		expect(
-			drift(streaming, 1),
-			'px the working status moved while lines arrived above it',
-		).toBeLessThanOrEqual(STILL_PX);
+		expect(drift(streaming, 1), 'px the working status moved while lines arrived above it').toBe(0);
 		expect(
 			(streaming.at(-1)?.[SCROLL_TOP] ?? 0) - (streaming[0]?.[SCROLL_TOP] ?? 0),
 			'px the transcript scrolled to follow the reply',
@@ -373,13 +440,13 @@ test('the working status holds still above the composer while the reply streams 
 	}
 });
 
-test('a run beside a background agent ends on its working status right above the tray, also after the chat reopens', async () => {
+test('a run beside a background agent ends on its working status, held still right above the tray while narrated steps arrive, also after the chat reopens', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const sessionId = await longChat(app, 'e2e-streaming-follow-tray-agent-ws');
-		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_AGENT Read every note');
+		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_AGENT NARRATED Read every note');
 		await expect(page.getByRole('region', { name: '1 background agent running' })).toBeVisible({
 			timeout: 20_000,
 		});

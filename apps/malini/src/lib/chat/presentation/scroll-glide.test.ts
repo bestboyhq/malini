@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	ceilToDevicePixel,
 	createScrollGlide,
+	floorToDevicePixel,
 	glideKeyframe,
 	glideOrigin,
 	glidePosition,
@@ -47,6 +49,34 @@ function settleMs(distance: number): number {
 	}
 	return elapsed;
 }
+
+describe('device pixels', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('floors to a device pixel through float noise but not across a layout unit', () => {
+		vi.stubGlobal('devicePixelRatio', 2);
+		expect(floorToDevicePixel(614.5)).toBe(614.5);
+		expect(floorToDevicePixel(614.5 - 1e-9)).toBe(614.5);
+		expect(floorToDevicePixel(614.5 - 1 / 64)).toBe(614);
+	});
+
+	it('never aims a zoomed-out transcript past where Chromium clamps its scroll', () => {
+		const ratio = 1.7999999523162842;
+		vi.stubGlobal('devicePixelRatio', ratio);
+		const height = 1520 / ratio;
+		expect(floorToDevicePixel(1356.302 - height)).toBeCloseTo(511.667, 3);
+		expect(floorToDevicePixel(1356.467 - height)).toBeLessThanOrEqual(512.2223);
+	});
+
+	it('lifts a row to the next device pixel and leaves one already on it', () => {
+		vi.stubGlobal('devicePixelRatio', 2);
+		expect(ceilToDevicePixel(589.5)).toBe(589.5);
+		expect(ceilToDevicePixel(589.5 + 1e-9)).toBe(589.5);
+		expect(ceilToDevicePixel(589 + 1 / 64)).toBe(589.5);
+	});
+});
 
 describe('glide curve', () => {
 	it('is most of the way there while the arriving row is still travelling', () => {

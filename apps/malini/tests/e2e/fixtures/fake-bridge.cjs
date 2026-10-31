@@ -210,7 +210,7 @@ const streamRun = (sessionId, runId, lines, appended = '') => {
 };
 const TOOL_STEP_MS = 40;
 const SLOW_TOOL_STEP_MS = 700;
-const toolStreamRun = (sessionId, runId, count, slowTail, background) => {
+const toolStreamRun = (sessionId, runId, count, slowTail, background, narrated) => {
 	pendingRuns.set(runId, sessionId);
 	const backgroundTasks = (tasks) =>
 		event({ type: 'background.updated', runId, waiting: false, tasks });
@@ -237,6 +237,14 @@ const toolStreamRun = (sessionId, runId, count, slowTail, background) => {
 		read += 1;
 		const toolCallId = 'read-' + runId + '-' + read;
 		const input = { file_path: 'notes/row-' + read + '.txt' };
+		if (narrated) {
+			event({
+				type: 'assistant.message',
+				runId,
+				contentId: 'narration-' + toolCallId,
+				text: 'Next I read note ' + read + '.',
+			});
+		}
 		event({ type: 'tool.started', runId, name: 'Read', toolCallId, input });
 		event({ type: 'tool.completed', runId, name: 'Read', toolCallId, output: 'ok' });
 		if (read < count) {
@@ -1154,6 +1162,7 @@ const respond = async (sessionId, runId, prompt) => {
 			Number(toolStream[1]),
 			Number(toolStream[2] ?? 0),
 			prompt.includes('TRAY_AGENT'),
+			prompt.includes('NARRATED'),
 		);
 	}
 	if (stream) {
