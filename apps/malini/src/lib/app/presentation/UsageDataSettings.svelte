@@ -16,7 +16,7 @@
 		later: 'over a month',
 	};
 
-	const shared = $derived(usageDataQuery.data);
+	const usage = $derived(usageDataQuery.data);
 	const report = $derived(usageReportQuery.data);
 	const rows = $derived(
 		report
@@ -46,7 +46,12 @@
 			Once a day, Malini sends a few counts, like how many workstreams you started and merged. They
 			show us where work gets stuck and what to fix first.
 		</p>
-		{#if shared}
+		{#if usage.doNotTrack}
+			<p class="text-fg-default mt-0.5 text-xs">
+				<span class="font-mono">DO_NOT_TRACK</span>
+				is set in your shell, so Malini sends nothing.
+			</p>
+		{:else if usage.shared}
 			<Button
 				bare
 				class="text-fg-default mt-0.5 inline-flex cursor-pointer items-center gap-1 text-xs hover:underline"
@@ -86,8 +91,8 @@
 		{/if}
 	</div>
 	<Switch
-		checked={shared ?? false}
-		disabled={shared === null}
+		checked={usage.shared ?? false}
+		disabled={usage.shared === null || usage.doNotTrack}
 		labelledBy="usage-data-label"
 		onchange={shareUsageDataCommand}
 	/>

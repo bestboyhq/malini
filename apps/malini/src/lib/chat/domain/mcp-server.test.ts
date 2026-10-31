@@ -21,6 +21,15 @@ const servers = [
 ];
 
 describe('MCP server triage', () => {
+	it('names a plugin server without its plugin, in a server id or a tool name', () => {
+		expect(mcpServer({ name: 'plugin:my_tools:svelte', status: 'connected' }).displayName).toBe(
+			'Svelte',
+		);
+		expect(mcpServer({ name: 'plugin_deepwiki_deepwiki', status: 'connected' }).displayName).toBe(
+			'Deepwiki',
+		);
+	});
+
 	it('groups every server by what fixes it, and a failing copy of a connected service as a duplicate', () => {
 		const groups = groupMcpServers(servers, ['plugin:github:github']);
 		const names = (list: readonly { name: string }[]): string[] => list.map(({ name }) => name);

@@ -143,6 +143,26 @@ test('Settings → Privacy shows the numbers usage data sends about yesterday, a
 	}
 });
 
+test('Settings → Privacy shows usage data off while the login shell sets DO_NOT_TRACK', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ shellProfile: 'DO_NOT_TRACK=1\nexport DO_NOT_TRACK\n' });
+	try {
+		const { page } = app;
+		await openSettings(page, '#/settings/privacy');
+		await expect(page.getByText('is set in your shell, so Malini sends nothing.')).toBeVisible({
+			timeout: 20_000,
+		});
+		const share = page.getByRole('switch', { name: 'Share usage data' });
+		await expect(share).toHaveAttribute('aria-checked', 'false');
+		await expect(share).toBeDisabled();
+		await expect(page.getByRole('button', { name: "Yesterday's numbers" })).toHaveCount(0);
+		expect(await storedSettings(page)).not.toHaveProperty('usage-data');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a cleared one, and saves', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

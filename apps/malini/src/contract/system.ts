@@ -54,6 +54,11 @@ export interface UsageReport {
 	age: UsageReportAge;
 }
 
+export interface UsageDataState {
+	doNotTrack: boolean;
+	report: UsageReport | null;
+}
+
 export interface LogicalViewport {
 	width: number;
 	height: number;

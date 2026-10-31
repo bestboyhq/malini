@@ -10,6 +10,7 @@ A funnel usually needs an id per install, which makes usage data personal and, i
 Malini already keeps every step of the loop in its own database, so the Mac can count it and send numbers only.
 The user wants any ask to give its reason and what you get from it, and turned down copy that read mechanical: "it's very verbal text ... it doesn't feel human".
 Of three prototypes they picked a receipt in Settings, Privacy over a card after a merge and a funnel in Stats, and of three voices for its copy the plain one, which says what the counts are for: "where work gets stuck and which fixes should we put first".
+Tried in the built app, `DO_NOT_TRACK=1` stopped usage data only when Malini started from a terminal, since an app opened from the Dock inherits nothing from the shell profile, and Settings, Privacy still showed the switch on and said Malini sends counts.
 
 ## Decision
 
@@ -21,7 +22,10 @@ Of three prototypes they picked a receipt in Settings, Privacy over a card after
   Lead and Home workstreams are left out, a merged workstream's archive time is its merge time, and a prompt is a run that is neither a job's nor automated (`RunFact.job`, `RunFact.automated`), so a prompt a lead sends with `workstreams_send` is not yours.
 - `startUsageData` checks on `app:started` and every hour, sends the report for yesterday once (`usage-data.reported-day` in `settings`), and sends nothing about a day where nothing happened.
   The **Share usage data** switch, `DO_NOT_TRACK=1` and `MALINI_USAGE_DATA=off` stop it like every other usage call.
-- `app.usage-report` returns the same report, and **Yesterday's numbers** under **Share usage data** in Settings, Privacy shows it while sharing is on, under copy that says who reads the numbers and why.
+- `DO_NOT_TRACK` counts when the login shell Malini already captures for `PATH` sets it, as well as Malini's own environment: `ResolvedEnvironment.doNotTrack` in `src/main/process/environment.ts`.
+- `app.usage-data` returns the same report and whether `DO_NOT_TRACK` is set.
+  **Yesterday's numbers** under **Share usage data** in Settings, Privacy shows the report while sharing is on, under copy that says who reads the numbers and why.
+  While `DO_NOT_TRACK` is set, the switch shows off and disabled, and a line says Malini sends nothing.
 - Usage data stays on until you turn it off: it carries no id and no content, so nothing in it points to a person.
 
 ## Consequences
@@ -31,4 +35,4 @@ Of three prototypes they picked a receipt in Settings, Privacy over a card after
 - Logdash keeps property values as strings and counts a visitor once a day, so totals across installs come from its breakdowns or an export.
 - The receipt counts yesterday from the database when Settings opens, so it matches what Malini sends, and changes only if yesterday's records do, such as a workstream deleted since.
 - A new property changes this record, the receipt and `apps/site/content/index.md`.
-- Enforced by `src/lib/app/platform/usage-data.test.ts` (yesterday's counts and medians, once a day across launches, a quiet day, nothing once off), `src/lib/app/platform/register.test.ts` (the command) and `tests/e2e/settings.spec.ts` (the receipt by role, gone once sharing is off).
+- Enforced by `src/lib/app/platform/usage-data.test.ts` (yesterday's counts and medians, once a day across launches, a quiet day, nothing once off), `src/lib/app/platform/register.test.ts` (the command), `src/main/process/environment.test.ts` (`DO_NOT_TRACK` from the login shell or the inherited environment) and `tests/e2e/settings.spec.ts` (the receipt by role, gone once sharing is off, and the switch off with its reason when only the login shell sets `DO_NOT_TRACK`).

@@ -106,7 +106,7 @@ export function mcpServer(report: McpServerReport): McpServer {
 export function mcpServerDisplayName(serverId: string): string {
 	const trimmed = serverId
 		.trim()
-		.replace(/^plugin:[^:]+:/iu, '')
+		.replace(/^plugin(?::[^:]+:|_[^_]+_)/iu, '')
 		.replace(/^claude\.ai\s+/iu, '');
 	const known = MCP_SERVER_DISPLAY_NAMES[trimmed.toLowerCase()];
 	if (known) return known;

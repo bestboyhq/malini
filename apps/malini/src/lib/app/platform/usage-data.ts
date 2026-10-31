@@ -10,6 +10,7 @@ import type { MainContext } from '$main/context';
 import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
+import { currentEnvironment } from '$main/process/environment';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataShared } from '../domain/usage-data';
 import { reportDay } from '../domain/usage-report';
@@ -136,7 +137,7 @@ function electronProcessGone(
 
 function logdashSink(appVersion: string): UsageSink | null {
 	if (process.env['MALINI_USAGE_DATA'] === 'off') return null;
-	if (['1', 'true'].includes(process.env['DO_NOT_TRACK'] ?? '')) return null;
+	if (currentEnvironment().doNotTrack) return null;
 	const site = import.meta.env.MAIN_VITE_LOGDASH_SITE;
 	const key = import.meta.env.MAIN_VITE_LOGDASH_API_KEY;
 	if (!site && !key) return null;
