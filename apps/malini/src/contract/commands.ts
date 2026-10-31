@@ -106,6 +106,7 @@ import type {
 	ImportSource,
 	RepositoryConnectionDto,
 	OwnerAvatar,
+	OwnPullRequestDto,
 	ProjectDto,
 	PullRequestMetadataDto,
 	PullRequestStatusDto,
@@ -643,7 +644,11 @@ export interface ContractCommands {
 		args: WorkstreamIdArgs;
 		result: WorkstreamBaseSyncOutcome;
 	};
-	'repositories.sync-own-pull-requests': { args: undefined; result: string[] };
+	'repositories.list-own-pull-requests': { args: RepositoryIdArgs; result: OwnPullRequestDto[] };
+	'repositories.continue-own-pull-request': {
+		args: RepositoryIdArgs & Readonly<{ head: string }>;
+		result: string;
+	};
 	'extensions.rollback-managed': {
 		args: ExtensionIdArgs;
 		result: ManagedExtensionSourceSnapshot;
@@ -902,7 +907,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.clear-merged-from-starter',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
-	'repositories.sync-own-pull-requests',
+	'repositories.list-own-pull-requests',
+	'repositories.continue-own-pull-request',
 	'extensions.rollback-managed',
 	'chat.send-prompt',
 	'app.set-setting',

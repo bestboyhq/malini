@@ -114,10 +114,12 @@ Click one to resume it where you left off, or archive it to move it to **Recentl
 
 ## Your open pull requests
 
-Add a repository, and every pull request you have open in it opens as a workstream on its own branch, so you pick up where you left off.
-Claude names each one from its title.
-Malini checks again every 5 minutes, on every Mac you use, and skips pull requests from forks.
-A workstream you delete stays deleted.
+A repository's page lists the pull requests you have open in it, in a gutter on its right, each with its number, whether it is a draft, and when it last changed.
+Malini reads them from GitHub each time you open the page, and leaves out pull requests from forks.
+Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another Mac.
+Claude names it from its title.
+One you already work on here says **Open**, catches up with what you pushed elsewhere, and takes you to it, and one you archived comes back from **Recently archived**.
+Malini opens none of them on its own, so a pull request you merged or closed on another Mac never turns into work here.
 Like every workstream, each one stays on its own commits while main moves elsewhere, and Malini merges main into it once main conflicts with it or changes a file it changed.
 
 ## From prompt to merged
@@ -151,7 +153,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Main reaching your files merges it in.** Malini fetches main every five minutes and compares it with each workstream, and again after every commit there.
-  When merging main would stop on conflicts, or main changed a file the workstream changed too, **Update from main** merges main in once no agent works there, nothing is uncommitted and no merge is queued, **Resolve conflicts** resolves what conflicts, and a workstream with a pull request gets the resolved merge pushed.
+  When merging main would stop on conflicts, or main changed a file the workstream changed too, **Update from main** merges main in once no agent works there, nothing is uncommitted, no merge is queued and its pull request has not merged or closed on GitHub, **Resolve conflicts** resolves what conflicts, and a workstream with a pull request gets the resolved merge pushed.
   A merge without conflicts stays local, and the workstream's next push carries it, so it starts no checks of its own.
   This happens before you click **Draft** or **Merge**, so a conflict never waits for the merge to surface.
   Main changing only other files starts nothing: the workstream stays on its own commits until you merge it.

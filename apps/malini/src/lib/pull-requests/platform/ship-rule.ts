@@ -174,7 +174,9 @@ async function runFinished(deps: ShipDeps, payload: unknown): Promise<readonly s
 	const row = getShip(db, run.workstreamId);
 	if (row) await settleOtherJob(deps, row, run);
 	if (row?.activeJobRunId === run.id || run.origin === 'merge-queue') return [run.workstreamId];
-	if (run.agentRunId !== null) return workEnded(deps, run.workstreamId);
+	if (run.agentRunId !== null && run.status !== 'cancelled') {
+		return workEnded(deps, run.workstreamId);
+	}
 	return row ? [run.workstreamId] : [];
 }
 

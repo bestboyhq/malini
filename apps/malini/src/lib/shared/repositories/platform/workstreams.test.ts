@@ -39,7 +39,6 @@ import { registerRepositories, type RepositoriesDeps } from './register';
 import { listRepositoryCatalog } from './repository-catalog';
 import { archivedLeftoversCleared, sweepArchivedLeftovers } from './teardown.service';
 import {
-	deleteWorkstream,
 	getWorkstream,
 	listArchivedWorkstreams,
 	listWorkstreams,
@@ -986,8 +985,8 @@ describe('reading a workstream while its files change', () => {
 	});
 });
 
-describe('following your own pull requests from another Mac', () => {
-	it('opens new pull request branches as workstreams, fast-forwards known ones, and skips deleted ones and hidden repositories', async () => {
+describe('your open pull requests from another Mac', () => {
+	it('lists your open pull requests without opening any, and continues one here only when asked: on its own branch, fast-forwarded, or restored from the archive', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const { remote, base, checkout } = await workstreamFixture(dir, 'ws-here');
@@ -1006,21 +1005,36 @@ describe('following your own pull requests from another Mac', () => {
 		};
 		const hereHead = await pushFromLaptop('malini/ws-here', 'origin/malini/ws-here', 'here.txt');
 		const laptopHead = await pushFromLaptop('malini/ws-laptop', 'origin/main', 'laptop.txt');
-		const goneHead = await pushFromLaptop('malini/ws-gone', 'origin/main', 'gone.txt');
 		const featureHead = await pushFromLaptop('feature/x', 'origin/main', 'feature.txt');
 		const listed = [
 			{
+				number: 3,
 				title: 'feat(sync)!: laptop work, carried over',
 				headRefName: 'malini/ws-laptop',
 				headRefOid: laptopHead,
+				isDraft: true,
 			},
-			{ title: 'Here work', headRefName: 'malini/ws-here', headRefOid: hereHead },
-			{ title: 'Deleted work', headRefName: 'malini/ws-gone', headRefOid: goneHead },
-			{ title: 'feat: flag every feature', headRefName: 'feature/x', headRefOid: featureHead },
-			{ title: 'Default branch', headRefName: 'main', headRefOid: hereHead },
-			{ title: 'Fork', headRefName: 'malini/ws-fork', headRefOid: goneHead, fork: true },
-		].map(({ fork, ...pullRequest }) => ({
+			{ number: 2, title: 'Here work', headRefName: 'malini/ws-here', headRefOid: hereHead },
+			{
+				number: 4,
+				title: 'feat: flag every feature',
+				headRefName: 'feature/x',
+				headRefOid: featureHead,
+			},
+			{ number: 5, title: 'Default branch', headRefName: 'main', headRefOid: hereHead },
+			{
+				number: 6,
+				title: 'Fork',
+				headRefName: 'malini/ws-fork',
+				headRefOid: laptopHead,
+				fork: true,
+			},
+		].map(({ fork, isDraft, number, ...pullRequest }) => ({
 			...pullRequest,
+			number,
+			url: `https://github.com/e2e/repo/pull/${number}`,
+			isDraft: isDraft === true,
+			updatedAt: '2026-10-31T12:00:00Z',
 			baseRefName: 'main',
 			isCrossRepository: fork === true,
 		}));
@@ -1032,20 +1046,25 @@ describe('following your own pull requests from another Mac', () => {
 			},
 		});
 		seed(db, 'ws-here', base, checkout);
-		seed(db, 'ws-gone', base, join(dir, 'workstreams', 'ws-gone'));
-		deleteWorkstream(db, 'ws-gone');
+		type Listed = { number: number; workstreamId: string; workstream: string | null };
+		const own = async (): Promise<Listed[]> =>
+			(await invoke<Listed[]>('repositories.list-own-pull-requests', { repoId: 'local:proj' })).map(
+				({ number, workstreamId, workstream }) => ({ number, workstreamId, workstream }),
+			);
+		const continueHere = (head: string): Promise<string> =>
+			invoke<string>('repositories.continue-own-pull-request', { repoId: 'local:proj', head });
 
-		await invoke('repositories.set-hidden', { repoId: 'local:proj', hidden: true });
-		expect(await invoke('repositories.sync-own-pull-requests', undefined)).toEqual([]);
-		expect(getWorkstream(db, 'ws-laptop')).toBeNull();
+		const featureId = (await own()).find(({ number }) => number === 4)?.workstreamId ?? '';
+		expect(await own()).toEqual([
+			{ number: 3, workstreamId: 'ws-laptop', workstream: null },
+			{ number: 2, workstreamId: 'ws-here', workstream: 'active' },
+			{ number: 4, workstreamId: featureId, workstream: null },
+			{ number: 5, workstreamId: expect.stringMatching(/^pr-[0-9a-f]{24}$/u), workstream: null },
+		]);
+		expect(listWorkstreams(db).map(({ id }) => id)).toEqual(['ws-here']);
 		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).not.toBe(hereHead);
 
-		await invoke('repositories.set-hidden', { repoId: 'local:proj', hidden: false });
-		const adoptedIds = await invoke<string[]>('repositories.sync-own-pull-requests', undefined);
-		const feature = listWorkstreams(db).find(({ branch }) => branch === 'feature/x');
-		expect(adoptedIds).toEqual(['ws-laptop', feature?.id]);
-		expect(feature).toMatchObject({ name: 'Feature flags', baseBranch: 'main', status: 'active' });
-		expect(listWorkstreams(db).filter(({ branch }) => branch === 'main')).toEqual([]);
+		expect(await continueHere('malini/ws-laptop')).toBe('ws-laptop');
 		expect(getWorkstream(db, 'ws-laptop')).toMatchObject({
 			name: 'Laptop work, carried over',
 			branch: 'malini/ws-laptop',
@@ -1054,22 +1073,21 @@ describe('following your own pull requests from another Mac', () => {
 		});
 		const adopted = join(dir, 'workstreams', 'ws-laptop');
 		expect((await realGit(adopted, ['rev-parse', 'HEAD'])).trim()).toBe(laptopHead);
+		expect(await continueHere('malini/ws-here')).toBe('ws-here');
 		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(hereHead);
-		expect(getWorkstream(db, 'ws-gone')).toBeNull();
-		expect(getWorkstream(db, 'ws-fork')).toBeNull();
-		expect(await invoke('repositories.sync-own-pull-requests', undefined)).toEqual([]);
-
-		const featureId = feature?.id ?? '';
-		const featureCheckout = join(dir, 'workstreams', featureId);
-		expect((await realGit(featureCheckout, ['rev-parse', 'HEAD'])).trim()).toBe(featureHead);
-		await writeFile(join(featureCheckout, 'more.txt'), 'more\n');
-		await invoke('repositories.commit-workstream', {
-			workstreamId: featureId,
-			message: 'Flag more features',
+		expect(await continueHere('feature/x')).toBe(featureId);
+		expect(getWorkstream(db, featureId)).toMatchObject({
+			name: 'Feature flags',
+			branch: 'feature/x',
 		});
-		expect((await realGit(featureCheckout, ['branch', '--show-current'])).trim()).toBe('feature/x');
-		await invoke('repositories.delete-workstream', { workstreamId: featureId });
-		expect(await invoke('repositories.sync-own-pull-requests', undefined)).toEqual([]);
-		expect(listWorkstreams(db).filter(({ branch }) => branch === 'feature/x')).toEqual([]);
+		await expect(continueHere('main')).rejects.toThrow(/already checked out/u);
+		await expect(continueHere('malini/ws-fork')).rejects.toThrow(/no open pull request/u);
+
+		await invoke('repositories.archive-workstream', { workstreamId: featureId });
+		expect((await own()).find(({ number }) => number === 4)?.workstream).toBe('archived');
+		expect(await continueHere('feature/x')).toBe(featureId);
+		expect(getWorkstream(db, featureId)).toMatchObject({ status: 'active', branch: 'feature/x' });
+		const restored = join(dir, 'workstreams', featureId);
+		expect((await realGit(restored, ['rev-parse', 'HEAD'])).trim()).toBe(featureHead);
 	});
 });

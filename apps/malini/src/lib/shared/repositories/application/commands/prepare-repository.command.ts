@@ -9,7 +9,6 @@ import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggre
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
 import { repositoryConnectionStore } from '$shared/repositories/infrastructure/stores/repository-connection.store.svelte';
-import { syncOwnPullRequestsCommand } from './sync-own-pull-requests.command';
 
 export { prepareRepositoryCommand };
 
@@ -20,7 +19,6 @@ function prepareRepositoryCommand(repo: Repository): void {
 		try {
 			await recordProject(repositoryCloneSource(repo), repo.defaultBranch || 'main');
 			await Promise.all([repositoriesAggregate.refresh(), workstreamsAggregate.refresh()]);
-			syncOwnPullRequestsCommand();
 		} catch (caught) {
 			failure = repositoryConnectFailure(caught, 'Failed to clone repository', repo.fullName);
 		} finally {
