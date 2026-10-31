@@ -52,7 +52,7 @@
 						size={claimed ? 20 : 14}
 						class={['shrink-0', badge.tone, badge.icon === 'flame' && 'moment-peek__flame']}
 					/>
-					<span class={['flex min-w-0', claimed ? 'flex-col' : 'gap-1.5']}>
+					<span class={['flex min-w-0', claimed ? 'flex-col gap-0.5 leading-none' : 'gap-1.5']}>
 						<span class="text-fg-default shrink-0 font-medium">{badge.cheer}</span>
 						<span class="text-fg-tertiary truncate">{badge.fact}</span>
 					</span>
