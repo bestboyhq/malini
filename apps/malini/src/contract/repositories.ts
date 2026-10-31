@@ -30,6 +30,17 @@ export interface Workstream {
 
 export type MergedPullRequest = Readonly<{ number: number; url: string | null }>;
 
+export type OwnPullRequestDto = Readonly<{
+	number: number;
+	title: string;
+	url: string;
+	draft: boolean;
+	updatedAt: string;
+	head: string;
+	workstreamId: string;
+	workstream: 'active' | 'archived' | null;
+}>;
+
 export interface ArchivedWorkstreamDto {
 	id: string;
 	projectId: string;

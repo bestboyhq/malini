@@ -114,10 +114,12 @@ Click one to resume it where you left off, or archive it to move it to **Recentl
 
 ## Your open pull requests
 
-Add a repository, and every pull request you have open in it opens as a workstream on its own branch, so you pick up where you left off.
-Claude names each one from its title.
-Malini checks again every 5 minutes, on every Mac you use, and skips pull requests from forks.
-A workstream you delete stays deleted.
+A repository's page lists the pull requests you have open in it, in a gutter on its right, each with its number, whether it is a draft, and when it last changed.
+Malini reads them from GitHub each time you open the page, and leaves out pull requests from forks.
+Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another Mac.
+Claude names it from its title.
+One you already work on here says **Open**, catches up with what you pushed elsewhere, and takes you to it, and one you archived comes back from **Recently archived**.
+Malini opens none of them on its own, so a pull request you merged or closed on another Mac never turns into work here.
 Like every workstream, each one stays on its own commits while main moves elsewhere, and Malini merges main into it once main conflicts with it or changes a file it changed.
 
 ## From prompt to merged

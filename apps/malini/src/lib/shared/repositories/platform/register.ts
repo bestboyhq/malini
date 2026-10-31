@@ -74,7 +74,7 @@ import { GithubReachWatch } from './github-reach';
 import { workstreamMedia } from './image-protocol';
 import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
-import { syncOwnPullRequests } from './own-pull-requests.service';
+import { continueOwnPullRequest, listOwnPullRequests } from './own-pull-requests.service';
 import {
 	cloneSeedFolder,
 	githubFullNameFromRemote,
@@ -290,32 +290,23 @@ export function registerRepositories(
 		baseSync.sync(checkedWorkstreamId(args)),
 	);
 
-	let ownPullRequestsSync: Promise<string[]> | null = null;
-	let nextOwnPullRequestsSync: Promise<string[]> | null = null;
-	const syncOwnPullRequestsNow = (): Promise<string[]> => {
-		ownPullRequestsSync = syncOwnPullRequests({
-			workstreams,
-			gh,
-			checkouts,
-			guardCheckoutMove,
-			...(deps.nameWorkstream ? { nameWorkstream: deps.nameWorkstream } : {}),
-		}).finally(() => {
-			ownPullRequestsSync = null;
-		});
-		return ownPullRequestsSync;
+	const ownPullRequests = {
+		workstreams,
+		gh,
+		checkouts,
+		guardCheckoutMove,
+		...(deps.nameWorkstream ? { nameWorkstream: deps.nameWorkstream } : {}),
 	};
-	const syncOwnPullRequestsAfter = async (running: Promise<string[]>): Promise<string[]> => {
-		try {
-			await running;
-		} catch {}
-		nextOwnPullRequestsSync = null;
-		return syncOwnPullRequestsNow();
-	};
-	commands.define('repositories.sync-own-pull-requests', () => {
-		if (ownPullRequestsSync === null) return syncOwnPullRequestsNow();
-		nextOwnPullRequestsSync ??= syncOwnPullRequestsAfter(ownPullRequestsSync);
-		return nextOwnPullRequestsSync;
-	});
+	commands.define('repositories.list-own-pull-requests', (args: unknown) =>
+		listOwnPullRequests(ownPullRequests, requireString(args, 'repoId')),
+	);
+	commands.define('repositories.continue-own-pull-request', (args: unknown) =>
+		continueOwnPullRequest(
+			ownPullRequests,
+			requireString(args, 'repoId'),
+			requireString(args, 'head'),
+		),
+	);
 
 	commands.define('repositories.delete-workstream', (args: unknown) =>
 		retireWorkstream(workstreams, requireString(args, 'workstreamId'), 'deleted'),

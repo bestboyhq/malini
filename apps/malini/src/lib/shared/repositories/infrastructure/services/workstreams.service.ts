@@ -3,6 +3,7 @@ import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import { invoke } from '$shared/port/invoke';
 import { leadScopeKey } from '$shared/repositories/domain/lead-scope';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
+import type { OwnPullRequest } from '$shared/repositories/domain/own-pull-requests';
 import type { LeadChatPlan } from '$shared/repositories/domain/provisioning';
 import type { Project } from '$shared/repositories/domain/repository';
 import type {
@@ -75,8 +76,12 @@ class WorkstreamsService {
 		return invoke('repositories.sync-workstream-base', { workstreamId });
 	}
 
-	syncOwnPullRequests(): Promise<WorkstreamId[]> {
-		return invoke('repositories.sync-own-pull-requests', undefined);
+	listOwnPullRequests(repoId: string): Promise<OwnPullRequest[]> {
+		return invoke('repositories.list-own-pull-requests', { repoId });
+	}
+
+	continueOwnPullRequest(repoId: string, head: string): Promise<WorkstreamId> {
+		return invoke('repositories.continue-own-pull-request', { repoId, head });
 	}
 
 	provisionDependencies(workstreamId: WorkstreamId): Promise<InstallOutcomeResult> {
