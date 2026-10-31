@@ -89,6 +89,7 @@ The [README](../README.md) has the short version.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
 - **Main reaching your files merges it in.** Malini fetches main every five minutes, and when it conflicts with a workstream or changed a file that workstream changed too, **Update from main** merges it in and **Resolve conflicts** resolves what conflicts, before you click **Draft** or **Merge**.
+  A pull request gets the merge pushed only once a conflict is resolved; a clean merge waits for its next push.
   Main changing only other files starts nothing, and the workstream stays on its own commits until you merge it.
 - **A failing step says why.** While Malini retries a push or a merge, the top bar and the sidebar turn amber with what failed and since when, and a note above the composer says why, with what GitHub said, **Retry now** and **Cancel draft**.
   The agent reads the same note, so asking it why gets the real reason.

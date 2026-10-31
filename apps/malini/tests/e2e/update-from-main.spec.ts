@@ -170,7 +170,7 @@ test('a draft that main starts to conflict with gets main merged in, the conflic
 	}
 });
 
-test('main changing only files a workstream left alone leaves it as it is, and main changing a file it changed merges main in without an agent', async () => {
+test('main changing only files a draft left alone leaves it as it is, and main changing a file it changed merges main in without an agent and keeps the merge local until the draft pushes next', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
 	try {
@@ -185,7 +185,15 @@ test('main changing only files a workstream left alone leaves it as it is, and m
 				await commitFile(basePath, 'other.txt', 'main line\n', 'main changes another file');
 			},
 		);
+		await openWorkstream(page, 'e2e-overlap-clean');
+		const draft = page.getByRole('button', { name: 'Open a draft pull request' });
+		await expect(draft).toHaveText('Draft', { timeout: 30_000 });
+		await draft.click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
 		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
+		expect(github.pushedHead()).toBe(branchHead);
 		await expect
 			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
 			.toBe(await output(github.remote, ['rev-parse', 'main']));
@@ -218,6 +226,19 @@ test('main changing only files a workstream left alone leaves it as it is, and m
 		expect(await output(worktree, ['show', 'HEAD:lines.txt'])).toBe(
 			TEN_LINES.replace('1\n', 'one\n').replace('10\n', 'ten\n').trim(),
 		);
+		const merge = await output(worktree, ['rev-parse', 'HEAD']);
+		await page.waitForTimeout(3_000);
+		await captureFlow(app, 'base-overlap-kept-local');
+		expect(github.pushedHead()).toBe(branchHead);
+
+		await sendPrompt(page, 'EDIT:after.txt COMMIT=feat: add the after file');
+		await expectAssistantReply(page);
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'HEAD^']), { timeout: 30_000 })
+			.toBe(merge);
+		await expect
+			.poll(() => github.pushedHead(), { timeout: 30_000 })
+			.toBe(await output(worktree, ['rev-parse', 'HEAD']));
 		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
 			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
 		});
