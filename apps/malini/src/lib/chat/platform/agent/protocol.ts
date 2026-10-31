@@ -163,7 +163,8 @@ export type BridgeCommand =
 	  }
 	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer)
-	| ({ cmd: 'platform_result'; id: string; sessionId: string; requestId: string } & PlatformAnswer);
+	| ({ cmd: 'platform_result'; id: string; sessionId: string; requestId: string } & PlatformAnswer)
+	| ({ cmd: 'history_result'; id: string; sessionId: string; requestId: string } & HistoryAnswer);
 
 export interface BrowserAnswer {
 	ok: boolean;
@@ -195,6 +196,23 @@ export function platformResultCommand(
 ): BridgeCommand {
 	return {
 		cmd: 'platform_result',
+		id,
+		sessionId: request.sessionId,
+		requestId: request.requestId,
+		...answer,
+	};
+}
+
+export type HistoryAnswer =
+	{ ok: true; messages: AgentConversationMessage[] } | { ok: false; error: string };
+
+export function historyResultCommand(
+	id: string,
+	request: BridgeHistoryRequest,
+	answer: HistoryAnswer,
+): BridgeCommand {
+	return {
+		cmd: 'history_result',
 		id,
 		sessionId: request.sessionId,
 		requestId: request.requestId,
@@ -377,9 +395,18 @@ export type BridgeControlFrame =
 	| { type: 'bridge.mcp_switched'; protocolVersion: number; id: string; folders: string[] }
 	| { type: 'bridge.mcp_server'; protocolVersion: number; server: AgentMcpServerStatus }
 	| BridgeBrowserRequest
-	| BridgePlatformRequest;
+	| BridgePlatformRequest
+	| BridgeHistoryRequest;
 
-export type BridgeAgentRequest = BridgeBrowserRequest | BridgePlatformRequest;
+export type BridgeAgentRequest =
+	BridgeBrowserRequest | BridgePlatformRequest | BridgeHistoryRequest;
+
+export type BridgeHistoryRequest = {
+	type: 'bridge.history_request';
+	protocolVersion: number;
+	requestId: string;
+	sessionId: string;
+};
 
 export type PlatformTool = (typeof BRIDGE_PLATFORM_TOOLS)[number];
 
@@ -972,6 +999,8 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 				return decodeBrowserRequest(type, f);
 			case 'bridge.platform_request':
 				return decodePlatformRequest(type, f);
+			case 'bridge.history_request':
+				return decodeHistoryRequest(type, f);
 			default:
 				return { ok: false, error: `unknown variant \`${type}\`` };
 		}
@@ -999,6 +1028,21 @@ function decodePlatformRequest(
 	if (!input) return { ok: false, error: `${type}: field \`input\` must be an object` };
 	const protocolVersion = f.number('protocolVersion');
 	return { ok: true, value: { type, protocolVersion, requestId, sessionId, runId, tool, input } };
+}
+
+function decodeHistoryRequest(
+	type: 'bridge.history_request',
+	f: Fields,
+): Decoded<BridgeControlFrame> {
+	const requestId = f.string('requestId');
+	const sessionId = f.string('sessionId');
+	if (requestId.length === 0 || sessionId.length === 0) {
+		return { ok: false, error: `${type}: \`requestId\` and \`sessionId\` must not be empty` };
+	}
+	return {
+		ok: true,
+		value: { type, protocolVersion: f.number('protocolVersion'), requestId, sessionId },
+	};
 }
 
 function isPlatformTool(value: string): value is PlatformTool {

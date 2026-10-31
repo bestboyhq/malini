@@ -444,17 +444,36 @@ const compactionRun = (sessionId, runId, releasePath) => {
 		if (!fs.existsSync(releasePath)) return;
 		clearInterval(timer);
 		fs.rmSync(releasePath);
-		pendingRuns.delete(runId);
-		event({
-			type: 'tool.completed',
-			runId,
-			name: 'Compact',
-			toolCallId,
-			output: { trigger: 'manual' },
+		write({
+			type: 'bridge.history_request',
+			protocolVersion: version,
+			requestId: 'history-' + runId,
+			sessionId,
 		});
-		event({ type: 'run.completed', runId, summary: '' });
-		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
+};
+const putRecordBack = (command) => {
+	const runId = command.requestId.replace(/^history-/, '');
+	if (!pendingRuns.has(runId)) return;
+	pendingRuns.delete(runId);
+	event({
+		type: 'tool.completed',
+		runId,
+		name: 'Compact',
+		toolCallId: 'compaction-' + runId,
+		output: { trigger: 'manual' },
+	});
+	const record = command.ok
+		? command.messages.map((message) => '[' + message.role + '] ' + message.content).join(' | ')
+		: command.error;
+	event({
+		type: 'assistant.message',
+		runId,
+		contentId: 'record-' + runId,
+		text: 'Malini put back: ' + record,
+	});
+	event({ type: 'run.completed', runId, summary: '' });
+	event({ type: 'session.state', sessionId: command.sessionId, status: 'completed' });
 };
 const backgroundCommands = new Map();
 const backgroundCommandTask = (startedAt) => ({
@@ -1709,6 +1728,10 @@ const handle = (command) => {
 			pendingRuns.delete(runId);
 			const result = command.ok ? command.text : command.error;
 			return completeRun(command.sessionId, runId, 'browser:' + result, [], [], '\n\n' + result);
+		}
+		case 'history_result': {
+			ack(command.id);
+			return putRecordBack(command);
 		}
 		case 'platform_result': {
 			ack(command.id);

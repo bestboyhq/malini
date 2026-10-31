@@ -10,6 +10,8 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	undoRun,
+	visibleRunIds,
 } from './harness';
 
 test('a typed /compact compacts the chat in its Claude Code and shows the compaction as a step', async () => {
@@ -62,6 +64,50 @@ test('a typed /compact compacts the chat in its Claude Code and shows the compac
 			'data-tool-status',
 			'completed',
 		);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a compaction puts back every message Malini kept, without the turns the user undid', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-record-ws',
+			'Record workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'EDIT:cedar.txt');
+		await expectAssistantReply(page);
+		const [undone] = await visibleRunIds(page);
+		if (!undone) throw new Error('the chat has no run to undo');
+		await undoRun(page, undone);
+		await expect(page.getByTestId('chat-show-undone-toggle')).toBeVisible({ timeout: 30_000 });
+
+		await sendPrompt(page, 'Hello');
+		await expectAssistantReply(page);
+		await sendPrompt(page, '/compact');
+		const tools = page.locator('[data-message-kind="tool"]');
+		await expect(tools.filter({ hasText: 'Compacting conversation' })).toHaveAttribute(
+			'data-tool-status',
+			'running',
+		);
+		writeFileSync(join(app.home, 'release-compaction'), '');
+
+		const record = page.getByTestId('chat-message-bubble').filter({ hasText: 'Malini put back' });
+		await expect(record).toContainText('[user] Hello | [assistant] Hello from the fake bridge', {
+			timeout: 30_000,
+		});
+		await expect(record).toContainText('[user] /compact');
+		await expect(record).not.toContainText('cedar');
+		await captureFlow(app, 'compaction-record');
 
 		expectCleanConsole(app);
 	} finally {

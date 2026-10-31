@@ -219,6 +219,31 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses the record main hands back and rejects one it could not have sent', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"history_result","id":"h1","sessionId":"s1","requestId":"q1","ok":true,"messages":[{"role":"user","content":"Remember cedar."}]}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'history_result',
+					id: 'h1',
+					sessionId: 's1',
+					requestId: 'q1',
+					ok: true,
+					messages: [{ role: 'user', content: 'Remember cedar.' }],
+				},
+			});
+			for (const invalid of [
+				'{"cmd":"history_result","id":"h2","sessionId":"s1","requestId":"q1","ok":true,"messages":{}}',
+				'{"cmd":"history_result","id":"h3","sessionId":"s1","requestId":"q1","ok":true,"messages":[{"role":"tool","content":"x"}]}',
+				'{"cmd":"history_result","id":"h4","sessionId":"s1","ok":true,"messages":[]}',
+			]) {
+				expect(parseCommandLine(invalid)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('rejects an unknown profile value at the stdio boundary', () => {
 			const r = parseCommandLine(
 				'{"cmd":"send_prompt","id":"cmd-send","sessionId":"s1","runId":"r1","prompt":"hello","profile":{"effort":"unlimited","mode":"plan"}}',
@@ -646,6 +671,7 @@ describe('protocol: parseCommandLine', () => {
 				'list_skills',
 				'browser_result',
 				'platform_result',
+				'history_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
@@ -663,6 +689,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.mcp_switched',
 				'bridge.browser_request',
 				'bridge.platform_request',
+				'bridge.history_request',
 			]);
 			expect(BRIDGE_PLATFORM_TOOLS).toEqual([
 				'jobs_list',

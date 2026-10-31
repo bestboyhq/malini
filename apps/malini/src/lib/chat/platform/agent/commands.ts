@@ -116,7 +116,7 @@ import type {
 import type { BridgeRuntime } from './runtime';
 import {
 	repairPersistedModel,
-	restoredConversationHistory,
+	conversationRecord,
 	startSessionCommand,
 	validateAgentModel,
 	worktreeExists,
@@ -537,7 +537,7 @@ export async function getOrCreateAgentSession(
 			model: existingModel,
 			providerSessionId: existing.providerSessionId,
 			worktreePath: worktree,
-			conversationHistory: restoredConversationHistory(db, existing.id),
+			conversationHistory: conversationRecord(db, existing.id),
 		});
 		try {
 			await supervisor.sendCommand(command);
@@ -577,7 +577,7 @@ export async function activateAgentSession(
 		model,
 		providerSessionId: row.provider_session_id,
 		worktreePath: worktree,
-		conversationHistory: restoredConversationHistory(db, sessionId),
+		conversationHistory: conversationRecord(db, sessionId),
 	});
 	await supervisor.sendCommand(command);
 	runtime.markSessionRegistered(sessionId, supervisor);

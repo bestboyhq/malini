@@ -26,13 +26,16 @@ import { ChatDeliveries } from '../deliveries.service';
 import { answerPlatformRequest } from './platform-tools';
 import {
 	browserResultCommand,
+	historyResultCommand,
 	platformResultCommand,
 	type BridgeAgentRequest,
 	type BridgeBrowserRequest,
+	type BridgeCommand,
 	type BrowserAnswer,
+	type HistoryAnswer,
 } from './protocol';
 import { BridgeRuntime, type BridgeRuntimeHooks } from './runtime';
-import { persistedBridgeSession, worktreePath } from './sessions';
+import { conversationRecord, persistedBridgeSession, worktreePath } from './sessions';
 import type { BridgeHealth, BridgeSupervisor } from './supervisor';
 
 const PAUSE_BUDGET_MS = 5_000;
@@ -263,35 +266,51 @@ export async function startAgentService(
 		supervisor: BridgeSupervisor,
 		request: BridgeAgentRequest,
 	): Promise<void> {
-		const id = supervisor.nextCommandId();
-		const command =
-			request.type === 'bridge.platform_request'
-				? platformResultCommand(
-						id,
-						request,
-						await answerPlatformRequest(request, {
-							db,
-							commands: context.commands,
-							events: context.events,
-							appDataRoot: context.appDataRoot,
-							sending,
-							deliveries,
-							log,
-						}),
-					)
-				: browserResultCommand(
-						id,
-						request,
-						await answerBrowserRequest(request, {
-							db,
-							appDataRoot: context.appDataRoot,
-							browser: deps.browser,
-						}),
-					);
+		const command = await answerFor(supervisor.nextCommandId(), request);
 		try {
 			await supervisor.sendCommand(command);
 		} catch (error) {
 			log(`agent: could not answer ${request.type} \`${request.requestId}\`: ${describe(error)}`);
+		}
+	}
+
+	async function answerFor(id: string, request: BridgeAgentRequest): Promise<BridgeCommand> {
+		switch (request.type) {
+			case 'bridge.history_request':
+				return historyResultCommand(id, request, recordOf(request.sessionId));
+			case 'bridge.platform_request':
+				return platformResultCommand(
+					id,
+					request,
+					await answerPlatformRequest(request, {
+						db,
+						commands: context.commands,
+						events: context.events,
+						appDataRoot: context.appDataRoot,
+						sending,
+						deliveries,
+						log,
+					}),
+				);
+			case 'bridge.browser_request':
+				return browserResultCommand(
+					id,
+					request,
+					await answerBrowserRequest(request, {
+						db,
+						appDataRoot: context.appDataRoot,
+						browser: deps.browser,
+					}),
+				);
+		}
+	}
+
+	function recordOf(sessionId: string): HistoryAnswer {
+		try {
+			return { ok: true, messages: conversationRecord(db, sessionId) ?? [] };
+		} catch (error) {
+			log(`agent: could not hand chat \`${sessionId}\` its record back: ${describe(error)}`);
+			return { ok: false, error: describe(error) };
 		}
 	}
 

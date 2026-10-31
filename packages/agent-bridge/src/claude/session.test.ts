@@ -1,11 +1,22 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { McpServerStatus, SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
+import type {
+	HookJSONOutput,
+	McpServerStatus,
+	SDKMessage,
+	SDKResultSuccess,
+} from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
+import type { ConversationHistoryMessage } from '../protocol.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
+import {
+	COMPACT_WINDOW_TOKENS,
+	HOOK_CONTEXT_CHARACTERS,
+	previousConversation,
+} from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
 import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
 import { ClaudeSession } from './session.js';
@@ -22,6 +33,7 @@ const CONTEXT: ProviderContext = {
 	cwd: '/work/repo',
 	requestBrowser: async () => ({ ok: false, error: 'no browser' }),
 	requestPlatform: async () => ({ ok: false, error: 'no malini' }),
+	requestHistory: async () => ({ ok: true, messages: [] }),
 };
 
 function profile(
@@ -67,6 +79,23 @@ function ofType<T extends AgentEvent['type']>(
 	type: T,
 ): Extract<AgentEvent, { type: T }>[] {
 	return events.filter((event): event is Extract<AgentEvent, { type: T }> => event.type === type);
+}
+
+function chat(turns: number, topic: string): ConversationHistoryMessage[] {
+	return Array.from({ length: turns }, (_, index) => ({
+		role: index % 2 === 0 ? 'user' : 'assistant',
+		content: `${topic} ${index}: ${'The sidebar keeps its width when the inspector opens. '.repeat(24)}`,
+	}));
+}
+
+function putBack(outputs: readonly HookJSONOutput[] | undefined): string[] {
+	return (outputs ?? []).flatMap((output) =>
+		'hookSpecificOutput' in output &&
+		output.hookSpecificOutput?.hookEventName === 'SessionStart' &&
+		output.hookSpecificOutput.additionalContext !== undefined
+			? [output.hookSpecificOutput.additionalContext]
+			: [],
+	);
 }
 
 function recordedSuccess(script: readonly ScriptStep[]): SDKResultSuccess {
@@ -359,6 +388,97 @@ describe('ClaudeSession', () => {
 			interim: false,
 		});
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+	});
+
+	it('puts every message Malini kept back after a compaction, in order, in parts Claude Code keeps whole', async () => {
+		const messages = chat(40, 'Turn');
+		const asked: string[] = [];
+		const { session, claude, events } = harness([recordedScript('compact')], {
+			context: {
+				requestHistory: async () => {
+					asked.push('record');
+					return { ok: true, messages };
+				},
+			},
+		});
+
+		await session.sendPrompt('/compact', 'run-1', profile());
+
+		const parts = putBack(claude.runs[0]?.hookOutputs);
+		expect(asked).toEqual(['record']);
+		expect(parts.length).toBeGreaterThan(1);
+		expect(parts.every((part) => part.length <= HOOK_CONTEXT_CHARACTERS)).toBe(true);
+		expect(parts.join('\n')).toContain(previousConversation(messages));
+		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+	});
+
+	it('asks Malini again on the next compaction of the same Claude Code', async () => {
+		const compact = recordedScript('compact');
+		const records = [chat(2, 'Before'), chat(30, 'After')];
+		const { session, claude } = harness([[...compact, 'wait-for-prompt', ...compact]], {
+			context: { requestHistory: async () => ({ ok: true, messages: records.shift() ?? [] }) },
+		});
+
+		await session.sendPrompt('/compact', 'run-1', profile());
+		const first = putBack(claude.runs[0]?.hookOutputs);
+		await session.sendPrompt('/compact', 'run-2', profile());
+
+		const second = putBack(claude.runs[0]?.hookOutputs).slice(first.length);
+		expect(first.join('\n')).toContain(previousConversation(chat(2, 'Before')));
+		expect(second.join('\n')).toContain(previousConversation(chat(30, 'After')));
+		expect(second.join('\n')).not.toContain('Before 0');
+	});
+
+	it('still compacts when Malini cannot hand the record back', async () => {
+		const { session, claude, events } = harness([recordedScript('compact')], {
+			context: { requestHistory: async () => ({ ok: false, error: 'the database is closed' }) },
+		});
+
+		await session.sendPrompt('/compact', 'run-1', profile());
+
+		expect(putBack(claude.runs[0]?.hookOutputs)).toEqual([]);
+		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+	});
+
+	it('compacts at 280K unless the user picked a window with /autocompact', async () => {
+		const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
+		vi.stubEnv('CLAUDE_CONFIG_DIR', home);
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await writeFile(
+			join(home, 'settings.json'),
+			JSON.stringify({ modelSettings: { 'claude-opus-5-5': { autoCompactWindow: 500_000 } } }),
+		);
+		await session.sendPrompt('And again', 'run-2', profile());
+
+		expect(claude.runs[0]?.options.settings).toEqual({ autoCompactWindow: COMPACT_WINDOW_TOKENS });
+		expect(claude.runs[1]?.options).not.toHaveProperty('settings');
+		vi.unstubAllEnvs();
+		await rm(home, { recursive: true, force: true });
+	});
+
+	it("answers /autocompact in a Claude Code without Malini's window, then goes back to it", async () => {
+		const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
+		vi.stubEnv('CLAUDE_CONFIG_DIR', home);
+		const script = recordedScript('readAndBash');
+		const warm = [...script, 'wait-for-prompt' as const, ...script];
+		const { session, claude } = harness([warm, warm, warm]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await session.sendPrompt('/autocompact 500k', 'run-2', profile(), READ_AND_BASH_CURSOR);
+		await session.sendPrompt('And again', 'run-3', profile(), READ_AND_BASH_CURSOR);
+
+		expect(claude.runs.map(({ options }) => options.settings)).toEqual([
+			{ autoCompactWindow: COMPACT_WINDOW_TOKENS },
+			undefined,
+			{ autoCompactWindow: COMPACT_WINDOW_TOKENS },
+		]);
+		expect(claude.runs[0]?.followUps).not.toContain('/autocompact 500k');
+		expect(claude.runs[1]?.followUps).not.toContain('And again');
+		vi.unstubAllEnvs();
+		await rm(home, { recursive: true, force: true });
 	});
 
 	it('resumes the persisted Claude session, rewound to the requested message', async () => {

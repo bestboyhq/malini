@@ -115,9 +115,13 @@ Its output opens inside the code block, under the command, as it prints, with ho
 
 ## Compact the conversation
 
+Every chat and job compacts on its own at a 280K-token window instead of the model's full window, which is 1M for Opus, and the context gauge counts against 280K.
 Type **/** and pick **/compact** to have the chat's Claude Code summarize the conversation so far and free up context.
-**/autocompact** shows when Claude Code compacts on its own; add `auto` or a token count to change it.
+**/autocompact** shows when Claude Code compacts on its own; add `auto` or a token count to pick your own window, and Malini keeps its 280K out of every chat from then on.
+To go back to 280K, delete `autoCompactWindow` from `~/.claude/settings.json`; a window set in a repository's `.claude/settings.json` or `.claude/settings.local.json` counts as your pick too.
 Type instructions after **/compact** to say what the summary should keep.
+Right after any compaction, Malini puts every message of the chat back into the agent's context, word for word: each prompt you wrote and each reply the agent gave, without the turns you undid, the newest 256 KB of them.
+The summary still covers tool calls and their output, which the agent can read again.
 A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
 
 ## Plan first

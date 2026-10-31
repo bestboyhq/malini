@@ -1,5 +1,6 @@
 import type { MaliniDatabase } from '$main/db/driver';
-import { listEventRowsOfKinds } from '../events.repository';
+import { listTimelineEventRows } from '../events.repository';
+import { userPromptText } from '../fork-transcript';
 import { setSessionModel } from '../sessions.repository';
 import { all, get, isRecord } from '$main/db/rows';
 import { resolveWorkstreamCheckoutCanonical, workstreamCheckoutExists } from '$main/git/paths';
@@ -10,13 +11,6 @@ import type { BridgeSupervisor } from './supervisor';
 
 const MAX_RESTORED_CONVERSATION_BYTES = 256 * 1024;
 const MAX_RESTORED_CONVERSATION_MESSAGES = 4_096;
-const CONVERSATION_TEXT_KINDS = ['user.message', 'assistant.message'] as const;
-const CONVERSATION_KINDS = [
-	...CONVERSATION_TEXT_KINDS,
-	'tool.started',
-	'run.completed',
-	'run.failed',
-] as const;
 
 export function validateAgentModel(model: string | null | undefined): void {
 	if (model === null || model === undefined || isValidAgentModel(model)) return;
@@ -81,101 +75,42 @@ function persistedEventText(payload: unknown): string | null {
 	return typeof text === 'string' && text.length > 0 ? text : null;
 }
 
-interface Turn {
-	runId: string;
-	user: string;
-	assistant: string;
-	completed: boolean;
-	failed: boolean;
-}
-
-export function restoredConversationHistory(
+export function conversationRecord(
 	db: MaliniDatabase,
 	sessionId: string,
 ): AgentConversationMessage[] | null {
-	const turns: Turn[] = [];
-	const lastTurnForRun = (runId: string): Turn | undefined => {
-		for (let index = turns.length - 1; index >= 0; index -= 1) {
-			const turn = turns[index];
-			if (turn !== undefined && turn.runId === runId) return turn;
-		}
-		return undefined;
-	};
-	for (const row of listEventRowsOfKinds(
-		db,
-		sessionId,
-		CONVERSATION_KINDS,
-		CONVERSATION_TEXT_KINDS,
-	)) {
-		switch (row.kind) {
-			case 'user.message': {
-				const text = persistedEventText(row.payload);
-				if (text === null) continue;
-				turns.push({
-					runId: row.runId,
-					user: text,
-					assistant: '',
-					completed: false,
-					failed: false,
-				});
-				break;
-			}
-			case 'assistant.message': {
-				const text = persistedEventText(row.payload);
-				if (text === null) continue;
-				const turn = lastTurnForRun(row.runId);
-				if (turn) turn.assistant += text;
-				break;
-			}
-			case 'tool.started': {
-				const turn = lastTurnForRun(row.runId);
-				if (turn) turn.assistant = '';
-				break;
-			}
-			case 'run.completed': {
-				const turn = lastTurnForRun(row.runId);
-				if (turn) turn.completed = true;
-				break;
-			}
-			case 'run.failed': {
-				const turn = lastTurnForRun(row.runId);
-				if (turn) turn.failed = true;
-				break;
-			}
-			default:
-				break;
+	const messages: Array<AgentConversationMessage & { runId: string }> = [];
+	for (const row of listTimelineEventRows(db, sessionId)) {
+		if (row.kind !== 'user.message' && row.kind !== 'assistant.message') continue;
+		const role = row.kind === 'user.message' ? 'user' : 'assistant';
+		const content = role === 'user' ? userPromptText(row.payload) : persistedEventText(row.payload);
+		if (!content) continue;
+		const previous = messages.at(-1);
+		if (role === 'assistant' && previous?.role === 'assistant' && previous.runId === row.runId) {
+			previous.content += `\n\n${content}`;
+		} else {
+			messages.push({ role, content, runId: row.runId });
 		}
 	}
 
-	const pairs: AgentConversationMessage[][] = [];
-	for (const turn of turns) {
-		if (!turn.completed || turn.failed || turn.assistant.length === 0) continue;
-		pairs.push([
-			{ role: 'user', content: turn.user },
-			{ role: 'assistant', content: turn.assistant },
-		]);
-	}
-
-	const retained: AgentConversationMessage[][] = [];
+	const retained: AgentConversationMessage[] = [];
 	let encodedBytes = 2;
-	let retainedMessages = 0;
-	for (let index = pairs.length - 1; index >= 0; index -= 1) {
-		const pair = pairs[index];
-		if (pair === undefined) continue;
-		const pairBytes = Buffer.byteLength(JSON.stringify(pair)) + 1;
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (message === undefined) continue;
+		const kept = { role: message.role, content: message.content };
+		const messageBytes = Buffer.byteLength(JSON.stringify(kept)) + 1;
 		if (
-			encodedBytes + pairBytes > MAX_RESTORED_CONVERSATION_BYTES ||
-			retainedMessages + pair.length > MAX_RESTORED_CONVERSATION_MESSAGES
+			encodedBytes + messageBytes > MAX_RESTORED_CONVERSATION_BYTES ||
+			retained.length >= MAX_RESTORED_CONVERSATION_MESSAGES
 		) {
 			break;
 		}
-		encodedBytes += pairBytes;
-		retainedMessages += pair.length;
-		retained.push(pair);
+		encodedBytes += messageBytes;
+		retained.push(kept);
 	}
 	retained.reverse();
-	const messages = retained.flat();
-	return messages.length > 0 ? messages : null;
+	return retained.length > 0 ? retained : null;
 }
 
 export interface PersistedBridgeSession {
@@ -240,7 +175,7 @@ export async function registerPersistedBridgeSession(
 		model: repairPersistedModel(db, session.id, session.model),
 		providerSessionId: session.providerSessionId,
 		worktreePath: worktree,
-		conversationHistory: restoredConversationHistory(db, session.id),
+		conversationHistory: conversationRecord(db, session.id),
 	});
 	await supervisor.sendCommand(command);
 }

@@ -10,6 +10,7 @@ const CONTEXT: ProviderContext = {
 	cwd: '/tmp',
 	requestBrowser: async () => ({ ok: false, error: 'no browser' }),
 	requestPlatform: async () => ({ ok: false, error: 'no malini' }),
+	requestHistory: async () => ({ ok: false, error: 'no malini' }),
 };
 
 describe('SessionManager', () => {

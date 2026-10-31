@@ -285,17 +285,19 @@ async function askPermission(
 }
 
 async function runHooks(options: Options, input: HookInput): Promise<HookJSONOutput[]> {
-	const toolName = 'tool_name' in input ? input.tool_name : undefined;
+	const subject =
+		'tool_name' in input ? input.tool_name : 'source' in input ? input.source : undefined;
 	const toolUseId = 'tool_use_id' in input ? input.tool_use_id : undefined;
 	const signal = options.abortController?.signal ?? new AbortController().signal;
 	const outputs: HookJSONOutput[] = [];
-	for (const { matcher, hooks } of options.hooks?.[input.hook_event_name] ?? []) {
-		if (matcher !== undefined && matcher !== toolName) continue;
-		for (const hook of hooks) {
+	const running = (options.hooks?.[input.hook_event_name] ?? [])
+		.filter(({ matcher }) => matcher === undefined || matcher === subject)
+		.flatMap(({ hooks }) => hooks)
+		.map(async (hook) => {
 			const output = await hook(input, toolUseId, { signal });
 			if (Object.keys(output).length > 0) outputs.push(output);
-		}
-	}
+		});
+	await Promise.all(running);
 	return outputs;
 }
 

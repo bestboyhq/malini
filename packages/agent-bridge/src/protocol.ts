@@ -38,7 +38,8 @@ export type AgentCommand =
 	| ChooseCommand
 	| ListSkillsCommand
 	| BrowserResultCommand
-	| PlatformResultCommand;
+	| PlatformResultCommand
+	| HistoryResultCommand;
 
 export interface StartSessionCommand {
 	readonly cmd: 'start_session';
@@ -57,7 +58,7 @@ export type ConversationHistoryMessage = {
 };
 
 const MAX_CONVERSATION_HISTORY_MESSAGES = 4_096;
-const MAX_CONVERSATION_HISTORY_BYTES = 256 * 1_024;
+export const MAX_CONVERSATION_HISTORY_BYTES = 256 * 1_024;
 
 export interface SendPromptCommand {
 	readonly cmd: 'send_prompt';
@@ -243,6 +244,17 @@ export interface PlatformResultCommand extends PlatformResult {
 	readonly requestId: string;
 }
 
+export interface HistoryResult extends PlatformResult {
+	readonly messages?: readonly ConversationHistoryMessage[];
+}
+
+export interface HistoryResultCommand extends HistoryResult {
+	readonly cmd: 'history_result';
+	readonly id: string;
+	readonly sessionId: string;
+	readonly requestId: string;
+}
+
 export type CommandName = AgentCommand['cmd'];
 
 export const COMMAND_NAMES = BRIDGE_COMMAND_NAMES satisfies readonly CommandName[];
@@ -391,6 +403,13 @@ export type BridgePlatformRequestFrame = {
 	readonly sessionId: string;
 } & PlatformRequest;
 
+export interface BridgeHistoryRequestFrame {
+	readonly type: 'bridge.history_request';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly requestId: string;
+	readonly sessionId: string;
+}
+
 export type BridgeControlFrame =
 	| BridgeReadyFrame
 	| BridgeCapabilitiesFrame
@@ -405,7 +424,8 @@ export type BridgeControlFrame =
 	| BridgeMcpServerFrame
 	| BridgeMcpSwitchedFrame
 	| BridgeBrowserRequestFrame
-	| BridgePlatformRequestFrame;
+	| BridgePlatformRequestFrame
+	| BridgeHistoryRequestFrame;
 
 export function bridgeReadyFrame(capabilities: readonly ProviderCapability[]): BridgeReadyFrame {
 	return {
@@ -506,6 +526,18 @@ export function bridgePlatformRequestFrame(
 		requestId,
 		sessionId,
 		...request,
+	};
+}
+
+export function bridgeHistoryRequestFrame(
+	requestId: string,
+	sessionId: string,
+): BridgeHistoryRequestFrame {
+	return {
+		type: 'bridge.history_request',
+		protocolVersion: BRIDGE_PROTOCOL_VERSION,
+		requestId,
+		sessionId,
 	};
 }
 
@@ -618,6 +650,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateBrowserResult(obj);
 		case 'platform_result':
 			return validatePlatformResult(obj);
+		case 'history_result':
+			return validateHistoryResult(obj);
 	}
 }
 
@@ -656,7 +690,10 @@ function validateStartSession(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
-	const parsedConversationHistory = validateConversationHistory(conversationHistory);
+	const parsedConversationHistory = validateConversationHistory(
+		conversationHistory,
+		'start_session: conversationHistory',
+	);
 	if (!parsedConversationHistory.ok) {
 		return err('INVALID_PAYLOAD', parsedConversationHistory.error, obj);
 	}
@@ -677,6 +714,7 @@ function validateStartSession(obj: Record<string, unknown>): ParseResult {
 
 function validateConversationHistory(
 	value: unknown,
+	field: string,
 ):
 	| { readonly ok: true; readonly value?: ConversationHistoryMessage[] }
 	| { readonly ok: false; readonly error: string } {
@@ -684,13 +722,13 @@ function validateConversationHistory(
 	if (!Array.isArray(value)) {
 		return {
 			ok: false,
-			error: 'start_session: conversationHistory, when present, must be an array',
+			error: `${field}, when present, must be an array`,
 		};
 	}
 	if (value.length > MAX_CONVERSATION_HISTORY_MESSAGES) {
 		return {
 			ok: false,
-			error: `start_session: conversationHistory exceeds ${MAX_CONVERSATION_HISTORY_MESSAGES} messages`,
+			error: `${field} exceeds ${MAX_CONVERSATION_HISTORY_MESSAGES} messages`,
 		};
 	}
 	let bytes = 0;
@@ -699,34 +737,34 @@ function validateConversationHistory(
 		if (!isRecord(item)) {
 			return {
 				ok: false,
-				error: 'start_session: conversationHistory entries must be objects',
+				error: `${field} entries must be objects`,
 			};
 		}
 		const keys = Object.keys(item);
 		if (keys.some((key) => key !== 'role' && key !== 'content')) {
 			return {
 				ok: false,
-				error: 'start_session: conversationHistory entries may only contain role and content',
+				error: `${field} entries may only contain role and content`,
 			};
 		}
 		const { role, content } = item;
 		if (role !== 'user' && role !== 'assistant') {
 			return {
 				ok: false,
-				error: 'start_session: conversationHistory role must be user or assistant',
+				error: `${field} role must be user or assistant`,
 			};
 		}
 		if (typeof content !== 'string' || content.length === 0) {
 			return {
 				ok: false,
-				error: 'start_session: conversationHistory content must be a non-empty string',
+				error: `${field} content must be a non-empty string`,
 			};
 		}
 		bytes += Buffer.byteLength(content, 'utf8');
 		if (bytes > MAX_CONVERSATION_HISTORY_BYTES) {
 			return {
 				ok: false,
-				error: `start_session: conversationHistory exceeds ${MAX_CONVERSATION_HISTORY_BYTES} UTF-8 bytes`,
+				error: `${field} exceeds ${MAX_CONVERSATION_HISTORY_BYTES} UTF-8 bytes`,
 			};
 		}
 		messages.push({ role, content });
@@ -1181,9 +1219,24 @@ function validatePlatformResult(obj: Record<string, unknown>): ParseResult {
 	return answer.ok ? { ok: true, command: { cmd: 'platform_result', ...answer.value } } : answer;
 }
 
+function validateHistoryResult(obj: Record<string, unknown>): ParseResult {
+	const answer = validateAnswer(obj, 'history_result');
+	if (!answer.ok) return answer;
+	const messages = validateConversationHistory(obj.messages, 'history_result: messages');
+	if (!messages.ok) return err('INVALID_PAYLOAD', messages.error, obj);
+	return {
+		ok: true,
+		command: {
+			cmd: 'history_result',
+			...answer.value,
+			...(messages.value !== undefined ? { messages: messages.value } : {}),
+		},
+	};
+}
+
 function validateAnswer(
 	obj: Record<string, unknown>,
-	cmd: 'browser_result' | 'platform_result',
+	cmd: 'browser_result' | 'platform_result' | 'history_result',
 ): { readonly ok: true; readonly value: Omit<PlatformResultCommand, 'cmd'> } | ParseError {
 	const id = commandId(obj, cmd);
 	if (!id.ok) return id;

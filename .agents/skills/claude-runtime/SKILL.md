@@ -11,6 +11,7 @@ The bridge (`packages/agent-bridge`, a child process on Electron's binary) hands
 ## Who owns what
 
 Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, and model access through the user's own login.
+Malini only picks when a chat compacts and puts the chat's record back after it (`docs/adr/0134-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md`).
 `settingSources` loads the user, project, and local settings, so a run behaves like `claude` in a terminal.
 The one exception is skills: `send_prompt` carries the skills a job names (ADR 0049), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
 
@@ -47,8 +48,13 @@ Malini owns the rest, and the adapter enforces it:
 - Slash commands: a prompt that starts with `/` reaches Claude Code as typed, and its result names the prompt's uuid like any turn.
   A compaction, typed or automatic, is a `Compact` tool call: `system/status` `compacting` starts it, `compact_boundary` completes it with its `trigger`, and a `failed` `compact_result` fails it.
   `compact_metadata.post_tokens` counts only the summary, so the run's context comes from `getContextUsage()` once a compaction clears the measured usage.
+- Compaction: every query passes `settings: { autoCompactWindow: 280000 }` unless the user, project or local settings file sets `autoCompactWindow`, at the top or under `modelSettings`, where `/autocompact` saves it.
+  A running Claude Code keeps the flag over a pick, and `applyFlagSettings` cannot take it away, so a prompt that picks a window (`/autocompact 500k`) runs in a Claude Code started without the flag, and the next prompt starts one that reads the pick.
+  The flag survives `applyFlagSettings` for effort and permissions, and `getContextUsage()` reports it as `rawMaxTokens`, so the context gauge counts against it.
+  After a compaction, 48 `SessionStart` callbacks with the matcher `compact` ask main for the chat's record over `bridge.history_request` and return it in parts of at most 10,000 characters, each after the one before.
+  Claude Code saves a longer hook context to a file behind a 2 KB preview, runs every callback at once, and joins their contexts with a newline in the order they finish.
 
-`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens, and turns the skills and plugins in `turnedOff` back on through flag settings for that query alone), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries), `choices.ts` (the same kind of query for `choose`, with the Choose a reaction job, whose `outputFormat` JSON schema admits only `{ "pick": 1..choices }`; the SDK ends that turn on a `StructuredOutput` tool call and reads the pick from the result's `structured_output`).
+`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `compaction.ts` (the compaction window and the record put back after a compaction), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens, and turns the skills and plugins in `turnedOff` back on through flag settings for that query alone), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries), `choices.ts` (the same kind of query for `choose`, with the Choose a reaction job, whose `outputFormat` JSON schema admits only `{ "pick": 1..choices }`; the SDK ends that turn on a `StructuredOutput` tool call and reads the pick from the result's `structured_output`).
 
 ## Shapes come from tracer bullets
 
@@ -60,7 +66,7 @@ W=$PWD; S=$(mktemp -d); mkdir "$S/cwd" && cd "$S/cwd"
 node "$W/.agents/skills/claude-runtime/scripts/record.mjs" 'Create probe.txt containing x, then run ls.' default > ../write.json
 ```
 
-It records every message, `canUseTool` call and `PreToolUse` and `PermissionDenied` hook call in the `ScriptStep` format, on the user's subscription with `haiku` unless `MODEL` says otherwise.
+It records every message, `canUseTool` call and `PreToolUse`, `PermissionDenied` and `SessionStart` (on `compact`) hook call in the `ScriptStep` format, on the user's subscription with `haiku` unless `MODEL` says otherwise.
 Other tools are allowed; `DECISION=deny` denies them the way Malini does, which records the `deny` scenario.
 A call auto mode blocks is retried and let through the way Malini does after the user allows it.
 A call auto mode could not check is retried the way Malini does: three times without the `PreToolUse` allow, then once more after `setPermissionMode('acceptEdits')`.
@@ -93,6 +99,7 @@ Stop the proxy by its PID once the recording ends.
    `minimumReleaseAge` holds back releases younger than two days.
 2. Re-record every scenario in `transcripts.json` and diff the shapes against the old recording.
    Map each new or changed message before you trust the tests.
+   From a scratch probe, check that a `SessionStart` hook's 10,000-character `additionalContext` still stays whole and that hook contexts still join in the order the callbacks finish, since `compaction.ts` relies on both.
    Call `mcpAuthenticate` on a server that needs authentication from a scratch probe and check it still answers with `authUrl` and `callbackExpected`, since the SDK's types do not cover it.
 3. `corepack pnpm --filter @malini/agent-bridge test`, then `pnpm check`.
 4. The packaged app copies the SDK's dependency closure into `dist/node_modules` (`scripts/copy-runtime-dependencies.mjs`); run `pnpm dist` once and send a prompt from the built `.app`.
