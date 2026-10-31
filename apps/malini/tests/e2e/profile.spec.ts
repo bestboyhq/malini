@@ -160,15 +160,21 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 	}
 });
 
-test('the Stats panel nudges to publish, and copies the heatmap and readout cards once the profile is public', async () => {
+test('the Stats panel nudges to publish, copies the heatmap and readout cards once the profile is public, and a milestone then shows only its badge with Share', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin });
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
 	try {
 		const { page, electronApp } = app;
 		await recordBrowser(app);
 		const stats = page.getByRole('dialog', { name: 'Stats' });
 		const cards = stats.getByRole('region', { name: 'Share card' });
+		const peek = page.getByRole('region', { name: 'Milestone' });
+		const share = peek.getByRole('button', {
+			name: 'Share your card: 7 days straight, agents skipped lunch',
+		});
+		await expect(share).toBeVisible({ timeout: 20_000 });
+		await expect(share).not.toHaveText('Share');
 		await page.getByTestId('sidebar-open-stats').click();
 		await expect(cards.getByRole('button', { name: 'Publish my stats' })).toBeVisible();
 		await expect(cards.getByRole('button', { name: /^Copy the / })).toHaveCount(0);
@@ -203,6 +209,16 @@ test('the Stats panel nudges to publish, and copies the heatmap and readout card
 		});
 		await page.keyboard.press('Escape');
 		await expect(settings).toHaveCount(0);
+
+		await expect(share).toHaveText('Share');
+		await captureFlow(app, 'moment-badge-share');
+		await share.click();
+		const sheet = page.getByRole('dialog', { name: '7 days straight. Agents skipped lunch.' });
+		await expect(sheet.getByRole('button', { name: 'Copy card' })).toBeVisible();
+		await expect(sheet.getByRole('button', { name: 'Copy link' })).toBeVisible();
+		await expect(sheet.getByRole('button', { name: /^Claim / })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
 
 		await page.getByTestId('sidebar-open-stats').click();
 		await expect(cards.getByRole('button', { name: 'Publish my stats' })).toHaveCount(0);

@@ -4,6 +4,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import { dayStreak, runsOn } from '$lib/stats/domain/activity';
+	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { loadProfileCommand } from '$lib/stats/application/commands/load-profile.command';
 	import { watchProfileHook } from '$lib/stats/application/hooks/watch-profile.hook';
 	import { watchResourceBreakdownHook } from '$lib/stats/application/hooks/watch-resource-breakdown.hook';
@@ -35,7 +36,7 @@
 	const machineMemory = $derived(machineMemoryQuery.data);
 	const breakdown = $derived(resourceBreakdownQuery.data);
 	const profileState = $derived(profileStateQuery.data);
-	const published = $derived(profileState?.publishing === 'on' && !!profileState.profile?.url);
+	const published = $derived(publishedProfileUrl(profileState) !== null);
 
 	const usage = $derived(
 		[...(latest?.usage ?? [])].sort((left, right) => right.memoryBytes - left.memoryBytes),

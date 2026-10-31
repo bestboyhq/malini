@@ -1,6 +1,7 @@
 import { momentAggregate } from '$lib/stats/infrastructure/aggregates/moment.aggregate.svelte';
 import { statsService } from '$lib/stats/infrastructure/services/stats.service';
 import { momentsStore } from '$lib/stats/infrastructure/stores/moments.store.svelte';
+import { profileService } from '$lib/stats/infrastructure/services/profile.service';
 
 export function watchMomentHook(): () => void {
 	momentsStore.hydrate();
@@ -10,5 +11,10 @@ export function watchMomentHook(): () => void {
 		});
 	};
 	load();
-	return statsService.onTurnFinished(load);
+	const stopTurns = statsService.onTurnFinished(load);
+	const stopProfile = profileService.onProfileChanged(load);
+	return () => {
+		stopTurns();
+		stopProfile();
+	};
 }

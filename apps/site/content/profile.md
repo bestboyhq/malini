@@ -73,8 +73,8 @@ It shows your newest one, so a milestone you missed on its day still waits for y
 A milestone is a 7, 30, 100 or 365-day streak, a streak longer than any before it, a day with more runs than any before it, or another thousand runs.
 The card waits until no agent is working, and hides while streamer mode masks your personal data.
 
-Click the card to see both cards.
-Once you publish, **Copy card** and **Copy link** share them; before that, the card offers to brag at your `bestboy.dev/@handle`, the same steps as **Publish my stats**.
+Until you publish, click the card to see both cards and claim your `bestboy.dev/@handle` to brag with them, the same steps as **Publish my stats**.
+Once your profile is public, only the line shows, with **Share** beside it: it opens both cards, and **Copy card** and **Copy link** share them.
 The × dismisses that milestone and any older one for good and brings **Recently archived** back, and **Milestone cards** in Settings, Profile turns them off.
 Milestones are worked out on your Mac and nothing about them leaves it until you publish.
 

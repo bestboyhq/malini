@@ -3,27 +3,44 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Icon } from '$hyper-ui/icons';
+	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { dismissMomentCommand } from '$lib/stats/application/commands/dismiss-moment.command';
+	import { loadProfileCommand } from '$lib/stats/application/commands/load-profile.command';
 	import { watchMomentHook } from '$lib/stats/application/hooks/watch-moment.hook';
+	import { watchProfileHook } from '$lib/stats/application/hooks/watch-profile.hook';
 	import { momentQuery } from '$lib/stats/application/queries/moment.query.svelte';
+	import { profileStateQuery } from '$lib/stats/application/queries/profile-state.query.svelte';
 	import MomentSheet from './MomentSheet.svelte';
 	import { momentBadge, momentLabel } from './moment-copy';
 	import { shareCardPng } from './share-cards';
 
 	const shown = $derived(momentQuery.data);
+	const profileState = $derived(profileStateQuery.data);
+	const claimed = $derived(publishedProfileUrl(profileState) !== null);
 	const label = $derived(shown ? momentLabel(shown.moment) : '');
 	const badge = $derived(shown ? momentBadge(shown.moment) : null);
 	const png = $derived(
-		shown?.card.stats ? shareCardPng('heatmap', shown.card, shown.card.stats) : null,
+		shown?.card.stats && !claimed ? shareCardPng('heatmap', shown.card, shown.card.stats) : null,
 	);
 	let sharing = $state(false);
 
-	onMount(() => watchMomentHook());
+	onMount(() => {
+		loadProfileCommand();
+		const stopProfile = watchProfileHook();
+		const stopMoment = watchMomentHook();
+		return () => {
+			stopProfile();
+			stopMoment();
+		};
+	});
 </script>
 
-{#if shown}
+{#if shown && profileState}
 	<section
-		class="moment-peek border-surface-50-border shrink-0 border-t px-3.5 pt-2"
+		class={[
+			'moment-peek border-surface-50-border shrink-0 border-t px-3.5 pt-2',
+			claimed && 'pb-2',
+		]}
 		aria-label="Milestone"
 		data-testid="moment-peek"
 	>
@@ -35,38 +52,56 @@
 						size={14}
 						class={['shrink-0', badge.tone, badge.icon === 'flame' && 'moment-peek__flame']}
 					/>
-					<span class="text-fg-default shrink-0 font-medium">{badge.cheer}</span>
-					<span class="text-fg-tertiary truncate">{badge.fact}</span>
+					<span class={['flex min-w-0 gap-x-1.5', claimed && 'flex-wrap']}>
+						<span class="text-fg-default shrink-0 font-medium">{badge.cheer}</span>
+						<span class={['text-fg-tertiary', claimed ? 'shrink-0' : 'truncate']}>
+							{badge.fact}
+						</span>
+					</span>
 				</p>
 			{/if}
-			<IconButton
-				variant="ghost"
-				size="xs"
-				ariaLabel="Dismiss milestone"
-				onclick={() => dismissMomentCommand(shown.moment.id)}
-			>
-				<Icon name="close" size={12} />
-			</IconButton>
+			<div class="flex shrink-0 items-center gap-1">
+				{#if claimed}
+					<Button
+						variant="secondary"
+						size="xs"
+						ariaLabel={`Share your card: ${label}`}
+						onclick={() => (sharing = true)}
+					>
+						Share
+					</Button>
+				{/if}
+				<IconButton
+					variant="ghost"
+					size="xs"
+					ariaLabel="Dismiss milestone"
+					onclick={() => dismissMomentCommand(shown.moment.id)}
+				>
+					<Icon name="close" size={12} />
+				</IconButton>
+			</div>
 		</div>
-		<div class="moment-peek__stage">
-			<Button
-				bare
-				class="moment-peek__card block w-full cursor-pointer"
-				ariaLabel={`Share your card: ${label}`}
-				onclick={() => (sharing = true)}
-			>
-				{#await png then source}
-					{#if source}
-						<img
-							src={source}
-							alt=""
-							draggable="false"
-							class="block aspect-[40/21] w-full rounded-lg shadow-xl"
-						/>
-					{/if}
-				{/await}
-			</Button>
-		</div>
+		{#if !claimed}
+			<div class="moment-peek__stage">
+				<Button
+					bare
+					class="moment-peek__card block w-full cursor-pointer"
+					ariaLabel={`Share your card: ${label}`}
+					onclick={() => (sharing = true)}
+				>
+					{#await png then source}
+						{#if source}
+							<img
+								src={source}
+								alt=""
+								draggable="false"
+								class="block aspect-[40/21] w-full rounded-lg shadow-xl"
+							/>
+						{/if}
+					{/await}
+				</Button>
+			</div>
+		{/if}
 	</section>
 	{#if sharing}
 		<MomentSheet {shown} onclose={() => (sharing = false)} />

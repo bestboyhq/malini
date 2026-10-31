@@ -5,6 +5,7 @@
 	import { Switch } from '$hyper-ui/components/switch';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
+	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { cancelPublishingCommand } from '$lib/stats/application/commands/cancel-publishing.command';
 	import { copyProfileLinkCommand } from '$lib/stats/application/commands/copy-profile-link.command';
 	import { editHandleCommand } from '$lib/stats/application/commands/edit-handle.command';
@@ -33,7 +34,7 @@
 	);
 	const handle = $derived(flow.handle ?? profileState?.suggestedHandle ?? '');
 	const status = $derived(profileState ? uploadLine(profileState) : null);
-	const profileUrl = $derived(publishing === 'on' ? (profileState?.profile?.url ?? null) : null);
+	const profileUrl = $derived(publishedProfileUrl(profileState));
 	const switchId = $props.id();
 
 	onMount(() => {
