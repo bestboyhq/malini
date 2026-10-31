@@ -29,9 +29,10 @@
 		workstreamIds: readonly string[];
 		framed?: boolean;
 		label?: string;
+		heading?: string;
 	}
 
-	let { workstreamIds, framed = true, label = 'Workstreams' }: Props = $props();
+	let { workstreamIds, framed = true, label = 'Workstreams', heading }: Props = $props();
 
 	type Trail =
 		| Readonly<{ kind: 'changes'; additions: number; deletions: number }>
@@ -165,9 +166,11 @@
 	{#if line.fullName}
 		<RepositoryAvatar fullName={line.fullName} size={16} />
 	{/if}
-	<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
-		{line.fullName ? repositoryName(line.fullName) : line.name}
-	</span>
+	{@const repository = line.fullName ? repositoryName(line.fullName) : null}
+	<span class="text-fg-default min-w-0 truncate font-medium">{line.name || repository}</span>
+	{#if line.name && repository}
+		<span class="text-fg-quaternary text-2xs shrink-0">{repository}</span>
+	{/if}
 {/snippet}
 
 {#snippet trail(line: Line)}
@@ -266,5 +269,11 @@
 		{@render list()}
 	</section>
 {:else if lines.length > 0}
+	{#if heading}
+		<h3 class="text-fg-tertiary flex items-center gap-2 px-2 pt-1 pb-1.5 text-xs">
+			<span class="text-fg-default font-medium">{heading}</span>
+			<span class="ml-auto">{merged} of {lines.length} merged</span>
+		</h3>
+	{/if}
 	{@render list()}
 {/if}

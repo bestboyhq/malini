@@ -70,6 +70,7 @@
 		closeDirectoryNavigationTarget?: string;
 		addExtensionsActive?: boolean;
 		addExtensionsContent?: Snippet;
+		header?: Snippet | undefined;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		panelActions?: readonly InspectorPanelAction[];
 		workstreamPanelIds?: ReadonlySet<string>;
@@ -96,6 +97,7 @@
 		closeDirectoryNavigationTarget,
 		addExtensionsActive = false,
 		addExtensionsContent,
+		header,
 		renderIcon,
 		panelActions = [],
 		workstreamPanelIds = new Set(),
@@ -680,6 +682,12 @@
 	data-inspector-drawer-open={drawerOpen}
 	data-testid="extension-inspector-shell"
 >
+	{#if header}
+		<div class="max-h-64 shrink-0 overflow-y-auto px-2 pt-2" data-testid="inspector-header">
+			{@render header()}
+			<div class="bg-surface-150 mx-2 mt-1.5 h-px" aria-hidden="true"></div>
+		</div>
+	{/if}
 	{#if drawerOpen}
 		<div class="flex h-12 shrink-0 items-center gap-1 px-4 pt-1">
 			<div
