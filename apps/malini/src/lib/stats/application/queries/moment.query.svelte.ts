@@ -10,7 +10,7 @@ class MomentQuery {
 	public readonly data: MomentCard | null = $derived.by(() => {
 		const recent = momentAggregate.recent;
 		if (!momentsStore.on || !recent || sensitiveMasking.on) return null;
-		const moment = unseenMoment(recent.moments, momentsStore.dismissed);
+		const moment = unseenMoment(recent, momentsStore.dismissedOn);
 		return moment ? { moment, card: recent.card } : null;
 	});
 }

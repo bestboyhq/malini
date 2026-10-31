@@ -161,7 +161,8 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			todaysMoments = { day, stats, moments: stats ? recentMoments(stats) : [] };
 		}
 		const { stats, moments } = todaysMoments;
-		return moments.length > 0 ? { moments, card: await shareCard(Promise.resolve(stats)) } : null;
+		if (!stats || moments.length === 0) return null;
+		return { moments, through: stats.through, card: await shareCard(Promise.resolve(stats)) };
 	});
 
 	return {
