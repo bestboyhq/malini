@@ -280,10 +280,16 @@ export function createRowArrivals(input: {
 					const height = Math.max(0, Math.min(COVERED_FADE_PX, depth, emerged));
 					return { top: `${edge - height}px`, height: `${height}px` };
 				}),
-				block: steps.map((depth, index) => ({
-					top: `${edges[index] ?? 0}px`,
-					height: `${depth > 0 ? depth + enteringDropPx : 0}px`,
-				})),
+				block: steps.map((depth, index) => {
+					const edge = edges[index] ?? 0;
+					const hiddenBottom = ceilToDevicePixel(
+						upper.bottom + snapToDevicePixel(upper.positions[index] ?? 0),
+					);
+					return {
+						top: `${edge}px`,
+						height: `${depth > 0 ? hiddenBottom - edge + enteringDropPx : 0}px`,
+					};
+				}),
 			};
 		}
 
