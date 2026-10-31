@@ -9,6 +9,7 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	openedUrls,
@@ -48,7 +49,7 @@ const STATS_KEYS = [
 test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again after a 401, and removes the stats when turned off', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin });
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin });
 	try {
 		const { page } = app;
 		await recordBrowser(app);
@@ -159,15 +160,21 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 	}
 });
 
-test('the Stats panel nudges to publish, and copies the heatmap and readout cards once the profile is public', async () => {
+test('the Stats panel nudges to publish, copies the heatmap and readout cards once the profile is public, and a milestone then shows only its badge with Share', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin });
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
 	try {
 		const { page, electronApp } = app;
 		await recordBrowser(app);
 		const stats = page.getByRole('dialog', { name: 'Stats' });
 		const cards = stats.getByRole('region', { name: 'Share card' });
+		const peek = page.getByRole('region', { name: 'Milestone' });
+		const share = peek.getByRole('button', {
+			name: 'Share your card: 7 days straight, agents skipped lunch',
+		});
+		await expect(share).toBeVisible({ timeout: 20_000 });
+		await expect(share).not.toHaveText('Share');
 		await page.getByTestId('sidebar-open-stats').click();
 		await expect(cards.getByRole('button', { name: 'Publish my stats' })).toBeVisible();
 		await expect(cards.getByRole('button', { name: /^Copy the / })).toHaveCount(0);
@@ -203,6 +210,16 @@ test('the Stats panel nudges to publish, and copies the heatmap and readout card
 		await page.keyboard.press('Escape');
 		await expect(settings).toHaveCount(0);
 
+		await expect(share).toHaveText('Share');
+		await captureFlow(app, 'moment-badge-share');
+		await share.click();
+		const sheet = page.getByRole('dialog', { name: '7 days straight. Agents skipped lunch.' });
+		await expect(sheet.getByRole('button', { name: 'Copy card' })).toBeVisible();
+		await expect(sheet.getByRole('button', { name: 'Copy link' })).toBeVisible();
+		await expect(sheet.getByRole('button', { name: /^Claim / })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+
 		await page.getByTestId('sidebar-open-stats').click();
 		await expect(cards.getByRole('button', { name: 'Publish my stats' })).toHaveCount(0);
 		for (const kind of ['heatmap', 'readout']) {
@@ -225,22 +242,24 @@ test('the Stats panel nudges to publish, and copies the heatmap and readout card
 	}
 });
 
-test('a 7-day streak peeks out of the sidebar as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
+test('a 7-day streak that ended three days ago peeks out of the sidebar in place of recently archived as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
-	const app = await launchWithYesterdaysRun({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7, 3);
 	try {
 		const { page } = app;
 		await recordBrowser(app);
 		const peek = page.getByRole('region', { name: 'Milestone' });
-		await expect(peek.getByText("You're on fire")).toBeVisible({ timeout: 20_000 });
-		await expect(peek.getByText('7-day streak')).toBeVisible();
+		const archived = page.getByRole('list', { name: 'Recently archived' });
+		await expect(peek.getByText('7 days straight')).toBeVisible({ timeout: 20_000 });
+		await expect(peek.getByText('agents skipped lunch')).toBeVisible();
+		await expect(archived).toHaveCount(0);
 		await captureFlow(app, 'moment-peek');
 
 		await peek
-			.getByRole('button', { name: "Share your card: You're on fire, 7-day streak" })
+			.getByRole('button', { name: 'Share your card: 7 days straight, agents skipped lunch' })
 			.click();
-		const sheet = page.getByRole('dialog', { name: 'Share your 7-day streak' });
+		const sheet = page.getByRole('dialog', { name: '7 days straight. Agents skipped lunch.' });
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toBeVisible();
 		await sheet.getByRole('button', { name: 'Readout' }).click();
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toHaveAttribute(
@@ -248,7 +267,7 @@ test('a 7-day streak peeks out of the sidebar as your card, claims your profile 
 			'true',
 		);
 		await captureFlow(app, 'moment-sheet');
-		await sheet.getByRole('button', { name: 'Claim your profile' }).click();
+		await sheet.getByRole('button', { name: 'Claim @e2e-user' }).click();
 		const settings = page.getByRole('dialog', { name: 'Settings' });
 		await expect(
 			settings.getByText('Sign in to Bestboy in your browser, then come back.'),
@@ -266,9 +285,10 @@ test('a 7-day streak peeks out of the sidebar as your card, claims your profile 
 		await openProfileSettings(page);
 		await settings.getByRole('switch', { name: 'Milestone cards' }).click();
 		await page.keyboard.press('Escape');
-		await expect(peek.getByText("You're on fire")).toBeVisible({ timeout: 20_000 });
+		await expect(peek.getByText('7 days straight')).toBeVisible({ timeout: 20_000 });
 		await peek.getByRole('button', { name: 'Dismiss milestone' }).click();
 		await expect(peek).toHaveCount(0);
+		await expect(archived.getByRole('listitem')).toHaveCount(1);
 		await page.reload();
 		await expect(page.getByTestId('sidebar-open-stats')).toBeVisible({ timeout: 20_000 });
 		await page.waitForTimeout(1_000);
@@ -280,14 +300,19 @@ test('a 7-day streak peeks out of the sidebar as your card, claims your profile 
 	}
 });
 
-async function launchWithYesterdaysRun(
+async function launchWithPastRuns(
 	env: Readonly<Record<string, string>>,
 	streakDays = 1,
+	lastDaysAgo = 1,
 ): Promise<LaunchedApp> {
 	const first = await launchMalini();
 	try {
 		const source = await createSourceRepo(first.root);
 		const { workstreamId } = await seedWorkstream(first.page, source, 'e2e-profile-ws', 'Profile');
+		await seedWorkstream(first.page, source, 'e2e-profile-archived', 'Archived');
+		await invoke(first.page, 'repositories.archive-workstream', {
+			workstreamId: 'e2e-profile-archived',
+		});
 		await openWorkstream(first.page, workstreamId);
 		await sendPrompt(first.page, 'Count this run');
 		await expectAssistantReply(first.page);
@@ -298,7 +323,7 @@ async function launchWithYesterdaysRun(
 	}
 	const db = new DatabaseSync(join(first.userDataDir, 'malini.sqlite'));
 	const start = new Date();
-	start.setDate(start.getDate() - 1);
+	start.setDate(start.getDate() - lastDaysAgo);
 	start.setHours(10, 0, 0, 0);
 	db.prepare('UPDATE agent_runs SET started_at = ?, completed_at = ?').run(
 		start.toISOString(),

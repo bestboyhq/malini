@@ -23,7 +23,11 @@
 >
 	<div class="min-w-0">
 		<h3 class="text-fg-secondary text-xs font-medium">Share card</h3>
-		<p class="text-fg-tertiary mt-0.5 text-xs">Get a bestboy.dev profile and cards to share.</p>
+		<p class="text-fg-tertiary mt-0.5 text-xs">
+			Your agents did the work.
+			<br />
+			Take the credit on bestboy.dev.
+		</p>
 	</div>
 	<Button variant="secondary" size="sm" class="shrink-0" onclick={onPublish}>
 		Publish my stats

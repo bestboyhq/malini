@@ -6,6 +6,7 @@
 	import { Skeleton } from '$hyper-ui/components/skeleton';
 	import { goto } from '$shared/router/navigation';
 	import { PROFILE_SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { copyProfileLinkCommand } from '$lib/stats/application/commands/copy-profile-link.command';
 	import { copyShareCardCommand } from '$lib/stats/application/commands/copy-share-card.command';
 	import { dismissMomentCommand } from '$lib/stats/application/commands/dismiss-moment.command';
@@ -30,9 +31,7 @@
 
 	let kind: ShareCardKind = $state('heatmap');
 	const profileState = $derived(profileStateQuery.data);
-	const profileUrl = $derived(
-		profileState?.publishing === 'on' ? (profileState.profile?.url ?? null) : null,
-	);
+	const profileUrl = $derived(publishedProfileUrl(profileState));
 	const handle = $derived(profileState?.suggestedHandle ?? null);
 	const png = $derived(shown.card.stats ? shareCardPng(kind, shown.card, shown.card.stats) : null);
 
@@ -91,15 +90,14 @@
 			>
 				<div class="min-w-0 flex-1">
 					<p class="text-fg-default text-sm font-medium">
-						Claim <span class="font-mono">bestboy.dev/@{handle ?? 'you'}</span>
-						to share it
+						Brag at <span class="font-mono">bestboy.dev/@{handle ?? 'you'}</span>
 					</p>
 					<p class="text-fg-tertiary text-xs">
-						Sign in with Google or an email code. Malini sends numbers only.
+						Numbers only, never your code. Your agents won't tell.
 					</p>
 				</div>
 				<Button variant="primary" size="sm" class="shrink-0" onclick={onClaim}>
-					Claim your profile
+					{handle ? `Claim @${handle}` : 'Claim your profile'}
 				</Button>
 			</div>
 		{/if}

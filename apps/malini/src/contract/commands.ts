@@ -90,7 +90,7 @@ import type {
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ShareCard,
-	MomentCard,
+	RecentMoments,
 	StopRunningArgs,
 	WorkstreamRunning,
 } from './stats';
@@ -716,7 +716,7 @@ export interface ContractCommands {
 	'stats.workstream-running': { args: undefined; result: readonly WorkstreamRunning[] };
 	'stats.stop-running': { args: StopRunningArgs; result: void };
 	'stats.share-card': { args: undefined; result: ShareCard };
-	'stats.moment': { args: undefined; result: MomentCard | null };
+	'stats.moments': { args: undefined; result: RecentMoments | null };
 	'stats.profile': { args: undefined; result: ProfileState };
 	'stats.sign-in': { args: undefined; result: ProfileState };
 	'stats.cancel-sign-in': { args: undefined; result: ProfileState };
@@ -943,7 +943,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.workstream-running',
 	'stats.stop-running',
 	'stats.share-card',
-	'stats.moment',
+	'stats.moments',
 	'stats.profile',
 	'stats.sign-in',
 	'stats.cancel-sign-in',

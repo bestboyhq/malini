@@ -1,8 +1,8 @@
 import { net } from 'electron';
 import type {
 	ActivityStats,
-	MomentCard,
 	PublishedStats,
+	RecentMoments,
 	StatsMoment,
 	ShareCard,
 	StopRunningArgs,
@@ -28,7 +28,7 @@ import {
 	managedProjectIdForRepository,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
-import { latestMoment } from '../domain/moments';
+import { recentMoments } from '../domain/moments';
 import { Bestboy, bestboyOrigin, type BestboyFetch } from './bestboy';
 import { ProfileStore, type TokenCipher } from './profile-store';
 import {
@@ -148,20 +148,20 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		};
 	};
 	commands.define('stats.share-card', () => shareCard(cardStats()));
-	let todaysMoment: Readonly<{
+	let todaysMoments: Readonly<{
 		day: string;
 		stats: PublishedStats | null;
-		moment: StatsMoment | null;
+		moments: readonly StatsMoment[];
 	}> | null = null;
-	commands.define('stats.moment', async (): Promise<MomentCard | null> => {
+	commands.define('stats.moments', async (): Promise<RecentMoments | null> => {
 		if (listOpenRuns(db).length > 0) return null;
 		const day = localDate(new Date());
-		if (todaysMoment?.day !== day) {
+		if (todaysMoments?.day !== day) {
 			const stats = await cardStats();
-			todaysMoment = { day, stats, moment: stats ? latestMoment(stats) : null };
+			todaysMoments = { day, stats, moments: stats ? recentMoments(stats) : [] };
 		}
-		const { stats, moment } = todaysMoment;
-		return moment ? { moment, card: await shareCard(Promise.resolve(stats)) } : null;
+		const { stats, moments } = todaysMoments;
+		return moments.length > 0 ? { moments, card: await shareCard(Promise.resolve(stats)) } : null;
 	});
 
 	return {
