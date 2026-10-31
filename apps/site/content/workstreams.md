@@ -151,7 +151,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Main reaching your files merges it in.** Malini fetches main every five minutes and compares it with each workstream, and again after every commit there.
-  When merging main would stop on conflicts, or main changed a file the workstream changed too, **Update from main** merges main in once no agent works there, nothing is uncommitted and no merge is queued, **Resolve conflicts** resolves what conflicts, and a workstream with a pull request gets the resolved merge pushed.
+  When merging main would stop on conflicts, or main changed a file the workstream changed too, **Update from main** merges main in once no agent works there, nothing is uncommitted, no merge is queued and its pull request has not merged or closed on GitHub, **Resolve conflicts** resolves what conflicts, and a workstream with a pull request gets the resolved merge pushed.
   A merge without conflicts stays local, and the workstream's next push carries it, so it starts no checks of its own.
   This happens before you click **Draft** or **Merge**, so a conflict never waits for the merge to surface.
   Main changing only other files starts nothing: the workstream stays on its own commits until you merge it.
