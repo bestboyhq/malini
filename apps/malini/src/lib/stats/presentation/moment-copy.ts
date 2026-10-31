@@ -11,7 +11,7 @@ const STREAK_BADGES: ReadonlyMap<number, MomentBadge> = new Map([
 			icon: 'flame',
 			tone: 'text-accent-2-primary',
 			cheer: '7 days straight',
-			fact: 'grass untouched',
+			fact: 'agents skipped lunch',
 		},
 	],
 	[
@@ -20,7 +20,7 @@ const STREAK_BADGES: ReadonlyMap<number, MomentBadge> = new Map([
 			icon: 'bolt',
 			tone: 'text-warning-content',
 			cheer: '30 days straight',
-			fact: 'HR has questions',
+			fact: 'agents want PTO',
 		},
 	],
 	[
@@ -29,7 +29,7 @@ const STREAK_BADGES: ReadonlyMap<number, MomentBadge> = new Map([
 			icon: 'crown',
 			tone: 'text-warning-content',
 			cheer: '100 days straight',
-			fact: "it's a lifestyle now",
+			fact: 'agents are unionizing',
 		},
 	],
 	[
@@ -38,7 +38,7 @@ const STREAK_BADGES: ReadonlyMap<number, MomentBadge> = new Map([
 			icon: 'sun',
 			tone: 'text-warning-content',
 			cheer: 'A whole year',
-			fact: "we're a little worried",
+			fact: 'agents threw a party',
 		},
 	],
 ]);
@@ -51,7 +51,7 @@ export function momentBadge(moment: StatsMoment): MomentBadge {
 				icon: 'trophy',
 				tone: 'text-success-content',
 				cheer: `${count} days straight`,
-				fact: 'past you could never',
+				fact: 'agents are impressed',
 			}
 		);
 	}
@@ -60,14 +60,14 @@ export function momentBadge(moment: StatsMoment): MomentBadge {
 			icon: 'trend-up',
 			tone: 'text-brand-icon',
 			cheer: `${count} runs in a day`,
-			fact: 'laptop fan noticed',
+			fact: 'agents need a nap',
 		};
 	}
 	return {
 		icon: 'sparkles',
 		tone: 'text-brand-icon',
 		cheer: `${count} runs`,
-		fact: 'zero standups',
+		fact: 'agents want a raise',
 	};
 }
 

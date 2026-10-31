@@ -10,6 +10,7 @@ The same rule dropped their 1,000th and 2,000th runs, because a best day on the 
 The user's words: "I may have hit a milestone in the past, so I should see the card if I did, right?", and the card "is gonna be the main entrance for the funnel to create an account".
 Seeing it on their own sidebar, the user added: "that card should be showing up instead of archived list, not together with it".
 On the copy, 0124's cheers ("You're on fire", "Unstoppable", "Legendary") read as the hype every app uses, and the sheet turned the reward into a toll ("Claim … to share it"); of three prototyped voices the user picked the one that names how you work, and asked for more: "we're going after devs, builders or founders. Our copy could be more playful, sarcastic quality lines".
+Of four playful voices (deadpan, founder mode, dev in-jokes, overworked agents) they picked overworked agents, "by far the best style": you run a team, and the team has opinions.
 Everything else in 0124 still holds and is restated below.
 
 ## Decision
@@ -25,11 +26,11 @@ Everything else in 0124 still holds and is restated below.
 - **When.** `stats.moments` in `src/lib/stats/platform/register.ts` answers with the list and its share card, or nothing while any agent run is open or the week has no moment.
   It works the list out once per local day, since it depends only on complete days.
   The sidebar asks once when it mounts and again on every `chat:turn-finished`, so a card appears only between turns and stays until you act on it.
-- **The card.** `MomentPeek` sits above the sidebar footer and takes the place of **Recently archived**, which `Sidebar.svelte` hides while `momentQuery` has a card: a line badge names the milestone and adds a dry aside, a pack glyph in its own semantic tint and no pill, all from `moment-copy.ts`: a flickering `flame` for "7 days straight, grass untouched", `bolt` "30 days straight, HR has questions", `crown` "100 days straight, it's a lifestyle now", `sun` "A whole year, we're a little worried", `trophy` "12 days straight, past you could never" for a longest streak, `trend-up` "311 runs in a day, laptop fan noticed", `sparkles` "3,000 runs, zero standups".
+- **The card.** `MomentPeek` sits above the sidebar footer and takes the place of **Recently archived**, which `Sidebar.svelte` hides while `momentQuery` has a card: a line badge names the milestone and lets your agents complain about it, a pack glyph in its own semantic tint and no pill, all from `moment-copy.ts`: a flickering `flame` for "7 days straight, agents skipped lunch", `bolt` "30 days straight, agents want PTO", `crown` "100 days straight, agents are unionizing", `sun` "A whole year, agents threw a party", `trophy` "12 days straight, agents are impressed" for a longest streak, `trend-up` "311 runs in a day, agents need a nap", `sparkles` "3,000 runs, agents want a raise".
   The sheet's title is the same line as two sentences, and every line fits the badge's 264px beside its ×.
   Then the heatmap card, drawn by `shareCardPng` exactly as it is copied, peeks out tilted and straightens on hover.
   It hides while streamer mode masks personal data, a check `momentQuery` owns so the card and the archived list never disagree.
-  Clicking it opens `MomentSheet`: both cards, then **Copy card** and **Copy link** when your profile is public, or "Show the world at `bestboy.dev/@handle`" with **Claim @handle**, which starts the same sign-in and handle steps as **Publish my stats** in Settings, Profile.
+  Clicking it opens `MomentSheet`: both cards, then **Copy card** and **Copy link** when your profile is public, or "Brag at `bestboy.dev/@handle`" ("Numbers only, never your code. Your agents won't tell.") with **Claim @handle**, which starts the same sign-in and handle steps as **Publish my stats** in Settings, Profile.
   Copying the card dismisses the moment.
 - **Your say.** The × dismisses a moment, and with it every older one, for good, and **Milestone cards** in Settings, Profile turns them all off.
   Both live in the renderer's `localStorage` under `malini.stats.moments`, keeping the last 50 dismissed ids; nothing about a moment leaves the Mac until you publish.

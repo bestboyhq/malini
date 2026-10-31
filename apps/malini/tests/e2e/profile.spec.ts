@@ -236,14 +236,14 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar in place
 		const peek = page.getByRole('region', { name: 'Milestone' });
 		const archived = page.getByRole('list', { name: 'Recently archived' });
 		await expect(peek.getByText('7 days straight')).toBeVisible({ timeout: 20_000 });
-		await expect(peek.getByText('grass untouched')).toBeVisible();
+		await expect(peek.getByText('agents skipped lunch')).toBeVisible();
 		await expect(archived).toHaveCount(0);
 		await captureFlow(app, 'moment-peek');
 
 		await peek
-			.getByRole('button', { name: 'Share your card: 7 days straight, grass untouched' })
+			.getByRole('button', { name: 'Share your card: 7 days straight, agents skipped lunch' })
 			.click();
-		const sheet = page.getByRole('dialog', { name: '7 days straight. Grass untouched.' });
+		const sheet = page.getByRole('dialog', { name: '7 days straight. Agents skipped lunch.' });
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toBeVisible();
 		await sheet.getByRole('button', { name: 'Readout' }).click();
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toHaveAttribute(

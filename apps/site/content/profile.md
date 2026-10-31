@@ -68,13 +68,13 @@ Until you publish, **Share card** offers **Publish my stats** instead.
 
 ## Milestone cards
 
-When you reached a milestone in the past week, your share card peeks out of the sidebar in place of **Recently archived**, with a line above it such as a flame and **7 days straight**, grass untouched, or **3,000 runs**, zero standups.
+When you reached a milestone in the past week, your share card peeks out of the sidebar in place of **Recently archived**, with a line above it such as a flame and **7 days straight**, agents skipped lunch, or **3,000 runs**, agents want a raise.
 It shows your newest one, so a milestone you missed on its day still waits for you for a week.
 A milestone is a 7, 30, 100 or 365-day streak, a streak longer than any before it, a day with more runs than any before it, or another thousand runs.
 The card waits until no agent is working, and hides while streamer mode masks your personal data.
 
 Click the card to see both cards.
-Once you publish, **Copy card** and **Copy link** share them; before that, the card offers to show the world at your `bestboy.dev/@handle`, the same steps as **Publish my stats**.
+Once you publish, **Copy card** and **Copy link** share them; before that, the card offers to brag at your `bestboy.dev/@handle`, the same steps as **Publish my stats**.
 The × dismisses that milestone and any older one for good and brings **Recently archived** back, and **Milestone cards** in Settings, Profile turns them off.
 Milestones are worked out on your Mac and nothing about them leaves it until you publish.
 
