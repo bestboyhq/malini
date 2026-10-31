@@ -34,6 +34,7 @@ Everything else in 0124 still holds and is restated below.
   It hides while streamer mode masks personal data, a check `momentQuery` owns so the card and the archived list never disagree.
   The card or **Share** opens `MomentSheet`: both cards, then **Copy card** and **Copy link** when your profile is public, or "Brag at `bestboy.dev/@handle`" ("Numbers only, never your code. Your agents won't tell.") with **Claim @handle**, which starts the same sign-in and handle steps as **Publish my stats** in Settings, Profile.
   Copying the card dismisses the moment.
+- **The Stats panel.** Its **Share card** nudge speaks the same voice, "Your agents did the work. Take the credit on bestboy.dev.", one sentence per line, and still offers **Publish my stats**, the name of the switch it opens.
 - **Your say.** The × dismisses a moment, and with it every older one, for good, and **Milestone cards** in Settings, Profile turns them all off.
   Both live in the renderer's `localStorage` under `malini.stats.moments`, keeping the last 50 dismissed ids; nothing about a moment leaves the Mac until you publish.
 
