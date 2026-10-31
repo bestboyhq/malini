@@ -1253,6 +1253,10 @@ UPDATE agent_event_packs SET tool_calls_counted = 0;
 ALTER TABLE workstream_ship ADD COLUMN checks_rerun_at TEXT;
 ALTER TABLE workstream_ship ADD COLUMN checks_rerun_head_sha TEXT;
 `,
+	`
+ALTER TABLE workstreams ADD COLUMN cleared_from_starter INTEGER NOT NULL DEFAULT 0
+  CHECK (cleared_from_starter IN (0, 1));
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

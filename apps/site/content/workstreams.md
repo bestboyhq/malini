@@ -69,6 +69,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   A needs-you dot is blue when the workstream asks you something, and amber when its merge stopped on a problem.
   Hover the row to list them with where each stands.
   On that chat's or workstream's page, **Started here** at the top right lists them by name and repository, with how many merged, above **Files** and any browser tab.
+  Hover a merged one and click **×**, or hover the heading and click **Clear merged**, to take merged work off that list and the row's dots for good; it stays in **Recently archived** and in your stats, and comes back only if you restore it.
   The row's own lines added and removed stay beside its dots.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
   A row's icon turns blue when its agent waits on an answer or an approval, and red when its run failed.

@@ -13,6 +13,7 @@
 	let { leadId }: Props = $props();
 
 	const dots = $derived(leadProgressQuery.dots(leadId));
+	const cleared = $derived(leadProgressQuery.cleared(leadId));
 	const targets = $derived(leadProgressQuery.shipTargets(leadId));
 	const chatSessionId = (): string | null => activeSessionQuery.data;
 
@@ -25,7 +26,10 @@
 			checksSummary: '',
 			review: null,
 			todos: null,
-			headline: { ...leadHeadline(dots), tooltip: dots.length > 0 ? progressLabel(dots) : null },
+			headline: {
+				...leadHeadline(dots, cleared),
+				tooltip: dots.length > 0 ? progressLabel(dots) : null,
+			},
 			action: startedShipAction('merge-all', leadId, targets.merge, chatSessionId),
 			secondaryAction: startedShipAction('draft-all', leadId, targets.draft, chatSessionId),
 		});

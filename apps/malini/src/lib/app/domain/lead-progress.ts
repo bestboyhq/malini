@@ -64,9 +64,11 @@ export type LeadHeadline = Readonly<{
 	detail: string | null;
 }>;
 
-export function leadHeadline(dots: readonly ProgressDot[]): LeadHeadline {
+export function leadHeadline(dots: readonly ProgressDot[], cleared = 0): LeadHeadline {
 	if (dots.length === 0) {
-		return { tone: 'idle', busy: false, label: 'No workstreams yet', detail: null };
+		return cleared > 0
+			? { tone: 'merged', busy: false, label: 'All merged', detail: null }
+			: { tone: 'idle', busy: false, label: 'No workstreams yet', detail: null };
 	}
 	const progress = progressOf(dots);
 	const detail = [

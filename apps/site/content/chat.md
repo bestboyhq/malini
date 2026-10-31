@@ -19,6 +19,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - The top bar counts how many of the workstreams it started merged and which need you.
   A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
   Under that count, **Started here** lists every workstream the chat started by name and repository: lines added and removed while it is open, and when it merged once it lands.
+  **×** on a merged one, or **Clear merged** on the heading, clears merged work from the list, the dots and the count for good; once everything the chat started is merged and cleared, the top bar says **All merged**.
   It stays above the browser tabs once the chat's agent opens a page.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
   **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
