@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProfileState } from '$contract/stats';
+import type { BestboyProfile, ProfileState } from '$contract/stats';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
 import { Bestboy } from './bestboy';
@@ -33,10 +33,11 @@ afterEach(() => {
 describe('StatsProfile', () => {
 	it('retries an upload the network dropped, then removes the stats before it signs out', async () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-		const { profile, platform, folder } = await signedInProfile();
+		const { profile, platform, folder, publishedProfiles } = await signedInProfile();
 
 		const published = await profile.publish('Szymeo');
 		expect(published.problem).toBeNull();
+		expect(publishedProfiles.map(({ handle }) => handle)).toEqual(['szymeo']);
 		await vi.waitFor(() => expect(profile.state().upload.state).toBe('published'));
 		expect(platform.calls()).toEqual([
 			'PUT /api/profile {"handle":"szymeo","public":true}',
@@ -95,6 +96,7 @@ async function signedInProfile(): Promise<{
 	profile: StatsProfile;
 	platform: ReturnType<typeof fakePlatform>;
 	folder: string;
+	publishedProfiles: BestboyProfile[];
 }> {
 	const folder = mkdtempSync(join(tmpdir(), 'malini-stats-profile-'));
 	folders.push(folder);
@@ -109,6 +111,7 @@ async function signedInProfile(): Promise<{
 	});
 	const db = seededDatabase();
 	const platform = fakePlatform();
+	const publishedProfiles: BestboyProfile[] = [];
 	const profile = new StatsProfile({
 		bestboy: new Bestboy(ORIGIN, platform.fetch),
 		store,
@@ -116,9 +119,10 @@ async function signedInProfile(): Promise<{
 		readStats: (picked) => readPublishedStats(db, NOW, picked, () => Promise.resolve(true)),
 		githubLogin: () => Promise.resolve('szymeo'),
 		changed: () => undefined,
+		published: (published) => publishedProfiles.push(published),
 		now: () => NOW,
 	});
-	return { profile, platform, folder };
+	return { profile, platform, folder, publishedProfiles };
 }
 
 function fakePlatform(): {

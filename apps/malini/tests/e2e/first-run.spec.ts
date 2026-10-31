@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -19,7 +20,7 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toBeVisible();
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(4);
+		).toHaveCount(5);
 		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
 		await expect(
@@ -141,3 +142,54 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 		await app.close();
 	}
 });
+
+test('setup asks where you heard about Malini, keeps your answer, and forgets it when you skip', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const setup = page.getByTestId('onboarding');
+		const next = setup.getByRole('button', { name: 'Continue' });
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await next.click();
+		await expect(
+			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+		).toBeVisible();
+		await expect(next).toBeDisabled();
+
+		const channels = setup.getByRole('group', { name: 'Where you heard about Malini' });
+		const hackerNews = channels.getByRole('button', { name: 'Hacker News' });
+		await hackerNews.click();
+		await expect(hackerNews).toHaveAttribute('aria-pressed', 'true');
+		await expect(next).toBeEnabled();
+		await captureFlow(app, 'setup-heard-about-hacker-news');
+
+		await channels.getByRole('button', { name: 'Somewhere else' }).click();
+		await expect(hackerNews).toHaveAttribute('aria-pressed', 'false');
+		const where = setup.getByRole('textbox', { name: 'Where you heard about Malini' });
+		await expect(where).toBeFocused();
+		await where.fill('@syntaxfm podcast');
+		await captureFlow(app, 'setup-heard-about-somewhere-else');
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
+		await expect
+			.poll(async () => (await storedSettings(page))['heard-about'])
+			.toBe('syntaxfm podcast');
+
+		await setup.getByRole('button', { name: 'Back' }).click();
+		await expect(where).toHaveValue('@syntaxfm podcast');
+		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
+		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+async function storedSettings(page: Page): Promise<Record<string, string>> {
+	return invoke<Record<string, string>>(page, 'app.list-settings', undefined);
+}

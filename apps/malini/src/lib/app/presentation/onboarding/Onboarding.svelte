@@ -10,6 +10,7 @@
 		type OnboardingAccountStatuses,
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
+	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
@@ -23,11 +24,12 @@
 		githubSetupStatus,
 	} from '$shared/repositories/repositories.api';
 	import OnboardingAccountsStep from './OnboardingAccountsStep.svelte';
+	import OnboardingHeardAboutStep from './OnboardingHeardAboutStep.svelte';
 	import OnboardingRepositoryStep from './OnboardingRepositoryStep.svelte';
 	import { rehearseStepTransition, type Rehearsal } from './rehearse-step-transition';
 
 	const STEP_COPY: Readonly<
-		Record<OnboardingStep, Readonly<{ title: string; description: string }>>
+		Record<OnboardingStep, Readonly<{ title: string; description: string | null }>>
 	> = {
 		accounts: {
 			title: 'Connect Claude Code and GitHub',
@@ -44,6 +46,10 @@
 			description:
 				'Choose what you hear when an agent finishes, and when it needs you. Then try an afternoon of workstreams to hear how it feels.',
 		},
+		'heard-about': {
+			title: 'Where did you hear about Malini?',
+			description: null,
+		},
 		repository: {
 			title: 'Open your first repository',
 			description:
@@ -58,8 +64,10 @@
 		'claude-code': claudeCodeStatusQuery.data.kind,
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
+	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
 	const continueWaits = $derived(
-		onboarding.step === 'accounts' && !onboardingAccountsSettled(accounts),
+		(onboarding.step === 'accounts' && !onboardingAccountsSettled(accounts)) ||
+			(asksHeardAbout && onboarding.heardAbout === null),
 	);
 
 	const STEP_MS = 300;
@@ -109,6 +117,16 @@
 			{ duration: STEP_MS, easing: STEP_EASING },
 		);
 		resize.onfinish = () => (resizing = false);
+	}
+
+	function forward(): void {
+		if (asksHeardAbout) answerHeardAboutCommand(onboarding.heardAbout);
+		void go(onboarding.index + 1);
+	}
+
+	function skipHeardAbout(): void {
+		answerHeardAboutCommand(null);
+		void go(onboarding.index + 1);
 	}
 
 	function fadeOnly(duration: number): TransitionConfig {
@@ -187,15 +205,19 @@
 					>
 						{copy.title}
 					</h1>
-					<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6 text-pretty">
-						{copy.description}
-					</p>
+					{#if copy.description}
+						<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6 text-pretty">
+							{copy.description}
+						</p>
+					{/if}
 
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
 						{#if onboarding.step === 'accounts'}
 							<OnboardingAccountsStep statuses={accounts} />
 						{:else if onboarding.step === 'jobs'}
 							<JobsIntro />
+						{:else if onboarding.step === 'heard-about'}
+							<OnboardingHeardAboutStep />
 						{:else if onboarding.step === 'sounds'}
 							<div class="flex flex-col gap-3">
 								<SoundChoices class="rounded-2xl" />
@@ -235,7 +257,22 @@
 						</Button>
 					</div>
 				{:else}
-					<div class="col-start-1 row-start-1" transition:fade={{ duration: 150 }}>
+					<div
+						class="col-start-1 row-start-1 flex items-center gap-1"
+						transition:fade={{ duration: 150 }}
+					>
+						{#if asksHeardAbout}
+							<div transition:fade={{ duration: 150 }}>
+								<Button
+									variant="ghost"
+									size="lg"
+									class="text-fg-secondary"
+									onclick={skipHeardAbout}
+								>
+									Skip
+								</Button>
+							</div>
+						{/if}
 						<Button
 							variant="primary"
 							size="lg"
@@ -243,7 +280,7 @@
 							class="px-6"
 							disabled={continueWaits}
 							data-testid="onboarding-continue"
-							onclick={() => go(onboarding.index + 1)}
+							onclick={forward}
 						>
 							Continue
 						</Button>

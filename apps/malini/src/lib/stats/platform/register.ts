@@ -7,7 +7,11 @@ import type {
 	ShareCard,
 	StopRunningArgs,
 } from '$contract/stats';
-import { STATS_PROFILE_CHANGED_CHANNEL, STATS_RESOURCES_SAMPLED_CHANNEL } from '$contract/events';
+import {
+	STATS_PROFILE_CHANGED_CHANNEL,
+	STATS_PROFILE_PUBLISHED_CHANNEL,
+	STATS_RESOURCES_SAMPLED_CHANNEL,
+} from '$contract/events';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
@@ -111,6 +115,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		readStats: (picked) => readPublishedStats(db, new Date(), picked, visibility),
 		githubLogin: async () => (await github())?.login ?? null,
 		changed: (state) => events.emit(STATS_PROFILE_CHANGED_CHANNEL, state),
+		published: (published) => events.emit(STATS_PROFILE_PUBLISHED_CHANNEL, published),
 	});
 	commands.define('stats.profile', () => profile.profile());
 	commands.define('stats.sign-in', () => profile.signIn());
