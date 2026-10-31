@@ -93,9 +93,8 @@
 					<p class="text-fg-default text-sm font-medium">
 						Brag at <span class="font-mono">bestboy.dev/@{handle ?? 'you'}</span>
 					</p>
-					<p class="text-fg-tertiary text-xs text-balance">
-						Numbers only, never your code. Your agents won't tell. Sign in with Google or an email
-						code.
+					<p class="text-fg-tertiary text-xs">
+						Numbers only, never your code. Your agents won't tell.
 					</p>
 				</div>
 				<Button variant="primary" size="sm" class="shrink-0" onclick={onClaim}>
