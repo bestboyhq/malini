@@ -91,15 +91,14 @@
 			>
 				<div class="min-w-0 flex-1">
 					<p class="text-fg-default text-sm font-medium">
-						Claim <span class="font-mono">bestboy.dev/@{handle ?? 'you'}</span>
-						to share it
+						Show the world at <span class="font-mono">bestboy.dev/@{handle ?? 'you'}</span>
 					</p>
 					<p class="text-fg-tertiary text-xs">
-						Sign in with Google or an email code. Malini sends numbers only.
+						Numbers only, never your code. Sign in with Google or an email code.
 					</p>
 				</div>
 				<Button variant="primary" size="sm" class="shrink-0" onclick={onClaim}>
-					Claim your profile
+					{handle ? `Claim @${handle}` : 'Claim your profile'}
 				</Button>
 			</div>
 		{/if}

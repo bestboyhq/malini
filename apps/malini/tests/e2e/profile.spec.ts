@@ -235,15 +235,15 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar in place
 		await recordBrowser(app);
 		const peek = page.getByRole('region', { name: 'Milestone' });
 		const archived = page.getByRole('list', { name: 'Recently archived' });
-		await expect(peek.getByText("You're on fire")).toBeVisible({ timeout: 20_000 });
-		await expect(peek.getByText('7-day streak')).toBeVisible();
+		await expect(peek.getByText('7 days straight')).toBeVisible({ timeout: 20_000 });
+		await expect(peek.getByText('grass untouched')).toBeVisible();
 		await expect(archived).toHaveCount(0);
 		await captureFlow(app, 'moment-peek');
 
 		await peek
-			.getByRole('button', { name: "Share your card: You're on fire, 7-day streak" })
+			.getByRole('button', { name: 'Share your card: 7 days straight, grass untouched' })
 			.click();
-		const sheet = page.getByRole('dialog', { name: 'Share your 7-day streak' });
+		const sheet = page.getByRole('dialog', { name: '7 days straight. Grass untouched.' });
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toBeVisible();
 		await sheet.getByRole('button', { name: 'Readout' }).click();
 		await expect(sheet.getByRole('button', { name: 'Readout' })).toHaveAttribute(
@@ -251,7 +251,7 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar in place
 			'true',
 		);
 		await captureFlow(app, 'moment-sheet');
-		await sheet.getByRole('button', { name: 'Claim your profile' }).click();
+		await sheet.getByRole('button', { name: 'Claim @e2e-user' }).click();
 		const settings = page.getByRole('dialog', { name: 'Settings' });
 		await expect(
 			settings.getByText('Sign in to Bestboy in your browser, then come back.'),
@@ -269,7 +269,7 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar in place
 		await openProfileSettings(page);
 		await settings.getByRole('switch', { name: 'Milestone cards' }).click();
 		await page.keyboard.press('Escape');
-		await expect(peek.getByText("You're on fire")).toBeVisible({ timeout: 20_000 });
+		await expect(peek.getByText('7 days straight')).toBeVisible({ timeout: 20_000 });
 		await peek.getByRole('button', { name: 'Dismiss milestone' }).click();
 		await expect(peek).toHaveCount(0);
 		await expect(archived.getByRole('listitem')).toHaveCount(1);
