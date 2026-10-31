@@ -25,6 +25,14 @@ export function optionalString(args: unknown, key: string): string | null {
 	return value;
 }
 
+export function requireStringArray(args: unknown, key: string): string[] {
+	const value = field(args, key);
+	if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
+		throw new Error(`invalid args: \`${key}\` must be an array of strings`);
+	}
+	return value;
+}
+
 export function requireBoolean(args: unknown, key: string): boolean {
 	const value = field(args, key);
 	if (typeof value !== 'boolean') throw new Error(`invalid args: \`${key}\` must be a boolean`);

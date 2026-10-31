@@ -5,11 +5,12 @@
 	import { REPOSITORIES_HREF } from '$shared/router/routes-hrefs';
 	import { ExtensionsNavButton } from '$lib/extensions/extensions.api';
 	import { JobsNavBadge } from '$lib/jobs/jobs.api';
-	import { StatsReadout } from '$lib/stats/stats.api';
+	import { MomentPeek, StatsReadout } from '$lib/stats/stats.api';
 	import UpdateStatus from './UpdateStatus.svelte';
 </script>
 
 <UpdateStatus />
+<MomentPeek />
 
 <div
 	class="border-surface-50-border flex shrink-0 items-center gap-1 border-t py-1.5 pr-1.5 pl-2.5"

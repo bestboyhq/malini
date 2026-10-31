@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -24,13 +25,24 @@
 	import { browserAddressLabel } from '../domain/browser-address';
 	import { browserTabKey } from '../domain/browser-tab';
 	import { HIDDEN_BROWSER, browserPlacementFor, placedWidth } from '../domain/browser-placement';
+	import {
+		isWorktreePage,
+		steppedVariant,
+		variantSwitcher,
+		type OfferedVariant,
+		type OfferedVariants,
+		type VariantPage,
+	} from '../domain/variant-pages';
 
 	interface Props {
 		workstreamId: string;
 		tabId: string;
+		offered: OfferedVariants;
 	}
 
-	let { workstreamId, tabId }: Props = $props();
+	let { workstreamId, tabId, offered }: Props = $props();
+
+	const NO_VARIANTS: readonly (readonly OfferedVariant[])[] = [];
 
 	const tab = $derived({ workstreamId, tabId });
 	const tabKey = $derived(browserTabKey(tab));
@@ -42,6 +54,8 @@
 	const shownUrl = $derived(browserAddressLabel(url));
 	const hasPage = $derived(url !== '');
 	const failure = $derived(browser?.failure ?? null);
+	const variants = $derived(isWorktreePage(url) ? offered.data(workstreamId) : NO_VARIANTS);
+	const switcher = $derived(variantSwitcher(url, workstreamId, variants));
 
 	let draft: string | null = $state(null);
 	let viewport: HTMLElement | null = null;
@@ -126,6 +140,22 @@
 	function onPickToggle(): void {
 		if (picking) cancelElementPickCommand(tab);
 		else pickElement(tab);
+	}
+
+	function variantLabel(page: VariantPage): string {
+		return `Variant ${[page.id, page.name].filter(Boolean).join(' · ')}`;
+	}
+
+	function onStepVariant(step: number): void {
+		const next = switcher && steppedVariant(switcher, step);
+		if (next) navigateBrowserCommand(tab, next.url);
+	}
+
+	function onVariantKeydown(event: KeyboardEvent): void {
+		const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+		if (step === undefined) return;
+		event.preventDefault();
+		onStepVariant(step);
 	}
 </script>
 
@@ -237,4 +267,53 @@
 			<img src={snapshot} alt="" class="absolute inset-0 size-full object-cover object-left-top" />
 		{/if}
 	</div>
+
+	{#if switcher && failure === null}
+		<nav
+			aria-label="Variants"
+			class="mx-2 mb-2 flex min-w-0 shrink-0 items-center justify-center gap-1"
+		>
+			<Tooltip content="Previous variant" placement="top" class="shrink-0">
+				<IconButton
+					ariaLabel="Previous variant"
+					variant="ghost"
+					size="sm"
+					onclick={() => onStepVariant(-1)}
+					onkeydown={onVariantKeydown}
+				>
+					<Icon name="chevron-left" size={14} />
+				</IconButton>
+			</Tooltip>
+			{#each switcher.pages as page, index (page.id)}
+				{@const current = index === switcher.current}
+				<Button
+					bare
+					ariaLabel={variantLabel(page)}
+					ariaCurrent={current ? 'page' : 'false'}
+					class={[
+						'flex h-[26px] max-w-48 min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-[color]',
+						current
+							? 'bg-surface-elevated text-fg-agent-message-strong outline-surface-elevated-border outline-[0.5px] -outline-offset-[0.5px]'
+							: 'text-fg-secondary hover:bg-surface-50-hover',
+					]}
+					onclick={() => navigateBrowserCommand(tab, page.url)}
+					onkeydown={onVariantKeydown}
+				>
+					<span class="text-fg-default shrink-0 font-medium">{page.id}</span>
+					<span class="truncate">{page.name}</span>
+				</Button>
+			{/each}
+			<Tooltip content="Next variant" placement="top" class="shrink-0">
+				<IconButton
+					ariaLabel="Next variant"
+					variant="ghost"
+					size="sm"
+					onclick={() => onStepVariant(1)}
+					onkeydown={onVariantKeydown}
+				>
+					<Icon name="chevron-right" size={14} />
+				</IconButton>
+			</Tooltip>
+		</nav>
+	{/if}
 </div>

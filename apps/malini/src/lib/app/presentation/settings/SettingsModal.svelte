@@ -9,6 +9,7 @@
 		ACCOUNT_SETTINGS_HREF,
 		MCP_SETTINGS_HREF,
 		MODEL_SETTINGS_HREF,
+		PROFILE_SETTINGS_HREF,
 		SKILL_SETTINGS_HREF,
 	} from '$shared/router/routes-hrefs';
 	import { page } from '$shared/router/state';
@@ -55,7 +56,7 @@
 		APPEARANCE,
 		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist', content: JobsSection },
-		{ href: '/settings/profile', label: 'Profile', icon: 'globe', content: ProfileSection },
+		{ href: PROFILE_SETTINGS_HREF, label: 'Profile', icon: 'globe', content: ProfileSection },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock', content: PrivacySection },
 	];
 

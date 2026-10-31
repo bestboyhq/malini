@@ -28,6 +28,8 @@ export const SKILL_SETTINGS_HREF = '/settings/skills';
 
 export const MCP_SETTINGS_HREF = '/settings/mcp-servers';
 
+export const PROFILE_SETTINGS_HREF = '/settings/profile';
+
 export function jobHref(definitionId: string): string {
 	return `/jobs/${encodeURIComponent(definitionId)}`;
 }

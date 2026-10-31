@@ -8,6 +8,7 @@ export type ShipStep =
 	| 'updating-branch'
 	| 'updating-from-main'
 	| 'resolving-conflicts'
+	| 'rerunning-checks'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'
@@ -42,6 +43,7 @@ export type ShipStateRecord = Readonly<{
 	needsYou: ShipNeedsYou | null;
 	queuedAt: string | null;
 	attempts: number;
+	checks: readonly string[];
 	activeJobRunId: string | null;
 	lastError: string | null;
 	githubSaid: string | null;
@@ -111,6 +113,7 @@ export type PullRequestFailedCheck = Readonly<{
 	state: string;
 	required: boolean | null;
 	appId: number | null;
+	url: string | null;
 	completedAt: string | null;
 }>;
 

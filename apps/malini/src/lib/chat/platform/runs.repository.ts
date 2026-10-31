@@ -430,7 +430,9 @@ export interface RunFact {
 	readonly completedAt: string | null;
 	readonly endedAt: string | null;
 	readonly job: boolean;
-	readonly model: string | null;
+	readonly automated: boolean;
+	readonly inputTokens: number;
+	readonly outputTokens: number;
 	readonly workstreamId: string;
 	readonly projectId: string;
 	readonly lead: boolean;
@@ -443,7 +445,9 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		completed_at: string | null;
 		ended_at: string | null;
 		job: number;
-		model: string | null;
+		automated: number;
+		input_tokens: number;
+		output_tokens: number;
 		workstream_id: string;
 		project_id: string;
 		lead: number;
@@ -456,7 +460,14 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		             AND e.seq < (SELECT MAX(last.seq) FROM agent_events last WHERE last.run_id = r.id)),
 		          r.started_at)
 		        ELSE r.completed_at END AS ended_at,
-		        s.origin = 'job' AS job, s.model, s.workstream_id, w.project_id,
+		        s.origin = 'job' AS job,
+		        (s.origin = 'job' OR r.automated = 1 OR (
+		          SELECT CASE WHEN json_valid(substr(e.event, 14))
+		                 THEN json_extract(substr(e.event, 14), '$.from') END
+		          FROM agent_events e
+		          WHERE e.run_id = r.id AND e.event LIKE 'user.message' || char(10) || '%'
+		          ORDER BY e.seq LIMIT 1) IS NOT NULL) AS automated,
+		        r.input_tokens, r.output_tokens, s.workstream_id, w.project_id,
 		        w.scope IS NOT NULL AS lead
 		 FROM agent_runs r
 		 JOIN agent_sessions s ON s.id = r.session_id
@@ -471,7 +482,9 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		completedAt: row.completed_at,
 		endedAt: row.ended_at,
 		job: row.job === 1,
-		model: row.model,
+		automated: row.automated === 1,
+		inputTokens: row.input_tokens,
+		outputTokens: row.output_tokens,
 		workstreamId: row.workstream_id,
 		projectId: row.project_id,
 		lead: row.lead === 1,

@@ -25,8 +25,14 @@ describe('systemPromptAppend', () => {
 			].join('\n'),
 		);
 		expect(prompt).toContain(
-			'only answers a question or talks through options gets a plain answer',
+			'only answers a question or talks through options, with nothing to show, gets a plain answer',
 		);
+		expect(prompt).toContain(
+			'build the prototype in that same turn, even when the user only asked a question',
+		);
+		expect(prompt).toContain('Never end a turn offering to prototype');
+		expect(prompt).toContain("fill it with the user's real content, never lorem ipsum");
+		expect(prompt).toContain('only when you changed files outside `.context/`');
 		expect(prompt).toContain('Write both in the commit convention the repository states');
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
@@ -62,7 +68,8 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`#t=<seconds>` to the After path');
 		expect(prompt).toContain('`![Variant A: Name - one-line note](path)`');
 		expect(prompt).toContain('`Go with variant B (Name).`');
-		expect(prompt).toContain('switcher, fixed at the bottom center of the page');
+		expect(prompt).toContain('Embed an HTML variant as its page, never a screenshot of it');
+		expect(prompt).toContain('never build a switcher into the page');
 		expect(prompt).toContain('every picture you embed as a tab of one frame in the report');
 		expect(prompt).toContain('never label a lone option a variant');
 		expect(prompt).toContain('every other prototype only under `.context/`');
@@ -115,6 +122,7 @@ describe('systemPromptAppend', () => {
 			"- Malini starts each of your turns in a fresh Claude Code session, from this chat's timeline as the user sees it: their messages, your replies, the reports of the workstreams you started and the decisions. What you only read with tools in an earlier turn is gone, so keep what the work needs in your plan.",
 		);
 		expect(lineage).toContain('one repository and one prompt each');
+		expect(lineage).toContain('hand each change, a prototype included, to a workstream');
 		expect(lineage).toContain(
 			'- Your plan lives at /plans/lead-1/plan.md. Write it with `plan_write` before you start workstreams, and keep it current: what each workstream builds, the contract between them and the decisions so far. Every workstream you start gets its path, so point to it in prompts instead of pasting it, and tell each one with `workstreams_send` when it changes.',
 		);

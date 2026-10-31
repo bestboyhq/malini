@@ -192,6 +192,9 @@ describe('lead chats', () => {
 		expect(
 			(await realGit(join(appDataRoot, 'lead-space'), ['config', 'core.hooksPath'])).trim(),
 		).toBe('/dev/null');
+		await invoke('repositories.archive-workstream', { workstreamId: 'lead-home' });
+		await invoke('repositories.restore-workstream', { workstreamId: 'lead-home' });
+		expect(getWorkstream(db, 'lead-home')?.status).toBe('active');
 		await expect(
 			invoke('repositories.create-lead', { scope: 'owner:', workstreamId: 'lead-x', name: 'X' }),
 		).rejects.toThrow('`scope` must be `home` or `owner:<owner>`');
@@ -540,7 +543,6 @@ describe('the workstream commands', () => {
 		expect(removed).toEqual([{ workstreamId: 'ws-arch', worktreePath: canonical, archived: true }]);
 		expect(getWorkstream(db, 'ws-arch')?.status).toBe('archived');
 
-		await archivedLeftoversCleared();
 		await invoke('repositories.restore-workstream', { workstreamId: 'ws-arch' });
 		expect(existsSync(join(checkout, 'seed.txt'))).toBe(true);
 		expect(added).toEqual([

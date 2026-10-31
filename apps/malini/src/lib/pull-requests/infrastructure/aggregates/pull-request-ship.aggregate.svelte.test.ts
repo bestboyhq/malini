@@ -13,6 +13,7 @@ function ship(workstreamId: string, overrides: Partial<PullRequestShip> = {}): P
 		pullRequestNumber: 1,
 		pullRequestUrl: null,
 		needsYou: null,
+		checks: [],
 		lastError: null,
 		githubSaid: null,
 		failures: 0,

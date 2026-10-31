@@ -1,5 +1,6 @@
 import type {
 	ActivityStats,
+	RecentMoments,
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ResourceSample,
@@ -8,6 +9,7 @@ import type {
 	WorkstreamRunning,
 } from '$contract/stats';
 import {
+	CHAT_TURN_FINISHED_CHANNEL,
 	STATS_RESOURCES_SAMPLED_CHANNEL,
 	STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL,
 } from '$contract/events';
@@ -21,6 +23,14 @@ class StatsService {
 
 	shareCard(): Promise<ShareCard> {
 		return invoke('stats.share-card', undefined);
+	}
+
+	moments(): Promise<RecentMoments | null> {
+		return invoke('stats.moments', undefined);
+	}
+
+	onTurnFinished(listener: () => void): () => void {
+		return onPlatformEvent(CHAT_TURN_FINISHED_CHANNEL, () => listener());
 	}
 
 	resources(): Promise<ResourceHistory> {

@@ -96,6 +96,7 @@
 		{ready}
 		{runtimeError}
 		onruntimeretry={onRuntimeRetry}
+		header={dock}
 		{panelActions}
 		{workstreamPanelIds}
 		requestedPanelId={routePanelId}

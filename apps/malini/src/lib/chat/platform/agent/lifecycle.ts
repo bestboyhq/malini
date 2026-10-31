@@ -21,6 +21,7 @@ export type LifecycleErrorKind =
 	| 'workstream_missing'
 	| 'not_a_repository'
 	| 'already_running'
+	| 'checkout_busy'
 	| 'workstream_teardown_pending'
 	| 'workstream_teardown_blocked'
 	| 'bridge_unavailable'
@@ -51,6 +52,8 @@ export class LifecycleError extends Error {
 				return 'repository checkout is not a git repository';
 			case 'already_running':
 				return `\`${detail}\` already has an active run`;
+			case 'checkout_busy':
+				return "An agent is still working in this workstream, so its branch can't move yet.";
 			case 'workstream_teardown_pending':
 				return `work stream \`${detail}\` is being archived or deleted`;
 			case 'workstream_teardown_blocked':
@@ -245,7 +248,7 @@ export class AgentRunLeases {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
 		}
 		if (this.isBusy(workstreamId) || activeRunRows(db, workstreamId).length > 0) {
-			throw new LifecycleError('already_running', workstreamId);
+			throw new LifecycleError('checkout_busy', workstreamId);
 		}
 		let settle = (): void => {};
 		this.movingCheckouts.set(

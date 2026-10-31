@@ -1,10 +1,11 @@
 import { net } from 'electron';
-import {
-	STATS_PARTS,
-	type ActivityStats,
-	type SharePartArgs,
-	type ShareCard,
-	type StopRunningArgs,
+import type {
+	ActivityStats,
+	PublishedStats,
+	RecentMoments,
+	StatsMoment,
+	ShareCard,
+	StopRunningArgs,
 } from '$contract/stats';
 import { STATS_PROFILE_CHANGED_CHANNEL, STATS_RESOURCES_SAMPLED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -27,8 +28,7 @@ import {
 	managedProjectIdForRepository,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
-import { catalogNames, NO_SETUP } from '../domain/catalog-names';
-import { readAgentSetup, type ClaudeFiles } from './agent-setup';
+import { recentMoments } from '../domain/moments';
 import { Bestboy, bestboyOrigin, type BestboyAccess, type BestboyFetch } from './bestboy';
 import { ProfileStore, type TokenCipher } from './profile-store';
 import {
@@ -51,7 +51,6 @@ export interface StatsDeps {
 	stopBackgroundTask(sessionId: string, taskId: string): Promise<void>;
 	nameService(task: string): Promise<string>;
 	openExternal(url: string): Promise<void>;
-	claudeFiles(): ClaudeFiles;
 	readonly cipher: TokenCipher;
 	readonly fetch?: BestboyFetch;
 }
@@ -109,13 +108,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		bestboy,
 		store: new ProfileStore(context.appDataRoot, deps.cipher),
 		openExternal: (url) => deps.openExternal(url),
-		readStats: async (picked, catalog) => {
-			const setup = await readAgentSetup(
-				deps.claudeFiles(),
-				liveFolders().map(({ path }) => path),
-			);
-			return readPublishedStats(db, new Date(), picked, visibility, catalogNames(catalog, setup));
-		},
+		readStats: (picked) => readPublishedStats(db, new Date(), picked, visibility),
 		githubLogin: async () => (await github())?.login ?? null,
 		changed: (state) => events.emit(STATS_PROFILE_CHANGED_CHANNEL, state),
 	});
@@ -134,31 +127,41 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		}
 		return profile.pick(repositories);
 	});
-	commands.define('stats.share-part', (args: unknown) => {
-		const { part, on } = sharePartArgs(args);
-		return profile.share(part, on);
-	});
 	commands.define('stats.public-repositories', () =>
 		readPublicRepositories(db, new Date(), visibility),
 	);
-	commands.define('stats.share-card', async (): Promise<ShareCard> => {
-		const [stats, identity] = await Promise.all([
-			readPublishedStats(db, new Date(), [], NOT_PUBLIC, catalogNames(null, NO_SETUP)),
-			github(),
-		]);
+	const cardStats = (): Promise<PublishedStats | null> =>
+		readPublishedStats(db, new Date(), [], NOT_PUBLIC);
+	const shareCard = async (stats: Promise<PublishedStats | null>): Promise<ShareCard> => {
+		const [shown, identity] = await Promise.all([stats, github()]);
 		const state = profile.state();
-		const published = state.publishing === 'on' ? (state.profile?.handle ?? null) : null;
 		const avatar = identity
 			? await commands
 					.call('repositories.owner-avatar', { owner: identity.login })
 					.catch(() => null)
 			: null;
 		return {
-			stats,
+			stats: shown,
 			name: identity?.name ?? identity?.login ?? null,
-			handle: published ?? identity?.login ?? null,
+			handle: state.publishing === 'on' ? (state.profile?.handle ?? null) : null,
 			avatar: avatar ? `data:${avatar.mediaType};base64,${avatar.base64}` : null,
 		};
+	};
+	commands.define('stats.share-card', () => shareCard(cardStats()));
+	let todaysMoments: Readonly<{
+		day: string;
+		stats: PublishedStats | null;
+		moments: readonly StatsMoment[];
+	}> | null = null;
+	commands.define('stats.moments', async (): Promise<RecentMoments | null> => {
+		if (listOpenRuns(db).length > 0) return null;
+		const day = localDate(new Date());
+		if (todaysMoments?.day !== day) {
+			const stats = await cardStats();
+			todaysMoments = { day, stats, moments: stats ? recentMoments(stats) : [] };
+		}
+		const { stats, moments } = todaysMoments;
+		return moments.length > 0 ? { moments, card: await shareCard(Promise.resolve(stats)) } : null;
 	});
 
 	return {
@@ -199,15 +202,6 @@ function requiredText(args: unknown, key: string): string {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
 	return value;
-}
-
-function sharePartArgs(args: unknown): SharePartArgs {
-	const part = isRecord(args) ? args['part'] : undefined;
-	const on = isRecord(args) ? args['on'] : undefined;
-	const known = STATS_PARTS.find((name) => name === part);
-	if (!known) throw new Error(`invalid args: \`part\` must be one of ${STATS_PARTS.join(', ')}`);
-	if (typeof on !== 'boolean') throw new Error('invalid args: `on` must be a boolean');
-	return { part: known, on };
 }
 
 function stopRunningArgs(args: unknown): StopRunningArgs {

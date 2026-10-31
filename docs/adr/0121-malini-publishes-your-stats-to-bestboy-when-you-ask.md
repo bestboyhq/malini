@@ -1,6 +1,6 @@
 # 0121 - Malini publishes your stats to bestboy.dev when you ask
 
-Status: accepted
+Status: superseded by 0123
 
 ## Context
 

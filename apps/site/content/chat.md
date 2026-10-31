@@ -18,7 +18,9 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
 - The top bar counts how many of the workstreams it started merged and which need you.
   A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
-  Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
+  Under that count, **Started here** lists every workstream the chat started by name and repository: lines added and removed while it is open, and when it merged once it lands.
+  **×** on a merged one, or **Clear merged** on the heading, clears merged work from the list, the dots and the count for good; once everything the chat started is merged and cleared, the top bar says **All merged**.
+  It stays above the browser tabs once the chat's agent opens a page.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
   **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
 - **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
@@ -79,7 +81,7 @@ A run stays open while its background commands and subagents run, and you can st
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
 When the agent goes on once one of them ends, the end of that turn counts as a turn too: it reports, ships its commit, and hands the chat what waited for it.
-Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
+Whatever closes that run later, stopping it, quitting, a crash, merging main into the workstream or archiving it, leaves it done, and Malini does not resume it on the next start.
 
 ## Limits and outages
 
@@ -192,12 +194,14 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 ### Variants
 
 When you ask for options, or the direction is open, the agent makes two to four variants.
+It does not wait to be asked: when its answer proposes something you will see, even an answer to a question, it builds the prototype in the same turn instead of offering to.
+Each one copies your product's look, sits in the screen around it and shows your real content.
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
 While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
-Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
+When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.

@@ -44,6 +44,7 @@ export type ShippingSnapshot = Readonly<{
 	worktree: ShippingWorktree;
 	threadResolutionRunId: string | null;
 	failureSignature: string | null;
+	checksRerun: Readonly<{ headSha: string; at: number }> | null;
 	fixSucceededAt: number | null;
 	attempts: number;
 	fixAttemptLimit: number;
@@ -65,6 +66,12 @@ export type ShippingMove =
 	| Readonly<{ kind: 'open-draft' }>
 	| Readonly<{ kind: 'mark-ready' }>
 	| Readonly<{ kind: 'update-branch' }>
+	| Readonly<{
+			kind: 'rerun-checks';
+			signature: string;
+			headSha: string;
+			runIds: readonly string[];
+	  }>
 	| Readonly<{ kind: 'run-job'; builtin: ShippingJobBuiltin; signature: string; attempt: number }>
 	| Readonly<{ kind: 'resolve-threads'; agentRunId: string }>
 	| Readonly<{ kind: 'merge'; method: string; headSha: string }>
@@ -161,6 +168,8 @@ const REVIEW_DECISIONS: readonly NonNullable<PullRequestFacts['reviewDecision']>
 	'review_required',
 ];
 export const CHECKS_RERUN_GRACE_MS = 60_000;
+const CHECKS_SIGNATURE = 'checks';
+const ACTIONS_JOB_URL = /\/actions\/runs\/(\d+)\/job\/\d+/u;
 const JOB_STEPS: Readonly<Record<ShippingJobBuiltin, ShipStep>> = {
 	'fix-checks': 'fixing-checks',
 	'update-from-main': 'updating-from-main',
@@ -233,6 +242,7 @@ export function pullRequestChange(
 				state: checkState(check),
 				required: check.required,
 				appId: check.appId,
+				url: check.url,
 				completedAt: check.completedAt,
 			})),
 		).sort(byName),
@@ -398,6 +408,7 @@ export function pullRequestReadEvery(
 		case 'addressing-review':
 			return null;
 		case 'waiting-for-checks':
+		case 'rerunning-checks':
 			return delays.checksPollMs;
 		case 'waiting-for-review':
 			return delays.reviewPollMs;
@@ -506,10 +517,11 @@ function pullRequestMove(snapshot: ShippingSnapshot, pullRequest: PullRequestFac
 	if (pullRequest.state === 'draft') return { kind: 'mark-ready' };
 	const merging = pullRequest.mergeability;
 	if (merging === 'conflicts' || merging === 'behind') return { kind: 'update-branch' };
-	if (pullRequest.blockingChecks.length > 0) {
-		return failingChecksMove(snapshot, pullRequest.blockingChecks);
+	if (pullRequest.blockingChecks.length > 0) return failingChecksMove(snapshot, pullRequest);
+	if (pullRequest.checksPending) {
+		const step = checksRerunOf(snapshot, pullRequest) ? 'rerunning-checks' : 'waiting-for-checks';
+		return { kind: 'wait', step };
 	}
-	if (pullRequest.checksPending) return { kind: 'wait', step: 'waiting-for-checks' };
 	const toAddress = reviewToAddress(pullRequest, snapshot.addressedReviews);
 	if (toAddress.threads.length > 0 || toAddress.changeRequests.length > 0) {
 		return fixJob(snapshot, 'address-review', reviewSignature(toAddress));
@@ -533,15 +545,49 @@ function pullRequestMove(snapshot: ShippingSnapshot, pullRequest: PullRequestFac
 	return { kind: 'merge', method, headSha: pullRequest.headSha };
 }
 
+export function signatureChecks(failure: string | null): readonly string[] {
+	if (!failure?.startsWith(`${CHECKS_SIGNATURE}:`)) return [];
+	try {
+		const parsed: unknown = JSON.parse(failure.slice(CHECKS_SIGNATURE.length + 1));
+		return Array.isArray(parsed)
+			? parsed.filter((name): name is string => typeof name === 'string')
+			: [];
+	} catch {
+		return [];
+	}
+}
+
+export function checksRerunOf(snapshot: ShippingSnapshot, pullRequest: PullRequestFacts): boolean {
+	const rerun = snapshot.checksRerun;
+	return (
+		rerun !== null &&
+		snapshot.attempts === 0 &&
+		rerun.headSha === pullRequest.headSha &&
+		signatureChecks(snapshot.failureSignature).length > 0
+	);
+}
+
 function failingChecksMove(
 	snapshot: ShippingSnapshot,
-	failing: readonly PullRequestFailedCheck[],
+	pullRequest: PullRequestFacts,
 ): ShippingMove {
+	const failing = pullRequest.blockingChecks;
 	const failure = signature(
-		'checks',
+		CHECKS_SIGNATURE,
 		failing.map((check) => check.name),
 	);
-	const fixedAt = snapshot.failureSignature === failure ? snapshot.fixSucceededAt : null;
+	const rerun = checksRerunOf(snapshot, pullRequest) ? snapshot.checksRerun : null;
+	const rerunChecks = signatureChecks(snapshot.failureSignature);
+	if (rerun !== null && failing.every((check) => rerunChecks.includes(check.name))) {
+		const stale = !failing.some((check) => completedAfter(check, rerun.at));
+		return stale && snapshot.now - rerun.at < CHECKS_RERUN_GRACE_MS
+			? { kind: 'wait', step: 'rerunning-checks', until: rerun.at + CHECKS_RERUN_GRACE_MS }
+			: fixJob(snapshot, 'fix-checks', failure);
+	}
+	if (snapshot.failureSignature !== failure) {
+		return firstFailureMove(snapshot, pullRequest, failure);
+	}
+	const fixedAt = snapshot.fixSucceededAt;
 	if (fixedAt === null || failing.some((check) => completedAfter(check, fixedAt))) {
 		return fixJob(snapshot, 'fix-checks', failure);
 	}
@@ -553,6 +599,21 @@ function failingChecksMove(
 		'fix-gave-up',
 		'The failing checks did not run again after the last fix.',
 	);
+}
+
+function firstFailureMove(
+	snapshot: ShippingSnapshot,
+	pullRequest: PullRequestFacts,
+	failure: string,
+): ShippingMove {
+	const runIds = pullRequest.blockingChecks.map(
+		(check) => ACTIONS_JOB_URL.exec(check.url ?? '')?.[1],
+	);
+	const headSha = pullRequest.headSha;
+	if (headSha === null || !runIds.every((id): id is string => id !== undefined)) {
+		return fixJob(snapshot, 'fix-checks', failure);
+	}
+	return { kind: 'rerun-checks', signature: failure, headSha, runIds: [...new Set(runIds)] };
 }
 
 function completedAfter(check: PullRequestFailedCheck, time: number): boolean {
@@ -757,6 +818,7 @@ function failedChecks(value: unknown): PullRequestFailedCheck[] | null {
 						state: stringOrNull(item['state']) ?? 'FAILURE',
 						required: typeof item['required'] === 'boolean' ? item['required'] : null,
 						appId: numberOrNull(item['appId']),
+						url: stringOrNull(item['url']),
 						completedAt: stringOrNull(item['completedAt']),
 					},
 				]

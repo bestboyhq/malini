@@ -31,12 +31,12 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 - [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): Malini's own marketplace of MCP servers and skills for every agent, which anyone with a Bestboy handle publishes to, and the inspector they sit beside.
 - [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs working.
-- [Public profile](/malini/docs/profile.md): share cards of your stats, and a profile at bestboy.dev if you publish them.
+- [Public profile](/malini/docs/profile.md): publish your stats to a profile at bestboy.dev, and share cards of it.
 
 ## Where your code goes
 
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions is open or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, with the public catalog of skill and server names it may show.
+Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions is open or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.

@@ -11,7 +11,6 @@ export type PlatformRequest = Readonly<{
 	body: unknown;
 	authorization: string | null;
 	contentType: string | null;
-	acceptEncoding: string | null;
 }>;
 
 export type ExtensionFile = Readonly<{ path: string; text: string }>;
@@ -134,7 +133,6 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 				body,
 				authorization,
 				contentType,
-				acceptEncoding: request.headers['accept-encoding'] ?? null,
 			});
 			const reply = (status: number, value?: unknown): void => {
 				response.writeHead(status, { 'content-type': 'application/json' });

@@ -21,7 +21,7 @@ import {
 	resolveRepositoryCheckout,
 	type ConnectedRepository,
 } from '$shared/repositories/repositories.platform';
-import { scaledShipDelays } from '../domain/shipping';
+import { blockingFailedChecks, scaledShipDelays } from '../domain/shipping';
 import { addressedReviewThreadIds } from '../domain/pull-request-fix-prompt';
 import {
 	optionalBoolean,
@@ -30,8 +30,10 @@ import {
 	optionalTextUpdate,
 	requireNumber,
 	requireString,
+	requireStrings,
 } from './args';
 import {
+	checkSuitesStillToReport,
 	fetchCheckDiagnostics,
 	fetchReviewFeedback,
 	firstLine,
@@ -59,6 +61,7 @@ export const PULL_REQUEST_COMMAND_NAMES = [
 	'pull-requests.merge',
 	'pull-requests.update-metadata',
 	'pull-requests.check-diagnostics',
+	'pull-requests.rerun-failed-checks',
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
 	'pull-requests.button-clicked',
@@ -253,6 +256,26 @@ export function registerPullRequests(
 		return fetchCheckDiagnostics(run, checkout, repository, number);
 	};
 
+	const rerunFailedChecks = async (args: unknown): Promise<void> => {
+		const runIds = requireStrings(args, 'runIds');
+		if (!runIds.every((runId) => /^\d+$/u.test(runId))) {
+			throw new Error('invalid args: `runIds` must hold GitHub Actions run ids');
+		}
+		const { repository, checkout } = await targetOrThrow(args);
+		for (const runId of new Set(runIds)) {
+			await runCheckedGh(
+				run,
+				[
+					'api',
+					'-X',
+					'POST',
+					`repos/${repository.fullName}/actions/runs/${runId}/rerun-failed-jobs`,
+				],
+				checkout,
+			);
+		}
+	};
+
 	const reviewFeedback = async (args: unknown): Promise<ReviewFeedbackDto> => {
 		const { repository, checkout } = await targetOrThrow(args);
 		const number = requireNumber(args, 'pullRequestNumber');
@@ -279,6 +302,7 @@ export function registerPullRequests(
 	commands.define('pull-requests.merge', merge);
 	commands.define('pull-requests.update-metadata', updateMetadata);
 	commands.define('pull-requests.check-diagnostics', checkDiagnostics);
+	commands.define('pull-requests.rerun-failed-checks', rerunFailedChecks);
 	commands.define('pull-requests.review-feedback', reviewFeedback);
 	commands.define('pull-requests.resolve-addressed-review-threads', resolveAddressedReviewThreads);
 
@@ -291,6 +315,7 @@ export function registerPullRequests(
 			merge,
 			updateMetadata,
 			checkDiagnostics,
+			rerunFailedChecks,
 			reviewFeedback,
 			resolveAddressedReviewThreads,
 		},
@@ -376,9 +401,7 @@ async function openPullRequestStatus(
 	const [threads, merging, checksExpected, lagging, behindBase, checks] = await Promise.all([
 		unresolvedReviewThreadCount(run, checkout, repository, status.number),
 		repositoryMergeSettings(run, checkout),
-		status.checksState === 'none' && status.headSha
-			? checksAreStarting(local, status.headSha)
-			: false,
+		checksStillToReport(run, checkout, local, repository, status),
 		status.headSha ? pullRequestLagsPush(local, status.headRef, status.headSha) : false,
 		status.headSha && status.baseRef
 			? fetchBehindBase(run, checkout, repository, status.baseRef, status.headSha)
@@ -388,7 +411,9 @@ async function openPullRequestStatus(
 	const read: PullRequestStatusDto = {
 		...status,
 		checks,
-		...(checksExpected ? { checksState: 'pending' as const } : {}),
+		...(checksExpected && blockingFailedChecks({ ...status, checks }).length === 0
+			? { checksState: 'pending' as const }
+			: {}),
 		unresolvedReviewThreadCount: threads,
 		...(merging ?? {}),
 		behindBase,
@@ -526,6 +551,18 @@ async function includesLocalHead(
 	} catch {
 		return null;
 	}
+}
+
+async function checksStillToReport(
+	run: GhRunner,
+	checkout: string,
+	local: string,
+	repository: ConnectedRepository,
+	{ headSha, baseRef, checksState }: PullRequestStatusDto,
+): Promise<boolean> {
+	if (!headSha || checksState === 'pending') return false;
+	if (checksState === 'none' && (await checksAreStarting(local, headSha))) return true;
+	return checkSuitesStillToReport(run, checkout, repository, headSha, baseRef);
 }
 
 export const CHECKS_START_GRACE_MS = 5 * 60_000;

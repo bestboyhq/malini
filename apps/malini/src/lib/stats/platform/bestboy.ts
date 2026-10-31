@@ -1,11 +1,9 @@
-import type { BestboyAccount, BestboyProfile, SharedStats } from '$contract/stats';
+import type { BestboyAccount, BestboyProfile, PublishedStats } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
-import { parseCatalog, type StatsCatalog } from '../domain/catalog-names';
 
 export const BESTBOY_ORIGIN = 'https://bestboy.dev';
 
 const REQUEST_TIMEOUT_MS = 15_000;
-const CATALOG_TIMEOUT_MS = 60_000;
 const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([408, 425, 429]);
 
 export type BestboyFetch = (url: string, init: RequestInit) => Promise<Response>;
@@ -99,14 +97,7 @@ export class Bestboy {
 		return this.#profile(reply);
 	}
 
-	async catalog(): Promise<StatsCatalog> {
-		const reply = await this.#call(null, 'GET', '/api/catalog', undefined, CATALOG_TIMEOUT_MS);
-		const catalog = parseCatalog(reply);
-		if (!catalog) throw new BestboyError(`${this.host} sent no catalog.`, 200);
-		return catalog;
-	}
-
-	async putStats(token: string, stats: SharedStats): Promise<void> {
+	async putStats(token: string, stats: PublishedStats): Promise<void> {
 		await this.#call(token, 'PUT', '/api/stats/malini', stats);
 	}
 
@@ -133,7 +124,6 @@ export class Bestboy {
 		method: string,
 		path: string,
 		body?: unknown,
-		timeoutMs = REQUEST_TIMEOUT_MS,
 	): Promise<unknown> {
 		let response: Response;
 		try {
@@ -144,7 +134,7 @@ export class Bestboy {
 					...(token === null ? {} : { Authorization: `Bearer ${token}` }),
 				},
 				...(body === undefined ? {} : { body: JSON.stringify(body) }),
-				signal: AbortSignal.timeout(timeoutMs),
+				signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 			});
 		} catch (error) {
 			throw new BestboyError(`Malini could not reach ${this.host}: ${reason(error)}.`, null);

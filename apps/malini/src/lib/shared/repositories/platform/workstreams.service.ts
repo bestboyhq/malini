@@ -45,7 +45,11 @@ import {
 	type ConnectedRepositoryContext,
 } from '$shared/repositories/domain/repository-context';
 import type { Repository } from '$shared/repositories/domain/repository';
-import { parseLeadScope } from '$shared/repositories/domain/lead-scope';
+import {
+	LEAD_SPACE_BRANCH,
+	LEAD_SPACE_PROJECT_ID,
+	parseLeadScope,
+} from '$shared/repositories/domain/lead-scope';
 import { UNOBSERVED_WORKSTREAM_CHECKOUT } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import type { WorkstreamBaseSync } from './base-sync.service';
@@ -63,6 +67,7 @@ import {
 import { recordedBaseRepository } from './checkout-resolver';
 import { restoreKeptFolders } from './kept-folders';
 import {
+	archivedLeftoversCleared,
 	slimKeptContext,
 	teardownWorkstreamCheckout,
 	type TeardownGuard,
@@ -279,6 +284,7 @@ export async function restoreWorkstream(
 	const checkout = workstreamPath(appDataRoot, workstreamId);
 	const branch = archived.branch;
 	validateBranch(branch);
+	await archivedLeftoversCleared();
 	const checkoutExisted = existsSync(checkout);
 	const branchExisted = (await branchList(repository)).includes(branch);
 	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
@@ -289,7 +295,10 @@ export async function restoreWorkstream(
 			checkout,
 			branch,
 			savedRef: archived.archivedRef,
-			baseStart: async () => (await baseSync.startRef(repository, archived.baseBranch, null)).ref,
+			baseStart: async () =>
+				archived.projectId === LEAD_SPACE_PROJECT_ID
+					? LEAD_SPACE_BRANCH
+					: (await baseSync.startRef(repository, archived.baseBranch, null)).ref,
 		});
 		restoreWorkstreamRecord(db, workstreamId, checkout, branch);
 	} catch (error) {
@@ -346,6 +355,7 @@ export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 			archivedAt,
 			mergedPullRequest,
 			savedForLater,
+			clearedFromStarter,
 			scope,
 			startedBy,
 		}) => ({
@@ -356,6 +366,7 @@ export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 			archivedAt,
 			mergedPullRequest,
 			savedForLater,
+			clearedFromStarter,
 			scope,
 			startedBy,
 		}),

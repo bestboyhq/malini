@@ -443,6 +443,7 @@ type ShipStep =
 	| 'updating-branch'
 	| 'updating-from-main'
 	| 'resolving-conflicts'
+	| 'rerunning-checks'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'
@@ -477,6 +478,7 @@ type ShipStateRecord = Readonly<{
 	needsYou: ShipNeedsYou | null;
 	queuedAt: string | null;
 	attempts: number;
+	checks: readonly string[];
 	activeJobRunId: string | null;
 	lastError: string | null;
 	githubSaid: string | null;
@@ -508,6 +510,7 @@ type PullRequestFailedCheck = Readonly<{
 	state: string;
 	required: boolean | null;
 	appId: number | null;
+	url: string | null;
 	completedAt: string | null;
 }>;
 
@@ -557,6 +560,7 @@ type ShipStep =
 	| 'updating-branch'
 	| 'updating-from-main'
 	| 'resolving-conflicts'
+	| 'rerunning-checks'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'
@@ -591,6 +595,7 @@ type ShipStateRecord = Readonly<{
 	needsYou: ShipNeedsYou | null;
 	queuedAt: string | null;
 	attempts: number;
+	checks: readonly string[];
 	activeJobRunId: string | null;
 	lastError: string | null;
 	githubSaid: string | null;
@@ -1254,12 +1259,6 @@ type StatsUpload =
 	| Readonly<{ state: 'no-full-day' }>
 	| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;
 
-const STATS_PARTS = ['techniques', 'tools', 'models', 'languages', 'mcpServers', 'skills'] as const;
-
-type StatsPart = (typeof STATS_PARTS)[number];
-
-type SharedParts = Readonly<Record<StatsPart, boolean>>;
-
 type ProfileState = Readonly<{
 	account: BestboyAccount | null;
 	profile: BestboyProfile | null;
@@ -1269,7 +1268,6 @@ type ProfileState = Readonly<{
 	publishing: StatsPublishing;
 	upload: StatsUpload;
 	pickedRepositories: readonly string[];
-	sharedParts: SharedParts;
 	suggestedHandle: string | null;
 }>;
 ```

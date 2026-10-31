@@ -1,4 +1,4 @@
-# 0124 - A secret is a name the agent asks for in the chat, and every command gets
+# 0136 - A secret is a name the agent asks for in the chat, and every command gets
 
 Status: accepted
 
@@ -7,7 +7,7 @@ Status: accepted
 Agents asked for a secret with `files_open` (0064, 0079): the user switched to a file tab beside the chat, typed the value after a `KEY=` line, and switched back, and commands read that file only through the user's own `secrets-run`.
 `files_open` also took worktree paths such as `apps/x/.env`, and archiving keeps only `.context` and the attachments (`KEPT_FOLDERS` in `kept-folders.ts`), so a pasted secret "is gone after the work stream got archived".
 The user wants it "inlined in a chat so I don't need to go anywhere", and "the user shouldn't give a fuck where the secrets sit ... file system paths, nobody gives a fuck about it".
-0123 makes where a secret lives an adapter's job, with this Mac's keychain first.
+0135 makes where a secret lives an adapter's job, with this Mac's keychain first.
 Two simpler injectors fail in Claude Code 2.1.293.
 A PreToolUse hook that wraps each Bash command changes `updatedInput`, which is what permission rules, auto mode and the approval card check next, so `Bash(npm test:*)` would stop matching and every card would show the wrapper.
 Masking in a PostToolUse hook misses every command that exits non-zero: Claude Code reports those through PostToolUseFailure, which cannot rewrite output.
@@ -16,7 +16,7 @@ Masking in a PostToolUse hook misses every command that exits non-zero: Claude C
 
 - A secret is a name, a value and a scope: one repository, by its `owner/name`, or everywhere, and a repository's value wins over an everywhere one of the same name.
   A name matches `^[A-Za-z_][A-Za-z0-9_]*$`; names that steer a shell or Malini itself, such as `PATH`, `HOME`, `IFS`, `DYLD_*`, `LD_*`, `CLAUDE_*` and `MALINI_*`, are refused.
-- **Keychain adapter.** `src/lib/secrets/platform/keychain.ts` seals each value with Electron's `safeStorage`, whose key lives in the macOS keychain item `malini Safe Storage`, and keeps it in `secrets` (migration 82).
+- **Keychain adapter.** `src/lib/secrets/platform/keychain.ts` seals each value with Electron's `safeStorage`, whose key lives in the macOS keychain item `malini Safe Storage`, and keeps it in `secrets` (migration 85).
   No command returns a value: the renderer sends values in and gets back names, scopes and when each was saved.
 - **Asking.** Bridge protocol 44 adds the pre-approved platform tool `secrets_request`, with one to ten `names` and a `why`.
   It returns at once, like `decisions_ask` (0112): Malini keeps the request in `secret_requests`, emits `secrets:requested`, and shows a card over the composer of that chat with a password field for each name, **Save** and **Dismiss**.
@@ -49,4 +49,4 @@ Masking in a PostToolUse hook misses every command that exits non-zero: Claude C
   A value shorter than eight characters is set but not masked.
 - A tool that reads only a file, never its environment, does not get the secrets; projects that load `.env` with dotenv do, since dotenv never overrides a variable that is already set.
 - Sharing a secret with teammates is left to a future adapter, such as Cryptly.
-- Enforced by `src/lib/secrets/platform/register.test.ts` (sealing, scopes, refused names, requests taken over, no command returning a value), `src/main/db/migrations.test.ts` (migration 82), the bridge's `secrets.test.ts` (the `run` script exporting, masking by length and by line, keeping exit codes and stream order, the folder removed on SIGTERM and that of a dead bridge removed), `session.test.ts` (the shell prefix and the PostToolUse hook), `protocol.test.ts` and `browser-tools.test.ts`, and `tests/e2e/secrets.spec.ts`, where an agent asks for a key, the user saves it on the card, the agent hears it, the value reaches the bridge but never the transcript nor any file in Malini's data folder, and Settings replaces and deletes it.
+- Enforced by `src/lib/secrets/platform/register.test.ts` (sealing, scopes, refused names, requests taken over, no command returning a value), `src/main/db/migrations.test.ts` (migration 85), the bridge's `secrets.test.ts` (the `run` script exporting, masking by length and by line, keeping exit codes and stream order, the folder removed on SIGTERM and that of a dead bridge removed), `session.test.ts` (the shell prefix and the PostToolUse hook), `protocol.test.ts` and `browser-tools.test.ts`, and `tests/e2e/secrets.spec.ts`, where an agent asks for a key, the user saves it on the card, the agent hears it, the value reaches the bridge but never the transcript nor any file in Malini's data folder, and Settings replaces and deletes it.

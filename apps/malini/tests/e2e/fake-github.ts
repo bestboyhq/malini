@@ -427,6 +427,12 @@ if (command === 'auth' && sub === 'status') {
 		thread.isResolved = true;
 		save(current);
 		out({ data: { resolveReviewThread: { thread: { isResolved: true } } } });
+	} else if (fields.query.includes('checkSuites')) {
+		const suites = ((current && current.reportingApps) || []).map((databaseId) => ({
+			app: { databaseId },
+			checkRuns: { totalCount: 1 },
+		}));
+		out({ data: { repository: { object: { history: { nodes: [{ checkSuites: { nodes: suites } }] } } } } });
 	} else {
 		const nodes = threads.map((candidate) => ({
 			...candidate,
@@ -486,12 +492,33 @@ if (command === 'auth' && sub === 'status') {
 	const [behind, ahead] = [count(headSha, baseSha), count(baseSha, headSha)];
 	const status = behind === 0 ? (ahead === 0 ? 'identical' : 'ahead') : ahead === 0 ? 'behind' : 'diverged';
 	out((flag('--jq') === '.status' ? status : String(behind)) + '\\n');
+} else if (
+	command === 'api' &&
+	flag('-X') === 'POST' &&
+	/\\/actions\\/runs\\/\\d+\\/rerun-failed-jobs$/u.test(args[args.length - 1])
+) {
+	const current = read();
+	if (!current || !current.rerunChecks) {
+		process.stderr.write('gh: Resource not accessible by integration (HTTP 403)\\n');
+		process.exit(1);
+	}
+	const finishedLater = new Date(Date.now() + 60000).toISOString();
+	save({
+		...current,
+		statusCheckRollup: current.rerunChecks.map((check) =>
+			check.conclusion && !check.completedAt ? { ...check, completedAt: finishedLater } : check,
+		),
+	});
+	out('');
 } else if (command === 'api' && /\\/check-runs\\/\\d+\\/annotations/u.test(sub)) {
 	const job = /\\/check-runs\\/(\\d+)\\//u.exec(sub)[1];
 	const check = ((read() || {}).statusCheckRollup || []).find((candidate) =>
 		String(candidate.detailsUrl || '').endsWith('/job/' + job),
 	);
 	out((check && check.annotations) || []);
+} else if (command === 'api' && /\\/commits\\/[^/]+\\/check-suites/u.test(sub)) {
+	const suites = (read() || {}).checkSuites || [];
+	out({ total_count: suites.length, check_suites: suites });
 } else if (command === 'api' && /\\/commits\\/[^/]+\\/check-runs/u.test(sub)) {
 	out({ total_count: 0, check_runs: [] });
 } else if (command === 'api' && /\\/commits\\/[^/]+\\/statuses/u.test(sub)) {

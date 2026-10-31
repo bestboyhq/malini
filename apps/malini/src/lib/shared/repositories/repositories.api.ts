@@ -173,6 +173,7 @@ export { prepareRepositoryCommand } from './application/commands/prepare-reposit
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
 export { requestRepositoryConnectionCommand } from './application/commands/request-repository-connection.command';
 export { restoreWorkstreamCommand } from './application/commands/restore-workstream.command';
+export { clearMergedFromStarterCommand } from './application/commands/clear-merged-from-starter.command';
 export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';

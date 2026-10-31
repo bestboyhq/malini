@@ -158,7 +158,7 @@ The [README](../README.md) has the short version.
 
 Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, the extension marketplace at bestboy.dev while Extensions is open or something is installed, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, with the public catalog of skill and server names it may show.
+Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, the extension marketplace at bestboy.dev while Extensions is open or something is installed, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.

@@ -1,3 +1,5 @@
+import type { EventEnvelope } from './events';
+
 export type TurnReportImage = Readonly<{ src: string; alt: string }>;
 
 export type TurnNoteKind = 'note' | 'changed' | 'verified' | 'next';
@@ -82,6 +84,20 @@ export function workstreamImagePath(src: string): string | null {
 
 export function hasTurnReport(text: string): boolean {
 	return Boolean(reportFooter(reportLines(text)).footer.get('outcome'));
+}
+
+export function offeredVariants(
+	envelopes: readonly EventEnvelope[],
+): readonly (readonly TurnVariant[])[] {
+	const reports = new Map<string, string>();
+	for (const { runId, event } of envelopes) {
+		if (event.type === 'assistant.message' && hasTurnReport(event.text)) {
+			reports.set(runId, event.text);
+		}
+	}
+	return [...reports.values()]
+		.map((report) => parseTurnReport(report).variants)
+		.filter((variants) => variants.length > 0);
 }
 
 export function turnStatus(report: TurnReport, needsOpen: boolean): TurnStatus {

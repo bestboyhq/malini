@@ -77,6 +77,7 @@ const SHIP_STEPS: ReadonlyMap<string, string> = new Map(
 		'updating-branch': 'updating the branch',
 		'updating-from-main': 'updating from main',
 		'resolving-conflicts': 'resolving conflicts',
+		'rerunning-checks': 're-running failed checks',
 		'fixing-checks': 'fixing checks',
 		'addressing-review': 'addressing review',
 		'waiting-for-checks': 'waiting for checks',

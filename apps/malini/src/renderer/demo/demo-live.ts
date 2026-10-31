@@ -488,6 +488,7 @@ function shipState(
 		needsYou: null,
 		queuedAt: ship.phase === 'queued' ? NOW : null,
 		attempts: 0,
+		checks: [],
 		activeJobRunId: null,
 		lastError: null,
 		githubSaid: null,

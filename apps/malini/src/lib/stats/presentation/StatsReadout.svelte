@@ -83,6 +83,6 @@
 	testId="stats-panel-layer"
 >
 	<div role="dialog" aria-label="Stats" data-testid="stats-panel">
-		<StatsPanel />
+		<StatsPanel onclose={() => (open = false)} />
 	</div>
 </DropdownLayer>

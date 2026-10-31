@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
+	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
@@ -18,6 +20,7 @@
 		RepositoryAvatar,
 		archivedWorkstreamsQuery,
 		changeTotalsQuery,
+		clearMergedFromStarterCommand,
 		repositoryContextQuery,
 		repositoryName,
 		workstreamByIdQuery,
@@ -29,9 +32,10 @@
 		workstreamIds: readonly string[];
 		framed?: boolean;
 		label?: string;
+		heading?: string;
 	}
 
-	let { workstreamIds, framed = true, label = 'Workstreams' }: Props = $props();
+	let { workstreamIds, framed = true, label = 'Workstreams', heading }: Props = $props();
 
 	type Trail =
 		| Readonly<{ kind: 'changes'; additions: number; deletions: number }>
@@ -70,6 +74,11 @@
 	);
 	const lines = $derived(workstreamIds.flatMap(lineOf));
 	const merged = $derived(lines.filter((line) => line.dot === 'merged').length);
+	const clearableIds = $derived(
+		heading === undefined
+			? []
+			: lines.filter((line) => !line.open && line.dot === 'merged').map((line) => line.id),
+	);
 	const showsAges = $derived(lines.some((line) => line.trail?.kind === 'archived'));
 
 	$effect(() => {
@@ -138,8 +147,15 @@
 		return formatTimeAgo(Math.max(0, nowMs - archivedAt));
 	}
 
+	function clearable(line: Line): boolean {
+		return clearableIds.includes(line.id);
+	}
+
 	function swapsOnHover(line: Line): string | false {
-		return line.pullRequest !== null && 'group-focus-within/row:hidden group-hover/row:hidden';
+		return (
+			(line.pullRequest !== null || clearable(line)) &&
+			'group-focus-within/row:hidden group-hover/row:hidden'
+		);
 	}
 
 	function accessibleNameOf(line: Line): string {
@@ -165,9 +181,11 @@
 	{#if line.fullName}
 		<RepositoryAvatar fullName={line.fullName} size={16} />
 	{/if}
-	<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
-		{line.fullName ? repositoryName(line.fullName) : line.name}
-	</span>
+	{@const repository = line.fullName ? repositoryName(line.fullName) : null}
+	<span class="text-fg-default min-w-0 truncate font-medium">{line.name || repository}</span>
+	{#if line.name && repository}
+		<span class="text-fg-quaternary text-2xs shrink-0">{repository}</span>
+	{/if}
 {/snippet}
 
 {#snippet trail(line: Line)}
@@ -206,7 +224,8 @@
 					gapClass,
 					rowClass,
 					framed && 'border-surface-50-border border-t-[0.5px]',
-					(line.open || line.pullRequest) && 'hover:bg-surface-50-hover',
+					(line.open || line.pullRequest || clearable(line)) && 'hover:bg-surface-50-hover',
+					clearable(line) && 'focus-within:pr-8 hover:pr-8',
 				]}
 			>
 				{#if line.open}
@@ -246,6 +265,24 @@
 					</Button>
 				{/if}
 				{@render trail(line)}
+				{#if clearable(line)}
+					<Tooltip
+						content="Clear from this list. It stays in Archived and in your stats."
+						placement="top"
+						class="absolute top-1/2 right-1.5 -translate-y-1/2"
+					>
+						<IconButton
+							variant="ghost"
+							size="sm"
+							class="pointer-events-none opacity-0 transition-none group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 group-hover/row:pointer-events-auto group-hover/row:opacity-100"
+							ariaLabel={`Clear ${line.name || line.fullName || 'this workstream'} from Started here`}
+							data-testid="started-workstream-clear"
+							onclick={() => clearMergedFromStarterCommand([line.id])}
+						>
+							<Icon name="close" size={12} />
+						</IconButton>
+					</Tooltip>
+				{/if}
 			</li>
 		{/each}
 	</ul>
@@ -266,5 +303,37 @@
 		{@render list()}
 	</section>
 {:else if lines.length > 0}
+	{#if heading}
+		<div class="group/heading relative">
+			<h3 class="text-fg-tertiary flex items-center gap-2 px-2 pt-1 pb-1.5 text-xs">
+				<span class="text-fg-default font-medium">{heading}</span>
+				<span
+					class={[
+						'ml-auto',
+						clearableIds.length > 0 &&
+							'group-focus-within/heading:invisible group-hover/heading:invisible',
+					]}
+				>
+					{merged} of {lines.length} merged
+				</span>
+			</h3>
+			{#if clearableIds.length > 0}
+				<Tooltip
+					content="Clear merged work from this list. It stays in Archived and in your stats."
+					placement="top"
+					class="absolute top-1 right-2"
+				>
+					<Button
+						bare
+						class="text-fg-tertiary hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none h-5 rounded-md text-xs opacity-0 outline-none group-focus-within/heading:pointer-events-auto group-focus-within/heading:opacity-100 group-hover/heading:pointer-events-auto group-hover/heading:opacity-100 focus-visible:ring-2"
+						data-testid="started-workstreams-clear-merged"
+						onclick={() => clearMergedFromStarterCommand(clearableIds)}
+					>
+						Clear merged
+					</Button>
+				</Tooltip>
+			{/if}
+		</div>
+	{/if}
 	{@render list()}
 {/if}

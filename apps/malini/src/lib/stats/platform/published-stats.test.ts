@@ -3,14 +3,13 @@ import { ORPHAN_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
-import { catalogNames, NO_SETUP } from '../domain/catalog-names';
 import { readPublishedStats } from './published-stats';
 
 const NOW = new Date(2026, 9, 15, 10);
 const PUBLIC = ['bestboyhq/malini', 'bestboyhq/grip'];
 
 describe('readPublishedStats', () => {
-	it('counts complete local days only, splits runs at midnight, weighs agents at once by time, and sends only names from the closed lists', async () => {
+	it('counts complete local days only, splits runs at midnight, weighs agents at once by time, and counts tokens and the runs you did not prompt', async () => {
 		const db = openMigratedDatabase(':memory:');
 		seedGitHubRepository(db, 'bestboyhq/malini', 'ws-malini');
 		seedGitHubRepository(db, 'bestboyhq/grip', 'ws-grip');
@@ -36,6 +35,16 @@ describe('readPublishedStats', () => {
 		seedRun(db, 'r3', 'secret', at(14, 23), at(15, 1));
 		seedRun(db, 'r4', 'lead', at(14, 22, 30), at(16, 9), ORPHAN_INTERRUPTED_ERROR);
 		seedRun(db, 'r5', 'chat', at(15, 9), at(15, 9, 30));
+		run(db, "UPDATE agent_runs SET automated = 1 WHERE id = 'r6'");
+
+		seedEvent(db, 'local', 'r0', 'user.message', at(11, 8), { text: 'go', from: 'ws-malini' });
+		seedEvent(db, 'chat', 'r1', 'user.message', at(13, 10), { text: 'go' });
+		seedEvent(db, 'chat', 'r1', 'user.message', at(13, 10, 1), { text: 'and', from: 'ws-grip' });
+		seedUsage(db, 'chat', 'r1', at(13, 12), 1_000, 50);
+		seedUsage(db, 'job', 'r2', at(13, 11, 30), 200, 10);
+		seedUsage(db, 'grip', 'r6', at(13, 15, 5), 300, 20);
+		seedUsage(db, 'secret', 'r3', at(15, 1), 9_000, 900);
+		seedUsage(db, 'chat', 'r5', at(15, 9, 30), 9_000, 900);
 
 		seedToolCalls(db, 'chat', 'r1', at(13, 10, 5), [
 			'Bash',
@@ -63,12 +72,8 @@ describe('readPublishedStats', () => {
 		seedChange(db, 'ws-malini', 'job', 'r2', at(13, 11, 30), [['src/app.ts', 1, 1]]);
 		seedChange(db, 'ws-secret', 'secret', 'r3', at(15, 1), [['src/model.py', 100, 0]]);
 
-		const stats = await readPublishedStats(
-			db,
-			NOW,
-			['bestboyhq/malini'],
-			(name) => Promise.resolve(PUBLIC.includes(name)),
-			catalogNames(null, NO_SETUP),
+		const stats = await readPublishedStats(db, NOW, ['bestboyhq/malini'], (name) =>
+			Promise.resolve(PUBLIC.includes(name)),
 		);
 
 		expect(stats).toEqual({
@@ -78,6 +83,7 @@ describe('readPublishedStats', () => {
 			totals: {
 				runs: 6,
 				jobRuns: 1,
+				automatedRuns: 3,
 				changeRuns: 2,
 				activeDays: 3,
 				toolCalls: 11,
@@ -87,6 +93,8 @@ describe('readPublishedStats', () => {
 				linesAdded: 16,
 				linesDeleted: 3,
 				filesChanged: 3,
+				inputTokens: 1_500,
+				outputTokens: 80,
 			},
 			days: [
 				{ date: '2026-10-11', runs: 1, agents: 1 },
@@ -101,31 +109,6 @@ describe('readPublishedStats', () => {
 				linesPerChange: { p50: 2 },
 				runsPerWorkstream: { p50: 1 },
 			},
-			techniques: { browserRuns: 1, subagentRuns: 0, skillRuns: 1, mcpRuns: 1, webRuns: 0 },
-			models: [
-				{ name: 'opus', count: 2 },
-				{ name: 'fable', count: 1 },
-				{ name: 'haiku', count: 1 },
-				{ name: 'other', count: 1 },
-				{ name: 'sonnet', count: 1 },
-			],
-			languages: [
-				{ name: 'TypeScript', count: 14 },
-				{ name: 'Markdown', count: 5 },
-			],
-			tools: [
-				{ name: 'Bash', count: 3 },
-				{ name: 'Browser', count: 2 },
-				{ name: 'MCP', count: 2 },
-				{ name: 'Read', count: 2 },
-				{ name: 'Skill', count: 1 },
-				{ name: 'other', count: 1 },
-			],
-			mcpServers: [
-				{ name: 'malini', count: 3 },
-				{ name: 'other', count: 1 },
-			],
-			skills: [{ name: 'other', count: 1 }],
 			repositories: [{ name: 'bestboyhq/malini', count: 2 }],
 			otherRepositories: {
 				public: { repositories: 1, runs: 1 },
@@ -134,21 +117,38 @@ describe('readPublishedStats', () => {
 		});
 	});
 
+	it('keeps the cross-checks bestboy.dev refuses an upload without', async () => {
+		const db = openMigratedDatabase(':memory:');
+		seedGitHubRepository(db, 'bestboyhq/malini', 'ws-malini');
+		seedSession(db, 'a', 'ws-malini', 'user', 'opus');
+		seedSession(db, 'b', 'ws-malini', 'user', 'opus');
+		seedSession(db, 'c', 'ws-malini', 'job', 'opus');
+		seedRun(db, 'quick', 'a', at(12, 9), at(12, 9, 1));
+		seedRun(db, 'overnight', 'a', at(13, 22), at(14, 2));
+		seedRun(db, 'beside', 'b', at(13, 23), at(13, 23, 30));
+		seedRun(db, 'third', 'c', at(13, 23, 10), at(13, 23, 20));
+		seedRun(db, 'open', 'b', at(14, 23), null);
+		seedToolCalls(db, 'a', 'overnight', at(14, 1), ['Bash', 'Bash', 'Read', 'Edit']);
+		seedToolCalls(db, 'b', 'beside', at(13, 23, 5), ['Read']);
+		seedToolCalls(db, 'b', 'open', at(14, 23, 30), ['Bash', 'Bash', 'Bash', 'Bash', 'Bash']);
+
+		const stats = await readPublishedStats(db, NOW, [], () => Promise.resolve(true));
+
+		const { totals, days, intensity } = stats ?? expect.unreachable('no stats');
+		expect(intensity.agents.max).toBe(3);
+		expect(days.every((day) => day.agents <= intensity.agents.max)).toBe(true);
+		expect(totals.toolCalls).toBeLessThanOrEqual(totals.runs * intensity.steps.max);
+		expect(totals.runs).toBeLessThanOrEqual(totals.activeDays * intensity.runsPerActiveDay.max);
+		expect(totals.runs).toBeGreaterThanOrEqual(totals.activeDays);
+	});
+
 	it('sends nothing before the first complete day with a run', async () => {
 		const db = openMigratedDatabase(':memory:');
 		seedGitHubRepository(db, 'bestboyhq/malini', 'ws-malini');
 		seedSession(db, 'chat', 'ws-malini', 'user', 'opus');
 		seedRun(db, 'today', 'chat', at(15, 8), at(15, 9));
 
-		expect(
-			await readPublishedStats(
-				db,
-				NOW,
-				[],
-				() => Promise.resolve(true),
-				catalogNames(null, NO_SETUP),
-			),
-		).toBeNull();
+		expect(await readPublishedStats(db, NOW, [], () => Promise.resolve(true))).toBeNull();
 	});
 });
 
@@ -235,7 +235,7 @@ function seedRun(
 	runId: string,
 	sessionId: string,
 	startedAt: string,
-	completedAt: string,
+	completedAt: string | null,
 	error: string | null = null,
 ): void {
 	run(
@@ -266,6 +266,21 @@ function seedEvent(
 		`${kind}\n${JSON.stringify(payload)}`,
 		emittedAt,
 	);
+}
+
+function seedUsage(
+	db: MaliniDatabase,
+	sessionId: string,
+	runId: string,
+	emittedAt: string,
+	inputTokens: number,
+	outputTokens: number,
+): void {
+	seedEvent(db, sessionId, runId, 'usage.updated', emittedAt, {
+		inputTokens,
+		outputTokens,
+		interim: false,
+	});
 }
 
 function seedToolCalls(

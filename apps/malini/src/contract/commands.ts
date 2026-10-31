@@ -104,7 +104,6 @@ import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } 
 import type {
 	ActivityStats,
 	PickRepositoriesArgs,
-	SharePartArgs,
 	ProfileState,
 	PublicRepository,
 	PublishStatsArgs,
@@ -112,6 +111,7 @@ import type {
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ShareCard,
+	RecentMoments,
 	StopRunningArgs,
 	WorkstreamRunning,
 } from './stats';
@@ -158,6 +158,7 @@ import type {
 } from './system';
 
 export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
+export type WorkstreamIdsArgs = Readonly<{ workstreamIds: readonly string[] }>;
 
 export type RepositoryBaseFilesArgs = Readonly<{ repoPath: string; baseBranch: string }>;
 
@@ -355,6 +356,10 @@ export type MergePullRequestArgs = PullRequestNumberArgs &
 		commitMessage?: string | null;
 	}>;
 
+export type RerunFailedChecksArgs = RepositoryIdArgs &
+	PullRequestWorkstreamArgs &
+	Readonly<{ runIds: readonly string[] }>;
+
 export type PullRequestTextUpdate = Readonly<{ expected: string; next: string }>;
 
 export type UpdatePullRequestMetadataArgs = PullRequestNumberArgs &
@@ -534,6 +539,7 @@ export interface ContractCommands {
 		args: PullRequestNumberArgs;
 		result: CheckDiagnosticsDto;
 	};
+	'pull-requests.rerun-failed-checks': { args: RerunFailedChecksArgs; result: void };
 	'pull-requests.review-feedback': {
 		args: PullRequestNumberArgs;
 		result: ReviewFeedbackDto;
@@ -661,6 +667,7 @@ export interface ContractCommands {
 		result: RestoreCheckpointResult;
 	};
 	'repositories.restore-workstream': { args: WorkstreamIdArgs; result: void };
+	'repositories.clear-merged-from-starter': { args: WorkstreamIdsArgs; result: void };
 	'repositories.reveal-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.sync-workstream-base': {
 		args: WorkstreamIdArgs;
@@ -733,6 +740,7 @@ export interface ContractCommands {
 	'stats.workstream-running': { args: undefined; result: readonly WorkstreamRunning[] };
 	'stats.stop-running': { args: StopRunningArgs; result: void };
 	'stats.share-card': { args: undefined; result: ShareCard };
+	'stats.moments': { args: undefined; result: RecentMoments | null };
 	'stats.profile': { args: undefined; result: ProfileState };
 	'stats.sign-in': { args: undefined; result: ProfileState };
 	'stats.cancel-sign-in': { args: undefined; result: ProfileState };
@@ -740,7 +748,6 @@ export interface ContractCommands {
 	'stats.unpublish': { args: undefined; result: ProfileState };
 	'stats.sign-out': { args: undefined; result: ProfileState };
 	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
-	'stats.share-part': { args: SharePartArgs; result: ProfileState };
 	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
@@ -829,6 +836,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.update-metadata',
 	'repositories.owner-avatar',
 	'pull-requests.check-diagnostics',
+	'pull-requests.rerun-failed-checks',
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
 	'pull-requests.status',
@@ -927,6 +935,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.restart-agent',
 	'chat.restore-checkpoint',
 	'repositories.restore-workstream',
+	'repositories.clear-merged-from-starter',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'repositories.sync-own-pull-requests',
@@ -971,6 +980,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.workstream-running',
 	'stats.stop-running',
 	'stats.share-card',
+	'stats.moments',
 	'stats.profile',
 	'stats.sign-in',
 	'stats.cancel-sign-in',
@@ -978,7 +988,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.unpublish',
 	'stats.sign-out',
 	'stats.pick-repositories',
-	'stats.share-part',
 	'stats.public-repositories',
 	'sounds.list',
 	'sounds.read',

@@ -746,4 +746,38 @@ describe('migrate', () => {
 		);
 		db.close();
 	});
+
+	it("keeps each run's tokens from its last final usage, from the events before it and as new ones are written", () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES ('s', 'w', 'idle', '2026-07-19T00:00:00Z');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES
+			  ('earlier', 's', 'go', '2026-07-19T00:00:01Z'),
+			  ('later', 's', 'go', '2026-07-19T00:01:00Z'),
+			  ('silent', 's', 'go', '2026-07-19T00:02:00Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'earlier', 'usage.updated' || char(10) || '{"inputTokens":100,"outputTokens":7}', '2026-07-19T00:00:02Z'),
+			  ('s', 'earlier', 'usage.updated' || char(10) || '{"inputTokens":250,"outputTokens":9,"interim":false}', '2026-07-19T00:00:03Z'),
+			  ('s', 'earlier', 'usage.updated' || char(10) || '{"inputTokens":1,"interim":true}', '2026-07-19T00:00:04Z'),
+			  ('s', 'earlier', 'usage.updated' || char(10) || 'not json', '2026-07-19T00:00:05Z');
+		`);
+
+		migrate(db);
+		db.exec(`
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'later', 'usage.updated' || char(10) || '{"contextTokens":5,"interim":true}', '2026-07-19T00:01:01Z'),
+			  ('s', 'later', 'usage.updated' || char(10) || '{"inputTokens":40}', '2026-07-19T00:01:02Z'),
+			  ('s', 'later', 'usage.updated' || char(10) || '{"inputTokens":', '2026-07-19T00:01:03Z'),
+			  ('s', 'silent', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:02:01Z');
+		`);
+		expect(all(db, 'SELECT id, input_tokens, output_tokens FROM agent_runs ORDER BY id')).toEqual([
+			{ id: 'earlier', input_tokens: 250, output_tokens: 9 },
+			{ id: 'later', input_tokens: 40, output_tokens: 0 },
+			{ id: 'silent', input_tokens: 0, output_tokens: 0 },
+		]);
+		db.close();
+	});
 });
