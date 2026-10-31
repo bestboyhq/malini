@@ -20,6 +20,7 @@ let db: MaliniDatabase;
 let events: EventBus;
 let working: boolean;
 let merging: boolean;
+let ended: boolean;
 let overlaps: WorkstreamBaseOverlappedPayload[];
 let watch: BaseOverlapWatch;
 
@@ -62,6 +63,7 @@ beforeEach(async () => {
 	});
 	working = false;
 	merging = false;
+	ended = false;
 	watch = new BaseOverlapWatch({
 		db,
 		events,
@@ -75,6 +77,7 @@ beforeEach(async () => {
 		},
 		agentWorking: async () => working,
 		merging: async () => merging,
+		pullRequestEnded: async () => ended,
 		log: (line) => {
 			throw new Error(line);
 		},
@@ -154,6 +157,16 @@ describe('BaseOverlapWatch', () => {
 		await watch.compare('ws');
 
 		expect(overlaps).toMatchObject([{ workstreamId: 'ws', conflicts: true }]);
+	});
+
+	it('leaves a workstream whose pull request merged or closed on GitHub alone', async () => {
+		await commit(worktree, { 'shared.txt': 'workstream\n' });
+		await commit(origin, { 'shared.txt': 'main\n' });
+		ended = true;
+
+		await watch.fetchAndCompare();
+
+		expect(overlaps).toEqual([]);
 	});
 
 	it('leaves a workstream whose pull request merged alone', async () => {

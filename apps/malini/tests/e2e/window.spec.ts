@@ -63,3 +63,16 @@ test('quitting waits on no store Chromium writes from a throttled background thr
 		await app.close();
 	}
 });
+
+test('a test run composites without the GPU, so quitting never waits on a Metal fence', async () => {
+	const app = await launchMalini();
+	try {
+		await expect(app.page).toHaveTitle('Malini · Repositories');
+		const compositing = await app.electronApp.evaluate(
+			({ app: electronApp }) => electronApp.getGPUFeatureStatus().gpu_compositing,
+		);
+		expect(compositing).toMatch(/^disabled/u);
+	} finally {
+		await app.close();
+	}
+});

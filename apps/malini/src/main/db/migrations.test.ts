@@ -31,7 +31,6 @@ const ALL_TABLES = [
 	'alarms',
 	'connected_repositories',
 	'custom_sounds',
-	'deleted_workstreams',
 	'docker_containers',
 	'event_log',
 	'hidden_repositories',

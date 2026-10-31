@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { describeError } from '$main/errors';
+import type { OwnPullRequestDto } from '$contract/repositories';
 import { WORKSTREAM_BRANCH_PREFIX, isValidBranchName, validateWorkstreamId } from '$main/git/paths';
 import { fastForwardCheckout, syncRemoteBase } from '$main/git/remote';
 import { branchList } from '$main/git/worktrees';
 import { runGit } from '$main/git/run';
 import type { MaliniDatabase } from '$main/db/driver';
+import { GhError } from '$main/errors';
 import { parseGhJson } from '$main/process/gh';
 import {
 	localRepositoriesFromProjects,
@@ -15,11 +16,10 @@ import type { CheckoutMoveGuard } from './base-sync.service';
 import type { CheckoutResolver } from './checkout-resolver';
 import { listConnectedRepositories } from './connected-repositories.repository';
 import type { GhRunner } from './github.service';
-import { listHiddenRepositoryIds } from './hidden-repositories.repository';
-import { listProjects, type Project } from './projects.repository';
+import { listProjects } from './projects.repository';
 import { projectDto } from './workstream-dto';
-import { freeWorkstreamName, getWorkstream, workstreamWasDeleted } from './workstreams.repository';
-import { createWorkstream, type WorkstreamsDeps } from './workstreams.service';
+import { freeWorkstreamName, getWorkstream } from './workstreams.repository';
+import { createWorkstream, restoreWorkstream, type WorkstreamsDeps } from './workstreams.service';
 
 export interface OwnPullRequestsDeps {
 	readonly workstreams: WorkstreamsDeps;
@@ -30,41 +30,84 @@ export interface OwnPullRequestsDeps {
 }
 
 interface OwnPullRequest {
+	readonly number: number;
+	readonly url: string;
+	readonly draft: boolean;
+	readonly updatedAt: string;
 	readonly head: string;
 	readonly title: string;
 	readonly headSha: string;
 	readonly baseBranch: string;
 }
 
-const OWN_PULL_REQUEST_FIELDS = 'title,headRefName,headRefOid,baseRefName,isCrossRepository';
+interface RepositoryProject {
+	readonly id: string;
+	readonly repoPath: string;
+}
+
+const OWN_PULL_REQUEST_FIELDS =
+	'number,url,isDraft,updatedAt,title,headRefName,headRefOid,baseRefName,isCrossRepository';
 
 const CONVENTIONAL_COMMIT_PREFIX = /^[a-z]+(?:\([^)]*\))?!?: +(?=\S)/u;
 
-export async function syncOwnPullRequests(deps: OwnPullRequestsDeps): Promise<string[]> {
-	const adopted: string[] = [];
-	for (const project of await shownProjects(deps.workstreams.db)) {
-		for (const pullRequest of await listOwnPullRequests(deps.gh, project.repoPath)) {
-			const workstreamId = pullRequestWorkstreamId(project.id, pullRequest.head);
-			const workstream = getWorkstream(deps.workstreams.db, workstreamId);
-			if (workstream === null) {
-				if (await adopt(deps, project, workstreamId, pullRequest)) adopted.push(workstreamId);
-			} else if (workstream.status === 'active') {
-				await fastForward(deps, workstream.id, workstream.branch, pullRequest).catch(() => {});
-			}
-		}
-	}
-	return adopted;
+export async function listOwnPullRequests(
+	deps: OwnPullRequestsDeps,
+	repoId: string,
+): Promise<OwnPullRequestDto[]> {
+	const project = await repositoryProject(deps.workstreams.db, repoId);
+	if (project === null) return [];
+	return (await openPullRequests(deps.gh, project.repoPath)).map((pullRequest) => {
+		const workstreamId = pullRequestWorkstreamId(project.id, pullRequest.head);
+		const status = getWorkstream(deps.workstreams.db, workstreamId)?.status;
+		return {
+			number: pullRequest.number,
+			title: pullRequest.title,
+			url: pullRequest.url,
+			draft: pullRequest.draft,
+			updatedAt: pullRequest.updatedAt,
+			head: pullRequest.head,
+			workstreamId,
+			workstream: status === 'active' || status === 'archived' ? status : null,
+		};
+	});
 }
 
-async function shownProjects(db: MaliniDatabase): Promise<Project[]> {
-	const projects = await Promise.all(listProjects(db).map(projectDto));
-	const hidden = new Set(listHiddenRepositoryIds(db));
-	const hiddenProjectIds = new Set(
-		mergeRepositories(listConnectedRepositories(db), localRepositoriesFromProjects(projects))
-			.filter((repository) => hidden.has(repository.id))
-			.flatMap((repository) => repositoryProjectIds(repository, projects)),
+export async function continueOwnPullRequest(
+	deps: OwnPullRequestsDeps,
+	repoId: string,
+	head: string,
+): Promise<string> {
+	const project = await repositoryProject(deps.workstreams.db, repoId);
+	if (project === null) throw new Error('This repository has no checkout on this Mac yet.');
+	const pullRequest = (await openPullRequests(deps.gh, project.repoPath)).find(
+		(open) => open.head === head,
 	);
-	return projects.filter((project) => !hiddenProjectIds.has(project.id));
+	if (pullRequest === undefined) throw new Error(`You have no open pull request from ${head}.`);
+	const workstreamId = pullRequestWorkstreamId(project.id, head);
+	const workstream = getWorkstream(deps.workstreams.db, workstreamId);
+	if (workstream === null) {
+		await adopt(deps, project, workstreamId, pullRequest);
+		return workstreamId;
+	}
+	if (workstream.status === 'archived') await restoreWorkstream(deps.workstreams, workstreamId);
+	await fastForward(deps, workstreamId, workstream.branch, pullRequest).catch(() => {});
+	return workstreamId;
+}
+
+async function repositoryProject(
+	db: MaliniDatabase,
+	repoId: string,
+): Promise<RepositoryProject | null> {
+	const projects = await Promise.all(listProjects(db).map(projectDto));
+	const repository = mergeRepositories(
+		listConnectedRepositories(db),
+		localRepositoriesFromProjects(projects),
+	).find(({ id }) => id === repoId);
+	if (!repository) return null;
+	const projectIds = new Set(repositoryProjectIds(repository, projects));
+	return (
+		projects.find((project) => projectIds.has(project.id) && project.repoPath.length > 0) ?? null
+	);
 }
 
 function ownPullRequests(listed: unknown): OwnPullRequest[] {
@@ -77,6 +120,9 @@ function ownPullRequests(listed: unknown): OwnPullRequest[] {
 
 function ownPullRequest(entry: unknown): OwnPullRequest | null {
 	if (typeof entry !== 'object' || entry === null) return null;
+	const number: unknown = Reflect.get(entry, 'number');
+	const url: unknown = Reflect.get(entry, 'url');
+	const updatedAt: unknown = Reflect.get(entry, 'updatedAt');
 	const head: unknown = Reflect.get(entry, 'headRefName');
 	const headSha: unknown = Reflect.get(entry, 'headRefOid');
 	const baseBranch: unknown = Reflect.get(entry, 'baseRefName');
@@ -85,7 +131,11 @@ function ownPullRequest(entry: unknown): OwnPullRequest | null {
 	if (typeof head !== 'string' || !isValidBranchName(head)) return null;
 	if (typeof baseBranch !== 'string' || !isValidBranchName(baseBranch)) return null;
 	if (typeof headSha !== 'string' || typeof title !== 'string') return null;
-	return { head, title, headSha, baseBranch };
+	if (typeof number !== 'number' || typeof url !== 'string' || typeof updatedAt !== 'string') {
+		return null;
+	}
+	const draft = Reflect.get(entry, 'isDraft') === true;
+	return { number, url, draft, updatedAt, head, title, headSha, baseBranch };
 }
 
 function pullRequestWorkstreamId(projectId: string, head: string): string {
@@ -115,58 +165,48 @@ async function workstreamName(deps: OwnPullRequestsDeps, title: string): Promise
 	return suggested?.trim() || titleName(title);
 }
 
-async function listOwnPullRequests(gh: GhRunner, repoPath: string): Promise<OwnPullRequest[]> {
-	try {
-		const result = await gh(
-			[
-				'pr',
-				'list',
-				'--author',
-				'@me',
-				'--state',
-				'open',
-				'--limit',
-				'100',
-				'--json',
-				OWN_PULL_REQUEST_FIELDS,
-			],
-			{ cwd: repoPath },
-		);
-		return result.code === 0 ? ownPullRequests(parseGhJson<unknown>(result, 'gh pr list')) : [];
-	} catch {
-		return [];
-	}
+async function openPullRequests(gh: GhRunner, repoPath: string): Promise<OwnPullRequest[]> {
+	const result = await gh(
+		[
+			'pr',
+			'list',
+			'--author',
+			'@me',
+			'--state',
+			'open',
+			'--limit',
+			'100',
+			'--json',
+			OWN_PULL_REQUEST_FIELDS,
+		],
+		{ cwd: repoPath },
+	);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	return ownPullRequests(parseGhJson<unknown>(result, 'gh pr list'));
 }
 
 async function adopt(
 	deps: OwnPullRequestsDeps,
-	project: Project,
+	project: RepositoryProject,
 	workstreamId: string,
 	pullRequest: OwnPullRequest,
-): Promise<boolean> {
+): Promise<void> {
 	const { db, credentials } = deps.workstreams;
-	if (workstreamWasDeleted(db, workstreamId)) return false;
-	try {
-		if ((await branchList(project.repoPath)).includes(pullRequest.head)) return false;
-		const startRef = await syncRemoteBase(project.repoPath, pullRequest.head, null, credentials);
-		const name = await workstreamName(deps, pullRequest.title);
-		await createWorkstream(deps.workstreams, {
-			projectRepoPath: project.repoPath,
-			workstreamId,
-			branch: pullRequest.head,
-			baseBranch: pullRequest.baseBranch,
-			projectId: project.id,
-			name: freeWorkstreamName(db, project.id, workstreamId, name),
-			githubToken: null,
-			startRef,
-		});
-		return true;
-	} catch (error) {
-		console.error(
-			`malini: could not open your pull request branch \`${pullRequest.head}\` as a workstream: ${describeError(error)}`,
-		);
-		return false;
+	if ((await branchList(project.repoPath)).includes(pullRequest.head)) {
+		throw new Error(`The branch ${pullRequest.head} is already checked out in this repository.`);
 	}
+	const startRef = await syncRemoteBase(project.repoPath, pullRequest.head, null, credentials);
+	const name = await workstreamName(deps, pullRequest.title);
+	await createWorkstream(deps.workstreams, {
+		projectRepoPath: project.repoPath,
+		workstreamId,
+		branch: pullRequest.head,
+		baseBranch: pullRequest.baseBranch,
+		projectId: project.id,
+		name: freeWorkstreamName(db, project.id, workstreamId, name),
+		githubToken: null,
+		startRef,
+	});
 }
 
 async function fastForward(
