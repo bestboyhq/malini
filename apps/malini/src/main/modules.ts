@@ -176,7 +176,6 @@ export async function registerModules(
 		stopBackgroundTask: (sessionId, taskId) => chat.stopBackgroundTask(sessionId, taskId),
 		nameService: (task) => chat.nameService(task),
 		openExternal: (url) => shellHost.openExternal(url),
-		claudeFiles: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()),
 		cipher: shellHost,
 	});
 	stats.start();

@@ -50,6 +50,7 @@
 	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
+	import { momentQuery } from '$lib/stats/application/queries/moment.query.svelte';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { stopRunningCommand } from '$lib/stats/application/commands/stop-running.command';
 	import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
@@ -2095,7 +2096,9 @@
 
 	<ConnectRepositoryContextMenu target={connectMenu} onclose={closeContextMenu} />
 
-	<SidebarArchived />
+	{#if !momentQuery.data}
+		<SidebarArchived />
+	{/if}
 
 	<SidebarFooter />
 </SidebarFrame>

@@ -1,24 +1,6 @@
-import type {
-	NamedCount,
-	Percentiles,
-	PublishedStats,
-	SharedParts,
-	SharedStats,
-	StatsTechniques,
-} from '$contract/stats';
+import type { NamedCount, Percentiles, PublishedStats } from '$contract/stats';
 import { dayStreak, localDate, shiftDate } from './activity';
 import { agentsAtOnce } from './agents-at-once';
-import { MALINI_SERVER, type CatalogNames } from './catalog-names';
-import {
-	BROWSER_TOOL_PREFIX,
-	languageOf,
-	modelFamily,
-	SCREENSHOT_TOOL,
-	SKILL_TOOL,
-	SUBAGENT_TOOLS,
-	toolGroup,
-	WEB_TOOLS,
-} from './stats-names';
 
 export type StatsRun = Readonly<{
 	id: string;
@@ -26,7 +8,9 @@ export type StatsRun = Readonly<{
 	completedAt: string | null;
 	endedAt: string | null;
 	job: boolean;
-	model: string | null;
+	automated: boolean;
+	inputTokens: number;
+	outputTokens: number;
 	workstreamId: string;
 	repository: string | null;
 }>;
@@ -34,7 +18,6 @@ export type StatsRun = Readonly<{
 export type StatsToolCalls = Readonly<{
 	runId: string;
 	tool: string;
-	skill: string;
 	calls: number;
 }>;
 
@@ -57,12 +40,11 @@ export type StatsSources = Readonly<{
 	workstreams: readonly StatsWorkstream[];
 	repositories: ReadonlyMap<string, StatsRepository>;
 	picked: readonly string[];
-	names: CatalogNames;
 }>;
 
 const PUBLISHED_DAYS = 371;
 const MAX_REPOSITORIES = 10;
-const MAX_NAMES = 40;
+const SCREENSHOT_TOOL = 'mcp__malini__browser_screenshot';
 const MAX_RUN_SECONDS = 30 * 24 * 60 * 60;
 
 export function statsCutoff(now: Date): Date {
@@ -104,6 +86,7 @@ export function publishedStats(sources: StatsSources, cutoff: Date): PublishedSt
 		totals: {
 			runs: runs.length,
 			jobRuns: runs.filter((run) => run.job).length,
+			automatedRuns: runs.filter((run) => run.automated).length,
 			changeRuns: linesByRun.size,
 			activeDays: dates.length,
 			toolCalls: total(sources.finishedToolCalls, (call) => call.calls),
@@ -121,6 +104,8 @@ export function publishedStats(sources: StatsSources, cutoff: Date): PublishedSt
 			linesDeleted: total(sources.changedFiles, (file) => file.deletions),
 			filesChanged: new Set(sources.changedFiles.map((file) => `${file.repository}\0${file.path}`))
 				.size,
+			inputTokens: total(finished, (run) => run.inputTokens),
+			outputTokens: total(finished, (run) => run.outputTokens),
 		},
 		days: dates
 			.filter((date) => date >= firstDay)
@@ -143,50 +128,7 @@ export function publishedStats(sources: StatsSources, cutoff: Date): PublishedSt
 				]).p50,
 			},
 		},
-		techniques: runTechniques(sources.finishedToolCalls),
-		models: namedCounts(countBy(runs, (run) => modelFamily(run.model))),
-		languages: namedCounts(
-			sumBy(
-				sources.changedFiles,
-				(file) => languageOf(file.path),
-				(file) => file.additions + file.deletions,
-			),
-		),
-		tools: namedCounts(
-			sumBy(
-				sources.finishedToolCalls,
-				(call) => toolGroup(call.tool),
-				(call) => call.calls,
-			),
-		),
-		mcpServers: cappedCounts(
-			sumBy(
-				sources.finishedToolCalls,
-				(call) => sources.names.mcpServer(call.tool),
-				(call) => call.calls,
-			),
-		),
-		skills: cappedCounts(
-			sumBy(
-				sources.finishedToolCalls,
-				(call) => (call.tool === SKILL_TOOL ? sources.names.skill(call.skill) : null),
-				(call) => call.calls,
-			),
-		),
 		...repositoryCounts(runs, sources.repositories, sources.picked),
-	};
-}
-
-export function sharedStats(stats: PublishedStats, parts: SharedParts): SharedStats {
-	const { techniques, tools, models, languages, mcpServers, skills, ...always } = stats;
-	return {
-		...always,
-		...(parts.techniques ? { techniques } : {}),
-		...(parts.tools ? { tools } : {}),
-		...(parts.models ? { models } : {}),
-		...(parts.languages ? { languages } : {}),
-		...(parts.mcpServers ? { mcpServers } : {}),
-		...(parts.skills ? { skills } : {}),
 	};
 }
 
@@ -213,34 +155,6 @@ function repositoryCounts(
 		group.runs += count;
 	}
 	return { repositories: namedCounts(named).slice(0, MAX_REPOSITORIES), otherRepositories: others };
-}
-
-function runTechniques(calls: readonly StatsToolCalls[]): StatsTechniques {
-	const runsUsing = (uses: (tool: string) => boolean): number =>
-		new Set(calls.filter((call) => uses(call.tool)).map((call) => call.runId)).size;
-	return {
-		browserRuns: runsUsing((tool) => tool.startsWith(BROWSER_TOOL_PREFIX)),
-		subagentRuns: runsUsing((tool) => SUBAGENT_TOOLS.has(tool)),
-		skillRuns: runsUsing((tool) => tool === SKILL_TOOL),
-		mcpRuns: runsUsing(
-			(tool) => tool.startsWith('mcp__') && !tool.startsWith(`mcp__${MALINI_SERVER}__`),
-		),
-		webRuns: runsUsing((tool) => WEB_TOOLS.has(tool)),
-	};
-}
-
-function cappedCounts(counts: ReadonlyMap<string, number>): NamedCount[] {
-	const sorted = namedCounts(counts);
-	if (sorted.length <= MAX_NAMES) return sorted;
-	const named = sorted.filter(({ name }) => name !== 'other').slice(0, MAX_NAMES - 1);
-	const kept = new Set(named.map(({ name }) => name));
-	const other = total(
-		sorted.filter(({ name }) => !kept.has(name)),
-		({ count }) => count,
-	);
-	return namedCounts(
-		new Map([...named.map(({ name, count }) => [name, count] as const), ['other', other]]),
-	);
 }
 
 function runSeconds(run: StatsRun): number {

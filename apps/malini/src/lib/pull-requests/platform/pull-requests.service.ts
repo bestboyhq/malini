@@ -406,6 +406,107 @@ export function aggregateChecksState(
 	return seen ? 'success' : 'unknown';
 }
 
+const CHECK_SUITE_REPORT_LIMIT_MS = 20 * 60_000;
+const CHECK_SUITE_SETTLE_MS = 30_000;
+const REPORTING_APPS_REUSE_MS = 10 * 60_000;
+
+const REPORTING_APPS_QUERY = `query($owner: String!, $name: String!, $base: String!) {
+  repository(owner: $owner, name: $name) {
+    object(expression: $base) {
+      ... on Commit {
+        history(first: 10) {
+          nodes { checkSuites(first: 10) { nodes { app { databaseId } checkRuns(first: 1) { totalCount } } } }
+        }
+      }
+    }
+  }
+}`;
+
+const reportingAppReads = new WeakMap<
+	GhRunner,
+	Map<string, Readonly<{ at: number; apps: ReadonlySet<number> }>>
+>();
+
+export async function checkSuitesStillToReport(
+	run: GhRunner,
+	checkout: string,
+	repository: ConnectedRepository,
+	headSha: string,
+	base: string,
+): Promise<boolean> {
+	const suites = await readJson(run, checkout, [
+		'api',
+		`repos/${repository.fullName}/commits/${headSha}/check-suites?per_page=100`,
+	]);
+	const apps = unsettledCheckSuiteApps(suites, Date.now());
+	if (apps.length === 0) return false;
+	const reporting = await appsReportingOn(run, checkout, repository, base);
+	return apps.some((app) => reporting.has(app));
+}
+
+function unsettledCheckSuiteApps(body: unknown, now: number): number[] {
+	return arrayOf(nested(body, ['check_suites'])).flatMap((suite) => {
+		const app = numberOrNull(nested(suite, ['app', 'id']));
+		const age = now - Date.parse(textOrNull(nested(suite, ['created_at'])) ?? '');
+		if (app === null || !(age < CHECK_SUITE_REPORT_LIMIT_MS)) return [];
+		const unposted =
+			nested(suite, ['status']) !== 'completed' && nested(suite, ['latest_check_runs_count']) === 0;
+		const changedAt = Date.parse(textOrNull(nested(suite, ['updated_at'])) ?? '');
+		return unposted || now - changedAt < CHECK_SUITE_SETTLE_MS ? [app] : [];
+	});
+}
+
+async function appsReportingOn(
+	run: GhRunner,
+	checkout: string,
+	repository: ConnectedRepository,
+	base: string,
+): Promise<ReadonlySet<number>> {
+	const reads = reportingAppReads.get(run) ?? new Map();
+	reportingAppReads.set(run, reads);
+	const key = `${repository.fullName}\n${base}`;
+	const reused = reads.get(key);
+	if (reused && Date.now() - reused.at < REPORTING_APPS_REUSE_MS) return reused.apps;
+	const [owner = '', name = ''] = repository.fullName.split('/');
+	const body = await readJson(run, checkout, [
+		'api',
+		'graphql',
+		'-f',
+		`query=${REPORTING_APPS_QUERY}`,
+		'-f',
+		`owner=${owner}`,
+		'-f',
+		`name=${name}`,
+		'-f',
+		`base=${base}`,
+	]);
+	if (body === null) return new Set();
+	const commits = arrayOf(nested(body, ['data', 'repository', 'object', 'history', 'nodes']));
+	const apps = new Set(
+		commits
+			.flatMap((commit) => arrayOf(nested(commit, ['checkSuites', 'nodes'])))
+			.filter((suite) => (numberOrNull(nested(suite, ['checkRuns', 'totalCount'])) ?? 0) > 0)
+			.flatMap((suite) => numberOrNull(nested(suite, ['app', 'databaseId'])) ?? []),
+	);
+	reads.set(key, { at: Date.now(), apps });
+	return apps;
+}
+
+async function readJson(
+	run: GhRunner,
+	checkout: string,
+	args: readonly string[],
+): Promise<unknown> {
+	const result = await run(args, { cwd: checkout }).catch(() => null);
+	if (result?.code !== 0) return null;
+	try {
+		const body: unknown = JSON.parse(result.stdout);
+		return body;
+	} catch {
+		return null;
+	}
+}
+
 export async function fetchCheckDiagnostics(
 	run: GhRunner,
 	checkout: string,

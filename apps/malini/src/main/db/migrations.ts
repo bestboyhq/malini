@@ -1254,6 +1254,34 @@ ALTER TABLE workstream_ship ADD COLUMN checks_rerun_at TEXT;
 ALTER TABLE workstream_ship ADD COLUMN checks_rerun_head_sha TEXT;
 `,
 	`
+ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0;
+UPDATE agent_runs SET input_tokens = usage.input_tokens, output_tokens = usage.output_tokens
+FROM (
+  SELECT run_id,
+    json_extract(substr(event, 15), '$.inputTokens') AS input_tokens,
+    COALESCE(json_extract(substr(event, 15), '$.outputTokens'), 0) AS output_tokens,
+    ROW_NUMBER() OVER (PARTITION BY run_id ORDER BY seq DESC) AS latest
+  FROM agent_events
+  WHERE event LIKE 'usage.updated' || char(10) || '%'
+    AND json_valid(substr(event, 15))
+    AND json_type(substr(event, 15), '$.inputTokens') = 'integer'
+    AND json_type(substr(event, 15), '$.interim') IS NOT 'true'
+) AS usage
+WHERE usage.run_id = agent_runs.id AND usage.latest = 1;
+CREATE TRIGGER agent_events_count_tokens AFTER INSERT ON agent_events
+  WHEN NEW.event LIKE 'usage.updated' || char(10) || '%'
+    AND json_valid(substr(NEW.event, 15))
+    AND json_type(substr(NEW.event, 15), '$.inputTokens') = 'integer'
+    AND json_type(substr(NEW.event, 15), '$.interim') IS NOT 'true'
+BEGIN
+  UPDATE agent_runs SET
+    input_tokens = json_extract(substr(NEW.event, 15), '$.inputTokens'),
+    output_tokens = COALESCE(json_extract(substr(NEW.event, 15), '$.outputTokens'), 0)
+  WHERE id = NEW.run_id;
+END;
+`,
+	`
 ALTER TABLE workstreams ADD COLUMN cleared_from_starter INTEGER NOT NULL DEFAULT 0
   CHECK (cleared_from_starter IN (0, 1));
 `,

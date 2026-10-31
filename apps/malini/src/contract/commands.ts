@@ -83,7 +83,6 @@ import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } 
 import type {
 	ActivityStats,
 	PickRepositoriesArgs,
-	SharePartArgs,
 	ProfileState,
 	PublicRepository,
 	PublishStatsArgs,
@@ -91,7 +90,7 @@ import type {
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ShareCard,
-	MomentCard,
+	RecentMoments,
 	StopRunningArgs,
 	WorkstreamRunning,
 } from './stats';
@@ -719,7 +718,7 @@ export interface ContractCommands {
 	'stats.workstream-running': { args: undefined; result: readonly WorkstreamRunning[] };
 	'stats.stop-running': { args: StopRunningArgs; result: void };
 	'stats.share-card': { args: undefined; result: ShareCard };
-	'stats.moment': { args: undefined; result: MomentCard | null };
+	'stats.moments': { args: undefined; result: RecentMoments | null };
 	'stats.profile': { args: undefined; result: ProfileState };
 	'stats.sign-in': { args: undefined; result: ProfileState };
 	'stats.cancel-sign-in': { args: undefined; result: ProfileState };
@@ -727,7 +726,6 @@ export interface ContractCommands {
 	'stats.unpublish': { args: undefined; result: ProfileState };
 	'stats.sign-out': { args: undefined; result: ProfileState };
 	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
-	'stats.share-part': { args: SharePartArgs; result: ProfileState };
 	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
@@ -948,7 +946,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.workstream-running',
 	'stats.stop-running',
 	'stats.share-card',
-	'stats.moment',
+	'stats.moments',
 	'stats.profile',
 	'stats.sign-in',
 	'stats.cancel-sign-in',
@@ -956,7 +954,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.unpublish',
 	'stats.sign-out',
 	'stats.pick-repositories',
-	'stats.share-part',
 	'stats.public-repositories',
 	'sounds.list',
 	'sounds.read',

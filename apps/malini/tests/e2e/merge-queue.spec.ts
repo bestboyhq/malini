@@ -37,6 +37,24 @@ const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
 const KEEP_EXPLAINER = 'Skip archiving after the merge';
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 const FLAKY_JOB = 'e2e on macOS 3/5';
+const WORKERS_BUILDS = 85455;
+const SILENT_APP = 29110;
+const WORKERS_BUILD_PASSED = {
+	name: 'Workers Builds: hutch',
+	status: 'COMPLETED',
+	conclusion: 'SUCCESS',
+};
+
+function checkSuite(app: number, status: string, runs: number) {
+	const minuteAgo = new Date(Date.now() - 60_000).toISOString();
+	return {
+		app: { id: app },
+		status,
+		latest_check_runs_count: runs,
+		created_at: minuteAgo,
+		updated_at: minuteAgo,
+	};
+}
 
 function actionsJob(conclusion: string | null, completedAt: string | null = null) {
 	return [
@@ -380,6 +398,48 @@ test('a command the agent left running in the background does not hold the merge
 		expect(
 			await invoke(page, 'chat.workstream-has-open-run', { workstreamId: 'e2e-merge-dev-server' }),
 		).toBe(false);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the queue waits for a Workers build that has not posted its check yet, and merges once it passes', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-merge-workers-build', {
+			liveHead: true,
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: PASSED,
+			checkSuites: [checkSuite(WORKERS_BUILDS, 'queued', 0), checkSuite(SILENT_APP, 'queued', 0)],
+			reportingApps: [WORKERS_BUILDS],
+		});
+		await openWorkstream(page, 'e2e-merge-workers-build');
+		const name = await workstreamName(page, 'e2e-merge-workers-build');
+		await queueMerge(page);
+
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
+		const reads = checkSuiteReads(github);
+		await expect
+			.poll(() => checkSuiteReads(github), { timeout: 30_000 })
+			.toBeGreaterThan(reads + 2);
+		expect(mergeCalls(github)).toEqual([]);
+		await captureFlow(app, 'merge-queue-waiting-for-workers-build');
+
+		github.setPullRequest({
+			statusCheckRollup: [...PASSED, WORKERS_BUILD_PASSED],
+			checkSuites: [
+				checkSuite(WORKERS_BUILDS, 'completed', 1),
+				checkSuite(SILENT_APP, 'queued', 0),
+			],
+		});
+
+		await expectMergedAndArchived(page, 'e2e-merge-workers-build', name);
+		expect(mergeCalls(github)).toHaveLength(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -750,6 +810,12 @@ function rerunCalls(github: FakeGithub): string[][] {
 async function fixChecksRuns(page: Page): Promise<{ title: string }[]> {
 	const runs = await invoke<{ title: string }[]>(page, 'jobs.list-runs', undefined);
 	return runs.filter((run) => run.title === 'Fix checks');
+}
+
+function checkSuiteReads(github: FakeGithub): number {
+	return github
+		.calls()
+		.filter(([command, sub]) => command === 'api' && sub?.includes('/check-suites')).length;
 }
 
 function mergeCalls(github: FakeGithub): string[][] {
