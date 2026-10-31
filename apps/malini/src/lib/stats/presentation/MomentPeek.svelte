@@ -46,17 +46,15 @@
 	>
 		<div class="flex items-center justify-between gap-2">
 			{#if badge}
-				<p class="flex min-w-0 items-center gap-1.5 text-xs">
+				<p class={['flex min-w-0 items-center text-xs', claimed ? 'gap-2' : 'gap-1.5']}>
 					<Icon
 						name={badge.icon}
-						size={14}
+						size={claimed ? 20 : 14}
 						class={['shrink-0', badge.tone, badge.icon === 'flame' && 'moment-peek__flame']}
 					/>
-					<span class={['flex min-w-0 gap-x-1.5', claimed && 'flex-wrap']}>
+					<span class={['flex min-w-0', claimed ? 'flex-col' : 'gap-1.5']}>
 						<span class="text-fg-default shrink-0 font-medium">{badge.cheer}</span>
-						<span class={['text-fg-tertiary', claimed ? 'shrink-0' : 'truncate']}>
-							{badge.fact}
-						</span>
+						<span class="text-fg-tertiary truncate">{badge.fact}</span>
 					</span>
 				</p>
 			{/if}
