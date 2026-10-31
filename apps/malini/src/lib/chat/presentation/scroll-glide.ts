@@ -6,6 +6,10 @@ export const SCROLL_GLIDE_SETTLE_VELOCITY = 8;
 
 const DEVICE_PIXEL_SNAP_PX = 1;
 
+const FLOAT_SLACK_DEVICE_PX = 1 / 1024;
+
+const AT_TARGET: GlideState = { position: 0, velocity: 0 };
+
 export const GLIDE_SAMPLE_MS = 1000 / 240;
 
 export const GLIDE_KEYFRAMES_PER_SAMPLE = 4;
@@ -19,6 +23,16 @@ const STALLED_FRAME_MS = 34;
 export function snapToDevicePixel(px: number): number {
 	const ratio = globalThis.devicePixelRatio || 1;
 	return Math.round(px * ratio) / ratio;
+}
+
+export function floorToDevicePixel(px: number): number {
+	const ratio = globalThis.devicePixelRatio || 1;
+	return Math.floor(px * ratio + FLOAT_SLACK_DEVICE_PX) / ratio;
+}
+
+export function ceilToDevicePixel(px: number): number {
+	const ratio = globalThis.devicePixelRatio || 1;
+	return Math.ceil(px * ratio - FLOAT_SLACK_DEVICE_PX) / ratio;
 }
 
 export type ScrollGlideTarget = Pick<HTMLElement, 'scrollTop'>;
@@ -139,18 +153,22 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 	let originMs: number | null = null;
 	let steppedAtMs: number | null = null;
 	let stiffness = readStiffness();
-	let samples: GlideState[] = [{ position: 0, velocity: 0 }];
+	let samples: GlideState[] = [AT_TARGET];
 	let shown = 0;
 
+	function onTarget(sample: GlideState | undefined): GlideState {
+		return { position: target + (sample?.position ?? 0), velocity: sample?.velocity ?? 0 };
+	}
+
 	function current(): GlideState {
-		if (originMs === null || steppedAtMs === null)
-			return samples[0] ?? { position: 0, velocity: 0 };
-		return glideSampleAt(samples, glideOrigin(steppedAtMs) - originMs);
+		if (originMs === null || steppedAtMs === null) return onTarget(samples[0]);
+		return onTarget(glideSampleAt(samples, glideOrigin(steppedAtMs) - originMs));
 	}
 
 	function replan(from: GlideState): void {
 		stiffness = readStiffness();
-		samples = glideSamples(from, target, stiffness);
+		const offset = { position: from.position - target, velocity: from.velocity };
+		samples = glideSamples(offset, 0, stiffness);
 		originMs = steppedAtMs === null ? null : glideOrigin(steppedAtMs);
 	}
 
@@ -164,7 +182,7 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 
 	function settle(node: ScrollGlideTarget): void {
 		node.scrollTop = shown = target;
-		samples = [{ position: target, velocity: 0 }];
+		samples = [AT_TARGET];
 		stop();
 		onSettle?.();
 	}
@@ -188,7 +206,7 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 			settle(node);
 			return;
 		}
-		node.scrollTop = shown = glidePosition(samples, keyframe);
+		node.scrollTop = shown = target + glidePosition(samples, keyframe);
 		frame = requestFrame(step);
 	}
 
@@ -196,7 +214,7 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 		glide(node: ScrollGlideTarget, nextTarget: number): void {
 			if (!Number.isFinite(nextTarget)) return;
 			const inFlight = element === node && frame !== null;
-			const now = inFlight ? current() : (samples[0] ?? { position: 0, velocity: 0 });
+			const now = inFlight ? current() : onTarget(samples[0]);
 			const scrollTop = node.scrollTop;
 			const from = {
 				position: inFlight && unmoved(scrollTop, shown) ? now.position : scrollTop,
@@ -209,7 +227,7 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 				Math.abs(from.velocity) <= SCROLL_GLIDE_SETTLE_VELOCITY
 			) {
 				node.scrollTop = shown = target;
-				samples = [{ position: target, velocity: 0 }];
+				samples = [AT_TARGET];
 				stop();
 				return;
 			}
@@ -227,13 +245,13 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 		jump(node: ScrollGlideTarget, nextTarget: number): void {
 			if (!Number.isFinite(nextTarget)) return;
 			stop();
-			node.scrollTop = shown = nextTarget;
-			samples = [{ position: nextTarget, velocity: 0 }];
+			node.scrollTop = shown = target = nextTarget;
+			samples = [AT_TARGET];
 		},
 		cancel(): void {
 			const at = current();
 			stop();
-			samples = [{ position: at.position, velocity: 0 }];
+			samples = [{ position: at.position - target, velocity: 0 }];
 		},
 		get isGliding(): boolean {
 			return frame !== null;

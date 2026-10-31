@@ -1,5 +1,5 @@
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
-import { createScrollGlide, snapToDevicePixel } from '../scroll-glide';
+import { createScrollGlide, floorToDevicePixel, snapToDevicePixel } from '../scroll-glide';
 import { arrivalMotion } from '../arrival-motion';
 
 export type TranscriptFollow = 'bottom' | 'reader';
@@ -141,7 +141,7 @@ export function createTranscriptScroll(
 	}
 
 	function naturalMaxTop(viewport: HTMLElement): number {
-		return Math.max(0, viewport.scrollHeight - holdSpacePx - viewport.clientHeight);
+		return Math.max(0, maxScrollTop(viewport) - holdSpacePx);
 	}
 
 	function readAnchor(viewport: HTMLElement, list: HTMLElement): TranscriptAnchor | null {
@@ -265,7 +265,7 @@ export function createTranscriptScroll(
 		shownTop = Math.max(0, shownTop + shift);
 		if (hovering) heldTop += shift;
 		fillBlankBelow(viewport);
-		const target = targetTop(viewport, list);
+		const target = floorToDevicePixel(targetTop(viewport, list));
 		const animate = glides() && cause === 'content';
 		const holdShown = animate && (scrollGlide.isGliding || shrunkUnderView || shift !== 0);
 		holdSpaceFor(viewport, holdShown ? Math.max(target, shownTop) : target);
@@ -688,6 +688,16 @@ export function createTranscriptScroll(
 			scrollGlide.cancel();
 		},
 	};
+}
+
+function maxScrollTop(viewport: HTMLElement): number {
+	const content = viewport.firstElementChild;
+	if (!content) return viewport.scrollHeight - viewport.clientHeight;
+	const view = viewport.getBoundingClientRect();
+	const visibleHeight = view.height - (viewport.offsetHeight - viewport.clientHeight);
+	const contentBottom =
+		content.getBoundingClientRect().bottom - view.top - viewport.clientTop + viewport.scrollTop;
+	return contentBottom - visibleHeight;
 }
 
 function firstEndingBelow(elements: ArrayLike<Element>, y: number): number {
