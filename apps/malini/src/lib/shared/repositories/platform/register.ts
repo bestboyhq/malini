@@ -120,6 +120,7 @@ export interface RepositoriesDeps {
 	readonly startupReclaim?: boolean;
 	readonly guardRunLease?: TeardownGuard;
 	readonly guardCheckoutMove?: CheckoutMoveGuard;
+	readonly guardBranchUpdate?: CheckoutMoveGuard;
 	readonly nameWorkstream?: (task: string) => Promise<string>;
 	readonly log?: (line: string) => void;
 }
@@ -154,6 +155,7 @@ export function registerRepositories(
 		getWorkstream(db, workstreamId)?.branch ?? workstreamBranchName(workstreamId);
 	const guardCheckoutMove: CheckoutMoveGuard =
 		deps.guardCheckoutMove ?? ((_workstreamId, move) => move());
+	const guardBranchUpdate = deps.guardBranchUpdate ?? guardCheckoutMove;
 	const baseSync = new WorkstreamBaseSync({ db, credentials, checkouts, guardCheckoutMove });
 
 	const watchers = createWorkstreamWatchers({
@@ -406,7 +408,7 @@ export function registerRepositories(
 			baseBranch,
 			githubToken,
 			credentials,
-			(move) => guardCheckoutMove(workstreamId, move),
+			(move) => guardBranchUpdate(workstreamId, move),
 		);
 		await watchers.refresh(workstreamId);
 		const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
