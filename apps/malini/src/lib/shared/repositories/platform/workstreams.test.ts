@@ -192,6 +192,9 @@ describe('lead chats', () => {
 		expect(
 			(await realGit(join(appDataRoot, 'lead-space'), ['config', 'core.hooksPath'])).trim(),
 		).toBe('/dev/null');
+		await invoke('repositories.archive-workstream', { workstreamId: 'lead-home' });
+		await invoke('repositories.restore-workstream', { workstreamId: 'lead-home' });
+		expect(getWorkstream(db, 'lead-home')?.status).toBe('active');
 		await expect(
 			invoke('repositories.create-lead', { scope: 'owner:', workstreamId: 'lead-x', name: 'X' }),
 		).rejects.toThrow('`scope` must be `home` or `owner:<owner>`');

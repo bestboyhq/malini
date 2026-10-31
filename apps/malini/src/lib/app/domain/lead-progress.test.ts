@@ -64,6 +64,12 @@ describe('lead progress', () => {
 			label: 'No workstreams yet',
 			detail: null,
 		});
+		expect(leadHeadline([], 3)).toEqual({
+			tone: 'merged',
+			busy: false,
+			label: 'All merged',
+			detail: null,
+		});
 		expect(leadHeadline(['merged', 'needs', 'running'])).toEqual({
 			tone: 'asks',
 			busy: true,

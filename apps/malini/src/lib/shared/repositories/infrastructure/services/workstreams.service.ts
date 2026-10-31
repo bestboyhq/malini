@@ -95,6 +95,10 @@ class WorkstreamsService {
 		return invoke('repositories.restore-workstream', { workstreamId });
 	}
 
+	clearMergedFromStarter(workstreamIds: readonly WorkstreamId[]): Promise<void> {
+		return invoke('repositories.clear-merged-from-starter', { workstreamIds });
+	}
+
 	async delete(workstreamId: WorkstreamId): Promise<void> {
 		await invoke('repositories.delete-workstream', { workstreamId });
 	}

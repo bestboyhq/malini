@@ -1281,6 +1281,10 @@ BEGIN
   WHERE id = NEW.run_id;
 END;
 `,
+	`
+ALTER TABLE workstreams ADD COLUMN cleared_from_starter INTEGER NOT NULL DEFAULT 0
+  CHECK (cleared_from_starter IN (0, 1));
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

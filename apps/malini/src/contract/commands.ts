@@ -138,6 +138,7 @@ import type {
 } from './system';
 
 export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
+export type WorkstreamIdsArgs = Readonly<{ workstreamIds: readonly string[] }>;
 
 export type RepositoryBaseFilesArgs = Readonly<{ repoPath: string; baseBranch: string }>;
 
@@ -636,6 +637,7 @@ export interface ContractCommands {
 		result: RestoreCheckpointResult;
 	};
 	'repositories.restore-workstream': { args: WorkstreamIdArgs; result: void };
+	'repositories.clear-merged-from-starter': { args: WorkstreamIdsArgs; result: void };
 	'repositories.reveal-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.sync-workstream-base': {
 		args: WorkstreamIdArgs;
@@ -897,6 +899,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.restart-agent',
 	'chat.restore-checkpoint',
 	'repositories.restore-workstream',
+	'repositories.clear-merged-from-starter',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'repositories.sync-own-pull-requests',
