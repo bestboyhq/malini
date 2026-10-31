@@ -51,7 +51,7 @@ test('setup asks which sound plays when an agent finishes and when it needs you,
 		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await expect(setup.getByText('Step 3 of 4')).toBeVisible();
+		await expect(setup.getByText('Step 3 of 5')).toBeVisible();
 
 		const finished = setup.getByRole('button', { name: /^Finished sound:/u });
 		const needsYou = setup.getByRole('button', { name: /^Needs you sound:/u });
@@ -94,6 +94,7 @@ test('setup asks which sound plays when an agent finishes and when it needs you,
 		await expect(tryIt).toHaveAttribute('aria-pressed', 'false');
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

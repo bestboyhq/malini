@@ -122,10 +122,11 @@ function drawHeatmapCard(
 		lineHeight: 26,
 	});
 
+	const streak = publishedStreak(stats);
 	const facts = [
 		[stats.intensity.agents.mean.toFixed(1), 'agents at once, avg'],
 		[duration(stats.intensity.runSeconds.p50), 'typical run'],
-		[`${numberFormat.format(publishedStreak(stats))} days`, 'streak'],
+		[`${numberFormat.format(streak)} ${streak === 1 ? 'day' : 'days'}`, 'streak'],
 		[numberFormat.format(stats.totals.mergedPullRequests), 'PRs merged'],
 	] as const;
 	let factX = 64;

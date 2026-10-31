@@ -222,6 +222,25 @@ test('a merged workstream a chat started opens its pull request from the number 
 		await expect(mergedAgo).toBeHidden();
 		await captureFlow(app, 'lead-workstream-pull-request-on-hover');
 		await expect.poll(() => openedUrls(app)).toEqual(['https://github.com/e2e/hutch/pull/7']);
+
+		const leadRow = page.getByTestId('sidebar-chat').filter({ hasText: 'Ship hutch' });
+		await expect(leadRow.getByTestId('sidebar-progress')).toHaveAccessibleName(/^1 workstream/u);
+		await clickRevealedOnHover(
+			row,
+			row.getByRole('button', { name: `Clear ${name} from Started here` }),
+		);
+		await expect(row).toHaveCount(0);
+		await expect(leadRow.getByTestId('sidebar-progress')).toHaveCount(0);
+		await page.reload();
+		await expect(leadRow).toBeVisible({ timeout: 20_000 });
+		await expect(
+			page.getByTestId('sidebar-archived-workstream').filter({ hasText: name }),
+		).toBeVisible();
+		await expect(leadRow.getByTestId('sidebar-progress')).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Workstreams' })).toHaveCount(0);
+		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
+			/^All merged/u,
+		);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

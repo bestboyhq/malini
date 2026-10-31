@@ -47,6 +47,7 @@ import {
 	requireBoolean,
 	requireNonEmptyString,
 	requireString,
+	requireStringArray,
 } from './args';
 import { parseLeadScope } from '../domain/lead-scope';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
@@ -83,6 +84,7 @@ import {
 } from './teardown.service';
 import { createWorkstreamWatchers } from './watcher';
 import {
+	clearMergedFromStarter,
 	getWorkstream,
 	listWorkstreams,
 	recordMergedPullRequest,
@@ -118,6 +120,7 @@ export interface RepositoriesDeps {
 	readonly startupReclaim?: boolean;
 	readonly guardRunLease?: TeardownGuard;
 	readonly guardCheckoutMove?: CheckoutMoveGuard;
+	readonly guardBranchUpdate?: CheckoutMoveGuard;
 	readonly nameWorkstream?: (task: string) => Promise<string>;
 	readonly log?: (line: string) => void;
 }
@@ -152,6 +155,7 @@ export function registerRepositories(
 		getWorkstream(db, workstreamId)?.branch ?? workstreamBranchName(workstreamId);
 	const guardCheckoutMove: CheckoutMoveGuard =
 		deps.guardCheckoutMove ?? ((_workstreamId, move) => move());
+	const guardBranchUpdate = deps.guardBranchUpdate ?? guardCheckoutMove;
 	const baseSync = new WorkstreamBaseSync({ db, credentials, checkouts, guardCheckoutMove });
 
 	const watchers = createWorkstreamWatchers({
@@ -296,6 +300,10 @@ export function registerRepositories(
 		restoreWorkstream(workstreams, checkedWorkstreamId(args)),
 	);
 
+	commands.define('repositories.clear-merged-from-starter', (args: unknown) =>
+		clearMergedFromStarter(db, requireStringArray(args, 'workstreamIds')),
+	);
+
 	commands.define('repositories.workstream-diff', (args: unknown) => {
 		optionalString(args, 'path');
 		const baseBranch = optionalString(args, 'baseBranch');
@@ -400,7 +408,7 @@ export function registerRepositories(
 			baseBranch,
 			githubToken,
 			credentials,
-			(move) => guardCheckoutMove(workstreamId, move),
+			(move) => guardBranchUpdate(workstreamId, move),
 		);
 		await watchers.refresh(workstreamId);
 		const { operationInProgress, conflictedPaths } = await statusCollector(worktree);

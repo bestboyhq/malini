@@ -1,4 +1,9 @@
 import { invoke } from '$shared/port/invoke';
+import {
+	HEARD_ABOUT_SETTING,
+	heardAboutSetting,
+	type HeardAbout,
+} from '$lib/app/domain/heard-about';
 import { ONBOARDING_FINISHED_SETTING, onboardingFinished } from '$lib/app/domain/onboarding';
 
 class OnboardingService {
@@ -11,6 +16,13 @@ class OnboardingService {
 		return invoke('app.set-setting', {
 			key: ONBOARDING_FINISHED_SETTING,
 			value: new Date().toISOString(),
+		});
+	}
+
+	answerHeardAbout(answer: HeardAbout | null): Promise<void> {
+		return invoke('app.set-setting', {
+			key: HEARD_ABOUT_SETTING,
+			value: heardAboutSetting(answer),
 		});
 	}
 }

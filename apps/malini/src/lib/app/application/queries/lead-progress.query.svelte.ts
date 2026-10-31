@@ -14,6 +14,7 @@ import {
 	isWorkstreamCheckoutUsable,
 	provisioningRecordQuery,
 	workstreamSettingUpQuery,
+	type ArchivedWorkstreamListing,
 	type Workstream,
 } from '$shared/repositories/repositories.api';
 
@@ -41,7 +42,7 @@ class LeadProgressQuery {
 		...activeWorkstreamsQuery.data
 			.filter(startedBy(parentId))
 			.map((workstream) => this.dot(workstream)),
-		...archivedWorkstreamsQuery.data
+		...listedArchived()
 			.filter(startedBy(parentId))
 			.map((workstream): ProgressDot => (workstream.mergedPullRequest ? 'merged' : 'archived')),
 	]);
@@ -58,11 +59,22 @@ class LeadProgressQuery {
 		),
 	);
 
+	public readonly cleared: (parentId: string) => number = $derived(
+		(parentId: string) =>
+			archivedWorkstreamsQuery.data.filter(
+				(workstream) => startedBy(parentId)(workstream) && workstream.clearedFromStarter,
+			).length,
+	);
+
 	public readonly startedIds: (parentId: string) => string[] = $derived((parentId: string) =>
-		[...activeWorkstreamsQuery.data, ...archivedWorkstreamsQuery.data]
+		[...activeWorkstreamsQuery.data, ...listedArchived()]
 			.filter(startedBy(parentId))
 			.map((workstream) => workstream.id),
 	);
+}
+
+function listedArchived(): ArchivedWorkstreamListing[] {
+	return archivedWorkstreamsQuery.data.filter((workstream) => !workstream.clearedFromStarter);
 }
 
 function startedBy(

@@ -8,6 +8,7 @@ import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { getProject, listProjects, upsertProject } from './projects.repository';
 import {
 	archiveWorkstreamRecord,
+	clearMergedFromStarter,
 	deleteWorkstream,
 	getWorkstream,
 	listArchivedWorkstreams,
@@ -239,6 +240,37 @@ describe('projects and workstreams', () => {
 			savedForLater: false,
 		});
 		expect(savedForLater()).toBe(false);
+		db.close();
+	});
+
+	it('clears only merged archived work from its starter, until it is restored', () => {
+		const db = openMigratedDatabase(':memory:');
+		for (const id of ['w-merged', 'w-by-hand', 'w-open']) seedWorkstream(db, id);
+		recordMergedPullRequest(db, 'w-merged', { number: 7, url: null });
+		recordMergedPullRequest(db, 'w-open', { number: 8, url: null });
+		for (const id of ['w-merged', 'w-by-hand']) {
+			archiveWorkstreamRecord(db, id, {
+				ref: null,
+				at: '2026-10-31T10:00:00.000Z',
+				savedForLater: false,
+			});
+		}
+		const cleared = (): string[] =>
+			listArchivedWorkstreams(db)
+				.filter(({ clearedFromStarter }) => clearedFromStarter)
+				.map(({ id }) => id);
+
+		clearMergedFromStarter(db, ['w-merged', 'w-by-hand', 'w-open', 'w-missing']);
+		expect(cleared()).toEqual(['w-merged']);
+
+		restoreWorkstreamRecord(db, 'w-merged', '/tmp/w-merged', 'malini/w-merged');
+		recordMergedPullRequest(db, 'w-merged', { number: 9, url: null });
+		archiveWorkstreamRecord(db, 'w-merged', {
+			ref: null,
+			at: '2026-10-31T11:00:00.000Z',
+			savedForLater: false,
+		});
+		expect(cleared()).toEqual([]);
 		db.close();
 	});
 });

@@ -139,7 +139,11 @@ export type StatsMoment = Readonly<{
 
 export type MomentCard = Readonly<{ moment: StatsMoment; card: ShareCard }>;
 
-export type RecentMoments = Readonly<{ moments: readonly StatsMoment[]; card: ShareCard }>;
+export type RecentMoments = Readonly<{
+	moments: readonly StatsMoment[];
+	through: string;
+	card: ShareCard;
+}>;
 
 export type BestboyAccount = Readonly<{ name: string; email: string }>;
 

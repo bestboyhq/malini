@@ -18,7 +18,9 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
 - The top bar counts how many of the workstreams it started merged and which need you.
   A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
-  Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
+  Under that count, **Started here** lists every workstream the chat started by name and repository: lines added and removed while it is open, and when it merged once it lands.
+  **×** on a merged one, or **Clear merged** on the heading, clears merged work from the list, the dots and the count for good; once everything the chat started is merged and cleared, the top bar says **All merged**.
+  It stays above the browser tabs once the chat's agent opens a page.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
   **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
 - **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
@@ -79,7 +81,7 @@ A run stays open while its background commands and subagents run, and you can st
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
 When the agent goes on once one of them ends, the end of that turn counts as a turn too: it reports, ships its commit, and hands the chat what waited for it.
-Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
+Whatever closes that run later, stopping it, quitting, a crash, merging main into the workstream or archiving it, leaves it done, and Malini does not resume it on the next start.
 
 ## Limits and outages
 

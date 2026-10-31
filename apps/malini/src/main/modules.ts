@@ -75,13 +75,16 @@ export async function registerModules(
 	followSavedThemeMode(context.db, shellHost);
 
 	await restoreStrandedCheckouts(context.db, context.appDataRoot);
+	const stopBackgroundCommands = async (workstreamId: string): Promise<void> => {
+		await chat.stopWorkstreamBackgroundCommands(workstreamId);
+		await agentRunLeases.runChangeCaptureSettled(workstreamId);
+	};
 	const repositories = registerRepositories(context, {
 		getMainWindow: options.getMainWindow,
 		runner: processRunner,
 		log,
 		guardRunLease: async (workstreamId, teardown) => {
-			await chat.stopWorkstreamBackgroundCommands(workstreamId);
-			await agentRunLeases.runChangeCaptureSettled(workstreamId);
+			await stopBackgroundCommands(workstreamId);
 			return leased(
 				() => agentRunLeases.acquireWorkstreamTeardown(context.db, workstreamId),
 				async () => {
@@ -92,6 +95,10 @@ export async function registerModules(
 		},
 		guardCheckoutMove: (workstreamId, move) =>
 			leased(() => agentRunLeases.acquireCheckoutMove(context.db, workstreamId), move),
+		guardBranchUpdate: async (workstreamId, move) => {
+			await stopBackgroundCommands(workstreamId);
+			return leased(() => agentRunLeases.acquireCheckoutMove(context.db, workstreamId), move);
+		},
 		nameWorkstream: (task) => chat.nameWorkstream(task),
 		...(overrides.startupReclaim === undefined ? {} : { startupReclaim: overrides.startupReclaim }),
 	});

@@ -43,7 +43,7 @@
 	function onCopyCard(): void {
 		if (!png) return;
 		copyShareCardCommand(png);
-		dismissMomentCommand(shown.moment.id);
+		dismissMomentCommand();
 	}
 
 	function onClaim(): void {

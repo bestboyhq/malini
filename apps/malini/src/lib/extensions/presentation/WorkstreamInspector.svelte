@@ -156,6 +156,7 @@
 		closeDirectoryNavigationTarget={extensionInspectorHref({ workstreamId, agentSessionId })}
 		addExtensionsActive={directoryOpen}
 		addExtensionsContent={directoryContent}
+		header={dock}
 		{panelActions}
 		{workstreamPanelIds}
 		onpanelselect={closeDirectory}

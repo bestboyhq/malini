@@ -57,9 +57,7 @@
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
 	const repositoryScopeReady = $derived(workstreamsLoadedQuery.data);
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
-	const startedWorkstreamIds = $derived(
-		workstream?.scope ? leadProgressQuery.startedIds(workstreamId) : [],
-	);
+	const startedWorkstreamIds = $derived(leadProgressQuery.startedIds(workstreamId));
 	const leadSessionId = $derived(workstream?.scope ? activeSessionQuery.data : null);
 	const leadDecisionCount = $derived(leadDecisionsQuery.data(leadSessionId).length);
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
@@ -152,7 +150,7 @@
 />
 
 {#snippet startedWorkstreamsDock()}
-	<StartedWorkstreams workstreamIds={startedWorkstreamIds} framed={false} />
+	<StartedWorkstreams workstreamIds={startedWorkstreamIds} framed={false} heading="Started here" />
 	{#if leadSessionId && leadDecisionCount > 0}
 		{#if startedWorkstreamIds.length > 0}
 			<div class="bg-surface-150 mx-2 my-1.5 h-px" aria-hidden="true"></div>
