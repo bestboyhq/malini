@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { sensitiveMasking } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { dismissMomentCommand } from '$lib/stats/application/commands/dismiss-moment.command';
 	import { watchMomentHook } from '$lib/stats/application/hooks/watch-moment.hook';
@@ -11,7 +10,7 @@
 	import { momentBadge, momentLabel } from './moment-copy';
 	import { shareCardPng } from './share-cards';
 
-	const shown = $derived(sensitiveMasking.on ? null : momentQuery.data);
+	const shown = $derived(momentQuery.data);
 	const label = $derived(shown ? momentLabel(shown.moment) : '');
 	const badge = $derived(shown ? momentBadge(shown.moment) : null);
 	const png = $derived(
@@ -24,7 +23,7 @@
 
 {#if shown}
 	<section
-		class="moment-peek shrink-0 px-3.5 pt-2"
+		class="moment-peek border-surface-50-border shrink-0 border-t px-3.5 pt-2"
 		aria-label="Milestone"
 		data-testid="moment-peek"
 	>

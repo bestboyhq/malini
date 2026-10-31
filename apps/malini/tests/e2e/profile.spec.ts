@@ -9,6 +9,7 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	openedUrls,
@@ -225,7 +226,7 @@ test('the Stats panel nudges to publish, and copies the heatmap and readout card
 	}
 });
 
-test('a 7-day streak that ended three days ago peeks out of the sidebar as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
+test('a 7-day streak that ended three days ago peeks out of the sidebar in place of recently archived as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
 	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7, 3);
@@ -233,8 +234,10 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar as your 
 		const { page } = app;
 		await recordBrowser(app);
 		const peek = page.getByRole('region', { name: 'Milestone' });
+		const archived = page.getByRole('list', { name: 'Recently archived' });
 		await expect(peek.getByText("You're on fire")).toBeVisible({ timeout: 20_000 });
 		await expect(peek.getByText('7-day streak')).toBeVisible();
+		await expect(archived).toHaveCount(0);
 		await captureFlow(app, 'moment-peek');
 
 		await peek
@@ -269,6 +272,7 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar as your 
 		await expect(peek.getByText("You're on fire")).toBeVisible({ timeout: 20_000 });
 		await peek.getByRole('button', { name: 'Dismiss milestone' }).click();
 		await expect(peek).toHaveCount(0);
+		await expect(archived.getByRole('listitem')).toHaveCount(1);
 		await page.reload();
 		await expect(page.getByTestId('sidebar-open-stats')).toBeVisible({ timeout: 20_000 });
 		await page.waitForTimeout(1_000);
@@ -289,6 +293,10 @@ async function launchWithPastRuns(
 	try {
 		const source = await createSourceRepo(first.root);
 		const { workstreamId } = await seedWorkstream(first.page, source, 'e2e-profile-ws', 'Profile');
+		await seedWorkstream(first.page, source, 'e2e-profile-archived', 'Archived');
+		await invoke(first.page, 'repositories.archive-workstream', {
+			workstreamId: 'e2e-profile-archived',
+		});
 		await openWorkstream(first.page, workstreamId);
 		await sendPrompt(first.page, 'Count this run');
 		await expectAssistantReply(first.page);
