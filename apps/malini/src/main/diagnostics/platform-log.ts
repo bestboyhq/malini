@@ -55,6 +55,7 @@ const WARN_LINES: readonly RegExp[] = [
 	/^agent: Claude did not name the chat, /u,
 	/^malini: (?:stopped watching|not watching) workstream /u,
 	/^malini: watching workstream `[^`]*` without its git dir/u,
+	/^malini: could not fetch \S+ of /u,
 ];
 
 const STACK_CONTINUATION = /^\s+(?:at\s|\.\.\.|\{|\}|[A-Za-z_$][\w$]*:)/u;

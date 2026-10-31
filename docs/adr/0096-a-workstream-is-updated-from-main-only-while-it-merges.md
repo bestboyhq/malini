@@ -1,6 +1,6 @@
 # 0096 - A workstream is updated from main only while it merges
 
-Status: accepted
+Status: superseded by 0135
 
 ## Context
 

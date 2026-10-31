@@ -393,6 +393,8 @@ async function mergeRemoteRef(
 	}
 }
 
+const fetchesByRepository = new Map<string, Promise<string>>();
+
 export async function syncRemoteBase(
 	basePath: string,
 	baseBranch: string,
@@ -400,6 +402,36 @@ export async function syncRemoteBase(
 	credentials: GitCredentialEnv,
 ): Promise<string> {
 	validateBaseBranch(baseBranch);
+	const repository = (
+		await runGit(['-C', basePath, 'rev-parse', '--path-format=absolute', '--git-common-dir'])
+	).trim();
+	const fetching = fetchAfter(fetchesByRepository.get(repository), () =>
+		fetchRemoteBase(basePath, baseBranch, githubToken, credentials),
+	);
+	fetchesByRepository.set(repository, fetching);
+	try {
+		return await fetching;
+	} finally {
+		if (fetchesByRepository.get(repository) === fetching) fetchesByRepository.delete(repository);
+	}
+}
+
+async function fetchAfter(
+	previous: Promise<string> | undefined,
+	fetch: () => Promise<string>,
+): Promise<string> {
+	try {
+		await previous;
+	} catch {}
+	return fetch();
+}
+
+async function fetchRemoteBase(
+	basePath: string,
+	baseBranch: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<string> {
 	const token = normalizeGithubToken(githubToken);
 	const env = await credentials.prepare(token);
 	const remoteRef = `refs/remotes/origin/${baseBranch}`;

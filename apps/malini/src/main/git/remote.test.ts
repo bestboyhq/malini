@@ -474,6 +474,30 @@ describe('countCommitsBehindBase', () => {
 	});
 });
 
+describe('fetching the base branch', () => {
+	it('lets many callers fetch the base branch of one repository at once', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
+		const other = join(dir, 'other');
+		await realGit(dir, ['clone', '-q', remote, other]);
+		await realGit(other, ['config', 'user.email', 't@example.com']);
+		await realGit(other, ['config', 'user.name', 't']);
+		await writeFile(join(other, 'moved.txt'), 'moved\n');
+		await realGit(other, ['add', '.']);
+		await realGit(other, ['commit', '-q', '-m', 'main moves']);
+		await realGit(other, ['push', '-q', 'origin', 'main']);
+
+		const counts = await Promise.all(
+			Array.from({ length: 8 }, () =>
+				countCommitsBehindBase(checkout, 'malini/ws-1', 'main', null, noPromptCredentialEnv),
+			),
+		);
+
+		expect(counts).toEqual(Array.from({ length: 8 }, () => 1));
+	});
+});
+
 describe('a rebase, cherry-pick or revert stopped in the checkout', () => {
 	it.each(['rebase', 'cherry-pick', 'revert'] as const)(
 		'reports a stopped %s, refuses to commit through it, and aborts it',
