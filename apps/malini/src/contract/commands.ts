@@ -155,6 +155,7 @@ import type {
 	ShutdownImpact,
 	ShutdownOutcome,
 	StartedContainerInput,
+	UsageReport,
 } from './system';
 
 export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
@@ -503,6 +504,7 @@ export interface ContractCommands {
 	'chat.session-changes': { args: SessionChangesArgs; result: AgentSessionChanges };
 	'chat.known-session-changes': { args: SessionChangesArgs; result: AgentSessionChanges };
 	'app.list-settings': { args: undefined; result: Record<string, string> };
+	'app.usage-report': { args: undefined; result: UsageReport | null };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
 		args: WorkstreamBaseBranchArgs;
@@ -815,6 +817,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.session-changes',
 	'chat.known-session-changes',
 	'app.list-settings',
+	'app.usage-report',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',
 	'repositories.workstream-diff',

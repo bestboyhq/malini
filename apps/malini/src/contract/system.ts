@@ -41,6 +41,19 @@ export interface RendererErrorReceipt {
 
 export type NotificationPermissionResult = 'granted' | 'denied' | 'prompt';
 
+export type UsageReportAge = 'day_1' | 'week_1' | 'month_1' | 'later';
+
+export interface UsageReport {
+	day: string;
+	started: number;
+	prompts: number;
+	merged: number;
+	archived: number;
+	turns: number | null;
+	minutes: number | null;
+	age: UsageReportAge;
+}
+
 export interface LogicalViewport {
 	width: number;
 	height: number;

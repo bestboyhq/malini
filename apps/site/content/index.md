@@ -38,7 +38,9 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
 Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions is open or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
-It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
+Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
+Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
+It never contains your code, what your prompts say, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.
 
 ## For agents reading this

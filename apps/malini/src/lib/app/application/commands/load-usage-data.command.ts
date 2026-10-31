@@ -4,7 +4,12 @@ import { usageDataStore } from '$lib/app/infrastructure/stores/usage-data.store.
 export function loadUsageDataCommand(): void {
 	void (async () => {
 		try {
-			usageDataStore.set(await usageDataService.read());
+			const [shared, report] = await Promise.all([
+				usageDataService.read(),
+				usageDataService.report(),
+			]);
+			usageDataStore.set(shared);
+			usageDataStore.setReport(report);
 		} catch (error) {
 			usageDataStore.set(null);
 			console.error('[malini app] could not read the usage data setting', error);
