@@ -19,6 +19,7 @@ let worktree: string;
 let db: MaliniDatabase;
 let events: EventBus;
 let working: boolean;
+let merging: boolean;
 let overlaps: WorkstreamBaseOverlappedPayload[];
 let watch: BaseOverlapWatch;
 
@@ -60,6 +61,7 @@ beforeEach(async () => {
 		overlaps.push(payload);
 	});
 	working = false;
+	merging = false;
 	watch = new BaseOverlapWatch({
 		db,
 		events,
@@ -72,6 +74,7 @@ beforeEach(async () => {
 			return `refs/remotes/origin/${baseBranch}`;
 		},
 		agentWorking: async () => working,
+		merging: async () => merging,
 		log: (line) => {
 			throw new Error(line);
 		},
@@ -135,6 +138,19 @@ describe('BaseOverlapWatch', () => {
 		expect(overlaps).toEqual([]);
 
 		await commit(worktree, { 'draft.txt': 'committed\n' });
+		await watch.compare('ws');
+
+		expect(overlaps).toMatchObject([{ workstreamId: 'ws', conflicts: true }]);
+	});
+
+	it('leaves a workstream to its merge while it merges, then reports once it no longer does', async () => {
+		await commit(worktree, { 'shared.txt': 'workstream\n' });
+		await commit(origin, { 'shared.txt': 'main\n' });
+		merging = true;
+		await watch.fetchAndCompare();
+		expect(overlaps).toEqual([]);
+
+		merging = false;
 		await watch.compare('ws');
 
 		expect(overlaps).toMatchObject([{ workstreamId: 'ws', conflicts: true }]);

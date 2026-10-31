@@ -174,6 +174,12 @@ export function registerRepositories(
 		fetchBase: (repoPath, baseBranch) => baseSync.fetchBase(repoPath, baseBranch),
 		agentWorking: (workstreamId) =>
 			commands.call('chat.workstream-has-working-run', { workstreamId }),
+		merging: async (workstreamId) =>
+			(await commands.call('pull-requests.ship-states', undefined)).some(
+				(ship) =>
+					ship.workstreamId === workstreamId &&
+					(ship.phase === 'queued' || ship.phase === 'needs-you'),
+			),
 		fetchEveryMs: baseFetchMs > 0 ? baseFetchMs : BASE_FETCH_EVERY_MS,
 		log: deps.log ?? ((line) => console.error(line)),
 	});

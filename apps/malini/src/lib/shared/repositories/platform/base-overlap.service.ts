@@ -26,6 +26,7 @@ export interface BaseOverlapWatchDeps {
 	readonly checkouts: CheckoutResolver;
 	fetchBase(repoPath: string, baseBranch: string): Promise<string>;
 	agentWorking(workstreamId: string): Promise<boolean>;
+	merging(workstreamId: string): Promise<boolean>;
 	readonly fetchEveryMs?: number;
 	readonly log: (line: string) => void;
 }
@@ -99,7 +100,7 @@ export class BaseOverlapWatch {
 	}
 
 	async #compareOnce(workstreamId: string): Promise<void> {
-		const { db, events, checkouts, agentWorking } = this.#deps;
+		const { db, events, checkouts, agentWorking, merging } = this.#deps;
 		const workstream = getWorkstream(db, workstreamId);
 		if (!workstream || !this.#watched(workstream)) return;
 		const checkout = await checkouts.resolveCheckout(workstreamId);
@@ -112,7 +113,7 @@ export class BaseOverlapWatch {
 		if (this.#compared.get(workstreamId) === pair) return;
 		const status = await statusCollector(checkout);
 		if (status.dirtyPaths.length > 0 || status.operationInProgress !== null) return;
-		if (await agentWorking(workstreamId)) return;
+		if ((await agentWorking(workstreamId)) || (await merging(workstreamId))) return;
 		const overlap = await baseOverlap(checkout, head, baseHead);
 		this.#compared.set(workstreamId, pair);
 		if (overlap === null) return;

@@ -264,6 +264,56 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 	}
 });
 
+test('main reaching the files of a workstream while it merges leaves it to its merge, which lands it without a second pull request', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-overlap-merging',
+			null,
+		);
+		await openWorkstream(page, 'e2e-overlap-merging');
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }],
+		});
+		await queueMerge(page);
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
+		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
+
+		const mainHead = await commitToMain(app, github.remote, 'alpha.txt', 'main line\n');
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
+			.toBe(mainHead);
+		await page.waitForTimeout(3_000);
+		expect(await jobRuns(page)).toEqual([]);
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
+
+		github.setPullRequest({
+			statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+		});
+		await expectMergedAndArchived(page, 'e2e-overlap-merging');
+		await page.waitForTimeout(3_000);
+		expect(await jobRuns(page)).toEqual([]);
+		expect(
+			github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create'),
+		).toHaveLength(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a merge behind main stops the background command its agent left running, then updates the branch and merges', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
