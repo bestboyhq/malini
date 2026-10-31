@@ -1,7 +1,8 @@
-import type { PublishedDay, PublishedStats, StatsMoment } from '$contract/stats';
+import type { PublishedDay, PublishedStats, RecentMoments, StatsMoment } from '$contract/stats';
 import { dayStreak, shiftDate } from './activity';
 
 const RECENT_DAYS = 7;
+const QUIET_DAYS = 7;
 const STREAK_MILESTONES: ReadonlySet<number> = new Set([7, 30, 100, 365]);
 const LONGEST_STREAK_FROM = 7;
 const BEST_DAY_AFTER_DAYS = 7;
@@ -22,13 +23,12 @@ export function recentMoments(stats: PublishedStats): StatsMoment[] {
 }
 
 export function unseenMoment(
-	moments: readonly StatsMoment[],
-	dismissed: readonly string[],
+	{ moments, through }: RecentMoments,
+	dismissedOn: string | null,
 ): StatsMoment | null {
-	const lastDismissed = moments.find((moment) => dismissed.includes(moment.id))?.date ?? '';
-	return (
-		moments.find((moment) => moment.date >= lastDismissed && !dismissed.includes(moment.id)) ?? null
-	);
+	if (dismissedOn === null) return moments[0] ?? null;
+	if (shiftDate(through, 1) < shiftDate(dismissedOn, QUIET_DAYS)) return null;
+	return moments.find((moment) => moment.date >= dismissedOn) ?? null;
 }
 
 function momentsOn(

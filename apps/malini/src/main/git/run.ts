@@ -139,6 +139,20 @@ export async function runGitWithInput(
 	return result.stdout.toString('utf8');
 }
 
+export async function runGitAllowingExit(
+	args: readonly string[],
+	allowedExitCode: number,
+): Promise<Readonly<{ allowed: boolean; stdout: string }>> {
+	const result = await spawnGit(args, {}, { maxStdoutBytes: MAX_GIT_STDOUT_BYTES });
+	if (result.stdoutExceeded) {
+		throw GitError.outputTooLarge(`git ${globalOptions(args).subcommand}`, MAX_GIT_STDOUT_BYTES);
+	}
+	if (result.exitCode !== 0 && result.exitCode !== allowedExitCode) {
+		throw commandFailure(args, result);
+	}
+	return { allowed: result.exitCode === allowedExitCode, stdout: result.stdout.toString('utf8') };
+}
+
 const FOUND_NO_REPOSITORY =
 	/not a git repository|git diff --no-index|unable to (?:read|get) current working directory|must be run in a work tree/iu;
 

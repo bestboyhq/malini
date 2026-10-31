@@ -1,10 +1,10 @@
-# 0138 - Usage data counts yesterday's loop and shows you the numbers
+# 0141 - Usage data counts yesterday's loop and shows you the numbers
 
 Status: accepted
 
 ## Context
 
-0058 kept usage data to `app_active` once per launch, `run_finished` per run and error names, with no properties and no id, and 0121, 0129 and 0137 restated it unchanged.
+0058 kept usage data to `app_active` once per launch, `run_finished` per run and error names, with no properties and no id, and 0121, 0129 and 0140 restated it unchanged.
 The user wants funnels and to see "how the loop goes", from a prompt to a merge, and had nothing for it.
 A funnel usually needs an id per install, which makes usage data personal and, in the EU, asks for consent first; asking first would also hide the drop-off, since people who leave early rarely say yes.
 Malini already keeps every step of the loop in its own database, so the Mac can count it and send numbers only.

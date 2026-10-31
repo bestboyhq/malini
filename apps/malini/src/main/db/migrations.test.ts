@@ -468,6 +468,54 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('turns on Update from main when main overlaps a workstream, keeping a trigger you set', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const armed = MIGRATIONS.findIndex((migration) =>
+			migration.includes("builtin = 'update-from-main' AND trigger_when IS NULL"),
+		);
+		for (const migration of MIGRATIONS.slice(0, armed)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + armed};`);
+		const at = '2026-10-31T00:00:00Z';
+		db.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at) VALUES
+			  ('main', 'Update from main', 'Merge.', 'opus', 'low', 'workstream', 'update-from-main', NULL, NULL, '${at}', '${at}'),
+			  ('fix', 'Fix checks', 'Fix.', 'opus', 'high', 'workstream', 'fix-checks', NULL, NULL, '${at}', '${at}');
+		`);
+		const other = openDatabase(':memory:');
+		other.exec(SCHEMA);
+		for (const migration of MIGRATIONS.slice(0, armed)) other.exec(migration);
+		other.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + armed};`);
+		other.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at) VALUES
+			  ('main', 'Update from main', 'Merge.', 'opus', 'low', 'workstream', 'update-from-main', 'on repositories:workstream-merge-conflicted', 'ask', '${at}', '${at}');
+		`);
+
+		migrate(db);
+		migrate(other);
+
+		expect(
+			all(
+				db,
+				"SELECT id, trigger_when, trigger_mode FROM job_definitions WHERE id IN ('main', 'fix') ORDER BY id",
+			),
+		).toEqual([
+			{ id: 'fix', trigger_when: null, trigger_mode: null },
+			{
+				id: 'main',
+				trigger_when: 'on repositories:workstream-base-overlapped',
+				trigger_mode: 'auto',
+			},
+		]);
+		expect(
+			all(other, "SELECT trigger_when, trigger_mode FROM job_definitions WHERE id = 'main'"),
+		).toEqual([
+			{ trigger_when: 'on repositories:workstream-merge-conflicted', trigger_mode: 'ask' },
+		]);
+		db.close();
+		other.close();
+	});
+
 	it('lets a chat be a thread from a page, keeping every chat and what hangs off it', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);

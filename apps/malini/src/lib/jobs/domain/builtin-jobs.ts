@@ -112,6 +112,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 		name: 'Update from main',
 		model: DEFAULT_AGENT_MODEL,
 		effort: 'low',
+		trigger: { when: 'on repositories:workstream-base-overlapped', mode: 'auto' },
 		instructions:
 			"Merge this workstream's base branch into it. When the merge stops on conflicts, Resolve conflicts finishes it.",
 	},
@@ -215,6 +216,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 };
 
 const TRIGGERABLE_BUILTINS: ReadonlySet<JobBuiltin> = new Set([
+	'update-from-main',
 	'resolve-conflicts',
 	'update-docs',
 	'open-draft',
@@ -227,4 +229,8 @@ export function isRunnableJob(definition: Pick<JobDefinitionRecord, 'builtin'>):
 
 export function isTriggerableJob(definition: Pick<JobDefinitionRecord, 'builtin'>): boolean {
 	return definition.builtin === null || TRIGGERABLE_BUILTINS.has(definition.builtin);
+}
+
+export function takesThen(definition: Pick<JobDefinitionRecord, 'builtin'>): boolean {
+	return isTriggerableJob(definition) && definition.builtin !== 'update-from-main';
 }

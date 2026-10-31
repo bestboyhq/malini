@@ -24,6 +24,8 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
 - **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
+- **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
+  Your answer rides along with the usage data, so we can tell which places bring builders who stick around.
 - **Then a repository.** Clone one from GitHub, with your recent repositories one search away, or open a folder on your Mac.
 
 ## Updates

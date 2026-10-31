@@ -321,7 +321,10 @@ describe('job definitions', () => {
 			'name-chats': defaults('Name chats', 'low', 'haiku'),
 			'name-services': defaults('Name services', 'low', 'haiku'),
 			'fix-checks': defaults('Fix checks', 'high'),
-			'update-from-main': defaults('Update from main', 'low'),
+			'update-from-main': {
+				...defaults('Update from main', 'low'),
+				trigger: { when: 'on repositories:workstream-base-overlapped', mode: 'auto' },
+			},
 			'resolve-conflicts': {
 				...defaults('Resolve conflicts', 'high'),
 				trigger: { when: 'on repositories:workstream-merge-conflicted', mode: 'auto' },
@@ -522,6 +525,39 @@ describe('job definitions', () => {
 			trigger,
 			thenJobId: merge.id,
 			updatedAt: edited.updatedAt,
+		});
+	});
+
+	it('lets Update from main take a trigger but no Then, since Resolve conflicts takes its conflicts on its own trigger', async () => {
+		const updater = await builtin('update-from-main');
+		const resolver = await builtin('resolve-conflicts');
+		const trigger: JobTrigger = {
+			when: 'on repositories:workstream-base-overlapped where conflicts is true',
+			mode: 'ask',
+		};
+
+		const fields = {
+			id: updater.id,
+			name: updater.name,
+			instructions: updater.instructions,
+			model: updater.model,
+			effort: updater.effort,
+		};
+
+		expect(await saveDefinition({ ...fields, trigger })).toMatchObject({
+			trigger,
+			thenJobId: null,
+		});
+		expect(
+			await failure('jobs.save-definition', {
+				...fields,
+				runsIn: 'workstream',
+				thenJobId: resolver.id,
+			}),
+		).toMatchObject({
+			kind: 'builtin',
+			message:
+				'Update from main takes no Then: when its merge stops on conflicts, Resolve conflicts takes them on its own trigger.',
 		});
 	});
 

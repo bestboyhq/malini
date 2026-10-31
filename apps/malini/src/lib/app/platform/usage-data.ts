@@ -1,20 +1,25 @@
 import { app, net } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { APP_STARTED_CHANNEL, CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import {
+	APP_STARTED_CHANNEL,
+	CHAT_AGENT_EVENT_CHANNEL,
+	STATS_PROFILE_PUBLISHED_CHANNEL,
+} from '$contract/events';
 import type { UsageReport } from '$contract/system';
 import type { MainContext } from '$main/context';
 import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
+import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataShared } from '../domain/usage-data';
 import { reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
 import { readUsageReport } from './usage-report';
 
-export type UsageActivity = 'app_active' | 'run_finished';
+export type UsageActivity = 'app_active' | 'run_finished' | 'profile_published';
 
 export interface UsageSink {
-	activity(name: UsageActivity): void;
+	activity(name: UsageActivity, props: Readonly<Record<string, string>>): void;
 	report(report: UsageReport): void;
 	error(message: string): void;
 	shutdown(timeoutMs: number): Promise<void>;
@@ -46,6 +51,10 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const sink = deps.sink === undefined ? logdashSink(context.appVersion) : deps.sink;
 	if (!sink) return { shutdown: () => Promise.resolve() };
 	const shared = (): boolean => usageDataShared(getSetting(context.db, USAGE_DATA_SETTING));
+	const count = (name: UsageActivity): void => {
+		if (shared())
+			sink.activity(name, heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING))));
+	};
 	const system =
 		deps.system ??
 		`malini ${context.appVersion} · macOS ${process.getSystemVersion()} ${process.arch}`;
@@ -74,11 +83,14 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 
 	const stopRuns = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => {
 		const type = envelope.event.type;
-		if (!envelope.ephemeral && (type === 'run.completed' || type === 'run.failed') && shared())
-			sink.activity('run_finished');
+		if (!envelope.ephemeral && (type === 'run.completed' || type === 'run.failed'))
+			count('run_finished');
 	});
+	const stopPublished = context.events.subscribe(STATS_PROFILE_PUBLISHED_CHANNEL, () =>
+		count('profile_published'),
+	);
 
-	if (shared()) sink.activity('app_active');
+	count('app_active');
 
 	const now = deps.now ?? ((): Date => new Date());
 	const reportYesterday = (): void => {
@@ -101,6 +113,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopExceptions();
 			stopRejections();
 			stopRuns();
+			stopPublished();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};
@@ -139,18 +152,22 @@ function logdashSink(appVersion: string): UsageSink | null {
 			.finally(() => pending.delete(sent));
 		pending.add(sent);
 	};
-	const webEvent = (name: string, props?: Readonly<Record<string, string | number>>): void => {
+	const webEvent = (name: string, props: Readonly<Record<string, string | number>>): void => {
 		if (!site) return;
 		const at = new Date().toISOString();
 		const event = { id: randomUUID(), timestamp: at, name: `malini_desktop_${name}`, path: '/' };
 		post(
 			'/web_events',
 			{ Origin: LOGDASH_ORIGIN },
-			{ siteId: site, sentAt: at, events: [props ? { ...event, props } : event] },
+			{
+				siteId: site,
+				sentAt: at,
+				events: [Object.keys(props).length > 0 ? { ...event, props } : event],
+			},
 		);
 	};
 	return {
-		activity: (name) => webEvent(name),
+		activity: (name, props) => webEvent(name, props),
 		report: (report) => webEvent('loop', reportProps(report)),
 		error: (message) => {
 			if (!key) return;

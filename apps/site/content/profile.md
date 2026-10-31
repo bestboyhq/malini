@@ -75,7 +75,9 @@ The card waits until no agent is working, and hides while streamer mode masks yo
 
 Until you publish, click the card to see both cards and claim your `bestboy.dev/@handle` to brag with them, the same steps as **Publish my stats**.
 Once your profile is public, only the line shows, with **Share** beside it: it opens both cards, and **Copy card** and **Copy link** share them.
-The × dismisses that milestone and any older one for good and brings **Recently archived** back, and **Milestone cards** in Settings, Profile turns them off.
+The × closes the card and brings **Recently archived** back, and no card shows for a week after.
+After that week, only a milestone reached since you closed the last card shows, so a card stays rare.
+**Milestone cards** in Settings, Profile turns them off.
 Milestones are worked out on your Mac and nothing about them leaves it until you publish.
 
 ## Every number Malini sends

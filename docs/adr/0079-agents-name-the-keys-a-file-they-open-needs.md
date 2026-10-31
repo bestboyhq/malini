@@ -1,6 +1,6 @@
 # 0079 - Agents name the keys a file they open needs
 
-Status: superseded by 0136
+Status: superseded by 0139
 
 ## Context
 

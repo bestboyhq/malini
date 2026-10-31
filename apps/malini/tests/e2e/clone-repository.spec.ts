@@ -43,6 +43,7 @@ test('cloning picks a recent GitHub repository and opens its scratchpad', async 
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		const url = dialog.getByLabel('Repository URL');
@@ -112,6 +113,7 @@ test('cloning a repository opens your own pull requests in it as workstreams', a
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		await dialog.getByRole('button', { name: /e2e\/warren/u }).click();

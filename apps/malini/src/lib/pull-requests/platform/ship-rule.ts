@@ -317,7 +317,8 @@ async function settleActiveJob(deps: ShipDeps, row: ShipRow): Promise<ShipRow> {
 
 async function settleOtherJob(deps: ShipDeps, row: ShipRow, run: JobRunRecord): Promise<void> {
 	if (run.id === row.activeJobRunId || run.status !== 'succeeded') return;
-	if (shippingBuiltin(deps, run) === null) return;
+	const builtin = shippingBuiltin(deps, run);
+	if (builtin === null || (builtin === 'update-from-main' && run.origin === 'trigger')) return;
 	await jobSucceeded(deps, row);
 	saveShip(deps, row.workstreamId, { settledJobRunId: run.id });
 }

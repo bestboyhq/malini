@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
+import type { RecentMoments } from '../../src/contract/stats';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -282,6 +283,48 @@ test('a 7-day streak that ended three days ago peeks out of the sidebar in place
 	}
 });
 
+test('closing a milestone keeps the next one away for a week, even one reached since', async () => {
+	test.setTimeout(240_000);
+	const platform = await fakeBestboy();
+	const env = { MALINI_BESTBOY_ORIGIN: platform.origin };
+	const first = await launchWithPastRuns(env, 7, 3);
+	let again: LaunchedApp | null = null;
+	try {
+		const firstPeek = first.page.getByRole('region', { name: 'Milestone' });
+		await expect(firstPeek.getByText('7 days straight')).toBeVisible({ timeout: 20_000 });
+		await firstPeek.getByRole('button', { name: 'Dismiss milestone' }).click();
+		await expect(firstPeek).toHaveCount(0);
+		await first.quit();
+
+		const db = new DatabaseSync(join(first.userDataDir, 'malini.sqlite'));
+		const bestDay = new Date();
+		bestDay.setDate(bestDay.getDate() - 1);
+		bestDay.setHours(10, 0, 0, 0);
+		copyRun(db, 'e2e-best-day-run-1', bestDay);
+		copyRun(db, 'e2e-best-day-run-2', new Date(bestDay.getTime() + 60 * 60_000));
+		db.close();
+
+		again = await launchMalini({ profile: first.root, env });
+		const { page } = again;
+		await expect(page.getByTestId('sidebar-open-stats')).toBeVisible({ timeout: 20_000 });
+		await expect
+			.poll(async () =>
+				(await invoke<RecentMoments | null>(page, 'stats.moments'))?.moments.map(({ id }) => id),
+			)
+			.toContain(`best-day:${yesterday()}`);
+		await expect(
+			page.getByRole('list', { name: 'Recently archived' }).getByRole('listitem'),
+		).toHaveCount(1);
+		await page.waitForTimeout(1_000);
+		await expect(page.getByRole('region', { name: 'Milestone' })).toHaveCount(0);
+		await captureFlow(again, 'milestone-quiet-week');
+		expectCleanConsole(again);
+	} finally {
+		await (again ?? first).close();
+		platform.close();
+	}
+});
+
 async function launchWithPastRuns(
 	env: Readonly<Record<string, string>>,
 	streakDays = 1,
@@ -314,16 +357,20 @@ async function launchWithPastRuns(
 	for (let daysBack = 1; daysBack < streakDays; daysBack += 1) {
 		const day = new Date(start);
 		day.setDate(day.getDate() - daysBack);
-		db.exec('CREATE TEMP TABLE earlier_run AS SELECT * FROM agent_runs LIMIT 1');
-		db.prepare('UPDATE earlier_run SET id = ?, started_at = ?, completed_at = ?').run(
-			`e2e-streak-run-${daysBack}`,
-			day.toISOString(),
-			new Date(day.getTime() + 5 * 60_000).toISOString(),
-		);
-		db.exec('INSERT INTO agent_runs SELECT * FROM earlier_run; DROP TABLE earlier_run');
+		copyRun(db, `e2e-streak-run-${daysBack}`, day);
 	}
 	db.close();
 	return launchMalini({ profile: first.root, env });
+}
+
+function copyRun(db: DatabaseSync, id: string, startedAt: Date): void {
+	db.exec('CREATE TEMP TABLE copied_run AS SELECT * FROM agent_runs LIMIT 1');
+	db.prepare('UPDATE copied_run SET id = ?, started_at = ?, completed_at = ?').run(
+		id,
+		startedAt.toISOString(),
+		new Date(startedAt.getTime() + 5 * 60_000).toISOString(),
+	);
+	db.exec('INSERT INTO agent_runs SELECT * FROM copied_run; DROP TABLE copied_run');
 }
 
 async function openProfileSettings(page: Page): Promise<void> {

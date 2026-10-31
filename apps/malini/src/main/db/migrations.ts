@@ -1286,6 +1286,11 @@ ALTER TABLE workstreams ADD COLUMN cleared_from_starter INTEGER NOT NULL DEFAULT
   CHECK (cleared_from_starter IN (0, 1));
 `,
 	`
+UPDATE job_definitions
+  SET trigger_when = 'on repositories:workstream-base-overlapped', trigger_mode = 'auto'
+  WHERE builtin = 'update-from-main' AND trigger_when IS NULL;
+`,
+	`
 CREATE TABLE secrets (
   repository TEXT NOT NULL COLLATE NOCASE,
   name TEXT NOT NULL,

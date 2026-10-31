@@ -18,7 +18,7 @@
 	import { jobScorecardErrorQuery } from '$lib/jobs/application/queries/job-scorecard-error.query.svelte';
 	import { jobScorecardQuery } from '$lib/jobs/application/queries/job-scorecard.query.svelte';
 	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
-	import { isRunnableJob, isTriggerableJob } from '$lib/jobs/domain/builtin-jobs';
+	import { isRunnableJob, takesThen } from '$lib/jobs/domain/builtin-jobs';
 	import { scheduleOf } from '$lib/jobs/domain/schedule';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import JobEditor from '../JobEditor.svelte';
@@ -63,7 +63,7 @@
 	const runs = $derived(runsFor(job.id).slice(0, RECENT_RUNS));
 	const fixed = $derived(builtinTrigger(job));
 	const runnable = $derived(isRunnableJob(job));
-	const triggerable = $derived(isTriggerableJob(job));
+	const thenable = $derived(takesThen(job));
 	const agentless = $derived(isAgentlessJobBuiltin(job.builtin));
 	const schedule = $derived(scheduleOf(job.trigger?.when));
 	const scorecardFor = $derived(jobScorecardQuery.data);
@@ -252,7 +252,7 @@
 					/>
 				</SettingRow>
 			{/if}
-			{#if triggerable}
+			{#if thenable}
 				<SettingRow title="Then" description="The job that runs next, once this one succeeds.">
 					<ChoiceMenu
 						value={job.thenJobId ?? NOTHING}

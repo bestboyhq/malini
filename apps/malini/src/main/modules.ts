@@ -172,6 +172,7 @@ export async function registerModules(
 		},
 	});
 	jobs.start();
+	repositories.overlaps.start();
 	app.announceUpdate();
 	app.announceStart();
 
@@ -203,6 +204,7 @@ export async function registerModules(
 			pullRequests.dispose();
 			jobs.dispose();
 			repositories.watchers.dispose();
+			repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();
 			providers.stop();
 			await chat.stop();
