@@ -76,7 +76,9 @@
 	const forkAvailable = $derived(
 		run.terminal !== null && !run.superseded && !run.obsoleted && forkSeq !== null,
 	);
-	const hasAssistantAnswer = $derived(run.items.some((item) => item.kind === 'assistant'));
+	const hasAssistantAnswer = $derived(
+		timelines.timelineItems(run).some((item) => item.kind === 'assistant'),
+	);
 	const endsQuietly = $derived(
 		run.terminal === 'cancelled' || (run.terminal === 'paused' && !isLastRun),
 	);
@@ -144,6 +146,10 @@
 
 {#snippet runActions()}
 	<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
+	{@render copyResponse()}
+{/snippet}
+
+{#snippet copyResponse()}
 	<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
 		<IconButton
 			bare
@@ -251,7 +257,11 @@
 				{run}
 				waitingForUser={isLastRun && transcript.waitingForUser}
 				background={transcript.backgroundWork}
-			/>
+			>
+				{#if hasAssistantAnswer}
+					{@render copyResponse()}
+				{/if}
+			</RunStatusLine>
 		{/if}
 
 		{#if run.terminal === 'failed' || (run.terminal === 'paused' && isLastRun)}
@@ -264,7 +274,7 @@
 			</p>
 		{/if}
 
-		{#if !endsQuietly && (hasAssistantAnswer || undoTarget || forkAvailable)}
+		{#if run.terminal !== null && !endsQuietly && (hasAssistantAnswer || undoTarget || forkAvailable)}
 			<div class="flex h-6 items-center justify-end gap-1.5" data-testid="chat-run-actions">
 				{@render runActions()}
 			</div>

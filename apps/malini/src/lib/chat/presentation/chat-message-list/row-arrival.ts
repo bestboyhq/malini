@@ -1,5 +1,6 @@
 import { arrivalMotion } from '../arrival-motion';
 import {
+	ceilToDevicePixel,
 	GLIDE_KEYFRAMES_PER_SAMPLE,
 	GLIDE_SAMPLE_MS,
 	glideKeyframe,
@@ -25,6 +26,8 @@ const SETTLED_ROW = '[data-row-settled]';
 
 const COVERED_FADE_PX = 12;
 
+const MIN_COVER_PX = 0.5;
+
 const COVER_FADE = 'data-cover-fade';
 
 const FADE_BACKGROUND = 'linear-gradient(to bottom, transparent, var(--color-surface-root))';
@@ -32,6 +35,8 @@ const FADE_BACKGROUND = 'linear-gradient(to bottom, transparent, var(--color-sur
 const KEYFRAME_MS = GLIDE_SAMPLE_MS / GLIDE_KEYFRAMES_PER_SAMPLE;
 
 const SETTLED: GlideState = { position: 0, velocity: 0 };
+
+type Frame = Readonly<Record<string, string>>;
 
 export type RowArrivalAction = (node: HTMLElement, key: string) => { destroy: () => void };
 
@@ -167,6 +172,7 @@ export function createRowArrivals(input: {
 			positions: number[];
 			animation: Animation | null;
 		};
+		type Placed = { element: HTMLElement; row: Row };
 		type Cover = { lower: HTMLElement; fade: HTMLElement; block: HTMLElement };
 		const rows = new Map<HTMLElement, Row>();
 		const covers = new Map<HTMLElement, Cover>();
@@ -174,6 +180,8 @@ export function createRowArrivals(input: {
 		let startFrame: number | null = null;
 		let width = container.clientWidth;
 		let disclosedAtMs = Number.NEGATIVE_INFINITY;
+		let pinned: HTMLElement | null = null;
+		let pinnedPx = 0;
 
 		function trackDisclosure(event: Event): void {
 			if (disclosureOf(event.target)) disclosedAtMs = performance.now();
@@ -187,11 +195,15 @@ export function createRowArrivals(input: {
 			const animation = row.animation;
 			if (animation?.playState !== 'running') return 0;
 			const index = shownSample(Number(animation.currentTime ?? 0), row.positions.length);
-			return shownOffset(row.positions[index] ?? 0);
+			return snapToDevicePixel(row.positions[index] ?? 0);
 		}
 
 		function gliding(row: Row): boolean {
 			return row.animation?.playState === 'running';
+		}
+
+		function shownEdge(row: Row, edge: number, keyframe: number): number {
+			return snapToDevicePixel(edge + snapToDevicePixel(row.positions[keyframe] ?? 0));
 		}
 
 		function begin(animation: Animation, originMs: number | null): Animation {
@@ -214,8 +226,10 @@ export function createRowArrivals(input: {
 			row.animation?.cancel();
 			row.animation = null;
 			if (row.positions.length < 2) return;
-			const offsets = row.positions.map((position) => `0 ${shownOffset(position)}px`);
-			row.animation = begin(animateFrames(element, 'translate', offsets), originMs);
+			const frames = row.positions.map((position) => ({
+				translate: `0 ${snapToDevicePixel(position)}px`,
+			}));
+			row.animation = begin(animateFrames(element, frames), originMs);
 		}
 
 		function removeCover(upper: HTMLElement): void {
@@ -229,43 +243,69 @@ export function createRowArrivals(input: {
 			cover.lower.style.isolation = '';
 		}
 
-		function coverFrames(upper: Row, below: Row): { fade: string[]; block: string[] } | null {
-			const offsetAt = (row: Row, index: number): number => row.positions[index] ?? 0;
-			const length = Math.max(upper.positions.length, below.positions.length);
-			const depths = Array.from({ length }, (_, index) =>
-				Math.ceil(offsetAt(upper, index) - offsetAt(below, index)),
+		function hiddenFrom(placed: readonly Placed[], upperIndex: number, below: Row): Row | null {
+			const revealAt = shownEdge(below, below.top, 0);
+			let first: Row | null = null;
+			for (let index = upperIndex; index >= 0; index -= 1) {
+				const row = placed[index]?.row;
+				if (!row || shownEdge(row, row.bottom, 0) - revealAt < MIN_COVER_PX) break;
+				first = row;
+			}
+			return first;
+		}
+
+		function coverFrames(
+			first: Row,
+			upper: Row,
+			below: Row,
+		): { fade: Frame[]; block: Frame[] } | null {
+			const length = Math.max(
+				first.positions.length,
+				upper.positions.length,
+				below.positions.length,
 			);
+			const edges = Array.from({ length }, (_, index) => shownEdge(below, below.top, index));
+			const depths = edges.map((edge, index) => shownEdge(upper, upper.bottom, index) - edge);
 			let lastCovered = depths.length - 1;
-			while (lastCovered >= 0 && (depths[lastCovered] ?? 0) < 1) lastCovered -= 1;
+			while (lastCovered >= 0 && (depths[lastCovered] ?? 0) < MIN_COVER_PX) lastCovered -= 1;
 			if (lastCovered < 0) return null;
-			const steps = depths.slice(0, lastCovered + 2).map((depth) => (depth < 1 ? 0 : depth));
-			const edges = steps.map(
-				(depth, index) => upper.bottom + shownOffset(offsetAt(upper, index)) - depth,
-			);
+			const steps = depths
+				.slice(0, lastCovered + 2)
+				.map((depth) => (depth < MIN_COVER_PX ? 0 : depth));
+			const enteringDropPx = Math.max(0, arrivalMotion().travelPx);
 			return {
 				fade: steps.map((depth, index) => {
-					const height = Math.min(COVERED_FADE_PX, depth);
-					const top = snapToDevicePixel((edges[index] ?? 0) - height);
-					return `translateY(${top}px) scaleY(${height / COVERED_FADE_PX})`;
+					const edge = edges[index] ?? 0;
+					const emerged = edge - shownEdge(first, first.top, index);
+					const height = Math.max(0, Math.min(COVERED_FADE_PX, depth, emerged));
+					return { top: `${edge - height}px`, height: `${height}px` };
 				}),
-				block: steps.map((depth, index) => `translateY(${edges[index] ?? 0}px) scaleY(${depth})`),
+				block: steps.map((depth, index) => {
+					const edge = edges[index] ?? 0;
+					const hiddenBottom = ceilToDevicePixel(
+						upper.bottom + snapToDevicePixel(upper.positions[index] ?? 0),
+					);
+					return {
+						top: `${edge}px`,
+						height: `${depth > 0 ? hiddenBottom - edge + enteringDropPx : 0}px`,
+					};
+				}),
 			};
 		}
 
 		function cover(
-			upperElement: HTMLElement,
-			upper: Row,
-			lower: HTMLElement,
-			below: Row,
+			{ element: upperElement, row: upper }: Placed,
+			first: Row,
+			{ element: lower, row: below }: Placed,
 			originMs: number | null,
 		): boolean {
-			const frames = coverFrames(upper, below);
+			const frames = coverFrames(first, upper, below);
 			if (!frames) return false;
 			if (covers.get(upperElement)?.lower !== lower) removeCover(upperElement);
 			const entry = covers.get(upperElement) ?? {
 				lower,
-				fade: coverPart('fade', COVERED_FADE_PX),
-				block: coverPart('block', 1),
+				fade: coverPart('fade'),
+				block: coverPart('block'),
 			};
 			if (!covers.has(upperElement)) {
 				covers.set(upperElement, entry);
@@ -280,8 +320,8 @@ export function createRowArrivals(input: {
 			for (const part of [entry.fade, entry.block]) {
 				for (const animation of part.getAnimations()) animation.cancel();
 			}
-			begin(animateFrames(entry.fade, 'transform', frames.fade), originMs);
-			const blockAnimation = begin(animateFrames(entry.block, 'transform', frames.block), originMs);
+			begin(animateFrames(entry.fade, frames.fade), originMs);
+			const blockAnimation = begin(animateFrames(entry.block, frames.block), originMs);
 			blockAnimation.onfinish = () => {
 				if (covers.get(upperElement) === entry) removeCover(upperElement);
 			};
@@ -302,17 +342,47 @@ export function createRowArrivals(input: {
 				row.startMs = originMs ?? nowMs;
 				play(element, row, originMs);
 			}
-			const covered = new Set<HTMLElement>();
-			let lower: HTMLElement | null = null;
-			for (let index = container.children.length - 1; index >= 0; index -= 1) {
-				const element = container.children[index];
+			const placed = [...container.children].flatMap((element) => {
 				const row = element instanceof HTMLElement ? rows.get(element) : undefined;
-				if (!(element instanceof HTMLElement) || !row?.inFlow) continue;
-				const below = lower ? rows.get(lower) : undefined;
-				if (lower && below && cover(element, row, lower, below, originMs)) covered.add(element);
-				lower = element;
+				return element instanceof HTMLElement && row?.inFlow ? [{ element, row }] : [];
+			});
+			const covered = new Set<HTMLElement>();
+			for (let index = placed.length - 1; index > 0; index -= 1) {
+				const upper = placed[index - 1];
+				const lower = placed[index];
+				if (!upper || !lower) continue;
+				const first = hiddenFrom(placed, index - 1, lower.row) ?? upper.row;
+				if (cover(upper, first, lower, originMs)) covered.add(upper.element);
 			}
 			for (const upper of [...covers.keys()]) if (!covered.has(upper)) removeCover(upper);
+		}
+
+		function lastRowInFlow(): HTMLElement | null {
+			for (let index = container.children.length - 1; index >= 0; index -= 1) {
+				const element = container.children[index];
+				if (!(element instanceof HTMLElement) || element.hasAttribute('data-prompt-row')) continue;
+				if (!element.hasAttribute(COVER_FADE) && isInFlow(element)) return element;
+			}
+			return null;
+		}
+
+		function unpin(): void {
+			if (pinned) pinned.style.marginTop = '';
+			pinned = null;
+			pinnedPx = 0;
+		}
+
+		function pinLastRowToDevicePixels(origin: number): void {
+			const last = lastRowInFlow();
+			if (last !== pinned) unpin();
+			if (!last) return;
+			const row = rows.get(last);
+			const top = last.getBoundingClientRect().top - origin - (row ? shownNow(row) : 0) - pinnedPx;
+			const px = ceilToDevicePixel(top) - top;
+			if (px === pinnedPx) return;
+			last.style.marginTop = px > 0 ? `${px}px` : '';
+			pinned = last;
+			pinnedPx = px;
 		}
 
 		function measure(): void {
@@ -325,6 +395,7 @@ export function createRowArrivals(input: {
 			rebaseRequested = false;
 			const gone = new Set(rows.keys());
 			const origin = container.getBoundingClientRect().top + container.clientTop;
+			pinLastRowToDevicePixels(origin);
 			const shifts = new Map<Row, number>();
 			const resets = new Set<Row>();
 			let changed = false;
@@ -332,9 +403,11 @@ export function createRowArrivals(input: {
 				if (!(element instanceof HTMLElement) || element.hasAttribute('data-prompt-row')) continue;
 				if (element.hasAttribute(COVER_FADE)) continue;
 				gone.delete(element);
-				const top = element.offsetTop;
 				const row = rows.get(element);
-				const bottom = element.getBoundingClientRect().bottom - origin - (row ? shownNow(row) : 0);
+				const box = element.getBoundingClientRect();
+				const offset = origin + (row ? shownNow(row) : 0);
+				const top = box.top - offset;
+				const bottom = box.bottom - offset;
 				const inFlow = isInFlow(element);
 				if (!row) {
 					resizeObserver.observe(element);
@@ -385,6 +458,7 @@ export function createRowArrivals(input: {
 			if (startFrame !== null) cancelAnimationFrame(startFrame);
 			for (const row of rows.values()) row.animation?.cancel();
 			for (const upper of [...covers.keys()]) removeCover(upper);
+			unpin();
 			rows.clear();
 		};
 	}
@@ -410,29 +484,29 @@ function keyframePositions(samples: readonly GlideState[]): number[] {
 	);
 }
 
-function shownOffset(position: number): number {
-	return Math.abs(position) < 0.5 ? 0 : snapToDevicePixel(position);
-}
-
 function shownSample(elapsedMs: number, count: number): number {
 	return Math.min(count - 1, glideKeyframe(elapsedMs));
 }
 
-function animateFrames(
-	element: HTMLElement,
-	property: 'translate' | 'transform',
-	frames: readonly string[],
-): Animation {
+function animateFrames(element: HTMLElement, frames: readonly Frame[]): Animation {
 	const span = frames.length - 1.5;
-	const keyframes = frames.flatMap((value, index) =>
-		index > 0 && index < frames.length - 1 && value === frames[index - 1]
+	const keyframes = frames.flatMap((frame, index) =>
+		index > 0 && index < frames.length - 1 && sameFrame(frame, frames[index - 1])
 			? []
-			: [{ [property]: value, offset: index === 0 ? 0 : (index - 0.5) / span, easing: 'step-end' }],
+			: [{ ...frame, offset: index === 0 ? 0 : (index - 0.5) / span, easing: 'step-end' }],
 	);
-	return element.animate(keyframes, { duration: span * KEYFRAME_MS, fill: 'backwards' });
+	return element.animate(keyframes, {
+		duration: span * KEYFRAME_MS,
+		fill: 'backwards',
+		composite: 'add',
+	});
 }
 
-function coverPart(kind: 'fade' | 'block', height: number): HTMLElement {
+function sameFrame(frame: Frame, previous: Frame | undefined): boolean {
+	return previous !== undefined && Object.keys(frame).every((key) => frame[key] === previous[key]);
+}
+
+function coverPart(kind: 'fade' | 'block'): HTMLElement {
 	const part = document.createElement('div');
 	part.setAttribute(COVER_FADE, kind);
 	part.setAttribute('aria-hidden', 'true');
@@ -441,10 +515,8 @@ function coverPart(kind: 'fade' | 'block', height: number): HTMLElement {
 		top: '0',
 		left: '0',
 		right: '0',
-		height: `${height}px`,
+		height: '0',
 		pointerEvents: 'none',
-		transformOrigin: '0 0',
-		transform: 'scaleY(0)',
 		background: kind === 'fade' ? FADE_BACKGROUND : 'var(--color-surface-root)',
 	});
 	return part;
