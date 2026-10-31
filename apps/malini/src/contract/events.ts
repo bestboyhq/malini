@@ -108,6 +108,17 @@ export interface WorkstreamMergeConflictedPayload {
 	conflictedPaths: string[];
 }
 
+export interface WorkstreamBaseOverlappedPayload {
+	workstreamId: string;
+	baseBranch: string;
+	head: string;
+	baseHead: string;
+	behind: number;
+	conflicts: boolean;
+	conflictedPaths: string[];
+	overlappingPaths: string[];
+}
+
 export interface WorkstreamHeadMovedPayload {
 	workstreamId: string;
 	branch: string | null;
@@ -200,6 +211,7 @@ export interface ContractEvents {
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
 	'repositories:workstream-setup-status': WorkstreamSetupStatusPayload;
 	'repositories:workstream-merge-conflicted': WorkstreamMergeConflictedPayload;
+	'repositories:workstream-base-overlapped': WorkstreamBaseOverlappedPayload;
 	'repositories:workstream-head-moved': WorkstreamHeadMovedPayload;
 	'repositories:workstream-pushed': WorkstreamPushedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
@@ -260,6 +272,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-install-status': null,
 	'repositories:workstream-setup-status': null,
 	'repositories:workstream-merge-conflicted': null,
+	'repositories:workstream-base-overlapped': null,
 	'repositories:workstream-head-moved': null,
 	'repositories:workstream-pushed': null,
 	'repositories:clone-progress': null,
@@ -348,6 +361,9 @@ export const REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL =
 
 export const REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL =
 	'repositories:workstream-merge-conflicted' satisfies EventChannel;
+
+export const REPOSITORIES_WORKSTREAM_BASE_OVERLAPPED_CHANNEL =
+	'repositories:workstream-base-overlapped' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL =
 	'repositories:workstream-head-moved' satisfies EventChannel;

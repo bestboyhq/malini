@@ -30,6 +30,7 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'files-changed': { label: 'Files changed', icon: 'files' },
 	'branch-pushed': { label: 'Branch pushed', icon: 'arrow-up' },
 	'merge-conflicted': { label: 'Merge conflicted', icon: 'swap' },
+	'base-overlapped': { label: 'Base overlapped', icon: 'branch' },
 	'pull-request-changed': { label: 'Pull request changed', icon: 'pr-open' },
 	'workstream-created': { label: 'Workstream created', icon: 'folder-plus' },
 	'workstream-archived': { label: 'Workstream archived', icon: 'archive' },
@@ -151,6 +152,10 @@ const EVENT_DETAILS: Readonly<Record<string, (payload: Payload) => string | null
 	'repositories:workstream-pushed': (payload) => sha(payload['head']),
 	'repositories:workstream-merge-conflicted': (payload) =>
 		count(strings(payload['conflictedPaths']).length, 'file'),
+	'repositories:workstream-base-overlapped': (payload) =>
+		payload['conflicts'] === true
+			? `${count(strings(payload['conflictedPaths']).length, 'file')} would conflict`
+			: `${count(strings(payload['overlappingPaths']).length, 'file')} changed on both`,
 	'repositories:workstream-files-changed': (payload) => {
 		const paths = strings(payload['paths']).length;
 		return paths === 0 ? null : count(paths, 'file');

@@ -52,6 +52,7 @@ import {
 import { parseLeadScope } from '../domain/lead-scope';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
+import { BASE_FETCH_EVERY_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
@@ -165,6 +166,23 @@ export function registerRepositories(
 		...(deps.log ? { log: deps.log } : {}),
 	});
 	void watchers.start();
+	const baseFetchMs = context.isDev ? Number(process.env['MALINI_BASE_FETCH_MS']) : Number.NaN;
+	const overlaps = new BaseOverlapWatch({
+		db,
+		events,
+		checkouts,
+		fetchBase: (repoPath, baseBranch) => baseSync.fetchBase(repoPath, baseBranch),
+		agentWorking: (workstreamId) =>
+			commands.call('chat.workstream-has-working-run', { workstreamId }),
+		merging: async (workstreamId) =>
+			(await commands.call('pull-requests.ship-states', undefined)).some(
+				(ship) =>
+					ship.workstreamId === workstreamId &&
+					(ship.phase === 'queued' || ship.phase === 'needs-you'),
+			),
+		fetchEveryMs: baseFetchMs > 0 ? baseFetchMs : BASE_FETCH_EVERY_MS,
+		log: deps.log ?? ((line) => console.error(line)),
+	});
 
 	const guardRunLease = deps.guardRunLease;
 	const teardowns = new WorkstreamTeardowns();
@@ -589,6 +607,7 @@ export function registerRepositories(
 		ownership,
 		installs,
 		watchers,
+		overlaps,
 		bundleIdentifier,
 		appInstanceId: ownership.appInstanceId,
 		containerCount: () => ownership.ownedContainerCount(),
