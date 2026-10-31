@@ -9,7 +9,7 @@ The user wants funnels and to see "how the loop goes", from a prompt to a merge,
 A funnel usually needs an id per install, which makes usage data personal and, in the EU, asks for consent first; asking first would also hide the drop-off, since people who leave early rarely say yes.
 Malini already keeps every step of the loop in its own database, so the Mac can count it and send numbers only.
 The user wants any ask to give its reason and what you get from it, and turned down copy that read mechanical: "it's very verbal text ... it doesn't feel human".
-Of three places to explain it, a receipt in Settings, a card after a merge and a funnel in Stats, they picked the receipt in Settings, Privacy.
+Of three prototypes they picked a receipt in Settings, Privacy over a card after a merge and a funnel in Stats, and of three voices for its copy the plain one, which says what the counts are for: "where work gets stuck and which fixes should we put first".
 
 ## Decision
 

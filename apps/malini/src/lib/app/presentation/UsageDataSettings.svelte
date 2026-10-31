@@ -43,8 +43,8 @@
 	<div class="min-w-0">
 		<h3 id="usage-data-label" class="text-fg-default text-sm font-medium">Share usage data</h3>
 		<p class="text-fg-tertiary text-xs">
-			I'm Simon, and I build Malini. These daily counts show me where your work gets stuck between a
-			prompt and a merge, so I know what to fix next.
+			Once a day, Malini sends a few counts, like how many workstreams you started and merged. They
+			show us where work gets stuck and what to fix first.
 		</p>
 		{#if shared}
 			<Button
