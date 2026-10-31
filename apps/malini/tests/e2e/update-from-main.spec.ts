@@ -98,6 +98,39 @@ test('a workstream behind main stays as it is until you merge it, then the merge
 	}
 });
 
+test('a merge behind main stops the background command its agent left running, then updates the branch and merges', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-behind-background',
+			{ liveHead: true, liveMergeable: true },
+			async ({ basePath, worktree }: SeededWorkstream) => {
+				await commitFile(worktree, 'branch.txt', 'branch line\n', 'branch change');
+				await commitFile(basePath, 'main.txt', 'main line\n', 'main change');
+			},
+		);
+		const branchHead = github.pushedHead();
+		await openWorkstream(page, 'e2e-behind-background');
+		await sendPrompt(page, 'BACKGROUND_COMMAND');
+		const strip = page.getByRole('region', { name: '1 background command running' });
+		await expect(strip).toContainText('Run the e2e suite', { timeout: 20_000 });
+
+		await queueMerge(page);
+
+		await expectMergedAndArchived(page, 'e2e-behind-background');
+		const merge = github.pushedHead();
+		expect(
+			(await output(github.remote, ['rev-list', '--parents', '-n', '1', merge])).split(' '),
+		).toEqual([merge, branchHead, await output(github.remote, ['rev-parse', 'main^'])]);
+		await captureFlow(app, 'update-branch-stops-background-command');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('with Resolve conflicts off, Abort merge takes a confirming click in the bar, then returns the worktree to its last commit', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
@@ -168,8 +201,8 @@ async function conflictingPullRequest(
 		workstreamId,
 		{ liveHead: true, liveMergeable: true },
 		async ({ basePath, worktree }: SeededWorkstream) => {
-			await commitFile(worktree, 'branch line\n', 'branch change');
-			await commitFile(basePath, 'main line\n', 'main change');
+			await commitFile(worktree, 'conflict.txt', 'branch line\n', 'branch change');
+			await commitFile(basePath, 'conflict.txt', 'main line\n', 'main change');
 		},
 	);
 }
@@ -184,9 +217,14 @@ async function resolveConflictsOff(page: Page): Promise<void> {
 	});
 }
 
-async function commitFile(repo: string, contents: string, message: string): Promise<void> {
-	writeFileSync(join(repo, 'conflict.txt'), contents);
-	await git(repo, ['add', 'conflict.txt']);
+async function commitFile(
+	repo: string,
+	file: string,
+	contents: string,
+	message: string,
+): Promise<void> {
+	writeFileSync(join(repo, file), contents);
+	await git(repo, ['add', file]);
 	await git(repo, [...AUTHOR, 'commit', '-qm', message]);
 }
 
