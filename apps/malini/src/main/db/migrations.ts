@@ -1348,6 +1348,7 @@ ALTER TABLE job_definitions ADD COLUMN sees_attachments INTEGER NOT NULL DEFAULT
   CHECK (sees_attachments IN (0, 1));
 ALTER TABLE job_definitions ADD COLUMN reaches_internet INTEGER NOT NULL DEFAULT 1
   CHECK (reaches_internet IN (0, 1));
+UPDATE job_definitions SET reaches_internet = 0 WHERE builtin IS NULL;
 `,
 ];
 

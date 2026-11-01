@@ -13,8 +13,8 @@ Claude Code's sandbox hides paths from commands and limits their network without
 ## Decision
 
 - Each job definition carries a `JobBoundary` (`src/contract/jobs.ts`), stored in `job_definitions` as `sees_event` (`facts` or `full`), `sees_before`, `sees_chats` (`none`, `starter` or `all`), `sees_attachments` and `reaches_internet`.
-  Built-in and existing jobs start at `DEFAULT_JOB_BOUNDARY`: event facts, the job before it, no chats, no attachments, the internet on.
-  A job you make starts at `NEW_JOB_BOUNDARY`, the same with the internet off, so it reaches out only once you turn that on.
+  Built-in jobs start at `DEFAULT_JOB_BOUNDARY`: event facts, the job before it, no chats, no attachments, the internet on, since fixing checks and the other built-ins need `gh`.
+  A job you make starts at `NEW_JOB_BOUNDARY`, the same with the internet off, and the migration turns the internet off for every job you made before, so no job reaches out until you turn that on.
 - Only the job's page sets it, under **What it sees** and **What it reaches** (`JobBoundary.svelte`), through `jobs.update-settings`.
   `jobs_save` takes no boundary, and `jobs_run` refuses `context` for a job whose `sees.chats` is `none`.
 - Every `EVENT_CATALOG` entry lists its `facts`, the payload fields a job sees of it: ids, statuses, paths and counts, typed against the payload so `pnpm check` fails on a channel without them or a field it does not have.
@@ -33,6 +33,7 @@ Claude Code's sandbox hides paths from commands and limits their network without
 
 - What a job reads is a setting you see on its page, not what its agent decides, and a job that can carry your words out says so.
 - A job that runs Electron or another tool the sandbox blocks asks you each time it leaves the sandbox; the `ponytail:` on `askBeforeLeavingTheSandbox` names the upgrade, remembering an allow per command.
+- A job you made that calls `gh` or another site needs **The internet** turned on after this change.
 - A job that needs your chats, such as one that measures compaction on real chats, needs **Every chat** set on its page after this change.
 - A new event channel must name its facts, and a fact must never hold what you typed.
 - Enforced by `src/lib/jobs/platform/register.test.ts` (a marker in `chat:turn-finished` never reaches a facts-only job, a Then without the job before it gets no report), `src/lib/chat/platform/ship-context.repository.test.ts` (a marker in every chat field never reaches the pull request), `src/lib/chat/platform/agent/service.test.ts` (`jobs_run` refuses context), `src/lib/chat/platform/agent/boundary.test.ts`, `src/lib/jobs/domain/job-boundary.test.ts`, the bridge's `session.test.ts`, `permissions.test.ts` and `protocol.test.ts`, `src/lib/app/domain/heard-about.test.ts`, `tests/e2e/jobs-page.spec.ts`, and `pnpm check` on `EVENT_CATALOG` facts.
