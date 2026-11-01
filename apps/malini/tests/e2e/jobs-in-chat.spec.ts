@@ -38,7 +38,6 @@ test('a job run from the slash list waits in the composer tray instead of the ch
 			commands.getByRole('option', { name: /^\/compact/u, selected: true }),
 		).toBeVisible();
 		await page.keyboard.press('ArrowDown');
-		await page.keyboard.press('ArrowDown');
 		await expect(commands.getByRole('option', { selected: true })).toHaveCount(0);
 		await expect(jobs.getByRole('option', { name: /^Fix checks/u, selected: true })).toBeVisible();
 		await page.keyboard.press('ArrowDown');
