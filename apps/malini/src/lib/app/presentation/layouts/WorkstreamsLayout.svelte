@@ -14,7 +14,6 @@
 		connectedRepositoriesQuery,
 		createWorkstreamForRepositoryCommand,
 		followActiveWorkstreamHook,
-		followOwnPullRequestsHook,
 		keepActiveWorkstreamFreshHook,
 		refreshRepositoriesCommand,
 		refreshWorkstreamAfterChangeCommand,
@@ -93,7 +92,6 @@
 			retryShipsOnGithubCredentialHook(),
 			followWorkstreamsRouteHook(),
 			pollPullRequestStatesHook(),
-			followOwnPullRequestsHook(),
 			keepActiveWorkstreamFreshHook(pullRequestActivity),
 			scheduleAfterSettledNavigationPaint(() => {
 				void runtimeDiagnostics

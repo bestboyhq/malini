@@ -18,6 +18,7 @@ import {
 } from './harness';
 import {
 	expectMergedAndArchived,
+	holdAgentRuns,
 	queueMerge,
 	seedWorkstreamOnFakeGithub,
 	topBarStatus,
@@ -314,6 +315,72 @@ test('main reaching the files of a workstream while it merges leaves it to its m
 	}
 });
 
+test('a workstream whose pull request merged outside Malini is left alone when main moves through its files, with nothing merged in and no conflicts resolved', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-merged-elsewhere',
+			{ liveHead: true },
+			async ({ worktree }: SeededWorkstream) => {
+				await commitFile(worktree, 'conflict.txt', 'branch line\n', 'branch change');
+			},
+		);
+		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
+
+		github.setPullRequest({ state: 'MERGED' });
+		const mainHead = await commitToMain(app, github.remote, 'conflict.txt', 'main line\n');
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
+			.toBe(mainHead);
+		await page.waitForTimeout(3_000);
+
+		expect(await jobRuns(page)).toEqual([]);
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
+		expect(await output(worktree, ['status', '--porcelain'])).toBe('');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Resolve conflicts you cancel stays cancelled, and Shipping does not start it again', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-cancel-resolve',
+			null,
+			async ({ worktree }: SeededWorkstream) => {
+				await commitFile(worktree, 'conflict.txt', 'branch line\n', 'branch change');
+			},
+		);
+		holdAgentRuns(app, true);
+		await commitToMain(app, github.remote, 'conflict.txt', 'main line\n');
+		const runningResolve = async (): Promise<string | undefined> =>
+			(await jobRuns(page)).find(
+				(run) => run.title === 'Resolve conflicts' && run.status === 'running',
+			)?.id;
+		await expect.poll(runningResolve, { timeout: 60_000 }).toBeDefined();
+
+		await invoke(page, 'jobs.cancel-run', { jobRunId: await runningResolve() });
+		await page.waitForTimeout(8_000);
+
+		expect(
+			(await jobRuns(page)).map(({ title, status, origin }) => [title, status, origin]),
+		).toEqual([
+			['Resolve conflicts', 'cancelled', 'trigger'],
+			['Update from main', 'succeeded', 'trigger'],
+		]);
+		expect(await output(worktree, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).not.toBe('');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a merge behind main stops the background command its agent left running, then updates the branch and merges', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
@@ -459,6 +526,7 @@ function jobRuns(page: Page): Promise<
 		title: string;
 		status: string;
 		origin: string;
+		id: string;
 		parentRunId: string | null;
 		detail: string | null;
 	}[]

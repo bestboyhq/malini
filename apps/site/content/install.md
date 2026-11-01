@@ -15,7 +15,7 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
 2. Open it.
 3. Add a repository.
-   It opens on its scratchpad right away while Malini clones it in the background, and your open pull requests join the sidebar once the clone is done.
+   It opens on its scratchpad right away while Malini clones it in the background, and lists your open pull requests beside it, for you to continue the ones you want here.
 
 ## First launch
 

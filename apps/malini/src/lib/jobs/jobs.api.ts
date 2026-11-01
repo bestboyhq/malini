@@ -1,5 +1,4 @@
 export { default as JobCenter } from './presentation/JobCenter.svelte';
-export { default as JobsNavBadge } from './presentation/JobsNavBadge.svelte';
 export { default as JobPicker } from './presentation/JobPicker.svelte';
 export { default as WorkstreamJobs } from './presentation/WorkstreamJobs.svelte';
 export { default as JobsIntro } from './presentation/JobsIntro.svelte';

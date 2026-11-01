@@ -720,7 +720,7 @@ test('a Fix checks job that keeps failing gives up, says so once, and Retry merg
 
 		await expect(topBarStatus(page, /Fix gave up/u)).toBeVisible({ timeout: 120_000 });
 		await expect(toastSaying(page, `${WORKSTREAM_NAME} needs you · Fix gave up`)).toHaveCount(1);
-		await expect(page.getByTestId('sidebar-open-jobs')).not.toHaveAttribute('aria-describedby');
+		await expect(page.getByRole('region', { name: /^Jobs: .*needs? you/u })).toHaveCount(0);
 		expect(mergeCalls(github)).toEqual([]);
 
 		await page.getByRole('button', { name: 'Open the transcript of the job that stopped' }).click();

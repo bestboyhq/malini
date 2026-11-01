@@ -1,6 +1,6 @@
-# 0138 - Malini draws every view, and extensions swap its infrastructure or add agent tools
+# 0140 - Malini draws every view, and extensions swap its infrastructure or add agent tools
 
-Status: superseded by 0140
+Status: superseded by 0142
 
 ## Context
 
@@ -27,7 +27,7 @@ On secrets and dev boxes they saw one pattern: "I can swap my infrastructure lay
   The model gets the spec and a sample of rows, never the whole result, and an action is an MCP tool call behind Malini's approvals.
   Malini joins several sources in the main process, so no two extensions compete to draw one view.
 - The user never picks where something lives: every chat, job and view uses the adapter a repository's settings chose.
-- The first port is secrets, with this Mac's keychain as its adapter (0139).
+- The first port is secrets, with this Mac's keychain as its adapter (0141).
   The environment and the job runner keep their local behavior until their ports get a second adapter.
 - An Extensions directory in the app lists both kinds; a Showcase of what people built with Malini is a separate directory.
 - Unchanged: extension API v1 stays internal and first-party, no extension code runs in the renderer, there are no webviews, and there is no Malini server.

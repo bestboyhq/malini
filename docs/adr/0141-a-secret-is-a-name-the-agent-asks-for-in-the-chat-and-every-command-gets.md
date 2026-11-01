@@ -1,4 +1,4 @@
-# 0139 - A secret is a name the agent asks for in the chat, and every command gets
+# 0141 - A secret is a name the agent asks for in the chat, and every command gets
 
 Status: accepted
 
@@ -7,7 +7,7 @@ Status: accepted
 Agents asked for a secret with `files_open` (0064, 0079): the user switched to a file tab beside the chat, typed the value after a `KEY=` line, and switched back, and commands read that file only through the user's own `secrets-run`.
 `files_open` also took worktree paths such as `apps/x/.env`, and archiving keeps only `.context` and the attachments (`KEPT_FOLDERS` in `kept-folders.ts`), so a pasted secret "is gone after the work stream got archived".
 The user wants it "inlined in a chat so I don't need to go anywhere", and "the user shouldn't give a fuck where the secrets sit ... file system paths, nobody gives a fuck about it".
-0138 makes where a secret lives an adapter's job, with this Mac's keychain first.
+0140 makes where a secret lives an adapter's job, with this Mac's keychain first.
 Two simpler injectors fail in Claude Code 2.1.293.
 A PreToolUse hook that wraps each Bash command changes `updatedInput`, which is what permission rules, auto mode and the approval card check next, so `Bash(npm test:*)` would stop matching and every card would show the wrapper.
 Masking in a PostToolUse hook misses every command that exits non-zero: Claude Code reports those through PostToolUseFailure, which cannot rewrite output.

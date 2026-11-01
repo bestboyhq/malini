@@ -5,7 +5,7 @@ description: Malini's own marketplace on bestboy.dev. Extensions add MCP servers
 
 ## Find and install extensions
 
-The **Extensions** button in the sidebar footer, next to Jobs, opens **Discover**: every extension in the marketplace on bestboy.dev, with who published it and what it does.
+The **Extensions** button in the sidebar footer, next to Settings, opens **Discover**: every extension in the marketplace on bestboy.dev, with who published it and what it does.
 **Install** puts it in every chat from that chat's next prompt.
 Open an extension to see its MCP servers, its skills, the hosts it reaches, and its README.
 

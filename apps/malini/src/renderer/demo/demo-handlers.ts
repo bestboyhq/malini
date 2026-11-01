@@ -223,7 +223,7 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'pull-requests.button-clicked': (args) =>
 		'workstreamIds' in args ? null : clickShipButton(emit, args.workstreamId, args.button),
 	'pull-requests.status': ({ workstreamId }) => pullRequestStatus(workstreamId ?? ''),
-	'repositories.sync-own-pull-requests': () => [],
+	'repositories.list-own-pull-requests': () => [],
 	'repositories.read-workstream-image': ({ path }) => readImage(path),
 	'repositories.workstream-diff': () => '',
 	'repositories.base-files': () => [],

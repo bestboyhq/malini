@@ -1291,6 +1291,9 @@ UPDATE job_definitions
   WHERE builtin = 'update-from-main' AND trigger_when IS NULL;
 `,
 	`
+DROP TABLE deleted_workstreams;
+`,
+	`
 CREATE TABLE secrets (
   repository TEXT NOT NULL COLLATE NOCASE,
   name TEXT NOT NULL,

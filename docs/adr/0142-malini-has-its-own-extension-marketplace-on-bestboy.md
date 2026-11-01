@@ -1,10 +1,10 @@
-# 0140 - Malini has its own extension marketplace on bestboy.dev
+# 0142 - Malini has its own extension marketplace on bestboy.dev
 
-Status: superseded by 0142
+Status: superseded by 0144
 
 ## Context
 
-0138 put contributions (MCP servers, skills and hooks) in the Claude Code plugin format and installed them through Claude Code, because Claude Code already held their configuration and sign-ins.
+0140 put contributions (MCP servers, skills and hooks) in the Claude Code plugin format and installed them through Claude Code, because Claude Code already held their configuration and sign-ins.
 The user rejected that: "We want our own marketplace ppl can publish to and install from; besides we'll be extending entire malini, not just claude, so why ... would u put it thru claude code?"
 Installing through `claude plugin install` ties every extension to one agent runtime and to `~/.claude`, and gives a publisher nowhere to publish.
 Bestboy's platform already signs people in to Malini (0129) and hosts Grip's files in R2 behind a separate media origin.
@@ -37,13 +37,13 @@ Picking the list layout, the user asked for less structure than one bordered lis
   Each page is a `PageSection` of wells holding separate cards, with no dividers, as in Appearance; `PageSection` moved from Jobs to hyper-ui so both share it.
   The inspector's Extension directory and the managed-install stubs are gone.
 - **A fourth outbound call**, beside 0129's three: Malini reads the marketplace index, extension pages and packages from bestboy.dev without a token, only while Extensions is open or something is installed, and sends a package with the person's token only when they press **Publish**.
-- Still true from 0138: Malini draws every pixel, no extension code runs in the renderer, agents summon views rather than install them, adapters swap infrastructure behind a port with this Mac's keychain as the first secrets adapter, and the user never picks where something lives.
+- Still true from 0140: Malini draws every pixel, no extension code runs in the renderer, agents summon views rather than install them, adapters swap infrastructure behind a port with this Mac's keychain as the first secrets adapter, and the user never picks where something lives.
   Adapters, job recipes and views join `malini.json` when their ports land.
 
 ## Consequences
 
 - An extension adds nothing that runs on the Mac: remote servers and skills only, so the listing's servers and hosts are everything it reaches.
-  Local (stdio) servers and adapters wait for 0138's sandbox.
+  Local (stdio) servers and adapters wait for 0140's sandbox.
 - Anyone with a handle publishes at once; trust comes from what the listing shows and from the sha256 check, not from review, and a handle can take any brand's name until the platform verifies publishers by domain.
 - The MCP probes behind Settings, MCP servers load the same folders, so an extension's server shows there and signs in like any other; Claude Code keeps that sign-in, so sign-ins stay per runtime until Malini holds them.
 - Enforced by `src/lib/extensions/domain/marketplace-manifest.test.ts` (the manifest and package rules), `src/lib/extensions/platform/extension-package.test.ts` (packing, the size and base64 checks), `src/lib/extensions/platform/marketplace.test.ts` (install, the hash check, updates, withdrawals, publishing), the bridge's session and protocol tests (`plugins` and the relaunch), `src/main/db/migrations.test.ts`, and `tests/e2e/extensions.spec.ts`.

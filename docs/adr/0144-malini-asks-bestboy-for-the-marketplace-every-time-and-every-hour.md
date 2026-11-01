@@ -1,10 +1,10 @@
-# 0142 - Malini asks bestboy.dev for the marketplace every time, and every hour while anything is installed
+# 0144 - Malini asks bestboy.dev for the marketplace every time, and every hour while anything is installed
 
 Status: accepted
 
 ## Context
 
-0140 had Malini read the marketplace index when Extensions opens and at start while anything is installed, as fresh as the platform's `Cache-Control` allows.
+0142 had Malini read the marketplace index when Extensions opens and at start while anything is installed, as fresh as the platform's `Cache-Control` allows.
 bestboy.dev answers `GET /api/extensions` with `public, max-age=300`, and `net.fetch` keeps that answer in Chromium's cache, so for five minutes no read reached bestboy.dev.
 In the built app on the live marketplace, the first open of Discover asked bestboy.dev and the next three reads, Published's included, came from the cache.
 Published reloads the list after **Publish**, so on bestboy.dev its row kept offering **Publish** for the version just published until the cached list expired; the e2e fake of the platform sent no `Cache-Control`, so its publish test never saw that.
@@ -18,7 +18,7 @@ The marketplace went live on bestboy.dev with platform pull request 28, so a yan
 - `ExtensionsPlatform.start()` reads the index at start and then every hour (`MARKETPLACE_REFRESH_MS` in `src/lib/extensions/platform/register.ts`), and `stop()` ends that at shutdown.
   A read still does nothing while nothing is installed, and otherwise turns off yanked versions and installs updates that reach no new host.
 - The e2e fake of the platform, `tests/e2e/fake-bestboy.ts`, answers the index with bestboy.dev's `Cache-Control`.
-- Still true from 0140: the marketplace API and its packages, installs into Malini's own folder handed to every session as SDK plugins, updates that reach a new host waiting for **Update**, publishing what is committed under your handle, the Extensions page, and the fourth outbound call, read without a token only while Extensions is open or something is installed.
+- Still true from 0142: the marketplace API and its packages, installs into Malini's own folder handed to every session as SDK plugins, updates that reach a new host waiting for **Update**, publishing what is committed under your handle, the Extensions page, and the fourth outbound call, read without a token only while Extensions is open or something is installed.
 
 ## Consequences
 

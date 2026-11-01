@@ -27,6 +27,7 @@ export interface BaseOverlapWatchDeps {
 	fetchBase(repoPath: string, baseBranch: string): Promise<string>;
 	agentWorking(workstreamId: string): Promise<boolean>;
 	merging(workstreamId: string): Promise<boolean>;
+	pullRequestEnded(workstream: Workstream): Promise<boolean>;
 	readonly fetchEveryMs?: number;
 	readonly log: (line: string) => void;
 }
@@ -100,7 +101,7 @@ export class BaseOverlapWatch {
 	}
 
 	async #compareOnce(workstreamId: string): Promise<void> {
-		const { db, events, checkouts, agentWorking, merging } = this.#deps;
+		const { db, events, checkouts, agentWorking, merging, pullRequestEnded } = this.#deps;
 		const workstream = getWorkstream(db, workstreamId);
 		if (!workstream || !this.#watched(workstream)) return;
 		const checkout = await checkouts.resolveCheckout(workstreamId);
@@ -115,8 +116,9 @@ export class BaseOverlapWatch {
 		if (status.dirtyPaths.length > 0 || status.operationInProgress !== null) return;
 		if ((await agentWorking(workstreamId)) || (await merging(workstreamId))) return;
 		const overlap = await baseOverlap(checkout, head, baseHead);
+		const ended = overlap !== null && (await pullRequestEnded(workstream));
 		this.#compared.set(workstreamId, pair);
-		if (overlap === null) return;
+		if (overlap === null || ended) return;
 		events.emit(REPOSITORIES_WORKSTREAM_BASE_OVERLAPPED_CHANNEL, {
 			workstreamId,
 			baseBranch: workstream.baseBranch,

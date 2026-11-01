@@ -208,7 +208,7 @@ test('Malini asks before it acts on a failed job when the model says so, and doe
 			),
 		);
 		expect(asked?.pick).toBe(4);
-		await expect(page.getByTestId('sidebar-jobs-needs-you-count')).toHaveText('1');
+		await expect(page.getByRole('region', { name: 'Jobs: 1 needs you' })).toBeVisible();
 		await openJobs(page, '#/jobs/activity');
 		const ask = page.getByRole('group', { name: `Malini asks: ${JOB} failed in Api work.` });
 		await expect(ask).toBeVisible({ timeout: 20_000 });

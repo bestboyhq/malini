@@ -47,7 +47,7 @@
 		type SidebarOwner,
 		type SidebarSection,
 	} from '$lib/app/domain/sidebar-tree';
-	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
+	import { MomentPeek, WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
 	import { momentQuery } from '$lib/stats/application/queries/moment.query.svelte';
@@ -2100,5 +2100,6 @@
 		<SidebarArchived />
 	{/if}
 
+	<MomentPeek />
 	<SidebarFooter />
 </SidebarFrame>
