@@ -8,9 +8,11 @@ import {
 	BRIDGE_PROTOCOL_VERSION,
 } from './generated/protocol-contract.js';
 import {
+	isAgentBoundary,
 	isAgentLineage,
 	isAgentRunProfile,
 	isAgentTheme,
+	type AgentBoundary,
 	type AgentLineage,
 	type AgentReasoningEffort,
 	type AgentRunProfile,
@@ -77,6 +79,7 @@ export interface SendPromptCommand {
 	readonly secrets?: Secrets;
 	readonly plugins?: readonly string[];
 	readonly compactWindow?: number;
+	readonly boundary?: AgentBoundary;
 }
 
 export type Secrets = Readonly<Record<string, string>>;
@@ -814,6 +817,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const secrets = obj.secrets;
 	const plugins = obj.plugins;
 	const compactWindow = obj.compactWindow;
+	const boundary = obj.boundary;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -869,6 +873,13 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
+	if (boundary !== undefined && !isAgentBoundary(boundary)) {
+		return err(
+			'INVALID_PAYLOAD',
+			'send_prompt: boundary, when present, must hold hidden absolute paths, chatRecords and internet',
+			obj,
+		);
+	}
 	return {
 		ok: true,
 		command: {
@@ -887,6 +898,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(secrets !== undefined ? { secrets } : {}),
 			...(plugins !== undefined ? { plugins } : {}),
 			...(compactWindow !== undefined ? { compactWindow } : {}),
+			...(boundary !== undefined ? { boundary } : {}),
 		},
 	};
 }

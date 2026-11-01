@@ -1,5 +1,5 @@
 import type { AgentEvent, McpServerReport } from '../types.js';
-import type { AgentLineage, AgentRunProfile, AgentTheme } from '../agent-profile.js';
+import type { AgentBoundary, AgentLineage, AgentRunProfile, AgentTheme } from '../agent-profile.js';
 import type {
 	BrowserRequest,
 	BrowserResult,
@@ -42,6 +42,7 @@ export interface ProviderHandle {
 		lineage?: AgentLineage,
 		plugins?: readonly string[],
 		compactWindow?: number,
+		boundary?: AgentBoundary,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

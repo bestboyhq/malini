@@ -90,7 +90,7 @@ apps/malini/src/main/
 
 Command names are `<domain>.<verb-kebab>` (`chat.send-prompt`), event channels `<domain>:<event-kebab>` (`chat:agent-event`).
 Both are declared once in `$contract` and checked on both sides by `pnpm check`.
-Every event channel has one description in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
+Every event channel has one description and the `facts` a job sees of it in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
 
 `.agents/rules/frontend/layout.mdc` has the full tree and `.agents/rules/frontend/cross-domain-imports.mdc` the import rules.
 `@malini/desktop/domain-boundaries` enforces both at `error`.

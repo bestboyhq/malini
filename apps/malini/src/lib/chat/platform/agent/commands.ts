@@ -76,7 +76,12 @@ import {
 	workstreamLineage,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
-import { activeJobRunForSession, clearAlarm, runAutomaticJob } from '$lib/jobs/jobs.platform';
+import {
+	activeJobRunForSession,
+	clearAlarm,
+	jobBoundaryForSession,
+	runAutomaticJob,
+} from '$lib/jobs/jobs.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
@@ -102,7 +107,8 @@ import {
 	type EmitEnvelope,
 	type RunLease,
 } from './lifecycle';
-import type { AgentLineage } from '$contract/agent';
+import type { AgentBoundary, AgentLineage } from '$contract/agent';
+import type { JobBoundary } from '$contract/jobs';
 import type { WorkstreamReport } from '$contract/deliveries';
 import { parseWorkstreamReport } from '../../domain/deliveries';
 import { leadBriefFor } from '../lead-brief.service';
@@ -197,6 +203,7 @@ export interface SendPromptHooks {
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
 	readonly plugins?: () => readonly string[];
+	readonly boundary: (job: JobBoundary, lineage: AgentLineage | null) => AgentBoundary | null;
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -774,6 +781,7 @@ async function sendAgentPromptLeased(
 		...(secrets === null ? {} : { secrets }),
 		...(turn.plugins === null ? {} : { plugins: turn.plugins }),
 		...(hooks.compactWindow ? { compactWindow: await hooks.compactWindow() } : {}),
+		...(turn.boundary === null ? {} : { boundary: turn.boundary }),
 	});
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
@@ -811,6 +819,8 @@ async function preparedTurn(
 ) {
 	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
 	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
+	const job = jobBoundaryForSession(db, sessionId);
+	const lineage = job?.chats === 'none' ? null : await lineageForRun(db, workstreamId, log);
 	return {
 		prompt: brief === null ? prompt : `${brief}\n\n${prompt}`,
 		resumePoint: handsOff
@@ -819,8 +829,9 @@ async function preparedTurn(
 				? { freshConversation: true as const }
 				: providerResumePoint(db, sessionId),
 		skills: skillsForRun(db, sessionId),
-		plugins: hooks.plugins?.() ?? null,
-		lineage: await lineageForRun(db, workstreamId, log),
+		plugins: job?.internet === false ? [] : (hooks.plugins?.() ?? null),
+		lineage,
+		boundary: job === null ? null : hooks.boundary(job, lineage),
 	};
 }
 

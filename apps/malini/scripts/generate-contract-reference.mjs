@@ -12,7 +12,8 @@ export const REFERENCE_MODULE = resolve(contractRoot, 'contract-reference.genera
 export const EVENTS_PAGE = resolve(appRoot, '../site/content/reference/events.md');
 
 /**
- * @typedef {{ channel: string; description: string; payloadType: string; payload: string }} EventReference
+ * @typedef {{ channel: string; description: string; facts: string[]; payloadType: string; payload: string }} EventReference
+ * @typedef {{ description: string; facts: string[] }} CatalogEntry
  */
 
 /** @returns {EventReference[]} */
@@ -32,17 +33,17 @@ export function readEventReference() {
 	if (!contractEvents || !ts.isInterfaceDeclaration(contractEvents)) {
 		throw new Error('src/contract/events.ts no longer declares interface ContractEvents');
 	}
-	const descriptions = readDescriptions(requireSource(program, catalogPath));
+	const catalog = readCatalog(requireSource(program, catalogPath));
 	return contractEvents.members.map((member) => {
 		if (!ts.isPropertySignature(member) || !member.type || !ts.isStringLiteral(member.name)) {
 			throw new Error(`ContractEvents member ${member.getText()} is not '<channel>': <Payload>`);
 		}
 		const channel = member.name.text;
-		const description = descriptions.get(channel);
-		if (description === undefined) throw new Error(`EVENT_CATALOG has no entry for ${channel}`);
+		const entry = catalog.get(channel);
+		if (entry === undefined) throw new Error(`EVENT_CATALOG has no entry for ${channel}`);
 		return {
 			channel,
-			description,
+			...entry,
 			payloadType: member.type.getText(),
 			payload: declarationsOf(checker, member.type).join('\n\n'),
 		};
@@ -62,9 +63,9 @@ function requireSource(program, path) {
 
 /**
  * @param {ts.SourceFile} catalog
- * @returns {Map<string, string>}
+ * @returns {Map<string, CatalogEntry>}
  */
-function readDescriptions(catalog) {
+function readCatalog(catalog) {
 	/** @type {ts.Expression | undefined} */
 	let literal;
 	for (const statement of catalog.statements) {
@@ -78,29 +79,50 @@ function readDescriptions(catalog) {
 	if (!literal || !ts.isObjectLiteralExpression(literal)) {
 		throw new Error('EVENT_CATALOG must be an object literal');
 	}
-	const descriptions = new Map();
+	const entries = new Map();
 	for (const entry of literal.properties) {
 		if (!ts.isPropertyAssignment(entry) || !ts.isStringLiteral(entry.name)) {
 			throw new Error(`EVENT_CATALOG entry ${entry.getText()} must be '<channel>': { ... }`);
 		}
-		const description =
-			ts.isObjectLiteralExpression(entry.initializer) &&
-			entry.initializer.properties.find(
-				(property) =>
-					ts.isPropertyAssignment(property) &&
-					ts.isIdentifier(property.name) &&
-					property.name.text === 'description',
-			);
-		if (
-			!description ||
-			!ts.isPropertyAssignment(description) ||
-			!ts.isStringLiteralLike(description.initializer)
-		) {
+		const description = catalogProperty(entry, 'description');
+		if (!description || !ts.isStringLiteralLike(description)) {
 			throw new Error(`EVENT_CATALOG ${entry.name.text} needs a string literal description`);
 		}
-		descriptions.set(entry.name.text, description.initializer.text);
+		const facts = catalogProperty(entry, 'facts');
+		if (!facts || !ts.isArrayLiteralExpression(facts)) {
+			throw new Error(
+				`EVENT_CATALOG ${entry.name.text} needs facts as an array of string literals`,
+			);
+		}
+		entries.set(entry.name.text, {
+			description: description.text,
+			facts: facts.elements.map((fact) => {
+				if (!ts.isStringLiteralLike(fact)) {
+					throw new Error(
+						`EVENT_CATALOG ${entry.name.text} has a fact that is not a string literal`,
+					);
+				}
+				return fact.text;
+			}),
+		});
 	}
-	return descriptions;
+	return entries;
+}
+
+/**
+ * @param {ts.PropertyAssignment} entry
+ * @param {string} name
+ * @returns {ts.Expression | undefined}
+ */
+function catalogProperty(entry, name) {
+	if (!ts.isObjectLiteralExpression(entry.initializer)) return undefined;
+	const property = entry.initializer.properties.find(
+		(candidate) =>
+			ts.isPropertyAssignment(candidate) &&
+			ts.isIdentifier(candidate.name) &&
+			candidate.name.text === name,
+	);
+	return property && ts.isPropertyAssignment(property) ? property.initializer : undefined;
 }
 
 /**
@@ -173,11 +195,15 @@ export async function formatModule(events) {
  * @returns {Promise<string>}
  */
 export async function formatPage(events) {
-	const sections = events.map(({ channel, description, payloadType, payload }) =>
+	const sections = events.map(({ channel, description, facts, payloadType, payload }) =>
 		[
 			`## \`${channel}\``,
 			'',
 			description,
+			'',
+			facts.length > 0
+				? `A job sees: ${facts.map((fact) => `\`${fact}\``).join(', ')}`
+				: 'A job sees none of its fields.',
 			'',
 			`Payload: \`${payloadType}\``,
 			'',
@@ -196,6 +222,7 @@ export async function formatPage(events) {
 		'',
 		'Malini announces everything that happens on the platform as an event on a `<domain>:<event>` channel.',
 		'A [job](/malini/docs/jobs.md) can start on any of them, and agents inside Malini can list them with the `events_list` tool.',
+		'A job an event starts sees only the fields listed under **A job sees**, unless you let it see the whole event on its page in Jobs.',
 		'This page is generated from the contract in `apps/malini/src/contract/events.ts`, so it always matches the app.',
 		'',
 		...sections.flatMap((section) => [section, '']),

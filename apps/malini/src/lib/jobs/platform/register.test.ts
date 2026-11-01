@@ -4,6 +4,7 @@ import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import {
 	APP_UPDATED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
 	JOBS_RUN_FINISHED_CHANNEL,
@@ -12,6 +13,7 @@ import {
 } from '$contract/events';
 import type { CommandFailure } from '$contract/ipc';
 import {
+	DEFAULT_JOB_BOUNDARY,
 	JOBS_MAX_CONCURRENT_SETTING,
 	type JobBuiltin,
 	type JobDefinitionRecord,
@@ -1421,6 +1423,63 @@ describe('then', () => {
 		await settle();
 		const runs = await context.commands.call('jobs.list-runs', undefined);
 		expect(runs.filter((run) => run.definitionId === next.id)).toHaveLength(1);
+	});
+
+	it('hands a job its trigger as facts and no report before it, unless you let it see them', async () => {
+		const words = 'tangerine-7f3a';
+		const trigger: JobTrigger = { when: 'on chat:turn-finished', mode: 'auto' };
+		const sealed = await saveDefinition({ name: 'Recall', trigger });
+		const open = await saveDefinition({
+			name: 'Recall all',
+			trigger,
+			boundary: { ...DEFAULT_JOB_BOUNDARY, event: 'full' },
+		});
+		context.events.emit(CHAT_TURN_FINISHED_CHANNEL, {
+			workstreamId: 'ws-a',
+			sessionId: 'chat-1',
+			runId: 'run-1',
+			status: 'succeeded',
+			outcome: words,
+			needs: words,
+			backgroundCommands: [words],
+		});
+		await settle();
+		const contextOf = async (definition: JobDefinitionRecord): Promise<string> => {
+			const runs = await context.commands.call('jobs.list-runs', undefined);
+			const run = runs.find(({ definitionId }) => definitionId === definition.id);
+			return getJobRunContext(db, run?.id ?? '') ?? '';
+		};
+		expect(JSON.parse(await contextOf(sealed))).toEqual({
+			event: CHAT_TURN_FINISHED_CHANNEL,
+			payload: {
+				workstreamId: 'ws-a',
+				sessionId: 'chat-1',
+				runId: 'run-1',
+				status: 'succeeded',
+				repositoryId: 'project',
+			},
+		});
+		expect(await contextOf(open)).toContain(words);
+
+		const notes = await saveDefinition({
+			name: 'Ship notes',
+			instructions: 'Write the notes.',
+			boundary: { ...DEFAULT_JOB_BOUNDARY, before: false },
+		});
+		const fixing = await runOf(await saveDefinition({ name: 'Fix it', thenJobId: notes.id }), {
+			workstreamId: 'ws-b',
+		});
+		complete(await session(fixing.id), `Fixed it.\n\nOutcome: ${words}`);
+		const followUp = await vi.waitFor(async () => {
+			const runs = await context.commands.call('jobs.list-runs', undefined);
+			const found = runs.find(({ definitionId }) => definitionId === notes.id);
+			if (!found) throw new Error('no Then run yet');
+			return found;
+		});
+		await session(followUp.id);
+		expect(fakes.sendPrompt.mock.calls.at(-1)?.[0]).toMatchObject({
+			prompt: 'Write the notes.\n\nThis job runs after “Fix it”.',
+		});
 	});
 
 	it('runs a Then in the workstream it follows, even when the job runs in a new one', async () => {

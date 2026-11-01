@@ -42,8 +42,5 @@ export function heardAbout(setting: string | null | undefined): HeardAbout | nul
 }
 
 export function heardAboutProps(answer: HeardAbout | null): Readonly<Record<string, string>> {
-	if (!answer) return {};
-	return answer.detail
-		? { heard_about: answer.channel, heard_about_detail: answer.detail }
-		: { heard_about: answer.channel };
+	return answer ? { heard_about: answer.channel } : {};
 }

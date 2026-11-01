@@ -1,6 +1,6 @@
 ---
 title: Jobs
-description: A Malini job is work you reuse by name - instructions, a model, an effort, and skills - that runs when you run it, when a Malini event fires, or on a schedule, with a Then that runs next, such as opening a draft pull request. Every event keeps what caused it, and Choose a reaction picks what to do about the ones no trigger handles.
+description: A Malini job is work you reuse by name - instructions, a model, an effort, and skills - that runs when you run it, when a Malini event fires, or on a schedule, with a Then that runs next, such as opening a draft pull request, and sees and reaches only what you set. Every event keeps what caused it, and Choose a reaction picks what to do about the ones no trigger handles.
 ---
 
 You never wanted skills.
@@ -17,7 +17,8 @@ A job has:
 - its **skills**, so the job loads only the ones it needs, or every skill that is on when it names none,
 - where it **runs**: in this workstream, or in a new one,
 - its **When**: only when you run it, or also when a Malini event fires or on a schedule,
-- its **Then**: the one job that runs next, after this one succeeds.
+- its **Then**: the one job that runs next, after this one succeeds,
+- what it **sees** and **reaches**, which only you set.
 
 Three built-in jobs, **Update from main**, **Open draft**, and **Merge**, run without an agent: their instructions only say what they do.
 
@@ -34,7 +35,7 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
 - **Explorer**: a [map of Malini](#explorer) and a timeline, to replay the last hour or day and follow what caused what.
 - **Recipes**: ready-made jobs to start from.
 
-Click a job to open its own page: its When and how it runs, where it runs, its Then, its recent runs, and its instructions, model, effort and skills.
+Click a job to open its own page: what it sees and reaches, its When and how it runs, where it runs, its Then, its recent runs, and its instructions, model, effort and skills.
 **Run** asks Malini to run it, **Delete** removes one of yours, and **Reset** brings back a built-in job's original.
 
 ## When a job runs
@@ -64,7 +65,7 @@ on pull-requests:ship-changed where merged is set
 A job with this When runs when a pull request Malini ships is merged.
 The Jobs page offers the common triggers by name, such as **A pull request merges**, so you rarely write one by hand.
 
-A triggered run gets the event channel and its payload as context, and runs in the workstream the event names, or in a new one when the job runs in a new workstream.
+A triggered run gets the event channel and the payload [it may see](#what-a-job-sees-and-reaches) as context, and runs in the workstream the event names, or in a new one when the job runs in a new workstream.
 Every event counts, even when its payload repeats an earlier one: open the same workstream twice, and a job on `pull-requests:workstream-opened` runs for each opening.
 The same event starts a job once, even across a restart: each event Malini logs has its own id, Malini keeps every event for a week, and hands the ones it had not finished with to the triggers again when it starts.
 An unknown channel or a malformed condition is refused when you save the job, with the channels Malini knows.
@@ -127,7 +128,7 @@ A run that waits for you never holds up its workstream.
 
 ## Then
 
-A job's **Then** is the one job that runs next, in the same workstream, after this one succeeds, with this job's result as its context.
+A job's **Then** is the one job that runs next, in the same workstream, after this one succeeds, with this job's result as its context when it [sees the job before it](#what-a-job-sees-and-reaches).
 A job that fails, needs you, or is cancelled runs no Then.
 
 **Open draft** and **Merge** are jobs, so "open a draft PR" is a Then.
@@ -161,6 +162,33 @@ A **chain** is everything that traces back to one thing you did, such as a promp
 - The fourth run of the same job for the same workstream in one chain waits for you in the [Job center](#run-a-job): "It already ran 3 times in one chain of events, so Malini asks before it runs again."
   Retries are fine, so Malini stops a loop without forbidding them.
   The Shipping rule's jobs stay out of that count: **Fix attempts before asking you** in Settings bounds them.
+
+## What a job sees and reaches
+
+Malini decides what each job's agent may see, from what you set under **What it sees** and **What it reaches** on the job's page.
+Only you change it there: no agent, tool or job widens it, and a new job sees no chat.
+
+What it sees:
+
+- **Code and changes**: the workstream's files and its git history, always.
+- **The event that started it**, for a job with an event When: only its facts, the ids, statuses and paths the [events reference](/malini/docs/reference/events.md) lists under **A job sees**, or the event **in full**, which can hold your messages.
+- **The job before it**: the report of the job whose Then this job is.
+  Off, the job only learns which job ran before it.
+- **Your chats**: **None**; **The one that started it**, which lets that chat hand the job context with `jobs_run` and read that chat's plan; or **Every chat**, which also lets it read Malini's database and logs, Claude Code's transcripts and memory, and every chat's `Outcome:` and `Needs:`.
+- **Your attachments**: the files you attached to chats, and their transcripts.
+
+What it reaches:
+
+- **Anthropic**, always: Claude runs the job's agent and sees what the job sees.
+- **GitHub**, through a Then of **Open draft** or **Merge**, or with `gh` while the job reaches the internet.
+- **The internet**: off, a sandbox lets the job's commands reach no site, and Claude Code drops its web tools and every MCP server but Malini's.
+
+A job that does not see everything runs its commands in Claude Code's sandbox, which hides what the job may not see from its commands and its Read tool.
+A command that must run outside the sandbox, such as one that launches Electron, asks you first, every time.
+
+A job that sees your words, through a chat, an attachment, a whole event, or the report of a job before it that sees them, and reaches outside your Mac, through the internet or a Then that publishes, **can leak**.
+The Jobs page marks it **Can leak**, and its page says how, with **Stop it seeing your words** and **Turn off the internet** one click away.
+**Update from main**, **Open draft** and **Merge** run no agent, and write a pull request only from the agent's `Commit:` and `Pull request:` lines, the changed files and the checks that passed, never from what you typed.
 
 ## Run a job
 

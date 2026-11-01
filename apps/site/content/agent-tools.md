@@ -100,6 +100,7 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
 
 `workstreams_list` also says whether a chat in each workstream is on a turn, and the `Outcome:` and `Needs:` its last turn stated, so a chat sees where the work it started stands without reading its code.
+In a job that does not see every chat, `Outcome:` and `Needs:` are always empty.
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
 A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.
 Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat and the workstream from it.
@@ -144,17 +145,18 @@ Only a chat at Home or in an organization keeps decisions and a plan; any other 
 
 ## Jobs and events
 
-| Tool          | What it does                                                                                                                                 |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, and `then`.    |
-| `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                            |
-| `jobs_run`    | Asks Malini to run a job, in the chat's workstream or another one, such as one it started, with optional extra context, and returns at once. |
-| `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                            |
+| Tool          | What it does                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, `then`, and what each one sees and reaches. |
+| `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                                                         |
+| `jobs_run`    | Asks Malini to run a job, in the chat's workstream or another one, such as one it started, with optional extra context, and returns at once.                              |
+| `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                                                         |
 
 `when` is a job's [event trigger](/malini/docs/jobs.md#when-a-job-runs) or [schedule](/malini/docs/jobs.md#on-a-schedule), and `then` names the job that runs next, by id or exact name, such as **Open draft** or **Merge**.
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.
 A run the agent starts waits in its chat's composer tray until it finishes, wherever it runs.
+No tool changes [what a job sees and reaches](/malini/docs/jobs.md#what-a-job-sees-and-reaches), and `jobs_run` refuses extra context for a job that does not see your chats, so an agent cannot hand a job more than you let it see.
 
 ## Tools and jobs
 

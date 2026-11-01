@@ -1,5 +1,12 @@
 import type { AgentReasoningEffort } from '$contract/agent';
-import type { JobBuiltin, JobDefinitionRecord, JobRunMode, JobRunsIn } from '$contract/jobs';
+import type {
+	JobBuiltin,
+	JobChatSight,
+	JobDefinitionRecord,
+	JobEventSight,
+	JobRunMode,
+	JobRunsIn,
+} from '$contract/jobs';
 import { isSkillNameList } from '$contract/skills';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, column, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
@@ -16,12 +23,17 @@ interface JobDefinitionRow {
 	trigger_when: string | null;
 	trigger_mode: JobRunMode | null;
 	then_job_id: string | null;
+	sees_event: JobEventSight;
+	sees_before: number;
+	sees_chats: JobChatSight;
+	sees_attachments: number;
+	reaches_internet: number;
 	created_at: string;
 	updated_at: string;
 }
 
 const COLUMNS =
-	'id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, created_at, updated_at';
+	'id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, sees_event, sees_before, sees_chats, sees_attachments, reaches_internet, created_at, updated_at';
 
 function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 	const skills = parseJsonColumn(row.skills);
@@ -39,6 +51,13 @@ function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 				? null
 				: { when: row.trigger_when, mode: row.trigger_mode },
 		thenJobId: row.then_job_id,
+		boundary: {
+			event: row.sees_event,
+			before: row.sees_before === 1,
+			chats: row.sees_chats,
+			attachments: row.sees_attachments === 1,
+			internet: row.reaches_internet === 1,
+		},
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -72,7 +91,7 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 	return (
 		run(
 			db,
-			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT DO NOTHING`,
 			definition.id,
 			definition.name,
@@ -85,6 +104,7 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 			definition.trigger?.when ?? null,
 			definition.trigger?.mode ?? null,
 			definition.thenJobId,
+			...boundaryColumns(definition),
 			definition.createdAt,
 			definition.updatedAt,
 		).changes > 0
@@ -96,7 +116,8 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 		db,
 		`UPDATE job_definitions
 		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, skills = ?,
-		     trigger_when = ?, trigger_mode = ?, then_job_id = ?, updated_at = ?
+		     trigger_when = ?, trigger_mode = ?, then_job_id = ?, sees_event = ?, sees_before = ?,
+		     sees_chats = ?, sees_attachments = ?, reaches_internet = ?, updated_at = ?
 		 WHERE id = ?`,
 		definition.name,
 		definition.instructions,
@@ -107,9 +128,20 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 		definition.trigger?.when ?? null,
 		definition.trigger?.mode ?? null,
 		definition.thenJobId,
+		...boundaryColumns(definition),
 		definition.updatedAt,
 		definition.id,
 	);
+}
+
+function boundaryColumns({ boundary }: JobDefinitionRecord) {
+	return [
+		boundary.event,
+		Number(boundary.before),
+		boundary.chats,
+		Number(boundary.attachments),
+		Number(boundary.internet),
+	] as const;
 }
 
 export function clearThenLinksTo(db: MaliniDatabase, jobId: string): string[] {

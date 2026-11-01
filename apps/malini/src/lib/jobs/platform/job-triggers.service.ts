@@ -3,6 +3,7 @@ import {
 	type AutomationEventCondition,
 	type AutomationTrigger,
 } from '$contract/automation-trigger';
+import { eventFacts } from '$contract/event-catalog';
 import {
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
@@ -87,7 +88,9 @@ export function startJobTriggers(context: MainContext, log: (line: string) => vo
 			.call('jobs.run', {
 				definitionId: definition.id,
 				origin: 'trigger',
-				context: truncateJobContext(JSON.stringify({ event: channel, payload })),
+				context: truncateJobContext(
+					JSON.stringify({ event: channel, payload: seenPayload(definition, channel, payload) }),
+				),
 				waitForYou: mode === 'ask',
 				...(workstreamId === null ? {} : { workstreamId }),
 				...(repositoryId === null ? {} : { repositoryId }),
@@ -111,6 +114,16 @@ export function startJobTriggers(context: MainContext, log: (line: string) => vo
 			onDefinitionChanged();
 		},
 	};
+}
+
+function seenPayload(
+	{ boundary }: JobDefinitionRecord,
+	channel: EventChannel,
+	payload: unknown,
+): unknown {
+	if (boundary.event === 'full') return payload;
+	const repositoryId = findString(payload, 'repositoryId');
+	return { ...eventFacts(channel, payload), ...(repositoryId === null ? {} : { repositoryId }) };
 }
 
 function eventTriggerOf(when: string): EventTrigger | null {

@@ -16,12 +16,13 @@
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import { draftFromWords, guessWhen } from './recipes';
-	import RunModePicker from './RunModePicker.svelte';
+	import SegmentedPicker from './SegmentedPicker.svelte';
 	import SchedulePlaceMenu from './SchedulePlaceMenu.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
 	import {
 		EVENT_RUNS_IN_OPTIONS,
+		RUN_MODES,
 		runModeHint,
 		SCHEDULE_RUNS_IN_HINT,
 		thenChoices,
@@ -198,7 +199,12 @@
 
 	{#if when !== null}
 		<SettingRow title="Runs" description={modeHint}>
-			<RunModePicker value={mode} label="How the new job runs" onchange={(next) => (mode = next)} />
+			<SegmentedPicker
+				value={mode}
+				options={RUN_MODES}
+				label="How the new job runs"
+				onchange={(next) => (mode = next)}
+			/>
 		</SettingRow>
 	{/if}
 

@@ -43,6 +43,26 @@ export function isAgentlessJobBuiltin(builtin: JobBuiltin | null): builtin is Ag
 	return builtin === 'update-from-main' || builtin === 'open-draft' || builtin === 'merge';
 }
 
+export type JobEventSight = 'facts' | 'full';
+
+export type JobChatSight = 'none' | 'starter' | 'all';
+
+export type JobBoundary = Readonly<{
+	event: JobEventSight;
+	before: boolean;
+	chats: JobChatSight;
+	attachments: boolean;
+	internet: boolean;
+}>;
+
+export const DEFAULT_JOB_BOUNDARY: JobBoundary = {
+	event: 'facts',
+	before: true,
+	chats: 'none',
+	attachments: false,
+	internet: true,
+};
+
 export type JobDefinitionRecord = Readonly<{
 	id: string;
 	name: string;
@@ -54,6 +74,7 @@ export type JobDefinitionRecord = Readonly<{
 	builtin: JobBuiltin | null;
 	trigger: JobTrigger | null;
 	thenJobId: string | null;
+	boundary: JobBoundary;
 	createdAt: string;
 	updatedAt: string;
 }>;
@@ -96,6 +117,7 @@ export type SaveJobDefinitionArgs = Readonly<{
 	skills?: readonly string[];
 	trigger?: JobTrigger | null;
 	thenJobId?: string | null;
+	boundary?: JobBoundary;
 }>;
 
 export type JobDefinitionIdArgs = Readonly<{ definitionId: string }>;

@@ -55,6 +55,12 @@ export interface AgentLineage {
 	siblings: AgentCheckout[];
 }
 
+export interface AgentBoundary {
+	hidden: string[];
+	chatRecords: boolean;
+	internet: boolean;
+}
+
 export type ProviderCapabilityState = 'ready' | 'needs_auth' | 'missing' | 'unknown';
 
 export interface AgentModelInfo {

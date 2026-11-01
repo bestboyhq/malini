@@ -356,8 +356,6 @@ test('lists the variants picked under Decisions, and no section when none were p
 		},
 	});
 
-	expect(metadata.body).toMatch(
-		/\n## Decisions\n\n- B · Bold over A · Calm\n\n## Validation\n/u,
-	);
+	expect(metadata.body).toMatch(/\n## Decisions\n\n- B · Bold over A · Calm\n\n## Validation\n/u);
 	expect(automatedPullRequestMetadata(input).body).not.toContain('## Decisions');
 });

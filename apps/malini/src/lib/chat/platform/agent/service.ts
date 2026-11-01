@@ -11,9 +11,13 @@ import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
-import { workstreamRepositoryName } from '$shared/repositories/repositories.platform';
+import {
+	listWorkstreams,
+	workstreamRepositoryName,
+} from '$shared/repositories/repositories.platform';
 import { IdSequence } from '../id-sequence';
 import { listOpenRuns } from '../runs.repository';
+import { agentBoundary, appDataEntries } from './boundary';
 import type { AgentRunLeases } from './lifecycle';
 import {
 	PromptsInFlight,
@@ -347,6 +351,13 @@ export async function startAgentService(
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			...(deps.secrets ? { secrets: secretsReaching(db, deps.secrets) } : {}),
 			...(deps.plugins ? { plugins: deps.plugins } : {}),
+			boundary: (job, lineage) =>
+				agentBoundary(job, {
+					appDataRoot: context.appDataRoot,
+					appDataEntries: appDataEntries(context.appDataRoot),
+					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),
+					starterPlan: lineage?.startedBy?.plan ?? null,
+				}),
 			async compactWindow() {
 				const settings = await context.commands
 					.call('app.list-settings', undefined)
