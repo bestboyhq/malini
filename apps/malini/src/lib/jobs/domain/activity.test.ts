@@ -132,6 +132,7 @@ describe('activityEntries', () => {
 			status: 'done',
 			detail: null,
 			jobRunId: null,
+			subjectRunId: null,
 			createdAt: '2026-10-23T10:05:00.000Z',
 			finishedAt: '2026-10-23T10:05:01.000Z',
 			...fields,

@@ -26,7 +26,9 @@ import {
 	userSessionWorkstreamId,
 } from '$lib/chat/chat.platform';
 import {
+	getArchivedWorkstream,
 	getWorkstream,
+	isWorkstreamClosed,
 	listWorkstreams,
 	workstreamLeads,
 } from '$shared/repositories/repositories.platform';
@@ -40,6 +42,7 @@ import {
 	reconcilerPrompt,
 	reconcilerQuestion,
 	ruleHears,
+	UNRUN_QUESTION_TITLE,
 	validatePick,
 	wakesInChain,
 	type ChatWake,
@@ -50,6 +53,7 @@ import {
 	type ReconcilerSituation,
 } from '../domain/reconciler';
 import { runAutomaticJob, type ChooseWithJob } from './automatic-jobs.service';
+import { WORKSTREAM_CLOSED } from './job-runner.service';
 import { getLoggedEvent } from './event-log.repository';
 import { findString, withHandledEvent, type DispatchedEvent } from './event-log.service';
 import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
@@ -64,6 +68,7 @@ import {
 	decidedEvent,
 	getDecision,
 	insertDecision,
+	listAskingDecisions,
 	listChainDecisions,
 	listPendingDecisions,
 	saveDecision,
@@ -80,6 +85,8 @@ export class ReconcilerError extends Error {
 }
 
 const CAUSE_HOPS = 12;
+
+const ASKED_AGAIN = 'Malini asked again.';
 
 type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
 
@@ -126,6 +133,11 @@ export class Reconciler {
 	}
 
 	start(): void {
+		for (const asking of listAskingDecisions(this.#context.db)) {
+			if (this.#closed(asking.workstreamId)) {
+				this.#dismiss(asking, WORKSTREAM_CLOSED, this.#closedSince(asking));
+			}
+		}
 		for (const decision of listPendingDecisions(this.#context.db)) {
 			const chosen = decision.candidates[decision.chosen];
 			if (chosen?.kind === 'wake-chat') {
@@ -146,7 +158,14 @@ export class Reconciler {
 		this.#queue.clear();
 	}
 
+	close(workstreamId: string): void {
+		for (const asking of listAskingDecisions(this.#context.db)) {
+			if (asking.workstreamId === workstreamId) this.#dismiss(asking, WORKSTREAM_CLOSED);
+		}
+	}
+
 	async handle(event: DispatchedEvent): Promise<void> {
+		this.#answerWithRun(event);
 		const heard = RULES.filter((rule) => ruleHears(rule, event.channel));
 		const matched = heard.includes('triggers') && (await this.#apply('triggers', event)) === true;
 		await Promise.all(
@@ -309,6 +328,7 @@ export class Reconciler {
 			status: 'pending',
 			detail: validated.detail ?? detail,
 			jobRunId: null,
+			subjectRunId: subjectRunId(event),
 			createdAt: nowIso8601(),
 			finishedAt: null,
 		};
@@ -337,6 +357,7 @@ export class Reconciler {
 			status: 'done',
 			detail: handled.reason,
 			jobRunId: null,
+			subjectRunId: subjectRunId(event),
 			createdAt: now,
 			finishedAt: now,
 		};
@@ -372,7 +393,9 @@ export class Reconciler {
 			});
 		}
 		if (candidate.kind === 'ask-you') {
+			if (this.#closed(decision.workstreamId)) return this.#dismiss(decision, WORKSTREAM_CLOSED);
 			const asking = this.#save({ ...decision, status: 'asking', finishedAt: null });
+			this.#replaceAsks(this.#subject(asking), (other) => other.id === asking.id, ASKED_AGAIN);
 			this.#background(this.#notify(asking, candidate.reason));
 			return asking;
 		}
@@ -437,6 +460,55 @@ export class Reconciler {
 		}
 	}
 
+	#answerWithRun(event: DispatchedEvent): void {
+		if (event.channel !== JOBS_RUN_FINISHED_CHANNEL) return;
+		const runId = findString(isRecord(event.payload) ? event.payload['run'] : null, 'id');
+		const run = runId === null ? null : getJobRun(this.#context.db, runId);
+		if (!run || (run.status !== 'succeeded' && run.status !== 'failed')) return;
+		this.#replaceAsks(
+			runSubject(run),
+			(asking) => asking.subjectRunId === run.id,
+			`${run.title} ran again.`,
+		);
+	}
+
+	#replaceAsks(
+		subject: string,
+		keep: (asking: ReconcilerDecisionRecord) => boolean,
+		detail: string,
+	): void {
+		for (const asking of listAskingDecisions(this.#context.db)) {
+			if (!keep(asking) && this.#subject(asking) === subject) this.#dismiss(asking, detail);
+		}
+	}
+
+	#subject(decision: ReconcilerDecisionRecord): string {
+		const run =
+			decision.subjectRunId === null ? null : getJobRun(this.#context.db, decision.subjectRunId);
+		return run ? runSubject(run) : `${decision.channel}:${decision.workstreamId ?? ''}`;
+	}
+
+	#closed(workstreamId: string | null): boolean {
+		return workstreamId !== null && isWorkstreamClosed(this.#context.db, workstreamId);
+	}
+
+	#closedSince(decision: ReconcilerDecisionRecord): string {
+		const archivedAt = getArchivedWorkstream(
+			this.#context.db,
+			decision.workstreamId ?? '',
+		)?.archivedAt;
+		if (archivedAt === undefined) return nowIso8601();
+		return archivedAt > decision.createdAt ? archivedAt : decision.createdAt;
+	}
+
+	#dismiss(
+		decision: ReconcilerDecisionRecord,
+		detail: string,
+		finishedAt = nowIso8601(),
+	): ReconcilerDecisionRecord {
+		return this.#save({ ...decision, status: 'dismissed', detail, finishedAt });
+	}
+
 	#situation(event: DispatchedEvent, chainId: string): ReconcilerSituation | null {
 		switch (event.channel) {
 			case JOBS_RUN_FINISHED_CHANNEL:
@@ -453,6 +525,7 @@ export class Reconciler {
 		const runId = findString(isRecord(payload) ? payload['run'] : null, 'id');
 		const run = runId === null ? null : getJobRun(db, runId);
 		if (!run || (run.status !== 'succeeded' && run.status !== 'failed')) return null;
+		if (this.#closed(run.workstreamId)) return null;
 		const definition = getJobDefinition(db, run.definitionId);
 		if (!definition || isAutomaticJobBuiltin(definition.builtin)) return null;
 		const chat = this.#chat(run.chatSessionId);
@@ -503,7 +576,7 @@ export class Reconciler {
 		const workstreamId = findString(event.payload, 'workstreamId');
 		const workstream = workstreamId === null ? null : getWorkstream(db, workstreamId);
 		const paths = isRecord(event.payload) ? event.payload['conflictedPaths'] : null;
-		if (!workstream || !Array.isArray(paths)) return null;
+		if (!workstream || this.#closed(workstream.id) || !Array.isArray(paths)) return null;
 		const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
 		const resolving =
 			resolver !== null && activeWorkstreamJobRun(db, workstream.id, [resolver.id]) !== null;
@@ -557,9 +630,14 @@ export class Reconciler {
 					: (workstreamLeads(listWorkstreams(db)).get(decision.workstreamId) ??
 						decision.workstreamId);
 			const session = workstreamId === null ? null : latestSessionForWorkstream(db, workstreamId);
+			const subject = decision.subjectRunId === null ? null : getJobRun(db, decision.subjectRunId);
+			const workstream =
+				decision.workstreamId === null ? null : getWorkstream(db, decision.workstreamId);
 			await commands.call('app.notify', {
 				options: {
-					title: 'Malini asks you',
+					title: [subject?.title ?? UNRUN_QUESTION_TITLE, workstream?.name]
+						.filter((part) => part !== undefined)
+						.join(' · '),
 					body: reason,
 					...(workstreamId && session ? { opens: { workstreamId, sessionId: session.id } } : {}),
 				},
@@ -598,6 +676,14 @@ function subjectKey(event: DispatchedEvent): string | null {
 		return workstreamId === null ? null : `conflict:${workstreamId}`;
 	}
 	return null;
+}
+
+function runSubject(run: JobRunRecord): string {
+	return `job:${run.definitionId}:${run.workstreamId ?? ''}`;
+}
+
+function subjectRunId(event: DispatchedEvent): string | null {
+	return event.cause?.kind === 'job-run' ? event.cause.id : null;
 }
 
 function requesterSessionId(db: MaliniDatabase, cause: EventCause | null): string | null {

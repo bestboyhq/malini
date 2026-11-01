@@ -1,14 +1,7 @@
-import { upcomingTime } from './job-run-time';
+import { REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL } from '$contract/events';
+import type { JobCenterCounts, JobCenterEntry } from '$lib/jobs/domain/job-center';
 
-type JobCenterCounts = Readonly<{
-	running: number;
-	queued: number;
-	needsYou: number;
-	finished: number;
-	nextAt: number | null;
-}>;
-
-export function jobCenterSummary(counts: JobCenterCounts, nowMs: number): string {
+export function jobCenterSummary(counts: JobCenterCounts): string {
 	const parts = [
 		counts.running > 0 ? `${counts.running} running` : null,
 		counts.queued > 0 ? `${counts.queued} queued` : null,
@@ -16,14 +9,12 @@ export function jobCenterSummary(counts: JobCenterCounts, nowMs: number): string
 			? `${counts.needsYou} ${counts.needsYou === 1 ? 'needs' : 'need'} you`
 			: null,
 	].filter((part) => part !== null);
-	if (parts.length > 0) return parts.join(', ');
-	if (counts.nextAt !== null) return nextRun(counts.nextAt, nowMs);
-	if (counts.finished > 0) return `${counts.finished} finished recently`;
-	return 'ready when you are';
+	return parts.length > 0 ? parts.join(', ') : 'ready when you are';
 }
 
-function nextRun(nextAt: number, nowMs: number): string {
-	const { day, time } = upcomingTime(nextAt, nowMs);
-	if (day === 'Today' || day === 'Tomorrow') return `next at ${time} ${day.toLowerCase()}`;
-	return `next ${day} at ${time}`;
+export function jobQuestionReason({ run, question }: JobCenterEntry): string {
+	if (run?.status === 'failed') return 'Failed';
+	if (question?.channel === REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL) return 'Conflicts';
+	if (run?.status === 'waiting') return 'Wants to run';
+	return 'Asks you';
 }

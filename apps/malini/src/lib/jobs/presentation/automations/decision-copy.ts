@@ -46,8 +46,7 @@ export function decisionChoices(
 	const choices = decision.candidates.flatMap((candidate, index) =>
 		candidate.kind === 'ask-you' ? [] : [{ index, candidate }],
 	);
-	return [
-		...choices.filter(({ candidate }) => candidate.kind !== 'nothing'),
-		...choices.filter(({ candidate }) => candidate.kind === 'nothing'),
-	];
+	return ['run-job', 'wake-chat', 'nothing'].flatMap((kind) =>
+		choices.filter(({ candidate }) => candidate.kind === kind),
+	);
 }

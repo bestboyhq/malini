@@ -127,7 +127,7 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 	}
 });
 
-test('the Job center appears with a job, puts the one that needs you first, holds a queued job closed until it starts, cancels only on the second click and folds finished jobs under Recent', async () => {
+test('the jobs gutter shows only live jobs, asks its question on the job, holds a queued job closed until it starts and drops it once cancelled', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -141,7 +141,7 @@ test('the Job center appears with a job, puts the one that needs you first, hold
 		await openWorkstream(page, seeded.workstreamId);
 		const idle = page.getByRole('region', { name: 'Jobs: ready when you are' });
 		await expect(idle).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByTestId('sidebar-open-jobs')).toHaveCount(0);
+		await expect(idle.getByRole('list', { name: 'Jobs in progress' })).toHaveCount(0);
 
 		await idle.getByRole('link', { name: 'Jobs · ready when you are' }).click();
 		await expect(page.getByRole('navigation', { name: 'Automations' })).toBeVisible();
@@ -154,8 +154,9 @@ test('the Job center appears with a job, puts the one that needs you first, hold
 		const center = page.getByRole('region', { name: /^Jobs: .*1 needs you/u });
 		await expect(center).toBeVisible({ timeout: 30_000 });
 		const inProgress = center.getByRole('list', { name: 'Jobs in progress' });
-		await expect(inProgress.getByRole('link').first()).toHaveAccessibleName(
-			`Open transcript: Ask first · ${WORKSTREAM}, Needs you`,
+		const question = inProgress.getByRole('link', { name: `Ask first in ${WORKSTREAM}: Asks you` });
+		await expect(inProgress.getByRole('listitem').first().getByRole('link')).toHaveAccessibleName(
+			`Ask first in ${WORKSTREAM}: Asks you`,
 		);
 		await expect(center.getByRole('button', { name: 'Cancel Ask first' })).toHaveCount(0);
 		await captureFlow(app, 'jobs-job-center');
@@ -170,20 +171,11 @@ test('the Job center appears with a job, puts the one that needs you first, hold
 		await expect(confirm).toHaveText('Cancel job');
 		await expect(queued).toBeVisible();
 		await confirm.click();
-		const recent = center.getByRole('button', { name: /^Recent 1$/u });
-		await expect(recent).toHaveAttribute('aria-expanded', 'false', { timeout: 30_000 });
-		await recent.click();
-		await expect(recent).toHaveAttribute('aria-expanded', 'true');
-		await expect(
-			center
-				.getByRole('list', { name: 'Recent jobs' })
-				.getByLabel(new RegExp(`Keep going · ${WORKSTREAM}, Cancelled`, 'u')),
-		).toBeVisible();
-		await expect(center.getByRole('button', { name: 'Cancel Keep going' })).toHaveCount(0);
+		await expect(queued).toHaveCount(0, { timeout: 30_000 });
+		await expect(center).toHaveAccessibleName('Jobs: 1 needs you');
+		await expect(center.getByRole('button', { name: /^Recent/u })).toHaveCount(0);
 
-		await inProgress
-			.getByRole('link', { name: `Open transcript: Ask first · ${WORKSTREAM}, Needs you` })
-			.click();
+		await question.click();
 		await expect(page).toHaveURL(/agent=sess-/u);
 		expectCleanConsole(app);
 	} finally {

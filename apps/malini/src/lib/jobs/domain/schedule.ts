@@ -39,13 +39,6 @@ export function latestScheduleSlot(
 	return firstScheduleSlot(schedule, nowMs, -1);
 }
 
-export function nextScheduleSlot(
-	schedule: Pick<Schedule, 'cadence' | 'hour' | 'minute'>,
-	nowMs: number,
-): number {
-	return firstScheduleSlot(schedule, nowMs, 1);
-}
-
 export function scheduledJobOf(definition: JobDefinitionRecord): ScheduledJob | null {
 	const mode = definition.trigger?.mode ?? 'off';
 	const schedule = scheduleOf(definition.trigger?.when);

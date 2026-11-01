@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latestScheduleSlot, nextScheduleSlot, scheduledJobOf } from './schedule';
+import { latestScheduleSlot, scheduledJobOf } from './schedule';
 import type { JobDefinitionRecord, JobTrigger } from '$contract/jobs';
 
 const at = (day: number, hour: number, minute = 0): number =>
@@ -23,33 +23,6 @@ describe('latestScheduleSlot', () => {
 		const mondays = { cadence: 'monday', hour: 7, minute: 15 } as const;
 		expect(latestScheduleSlot(mondays, at(26, 7, 14))).toBe(at(19, 7, 15));
 		expect(latestScheduleSlot(mondays, at(31, 23))).toBe(at(26, 7, 15));
-	});
-});
-
-describe('nextScheduleSlot', () => {
-	it('is today at the time until it passes, and tomorrow from then on', () => {
-		const daily = { cadence: 'day', hour: 9, minute: 30 } as const;
-		expect(nextScheduleSlot(daily, at(26, 9, 29))).toBe(at(26, 9, 30));
-		expect(nextScheduleSlot(daily, at(26, 9, 30))).toBe(at(27, 9, 30));
-	});
-
-	it('skips the weekend for a weekday schedule', () => {
-		const weekdays = { cadence: 'weekday', hour: 9, minute: 0 } as const;
-		expect(nextScheduleSlot(weekdays, at(23, 12))).toBe(at(26, 9));
-		expect(nextScheduleSlot(weekdays, at(25, 8))).toBe(at(26, 9));
-		expect(nextScheduleSlot(weekdays, at(26, 8))).toBe(at(26, 9));
-	});
-
-	it('waits for the next time that day of the week comes', () => {
-		const mondays = { cadence: 'monday', hour: 7, minute: 15 } as const;
-		expect(nextScheduleSlot(mondays, at(26, 7, 14))).toBe(at(26, 7, 15));
-		expect(nextScheduleSlot(mondays, at(26, 7, 15))).toBe(new Date(2026, 10, 2, 7, 15).getTime());
-	});
-
-	it('keeps the wall clock time across a daylight saving change', () => {
-		const daily = { cadence: 'day', hour: 9, minute: 0 } as const;
-		expect(new Date(nextScheduleSlot(daily, at(24, 10))).getHours()).toBe(9);
-		expect(nextScheduleSlot(daily, at(24, 10))).toBe(at(25, 9));
 	});
 });
 

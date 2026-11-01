@@ -1,3 +1,4 @@
+import { REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL } from '$contract/events';
 import type { AutomaticJobBuiltin } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import { nowIso8601 } from '$main/db/rows';
@@ -76,6 +77,17 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 	defineJobCommands(context, runner, experiments, reconciler);
 	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event));
 	const stopSuggesting = suggestJobsFromPrompts(context, log);
+	const stopClosing = context.events.subscribe(
+		REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
+		({ workstreamId }) => {
+			reconciler.close(workstreamId);
+			void runner
+				.close(workstreamId)
+				.catch((error: unknown) =>
+					log(`jobs: could not cancel the jobs of \`${workstreamId}\`: ${describeError(error)}`),
+				);
+		},
+	);
 	const prune = (): void => {
 		try {
 			pruneEvents(context.db);
@@ -97,6 +109,7 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 			if (housekeeping) clearInterval(housekeeping);
 			eventLog.dispose();
 			stopSuggesting();
+			stopClosing();
 			schedules.dispose();
 			triggers.dispose();
 			reconciler.dispose();

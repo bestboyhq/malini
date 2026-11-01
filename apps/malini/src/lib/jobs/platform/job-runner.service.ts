@@ -31,6 +31,7 @@ import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
 	getWorkstream,
+	isWorkstreamClosed,
 	nextWorkstreamId,
 	planRepositoryWorkstream,
 	prepareStartedWorkstream,
@@ -82,6 +83,8 @@ const SHIPPING = {
 } as const satisfies Record<Exclude<AgentlessJobBuiltin, 'update-from-main'>, object>;
 
 export const BUSY_RETRY_MS = 3_000;
+
+export const WORKSTREAM_CLOSED = 'Its workstream was closed.';
 
 type SessionState = Readonly<{
 	status: SessionStatus;
@@ -163,13 +166,21 @@ export class JobRunner {
 		);
 	}
 
-	async cancel(jobRun: JobRunRecord): Promise<JobRunRecord> {
+	async cancel(jobRun: JobRunRecord, detail: string | null = null): Promise<JobRunRecord> {
 		if (isActive(jobRun.status) && jobRun.sessionId !== null) {
 			await this.#stopAgentRun(jobRun.id, jobRun.sessionId, jobRun.agentRunId);
 		}
 		return (
-			this.#finish(jobRun.id, 'cancelled', null) ?? getJobRun(this.#context.db, jobRun.id) ?? jobRun
+			this.#finish(jobRun.id, 'cancelled', detail) ??
+			getJobRun(this.#context.db, jobRun.id) ??
+			jobRun
 		);
+	}
+
+	async close(workstreamId: string): Promise<void> {
+		for (const jobRun of listUnfinishedJobRuns(this.#context.db)) {
+			if (jobRun.workstreamId === workstreamId) await this.cancel(jobRun, WORKSTREAM_CLOSED);
+		}
 	}
 
 	kick(): void {
@@ -618,11 +629,14 @@ export class JobRunner {
 	}
 
 	async #recover(): Promise<void> {
-		for (const jobRun of listUnfinishedJobRuns(this.#context.db)) {
+		const { db } = this.#context;
+		for (const jobRun of listUnfinishedJobRuns(db)) {
 			if (this.#stopped) return;
-			if (!isActive(jobRun.status)) continue;
+			const closed = jobRun.workstreamId !== null && isWorkstreamClosed(db, jobRun.workstreamId);
+			if (!closed && !isActive(jobRun.status)) continue;
 			try {
-				await this.#recoverRun(jobRun);
+				if (closed) await this.cancel(jobRun, WORKSTREAM_CLOSED);
+				else await this.#recoverRun(jobRun);
 			} catch (error) {
 				this.#log(`jobs: could not recover \`${jobRun.id}\`: ${describeError(error)}`);
 			}

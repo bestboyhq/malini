@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobRunRecord } from '$contract/jobs';
-import { jobRunTime, upcomingTime } from './job-run-time';
+import { jobRunTime } from './job-run-time';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
 
@@ -65,24 +65,5 @@ describe('the time a job row shows', () => {
 		expect(jobRunTime(run({ status: 'succeeded', finishedAt: secondsBefore(-5) }), NOW)).toBe(
 			'just now',
 		);
-	});
-});
-
-describe('when an upcoming job runs', () => {
-	const local = (day: number, hour: number, minute = 0): number =>
-		new Date(2026, 9, day, hour, minute).getTime();
-
-	it('names today and tomorrow, then the day of the week', () => {
-		const now = local(26, 8);
-		expect(upcomingTime(local(26, 9), now)).toEqual({ day: 'Today', time: '09:00' });
-		expect(upcomingTime(local(27, 0, 5), now)).toEqual({ day: 'Tomorrow', time: '00:05' });
-		expect(upcomingTime(local(29, 7, 15), now)).toEqual({ day: 'Thu', time: '07:15' });
-	});
-
-	it('counts calendar days across a daylight saving change', () => {
-		expect(upcomingTime(local(26, 9), local(25, 23, 30))).toEqual({
-			day: 'Tomorrow',
-			time: '09:00',
-		});
 	});
 });

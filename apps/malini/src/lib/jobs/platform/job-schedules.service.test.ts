@@ -331,7 +331,7 @@ describe('job schedules', () => {
 				{
 					options: {
 						title: 'Triage wants to run',
-						body: 'It waits for your yes under Automations.',
+						body: 'It waits for your yes in the Job center.',
 					},
 				},
 			]),

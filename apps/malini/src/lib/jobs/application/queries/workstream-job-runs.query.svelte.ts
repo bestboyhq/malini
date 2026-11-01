@@ -13,9 +13,8 @@ class WorkstreamJobRunsQuery {
 				.filter(
 					(run) =>
 						run.workstreamId === workstreamId &&
-						(run.status === 'waiting' ||
-							(isFinishedJobRunStatus(run.status) &&
-								nowMs - Date.parse(run.finishedAt ?? run.createdAt) < RECENT_MS)),
+						isFinishedJobRunStatus(run.status) &&
+						nowMs - Date.parse(run.finishedAt ?? run.createdAt) < RECENT_MS,
 				)
 				.sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
 	);
