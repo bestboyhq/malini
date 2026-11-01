@@ -204,13 +204,8 @@
 					ariaLabel="Edit message"
 					testId="chat-message-edit-input"
 					disabled={submitting}
-					onkeydown={(event) => {
-						if (event.key === 'Escape') checkpointEdit.cancelCheckpointEdit();
-						if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-							event.preventDefault();
-							checkpointEdit.submitCheckpointEdit(item);
-						}
-					}}
+					onsubmit={() => checkpointEdit.submitCheckpointEdit(item)}
+					oncancel={checkpointEdit.cancelCheckpointEdit}
 				/>
 				{#if checkpointEdit.checkpointEditError}
 					<p class="text-error-content px-3 pb-2 text-xs" role="alert">

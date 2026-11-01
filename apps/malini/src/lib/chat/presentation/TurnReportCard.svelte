@@ -14,6 +14,7 @@
 	import PickStep from './PickStep.svelte';
 	import ReportNotes from './ReportNotes.svelte';
 	import ReportStage from './ReportStage.svelte';
+	import type { VideoHandoff } from './transcript-gallery';
 	import type { EarlierTurn } from './turn-result';
 	import VariantPickForm from './VariantPickForm.svelte';
 
@@ -27,7 +28,7 @@
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
-		onopenimage?: ((id: string) => void) | undefined;
+		onopenimage?: ((id: string, handoff?: VideoHandoff) => void) | undefined;
 		onpick?: ((variant: TurnVariant, reason: string) => void) | undefined;
 		onnonefit?: ((reason: string) => void) | undefined;
 		onsendnext?: ((step: string) => void) | undefined;

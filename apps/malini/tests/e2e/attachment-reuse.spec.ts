@@ -211,7 +211,7 @@ test('a queued prompt edits with its file chip and can take a pasted file', asyn
 		await page.keyboard.type(' please');
 		await pasteNotes(page, '[data-testid="queued-prompt-editor"]');
 		await expect(notesChip(editor)).toHaveCount(2, { timeout: 20_000 });
-		await page.keyboard.press('ControlOrMeta+Enter');
+		await page.keyboard.press('Enter');
 
 		await expect(editor).toHaveCount(0);
 		await expect(row).toContainText('later please');

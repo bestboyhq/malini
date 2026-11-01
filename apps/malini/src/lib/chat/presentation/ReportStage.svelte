@@ -11,6 +11,7 @@
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
 	import ImageCompare from './ImageCompare.svelte';
 	import ReportMedia from './ReportMedia.svelte';
+	import type { VideoHandoff } from './transcript-gallery';
 	import VideoCompare from './VideoCompare.svelte';
 	import { galleryImageId } from './workstream-images';
 
@@ -28,7 +29,7 @@
 		chosenId: string;
 		workstreamId: string;
 		imagesrc?: ((path: string) => string | null) | undefined;
-		onopenimage?: ((id: string) => void) | undefined;
+		onopenimage?: ((id: string, handoff?: VideoHandoff) => void) | undefined;
 	}
 
 	let {
@@ -165,7 +166,7 @@
 				size="hero"
 				{playing}
 				{imagesrc}
-				onopen={() => onopenimage?.(galleryImageId(src))}
+				onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
 			/>
 		</div>
 	</div>

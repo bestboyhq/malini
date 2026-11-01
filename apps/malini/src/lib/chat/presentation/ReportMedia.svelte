@@ -3,6 +3,7 @@
 	import { worktreePageUrl } from '$contract/browser';
 	import { mediaKind, mediaPath } from '$lib/chat/domain/turn-report';
 	import { Button } from '$hyper-ui/components/button';
+	import type { VideoHandoff } from './transcript-gallery';
 	import VideoPlayer from './VideoPlayer.svelte';
 	import { galleryImageLabel, reportMediaSource } from './workstream-images';
 
@@ -13,7 +14,7 @@
 		size: 'hero' | 'tile' | 'mini';
 		playing?: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
-		onopen?: (() => void) | undefined;
+		onopen?: ((handoff?: VideoHandoff) => void) | undefined;
 	}
 
 	let { src, label, workstreamId, size, playing = true, imagesrc, onopen }: Props = $props();
@@ -105,7 +106,7 @@
 				bare
 				class="absolute inset-0 cursor-zoom-in"
 				ariaLabel={galleryImageLabel(label, kind)}
-				onclick={onopen}
+				onclick={() => onopen()}
 			/>
 		{/if}
 	{/if}

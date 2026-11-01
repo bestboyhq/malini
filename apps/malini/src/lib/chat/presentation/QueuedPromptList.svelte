@@ -81,17 +81,6 @@
 		onpausechange(owner, false);
 	}
 
-	function onEditKeydown(event: KeyboardEvent): void {
-		if (event.key === 'Escape') {
-			event.preventDefault();
-			finishEdit(false);
-		}
-		if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-			event.preventDefault();
-			finishEdit(true);
-		}
-	}
-
 	$effect(() => {
 		if (editingId && !items.some((item) => item.id === editingId)) {
 			finishEdit(false);
@@ -157,7 +146,8 @@
 								ariaLabel="Edit queued prompt"
 								testId="queued-prompt-editor"
 								compact
-								onkeydown={onEditKeydown}
+								onsubmit={() => finishEdit(true)}
+								oncancel={() => finishEdit(false)}
 							/>
 						</div>
 						<div class="flex shrink-0 items-center pt-0.5">
@@ -262,5 +252,5 @@
 </section>
 
 {#snippet saveHint()}
-	Save queued prompt · <EnterShortcut mod />
+	Save queued prompt · <EnterShortcut />
 {/snippet}

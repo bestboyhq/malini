@@ -1,41 +1,55 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Playhead } from '$hyper-ui/components/playhead';
 	import { Icon } from '$hyper-ui/icons';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
+	import type { Playback, VideoHandoff } from './transcript-gallery';
 	import VideoVolume from './VideoVolume.svelte';
 
 	interface Props {
 		src: string;
 		label: string;
 		autoplay: boolean;
+		start?: Playback | undefined;
 		autohide?: boolean;
 		openLabel?: string;
-		onopen?: (() => void) | undefined;
+		onopen?: ((handoff: VideoHandoff) => void) | undefined;
 		onerror?: (() => void) | undefined;
 	}
 
-	let { src, label, autoplay, autohide = false, openLabel, onopen, onerror }: Props = $props();
+	let {
+		src,
+		label,
+		autoplay,
+		start,
+		autohide = false,
+		openLabel,
+		onopen,
+		onerror,
+	}: Props = $props();
 
 	const FPS = 60;
-	const SPEEDS = [1, 0.5, 0.25] as const;
+	const SPEEDS: readonly number[] = [1, 0.5, 0.25];
 	const REST_MS = 2000;
 
 	let video = $state<HTMLVideoElement>();
 	let paused = $state(true);
 	let time = $state(0);
 	let duration = $state(0);
-	let muted = $state(true);
-	let volume = $state(1);
-	let speed = $state<(typeof SPEEDS)[number]>(1);
+	let muted = $state(untrack(() => start?.muted ?? true));
+	let volume = $state(untrack(() => start?.volume ?? 1));
+	let speed = $state(untrack(() => start?.speed ?? 1));
 	let videoWidth = $state(0);
 	let videoHeight = $state(0);
 	let resting = $state(false);
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
 	let pendingSeek: number | null = null;
 	let loadedSrc: string | undefined;
-	let reloaded = $state<{ at: number; playing: boolean; speed: typeof speed } | null>(null);
-	const stopped = $derived(reloaded ? !reloaded.playing : paused);
+	let pending = $state<{ at: number; playing: boolean; speed: number } | null>(
+		untrack(() => (start ? { at: start.at, playing: start.playing, speed: start.speed } : null)),
+	);
+	const stopped = $derived(pending ? !pending.playing : paused);
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
 
@@ -49,17 +63,47 @@
 
 	$effect.pre(() => {
 		if (video && loadedSrc !== undefined && src !== loadedSrc) {
-			reloaded = { at: video.currentTime, playing: !video.paused, speed };
+			pending = { at: video.currentTime, playing: !video.paused, speed };
 		}
 		loadedSrc = src;
 	});
 
 	function resume(): void {
-		if (!video || !reloaded) return;
-		time = Math.min(reloaded.at, video.duration);
-		speed = reloaded.speed;
-		if (reloaded.playing) void video.play().catch(() => {});
-		reloaded = null;
+		if (!video || !pending) return;
+		time = Math.min(pending.at, video.duration);
+		speed = pending.speed;
+		if (pending.playing) void video.play().catch(() => {});
+		else video.pause();
+		pending = null;
+	}
+
+	function playback(): Playback {
+		return {
+			at: pending?.at ?? time,
+			playing: running(),
+			muted,
+			volume,
+			speed: pending?.speed ?? speed,
+		};
+	}
+
+	function adopt(next: Playback): void {
+		muted = next.muted;
+		volume = next.volume;
+		pending = { at: next.at, playing: next.playing, speed: next.speed };
+		if (video && video.readyState >= HTMLMediaElement.HAVE_METADATA) resume();
+	}
+
+	function open(): void {
+		const handoff = { playback: playback(), resume: adopt };
+		hold();
+		onopen?.(handoff);
+	}
+
+	export function release(): Playback {
+		const left = playback();
+		hold();
+		return left;
 	}
 
 	function wake(): void {
@@ -69,7 +113,7 @@
 	}
 
 	function running(): boolean {
-		return reloaded ? reloaded.playing : video !== undefined && !video.paused;
+		return pending ? pending.playing : video !== undefined && !video.paused;
 	}
 
 	export function toggle(): void {
@@ -78,12 +122,12 @@
 	}
 
 	function hold(): void {
-		if (reloaded) reloaded = { ...reloaded, playing: false };
+		if (pending) pending = { ...pending, playing: false };
 		else video?.pause();
 	}
 
 	function play(): void {
-		if (reloaded) reloaded = { ...reloaded, playing: true };
+		if (pending) pending = { ...pending, playing: true };
 		else void video?.play().catch(() => {});
 	}
 
@@ -99,7 +143,7 @@
 	}
 
 	function seek(to: number): void {
-		if (reloaded) reloaded = { ...reloaded, at: to };
+		if (pending) pending = { ...pending, at: to };
 		if (video?.seeking) pendingSeek = to;
 		else time = to;
 	}
@@ -156,7 +200,7 @@
 			ariaLabel={onopen ? (openLabel ?? label) : stopped ? `Play ${label}` : `Pause ${label}`}
 			tabindex={onopen ? 0 : -1}
 			class={['absolute inset-0 rounded-[inherit]', onopen ? 'cursor-zoom-in' : 'cursor-default']}
-			onclick={onopen ?? toggle}
+			onclick={onopen ? open : toggle}
 		/>
 		<div
 			class={[

@@ -31,7 +31,10 @@ test('editing a prompt resends it, appends a run, and keeps the old run under th
 		const editor = page.getByRole('textbox', { name: 'Edit message' });
 		await expect(editor).toBeVisible({ timeout: 20_000 });
 		await editor.fill('EDIT:a-v2.txt');
-		await page.getByTestId('chat-message-edit-send').click();
+		await page.keyboard.press('Shift+Enter');
+		await expect.poll(() => editor.innerText()).toMatch(/^EDIT:a-v2\.txt\n/u);
+		await page.keyboard.press('Backspace');
+		await page.keyboard.press('Enter');
 		await page.getByTestId('chat-message-edit-confirm-send').click();
 
 		await expectAssistantReply(page, 30_000);
