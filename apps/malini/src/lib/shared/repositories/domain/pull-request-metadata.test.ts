@@ -52,7 +52,6 @@ test('derives useful PR and commit metadata from session, repository, and valida
 		baseBranch: 'main',
 		changedPaths: ['src/workflow.ts', 'README.md', 'src/workflow.ts'],
 		context: {
-			sessionTitle: 'Automate the pull request workflow',
 			runSummaries: ['Create pull requests in one click and keep review status inside malini.'],
 			events: [
 				{ kind: 'validation', label: 'Repository unit tests', status: 'passed' },
@@ -128,35 +127,31 @@ test("commits under a job's Commit: line, and titles after the user's work only"
 	expect(metadata.body).toMatch(/## Summary\n\nfeat\(search\): add search to the header\n/u);
 });
 
-test('without authored lines, commits under the changed files and titles after the chat', () => {
+test('without authored lines, commits and titles under the changed files', () => {
 	const input = {
 		branch: 'malini/01J2D8F8AC634774504B54E93A',
 		baseBranch: 'main',
 		changedPaths: ['src/search.ts'],
-		context: { sessionTitle: 'Search in the header' },
+		context: {},
 	} as const;
 	const metadata = automatedPullRequestMetadata(input);
 
 	expect(metadata.commitMessage).toBe('Update search.ts');
-	expect(metadata.title).toBe('Search in the header');
-	expect(metadata.body).toMatch(/## Summary\n\nSearch in the header\n/u);
+	expect(metadata.title).toBe('Update search.ts');
+	expect(metadata.body).toMatch(/## Summary\n\nUpdate search\.ts\n/u);
 	expect(
 		automatedPullRequestMetadata({
 			...input,
 			context: { ...input.context, pullRequestTitle: 'fix(chat): commit under the Commit line' },
 		}).commitMessage,
 	).toBe('fix(chat): commit under the Commit line');
-	expect(automatedPullRequestMetadata({ ...input, context: {} }).title).toBe('Update search.ts');
 });
 
-test('falls back deterministically from generic chat context to the branch and changed paths', () => {
+test('falls back deterministically to the branch and changed paths', () => {
 	const input = {
 		branch: 'feature/keyboard-navigation',
 		baseBranch: 'main',
 		changedPaths: ['src/z.ts', 'src/a.ts'],
-		context: {
-			sessionTitle: 'New chat',
-		},
 	} as const;
 	const first = automatedPullRequestMetadata(input);
 	const second = automatedPullRequestMetadata({
@@ -175,7 +170,7 @@ test('removes terminal controls, bidi overrides, markdown injection, credentials
 		baseBranch: 'main',
 		changedPaths: ['src/`unsafe`.ts'],
 		context: {
-			sessionTitle: '# Please ship\u001b[31m this\u202e now\nsecret=visible',
+			pullRequestTitle: '# Ship\u001b[31m this\u202e now\nsecret=visible',
 			runSummaries: [
 				'Use **safe** output with Bearer private-token and https://user:pass@example.test/path',
 			],
@@ -190,10 +185,11 @@ test('removes terminal controls, bidi overrides, markdown injection, credentials
 	});
 
 	expect(metadata.title).not.toMatch(/[\n\r\u001b\u202e]/u);
-	expect(`${metadata.title}\n${metadata.body}`).not.toMatch(
+	expect(`${metadata.title}\n${metadata.commitMessage}\n${metadata.body}`).not.toMatch(
 		/private-token|super-secret|user:pass|ghp_/u,
 	);
-	expect(metadata.body).toContain('Use **safe** output with Bearer \\[redacted\\]');
+	expect(metadata.commitMessage).toContain('Bearer [redacted]');
+	expect(metadata.body).toContain('\\# Ship this now secret=\\[redacted\\]');
 	expect(metadata.body).toContain('api_key=\\[redacted\\]');
 });
 
@@ -203,7 +199,7 @@ test('bounds every field and limits untrusted context fan-out', () => {
 		baseBranch: 'm'.repeat(1_000),
 		changedPaths: Array.from({ length: 80 }, (_, index) => `src/${index}-${'p'.repeat(500)}.ts`),
 		context: {
-			sessionTitle: '😀'.repeat(500),
+			pullRequestTitle: '😀'.repeat(500),
 			runSummaries: Array.from({ length: 50 }, (_, index) => `summary ${index} ${'x'.repeat(500)}`),
 			events: Array.from({ length: 50 }, (_, index) => ({
 				kind: 'validation' as const,
@@ -227,22 +223,16 @@ test('bounds every field and limits untrusted context fan-out', () => {
 });
 
 const PARITY_RUN = Object.freeze({
-	sessionTitle: 'Create a new file PARITY-CHECK.md at the 2',
-	prompt:
-		'Create a new file PARITY-CHECK.md at the repository root containing exactly one line: parity e2e run. Then append a new last line to README.md containing exactly: parity-e2e-marker. Do not run any tests, builds or git commands.',
 	summary:
 		'Created `PARITY-CHECK.md` with the requested line and added `README.md` containing the requested marker, since no repository-root README previously existed.',
 });
 
-test('states what the run did instead of echoing a truncated, counted chat title', () => {
+test('states what the run did, cut at a word', () => {
 	const metadata = automatedPullRequestMetadata({
 		branch: 'malini/parity-e2e',
 		baseBranch: 'main',
 		changedPaths: ['PARITY-CHECK.md', 'README.md'],
-		context: {
-			sessionTitle: PARITY_RUN.sessionTitle,
-			runSummaries: [PARITY_RUN.summary],
-		},
+		context: { runSummaries: [PARITY_RUN.summary] },
 	});
 
 	expect(metadata.title).toBe(
@@ -259,16 +249,12 @@ test('gives two commits in one chat session subjects that describe their own wor
 	const first = automatedPullRequestMetadata({
 		...branch,
 		changedPaths: ['PARITY-CHECK.md', 'README.md'],
-		context: {
-			sessionTitle: PARITY_RUN.sessionTitle,
-			runSummaries: [firstSummary],
-		},
+		context: { runSummaries: [firstSummary] },
 	});
 	const second = automatedPullRequestMetadata({
 		...branch,
 		changedPaths: ['PARITY-CHECK.md'],
 		context: {
-			sessionTitle: PARITY_RUN.sessionTitle,
 			runSummaries: [
 				firstSummary,
 				'Appended a second line reading second pass to PARITY-CHECK.md.',
@@ -285,27 +271,13 @@ test('gives two commits in one chat session subjects that describe their own wor
 	expect(second.commitMessage).not.toBe(first.commitMessage);
 });
 
-test('never carries the host duplicate-name counter into a title or a commit subject', () => {
-	const onlyTheChatName = (sessionTitle: string) =>
-		automatedPullRequestMetadata({
-			branch: 'main',
-			baseBranch: 'main',
-			changedPaths: [],
-			context: { sessionTitle },
-		});
-
-	expect(onlyTheChatName('Refresh the billing page 3').title).toBe('Refresh the billing page');
-	expect(onlyTheChatName('Chat 4').title).toBe('Update workstream');
-	expect(onlyTheChatName('Fix issue 1').title).toBe('Fix issue 1');
-});
-
-test('finishes a phrase the chat-title cut left dangling', () => {
+test('finishes a phrase a title cut left dangling', () => {
 	expect(
 		automatedPullRequestMetadata({
 			branch: 'main',
 			baseBranch: 'main',
 			changedPaths: [],
-			context: { sessionTitle: 'Create a new file PARITY-CHECK.md at the' },
+			context: { pullRequestTitle: 'Create a new file PARITY-CHECK.md at the' },
 		}).title,
 	).toBe('Create a new file PARITY-CHECK.md');
 });
@@ -368,7 +340,7 @@ test('lets an agent summary render as prose while refusing injected structure', 
 	expect(metadata.body).toContain('\\<img src=x\\>');
 });
 
-test('lists the variants the user picked under Decisions, and no section when none were picked', () => {
+test('lists the variants picked under Decisions, and no section when none were picked', () => {
 	const input = {
 		branch: 'malini/hero',
 		baseBranch: 'main',
@@ -380,12 +352,12 @@ test('lists the variants the user picked under Decisions, and no section when no
 		...input,
 		context: {
 			...input.context,
-			decisions: ['B · Bold over A · Calm - "darker reads\nbetter"', ''],
+			decisions: ['B · Bold over\nA · Calm', ''],
 		},
 	});
 
 	expect(metadata.body).toMatch(
-		/\n## Decisions\n\n- B · Bold over A · Calm - "darker reads better"\n\n## Validation\n/u,
+		/\n## Decisions\n\n- B · Bold over A · Calm\n\n## Validation\n/u,
 	);
 	expect(automatedPullRequestMetadata(input).body).not.toContain('## Decisions');
 });

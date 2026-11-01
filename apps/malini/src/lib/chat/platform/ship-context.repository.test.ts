@@ -92,7 +92,6 @@ describe('workstreamShipContext', () => {
 		completedRun(db, 'run-steer', 'job', 'Also bump the timeout', 'Bumped the CI timeout');
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({
-			sessionTitle: 'Readiness probe',
 			runSummaries: ['Add the /health endpoint'],
 			commitLine: 'Add the /health endpoint',
 			latestRunId: 'run-health',
@@ -201,7 +200,7 @@ describe('workstreamShipContext', () => {
 		db.close();
 	});
 
-	it('records each variant the user picked against the variants the run before offered', () => {
+	it('records each variant the user picked, and nothing the user typed', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
 		session(db, 'chat', 'user', 'Hero');
@@ -222,9 +221,9 @@ describe('workstreamShipContext', () => {
 			'Outcome: Built B.',
 		);
 
-		expect(workstreamShipContext(db, WORKSTREAM).decisions).toEqual([
-			'B · Bold over A · Calm - "darker reads better"',
-		]);
+		const context = workstreamShipContext(db, WORKSTREAM);
+		expect(context.decisions).toEqual(['B · Bold over A · Calm']);
+		expect(JSON.stringify(context)).not.toMatch(/darker|Hero/u);
 		db.close();
 	});
 });

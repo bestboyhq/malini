@@ -209,7 +209,8 @@ While you hold the playhead, the recording stops on the frame under it, and it p
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
-Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
+Every pick stays in the chat as a step, with what lost and why; click any variant in it to open it in the gallery.
+The pull request description lists which variant won over which, never your reason: what you type stays in the chat.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
