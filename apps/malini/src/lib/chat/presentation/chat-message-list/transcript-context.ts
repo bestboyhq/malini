@@ -8,6 +8,7 @@ import type { SessionId } from '$lib/chat/domain/session';
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 import type { FileMentionTarget } from '../file-mention-links';
 import type { RunGroup, ToolAggregate } from '../render-state';
+import type { VideoHandoff } from '../transcript-gallery';
 import type { EarlierTurn, RunPick } from '../turn-result';
 import type { CheckpointEditor } from './checkpoint-edit.svelte';
 import type { DestructiveConfirm, RunUndoTarget } from './destructive-confirm.svelte';
@@ -54,7 +55,7 @@ export type TranscriptContext = {
 	openFileMention(target: FileMentionTarget, mention: HTMLElement): void;
 	readonly canOpenFileMention: ((path: string) => boolean) | undefined;
 	readonly markdownImageSource: (path: string) => string | null;
-	openImageGallery(id: string): void;
+	openImageGallery(id: string, handoff?: VideoHandoff): void;
 	openAttachment(attachment: StagedAgentAttachment): void;
 	earlierTurns(runId: string): readonly EarlierTurn[];
 	variantPick(runId: string): RunPick | null;

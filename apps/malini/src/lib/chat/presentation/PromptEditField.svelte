@@ -23,7 +23,8 @@
 		testId: string;
 		disabled?: boolean;
 		compact?: boolean;
-		onkeydown: (event: KeyboardEvent) => void;
+		onsubmit: () => void;
+		oncancel: () => void;
 	}
 
 	let {
@@ -33,7 +34,8 @@
 		testId,
 		disabled = false,
 		compact = false,
-		onkeydown,
+		onsubmit,
+		oncancel,
 	}: Props = $props();
 
 	type AttachmentRequest = Readonly<{ requestId: ChatRequestId; adopting: readonly string[] }>;
@@ -120,6 +122,16 @@
 		});
 	}
 
+	function onKeydown(event: KeyboardEvent): void {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			oncancel();
+		} else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+			event.preventDefault();
+			onsubmit();
+		}
+	}
+
 	export function focus(): void {
 		editor?.focusNow({ atEnd: true });
 	}
@@ -138,7 +150,7 @@
 	onvaluechange={onValueChange}
 	onchipremove={onChipRemove}
 	onattachfiles={onAttachFiles}
-	{onkeydown}
+	onkeydown={onKeydown}
 />
 {#if error}
 	<p

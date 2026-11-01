@@ -55,6 +55,7 @@
 		isGalleryAttachment,
 		transcriptGalleryImages,
 		type GalleryImage,
+		type VideoHandoff,
 	} from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
@@ -232,12 +233,14 @@
 	const transcriptImageSource = workstreamImageSourceHook(() => workstreamId);
 	const markdownImageSource = $derived(transcriptImageSource());
 
-	let gallery = $state.raw<Readonly<{ images: readonly GalleryImage[]; startId: string }> | null>(
-		null,
-	);
+	let gallery = $state.raw<Readonly<{
+		images: readonly GalleryImage[];
+		startId: string;
+		handoff: VideoHandoff | undefined;
+	}> | null>(null);
 
-	function openImageGallery(id: string): void {
-		gallery = { images: transcriptGalleryImages(runs, workstreamId), startId: id };
+	function openImageGallery(id: string, handoff?: VideoHandoff): void {
+		gallery = { images: transcriptGalleryImages(runs, workstreamId), startId: id, handoff };
 	}
 
 	function openAttachment(attachment: StagedAgentAttachment): void {
@@ -930,6 +933,7 @@
 			{workstreamId}
 			images={gallery.images}
 			startId={gallery.startId}
+			handoff={gallery.handoff}
 			onclose={() => (gallery = null)}
 		/>
 	{/if}

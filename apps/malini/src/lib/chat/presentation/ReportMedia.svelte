@@ -1,8 +1,10 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { worktreePageUrl } from '$contract/browser';
 	import { mediaKind, mediaPath } from '$lib/chat/domain/turn-report';
 	import { Button } from '$hyper-ui/components/button';
+	import type { VideoHandoff } from './transcript-gallery';
 	import VideoPlayer from './VideoPlayer.svelte';
 	import { galleryImageLabel, reportMediaSource } from './workstream-images';
 
@@ -13,10 +15,20 @@
 		size: 'hero' | 'tile' | 'mini';
 		playing?: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
-		onopen?: (() => void) | undefined;
+		caption?: Snippet | undefined;
+		onopen?: ((handoff?: VideoHandoff) => void) | undefined;
 	}
 
-	let { src, label, workstreamId, size, playing = true, imagesrc, onopen }: Props = $props();
+	let {
+		src,
+		label,
+		workstreamId,
+		size,
+		playing = true,
+		imagesrc,
+		caption,
+		onopen,
+	}: Props = $props();
 
 	const PAGE_WIDTH = 1280;
 	const PAGE_HEIGHT = 800;
@@ -66,6 +78,7 @@
 			{label}
 			autoplay={moving}
 			openLabel={galleryImageLabel(label, kind)}
+			{caption}
 			{onopen}
 		/>
 	{:else if kind === 'video'}
@@ -105,7 +118,7 @@
 				bare
 				class="absolute inset-0 cursor-zoom-in"
 				ariaLabel={galleryImageLabel(label, kind)}
-				onclick={onopen}
+				onclick={() => onopen()}
 			/>
 		{/if}
 	{/if}
