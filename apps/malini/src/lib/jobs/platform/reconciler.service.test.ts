@@ -6,6 +6,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
 import type { JobRunRecord, ReconcilerDecisionRecord } from '$contract/jobs';
 import type { MainContext } from '$main/context';
@@ -289,18 +290,18 @@ describe('the event reconciler', () => {
 		picks.push(4);
 		finishJob(await publishDocs(), 'publish-1');
 		const [asking] = await decided(1);
-		expect(asking).toMatchObject({ status: 'asking', finishedAt: null });
+		expect(asking).toMatchObject({ status: 'asking', finishedAt: null, subjectRunId: 'publish-1' });
 		expect(asking?.candidates[3]).toEqual({
 			kind: 'ask-you',
 			label: 'Ask you',
-			reason: 'Publish docs failed in Api analytics.',
+			reason: 'Failed: The docs host timed out.',
 		});
 		await vi.waitFor(() =>
 			expect(notified).toEqual([
 				{
 					options: {
-						title: 'Malini asks you',
-						body: 'Publish docs failed in Api analytics.',
+						title: 'Publish docs · Api analytics',
+						body: 'Failed: The docs host timed out.',
 						opens: { workstreamId: 'lead', sessionId: 'lead-chat' },
 					},
 				},
@@ -696,6 +697,145 @@ describe('the event reconciler', () => {
 			expect.arrayContaining([
 				{ id: 'api', name: 'Api analytics', repository: 'project', startedBy: 'lead' },
 				{ id: 'lead', name: 'Home', repository: null, startedBy: null },
+			]),
+		);
+	});
+});
+
+describe('a question on its job', () => {
+	function archive(workstreamId: string): void {
+		run(db, `UPDATE workstreams SET status = 'archived' WHERE id = ?`, workstreamId);
+	}
+
+	async function askAboutPublishDocs(): Promise<
+		Readonly<{ asking: ReconcilerDecisionRecord; definitionId: string }>
+	> {
+		const definitionId = await publishDocs();
+		picks.push(4);
+		finishJob(definitionId, 'publish-1');
+		const [asking] = await decided(1);
+		if (asking?.status !== 'asking') throw new Error('Malini did not ask');
+		return { asking, definitionId };
+	}
+
+	it('goes with its workstream, and its choices with it', async () => {
+		const { asking } = await askAboutPublishDocs();
+
+		archive('api');
+		context.events.emit(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, {
+			workstreamId: 'api',
+			worktreePath: '/tmp/api',
+			archived: true,
+		});
+
+		expect(await decisions()).toEqual([
+			expect.objectContaining({
+				id: asking.id,
+				status: 'dismissed',
+				detail: 'Its workstream was closed.',
+			}),
+		]);
+		await expect(
+			context.commands.call('jobs.decide', { decisionId: asking.id, candidate: 2 }),
+		).rejects.toThrow('This was already decided.');
+		expect(await context.commands.call('jobs.list-runs', undefined)).toHaveLength(1);
+	});
+
+	it('left behind in a closed workstream is dropped when Malini starts, as of when it closed, and Malini asks nothing new there', async () => {
+		const { asking, definitionId } = await askAboutPublishDocs();
+		const closedAt = new Date(Date.parse(asking.createdAt) + 60_000).toISOString();
+		archive('api');
+		run(db, `UPDATE workstreams SET archived_at = ? WHERE id = 'api'`, closedAt);
+		jobs.dispose();
+
+		boot();
+		finishJob(definitionId, 'publish-2');
+		await settle();
+
+		expect(await decisions()).toEqual([
+			expect.objectContaining({ id: asking.id, status: 'dismissed', finishedAt: closedAt }),
+		]);
+		expect(asked).toHaveLength(1);
+	});
+
+	it('gives way to newer news about the same job', async () => {
+		const { asking, definitionId } = await askAboutPublishDocs();
+		picks.push(1);
+
+		finishJob(definitionId, 'publish-2', { status: 'succeeded', detail: null });
+
+		await decided(2);
+		expect((await decisions()).find((decision) => decision.id === asking.id)).toMatchObject({
+			status: 'dismissed',
+			detail: 'Publish docs ran again.',
+		});
+	});
+
+	it('about conflicts gives way to a newer question about the same conflicts', async () => {
+		await switchResolveConflicts('off');
+		picks.push(3, 3);
+		const conflict = (path: string) =>
+			context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+				workstreamId: 'site',
+				baseBranch: 'main',
+				conflictedPaths: [path],
+			});
+
+		conflict('src/a.ts');
+		const [first] = await decided(1);
+		conflict('src/b.ts');
+		await decided(2);
+
+		const listed = await decisions();
+		expect(listed.map(({ status, detail }) => [status, detail])).toEqual([
+			['asking', null],
+			['dismissed', 'Malini asked again.'],
+		]);
+		expect(listed[1]?.id).toBe(first?.id);
+		expect(listed[0]?.candidates.at(-1)).toMatchObject({
+			reason: 'Stopped on conflicts in 1 file: b.ts.',
+		});
+	});
+});
+
+describe('the jobs of a closed workstream', () => {
+	async function queuedPublishDocs(): Promise<JobRunRecord> {
+		const job = await publishDocs();
+		return context.commands.call('jobs.run', { definitionId: job, workstreamId: 'api' });
+	}
+
+	it('are cancelled when it closes', async () => {
+		const queued = await queuedPublishDocs();
+		expect(queued.status).toBe('queued');
+
+		run(db, `UPDATE workstreams SET status = 'archived' WHERE id = 'api'`);
+		context.events.emit(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, {
+			workstreamId: 'api',
+			worktreePath: '/tmp/api',
+			archived: true,
+		});
+
+		await vi.waitFor(async () =>
+			expect(await context.commands.call('jobs.list-runs', undefined)).toEqual([
+				expect.objectContaining({
+					id: queued.id,
+					status: 'cancelled',
+					detail: 'Its workstream was closed.',
+				}),
+			]),
+		);
+	});
+
+	it('are cancelled when Malini starts', async () => {
+		const queued = await queuedPublishDocs();
+		jobs.dispose();
+		run(db, `UPDATE workstreams SET status = 'archived' WHERE id = 'api'`);
+
+		boot();
+
+		await vi.waitFor(async () =>
+			expect(await context.commands.call('jobs.list-runs', undefined)).toEqual([
+				expect.objectContaining({ id: queued.id, status: 'cancelled' }),
 			]),
 		);
 	});

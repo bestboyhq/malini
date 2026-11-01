@@ -7,9 +7,9 @@
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
-	import { activeJobRunsQuery } from '$lib/jobs/application/queries/active-job-runs.query.svelte';
+	import { jobCenterEntriesQuery } from '$lib/jobs/application/queries/job-center-entries.query.svelte';
 	import { jobRunByIdQuery } from '$lib/jobs/application/queries/job-run-by-id.query.svelte';
-	import { JobCenter } from '$lib/jobs/jobs.api';
+	import { JobCenter, WorkstreamJobRuns } from '$lib/jobs/jobs.api';
 	import { mergeStoppedOnJobQuery } from '$lib/pull-requests/application/queries/merge-stopped-on-job.query.svelte';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { shipFailureQuery } from '$lib/pull-requests/application/queries/ship-failure.query.svelte';
@@ -46,13 +46,14 @@
 			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
 	);
 	const chatSessionId = $derived(activeSessionQuery.data);
-	const jobRuns = $derived(
-		activeJobRunsQuery.data.filter(
-			(run) =>
-				run.workstreamId === workstreamId ||
-				(chatSessionId !== null && run.chatSessionId === chatSessionId),
+	const jobs = $derived(
+		jobCenterEntriesQuery.data.filter(
+			(entry) =>
+				entry.workstreamId === workstreamId ||
+				(chatSessionId !== null && entry.run?.chatSessionId === chatSessionId),
 		),
 	);
+	const jobRuns = $derived(jobs.flatMap((entry) => (entry.run ? [entry.run] : [])));
 
 	onMount(() => {
 		loadJobsCommand();
@@ -84,6 +85,7 @@
 			{workstreamId}
 			{pullRequestShipped}
 			{jobRuns}
+			jobs={jobs.length > 0 ? jobsInProgress : undefined}
 			timeline={Boolean(workstream?.scope)}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
@@ -106,6 +108,10 @@
 		</div>
 	{/snippet}
 </InspectorSplit>
+
+{#snippet jobsInProgress()}
+	<WorkstreamJobRuns entries={jobs} {workstreamId} />
+{/snippet}
 
 {#snippet workstreamNotice()}
 	{#if stoppedHere && mergeStop}

@@ -29,8 +29,7 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
   Malini reads the When, the work, and the Then, and drafts the job for you to adjust and save.
   It also lists your jobs, each with its When, its last run, and a switch.
   The jobs Malini [suggests](#suggested-jobs) and a few recipes sit there too.
-- **Activity**: what waits for you, what is running, and every run by day, job runs and chat turns alike, each holding the calls its agent made to [Malini's tools](/malini/docs/agent-tools.md#see-what-the-agent-did).
-  **Waiting for you** holds the runs that ask you first, the runs that need you, and what [Choose a reaction](#reconciler) asks you.
+- **Activity**: what is running, and every run by day, job runs and chat turns alike, each holding the calls its agent made to [Malini's tools](/malini/docs/agent-tools.md#see-what-the-agent-did).
   Each reaction Malini chose shows as an **Event** row, which opens to what Malini saw and what it could have done.
 - **Explorer**: a [map of Malini](#explorer) and a timeline, to replay the last hour or day and follow what caused what.
 - **Recipes**: ready-made jobs to start from.
@@ -110,7 +109,6 @@ While the job's last run waits for you, is queued, or still runs, it skips its t
 A scheduled run tells you with a notification when it waits for your yes, when it needs you, when it fails, and when it finishes, with its result.
 A run that needs your approval waits for it, so always allow a command it needs, and later runs go on without asking.
 A scheduled run gets its schedule and the time it was due as context.
-The [Job center](#run-a-job) lists each scheduled job under **Upcoming** with the time it runs next.
 
 A schedule in a repository or an organization Malini does not have is refused when you save the job.
 **Update from main**, **Open draft**, and **Merge** take no schedule, since they work on the changes of a workstream.
@@ -120,7 +118,7 @@ A schedule in a repository or an organization Malini does not have is refused wh
 A job with a When runs one of three ways:
 
 1. **Off**: it never starts on its own.
-2. **Ask me first**: every run waits for you under **Activity**, in **Waiting for you**, with **Run it** and **Skip**.
+2. **Ask me first**: every run waits for you in its chat, which its line in the [Job center](#run-a-job) opens, with **Run it** and **Skip**.
 3. **On its own**: it runs as soon as its trigger fires.
 
 New jobs ask first, and a trigger an agent adds starts Off.
@@ -160,7 +158,7 @@ A **chain** is everything that traces back to one thing you did, such as a promp
 
 - A job asked for again while it still waits or is queued for the same workstream runs once.
   Its row says how often it was asked, such as **Asked 3 times**, and its context gathers every ask.
-- The fourth run of the same job for the same workstream in one chain waits for you under **Waiting for you**: "It already ran 3 times in one chain of events, so Malini asks before it runs again."
+- The fourth run of the same job for the same workstream in one chain waits for you in the [Job center](#run-a-job): "It already ran 3 times in one chain of events, so Malini asks before it runs again."
   Retries are fine, so Malini stops a loop without forbidding them.
   The Shipping rule's jobs stay out of that count: **Fix attempts before asking you** in Settings bounds them.
 
@@ -173,7 +171,7 @@ A workstream an agent just started counts as busy until the turn of its first pr
 
 - Type **/** in the composer to run a job from a chat.
   It waits above the composer, next to the prompts you queued, and stays there while it runs, with its transcript a click away.
-  Once it finishes, it leaves, and the **Job center** keeps its result.
+  Once it finishes, it leaves, and its result stays on the job's page and in **Activity**.
 - Run it from the Jobs page, in a workstream or a new one.
   A new one shows **Setting up** in the sidebar while Malini updates its branch and installs its dependencies.
 - Give it a When, or make it another job's Then.
@@ -181,12 +179,25 @@ A workstream an agent just started counts as busy until the turn of its first pr
   It asks before it runs a job, until you always allow that job.
   Its edit to a job that runs without asking waits for your [review](/malini/docs/agent-tools.md#edits-you-review), change by change.
 
-The **Job center** shows what is running and what just finished.
-It sits at the bottom of a workstream's side panel, and at the bottom right of the Repositories page while something runs, waits for you, or is scheduled.
-Its header is the way into the Jobs page, and counts what needs you.
-Under **Upcoming**, it lists every scheduled job that is not off, soonest first, with when it runs next, where it runs, and whether it asks you first (**Asks first**).
-Click one to open its job.
-With nothing running or waiting, the Job center says when the next one runs, such as "next at 09:00 today".
+The **Job center** shows only live jobs, one line each: first the ones that need you, then the running ones, then the queue, oldest first.
+A finished job leaves it.
+It sits at the bottom of a workstream's side panel, saying **ready when you are** while no job is live, and at the bottom right of the Repositories page while one is.
+Its header is the way into the Jobs page, and counts what runs, what is queued, and what needs you.
+Above the composer, a chat lists its workstream's live jobs the same way.
+
+A job that needs you says why at the end of its line: **Conflicts**, **Failed**, **Wants to run**, or **Asks you**.
+Click it to go where you make the call: the chat of its workstream, where the question waits above the composer with what you need to decide.
+A run that asks you first shows when it runs, what it does, and how its last run went.
+Its answers are buttons under it:
+
+- **Run it** and **Skip** for a run that asks you first.
+- **Run again**, **Tell its chat**, and **Dismiss** for what [Choose a reaction](#reconciler) asks you, such as "Failed: The docs host timed out."
+
+A run whose agent asks you something opens its transcript, where you answer in the composer.
+A run that asks you first before it has a chat, such as the first run of a schedule at Home, opens its job's page, which shows the same question under **Needs you**.
+
+A question never goes stale: it goes away with its workstream, and a newer question about the same job, or a newer run of that job that finishes, replaces it.
+Archiving a workstream also cancels its jobs that have not finished.
 Settings decides how many jobs run at once.
 
 ## Reconciler
@@ -230,7 +241,7 @@ When the model can't answer, Malini picks by its own rules: it wakes the chat wa
 - **Wake**: the report reaches the chat that asked for the work through Deliveries, beginning "Malini woke you: work you asked for moved on": the chat that ran the job, or ran the work whose merge stopped on conflicts.
   A chat is never woken only because it works in that workstream.
   When that chat is on a turn, the report waits and arrives with any others when the turn ends.
-- **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification, which opens the work, or the top-most chat that started it.
+- **Ask you**: the question waits above the composer of its workstream's chat, which its line in the [Job center](#run-a-job) opens, with a button for each thing Malini could do, marks that job on the Jobs page, and sends a notification titled with the job and its workstream, which opens the work, or the top-most chat that started it.
 - **Run again** asks first, unless the job runs on its own.
 
 Every pick shows in Activity, with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.

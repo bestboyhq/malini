@@ -14,14 +14,17 @@
 	import { resetJobDefinitionCommand } from '$lib/jobs/application/commands/reset-job-definition.command';
 	import { updateJobSettingsCommand } from '$lib/jobs/application/commands/update-job-settings.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
+	import { jobCenterEntriesQuery } from '$lib/jobs/application/queries/job-center-entries.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
 	import { jobScorecardErrorQuery } from '$lib/jobs/application/queries/job-scorecard-error.query.svelte';
 	import { jobScorecardQuery } from '$lib/jobs/application/queries/job-scorecard.query.svelte';
 	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
 	import { isRunnableJob, takesThen } from '$lib/jobs/domain/builtin-jobs';
+	import { asksYou } from '$lib/jobs/domain/job-center';
 	import { scheduleOf } from '$lib/jobs/domain/schedule';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import JobEditor from '../JobEditor.svelte';
+	import JobRunList from '../JobRunList.svelte';
 	import JobRunRow from '../JobRunRow.svelte';
 	import JobRunTarget from '../JobRunTarget.svelte';
 	import { PageSection } from '$hyper-ui/components/page-section';
@@ -61,6 +64,11 @@
 	const actionState = $derived(jobActionStateQuery.data(job.id));
 	const settingsState = $derived(jobSettingsStateQuery.data(job.id));
 	const runs = $derived(runsFor(job.id).slice(0, RECENT_RUNS));
+	const asks = $derived(
+		jobCenterEntriesQuery.data.filter(
+			(entry) => asksYou(entry) && entry.run?.definitionId === job.id,
+		),
+	);
 	const fixed = $derived(builtinTrigger(job));
 	const runnable = $derived(isRunnableJob(job));
 	const thenable = $derived(takesThen(job));
@@ -183,6 +191,14 @@
 		>
 			{scorecardError}
 		</p>
+	{/if}
+
+	{#if asks.length > 0}
+		<Well title="Needs you">
+			<div class={[ROWS, 'p-1']}>
+				<JobRunList entries={asks} {nowMs} asksHere />
+			</div>
+		</Well>
 	{/if}
 
 	{#if scorecard && isAutomaticJobBuiltin(job.builtin)}

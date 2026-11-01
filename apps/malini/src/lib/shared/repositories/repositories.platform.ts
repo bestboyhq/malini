@@ -49,7 +49,9 @@ export {
 export { getProject, listProjects, upsertProject } from './platform/projects.repository';
 export {
 	deleteWorkstream,
+	getArchivedWorkstream,
 	getWorkstream,
+	isWorkstreamClosed,
 	listArchivedWorkstreams,
 	listWorkstreams,
 	mergedPullRequestOf,

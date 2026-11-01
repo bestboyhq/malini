@@ -62,7 +62,6 @@
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
-	import { WorkstreamJobRuns } from '$lib/jobs/jobs.api';
 	import { SecretRequestCard } from '$lib/secrets/secrets.api';
 	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
@@ -103,6 +102,7 @@
 		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
 		notice?: Snippet | undefined;
+		jobs?: Snippet | undefined;
 	}
 
 	let {
@@ -115,6 +115,7 @@
 		header,
 		workstreamsCard,
 		notice,
+		jobs,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -554,7 +555,7 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundWork || jobs || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -606,9 +607,9 @@
 													</div>
 												{/if}
 
-												{#if jobRuns.length > 0}
+												{#if jobs}
 													<div transition:slide={foldMotion()}>
-														<WorkstreamJobRuns runs={jobRuns} {workstreamId} />
+														{@render jobs()}
 													</div>
 												{/if}
 

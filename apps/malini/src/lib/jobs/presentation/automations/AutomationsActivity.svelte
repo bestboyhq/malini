@@ -19,11 +19,9 @@
 	import JobRunRow from '../JobRunRow.svelte';
 	import ActivityRun from './ActivityRun.svelte';
 	import AgentActionRow from './AgentActionRow.svelte';
-	import AskingDecisionRow from './AskingDecisionRow.svelte';
 	import { PageSection } from '$hyper-ui/components/page-section';
 	import ChatTurnRow from './ChatTurnRow.svelte';
 	import DecisionRow from './DecisionRow.svelte';
-	import WaitingJobRunRow from './WaitingJobRunRow.svelte';
 
 	interface Props {
 		jobs: readonly JobDefinitionRecord[];
@@ -45,14 +43,14 @@
 			.flatMap((job) => runsFor(job.id))
 			.sort((left, right) => jobRunLastActivityAt(right).localeCompare(jobRunLastActivityAt(left))),
 	);
-	const decisions = $derived(reconcilerDecisionsQuery.data);
 	const entries = $derived(
-		activityEntries(runs, chatTurnsQuery.data, agentActionsQuery.data, decisions),
+		activityEntries(
+			runs,
+			chatTurnsQuery.data,
+			agentActionsQuery.data,
+			reconcilerDecisionsQuery.data,
+		),
 	);
-	const waiting = $derived(runs.filter((run) => run.status === 'waiting'));
-	const needsYou = $derived(runs.filter((run) => run.status === 'needs-you'));
-	const asking = $derived(decisions.filter((decision) => decision.status === 'asking'));
-	const waitingForYou = $derived(waiting.length + needsYou.length + asking.length);
 	const running = $derived(entries.filter(activityEntryRunning));
 	const days = $derived(groupByDay(entries.filter(finished).slice(0, RECENT_LIMIT)));
 
@@ -142,7 +140,7 @@
 
 <PageSection
 	title="Activity"
-	description="What your jobs and chats did in Malini, and what waits for you."
+	description="What your jobs and chats did in Malini."
 	testId="automations-activity"
 >
 	{#snippet actions()}
@@ -155,27 +153,6 @@
 			/>
 		</div>
 	{/snippet}
-
-	<Well title="Waiting for you" note={waitingForYou > 0 ? `${waitingForYou}` : undefined}>
-		<div class={ROWS}>
-			{#if waitingForYou === 0}
-				<p class="text-fg-tertiary px-4 py-3 text-xs">Nothing waits for you.</p>
-			{/if}
-			{#each asking as decision (decision.id)}
-				<AskingDecisionRow {decision} {nowMs} />
-			{/each}
-			{#each waiting as run (run.id)}
-				<WaitingJobRunRow {run} {nowMs} />
-			{/each}
-			{#if needsYou.length > 0}
-				<ul class="flex flex-col p-1">
-					{#each needsYou as run (run.id)}
-						<li><JobRunRow {run} {nowMs} /></li>
-					{/each}
-				</ul>
-			{/if}
-		</div>
-	</Well>
 
 	{#if running.length > 0}
 		<Well title="Running now" note={`${running.length}`}>

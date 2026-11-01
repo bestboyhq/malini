@@ -131,6 +131,7 @@ const wake: ReconcilerDecisionRecord = {
 	status: 'done',
 	detail: null,
 	jobRunId: null,
+	subjectRunId: null,
 	createdAt: at(27),
 	finishedAt: at(27),
 };

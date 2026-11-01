@@ -96,7 +96,11 @@ import {
 import { getSuggestion, listSuggestions, setSuggestionStatus } from './job-suggestions.repository';
 import type { JobRunner } from './job-runner.service';
 import { PROMPT_CLUSTER_MIN_PROMPT_TOKENS, promptTokenSet } from './prompt-clustering.service';
-import { listDecisions, listDecisionsSince } from './reconciler-decisions.repository';
+import {
+	listAskingDecisions,
+	listDecisions,
+	listDecisionsSince,
+} from './reconciler-decisions.repository';
 import type { Reconciler } from './reconciler.service';
 
 const RECENT_FINISHED_RUNS = 30;
@@ -286,11 +290,20 @@ export function defineJobCommands(
 		),
 	);
 
-	commands.define('jobs.list-runs', () =>
-		[...listUnfinishedJobRuns(db), ...listRecentFinishedJobRuns(db, RECENT_FINISHED_RUNS)].sort(
-			(left, right) => right.createdAt.localeCompare(left.createdAt),
-		),
-	);
+	commands.define('jobs.list-runs', () => {
+		const askedAbout = listAskingDecisions(db).flatMap(({ subjectRunId }) => {
+			const run = subjectRunId === null ? null : getJobRun(db, subjectRunId);
+			return run ? [run] : [];
+		});
+		const runs = [
+			...listUnfinishedJobRuns(db),
+			...listRecentFinishedJobRuns(db, RECENT_FINISHED_RUNS),
+			...askedAbout,
+		];
+		return [...new Map(runs.map((run) => [run.id, run])).values()].sort((left, right) =>
+			right.createdAt.localeCompare(left.createdAt),
+		);
+	});
 
 	commands.define('jobs.run', async (args: unknown) => {
 		const definition = requireDefinition(db, requireString(args, 'definitionId'));
