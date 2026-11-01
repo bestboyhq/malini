@@ -200,6 +200,7 @@ export async function registerModules(
 	const shutdown = (): Promise<void> => {
 		shuttingDown ??= (async () => {
 			stats.stop();
+			extensions.stop();
 			app.streaming.stop();
 			pullRequests.dispose();
 			jobs.dispose();

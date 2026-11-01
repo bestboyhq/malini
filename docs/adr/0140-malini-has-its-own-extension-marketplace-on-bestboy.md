@@ -1,6 +1,6 @@
 # 0140 - Malini has its own extension marketplace on bestboy.dev
 
-Status: accepted
+Status: superseded by 0142
 
 ## Context
 

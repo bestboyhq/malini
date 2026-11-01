@@ -20,4 +20,5 @@ export type ExtensionsPlatform = Readonly<{
 	packages: ExtensionPackages;
 	pluginFolders(): string[];
 	start(): void;
+	stop(): void;
 }>;

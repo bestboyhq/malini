@@ -29,6 +29,8 @@ import {
 	type ExtensionPackagePaths,
 } from './packages';
 
+const MARKETPLACE_REFRESH_MS = 60 * 60 * 1000;
+
 export function registerExtensions(
 	context: MainContext,
 	deps: ExtensionsPlatformDeps,
@@ -71,10 +73,15 @@ export function registerExtensions(
 	});
 
 	const marketplace = registerMarketplace(context, deps);
+	let refreshing: NodeJS.Timeout | undefined;
 	return {
 		packages: registerExtensionPackages(context, deps.packages ?? {}),
 		pluginFolders: () => marketplace.pluginFolders(),
-		start: () => void marketplace.refresh(),
+		start: () => {
+			void marketplace.refresh();
+			refreshing = setInterval(() => void marketplace.refresh(), MARKETPLACE_REFRESH_MS).unref();
+		},
+		stop: () => clearInterval(refreshing),
 	};
 }
 

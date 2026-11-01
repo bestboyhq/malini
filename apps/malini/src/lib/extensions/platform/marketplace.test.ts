@@ -355,6 +355,7 @@ type FakePlatform = {
 function fakePlatform(): FakePlatform {
 	const published = new Map<string, Published>();
 	const yanked: { publisher: string; name: string; version: string }[] = [];
+	const httpCache = new Map<string, Response>();
 	const state: FakePlatform = {
 		uploads: [],
 		offline: false,
@@ -399,51 +400,59 @@ function fakePlatform(): FakePlatform {
 			}
 		},
 		fetch: async (url, init) => {
-			if (state.offline) throw new Error('offline');
-			const path = new URL(url).pathname;
-			const method = init.method ?? 'GET';
-			if (method === 'GET' && path === '/api/extensions') {
-				return Response.json({
-					extensions: [...published.values()].map(({ listing }) => listing),
-					yanked,
-				});
-			}
-			const packageMatch = /^\/api\/extensions\/([^/]+)\/([^/]+)\/versions\/[^/]+\/package$/u.exec(
-				path,
-			);
-			if (method === 'GET' && packageMatch) {
-				const entry = published.get(`${packageMatch[1]}/${packageMatch[2]}`);
-				return entry
-					? new Response(new Uint8Array(entry.bytes), {
-							headers: { 'content-type': 'application/gzip' },
-						})
-					: Response.json({ error: 'Not found' }, { status: 404 });
-			}
-			const publishMatch = /^\/api\/extensions\/([^/]+)\/([^/]+)\/versions$/u.exec(path);
-			if (method === 'POST' && publishMatch) {
-				if (state.refuseUploads) {
-					return Response.json({ error: 'Signed out' }, { status: state.refuseUploads });
-				}
-				const body = init.body;
-				if (!(body instanceof Uint8Array)) throw new Error('expected bytes');
-				const { readExtensionPackage } = await import('./extension-package');
-				const read = readExtensionPackage(Buffer.from(body));
-				const headers = new Headers(init.headers);
-				state.uploads.push({ authorization: headers.get('authorization'), files: read.files });
-				state.publish([...read.files]);
-				return Response.json(published.get(`${publishMatch[1]}/${publishMatch[2]}`)?.listing, {
-					status: 201,
-				});
-			}
-			const detailMatch = /^\/api\/extensions\/([^/]+)\/([^/]+)$/u.exec(path);
-			if (method === 'GET' && detailMatch) {
-				const entry = published.get(`${detailMatch[1]}/${detailMatch[2]}`);
-				return entry
-					? Response.json({ ...entry.listing, readme: '# Svelte', versions: [] })
-					: Response.json({ error: 'Not found' }, { status: 404 });
-			}
-			return Response.json({ error: 'Not found' }, { status: 404 });
+			const kept = init.cache === 'no-cache' ? undefined : httpCache.get(url);
+			if (kept) return kept.clone();
+			const response = await answer(url, init);
+			if ((init.method ?? 'GET') === 'GET' && response.ok) httpCache.set(url, response.clone());
+			return response;
 		},
 	};
 	return state;
+
+	async function answer(url: string, init: RequestInit): Promise<Response> {
+		if (state.offline) throw new Error('offline');
+		const path = new URL(url).pathname;
+		const method = init.method ?? 'GET';
+		if (method === 'GET' && path === '/api/extensions') {
+			return Response.json({
+				extensions: [...published.values()].map(({ listing }) => listing),
+				yanked,
+			});
+		}
+		const packageMatch = /^\/api\/extensions\/([^/]+)\/([^/]+)\/versions\/[^/]+\/package$/u.exec(
+			path,
+		);
+		if (method === 'GET' && packageMatch) {
+			const entry = published.get(`${packageMatch[1]}/${packageMatch[2]}`);
+			return entry
+				? new Response(new Uint8Array(entry.bytes), {
+						headers: { 'content-type': 'application/gzip' },
+					})
+				: Response.json({ error: 'Not found' }, { status: 404 });
+		}
+		const publishMatch = /^\/api\/extensions\/([^/]+)\/([^/]+)\/versions$/u.exec(path);
+		if (method === 'POST' && publishMatch) {
+			if (state.refuseUploads) {
+				return Response.json({ error: 'Signed out' }, { status: state.refuseUploads });
+			}
+			const body = init.body;
+			if (!(body instanceof Uint8Array)) throw new Error('expected bytes');
+			const { readExtensionPackage } = await import('./extension-package');
+			const read = readExtensionPackage(Buffer.from(body));
+			const headers = new Headers(init.headers);
+			state.uploads.push({ authorization: headers.get('authorization'), files: read.files });
+			state.publish([...read.files]);
+			return Response.json(published.get(`${publishMatch[1]}/${publishMatch[2]}`)?.listing, {
+				status: 201,
+			});
+		}
+		const detailMatch = /^\/api\/extensions\/([^/]+)\/([^/]+)$/u.exec(path);
+		if (method === 'GET' && detailMatch) {
+			const entry = published.get(`${detailMatch[1]}/${detailMatch[2]}`);
+			return entry
+				? Response.json({ ...entry.listing, readme: '# Svelte', versions: [] })
+				: Response.json({ error: 'Not found' }, { status: 404 });
+		}
+		return Response.json({ error: 'Not found' }, { status: 404 });
+	}
 }

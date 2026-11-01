@@ -19,10 +19,10 @@ Malini keeps extensions in its own folder and hands them to every agent session 
 Its switch turns an extension off in every chat from the next prompt, and **Uninstall** on the extension's page removes it.
 An agent gets at most 50 extensions at once.
 
-Malini checks the marketplace when Extensions opens, and when it starts while anything is installed.
+Malini checks the marketplace each time Extensions opens, and at start and every hour while anything is installed.
 A newer version that reaches no new host installs itself.
 One that reaches a new host waits for **Update**, which names that host.
-If a publisher withdraws the version you have, Malini turns it off and Installed says so.
+If a publisher withdraws the version you have, Malini turns it off within the hour and Installed says so.
 
 ## Publish an extension
 

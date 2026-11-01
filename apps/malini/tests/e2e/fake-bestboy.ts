@@ -134,8 +134,8 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 				authorization,
 				contentType,
 			});
-			const reply = (status: number, value?: unknown): void => {
-				response.writeHead(status, { 'content-type': 'application/json' });
+			const reply = (status: number, value?: unknown, headers = {}): void => {
+				response.writeHead(status, { 'content-type': 'application/json', ...headers });
 				response.end(value === undefined ? '' : JSON.stringify(value));
 			};
 			const profileReply = (): unknown => ({
@@ -144,10 +144,11 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 			});
 			const route = `${request.method} ${url.pathname}`;
 			if (route === 'GET /api/extensions') {
-				reply(200, {
-					extensions: [...listed.values()].map((entry) => entry.listing),
-					yanked,
-				});
+				reply(
+					200,
+					{ extensions: [...listed.values()].map((entry) => entry.listing), yanked },
+					{ 'cache-control': 'public, max-age=300' },
+				);
 				return;
 			}
 			const media = /^\/media\/extensions\/([^/]+)\/([^/]+)\/[^/]+\.malini$/u.exec(url.pathname);

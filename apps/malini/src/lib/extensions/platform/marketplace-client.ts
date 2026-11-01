@@ -108,7 +108,11 @@ export class MarketplaceClient {
 	}
 
 	async #json(path: string): Promise<unknown> {
-		const response = await this.#fetch(path, { method: 'GET' }, REQUEST_TIMEOUT_MS);
+		const response = await this.#fetch(
+			path,
+			{ method: 'GET', cache: 'no-cache' },
+			REQUEST_TIMEOUT_MS,
+		);
 		if (!response.ok) throw await this.#failure(response);
 		return response.json().catch(() => null);
 	}
