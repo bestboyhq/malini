@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -54,14 +54,20 @@ function pluginsOfEachPrompt(app: LaunchedApp): string[][] {
 		});
 }
 
-async function openExtensions(page: Page): Promise<void> {
-	await page.getByTestId('sidebar-open-extensions').click();
-	await expect(page.getByRole('heading', { name: 'Extensions', level: 1 })).toBeVisible({
+async function openSettings(page: Page, section: string): Promise<Locator> {
+	await page.getByTestId('sidebar-open-settings').click();
+	const settings = page.getByRole('dialog', { name: 'Settings' });
+	await settings
+		.getByRole('navigation', { name: 'Settings' })
+		.getByRole('link', { name: section, exact: true })
+		.click();
+	await expect(settings.getByRole('heading', { name: section, level: 2 })).toBeVisible({
 		timeout: 20_000,
 	});
+	return settings;
 }
 
-test('Discover installs an extension into the next prompt of every chat, Installed turns it off, and its page uninstalls it', async () => {
+test('Settings, Extensions installs an extension into the next prompt of every chat, turns it off, and uninstalls it', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
 	platform.listExtension(svelteExtension('1.0.4'));
@@ -71,22 +77,29 @@ test('Discover installs an extension into the next prompt of every chat, Install
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-extensions-ws', 'Extensions workstream');
 		await openWorkstream(page, seeded.workstreamId);
+		await expect(page.getByTestId('sidebar-open-extensions')).toHaveCount(0);
 
-		await openExtensions(page);
-		const nav = page.getByRole('navigation', { name: 'Extensions' });
-		await expect(nav.getByRole('link', { name: 'Discover' })).toHaveAttribute(
-			'aria-current',
-			'page',
-		);
-		const card = page.getByRole('article', { name: 'Svelte' });
-		await expect(card).toContainText('@szymeo');
-		await expect(card).toContainText('Svelte 5 docs, the autofixer');
+		let settings = await openSettings(page, 'Extensions');
+		const available = settings.getByRole('list', { name: 'Extensions in the marketplace' });
+		const listed = available.getByRole('listitem', { name: 'Svelte', exact: true });
+		await expect(listed).toContainText('Svelte 5 docs, the autofixer');
+		await listed.getByRole('button', { name: 'Svelte', exact: true }).click();
+		await expect(listed.getByText('Ask any chat to check a component.')).toBeVisible();
+		await expect(listed).toContainText('Connects to mcp.svelte.dev');
+		await expect(listed.getByRole('list', { name: 'What Svelte adds' })).toContainText('runes');
 		await page.mouse.move(0, 0);
-		await captureFlow(app, 'extensions-1-discover');
+		await captureFlow(app, 'extensions-1-marketplace');
 
-		await card.getByRole('button', { name: 'Install Svelte' }).click();
-		await expect(card).toContainText('Installed', { timeout: 20_000 });
-		await expect(nav.getByRole('link', { name: /Installed/u })).toContainText('1');
+		await listed.getByRole('button', { name: 'Install Svelte' }).click();
+		const installed = settings.getByRole('list', { name: 'Installed extensions' });
+		await expect(installed.getByRole('switch', { name: 'Svelte' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+			{ timeout: 20_000 },
+		);
+		await expect(available.getByRole('listitem', { name: 'Svelte', exact: true })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
 
 		await openWorkstream(page, seeded.workstreamId);
 		await sendPrompt(page, 'Which Svelte tools do you have?');
@@ -99,15 +112,13 @@ test('Discover installs an extension into the next prompt of every chat, Install
 			'Use runes.',
 		);
 
-		await openExtensions(page);
-		await nav.getByRole('link', { name: /Installed/u }).click();
-		await expect(page.getByRole('heading', { name: 'Installed', level: 1 })).toBeVisible();
-		const onOff = page.getByRole('switch', { name: 'Svelte' });
-		await expect(onOff).toHaveAttribute('aria-checked', 'true');
+		settings = await openSettings(page, 'Extensions');
+		const onOff = settings.getByRole('switch', { name: 'Svelte' });
 		await onOff.click();
 		await expect(onOff).toHaveAttribute('aria-checked', 'false');
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'extensions-2-installed-off');
+		await page.keyboard.press('Escape');
 
 		const promptsBefore = pluginsOfEachPrompt(app).length;
 		await openWorkstream(page, seeded.workstreamId);
@@ -115,24 +126,16 @@ test('Discover installs an extension into the next prompt of every chat, Install
 		await expect.poll(() => pluginsOfEachPrompt(app).length).toBeGreaterThan(promptsBefore);
 		expect(pluginsOfEachPrompt(app).at(-1)).toEqual([]);
 
-		await openExtensions(page);
-		await page
-			.getByRole('article', { name: 'Svelte' })
-			.getByRole('link', { name: 'Svelte' })
-			.click();
-		await expect(page.getByRole('heading', { name: 'Svelte', level: 1 })).toBeVisible();
-		await expect(page.getByText('mcp.svelte.dev').first()).toBeVisible();
-		await expect(page.getByText('Ask any chat to check a component.')).toBeVisible();
-		await page.mouse.move(0, 0);
-		await captureFlow(app, 'extensions-3-detail');
-		await page.getByRole('button', { name: 'Uninstall' }).click();
-		await expect(page.getByRole('button', { name: 'Install Svelte' })).toBeVisible({
+		settings = await openSettings(page, 'Extensions');
+		const mine = settings
+			.getByRole('list', { name: 'Installed extensions' })
+			.getByRole('listitem', { name: 'Svelte', exact: true });
+		await mine.getByRole('button', { name: 'Svelte', exact: true }).click();
+		await mine.getByRole('button', { name: 'Uninstall' }).click();
+		await expect(settings.getByRole('button', { name: 'Install Svelte' })).toBeVisible({
 			timeout: 20_000,
 		});
-		await expect(nav.getByRole('link', { name: /Installed/u })).not.toContainText('1');
-
-		await page.getByTestId('extensions-nav').getByRole('link', { name: 'Workstreams' }).click();
-		await expect(page.getByRole('navigation', { name: 'Extensions' })).toHaveCount(0);
+		await expect(settings.getByRole('list', { name: 'Installed extensions' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -140,7 +143,7 @@ test('Discover installs an extension into the next prompt of every chat, Install
 	}
 });
 
-test('Published signs in to Bestboy, claims a handle, and publishes what a repository commits', async () => {
+test('Settings, Profile signs in to Bestboy, claims a handle, and publishes what a repository commits', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
 	const app = await launchMalini({ env: { MALINI_BESTBOY_ORIGIN: platform.origin } });
@@ -157,42 +160,44 @@ test('Published signs in to Bestboy, claims a handle, and publishes what a repos
 		const seeded = await seedWorkstream(page, source, 'e2e-publish-ws', 'Publish workstream');
 		await openWorkstream(page, seeded.workstreamId);
 
-		await openExtensions(page);
-		await page
-			.getByRole('navigation', { name: 'Extensions' })
-			.getByRole('link', { name: 'Published' })
-			.click();
-		await expect(page.getByRole('heading', { name: 'Published', level: 1 })).toBeVisible();
-		const row = page.getByRole('article', { name: 'Svelte' });
+		const settings = await openSettings(page, 'Profile');
+		const yours = settings.getByRole('region', { name: 'Extensions you publish' });
+		const row = yours.getByRole('listitem', { name: 'Svelte' });
 		await expect(row).toContainText('Not published yet', { timeout: 20_000 });
 		const publish = row.getByRole('button', { name: 'Publish 1.0.0' });
 		await expect(publish).toBeDisabled();
+		await expect(yours).toContainText('Sign in to Bestboy above to publish.');
 
-		await page.getByRole('button', { name: 'Sign in' }).click();
+		await settings.getByRole('button', { name: 'Sign in' }).click();
 		const { state } = await signInUrl(app, platform, 1);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${state}`);
-		const bestboy = page.getByRole('region', { name: 'Bestboy' });
-		await expect(bestboy).toContainText('no handle yet', { timeout: 20_000 });
-		await page.getByLabel('Your handle').fill('szymeo');
-		await page.getByRole('button', { name: 'Claim' }).click();
-		await expect(bestboy).toContainText('@szymeo', { timeout: 20_000 });
-		await expect(publish).toBeEnabled();
+		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible({
+			timeout: 20_000,
+		});
+		await yours.getByLabel('Publish under bestboy.dev/@').fill('szymeo');
+		await yours.getByRole('button', { name: 'Claim' }).click();
+		await expect(publish).toBeEnabled({ timeout: 20_000 });
+		await yours.scrollIntoViewIfNeeded();
 		await page.mouse.move(0, 0);
-		await captureFlow(app, 'extensions-4-published');
+		await captureFlow(app, 'extensions-4-publish');
 
 		await publish.click();
-		await expect(row).toContainText('Live 1.0.0', { timeout: 20_000 });
+		await expect(row).toContainText('Published 1.0.0', { timeout: 20_000 });
 		const upload = platform.requests.find(
 			({ method, path }) => method === 'POST' && path === '/api/extensions/szymeo/svelte/versions',
 		);
 		expect(upload?.authorization).toBe('Bearer e2e-token-1');
 		expect(upload?.contentType).toBe('application/gzip');
 
-		await page
-			.getByRole('navigation', { name: 'Extensions' })
-			.getByRole('link', { name: 'Discover' })
+		await settings
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Extensions', exact: true })
 			.click();
-		await expect(page.getByRole('article', { name: 'Svelte' })).toContainText('@szymeo');
+		await expect(
+			settings
+				.getByRole('list', { name: 'Extensions in the marketplace' })
+				.getByRole('listitem', { name: 'Svelte', exact: true }),
+		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -200,7 +205,7 @@ test('Published signs in to Bestboy, claims a handle, and publishes what a repos
 	}
 });
 
-test('Discover says when the marketplace cannot be reached and tries again', async () => {
+test('Settings, Extensions says when the marketplace cannot be reached and tries again', async () => {
 	test.setTimeout(120_000);
 	const platform = await fakeBestboy();
 	const origin = platform.origin;
@@ -209,16 +214,17 @@ test('Discover says when the marketplace cannot be reached and tries again', asy
 	try {
 		const { page } = app;
 		await page.evaluate(() => {
-			location.hash = '#/extensions';
+			location.hash = '#/settings/extensions';
 		});
 		await page.reload();
-		await expect(page.getByRole('heading', { name: 'Extensions', level: 1 })).toBeVisible({
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await expect(settings.getByRole('heading', { name: 'Extensions', level: 2 })).toBeVisible({
 			timeout: 20_000,
 		});
-		await expect(page.getByText('Malini could not reach the marketplace')).toBeVisible({
+		await expect(settings.getByText('Malini could not reach the marketplace')).toBeVisible({
 			timeout: 30_000,
 		});
-		await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+		await expect(settings.getByRole('button', { name: 'Try again' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

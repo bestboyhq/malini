@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExtensionListing, InstalledExtension } from '$contract/marketplace';
-import {
-	contributionSummary,
-	discoverEntries,
-	entryMatches,
-	installedEntries,
-} from './extension-entry';
+import { discoverEntries, entryMatches, installedEntries } from './extension-entry';
 
 const NEON: ExtensionListing = {
 	publisher: 'neon',
@@ -80,22 +75,5 @@ describe('entryMatches', () => {
 		['mysql', false],
 	])('%s matches: %s', (query, matched) => {
 		expect(entry && entryMatches(entry, query)).toBe(matched);
-	});
-});
-
-describe('contributionSummary', () => {
-	it.each([
-		[[{ name: 'a', url: 'https://a.dev' }], ['x', 'y'], '1 MCP server · 2 skills'],
-		[[], ['x'], '1 skill'],
-		[
-			[
-				{ name: 'a', url: 'https://a.dev' },
-				{ name: 'b', url: 'https://b.dev' },
-			],
-			[],
-			'2 MCP servers',
-		],
-	])('%o and %o read %s', (mcpServers, skills, summary) => {
-		expect(contributionSummary({ mcpServers, skills })).toBe(summary);
 	});
 });

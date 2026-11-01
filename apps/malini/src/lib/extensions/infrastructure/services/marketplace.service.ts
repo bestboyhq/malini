@@ -42,10 +42,6 @@ class MarketplaceService {
 		return invoke('extensions.publish', { repositoryId });
 	}
 
-	async signIn(): Promise<void> {
-		await invoke('extensions.sign-in', undefined);
-	}
-
 	async claimHandle(handle: string): Promise<string | null> {
 		return (await invoke('extensions.claim-handle', { handle })).problem;
 	}

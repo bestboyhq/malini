@@ -14,7 +14,7 @@ Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
 Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
-The extension marketplace is read from bestboy.dev, from `src/lib/extensions/platform/marketplace.ts`, only while Extensions is open or something is installed, and a package goes up with your Bestboy token only when you press **Publish** (ADR 0142).
+The extension marketplace is read from bestboy.dev, from `src/lib/extensions/platform/marketplace.ts`, only while Settings, Extensions or Profile is open or something is installed, and a package goes up with your Bestboy token only when you press **Publish** (ADR 0142, ADR 0146).
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.

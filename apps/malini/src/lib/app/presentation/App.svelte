@@ -7,7 +7,7 @@
 	import { ChatLifecycleMonitor, McpFixDialog } from '$lib/chat/chat.api';
 	import { ExtensionRuntimeHost } from '$lib/extensions/extensions.api';
 	import { JobCenter } from '$lib/jobs/jobs.api';
-	import { EXTENSIONS_HREF, JOBS_HREF } from '$shared/router/routes-hrefs';
+	import { JOBS_HREF } from '$shared/router/routes-hrefs';
 	import { watchRepositorySurfaceHook } from '$lib/pull-requests/application/hooks/watch-repository-surface.hook';
 	import { notFound, routes } from '$lib/app/routes';
 	import { bootAppHook } from '$lib/app/application/hooks/boot-app.hook';
@@ -30,8 +30,7 @@
 	});
 
 	const jobCenterFloats = $derived(
-		!page.params.workstreamId &&
-			![JOBS_HREF, EXTENSIONS_HREF].some((href) => page.url.pathname.startsWith(href)),
+		!page.params.workstreamId && !page.url.pathname.startsWith(JOBS_HREF),
 	);
 
 	$effect(() => watchRepositorySurfaceHook(() => page.params.workstreamId ?? ''));

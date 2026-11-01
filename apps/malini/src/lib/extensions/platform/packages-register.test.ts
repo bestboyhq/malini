@@ -20,7 +20,6 @@ const offlineBestboy = (): BestboyAccess => ({
 	origin: 'https://bestboy.test',
 	fetch: () => Promise.reject(new Error('offline')),
 	session: () => null,
-	signIn: () => undefined,
 	claimHandle: () => Promise.resolve(null),
 	signedOut: () => Promise.resolve(),
 });
@@ -90,7 +89,6 @@ describe('extensions platform packages', () => {
 			'extensions.read-repository-file',
 			'extensions.read-workstream-file',
 			'extensions.recovery-mode-enabled',
-			'extensions.sign-in',
 			'extensions.stat-workstream-file',
 			'extensions.switch',
 			'extensions.uninstall',

@@ -12,12 +12,6 @@ export const JOBS_RECIPES_HREF = '/jobs/recipes';
 
 export const JOBS_EXPLORER_HREF = '/jobs/explorer';
 
-export const EXTENSIONS_HREF = '/extensions';
-
-export const EXTENSIONS_INSTALLED_HREF = '/extensions/installed';
-
-export const EXTENSIONS_PUBLISHED_HREF = '/extensions/published';
-
 export const SETTINGS_HREF = '/settings';
 
 export const ACCOUNT_SETTINGS_HREF = '/settings/accounts';
@@ -28,6 +22,8 @@ export const SKILL_SETTINGS_HREF = '/settings/skills';
 
 export const MCP_SETTINGS_HREF = '/settings/mcp-servers';
 
+export const EXTENSION_SETTINGS_HREF = '/settings/extensions';
+
 export const PROFILE_SETTINGS_HREF = '/settings/profile';
 
 export function jobHref(definitionId: string): string {
@@ -36,10 +32,6 @@ export function jobHref(definitionId: string): string {
 
 export function jobImproveHref(definitionId: string): string {
 	return `${jobHref(definitionId)}/improve`;
-}
-
-export function extensionHref(publisher: string, name: string): string {
-	return `${EXTENSIONS_HREF}/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`;
 }
 
 export function repositoryHref(repositoryId: string): string {

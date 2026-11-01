@@ -5,30 +5,32 @@ description: Malini's own marketplace on bestboy.dev. Extensions add MCP servers
 
 ## Find and install extensions
 
-The **Extensions** button in the sidebar footer, next to Settings, opens **Discover**: every extension in the marketplace on bestboy.dev, with who published it and what it does.
-**Install** puts it in every chat from that chat's next prompt.
-Open an extension to see its MCP servers, its skills, the hosts it reaches, and its README.
+Open Settings, **Extensions**, right below MCP servers.
+It is one list: what you installed on top, each with a switch, and every other extension in the marketplace on bestboy.dev below, each with **Install**.
+**Install** puts an extension in every chat from that chat's next prompt.
+Click an extension to open it in place: its README, the MCP servers and skills it adds, the hosts it connects to, who published it, and its repository.
 
 An extension adds remote MCP servers and skills, so nothing it adds runs on your Mac.
 An extension's servers show under Settings, MCP servers beside your own, and one that needs a sign-in gets **Sign in** there.
 Malini keeps extensions in its own folder and hands them to every agent session itself, never through `claude plugin install` or `~/.claude`, so the Claude Code plugins you installed yourself keep working as they are.
 
-## Installed
+## Turn off, uninstall and update
 
-**Installed** lists what you installed.
-Its switch turns an extension off in every chat from the next prompt, and **Uninstall** on the extension's page removes it.
+An installed extension's switch turns it off in every chat from the next prompt, and **Uninstall**, in the open extension, removes it.
 An agent gets at most 50 extensions at once.
 
-Malini checks the marketplace each time Extensions opens, and at start and every hour while anything is installed.
-A newer version that reaches no new host installs itself.
-One that reaches a new host waits for **Update**, which names that host.
-If a publisher withdraws the version you have, Malini turns it off within the hour and Installed says so.
+Malini checks the marketplace each time Settings, Extensions opens, and at start and every hour while anything is installed.
+A newer version that connects to no new host installs itself.
+One that connects to a new host waits: the extension names that host and asks you to **Allow** it.
+If a publisher withdraws the version you have, Malini turns it off within the hour and says so under the extension.
 
 ## Publish an extension
 
 1. Put a `malini.json` at the root of a repository you have in Malini, and your skills in `skills/<name>/SKILL.md`.
 2. Commit them: Malini publishes what is committed in `malini.json`, `README.md`, `LICENSE` and `skills/`, and refuses while any of them has uncommitted changes.
-3. Open Extensions, **Published**, sign in to Bestboy, claim a handle if you have none, and press **Publish**.
+3. Open Settings, **Profile**.
+   **Extensions you publish** lists that repository.
+   Sign in to Bestboy at the top of Profile, claim a handle if you have none, and press **Publish**.
 
 ```json
 {
@@ -56,7 +58,8 @@ Commands, agents, hooks and local servers do not carry over.
 
 ## What reaches bestboy.dev
 
-Malini reads the marketplace without signing in, and only while Extensions is open or something is installed: the list, an extension's page, and the packages you install.
+Malini reads the marketplace without signing in, and only while Extensions or Profile is open in Settings, or something is installed: the list, an extension's README, and the packages you install.
+Profile reads it only when one of your repositories has a `malini.json`.
 Publishing sends the package with your Bestboy token.
 Nothing else about you, your repositories or your chats goes up.
 

@@ -1,6 +1,6 @@
 # 0144 - Malini asks bestboy.dev for the marketplace every time, and every hour while anything is installed
 
-Status: accepted
+Status: superseded by 0146
 
 ## Context
 

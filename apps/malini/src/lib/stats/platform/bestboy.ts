@@ -18,7 +18,6 @@ export type BestboyAccess = Readonly<{
 	origin: string;
 	fetch: BestboyFetch;
 	session(): BestboySession | null;
-	signIn(): void;
 	claimHandle(handle: string): Promise<string | null>;
 	signedOut(): Promise<void>;
 }>;

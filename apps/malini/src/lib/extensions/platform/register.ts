@@ -126,7 +126,6 @@ function registerMarketplace(context: MainContext, deps: ExtensionsPlatformDeps)
 		}
 		return marketplace.publish(repositoryId);
 	});
-	commands.define('extensions.sign-in', () => deps.bestboy().signIn());
 	commands.define('extensions.claim-handle', async (args: unknown) => {
 		const handle = field(args, 'handle');
 		if (typeof handle !== 'string' || handle.length > 100) {

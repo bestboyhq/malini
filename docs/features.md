@@ -141,9 +141,9 @@ The [README](../README.md) has the short version.
 
 ## Extensions
 
-- **Malini's own marketplace.** The Extensions button beside Jobs lists every extension on bestboy.dev; **Install** gives every agent its MCP servers and skills from the next prompt, without Claude Code's plugin commands or `~/.claude`.
-- **Installed, kept current.** Switch one off for every chat, uninstall it, and let updates that reach no new host install themselves; an update that reaches a new host asks first, and a version its publisher withdraws turns off.
-- **Publish your own.** A repository with a committed `malini.json` and `skills/` shows up under Published, and **Publish** puts it on bestboy.dev under your Bestboy handle.
+- **Malini's own marketplace.** Settings, Extensions lists what you installed and every other extension on bestboy.dev in one list; **Install** gives every agent its MCP servers and skills from the next prompt, without Claude Code's plugin commands or `~/.claude`.
+- **Installed, kept current.** Switch one off for every chat, uninstall it, and let updates that connect to no new host install themselves; an update that connects to a new host asks you to **Allow** it, and a version its publisher withdraws turns off.
+- **Publish your own.** A repository with a committed `malini.json` and `skills/` shows up in Settings, Profile, and **Publish** puts it on bestboy.dev under your Bestboy handle.
 - **The inspector is built from extensions.** The built-in Repository extension gives you **Files**: changed files with their diffs, the full tree, file tabs, and todos.
 - **Panels, commands, settings, and workflows** come from an extension's manifest, and an extension reaches the workstream through [`packages/extension-api`](../packages/extension-api).
   The API is MIT licensed, so an extension can use any license.
@@ -160,7 +160,7 @@ The [README](../README.md) has the short version.
 
 Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, the extension marketplace at bestboy.dev while Extensions is open or something is installed, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev.
+Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.

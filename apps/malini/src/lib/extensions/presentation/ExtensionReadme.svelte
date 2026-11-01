@@ -53,14 +53,17 @@
 	.extension-readme :global(h4) {
 		font-size: 0.95rem;
 	}
-	.extension-readme :global(:is(h3, h4, h5, h6):first-child) {
-		margin-top: 0;
-	}
 	.extension-readme :global(p),
 	.extension-readme :global(ul),
 	.extension-readme :global(ol),
 	.extension-readme :global(pre) {
 		margin: 0.6rem 0;
+	}
+	.extension-readme > :global(:first-child) {
+		margin-top: 0;
+	}
+	.extension-readme > :global(:last-child) {
+		margin-bottom: 0;
 	}
 	.extension-readme :global(ul),
 	.extension-readme :global(ol) {

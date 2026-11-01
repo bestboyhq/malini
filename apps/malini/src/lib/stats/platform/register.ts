@@ -175,7 +175,6 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			origin: bestboy.origin,
 			fetch: fetcher,
 			session: () => profile.session(),
-			signIn: () => void profile.signIn(),
 			claimHandle: (handle) => profile.claimHandle(handle),
 			signedOut: () => profile.forgetSignIn(),
 		},

@@ -63,14 +63,6 @@ export function entryMatches(entry: ExtensionEntry, query: string): boolean {
 	return words.every((word) => text.includes(word));
 }
 
-export function contributionSummary(entry: Pick<ExtensionEntry, 'mcpServers' | 'skills'>): string {
-	const parts = [
-		counted(entry.mcpServers.length, 'MCP server', 'MCP servers'),
-		counted(entry.skills.length, 'skill', 'skills'),
-	];
-	return parts.filter(Boolean).join(' · ');
-}
-
 function entryOf(
 	source: ExtensionListing | InstalledExtension,
 ): Omit<ExtensionEntry, 'installed' | 'update'> {
@@ -105,9 +97,4 @@ function updateOf(
 		version: listing.version,
 		newHosts: serverHosts(listing.mcpServers).filter((host) => !hosts.has(host)),
 	};
-}
-
-function counted(count: number, one: string, many: string): string {
-	if (count === 0) return '';
-	return `${count} ${count === 1 ? one : many}`;
 }

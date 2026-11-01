@@ -131,14 +131,17 @@ export class Marketplace {
 
 	async publishing(): Promise<Publishing> {
 		const session = this.#deps.bestboy().session();
-		const index = (await this.#freshIndex()) ?? this.#index ?? (await this.#savedIndex());
-		const sources = await this.#deps.sources();
+		const handle = session?.handle ?? null;
+		const sources = (await this.#deps.sources()).filter((source) =>
+			existsSync(join(source.dir, MANIFEST_FILE)),
+		);
+		const index =
+			sources.length === 0
+				? null
+				: ((await this.#freshIndex()) ?? this.#index ?? (await this.#savedIndex()));
 		const extensions: PublishableExtension[] = [];
-		for (const source of sources) {
-			if (!existsSync(join(source.dir, MANIFEST_FILE))) continue;
-			extensions.push(await publishable(source, session?.handle ?? null, index));
-		}
-		return { signedIn: session !== null, handle: session?.handle ?? null, extensions };
+		for (const source of sources) extensions.push(await publishable(source, handle, index));
+		return { signedIn: session !== null, handle, extensions };
 	}
 
 	async publish(repositoryId: string): Promise<ExtensionListing> {

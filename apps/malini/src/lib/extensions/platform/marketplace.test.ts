@@ -53,7 +53,6 @@ function build(): Marketplace {
 		origin: ORIGIN,
 		fetch: platform.fetch,
 		session: () => session,
-		signIn: () => undefined,
 		claimHandle: () => Promise.resolve(null),
 		signedOut: () => {
 			signedOut += 1;
@@ -268,6 +267,19 @@ describe('publishing', () => {
 			'Sign in to Bestboy again, then publish.',
 		);
 		expect(signedOut).toBe(1);
+	});
+
+	it('asks bestboy.dev nothing while no repository has a malini.json', async () => {
+		sources = [{ id: 'local:plain', fullName: 'szymeo/plain', dir: root }];
+		session = { token: 'token-1', handle: 'szymeo' };
+		const reads = vi.spyOn(platform, 'fetch');
+
+		expect(await marketplace.publishing()).toEqual({
+			signedIn: true,
+			handle: 'szymeo',
+			extensions: [],
+		});
+		expect(reads).not.toHaveBeenCalled();
 	});
 
 	it('lists your repositories with a malini.json and what blocks each', async () => {

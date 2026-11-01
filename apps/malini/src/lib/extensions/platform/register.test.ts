@@ -20,7 +20,6 @@ const offlineBestboy = (): BestboyAccess => ({
 	origin: 'https://bestboy.test',
 	fetch: () => Promise.reject(new Error('offline')),
 	session: () => null,
-	signIn: () => undefined,
 	claimHandle: () => Promise.resolve(null),
 	signedOut: () => Promise.resolve(),
 });

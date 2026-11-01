@@ -3,7 +3,6 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { REPOSITORIES_HREF } from '$shared/router/routes-hrefs';
-	import { ExtensionsNavButton } from '$lib/extensions/extensions.api';
 	import { StatsReadout } from '$lib/stats/stats.api';
 	import UpdateStatus from './UpdateStatus.svelte';
 </script>
@@ -25,7 +24,6 @@
 			<Icon name="folder-open" size={15} />
 		</IconButton>
 	</Tooltip>
-	<ExtensionsNavButton />
 	<Tooltip content="Settings" placement="right">
 		<IconButton
 			variant="ghost"

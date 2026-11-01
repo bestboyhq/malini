@@ -598,7 +598,6 @@ export interface ContractCommands {
 	'extensions.switch': { args: SwitchExtensionArgs; result: InstalledExtension };
 	'extensions.publishing': { args: undefined; result: Publishing };
 	'extensions.publish': { args: PublishExtensionArgs; result: ExtensionListing };
-	'extensions.sign-in': { args: undefined; result: void };
 	'extensions.claim-handle': { args: ClaimHandleArgs; result: ClaimHandleResult };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
@@ -894,7 +893,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'extensions.switch',
 	'extensions.publishing',
 	'extensions.publish',
-	'extensions.sign-in',
 	'extensions.claim-handle',
 	'repositories.list-hidden',
 	'repositories.set-hidden',
