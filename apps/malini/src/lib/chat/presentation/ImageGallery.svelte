@@ -291,6 +291,7 @@
 									autoplay={start?.playing ?? !prefersReducedMotion.current}
 									{start}
 									autohide
+									onclose={() => modal?.close()}
 									onerror={() => explainUnavailable(image)}
 								/>
 							</div>

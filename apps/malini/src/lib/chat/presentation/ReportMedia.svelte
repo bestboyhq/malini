@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { worktreePageUrl } from '$contract/browser';
 	import { mediaKind, mediaPath } from '$lib/chat/domain/turn-report';
@@ -14,10 +15,20 @@
 		size: 'hero' | 'tile' | 'mini';
 		playing?: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
+		caption?: Snippet | undefined;
 		onopen?: ((handoff?: VideoHandoff) => void) | undefined;
 	}
 
-	let { src, label, workstreamId, size, playing = true, imagesrc, onopen }: Props = $props();
+	let {
+		src,
+		label,
+		workstreamId,
+		size,
+		playing = true,
+		imagesrc,
+		caption,
+		onopen,
+	}: Props = $props();
 
 	const PAGE_WIDTH = 1280;
 	const PAGE_HEIGHT = 800;
@@ -67,6 +78,7 @@
 			{label}
 			autoplay={moving}
 			openLabel={galleryImageLabel(label, kind)}
+			{caption}
 			{onopen}
 		/>
 	{:else if kind === 'video'}

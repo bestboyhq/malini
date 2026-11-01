@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
 	import {
@@ -153,7 +154,7 @@
 	</Button>
 {/snippet}
 
-{#snippet framed(src: string, label: string, playing: boolean)}
+{#snippet framed(src: string, label: string, playing: boolean, caption?: Snippet)}
 	<div
 		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
 	>
@@ -166,6 +167,7 @@
 				size="hero"
 				{playing}
 				{imagesrc}
+				{caption}
 				onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
 			/>
 		</div>
@@ -183,8 +185,8 @@
 					class={['col-start-1 row-start-1 min-w-0', shot !== shown && 'invisible']}
 				>
 					{#if shot.kind === 'variant'}
-						<div class="relative h-full">
-							{@render framed(shot.variant.src, shot.label, shot === shown)}
+						{@const recording = isVideoPath(shot.variant.src)}
+						{#snippet caption()}
 							<span
 								class="bg-surface-50/85 text-fg-secondary outline-border-subtle pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px] backdrop-blur-sm"
 							>
@@ -194,6 +196,17 @@
 										{` · ${shot.variant.note}`}
 									</span>{/if}
 							</span>
+						{/snippet}
+						<div class="relative h-full">
+							{@render framed(
+								shot.variant.src,
+								shot.label,
+								shot === shown,
+								recording ? caption : undefined,
+							)}
+							{#if !recording}
+								{@render caption()}
+							{/if}
 						</div>
 					{:else if shot.kind === 'comparison'}
 						{#if isVideoPath(shot.comparison.after.src)}

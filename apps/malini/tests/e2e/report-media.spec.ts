@@ -512,7 +512,7 @@ test('a recording keeps its place and keeps playing or paused when its file chan
 	}
 });
 
-test('a recording hands its moment, sound and speed to the gallery and takes them back on close', async () => {
+test('a recording hands its moment, sound and speed to the gallery and takes them back when it minimizes', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -541,17 +541,14 @@ test('a recording hands its moment, sound and speed to the gallery and takes the
 				muted: Boolean(Reflect.get(element, 'muted')),
 				speed: Number(Reflect.get(element, 'playbackRate')),
 			}));
-		const open = async () => {
-			await offer.getByRole('button', { name: 'Open video The toast entrance in gallery' }).click();
-			await expect(enlarged).toBeVisible({ timeout: 20_000 });
-		};
 		await expect
 			.poll(async () => (await playbackOf(recording)).at, { timeout: 30_000 })
 			.toBeGreaterThan(0);
 
 		await controls.getByRole('button', { name: 'Unmute' }).click();
 		await controls.getByRole('button', { name: /^Playback speed/u }).click();
-		await open();
+		await offer.getByRole('button', { name: 'Open video The toast entrance in gallery' }).click();
+		await expect(enlarged).toBeVisible({ timeout: 20_000 });
 		await expect.poll(() => stateOf(enlarged)).toEqual({ paused: false, muted: false, speed: 0.5 });
 		await expect.poll(async () => (await stateOf(recording)).paused).toBe(true);
 
@@ -564,11 +561,12 @@ test('a recording hands its moment, sound and speed to the gallery and takes the
 		await expect.poll(() => stateOf(recording)).toEqual({ paused: true, muted: false, speed: 0.5 });
 
 		await controls.getByRole('slider', { name: 'Scrub the recording' }).fill('0.4');
-		await open();
+		await controls.getByRole('button', { name: 'Maximize' }).click();
+		await expect(enlarged).toBeVisible({ timeout: 20_000 });
 		await expect.poll(async () => (await playbackOf(enlarged)).at).toBeCloseTo(0.4, 2);
 		await expect(galleryControls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 		await galleryControls.getByRole('button', { name: 'Play', exact: true }).click();
-		await page.keyboard.press('Escape');
+		await galleryControls.getByRole('button', { name: 'Minimize' }).click();
 		await expect(gallery).toBeHidden();
 		await expect.poll(async () => (await stateOf(recording)).paused).toBe(false);
 		expectCleanConsole(app);

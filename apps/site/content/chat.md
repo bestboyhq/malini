@@ -201,9 +201,10 @@ When you ask for options, or the direction is open, the agent makes two to four 
 It does not wait to be asked: when its answer proposes something you will see, even an answer to a question, it builds the prototype in the same turn instead of offering to.
 Each one copies your product's look, sits in the screen around it and shows your real content.
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
-Click a picture or recording in the frame to open it in the gallery.
-A recording carries on there from the same moment, with its sound and speed, and pauses in the frame; closing the gallery hands it back where you left it.
+Click a picture or recording in the frame, or a recording's maximize button, to open it in the gallery.
+A recording carries on there from the same moment, with its sound and speed, and pauses in the frame; its minimize button, or closing the gallery, hands it back where you left it.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
+A variant's name rises above the controls while they show, so it never covers them.
 While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.

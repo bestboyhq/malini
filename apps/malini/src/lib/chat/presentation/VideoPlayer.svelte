@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Playhead } from '$hyper-ui/components/playhead';
 	import { Icon } from '$hyper-ui/icons';
@@ -14,7 +14,9 @@
 		start?: Playback | undefined;
 		autohide?: boolean;
 		openLabel?: string;
+		caption?: Snippet | undefined;
 		onopen?: ((handoff: VideoHandoff) => void) | undefined;
+		onclose?: (() => void) | undefined;
 		onerror?: (() => void) | undefined;
 	}
 
@@ -25,7 +27,9 @@
 		start,
 		autohide = false,
 		openLabel,
+		caption,
 		onopen,
+		onclose,
 		onerror,
 	}: Props = $props();
 
@@ -202,6 +206,16 @@
 			class={['absolute inset-0 rounded-[inherit]', onopen ? 'cursor-zoom-in' : 'cursor-default']}
 			onclick={onopen ? open : toggle}
 		/>
+		{#if caption}
+			<div
+				class={[
+					'pointer-events-none absolute inset-0 transition-transform duration-150 group-has-[:active]/player:-translate-y-11 group-has-[:focus-visible]/player:-translate-y-11 motion-reduce:transition-none',
+					!resting && 'group-hover/player:-translate-y-11',
+				]}
+			>
+				{@render caption()}
+			</div>
+		{/if}
 		<div
 			class={[
 				'bg-surface-elevated/90 outline-surface-elevated-border absolute inset-x-2 bottom-2 mx-auto flex h-9 max-w-xl items-center gap-0.5 rounded-lg px-1 opacity-0 shadow-sm outline-[0.5px] -outline-offset-[0.5px] backdrop-blur-md transition-opacity duration-150 group-has-[:active]/player:opacity-100 group-has-[:focus-visible]/player:opacity-100 hover:opacity-100',
@@ -253,6 +267,15 @@
 			>
 				<span class="w-7 text-center tabular-nums">{speed}×</span>
 			</MediaToolbarButton>
+			{#if onopen}
+				<MediaToolbarButton tooltip="Maximize" label="Maximize" square onclick={open}>
+					<Icon name="maximize" size={14} />
+				</MediaToolbarButton>
+			{:else if onclose}
+				<MediaToolbarButton tooltip="Minimize" label="Minimize" square onclick={onclose}>
+					<Icon name="minimize" size={14} />
+				</MediaToolbarButton>
+			{/if}
 		</div>
 	</div>
 </div>
