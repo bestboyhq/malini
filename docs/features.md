@@ -130,7 +130,7 @@ The [README](../README.md) has the short version.
 - **Suggestions from your own habits.** Malini notices the prompts you keep repeating and offers to make them a job: **Make it a job** or **Dismiss**.
 - **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs with its Malini tools: saving one waits for your approval, and so does running one outside the work the chat started, or any that ships.
   A trigger it adds starts Off.
-- **A Job center** shows what's running and what just finished.
+- **A Job center** shows only live jobs: what asks you, what runs, and what is queued, each question on the job it is about.
   Settings decides how many jobs run at once.
 
 ## A browser the agent can drive

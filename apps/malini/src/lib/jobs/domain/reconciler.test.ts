@@ -144,7 +144,7 @@ describe('reconcilerQuestion', () => {
 				workstreamId: 'api',
 				context: 'Version 2.1',
 			},
-			{ kind: 'ask-you', label: 'Ask you', reason: 'Publish docs failed in Api analytics.' },
+			{ kind: 'ask-you', label: 'Ask you', reason: 'Failed: The docs host timed out.' },
 		]);
 		expect(question(jobRun({ chat: null, retry: null, runsInChain: 2 }))).toEqual({
 			facts: [
@@ -155,7 +155,7 @@ describe('reconcilerQuestion', () => {
 			],
 			candidates: [
 				{ kind: 'nothing', label: 'Do nothing' },
-				{ kind: 'ask-you', label: 'Ask you', reason: 'Publish docs failed in Api analytics.' },
+				{ kind: 'ask-you', label: 'Ask you', reason: 'Failed: The docs host timed out.' },
 			],
 		});
 		expect(reconcilerQuestion(jobRun({ status: 'succeeded', chat: null }))).toBeNull();
@@ -173,7 +173,7 @@ describe('reconcilerQuestion', () => {
 				from: 'lead',
 				report: 'Publish docs, the job you ran, failed.',
 			}),
-			{ kind: 'ask-you', label: 'Ask you', reason: 'Publish docs failed.' },
+			{ kind: 'ask-you', label: 'Ask you', reason: 'Failed.' },
 		]);
 	});
 
@@ -217,7 +217,7 @@ describe('reconcilerQuestion', () => {
 				{
 					kind: 'ask-you',
 					label: 'Ask you',
-					reason: 'A merge in Api analytics stopped on conflicts in 2 files.',
+					reason: 'Stopped on conflicts in 2 files: a.ts, b.ts.',
 				},
 			],
 		});
@@ -234,7 +234,7 @@ describe('reconcilerQuestion', () => {
 				{
 					kind: 'ask-you',
 					label: 'Ask you',
-					reason: 'A merge in Api analytics stopped on conflicts in 1 file.',
+					reason: 'Stopped on conflicts in 1 file: a.ts.',
 				},
 			],
 		});
@@ -246,6 +246,25 @@ describe('reconcilerQuestion', () => {
 		expect(question(conflict({ conflictedPaths: paths })).facts[1]).toBe(
 			`Conflicted: ${paths.slice(0, 8).join(', ')}`,
 		);
+	});
+
+	it('asks a question that reads on its job: three file names, then a count, and a failure cut short', () => {
+		const paths = ['docs/adr/README.md', 'src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts'];
+		const asked = (situation: JobRunSituation | ConflictSituation): string | undefined =>
+			question(situation)
+				.candidates.filter((candidate) => candidate.kind === 'ask-you')
+				.at(-1)?.reason;
+
+		expect(asked(conflict({ conflictedPaths: paths }))).toBe(
+			'Stopped on conflicts in 5 files: README.md, a.ts, b.ts and 2 more.',
+		);
+		expect(asked(jobRun({ detail: 'Interrupted when Malini closed' }))).toBe(
+			'Failed: Interrupted when Malini closed.',
+		);
+		expect(asked(jobRun({ detail: `Tests broke.\n\n${'x'.repeat(200)}` }))).toMatch(
+			/^Failed: Tests broke\. x{127}…$/u,
+		);
+		expect(asked(jobRun({ detail: null }))).toBe('Failed.');
 	});
 });
 

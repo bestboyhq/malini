@@ -67,7 +67,6 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 		expect(await output(github.remote, ['show', `${merge}:conflict.txt`])).toBe(
 			'branch line\nmain line',
 		);
-		await expect(page.getByRole('region', { name: 'Jobs: 1 finished recently' })).toBeVisible();
 		expect(await jobRuns(page)).toMatchObject([
 			{
 				title: 'Resolve conflicts',
@@ -76,6 +75,7 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 				parentRunId: null,
 			},
 		]);
+		await expect(page.getByRole('list', { name: 'Jobs in progress' })).toHaveCount(0);
 		expect(await invoke(page, 'jobs.list-decisions', undefined)).toEqual([]);
 		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
 			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),

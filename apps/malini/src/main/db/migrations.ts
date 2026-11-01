@@ -1330,6 +1330,13 @@ CREATE TABLE installed_extensions (
   installed_at TEXT NOT NULL
 );
 `,
+	`
+ALTER TABLE reconciler_decisions ADD COLUMN subject_run_id TEXT;
+UPDATE reconciler_decisions SET subject_run_id = (
+  SELECT cause_id FROM event_log
+  WHERE event_log.id = reconciler_decisions.event_id AND cause_kind = 'job-run'
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

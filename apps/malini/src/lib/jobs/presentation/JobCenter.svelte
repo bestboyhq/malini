@@ -7,15 +7,10 @@
 	import { JOBS_HREF } from '$shared/router/routes-hrefs';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
-	import { activeJobRunsQuery } from '$lib/jobs/application/queries/active-job-runs.query.svelte';
-	import { needsYouJobCountQuery } from '$lib/jobs/application/queries/needs-you-job-count.query.svelte';
-	import { recentFinishedJobRunsQuery } from '$lib/jobs/application/queries/recent-finished-job-runs.query.svelte';
-	import { runningJobCountQuery } from '$lib/jobs/application/queries/running-job-count.query.svelte';
-	import { upcomingScheduledJobsQuery } from '$lib/jobs/application/queries/upcoming-scheduled-jobs.query.svelte';
-	import { waitingForYouJobCountQuery } from '$lib/jobs/application/queries/waiting-for-you-job-count.query.svelte';
+	import { jobCenterEntriesQuery } from '$lib/jobs/application/queries/job-center-entries.query.svelte';
+	import { jobCenterCounts } from '$lib/jobs/domain/job-center';
 	import { jobCenterSummary } from './job-center-summary';
 	import JobRunList from './JobRunList.svelte';
-	import UpcomingJobs from './UpcomingJobs.svelte';
 
 	interface Props {
 		docked?: boolean;
@@ -26,33 +21,15 @@
 	const EDGE_PX = 12;
 	const HEADROOM_PX = 96;
 	const CLEARANCE_POLL_MS = 250;
-	const RUNS_TICK_MS = 1_000;
-	const UPCOMING_TICK_MS = 60_000;
+	const TICK_MS = 1_000;
 
 	let nowMs = $state(Date.now());
 	let bottom = $state(EDGE_PX);
 
-	const active = $derived(activeJobRunsQuery.data);
-	const finished = $derived(recentFinishedJobRunsQuery.data(nowMs));
-	const running = $derived(runningJobCountQuery.data);
-	const needsYouRuns = $derived(needsYouJobCountQuery.data);
-	const needsYou = $derived(waitingForYouJobCountQuery.data);
-	const upcoming = $derived(upcomingScheduledJobsQuery.data(nowMs));
-	const hasRuns = $derived(active.length + finished.length > 0);
-	const hasUpcoming = $derived(upcoming.length > 0);
-	const tickMs = $derived(hasRuns ? RUNS_TICK_MS : hasUpcoming ? UPCOMING_TICK_MS : null);
-	const summary = $derived(
-		jobCenterSummary(
-			{
-				running,
-				needsYou,
-				queued: active.length - running - needsYouRuns,
-				finished: finished.length,
-				nextAt: upcoming[0]?.nextAt ?? null,
-			},
-			nowMs,
-		),
-	);
+	const entries = $derived(jobCenterEntriesQuery.data);
+	const counts = $derived(jobCenterCounts(entries));
+	const summary = $derived(jobCenterSummary(counts));
+	const live = $derived(entries.length > 0);
 
 	onMount(() => {
 		loadJobsCommand();
@@ -60,9 +37,9 @@
 	});
 
 	$effect(() => {
-		if (tickMs === null) return;
+		if (!live) return;
 		nowMs = Date.now();
-		const clock = setInterval(() => (nowMs = Date.now()), tickMs);
+		const clock = setInterval(() => (nowMs = Date.now()), TICK_MS);
 		return () => clearInterval(clock);
 	});
 
@@ -82,7 +59,7 @@
 	};
 </script>
 
-{#if docked || hasRuns || hasUpcoming || needsYou > 0}
+{#if docked || live}
 	<section
 		class={[
 			'border-surface-50-border bg-surface-50 flex flex-col overflow-hidden rounded-3xl border-[0.5px] p-2',
@@ -104,9 +81,9 @@
 			data-testid="job-center-open-jobs"
 		>
 			<span class="text-fg-secondary grid size-4 shrink-0 place-items-center" aria-hidden="true">
-				{#if running > 0}
+				{#if counts.running > 0}
 					<BusyIcon size={12} />
-				{:else if needsYou > 0}
+				{:else if counts.needsYou > 0}
 					<Icon name="dot" size={13} class="text-brand-icon" />
 				{:else}
 					<Icon name="checklist" size={13} />
@@ -114,7 +91,7 @@
 			</span>
 			<span class="min-w-0 flex-1 truncate">
 				<span class="text-fg-default font-medium">Jobs</span>
-				<span class={needsYou > 0 ? 'text-brand-foreground' : 'text-fg-tertiary'}>
+				<span class={counts.needsYou > 0 ? 'text-brand-foreground' : 'text-fg-tertiary'}>
 					· {summary}
 				</span>
 			</span>
@@ -124,9 +101,10 @@
 				class="text-fg-tertiary group-hover:text-fg-default shrink-0"
 			/>
 		</Button>
-		<div class="min-h-0 overflow-y-auto">
-			<JobRunList {active} {finished} {nowMs} />
-			<UpcomingJobs jobs={upcoming} {nowMs} />
-		</div>
+		{#if live}
+			<div class="min-h-0 overflow-y-auto">
+				<JobRunList {entries} {nowMs} />
+			</div>
+		{/if}
 	</section>
 {/if}

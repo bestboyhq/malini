@@ -174,14 +174,33 @@ function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
 					},
 				]
 			: []),
-		...(status === 'failed' && yours
-			? [
-					ask(
-						`${title} failed${situation.workstreamName ? ` in ${situation.workstreamName}` : ''}.`,
-					),
-				]
-			: []),
+		...(status === 'failed' && yours ? [ask(failedQuestion(situation.detail))] : []),
 	];
+}
+
+export const UNRUN_QUESTION_TITLE = 'Merge';
+
+const QUESTION_DETAIL_CHARS = 140;
+const QUESTION_FILES = 3;
+
+function failedQuestion(detail: string | null): string {
+	const reason = detail === null ? '' : oneLine(detail);
+	if (reason === '') return 'Failed.';
+	const short =
+		reason.length > QUESTION_DETAIL_CHARS
+			? `${reason.slice(0, QUESTION_DETAIL_CHARS).trimEnd()}…`
+			: reason;
+	return `Failed: ${/[.!?…]$/u.test(short) ? short : `${short}.`}`;
+}
+
+function conflictQuestion(paths: readonly string[]): string {
+	const files = `${paths.length} ${paths.length === 1 ? 'file' : 'files'}`;
+	const names = paths.slice(0, QUESTION_FILES).map((path) => path.split('/').at(-1) ?? path);
+	const more = paths.length - names.length;
+	const listed = more > 0 ? `${names.join(', ')} and ${more} more` : names.join(', ');
+	return names.length === 0
+		? `Stopped on conflicts in ${files}.`
+		: `Stopped on conflicts in ${files}: ${listed}.`;
 }
 
 function conflictActions(situation: ConflictSituation): ReconcilerCandidate[] {
@@ -210,7 +229,7 @@ function conflictActions(situation: ConflictSituation): ReconcilerCandidate[] {
 					),
 				]
 			: []),
-		ask(`A merge in ${workstreamName} stopped on conflicts in ${files}.`),
+		ask(conflictQuestion(conflictedPaths)),
 	];
 }
 

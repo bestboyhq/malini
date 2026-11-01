@@ -355,6 +355,7 @@ export type ReconcilerDecisionRecord = Readonly<{
 	status: ReconcilerDecisionStatus;
 	detail: string | null;
 	jobRunId: string | null;
+	subjectRunId: string | null;
 	createdAt: string;
 	finishedAt: string | null;
 }>;

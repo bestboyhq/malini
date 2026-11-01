@@ -185,7 +185,7 @@ test('a lead chat hears every turn a workstream it started ends, and the Explore
 	}
 });
 
-test('Malini asks before it acts on a failed job when the model says so, and does what you pick in Activity', async () => {
+test('Malini asks before it acts on a failed job when the model says so, on that job in the gutter, and does what you pick', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -208,10 +208,16 @@ test('Malini asks before it acts on a failed job when the model says so, and doe
 			),
 		);
 		expect(asked?.pick).toBe(4);
-		await expect(page.getByRole('region', { name: 'Jobs: 1 needs you' })).toBeVisible();
-		await openJobs(page, '#/jobs/activity');
-		const ask = page.getByRole('group', { name: `Malini asks: ${JOB} failed in Api work.` });
+		const center = page.getByRole('region', { name: 'Jobs: 1 needs you' });
+		const ask = center.getByRole('group', { name: new RegExp(`^${JOB} in Api work: Failed`, 'u') });
 		await expect(ask).toBeVisible({ timeout: 20_000 });
+		const choices = ask.getByRole('button');
+		await expect(choices).toHaveCount(3);
+		await expect(choices.nth(0)).toHaveAccessibleName(`Run ${JOB} again`);
+		await expect(choices.nth(0)).toHaveText('Run again');
+		await expect(choices.nth(1)).toHaveAccessibleName(TELL);
+		await expect(choices.nth(1)).toHaveText('Tell its chat');
+		await expect(choices.nth(2)).toHaveAccessibleName(`Dismiss: ${JOB}`);
 		await captureFlow(app, 'reconciler-asks-you');
 		await ask.getByRole('button', { name: TELL }).click();
 
@@ -219,6 +225,7 @@ test('Malini asks before it acts on a failed job when the model says so, and doe
 		await expect
 			.poll(async () => (await decisions(page))[0], { timeout: 30_000 })
 			.toMatchObject({ status: 'done', decidedBy: 'you' });
+		await openJobs(page, '#/jobs/activity');
 		await page.getByRole('button', { name: TOLD }).click();
 		await expect(
 			page
@@ -228,6 +235,30 @@ test('Malini asks before it acts on a failed job when the model says so, and doe
 		).toContainText(`that ${JOB} failed`);
 		await openWorkstream(page, workstreamId);
 		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a question on a job goes away with its workstream', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		reconcilerPicks(app, 'Ask you');
+		const workstreamId = await chatRunsFailingJob(app);
+		const ask = page
+			.getByRole('region', { name: 'Jobs: 1 needs you' })
+			.getByRole('group', { name: new RegExp(`^${JOB} in Api work: Failed`, 'u') });
+		await expect(ask).toBeVisible({ timeout: 60_000 });
+
+		await invoke(page, 'repositories.archive-workstream', { workstreamId });
+		await expect
+			.poll(async () => (await decisions(page)).map(({ status }) => status), { timeout: 30_000 })
+			.toEqual(['dismissed']);
+		await expect(ask).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Jobs in progress' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

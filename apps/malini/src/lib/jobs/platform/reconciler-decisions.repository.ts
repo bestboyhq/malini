@@ -21,12 +21,13 @@ interface DecisionRow {
 	status: ReconcilerDecisionStatus;
 	detail: string | null;
 	job_run_id: string | null;
+	subject_run_id: string | null;
 	created_at: string;
 	finished_at: string | null;
 }
 
 const COLUMNS =
-	'id, event_id, channel, chain_id, workstream_id, facts, candidates, pick, chosen, decided_by, status, detail, job_run_id, created_at, finished_at';
+	'id, event_id, channel, chain_id, workstream_id, facts, candidates, pick, chosen, decided_by, status, detail, job_run_id, subject_run_id, created_at, finished_at';
 
 function fromRow(row: DecisionRow): ReconcilerDecisionRecord {
 	return {
@@ -43,6 +44,7 @@ function fromRow(row: DecisionRow): ReconcilerDecisionRecord {
 		status: row.status,
 		detail: row.detail,
 		jobRunId: row.job_run_id,
+		subjectRunId: row.subject_run_id,
 		createdAt: row.created_at,
 		finishedAt: row.finished_at,
 	};
@@ -108,7 +110,7 @@ export function insertDecision(db: MaliniDatabase, decision: ReconcilerDecisionR
 	run(
 		db,
 		`INSERT INTO reconciler_decisions (${COLUMNS})
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		decision.id,
 		decision.eventId,
 		decision.channel,
@@ -122,6 +124,7 @@ export function insertDecision(db: MaliniDatabase, decision: ReconcilerDecisionR
 		decision.status,
 		decision.detail,
 		decision.jobRunId,
+		decision.subjectRunId,
 		decision.createdAt,
 		decision.finishedAt,
 	);
@@ -169,6 +172,13 @@ export function listPendingDecisions(db: MaliniDatabase): ReconcilerDecisionReco
 	return all<DecisionRow>(
 		db,
 		`SELECT ${COLUMNS} FROM reconciler_decisions WHERE status = 'pending' ORDER BY created_at`,
+	).map(fromRow);
+}
+
+export function listAskingDecisions(db: MaliniDatabase): ReconcilerDecisionRecord[] {
+	return all<DecisionRow>(
+		db,
+		`SELECT ${COLUMNS} FROM reconciler_decisions WHERE status = 'asking' ORDER BY created_at`,
 	).map(fromRow);
 }
 

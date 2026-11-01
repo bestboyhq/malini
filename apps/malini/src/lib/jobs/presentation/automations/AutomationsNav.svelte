@@ -15,8 +15,9 @@
 	} from '$shared/router/routes-hrefs';
 	import { builtinJobDefinitionsQuery } from '$lib/jobs/application/queries/builtin-job-definitions.query.svelte';
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
+	import { jobCenterEntriesQuery } from '$lib/jobs/application/queries/job-center-entries.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
-	import { waitingForYouJobCountQuery } from '$lib/jobs/application/queries/waiting-for-you-job-count.query.svelte';
+	import { asksYou } from '$lib/jobs/domain/job-center';
 	import type { AutomationsView } from './automations-state.svelte';
 	import { jobTriggerLook } from './triggers';
 
@@ -45,7 +46,11 @@
 	const custom = $derived(customJobDefinitionsQuery.data);
 	const runsFor = $derived(jobRunsForDefinitionQuery.data);
 	const jobs = $derived<readonly JobDefinitionRecord[]>([...custom, ...builtins]);
-	const waiting = $derived(waitingForYouJobCountQuery.data);
+	const asking = $derived(
+		new Set(
+			jobCenterEntriesQuery.data.filter(asksYou).map((entry) => entry.run?.definitionId ?? null),
+		),
+	);
 
 	function slideIn(node: HTMLElement): ReturnType<typeof fly> {
 		return fly(node, {
@@ -79,14 +84,6 @@
 			>
 				<Icon name={section.icon} size={16} class="shrink-0" />
 				<span class="min-w-0 flex-1 truncate text-left">{section.label}</span>
-				{#if section.value === 'activity' && waiting > 0}
-					<span
-						class="bg-brand text-brand-content text-2xs grid min-w-4 place-items-center rounded-full px-1 tabular-nums"
-					>
-						{waiting}
-						<span class="sr-only">waiting for you</span>
-					</span>
-				{/if}
 			</Button>
 		{/each}
 	</nav>
@@ -117,7 +114,7 @@
 						>
 							{job.name}
 						</span>
-						{#if runs.some((run) => run.status === 'needs-you' || run.status === 'waiting')}
+						{#if asking.has(job.id)}
 							<Icon name="dot" size={12} class="text-brand-icon shrink-0" />
 							<span class="sr-only">Needs you</span>
 						{:else if runs.some((run) => run.status === 'running')}

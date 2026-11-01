@@ -173,14 +173,13 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 			.poll(async () => (await runsOf(page, 'Note it'))[0], { timeout: 60_000 })
 			.toMatchObject({ status: 'waiting', origin: 'trigger', parentRunId: first.id, workstreamId });
 
-		await openJobs(page);
-		const sections = page.getByRole('navigation', { name: 'Automations' });
-		await expect(
-			sections.getByRole('link', { name: /^Activity 1 waiting for you/u }),
-		).toBeVisible();
-		await sections.getByRole('link', { name: /^Activity/u }).click();
-		const waiting = page.getByRole('group', { name: 'Note it wants to run' });
-		await expect(waiting).toContainText('Waiting workstream');
+		await openWorkstream(page, workstreamId);
+		const center = page.getByRole('region', { name: /^Jobs: / });
+		const waiting = center.getByRole('group', {
+			name: 'Note it in Waiting workstream: Wants to run',
+		});
+		await expect(waiting).toBeVisible({ timeout: 30_000 });
+		await expect(waiting).toContainText('After Poke');
 		await captureFlow(app, 'job-waiting-run');
 		await waiting.getByRole('button', { name: 'Run it: Note it' }).click();
 		await expect(waiting).toHaveCount(0);
@@ -192,7 +191,7 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 		await expect(waiting).toBeVisible({ timeout: 60_000 });
 		await waiting.getByRole('button', { name: 'Skip Note it' }).click();
 		await expect(waiting).toHaveCount(0);
-		await expect(page.getByText('Nothing waits for you.')).toBeVisible();
+		await expect(center).toHaveAccessibleName('Jobs: ready when you are');
 		await expect
 			.poll(async () => (await runsOf(page, 'Note it')).map(({ status }) => status))
 			.toEqual(['cancelled', 'succeeded']);

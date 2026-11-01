@@ -166,6 +166,11 @@ export function getWorkstream(db: MaliniDatabase, workstreamId: string): Workstr
 	return row ? workstreamFromRow(row) : null;
 }
 
+export function isWorkstreamClosed(db: MaliniDatabase, workstreamId: string): boolean {
+	const workstream = getWorkstream(db, workstreamId);
+	return workstream === null || workstream.status === 'archived';
+}
+
 export function workstreamAwaitsName(db: MaliniDatabase, workstreamId: string): boolean {
 	const workstream = getWorkstream(db, workstreamId);
 	if (workstream === null || !isGeneratedWorkstreamName(workstream.name)) return false;
