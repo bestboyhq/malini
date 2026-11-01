@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseAutomationTrigger } from '$contract/automation-trigger';
-import type { JobDefinitionRecord } from '$contract/jobs';
+import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord } from '$contract/jobs';
 import {
 	jobSentence,
 	jobTriggerLook,
@@ -22,6 +22,7 @@ function job(id: string, patch: Partial<JobDefinitionRecord> = {}): JobDefinitio
 		builtin: null,
 		trigger: null,
 		thenJobId: null,
+		boundary: DEFAULT_JOB_BOUNDARY,
 		createdAt: '2026-10-23T00:00:00.000Z',
 		updatedAt: '2026-10-23T00:00:00.000Z',
 		...patch,

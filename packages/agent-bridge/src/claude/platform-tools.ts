@@ -41,13 +41,13 @@ export function platformTools(request: PlatformToolRequester) {
 	return [
 		tool(
 			'jobs_list',
-			"List the jobs saved in Malini. A job is an agent task (instructions, a model, effort and skills) or a built-in step such as Open draft or Merge. Returns JSON with each job's id, name, its full instructions (so an edit can keep every line it does not change), runsIn (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository), model, effort, skills, builtin, when (its event trigger or schedule, or null when it runs only when asked), mode (`off`: the trigger never starts it; `ask`: each run waits for the user; `auto`: it runs on its own; null without a trigger) and then (the id of the job that runs next after it succeeds, or null).",
+			"List the jobs saved in Malini. A job is an agent task (instructions, a model, effort and skills) or a built-in step such as Open draft or Merge. Returns JSON with each job's id, name, its full instructions (so an edit can keep every line it does not change), runsIn (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository), model, effort, skills, builtin, when (its event trigger or schedule, or null when it runs only when asked), mode (`off`: the trigger never starts it; `ask`: each run waits for the user; `auto`: it runs on its own; null without a trigger), then (the id of the job that runs next after it succeeds, or null), sees (what the user lets it see: `event`, `facts` or `full`; `jobBefore`, the report of the job before it; `chats`, `none`, `starter` or `all`; `attachments`) and internet (whether its commands reach any site, or only Anthropic).",
 			{},
 			() => call('jobs_list', {}),
 		),
 		tool(
 			'jobs_save',
-			`Create a job in Malini, or change one by id. To create, leave out id and pass name and instructions; the other fields have defaults. To change, pass id and only the fields that change. Opening a draft pull request and merging are jobs too, Open draft and Merge: to ship what a job did, set its \`then\` to one of them. ${SHIP_ONLY_WHEN_ASKED} A trigger you add starts Off and never runs until the user turns it on in the Jobs page, so say so. The user approves every save in the chat. Returns the saved job as JSON.`,
+			`Create a job in Malini, or change one by id. To create, leave out id and pass name and instructions; the other fields have defaults. To change, pass id and only the fields that change. Opening a draft pull request and merging are jobs too, Open draft and Merge: to ship what a job did, set its \`then\` to one of them. ${SHIP_ONLY_WHEN_ASKED} A trigger you add starts Off and never runs until the user turns it on in the Jobs page, so say so. What a job sees and reaches stays with the user, on its page in Jobs: no tool changes it, and a new job sees no chat. The user approves every save in the chat. Returns the saved job as JSON.`,
 			{
 				id: z
 					.string()
@@ -116,7 +116,7 @@ export function platformTools(request: PlatformToolRequester) {
 					.min(1)
 					.optional()
 					.describe(
-						'Extra context the job gets after its instructions, for example the issue to fix',
+						'Extra context the job gets after its instructions, for example the issue to fix. Only a job whose sees.chats is `starter` or `all` takes it; leave it out for any other job.',
 					),
 				workstream: z
 					.string()
@@ -166,7 +166,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_list',
-			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it with workstreams_create, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null), and merged (the pull request it merged, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived.",
+			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it with workstreams_create, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null, and always null in a job that does not see every chat), and merged (the pull request it merged, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived.",
 			{
 				repository: z
 					.string()

@@ -341,6 +341,33 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('turns the internet off for every job you made, and keeps it on for the built-in ones', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const boundary = MIGRATIONS.findIndex((migration) => migration.includes('reaches_internet'));
+		for (const migration of MIGRATIONS.slice(0, boundary)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + boundary};`);
+		const at = '2026-11-01T00:00:00Z';
+		db.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at) VALUES
+			  ('mine', 'Triage', 'Triage.', 'opus', 'low', 'workstream', NULL, '${at}', '${at}'),
+			  ('fix', 'Fix checks', 'Fix.', 'opus', 'low', 'workstream', 'fix-checks', '${at}', '${at}');
+		`);
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				"SELECT id, reaches_internet FROM job_definitions WHERE id IN ('fix', 'mine') ORDER BY id",
+			),
+		).toEqual([
+			{ id: 'fix', reaches_internet: 1 },
+			{ id: 'mine', reaches_internet: 0 },
+		]);
+		db.close();
+	});
+
 	it('lets a run come from the Compatibility rule, and keeps every run and the events that started it', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);

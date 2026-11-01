@@ -10,6 +10,7 @@ import {
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 } from '$contract/events';
 import {
+	DEFAULT_JOB_BOUNDARY,
 	JOB_INTERRUPTED_DETAIL,
 	type JobDefinitionRecord,
 	type JobRunRecord,
@@ -366,6 +367,7 @@ const DEFINITIONS: JobDefinitionRecord[] = (
 	builtin,
 	trigger: null,
 	thenJobId: null,
+	boundary: DEFAULT_JOB_BOUNDARY,
 	createdAt: '2026-10-01T00:00:00Z',
 	updatedAt: '2026-10-01T00:00:00Z',
 }));
@@ -1086,6 +1088,7 @@ describe('pushing automatically', () => {
 			builtin: null,
 			trigger: null,
 			thenJobId: null,
+			boundary: DEFAULT_JOB_BOUNDARY,
 			createdAt: '2026-10-01T00:00:00Z',
 			updatedAt: '2026-10-01T00:00:00Z',
 		});

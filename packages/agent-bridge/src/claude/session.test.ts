@@ -9,13 +9,17 @@ import type {
 	SDKResultSuccess,
 } from '@anthropic-ai/claude-agent-sdk';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
+import type { AgentBoundary, AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type { ConversationHistoryMessage } from '../protocol.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
 import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
-import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
+import {
+	askBeforeLeavingTheSandbox,
+	AutoModeOutage,
+	UNCHECKED_CALL_REASON,
+} from './permissions.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession } from './session.js';
 
@@ -318,6 +322,66 @@ describe('ClaudeSession', () => {
 			expect.objectContaining({ append: expect.stringContaining('the user is in dark mode') }),
 			expect.objectContaining({ append: expect.stringContaining('the user is in light mode') }),
 		]);
+	});
+
+	it('runs a job inside its boundary and relaunches Claude Code when the boundary changes', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+		const inside = (boundary: AgentBoundary) =>
+			[
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				boundary,
+			] as const;
+		const sealed: AgentBoundary = {
+			hidden: ['/data/malini/malini.sqlite', '/work/repo/.malini/agent-attachments'],
+			chatRecords: false,
+			internet: false,
+		};
+
+		await session.sendPrompt(
+			'Write the docs',
+			'run-1',
+			profile('agent', 'auto'),
+			...inside(sealed),
+		);
+		await session.sendPrompt(
+			'And again',
+			'run-2',
+			profile('agent', 'auto'),
+			...inside({ hidden: [], chatRecords: true, internet: true }),
+		);
+
+		const [first, second] = claude.runs.map(({ options }) => options);
+		const denyRead = first?.sandbox?.filesystem?.denyRead ?? [];
+		expect(denyRead).toEqual(expect.arrayContaining([...sealed.hidden]));
+		expect(denyRead.some((path) => path.endsWith('/projects'))).toBe(true);
+		expect(first?.sandbox).toMatchObject({
+			enabled: true,
+			network: { allowedDomains: [], strictAllowlist: true },
+		});
+		expect(first?.disallowedTools).toEqual(
+			expect.arrayContaining([
+				'Read(//data/malini/malini.sqlite/**)',
+				'Read(//work/repo/.malini/agent-attachments)',
+				'WebFetch',
+				'WebSearch',
+			]),
+		);
+		expect(first?.strictMcpConfig).toBe(true);
+		expect(first?.env?.['CLAUDE_CODE_DISABLE_AUTO_MEMORY']).toBe('1');
+		expect(first?.hooks?.PreToolUse?.[0]?.hooks).toContain(askBeforeLeavingTheSandbox);
+		expect(second?.sandbox).toMatchObject({ network: { allowedDomains: ['*'] } });
+		expect(second?.sandbox?.filesystem?.denyRead).toEqual([]);
+		expect(second?.disallowedTools).not.toContain('WebFetch');
+		expect(second).not.toHaveProperty('strictMcpConfig');
+		expect(second?.env).not.toHaveProperty('CLAUDE_CODE_DISABLE_AUTO_MEMORY');
 	});
 
 	it('keeps a lead chat to reading and planning what it started, and hands a started workstream its plan and siblings', async () => {

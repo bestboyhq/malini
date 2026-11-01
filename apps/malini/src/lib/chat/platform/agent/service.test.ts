@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { JobDefinitionRecord } from '$contract/jobs';
+import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord } from '$contract/jobs';
 import { all, run } from '$main/db/rows';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
@@ -321,6 +321,7 @@ function jobDefinition(
 		builtin: null,
 		trigger: null,
 		thenJobId: null,
+		boundary: DEFAULT_JOB_BOUNDARY,
 		createdAt: '2026-10-19T00:00:00.000Z',
 		updatedAt: '2026-10-19T00:00:00.000Z',
 		...changes,
@@ -349,6 +350,7 @@ describe('platform requests from the agent', () => {
 			jobDefinition('job-1', 'Update docs', {
 				trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
 				thenJobId: 'job-2',
+				boundary: { ...DEFAULT_JOB_BOUNDARY, chats: 'starter' },
 			}),
 			jobDefinition('job-2', 'Triage'),
 		];
@@ -412,10 +414,11 @@ describe('platform requests from the agent', () => {
 		bridge.send(platformRequest('p-8', 'events_list', {}));
 		bridge.send(platformRequest('p-9', 'jobs_save', { id: 'job-2', then: 'Nope' }));
 		bridge.send(platformRequest('p-10', 'jobs_save', { effort: 'huge' }));
+		bridge.send(platformRequest('p-11', 'jobs_run', { job: 'Triage', context: 'What I said' }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'platform_result');
-		await waitFor(() => results().length === 10, 5_000, 'ten platform results');
+		await waitFor(() => results().length === 11, 5_000, 'eleven platform results');
 		const answer = (requestId: string): unknown => {
 			const result = results().find((command) => command['requestId'] === requestId);
 			if (result?.['ok'] !== true) return result;
@@ -434,6 +437,8 @@ describe('platform requests from the agent', () => {
 				when: 'on pull-requests:ship-changed where merged is set',
 				mode: 'auto',
 				then: 'job-2',
+				sees: { event: 'facts', jobBefore: true, chats: 'starter', attachments: false },
+				internet: true,
 			},
 			expect.objectContaining({ id: 'job-2', when: null, mode: null, then: null }),
 		]);
@@ -509,6 +514,10 @@ describe('platform requests from the agent', () => {
 		expect(answer('p-10')).toMatchObject({
 			ok: false,
 			error: '`effort` must be one of low, medium, high, xhigh, max.',
+		});
+		expect(answer('p-11')).toMatchObject({
+			ok: false,
+			error: expect.stringContaining('Triage does not see your chats'),
 		});
 	});
 

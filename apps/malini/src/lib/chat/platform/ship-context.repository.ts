@@ -6,7 +6,7 @@ import {
 } from '$lib/chat/domain/run-evidence';
 import { variantDecisions } from '$lib/chat/domain/variant-pick';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, isRecord } from '$main/db/rows';
+import { all, isRecord } from '$main/db/rows';
 import type {
 	PullRequestAutomationContext,
 	PullRequestAutomationEvent,
@@ -25,16 +25,6 @@ export function workstreamShipContext(
 	db: MaliniDatabase,
 	workstreamId: string,
 ): PullRequestAutomationContext {
-	const sessionTitle = get<{ display_name: string }>(
-		db,
-		`SELECT s.display_name FROM agent_sessions s
-		 WHERE s.workstream_id = ? AND s.origin = 'user' AND EXISTS (
-		   SELECT 1 FROM agent_runs r
-		   WHERE r.session_id = s.id AND r.automated = 0 AND r.obsoleted_at IS NULL
-		 )
-		 ORDER BY s.rowid DESC LIMIT 1`,
-		workstreamId,
-	)?.display_name;
 	const replied = all<{ id: string; summary: string }>(
 		db,
 		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND ${REPLIED}
@@ -75,7 +65,6 @@ export function workstreamShipContext(
 		replied.slice(-RUN_SUMMARY_LIMIT).map(({ id }) => id),
 	);
 	return {
-		...(sessionTitle ? { sessionTitle } : {}),
 		...(runSummaries.length > 0 ? { runSummaries } : {}),
 		...(committing ? { commitLine: committing.line, latestRunId: committing.id } : {}),
 		...(pullRequestTitle ? { pullRequestTitle } : {}),

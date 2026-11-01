@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { latestScheduleSlot, scheduledJobOf } from './schedule';
-import type { JobDefinitionRecord, JobTrigger } from '$contract/jobs';
+import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord, type JobTrigger } from '$contract/jobs';
 
 const at = (day: number, hour: number, minute = 0): number =>
 	new Date(2026, 9, day, hour, minute).getTime();
@@ -38,6 +38,7 @@ describe('scheduledJobOf', () => {
 		builtin: null,
 		trigger,
 		thenJobId: null,
+		boundary: DEFAULT_JOB_BOUNDARY,
 		createdAt: '2026-10-01T00:00:00.000Z',
 		updatedAt: '2026-10-01T00:00:00.000Z',
 	});

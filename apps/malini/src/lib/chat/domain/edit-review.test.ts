@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MaliniEditReview } from '$contract/approvals';
-import type { JobDefinitionRecord } from '$contract/jobs';
+import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord } from '$contract/jobs';
 import { editReview, keepsCurrent, reviewedInput } from './edit-review';
 
 function job(changes: Partial<JobDefinitionRecord> = {}): MaliniEditReview {
@@ -17,6 +17,7 @@ function job(changes: Partial<JobDefinitionRecord> = {}): MaliniEditReview {
 			builtin: 'update-docs',
 			trigger: null,
 			thenJobId: 'draft',
+			boundary: DEFAULT_JOB_BOUNDARY,
 			createdAt: '2026-10-23T00:00:00.000Z',
 			updatedAt: '2026-10-23T00:00:00.000Z',
 			...changes,

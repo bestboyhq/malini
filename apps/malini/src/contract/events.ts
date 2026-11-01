@@ -165,6 +165,7 @@ export type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
 export type ContractEventReference = Readonly<{
 	channel: string;
 	description: string;
+	facts: readonly string[];
 	payloadType: string;
 	payload: string;
 }>;

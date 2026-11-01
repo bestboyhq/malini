@@ -19,6 +19,7 @@ import {
 	JOBS_MAX_CONCURRENT_SETTING,
 	isAgentlessJobBuiltin,
 	type AgentlessJobBuiltin,
+	type JobDefinitionRecord,
 	type JobRunChangedEvent,
 	type JobRunRecord,
 	type JobRunStatus,
@@ -293,7 +294,6 @@ export class JobRunner {
 				current.status === 'running' && !this.#stopped ? { ...current, sessionId } : null,
 			);
 			if (!withSession) return;
-			// ponytail: jobs run in auto mode like the user's chats; sandbox them once the sandbox can run gh, e2e and scratch worktrees without asking
 			const agentRunId = await commands.call('chat.send-prompt', {
 				sessionId,
 				prompt: jobPrompt(
@@ -606,7 +606,7 @@ export class JobRunner {
 				workstreamId: jobRun.workstreamId,
 				origin: 'then',
 				parentRunId: jobRun.id,
-				context: truncateJobContext(thenContext(jobRun)),
+				context: truncateJobContext(thenContext(jobRun, getJobDefinition(db, thenJobId))),
 				...(event.id === null ? {} : { causeEventId: event.id }),
 			});
 		} catch (error) {
@@ -622,7 +622,8 @@ export class JobRunner {
 	#followAgain(then: JobRunRecord, job: JobRunRecord): void {
 		if (then.status !== 'waiting' && then.status !== 'queued') return;
 		if (job.status === 'succeeded') {
-			appendJobRunContext(this.#context.db, then.id, truncateJobContext(thenContext(job)));
+			const report = thenContext(job, getJobDefinition(this.#context.db, then.definitionId));
+			appendJobRunContext(this.#context.db, then.id, truncateJobContext(report));
 		} else {
 			this.#finish(then.id, 'cancelled', `${job.title} went on and did not succeed.`);
 		}
@@ -751,8 +752,8 @@ export class JobRunner {
 	}
 }
 
-function thenContext({ title, detail }: JobRunRecord): string {
-	return detail
+function thenContext({ title, detail }: JobRunRecord, then: JobDefinitionRecord | null): string {
+	return detail && then?.boundary.before
 		? `This job runs after “${title}”, which finished with:\n\n${detail}`
 		: `This job runs after “${title}”.`;
 }

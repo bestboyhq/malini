@@ -19,6 +19,13 @@ type JobRow = Readonly<{
 	instructions: string;
 	trigger: Readonly<{ when: string; mode: string }> | null;
 	thenJobId: string | null;
+	boundary: Readonly<{
+		event: string;
+		before: boolean;
+		chats: string;
+		attachments: boolean;
+		internet: boolean;
+	}>;
 }>;
 
 async function jobs(page: Page): Promise<JobRow[]> {
@@ -238,7 +245,9 @@ test("a job's When, run mode and Then are fields of the job, and a Then that wou
 		await picker.getByRole('option', { name: /^When you run it/u }).click();
 		await expect(picker).toHaveCount(0);
 		await expect.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger).toBeNull();
-		await expect(detail.getByRole('radiogroup')).toHaveCount(0);
+		await expect(
+			detail.getByRole('radiogroup', { name: 'How Changelog on merge runs' }),
+		).toHaveCount(0);
 
 		await openOverview(page);
 		await draftJob(page, { name: 'Release notes', words: 'Write the release notes' });
@@ -267,6 +276,73 @@ test("a job's When, run mode and Then are fields of the job, and a Then that wou
 		await expect(card).toHaveCount(0);
 		await expect.poll(async () => (await jobNamed(page, 'Release notes'))?.thenJobId).toBeNull();
 		await expect(jobCard(page, 'Release notes')).toContainText('Runs when you run it');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a job sees and reaches only what you set on its page, and says when it can leak your words', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await openJobs(page);
+		await draftJob(page, { name: 'Triage', words: 'Triage the failing checks' });
+		await expect
+			.poll(async () => (await jobNamed(page, 'Triage'))?.boundary)
+			.toEqual({ event: 'facts', before: true, chats: 'none', attachments: false, internet: false });
+
+		const detail = await openJob(page, 'Triage');
+		const sees = detail.getByRole('region', { name: 'What it sees' });
+		const reaches = detail.getByRole('region', { name: 'What it reaches' });
+		const nav = page.getByRole('complementary');
+		const leak = detail.getByRole('alert');
+		await expect(sees.getByRole('switch', { name: 'Code and changes' })).toBeDisabled();
+		await expect(sees.getByRole('switch', { name: 'The job before it' })).toBeDisabled();
+		await expect(sees).toContainText('It never sees your words.');
+		await expect(leak).toHaveCount(0);
+
+		await reaches.getByRole('switch', { name: 'The internet' }).click();
+		await expect.poll(async () => (await jobNamed(page, 'Triage'))?.boundary.internet).toBe(true);
+		await sees
+			.getByRole('radiogroup', { name: 'Your chats' })
+			.getByRole('radio', { name: 'Every chat' })
+			.click();
+		await expect(leak.getByRole('heading', { name: 'This job can leak your words' })).toBeVisible();
+		await expect(leak).toContainText(
+			'It sees every chat in Malini. It can reach any site on the internet.',
+		);
+		await expect(nav.getByRole('link', { name: /^Triage/u })).toContainText('Can leak');
+		await expect.poll(async () => (await jobNamed(page, 'Triage'))?.boundary.chats).toBe('all');
+		await captureFlow(app, 'jobs-boundary-can-leak');
+
+		await leak.getByRole('button', { name: 'Turn off the internet' }).click();
+		await expect(leak).toHaveCount(0);
+		await expect(sees).toContainText(
+			'It sees your words, and nothing it does leaves your Mac except through Claude.',
+		);
+		await expect(reaches.getByRole('switch', { name: 'The internet' })).not.toBeChecked();
+		await expect(reaches).not.toContainText('GitHub');
+		await expect(nav.getByRole('link', { name: /^Triage/u })).not.toContainText('Can leak');
+
+		await detail.getByRole('button', { name: 'Then: Nothing' }).click();
+		await page.getByRole('menuitemradio', { name: 'Open draft' }).click();
+		await expect(leak).toContainText('Open draft publishes what it writes to GitHub.');
+		await expect(reaches).toContainText('Through Then');
+
+		await leak.getByRole('button', { name: 'Stop it seeing your words' }).click();
+		await expect(leak).toHaveCount(0);
+		await expect(sees).toContainText('It never sees your words.');
+		await expect
+			.poll(async () => (await jobNamed(page, 'Triage'))?.boundary)
+			.toEqual({
+				event: 'facts',
+				before: false,
+				chats: 'none',
+				attachments: false,
+				internet: false,
+			});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

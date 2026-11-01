@@ -3,6 +3,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
 import { seedWorkstream } from '$main/db/test-fixtures';
 import type { MaliniDatabase } from '$main/db/driver';
+import { automatedPullRequestMetadata } from '$shared/repositories/repositories.platform';
 import { appendEvent } from './events.repository';
 import { insertRun } from './runs.repository';
 import { insertSession } from './sessions.repository';
@@ -92,13 +93,51 @@ describe('workstreamShipContext', () => {
 		completedRun(db, 'run-steer', 'job', 'Also bump the timeout', 'Bumped the CI timeout');
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({
-			sessionTitle: 'Readiness probe',
 			runSummaries: ['Add the /health endpoint'],
 			commitLine: 'Add the /health endpoint',
 			latestRunId: 'run-health',
 			pullRequestTitle: 'Add health and readiness probes',
 			events: [{ kind: 'validation', label: 'pnpm test', status: 'passed' }],
 		});
+		db.close();
+	});
+
+	it('keeps the words of a chat out of the pull request it writes', () => {
+		const words = 'tangerine-7f3a';
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, WORKSTREAM);
+		session(db, 'chat', 'user', `Cards for ${words}`);
+		completedRun(
+			db,
+			'run-variants',
+			'chat',
+			`Make the card for ${words}`,
+			`Two cards for ${words}.\n\n![Variant A: Compact - tight](a.png)\n![Variant B: Roomy - airy](b.png)\n\nOutcome: ${words}\nNeeds: pick one`,
+		);
+		completedRun(
+			db,
+			'run-pick',
+			'chat',
+			`Go with variant B (Roomy).\nWhy: ${words}`,
+			`- Changed: the roomy card for ${words}\n\nOutcome: ${words}\nNeeds: ${words}\nCommit: feat: add the roomy card\nPull request: feat: add the roomy card`,
+		);
+		appendEvent(db, 'chat', 'run-pick', 'command.completed', {
+			runId: 'run-pick',
+			command: 'pnpm test',
+			exitCode: 0,
+			output: words,
+		});
+
+		const metadata = automatedPullRequestMetadata({
+			branch: 'malini/ws-ship',
+			baseBranch: 'main',
+			changedPaths: ['src/card.ts'],
+			workstreamPath: '/tmp/ws-ship',
+			context: workstreamShipContext(db, WORKSTREAM),
+		});
+		expect(metadata.title).toBe('feat: add the roomy card');
+		expect(metadata.body).toContain('Roomy');
+		expect(JSON.stringify(metadata)).not.toContain(words);
 		db.close();
 	});
 
@@ -201,7 +240,7 @@ describe('workstreamShipContext', () => {
 		db.close();
 	});
 
-	it('records each variant the user picked against the variants the run before offered', () => {
+	it('records each variant the user picked, and nothing the user typed', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
 		session(db, 'chat', 'user', 'Hero');
@@ -222,9 +261,9 @@ describe('workstreamShipContext', () => {
 			'Outcome: Built B.',
 		);
 
-		expect(workstreamShipContext(db, WORKSTREAM).decisions).toEqual([
-			'B · Bold over A · Calm - "darker reads better"',
-		]);
+		const context = workstreamShipContext(db, WORKSTREAM);
+		expect(context.decisions).toEqual(['B · Bold over A · Calm']);
+		expect(JSON.stringify(context)).not.toMatch(/darker|Hero/u);
 		db.close();
 	});
 });

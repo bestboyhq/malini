@@ -126,7 +126,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 
 - **Draft** opens a draft pull request.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
-  A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
+  A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the branch or the files changed, never your prompt, the chat's name or the agent's reply.
   A [job](/malini/docs/jobs.md)'s edits commit under the `Commit:` line its agent ended with, but that line never titles the pull request; **Fix checks** and **Address review** fall back to "Fix failing checks" and "Address review feedback" only when their agent wrote none, and a merge keeps its merge message.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.

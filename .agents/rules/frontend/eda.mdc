@@ -14,6 +14,7 @@ An event emitted while the reconciler handles another names that event as its ca
 Each rule names the events it hears in `RULE_EVENTS` (`src/lib/jobs/domain/reconciler.ts`), and the reconciler hands an event only to the rules that hear it (0091): a rule that reacts to a new event adds it there.
 The renderer subscribes through `onPlatformEvent(channel, listener)` from `$shared/port/events`, called only from infrastructure services.
 Every channel and its payload type is declared in `ContractEvents` in `$contract/events`.
+Its `EVENT_CATALOG` entry lists its `facts`, the payload fields a job sees unless you let it see the event in full: only ids, statuses, paths and counts, never what you typed (0149).
 
 ## The one-event rule
 

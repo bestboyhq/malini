@@ -48,9 +48,9 @@ describe('variant pick', () => {
 		});
 	});
 
-	it('writes a decision line naming what lost and why', () => {
+	it('writes a decision line naming what lost, never the reason the user typed', () => {
 		expect(decisionLine({ picked: BOLD, options: [CALM, BOLD], reason: 'darker' })).toBe(
-			'B · Bold over A · Calm - "darker"',
+			'B · Bold over A · Calm',
 		);
 		expect(decisionLine({ picked: CALM, options: [CALM], reason: '' })).toBe('A · Calm');
 	});
@@ -62,6 +62,6 @@ describe('variant pick', () => {
 				{ prompt: 'Go with variant B (Bold).\nWhy: darker', summary: 'Outcome: Built B.' },
 				{ prompt: 'Go with variant A (Calm).', summary: null },
 			]),
-		).toEqual(['B · Bold over A · Calm - "darker"']);
+		).toEqual(['B · Bold over A · Calm']);
 	});
 });

@@ -16,6 +16,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk';
 import {
 	lineageDirectories,
+	type AgentBoundary,
 	type AgentLineage,
 	type AgentRunProfile,
 	type AgentTheme,
@@ -49,14 +50,19 @@ import {
 } from './mcp-servers.js';
 import {
 	approvedInput,
+	askBeforeLeavingTheSandbox,
 	AUTO_MODE_STOPPED,
 	AUTO_MODE_UNAVAILABLE,
 	autoModeCategory,
 	AutoModeOutage,
 	autoModeRule,
+	boundaryDenials,
+	boundaryEnvironment,
+	boundarySandbox,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
+	hiddenPaths,
 	isMaliniTool,
 	steerToMalini,
 	permissionDescriptor,
@@ -71,7 +77,12 @@ import { claudeShell, type SessionSecrets } from './secrets.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicSnapshot, type AnthropicSnapshot } from './usage.js';
-import { allowInUserSettings, claudeStateFile, userSettingsFile } from './user-settings.js';
+import {
+	allowInUserSettings,
+	claudeStateFile,
+	claudeUserDirectory,
+	userSettingsFile,
+} from './user-settings.js';
 import { isRecord } from '../type-guards.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
@@ -140,6 +151,7 @@ interface RunSettings {
 	readonly lineage: AgentLineage | undefined;
 	readonly plugins: readonly string[];
 	readonly compactWindow: number | undefined;
+	readonly boundary: AgentBoundary | undefined;
 }
 
 interface ActiveRun {
@@ -151,6 +163,7 @@ interface ActiveRun {
 	readonly lineage: AgentLineage | undefined;
 	readonly plugins: readonly string[];
 	readonly compactWindow: number | undefined;
+	readonly boundary: AgentBoundary | undefined;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -224,8 +237,9 @@ export class ClaudeSession implements ProviderHandle {
 		lineage?: AgentLineage,
 		plugins: readonly string[] = [],
 		compactWindow?: number,
+		boundary?: AgentBoundary,
 	): Promise<void> {
-		const run: RunSettings = { profile, skills, theme, lineage, plugins, compactWindow };
+		const run: RunSettings = { profile, skills, theme, lineage, plugins, compactWindow, boundary };
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -313,6 +327,7 @@ export class ClaudeSession implements ProviderHandle {
 			lineage: run.lineage,
 			plugins: run.plugins,
 			compactWindow: run.compactWindow,
+			boundary: run.boundary,
 			results: [],
 			costBefore: 0,
 			query,
@@ -636,11 +651,12 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme, lineage, plugins, compactWindow }: RunSettings,
+		{ profile, skills, theme, lineage, plugins, compactWindow, boundary }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
 		const directories = lineageDirectories(lineage);
+		const hidden = boundary ? hiddenPaths(boundary, claudeUserDirectory()) : [];
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
@@ -654,6 +670,7 @@ export class ClaudeSession implements ProviderHandle {
 				CLAUDE_CODE_SHELL: claudeShell(),
 				CLAUDE_CODE_SHELL_PREFIX: this.#secrets.runScript,
 				...(theme ? { MALINI_THEME: theme } : {}),
+				...(boundary ? boundaryEnvironment(boundary) : {}),
 			},
 			settingSources: ['user', 'project', 'local'],
 			systemPrompt: {
@@ -665,12 +682,19 @@ export class ClaudeSession implements ProviderHandle {
 			thinking: { type: 'adaptive', display: 'summarized' },
 			permissionMode,
 			...(permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
-			sandbox: sandboxFor(profile),
-			disallowedTools: disallowedTools(lineage),
+			sandbox: boundary ? boundarySandbox(boundary, hidden) : sandboxFor(profile),
+			disallowedTools: [
+				...disallowedTools(lineage),
+				...(boundary ? boundaryDenials(boundary, hidden) : []),
+			],
+			...(boundary?.internet === false ? { strictMcpConfig: true } : {}),
 			...(directories.length > 0 ? { additionalDirectories: directories } : {}),
 			hooks: {
 				PreToolUse: [
-					{ matcher: 'Bash', hooks: [steerToMalini] },
+					{
+						matcher: 'Bash',
+						hooks: boundary ? [steerToMalini, askBeforeLeavingTheSandbox] : [steerToMalini],
+					},
 					{ hooks: [this.#allowApprovedRetry()] },
 				],
 				PostToolUse: [{ hooks: [this.#maskSecrets()] }],
@@ -1065,7 +1089,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canContinue(
 	active: ActiveRun,
-	{ profile, skills, theme, lineage, plugins }: RunSettings,
+	{ profile, skills, theme, lineage, plugins, boundary }: RunSettings,
 	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -1079,7 +1103,8 @@ function canContinue(
 		theme === active.theme &&
 		skills?.join('\n') === active.skills?.join('\n') &&
 		JSON.stringify(lineage ?? null) === JSON.stringify(active.lineage ?? null) &&
-		JSON.stringify(plugins) === JSON.stringify(active.plugins)
+		JSON.stringify(plugins) === JSON.stringify(active.plugins) &&
+		JSON.stringify(boundary ?? null) === JSON.stringify(active.boundary ?? null)
 	);
 }
 
