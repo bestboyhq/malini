@@ -7,6 +7,7 @@ import {
 	bridgeChoiceFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
+	bridgeHistoryRequestFrame,
 	bridgeMcpAuthorizationFrame,
 	bridgeMcpServerFrame,
 	bridgeMcpServersFrame,
@@ -29,6 +30,7 @@ import {
 	type TurnedOffSkills,
 	type BrowserRequest,
 	type BrowserResult,
+	type HistoryResult,
 	type PlatformRequest,
 	type PlatformResult,
 	type ProviderCapability,
@@ -94,9 +96,11 @@ interface McpWatcher {
 	lease: NodeJS.Timeout;
 }
 
+type AnswerResult = BrowserResult | HistoryResult;
+
 interface PendingRequest {
 	readonly sessionId: string;
-	readonly settle: (result: BrowserResult) => void;
+	readonly settle: (result: AnswerResult) => void;
 }
 
 export class BridgeOutputWriter {
@@ -344,7 +348,8 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				return;
 			}
 			case 'browser_result':
-			case 'platform_result': {
+			case 'platform_result':
+			case 'history_result': {
 				const known = settleRequest(cmd.sessionId, cmd.requestId, cmd);
 				emitControl(
 					bridgeCommandAckFrame(
@@ -371,11 +376,17 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		);
 	}
 
+	function requestHistory(sessionId: string): Promise<HistoryResult> {
+		return awaitAnswer(sessionId, 'Malini', (requestId) =>
+			bridgeHistoryRequestFrame(requestId, sessionId),
+		);
+	}
+
 	function awaitAnswer(
 		sessionId: string,
 		answerer: string,
 		frame: (requestId: string) => BridgeControlFrame,
-	): Promise<BrowserResult> {
+	): Promise<AnswerResult> {
 		const requestId = randomUUID();
 		return new Promise((resolve) => {
 			const timeout = setTimeout(
@@ -397,7 +408,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		});
 	}
 
-	function settleRequest(sessionId: string, requestId: string, result: BrowserResult): boolean {
+	function settleRequest(sessionId: string, requestId: string, result: AnswerResult): boolean {
 		const pending = pendingRequests.get(requestId);
 		if (pending?.sessionId !== sessionId) return false;
 		pendingRequests.delete(requestId);
@@ -525,6 +536,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				: {}),
 			requestBrowser: (request) => requestBrowser(cmd.sessionId, request),
 			requestPlatform: (request) => requestPlatform(cmd.sessionId, request),
+			requestHistory: () => requestHistory(cmd.sessionId),
 		};
 	}
 
@@ -567,6 +579,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				cmd.steer,
 				cmd.theme,
 				cmd.lineage,
+				cmd.compactWindow,
 			);
 		} catch (err) {
 			emitRunFailure(cmd.runId, cmd.sessionId, 'SEND_PROMPT_FAILED', errorMessage(err));

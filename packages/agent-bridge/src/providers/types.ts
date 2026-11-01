@@ -4,6 +4,7 @@ import type {
 	BrowserRequest,
 	BrowserResult,
 	ConversationHistoryMessage,
+	HistoryResult,
 	PlatformRequest,
 	PlatformResult,
 } from '../protocol.js';
@@ -18,6 +19,7 @@ export interface ProviderContext {
 	readonly conversationHistory?: readonly ConversationHistoryMessage[];
 	readonly requestBrowser: BrowserRequester;
 	readonly requestPlatform: PlatformRequester;
+	readonly requestHistory: () => Promise<HistoryResult>;
 }
 
 export type BrowserRequester = (request: BrowserRequest) => Promise<BrowserResult>;
@@ -37,6 +39,7 @@ export interface ProviderHandle {
 		steer?: boolean,
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
+		compactWindow?: number,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

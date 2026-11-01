@@ -17,7 +17,6 @@ import {
 	appendEvent,
 	listEventRowsForSession,
 	listFinishedRunToolCalls,
-	listEventRowsOfKinds,
 	toolCallOutput,
 	type AgentEventRow,
 } from './events.repository';
@@ -124,12 +123,6 @@ function transcript(db: MaliniDatabase, sessionId: string) {
 		rows,
 		tail: listEventRowsForSession(db, sessionId, rows[3]?.seq ?? 0),
 		lastTurn: listAgentEventPage(db, sessionId, 0, null, 5_000),
-		conversation: listEventRowsOfKinds(
-			db,
-			sessionId,
-			['user.message', 'assistant.message', 'tool.started', 'run.completed'],
-			['user.message', 'assistant.message'],
-		),
 		buildLog: toolCallOutput(db, sessionId, `${sessionId}-bash`),
 		runs: all(
 			db,

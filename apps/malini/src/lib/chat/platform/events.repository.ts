@@ -234,43 +234,6 @@ export function listEventRowPage(
 	};
 }
 
-export function listEventRowsOfKinds(
-	db: MaliniDatabase,
-	sessionId: string,
-	kinds: readonly string[],
-	kindsWithPayload: readonly string[],
-): AgentEventRow[] {
-	const marks = (list: readonly string[]): string => list.map(() => '?').join(', ') || 'NULL';
-	const rowOf = (
-		seq: number,
-		runId: string,
-		kind: string,
-		event: string | null,
-	): AgentEventRow => ({
-		seq,
-		runId,
-		...(event === null ? { kind, payload: null } : eventFromBlob(event)),
-	});
-	return withPackedRows(
-		all<{ seq: number; run_id: string; kind: string; event: string | null }>(
-			db,
-			`SELECT seq, run_id, kind, CASE WHEN kind IN (${marks(kindsWithPayload)}) THEN event END AS event
-			 FROM (SELECT seq, run_id, event, substr(event, 1, instr(event, char(10)) - 1) AS kind
-			       FROM agent_events WHERE session_id = ?)
-			 WHERE kind IN (${marks(kinds)}) ORDER BY seq ASC`,
-			...kindsWithPayload,
-			sessionId,
-			...kinds,
-		).map((row) => rowOf(row.seq, row.run_id, row.kind, row.event)),
-		packedEvents(db, sessionId),
-		({ event }) => kinds.includes(decodeEvent(event).kind),
-		({ seq, runId, event }) => {
-			const { kind } = decodeEvent(event);
-			return rowOf(seq, runId, kind, kindsWithPayload.includes(kind) ? event : null);
-		},
-	);
-}
-
 export function toolCallOutput(
 	db: MaliniDatabase,
 	sessionId: string,
@@ -768,7 +731,7 @@ const TIMELINE_KINDS_WITH_PAYLOAD = [
 export function listTimelineEventRows(
 	db: MaliniDatabase,
 	sessionId: string,
-	exceptRunId: string,
+	exceptRunId = '',
 ): TimelineEventRow[] {
 	const marks = (list: readonly string[]): string => list.map(() => '?').join(', ');
 	const rows = all<{ seq: number; run_id: string; kind: string; event: string | null; at: string }>(

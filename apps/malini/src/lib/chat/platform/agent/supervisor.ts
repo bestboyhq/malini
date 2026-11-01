@@ -530,7 +530,8 @@ export class BridgeSupervisor {
 				return;
 			}
 			case 'bridge.browser_request':
-			case 'bridge.platform_request': {
+			case 'bridge.platform_request':
+			case 'bridge.history_request': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
 					this.recordProtocolError(
 						`PROTOCOL_MISMATCH: ${control.type} v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,

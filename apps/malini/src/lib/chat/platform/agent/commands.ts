@@ -116,7 +116,7 @@ import type {
 import type { BridgeRuntime } from './runtime';
 import {
 	repairPersistedModel,
-	restoredConversationHistory,
+	conversationRecord,
 	startSessionCommand,
 	validateAgentModel,
 	worktreeExists,
@@ -192,6 +192,7 @@ export interface SendPromptHooks {
 	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
 	readonly theme?: () => AgentTheme;
+	readonly compactWindow?: () => Promise<number>;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 }
@@ -537,7 +538,7 @@ export async function getOrCreateAgentSession(
 			model: existingModel,
 			providerSessionId: existing.providerSessionId,
 			worktreePath: worktree,
-			conversationHistory: restoredConversationHistory(db, existing.id),
+			conversationHistory: conversationRecord(db, existing.id),
 		});
 		try {
 			await supervisor.sendCommand(command);
@@ -577,7 +578,7 @@ export async function activateAgentSession(
 		model,
 		providerSessionId: row.provider_session_id,
 		worktreePath: worktree,
-		conversationHistory: restoredConversationHistory(db, sessionId),
+		conversationHistory: conversationRecord(db, sessionId),
 	});
 	await supervisor.sendCommand(command);
 	runtime.markSessionRegistered(sessionId, supervisor);
@@ -767,6 +768,7 @@ async function sendAgentPromptLeased(
 		...(input.steer === true ? { steer: true } : {}),
 		...(hooks.theme ? { theme: hooks.theme() } : {}),
 		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
+		...(hooks.compactWindow ? { compactWindow: await hooks.compactWindow() } : {}),
 	});
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);

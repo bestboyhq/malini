@@ -10,6 +10,19 @@ export type AgentReport = 'low' | 'medium' | 'high';
 
 export type AgentTheme = 'light' | 'dark';
 
+export const CONTEXT_WINDOW_SETTING = 'chat.context-window';
+
+export const DEFAULT_CONTEXT_WINDOW = 280_000;
+
+export const CONTEXT_WINDOW_RANGE = Object.freeze({ min: 100_000, max: 1_000_000, step: 10_000 });
+
+export function contextWindowOf(setting: string | null | undefined): number {
+	const tokens = Number.parseInt(setting ?? '', 10);
+	if (Number.isNaN(tokens)) return DEFAULT_CONTEXT_WINDOW;
+	const { min, max, step } = CONTEXT_WINDOW_RANGE;
+	return Math.min(max, Math.max(min, Math.round(tokens / step) * step));
+}
+
 export interface AgentRunProfile {
 	effort: AgentReasoningEffort;
 	mode: AgentRunMode;

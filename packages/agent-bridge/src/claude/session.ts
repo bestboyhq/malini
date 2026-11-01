@@ -26,6 +26,7 @@ import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
 import type { McpServerReport } from '../types.js';
 import { MALINI_MCP_SERVER, maliniTools } from './browser-tools.js';
+import { previousConversation, recordHooks } from './compaction.js';
 import {
 	configChanged,
 	configSnapshot,
@@ -130,6 +131,7 @@ interface RunSettings {
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
 	readonly lineage: AgentLineage | undefined;
+	readonly compactWindow: number | undefined;
 }
 
 interface ActiveRun {
@@ -139,6 +141,7 @@ interface ActiveRun {
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
 	readonly lineage: AgentLineage | undefined;
+	readonly compactWindow: number | undefined;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -208,8 +211,9 @@ export class ClaudeSession implements ProviderHandle {
 		steer?: boolean,
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
+		compactWindow?: number,
 	): Promise<void> {
-		const run: RunSettings = { profile, skills, theme, lineage };
+		const run: RunSettings = { profile, skills, theme, lineage, compactWindow };
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -240,6 +244,7 @@ export class ClaudeSession implements ProviderHandle {
 		if (idle?.idleTimeout) {
 			const fresh =
 				canContinue(idle, run, rewinds(idle, resumeAt), freshConversation) &&
+				idle.compactWindow === run.compactWindow &&
 				idle.config !== null &&
 				!configChanged(idle.config);
 			if (fresh && (await this.#continue(idle, prompt, runId, profile)) === 'done') return;
@@ -294,6 +299,7 @@ export class ClaudeSession implements ProviderHandle {
 			skills: run.skills,
 			theme: run.theme,
 			lineage: run.lineage,
+			compactWindow: run.compactWindow,
 			results: [],
 			costBefore: 0,
 			query,
@@ -617,7 +623,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme, lineage }: RunSettings,
+		{ profile, skills, theme, lineage, compactWindow }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -655,7 +661,11 @@ export class ClaudeSession implements ProviderHandle {
 				PermissionDenied: [
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
+				SessionStart: [
+					{ matcher: 'compact', hooks: recordHooks(() => this.#context.requestHistory()) },
+				],
 			},
+			...(compactWindow ? { settings: { autoCompactWindow: compactWindow } } : {}),
 			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
 			canUseTool: this.#canUseTool(),
 			...(model ? { model } : {}),
@@ -850,10 +860,7 @@ export class ClaudeSession implements ProviderHandle {
 	#promptWithSeed(prompt: string): string {
 		const history = this.#seedHistory;
 		if (!history || history.length === 0) return prompt;
-		const transcript = history
-			.map((message) => `[${message.role}] ${message.content.trim()}`)
-			.join('\n\n');
-		return `<previous_conversation>\n${transcript}\n</previous_conversation>\n\n${prompt}`;
+		return `${previousConversation(history)}\n\n${prompt}`;
 	}
 
 	async cancel(runId: string): Promise<void> {

@@ -6199,6 +6199,16 @@
 			"uuid": "572a55aa-8cff-4541-a4bf-f1e18a18e75c"
 		},
 		{
+			"hook": {
+				"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+				"cwd": "/work/repo",
+				"prompt_id": "4b076b0d-f866-4c0d-9195-01734c07f0d8",
+				"hook_event_name": "SessionStart",
+				"source": "compact",
+				"model": "claude-haiku-4-5-20251001"
+			}
+		},
+		{
 			"type": "system",
 			"subtype": "status",
 			"status": null,
