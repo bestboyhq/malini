@@ -22,6 +22,7 @@ export type Mark = Readonly<{ label: string; tone: string }>;
 export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'button-clicked': { label: 'Button clicked', icon: 'pick-element' },
 	'workstream-opened': { label: 'Workstream opened', icon: 'folder-open' },
+	'secrets-saved': { label: 'Secrets saved', icon: 'key' },
 	'turn-finished': { label: 'Turn finished', icon: 'chat' },
 	'tool-called': { label: 'Tool called', icon: 'plug' },
 	'job-started': { label: 'Job started', icon: 'play' },
@@ -111,6 +112,7 @@ const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(
 const YOU_DID: Readonly<Partial<Record<EventRow, string>>> = {
 	'button-clicked': 'You clicked it',
 	'workstream-opened': 'You opened it',
+	'secrets-saved': 'You saved them',
 };
 
 type Payload = Readonly<Record<string, unknown>>;

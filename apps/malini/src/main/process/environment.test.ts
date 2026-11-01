@@ -149,6 +149,19 @@ describe('resolveEnvironmentFrom', () => {
 		expect(resolved.toolchainVariables).toEqual([['VOLTA_HOME', '/home/u/.volta']]);
 	});
 
+	it('honors DO_NOT_TRACK from the login shell or the inherited environment', () => {
+		const doNotTrack = (raw: string, inherited: Record<string, string> = {}): boolean =>
+			resolveEnvironmentFrom({ raw: `PATH=/usr/bin\0${raw}` }, inherited).doNotTrack;
+		expect(doNotTrack('DO_NOT_TRACK=1\0')).toBe(true);
+		expect(doNotTrack('DO_NOT_TRACK=true\0')).toBe(true);
+		expect(doNotTrack('', { DO_NOT_TRACK: '1' })).toBe(true);
+		expect(doNotTrack('DO_NOT_TRACK=0\0')).toBe(false);
+		expect(doNotTrack('')).toBe(false);
+		expect(resolveEnvironmentFrom({ error: 'no shell' }, { DO_NOT_TRACK: '1' }).doNotTrack).toBe(
+			true,
+		);
+	});
+
 	it('leads the child environment with PATH', () => {
 		const resolved = resolveEnvironmentFrom(
 			{ raw: 'PATH=/usr/bin\0MISE_DATA_DIR=/home/u/.mise\0' },

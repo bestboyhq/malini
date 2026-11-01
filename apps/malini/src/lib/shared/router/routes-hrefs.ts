@@ -1,7 +1,5 @@
 export type WorkstreamHrefOptions = Readonly<{
 	agentSessionId?: string | null;
-	inspector?: string | null;
-	extension?: string | null;
 }>;
 
 export const REPOSITORIES_HREF = '/';
@@ -24,6 +22,8 @@ export const SKILL_SETTINGS_HREF = '/settings/skills';
 
 export const MCP_SETTINGS_HREF = '/settings/mcp-servers';
 
+export const EXTENSION_SETTINGS_HREF = '/settings/extensions';
+
 export const PROFILE_SETTINGS_HREF = '/settings/profile';
 
 export function jobHref(definitionId: string): string {
@@ -42,8 +42,6 @@ export function workstreamHref(workstreamId: string, options: WorkstreamHrefOpti
 	const path = `/workstreams/${encodeURIComponent(workstreamId)}`;
 	const search = new URLSearchParams();
 	if (options.agentSessionId) search.set('agent', options.agentSessionId);
-	if (options.inspector) search.set('inspector', options.inspector);
-	if (options.extension) search.set('extension', options.extension);
 	const query = search.toString();
 	return query ? `${path}?${query}` : path;
 }

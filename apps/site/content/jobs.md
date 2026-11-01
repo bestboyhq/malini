@@ -182,6 +182,8 @@ A workstream an agent just started counts as busy until the turn of its first pr
   Its edit to a job that runs without asking waits for your [review](/malini/docs/agent-tools.md#edits-you-review), change by change.
 
 The **Job center** shows what is running and what just finished.
+It sits at the bottom of a workstream's side panel, and at the bottom right of the Repositories page while something runs, waits for you, or is scheduled.
+Its header is the way into the Jobs page, and counts what needs you.
 Under **Upcoming**, it lists every scheduled job that is not off, soonest first, with when it runs next, where it runs, and whether it asks you first (**Asks first**).
 Click one to open its job.
 With nothing running or waiting, the Job center says when the next one runs, such as "next at 09:00 today".

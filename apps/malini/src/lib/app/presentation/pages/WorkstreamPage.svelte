@@ -136,7 +136,6 @@
 	workstream={inspectedWorkstream}
 	activationReady={repositoryScopeReady && !worktreePending}
 	workstreamName={workstream?.name ?? null}
-	repositoryLabel={repositoryContext?.repo.fullName ?? project?.name ?? null}
 	{changeTotals}
 	creationContext={(id) => (creationPending(id) ? (creationContext(id) ?? {}) : null)}
 	oncreationannounced={consumeWorkstreamCreationCommand}

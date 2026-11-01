@@ -39,6 +39,7 @@ export class BaseOverlapWatch {
 	readonly #failingFetches = new Set<string>();
 	readonly #unsubscribes: Array<() => void> = [];
 	#timer: ReturnType<typeof setInterval> | null = null;
+	#disposed = false;
 
 	constructor(deps: BaseOverlapWatchDeps) {
 		this.#deps = deps;
@@ -46,6 +47,7 @@ export class BaseOverlapWatch {
 
 	start(): void {
 		if (this.#timer !== null) return;
+		this.#disposed = false;
 		const { events, fetchEveryMs = BASE_FETCH_EVERY_MS } = this.#deps;
 		this.#unsubscribes.push(
 			events.subscribe(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL, ({ workstreamId }) => {
@@ -62,6 +64,7 @@ export class BaseOverlapWatch {
 	}
 
 	dispose(): void {
+		this.#disposed = true;
 		for (const unsubscribe of this.#unsubscribes.splice(0)) unsubscribe();
 		if (this.#timer !== null) clearInterval(this.#timer);
 		this.#timer = null;
@@ -84,6 +87,7 @@ export class BaseOverlapWatch {
 	}
 
 	compare(workstreamId: string): Promise<void> {
+		if (this.#disposed) return Promise.resolve();
 		const comparing = this.#compareAfter(workstreamId, this.#comparing.get(workstreamId));
 		this.#comparing.set(workstreamId, comparing);
 		return comparing;
@@ -94,6 +98,7 @@ export class BaseOverlapWatch {
 		try {
 			await this.#compareOnce(workstreamId);
 		} catch (error) {
+			if (this.#disposed) return;
 			this.#deps.log(
 				`malini: could not compare workstream \`${workstreamId}\` with its base branch: ${describeError(error)}`,
 			);
@@ -118,7 +123,7 @@ export class BaseOverlapWatch {
 		const overlap = await baseOverlap(checkout, head, baseHead);
 		const ended = overlap !== null && (await pullRequestEnded(workstream));
 		this.#compared.set(workstreamId, pair);
-		if (overlap === null || ended) return;
+		if (overlap === null || ended || this.#disposed) return;
 		events.emit(REPOSITORIES_WORKSTREAM_BASE_OVERLAPPED_CHANNEL, {
 			workstreamId,
 			baseBranch: workstream.baseBranch,
@@ -147,7 +152,7 @@ export class BaseOverlapWatch {
 			await this.#deps.fetchBase(project.repoPath, workstream.baseBranch);
 			this.#failingFetches.delete(key);
 		} catch (error) {
-			if (this.#failingFetches.has(key) || unreachable(error)) return;
+			if (this.#disposed || this.#failingFetches.has(key) || unreachable(error)) return;
 			this.#failingFetches.add(key);
 			this.#deps.log(
 				`malini: could not fetch ${workstream.baseBranch} of ${project.repoPath}: ${describeError(error)}`,

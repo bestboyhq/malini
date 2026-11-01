@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 44,
+	"protocolVersion": 46,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -32,6 +32,7 @@
 		"list_skills",
 		"browser_result",
 		"platform_result",
+		"set_secrets",
 		"history_result"
 	],
 	"events": [
@@ -90,6 +91,7 @@
 		"files_open",
 		"decisions_ask",
 		"decisions_answer",
-		"plan_write"
+		"plan_write",
+		"secrets_request"
 	]
 }

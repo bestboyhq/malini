@@ -41,6 +41,24 @@ export interface RendererErrorReceipt {
 
 export type NotificationPermissionResult = 'granted' | 'denied' | 'prompt';
 
+export type UsageReportAge = 'day_1' | 'week_1' | 'month_1' | 'later';
+
+export interface UsageReport {
+	day: string;
+	started: number;
+	prompts: number;
+	merged: number;
+	archived: number;
+	turns: number | null;
+	minutes: number | null;
+	age: UsageReportAge;
+}
+
+export interface UsageDataState {
+	doNotTrack: boolean;
+	report: UsageReport | null;
+}
+
 export interface LogicalViewport {
 	width: number;
 	height: number;
@@ -136,7 +154,7 @@ export interface ExtensionFileStat {
 
 export interface ExtensionSourceSnapshot {
 	id: string;
-	sourceKind: 'local' | 'managed';
+	sourceKind: 'local';
 	sourcePath: string;
 	enabled: boolean;
 	watch: boolean;
@@ -145,14 +163,6 @@ export interface ExtensionSourceSnapshot {
 	fingerprint: string;
 	reloadSequence: number;
 	loadError: string | null;
-}
-
-export interface ManagedExtensionSourceSnapshot extends ExtensionSourceSnapshot {
-	sourceKind: 'managed';
-	version: string;
-	installedAt: string;
-	releaseJson: string;
-	previousVersions: string[];
 }
 
 export interface ExtensionDevelopmentLog {

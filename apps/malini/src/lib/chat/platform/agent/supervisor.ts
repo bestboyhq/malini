@@ -736,11 +736,12 @@ export class BridgeSupervisor {
 		return this.sendCommand({ cmd: 'refresh_session_status', id: this.nextCommandId(), sessionId });
 	}
 
-	watchMcpServers(cwd: string, restart = false): Promise<void> {
+	watchMcpServers(cwd: string, plugins: readonly string[], restart = false): Promise<void> {
 		return this.sendCommand({
 			cmd: 'watch_mcp_servers',
 			id: this.nextCommandId(),
 			cwd,
+			plugins,
 			...(restart ? { restart } : {}),
 		});
 	}
@@ -749,10 +750,11 @@ export class BridgeSupervisor {
 		serverName: string,
 		on: boolean,
 		folders: readonly string[],
+		plugins: readonly string[],
 	): Promise<string[]> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'switch_mcp_server', id, serverName, on, folders });
+			await this.sendCommand({ cmd: 'switch_mcp_server', id, serverName, on, folders, plugins });
 			const switched = this.mcpSwitches.get(id);
 			if (switched === undefined) {
 				throw new SupervisorError(
@@ -769,10 +771,11 @@ export class BridgeSupervisor {
 	async authorizeMcpServer(
 		target: BridgeMcpServerTarget,
 		serverName: string,
+		plugins: readonly string[],
 	): Promise<string | null> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'authorize_mcp_server', id, serverName, ...target });
+			await this.sendCommand({ cmd: 'authorize_mcp_server', id, serverName, plugins, ...target });
 			const authUrl = this.mcpAuthorizations.get(id);
 			if (authUrl === undefined) {
 				throw new SupervisorError(
@@ -794,11 +797,16 @@ export class BridgeSupervisor {
 		});
 	}
 
-	reconnectMcpServer(target: BridgeMcpServerTarget, serverName: string): Promise<void> {
+	reconnectMcpServer(
+		target: BridgeMcpServerTarget,
+		serverName: string,
+		plugins: readonly string[],
+	): Promise<void> {
 		return this.sendCommand({
 			cmd: 'reconnect_mcp_server',
 			id: this.nextCommandId(),
 			serverName,
+			plugins,
 			...target,
 		});
 	}

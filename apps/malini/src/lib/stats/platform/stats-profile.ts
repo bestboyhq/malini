@@ -8,7 +8,7 @@ import type {
 } from '$contract/stats';
 import { localDate, shiftDate } from '../domain/activity';
 import { handleProblem, normalizedHandle } from '../domain/handle';
-import { BestboyError, type Bestboy } from './bestboy';
+import { BestboyError, type Bestboy, type BestboySession } from './bestboy';
 import { settled, SIGNED_OUT, type ProfileStore, type SavedProfile } from './profile-store';
 
 export interface StatsProfileDeps {
@@ -117,6 +117,36 @@ export class StatsProfile {
 	cancelSignIn(): ProfileState {
 		this.#clearPending();
 		return this.#emit();
+	}
+
+	session(): BestboySession | null {
+		const { token, profile } = this.#saved;
+		return token ? { token, handle: profile?.handle ?? null } : null;
+	}
+
+	claimHandle(text: string): Promise<string | null> {
+		return this.#serial(async () => {
+			const handle = normalizedHandle(text);
+			const { token } = this.#saved;
+			if (!token) return 'Sign in to Bestboy first.';
+			const problem = handleProblem(handle);
+			if (problem) return problem;
+			try {
+				const profile = await this.#deps.bestboy.putProfile(token, { handle });
+				await this.#save({ ...this.#saved, profile });
+				this.#emit();
+				return null;
+			} catch (error) {
+				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
+				this.#emit();
+				return described(error);
+			}
+		});
+	}
+
+	async forgetSignIn(): Promise<void> {
+		await this.#forgetToken();
+		this.#emit();
 	}
 
 	async completeSignIn(url: string): Promise<void> {

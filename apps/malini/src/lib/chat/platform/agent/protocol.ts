@@ -113,8 +113,11 @@ export type BridgeCommand =
 			steer?: true;
 			theme?: AgentTheme;
 			lineage?: AgentLineage;
+			secrets?: Readonly<Record<string, string>>;
+			plugins?: readonly string[];
 			compactWindow?: number;
 	  }
+	| { cmd: 'set_secrets'; id: string; sessionId: string; secrets: Readonly<Record<string, string>> }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }
 	| {
@@ -142,14 +145,22 @@ export type BridgeCommand =
 			cmd: 'authorize_mcp_server' | 'reconnect_mcp_server';
 			id: string;
 			serverName: string;
+			plugins: readonly string[];
 	  } & BridgeMcpServerTarget)
-	| { cmd: 'watch_mcp_servers'; id: string; cwd: string; restart?: true }
+	| {
+			cmd: 'watch_mcp_servers';
+			id: string;
+			cwd: string;
+			restart?: true;
+			plugins: readonly string[];
+	  }
 	| {
 			cmd: 'switch_mcp_server';
 			id: string;
 			serverName: string;
 			on: boolean;
 			folders: readonly string[];
+			plugins: readonly string[];
 	  }
 	| { cmd: 'cancel_mcp_authorization'; id: string; serverName: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }

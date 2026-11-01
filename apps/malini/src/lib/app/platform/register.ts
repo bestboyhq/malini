@@ -21,6 +21,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { readDiagnostics } from '$main/diagnostics/diagnostics-files';
 import type { DockerOwnership } from '$main/docker/ownership';
 import { DockerCliReaper, type ContainerReaper } from '$main/docker/reclaim';
+import { currentEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
 import type { AppPlatform } from '../app.platform';
 import {
@@ -40,6 +41,7 @@ import { createElectronShellHost, type ShellHost } from './shell-host';
 import { StreamingDetector } from './streaming';
 import { startUpdates } from './updates';
 import { startUsageData } from './usage-data';
+import { readUsageReport } from './usage-report';
 import { createWindowCommands, type WindowCommands } from './window';
 
 export interface AppDeps {
@@ -198,6 +200,11 @@ function defineSettingsCommands(context: MainContext): void {
 	const { db, commands } = context;
 
 	commands.define('app.list-settings', (): Record<string, string> => listSettings(db));
+
+	commands.define('app.usage-data', () => ({
+		doNotTrack: currentEnvironment().doNotTrack,
+		report: readUsageReport(db, new Date()),
+	}));
 
 	commands.define('app.set-setting', (args: unknown): void => {
 		setSetting(db, requireString(args, 'key'), requireString(args, 'value'));

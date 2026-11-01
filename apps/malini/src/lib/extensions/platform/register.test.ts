@@ -15,6 +15,14 @@ import { CommandRegistry } from '$main/ipc/registry';
 import { registerExtensions } from './register';
 import { realGit } from '$main/git/fixtures.test-support';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
+import type { BestboyAccess } from '$lib/stats/stats.platform';
+const offlineBestboy = (): BestboyAccess => ({
+	origin: 'https://bestboy.test',
+	fetch: () => Promise.reject(new Error('offline')),
+	session: () => null,
+	claimHandle: () => Promise.resolve(null),
+	signedOut: () => Promise.resolve(),
+});
 
 let root: string;
 let context: MainContext;
@@ -45,6 +53,7 @@ beforeEach(async () => {
 	registerExtensions(context, {
 		resolver,
 		readCheckout: async (id, read) => read(await resolver.resolveCheckout(id)),
+		bestboy: offlineBestboy,
 	});
 });
 

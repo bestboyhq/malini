@@ -14,7 +14,7 @@
 	import { BUILTIN_JOBS } from '$lib/jobs/domain/builtin-jobs';
 	import { newJobStateQuery } from '$lib/jobs/application/queries/new-job-state.query.svelte';
 	import { automationsState } from './automations-state.svelte';
-	import AutomationsSection from './AutomationsSection.svelte';
+	import { PageSection } from '$hyper-ui/components/page-section';
 	import JobCard from './JobCard.svelte';
 	import JobDraftCard from './JobDraftCard.svelte';
 	import JobSuggestionCard from './JobSuggestionCard.svelte';
@@ -71,7 +71,7 @@
 	}
 </script>
 
-<AutomationsSection
+<PageSection
 	title="Automations"
 	description="Jobs Malini runs when something happens. Say what and when, and Malini drafts the job."
 	testId="automations-overview"
@@ -187,4 +187,4 @@
 			{/each}
 		</ul>
 	</Well>
-</AutomationsSection>
+</PageSection>

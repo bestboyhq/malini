@@ -2,7 +2,6 @@
 	import { untrack, type Snippet } from 'svelte';
 	import type { ExtensionPanelRegistration, ExtensionWorkstream } from '@malini/extension-api';
 	import type { WorkstreamChangeTotals } from '$shared/repositories/repositories.api';
-	import { goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
 	import { dockInspector } from '$shared/shell/inspector-dock.svelte';
 	import { retryExtensionRuntimeCommand } from '../application/commands/retry-extension-runtime.command';
@@ -14,18 +13,14 @@
 	import { inspectorPanelsQuery } from '../application/queries/inspector-panels.query.svelte';
 	import { extensionWorkstreamFingerprint } from '../domain/extension-workstream-fingerprint';
 	import type { WorkstreamCreatedAutomationContext } from '../domain/workstream-created-automation-context';
-	import ExtensionDirectoryDetailPage from './ExtensionDirectoryDetailPage.svelte';
-	import ExtensionDirectoryPage from './ExtensionDirectoryPage.svelte';
 	import ExtensionInspectorShell from './ExtensionInspectorShell.svelte';
 	import type { InspectorPanelAction } from './inspector-panel-action';
-	import { extensionDirectoryHref, extensionInspectorHref } from './extension-directory-navigation';
 
 	interface Props {
 		workstreamId: string;
 		workstream: ExtensionWorkstream | null;
 		activationReady: boolean;
 		workstreamName: string | null;
-		repositoryLabel: string | null;
 		changeTotals: WorkstreamChangeTotals | null;
 		creationContext: (workstreamId: string) => WorkstreamCreatedAutomationContext | null;
 		oncreationannounced: (workstreamId: string) => void;
@@ -41,7 +36,6 @@
 		workstream,
 		activationReady,
 		workstreamName,
-		repositoryLabel,
 		changeTotals,
 		creationContext,
 		oncreationannounced,
@@ -53,33 +47,7 @@
 	}: Props = $props();
 
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
-	const shallowExtensionDirectory = $derived.by(() => {
-		const state = page.state.extensionDirectory;
-		if (state?.workstreamId !== workstreamId || typeof globalThis.location === 'undefined') {
-			return null;
-		}
-		const actual = new URL(globalThis.location.href);
-		if (
-			actual.pathname !== page.url.pathname ||
-			actual.searchParams.get('inspector') !== 'extensions' ||
-			actual.searchParams.get('extension') !== state.extensionId
-		) {
-			return null;
-		}
-		return state;
-	});
-	const directoryOpen = $derived(
-		shallowExtensionDirectory !== null || page.url.searchParams.get('inspector') === 'extensions',
-	);
-	const routePanelId = $derived.by(() => {
-		const panelId = page.url.searchParams.get('inspector');
-		return panelId && panelId !== 'extensions' ? panelId : null;
-	});
-	const directoryExtensionId = $derived(
-		shallowExtensionDirectory
-			? shallowExtensionDirectory.extensionId
-			: page.url.searchParams.get('extension'),
-	);
+	const routePanelId = $derived(page.url.searchParams.get('inspector'));
 	const extensionPanels = $derived(browserOnly ? [] : inspectorPanelsQuery.data);
 	const ready = $derived(extensionRuntimeReadyQuery.data(workstreamId));
 	const panels = $derived(
@@ -115,29 +83,7 @@
 		retryExtensionRuntimeCommand(workstreamId);
 		onruntimeretry();
 	}
-
-	function closeDirectory(): void {
-		if (!directoryOpen) return;
-		void goto(extensionInspectorHref({ workstreamId, agentSessionId }), {
-			noScroll: true,
-			keepFocus: true,
-		});
-	}
 </script>
-
-{#snippet directoryContent()}
-	{#if directoryExtensionId}
-		<ExtensionDirectoryDetailPage
-			{workstreamId}
-			extensionId={directoryExtensionId}
-			{agentSessionId}
-			extensionWorkstream={workstream}
-			{repositoryLabel}
-		/>
-	{:else}
-		<ExtensionDirectoryPage {workstreamId} {agentSessionId} />
-	{/if}
-{/snippet}
 
 {#if !browserOnly || panels.length > 0}
 	<ExtensionInspectorShell
@@ -150,16 +96,9 @@
 		{ready}
 		{runtimeError}
 		onruntimeretry={onRuntimeRetry}
-		addExtensionsHref={browserOnly
-			? undefined
-			: extensionDirectoryHref({ workstreamId, agentSessionId })}
-		closeDirectoryNavigationTarget={extensionInspectorHref({ workstreamId, agentSessionId })}
-		addExtensionsActive={directoryOpen}
-		addExtensionsContent={directoryContent}
 		header={dock}
 		{panelActions}
 		{workstreamPanelIds}
-		onpanelselect={closeDirectory}
 		requestedPanelId={routePanelId}
 	/>
 {:else if dock}

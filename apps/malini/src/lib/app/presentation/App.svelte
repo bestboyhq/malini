@@ -29,6 +29,10 @@
 		if (to) rememberLastRoute(to.url);
 	});
 
+	const jobCenterFloats = $derived(
+		!page.params.workstreamId && !page.url.pathname.startsWith(JOBS_HREF),
+	);
+
 	$effect(() => watchRepositorySurfaceHook(() => page.params.workstreamId ?? ''));
 
 	onMount(() => {
@@ -55,7 +59,7 @@
 
 <McpFixDialog />
 
-{#if !page.params.workstreamId && !page.url.pathname.startsWith(JOBS_HREF)}
+{#if jobCenterFloats}
 	<JobCenter />
 {/if}
 

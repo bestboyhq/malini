@@ -219,6 +219,36 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it("parses a session's secrets with a prompt or on their own, and refuses a name a shell could not export", () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"send_prompt","id":"c1","sessionId":"s1","runId":"r1","prompt":"deploy","secrets":{"STRIPE_KEY":"sk-live-1234567890"}}',
+				),
+			).toMatchObject({ ok: true, command: { secrets: { STRIPE_KEY: 'sk-live-1234567890' } } });
+			expect(
+				parseCommandLine(
+					'{"cmd":"set_secrets","id":"c2","sessionId":"s1","secrets":{"API_TOKEN":"a b \\"c\\""}}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'set_secrets',
+					id: 'c2',
+					sessionId: 's1',
+					secrets: { API_TOKEN: 'a b "c"' },
+				},
+			});
+			for (const invalid of [
+				'{"cmd":"set_secrets","id":"c3","sessionId":"s1","secrets":{"NOT-A-NAME":"x"}}',
+				'{"cmd":"set_secrets","id":"c4","sessionId":"s1","secrets":{"TOKEN":7}}',
+				'{"cmd":"set_secrets","id":"c5","sessionId":"s1","secrets":[]}',
+				'{"cmd":"set_secrets","id":"c6","sessionId":"","secrets":{}}',
+				'{"cmd":"send_prompt","id":"c7","sessionId":"s1","runId":"r1","prompt":"x","secrets":{"1ST":"x"}}',
+			]) {
+				expect(parseCommandLine(invalid)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('parses the record main hands back and rejects one it could not have sent', () => {
 			expect(
 				parseCommandLine(
@@ -448,6 +478,24 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses the plugin folders every MCP probe loads and rejects a list that is not absolute folder paths', () => {
+			for (const command of [
+				'"cmd":"authorize_mcp_server","id":"p1","sessionId":"s1","serverName":"plugin:linear:linear"',
+				'"cmd":"reconnect_mcp_server","id":"p2","cwd":"/repo","serverName":"plugin:linear:linear"',
+				'"cmd":"watch_mcp_servers","id":"p3","cwd":"/repo"',
+				'"cmd":"switch_mcp_server","id":"p4","serverName":"plugin:linear:linear","on":true,"folders":["/repo"]',
+			]) {
+				expect(parseCommandLine(`{${command},"plugins":["/extensions/linear"]}`)).toMatchObject({
+					ok: true,
+					command: { plugins: ['/extensions/linear'] },
+				});
+				expect(parseCommandLine(`{${command},"plugins":["extensions/linear"]}`)).toMatchObject({
+					ok: false,
+					code: 'INVALID_PAYLOAD',
+				});
+			}
+		});
+
 		it('parses a stop_task command and rejects one without a task', () => {
 			expect(
 				parseCommandLine(
@@ -596,6 +644,29 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses the plugin folders a prompt loads and rejects a list that is not absolute folder paths', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const withPlugins = (plugins: unknown) =>
+				parseCommandLine(`{${prompt},"plugins":${JSON.stringify(plugins)}}`);
+			const folders = ['/extensions/linear', '/extensions/figma'];
+			const extensions = (count: number) =>
+				Array.from({ length: count }, (_, index) => `/extensions/${index}`);
+
+			expect(withPlugins(folders)).toMatchObject({ ok: true, command: { plugins: folders } });
+			expect(withPlugins([])).toMatchObject({ ok: true, command: { plugins: [] } });
+			expect(withPlugins(extensions(50)).ok).toBe(true);
+			expect(withPlugins([`/${'a'.repeat(1_023)}`]).ok).toBe(true);
+			for (const broken of [
+				'/extensions/linear',
+				['extensions/linear'],
+				[7],
+				[`/${'a'.repeat(1_024)}`],
+				extensions(51),
+			]) {
+				expect(withPlugins(broken)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('parses a prompt that steers the running turn and rejects a steer that is not a boolean', () => {
 			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
 			expect(parseCommandLine(`{${prompt},"steer":true}`)).toMatchObject({
@@ -682,6 +753,7 @@ describe('protocol: parseCommandLine', () => {
 				'list_skills',
 				'browser_result',
 				'platform_result',
+				'set_secrets',
 				'history_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
@@ -718,6 +790,7 @@ describe('protocol: parseCommandLine', () => {
 				'decisions_ask',
 				'decisions_answer',
 				'plan_write',
+				'secrets_request',
 			]);
 		});
 

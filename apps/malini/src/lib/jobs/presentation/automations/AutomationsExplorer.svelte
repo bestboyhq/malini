@@ -23,7 +23,7 @@
 		type MapNode,
 		type Working,
 	} from '$lib/jobs/domain/explorer';
-	import AutomationsSection from './AutomationsSection.svelte';
+	import { PageSection } from '$hyper-ui/components/page-section';
 	import ExplorerEvents from './ExplorerEvents.svelte';
 	import ExplorerMap from './ExplorerMap.svelte';
 	import ExplorerStrip from './ExplorerStrip.svelte';
@@ -212,7 +212,7 @@
 	}
 </script>
 
-<AutomationsSection
+<PageSection
 	title="Explorer"
 	description="How work moved through Malini. Press play to replay it, or pick an event."
 	testId="automations-explorer"
@@ -302,4 +302,4 @@
 			</div>
 		</Well>
 	{/if}
-</AutomationsSection>
+</PageSection>

@@ -141,17 +141,15 @@ test('the Job center appears with a job, puts the one that needs you first, hold
 		await openWorkstream(page, seeded.workstreamId);
 		const idle = page.getByRole('region', { name: 'Jobs: ready when you are' });
 		await expect(idle).toBeVisible({ timeout: 20_000 });
-		await expect(idle.getByRole('link', { name: 'Manage jobs' })).toBeVisible();
-		await expect(page.getByTestId('sidebar-open-jobs')).not.toHaveAttribute('aria-describedby');
+		await expect(page.getByTestId('sidebar-open-jobs')).toHaveCount(0);
 
-		await openJobs(page);
+		await idle.getByRole('link', { name: 'Jobs · ready when you are' }).click();
+		await expect(page.getByRole('navigation', { name: 'Automations' })).toBeVisible();
 		await draftJob(page, { name: 'Ask first', words: 'QUESTION before you start' });
 		await draftJob(page, { name: 'Keep going', words: 'HANG until stopped' });
 		await runJob(page, 'Ask first');
 		await runJob(page, 'Keep going');
 
-		const jobsLink = page.getByTestId('sidebar-open-jobs');
-		await expect(jobsLink).toHaveAccessibleDescription('1 job needs you', { timeout: 30_000 });
 		await openWorkstream(page, seeded.workstreamId);
 		const center = page.getByRole('region', { name: /^Jobs: .*1 needs you/u });
 		await expect(center).toBeVisible({ timeout: 30_000 });

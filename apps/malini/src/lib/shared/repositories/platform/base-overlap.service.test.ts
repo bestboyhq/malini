@@ -121,6 +121,38 @@ describe('BaseOverlapWatch', () => {
 		]);
 	});
 
+	it('drops a compare still running when the app quits, as the database closes under it', async () => {
+		await commit(worktree, { 'shared.txt': 'workstream\n' });
+		await commit(origin, { 'shared.txt': 'main\n' });
+		working = true;
+		await watch.fetchAndCompare();
+		const quitting: BaseOverlapWatch = new BaseOverlapWatch({
+			db,
+			events,
+			checkouts: {
+				resolveCheckout: async () => worktree,
+				resolveRepositoryRoot: async () => worktree,
+			},
+			fetchBase: async () => 'refs/remotes/origin/main',
+			agentWorking: async () => {
+				quitting.dispose();
+				return false;
+			},
+			merging: async () => {
+				throw new Error('statement has been finalized');
+			},
+			pullRequestEnded: async () => false,
+			log: (line) => {
+				throw new Error(line);
+			},
+		});
+
+		await quitting.compare('ws');
+		await quitting.compare('ws');
+
+		expect(overlaps).toEqual([]);
+	});
+
 	it('reports nothing when main changed only files the workstream left alone', async () => {
 		await commit(worktree, { 'shared.txt': 'workstream\n' });
 		await commit(origin, { 'other.txt': 'main\n' });

@@ -55,9 +55,12 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('means Malini lets you try that exact call again');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
-		expect(prompt).toContain('open that file for them with `files_open`');
-		expect(prompt).toContain('with the name of every secret you need in `keys`');
-		expect(prompt).toContain('never ask them to paste a secret into the chat');
+		expect(prompt).toContain('open it for them with `files_open`');
+		expect(prompt).not.toContain('`keys`');
+		expect(prompt).toContain('is set in each command you run as `$NAME`');
+		expect(prompt).toContain('masks its value as `[secret]` in every output');
+		expect(prompt).toContain('ask for it with `secrets_request`');
+		expect(prompt).toContain('Never ask the user to paste a secret into the chat');
 		expect(prompt).toContain('one-line bullet that starts with `Next:`');
 		expect(prompt).toContain(
 			'`![Before: what it shows](path)` and `![After: what it shows](path)`',

@@ -109,16 +109,21 @@ function mcpIpc(probes: Partial<McpServerProbes>): {
 	readonly frames: () => WireFrame[];
 	readonly adopted: string[];
 	readonly switched: string[];
+	readonly reconnected: string[];
 } {
 	const writes: string[] = [];
 	const adopted: string[] = [];
 	const switched: string[] = [];
+	const reconnected: string[] = [];
 	defaultProviderRegistry.setProvider(async (ctx) => ({
 		async sendPrompt() {},
 		async cancel() {},
 		async close() {},
 		async adoptMcpServer(server) {
 			adopted.push(`${ctx.sessionId} ${server.name}`);
+		},
+		async reconnectMcpServer(serverName, plugins) {
+			reconnected.push(`${ctx.sessionId} ${serverName} [${plugins?.join() ?? ''}]`);
 		},
 		async switchMcpServer(serverName, on) {
 			switched.push(`${ctx.sessionId} ${serverName} ${on ? 'on' : 'off'}`);
@@ -142,7 +147,7 @@ function mcpIpc(probes: Partial<McpServerProbes>): {
 			...probes,
 		},
 	});
-	return { ipc, frames: () => parseFrames(writes.join('')), adopted, switched };
+	return { ipc, frames: () => parseFrames(writes.join('')), adopted, switched, reconnected };
 }
 
 function idleWatch(overrides: Partial<McpServerWatch> = {}): McpServerWatch {
@@ -979,6 +984,54 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		]);
 	});
 
+	it('opens every MCP probe with the plugin folders Malini sends, and watches a folder again once they change', async () => {
+		const probes: string[] = [];
+		const closed: string[] = [];
+		const { ipc, reconnected } = mcpIpc({
+			watch: (cwd, _onListing, plugins) => {
+				probes.push(`watch ${cwd} [${plugins.join()}]`);
+				return idleWatch({ close: () => closed.push(`${cwd} [${plugins.join()}]`) });
+			},
+			authorize: async (cwd, serverName, plugins) => {
+				probes.push(`authorize ${cwd} ${serverName} [${plugins.join()}]`);
+				return { authUrl: null, settled: Promise.resolve(null), cancel: () => undefined };
+			},
+			probe: async (cwd, serverName, plugins) => {
+				probes.push(`probe ${cwd} ${serverName} [${plugins.join()}]`);
+				return { name: serverName, status: 'connected' };
+			},
+			turnOn: async (cwd, serverName, plugins) =>
+				probes.push(`turn on ${cwd} ${serverName} [${plugins.join()}]`) > 0,
+		});
+		await startChats(ipc);
+		const linear = '"serverName":"plugin:linear:linear","plugins":["/extensions/linear"]';
+
+		await ipc.run('{"cmd":"watch_mcp_servers","id":"w-1","cwd":"/repo"}');
+		await ipc.run(
+			'{"cmd":"watch_mcp_servers","id":"w-2","cwd":"/repo","plugins":["/extensions/linear"]}',
+		);
+		await ipc.run(
+			'{"cmd":"watch_mcp_servers","id":"w-3","cwd":"/repo","plugins":["/extensions/linear"]}',
+		);
+		await ipc.run(`{"cmd":"authorize_mcp_server","id":"a-1","cwd":"/work",${linear}}`);
+		await ipc.run(`{"cmd":"reconnect_mcp_server","id":"r-1","cwd":"/work",${linear}}`);
+		await ipc.run(`{"cmd":"reconnect_mcp_server","id":"r-2","sessionId":"chat-1",${linear}}`);
+		await ipc.run(
+			`{"cmd":"switch_mcp_server","id":"s-1","on":true,"folders":["/work/gone"],${linear}}`,
+		);
+		await ipc.drain();
+
+		expect(probes).toEqual([
+			'watch /repo []',
+			'watch /repo [/extensions/linear]',
+			'authorize /work plugin:linear:linear [/extensions/linear]',
+			'probe /work plugin:linear:linear [/extensions/linear]',
+			'turn on /work/gone plugin:linear:linear [/extensions/linear]',
+		]);
+		expect(closed).toEqual(['/repo []']);
+		expect(reconnected).toEqual(['chat-1 plugin:linear:linear [/extensions/linear]']);
+	});
+
 	it('createIpc.run passes start_session worktreePath as provider cwd', async () => {
 		let capturedCwd: string | null = null;
 		defaultProviderRegistry.setProvider(async (ctx) => {
@@ -1006,22 +1059,35 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		expect(capturedCwd).toBe('/tmp/malini-ws');
 	});
 
-	it('passes the rewind point, the skills and a steer of a prompt to the provider', async () => {
+	it('passes the rewind point, the skills, a steer and the plugin folders of a prompt to the provider', async () => {
 		const received: Array<{
 			runId: string;
 			profile?: AgentRunProfile;
 			resumeAt?: string;
 			skills?: readonly string[];
 			steer?: boolean;
+			plugins?: readonly string[];
 		}> = [];
 		defaultProviderRegistry.setProvider(async () => ({
-			async sendPrompt(_prompt, runId, profile, resumeAt, _fresh, skills, steer) {
+			async sendPrompt(
+				_prompt,
+				runId,
+				profile,
+				resumeAt,
+				_fresh,
+				skills,
+				steer,
+				_theme,
+				_lineage,
+				plugins,
+			) {
 				received.push({
 					runId,
 					...(profile ? { profile } : {}),
 					...(resumeAt ? { resumeAt } : {}),
 					...(skills ? { skills } : {}),
 					...(steer ? { steer } : {}),
+					...(plugins ? { plugins } : {}),
 				});
 			},
 			async cancel() {},
@@ -1044,6 +1110,9 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		await ipc.run(
 			'{"cmd":"send_prompt","id":"send-steer","sessionId":"s-rewind","runId":"run-steer","prompt":"instead","steer":true}',
 		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-plugins","sessionId":"s-rewind","runId":"run-plugins","prompt":"with linear","plugins":["/extensions/linear"]}',
+		);
 		await ipc.drain();
 
 		expect(received).toEqual([
@@ -1055,6 +1124,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 			{ runId: 'run-plain' },
 			{ runId: 'run-skills', skills: ['adr', 'ponytail:ponytail'] },
 			{ runId: 'run-steer', steer: true },
+			{ runId: 'run-plugins', plugins: ['/extensions/linear'] },
 		]);
 	});
 

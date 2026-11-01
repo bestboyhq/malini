@@ -12,6 +12,16 @@ export type BestboyMe = Readonly<{ account: BestboyAccount; profile: BestboyProf
 
 export type ProfileChange = Readonly<{ handle?: string; public?: boolean }>;
 
+export type BestboySession = Readonly<{ token: string; handle: string | null }>;
+
+export type BestboyAccess = Readonly<{
+	origin: string;
+	fetch: BestboyFetch;
+	session(): BestboySession | null;
+	claimHandle(handle: string): Promise<string | null>;
+	signedOut(): Promise<void>;
+}>;
+
 export class BestboyError extends Error {
 	override readonly name = 'BestboyError';
 

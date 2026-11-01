@@ -7,6 +7,7 @@ import type {
 	HistoryResult,
 	PlatformRequest,
 	PlatformResult,
+	Secrets,
 } from '../protocol.js';
 import type { ProviderApprovalReply, ProviderQuestionReply } from '../interaction-types.js';
 
@@ -39,16 +40,18 @@ export interface ProviderHandle {
 		steer?: boolean,
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
+		plugins?: readonly string[],
 		compactWindow?: number,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;
 	respondToQuestion?(reply: ProviderQuestionReply): Promise<void>;
 	refreshSessionStatus?(): Promise<void>;
-	reconnectMcpServer?(serverName: string): Promise<void>;
+	reconnectMcpServer?(serverName: string, plugins?: readonly string[]): Promise<void>;
 	adoptMcpServer?(server: McpServerReport): Promise<void>;
 	switchMcpServer?(serverName: string, on: boolean): Promise<boolean>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
+	setSecrets?(secrets: Secrets): Promise<void>;
 	close(): Promise<void>;
 }
 

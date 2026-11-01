@@ -2,29 +2,12 @@ import { createHash } from 'node:crypto';
 import { appendFile, mkdir, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, normalize, resolve, sep } from 'node:path';
 import { isInsideDirectory } from '$main/fs/paths';
-import type {
-	ExtensionDevelopmentLog,
-	ExtensionSourceSnapshot,
-	ManagedExtensionSourceSnapshot,
-} from '$contract/system';
+import type { ExtensionDevelopmentLog, ExtensionSourceSnapshot } from '$contract/system';
 
-export type { ExtensionDevelopmentLog, ExtensionSourceSnapshot, ManagedExtensionSourceSnapshot };
-
-export const NO_MARKETPLACE_ERROR = 'Malini has no extension marketplace';
+export type { ExtensionDevelopmentLog, ExtensionSourceSnapshot };
 
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_ENTRYPOINT_BYTES = 16 * 1024 * 1024;
-
-export interface ManagedExtensionInstallRequest {
-	id: string;
-	version: string;
-	manifestJson: string;
-	entrypoint: string;
-	sha256: string;
-	installedAt: string;
-	releaseJson: string;
-	files: { path: string; contents: number[] }[];
-}
 
 export interface ExtensionPackagePaths {
 	localRoot: string;
@@ -56,29 +39,6 @@ export class ExtensionPackages {
 
 	listSources(): Promise<ExtensionSourceSnapshot[]> {
 		return listLocalSources(this.paths.localRoot);
-	}
-
-	listManaged(): Promise<ManagedExtensionSourceSnapshot[]> {
-		return Promise.resolve([]);
-	}
-
-	installManaged(_request: unknown): Promise<never> {
-		return Promise.reject(new Error(NO_MARKETPLACE_ERROR));
-	}
-
-	downloadRelease(_url: string): Promise<never> {
-		return Promise.reject(new Error(NO_MARKETPLACE_ERROR));
-	}
-
-	setManagedEnabled(
-		extensionId: string,
-		_enabled: boolean,
-	): Promise<ManagedExtensionSourceSnapshot> {
-		return Promise.reject(new Error(`Managed extension ${extensionId} is not installed`));
-	}
-
-	rollbackManaged(extensionId: string): Promise<ManagedExtensionSourceSnapshot> {
-		return Promise.reject(new Error(`Managed extension ${extensionId} is not installed`));
 	}
 
 	async recoveryModeEnabled(): Promise<boolean> {

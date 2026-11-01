@@ -128,6 +128,7 @@ describe('malini MCP server', () => {
 					{ name: 'decisions_answer' },
 					{ name: 'plan_write' },
 					{ name: 'files_open' },
+					{ name: 'secrets_request' },
 				],
 			},
 		});
@@ -228,7 +229,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('pre-approves the browser, the read tools, the work a chat starts in its own tree, its decisions, its plan and opening a file, never another tool that changes Malini', () => {
+	it('pre-approves the browser, the read tools, the work a chat starts in its own tree, its decisions, its plan, opening a file and asking for secrets, never another tool that changes Malini', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
@@ -245,6 +246,7 @@ describe('malini MCP server', () => {
 			'mcp__malini__decisions_answer',
 			'mcp__malini__plan_write',
 			'mcp__malini__files_open',
+			'mcp__malini__secrets_request',
 		]);
 	});
 
@@ -304,13 +306,22 @@ describe('malini MCP server', () => {
 			properties: {
 				path: { type: 'string', description: expect.any(String) },
 				line: { type: 'integer', exclusiveMinimum: 0, description: expect.any(String) },
-				keys: {
-					type: 'array',
-					items: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_]*$' },
-					description: expect.any(String),
-				},
 			},
 			required: ['path'],
+		});
+		expect(schemaOf('files_open')).not.toHaveProperty('properties.keys');
+		expect(schemaOf('secrets_request')).toMatchObject({
+			properties: {
+				names: {
+					type: 'array',
+					items: { type: 'string', maxLength: 100, pattern: '^[A-Za-z_][A-Za-z0-9_]*$' },
+					minItems: 1,
+					maxItems: 10,
+					description: expect.any(String),
+				},
+				why: { type: 'string', minLength: 1, maxLength: 120, description: expect.any(String) },
+			},
+			required: ['names', 'why'],
 		});
 		const jobsSave = tools.find((tool: { name?: unknown }) => tool.name === 'jobs_save')
 			?.inputSchema?.properties?.when?.description;

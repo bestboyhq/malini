@@ -13,6 +13,7 @@ Settings, Profile shows your Bestboy account.
 Signed out, it says **Not signed in to Bestboy**, and **Sign in** opens your browser to sign in with Google or an email code.
 Signing in publishes nothing; it only tells Malini who you are on bestboy.dev.
 Signed in, it shows your name and email, and **Sign out**.
+The same account publishes your extensions, from **Extensions you publish** lower on Profile; see [Publish an extension](/malini/docs/extensions.md#publish-an-extension).
 
 ## Publish my stats
 

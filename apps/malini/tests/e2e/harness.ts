@@ -170,6 +170,7 @@ export interface LaunchOptions {
 	readonly allowedDiagnostics?: readonly RegExp[];
 	readonly profile?: string;
 	readonly env?: Readonly<Record<string, string>>;
+	readonly shellProfile?: string;
 }
 
 export interface LaunchedApp {
@@ -220,7 +221,10 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		}
 	}
 
-	writeFileSync(join(home, '.profile'), `PATH="${bin}:$PATH"\nexport PATH\n`);
+	writeFileSync(
+		join(home, '.profile'),
+		`PATH="${bin}:$PATH"\nexport PATH\n${options.shellProfile ?? ''}`,
+	);
 
 	const bridgeSource = readFileSync(FIXTURE_BRIDGE, 'utf8')
 		.replaceAll('__VERSION__', String(BRIDGE_PROTOCOL_VERSION))
@@ -236,6 +240,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	env['MALINI_BRIDGE_SCRIPT'] = bridgeScript;
 	env['FAKE_BRIDGE_REVERSE_ACKS'] = '0';
 	env['MALINI_USAGE_DATA'] = 'off';
+	delete env['DO_NOT_TRACK'];
 	env['MALINI_BACKGROUND_WINDOW'] = '1';
 	env['MALINI_SHIP_DELAY_SCALE'] = '0.1';
 	env['MALINI_STREAMING_APP_ROOT'] = root;

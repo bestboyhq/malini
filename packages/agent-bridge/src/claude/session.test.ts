@@ -1,3 +1,4 @@
+import { mkdtempSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,7 +8,7 @@ import type {
 	SDKMessage,
 	SDKResultSuccess,
 } from '@anthropic-ai/claude-agent-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type { ConversationHistoryMessage } from '../protocol.js';
 import type { ProviderContext } from '../providers/types.js';
@@ -15,6 +16,7 @@ import type { AgentEvent } from '../types.js';
 import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
 import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
+import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession } from './session.js';
 
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
@@ -22,6 +24,14 @@ const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
 const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
 const SLEEP_TOOL = 'toolu_steered_sleep';
 const STEER = [undefined, undefined, undefined, true] as const;
+
+const SECRETS = mkdtempSync(join(tmpdir(), 'malini-session-secrets-'));
+
+afterAll(() => rm(SECRETS, { recursive: true, force: true }));
+
+function sessionSecrets(): SessionSecrets {
+	return new SessionSecrets(sessionSecretsFolder(SECRETS));
+}
 
 const CONTEXT: ProviderContext = {
 	sessionId: 'session-1',
@@ -59,6 +69,7 @@ function harness(
 			options.onEvent?.(event, session);
 		},
 		executable: options.executable === undefined ? '/opt/claude/bin/claude' : options.executable,
+		secrets: sessionSecrets(),
 		query: mcpServerStatus
 			? (params) => ({
 					...claude.query(params),
@@ -68,6 +79,21 @@ function harness(
 		...(options.outage ? { outage: options.outage } : {}),
 	});
 	return { session, claude, events };
+}
+
+function afterTool(toolResponse: unknown): ScriptStep {
+	return {
+		hook: {
+			session_id: READ_AND_BASH_SESSION,
+			transcript_path: '/tmp/transcript.jsonl',
+			cwd: '/work/repo',
+			hook_event_name: 'PostToolUse',
+			tool_name: 'Bash',
+			tool_input: { command: 'echo token=$STRIPE_KEY' },
+			tool_response: toolResponse,
+			tool_use_id: 'toolu_masked',
+		},
+	};
 }
 
 function ofType<T extends AgentEvent['type']>(
@@ -261,6 +287,7 @@ describe('ClaudeSession', () => {
 			'mcp__malini__decisions_answer',
 			'mcp__malini__plan_write',
 			'mcp__malini__files_open',
+			'mcp__malini__secrets_request',
 		]);
 		expect(claude.runs.map(({ mcpPermissionModes }) => mcpPermissionModes)).toEqual([
 			{ malini: 'default' },
@@ -341,6 +368,38 @@ describe('ClaudeSession', () => {
 		);
 	});
 
+	it('runs every command through the shell prefix that sets its secrets', async () => {
+		const { session, claude } = harness([recordedScript('readAndBash')]);
+
+		await session.sendPrompt('Run echo hi and read package.json', 'run-1', profile());
+
+		const environment = claude.runs[0]?.options.env ?? {};
+		expect(environment['CLAUDE_CODE_SHELL_PREFIX']).toMatch(/\/run$/u);
+		expect(environment['CLAUDE_CODE_SHELL']).toMatch(/(?:bash|zsh)$/u);
+	});
+
+	it('masks a saved secret in a tool output before Claude reads it', async () => {
+		const { session, claude } = harness([
+			[
+				afterTool({ stdout: 'token=sk-live-1234567890' }),
+				afterTool({ stdout: 'nothing secret here' }),
+				...recordedScript('readAndBash'),
+			],
+		]);
+		await session.setSecrets({ STRIPE_KEY: 'sk-live-1234567890' });
+
+		await session.sendPrompt('Run echo hi and read package.json', 'run-1', profile());
+
+		expect(claude.runs[0]?.hookOutputs).toEqual([
+			{
+				hookSpecificOutput: {
+					hookEventName: 'PostToolUse',
+					updatedToolOutput: { stdout: 'token=[secret]' },
+				},
+			},
+		]);
+	});
+
 	it('completes a run without plan limits when Claude cannot report them', async () => {
 		const claude = fakeClaude([recordedScript('readAndBash')]);
 		const events: AgentEvent[] = [];
@@ -348,6 +407,7 @@ describe('ClaudeSession', () => {
 			context: CONTEXT,
 			emit: (event) => events.push(event),
 			executable: '/opt/claude/bin/claude',
+			secrets: sessionSecrets(),
 			query: (params) => ({
 				...claude.query(params),
 				usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
@@ -441,7 +501,16 @@ describe('ClaudeSession', () => {
 		const warm = [...script, 'wait-for-prompt' as const, ...script];
 		const { session, claude } = harness([warm, warm, warm]);
 		const atWindow = (tokens?: number) =>
-			[undefined, undefined, undefined, undefined, undefined, undefined, tokens] as const;
+			[
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				tokens,
+			] as const;
 
 		await session.sendPrompt('Hello', 'run-1', profile(), ...atWindow(280_000));
 		await session.sendPrompt('Same window', 'run-2', profile(), ...atWindow(280_000));
@@ -490,6 +559,41 @@ describe('ClaudeSession', () => {
 
 		expect(claude.runs[0]?.options.skills).toEqual(['adr']);
 		expect(claude.runs[1]?.options).not.toHaveProperty('skills');
+	});
+
+	it('loads the plugin folders of each prompt, and relaunches the Claude Code a chat keeps running once they change', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([
+			[...script, 'wait-for-prompt', ...script, 'wait-for-prompt'],
+			script,
+		]);
+		const withPlugins = (plugins: readonly string[]) =>
+			[undefined, undefined, undefined, undefined, undefined, undefined, plugins] as const;
+
+		await session.sendPrompt('Hello', 'run-1', profile(), ...withPlugins(['/extensions/linear']));
+		await session.sendPrompt('Again', 'run-2', profile(), ...withPlugins(['/extensions/linear']));
+		await session.sendPrompt(
+			'Now with Figma',
+			'run-3',
+			profile(),
+			...withPlugins(['/extensions/linear', '/extensions/figma']),
+		);
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.options.plugins).toEqual([
+			{ type: 'local', path: '/extensions/linear' },
+		]);
+		expect(claude.runs[0]?.followUps[0]).toBe('Again');
+		expect(claude.runs[0]?.followUps).not.toContain('Now with Figma');
+		expect(claude.runs[0]?.closed).toBe(true);
+		expect(claude.runs[1]?.options).toMatchObject({
+			resume: READ_AND_BASH_SESSION,
+			plugins: [
+				{ type: 'local', path: '/extensions/linear' },
+				{ type: 'local', path: '/extensions/figma' },
+			],
+		});
+		await expect(claude.runs[1]?.prompt).resolves.toBe('Now with Figma');
 	});
 
 	it('starts a new Claude conversation when every earlier turn was undone', async () => {

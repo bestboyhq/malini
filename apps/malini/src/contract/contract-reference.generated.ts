@@ -437,5 +437,52 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload:
 				'type BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;',
 		},
+		{
+			channel: 'secrets:requested',
+			description:
+				'Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.',
+			payloadType: 'SecretsRequestedEvent',
+			payload:
+				'type SecretRequest = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tnames: readonly string[];\n\twhy: string;\n\trepository: string | null;\n\tsaved: readonly string[];\n\taskedAt: string;\n}>;\n\ntype SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;',
+		},
+		{
+			channel: 'secrets:saved',
+			description:
+				'Fires when you save secrets, on the card a chat showed or under Settings, Secrets, with their names, the repository they are for (`null` for everywhere), and the request and chat they answer, or `null` from Settings. It never carries a value.',
+			payloadType: 'SecretsSavedEvent',
+			payload:
+				'type SecretsSavedEvent = Readonly<{\n\tnames: readonly string[];\n\tunsaved: readonly string[];\n\trepository: string | null;\n\trequestId: string | null;\n\tsessionId: string | null;\n}>;',
+		},
+		{
+			channel: 'secrets:request-dismissed',
+			description:
+				'Fires when you dismiss the card where an agent asked you for secrets, with the request and its chat.',
+			payloadType: 'SecretRequestDismissedEvent',
+			payload:
+				'type SecretRequestDismissedEvent = Readonly<{ requestId: string; sessionId: string }>;',
+		},
+		{
+			channel: 'secrets:deleted',
+			description:
+				'Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).',
+			payloadType: 'SecretDeletedEvent',
+			payload: 'type SecretDeletedEvent = Readonly<{ name: string; repository: string | null }>;',
+		},
+		{
+			channel: 'extensions:changed',
+			description:
+				'Fires when an extension from the marketplace is installed, updated, uninstalled, turned on or off, or withdrawn because its publisher pulled the version you have, with its publisher, name, version and that `change`. Every chat picks the change up at its next prompt.',
+			payloadType: 'ExtensionChangedEvent',
+			payload:
+				"type ExtensionChange =\n\t'installed' | 'updated' | 'uninstalled' | 'turned-on' | 'turned-off' | 'withdrawn';\n\ntype ExtensionChangedEvent = Readonly<{\n\tpublisher: string;\n\tname: string;\n\tversion: string;\n\tchange: ExtensionChange;\n}>;",
+		},
+		{
+			channel: 'extensions:published',
+			description:
+				'Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.',
+			payloadType: 'ExtensionPublishedEvent',
+			payload:
+				'type ExtensionPublishedEvent = Readonly<{\n\tpublisher: string;\n\tname: string;\n\tversion: string;\n\trepository: string;\n}>;',
+		},
 	],
 };

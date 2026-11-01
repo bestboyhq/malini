@@ -7,6 +7,7 @@
 	import type { PageState } from '$shared/router/hash-router.svelte';
 	import {
 		ACCOUNT_SETTINGS_HREF,
+		EXTENSION_SETTINGS_HREF,
 		MCP_SETTINGS_HREF,
 		MODEL_SETTINGS_HREF,
 		PROFILE_SETTINGS_HREF,
@@ -18,11 +19,13 @@
 	import AccountsSection from './AccountsSection.svelte';
 	import AgentAccessSection from './AgentAccessSection.svelte';
 	import AppearanceSection from './AppearanceSection.svelte';
+	import ExtensionsSection from './ExtensionsSection.svelte';
 	import JobsSection from './JobsSection.svelte';
 	import McpServersSection from './McpServersSection.svelte';
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
 	import ProfileSection from './ProfileSection.svelte';
+	import SecretsSection from './SecretsSection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
 	import SoundsSection from './SoundsSection.svelte';
 
@@ -49,8 +52,15 @@
 			icon: 'shield-alert',
 			content: AgentAccessSection,
 		},
+		{ href: '/settings/secrets', label: 'Secrets', icon: 'key', content: SecretsSection },
 		{ href: SKILL_SETTINGS_HREF, label: 'Skills', icon: 'puzzle', content: SkillsSection },
 		{ href: MCP_SETTINGS_HREF, label: 'MCP servers', icon: 'plug', content: McpServersSection },
+		{
+			href: EXTENSION_SETTINGS_HREF,
+			label: 'Extensions',
+			icon: 'grid-plus',
+			content: ExtensionsSection,
+		},
 		APPEARANCE,
 		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist', content: JobsSection },

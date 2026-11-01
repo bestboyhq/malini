@@ -266,7 +266,7 @@ The refresh button starts its Claude Code again, for a claude.ai connector you j
 
 ## Tools
 
-In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs and events.
+In a Malini chat the agent also has Malini's own tools: a browser it shares with you, [secrets](/malini/docs/agent-tools.md#secrets) it asks you for on a card in the chat, and your jobs and events.
 See [Agent tools](/malini/docs/agent-tools.md).
 
 ## Keys

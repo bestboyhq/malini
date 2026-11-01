@@ -29,6 +29,8 @@ describe('toolDisplayName', () => {
 		['mcp__node_repl__js', 'Node REPL · JavaScript'],
 		['mcp__acme_runtime__acme_runtime_deploy_widget', 'Acme Runtime · Deploy Widget'],
 		['mcp__github__create_issue', 'GitHub · Create Issue'],
+		['mcp__plugin_svelte_svelte__list-sections', 'Svelte · List Sections'],
+		['mcp__plugin_cloudflare_cloudflare-api__execute', 'Cloudflare API · Execute'],
 	])('removes protocol syntax from %s without losing its operation', (raw, expected) => {
 		expect(toolDisplayName(raw)).toBe(expected);
 	});

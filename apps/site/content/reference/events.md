@@ -1304,3 +1304,92 @@ type BestboyProfile = Readonly<{
 	url: string | null;
 }>;
 ```
+
+## `secrets:requested`
+
+Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.
+
+Payload: `SecretsRequestedEvent`
+
+```ts
+type SecretRequest = Readonly<{
+	id: string;
+	sessionId: string;
+	names: readonly string[];
+	why: string;
+	repository: string | null;
+	saved: readonly string[];
+	askedAt: string;
+}>;
+
+type SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;
+```
+
+## `secrets:saved`
+
+Fires when you save secrets, on the card a chat showed or under Settings, Secrets, with their names, the repository they are for (`null` for everywhere), and the request and chat they answer, or `null` from Settings. It never carries a value.
+
+Payload: `SecretsSavedEvent`
+
+```ts
+type SecretsSavedEvent = Readonly<{
+	names: readonly string[];
+	unsaved: readonly string[];
+	repository: string | null;
+	requestId: string | null;
+	sessionId: string | null;
+}>;
+```
+
+## `secrets:request-dismissed`
+
+Fires when you dismiss the card where an agent asked you for secrets, with the request and its chat.
+
+Payload: `SecretRequestDismissedEvent`
+
+```ts
+type SecretRequestDismissedEvent = Readonly<{ requestId: string; sessionId: string }>;
+```
+
+## `secrets:deleted`
+
+Fires when you delete a secret under Settings, Secrets, with its name and the repository it was for (`null` for everywhere).
+
+Payload: `SecretDeletedEvent`
+
+```ts
+type SecretDeletedEvent = Readonly<{ name: string; repository: string | null }>;
+```
+
+## `extensions:changed`
+
+Fires when an extension from the marketplace is installed, updated, uninstalled, turned on or off, or withdrawn because its publisher pulled the version you have, with its publisher, name, version and that `change`. Every chat picks the change up at its next prompt.
+
+Payload: `ExtensionChangedEvent`
+
+```ts
+type ExtensionChange =
+	'installed' | 'updated' | 'uninstalled' | 'turned-on' | 'turned-off' | 'withdrawn';
+
+type ExtensionChangedEvent = Readonly<{
+	publisher: string;
+	name: string;
+	version: string;
+	change: ExtensionChange;
+}>;
+```
+
+## `extensions:published`
+
+Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.
+
+Payload: `ExtensionPublishedEvent`
+
+```ts
+type ExtensionPublishedEvent = Readonly<{
+	publisher: string;
+	name: string;
+	version: string;
+	repository: string;
+}>;
+```

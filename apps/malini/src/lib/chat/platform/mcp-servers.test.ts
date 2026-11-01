@@ -90,8 +90,8 @@ describe('McpServerListings', () => {
 	const watched: string[] = [];
 	let switchedFolders: string[] = [];
 	const supervisor = {
-		watchMcpServers: async (cwd: string) => {
-			watched.push(cwd);
+		watchMcpServers: async (cwd: string, plugins: readonly string[]) => {
+			watched.push(`${cwd} [${plugins.join()}]`);
 		},
 		switchMcpServer: async (serverName: string, on: boolean, folders: readonly string[]) => {
 			switches.push(`${serverName} ${on ? 'on' : 'off'} [${folders.join(', ')}]`);
@@ -108,6 +108,7 @@ describe('McpServerListings', () => {
 		runtime: { ensureReady: async () => supervisor, ensureSessionReady: async () => supervisor },
 		claudeSettings: () => settingsFile,
 		resolveWorkstreamCheckout: async (workstreamId) => `/work/${workstreamId}`,
+		plugins: () => ['/extensions/linear'],
 		log: () => undefined,
 	});
 
@@ -137,7 +138,7 @@ describe('McpServerListings', () => {
 			settled: false,
 			turnedOff: [],
 		});
-		expect(watched).toEqual(['/work/one', '/work/two']);
+		expect(watched).toEqual(['/work/one [/extensions/linear]', '/work/two [/extensions/linear]']);
 		expect(
 			events.frames.filter(({ channel }) => channel === CHAT_MCP_SERVERS_LISTED_CHANNEL),
 		).toEqual([

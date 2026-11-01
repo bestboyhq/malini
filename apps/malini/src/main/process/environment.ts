@@ -46,6 +46,7 @@ export type EnvironmentSource = 'login-shell' | 'inherited';
 export interface ResolvedEnvironment {
 	readonly path: string;
 	readonly toolchainVariables: ReadonlyArray<readonly [name: string, value: string]>;
+	readonly doNotTrack: boolean;
 	readonly source: EnvironmentSource;
 	readonly degradation: string | null;
 }
@@ -84,8 +85,11 @@ export function resolveEnvironmentFrom(
 		if (value === undefined || value.length === 0) continue;
 		toolchainVariables.push([name, value]);
 	}
+	const doNotTrack = [lookup(capturedVariables, 'DO_NOT_TRACK'), inherited['DO_NOT_TRACK']].some(
+		(value) => value === '1' || value === 'true',
+	);
 
-	return { path: directories.join(':'), toolchainVariables, source, degradation };
+	return { path: directories.join(':'), toolchainVariables, doNotTrack, source, degradation };
 }
 
 export function childEnvironment(resolved: ResolvedEnvironment): Record<string, string> {

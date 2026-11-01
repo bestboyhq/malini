@@ -1,11 +1,4 @@
-import {
-	appendFile,
-	mkdir,
-	open,
-	readFile as readFileBytes,
-	realpath,
-	stat,
-} from 'node:fs/promises';
+import { mkdir, open, readFile as readFileBytes, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { ExtensionFileStat } from '$contract/system';
@@ -19,8 +12,6 @@ import { isInsideDirectory } from '$main/fs/paths';
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
 const SHARED_FILE_MODE = 0o644;
-const KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
-const ASSIGNED_KEY = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/gmu;
 
 export type OpenFileForUserDeps = Pick<MainContext, 'db' | 'events'>;
 
@@ -29,7 +20,6 @@ export type OpenFileForUserInput = Readonly<{
 	worktree: string;
 	path: string;
 	line: number | null;
-	keys: readonly string[];
 }>;
 
 export type OpenedFile = Readonly<{ path: string; created: boolean }>;
@@ -41,13 +31,10 @@ export async function openFileForUser(
 	const root = await realpath(input.worktree);
 	const requested = await canonicalPath(requestedPath(input.path, root));
 	refuseGitInternals(root, requested);
-	const badKey = input.keys.find((key) => !KEY_NAME.test(key));
-	if (badKey !== undefined) throw new Error(`${badKey} is not a key name such as API_TOKEN.`);
 	const created = await createMissingFile(requested, !isInsideDirectory(root, requested));
 	const target = await realpath(requested);
 	if (!(await stat(target)).isFile()) throw new Error(`${input.path} is not a file.`);
 	refuseGitInternals(root, target);
-	await addMissingKeys(target, input.keys);
 	const path = workstreamPath(root, target);
 	if (isAbsolute(path)) {
 		run(
@@ -151,16 +138,6 @@ async function canonicalPath(path: string): Promise<string> {
 		if (parent === path) throw error;
 		return join(await canonicalPath(parent), basename(path));
 	}
-}
-
-async function addMissingKeys(path: string, keys: readonly string[]): Promise<void> {
-	if (keys.length === 0) return;
-	const contents = await readFileBytes(path, 'utf8');
-	const assigned = new Set(Array.from(contents.matchAll(ASSIGNED_KEY), ([, key]) => key));
-	const missing = [...new Set(keys)].filter((key) => !assigned.has(key));
-	if (missing.length === 0) return;
-	const separator = contents === '' || contents.endsWith('\n') ? '' : '\n';
-	await appendFile(path, `${separator}${missing.map((key) => `${key}=\n`).join('')}`);
 }
 
 async function createMissingFile(path: string, outsideWorktree: boolean): Promise<boolean> {

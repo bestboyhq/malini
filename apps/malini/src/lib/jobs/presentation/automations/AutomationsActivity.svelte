@@ -20,7 +20,7 @@
 	import ActivityRun from './ActivityRun.svelte';
 	import AgentActionRow from './AgentActionRow.svelte';
 	import AskingDecisionRow from './AskingDecisionRow.svelte';
-	import AutomationsSection from './AutomationsSection.svelte';
+	import { PageSection } from '$hyper-ui/components/page-section';
 	import ChatTurnRow from './ChatTurnRow.svelte';
 	import DecisionRow from './DecisionRow.svelte';
 	import WaitingJobRunRow from './WaitingJobRunRow.svelte';
@@ -140,7 +140,7 @@
 	{/if}
 {/snippet}
 
-<AutomationsSection
+<PageSection
 	title="Activity"
 	description="What your jobs and chats did in Malini, and what waits for you."
 	testId="automations-activity"
@@ -196,4 +196,4 @@
 			</ul>
 		</Well>
 	{/each}
-</AutomationsSection>
+</PageSection>
