@@ -63,6 +63,8 @@ export const DEFAULT_JOB_BOUNDARY: JobBoundary = {
 	internet: true,
 };
 
+export const NEW_JOB_BOUNDARY: JobBoundary = { ...DEFAULT_JOB_BOUNDARY, internet: false };
+
 export type JobDefinitionRecord = Readonly<{
 	id: string;
 	name: string;

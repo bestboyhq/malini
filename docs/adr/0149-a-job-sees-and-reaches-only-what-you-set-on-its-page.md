@@ -13,7 +13,8 @@ Claude Code's sandbox hides paths from commands and limits their network without
 ## Decision
 
 - Each job definition carries a `JobBoundary` (`src/contract/jobs.ts`), stored in `job_definitions` as `sees_event` (`facts` or `full`), `sees_before`, `sees_chats` (`none`, `starter` or `all`), `sees_attachments` and `reaches_internet`.
-  Every job, new or existing, starts at `DEFAULT_JOB_BOUNDARY`: event facts, the job before it, no chats, no attachments, the internet on.
+  Built-in and existing jobs start at `DEFAULT_JOB_BOUNDARY`: event facts, the job before it, no chats, no attachments, the internet on.
+  A job you make starts at `NEW_JOB_BOUNDARY`, the same with the internet off, so it reaches out only once you turn that on.
 - Only the job's page sets it, under **What it sees** and **What it reaches** (`JobBoundary.svelte`), through `jobs.update-settings`.
   `jobs_save` takes no boundary, and `jobs_run` refuses `context` for a job whose `sees.chats` is `none`.
 - Every `EVENT_CATALOG` entry lists its `facts`, the payload fields a job sees of it: ids, statuses, paths and counts, typed against the payload so `pnpm check` fails on a channel without them or a field it does not have.

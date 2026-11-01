@@ -291,7 +291,7 @@ test('a job sees and reaches only what you set on its page, and says when it can
 		await draftJob(page, { name: 'Triage', words: 'Triage the failing checks' });
 		await expect
 			.poll(async () => (await jobNamed(page, 'Triage'))?.boundary)
-			.toEqual({ event: 'facts', before: true, chats: 'none', attachments: false, internet: true });
+			.toEqual({ event: 'facts', before: true, chats: 'none', attachments: false, internet: false });
 
 		const detail = await openJob(page, 'Triage');
 		const sees = detail.getByRole('region', { name: 'What it sees' });
@@ -303,6 +303,8 @@ test('a job sees and reaches only what you set on its page, and says when it can
 		await expect(sees).toContainText('It never sees your words.');
 		await expect(leak).toHaveCount(0);
 
+		await reaches.getByRole('switch', { name: 'The internet' }).click();
+		await expect.poll(async () => (await jobNamed(page, 'Triage'))?.boundary.internet).toBe(true);
 		await sees
 			.getByRole('radiogroup', { name: 'Your chats' })
 			.getByRole('radio', { name: 'Every chat' })

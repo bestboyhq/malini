@@ -181,7 +181,7 @@ What it reaches:
 
 - **Anthropic**, always: Claude runs the job's agent and sees what the job sees.
 - **GitHub**, through a Then of **Open draft** or **Merge**, or with `gh` while the job reaches the internet.
-- **The internet**: off, a sandbox lets the job's commands reach no site, and Claude Code drops its web tools and every MCP server but Malini's.
+- **The internet**: off for a job you make until you turn it on, and on for the built-in jobs. Off, a sandbox lets the job's commands reach no site, and Claude Code drops its web tools and every MCP server but Malini's.
 
 A job that does not see everything runs its commands in Claude Code's sandbox, which hides what the job may not see from its commands and its Read tool.
 A command that must run outside the sandbox, such as one that launches Electron, asks you first, every time.

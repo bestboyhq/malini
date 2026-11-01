@@ -9,6 +9,7 @@ import {
 import { JOBS_DEFINITION_CHANGED_CHANNEL } from '$contract/events';
 import {
 	DEFAULT_JOB_BOUNDARY,
+	NEW_JOB_BOUNDARY,
 	isAgentlessJobBuiltin,
 	type JobBoundary,
 	type JobBuiltin,
@@ -208,7 +209,7 @@ export function defineJobCommands(
 				builtin: null,
 				trigger: trigger ?? null,
 				thenJobId: thenJobField(db, args, null) ?? null,
-				boundary: boundaryField(args) ?? DEFAULT_JOB_BOUNDARY,
+				boundary: boundaryField(args) ?? NEW_JOB_BOUNDARY,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -424,7 +425,7 @@ export function defineJobCommands(
 			builtin: null,
 			trigger: null,
 			thenJobId: null,
-			boundary: DEFAULT_JOB_BOUNDARY,
+			boundary: NEW_JOB_BOUNDARY,
 			createdAt: now,
 			updatedAt: now,
 		};
