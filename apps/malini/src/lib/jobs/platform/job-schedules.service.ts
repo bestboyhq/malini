@@ -255,7 +255,7 @@ async function catalogRepository(
 
 function runNotice({ title, status, detail }: JobRunRecord): { title: string; body: string } {
 	if (status === 'waiting') {
-		return { title: `${title} wants to run`, body: 'It waits for your yes under Automations.' };
+		return { title: `${title} wants to run`, body: 'It waits for your yes in the Job center.' };
 	}
 	if (status === 'needs-you') {
 		return { title: `${title} is waiting`, body: detail ?? 'It asks you before it goes on.' };

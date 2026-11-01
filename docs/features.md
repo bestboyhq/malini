@@ -116,7 +116,7 @@ The [README](../README.md) has the short version.
   Run it in this workstream or a new one.
 - **When: what starts it.** You run it, or one event trigger runs it, like `on pull-requests:ship-changed where merged is set`, on any event Malini emits.
   Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a chat or workstream of its own, at Home, in an organization or in a repository.
-  A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits under Activity with **Run it** and **Skip**.
+  A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits in its chat with **Run it** and **Skip**.
 - **Then: what runs next.** One job runs after this one succeeds, in the same workstream, with its result.
   **Open draft** and **Merge** are jobs, so "open a draft PR" is a Then.
   A Then that would loop is refused.
@@ -130,7 +130,7 @@ The [README](../README.md) has the short version.
 - **Suggestions from your own habits.** Malini notices the prompts you keep repeating and offers to make them a job: **Make it a job** or **Dismiss**.
 - **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs with its Malini tools: saving one waits for your approval, and so does running one outside the work the chat started, or any that ships.
   A trigger it adds starts Off.
-- **A Job center** shows only live jobs: what asks you, what runs, and what is queued, each question on the job it is about.
+- **A Job center** shows only live jobs, one line each: what needs you, what runs, and what is queued; a job that needs you opens the chat where you make the call.
   Settings decides how many jobs run at once.
 
 ## A browser the agent can drive

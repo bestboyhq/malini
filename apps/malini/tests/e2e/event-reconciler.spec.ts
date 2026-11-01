@@ -208,8 +208,16 @@ test('Malini asks before it acts on a failed job when the model says so, on that
 			),
 		);
 		expect(asked?.pick).toBe(4);
-		const center = page.getByRole('region', { name: 'Jobs: 1 needs you' });
-		const ask = center.getByRole('group', { name: new RegExp(`^${JOB} in Api work: Failed`, 'u') });
+		const row = page
+			.getByRole('region', { name: 'Jobs: 1 needs you' })
+			.getByRole('link', { name: `${JOB} in Api work: Failed` });
+		await expect(row).toBeVisible({ timeout: 20_000 });
+		await row.click();
+		await expect(page).toHaveURL(new RegExp(`/workstreams/${workstreamId}(?:\\?|$)`, 'u'));
+		await expect(row).toHaveAttribute('aria-current', 'page');
+		const ask = page
+			.getByRole('region', { name: /^Jobs \(\d+\)$/u })
+			.getByRole('group', { name: new RegExp(`^${JOB} in Api work: Failed`, 'u') });
 		await expect(ask).toBeVisible({ timeout: 20_000 });
 		const choices = ask.getByRole('button');
 		await expect(choices).toHaveCount(3);
@@ -250,7 +258,7 @@ test('a question on a job goes away with its workstream', async () => {
 		const workstreamId = await chatRunsFailingJob(app);
 		const ask = page
 			.getByRole('region', { name: 'Jobs: 1 needs you' })
-			.getByRole('group', { name: new RegExp(`^${JOB} in Api work: Failed`, 'u') });
+			.getByRole('link', { name: `${JOB} in Api work: Failed` });
 		await expect(ask).toBeVisible({ timeout: 60_000 });
 
 		await invoke(page, 'repositories.archive-workstream', { workstreamId });

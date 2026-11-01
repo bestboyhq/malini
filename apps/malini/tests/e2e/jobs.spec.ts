@@ -154,11 +154,9 @@ test('the jobs gutter shows only live jobs, asks its question on the job, holds 
 		const center = page.getByRole('region', { name: /^Jobs: .*1 needs you/u });
 		await expect(center).toBeVisible({ timeout: 30_000 });
 		const inProgress = center.getByRole('list', { name: 'Jobs in progress' });
-		const question = inProgress.getByRole('group', {
-			name: `Ask first in ${WORKSTREAM}: Asks you in its chat.`,
-		});
-		await expect(inProgress.getByRole('listitem').first().getByRole('group')).toHaveAccessibleName(
-			`Ask first in ${WORKSTREAM}: Asks you in its chat.`,
+		const question = inProgress.getByRole('link', { name: `Ask first in ${WORKSTREAM}: Asks you` });
+		await expect(inProgress.getByRole('listitem').first().getByRole('link')).toHaveAccessibleName(
+			`Ask first in ${WORKSTREAM}: Asks you`,
 		);
 		await expect(center.getByRole('button', { name: 'Cancel Ask first' })).toHaveCount(0);
 		await captureFlow(app, 'jobs-job-center');
@@ -177,7 +175,7 @@ test('the jobs gutter shows only live jobs, asks its question on the job, holds 
 		await expect(center).toHaveAccessibleName('Jobs: 1 needs you');
 		await expect(center.getByRole('button', { name: /^Recent/u })).toHaveCount(0);
 
-		await question.getByRole('link', { name: 'Open transcript: Ask first' }).click();
+		await question.click();
 		await expect(page).toHaveURL(/agent=sess-/u);
 		expectCleanConsole(app);
 	} finally {

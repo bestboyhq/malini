@@ -5,18 +5,13 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import {
-		leadScopeLabel,
-		parseLeadScope,
-		projectsQuery,
-		workstreamNameQuery,
-	} from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
 	import { cancelJobRunCommand } from '$lib/jobs/application/commands/cancel-job-run.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
 	import { jobRunByIdQuery } from '$lib/jobs/application/queries/job-run-by-id.query.svelte';
 	import ActivityKind from './automations/ActivityKind.svelte';
+	import { jobPlace } from './job-place';
 	import { JOB_RUN_STATUS } from './job-run-status';
 	import { jobRunTime } from './job-run-time';
 
@@ -42,21 +37,13 @@
 
 	let armed = $state(false);
 
-	const workstreamName = $derived(workstreamNameQuery.data(run.workstreamId ?? ''));
-	const projects = $derived(projectsQuery.data);
 	const actionState = $derived(jobActionStateQuery.data(run.id));
 	const parent = $derived(jobRunByIdQuery.data(run.parentRunId));
 	const followed = $derived(
 		run.parentRunId === null ? origin : `After ${parent?.title ?? 'another job'}`,
 	);
 	const look = $derived(JOB_RUN_STATUS[run.status]);
-	const leadScope = $derived(parseLeadScope(run.scope));
-	const place = $derived(
-		(leadScope && leadScopeLabel(leadScope)) ??
-			workstreamName ??
-			projects.find((project) => project.id === run.repositoryId)?.name ??
-			null,
-	);
+	const place = $derived(jobPlace(run, run.workstreamId));
 	const where = $derived(
 		shownIn !== null && run.workstreamId !== shownIn && place ? ` in ${place}` : '',
 	);

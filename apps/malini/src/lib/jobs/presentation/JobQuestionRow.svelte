@@ -4,12 +4,6 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import {
-		leadScopeLabel,
-		parseLeadScope,
-		projectsQuery,
-		workstreamNameQuery,
-	} from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import { cancelJobRunCommand } from '$lib/jobs/application/commands/cancel-job-run.command';
 	import { confirmJobRunCommand } from '$lib/jobs/application/commands/confirm-job-run.command';
@@ -17,10 +11,13 @@
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
 	import { jobDefinitionByIdQuery } from '$lib/jobs/application/queries/job-definition-by-id.query.svelte';
 	import { jobRunByIdQuery } from '$lib/jobs/application/queries/job-run-by-id.query.svelte';
+	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
 	import type { JobCenterEntry } from '$lib/jobs/domain/job-center';
+	import { isFinishedJobRunStatus } from '$lib/jobs/domain/job-run';
 	import { UNRUN_QUESTION_TITLE } from '$lib/jobs/domain/reconciler';
 	import { decisionChoices, decisionQuestion } from './automations/decision-copy';
 	import { triggerFor, whenClause } from './automations/triggers';
+	import { jobPlace } from './job-place';
 	import { JOB_RUN_STATUS } from './job-run-status';
 	import { activityTime, jobRunTime } from './job-run-time';
 
@@ -34,39 +31,37 @@
 
 	const run = $derived(entry.run);
 	const decision = $derived(entry.question);
+	const waiting = $derived(decision === null && run?.status === 'waiting' ? run : null);
 	const actionState = $derived(jobActionStateQuery.data(entry.key));
 	const title = $derived(run?.title ?? UNRUN_QUESTION_TITLE);
-	const workstreamName = $derived(workstreamNameQuery.data(entry.workstreamId ?? ''));
-	const leadScope = $derived(parseLeadScope(run?.scope ?? null));
-	const place = $derived(
-		(leadScope && leadScopeLabel(leadScope)) ??
-			workstreamName ??
-			projectsQuery.data.find((project) => project.id === run?.repositoryId)?.name ??
-			null,
-	);
+	const place = $derived(jobPlace(run, entry.workstreamId));
 	const placeName = $derived(
 		shownIn === null ? place : entry.workstreamId !== shownIn && place ? `Job in ${place}` : 'Job',
 	);
-	const parent = $derived(jobRunByIdQuery.data(run?.parentRunId ?? null));
-	const trigger = $derived(
-		run === null ? null : (jobDefinitionByIdQuery.data(run.definitionId)?.trigger ?? null),
+	const definition = $derived(run === null ? null : jobDefinitionByIdQuery.data(run.definitionId));
+	const parent = $derived(jobRunByIdQuery.data(waiting?.parentRunId ?? null));
+	const question = $derived(decision ? decisionQuestion(decision) : 'Wants to run');
+	const when = $derived(
+		waiting?.detail ??
+			(parent
+				? `After ${parent.title}`
+				: definition?.trigger
+					? whenClause(triggerFor(definition.trigger.when))
+					: null),
 	);
-	const question = $derived(
-		decision
-			? decisionQuestion(decision)
-			: run?.status === 'needs-you'
-				? (run.detail ?? 'Asks you in its chat.')
-				: 'Wants to run',
+	const does = $derived(
+		definition?.instructions
+			.split('\n')
+			.map((line) => line.replace(/^#+\s*/u, '').trim())
+			.find((line) => line !== '') ?? null,
 	);
-	const hint = $derived(
-		decision || run?.status !== 'waiting'
+	const lastRun = $derived(
+		waiting === null
 			? null
-			: (run.detail ??
-					(parent
-						? `After ${parent.title}`
-						: trigger
-							? whenClause(triggerFor(trigger.when))
-							: null)),
+			: (jobRunsForDefinitionQuery
+					.data(waiting.definitionId)
+					.find((other) => other.id !== waiting.id && isFinishedJobRunStatus(other.status)) ??
+					null),
 	);
 	const time = $derived(
 		decision
@@ -109,39 +104,58 @@
 	</span>
 {/snippet}
 
+{#snippet fact(term: string, value: string)}
+	<dt class="text-fg-tertiary">{term}</dt>
+	<dd class="text-fg-secondary line-clamp-2 min-w-0"><SensitiveText text={value} /></dd>
+{/snippet}
+
 <div
-	class="hover:bg-surface-50-hover flex flex-col rounded-xl pb-2"
+	class="bg-surface-100 flex flex-col gap-1 rounded-xl pt-0.5 pb-2"
 	role="group"
 	aria-label={`${title}${place ? ` in ${place}` : ''}: ${question}`}
 	data-testid="job-question"
 	data-job-run-id={run?.id}
 	data-decision-id={decision?.id}
 >
-	{#if transcriptHref}
-		<Button
-			bare
-			href={transcriptHref}
-			ariaLabel={`Open transcript: ${title}`}
-			class="focus-visible:ring-border-default/50 flex h-7 min-w-0 cursor-pointer items-center gap-2 rounded-xl px-2 text-left text-xs outline-none focus-visible:ring-2"
-		>
-			{@render heading()}
-		</Button>
-	{:else}
-		<div class="flex h-7 min-w-0 items-center gap-2 px-2 text-xs">
-			{@render heading()}
-		</div>
-	{/if}
-	<p class="text-fg-secondary pr-2 pl-8 text-xs">
-		<SensitiveText text={question} />
-		{#if hint}
-			<span class="text-fg-tertiary">· {hint}</span>
+	<div class="flex h-7 min-w-0 items-center gap-2 pr-2 text-xs">
+		{#if transcriptHref}
+			<Button
+				bare
+				href={transcriptHref}
+				ariaLabel={`Open transcript: ${title}`}
+				class="focus-visible:ring-border-default/50 flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl pl-2 text-left outline-none focus-visible:ring-2"
+			>
+				{@render heading()}
+			</Button>
+		{:else}
+			<div class="flex min-w-0 flex-1 items-center gap-2 pl-2">
+				{@render heading()}
+			</div>
 		{/if}
-		<span class="text-fg-tertiary whitespace-nowrap tabular-nums">· {time}</span>
-	</p>
+		<span class="text-fg-tertiary text-2xs shrink-0 tabular-nums">{time}</span>
+	</div>
+	{#if waiting}
+		<dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 pr-2 pl-8 text-xs">
+			{#if when}
+				{@render fact('When', when)}
+			{/if}
+			{#if does}
+				{@render fact('Does', does)}
+			{/if}
+			{#if lastRun}
+				{@render fact(
+					'Last run',
+					`${jobRunTime(lastRun, nowMs)}: ${lastRun.detail ?? JOB_RUN_STATUS[lastRun.status].label}`,
+				)}
+			{/if}
+		</dl>
+	{:else}
+		<p class="text-fg-secondary pr-2 pl-8 text-xs"><SensitiveText text={question} /></p>
+	{/if}
 	{#if actionState.error}
 		<p class="text-error-content pr-2 pl-8 text-xs" role="alert">{actionState.error}</p>
 	{/if}
-	<div class="mt-1.5 flex flex-wrap items-center gap-1.5 pr-2 pl-8">
+	<div class="mt-1 flex flex-wrap items-center gap-1.5 pr-2 pl-8">
 		{#if decision}
 			{#each choices as { index, candidate }, order (index)}
 				{#snippet choice()}
@@ -163,13 +177,13 @@
 					{@render choice()}
 				{/if}
 			{/each}
-		{:else if run?.status === 'waiting'}
+		{:else if waiting}
 			<Button
 				variant="primary"
 				size="sm"
 				ariaLabel={`Run it: ${title}`}
 				loading={actionState.busy}
-				onclick={() => confirmJobRunCommand(run)}
+				onclick={() => confirmJobRunCommand(waiting)}
 			>
 				Run it
 			</Button>
@@ -178,12 +192,10 @@
 				size="sm"
 				ariaLabel={`Skip ${title}`}
 				disabled={actionState.busy}
-				onclick={() => cancelJobRunCommand(run)}
+				onclick={() => cancelJobRunCommand(waiting)}
 			>
 				Skip
 			</Button>
-		{:else if transcriptHref}
-			<Button variant="secondary" size="sm" href={transcriptHref}>Open chat</Button>
 		{/if}
 	</div>
 </div>

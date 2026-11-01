@@ -173,13 +173,19 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 			.poll(async () => (await runsOf(page, 'Note it'))[0], { timeout: 60_000 })
 			.toMatchObject({ status: 'waiting', origin: 'trigger', parentRunId: first.id, workstreamId });
 
-		await openWorkstream(page, workstreamId);
 		const center = page.getByRole('region', { name: /^Jobs: / });
-		const waiting = center.getByRole('group', {
-			name: 'Note it in Waiting workstream: Wants to run',
-		});
+		const row = center.getByRole('link', { name: 'Note it in Waiting workstream: Wants to run' });
+		await expect(row).toBeVisible({ timeout: 30_000 });
+		await expect(row).toHaveAttribute('aria-current', 'false');
+		await row.click();
+		await expect(page).toHaveURL(new RegExp(`/workstreams/${workstreamId}$`, 'u'));
+		await expect(row).toHaveAttribute('aria-current', 'page');
+		const waiting = page
+			.getByRole('region', { name: /^Jobs \(\d+\)$/u })
+			.getByRole('group', { name: 'Note it in Waiting workstream: Wants to run' });
 		await expect(waiting).toBeVisible({ timeout: 30_000 });
 		await expect(waiting).toContainText('After Poke');
+		await expect(waiting).not.toContainText('Last run');
 		await captureFlow(app, 'job-waiting-run');
 		await waiting.getByRole('button', { name: 'Run it: Note it' }).click();
 		await expect(waiting).toHaveCount(0);
@@ -189,6 +195,7 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 
 		await invoke(page, 'jobs.run', { definitionId: poke.id, workstreamId });
 		await expect(waiting).toBeVisible({ timeout: 60_000 });
+		await expect(waiting).toContainText('Last run');
 		await waiting.getByRole('button', { name: 'Skip Note it' }).click();
 		await expect(waiting).toHaveCount(0);
 		await expect(center).toHaveAccessibleName('Jobs: ready when you are');

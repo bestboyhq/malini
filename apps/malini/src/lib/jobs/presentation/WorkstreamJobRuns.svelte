@@ -25,6 +25,6 @@
 	data-testid="workstream-job-runs"
 >
 	<div class="max-h-60 overflow-y-auto p-1">
-		<JobRunList {entries} {nowMs} shownIn={workstreamId} />
+		<JobRunList {entries} {nowMs} shownIn={workstreamId} asksHere />
 	</div>
 </section>
