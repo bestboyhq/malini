@@ -512,6 +512,69 @@ test('a recording keeps its place and keeps playing or paused when its file chan
 	}
 });
 
+test('a recording hands its moment, sound and speed to the gallery and takes them back when it minimizes', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-recording-handoff',
+			[
+				'![The toast entrance](.context/after.mp4)',
+				'',
+				'Outcome: The toast slides in.',
+				'Needs: nothing',
+			].join('\n'),
+			['after.mp4'],
+		);
+		const offer = page.getByRole('article', { name: 'Turn result' }).first();
+		const recording = offer.getByLabel('The toast entrance', { exact: true });
+		const controls = offer.getByRole('group', { name: 'Video controls' });
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		const enlarged = gallery.getByLabel('The toast entrance', { exact: true });
+		const galleryControls = gallery.getByRole('group', { name: 'Video controls' });
+		const stateOf = (video: Locator) =>
+			video.evaluate((element) => ({
+				paused: Boolean(Reflect.get(element, 'paused')),
+				muted: Boolean(Reflect.get(element, 'muted')),
+				speed: Number(Reflect.get(element, 'playbackRate')),
+			}));
+		await expect
+			.poll(async () => (await playbackOf(recording)).at, { timeout: 30_000 })
+			.toBeGreaterThan(0);
+
+		await controls.getByRole('button', { name: 'Unmute' }).click();
+		await controls.getByRole('button', { name: /^Playback speed/u }).click();
+		await offer.getByRole('button', { name: 'Open video The toast entrance in gallery' }).click();
+		await expect(enlarged).toBeVisible({ timeout: 20_000 });
+		await expect.poll(() => stateOf(enlarged)).toEqual({ paused: false, muted: false, speed: 0.5 });
+		await expect.poll(async () => (await stateOf(recording)).paused).toBe(true);
+
+		await galleryControls.getByRole('button', { name: 'Pause', exact: true }).click();
+		await galleryControls.getByRole('slider', { name: 'Scrub the recording' }).fill('1.2');
+		await expect.poll(async () => (await playbackOf(enlarged)).at).toBeCloseTo(1.2, 2);
+		await page.keyboard.press('Escape');
+		await expect(gallery).toBeHidden();
+		await expect.poll(async () => (await playbackOf(recording)).at).toBeCloseTo(1.2, 2);
+		await expect.poll(() => stateOf(recording)).toEqual({ paused: true, muted: false, speed: 0.5 });
+
+		await controls.getByRole('slider', { name: 'Scrub the recording' }).fill('0.4');
+		await controls.getByRole('button', { name: 'Maximize' }).click();
+		await expect(enlarged).toBeVisible({ timeout: 20_000 });
+		await expect.poll(async () => (await playbackOf(enlarged)).at).toBeCloseTo(0.4, 2);
+		await expect(galleryControls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+		await galleryControls.getByRole('button', { name: 'Play', exact: true }).click();
+		await galleryControls.getByRole('button', { name: 'Minimize' }).click();
+		await expect(gallery).toBeHidden();
+		await expect.poll(async () => (await stateOf(recording)).paused).toBe(false);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a report puts every picture in one frame, and a lone prototype there shows as its live page', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

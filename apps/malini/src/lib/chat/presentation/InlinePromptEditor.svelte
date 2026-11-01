@@ -363,11 +363,11 @@
 					void onattachfiles(candidates);
 					return true;
 				},
-				handleTextInput: (view, from, to, text) => {
+				handleTextInput: (view, _from, _to, text, insert) => {
 					if (/^[\u{E000}-\u{F8FF}\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]+$/u.test(text))
 						return true;
 					if (text.length === 1) return false;
-					view.dispatch(view.state.tr.insertText(text, from, to));
+					view.dispatch(insert());
 					return true;
 				},
 			},

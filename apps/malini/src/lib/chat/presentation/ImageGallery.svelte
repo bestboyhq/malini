@@ -18,13 +18,14 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { announceExclusiveOverlayOpen } from '$hyper-ui/overlay';
-	import type { GalleryImage } from './transcript-gallery';
+	import type { GalleryImage, VideoHandoff } from './transcript-gallery';
 	import VideoPlayer from './VideoPlayer.svelte';
 
 	interface Props {
 		workstreamId: string;
 		images: readonly GalleryImage[];
 		startId: string;
+		handoff?: VideoHandoff | undefined;
 		onclose: () => void;
 	}
 
@@ -44,7 +45,7 @@
 	const DRAG_SLOP_PX = 3;
 	const CENTER: Point = { x: 0, y: 0 };
 
-	let { workstreamId, images, startId, onclose }: Props = $props();
+	let { workstreamId, images, startId, handoff, onclose }: Props = $props();
 
 	const owner = newChatRequestId();
 	let index = $state(
@@ -130,6 +131,12 @@
 			easing: quintOut,
 			css: (_t, u) => `transform: translateX(${x * u}px);`,
 		};
+	}
+
+	function close(): void {
+		const left = player?.release();
+		handoff?.resume(left && image?.id === startId ? left : handoff.playback);
+		onclose();
 	}
 
 	function explainUnavailable(target: GalleryImage): void {
@@ -258,7 +265,7 @@
 	</Tooltip>
 {/snippet}
 
-<FullPageModal bind:this={modal} open {onclose} ariaLabel="Image gallery">
+<FullPageModal bind:this={modal} open onclose={close} ariaLabel="Image gallery">
 	<div class="flex h-full w-full flex-col items-center gap-3 pt-14" data-testid="image-gallery">
 		<div class="flex min-h-0 w-full flex-1 items-center gap-4">
 			{#if browsable}
@@ -275,13 +282,16 @@
 				{#key image?.id}
 					<div class="absolute inset-0" in:slideIn={{ x: direction * slideDistance }}>
 						{#if image?.media === 'video' && preview?.status === 'ready'}
+							{@const start = image.id === startId ? handoff?.playback : undefined}
 							<div class="absolute inset-0" in:fade={{ duration: 150 }}>
 								<VideoPlayer
 									bind:this={player}
 									src={preview.src}
 									label={image.name}
-									autoplay={!prefersReducedMotion.current}
+									autoplay={start?.playing ?? !prefersReducedMotion.current}
+									{start}
 									autohide
+									onclose={() => modal?.close()}
 									onerror={() => explainUnavailable(image)}
 								/>
 							</div>
