@@ -16,6 +16,7 @@ import {
 	bridgeMcpServerFrame,
 	bridgeMcpServersFrame,
 	type BrowserResult,
+	type HistoryResult,
 	type PlatformResult,
 	type ProviderCapability,
 } from '../protocol';
@@ -1255,6 +1256,65 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		);
 	});
 
+	it('asks main for the chat record and hands the history_result back', async () => {
+		const results: HistoryResult[] = [];
+		defaultProviderRegistry.setProvider(async (ctx) => ({
+			async sendPrompt() {
+				results.push(await ctx.requestHistory());
+			},
+			async cancel() {},
+			async close() {},
+		}));
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({ stdout: fakeStdout });
+		await ipc.run(
+			'{"cmd":"start_session","id":"start-history","sessionId":"s-history","workstreamId":"w-history"}',
+		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-history","sessionId":"s-history","runId":"run-history","prompt":"/compact"}',
+		);
+		const request = await vi.waitFor(() => {
+			const frame = parseFrames(writes.join('')).find(
+				({ type }) => type === 'bridge.history_request',
+			);
+			if (!frame) throw new Error('no history request yet');
+			return frame;
+		});
+		expect(request).toEqual({
+			type: 'bridge.history_request',
+			protocolVersion: BRIDGE_PROTOCOL_VERSION,
+			requestId: expect.any(String),
+			sessionId: 's-history',
+		});
+
+		await ipc.run(
+			JSON.stringify({
+				cmd: 'history_result',
+				id: 'result-history',
+				sessionId: 's-history',
+				requestId: request.requestId,
+				ok: true,
+				messages: [{ role: 'user', content: 'Remember cedar.' }],
+			}),
+		);
+		await ipc.drain();
+
+		expect(results).toEqual([
+			expect.objectContaining({
+				ok: true,
+				messages: [{ role: 'user', content: 'Remember cedar.' }],
+			}),
+		]);
+		expect(parseFrames(writes.join(''))).toContainEqual(
+			expect.objectContaining({ id: 'result-history', accepted: true }),
+		);
+	});
+
 	it('fails a browser request at once when main answers it with an invalid result', async () => {
 		const results: BrowserResult[] = [];
 		defaultProviderRegistry.setProvider(async (ctx) => ({
@@ -2051,6 +2111,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 					cwd: '/tmp',
 					requestBrowser: async () => ({ ok: false, error: 'no browser' }),
 					requestPlatform: async () => ({ ok: false, error: 'no malini' }),
+					requestHistory: async () => ({ ok: false, error: 'no malini' }),
 				},
 				() => undefined,
 			),

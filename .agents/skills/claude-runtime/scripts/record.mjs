@@ -92,6 +92,17 @@ const run = query({
 					],
 				},
 			],
+			SessionStart: [
+				{
+					matcher: 'compact',
+					hooks: [
+						async (input) => {
+							steps.push({ hook: input });
+							return {};
+						},
+					],
+				},
+			],
 			PermissionDenied: [
 				{
 					hooks: [

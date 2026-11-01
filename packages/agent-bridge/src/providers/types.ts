@@ -4,6 +4,7 @@ import type {
 	BrowserRequest,
 	BrowserResult,
 	ConversationHistoryMessage,
+	HistoryResult,
 	PlatformRequest,
 	PlatformResult,
 	Secrets,
@@ -19,6 +20,7 @@ export interface ProviderContext {
 	readonly conversationHistory?: readonly ConversationHistoryMessage[];
 	readonly requestBrowser: BrowserRequester;
 	readonly requestPlatform: PlatformRequester;
+	readonly requestHistory: () => Promise<HistoryResult>;
 }
 
 export type BrowserRequester = (request: BrowserRequest) => Promise<BrowserResult>;
@@ -39,6 +41,7 @@ export interface ProviderHandle {
 		theme?: AgentTheme,
 		lineage?: AgentLineage,
 		plugins?: readonly string[],
+		compactWindow?: number,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

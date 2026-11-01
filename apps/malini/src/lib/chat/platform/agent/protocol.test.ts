@@ -8,6 +8,7 @@ import {
 	commandAcknowledgementTimeoutMs,
 	decodeBridgeEvent,
 	decodeControlFrame,
+	historyResultCommand,
 	eventRunId,
 	eventSessionId,
 	eventToPersistable,
@@ -459,6 +460,39 @@ describe('browser requests', () => {
 		expect(commandAcknowledgementTimeoutMs(browserResultCommand('c', request, { ok: true }))).toBe(
 			BRIDGE_COMMAND_ACK_TIMEOUT_MS,
 		);
+	});
+});
+
+describe('history requests', () => {
+	const frame = {
+		type: 'bridge.history_request',
+		protocolVersion: BRIDGE_PROTOCOL_VERSION,
+		requestId: 'req-1',
+		sessionId: 'sess-1',
+	} as const;
+
+	it('decodes a request for the chat record and answers it with its ids', () => {
+		expect(decodeControlFrame(frame)).toEqual({ ok: true, value: frame });
+		expect(
+			historyResultCommand('cmd-1', frame, {
+				ok: true,
+				messages: [{ role: 'user', content: 'Remember cedar.' }],
+			}),
+		).toEqual({
+			cmd: 'history_result',
+			id: 'cmd-1',
+			sessionId: 'sess-1',
+			requestId: 'req-1',
+			ok: true,
+			messages: [{ role: 'user', content: 'Remember cedar.' }],
+		});
+	});
+
+	it('refuses a request that names no chat', () => {
+		expect(decodeControlFrame({ ...frame, sessionId: '' })).toEqual({
+			ok: false,
+			error: 'bridge.history_request: `requestId` and `sessionId` must not be empty',
+		});
 	});
 });
 

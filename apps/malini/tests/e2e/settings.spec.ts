@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
+import { CONTEXT_WINDOW_SETTING } from '../../src/contract/agent';
 import { JOBS_MAX_CONCURRENT_SETTING } from '../../src/contract/jobs';
 import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
@@ -9,7 +10,9 @@ import {
 	expectCleanConsole,
 	invoke,
 	launchMalini,
+	openWorkstream,
 	seedWorkstream,
+	sendPrompt,
 } from './harness';
 
 function settingsSection(page: Page, name: string) {
@@ -241,6 +244,47 @@ test('Settings → Models picks the model new chats start with for each mode, an
 		await expect(page.getByRole('combobox', { name: 'Planning model' })).toHaveValue(other, {
 			timeout: 20_000,
 		});
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Settings → Models sets the window every chat compacts at, 280K until the user moves it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-context-window-ws',
+			'Context window',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'WHICH_WINDOW');
+		await expect(page.getByText('Compacts at 280000')).toBeVisible({ timeout: 30_000 });
+
+		await page.getByTestId('sidebar-open-settings').click();
+		await settingsSection(page, 'Models').click();
+		const slider = page.getByRole('slider', { name: 'Context window' });
+		await expect(slider).toHaveValue('280000');
+		await expect(slider).toHaveAttribute('aria-valuetext', '280K');
+		await expect(slider).toBeEnabled();
+		await slider.focus();
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('ArrowRight');
+		await expect(slider).toHaveAttribute('aria-valuetext', '300K');
+		await expect
+			.poll(async () => (await storedSettings(page))[CONTEXT_WINDOW_SETTING])
+			.toBe('300000');
+		await captureFlow(app, 'settings-context-window');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+		await sendPrompt(page, 'WHICH_WINDOW');
+		await expect(page.getByText('Compacts at 300000')).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

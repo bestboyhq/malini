@@ -472,17 +472,36 @@ const compactionRun = (sessionId, runId, releasePath) => {
 		if (!fs.existsSync(releasePath)) return;
 		clearInterval(timer);
 		fs.rmSync(releasePath);
-		pendingRuns.delete(runId);
-		event({
-			type: 'tool.completed',
-			runId,
-			name: 'Compact',
-			toolCallId,
-			output: { trigger: 'manual' },
+		write({
+			type: 'bridge.history_request',
+			protocolVersion: version,
+			requestId: 'history-' + runId,
+			sessionId,
 		});
-		event({ type: 'run.completed', runId, summary: '' });
-		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
+};
+const putRecordBack = (command) => {
+	const runId = command.requestId.replace(/^history-/, '');
+	if (!pendingRuns.has(runId)) return;
+	pendingRuns.delete(runId);
+	event({
+		type: 'tool.completed',
+		runId,
+		name: 'Compact',
+		toolCallId: 'compaction-' + runId,
+		output: { trigger: 'manual' },
+	});
+	const record = command.ok
+		? command.messages.map((message) => '[' + message.role + '] ' + message.content).join(' | ')
+		: command.error;
+	event({
+		type: 'assistant.message',
+		runId,
+		contentId: 'record-' + runId,
+		text: 'Malini put back: ' + record,
+	});
+	event({ type: 'run.completed', runId, summary: '' });
+	event({ type: 'session.state', sessionId: command.sessionId, status: 'completed' });
 };
 const backgroundCommands = new Map();
 const backgroundCommandTask = (startedAt) => ({
@@ -743,6 +762,7 @@ const FIXTURE_SKILLS = [
 const skillsOfRun = new Map();
 const maliniCalls = new Map();
 const themeOfRun = new Map();
+const windowOfRun = new Map();
 
 const lineageOfRun = new Map();
 const briefOfRun = new Map();
@@ -808,6 +828,17 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			contentId: 'c1',
 			text: 'Theme: ' + (themeOfRun.get(runId) ?? 'none'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('WHICH_WINDOW')) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: 'Compacts at ' + (windowOfRun.get(runId) ?? 'none'),
 		});
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
@@ -1469,6 +1500,7 @@ const handle = (command) => {
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (command.theme) themeOfRun.set(runId, command.theme);
+			if (command.compactWindow) windowOfRun.set(runId, command.compactWindow);
 			if (command.lineage) lineageOfRun.set(runId, command.lineage);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
@@ -1762,6 +1794,10 @@ const handle = (command) => {
 		case 'set_secrets': {
 			recordSecrets({ cmd: 'set_secrets', sessionId: command.sessionId, secrets: command.secrets });
 			return ack(command.id);
+		}
+		case 'history_result': {
+			ack(command.id);
+			return putRecordBack(command);
 		}
 		case 'platform_result': {
 			ack(command.id);

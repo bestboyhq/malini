@@ -5,7 +5,7 @@ description: How a Malini chat runs Claude Code - queue or steer prompts, pause 
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
 It keeps running between prompts, so your MCP servers stay connected.
-It restarts after 10 idle minutes, when you change the access, mode, report or skills or switch Claude accounts, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
+It restarts after 10 idle minutes, when you change the access, mode, report, skills or context window or switch Claude accounts, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
 
 ## Chats above repositories
 
@@ -115,9 +115,13 @@ Its output opens inside the code block, under the command, as it prints, with ho
 
 ## Compact the conversation
 
+Every chat and job compacts on its own once its context fills the context window, 280K tokens instead of the model's full window, which is 1M for Opus, and the context gauge counts against it.
+**Settings → Models → Context window** moves it from 100K to 1M; the mark on the slider is the recommended 280K.
+A chat takes a new window with its next prompt, after any run in progress ends, and Malini's window wins over one you pick with `/autocompact` or in your Claude Code settings.
 Type **/** and pick **/compact** to have the chat's Claude Code summarize the conversation so far and free up context.
-**/autocompact** shows when Claude Code compacts on its own; add `auto` or a token count to change it.
 Type instructions after **/compact** to say what the summary should keep.
+Right after any compaction, Malini puts every message of the chat back into the agent's context, word for word: each prompt you wrote and each reply the agent gave, without the turns you undid, the newest 256 KB of them.
+The summary still covers tool calls and their output, which the agent can read again.
 A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
 
 ## Plan first

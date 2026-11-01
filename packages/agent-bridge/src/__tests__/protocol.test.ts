@@ -249,6 +249,31 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses the record main hands back and rejects one it could not have sent', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"history_result","id":"h1","sessionId":"s1","requestId":"q1","ok":true,"messages":[{"role":"user","content":"Remember cedar."}]}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'history_result',
+					id: 'h1',
+					sessionId: 's1',
+					requestId: 'q1',
+					ok: true,
+					messages: [{ role: 'user', content: 'Remember cedar.' }],
+				},
+			});
+			for (const invalid of [
+				'{"cmd":"history_result","id":"h2","sessionId":"s1","requestId":"q1","ok":true,"messages":{}}',
+				'{"cmd":"history_result","id":"h3","sessionId":"s1","requestId":"q1","ok":true,"messages":[{"role":"tool","content":"x"}]}',
+				'{"cmd":"history_result","id":"h4","sessionId":"s1","ok":true,"messages":[]}',
+			]) {
+				expect(parseCommandLine(invalid)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('rejects an unknown profile value at the stdio boundary', () => {
 			const r = parseCommandLine(
 				'{"cmd":"send_prompt","id":"cmd-send","sessionId":"s1","runId":"r1","prompt":"hello","profile":{"effort":"unlimited","mode":"plan"}}',
@@ -689,6 +714,17 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine(`{${prompt},"theme":"sepia"}`).ok).toBe(false);
 		});
 
+		it('parses the window a prompt compacts at and rejects one Claude Code would not take', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			expect(parseCommandLine(`{${prompt},"compactWindow":280000}`)).toMatchObject({
+				ok: true,
+				command: { compactWindow: 280_000 },
+			});
+			for (const broken of ['99999', '1000001', '280000.5', '"280000"']) {
+				expect(parseCommandLine(`{${prompt},"compactWindow":${broken}}`).ok).toBe(false);
+			}
+		});
+
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
 			const r = parseCommandLine(
 				'{"cmd":"approve","id":"cmd-approve","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"maybe"}',
@@ -718,6 +754,7 @@ describe('protocol: parseCommandLine', () => {
 				'browser_result',
 				'platform_result',
 				'set_secrets',
+				'history_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
@@ -735,6 +772,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.mcp_switched',
 				'bridge.browser_request',
 				'bridge.platform_request',
+				'bridge.history_request',
 			]);
 			expect(BRIDGE_PLATFORM_TOOLS).toEqual([
 				'jobs_list',

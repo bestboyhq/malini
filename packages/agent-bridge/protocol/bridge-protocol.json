@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 45,
+	"protocolVersion": 46,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -32,7 +32,8 @@
 		"list_skills",
 		"browser_result",
 		"platform_result",
-		"set_secrets"
+		"set_secrets",
+		"history_result"
 	],
 	"events": [
 		"run.started",
@@ -72,7 +73,8 @@
 		"bridge.mcp_server",
 		"bridge.mcp_switched",
 		"bridge.browser_request",
-		"bridge.platform_request"
+		"bridge.platform_request",
+		"bridge.history_request"
 	],
 	"platformTools": [
 		"jobs_list",
