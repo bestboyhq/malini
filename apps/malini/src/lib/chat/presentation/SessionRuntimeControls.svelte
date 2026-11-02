@@ -13,10 +13,12 @@
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { Icon } from '$hyper-ui/icons';
+	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
 	import {
 		ClaudeAccountList,
 		claudeCodeStatusQuery,
+		ProviderIcon,
+		providerGroupsQuery,
 		subscriptionBillingQuery,
 	} from '$shared/providers/providers.api';
 	import { goto } from '$shared/router/navigation';
@@ -66,6 +68,9 @@
 	const planAlert = $derived(planLimitAlert(planLimits));
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const signedIn = $derived(claudeStatus.kind === 'ready');
+	const keyedProviders = $derived(
+		providerGroupsQuery.data.filter((group) => group.kind !== 'claude' && group.ready),
+	);
 	const chatAccount = $derived(lastRunAccount(envelopes));
 	const ranOnOtherAccount = $derived(
 		claudeStatus.kind === 'ready' &&
@@ -163,6 +168,32 @@
 	>
 		<div class={['h-full rounded-full', fillClass(level)]} style={`width: ${percent}%`}></div>
 	</div>
+{/snippet}
+
+{#snippet planUsageRows()}
+	{#if planLimits.length > 0}
+		<ul class="pb-1" aria-label="Plan usage" data-testid="session-plan-usage">
+			{#each planLimits as limit (limit.label)}
+				{@const level = usagePressure(limit.usedPercent)}
+				<li class="mt-1.5" data-testid="session-rate-limit-row">
+					<div class="flex items-baseline justify-between gap-3 text-xs">
+						<span class="text-fg-secondary">{limit.label}</span>
+						<span class={['tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}>
+							{Math.round(limit.usedPercent)}% used
+						</span>
+					</div>
+					{@render meter(`${limit.label} used`, limit.usedPercent, level)}
+					{#if limit.resetsAt}
+						<p class="text-2xs text-fg-tertiary mt-1">{resetLabel(limit.resetsAt, nowMs)}</p>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{:else if claudeStatus.kind === 'ready' && claudeStatus.account?.plan}
+		<p class="text-2xs text-fg-tertiary pb-1 leading-4">
+			Usage limits show after this account's next run.
+		</p>
+	{/if}
 {/snippet}
 
 {#snippet gauge()}
@@ -341,56 +372,56 @@
 					</section>
 				{/if}
 
-				{#if planLimits.length > 0}
-					<section
-						class="border-border-subtle mt-3 border-t pt-3"
-						aria-label="Plan usage"
-						data-testid="session-plan-usage"
-					>
-						<h3 class="text-fg-default text-sm font-medium">Plan usage</h3>
-						{#each planLimits as limit (limit.label)}
-							{@const level = usagePressure(limit.usedPercent)}
-							<div class="mt-2.5" data-testid="session-rate-limit-row">
-								<div class="flex items-baseline justify-between gap-3 text-xs">
-									<span class="text-fg-secondary">{limit.label}</span>
-									<span
-										class={['tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}
-									>
-										{Math.round(limit.usedPercent)}% used
-									</span>
-								</div>
-								{@render meter(`${limit.label} used`, limit.usedPercent, level)}
-								{#if limit.resetsAt}
-									<p class="text-2xs text-fg-tertiary mt-1.5">
-										{resetLabel(limit.resetsAt, nowMs)}
-									</p>
-								{/if}
-							</div>
-						{/each}
-					</section>
-				{/if}
-
-				{#if signedIn}
-					<section class="border-border-subtle mt-3 border-t pt-3" aria-label="Claude account">
+				{#if signedIn || keyedProviders.length > 0}
+					<section class="border-border-subtle mt-3 border-t pt-3" aria-label="Connected providers">
 						<div class="flex items-center justify-between gap-3">
-							<h3 class="text-fg-default text-sm font-medium">Account</h3>
+							<h3 class="text-fg-default text-sm font-medium">Providers</h3>
 							<IconButton
 								variant="ghost"
 								size="xs"
-								ariaLabel="Manage accounts"
+								ariaLabel="Manage providers"
 								class="text-fg-tertiary"
 								onclick={() => void goto(PROVIDER_SETTINGS_HREF)}
 							>
 								<Icon name="settings" size={14} />
 							</IconButton>
 						</div>
-						{#if ranOnOtherAccount && chatAccount}
-							<p class="text-2xs text-fg-tertiary mt-1 leading-4">
-								This chat last ran on <SensitiveText text={chatAccount} />. Its next prompt uses the
-								checked account.
-							</p>
+						{#if signedIn}
+							<section class="mt-1" aria-label="Claude account">
+								<h4 class="text-fg-secondary flex items-center gap-2 py-1 text-xs">
+									<ClaudeIcon size={13} class="shrink-0" />
+									Claude
+								</h4>
+								{#if ranOnOtherAccount && chatAccount}
+									<p class="text-2xs text-fg-tertiary mt-1 leading-4">
+										This chat last ran on <SensitiveText text={chatAccount} />. Its next prompt uses
+										the checked account.
+									</p>
+								{/if}
+								<ClaudeAccountList
+									class={['-mx-1.5 mt-0.5', keyedProviders.length === 0 && '-mb-1.5']}
+								>
+									{#snippet current()}
+										{@render planUsageRows()}
+									{/snippet}
+								</ClaudeAccountList>
+							</section>
 						{/if}
-						<ClaudeAccountList class="-mx-1.5 mt-1 -mb-1.5" />
+						{#if keyedProviders.length > 0}
+							<div class={signedIn ? 'mt-2.5' : 'mt-1'}>
+								{#each keyedProviders as provider (provider.id)}
+									<div
+										class="text-fg-secondary flex items-center gap-2 py-1 text-xs"
+										aria-label={provider.name}
+										role="group"
+									>
+										<ProviderIcon providerId={provider.id} size={13} class="shrink-0" />
+										<span class="min-w-0 flex-1 truncate">{provider.name}</span>
+										<span class="text-2xs text-fg-tertiary shrink-0">API key</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</section>
 				{/if}
 			</div>

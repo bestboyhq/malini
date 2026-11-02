@@ -59,8 +59,8 @@
 
 	$effect(() => {
 		if (!video) return;
-		if (autoplay) void video.play().catch(() => {});
-		else video.pause();
+		const playing = autoplay;
+		untrack(() => (playing ? play() : hold()));
 	});
 
 	$effect(() => () => clearTimeout(restTimer));

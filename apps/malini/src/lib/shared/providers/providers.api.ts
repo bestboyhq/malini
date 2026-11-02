@@ -100,6 +100,7 @@ export { default as ClaudeAccountList } from './presentation/ClaudeAccountList.s
 export { default as ClaudeCodeSetup } from './presentation/ClaudeCodeSetup.svelte';
 export { default as ModelDefaultsSettings } from './presentation/ModelDefaultsSettings.svelte';
 export { default as ModelProfilePicker } from './presentation/ModelProfilePicker.svelte';
+export { default as ProviderIcon } from './presentation/ProviderIcon.svelte';
 export { default as ProviderKeyCard } from './presentation/ProviderKeyCard.svelte';
 export { providerSelectOptions } from './presentation/provider-select-options';
 export { default as RunProfileControls } from './presentation/RunProfileControls.svelte';

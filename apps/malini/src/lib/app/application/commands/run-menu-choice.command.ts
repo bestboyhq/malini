@@ -5,7 +5,7 @@ import {
 	requestRepositoryConnectionCommand,
 } from '$shared/repositories/repositories.api';
 import { back, goto } from '$shared/router/navigation';
-import { ACCOUNT_SETTINGS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
+import { PROVIDER_SETTINGS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
 import { page } from '$shared/router/state';
 import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 
@@ -16,7 +16,7 @@ const MENU_CHOICES: Readonly<Record<MenuCommand, () => void>> = {
 	'new-chat': startChatHere,
 	'open-folder': () => requestRepositoryConnectionCommand('folder'),
 	'clone-repository': () => requestRepositoryConnectionCommand('clone'),
-	accounts: () => void goto(ACCOUNT_SETTINGS_HREF),
+	accounts: () => void goto(PROVIDER_SETTINGS_HREF),
 	settings: () => void goto(SETTINGS_HREF),
 };
 

@@ -1,7 +1,12 @@
 import { tmpdir } from 'node:os';
 import type { ModelInfo, SDKControlInitializeResponse } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FALLBACK_MODELS, probeClaudeCode, unknownCapability } from './capabilities.js';
+import {
+	FALLBACK_MODELS,
+	probeClaudeCode,
+	unknownCapability,
+	type CapabilityProbeOptions,
+} from './capabilities.js';
 import { fakeClaude, initializeResponse } from './fixtures/fake-claude.js';
 import type { ClaudeAuthStatus } from './installation.js';
 
@@ -64,6 +69,7 @@ function installed(
 
 afterEach(() => {
 	vi.useRealTimers();
+	vi.unstubAllEnvs();
 });
 
 describe('probeClaudeCode', () => {
@@ -130,6 +136,23 @@ describe('probeClaudeCode', () => {
 			defaultModel: 'opus',
 			message: 'Signed in as ada@example.com',
 		});
+	});
+
+	it('reads the sign-in without the provider variables this Mac was launched with', async () => {
+		vi.stubEnv('ANTHROPIC_AUTH_TOKEN', 'bootstrap-key');
+		vi.stubEnv('ANTHROPIC_BASE_URL', 'https://api.deepseek.com/anthropic');
+		const authStatus = vi.fn<NonNullable<CapabilityProbeOptions['authStatus']>>(
+			async () => SIGNED_IN,
+		);
+		const version = vi.fn<NonNullable<CapabilityProbeOptions['version']>>(async () => '2.1.196');
+		await probeClaudeCode({ ...installed(SIGNED_IN).options, authStatus, version });
+
+		for (const [, env] of [...authStatus.mock.calls, ...version.mock.calls]) {
+			expect(env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN');
+			expect(env).not.toHaveProperty('ANTHROPIC_BASE_URL');
+			expect(env).toHaveProperty('PATH', process.env['PATH']);
+		}
+		expect(authStatus).toHaveBeenCalledOnce();
 	});
 
 	it('lists models from an isolated Claude Code that never receives a prompt', async () => {
