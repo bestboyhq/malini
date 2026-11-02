@@ -39,8 +39,11 @@ export const FALLBACK_MODELS: readonly AgentModelInfo[] = BRIDGE_MODELS.map((id)
 
 export interface CapabilityProbeOptions {
 	readonly findExecutable?: () => string | null;
-	readonly version?: (executable: string) => Promise<string>;
-	readonly authStatus?: (executable: string) => Promise<ClaudeAuthStatus>;
+	readonly version?: (executable: string, env: Readonly<Record<string, string>>) => Promise<string>;
+	readonly authStatus?: (
+		executable: string,
+		env: Readonly<Record<string, string>>,
+	) => Promise<ClaudeAuthStatus>;
 	readonly query?: QueryFunction;
 }
 
@@ -60,10 +63,11 @@ export async function probeClaudeCode(
 			message: 'Claude Code is not installed',
 		};
 	}
+	const env = claudeEnvironment();
 	const [version, auth, models] = await Promise.all([
-		(options.version ?? claudeVersion)(executable).catch(() => null),
-		(options.authStatus ?? claudeAuthStatus)(executable),
-		supportedModels(executable, options.query ?? sdkQuery),
+		(options.version ?? claudeVersion)(executable, env).catch(() => null),
+		(options.authStatus ?? claudeAuthStatus)(executable, env),
+		supportedModels(executable, env, options.query ?? sdkQuery),
 	]);
 	if (!auth.signedIn) {
 		return {
@@ -104,6 +108,7 @@ export function unknownCapability(message: string): ProviderCapability {
 
 async function supportedModels(
 	executable: string,
+	env: Readonly<Record<string, string>>,
 	query: QueryFunction,
 ): Promise<readonly AgentModelInfo[]> {
 	let release!: () => void;
@@ -113,7 +118,7 @@ async function supportedModels(
 		options: {
 			cwd: tmpdir(),
 			pathToClaudeCodeExecutable: executable,
-			env: claudeEnvironment(),
+			env,
 			settingSources: ['user'],
 			settings: { disableAllHooks: true },
 			mcpServers: {},
