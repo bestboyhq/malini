@@ -581,7 +581,10 @@ export function createTranscriptScroll(
 		releaseScrollPin: becomeReader,
 
 		followSpaceBelowChange(px: number, overlayPx: number): void {
-			const covered = coversWithOverlay() ? coveredPx + overlayPx - overlayBelowPx : 0;
+			const joinsGlide = scrollGlide.isGliding && overlayPx > overlayBelowPx;
+			const covered = coversWithOverlay()
+				? coveredPx + (joinsGlide ? 0 : overlayPx - overlayBelowPx)
+				: 0;
 			const moved = px - spaceBelowPx - (covered - coveredPx);
 			const blankGrowth = Math.min(0, coveredPx) - Math.min(0, covered);
 			spaceBelowPx = px;
