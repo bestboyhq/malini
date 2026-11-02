@@ -7,6 +7,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	sendPrompt,
 } from './harness';
 
 test('a new Mac without Claude Code is walked to install it, with the command it will run', async () => {
@@ -51,13 +52,23 @@ test('a signed-out Claude Code asks to sign in and the composer will not send', 
 		await captureFlow(app, 'first-run-sign-in-claude');
 
 		await openWorkstream(page, workstreamId);
-		const picker = page.getByRole('button', { name: 'Model: Opus, Claude Code needs setup' });
+		const picker = page.getByRole('button', { name: 'Model: Opus' });
 		await expect(picker).toBeVisible({ timeout: 20_000 });
 		await picker.click();
-		const setup = page.getByTestId('chat-model-setup');
-		await expect(setup).toContainText('Claude Code is installed but not signed in.');
-		await expect(setup.getByRole('button', { name: 'Sign in to Claude Code' })).toBeVisible();
-		await captureFlow(app, 'model-picker-sign-in-claude');
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeVisible();
+		await expect(
+			page.locator(
+				'[data-testid="chat-model-option"][data-provider="claude"] [data-testid="chat-model-no-access"]',
+			),
+		).toHaveCount(2);
+		await page.keyboard.press('Escape');
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		const connect = page.getByTestId('provider-connect-card');
+		await expect(connect).toHaveAttribute('data-access', 'claude-signed-out');
+		await expect(connect).toContainText('Sign in to Claude Code to run this message.');
+		await expect(connect.getByRole('button', { name: 'Sign in with Claude' })).toBeVisible();
+		await expect(page.getByTestId('chat-prompt-pick')).toHaveCount(0);
+		await captureFlow(app, 'composer-sign-in-claude');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
