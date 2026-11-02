@@ -225,6 +225,51 @@ test('the Stats panel nudges to publish, copies the heatmap and readout cards on
 	}
 });
 
+test('signed in to Bestboy, the sidebar shows your picture, and its popover cheers your week and opens Profile settings', async () => {
+	test.setTimeout(240_000);
+	const platform = await fakeBestboy();
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
+	try {
+		const { page } = app;
+		await recordBrowser(app);
+		const badge = page.getByRole('button', { name: 'Your profile' });
+		await expect(page.getByTestId('sidebar-open-settings')).toBeVisible({ timeout: 20_000 });
+		await expect(badge).toHaveCount(0);
+
+		await openProfileSettings(page);
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await settings.getByRole('button', { name: 'Sign in' }).click();
+		const signIn = await signInUrl(app, platform, 1);
+		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
+		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+
+		await badge.click();
+		const profile = page.getByRole('dialog', { name: 'Your profile' });
+		await expect(profile.getByText('E2E Person')).toBeVisible();
+		await expect(profile.getByText('e2e@bestboy.dev')).toBeVisible();
+		const week = profile.getByRole('region', { name: 'Your week' });
+		await expect(week).toContainText(
+			/Crushing it as always|Your agents can barely keep up|Shipping like it's a sport/u,
+		);
+		await expect(week).toContainText('6 runs this week · 7-day streak');
+		await expect(profile.getByRole('link', { name: 'Open profile' })).toHaveCount(0);
+		await captureFlow(app, 'profile-badge-popover');
+
+		await profile.getByRole('button', { name: 'Profile settings' }).click();
+		await expect(profile).toHaveCount(0);
+		await settings.getByRole('button', { name: 'Sign out' }).click();
+		await expect(settings.getByText('Not signed in to Bestboy')).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(badge).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		platform.close();
+	}
+});
+
 test('a 7-day streak that ended three days ago peeks out of the sidebar in place of recently archived as your card, claims your profile from its sheet, and stays away once switched off or dismissed', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();

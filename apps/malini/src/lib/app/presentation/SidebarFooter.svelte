@@ -3,7 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { REPOSITORIES_HREF } from '$shared/router/routes-hrefs';
-	import { StatsReadout } from '$lib/stats/stats.api';
+	import { ProfileBadge, StatsReadout } from '$lib/stats/stats.api';
 	import UpdateStatus from './UpdateStatus.svelte';
 </script>
 
@@ -12,6 +12,7 @@
 <div
 	class="border-surface-50-border flex shrink-0 items-center gap-1 border-t py-1.5 pr-1.5 pl-2.5"
 >
+	<ProfileBadge />
 	<Tooltip content="Connect repository" placement="right">
 		<IconButton
 			variant="ghost"

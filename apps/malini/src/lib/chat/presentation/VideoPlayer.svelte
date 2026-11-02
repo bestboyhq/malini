@@ -159,6 +159,7 @@
 
 	function cycleSpeed(): void {
 		speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length] ?? 1;
+		if (pending) pending = { ...pending, speed };
 	}
 
 	function clock(seconds: number): string {
