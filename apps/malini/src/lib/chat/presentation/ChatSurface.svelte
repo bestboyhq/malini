@@ -150,7 +150,7 @@
 	const bootError = $derived(sessionBootErrorQuery.data);
 	const emptySessionMode = $derived(emptySessionModeQuery.data);
 	const forceFreshSession = $derived(freshSessionRequestedQuery.data);
-	const model = $derived(activeModelQuery.data);
+	const selection = $derived(activeModelQuery.data);
 	const profile = $derived(runProfileQuery.data);
 	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
 	const handsOffBackgroundWork = $derived(
@@ -325,7 +325,7 @@
 	);
 
 	const editorComposerControls = $derived<TranscriptComposerControls>({
-		model,
+		selection,
 		profile,
 		envelopes,
 		backendSelectionDisabled: bootError !== null || presentationPending,
@@ -674,7 +674,7 @@
 										bind:transcriptReferences
 										bind:elementReferences
 										{forceFreshSession}
-										{model}
+										{selection}
 										{profile}
 										{envelopes}
 										{isRunning}

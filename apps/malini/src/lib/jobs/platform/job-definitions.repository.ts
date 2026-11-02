@@ -15,6 +15,7 @@ interface JobDefinitionRow {
 	id: string;
 	name: string;
 	instructions: string;
+	provider: string;
 	model: string;
 	effort: AgentReasoningEffort;
 	runs_in: JobRunsIn;
@@ -33,7 +34,7 @@ interface JobDefinitionRow {
 }
 
 const COLUMNS =
-	'id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, sees_event, sees_before, sees_chats, sees_attachments, reaches_internet, created_at, updated_at';
+	'id, name, instructions, provider, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, sees_event, sees_before, sees_chats, sees_attachments, reaches_internet, created_at, updated_at';
 
 function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 	const skills = parseJsonColumn(row.skills);
@@ -41,6 +42,7 @@ function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 		id: row.id,
 		name: row.name,
 		instructions: row.instructions,
+		provider: row.provider,
 		model: row.model,
 		effort: row.effort,
 		runsIn: row.runs_in,
@@ -91,11 +93,12 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 	return (
 		run(
 			db,
-			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT DO NOTHING`,
 			definition.id,
 			definition.name,
 			definition.instructions,
+			definition.provider,
 			definition.model,
 			definition.effort,
 			definition.runsIn,
@@ -115,12 +118,13 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 	run(
 		db,
 		`UPDATE job_definitions
-		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, skills = ?,
+		 SET name = ?, instructions = ?, provider = ?, model = ?, effort = ?, runs_in = ?, skills = ?,
 		     trigger_when = ?, trigger_mode = ?, then_job_id = ?, sees_event = ?, sees_before = ?,
 		     sees_chats = ?, sees_attachments = ?, reaches_internet = ?, updated_at = ?
 		 WHERE id = ?`,
 		definition.name,
 		definition.instructions,
+		definition.provider,
 		definition.model,
 		definition.effort,
 		definition.runsIn,

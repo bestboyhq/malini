@@ -1338,6 +1338,45 @@ UPDATE reconciler_decisions SET subject_run_id = (
 );
 `,
 	`
+CREATE TABLE model_providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('claude', 'anthropic')),
+  base_url TEXT,
+  api_key BLOB,
+  models TEXT NOT NULL CHECK (json_valid(models) AND json_type(models) = 'array'),
+  subagent_model TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((kind = 'claude') = (base_url IS NULL))
+);
+INSERT INTO model_providers
+  (id, name, kind, base_url, api_key, models, subagent_model, created_at, updated_at)
+VALUES (
+  'deepseek',
+  'DeepSeek',
+  'anthropic',
+  'https://api.deepseek.com/anthropic',
+  NULL,
+  '[{"id":"deepseek-v4-pro","label":"DeepSeek V4 Pro","description":"Text only, best for complex work","efforts":["low","high","max"]},{"id":"deepseek-flash","label":"DeepSeek V4 Flash","description":"Text and images, faster","efforts":["low","high","max"]}]',
+  'deepseek-flash',
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+);
+ALTER TABLE agent_sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';
+UPDATE agent_sessions SET provider = 'deepseek'
+  WHERE model IN ('deepseek-v4-pro', 'deepseek-flash');
+ALTER TABLE job_definitions ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';
+UPDATE job_definitions SET provider = 'deepseek'
+  WHERE model IN ('deepseek-v4-pro', 'deepseek-flash');
+ALTER TABLE job_setups ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';
+UPDATE job_setups SET provider = 'deepseek'
+  WHERE model IN ('deepseek-v4-pro', 'deepseek-flash');
+ALTER TABLE job_experiments ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';
+UPDATE job_experiments SET provider = 'deepseek'
+  WHERE model IN ('deepseek-v4-pro', 'deepseek-flash');
+`,
+	`
 ALTER TABLE job_definitions ADD COLUMN sees_event TEXT NOT NULL DEFAULT 'facts'
   CHECK (sees_event IN ('facts', 'full'));
 ALTER TABLE job_definitions ADD COLUMN sees_before INTEGER NOT NULL DEFAULT 1

@@ -5,26 +5,29 @@ import { providerCapabilitiesStore } from '$shared/providers/infrastructure/stor
 
 export { signInToClaudeCommand };
 
-function signInToClaudeCommand(email: string | null = null): void {
+async function signInToClaudeCommand(email: string | null = null): Promise<boolean> {
 	claudeAccountsStore.remember(signedInEmail());
 	claudeAccountsStore.signIn = email ? 'switching' : 'waiting-for-browser';
-	void (async () => {
-		try {
-			const switched =
-				email !== null && (await claudeSetupService.switchAccount(email)) === 'switched';
-			if (!switched) {
-				claudeAccountsStore.signIn = 'waiting-for-browser';
-				if ((await claudeSetupService.signIn(email)) === 'cancelled') return;
-				claudeAccountsStore.signIn = 'confirming';
+	try {
+		const switched =
+			email !== null && (await claudeSetupService.switchAccount(email)) === 'switched';
+		if (!switched) {
+			claudeAccountsStore.signIn = 'waiting-for-browser';
+			if ((await claudeSetupService.signIn(email)) === 'cancelled') {
+				claudeAccountsStore.signIn = 'idle';
+				return false;
 			}
-			await providerCapabilitiesStore.reload();
-			claudeAccountsStore.remember(signedInEmail());
-			claudeAccountsStore.signIn = 'idle';
-		} catch (error: unknown) {
-			claudeAccountsStore.signIn = 'idle';
-			toast.error(error instanceof Error ? error.message : String(error));
+			claudeAccountsStore.signIn = 'confirming';
 		}
-	})();
+		await providerCapabilitiesStore.reload();
+		claudeAccountsStore.remember(signedInEmail());
+		claudeAccountsStore.signIn = 'idle';
+		return providerCapabilitiesStore.capability?.state === 'ready';
+	} catch (error: unknown) {
+		claudeAccountsStore.signIn = 'idle';
+		toast.error(error instanceof Error ? error.message : String(error));
+		return false;
+	}
 }
 
 function signedInEmail(): string | undefined {

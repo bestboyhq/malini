@@ -62,6 +62,7 @@ import {
 	persistedBridgeSession,
 	persistedBridgeSessions,
 	registerPersistedBridgeSession,
+	type ResolveProviderEnvironment,
 } from './sessions';
 import {
 	backoffForAttempt,
@@ -94,6 +95,7 @@ export interface BridgeRuntimeDeps {
 	readonly appDataRoot: string;
 	readonly supervisorConfig: BridgeSupervisorConfig;
 	readonly leases: AgentRunLeases;
+	readonly providerEnvironment?: ResolveProviderEnvironment;
 	readonly hooks?: BridgeRuntimeHooks;
 	readonly log?: (line: string) => void;
 }
@@ -544,6 +546,7 @@ export class BridgeRuntime {
 	private readonly appDataRoot: string;
 	private readonly supervisorConfig: BridgeSupervisorConfig;
 	private readonly leases: AgentRunLeases;
+	private readonly providerEnvironment: ResolveProviderEnvironment;
 	private readonly hooks: BridgeRuntimeHooks;
 	private readonly log: (line: string) => void;
 	private supervisor: BridgeSupervisor | null = null;
@@ -566,6 +569,7 @@ export class BridgeRuntime {
 		this.appDataRoot = deps.appDataRoot;
 		this.supervisorConfig = deps.supervisorConfig;
 		this.leases = deps.leases;
+		this.providerEnvironment = deps.providerEnvironment ?? (async () => ({}));
 		this.hooks = deps.hooks ?? {};
 		this.log = deps.log ?? defaultLog;
 	}
@@ -670,7 +674,13 @@ export class BridgeRuntime {
 		if (this.registeredSessions.has(sessionId)) return supervisor;
 		const session = persistedBridgeSession(this.db, sessionId);
 		if (!session) throw new Error(`agent session \`${sessionId}\` not found`);
-		await registerPersistedBridgeSession(this.db, this.appDataRoot, supervisor, session);
+		await registerPersistedBridgeSession(
+			this.db,
+			this.appDataRoot,
+			supervisor,
+			session,
+			this.providerEnvironment,
+		);
 		this.markSessionRegistered(sessionId, supervisor);
 		return supervisor;
 	}
@@ -749,7 +759,13 @@ export class BridgeRuntime {
 		};
 		for (const session of persistedBridgeSessions(this.db, sessionIds)) {
 			try {
-				await registerPersistedBridgeSession(this.db, this.appDataRoot, replacement, session);
+				await registerPersistedBridgeSession(
+					this.db,
+					this.appDataRoot,
+					replacement,
+					session,
+					this.providerEnvironment,
+				);
 				report.registeredSessions += 1;
 			} catch (error) {
 				const message = describe(error);

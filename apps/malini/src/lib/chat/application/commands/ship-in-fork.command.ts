@@ -8,7 +8,7 @@ import { sessionActivation } from '$lib/chat/infrastructure/services/session-act
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
-import { defaultAgentModel, roleForAgentMode } from '$shared/providers/providers.api';
+import { roleForAgentMode } from '$shared/providers/providers.api';
 
 export { shipInForkCommand };
 
@@ -22,7 +22,7 @@ function shipInForkCommand(
 	}>,
 ): void {
 	const { workstreamId, sessionId, atSeq, prompt, subject } = request;
-	const model = chatModelStore.model ?? defaultAgentModel();
+	const selection = chatModelStore.currentSelection();
 	const profile = { ...chatModelStore.profile };
 	const requestId = newChatRequestId();
 	chatRequestsStore.begin(requestId);
@@ -36,7 +36,7 @@ function shipInForkCommand(
 			const forked = await sessionActivation.mint({
 				workstreamId,
 				role: roleForAgentMode(profile.mode),
-				selection: { model },
+				selection,
 				activate: false,
 			});
 			submitPromptCommand({
@@ -45,7 +45,8 @@ function shipInForkCommand(
 				sessionId: forked,
 				forceFreshSession: false,
 				prompt,
-				model,
+				provider: selection.provider,
+				model: selection.model,
 				profile,
 				contextFiles: [],
 				attachments: [transcript],

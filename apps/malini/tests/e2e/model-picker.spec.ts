@@ -27,7 +27,7 @@ test('the model picker is one button that opens and closes its list from the key
 			BrowserWindow.getAllWindows()[0]?.setSize(900, 700),
 		);
 		await expect(picker).toHaveAccessibleName('Model: Opus');
-		const models = page.getByRole('listbox', { name: 'Claude models' });
+		const models = page.getByRole('listbox', { name: 'Models' });
 
 		await picker.focus();
 		await page.keyboard.press('Enter');

@@ -1,4 +1,9 @@
-import { persistedAgentModel, type AgentModel } from '$shared/providers/providers.api';
+import {
+	DEFAULT_PROVIDER_ID,
+	normalizeModelSelection,
+	persistedAgentModel,
+	type AgentModel,
+} from '$shared/providers/providers.api';
 import { roleForAgentMode, type ModelRole } from '$shared/providers/providers.api';
 import {
 	DEFAULT_AGENT_RUN_PROFILE,
@@ -138,6 +143,10 @@ function parseEntry(value: unknown): QueuedPrompt | null {
 			? candidate.role
 			: roleForAgentMode(profile.mode);
 	if (roleForAgentMode(profile.mode) !== role) return null;
+	const selection = normalizeModelSelection(
+		{ provider: candidate.provider, model },
+		{ provider: DEFAULT_PROVIDER_ID, model },
+	);
 	return {
 		id: candidate.id,
 		targetSessionId:
@@ -147,7 +156,8 @@ function parseEntry(value: unknown): QueuedPrompt | null {
 		forceFreshSession: candidate.forceFreshSession === true,
 		prompt: candidate.prompt.trim(),
 		role,
-		model,
+		provider: selection.provider,
+		model: selection.model,
 		contextFiles: sanitizeContextFiles(candidate.contextFiles),
 		attachments: sanitizeAttachments(candidate.attachments),
 		transcriptReferences: sanitizeAgentTranscriptReferences(candidate.transcriptReferences),
@@ -269,6 +279,7 @@ export class AgentPromptQueue {
 		forceFreshSession?: boolean;
 		prompt: string;
 		role?: ModelRole;
+		provider?: string;
 		model: AgentModel;
 		contextFiles?: readonly string[];
 		attachments?: readonly StagedAgentAttachment[];
@@ -291,6 +302,7 @@ export class AgentPromptQueue {
 			forceFreshSession: input.forceFreshSession === true,
 			prompt,
 			role,
+			provider: input.provider ?? DEFAULT_PROVIDER_ID,
 			model: input.model,
 			contextFiles: sanitizeContextFiles(input.contextFiles),
 			attachments: sanitizeAttachments(input.attachments),
@@ -313,6 +325,7 @@ export class AgentPromptQueue {
 			targetSessionId?: SessionId | null;
 			forceFreshSession?: boolean;
 			role?: ModelRole;
+			provider?: string;
 			model?: AgentModel;
 			contextFiles?: readonly string[];
 			attachments?: readonly StagedAgentAttachment[];
@@ -335,6 +348,7 @@ export class AgentPromptQueue {
 					input.targetSessionId === undefined ? entry.targetSessionId : input.targetSessionId,
 				forceFreshSession: input.forceFreshSession ?? entry.forceFreshSession,
 				role: input.role ?? entry.role,
+				provider: input.provider ?? entry.provider,
 				model: input.model ?? entry.model,
 				contextFiles:
 					input.contextFiles === undefined

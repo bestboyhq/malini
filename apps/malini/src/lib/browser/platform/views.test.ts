@@ -203,8 +203,16 @@ class FakeView implements PageView<FakeWindow> {
 const TAB = { workstreamId: 'ws-1', tabId: 'tab-1' } as const;
 const PICK = {
 	...TAB,
+	provider: 'claude',
 	model: 'claude-sonnet-5-5',
-	models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }],
+	models: [
+		{
+			id: 'claude-sonnet-5-5',
+			label: 'Sonnet 5.5',
+			provider: 'claude',
+			providerName: 'Claude',
+		},
+	],
 	profile: { effort: 'medium', mode: 'agent', access: 'auto', report: 'low' },
 } as const;
 const PAGE_PIN = {

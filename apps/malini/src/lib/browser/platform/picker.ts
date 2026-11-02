@@ -38,10 +38,16 @@ interface Selection {
 }
 
 type Answer =
-	| { readonly kind: 'send'; readonly prompt: string; readonly model: string }
+	| {
+			readonly kind: 'send';
+			readonly prompt: string;
+			readonly provider: string;
+			readonly model: string;
+	  }
 	| { readonly kind: 'reselect' };
 
 export interface PickRequest {
+	readonly provider: string;
 	readonly model: string;
 	readonly models: readonly PickerModel[];
 }
@@ -70,6 +76,7 @@ export async function pickElement(
 ): Promise<BrowserThreadStarted | null> {
 	try {
 		let reselect = false;
+		let provider = request.provider;
 		let model = request.model;
 		for (;;) {
 			const selection = readSelection(
@@ -89,14 +96,27 @@ export async function pickElement(
 			};
 			let error: string | null = null;
 			for (;;) {
-				const asked = page.run({ kind: 'prompt', models: request.models, model, error });
+				const asked = page.run({
+					kind: 'prompt',
+					models: request.models,
+					provider,
+					model,
+					error,
+				});
 				const answer = readAnswer(await untilAborted(asked, signal), request);
 				if (answer === null || signal.aborted) return null;
 				if (answer.kind === 'reselect') break;
+				provider = answer.provider;
 				model = answer.model;
 				try {
-					const sessionId = await start({ prompt: answer.prompt, model, element, screenshot });
-					return { sessionId, model };
+					const sessionId = await start({
+						prompt: answer.prompt,
+						provider,
+						model,
+						element,
+						screenshot,
+					});
+					return { sessionId, provider, model };
 				} catch (failure) {
 					error = failureMessage(failure);
 				}
@@ -180,11 +200,22 @@ function readAnswer(value: unknown, request: PickRequest): Answer | null {
 	const kind = field(value, 'kind');
 	if (kind === 'reselect') return { kind };
 	const prompt = field(value, 'prompt');
+	const provider = request.models.length === 0 ? request.provider : field(value, 'provider');
 	const model = request.models.length === 0 ? request.model : field(value, 'model');
-	const offered = request.models.length === 0 || request.models.some(({ id }) => id === model);
-	if (kind === 'send' && typeof prompt === 'string' && typeof model === 'string' && offered) {
+	const offered =
+		request.models.length === 0 ||
+		request.models.some((choice) => choice.provider === provider && choice.id === model);
+	if (
+		kind === 'send' &&
+		typeof prompt === 'string' &&
+		typeof provider === 'string' &&
+		typeof model === 'string' &&
+		offered
+	) {
 		const trimmed = prompt.trim();
-		if (trimmed.length > 0) return { kind, prompt: trimmed.slice(0, MAX_PROMPT_CHARS), model };
+		if (trimmed.length > 0) {
+			return { kind, prompt: trimmed.slice(0, MAX_PROMPT_CHARS), provider, model };
+		}
 	}
 	throw new Error('The element picker returned a prompt Malini cannot read.');
 }

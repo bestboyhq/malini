@@ -22,7 +22,7 @@ import {
 } from '$lib/jobs/jobs.platform';
 import { openFileForUser } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
-import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
+import { DEFAULT_AGENT_MODEL, DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
@@ -573,6 +573,7 @@ function jobDefinition(
 		return {
 			name,
 			instructions,
+			provider: DEFAULT_PROVIDER_ID,
 			model: model ?? DEFAULT_AGENT_MODEL,
 			effort: effort ?? 'high',
 			runsIn: runsIn ?? 'workstream',
@@ -583,6 +584,7 @@ function jobDefinition(
 		id: existing.id,
 		name: name ?? existing.name,
 		instructions: instructions ?? existing.instructions,
+		provider: existing.provider,
 		model: model ?? existing.model,
 		effort: effort ?? existing.effort,
 		runsIn: runsIn ?? existing.runsIn,

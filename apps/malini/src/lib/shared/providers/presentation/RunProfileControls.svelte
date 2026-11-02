@@ -1,12 +1,13 @@
 <script lang="ts">
-	import type { AgentModel } from '$shared/providers/domain/model-id';
+	import type { ModelSelection } from '$shared/providers/domain/model-preferences';
 	import {
+		allProviderModels,
 		catalogModelLabel,
 		effortsForModel,
 		normalizeReasoningEffort,
 	} from '$shared/providers/domain/model-catalog';
+	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
 	import { agentAccessDefaultQuery } from '$shared/providers/application/queries/agent-access-default.query.svelte';
-	import { modelCatalogQuery } from '$shared/providers/application/queries/model-catalog.query.svelte';
 	import {
 		AGENT_ACCESS_DETAILS,
 		AGENT_ACCESS_LEVELS,
@@ -29,13 +30,13 @@
 	import { MODEL_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 
 	interface Props {
-		model: AgentModel;
+		selection: ModelSelection;
 		profile: AgentRunProfile;
 		disabled?: boolean;
 		onchange: (profile: AgentRunProfile) => void;
 	}
 
-	let { model, profile, disabled = false, onchange }: Props = $props();
+	let { selection, profile, disabled = false, onchange }: Props = $props();
 	let effortTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let effortOpen = $state(false);
 	let optionsTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
@@ -55,13 +56,13 @@
 		medium: 'checklist',
 		high: 'note',
 	};
-	const catalog = $derived(modelCatalogQuery.data);
-	const efforts = $derived(effortsForModel(catalog, model));
+	const catalog = $derived(allProviderModels(providerGroupsQuery.data));
+	const efforts = $derived(effortsForModel(catalog, selection.model));
 	const effortSupported = $derived(efforts.length > 0);
 	const effortHelp = $derived(
 		effortSupported
 			? 'Adjust reasoning effort'
-			: `${catalogModelLabel(catalog, model)} does not take a reasoning effort`,
+			: `${catalogModelLabel(catalog, selection.model)} does not take a reasoning effort`,
 	);
 
 	function effortLabel(value: AgentReasoningEffort): string {

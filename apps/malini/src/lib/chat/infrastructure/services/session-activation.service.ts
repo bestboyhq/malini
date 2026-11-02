@@ -47,6 +47,7 @@ class SessionActivationService {
 				sessionId: summary.id,
 				workstreamId,
 				displayName: summary.displayName,
+				provider: summary.provider,
 				model: summary.model,
 				status: summary.status,
 				startedAt: summary.startedAt,
@@ -69,7 +70,8 @@ class SessionActivationService {
 			sessionsAggregate.ensureSession({
 				sessionId,
 				workstreamId: owner,
-				model: chatModelStore.model,
+				provider: chatModelStore.currentSelection().provider,
+				model: chatModelStore.currentSelection().model,
 			});
 		}
 		transcriptAggregate.ensureProjection(sessionId);
@@ -85,7 +87,8 @@ class SessionActivationService {
 		sessionsAggregate.ensureSession({
 			sessionId,
 			workstreamId,
-			model: chatModelStore.model,
+			provider: chatModelStore.currentSelection().provider,
+			model: chatModelStore.currentSelection().model,
 		});
 	}
 
@@ -195,7 +198,11 @@ class SessionActivationService {
 
 	#previewSelection(sessionId: SessionId, workstreamId: string, record: SessionRecord): void {
 		const next = this.#selectionFor(sessionId, workstreamId, record);
-		chatModelStore.preview = { sessionId, model: next.selection.model, profile: next.profile };
+		chatModelStore.preview = {
+			sessionId,
+			selection: next.selection,
+			profile: next.profile,
+		};
 	}
 
 	#commitSelection(
@@ -210,7 +217,7 @@ class SessionActivationService {
 			if (!next.remembered) {
 				writeChatModelSnapshot(sessionId, { role: next.role, selection: next.selection });
 			}
-			chatModelStore.model = next.selection.model;
+			chatModelStore.selection = next.selection;
 			chatModelStore.profile = next.profile;
 			chatSessionStore.createFreshSessionOnNextPrompt = false;
 		}
@@ -343,6 +350,7 @@ class SessionActivationService {
 			previousSessionId !== null && !this.sessionHasConversation(previousSessionId);
 		const sessionId = await agentRunner.startSession({
 			workstreamId,
+			provider: selection.provider,
 			model: selection.model,
 		});
 		writeChatModelSnapshot(sessionId, { role, selection });
@@ -363,7 +371,7 @@ class SessionActivationService {
 		if (input.activate && chatRoute.isCurrentWorkstream(workstreamId)) {
 			chatSessionStore.suppressRouteActivation = true;
 			try {
-				chatModelStore.model = selection.model;
+				chatModelStore.selection = selection;
 				chatModelStore.profile = {
 					mode: role === 'planning' ? 'plan' : 'agent',
 					effort: chatModelStore.profile.effort,

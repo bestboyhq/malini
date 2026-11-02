@@ -5,7 +5,6 @@ import type { SessionId } from '$lib/chat/domain/session';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
-import { defaultAgentModel } from '$shared/providers/providers.api';
 
 export { sendCommandPromptCommand };
 
@@ -18,6 +17,7 @@ function sendCommandPromptCommand(
 	}>,
 ): void {
 	const { workstreamId, sessionId, prompt, subject } = request;
+	const selection = chatModelStore.currentSelection();
 	const requestId = newChatRequestId();
 	submitPromptCommand({
 		requestId,
@@ -25,7 +25,8 @@ function sendCommandPromptCommand(
 		sessionId,
 		forceFreshSession: false,
 		prompt,
-		model: chatModelStore.model ?? defaultAgentModel(),
+		provider: selection.provider,
+		model: selection.model,
 		profile: { ...chatModelStore.profile },
 		contextFiles: [],
 		attachments: [],

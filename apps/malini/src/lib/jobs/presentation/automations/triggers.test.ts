@@ -15,6 +15,7 @@ function job(id: string, patch: Partial<JobDefinitionRecord> = {}): JobDefinitio
 		id,
 		name: id,
 		instructions: 'Do the thing.',
+		provider: 'claude',
 		model: 'sonnet',
 		effort: 'high',
 		runsIn: 'workstream',

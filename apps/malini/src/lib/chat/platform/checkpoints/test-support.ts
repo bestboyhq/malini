@@ -65,6 +65,7 @@ export function seedRunChangeDb(db: MaliniDatabase, repo: string): void {
 		insertSession(db, {
 			id: sessionId,
 			workstreamId: WORKSTREAM_ID,
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'running',

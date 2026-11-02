@@ -11,6 +11,7 @@ function job(
 		id,
 		name: id,
 		instructions: `Do ${id}.`,
+		provider: 'claude',
 		model: 'opus',
 		effort: 'high',
 		runsIn: 'workstream',

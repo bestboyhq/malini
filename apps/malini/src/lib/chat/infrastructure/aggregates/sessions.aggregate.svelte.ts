@@ -22,6 +22,7 @@ import {
 } from '$lib/chat/domain/canonical-envelope-index';
 import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
 import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
+import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.api';
 
 class SessionsAggregate {
 	sessionsById: Record<SessionId, SessionRecord> = $state.raw({});
@@ -37,6 +38,7 @@ class SessionsAggregate {
 		sessionId: SessionId;
 		workstreamId: string;
 		displayName?: string;
+		provider?: string;
 		model: string | null;
 		startedAt?: string;
 		origin?: AgentSessionOrigin;
@@ -48,6 +50,7 @@ class SessionsAggregate {
 					...existing,
 					workstreamId: input.workstreamId,
 					displayName: input.displayName?.trim() || existing.displayName,
+					provider: input.provider ?? existing.provider,
 					model: input.model ?? existing.model,
 					origin: input.origin ?? existing.origin,
 				};
@@ -69,6 +72,7 @@ class SessionsAggregate {
 			id: input.sessionId,
 			workstreamId: input.workstreamId,
 			displayName: input.displayName?.trim() || 'Chat',
+			provider: input.provider ?? DEFAULT_PROVIDER_ID,
 			model: input.model,
 			status: 'idle',
 			currentRunId: null,
@@ -93,6 +97,7 @@ class SessionsAggregate {
 		sessionId: SessionId;
 		workstreamId: string;
 		displayName?: string;
+		provider?: string;
 		model: string | null;
 		status: SessionState;
 		startedAt: string;
@@ -106,6 +111,7 @@ class SessionsAggregate {
 			...existing,
 			workstreamId: input.workstreamId,
 			displayName: input.displayName?.trim() || existing.displayName,
+			provider: input.provider ?? existing.provider,
 			model: input.model,
 			status: hasLiveLifecycleEvidence ? existing.status : input.status,
 			startedAt: input.startedAt,

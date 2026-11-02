@@ -43,7 +43,12 @@ import {
 	type HistoryAnswer,
 } from './protocol';
 import { BridgeRuntime, type BridgeRuntimeHooks } from './runtime';
-import { conversationRecord, persistedBridgeSession, worktreePath } from './sessions';
+import {
+	conversationRecord,
+	persistedBridgeSession,
+	worktreePath,
+	type ResolveProviderEnvironment,
+} from './sessions';
 import type { BridgeHealth, BridgeSupervisor } from './supervisor';
 
 const PAUSE_BUDGET_MS = 5_000;
@@ -77,6 +82,7 @@ export interface AgentServiceDeps {
 	readonly processFactory?: BridgeProcessFactory;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
 	readonly leases: AgentRunLeases;
+	readonly providerEnvironment?: ResolveProviderEnvironment;
 	readonly bridgeScriptPath?: string;
 	readonly readyTimeoutMs?: number;
 	readonly verifyAttachment?: SendPromptHooks['verifyAttachment'];
@@ -252,6 +258,7 @@ export async function startAgentService(
 		events: context.events,
 		appDataRoot: context.appDataRoot,
 		leases: deps.leases,
+		...(deps.providerEnvironment ? { providerEnvironment: deps.providerEnvironment } : {}),
 		supervisorConfig: {
 			processFactory: deps.processFactory ?? createElectronNodeProcessFactory(),
 			spawn: {
@@ -340,6 +347,7 @@ export async function startAgentService(
 		ids: new IdSequence(),
 		leases: deps.leases,
 		sending,
+		providerEnvironment: deps.providerEnvironment ?? (async () => ({})),
 		hooks: {
 			...(deps.verifyAttachment ? { verifyAttachment: deps.verifyAttachment } : {}),
 			...(deps.collectAttachmentGarbage
@@ -358,6 +366,7 @@ export async function startAgentService(
 					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),
 					starterPlan: lineage?.startedBy?.plan ?? null,
 				}),
+			providerEnvironment: deps.providerEnvironment ?? (async () => ({})),
 			async compactWindow() {
 				const settings = await context.commands
 					.call('app.list-settings', undefined)

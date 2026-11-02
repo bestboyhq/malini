@@ -12,6 +12,7 @@ export interface QueuedPrompt {
 	forceFreshSession: boolean;
 	prompt: string;
 	role: ModelRole;
+	provider: string;
 	model: AgentModel;
 	contextFiles: string[];
 	attachments: StagedAgentAttachment[];

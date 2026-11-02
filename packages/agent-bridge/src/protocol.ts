@@ -53,6 +53,7 @@ export interface StartSessionCommand {
 	readonly providerSessionId?: string;
 	readonly worktreePath?: string;
 	readonly conversationHistory?: readonly ConversationHistoryMessage[];
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export type ConversationHistoryMessage = {
@@ -191,6 +192,7 @@ export interface SuggestTitleCommand {
 	readonly prompt: string;
 	readonly instructions: string;
 	readonly model: string;
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ChooseCommand {
@@ -200,6 +202,7 @@ export interface ChooseCommand {
 	readonly instructions: string;
 	readonly model: string;
 	readonly choices: number;
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export const MIN_CHOICES = 2;
@@ -726,6 +729,8 @@ function validateStartSession(obj: Record<string, unknown>): ParseResult {
 	if (!parsedConversationHistory.ok) {
 		return err('INVALID_PAYLOAD', parsedConversationHistory.error, obj);
 	}
+	const parsedEnv = validateEnvironment(obj.env, 'start_session: env');
+	if (!parsedEnv.ok) return err('INVALID_PAYLOAD', parsedEnv.error, obj);
 	const cmd: StartSessionCommand = {
 		cmd: 'start_session',
 		id: id.value,
@@ -737,6 +742,7 @@ function validateStartSession(obj: Record<string, unknown>): ParseResult {
 		...(parsedConversationHistory.value !== undefined
 			? { conversationHistory: parsedConversationHistory.value }
 			: {}),
+		...(parsedEnv.value !== undefined ? { env: parsedEnv.value } : {}),
 	};
 	return { ok: true, command: cmd };
 }
@@ -799,6 +805,42 @@ function validateConversationHistory(
 		messages.push({ role, content });
 	}
 	return { ok: true, value: messages };
+}
+
+const MAX_ENVIRONMENT_ENTRIES = 32;
+const MAX_ENVIRONMENT_BYTES = 64 * 1024;
+const ENVIRONMENT_NAME = /^[A-Z_][A-Z0-9_]*$/u;
+
+function validateEnvironment(
+	value: unknown,
+	field: string,
+):
+	| { readonly ok: true; readonly value?: Record<string, string> }
+	| { readonly ok: false; readonly error: string } {
+	if (value === undefined) return { ok: true };
+	if (!isRecord(value)) {
+		return { ok: false, error: `${field}, when present, must be an object` };
+	}
+	const entries = Object.entries(value);
+	if (entries.length > MAX_ENVIRONMENT_ENTRIES) {
+		return { ok: false, error: `${field} exceeds ${MAX_ENVIRONMENT_ENTRIES} entries` };
+	}
+	const environment: Record<string, string> = {};
+	let bytes = 0;
+	for (const [name, entry] of entries) {
+		if (!ENVIRONMENT_NAME.test(name)) {
+			return { ok: false, error: `${field} names must be environment variable names` };
+		}
+		if (typeof entry !== 'string') {
+			return { ok: false, error: `${field} values must be strings` };
+		}
+		bytes += Buffer.byteLength(entry, 'utf8');
+		if (bytes > MAX_ENVIRONMENT_BYTES) {
+			return { ok: false, error: `${field} exceeds ${MAX_ENVIRONMENT_BYTES} UTF-8 bytes` };
+		}
+		environment[name] = entry;
+	}
+	return { ok: true, value: environment };
 }
 
 function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
@@ -1248,9 +1290,18 @@ function validateSuggestTitle(obj: Record<string, unknown>): ParseResult {
 	if (typeof model !== 'string' || model.trim().length === 0) {
 		return err('INVALID_PAYLOAD', 'suggest_title: model required (non-empty string)', obj);
 	}
+	const parsedEnv = validateEnvironment(obj.env, 'suggest_title: env');
+	if (!parsedEnv.ok) return err('INVALID_PAYLOAD', parsedEnv.error, obj);
 	return {
 		ok: true,
-		command: { cmd: 'suggest_title', id: id.value, prompt, instructions, model },
+		command: {
+			cmd: 'suggest_title',
+			id: id.value,
+			prompt,
+			instructions,
+			model,
+			...(parsedEnv.value !== undefined ? { env: parsedEnv.value } : {}),
+		},
 	};
 }
 
@@ -1279,9 +1330,19 @@ function validateChoose(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
+	const parsedEnv = validateEnvironment(obj.env, 'choose: env');
+	if (!parsedEnv.ok) return err('INVALID_PAYLOAD', parsedEnv.error, obj);
 	return {
 		ok: true,
-		command: { cmd: 'choose', id: id.value, prompt, instructions, model, choices },
+		command: {
+			cmd: 'choose',
+			id: id.value,
+			prompt,
+			instructions,
+			model,
+			choices,
+			...(parsedEnv.value !== undefined ? { env: parsedEnv.value } : {}),
+		},
 	};
 }
 

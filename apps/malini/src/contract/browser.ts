@@ -26,17 +26,32 @@ export type BrowserScreenshot = Readonly<{ mediaType: 'image/png'; base64: strin
 
 export type BrowserElementPrompt = Readonly<{
 	prompt: string;
+	provider: string;
 	model: string;
 	element: AgentElementReference;
 	screenshot: BrowserScreenshot;
 }>;
 
-export type BrowserPickModel = Readonly<{ id: string; label: string }>;
+export type BrowserPickModel = Readonly<{
+	id: string;
+	label: string;
+	provider: string;
+	providerName: string;
+}>;
 
 export type BrowserPickArgs = BrowserTabArgs &
-	Readonly<{ model: string; models: readonly BrowserPickModel[]; profile: AgentRunProfile }>;
+	Readonly<{
+		provider: string;
+		model: string;
+		models: readonly BrowserPickModel[];
+		profile: AgentRunProfile;
+	}>;
 
-export type BrowserThreadStarted = Readonly<{ sessionId: string; model: string }>;
+export type BrowserThreadStarted = Readonly<{
+	sessionId: string;
+	provider: string;
+	model: string;
+}>;
 
 export type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: string }>;
 

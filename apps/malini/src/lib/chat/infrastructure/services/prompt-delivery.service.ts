@@ -85,7 +85,7 @@ class PromptDeliveryService {
 
 	async dispatch(input: PromptDispatch): Promise<string> {
 		const record = sessionsAggregate.getSession(input.sessionId);
-		const requestedSelection = { model: input.model };
+		const requestedSelection = { provider: input.provider, model: input.model };
 		if (
 			!record ||
 			record.workstreamId !== input.workstreamId ||
@@ -172,7 +172,7 @@ class PromptDeliveryService {
 			chatRoute.workstreamId === input.workstreamId &&
 			chatSessionStore.sessionId === input.sessionId
 		) {
-			chatModelStore.model = input.model;
+			chatModelStore.selection = { provider: input.provider, model: input.model };
 			chatModelStore.profile = { ...input.profile };
 			chatSessionStore.bootError = null;
 		}
@@ -217,7 +217,7 @@ class PromptDeliveryService {
 		const lock = queueDrainStore.lock(workstreamId);
 		let dispatchSessionId = sessionId;
 		try {
-			const requestedSelection = { model: next.model };
+			const requestedSelection = { provider: next.provider, model: next.model };
 			let targetSessionId = sessionId;
 			if (!targetSessionId) {
 				try {
@@ -242,6 +242,7 @@ class PromptDeliveryService {
 				sessionId: targetSessionId,
 				prompt: next.prompt,
 				role: next.role,
+				provider: next.provider,
 				model: next.model,
 				profile: next.profile,
 				contextFiles: next.contextFiles,

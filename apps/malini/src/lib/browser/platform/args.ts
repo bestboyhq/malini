@@ -1,5 +1,9 @@
 import type { BrowserBounds, BrowserPickArgs, BrowserTabArgs } from '$contract/browser';
-import { isValidAgentModel, isValidAgentRunProfile } from '$shared/providers/providers.platform';
+import {
+	isValidAgentModel,
+	isValidAgentRunProfile,
+	isValidProviderId,
+} from '$shared/providers/providers.platform';
 
 const MAX_PICK_MODELS = 64;
 const MAX_MODEL_LABEL_CHARS = 80;
@@ -50,9 +54,13 @@ export function readRequestId(args: unknown): string {
 }
 
 export function readPick(args: unknown): BrowserPickArgs {
+	const provider = field(args, 'provider');
 	const model = field(args, 'model');
 	const models = field(args, 'models');
 	const profile = field(args, 'profile');
+	if (!isValidProviderId(provider)) {
+		throw new Error('invalid args: `provider` must be a provider id');
+	}
 	if (!isValidAgentModel(model)) throw new Error('invalid args: `model` must be a model id');
 	if (
 		!Array.isArray(models) ||
@@ -61,21 +69,27 @@ export function readPick(args: unknown): BrowserPickArgs {
 			(choice) =>
 				isValidAgentModel(field(choice, 'id')) &&
 				typeof field(choice, 'label') === 'string' &&
-				String(field(choice, 'label')).length <= MAX_MODEL_LABEL_CHARS,
+				String(field(choice, 'label')).length <= MAX_MODEL_LABEL_CHARS &&
+				isValidProviderId(field(choice, 'provider')) &&
+				typeof field(choice, 'providerName') === 'string' &&
+				String(field(choice, 'providerName')).length <= MAX_MODEL_LABEL_CHARS,
 		)
 	) {
 		throw new Error(
-			`invalid args: \`models\` must list up to ${MAX_PICK_MODELS} models, each an \`id\` and a \`label\``,
+			`invalid args: \`models\` must list up to ${MAX_PICK_MODELS} models, each an \`id\`, a \`label\`, a \`provider\` and a \`providerName\``,
 		);
 	}
 	if (!isValidAgentRunProfile(profile))
 		throw new Error('invalid args: `profile` must be a run profile');
 	return {
 		...readTab(args),
+		provider,
 		model,
 		models: models.map((choice) => ({
 			id: String(field(choice, 'id')),
 			label: String(field(choice, 'label')),
+			provider: String(field(choice, 'provider')),
+			providerName: String(field(choice, 'providerName')),
 		})),
 		profile,
 	};

@@ -73,15 +73,17 @@ const DIALOG = 'picker [role="dialog"]';
 const ALERT = 'picker [role="alert"]';
 const STATUS = 'picker [role="status"]';
 const MODELS = [
-	{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
-	{ id: 'claude-opus-5-5', label: 'Opus 5.5' },
+	{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', provider: 'claude', providerName: 'Claude' },
+	{ id: 'claude-opus-5-5', label: 'Opus 5.5', provider: 'claude', providerName: 'Claude' },
 ];
 const ASK: PickerCommand = {
 	kind: 'prompt',
 	models: MODELS,
+	provider: 'claude',
 	model: 'claude-sonnet-5-5',
 	error: null,
 };
+const selectionValue = (model: string): string => JSON.stringify({ provider: 'claude', model });
 
 function inPage(code: string): unknown {
 	return globalThis.eval(code);
@@ -127,7 +129,7 @@ describe('the in-page element picker', () => {
 		expect(call('attribute', DIALOG, 'aria-modal')).toBe('true');
 		expect(call('focused')).toBe('Prompt');
 		expect(call('disabled', SEND)).toBe(true);
-		expect(call('value', MODEL)).toBe('claude-sonnet-5-5');
+		expect(call('value', MODEL)).toBe(selectionValue('claude-sonnet-5-5'));
 
 		call('type', FIELD, 'Make it green');
 		expect(call('disabled', SEND)).toBe(false);
@@ -147,6 +149,7 @@ describe('the in-page element picker', () => {
 		await expect(prompting).resolves.toEqual({
 			kind: 'send',
 			prompt: 'Make it green',
+			provider: 'claude',
 			model: 'claude-sonnet-5-5',
 		});
 		expect(call('disabled', SENDING)).toBe(true);
@@ -167,12 +170,13 @@ describe('the in-page element picker', () => {
 
 		const prompting = run(ASK);
 		call('type', FIELD, 'Tighter heading');
-		call('choose', MODEL, 'claude-opus-5-5');
+		call('choose', MODEL, selectionValue('claude-opus-5-5'));
 		call('click', SEND);
 
 		await expect(prompting).resolves.toEqual({
 			kind: 'send',
 			prompt: 'Tighter heading',
+			provider: 'claude',
 			model: 'claude-opus-5-5',
 		});
 		expect(call('pageEvents')).toEqual([]);
@@ -191,7 +195,7 @@ describe('the in-page element picker', () => {
 
 		expect(call('text', ALERT)).toBe('Agent runtime unavailable');
 		expect(call('value', FIELD)).toBe('Tighter heading');
-		expect(call('value', MODEL)).toBe('claude-opus-5-5');
+		expect(call('value', MODEL)).toBe(selectionValue('claude-opus-5-5'));
 		expect(call('disabled', SEND)).toBe(false);
 		expect(call('focused')).toBe('Prompt');
 		call('click', SEND);

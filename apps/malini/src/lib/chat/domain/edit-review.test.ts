@@ -10,6 +10,7 @@ function job(changes: Partial<JobDefinitionRecord> = {}): MaliniEditReview {
 			id: 'docs',
 			name: 'Update docs',
 			instructions: 'Read the diff.\nUpdate docs/.',
+			provider: 'claude',
 			model: 'opus',
 			effort: 'high',
 			runsIn: 'workstream',

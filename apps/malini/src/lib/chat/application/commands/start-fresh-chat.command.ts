@@ -4,7 +4,7 @@ import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
-import { defaultAgentModel, roleForAgentMode } from '$shared/providers/providers.api';
+import { roleForAgentMode } from '$shared/providers/providers.api';
 import { worktreePendingQuery } from '$shared/repositories/repositories.api';
 
 export { startFreshChatCommand };
@@ -16,7 +16,7 @@ async function startFreshChatCommand(): Promise<void> {
 		const sessionId = await sessionActivation.mint({
 			workstreamId,
 			role: roleForAgentMode(chatModelStore.profile.mode),
-			selection: { model: chatModelStore.model ?? defaultAgentModel() },
+			selection: chatModelStore.currentSelection(),
 			activate: false,
 		});
 		if (chatRoute.isCurrentWorkstream(workstreamId)) {

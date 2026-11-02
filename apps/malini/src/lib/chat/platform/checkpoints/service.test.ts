@@ -97,6 +97,7 @@ describe('session change scope', () => {
 		insertSession(db, {
 			id: 'chat-other',
 			workstreamId: 'workstream-other',
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'running',
@@ -687,6 +688,7 @@ describe('restore', () => {
 		insertSession(db, {
 			id: 'chat-fork',
 			workstreamId: WORKSTREAM_ID,
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'idle',

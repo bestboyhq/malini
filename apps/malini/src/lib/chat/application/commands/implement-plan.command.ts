@@ -66,7 +66,7 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 		plan: input.plan,
 		originalRequest: sourceUser?.text ?? null,
 	});
-	chatModelStore.model = selection.model;
+	chatModelStore.selection = selection;
 	chatModelStore.profile = implementationProfile;
 	chatModelStore.rememberRoleSelection('implementation', selection);
 	writeStoredRunProfile(workstreamId, implementationProfile);
@@ -81,6 +81,7 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 		sessionId,
 		prompt: handoffPrompt,
 		role: 'implementation',
+		provider: selection.provider,
 		model: selection.model,
 		profile: implementationProfile,
 		contextFiles: sourceUser?.contextFiles ?? [],

@@ -1,10 +1,16 @@
-export type PickerModel = { readonly id: string; readonly label: string };
+export type PickerModel = {
+	readonly id: string;
+	readonly label: string;
+	readonly provider: string;
+	readonly providerName: string;
+};
 
 export type PickerCommand =
 	| { readonly kind: 'select'; readonly reselect: boolean }
 	| {
 			readonly kind: 'prompt';
 			readonly models: readonly PickerModel[];
+			readonly provider: string;
 			readonly model: string;
 			readonly error: string | null;
 	  }
@@ -312,7 +318,7 @@ const PICKER_PROGRAM = String.raw`(command, css, glyphs) => {
 				chipName.textContent = name;
 				chip.title = name + ' · ' + size(lockedRect);
 				panel.setAttribute('aria-label', 'Ask about ' + name);
-				fillModels(request.models, request.model);
+				fillModels(request.models, request.provider, request.model);
 				error.textContent = request.error || '';
 				error.hidden = !request.error;
 				setBusy(false);
@@ -327,17 +333,31 @@ const PICKER_PROGRAM = String.raw`(command, css, glyphs) => {
 			});
 		}
 
-		function fillModels(models, current) {
+		function fillModels(models, provider, model) {
 			const choices = Array.isArray(models) ? models : [];
+			const groups = new Map();
+			for (const choice of choices) {
+				const name = choice.providerName || choice.provider;
+				const options = groups.get(name) || [];
+				options.push(choice);
+				groups.set(name, options);
+			}
 			modelSelect.replaceChildren(
-				...choices.map((choice) => {
-					const option = doc.createElement('option');
-					option.value = choice.id;
-					option.textContent = choice.label;
-					return option;
+				...Array.from(groups, ([name, options]) => {
+					const group = doc.createElement('optgroup');
+					group.label = name;
+					group.append(
+						...options.map((choice) => {
+							const option = doc.createElement('option');
+							option.value = JSON.stringify({ provider: choice.provider, model: choice.id });
+							option.textContent = choice.label;
+							return option;
+						}),
+					);
+					return group;
 				}),
 			);
-			modelSelect.value = current;
+			modelSelect.value = JSON.stringify({ provider, model });
 			model.hidden = choices.length === 0;
 		}
 
@@ -403,7 +423,11 @@ const PICKER_PROGRAM = String.raw`(command, css, glyphs) => {
 			error.hidden = true;
 			setBusy(true);
 			announce('Starting a thread…');
-			finish({ kind: 'send', prompt: text, model: modelSelect.value });
+			let selection = { provider: '', model: modelSelect.value };
+			try {
+				selection = JSON.parse(modelSelect.value);
+			} catch {}
+			finish({ kind: 'send', prompt: text, provider: selection.provider, model: selection.model });
 		}
 
 		function inUi(event) {

@@ -69,6 +69,7 @@ export type JobDefinitionRecord = Readonly<{
 	id: string;
 	name: string;
 	instructions: string;
+	provider: string;
 	model: string;
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
@@ -113,6 +114,7 @@ export type SaveJobDefinitionArgs = Readonly<{
 	id?: string;
 	name: string;
 	instructions: string;
+	provider: string;
 	model: string;
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
@@ -172,6 +174,7 @@ export type JobOutputRecord = Readonly<{
 
 export type JobSetupRecord = Readonly<{
 	id: string;
+	provider: string;
 	model: string;
 	instructions: string;
 	expectedRate: number | null;
@@ -190,6 +193,7 @@ export type JobExperimentRecord = Readonly<{
 	id: string;
 	definitionId: string;
 	name: string;
+	provider: string;
 	model: string;
 	instructions: string;
 	current: boolean;
@@ -207,6 +211,7 @@ export type JobExperimentsRecord = Readonly<{
 export type SaveJobExperimentArgs = Readonly<{
 	definitionId: string;
 	experimentId?: string;
+	provider: string;
 	model: string;
 	instructions: string;
 }>;

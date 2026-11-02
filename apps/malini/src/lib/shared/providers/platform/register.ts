@@ -14,6 +14,7 @@ import {
 	type ClaudeAccountsDeps,
 	type SecretCipher,
 } from './claude-accounts.service';
+import { ProviderKeys } from './provider-keys.service';
 
 const MAX_EMAIL_LENGTH = 320;
 
@@ -23,6 +24,7 @@ export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directo
 }
 
 export interface ProvidersPlatform {
+	readonly keys: ProviderKeys;
 	stop(): void;
 }
 
@@ -62,7 +64,36 @@ export function registerProviders(
 
 	context.commands.define('providers.cancel-claude-sign-in', () => accounts.cancelSignIn());
 
-	return { stop: () => accounts.cancelSignIn() };
+	const keys = new ProviderKeys(context.db, deps.cipher ?? electronCipher);
+
+	context.commands.define('providers.list', () => keys.list());
+
+	context.commands.define('providers.save-key', async (args: unknown) => {
+		const { providerId, apiKey } = providerKeyArgs(args);
+		await keys.save(providerId, apiKey);
+	});
+
+	context.commands.define('providers.delete-key', (args: unknown) =>
+		keys.delete(providerIdArg(args)),
+	);
+
+	return { keys, stop: () => accounts.cancelSignIn() };
+}
+
+function providerKeyArgs(args: unknown): Readonly<{ providerId: string; apiKey: string }> {
+	const providerId = isRecord(args) ? args['providerId'] : undefined;
+	const apiKey = isRecord(args) ? args['apiKey'] : undefined;
+	if (typeof providerId !== 'string' || typeof apiKey !== 'string') {
+		throw new Error('invalid args: `providerId` and `apiKey` must be strings');
+	}
+	return { providerId, apiKey };
+}
+
+function providerIdArg(args: unknown): string {
+	const providerId = isRecord(args) ? args['providerId'] : undefined;
+	if (typeof providerId !== 'string')
+		throw new Error('invalid args: `providerId` must be a string');
+	return providerId;
 }
 
 function parseEmail(args: unknown): string | null {

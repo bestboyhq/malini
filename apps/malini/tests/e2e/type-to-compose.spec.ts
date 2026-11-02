@@ -50,7 +50,7 @@ test('typing or pasting while nothing holds focus writes at the end of the compo
 		await expect(input).toHaveText('Fix it @ dictated words');
 
 		await page.getByRole('button', { name: /^Model: / }).click();
-		await expect(page.getByRole('listbox', { name: 'Claude models' })).toBeVisible();
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeVisible();
 		await page.keyboard.press('x');
 		await expect(input).not.toBeFocused();
 		await expect(input).toHaveText('Fix it @ dictated words');

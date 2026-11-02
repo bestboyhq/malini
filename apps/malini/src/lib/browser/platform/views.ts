@@ -310,7 +310,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return pickElement(
 			pickerPage(contents),
 			signal,
-			{ model: args.model, models: args.models },
+			{ provider: args.provider, model: args.model, models: args.models },
 			(picked) => this.deps.startThread(entry.tab, picked, args.profile),
 		);
 	}

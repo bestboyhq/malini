@@ -70,6 +70,17 @@ export interface AgentModelInfo {
 	efforts: AgentReasoningEffort[];
 }
 
+export type ModelProviderKind = 'claude' | 'anthropic';
+
+export interface ModelProviderRecord {
+	id: string;
+	name: string;
+	kind: ModelProviderKind;
+	baseUrl: string | null;
+	models: AgentModelInfo[];
+	keySaved: boolean;
+}
+
 export interface AgentAccount {
 	email?: string;
 	plan?: string;
@@ -148,6 +159,7 @@ export interface AgentSessionSummary {
 	workstreamId: string;
 	displayName: string;
 	model: string | null;
+	provider: string | null;
 	status: SessionStatus;
 	startedAt: string;
 	origin: AgentSessionOrigin;

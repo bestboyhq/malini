@@ -14,6 +14,7 @@ function enqueuePromptCommand(turn: PromptTurn): QueuedPrompt {
 		forceFreshSession: turn.forceFreshSession,
 		prompt: turn.prompt,
 		role: turn.role,
+		provider: turn.provider,
 		model: turn.model,
 		profile: turn.profile,
 		contextFiles: turn.contextFiles,
@@ -22,10 +23,13 @@ function enqueuePromptCommand(turn: PromptTurn): QueuedPrompt {
 		elementReferences: turn.elementReferences,
 		automated: turn.automated === true,
 	});
-	chatModelStore.rememberRoleSelection(turn.role, { model: turn.model });
+	chatModelStore.rememberRoleSelection(turn.role, {
+		provider: turn.provider,
+		model: turn.model,
+	});
 	writeStoredRunProfile(turn.workstreamId, turn.profile);
 	if (chatRoute.workstreamId === turn.workstreamId) {
-		chatModelStore.model = turn.model;
+		chatModelStore.selection = { provider: turn.provider, model: turn.model };
 		chatModelStore.profile = { ...turn.profile };
 	}
 	return entry;

@@ -13,6 +13,7 @@ function runJobExperimentCommand(experiment: JobExperimentRecord, instructions?:
 				await jobsService.saveExperiment({
 					definitionId: experiment.definitionId,
 					experimentId: experiment.id,
+					provider: experiment.provider,
 					model: experiment.model,
 					instructions,
 				}),
