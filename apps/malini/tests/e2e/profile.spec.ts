@@ -246,18 +246,26 @@ test('signed in to Bestboy, the sidebar shows your picture, and its popover chee
 		await expect(settings).toHaveCount(0);
 
 		await badge.click();
-		const profile = page.getByRole('dialog', { name: 'Your profile' });
+		const profile = page.getByRole('menu', { name: 'Your profile' });
 		await expect(profile.getByText('E2E Person')).toBeVisible();
-		await expect(profile.getByText('e2e@bestboy.dev')).toBeVisible();
-		const week = profile.getByRole('region', { name: 'Your week' });
-		await expect(week).toContainText(
+		await expect(profile).toContainText(
 			/Crushing it as always|Your agents can barely keep up|Shipping like it's a sport/u,
 		);
-		await expect(week).toContainText('6 runs this week · 7-day streak');
-		await expect(profile.getByRole('link', { name: 'Open profile' })).toHaveCount(0);
+		await expect(profile.getByRole('menuitem', { name: /Stats/u })).toContainText(
+			'6 runs this week',
+		);
+		await expect(profile.getByRole('menuitem', { name: 'Open profile' })).toHaveCount(0);
 		await captureFlow(app, 'profile-badge-popover');
 
-		await profile.getByRole('button', { name: 'Profile settings' }).click();
+		await profile.getByRole('menuitem', { name: /Stats/u }).click();
+		const stats = page.getByTestId('stats-panel');
+		await expect(stats).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(stats).toHaveCount(0);
+
+		await badge.click();
+		await expect(profile).toBeVisible();
+		await profile.getByRole('menuitem', { name: 'Profile settings' }).click();
 		await expect(profile).toHaveCount(0);
 		await settings.getByRole('button', { name: 'Sign out' }).click();
 		await expect(settings.getByText('Not signed in to Bestboy')).toBeVisible();

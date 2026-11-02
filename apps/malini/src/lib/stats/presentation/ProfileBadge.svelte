@@ -1,23 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
-	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
+	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { goto } from '$shared/router/navigation';
 	import { PROFILE_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import { RepositoryAvatar, githubAuthQuery } from '$shared/repositories/repositories.api';
-	import { dayStreak } from '$lib/stats/domain/activity';
 	import { weekPace } from '$lib/stats/domain/pace';
 	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { loadActivityCommand } from '$lib/stats/application/commands/load-activity.command';
 	import { loadProfileBadgeCommand } from '$lib/stats/application/commands/load-profile-badge.command';
+	import { openProfilePageCommand } from '$lib/stats/application/commands/open-profile-page.command';
+	import { signOutOfBestboyCommand } from '$lib/stats/application/commands/sign-out-of-bestboy.command';
 	import { watchProfileHook } from '$lib/stats/application/hooks/watch-profile.hook';
 	import { activityStatsQuery } from '$lib/stats/application/queries/activity-stats.query.svelte';
 	import { profileStateQuery } from '$lib/stats/application/queries/profile-state.query.svelte';
 	import { paceNudge } from './pace-copy';
 	import { plural } from './stats-format';
+
+	interface Props {
+		onopenstats: () => void;
+	}
+
+	let { onopenstats }: Props = $props();
 
 	const profileState = $derived(profileStateQuery.data);
 	const account = $derived(profileState?.account ?? null);
@@ -28,135 +35,122 @@
 	const activity = $derived(activityStatsQuery.data);
 	const week = $derived(activity ? weekPace(activity.days, activity.today) : null);
 	const nudge = $derived(activity && week ? paceNudge(week.pace, activity.today) : null);
-	const facts = $derived.by(() => {
-		if (!activity || !week) return '';
-		const streak = dayStreak(activity.days, activity.today);
-		return [
-			week.runs > 0 && `${plural(week.runs, 'run', 'runs')} this week`,
-			streak > 1 && `${streak}-day streak`,
-		]
-			.filter(Boolean)
-			.join(' · ');
-	});
+	const runsThisWeek = $derived(
+		week && week.runs > 0 ? `${plural(week.runs, 'run', 'runs')} this week` : '',
+	);
 
-	let open = $state(false);
-	let trigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
+	let open: boolean = $state(false);
 
 	onMount(() => {
 		loadProfileBadgeCommand();
 		return watchProfileHook();
 	});
 
-	function onToggle(): void {
-		open = !open;
-		if (open) loadActivityCommand();
+	function onOpenChange(next: boolean): void {
+		if (next) loadActivityCommand();
 	}
 
 	function openSettings(): void {
-		open = false;
 		void goto(PROFILE_SETTINGS_HREF);
 	}
 </script>
 
 {#if account}
 	<Tooltip content="Your profile" placement="right" suppressed={open}>
-		<Button
-			bind:element={trigger}
-			variant="ghost"
-			size="auto"
-			radius="full"
-			class="size-6 justify-center"
-			ariaLabel="Your profile"
-			ariaHasPopup="dialog"
-			ariaExpanded={open}
-			active={open}
-			onclick={onToggle}
-			data-testid="sidebar-open-profile"
+		<Dropdown
+			bind:open
+			side="top"
+			align="start"
+			sideOffset={6}
+			role={null}
+			panelClass="w-56"
+			testId="profile-layer"
+			{onOpenChange}
 		>
-			<span class="block overflow-hidden rounded-full">
-				{#key avatarName}
-					<RepositoryAvatar fullName={avatarName} size={18} />
-				{/key}
-			</span>
-		</Button>
-	</Tooltip>
-
-	<DropdownLayer
-		{open}
-		anchor={trigger}
-		onclose={() => (open = false)}
-		side="top"
-		align="start"
-		role={null}
-		keyboardNavigation={false}
-		backdrop
-		panelClass="w-76 rounded-2xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3 shadow-popup"
-		testId="profile-layer"
-	>
-		<div role="dialog" aria-label="Your profile" class="profile-badge flex flex-col gap-3">
-			<div class="flex items-center gap-3 px-1 pt-1">
-				<span class="block shrink-0 overflow-hidden rounded-full">
-					<RepositoryAvatar fullName={avatarName} size={40} />
-				</span>
-				<div class="min-w-0">
-					<p class="text-fg-default truncate text-sm font-medium">{account.name}</p>
-					<p class="text-fg-tertiary truncate text-xs">
-						{#if handle}@{handle}{:else}<SensitiveText text={account.email} />{/if}
-					</p>
-				</div>
-			</div>
-
-			{#if nudge}
-				<section
-					class="border-surface-elevated-border rounded-xl border-[0.5px] px-3 py-2.5"
-					aria-label="Your week"
+			{#snippet trigger()}
+				<Button
+					variant="ghost"
+					size="auto"
+					radius="full"
+					class="size-6 justify-center"
+					ariaLabel="Your profile"
+					ariaHasPopup="menu"
+					ariaExpanded={open}
+					active={open}
+					data-testid="sidebar-open-profile"
 				>
-					<p class="text-fg-default flex items-center gap-2 text-sm font-medium">
-						<Icon
-							name={nudge.icon}
-							size={16}
-							class={['profile-badge__icon shrink-0', nudge.tone]}
-						/>
-						{nudge.line}
-					</p>
-					{#if facts}
-						<p class="text-fg-tertiary mt-1 ml-6 text-xs tabular-nums">{facts}</p>
-					{/if}
-				</section>
-			{/if}
-
-			<div class="flex gap-1.5">
-				{#if profileUrl}
-					<Button variant="secondary" size="sm" href={profileUrl} class="flex-1 justify-center">
-						Open profile
-						{#snippet trailing()}
-							<Icon name="external-link" size={12} />
-						{/snippet}
-					</Button>
-				{/if}
-				<Button variant="secondary" size="sm" class="flex-1 justify-center" onclick={openSettings}>
-					Profile settings
+					<span class="block overflow-hidden rounded-full">
+						{#key avatarName}
+							<RepositoryAvatar fullName={avatarName} size={18} />
+						{/key}
+					</span>
 				</Button>
-			</div>
-		</div>
-	</DropdownLayer>
+			{/snippet}
+
+			{#snippet content()}
+				<div role="menu" aria-label="Your profile">
+					<div class="flex items-center gap-2.5 px-2 py-1.5 text-[13px] leading-[18px]">
+						<span class="block size-7 shrink-0 overflow-hidden rounded-full">
+							<RepositoryAvatar fullName={avatarName} size={28} />
+						</span>
+						<div class="min-w-0">
+							<p class="text-fg-default truncate font-medium">{account.name}</p>
+							<p
+								class={[
+									'text-fg-tertiary flex min-w-0 gap-1 text-xs',
+									nudge ? 'items-start' : 'items-center truncate',
+								]}
+							>
+								{#if nudge}
+									<Icon name={nudge.icon} size={12} class={['mt-0.5 shrink-0', nudge.tone]} />
+									<span class="min-w-0">{nudge.line}</span>
+								{:else if handle}
+									<span class="truncate">@{handle}</span>
+								{:else}
+									<SensitiveText text={account.email} />
+								{/if}
+							</p>
+						</div>
+					</div>
+
+					{@render separator()}
+
+					{#if profileUrl}
+						<DropdownItem
+							role="menuitem"
+							class="gap-2.5"
+							onSelect={() => openProfilePageCommand(profileUrl)}
+						>
+							<Icon name="external-link" size={15} class="shrink-0" />
+							<span class="min-w-0 flex-1 truncate text-left">Open profile</span>
+						</DropdownItem>
+					{/if}
+					<DropdownItem role="menuitem" class="gap-2.5" onSelect={onopenstats}>
+						<Icon name="signal" size={15} class="shrink-0" />
+						<span class="min-w-0 flex-1 truncate text-left">Stats</span>
+						{#if runsThisWeek}
+							<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
+								{runsThisWeek}
+							</span>
+						{/if}
+					</DropdownItem>
+					<DropdownItem role="menuitem" class="gap-2.5" onSelect={openSettings}>
+						<Icon name="settings" size={15} class="shrink-0" />
+						<span class="min-w-0 flex-1 truncate text-left">Profile settings</span>
+					</DropdownItem>
+
+					{@render separator()}
+
+					<DropdownItem role="menuitem" class="gap-2.5" onSelect={signOutOfBestboyCommand}>
+						<span class="w-[15px] shrink-0" aria-hidden="true"></span>
+						<span class="min-w-0 flex-1 truncate text-left">Sign out</span>
+					</DropdownItem>
+				</div>
+			{/snippet}
+		</Dropdown>
+	</Tooltip>
 {/if}
 
-<style>
-	.profile-badge :global(.profile-badge__icon) {
-		animation: profile-badge-rise 480ms cubic-bezier(0.23, 1, 0.32, 1) 120ms backwards;
-	}
-
-	@keyframes profile-badge-rise {
-		from {
-			opacity: 0;
-			transform: translateY(0.375rem) scale(0.6) rotate(-20deg);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.profile-badge :global(.profile-badge__icon) {
-			animation: none;
-		}
-	}
-</style>
+{#snippet separator()}
+	<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+{/snippet}
