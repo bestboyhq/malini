@@ -6,12 +6,13 @@ import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.s
 import {
 	isValidModelSelection,
 	roleForAgentMode,
+	type AgentReasoningEffort,
 	type ModelSelection,
 } from '$shared/providers/providers.api';
 
 export { selectModelCommand };
 
-function selectModelCommand(nextSelection: ModelSelection): void {
+function selectModelCommand(nextSelection: ModelSelection, effort?: AgentReasoningEffort): void {
 	if (!isValidModelSelection(nextSelection)) return;
 	const workstreamId = chatRoute.workstreamId;
 	if (!workstreamId) return;
@@ -19,6 +20,7 @@ function selectModelCommand(nextSelection: ModelSelection): void {
 		chatModelStore.adoptPreview(chatRoute.requestedSessionId) ?? chatSessionStore.sessionId;
 	chatModelStore.noteUserChoice();
 	chatModelStore.selection = nextSelection;
+	if (effort) chatModelStore.profile = { ...chatModelStore.profile, effort };
 	rememberChatPick(workstreamId, sessionId, chatModelStore.setup());
 	chatSessionStore.createFreshSessionOnNextPrompt = chatOccupancy.freshSessionRequired(
 		sessionId,

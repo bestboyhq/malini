@@ -6,6 +6,7 @@
 	import {
 		allProviderModels,
 		catalogModelLabel,
+		effortsForModel,
 		flatPickerModels,
 	} from '$shared/providers/domain/model-catalog';
 	import {
@@ -13,32 +14,69 @@
 		isModelAccessReady,
 		modelAccess,
 	} from '$shared/providers/domain/provider';
-	import type { ModelSelection } from '$shared/providers/domain/model-preferences';
+	import {
+		sameModelPreset,
+		type ModelPreset,
+		type ModelSelection,
+	} from '$shared/providers/domain/model-preferences';
+	import {
+		reasoningEffortLabel,
+		type AgentReasoningEffort,
+	} from '$shared/providers/domain/run-profile';
 	import { loadModelProvidersCommand } from '$shared/providers/application/commands/load-model-providers.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
+	import { toggleModelPresetCommand } from '$shared/providers/application/commands/toggle-model-preset.command';
 	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
+	import { modelPresetsQuery } from '$shared/providers/application/queries/model-presets.query.svelte';
 	import ProviderIcon from './ProviderIcon.svelte';
 
 	interface Props {
 		selection: ModelSelection;
+		effort: AgentReasoningEffort;
 		disabled?: boolean;
-		onchange: (selection: ModelSelection) => void;
+		onchange: (selection: ModelSelection, effort?: AgentReasoningEffort) => void;
 	}
 
-	let { selection, disabled = false, onchange }: Props = $props();
+	let { selection, effort, disabled = false, onchange }: Props = $props();
 	let open = $state(false);
 
 	const groups = $derived(providerGroupsQuery.data);
+	const catalog = $derived(allProviderModels(groups));
 	const models = $derived(flatPickerModels(groups, selection));
-	const selectedLabel = $derived(catalogModelLabel(allProviderModels(groups), selection.model));
+	const selectedLabel = $derived(catalogModelLabel(catalog, selection.model));
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
+	const currentPreset: ModelPreset = $derived({
+		selection,
+		effort: effortsForModel(catalog, selection.model).length > 0 ? effort : null,
+	});
+	const presets = $derived(
+		modelPresetsQuery.data.filter((preset) =>
+			models.some(
+				(row) =>
+					row.provider === preset.selection.provider && row.model.id === preset.selection.model,
+			),
+		),
+	);
+	const currentSaved = $derived(
+		modelPresetsQuery.data.some((preset) => sameModelPreset(preset, currentPreset)),
+	);
+
+	function presetName(preset: ModelPreset): string {
+		const label = catalogModelLabel(catalog, preset.selection.model);
+		return preset.effort ? `${label} · ${reasoningEffortLabel(preset.effort)}` : label;
+	}
 
 	function select(provider: string, model: string): void {
 		open = false;
 		if (provider !== selection.provider || model !== selection.model) {
 			onchange({ provider, model });
 		}
+	}
+
+	function applyPreset(preset: ModelPreset): void {
+		open = false;
+		onchange({ ...preset.selection }, preset.effort ?? undefined);
 	}
 
 	function onOpenChange(nextOpen: boolean): void {
@@ -93,50 +131,110 @@
 		{/snippet}
 
 		{#snippet content()}
-			<div class="p-1.5" role="listbox" aria-label="Models">
-				{#each models as row (row.provider + ':' + row.model.id)}
-					{@const selected =
-						row.provider === selection.provider && row.model.id === selection.model}
-					{@const access = modelAccess(
-						{ provider: row.provider, model: row.model.id },
-						groups,
-						claudeStatus,
-					)}
-					<DropdownItem
-						role="option"
-						aria-selected={selected}
-						checked={selected}
-						class="gap-2.5 py-2"
-						data-testid="chat-model-option"
-						data-provider={row.provider}
-						data-model={row.model.id}
-						onSelect={() => select(row.provider, row.model.id)}
-					>
-						<span class="flex min-w-0 flex-1 flex-col">
-							<span class="truncate text-[13px] leading-5">{row.model.label}</span>
-							{#if row.model.description}
-								<span class="text-fg-tertiary text-2xs truncate leading-4">
-									{row.model.description}
+			<div class="max-h-[60vh] overflow-y-auto px-1.5 pt-1.5" role="listbox" aria-label="Models">
+				{#if presets.length > 0}
+					<div role="group" aria-label="Presets">
+						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
+						{#each presets as preset (presetName(preset) + preset.selection.provider)}
+							{@const current = sameModelPreset(preset, currentPreset)}
+							<DropdownItem
+								role="option"
+								aria-selected={current}
+								aria-label={presetName(preset)}
+								checked={current}
+								class="gap-2.5"
+								data-testid="chat-model-preset"
+								onSelect={() => applyPreset(preset)}
+							>
+								<ProviderIcon
+									providerId={preset.selection.provider}
+									class="text-fg-secondary shrink-0"
+									size={13}
+								/>
+								<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
+									<span class="truncate leading-5">
+										{catalogModelLabel(catalog, preset.selection.model)}
+									</span>
+									{#if preset.effort}
+										<span class="text-fg-tertiary shrink-0 text-xs">
+											{reasoningEffortLabel(preset.effort)}
+										</span>
+									{/if}
+								</span>
+								<Icon
+									name={current ? 'check' : 'arrow-right'}
+									class={['shrink-0', current ? 'text-fg-default' : 'text-fg-tertiary']}
+									size={14}
+								/>
+							</DropdownItem>
+						{/each}
+					</div>
+					<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+				{/if}
+				<div role="group" aria-label="Models">
+					{#if presets.length > 0}
+						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Models</p>
+					{/if}
+					{#each models as row (row.provider + ':' + row.model.id)}
+						{@const selected =
+							row.provider === selection.provider && row.model.id === selection.model}
+						{@const access = modelAccess(
+							{ provider: row.provider, model: row.model.id },
+							groups,
+							claudeStatus,
+						)}
+						<DropdownItem
+							role="option"
+							aria-selected={selected}
+							checked={selected}
+							class="gap-2.5 py-2"
+							data-testid="chat-model-option"
+							data-provider={row.provider}
+							data-model={row.model.id}
+							onSelect={() => select(row.provider, row.model.id)}
+						>
+							<span class="flex min-w-0 flex-1 flex-col">
+								<span class="truncate text-[13px] leading-5">{row.model.label}</span>
+								{#if row.model.description}
+									<span class="text-fg-tertiary text-2xs truncate leading-4">
+										{row.model.description}
+									</span>
+								{/if}
+							</span>
+							{#if !isModelAccessReady(access)}
+								<span
+									class="text-fg-tertiary text-2xs shrink-0 leading-4"
+									data-testid="chat-model-no-access"
+								>
+									No access
+								</span>
+							{:else if row.provider !== CLAUDE_PROVIDER_ID}
+								<span class="text-fg-tertiary text-2xs shrink-0 leading-4">
+									via {row.providerName}
 								</span>
 							{/if}
-						</span>
-						{#if !isModelAccessReady(access)}
-							<span
-								class="text-fg-tertiary text-2xs shrink-0 leading-4"
-								data-testid="chat-model-no-access"
-							>
-								No access
-							</span>
-						{:else if row.provider !== CLAUDE_PROVIDER_ID}
-							<span class="text-fg-tertiary text-2xs shrink-0 leading-4">
-								via {row.providerName}
-							</span>
-						{/if}
-						{#if selected}
-							<Icon name="check" class="text-fg-default shrink-0" size={14} />
-						{/if}
-					</DropdownItem>
-				{/each}
+							{#if selected}
+								<Icon name="check" class="text-fg-default shrink-0" size={14} />
+							{/if}
+						</DropdownItem>
+					{/each}
+				</div>
+			</div>
+			<div class="px-1.5 pb-1.5">
+				<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+				<DropdownItem
+					closeOnSelect={false}
+					class="gap-2.5"
+					data-testid="chat-model-preset-toggle"
+					onSelect={() => toggleModelPresetCommand(currentPreset)}
+				>
+					<Icon name={currentSaved ? 'minus' : 'plus'} class="shrink-0" size={14} />
+					<span class="truncate">
+						{currentSaved
+							? `Remove ${presetName(currentPreset)} preset`
+							: `Save ${presetName(currentPreset)} as a preset`}
+					</span>
+				</DropdownItem>
 			</div>
 		{/snippet}
 	</Dropdown>

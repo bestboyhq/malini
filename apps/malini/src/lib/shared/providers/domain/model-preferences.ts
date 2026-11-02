@@ -12,7 +12,11 @@ import {
 	providerForModel,
 	type ProviderModelSource,
 } from './provider';
-import type { AgentRunProfile } from './run-profile';
+import {
+	isValidReasoningEffort,
+	type AgentReasoningEffort,
+	type AgentRunProfile,
+} from './run-profile';
 
 export type ModelRole = 'planning' | 'implementation';
 
@@ -34,6 +38,11 @@ export type ChatModelSnapshot = {
 export type ChatSetup = {
 	selection: ModelSelection;
 	profile: AgentRunProfile;
+};
+
+export type ModelPreset = {
+	selection: ModelSelection;
+	effort: AgentReasoningEffort | null;
 };
 
 export const DEFAULT_MODEL_PREFERENCES: ModelPreferences = {
@@ -127,6 +136,29 @@ export function preferencesWithRoleSelection(
 		implementation: cloneModelSelection(preferences.implementation),
 		[role]: cloneModelSelection(selection),
 	};
+}
+
+export function sameModelPreset(left: ModelPreset, right: ModelPreset): boolean {
+	return sameModelSelection(left.selection, right.selection) && left.effort === right.effort;
+}
+
+export function toggleModelPreset(
+	presets: readonly ModelPreset[],
+	preset: ModelPreset,
+): ModelPreset[] {
+	return presets.some((saved) => sameModelPreset(saved, preset))
+		? presets.filter((saved) => !sameModelPreset(saved, preset))
+		: [...presets, { selection: cloneModelSelection(preset.selection), effort: preset.effort }];
+}
+
+export function normalizeModelPresets(value: unknown): ModelPreset[] {
+	if (!Array.isArray(value)) return [];
+	return value.reduce<ModelPreset[]>((presets, entry: unknown) => {
+		if (!isRecord(entry) || !isValidModelSelection(entry.selection)) return presets;
+		if (entry.effort !== null && !isValidReasoningEffort(entry.effort)) return presets;
+		const preset = { selection: cloneModelSelection(entry.selection), effort: entry.effort };
+		return presets.some((saved) => sameModelPreset(saved, preset)) ? presets : [...presets, preset];
+	}, []);
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,6 +1,6 @@
 import { getContext, setContext, type Snippet } from 'svelte';
 import type { ModelSelection } from '$shared/providers/providers.api';
-import type { AgentRunProfile } from '$shared/providers/providers.api';
+import type { AgentReasoningEffort, AgentRunProfile } from '$shared/providers/providers.api';
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import type { BackgroundWork } from '$lib/chat/domain/background-work';
 import type { EventEnvelope } from '$lib/chat/domain/events';
@@ -23,7 +23,7 @@ export type TranscriptComposerControls = {
 	readonly profile: AgentRunProfile;
 	readonly envelopes: readonly EventEnvelope[];
 	readonly backendSelectionDisabled: boolean;
-	onbackendchange(selection: ModelSelection): void;
+	onbackendchange(selection: ModelSelection, effort?: AgentReasoningEffort): void;
 	onprofilechange(profile: AgentRunProfile): void;
 };
 

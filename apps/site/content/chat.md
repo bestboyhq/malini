@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -132,6 +132,9 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 Pick Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, and an effort from Low to Max, for every prompt.
 The picker is one flat list of models, so you pick the model, not the provider.
+**Save Opus · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus Max**.
+Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
+The same menu item removes a preset once that model and effort are what the chat shows.
 Every chat keeps its own model, effort, access and report, so what you pick in one chat never changes another.
 A new chat starts with the model, effort, plan mode and report you picked last, in any chat, and with the access you last picked in its workstream.
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.

@@ -8,6 +8,7 @@ export {
 	isValidAgentAccess,
 	isValidAgentRunProfile,
 	normalizeAgentRunProfile,
+	reasoningEffortLabel,
 	type AgentAccess,
 	type AgentReasoningEffort,
 	type AgentRunMode,

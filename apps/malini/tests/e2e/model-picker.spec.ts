@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	captureFlow,
 	createSourceRepo,
 	currentSessionId,
 	expectAssistantReply,
@@ -112,6 +113,55 @@ test('every chat keeps its own model and effort, and a new chat starts with the 
 	}
 });
 
+test('a preset saves a model with its effort, and picking it sets both until you remove it', async () => {
+	test.setTimeout(150_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-model-presets-ws', 'Presets');
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		const effort = page.getByRole('button', { name: 'Reasoning effort' });
+		const models = page.getByRole('listbox', { name: 'Models' });
+		const opusMax = models
+			.getByRole('group', { name: 'Presets' })
+			.getByRole('option', { name: 'Opus · Max' });
+
+		await pickEffort(page, 'Max');
+		await picker.click();
+		await expect(models.getByRole('group', { name: 'Presets' })).toHaveCount(0);
+		await page.getByRole('button', { name: 'Save Opus · Max as a preset' }).click();
+		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await expect(page.getByRole('button', { name: 'Remove Opus · Max preset' })).toBeVisible();
+		await page.keyboard.press('Escape');
+
+		await pickModel(page, 'Sonnet');
+		await pickEffort(page, 'Low');
+		await picker.click();
+		await expect(opusMax).toHaveAttribute('aria-selected', 'false');
+		await captureFlow(app, 'model-presets-menu');
+		await opusMax.click();
+		await expect(models).toBeHidden();
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('Max');
+
+		await startFreshChat(page);
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('Max');
+
+		await openWorkstream(page, workstreamId);
+		await picker.click();
+		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await page.getByRole('button', { name: 'Remove Opus · Max preset' }).click();
+		await expect(models.getByRole('group', { name: 'Presets' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Save Opus · Max as a preset' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 async function chatAbout(page: Page, prompt: string): Promise<string> {
 	const before = currentSessionId(page);
 	await sendPrompt(page, prompt);
@@ -130,6 +180,7 @@ async function pickModel(page: Page, label: string): Promise<void> {
 	await page.getByRole('button', { name: /^Model: / }).click();
 	await page
 		.getByRole('listbox', { name: 'Models' })
+		.getByRole('group', { name: 'Models' })
 		.getByRole('option', { name: new RegExp(`^${label}`, 'u') })
 		.click();
 	await expect(page.getByRole('button', { name: /^Model: / })).toHaveAccessibleName(
