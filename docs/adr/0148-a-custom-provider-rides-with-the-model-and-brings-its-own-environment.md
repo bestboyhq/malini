@@ -1,6 +1,6 @@
 # 0148 - A custom provider rides with the model and brings its own environment
 
-Status: accepted
+Status: superseded by 0149
 
 ## Context
 

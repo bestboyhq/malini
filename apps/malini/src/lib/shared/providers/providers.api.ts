@@ -44,10 +44,13 @@ export {
 	DEEPSEEK_PROVIDER_ID,
 	DEEPSEEK_PROVIDER_NAME,
 	DEEPSEEK_SUBAGENT_MODEL,
+	isModelAccessReady,
 	isValidProviderId,
+	modelAccess,
 	providerForModel,
 	providerGroupFor,
 	providerGroups,
+	type ModelAccess,
 	type ProviderGroup,
 	type ProviderModelSource,
 } from './domain/provider';
@@ -74,6 +77,7 @@ export {
 
 export { type ClaudeCodeStatus } from './domain/claude-code-status';
 
+export { cancelClaudeSignInCommand } from './application/commands/cancel-claude-sign-in.command';
 export { deleteProviderKeyCommand } from './application/commands/delete-provider-key.command';
 export { loadModelDefaultsCommand } from './application/commands/load-model-defaults.command';
 export { loadModelProvidersCommand } from './application/commands/load-model-providers.command';

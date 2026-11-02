@@ -4,7 +4,9 @@ import type {
 	ModelProviderRecord,
 	ProviderCapability,
 } from '$contract/agent';
+import type { ClaudeCodeStatus } from './claude-code-status';
 import { fallbackModelCatalog } from './model-catalog';
+import type { ModelSelection } from './model-preferences';
 
 export const CLAUDE_PROVIDER_ID = 'claude';
 export const DEFAULT_PROVIDER_ID = CLAUDE_PROVIDER_ID;
@@ -111,4 +113,50 @@ export function providerGroupFor(
 	providerId: string,
 ): ProviderGroup | null {
 	return groups.find((group) => group.id === providerId) ?? null;
+}
+
+export type ModelAccess =
+	| { readonly kind: 'ready' }
+	| { readonly kind: 'checking' }
+	| { readonly kind: 'claude-code-missing' }
+	| { readonly kind: 'claude-signed-out' }
+	| {
+			readonly kind: 'needs-key';
+			readonly providerId: string;
+			readonly providerName: string;
+	  };
+
+export function modelAccess(
+	selection: ModelSelection,
+	groups: readonly ProviderGroup[],
+	claudeStatus: ClaudeCodeStatus,
+): ModelAccess {
+	if (selection.provider === CLAUDE_PROVIDER_ID) {
+		switch (claudeStatus.kind) {
+			case 'missing':
+				return { kind: 'claude-code-missing' };
+			case 'signed-out':
+				return { kind: 'claude-signed-out' };
+			case 'checking':
+			case 'unknown':
+				return { kind: 'checking' };
+			case 'ready':
+				return { kind: 'ready' };
+		}
+	}
+	const group = providerGroupFor(groups, selection.provider);
+	if (!group) {
+		return {
+			kind: 'needs-key',
+			providerId: selection.provider,
+			providerName: selection.provider,
+		};
+	}
+	return group.ready
+		? { kind: 'ready' }
+		: { kind: 'needs-key', providerId: group.id, providerName: group.name };
+}
+
+export function isModelAccessReady(access: ModelAccess): boolean {
+	return access.kind === 'ready' || access.kind === 'checking';
 }

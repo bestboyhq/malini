@@ -66,20 +66,6 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await page.evaluate(() => {
-			location.hash = '#/settings/providers';
-		});
-		const settings = page.getByRole('dialog', { name: 'Settings' });
-		await expect(settings).toBeVisible({ timeout: 20_000 });
-		const deepseek = page.getByTestId('provider-deepseek');
-		await expect(deepseek).toHaveAttribute('data-key-saved', 'false');
-		await page.getByRole('textbox', { name: 'DeepSeek API key' }).fill('sk-e2e-deepseek');
-		await page.getByRole('button', { name: 'Save DeepSeek API key' }).click();
-		await expect(deepseek).toHaveAttribute('data-key-saved', 'true');
-		await expect(deepseek).toContainText('Ready');
-		await page.keyboard.press('Escape');
-		await expect(settings).toHaveCount(0);
-
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(
 			page,
@@ -93,13 +79,14 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			timeout: 20_000,
 		});
 		await page.getByTestId('chat-composer-model').click();
-		await expect(page.getByTestId('chat-model-group')).toHaveText(['Claude', 'DeepSeek']);
+		await expect(page.getByTestId('chat-model-option')).toHaveCount(4);
 		await expect(
 			page.locator('[data-testid="chat-model-option"][data-provider="deepseek"]'),
 		).toHaveCount(2);
 		await expect(
 			page.locator('[data-testid="chat-model-option"][data-provider="claude"]'),
 		).toHaveCount(2);
+		await expect(page.getByTestId('chat-model-no-access')).toHaveCount(2);
 		await captureFlow(app, 'provider-models-picker');
 		await page
 			.locator(
@@ -109,6 +96,18 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect(page.getByRole('button', { name: 'Model: DeepSeek V4 Pro' })).toBeVisible();
 
 		await sendPrompt(page, 'SEARCH the fixture repo');
+		await expect(page.getByTestId('provider-connect-card')).toBeVisible();
+		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
+			'data-access',
+			'needs-key',
+		);
+		await expect(page.getByTestId('provider-connect-prompt')).toHaveText('SEARCH the fixture repo');
+		await expect(page.getByTestId('provider-connect-key')).toBeFocused();
+		await captureFlow(app, 'provider-models-connect-card');
+		await page.getByRole('textbox', { name: 'DeepSeek API key' }).fill('sk-e2e-deepseek');
+		await page.getByTestId('provider-connect-submit').click();
+		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
+
 		await expect
 			.poll(
 				() =>
@@ -131,6 +130,22 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect(page.getByRole('button', { name: 'Model: DeepSeek V4 Pro' })).toBeVisible({
 			timeout: 20_000,
 		});
+		await page.getByTestId('chat-composer-model').click();
+		await expect(page.getByTestId('chat-model-no-access')).toHaveCount(0);
+		await expect(
+			page.locator('[data-testid="chat-model-option"][data-provider="deepseek"]'),
+		).toContainText(['via DeepSeek', 'via DeepSeek']);
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
+
+		await page.evaluate(() => {
+			location.hash = '#/settings/providers';
+		});
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await expect(settings).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('provider-deepseek')).toHaveAttribute('data-key-saved', 'true');
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
 
 		const before = claudeRuns(app.home).length;
 		await chooseModel(page, 'claude', 'opus');

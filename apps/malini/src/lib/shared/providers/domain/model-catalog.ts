@@ -79,6 +79,25 @@ export function pickerGroups(
 		}));
 }
 
+export interface FlatPickerModel {
+	readonly provider: string;
+	readonly providerName: string;
+	readonly model: AgentModelInfo;
+}
+
+export function flatPickerModels(
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+): readonly FlatPickerModel[] {
+	return pickerGroups(groups, selection).flatMap((group) =>
+		group.models.map((model) => ({
+			provider: group.id,
+			providerName: group.name,
+			model,
+		})),
+	);
+}
+
 export function effortsForModel(
 	models: readonly AgentModelInfo[],
 	model: string,

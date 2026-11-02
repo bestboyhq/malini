@@ -39,6 +39,8 @@ let undeliverable: string | null;
 let notified: unknown[];
 
 beforeEach(() => {
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(NOW);
 	db = openMigratedDatabase(':memory:');
 	picks = [];
 	asked = [];
@@ -52,6 +54,7 @@ beforeEach(() => {
 afterEach(() => {
 	jobs.dispose();
 	db.close();
+	vi.useRealTimers();
 });
 
 function boot(rules: Pick<JobsOptions, 'shipping' | 'resume' | 'deliveries'> = {}): void {

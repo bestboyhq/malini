@@ -3,11 +3,15 @@
 	import { tick, untrack } from 'svelte';
 	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
-		CLAUDE_PROVIDER_ID,
 		DEFAULT_PROVIDER_ID,
+		allProviderModels,
+		catalogModelLabel,
 		claudeCodeStatusQuery,
 		defaultAgentModel,
+		isModelAccessReady,
 		isValidModelSelection,
+		modelAccess,
+		providerGroupsQuery,
 		type ModelSelection,
 	} from '$shared/providers/providers.api';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
@@ -77,6 +81,7 @@
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
+	import ProviderConnectCard from './ProviderConnectCard.svelte';
 	import { TranscriptFactsProjector } from './transcript-facts';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure, sanitizeFailureDetail } from '$shared/errors/failure-copy';
@@ -167,11 +172,13 @@
 	let outgoingBandEl: HTMLDivElement | null = $state(null);
 	let outgoingPrompts = $state(0);
 	let landOutgoingPrompt: (() => void) | null = null;
-	const claudeCodeStatus = $derived(claudeCodeStatusQuery.data);
-	const agentUsable = $derived(
-		claudeCodeStatus.kind !== 'missing' &&
-			(selection.provider !== CLAUDE_PROVIDER_ID || claudeCodeStatus.kind !== 'signed-out'),
+	const providerGroups = $derived(providerGroupsQuery.data);
+	const access = $derived(modelAccess(selection, providerGroups, claudeCodeStatusQuery.data));
+	const selectedModelLabel = $derived(
+		catalogModelLabel(allProviderModels(providerGroups), selection.model),
 	);
+	let accessPrompt = $state<string | null>(null);
+	let accessSteer = false;
 	let submissionError = $state<string | null>(null);
 	let contextOpen = $state(false);
 	let contextQuery = $state('');
@@ -189,9 +196,7 @@
 	const MAX_CONTEXT_FILES = 20;
 	const submitting = $derived(pendingSubmissionCount > 0);
 
-	const canSend = $derived(
-		prompt.trim() !== '' && !disabled && agentUsable && !todoContextResolving,
-	);
+	const canSend = $derived(prompt.trim() !== '' && !disabled && !todoContextResolving);
 	const resolvedPlaceholder = $derived(placeholder ?? 'Ask Malini to make a change…');
 	const transcriptFactsProjector = new TranscriptFactsProjector();
 	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
@@ -412,6 +417,8 @@
 		onattachmentschange?.(localAttachments);
 		attachmentError = null;
 		submissionError = null;
+		accessPrompt = null;
+		accessSteer = false;
 		addMenuOpen = false;
 		contextOpen = false;
 		contextQuery = '';
@@ -785,6 +792,13 @@
 		if (!trimmed) {
 			return;
 		}
+		if (!isModelAccessReady(access)) {
+			accessPrompt = trimmed;
+			accessSteer = steer;
+			return;
+		}
+		accessPrompt = null;
+		accessSteer = false;
 		const next = isValidModelSelection(selection)
 			? selection
 			: { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
@@ -819,6 +833,29 @@
 			prompt: trimmed,
 		});
 	}
+
+	function onAccessConnected(): void {
+		const steer = accessSteer;
+		accessPrompt = null;
+		accessSteer = false;
+		submit(steer);
+	}
+
+	function cancelAccess(): void {
+		accessPrompt = null;
+		accessSteer = false;
+		queueMicrotask(() => promptEditor?.focusEditor());
+	}
+
+	$effect(() => {
+		selection.provider;
+		selection.model;
+		untrack(() => {
+			if (accessPrompt === null) return;
+			accessPrompt = null;
+			accessSteer = false;
+		});
+	});
 
 	$effect(() => {
 		const resolution = todosResolution;
@@ -1168,6 +1205,16 @@
 			</div>
 		</div>
 	</DropdownLayer>
+
+	{#if accessPrompt !== null && !isModelAccessReady(access)}
+		<ProviderConnectCard
+			{access}
+			modelLabel={selectedModelLabel}
+			prompt={accessPrompt}
+			onconnected={onAccessConnected}
+			oncancel={cancelAccess}
+		/>
+	{/if}
 
 	<ComposerShell
 		accent={profile.mode === 'plan'}
