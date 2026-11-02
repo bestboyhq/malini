@@ -13,6 +13,12 @@ Settings, Profile shows your Bestboy account.
 Signed out, it says **Not signed in to Bestboy**, and **Sign in** opens your browser to sign in with Google or an email code.
 Signing in publishes nothing; it only tells Malini who you are on bestboy.dev.
 Signed in, it shows your name and email, and **Sign out**.
+
+Signed in, your picture and handle sit at the bottom of the sidebar.
+Click them for your name and a line about your week: a flame and a cheer such as **Crushing it as always** while you keep up your pace, or a sun and one such as **Warming up before taking over the world** while it is quieter.
+You keep up your pace when the last 7 days hold at least three quarters of your average week over the 4 weeks before them, counted on your Mac.
+**Open profile** opens your public profile once you publish, **Stats** opens the Stats panel, **Profile settings** opens Settings, Profile, and **Sign out** signs you out.
+The settings button at the top of the screen, beside the sidebar toggle, opens Settings.
 The same account publishes your extensions, from **Extensions you publish** lower on Profile; see [Publish an extension](/malini/docs/extensions.md#publish-an-extension).
 
 ## Publish my stats

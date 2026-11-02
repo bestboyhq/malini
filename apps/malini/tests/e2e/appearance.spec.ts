@@ -22,7 +22,7 @@ test('appearance settings tune the greys and the theme, close back to the workst
 		);
 		await openWorkstream(page, workstreamId);
 
-		await page.getByTestId('sidebar-open-settings').click();
+		await page.getByTestId('global-topbar-open-settings').click();
 		const sections = page.getByRole('navigation', { name: 'Settings' });
 		await expect(sections.getByRole('link', { name: 'Accounts', exact: true })).toHaveAttribute(
 			'aria-current',
@@ -58,7 +58,7 @@ test('appearance settings tune the greys and the theme, close back to the workst
 
 		await page.reload();
 		await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-		await page.getByTestId('sidebar-open-settings').click();
+		await page.getByTestId('global-topbar-open-settings').click();
 		await sections.getByRole('link', { name: 'Appearance' }).click();
 		await expect(slate).toHaveAttribute('aria-pressed', 'true');
 
@@ -92,7 +92,7 @@ test('the theme the user picks reaches native pages and the agent, whatever the 
 			['Dark', 'dark'],
 			['Light', 'light'],
 		] as const) {
-			await page.getByTestId('sidebar-open-settings').click();
+			await page.getByTestId('global-topbar-open-settings').click();
 			await page
 				.getByRole('navigation', { name: 'Settings' })
 				.getByRole('link', { name: 'Appearance' })
