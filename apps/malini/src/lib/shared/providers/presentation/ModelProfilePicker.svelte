@@ -8,6 +8,7 @@
 		catalogModelLabel,
 		effortsForModel,
 		flatPickerModels,
+		modelDescription,
 	} from '$shared/providers/domain/model-catalog';
 	import {
 		CLAUDE_PROVIDER_ID,
@@ -195,9 +196,9 @@
 						>
 							<span class="flex min-w-0 flex-1 flex-col">
 								<span class="truncate text-[13px] leading-5">{row.model.label}</span>
-								{#if row.model.description}
+								{#if modelDescription(row.model)}
 									<span class="text-fg-tertiary text-2xs truncate leading-4">
-										{row.model.description}
+										{modelDescription(row.model)}
 									</span>
 								{/if}
 							</span>

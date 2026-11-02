@@ -8,6 +8,21 @@ export type { AgentModelInfo };
 
 const FAMILY_ORDER = ['fable', 'opus', 'sonnet', 'haiku'];
 
+const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	fable: 'For problems that fight back',
+	opus: 'Does the real work. Usually right',
+	sonnet: 'Routine work, no drama, less usage',
+	haiku: "Fast. Don't ask it to ponder",
+	'deepseek-v4-pro': 'Thinks hard. Text only',
+	'deepseek-flash': 'Quick, and it can see',
+};
+
+export function modelDescription(model: AgentModelInfo): string {
+	const id = model.id.replace(/^claude-/u, '');
+	const key = Object.keys(MODEL_DESCRIPTIONS).find((name) => id.startsWith(name));
+	return (key && MODEL_DESCRIPTIONS[key]) ?? model.description;
+}
+
 export function modelLabel(model: string): string {
 	const contextSuffix = model.endsWith('[1m]') ? ' 1M' : '';
 	const words = model
