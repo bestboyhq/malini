@@ -166,22 +166,14 @@
 									</span>
 									<Icon
 										name={current ? 'check' : 'arrow-right'}
-										class={[
-											'shrink-0',
-											current
-												? 'text-fg-default'
-												: 'text-fg-tertiary group-hover/preset:invisible group-has-focus-visible/preset:invisible',
-										]}
+										class={['shrink-0', current ? 'text-fg-default' : 'text-fg-tertiary']}
 										size={14}
 									/>
 								</DropdownItem>
 								<IconButton
 									variant="ghost"
 									size="xs"
-									class={[
-										'pointer-events-none absolute top-1/2 -translate-y-1/2 opacity-0 transition-none group-hover/preset:pointer-events-auto group-hover/preset:opacity-100 group-has-focus-visible/preset:pointer-events-auto group-has-focus-visible/preset:opacity-100',
-										current ? 'right-7' : 'right-1.5',
-									]}
+									class="pointer-events-none absolute top-1/2 right-7 -translate-y-1/2 opacity-0 transition-none group-hover/preset:pointer-events-auto group-hover/preset:opacity-100 group-has-focus-visible/preset:pointer-events-auto group-has-focus-visible/preset:opacity-100"
 									ariaLabel={`Remove ${presetName(preset)}`}
 									data-testid="chat-model-preset-remove"
 									onclick={() => toggleModelPresetCommand(preset)}
