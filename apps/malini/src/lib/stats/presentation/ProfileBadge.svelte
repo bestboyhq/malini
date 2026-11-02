@@ -62,7 +62,7 @@
 		align="start"
 		sideOffset={6}
 		role={null}
-		panelClass="w-56"
+		panelClass="w-64"
 		testId="profile-layer"
 		{onOpenChange}
 	>
@@ -141,7 +141,7 @@
 				{@render separator()}
 
 				<DropdownItem role="menuitem" class="gap-2.5" onSelect={signOutOfBestboyCommand}>
-					<span class="w-[15px] shrink-0" aria-hidden="true"></span>
+					<Icon name="sign-out" size={15} class="shrink-0" />
 					<span class="min-w-0 flex-1 truncate text-left">Sign out</span>
 				</DropdownItem>
 			</div>
@@ -150,5 +150,5 @@
 {/if}
 
 {#snippet separator()}
-	<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+	<div class="border-border-subtle mx-1 my-1 border-t-[0.5px]" role="separator"></div>
 {/snippet}
