@@ -1,4 +1,4 @@
-import type { AgentSessionOrigin } from '$contract/agent';
+import type { AgentRunProfile, AgentSessionOrigin } from '$contract/agent';
 import type { SessionStatus } from '$contract/agent-state-machine';
 import type { RunId } from './run';
 import type { SessionId } from './session';
@@ -17,6 +17,7 @@ export type SessionRecord = {
 	lastError: string | null;
 	startedAt: string;
 	origin: AgentSessionOrigin;
+	latestProfile: AgentRunProfile | null;
 };
 
 export function sessionStateFromReported(value: string): SessionState {

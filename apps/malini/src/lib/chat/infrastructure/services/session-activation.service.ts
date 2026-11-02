@@ -52,6 +52,7 @@ class SessionActivationService {
 				status: summary.status,
 				startedAt: summary.startedAt,
 				origin: summary.origin,
+				latestProfile: summary.latestProfile,
 			});
 			this.ensureRecord(summary.id, workstreamId);
 		}
@@ -182,13 +183,18 @@ class SessionActivationService {
 				: planning
 					? 'planning'
 					: 'implementation';
-		const role = snapshot && remembered ? snapshot.role : inferredRole;
+		const jobRan = record.origin === 'job' ? record.latestProfile : null;
+		const role = jobRan
+			? roleForAgentMode(jobRan.mode)
+			: snapshot && remembered
+				? snapshot.role
+				: inferredRole;
 		return {
 			selection: nextSelection,
 			role,
 			profile: {
 				mode: role === 'planning' ? 'plan' : 'agent',
-				effort: storedProfile.effort,
+				effort: jobRan?.effort ?? storedProfile.effort,
 				access: storedProfile.access,
 				report: storedProfile.report,
 			},

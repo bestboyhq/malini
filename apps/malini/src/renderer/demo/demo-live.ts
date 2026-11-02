@@ -96,6 +96,7 @@ export function sessionSummaries(workstreamId: string): AgentSessionSummary[] {
 						status: statuses.get(id) ?? (workstream.runs.length > 0 ? 'completed' : 'idle'),
 						startedAt: workstream.runs[0]?.startedAt ?? workstream.activeAt,
 						origin: 'user',
+						latestProfile: null,
 					},
 				];
 	const pinned = [...threads].flatMap(([thread, about]): AgentSessionSummary[] =>
@@ -110,6 +111,7 @@ export function sessionSummaries(workstreamId: string): AgentSessionSummary[] {
 						status: statuses.get(thread) ?? 'running',
 						startedAt: NOW,
 						origin: 'thread',
+						latestProfile: null,
 					},
 				]
 			: [],

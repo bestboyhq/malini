@@ -27,6 +27,7 @@ const runningChat: SessionRecord = {
 	lastError: null,
 	startedAt: '2026-10-14T10:00:00.000Z',
 	origin: 'user',
+	latestProfile: null,
 };
 
 describe('the unread mark of a workstream', () => {

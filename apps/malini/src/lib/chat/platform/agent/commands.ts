@@ -87,7 +87,7 @@ import { skillsForRun } from '$lib/skills/skills.platform';
 import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { userPromptText } from '../fork-transcript';
-import { isAgentApprovalScope } from '$contract/agent';
+import { agentRunProfileOf, isAgentApprovalScope } from '$contract/agent';
 import type { PermissionRuleScope } from '../permissions.repository';
 import {
 	approvalDecisionResult,
@@ -2070,39 +2070,11 @@ function parseAnswer(value: unknown): AgentQuestionAnswer {
 	return { questionId: value['questionId'], values: [...value['values']] };
 }
 
-function isEffort(value: unknown): value is AgentRunProfile['effort'] {
-	return (
-		value === 'low' ||
-		value === 'medium' ||
-		value === 'high' ||
-		value === 'xhigh' ||
-		value === 'max'
-	);
-}
-
-function isMode(value: unknown): value is AgentRunProfile['mode'] {
-	return value === 'agent' || value === 'plan';
-}
-
-function isAccess(value: unknown): value is AgentRunProfile['access'] {
-	return value === 'sandboxed' || value === 'auto' || value === 'full';
-}
-
-function isReport(value: unknown): value is NonNullable<AgentRunProfile['report']> {
-	return value === 'low' || value === 'medium' || value === 'high';
-}
-
 export function parseRunProfile(value: unknown): AgentRunProfile | null {
 	if (value === undefined || value === null) return null;
-	if (!isRecord(value)) throw invalidProfile();
-	const effort = value['effort'];
-	const mode = value['mode'];
-	const access = value['access'] ?? 'auto';
-	const report = value['report'];
-	if (!isEffort(effort) || !isMode(mode) || !isAccess(access)) throw invalidProfile();
-	if (report === undefined) return { effort, mode, access };
-	if (!isReport(report)) throw invalidProfile();
-	return { effort, mode, access, report };
+	const profile = agentRunProfileOf(value);
+	if (!profile) throw invalidProfile();
+	return profile;
 }
 
 function invalidProfile(): Error {

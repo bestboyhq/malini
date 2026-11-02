@@ -30,6 +30,38 @@ export interface AgentRunProfile {
 	report?: AgentReport;
 }
 
+const AGENT_REASONING_EFFORTS: readonly AgentReasoningEffort[] = [
+	'low',
+	'medium',
+	'high',
+	'xhigh',
+	'max',
+];
+const AGENT_RUN_MODES: readonly AgentRunMode[] = ['agent', 'plan'];
+const AGENT_ACCESS_LEVELS: readonly AgentAccess[] = ['sandboxed', 'auto', 'full'];
+const AGENT_REPORTS: readonly AgentReport[] = ['low', 'medium', 'high'];
+
+function oneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+	return values.some((candidate) => candidate === value);
+}
+
+export function agentRunProfileOf(value: unknown): AgentRunProfile | null {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+	const effort: unknown = Reflect.get(value, 'effort');
+	const mode: unknown = Reflect.get(value, 'mode');
+	const access: unknown = Reflect.get(value, 'access') ?? 'auto';
+	const report: unknown = Reflect.get(value, 'report');
+	if (
+		!oneOf(AGENT_REASONING_EFFORTS, effort) ||
+		!oneOf(AGENT_RUN_MODES, mode) ||
+		!oneOf(AGENT_ACCESS_LEVELS, access)
+	) {
+		return null;
+	}
+	if (report === undefined) return { effort, mode, access };
+	return oneOf(AGENT_REPORTS, report) ? { effort, mode, access, report } : null;
+}
+
 export interface AgentCheckout {
 	repository: string;
 	branch: string;
@@ -163,6 +195,7 @@ export interface AgentSessionSummary {
 	status: SessionStatus;
 	startedAt: string;
 	origin: AgentSessionOrigin;
+	latestProfile: AgentRunProfile | null;
 }
 
 export interface AgentTranscriptReference {
