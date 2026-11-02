@@ -1,6 +1,11 @@
 <script lang="ts">
-	import { ClaudeIcon, DeepSeekIcon, Icon, type IconProps } from '$hyper-ui/icons';
-	import { CLAUDE_PROVIDER_ID, DEEPSEEK_PROVIDER_ID } from '$shared/providers/domain/provider';
+	import { ClaudeIcon, DeepSeekIcon, Icon, OpenCodeIcon, type IconProps } from '$hyper-ui/icons';
+	import {
+		CLAUDE_PROVIDER_ID,
+		DEEPSEEK_PROVIDER_ID,
+		OPENCODE_GO_PROVIDER_ID,
+		OPENCODE_ZEN_PROVIDER_ID,
+	} from '$shared/providers/domain/provider';
 
 	interface Props extends IconProps {
 		providerId: string;
@@ -13,6 +18,8 @@
 	<ClaudeIcon {...icon} />
 {:else if providerId === DEEPSEEK_PROVIDER_ID}
 	<DeepSeekIcon {...icon} />
+{:else if providerId === OPENCODE_GO_PROVIDER_ID || providerId === OPENCODE_ZEN_PROVIDER_ID}
+	<OpenCodeIcon {...icon} />
 {:else}
 	<Icon name="bolt" {...icon} />
 {/if}

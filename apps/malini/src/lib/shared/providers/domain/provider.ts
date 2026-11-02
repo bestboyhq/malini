@@ -12,9 +12,18 @@ export const CLAUDE_PROVIDER_ID = 'claude';
 export const DEFAULT_PROVIDER_ID = CLAUDE_PROVIDER_ID;
 
 export const DEEPSEEK_PROVIDER_ID = 'deepseek';
-export const DEEPSEEK_PROVIDER_NAME = 'DeepSeek';
-export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/anthropic';
-export const DEEPSEEK_SUBAGENT_MODEL = 'deepseek-flash';
+export const OPENCODE_GO_PROVIDER_ID = 'opencode-go';
+export const OPENCODE_ZEN_PROVIDER_ID = 'opencode';
+
+const PROVIDER_KEY_URLS: Readonly<Record<string, string>> = {
+	[DEEPSEEK_PROVIDER_ID]: 'https://platform.deepseek.com/api_keys',
+	[OPENCODE_GO_PROVIDER_ID]: 'https://opencode.ai/console',
+	[OPENCODE_ZEN_PROVIDER_ID]: 'https://opencode.ai/console',
+};
+
+export function providerKeyUrl(providerId: string): string | null {
+	return PROVIDER_KEY_URLS[providerId] ?? null;
+}
 
 export const DEEPSEEK_MODELS: readonly AgentModelInfo[] = [
 	{
@@ -49,6 +58,7 @@ export interface ProviderGroup {
 	id: string;
 	name: string;
 	kind: ModelProviderKind;
+	baseUrl: string | null;
 	models: readonly AgentModelInfo[];
 	ready: boolean;
 	message: string;
@@ -83,6 +93,7 @@ export function providerGroups(
 		id: CLAUDE_PROVIDER_ID,
 		name: 'Claude',
 		kind: 'claude',
+		baseUrl: null,
 		models: claudeModels,
 		ready: capability?.state === 'ready',
 		message: capability?.message ?? 'Claude Code needs setup',
@@ -93,19 +104,12 @@ export function providerGroups(
 			id: provider.id,
 			name: provider.name,
 			kind: provider.kind,
+			baseUrl: provider.baseUrl,
 			models: provider.models,
 			ready: provider.keySaved,
 			message: provider.keySaved ? 'Ready' : `Add an API key for ${provider.name}`,
 		}));
-	const seen = new Set<string>();
-	return [claude, ...custom].map((group) => ({
-		...group,
-		models: group.models.filter((model) => {
-			if (seen.has(model.id)) return false;
-			seen.add(model.id);
-			return true;
-		}),
-	}));
+	return [claude, ...custom];
 }
 
 export function providerGroupFor(

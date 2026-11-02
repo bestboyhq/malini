@@ -97,6 +97,7 @@ class FakeGithub {
 	ciOutcomes: string[] = [];
 	outage = 0;
 	authRejected = false;
+	branchListHeld: Promise<void> | null = null;
 
 	readonly run: GhRunner = async (args) => {
 		this.calls.push([...args]);
@@ -111,7 +112,13 @@ class FakeGithub {
 			this.outage -= 1;
 			return { stdout: '', stderr: 'error connecting to api.github.com', code: 1 };
 		}
-		return this.answer(args);
+		const answer = this.answer(args);
+		const held = this.branchListHeld;
+		if (held && args[0] === 'pr' && args[1] === 'list') {
+			this.branchListHeld = null;
+			await held;
+		}
+		return answer;
 	};
 
 	pull(branch: string): FakePullRequest | undefined {
@@ -1225,6 +1232,32 @@ describe('shipping a queued merge', () => {
 			merged: { pullRequestNumber: 40, pullRequestUrl: 'https://github.com/acme/app/pull/40' },
 		});
 		expect(await invoke('pull-requests.ship-states')).toEqual([]);
+	});
+
+	it('fixes failing checks once when a read from before the fix lands after its push', async () => {
+		await queueWithDraft();
+		github.ciOutcomes = ['PENDING'];
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
+		const job = activeJob();
+		let answer = (): void => {};
+		github.branchListHeld = new Promise((resolve) => (answer = resolve));
+		const readFromBeforeTheFix = readPullRequest();
+		await until(() => expect(github.branchListHeld).toBeNull());
+
+		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'waiting-for-checks' }));
+		answer();
+		await readFromBeforeTheFix;
+		await settle();
+		expect(ship('ws-1')).toMatchObject({ step: 'waiting-for-checks', attempts: 1 });
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
+		github.only().mergeStateStatus = 'CLEAN';
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		const fixes = [...jobRuns.values()].filter((run) => run.definitionId === 'def-fix-checks');
+		expect(fixes).toHaveLength(1);
 	});
 
 	it('commits a fix under the Commit: line its Fix checks job wrote', async () => {

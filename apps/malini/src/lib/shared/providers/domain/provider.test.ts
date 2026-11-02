@@ -2,8 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { modelAccess, type ProviderGroup } from './provider';
 
 const groups: readonly ProviderGroup[] = [
-	{ id: 'claude', name: 'Claude', kind: 'claude', models: [], ready: true, message: '' },
-	{ id: 'deepseek', name: 'DeepSeek', kind: 'anthropic', models: [], ready: false, message: '' },
+	{
+		id: 'claude',
+		name: 'Claude',
+		kind: 'claude',
+		baseUrl: null,
+		models: [],
+		ready: true,
+		message: '',
+	},
+	{
+		id: 'deepseek',
+		name: 'DeepSeek',
+		kind: 'anthropic',
+		baseUrl: 'https://api.deepseek.com/anthropic',
+		models: [],
+		ready: false,
+		message: '',
+	},
 ];
 
 const readyClaude = { kind: 'ready', version: null, account: null } as const;

@@ -23,7 +23,12 @@ export interface ShippingOptions {
 }
 
 export type ShipPlatform = PullRequestsPlatform &
-	Readonly<{ report(workstreamId: string, pullRequest: PullRequestStatusDto): void }>;
+	Readonly<{
+		report(
+			workstreamId: string,
+			read: () => Promise<PullRequestStatusDto>,
+		): Promise<PullRequestStatusDto>;
+	}>;
 
 export function registerShip(
 	context: MainContext,
@@ -65,7 +70,7 @@ export function registerShip(
 	});
 
 	return {
-		report: (id, pullRequest) => deps.reader.report(id, pullRequest),
+		report: (id, read) => deps.reader.report(id, read),
 		shipping: createShippingRule(deps),
 		failure: (id) => shipFailure(getShip(db, id)),
 		dispose: () => {

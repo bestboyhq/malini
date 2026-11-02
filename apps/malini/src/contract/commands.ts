@@ -462,6 +462,7 @@ export interface ContractCommands {
 	};
 	'providers.cancel-claude-sign-in': { args: undefined; result: void };
 	'providers.list': { args: undefined; result: ModelProviderRecord[] };
+	'providers.refresh-models': { args: undefined; result: ModelProviderRecord[] };
 	'providers.save-key': { args: ProviderKeyArgs; result: void };
 	'providers.delete-key': { args: ProviderIdArgs; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
@@ -802,6 +803,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.switch-claude-account',
 	'providers.cancel-claude-sign-in',
 	'providers.list',
+	'providers.refresh-models',
 	'providers.save-key',
 	'providers.delete-key',
 	'chat.agent-capabilities',

@@ -15,6 +15,7 @@ import {
 	type ClaudeAccountsDeps,
 	type SecretCipher,
 } from './claude-accounts.service';
+import { ModelsDevCatalog, modelsDevUrl, type CatalogFetch } from './models-dev.service';
 import { ProviderKeys } from './provider-keys.service';
 
 const MAX_EMAIL_LENGTH = 320;
@@ -22,6 +23,7 @@ const MAX_EMAIL_LENGTH = 320;
 export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directory'>> {
 	readonly platform?: NodeJS.Platform;
 	readonly openPath?: (path: string) => Promise<string>;
+	readonly fetch?: CatalogFetch;
 }
 
 export interface ProvidersPlatform {
@@ -66,8 +68,19 @@ export function registerProviders(
 	context.commands.define('providers.cancel-claude-sign-in', () => accounts.cancelSignIn());
 
 	const keys = new ProviderKeys(context.db, deps.cipher ?? electronCipher);
+	const catalog = new ModelsDevCatalog({
+		db: context.db,
+		fetch: deps.fetch ?? electronFetch,
+		url: modelsDevUrl(!context.isDev, process.env),
+	});
+	void catalog.refresh();
 
 	context.commands.define('providers.list', () => keys.list());
+
+	context.commands.define('providers.refresh-models', async () => {
+		await catalog.refresh();
+		return keys.list();
+	});
 
 	context.commands.define('providers.save-key', async (args: unknown) => {
 		const { providerId, apiKey } = providerKeyArgs(args);
@@ -124,6 +137,11 @@ function claudeExecutable(): string | null {
 async function openWithElectron(path: string): Promise<string> {
 	const { shell } = await import('electron');
 	return shell.openPath(path);
+}
+
+async function electronFetch(url: string, init: RequestInit): Promise<Response> {
+	const { net } = await import('electron');
+	return net.fetch(url, init);
 }
 
 async function electronCipher(): Promise<SecretCipher> {

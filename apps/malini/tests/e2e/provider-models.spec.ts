@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -51,6 +52,47 @@ function claudeRuns(home: string): SessionEnvironment[] {
 	return sessionEnvironments(home).filter((entry) => entry.model === 'opus');
 }
 
+function modelOptions(page: Page, provider: string): Locator {
+	return page.locator(`[data-testid="chat-model-option"][data-provider="${provider}"]`);
+}
+
+function catalogModel(id: string, name: string, releaseDate: string): Record<string, unknown> {
+	return {
+		id,
+		name,
+		tool_call: true,
+		reasoning: true,
+		reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }],
+		modalities: { input: ['text'], output: ['text'] },
+		limit: { context: 262_144 },
+		cost: { input: 1, output: 2 },
+		release_date: releaseDate,
+	};
+}
+
+interface CatalogServer {
+	readonly url: string;
+	requests(): number;
+	close(): Promise<void>;
+}
+
+async function serveModelsDev(catalog: unknown): Promise<CatalogServer> {
+	let requests = 0;
+	const server = createServer((_request, response) => {
+		requests += 1;
+		response.writeHead(200, { 'content-type': 'application/json', etag: '"e2e-catalog"' });
+		response.end(JSON.stringify(catalog));
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const address = server.address();
+	const port = typeof address === 'object' && address !== null ? address.port : 0;
+	return {
+		url: `http://localhost:${port}/api.json`,
+		requests: () => requests,
+		close: () => new Promise((resolve) => server.close(() => resolve())),
+	};
+}
+
 async function chooseModel(page: Page, provider: string, model: string): Promise<void> {
 	await page.getByTestId('chat-composer-model').click();
 	await page
@@ -86,14 +128,13 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await page.mouse.move(0, 0);
 		await expect(providers).toHaveCount(0);
 		await page.getByTestId('chat-composer-model').click();
-		await expect(page.getByTestId('chat-model-option')).toHaveCount(4);
-		await expect(
-			page.locator('[data-testid="chat-model-option"][data-provider="deepseek"]'),
-		).toHaveCount(2);
-		await expect(
-			page.locator('[data-testid="chat-model-option"][data-provider="claude"]'),
-		).toHaveCount(2);
-		await expect(page.getByTestId('chat-model-no-access')).toHaveCount(2);
+		await expect(modelOptions(page, 'claude')).toHaveCount(2);
+		await expect(modelOptions(page, 'deepseek')).toHaveCount(2);
+		await expect(modelOptions(page, 'claude').getByTestId('chat-model-no-access')).toHaveCount(0);
+		await expect(modelOptions(page, 'deepseek').getByTestId('chat-model-no-access')).toHaveCount(2);
+		await expect(modelOptions(page, 'opencode-go').first()).toContainText(
+			/via OpenCode Go\s*No access/u,
+		);
 		await captureFlow(app, 'provider-models-picker');
 		await page
 			.locator(
@@ -143,10 +184,8 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			timeout: 20_000,
 		});
 		await page.getByTestId('chat-composer-model').click();
-		await expect(page.getByTestId('chat-model-no-access')).toHaveCount(0);
-		await expect(
-			page.locator('[data-testid="chat-model-option"][data-provider="deepseek"]'),
-		).toContainText(['via DeepSeek', 'via DeepSeek']);
+		await expect(modelOptions(page, 'deepseek').getByTestId('chat-model-no-access')).toHaveCount(0);
+		await expect(modelOptions(page, 'deepseek')).toContainText(['via DeepSeek', 'via DeepSeek']);
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 
@@ -171,5 +210,92 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+	}
+});
+
+test('an OpenCode Go run uses the models models.dev lists and the subscription key', async () => {
+	test.setTimeout(180_000);
+	const catalog = await serveModelsDev({
+		'opencode-go': {
+			id: 'opencode-go',
+			models: {
+				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
+				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
+				'kimi-k4-free': {
+					...catalogModel('kimi-k4-free', 'Kimi K4 Free', '2026-10-20'),
+					cost: { input: 0, output: 0 },
+				},
+			},
+		},
+	});
+	const app = await launchMalini({ env: { MALINI_MODELS_DEV_URL: catalog.url } });
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-provider-opencode-ws',
+			'OpenCode Go models',
+		);
+		await openWorkstream(page, workstreamId);
+		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
+			timeout: 20_000,
+		});
+
+		await page.getByTestId('chat-composer-model').click();
+		await expect(modelOptions(page, 'opencode-go')).toContainText(['GLM-6', 'Kimi K4']);
+		await expect(modelOptions(page, 'opencode-go')).toHaveCount(2);
+		const filter = page.getByRole('textbox', { name: 'Filter models' });
+		await expect(filter).toBeFocused();
+		await filter.fill('glm opencode');
+		await expect(page.getByTestId('chat-model-option')).toHaveCount(1);
+		await captureFlow(app, 'provider-models-opencode-filter');
+		await filter.press('Enter');
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Model: GLM-6' })).toBeVisible();
+
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
+			'data-access',
+			'needs-key',
+		);
+		await expect(page.getByRole('link', { name: 'Get a key' })).toHaveAttribute(
+			'href',
+			'https://opencode.ai/console',
+		);
+		await page.getByRole('textbox', { name: 'OpenCode Go API key' }).fill('oc_sk_e2e');
+		await page.getByTestId('provider-connect-submit').click();
+		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
+		await expect
+			.poll(
+				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
+			)
+			.toEqual({
+				ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/go/anthropic',
+				ANTHROPIC_AUTH_TOKEN: 'oc_sk_e2e',
+				ANTHROPIC_MODEL: 'glm-6',
+				ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-6',
+				ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-6',
+				ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-6',
+				CLAUDE_CODE_SUBAGENT_MODEL: 'glm-6',
+			});
+		await expectAssistantReply(page);
+
+		await page.evaluate(() => {
+			location.hash = '#/settings/providers';
+		});
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
+		const card = page.getByTestId('provider-opencode-go');
+		await expect(card).toHaveAttribute('data-key-saved', 'true');
+		await expect(card.getByRole('list', { name: 'OpenCode Go models' })).toHaveText(
+			/GLM-6\s*Kimi K4/u,
+		);
+		await captureFlow(app, 'provider-models-opencode-settings');
+		expect(catalog.requests()).toBe(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		await catalog.close();
 	}
 });

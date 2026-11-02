@@ -321,11 +321,9 @@ export function registerPullRequests(
 		},
 		deps.ship ?? testShipOptions(context),
 	);
-	commands.define('pull-requests.status', async (args: unknown) => {
-		const read = await status(args);
+	commands.define('pull-requests.status', (args: unknown) => {
 		const workstreamId = optionalString(args, 'workstreamId');
-		if (workstreamId) ship.report(workstreamId, read);
-		return read;
+		return workstreamId ? ship.report(workstreamId, () => status(args)) : status(args);
 	});
 	return ship;
 }

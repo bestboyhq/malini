@@ -32,6 +32,8 @@ export {
 	normalizeReasoningEffort,
 	pickerGroups,
 	pickerModels,
+	selectionLabel,
+	selectionModels,
 	type AgentModelInfo,
 } from './domain/model-catalog';
 
@@ -39,17 +41,15 @@ export {
 	CLAUDE_PROVIDER,
 	CLAUDE_PROVIDER_ID,
 	DEFAULT_PROVIDER_ID,
-	DEEPSEEK_BASE_URL,
 	DEEPSEEK_MODELS,
 	DEEPSEEK_PROVIDER_ID,
-	DEEPSEEK_PROVIDER_NAME,
-	DEEPSEEK_SUBAGENT_MODEL,
 	isModelAccessReady,
 	isValidProviderId,
 	modelAccess,
 	providerForModel,
 	providerGroupFor,
 	providerGroups,
+	providerKeyUrl,
 	type ModelAccess,
 	type ProviderGroup,
 	type ProviderModelSource,
@@ -82,6 +82,7 @@ export { deleteProviderKeyCommand } from './application/commands/delete-provider
 export { loadModelDefaultsCommand } from './application/commands/load-model-defaults.command';
 export { loadModelProvidersCommand } from './application/commands/load-model-providers.command';
 export { loadProviderCapabilitiesCommand } from './application/commands/load-provider-capabilities.command';
+export { refreshModelProvidersCommand } from './application/commands/refresh-model-providers.command';
 export { saveAgentAccessDefaultCommand } from './application/commands/save-agent-access-default.command';
 export { saveModelDefaultsCommand } from './application/commands/save-model-defaults.command';
 export { saveProviderKeyCommand } from './application/commands/save-provider-key.command';

@@ -8,11 +8,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
-	import {
-		allProviderModels,
-		catalogModelLabel,
-		providerGroupsQuery,
-	} from '$shared/providers/providers.api';
+	import { providerGroupsQuery, selectionLabel } from '$shared/providers/providers.api';
 	import { jobHref } from '$shared/router/routes-hrefs';
 	import { addJobExperimentCommand } from '$lib/jobs/application/commands/add-job-experiment.command';
 	import { deleteJobExperimentCommand } from '$lib/jobs/application/commands/delete-job-experiment.command';
@@ -45,7 +41,6 @@
 	const loadError = $derived(jobExperimentsErrorQuery.data(job.id));
 	const adding = $derived(newJobExperimentStateQuery.data(job.id));
 	const actionState = $derived(jobActionStateQuery.data);
-	const catalog = $derived(allProviderModels(providerGroupsQuery.data));
 	const sample = $derived(session?.sample ?? []);
 	const experiments = $derived(session?.experiments ?? []);
 	const scores = $derived(
@@ -82,7 +77,7 @@
 	}
 
 	function setupLabel(experiment: JobExperimentRecord): string {
-		return `${catalogModelLabel(catalog, experiment.model)} · ${instructionsLabel(builtin, experiment.instructions)}`;
+		return `${selectionLabel(providerGroupsQuery.data, experiment)} · ${instructionsLabel(builtin, experiment.instructions)}`;
 	}
 </script>
 

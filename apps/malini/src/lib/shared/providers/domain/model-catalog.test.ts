@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	catalogModelLabel,
 	effortsForModel,
+	filterPickerModels,
 	modelLabel,
 	normalizeReasoningEffort,
 	pickerModels,
@@ -47,5 +48,28 @@ describe('Claude Code model catalog', () => {
 		expect(normalizeReasoningEffort(['low', 'high'], 'medium')).toBe('high');
 		expect(normalizeReasoningEffort(['low', 'max'], 'medium')).toBe('max');
 		expect(normalizeReasoningEffort([], 'medium')).toBe('medium');
+	});
+
+	it('filters picker rows by every word across model name, id and provider', () => {
+		const rows = [
+			{ provider: 'claude', providerName: 'Claude', model: catalog[1] },
+			{
+				provider: 'opencode-go',
+				providerName: 'OpenCode Go',
+				model: { id: 'glm-5.3', label: 'GLM-5.3', description: '', efforts: [] },
+			},
+			{
+				provider: 'deepseek',
+				providerName: 'DeepSeek',
+				model: { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', description: '', efforts: [] },
+			},
+		];
+		expect(filterPickerModels(rows, '  ')).toBe(rows);
+		expect(filterPickerModels(rows, 'GLM').map((row) => row.model.id)).toEqual(['glm-5.3']);
+		expect(filterPickerModels(rows, 'go 5.3').map((row) => row.model.id)).toEqual(['glm-5.3']);
+		expect(filterPickerModels(rows, 'deepseek pro').map((row) => row.provider)).toEqual([
+			'deepseek',
+		]);
+		expect(filterPickerModels(rows, 'kimi')).toEqual([]);
 	});
 });

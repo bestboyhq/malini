@@ -5,12 +5,11 @@
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import { Icon } from '$hyper-ui/icons';
 	import {
-		allProviderModels,
-		catalogModelLabel,
 		modelSelectionValue,
 		parseModelSelectionValue,
 		providerGroupsQuery,
 		providerSelectOptions,
+		selectionLabel,
 	} from '$shared/providers/providers.api';
 	import { changeJobExperimentCommand } from '$lib/jobs/application/commands/change-job-experiment.command';
 	import { runJobExperimentCommand } from '$lib/jobs/application/commands/run-job-experiment.command';
@@ -28,7 +27,6 @@
 	let draft = $state(startingDraft());
 
 	const groups = $derived(providerGroupsQuery.data);
-	const catalog = $derived(allProviderModels(groups));
 	const selection = $derived({ provider: experiment.provider, model: experiment.model });
 	const modelOptions = $derived(providerSelectOptions(groups, selection));
 	const dirty = $derived(draft.trim() !== experiment.instructions);
@@ -55,7 +53,7 @@
 	<div class="flex flex-col gap-3 p-4">
 		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 			<span class="text-fg-secondary">Model</span>
-			<span class="text-fg-default">{catalogModelLabel(catalog, experiment.model)}</span>
+			<span class="text-fg-default">{selectionLabel(groups, experiment)}</span>
 			<span class="text-fg-tertiary ml-auto">
 				This is what runs now. Start an experiment to change it.
 			</span>

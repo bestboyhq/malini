@@ -7,4 +7,5 @@ export { default as ClaudeIcon } from './ClaudeIcon.svelte';
 export { default as DeepSeekIcon } from './DeepSeekIcon.svelte';
 export { default as GitHubIcon } from './GitHubIcon.svelte';
 export { default as Icon } from './Icon.svelte';
+export { default as OpenCodeIcon } from './OpenCodeIcon.svelte';
 export { default as SmileyIcon } from './SmileyIcon.svelte';
