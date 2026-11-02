@@ -82,7 +82,7 @@
 						<RepositoryAvatar fullName={avatarName} size={20} />
 					{/key}
 				</span>
-				<span class="min-w-0 max-w-40 truncate">{identity}</span>
+				<span class="max-w-40 min-w-0 truncate">{identity}</span>
 			</Button>
 		{/snippet}
 
