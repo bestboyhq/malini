@@ -3,7 +3,6 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { goto } from '$shared/router/navigation';
 	import { PROFILE_SETTINGS_HREF } from '$shared/router/routes-hrefs';
@@ -31,7 +30,8 @@
 	const login = $derived(githubAuthQuery.data?.login ?? null);
 	const avatarName = $derived(login ? `${login}/${login}` : (account?.name ?? ''));
 	const profileUrl = $derived(publishedProfileUrl(profileState));
-	const handle = $derived(profileUrl ? (profileState?.profile?.handle ?? null) : null);
+	const handle = $derived(profileState?.profile?.handle ?? login);
+	const identity = $derived(handle ? `@${handle}` : (account?.name ?? ''));
 	const activity = $derived(activityStatsQuery.data);
 	const week = $derived(activity ? weekPace(activity.days, activity.today) : null);
 	const nudge = $derived(activity && week ? paceNudge(week.pace, activity.today) : null);
@@ -56,99 +56,97 @@
 </script>
 
 {#if account}
-	<Tooltip content="Your profile" placement="right" suppressed={open}>
-		<Dropdown
-			bind:open
-			side="top"
-			align="start"
-			sideOffset={6}
-			role={null}
-			panelClass="w-56"
-			testId="profile-layer"
-			{onOpenChange}
-		>
-			{#snippet trigger()}
-				<Button
-					variant="ghost"
-					size="auto"
-					radius="full"
-					class="size-6 justify-center"
-					ariaLabel="Your profile"
-					ariaHasPopup="menu"
-					ariaExpanded={open}
-					active={open}
-					data-testid="sidebar-open-profile"
-				>
-					<span class="block overflow-hidden rounded-full">
-						{#key avatarName}
-							<RepositoryAvatar fullName={avatarName} size={18} />
-						{/key}
+	<Dropdown
+		bind:open
+		side="top"
+		align="start"
+		sideOffset={6}
+		role={null}
+		panelClass="w-56"
+		testId="profile-layer"
+		{onOpenChange}
+	>
+		{#snippet trigger()}
+			<Button
+				variant="ghost"
+				size="auto"
+				class="min-w-0 pr-2 pl-0.5 text-[13px]"
+				ariaLabel={identity ? `${identity}, your profile` : 'Your profile'}
+				ariaHasPopup="menu"
+				ariaExpanded={open}
+				active={open}
+				data-testid="sidebar-open-profile"
+			>
+				<span class="block size-5 shrink-0 overflow-hidden rounded-full">
+					{#key avatarName}
+						<RepositoryAvatar fullName={avatarName} size={20} />
+					{/key}
+				</span>
+				<span class="min-w-0 max-w-40 truncate">{identity}</span>
+			</Button>
+		{/snippet}
+
+		{#snippet content()}
+			<div role="menu" aria-label="Your profile">
+				<div class="flex items-center gap-2.5 px-2 py-1.5 text-[13px] leading-[18px]">
+					<span class="block size-7 shrink-0 overflow-hidden rounded-full">
+						<RepositoryAvatar fullName={avatarName} size={28} />
 					</span>
-				</Button>
-			{/snippet}
-
-			{#snippet content()}
-				<div role="menu" aria-label="Your profile">
-					<div class="flex items-center gap-2.5 px-2 py-1.5 text-[13px] leading-[18px]">
-						<span class="block size-7 shrink-0 overflow-hidden rounded-full">
-							<RepositoryAvatar fullName={avatarName} size={28} />
-						</span>
-						<div class="min-w-0">
-							<p class="text-fg-default truncate font-medium">{account.name}</p>
-							<p
-								class={[
-									'text-fg-tertiary flex min-w-0 gap-1 text-xs',
-									nudge ? 'items-start' : 'items-center truncate',
-								]}
-							>
-								{#if nudge}
-									<Icon name={nudge.icon} size={12} class={['mt-0.5 shrink-0', nudge.tone]} />
-									<span class="min-w-0">{nudge.line}</span>
-								{:else if handle}
-									<span class="truncate">@{handle}</span>
-								{:else}
-									<SensitiveText text={account.email} />
-								{/if}
-							</p>
-						</div>
-					</div>
-
-					{@render separator()}
-
-					{#if profileUrl}
-						<DropdownItem
-							role="menuitem"
-							class="gap-2.5"
-							onSelect={() => openProfilePageCommand(profileUrl)}
+					<div class="min-w-0">
+						<p class="text-fg-default truncate font-medium">{account.name}</p>
+						<p
+							class={[
+								'text-fg-tertiary flex min-w-0 gap-1 text-xs',
+								nudge ? 'items-start' : 'items-center truncate',
+							]}
 						>
-							<Icon name="external-link" size={15} class="shrink-0" />
-							<span class="min-w-0 flex-1 truncate text-left">Open profile</span>
-						</DropdownItem>
-					{/if}
-					<DropdownItem role="menuitem" class="gap-2.5" onSelect={onopenstats}>
-						<Icon name="signal" size={15} class="shrink-0" />
-						<span class="min-w-0 flex-1 truncate text-left">Stats</span>
-						{#if runsThisWeek}
-							<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
-								{runsThisWeek}
-							</span>
-						{/if}
-					</DropdownItem>
-					<DropdownItem role="menuitem" class="gap-2.5" onSelect={openSettings}>
-						<Icon name="settings" size={15} class="shrink-0" />
-						<span class="min-w-0 flex-1 truncate text-left">Profile settings</span>
-					</DropdownItem>
-
-					{@render separator()}
-
-					<DropdownItem role="menuitem" class="gap-2.5" onSelect={signOutOfBestboyCommand}>
-						<span class="w-[15px] shrink-0" aria-hidden="true"></span>
-						<span class="min-w-0 flex-1 truncate text-left">Sign out</span>
-					</DropdownItem>
+							{#if nudge}
+								<Icon name={nudge.icon} size={12} class={['mt-0.5 shrink-0', nudge.tone]} />
+								<span class="min-w-0">{nudge.line}</span>
+							{:else if handle}
+								<span class="truncate">@{handle}</span>
+							{:else}
+								<SensitiveText text={account.email} />
+							{/if}
+						</p>
+					</div>
 				</div>
-			{/snippet}
-		</Dropdown>
-	</Tooltip>
+
+				{@render separator()}
+
+				{#if profileUrl}
+					<DropdownItem
+						role="menuitem"
+						class="gap-2.5"
+						onSelect={() => openProfilePageCommand(profileUrl)}
+					>
+						<Icon name="external-link" size={15} class="shrink-0" />
+						<span class="min-w-0 flex-1 truncate text-left">Open profile</span>
+					</DropdownItem>
+				{/if}
+				<DropdownItem role="menuitem" class="gap-2.5" onSelect={onopenstats}>
+					<Icon name="signal" size={15} class="shrink-0" />
+					<span class="min-w-0 flex-1 truncate text-left">Stats</span>
+					{#if runsThisWeek}
+						<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
+							{runsThisWeek}
+						</span>
+					{/if}
+				</DropdownItem>
+				<DropdownItem role="menuitem" class="gap-2.5" onSelect={openSettings}>
+					<Icon name="settings" size={15} class="shrink-0" />
+					<span class="min-w-0 flex-1 truncate text-left">Profile settings</span>
+				</DropdownItem>
+
+				{@render separator()}
+
+				<DropdownItem role="menuitem" class="gap-2.5" onSelect={signOutOfBestboyCommand}>
+					<span class="w-[15px] shrink-0" aria-hidden="true"></span>
+					<span class="min-w-0 flex-1 truncate text-left">Sign out</span>
+				</DropdownItem>
+			</div>
+		{/snippet}
+	</Dropdown>
 {/if}
 
 {#snippet separator()}

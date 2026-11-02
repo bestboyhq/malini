@@ -233,7 +233,7 @@ test('signed in to Bestboy, the sidebar shows your picture, and its popover chee
 		const { page } = app;
 		await recordBrowser(app);
 		const badge = page.getByRole('button', { name: 'Your profile' });
-		await expect(page.getByTestId('sidebar-open-settings')).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('global-topbar-open-settings')).toBeVisible({ timeout: 20_000 });
 		await expect(badge).toHaveCount(0);
 
 		await openProfileSettings(page);
@@ -245,6 +245,7 @@ test('signed in to Bestboy, the sidebar shows your picture, and its popover chee
 		await page.keyboard.press('Escape');
 		await expect(settings).toHaveCount(0);
 
+		await expect(badge).toContainText('@e2e-user');
 		await badge.click();
 		const profile = page.getByRole('menu', { name: 'Your profile' });
 		await expect(profile.getByText('E2E Person')).toBeVisible();
