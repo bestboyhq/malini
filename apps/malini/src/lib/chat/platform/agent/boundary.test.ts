@@ -26,6 +26,8 @@ describe("a job's boundary", () => {
 				'/data/malini/malini.sqlite-wal',
 				'/data/malini/logs',
 				'/data/malini/leads/bestboy/.context/plan.md',
+				'/data/malini/workstreams/.kept',
+				'/data/malini/workstreams/.trash',
 			],
 			chatRecords: false,
 			internet: true,
@@ -41,5 +43,20 @@ describe("a job's boundary", () => {
 			chatRecords: true,
 			internet: false,
 		});
+	});
+
+	it('hides archived workstreams until a job sees every chat and attachment', () => {
+		const everything = { ...DEFAULT_JOB_BOUNDARY, chats: 'all', attachments: true } as const;
+		const archived = ['/data/malini/workstreams/.kept', '/data/malini/workstreams/.trash'];
+
+		expect(agentBoundary({ ...everything, attachments: false }, PLACES)?.hidden).toEqual([
+			'/data/malini/workstreams/ws-1/.malini/agent-attachments',
+			'/data/malini/leads/acme/.malini/agent-attachments',
+			'/data/malini/leads/bestboy/.malini/agent-attachments',
+			...archived,
+		]);
+		expect(agentBoundary({ ...everything, chats: 'starter' }, PLACES)?.hidden).toEqual(
+			expect.arrayContaining(archived),
+		);
 	});
 });

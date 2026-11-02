@@ -4,6 +4,11 @@ import type { AgentBoundary } from '$contract/agent';
 import type { JobBoundary } from '$contract/jobs';
 import { LEAD_PLAN_PATH } from '$contract/leads';
 import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '$contract/protocol-contract.generated';
+import {
+	CHECKOUT_TRASH_DIR_NAME,
+	KEPT_WORKSTREAMS_DIR_NAME,
+	workstreamsRoot,
+} from '$main/git/paths';
 
 const READABLE_APP_DATA = new Set(['workstreams', 'repositories', 'agent', 'extensions']);
 
@@ -34,8 +39,15 @@ export function agentBoundary(job: JobBoundary, places: BoundaryPlaces): AgentBo
 					.map(({ path }) => join(path, LEAD_PLAN_PATH))
 					.filter((plan) => plan !== starterPlan),
 			];
+	const archived =
+		chatRecords && job.attachments
+			? []
+			: [
+					join(workstreamsRoot(appDataRoot), KEPT_WORKSTREAMS_DIR_NAME),
+					join(workstreamsRoot(appDataRoot), CHECKOUT_TRASH_DIR_NAME),
+				];
 	return {
-		hidden: [...new Set([...attachments, ...records])],
+		hidden: [...new Set([...attachments, ...records, ...archived])],
 		chatRecords,
 		internet: job.internet,
 	};

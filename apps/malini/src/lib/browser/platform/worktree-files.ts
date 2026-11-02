@@ -1,10 +1,13 @@
 import { realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { net, protocol, session, type CustomScheme } from 'electron';
 import { BROWSER_WORKTREE_SCHEME } from '$contract/browser';
 import { isInsideDirectory } from '$main/fs/paths';
+import { AGENT_ATTACHMENTS_PATH } from '$main/git/paths';
 import { BROWSER_PARTITION } from './electron-view';
+
+const APP_MANAGED_DIR = dirname(AGENT_ATTACHMENTS_PATH);
 
 export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []): void {
 	protocol.registerSchemesAsPrivileged([
@@ -42,7 +45,13 @@ export async function worktreeFile(worktree: string, pathname: string): Promise<
 		const file = (await stat(target)).isDirectory()
 			? await realpath(join(target, 'index.html'))
 			: target;
-		return isInsideDirectory(root, file) && (await stat(file)).isFile() ? file : null;
+		const inside = relative(root, file);
+		return isInsideDirectory(root, file) &&
+			inside !== APP_MANAGED_DIR &&
+			!inside.startsWith(`${APP_MANAGED_DIR}/`) &&
+			(await stat(file)).isFile()
+			? file
+			: null;
 	} catch {
 		return null;
 	}

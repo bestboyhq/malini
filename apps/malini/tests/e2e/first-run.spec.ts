@@ -7,6 +7,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	sendPrompt,
 } from './harness';
 
 test('a new Mac without Claude Code is walked to install it, with the command it will run', async () => {
@@ -51,13 +52,14 @@ test('a signed-out Claude Code asks to sign in and the composer will not send', 
 		await captureFlow(app, 'first-run-sign-in-claude');
 
 		await openWorkstream(page, workstreamId);
-		const picker = page.getByRole('button', { name: 'Model: Opus, Claude Code needs setup' });
-		await expect(picker).toBeVisible({ timeout: 20_000 });
-		await picker.click();
-		const setup = page.getByTestId('chat-model-setup');
-		await expect(setup).toContainText('Claude Code is installed but not signed in.');
-		await expect(setup.getByRole('button', { name: 'Sign in to Claude Code' })).toBeVisible();
-		await captureFlow(app, 'model-picker-sign-in-claude');
+		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		const connect = page.getByTestId('provider-connect-card');
+		await expect(connect).toHaveAttribute('data-access', 'claude-signed-out');
+		await expect(connect.getByRole('button', { name: 'Sign in with Claude' })).toBeVisible();
+		await captureFlow(app, 'composer-sign-in-claude');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

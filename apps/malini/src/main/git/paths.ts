@@ -16,6 +16,8 @@ export const WORKSTREAM_BRANCH_PREFIX = 'malini/';
 export const REPOSITORIES_DIR_NAME = 'repositories';
 export const LEGACY_PROJECTS_DIR_NAME = 'projects';
 export const WORKSTREAMS_DIR_NAME = 'workstreams';
+export const KEPT_WORKSTREAMS_DIR_NAME = '.kept';
+export const CHECKOUT_TRASH_DIR_NAME = '.trash';
 
 export const AGENT_ATTACHMENTS_PATH = BRIDGE_AGENT_ATTACHMENTS_PATH;
 export const AGENT_CONTEXT_PATH = BRIDGE_AGENT_CONTEXT_PATH;

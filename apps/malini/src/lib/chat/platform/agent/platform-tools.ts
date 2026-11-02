@@ -127,6 +127,7 @@ async function runPlatformTool(
 ): Promise<unknown> {
 	const { db, commands } = deps;
 	const { input } = request;
+	const internetOff = jobBoundaryForSession(db, request.sessionId)?.internet === false;
 	switch (request.tool) {
 		case 'jobs_list':
 			return (await jobs(commands)).map(jobSummary);
@@ -137,6 +138,9 @@ async function runPlatformTool(
 		case 'jobs_run': {
 			const session = requestSession(db, request);
 			const job = findJob(await jobs(commands), requiredText(input, 'job'));
+			if (internetOff && job.boundary.internet) {
+				throw refusesInternet(`Running “${job.name}” reaches`);
+			}
 			const context = text(input, 'context');
 			if (context !== undefined && job.boundary.chats === 'none') {
 				throw new Error(
@@ -163,6 +167,7 @@ async function runPlatformTool(
 		case 'repositories_list':
 			return (await listRepositoryCatalog(db)).map(repositorySummary);
 		case 'repositories_clone':
+			if (internetOff) throw refusesInternet('Cloning a repository reaches');
 			return cloneRepository(deps, requiredText(input, 'repository'));
 		case 'repositories_hide': {
 			const repository = findRepository(
@@ -198,8 +203,10 @@ async function runPlatformTool(
 			return [...open, ...finished];
 		}
 		case 'workstreams_create':
+			if (internetOff) throw refusesInternet('Starting a workstream and its chat reaches');
 			return createWorkstream(deps, request);
 		case 'workstreams_send':
+			if (internetOff) throw refusesInternet('Sending a prompt to another chat reaches');
 			return sendToWorkstream(deps, request);
 		case 'workstreams_archive': {
 			const { workstreamId } = requestSession(db, request);
@@ -453,6 +460,12 @@ function findRepository(
 	if (found) return found;
 	throw new Error(
 		`No repository in Malini is \`${reference}\`. Call repositories_list for them, or repositories_clone to add it.`,
+	);
+}
+
+function refusesInternet(reaches: string): Error {
+	return new Error(
+		`${reaches} the internet, and this job runs with its internet off. Ask the user to turn it on for this job on its page in Jobs.`,
 	);
 }
 

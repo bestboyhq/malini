@@ -119,6 +119,22 @@ afterEach(async () => {
 	test.cleanup();
 });
 
+function seedInternetOffJob(): void {
+	run(
+		test.db,
+		`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, reaches_internet, created_at, updated_at)
+		 VALUES ('job-off', 'Offline job', 'Work offline.', 'opus', 'high', 'workstream', 0, ?, ?)`,
+		'2026-10-19T00:00:00.000Z',
+		'2026-10-19T00:00:00.000Z',
+	);
+	run(
+		test.db,
+		`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
+		 VALUES ('job-run-off', 'job-off', 'Offline job', 'ws-1', 'sess-1', 'manual', 'running', 'job-run-off', ?)`,
+		'2026-10-19T00:00:00.000Z',
+	);
+}
+
 function browserRequest(requestId: string, action: Record<string, unknown>, sessionId = 'sess-1') {
 	return {
 		type: 'bridge.browser_request',
@@ -289,6 +305,44 @@ describe('browser requests from the agent', () => {
 			requestId: 'req-1',
 			ok: false,
 			error: 'The Malini browser is not available.',
+		});
+	});
+
+	it('keeps the browser closed to a job whose internet is off', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		seedInternetOffJob();
+		const unused = async (): Promise<never> => {
+			throw new Error('The browser must not be used.');
+		};
+		const browser: BrowserAutomation = {
+			open: unused,
+			screenshot: unused,
+			click: unused,
+			type: unused,
+			goBack: unused,
+			goForward: unused,
+			reload: unused,
+			resize: unused,
+		};
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			browser,
+			log: () => {},
+		});
+
+		bridge.send(browserRequest('req-1', { action: 'open', url: 'https://example.com' }));
+		await waitFor(() => bridge.received.some((command) => command['cmd'] === 'browser_result'));
+
+		expect(bridge.received.find((command) => command['cmd'] === 'browser_result')).toMatchObject({
+			requestId: 'req-1',
+			ok: false,
+			error: expect.stringContaining('internet off'),
 		});
 	});
 });
@@ -522,6 +576,42 @@ describe('platform requests from the agent', () => {
 			ok: false,
 			error: expect.stringContaining('Triage does not see your chats'),
 		});
+	});
+
+	it('refuses every tool that would reach out for a job whose internet is off', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		seedInternetOffJob();
+		const { commands } = test.context;
+		commands.define('jobs.list-definitions', () => [jobDefinition('job-net', 'Reachable')]);
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			log: () => {},
+		});
+
+		bridge.send(platformRequest('n-1', 'repositories_clone', { repository: 'acme/away' }));
+		bridge.send(
+			platformRequest('n-2', 'workstreams_create', { repository: 'acme/away', prompt: 'Go' }),
+		);
+		bridge.send(
+			platformRequest('n-3', 'workstreams_send', { workstream: 'elsewhere', prompt: 'Go' }),
+		);
+		bridge.send(platformRequest('n-4', 'jobs_run', { job: 'Reachable' }));
+
+		const results = (): Array<Record<string, unknown>> =>
+			bridge.received.filter((command) => command['cmd'] === 'platform_result');
+		await waitFor(() => results().length === 4, 5_000, 'four platform results');
+		for (const requestId of ['n-1', 'n-2', 'n-3', 'n-4']) {
+			expect(results().find((command) => command['requestId'] === requestId)).toMatchObject({
+				ok: false,
+				error: expect.stringContaining('internet off'),
+			});
+		}
 	});
 
 	it('lists, hides and archives through the registered commands, never archives its own workstream, and logs every call', async () => {

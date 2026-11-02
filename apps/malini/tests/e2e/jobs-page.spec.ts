@@ -291,7 +291,13 @@ test('a job sees and reaches only what you set on its page, and says when it can
 		await draftJob(page, { name: 'Triage', words: 'Triage the failing checks' });
 		await expect
 			.poll(async () => (await jobNamed(page, 'Triage'))?.boundary)
-			.toEqual({ event: 'facts', before: true, chats: 'none', attachments: false, internet: false });
+			.toEqual({
+				event: 'facts',
+				before: true,
+				chats: 'none',
+				attachments: false,
+				internet: false,
+			});
 
 		const detail = await openJob(page, 'Triage');
 		const sees = detail.getByRole('region', { name: 'What it sees' });
