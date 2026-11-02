@@ -52,13 +52,22 @@ test('a signed-out Claude Code asks to sign in and the composer will not send', 
 		await captureFlow(app, 'first-run-sign-in-claude');
 
 		await openWorkstream(page, workstreamId);
-		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
-			timeout: 20_000,
-		});
+		const picker = page.getByRole('button', { name: 'Model: Opus' });
+		await expect(picker).toBeVisible({ timeout: 20_000 });
+		await picker.click();
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeVisible();
+		await expect(
+			page.locator(
+				'[data-testid="chat-model-option"][data-provider="claude"] [data-testid="chat-model-no-access"]',
+			),
+		).toHaveCount(2);
+		await page.keyboard.press('Escape');
 		await sendPrompt(page, 'SEARCH the fixture repo');
 		const connect = page.getByTestId('provider-connect-card');
 		await expect(connect).toHaveAttribute('data-access', 'claude-signed-out');
+		await expect(connect).toContainText('Sign in to Claude Code to run this message.');
 		await expect(connect.getByRole('button', { name: 'Sign in with Claude' })).toBeVisible();
+		await expect(page.getByTestId('chat-prompt-pick')).toHaveCount(0);
 		await captureFlow(app, 'composer-sign-in-claude');
 		expectCleanConsole(app);
 	} finally {
