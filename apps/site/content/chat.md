@@ -132,6 +132,7 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 Pick Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, and an effort from Low to Max, for every prompt.
 The picker is one flat list of models, so you pick the model, not the provider.
+A job's chat shows the model, effort and plan mode its job ran with, so a reply you send there runs the same way unless you change it; your own chats keep what you picked.
 Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek API key or a Claude sign-in.
 Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
 You can also save a DeepSeek API key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.

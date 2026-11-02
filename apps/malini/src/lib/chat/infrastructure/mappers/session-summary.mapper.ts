@@ -18,6 +18,7 @@ export class SessionSummaryMapper {
 			status: sessionStateFromReported(raw.status),
 			startedAt: raw.startedAt,
 			origin: raw.origin,
+			latestProfile: raw.latestProfile,
 		};
 	}
 }

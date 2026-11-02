@@ -342,6 +342,7 @@ function hydrateSummaries(summaries: readonly ChatSessionSummary[]): void {
 			status: summary.status,
 			startedAt: summary.startedAt,
 			origin: summary.origin,
+			latestProfile: summary.latestProfile,
 		});
 	}
 }

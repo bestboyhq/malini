@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AgentRunProfile } from '$contract/agent';
 import { openMigratedDatabase } from '$main/db/open';
 import { listPermissionRules } from './permissions.repository';
 import { all, run, scalar } from '$main/db/rows';
@@ -268,6 +269,7 @@ describe('sessions', () => {
 			status: 'idle',
 			startedAt: '2026-07-10T00:00:00Z',
 			origin: 'user',
+			latestProfile: null,
 		});
 		expect(latestSessionForWorkstream(db, 'workstream-list')?.id).toBe('session-stale');
 		db.close();
@@ -312,6 +314,33 @@ describe('sessions', () => {
 		expect(latestSessionForWorkstream(db, 'workstream-jobs')?.id).toBe('session-named');
 		archiveSession(db, 'session-named', '2026-07-10T00:00:01Z');
 		expect(latestSessionForWorkstream(db, 'workstream-jobs')?.id).toBe('session-chat');
+		db.close();
+	});
+
+	it('carries the profile of the latest kept run that recorded one', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, 'workstream-profile');
+		insertSession(db, session('session-job', 'workstream-profile'), { origin: 'job' });
+		const finished = (id: string, profile?: AgentRunProfile) =>
+			insertRun(db, {
+				id,
+				sessionId: 'session-job',
+				prompt: 'p',
+				startedAt: '2026-07-10T00:00:00Z',
+				completedAt: '2026-07-10T00:00:01Z',
+				summary: null,
+				error: null,
+				automated: true,
+				...(profile ? { profile } : {}),
+			});
+		const latest = () => listSessionSummaries(db, 'workstream-profile')[0]?.latestProfile;
+
+		expect(latest()).toBeNull();
+		finished('run-job', { effort: 'high', mode: 'agent', access: 'auto' });
+		finished('run-undone', { effort: 'max', mode: 'plan', access: 'full' });
+		run(db, "UPDATE agent_runs SET obsoleted_at = '2026-07-10T00:00:02Z' WHERE id = 'run-undone'");
+		finished('run-without-profile');
+		expect(latest()).toEqual({ effort: 'high', mode: 'agent', access: 'auto' });
 		db.close();
 	});
 
