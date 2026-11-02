@@ -101,7 +101,7 @@
 							]}
 						>
 							{#if nudge}
-								<Icon name={nudge.icon} size={12} class={['mt-0.5 shrink-0', nudge.tone]} />
+								<Icon name={nudge.icon} size={12} class={['mt-1 shrink-0', nudge.tone]} />
 								<span class="min-w-0">{nudge.line}</span>
 							{:else if handle}
 								<span class="truncate">@{handle}</span>
