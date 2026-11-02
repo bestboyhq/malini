@@ -203,6 +203,7 @@ describe('session commands', () => {
 				status: 'idle',
 				startedAt: expect.any(String),
 				origin: 'user',
+				latestProfile: null,
 			},
 		]);
 

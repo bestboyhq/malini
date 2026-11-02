@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { providerEnvironment } from './provider-env';
+import { providerEnvironment, withoutProviderVariables } from './provider-env';
 
 describe('providerEnvironment', () => {
 	it('points Claude Code at an Anthropic-compatible provider', () => {
@@ -60,5 +60,23 @@ describe('providerEnvironment', () => {
 				subagentModel: 'deepseek-flash',
 			}),
 		).toThrow('DeepSeek needs an API key. Add it in Settings, then try again.');
+	});
+});
+
+describe('withoutProviderVariables', () => {
+	it('drops the provider variables a bootstrap launched Malini with, so Claude signs in on OAuth', () => {
+		expect(
+			withoutProviderVariables({
+				PATH: '/usr/bin',
+				HOME: '/Users/ada',
+				CLAUDE_CONFIG_DIR: '/Users/ada/.claude',
+				ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+				ANTHROPIC_AUTH_TOKEN: 'bootstrap-key',
+				ANTHROPIC_API_KEY: 'sk-ant-test',
+				ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-v4-pro',
+				CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
+				CLAUDE_CODE_EFFORT_LEVEL: 'max',
+			}),
+		).toEqual({ PATH: '/usr/bin', HOME: '/Users/ada', CLAUDE_CONFIG_DIR: '/Users/ada/.claude' });
 	});
 });

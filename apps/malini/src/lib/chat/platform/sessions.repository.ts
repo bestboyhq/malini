@@ -9,7 +9,12 @@ import { promptChipSegments } from '$lib/chat/domain/prompt-chip';
 import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
-import type { AgentSessionOrigin, AgentSessionSummary } from '$contract/agent';
+import {
+	agentRunProfileOf,
+	type AgentRunProfile,
+	type AgentSessionOrigin,
+	type AgentSessionSummary,
+} from '$contract/agent';
 import { deriveAgentChatDisplayName } from '$contract/chat-identity';
 
 export type { AgentSessionSummary };
@@ -304,9 +309,16 @@ export function listSessionSummaries(
 		projected_status: SessionStatus;
 		started_at: string;
 		origin: AgentSessionOrigin;
+		latest_profile: string | null;
 	}>(
 		db,
 		`SELECT s.id, s.workstream_id, s.display_name, s.provider, s.model, s.origin,
+		        (
+		            SELECT r.profile FROM agent_runs r
+		            WHERE r.session_id = s.id AND r.profile IS NOT NULL AND r.obsoleted_at IS NULL
+		            ORDER BY r.rowid DESC
+		            LIMIT 1
+		        ) AS latest_profile,
 		        COALESCE((
 		            SELECT CASE
 		                WHEN r.completed_at IS NULL THEN
@@ -334,7 +346,17 @@ export function listSessionSummaries(
 		status: row.projected_status,
 		startedAt: row.started_at,
 		origin: row.origin,
+		latestProfile: storedProfile(row.latest_profile),
 	}));
+}
+
+function storedProfile(json: string | null): AgentRunProfile | null {
+	if (json === null) return null;
+	try {
+		return agentRunProfileOf(JSON.parse(json));
+	} catch {
+		return null;
+	}
 }
 
 export function repairSessionStatusesWithoutOpenRuns(

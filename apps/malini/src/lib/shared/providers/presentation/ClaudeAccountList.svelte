@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
 	import { Button } from '$hyper-ui/components/button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
@@ -12,9 +13,10 @@
 
 	interface Props {
 		class?: ClassValue;
+		current?: Snippet;
 	}
 
-	let { class: className }: Props = $props();
+	let { class: className, current }: Props = $props();
 
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
@@ -25,17 +27,22 @@
 <div class={['flex min-w-0 flex-col text-xs', className]}>
 	<ul class="space-y-px" aria-label="Claude accounts">
 		{#if status.kind === 'ready'}
-			<li class="flex min-h-8 min-w-0 items-center gap-2 px-1.5 py-1" aria-current="true">
-				<Icon name="check" size={14} class="text-success-content shrink-0" />
-				<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
-					{#if status.account?.email}
-						<SensitiveText text={status.account.email} />
-					{:else}
-						Signed in
+			<li class="px-1.5 py-1" aria-current="true">
+				<div class="flex min-h-6 min-w-0 items-center gap-2">
+					<Icon name="check" size={14} class="text-success-content shrink-0" />
+					<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
+						{#if status.account?.email}
+							<SensitiveText text={status.account.email} />
+						{:else}
+							Signed in
+						{/if}
+					</span>
+					{#if status.account?.plan}
+						<span class="text-2xs text-fg-tertiary shrink-0">{status.account.plan}</span>
 					{/if}
-				</span>
-				{#if status.account?.plan}
-					<span class="text-2xs text-fg-tertiary shrink-0">{status.account.plan}</span>
+				</div>
+				{#if current}
+					<div class="pl-5.5">{@render current()}</div>
 				{/if}
 			</li>
 		{/if}

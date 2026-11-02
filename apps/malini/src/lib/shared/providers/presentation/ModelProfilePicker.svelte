@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
-	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
+	import { Icon } from '$hyper-ui/icons';
 	import {
 		allProviderModels,
 		catalogModelLabel,
@@ -18,6 +18,7 @@
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
 	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
+	import ProviderIcon from './ProviderIcon.svelte';
 
 	interface Props {
 		selection: ModelSelection;
@@ -77,11 +78,11 @@
 				class="text-fg-secondary hover:bg-surface-50 h-7 max-w-[min(10rem,100%)] min-w-0 gap-1.5 overflow-hidden rounded-md px-2 text-xs font-normal"
 				data-testid="chat-composer-model"
 			>
-				{#if selection.provider === CLAUDE_PROVIDER_ID}
-					<ClaudeIcon class="text-fg-secondary shrink-0" size={13} />
-				{:else}
-					<Icon name="bolt" class="text-fg-secondary shrink-0" size={13} />
-				{/if}
+				<ProviderIcon
+					providerId={selection.provider}
+					class="text-fg-secondary shrink-0"
+					size={13}
+				/>
 				<span class="truncate">{selectedLabel}</span>
 				<Icon
 					name="chevron-down"

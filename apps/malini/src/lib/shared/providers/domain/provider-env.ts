@@ -26,3 +26,17 @@ export function providerEnvironment(input: ProviderEnvironmentInput): Record<str
 		CLAUDE_CODE_SUBAGENT_MODEL: subagentModel,
 	};
 }
+
+export function withoutProviderVariables(
+	env: Readonly<Record<string, string>>,
+): Record<string, string> {
+	return Object.fromEntries(Object.entries(env).filter(([name]) => !isProviderVariable(name)));
+}
+
+function isProviderVariable(name: string): boolean {
+	return (
+		name.startsWith('ANTHROPIC_') ||
+		name === 'CLAUDE_CODE_SUBAGENT_MODEL' ||
+		name === 'CLAUDE_CODE_EFFORT_LEVEL'
+	);
+}

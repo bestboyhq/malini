@@ -78,6 +78,13 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
 			timeout: 20_000,
 		});
+		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
+		const providers = page.getByRole('region', { name: 'Connected providers' });
+		await usage.hover();
+		await expect(providers.getByRole('region', { name: 'Claude account' })).toBeVisible();
+		await expect(providers.getByRole('group', { name: 'DeepSeek' })).toHaveCount(0);
+		await page.mouse.move(0, 0);
+		await expect(providers).toHaveCount(0);
 		await page.getByTestId('chat-composer-model').click();
 		await expect(page.getByTestId('chat-model-option')).toHaveCount(4);
 		await expect(
@@ -124,6 +131,11 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 				CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
 			});
 		await expectAssistantReply(page);
+		await usage.hover();
+		await expect(providers.getByRole('group', { name: 'DeepSeek' })).toContainText('API key');
+		await captureFlow(app, 'provider-models-connected-providers');
+		await page.mouse.move(0, 0);
+		await expect(providers).toHaveCount(0);
 		await captureFlow(app, 'provider-models-deepseek-run');
 
 		await page.reload();

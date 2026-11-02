@@ -9,6 +9,7 @@ import {
 	currentEnvironment,
 	resolveToolPath,
 } from '$main/process/environment';
+import { withoutProviderVariables } from '$shared/providers/domain/provider-env';
 import {
 	ClaudeAccounts,
 	type ClaudeAccountsDeps,
@@ -37,7 +38,7 @@ export function registerProviders(
 	const accounts = new ClaudeAccounts({
 		directory: join(context.appDataRoot, 'claude-accounts'),
 		executable: deps.executable ?? claudeExecutable,
-		environment: deps.environment ?? buildSpawnEnvironment,
+		environment: deps.environment ?? (() => withoutProviderVariables(buildSpawnEnvironment())),
 		security: deps.security ?? (() => (platform === 'darwin' ? resolveToolPath('security') : null)),
 		cipher: deps.cipher ?? electronCipher,
 	});

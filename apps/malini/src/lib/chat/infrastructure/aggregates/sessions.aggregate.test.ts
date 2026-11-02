@@ -191,6 +191,7 @@ describe('SessionsAggregate', () => {
 			model: 'claude-sonnet-4-6',
 			status: 'idle',
 			startedAt: '2026-07-18T01:00:00.000Z',
+			latestProfile: null,
 		});
 
 		expect(sessionsAggregate.getSession(sessionId)).toMatchObject({
@@ -222,6 +223,7 @@ describe('SessionsAggregate', () => {
 			model: null,
 			status: 'running',
 			startedAt: '2026-07-18T01:00:00.000Z',
+			latestProfile: null,
 		});
 		expect(sessionsAggregate.getSession(approvalSessionId)?.status).toBe('waiting_for_approval');
 
@@ -244,6 +246,7 @@ describe('SessionsAggregate', () => {
 			model: null,
 			status: 'running',
 			startedAt: '2026-07-18T01:00:00.000Z',
+			latestProfile: null,
 		});
 		expect(sessionsAggregate.getSession(completedSessionId)).toMatchObject({
 			status: 'completed',
@@ -559,6 +562,7 @@ describe('SessionsAggregate', () => {
 			model: 'claude-haiku-4-5',
 			status: 'idle',
 			startedAt: '2026-07-18T08:00:00.000Z',
+			latestProfile: null,
 		});
 
 		expect(upgraded).toMatchObject({
@@ -578,6 +582,7 @@ describe('SessionsAggregate', () => {
 			model: null,
 			status: 'idle',
 			startedAt: '2026-07-18T08:00:00.000Z',
+			latestProfile: null,
 		});
 		sessionsAggregate.applyEvent(
 			env('sess-job', 'run-job', 1, {
@@ -596,6 +601,7 @@ describe('SessionsAggregate', () => {
 			status: 'running',
 			startedAt: '2026-07-18T09:00:00.000Z',
 			origin: 'job',
+			latestProfile: null,
 		});
 
 		expect(sessionsAggregate.getSession('sess-job')).toMatchObject({

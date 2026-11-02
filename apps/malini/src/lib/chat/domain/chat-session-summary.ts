@@ -1,4 +1,4 @@
-import type { AgentSessionOrigin } from '$contract/agent';
+import type { AgentRunProfile, AgentSessionOrigin } from '$contract/agent';
 import type { SessionId } from './session';
 import type { SessionState } from './session-record';
 
@@ -11,4 +11,5 @@ export type ChatSessionSummary = Readonly<{
 	status: SessionState;
 	startedAt: string;
 	origin: AgentSessionOrigin;
+	latestProfile: AgentRunProfile | null;
 }>;

@@ -117,7 +117,10 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(progress).toHaveCount(0);
 		await expect(current).toContainText(PRIVATE_ACCOUNT);
 
-		await account.getByRole('button', { name: 'Manage accounts' }).click();
+		await page
+			.getByRole('region', { name: 'Connected providers' })
+			.getByRole('button', { name: 'Manage providers' })
+			.click();
 		const settings = page.getByRole('dialog', { name: 'Settings' });
 		await expect(
 			settings

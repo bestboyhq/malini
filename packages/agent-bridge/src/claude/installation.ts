@@ -41,15 +41,25 @@ function isExecutable(path: string): boolean {
 	}
 }
 
-export async function claudeVersion(executable: string): Promise<string> {
-	const { stdout } = await execFileAsync(executable, ['--version'], { timeout: PROBE_TIMEOUT_MS });
+export async function claudeVersion(
+	executable: string,
+	env: Readonly<Record<string, string>>,
+): Promise<string> {
+	const { stdout } = await execFileAsync(executable, ['--version'], {
+		env,
+		timeout: PROBE_TIMEOUT_MS,
+	});
 	return stdout.trim().split(/\s+/u)[0] ?? stdout.trim();
 }
 
-export async function claudeAuthStatus(executable: string): Promise<ClaudeAuthStatus> {
+export async function claudeAuthStatus(
+	executable: string,
+	env: Readonly<Record<string, string>>,
+): Promise<ClaudeAuthStatus> {
 	let stdout: string;
 	try {
 		({ stdout } = await execFileAsync(executable, ['auth', 'status', '--json'], {
+			env,
 			timeout: PROBE_TIMEOUT_MS,
 		}));
 	} catch (error) {
