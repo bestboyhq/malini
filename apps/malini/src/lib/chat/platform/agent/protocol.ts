@@ -164,7 +164,14 @@ export type BridgeCommand =
 	  }
 	| { cmd: 'cancel_mcp_authorization'; id: string; serverName: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
-	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
+	| {
+			cmd: 'suggest_title';
+			id: string;
+			prompt: string;
+			instructions: string;
+			model: string;
+			env?: Readonly<Record<string, string>>;
+	  }
 	| {
 			cmd: 'choose';
 			id: string;
@@ -172,6 +179,7 @@ export type BridgeCommand =
 			instructions: string;
 			model: string;
 			choices: number;
+			env?: Readonly<Record<string, string>>;
 	  }
 	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer)

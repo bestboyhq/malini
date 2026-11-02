@@ -26,7 +26,7 @@ export async function chooseClaudeCandidate(
 				cwd: tmpdir(),
 				abortController,
 				pathToClaudeCodeExecutable: executable,
-				env: claudeEnvironment(),
+				env: claudeEnvironment(job.env),
 				model: job.model,
 				systemPrompt: job.instructions,
 				tools: [],

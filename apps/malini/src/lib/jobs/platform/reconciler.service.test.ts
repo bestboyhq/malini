@@ -120,7 +120,7 @@ function seed(): void {
 function chat(id: string, workstreamId: string, displayName: string): void {
 	insertSession(
 		db,
-		{ id, workstreamId, model: null, providerSessionId: null, status: 'idle', startedAt: NOW },
+		{ id, workstreamId, provider: 'claude', model: null, providerSessionId: null, status: 'idle', startedAt: NOW },
 		{ origin: 'user', displayName },
 	);
 }
@@ -164,6 +164,7 @@ async function publishDocs(): Promise<string> {
 	const job = await context.commands.call('jobs.save-definition', {
 		name: 'Publish docs',
 		instructions: 'Publish the docs.',
+		provider: 'claude',
 		model: 'opus',
 		effort: 'low',
 		runsIn: 'workstream',
@@ -492,6 +493,7 @@ describe('the event reconciler', () => {
 		await context.commands.call('jobs.save-definition', {
 			name: 'Review the failure',
 			instructions: 'Review it.',
+			provider: 'claude',
 			model: 'opus',
 			effort: 'low',
 			runsIn: 'workstream',

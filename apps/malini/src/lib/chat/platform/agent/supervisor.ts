@@ -681,10 +681,21 @@ export class BridgeSupervisor {
 		return this.providerCapabilities();
 	}
 
-	async suggestTitle(prompt: string, job: AutomaticJob): Promise<string> {
+	async suggestTitle(
+		prompt: string,
+		job: AutomaticJob,
+		environment: Readonly<Record<string, string>>,
+	): Promise<string> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'suggest_title', id, prompt, ...job });
+			await this.sendCommand({
+				cmd: 'suggest_title',
+				id,
+				prompt,
+				instructions: job.instructions,
+				model: job.model,
+				env: environment,
+			});
 			const title = this.suggestedTitles.get(id);
 			if (title === undefined) {
 				throw new SupervisorError(
@@ -698,10 +709,23 @@ export class BridgeSupervisor {
 		}
 	}
 
-	async choose(prompt: string, job: AutomaticJob, choices: number): Promise<number> {
+	async choose(
+		prompt: string,
+		job: AutomaticJob,
+		choices: number,
+		environment: Readonly<Record<string, string>>,
+	): Promise<number> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'choose', id, prompt, ...job, choices });
+			await this.sendCommand({
+				cmd: 'choose',
+				id,
+				prompt,
+				instructions: job.instructions,
+				model: job.model,
+				choices,
+				env: environment,
+			});
 			const pick = this.chosenPicks.get(id);
 			if (pick === undefined) {
 				throw new SupervisorError(

@@ -21,6 +21,7 @@ function updateJobSettingsCommand(job: JobDefinitionRecord, change: JobSettingsC
 				id: job.id,
 				name: job.name,
 				instructions: job.instructions,
+				provider: job.provider,
 				model: job.model,
 				effort: job.effort,
 				runsIn: job.runsIn,

@@ -6,7 +6,6 @@ import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
-import { defaultAgentModel } from '$shared/providers/providers.api';
 
 export { undoRunCommand };
 
@@ -15,7 +14,8 @@ function undoRunCommand(request: UndoRunRequest): void {
 	const target = captureCheckpointEditTarget({
 		workstreamId: chatRoute.workstreamId,
 		sessionId: chatSessionStore.sessionId,
-		model: chatModelStore.model ?? defaultAgentModel(),
+		provider: chatModelStore.currentSelection().provider,
+		model: chatModelStore.currentSelection().model,
 		profile: chatModelStore.profile,
 	});
 	const selectionGeneration = chatSessionStore.selectionGeneration;

@@ -17,7 +17,7 @@ import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
 import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
-import { ClaudeSession } from './session.js';
+import { ClaudeSession, claudeEnvironment } from './session.js';
 
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
 const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
@@ -1897,6 +1897,59 @@ describe('ClaudeSession', () => {
 			runId: 'run-1',
 			error: 'Claude Code stopped without finishing the turn.',
 			failure: { kind: 'unknown' },
+		});
+	});
+});
+
+describe('claudeEnvironment', () => {
+	const BOOTSTRAP = {
+		ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+		ANTHROPIC_AUTH_TOKEN: 'bootstrap-key',
+		ANTHROPIC_MODEL: 'deepseek-v4-pro',
+		ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-v4-pro',
+		ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-pro',
+		ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-pro',
+		CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
+		CLAUDE_CODE_EFFORT_LEVEL: 'max',
+	} as const;
+
+	function withBootstrap(run: () => void): void {
+		const saved = new Map(
+			Object.keys(BOOTSTRAP).map((name) => [name, process.env[name]] as const),
+		);
+		Object.assign(process.env, BOOTSTRAP);
+		try {
+			run();
+		} finally {
+			for (const [name, value] of saved) {
+				if (value === undefined) delete process.env[name];
+				else process.env[name] = value;
+			}
+		}
+	}
+
+	it('strips the bootstrap provider variables from a Claude run', () => {
+		withBootstrap(() => {
+			const env = claudeEnvironment();
+			for (const name of Object.keys(BOOTSTRAP)) expect(env[name]).toBeUndefined();
+			expect(env['PATH']).toBe(process.env['PATH']);
+		});
+	});
+
+	it('applies the selected provider after stripping', () => {
+		withBootstrap(() => {
+			const env = claudeEnvironment({
+				ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+				ANTHROPIC_AUTH_TOKEN: 'selected-key',
+				ANTHROPIC_MODEL: 'deepseek-flash',
+				ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-flash',
+				ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-flash',
+				ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-flash',
+				CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
+			});
+			expect(env['ANTHROPIC_AUTH_TOKEN']).toBe('selected-key');
+			expect(env['ANTHROPIC_MODEL']).toBe('deepseek-flash');
+			expect(env['CLAUDE_CODE_SUBAGENT_MODEL']).toBe('deepseek-flash');
 		});
 	});
 });

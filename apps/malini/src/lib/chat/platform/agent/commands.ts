@@ -79,6 +79,7 @@ import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import { activeJobRunForSession, clearAlarm, runAutomaticJob } from '$lib/jobs/jobs.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
+import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { userPromptText } from '../fork-transcript';
 import { isAgentApprovalScope } from '$contract/agent';
@@ -121,6 +122,7 @@ import {
 	validateAgentModel,
 	worktreeExists,
 	worktreePath,
+	type ResolveProviderEnvironment,
 } from './sessions';
 import { waitUntil, type BridgeSupervisor } from './supervisor';
 import type { IdSequence } from '../id-sequence';
@@ -197,6 +199,7 @@ export interface SendPromptHooks {
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
 	readonly plugins?: () => readonly string[];
+	readonly providerEnvironment?: ResolveProviderEnvironment;
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -454,8 +457,10 @@ export async function startAgentSession(
 	supervisor: BridgeSupervisor,
 	appDataRoot: string,
 	workstreamId: string,
+	provider: string,
 	model: string | null,
 	ids: IdSequence,
+	resolveProviderEnvironment: ResolveProviderEnvironment,
 	identity?: SessionIdentity,
 ): Promise<string> {
 	try {
@@ -471,6 +476,12 @@ export async function startAgentSession(
 	} catch (error) {
 		throw bridgeUnavailable(error);
 	}
+	let environment: Readonly<Record<string, string>>;
+	try {
+		environment = model === null ? {} : await resolveProviderEnvironment(provider, model);
+	} catch (error) {
+		throw new LifecycleError('provider_not_ready', describe(error));
+	}
 	const sessionId = ids.next('sess');
 	const command = startSessionCommand({
 		commandId: supervisor.nextCommandId(),
@@ -479,12 +490,14 @@ export async function startAgentSession(
 		model,
 		providerSessionId: null,
 		worktreePath: worktree,
+		environment,
 	});
 	insertSession(
 		db,
 		{
 			id: sessionId,
 			workstreamId,
+			provider,
 			model,
 			providerSessionId: null,
 			status: 'idle',
@@ -514,8 +527,10 @@ export async function getOrCreateAgentSession(
 	supervisor: BridgeSupervisor,
 	appDataRoot: string,
 	workstreamId: string,
+	provider: string,
 	model: string | null,
 	ids: IdSequence,
+	resolveProviderEnvironment: ResolveProviderEnvironment,
 ): Promise<string> {
 	try {
 		validateAgentModel(model);
@@ -533,6 +548,10 @@ export async function getOrCreateAgentSession(
 	const existing = latestSessionForWorkstream(db, workstreamId);
 	if (existing) {
 		const existingModel = repairPersistedModel(db, existing.id, existing.model);
+		const environment =
+			existingModel === null
+				? {}
+				: await resolveProviderEnvironment(existing.provider, existingModel);
 		const command = startSessionCommand({
 			commandId: supervisor.nextCommandId(),
 			sessionId: existing.id,
@@ -541,6 +560,7 @@ export async function getOrCreateAgentSession(
 			providerSessionId: existing.providerSessionId,
 			worktreePath: worktree,
 			conversationHistory: conversationRecord(db, existing.id),
+			environment,
 		});
 		try {
 			await supervisor.sendCommand(command);
@@ -549,7 +569,16 @@ export async function getOrCreateAgentSession(
 		}
 		return existing.id;
 	}
-	return startAgentSession(db, supervisor, appDataRoot, workstreamId, model, ids);
+	return startAgentSession(
+		db,
+		supervisor,
+		appDataRoot,
+		workstreamId,
+		provider,
+		model,
+		ids,
+		resolveProviderEnvironment,
+	);
 }
 
 export async function activateAgentSession(
@@ -557,20 +586,24 @@ export async function activateAgentSession(
 	runtime: BridgeRuntime,
 	appDataRoot: string,
 	sessionId: string,
+	resolveProviderEnvironment: ResolveProviderEnvironment,
 ): Promise<void> {
 	const row = get<{
 		workstream_id: string;
+		provider: string;
 		model: string | null;
 		provider_session_id: string | null;
 	}>(
 		db,
-		'SELECT workstream_id, model, provider_session_id FROM agent_sessions WHERE id = ?',
+		'SELECT workstream_id, provider, model, provider_session_id FROM agent_sessions WHERE id = ?',
 		sessionId,
 	);
 	if (!row) throw new Error('Query returned no rows');
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
 	if (!worktreeExists(appDataRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
+	const environment =
+		model === null ? {} : await resolveProviderEnvironment(row.provider, model);
 	const worktree = worktreePath(appDataRoot, row.workstream_id);
 	const supervisor = await runtime.ensureReady();
 	const command = startSessionCommand({
@@ -581,6 +614,7 @@ export async function activateAgentSession(
 		providerSessionId: row.provider_session_id,
 		worktreePath: worktree,
 		conversationHistory: conversationRecord(db, sessionId),
+		environment,
 	});
 	await supervisor.sendCommand(command);
 	runtime.markSessionRegistered(sessionId, supervisor);
@@ -885,7 +919,7 @@ async function nameChat(
 	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ): Promise<void> {
-	const title = await suggestedTitle(db, supervisor, prompt, log);
+	const title = await suggestedTitle(db, supervisor, prompt, hooks, log);
 	try {
 		hooks.notifySessionRenamed?.(
 			workstreamId,
@@ -904,14 +938,16 @@ async function suggestedTitle(
 	db: MaliniDatabase,
 	supervisor: BridgeSupervisor,
 	prompt: string,
+	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ): Promise<string | null> {
 	const task = promptPlainText(prompt).trim();
 	if (task.length === 0) return null;
 	try {
-		return await runAutomaticJob(db, 'name-chats', task, (named, job) =>
-			supervisor.suggestTitle(named, job),
-		);
+		return await runAutomaticJob(db, 'name-chats', task, async (named, job) => {
+			const environment = (await hooks.providerEnvironment?.(job.provider, job.model)) ?? {};
+			return supervisor.suggestTitle(named, job, environment);
+		});
 	} catch (error) {
 		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
 		return conciseSessionTitle(prompt);
@@ -1426,6 +1462,7 @@ export interface BridgeCommandDeps {
 	readonly ids: IdSequence;
 	readonly leases: AgentRunLeases;
 	readonly sending: PromptsInFlight;
+	readonly providerEnvironment: ResolveProviderEnvironment;
 	readonly log?: (line: string) => void;
 }
 
@@ -1596,6 +1633,7 @@ export function defineBridgeCommands(
 
 	commands.define('chat.start-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
+		const provider = optionalString(args, 'provider') ?? DEFAULT_PROVIDER_ID;
 		const model = optionalString(args, 'model');
 		const identity = parseSessionIdentity(args);
 		const supervisor = await runtime.ensureReady();
@@ -1604,8 +1642,10 @@ export function defineBridgeCommands(
 			supervisor,
 			appDataRoot,
 			workstreamId,
+			provider,
 			model,
 			ids,
+			deps.providerEnvironment,
 			identity,
 		);
 		runtime.markSessionRegistered(sessionId, supervisor);
@@ -1614,6 +1654,7 @@ export function defineBridgeCommands(
 
 	commands.define('chat.get-or-create-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
+		const provider = optionalString(args, 'provider') ?? DEFAULT_PROVIDER_ID;
 		const model = optionalString(args, 'model');
 		const supervisor = await runtime.ensureReady();
 		const sessionId = await getOrCreateAgentSession(
@@ -1621,8 +1662,10 @@ export function defineBridgeCommands(
 			supervisor,
 			appDataRoot,
 			workstreamId,
+			provider,
 			model,
 			ids,
+			deps.providerEnvironment,
 		);
 		runtime.markSessionRegistered(sessionId, supervisor);
 		return sessionId;
@@ -1649,7 +1692,13 @@ export function defineBridgeCommands(
 	});
 
 	commands.define('chat.activate-session', (args: unknown) =>
-		activateAgentSession(db, runtime, appDataRoot, requireString(args, 'sessionId')),
+		activateAgentSession(
+			db,
+			runtime,
+			appDataRoot,
+			requireString(args, 'sessionId'),
+			deps.providerEnvironment,
+		),
 	);
 
 	const sendPrompt: SendPrompt = async (args) => {

@@ -612,6 +612,7 @@ describe('stageBytes', () => {
 		insertSession(test.db, {
 			id: 'session-paused',
 			workstreamId: WORKSTREAM_ID,
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'idle',

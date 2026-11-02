@@ -1,5 +1,7 @@
 import type { AgentModelInfo } from '$contract/agent';
 import { AGENT_MODELS } from './model-id';
+import type { ModelSelection } from './model-preferences';
+import type { ProviderGroup } from './provider';
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from './run-profile';
 
 export type { AgentModelInfo };
@@ -34,6 +36,47 @@ export function pickerModels(
 	return listed
 		.map((model) => ({ ...model, label: catalogModelLabel(listed, model.id) }))
 		.sort((left, right) => familyRank(left.id) - familyRank(right.id));
+}
+
+export function allProviderModels(groups: readonly ProviderGroup[]): readonly AgentModelInfo[] {
+	return groups.flatMap((group) => group.models);
+}
+
+export function pickerGroups(
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+): readonly ProviderGroup[] {
+	const catalog = allProviderModels(groups);
+	const selectedGroup = groups.find((group) => group.id === selection.provider);
+	const withSelection =
+		selectedGroup === undefined
+			? [
+					...groups,
+					{
+						id: selection.provider,
+						name: selection.provider,
+						kind: 'anthropic' as const,
+						models: [unlistedModel(selection.model)],
+						ready: false,
+						message: '',
+					},
+				]
+			: selectedGroup.models.some((model) => model.id === selection.model)
+				? groups
+				: groups.map((group) =>
+						group.id === selection.provider
+							? { ...group, models: [...group.models, unlistedModel(selection.model)] }
+							: group,
+					);
+	return withSelection
+		.filter((group) => group.models.length > 0)
+		.map((group) => ({
+			...group,
+			models: group.models.map((model) => ({
+				...model,
+				label: catalogModelLabel([...catalog, model], model.id),
+			})),
+		}));
 }
 
 export function effortsForModel(

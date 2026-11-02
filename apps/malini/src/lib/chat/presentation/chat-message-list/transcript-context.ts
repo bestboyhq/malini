@@ -1,5 +1,5 @@
 import { getContext, setContext, type Snippet } from 'svelte';
-import type { AgentModel } from '$shared/providers/providers.api';
+import type { ModelSelection } from '$shared/providers/providers.api';
 import type { AgentRunProfile } from '$shared/providers/providers.api';
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import type { BackgroundWork } from '$lib/chat/domain/background-work';
@@ -19,11 +19,11 @@ import type { TranscriptWindow } from './transcript-window.svelte';
 const TRANSCRIPT_CONTEXT = Symbol('chat-transcript');
 
 export type TranscriptComposerControls = {
-	readonly model: AgentModel;
+	readonly selection: ModelSelection;
 	readonly profile: AgentRunProfile;
 	readonly envelopes: readonly EventEnvelope[];
 	readonly backendSelectionDisabled: boolean;
-	onbackendchange(model: AgentModel): void;
+	onbackendchange(selection: ModelSelection): void;
 	onprofilechange(profile: AgentRunProfile): void;
 };
 

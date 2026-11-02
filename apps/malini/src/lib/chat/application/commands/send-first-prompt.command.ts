@@ -15,7 +15,7 @@ function sendFirstPromptCommand(request: Readonly<{ workstreamId: string; prompt
 	const { workstreamId, prompt } = request;
 	const profile = readStoredRunProfile(workstreamId);
 	const role = roleForAgentMode(profile.mode);
-	const { model } = selectionForRole(chatModelStore.loadRememberedModels(), role);
+	const selection = selectionForRole(chatModelStore.loadRememberedModels(), role);
 	const requestId = newChatRequestId();
 	submitPromptCommand({
 		requestId,
@@ -23,7 +23,8 @@ function sendFirstPromptCommand(request: Readonly<{ workstreamId: string; prompt
 		sessionId: null,
 		forceFreshSession: true,
 		prompt,
-		model,
+		provider: selection.provider,
+		model: selection.model,
 		profile,
 		contextFiles: [],
 		attachments: [],

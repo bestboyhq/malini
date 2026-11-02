@@ -51,7 +51,7 @@ class ChatBootstrapService {
 			chatRoute.readSessionParam() ??
 			sessionsAggregate.cachedSessionFor(workstreamId, null);
 		const selection = chatSessionStore.beginSelection(workstreamId, requestedSessionId);
-		chatModelStore.model = nextSelection.model;
+		chatModelStore.selection = nextSelection;
 		chatModelStore.profile = {
 			mode: nextRole === 'planning' ? 'plan' : 'agent',
 			effort: storedProfile.effort,
@@ -116,7 +116,7 @@ class ChatBootstrapService {
 				chatModelStore.userChoices === selection.userChoices &&
 				roleForAgentMode(chatModelStore.profile.mode) !== nextRole
 			) {
-				chatModelStore.model = nextSelection.model;
+				chatModelStore.selection = nextSelection;
 				chatModelStore.profile = {
 					mode: nextRole === 'planning' ? 'plan' : 'agent',
 					effort: storedProfile.effort,

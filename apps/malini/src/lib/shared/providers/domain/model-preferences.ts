@@ -4,10 +4,19 @@ import {
 	isValidAgentModel,
 	type AgentModel,
 } from './model-id';
+import {
+	CLAUDE_PROVIDER_ID,
+	DEEPSEEK_MODELS,
+	DEEPSEEK_PROVIDER_ID,
+	isValidProviderId,
+	providerForModel,
+	type ProviderModelSource,
+} from './provider';
 
 export type ModelRole = 'planning' | 'implementation';
 
 export type ModelSelection = {
+	provider: string;
 	model: AgentModel;
 };
 
@@ -22,8 +31,8 @@ export type ChatModelSnapshot = {
 };
 
 export const DEFAULT_MODEL_PREFERENCES: ModelPreferences = {
-	planning: { model: 'opus' },
-	implementation: { model: DEFAULT_AGENT_MODEL },
+	planning: { provider: CLAUDE_PROVIDER_ID, model: 'opus' },
+	implementation: { provider: CLAUDE_PROVIDER_ID, model: DEFAULT_AGENT_MODEL },
 };
 
 export function roleForAgentMode(mode: 'agent' | 'plan'): ModelRole {
@@ -35,25 +44,70 @@ export function selectionForRole(preferences: ModelPreferences, role: ModelRole)
 }
 
 export function sameModelSelection(left: ModelSelection, right: ModelSelection): boolean {
-	return left.model === right.model;
+	return left.provider === right.provider && left.model === right.model;
 }
 
 export function cloneModelSelection(selection: ModelSelection): ModelSelection {
-	return { model: selection.model };
+	return { provider: selection.provider, model: selection.model };
 }
 
 export function isValidModelSelection(value: unknown): value is ModelSelection {
-	return isRecord(value) && isValidAgentModel(value.model);
+	return isRecord(value) && isValidProviderId(value.provider) && isValidAgentModel(value.model);
+}
+
+export function modelSelectionValue(selection: ModelSelection): string {
+	return JSON.stringify({ provider: selection.provider, model: selection.model });
+}
+
+export function parseModelSelectionValue(
+	value: string,
+	fallback: ModelSelection,
+): ModelSelection {
+	try {
+		const parsed: unknown = JSON.parse(value);
+		return normalizeModelSelection(parsed, fallback);
+	} catch {
+		return fallback;
+	}
+}
+
+export function normalizeModelSelection(
+	value: unknown,
+	fallback: ModelSelection,
+	providers: readonly ProviderModelSource[] = [],
+): ModelSelection {
+	if (isValidModelSelection(value)) return cloneModelSelection(value);
+	if (isRecord(value) && typeof value.model === 'string') {
+		const model = value.model.startsWith('anthropic/')
+			? claudeModelFor(value.model)
+			: isValidAgentModel(value.model)
+				? value.model
+				: null;
+		if (model !== null) {
+			return {
+				provider: isValidProviderId(value.provider)
+					? value.provider
+					: providerForModel(model, providerSources(providers)),
+				model,
+			};
+		}
+	}
+	return cloneModelSelection(fallback);
 }
 
 export function normalizeModelPreferences(
 	value: unknown,
 	fallback: ModelPreferences,
+	providers: readonly ProviderModelSource[] = [],
 ): ModelPreferences {
 	const candidate: Record<string, unknown> = isRecord(value) ? value : {};
 	return {
-		planning: storedSelection(candidate.planning, fallback.planning),
-		implementation: storedSelection(candidate.implementation, fallback.implementation),
+		planning: normalizeModelSelection(candidate['planning'], fallback.planning, providers),
+		implementation: normalizeModelSelection(
+			candidate['implementation'],
+			fallback.implementation,
+			providers,
+		),
 	};
 }
 
@@ -72,14 +126,15 @@ export function preferencesWithRoleSelection(
 	};
 }
 
-function storedSelection(value: unknown, fallback: ModelSelection): ModelSelection {
-	if (isValidModelSelection(value)) return cloneModelSelection(value);
-	if (isRecord(value) && typeof value.model === 'string' && value.model.startsWith('anthropic/')) {
-		return { model: claudeModelFor(value.model) };
-	}
-	return cloneModelSelection(fallback);
-}
-
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function providerSources(providers: readonly ProviderModelSource[]): ProviderModelSource[] {
+	const presets: ProviderModelSource = {
+		id: DEEPSEEK_PROVIDER_ID,
+		models: DEEPSEEK_MODELS.map(({ id }) => id),
+	};
+	const known = providers.some((provider) => provider.id === DEEPSEEK_PROVIDER_ID);
+	return known ? [...providers] : [...providers, presets];
 }

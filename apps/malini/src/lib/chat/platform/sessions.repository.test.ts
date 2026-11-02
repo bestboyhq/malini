@@ -33,6 +33,7 @@ function session(
 	return {
 		id,
 		workstreamId,
+		provider: 'claude',
 		model: 'anthropic/claude-sonnet-4-6',
 		providerSessionId: null,
 		status: 'idle',

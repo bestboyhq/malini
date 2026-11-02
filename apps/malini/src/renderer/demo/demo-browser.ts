@@ -330,7 +330,7 @@ function lock(emit: DemoEmit, element: HTMLElement): void {
 		const sessionId = startThread(emit, pick.args.workstreamId, prompt, pick.args.model);
 		endPick();
 		pinOn(emit, element, pick.args.workstreamId, sessionId, prompt);
-		pick.resolve({ sessionId, model: pick.args.model });
+		pick.resolve({ sessionId, provider: pick.args.provider, model: pick.args.model });
 	};
 	send.addEventListener('click', submit);
 	field.addEventListener('keydown', (event) => {

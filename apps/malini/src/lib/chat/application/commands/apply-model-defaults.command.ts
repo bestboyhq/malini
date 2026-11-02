@@ -20,7 +20,7 @@ function applyModelDefaultsCommand(next: ModelPreferences): void {
 	const role = roleForAgentMode(chatModelStore.profile.mode);
 	const selection = selectionForRole(chatModelStore.rememberedModels, role);
 	chatModelStore.noteUserChoice();
-	chatModelStore.model = selection.model;
+	chatModelStore.selection = selection;
 	writeStoredRunProfile(workstreamId, chatModelStore.profile);
 	chatSessionStore.createFreshSessionOnNextPrompt = chatOccupancy.freshSessionRequired(
 		chatSessionStore.sessionId,

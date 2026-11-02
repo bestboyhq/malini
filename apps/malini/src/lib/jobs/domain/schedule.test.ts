@@ -31,6 +31,7 @@ describe('scheduledJobOf', () => {
 		id: 'job-1',
 		name: 'Triage',
 		instructions: 'Triage new issues',
+		provider: 'claude',
 		model: 'opus',
 		effort: 'medium',
 		runsIn: 'workstream',

@@ -47,6 +47,7 @@ export interface StartSessionInput {
 	providerSessionId: string | null;
 	worktreePath: string | null;
 	conversationHistory?: AgentConversationMessage[] | null;
+	environment?: Readonly<Record<string, string>>;
 }
 
 export function startSessionCommand(input: StartSessionInput): BridgeCommand {
@@ -66,6 +67,7 @@ export function startSessionCommand(input: StartSessionInput): BridgeCommand {
 		...(input.conversationHistory === null || input.conversationHistory === undefined
 			? {}
 			: { conversationHistory: input.conversationHistory }),
+		...(input.environment === undefined ? {} : { env: input.environment }),
 	};
 }
 
@@ -116,13 +118,20 @@ export function conversationRecord(
 export interface PersistedBridgeSession {
 	id: string;
 	workstreamId: string;
+	provider: string;
 	model: string | null;
 	providerSessionId: string | null;
 }
 
+export type ResolveProviderEnvironment = (
+	provider: string,
+	model: string,
+) => Promise<Readonly<Record<string, string>>>;
+
 interface PersistedSessionRow {
 	id: string;
 	workstream_id: string;
+	provider: string;
 	model: string | null;
 	provider_session_id: string | null;
 }
@@ -131,6 +140,7 @@ function fromRow(row: PersistedSessionRow): PersistedBridgeSession {
 	return {
 		id: row.id,
 		workstreamId: row.workstream_id,
+		provider: row.provider,
 		model: row.model,
 		providerSessionId: row.provider_session_id,
 	};
@@ -142,7 +152,7 @@ export function persistedBridgeSession(
 ): PersistedBridgeSession | null {
 	const row = get<PersistedSessionRow>(
 		db,
-		'SELECT id, workstream_id, model, provider_session_id FROM agent_sessions WHERE id = ?',
+		'SELECT id, workstream_id, provider, model, provider_session_id FROM agent_sessions WHERE id = ?',
 		sessionId,
 	);
 	return row ? fromRow(row) : null;
@@ -155,7 +165,7 @@ export function persistedBridgeSessions(
 	if (sessionIds.size === 0) return [];
 	return all<PersistedSessionRow>(
 		db,
-		'SELECT id, workstream_id, model, provider_session_id FROM agent_sessions ORDER BY rowid ASC',
+		'SELECT id, workstream_id, provider, model, provider_session_id FROM agent_sessions ORDER BY rowid ASC',
 	)
 		.filter((row) => sessionIds.has(row.id))
 		.map(fromRow);
@@ -166,16 +176,21 @@ export async function registerPersistedBridgeSession(
 	appDataRoot: string,
 	supervisor: BridgeSupervisor,
 	session: PersistedBridgeSession,
+	resolveProviderEnvironment: ResolveProviderEnvironment,
 ): Promise<void> {
 	const worktree = worktreePath(appDataRoot, session.workstreamId);
+	const model = repairPersistedModel(db, session.id, session.model);
+	const environment =
+		model === null ? {} : await resolveProviderEnvironment(session.provider, model);
 	const command = startSessionCommand({
 		commandId: supervisor.nextCommandId(),
 		sessionId: session.id,
 		workstreamId: session.workstreamId,
-		model: repairPersistedModel(db, session.id, session.model),
+		model,
 		providerSessionId: session.providerSessionId,
 		worktreePath: worktree,
 		conversationHistory: conversationRecord(db, session.id),
+		environment,
 	});
 	await supervisor.sendCommand(command);
 }

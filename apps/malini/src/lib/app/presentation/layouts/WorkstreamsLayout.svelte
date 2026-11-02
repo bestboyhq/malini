@@ -36,7 +36,10 @@
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { pullRequestRefreshActivityQuery } from '$lib/pull-requests/application/queries/pull-request-refresh-activity.query.svelte';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
-	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
+	import {
+		loadModelProvidersCommand,
+		loadProviderCapabilitiesCommand,
+	} from '$shared/providers/providers.api';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import JobsSidebar from '../JobsSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
@@ -95,7 +98,10 @@
 							budgetMs: PERFORMANCE_BUDGETS.agentSessionStartMs,
 							target: activeWorkstreamId,
 						},
-						async () => loadProviderCapabilitiesCommand(),
+						async () => {
+							await loadProviderCapabilitiesCommand();
+							await loadModelProvidersCommand();
+						},
 					)
 					.catch(() => {});
 			}),

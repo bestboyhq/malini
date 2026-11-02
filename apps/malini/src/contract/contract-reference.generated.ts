@@ -252,7 +252,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
 			payloadType: 'JobDefinitionChangedEvent',
 			payload:
-				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge'\n\t| 'reconcile';\n\ntype JobRunMode = 'off' | 'ask' | 'auto';\n\ntype JobTrigger = Readonly<{ when: string; mode: JobRunMode }>;\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\tskills: readonly string[];\n\tbuiltin: JobBuiltin | null;\n\ttrigger: JobTrigger | null;\n\tthenJobId: string | null;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
+				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge'\n\t| 'reconcile';\n\ntype JobRunMode = 'off' | 'ask' | 'auto';\n\ntype JobTrigger = Readonly<{ when: string; mode: JobRunMode }>;\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tprovider: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\tskills: readonly string[];\n\tbuiltin: JobBuiltin | null;\n\ttrigger: JobTrigger | null;\n\tthenJobId: string | null;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
 		},
 		{
 			channel: 'jobs:suggested',
@@ -268,7 +268,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.",
 			payloadType: 'JobExperimentChangedEvent',
 			payload:
-				'type JobExperimentResult = Readonly<{\n\toutputId: string;\n\toutput: string | null;\n\terror: string | null;\n}>;\n\ntype JobExperimentRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\tname: string;\n\tmodel: string;\n\tinstructions: string;\n\tcurrent: boolean;\n\trunning: boolean;\n\tresults: readonly JobExperimentResult[];\n\tcreatedAt: string;\n}>;\n\ntype JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;',
+				'type JobExperimentResult = Readonly<{\n\toutputId: string;\n\toutput: string | null;\n\terror: string | null;\n}>;\n\ntype JobExperimentRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\tname: string;\n\tprovider: string;\n\tmodel: string;\n\tinstructions: string;\n\tcurrent: boolean;\n\trunning: boolean;\n\tresults: readonly JobExperimentResult[];\n\tcreatedAt: string;\n}>;\n\ntype JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;',
 		},
 		{
 			channel: 'jobs:agent-action-changed',

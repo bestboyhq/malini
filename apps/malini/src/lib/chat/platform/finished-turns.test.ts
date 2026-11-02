@@ -45,6 +45,7 @@ beforeEach(() => {
 			{
 				id,
 				workstreamId: 'ws-1',
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'idle',

@@ -166,7 +166,7 @@ test('picking another model mid-chat sends the next prompt to a new chat, and ot
 		const { page } = app;
 		const sessionId = await chatWithOneReply(app, 'e2e-model-switch-ws');
 		const picker = page.getByRole('button', { name: /^Model: / });
-		const models = page.getByRole('listbox', { name: 'Claude models' });
+		const models = page.getByRole('listbox', { name: 'Models' });
 
 		await picker.click();
 		await models.getByRole('option', { name: /^Opus/u }).click();

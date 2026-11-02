@@ -3,13 +3,14 @@ import type { AutomaticJobBuiltin } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
+import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import { BUILTIN_JOBS } from '../domain/builtin-jobs';
 import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { insertJobOutput, insertJobSetup, latestJobSetup } from './job-outputs.repository';
 
 export const JOB_OUTPUT_INPUT_MAX_LENGTH = 4_000;
 
-export type AutomaticJob = Readonly<{ instructions: string; model: string }>;
+export type AutomaticJob = Readonly<{ instructions: string; provider: string; model: string }>;
 
 export type SuggestWithJob = (task: string, job: AutomaticJob) => Promise<string>;
 
@@ -24,8 +25,10 @@ export async function runAutomaticJob(
 	suggest: SuggestWithJob,
 ): Promise<string> {
 	const definition = getBuiltinJobDefinition(db, builtin);
-	const { instructions, model } = definition ?? BUILTIN_JOBS[builtin];
-	const job: AutomaticJob = { instructions, model };
+	const defaults = BUILTIN_JOBS[builtin];
+	const { instructions, model } = definition ?? defaults;
+	const provider = definition?.provider ?? DEFAULT_PROVIDER_ID;
+	const job: AutomaticJob = { instructions, provider, model };
 	const record = (result: OutputResult): void => {
 		if (definition) recordJobOutput(db, definition.id, job, task, result);
 	};
@@ -51,13 +54,17 @@ function recordJobOutput(
 			const createdAt = nowIso8601();
 			const latest = latestJobSetup(db, definitionId);
 			const reused =
-				latest !== null && latest.model === job.model && latest.instructions === job.instructions
+				latest !== null &&
+				latest.provider === job.provider &&
+				latest.model === job.model &&
+				latest.instructions === job.instructions
 					? latest.id
 					: null;
 			const setupId = reused ?? randomUUID();
 			if (reused === null) {
 				insertJobSetup(db, definitionId, {
 					id: setupId,
+					provider: job.provider,
 					model: job.model,
 					instructions: job.instructions,
 					expectedRate: null,

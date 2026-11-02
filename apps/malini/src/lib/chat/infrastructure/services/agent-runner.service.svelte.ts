@@ -16,7 +16,8 @@ const BRIDGE_HEALTH_DEADLINE_MS = 4_000;
 
 type StartSessionInput = {
 	workstreamId: string;
-	model?: string;
+	provider: string;
+	model: string;
 };
 
 type SendPromptInput = {
@@ -58,7 +59,8 @@ export class AgentRunner {
 		const requestedModel = input.model ?? defaultAgentModel();
 		const payload = {
 			workstreamId: input.workstreamId,
-			...(requestedModel === undefined ? {} : { model: requestedModel }),
+			provider: input.provider,
+			model: requestedModel,
 		};
 
 		const sessionId = await foregroundActivity.track(FOREGROUND_ACTIVITY.startingAgent, () =>

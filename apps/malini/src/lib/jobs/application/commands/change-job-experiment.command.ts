@@ -7,16 +7,24 @@ export { changeJobExperimentCommand };
 
 function changeJobExperimentCommand(
 	experiment: JobExperimentRecord,
-	change: Readonly<{ model?: string; instructions?: string }>,
+	change: Readonly<{ provider?: string; model?: string; instructions?: string }>,
 ): void {
+	const provider = change.provider ?? experiment.provider;
 	const model = change.model ?? experiment.model;
 	const instructions = change.instructions ?? experiment.instructions;
-	if (model === experiment.model && instructions === experiment.instructions) return;
+	if (
+		provider === experiment.provider &&
+		model === experiment.model &&
+		instructions === experiment.instructions
+	) {
+		return;
+	}
 	void jobActionsStore.run(experiment.id, async () => {
 		jobExperimentsAggregate.apply(
 			await jobsService.saveExperiment({
 				definitionId: experiment.definitionId,
 				experimentId: experiment.id,
+				provider,
 				model,
 				instructions,
 			}),

@@ -284,6 +284,7 @@ export class JobRunner {
 				jobRun.sessionId ??
 				(await commands.call('chat.start-session', {
 					workstreamId,
+					provider: definition.provider,
 					model: definition.model,
 					origin: 'job',
 					displayName: jobRun.title,

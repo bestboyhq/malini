@@ -11,6 +11,7 @@ export type StoredJobExperiment = Readonly<{
 	id: string;
 	definitionId: string;
 	name: string;
+	provider: string;
 	model: string;
 	instructions: string;
 	current: boolean;
@@ -21,19 +22,22 @@ interface JobExperimentRow {
 	id: string;
 	definition_id: string;
 	name: string;
+	provider: string;
 	model: string;
 	instructions: string;
 	current: number;
 	created_at: string;
 }
 
-const EXPERIMENT_COLUMNS = 'id, definition_id, name, model, instructions, current, created_at';
+const EXPERIMENT_COLUMNS =
+	'id, definition_id, name, provider, model, instructions, current, created_at';
 
 function experimentFromRow(row: JobExperimentRow): StoredJobExperiment {
 	return {
 		id: row.id,
 		definitionId: row.definition_id,
 		name: row.name,
+		provider: row.provider,
 		model: row.model,
 		instructions: row.instructions,
 		current: intToBool(row.current),
@@ -65,10 +69,11 @@ export function getJobExperiment(db: MaliniDatabase, id: string): StoredJobExper
 export function insertJobExperiment(db: MaliniDatabase, experiment: StoredJobExperiment): void {
 	run(
 		db,
-		`INSERT INTO job_experiments (${EXPERIMENT_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO job_experiments (${EXPERIMENT_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		experiment.id,
 		experiment.definitionId,
 		experiment.name,
+		experiment.provider,
 		experiment.model,
 		experiment.instructions,
 		experiment.current ? 1 : 0,
@@ -79,12 +84,13 @@ export function insertJobExperiment(db: MaliniDatabase, experiment: StoredJobExp
 export function updateJobExperimentSetup(
 	db: MaliniDatabase,
 	id: string,
-	setup: Readonly<{ model: string; instructions: string }>,
+	setup: Readonly<{ provider: string; model: string; instructions: string }>,
 ): void {
 	db.transaction(() => {
 		run(
 			db,
-			'UPDATE job_experiments SET model = ?, instructions = ? WHERE id = ?',
+			'UPDATE job_experiments SET provider = ?, model = ?, instructions = ? WHERE id = ?',
+			setup.provider,
 			setup.model,
 			setup.instructions,
 			id,

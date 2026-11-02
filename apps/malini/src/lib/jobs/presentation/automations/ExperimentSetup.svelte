@@ -1,10 +1,17 @@
 <script lang="ts">
 	import type { JobExperimentRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
-	import { Select, type SelectOption } from '$hyper-ui/components/select';
+	import { Select } from '$hyper-ui/components/select';
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import { Icon } from '$hyper-ui/icons';
-	import { catalogModelLabel, modelCatalogQuery } from '$shared/providers/providers.api';
+	import {
+		allProviderModels,
+		catalogModelLabel,
+		modelSelectionValue,
+		parseModelSelectionValue,
+		providerGroupsQuery,
+		providerSelectOptions,
+	} from '$shared/providers/providers.api';
 	import { changeJobExperimentCommand } from '$lib/jobs/application/commands/change-job-experiment.command';
 	import { runJobExperimentCommand } from '$lib/jobs/application/commands/run-job-experiment.command';
 	import { JOB_INSTRUCTIONS_MAX_LENGTH } from '$lib/jobs/domain/job-definition';
@@ -20,13 +27,10 @@
 
 	let draft = $state(startingDraft());
 
-	const catalog = $derived(modelCatalogQuery.data);
-	const modelOptions: SelectOption[] = $derived([
-		...catalog.map((model) => ({ value: model.id, label: catalogModelLabel(catalog, model.id) })),
-		...(catalog.some((model) => model.id === experiment.model)
-			? []
-			: [{ value: experiment.model, label: catalogModelLabel(catalog, experiment.model) }]),
-	]);
+	const groups = $derived(providerGroupsQuery.data);
+	const catalog = $derived(allProviderModels(groups));
+	const selection = $derived({ provider: experiment.provider, model: experiment.model });
+	const modelOptions = $derived(providerSelectOptions(groups, selection));
 	const dirty = $derived(draft.trim() !== experiment.instructions);
 	const locked = $derived(busy || experiment.running);
 	const runLabel = $derived(
@@ -35,6 +39,15 @@
 
 	function startingDraft(): string {
 		return experiment.instructions;
+	}
+
+	function onModelChange(value: string): void {
+		const next = parseModelSelectionValue(value, selection);
+		changeJobExperimentCommand(experiment, {
+			provider: next.provider,
+			model: next.model,
+			instructions: draft,
+		});
 	}
 </script>
 
@@ -58,11 +71,11 @@
 	<div class="flex flex-col gap-3 p-4">
 		<div class="w-56">
 			<Select
-				value={experiment.model}
+				value={modelSelectionValue(selection)}
 				label="Model"
 				options={modelOptions}
 				disabled={locked}
-				onchange={(model) => changeJobExperimentCommand(experiment, { model, instructions: draft })}
+				onchange={onModelChange}
 			/>
 		</div>
 		<Textarea

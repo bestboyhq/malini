@@ -18,6 +18,7 @@ describe('checkpoint edit target', () => {
 		const target = captureCheckpointEditTarget({
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
+			provider: 'claude',
 			model: 'opus',
 			profile,
 		});
@@ -28,6 +29,7 @@ describe('checkpoint edit target', () => {
 		expect(target).toEqual({
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
+			provider: 'claude',
 			model: 'opus',
 			profile: { mode: 'plan', effort: 'high', access: 'sandboxed', report: 'medium' },
 		});
@@ -35,6 +37,7 @@ describe('checkpoint edit target', () => {
 
 	it('rejects an edit target until both workstream and chat are ready', () => {
 		const base = {
+			provider: 'claude' as const,
 			model: 'sonnet' as const,
 			profile: {
 				mode: 'agent' as const,
@@ -87,6 +90,7 @@ describe('checkpoint edit target', () => {
 		const target = captureCheckpointEditTarget({
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
+			provider: 'claude',
 			model: 'opus',
 			profile: { mode: 'plan', effort: 'high', access: 'sandboxed', report: 'medium' },
 		});
@@ -115,6 +119,7 @@ describe('checkpoint edit target', () => {
 		const target = captureCheckpointEditTarget({
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
+			provider: 'claude',
 			model: 'sonnet',
 			profile: { mode: 'agent', effort: 'high', access: 'sandboxed', report: 'medium' },
 		});

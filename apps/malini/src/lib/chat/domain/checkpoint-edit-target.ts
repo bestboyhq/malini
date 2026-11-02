@@ -5,6 +5,7 @@ import type { SessionId } from './session';
 export type CheckpointEditTarget = Readonly<{
 	workstreamId: string;
 	sessionId: SessionId;
+	provider: string;
 	model: AgentModel;
 	profile: AgentRunProfile;
 }>;
@@ -12,6 +13,7 @@ export type CheckpointEditTarget = Readonly<{
 export function captureCheckpointEditTarget(input: {
 	workstreamId: string;
 	sessionId: SessionId | null;
+	provider: string;
 	model: AgentModel;
 	profile: AgentRunProfile;
 }): CheckpointEditTarget | null {
@@ -19,6 +21,7 @@ export function captureCheckpointEditTarget(input: {
 	return {
 		workstreamId: input.workstreamId,
 		sessionId: input.sessionId,
+		provider: input.provider,
 		model: input.model,
 		profile: { ...input.profile },
 	};

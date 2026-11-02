@@ -20,7 +20,7 @@
 		subscriptionBillingQuery,
 	} from '$shared/providers/providers.api';
 	import { goto } from '$shared/router/navigation';
-	import { ACCOUNT_SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { PROVIDER_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		contextBreakdown,
 		contextPressure,
@@ -379,7 +379,7 @@
 								size="xs"
 								ariaLabel="Manage accounts"
 								class="text-fg-tertiary"
-								onclick={() => void goto(ACCOUNT_SETTINGS_HREF)}
+								onclick={() => void goto(PROVIDER_SETTINGS_HREF)}
 							>
 								<Icon name="settings" size={14} />
 							</IconButton>

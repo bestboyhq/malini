@@ -7,10 +7,15 @@
 	import {
 		DEFAULT_AGENT_RUN_PROFILE,
 		type AgentReasoningEffort,
+		type ModelSelection,
+		allProviderModels,
 		catalogModelLabel,
 		effortsForModel,
-		modelCatalogQuery,
+		modelSelectionValue,
 		normalizeReasoningEffort,
+		parseModelSelectionValue,
+		providerGroupsQuery,
+		providerSelectOptions,
 	} from '$shared/providers/providers.api';
 	import { saveJobDefinitionCommand } from '$lib/jobs/application/commands/save-job-definition.command';
 	import { jobFormSubmissionQuery } from '$lib/jobs/application/queries/job-form-submission.query.svelte';
@@ -31,6 +36,7 @@
 	type JobDraft = {
 		name: string;
 		instructions: string;
+		provider: string;
 		model: string;
 		effort: string;
 		skills: string[];
@@ -40,16 +46,13 @@
 	let localError = $state<string | null>(null);
 
 	const submission = $derived(jobFormSubmissionQuery.data);
-	const catalog = $derived(modelCatalogQuery.data);
+	const groups = $derived(providerGroupsQuery.data);
+	const catalog = $derived(allProviderModels(groups));
 	const builtin = $derived(definition.builtin);
 	const thinks = $derived(!isAutomaticJobBuiltin(builtin));
 	const efforts = $derived(effortsForModel(catalog, draft.model));
-	const modelOptions: SelectOption[] = $derived([
-		...catalog.map((model) => ({ value: model.id, label: catalogModelLabel(catalog, model.id) })),
-		...(catalog.some((model) => model.id === draft.model)
-			? []
-			: [{ value: draft.model, label: catalogModelLabel(catalog, draft.model) }]),
-	]);
+	const selection = $derived<ModelSelection>({ provider: draft.provider, model: draft.model });
+	const modelOptions = $derived(providerSelectOptions(groups, selection));
 	const effortOptions: SelectOption[] = $derived(
 		efforts.map((effort) => ({ value: effort, label: effortLabel(effort) })),
 	);
@@ -60,6 +63,7 @@
 		return {
 			name: definition.name,
 			instructions: definition.instructions,
+			provider: definition.provider,
 			model: definition.model,
 			effort: definition.effort,
 			skills: [...definition.skills],
@@ -70,6 +74,7 @@
 		return (
 			left.name !== right.name.trim() ||
 			left.instructions !== right.instructions.trim() ||
+			left.provider !== right.provider ||
 			left.model !== right.model ||
 			left.effort !== right.effort ||
 			left.skills.join('\n') !== right.skills.join('\n')
@@ -80,8 +85,11 @@
 		return isJobEffort(draft.effort) ? draft.effort : DEFAULT_AGENT_RUN_PROFILE.effort;
 	}
 
-	function onModelChange(model: string): void {
-		draft.effort = normalizeReasoningEffort(effortsForModel(catalog, model), draftEffort());
+	function onModelChange(value: string): void {
+		const next = parseModelSelectionValue(value, selection);
+		draft.provider = next.provider;
+		draft.model = next.model;
+		draft.effort = normalizeReasoningEffort(effortsForModel(catalog, next.model), draftEffort());
 	}
 
 	function onDiscard(): void {
@@ -107,6 +115,7 @@
 			id: definition.id,
 			name,
 			instructions,
+			provider: draft.provider,
 			model: draft.model,
 			effort: thinks ? normalizeReasoningEffort(efforts, draftEffort()) : draftEffort(),
 			runsIn: definition.runsIn,
@@ -141,7 +150,7 @@
 
 	<div class="grid grid-cols-2 gap-3">
 		<Select
-			bind:value={draft.model}
+			value={modelSelectionValue(selection)}
 			label="Model"
 			options={modelOptions}
 			onchange={onModelChange}

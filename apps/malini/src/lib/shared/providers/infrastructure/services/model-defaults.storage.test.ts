@@ -20,15 +20,15 @@ describe('model defaults storage', () => {
 		const storage = memoryStorage();
 		const written = modelDefaultsStorage.write(
 			{
-				planning: { model: 'opus' },
-				implementation: { model: 'sonnet[1m]' },
+				planning: { provider: 'claude', model: 'opus' },
+				implementation: { provider: 'claude', model: 'sonnet[1m]' },
 			},
 			storage,
 		);
 
 		expect(written).toEqual({
-			planning: { model: 'opus' },
-			implementation: { model: 'sonnet[1m]' },
+			planning: { provider: 'claude', model: 'opus' },
+			implementation: { provider: 'claude', model: 'sonnet[1m]' },
 		});
 		expect(modelDefaultsStorage.read(storage)).toEqual(written);
 	});

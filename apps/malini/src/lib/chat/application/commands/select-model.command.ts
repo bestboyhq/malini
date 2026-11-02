@@ -4,26 +4,26 @@ import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import {
-	isValidAgentModel,
+	isValidModelSelection,
 	roleForAgentMode,
-	type AgentModel,
+	type ModelSelection,
 } from '$shared/providers/providers.api';
 
 export { selectModelCommand };
 
-function selectModelCommand(nextModel: AgentModel): void {
-	if (!isValidAgentModel(nextModel)) return;
+function selectModelCommand(nextSelection: ModelSelection): void {
+	if (!isValidModelSelection(nextSelection)) return;
 	const role = roleForAgentMode(chatModelStore.profile.mode);
 	chatModelStore.noteUserChoice();
-	chatModelStore.model = nextModel;
+	chatModelStore.selection = nextSelection;
 	const workstreamId = chatRoute.workstreamId;
 	if (!workstreamId) return;
-	chatModelStore.rememberRoleSelection(role, { model: nextModel });
+	chatModelStore.rememberRoleSelection(role, nextSelection);
 	writeStoredRunProfile(workstreamId, chatModelStore.profile);
 	chatSessionStore.createFreshSessionOnNextPrompt = chatOccupancy.freshSessionRequired(
 		chatSessionStore.sessionId,
 		role,
-		{ model: nextModel },
+		nextSelection,
 	);
 	chatSessionStore.bootError = null;
 }

@@ -64,6 +64,7 @@ function session(
 		id,
 		workstreamId,
 		displayName: id,
+		provider: 'claude',
 		model: null,
 		status,
 		currentRunId: null,

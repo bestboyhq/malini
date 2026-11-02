@@ -19,6 +19,7 @@ export type { SessionStatus };
 export interface AgentSession {
 	id: string;
 	workstreamId: string;
+	provider: string;
 	model: string | null;
 	providerSessionId: string | null;
 	status: SessionStatus;
@@ -40,6 +41,7 @@ export interface AgentSessionRecord extends AgentSession {
 interface SessionRow {
 	id: string;
 	workstream_id: string;
+	provider: string;
 	model: string | null;
 	provider_session_id: string | null;
 	status: SessionStatus;
@@ -102,6 +104,7 @@ function sessionFromRow(row: SessionRow): AgentSessionRecord {
 	return {
 		id: row.id,
 		workstreamId: row.workstream_id,
+		provider: row.provider,
 		model: row.model,
 		providerSessionId: row.provider_session_id,
 		status: row.status,
@@ -112,7 +115,7 @@ function sessionFromRow(row: SessionRow): AgentSessionRecord {
 }
 
 const SESSION_COLUMNS =
-	'id, workstream_id, model, provider_session_id, status, started_at, display_name, archived_at';
+	'id, workstream_id, provider, model, provider_session_id, status, started_at, display_name, archived_at';
 
 export function insertSession(
 	db: MaliniDatabase,
@@ -131,10 +134,11 @@ export function insertSession(
 	run(
 		db,
 		`INSERT INTO agent_sessions
-		 (id, workstream_id, model, provider_session_id, status, started_at, display_name, origin)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 (id, workstream_id, provider, model, provider_session_id, status, started_at, display_name, origin)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		session.id,
 		session.workstreamId,
+		session.provider,
 		session.model,
 		session.providerSessionId,
 		session.status,
@@ -295,13 +299,14 @@ export function listSessionSummaries(
 		id: string;
 		workstream_id: string;
 		display_name: string;
+		provider: string;
 		model: string | null;
 		projected_status: SessionStatus;
 		started_at: string;
 		origin: AgentSessionOrigin;
 	}>(
 		db,
-		`SELECT s.id, s.workstream_id, s.display_name, s.model, s.origin,
+		`SELECT s.id, s.workstream_id, s.display_name, s.provider, s.model, s.origin,
 		        COALESCE((
 		            SELECT CASE
 		                WHEN r.completed_at IS NULL THEN
@@ -324,6 +329,7 @@ export function listSessionSummaries(
 		id: row.id,
 		workstreamId: row.workstream_id,
 		displayName: row.display_name,
+		provider: row.provider,
 		model: row.model,
 		status: row.projected_status,
 		startedAt: row.started_at,
@@ -377,15 +383,32 @@ export function repairSessionStatusesWithoutOpenRuns(
 export function latestSessionForWorkstream(
 	db: MaliniDatabase,
 	workstreamId: string,
-): { id: string; model: string | null; providerSessionId: string | null } | null {
-	const row = get<{ id: string; model: string | null; provider_session_id: string | null }>(
+): {
+	id: string;
+	provider: string;
+	model: string | null;
+	providerSessionId: string | null;
+} | null {
+	const row = get<{
+		id: string;
+		provider: string;
+		model: string | null;
+		provider_session_id: string | null;
+	}>(
 		db,
-		`SELECT id, model, provider_session_id FROM agent_sessions
+		`SELECT id, provider, model, provider_session_id FROM agent_sessions
 		 WHERE workstream_id = ? AND archived_at IS NULL AND origin = 'user'
 		 ORDER BY rowid DESC LIMIT 1`,
 		workstreamId,
 	);
-	return row ? { id: row.id, model: row.model, providerSessionId: row.provider_session_id } : null;
+	return row
+		? {
+				id: row.id,
+				provider: row.provider,
+				model: row.model,
+				providerSessionId: row.provider_session_id,
+			}
+		: null;
 }
 
 export function setSessionModel(db: MaliniDatabase, sessionId: string, model: string | null): void {
