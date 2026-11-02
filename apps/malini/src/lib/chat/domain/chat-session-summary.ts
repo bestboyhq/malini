@@ -6,6 +6,7 @@ export type ChatSessionSummary = Readonly<{
 	id: SessionId;
 	workstreamId: string;
 	displayName: string;
+	provider: string;
 	model: string | null;
 	status: SessionState;
 	startedAt: string;

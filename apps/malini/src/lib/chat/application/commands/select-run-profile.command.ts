@@ -19,7 +19,7 @@ function selectRunProfileCommand(nextProfile: AgentRunProfile): void {
 	const role = roleForAgentMode(nextProfile.mode);
 	const selection = selectionForRole(chatModelStore.rememberedModels, role);
 	chatModelStore.noteUserChoice();
-	chatModelStore.model = selection.model;
+	chatModelStore.selection = selection;
 	chatModelStore.profile = {
 		mode: role === 'planning' ? 'plan' : 'agent',
 		effort: nextProfile.effort,

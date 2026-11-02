@@ -142,6 +142,7 @@ describe('projects and workstreams', () => {
 		insertSession(db, {
 			id: 'session-delete-fence',
 			workstreamId: 'workstream-delete-fence',
+			provider: 'claude',
 			model: 'anthropic/claude-sonnet-4-6',
 			providerSessionId: null,
 			status: 'running',

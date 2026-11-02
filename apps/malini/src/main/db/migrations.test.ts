@@ -47,6 +47,7 @@ const ALL_TABLES = [
 	'lead_decisions',
 	'mcp_server_folder_offs',
 	'mcp_server_listings',
+	'model_providers',
 	'projects',
 	'reconciler_decisions',
 	'scratchpads',
@@ -141,6 +142,50 @@ describe('migrate', () => {
 		expect(indexNames(db)).toEqual(ALL_INDEXES);
 		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
 		expect(scalar(db, 'PRAGMA foreign_keys')).toBe(1);
+		db.close();
+	});
+
+	it('seeds DeepSeek and defaults chats and jobs to Claude', () => {
+		const db = openMigratedDatabase(':memory:');
+		expect(
+			all(db, 'SELECT id, name, kind, base_url, subagent_model, api_key FROM model_providers'),
+		).toEqual([
+			{
+				id: 'deepseek',
+				name: 'DeepSeek',
+				kind: 'anthropic',
+				base_url: 'https://api.deepseek.com/anthropic',
+				subagent_model: 'deepseek-flash',
+				api_key: null,
+			},
+		]);
+		expect(
+			JSON.parse(
+				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'deepseek'")
+					?.models ?? '',
+			),
+		).toEqual([
+			{
+				id: 'deepseek-v4-pro',
+				label: 'DeepSeek V4 Pro',
+				description: 'Text only, best for complex work',
+				efforts: ['low', 'high', 'max'],
+			},
+			{
+				id: 'deepseek-flash',
+				label: 'DeepSeek V4 Flash',
+				description: 'Text and images, faster',
+				efforts: ['low', 'high', 'max'],
+			},
+		]);
+		for (const table of ['agent_sessions', 'job_definitions', 'job_setups', 'job_experiments']) {
+			expect(
+				all(
+					db,
+					`SELECT name, dflt_value FROM pragma_table_info('${table}') WHERE name = 'provider'`,
+				),
+			).toEqual([{ name: 'provider', dflt_value: "'claude'" }]);
+		}
 		db.close();
 	});
 

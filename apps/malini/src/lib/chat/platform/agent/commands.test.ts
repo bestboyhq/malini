@@ -198,6 +198,7 @@ describe('session commands', () => {
 				id: sessionId,
 				workstreamId: 'ws-1',
 				displayName: 'New chat',
+				provider: 'claude',
 				model: 'sonnet',
 				status: 'idle',
 				startedAt: expect.any(String),

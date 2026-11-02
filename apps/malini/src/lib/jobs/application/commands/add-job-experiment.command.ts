@@ -13,6 +13,7 @@ function addJobExperimentCommand(from: JobExperimentRecord): void {
 	void jobActionsStore.run(jobExperimentsActionId(from.definitionId), async () => {
 		const experiment = await jobsService.saveExperiment({
 			definitionId: from.definitionId,
+			provider: from.provider,
 			model: from.model,
 			instructions: from.instructions,
 		});

@@ -3,10 +3,11 @@ import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import {
 	DEFAULT_AGENT_RUN_PROFILE,
+	DEFAULT_PROVIDER_ID,
 	agentAccessDefaultQuery,
 	defaultAgentModel,
-	modelCatalogQuery,
-	pickerModels,
+	pickerGroups,
+	providerGroupsQuery,
 } from '$shared/providers/providers.api';
 
 import { browserFailure } from '../../domain/browser-failure';
@@ -25,23 +26,34 @@ function pickElementHook(): (tab: BrowserTabArgs) => void {
 		const key = browserTabKey(tab);
 		if (browserViewStore.picking.has(key)) return;
 		browserViewStore.setPicking(key, true);
-		const model = readInlineModel() ?? defaultAgentModel();
+		const selection = readInlineModel() ?? {
+			provider: DEFAULT_PROVIDER_ID,
+			model: defaultAgentModel(),
+		};
+		const groups = pickerGroups(providerGroupsQuery.data, selection);
 		void (async () => {
 			try {
 				const started = await browserService.pickElement({
 					...tab,
-					model,
-					models: pickerModels(modelCatalogQuery.data, model).map(({ id, label }) => ({
-						id,
-						label,
-					})),
+					provider: selection.provider,
+					model: selection.model,
+					models: groups.flatMap((group) =>
+						group.models.map(({ id, label }) => ({
+							id,
+							label,
+							provider: group.id,
+							providerName: group.name,
+						})),
+					),
 					profile: {
 						...DEFAULT_AGENT_RUN_PROFILE,
 						access: agentAccessDefaultQuery.data,
 						report: 'low',
 					},
 				});
-				if (started) rememberInlineModel(started.model);
+				if (started) {
+					rememberInlineModel({ provider: started.provider, model: started.model });
+				}
 			} catch (error) {
 				toast.error(
 					browserFailure('Could not pick an element', error),

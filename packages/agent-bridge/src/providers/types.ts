@@ -16,6 +16,7 @@ export interface ProviderContext {
 	readonly workstreamId: string;
 	readonly cwd: string;
 	readonly model?: string;
+	readonly env?: Readonly<Record<string, string>>;
 	readonly providerSessionId?: string;
 	readonly conversationHistory?: readonly ConversationHistoryMessage[];
 	readonly requestBrowser: BrowserRequester;

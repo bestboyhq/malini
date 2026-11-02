@@ -29,6 +29,7 @@ export async function startElementThread(
 	});
 	const sessionId = await commands.call('chat.start-session', {
 		workstreamId,
+		provider: picked.provider,
 		model: picked.model,
 		origin: 'thread',
 	});

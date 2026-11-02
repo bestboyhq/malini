@@ -18,6 +18,7 @@ export type SubmissionSessionTarget<TSessionId extends string = string> = Readon
 
 export type QueuedSubmissionSelection = Readonly<{
 	role: string;
+	provider: string;
 	model: string;
 }>;
 
@@ -29,7 +30,10 @@ export function shouldForceFreshSessionAfterQueuedTurn(input: {
 	if (input.requested) return true;
 	const previous = input.previousQueuedTurn;
 	return Boolean(
-		previous && (previous.role !== input.nextTurn.role || previous.model !== input.nextTurn.model),
+		previous &&
+		(previous.role !== input.nextTurn.role ||
+			previous.provider !== input.nextTurn.provider ||
+			previous.model !== input.nextTurn.model),
 	);
 }
 

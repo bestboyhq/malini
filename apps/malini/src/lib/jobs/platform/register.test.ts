@@ -239,6 +239,7 @@ function saveDefinition(
 	return context.commands.call('jobs.save-definition', {
 		name: 'Write changelog',
 		instructions: 'Write the changelog entry.',
+		provider: 'claude',
 		model: 'opus',
 		effort: 'low',
 		runsIn: 'workstream',
@@ -512,6 +513,7 @@ describe('job definitions', () => {
 			id: openDraft.id,
 			name: 'Draft PR',
 			instructions: 'Do something else entirely.',
+			provider: 'claude',
 			model: 'haiku',
 			effort: 'max',
 			skills: ['adr'],
@@ -540,6 +542,7 @@ describe('job definitions', () => {
 			id: updater.id,
 			name: updater.name,
 			instructions: updater.instructions,
+			provider: 'claude',
 			model: updater.model,
 			effort: updater.effort,
 		};
@@ -575,6 +578,7 @@ describe('job definitions', () => {
 		const valid = {
 			name: 'Job',
 			instructions: 'Do it.',
+			provider: 'claude',
 			model: 'opus',
 			effort: 'low',
 			runsIn: 'workstream',
@@ -696,6 +700,7 @@ describe('scheduling', () => {
 		const { instructions } = await builtin('fix-checks');
 		expect(fakes.startSession).toHaveBeenCalledWith({
 			workstreamId: 'ws-a',
+			provider: 'claude',
 			model: 'opus',
 			origin: 'job',
 			displayName: 'Fix checks',
@@ -1370,6 +1375,7 @@ describe('then', () => {
 			await failure('jobs.save-definition', {
 				name: 'First',
 				instructions: 'Go.',
+				provider: 'claude',
 				model: 'opus',
 				effort: 'low',
 				runsIn: 'workstream',
@@ -1674,6 +1680,7 @@ describe('suggestions from repeated prompts', () => {
 			insertSession(db, {
 				id: sessionId,
 				workstreamId,
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'running',
@@ -1738,6 +1745,7 @@ describe('suggestions from repeated prompts', () => {
 		expect(job).toMatchObject({
 			name: 'Update the dependencies and run the tests in every package…',
 			instructions: long,
+			provider: 'claude',
 			model: 'opus',
 			effort: 'high',
 			runsIn: 'workstream',
@@ -1786,6 +1794,7 @@ describe('repeat runs', () => {
 		insertSession(db, {
 			id: sessionId,
 			workstreamId,
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'running',

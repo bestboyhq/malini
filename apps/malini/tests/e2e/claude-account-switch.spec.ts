@@ -122,7 +122,7 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(
 			settings
 				.getByRole('navigation', { name: 'Settings' })
-				.getByRole('link', { name: 'Accounts' }),
+				.getByRole('link', { name: 'Providers' }),
 		).toHaveAttribute('aria-current', 'page');
 		await page.keyboard.press('Escape');
 		await expect(settings).toHaveCount(0);
@@ -135,7 +135,7 @@ test('a Claude account added from the context card signs in through the browser 
 			.getByRole('button', { name: 'On' })
 			.click();
 		await page.evaluate(() => {
-			location.hash = '#/settings';
+			location.hash = '#/settings/providers';
 		});
 		const settingsAccounts = page
 			.getByTestId('claude-code-setup')

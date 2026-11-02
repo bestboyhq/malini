@@ -562,6 +562,7 @@ describe('what keeps running in a workstream', () => {
 			{
 				id: 'sess-job',
 				workstreamId: 'ws-turn',
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'idle',

@@ -100,6 +100,7 @@ function chat(id: string, workstreamId: string): void {
 	insertSession(db, {
 		id,
 		workstreamId,
+		provider: 'claude',
 		model: null,
 		providerSessionId: null,
 		status: 'idle',

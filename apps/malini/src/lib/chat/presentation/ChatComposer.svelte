@@ -3,10 +3,16 @@
 	import { tick, untrack } from 'svelte';
 	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
+		DEFAULT_PROVIDER_ID,
+		allProviderModels,
+		catalogModelLabel,
 		claudeCodeStatusQuery,
 		defaultAgentModel,
-		isValidAgentModel,
-		type AgentModel,
+		isModelAccessReady,
+		isValidModelSelection,
+		modelAccess,
+		providerGroupsQuery,
+		type ModelSelection,
 	} from '$shared/providers/providers.api';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
 	import { resetFreshSubmissionIntentCommand } from '$lib/chat/application/commands/reset-fresh-submission-intent.command';
@@ -75,13 +81,14 @@
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
+	import ProviderConnectCard from './ProviderConnectCard.svelte';
 	import { TranscriptFactsProjector } from './transcript-facts';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure, sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
 	interface Props {
 		sessionId?: SessionId | null;
-		model: AgentModel;
+		selection: ModelSelection;
 		profile: AgentRunProfile;
 		envelopes?: readonly EventEnvelope[];
 		isRunning: boolean;
@@ -92,14 +99,14 @@
 		transcriptReferences?: AgentTranscriptReference[];
 		elementReferences?: AgentElementReference[];
 		oncancel?: () => void;
-		onbackendchange?: (model: AgentModel) => void;
+		onbackendchange?: (selection: ModelSelection) => void;
 		onprofilechange?: (profile: AgentRunProfile) => void;
 		onattachmentschange?: (attachments: readonly AgentComposerFileAttachment[]) => void;
 	}
 
 	let {
 		sessionId = null,
-		model = $bindable(),
+		selection,
 		profile,
 		envelopes = [],
 		isRunning,
@@ -165,10 +172,13 @@
 	let outgoingBandEl: HTMLDivElement | null = $state(null);
 	let outgoingPrompts = $state(0);
 	let landOutgoingPrompt: (() => void) | null = null;
-	const claudeCodeStatus = $derived(claudeCodeStatusQuery.data);
-	const agentUsable = $derived(
-		claudeCodeStatus.kind !== 'missing' && claudeCodeStatus.kind !== 'signed-out',
+	const providerGroups = $derived(providerGroupsQuery.data);
+	const access = $derived(modelAccess(selection, providerGroups, claudeCodeStatusQuery.data));
+	const selectedModelLabel = $derived(
+		catalogModelLabel(allProviderModels(providerGroups), selection.model),
 	);
+	let accessPrompt = $state<string | null>(null);
+	let accessSteer = false;
 	let submissionError = $state<string | null>(null);
 	let contextOpen = $state(false);
 	let contextQuery = $state('');
@@ -186,9 +196,7 @@
 	const MAX_CONTEXT_FILES = 20;
 	const submitting = $derived(pendingSubmissionCount > 0);
 
-	const canSend = $derived(
-		prompt.trim() !== '' && !disabled && agentUsable && !todoContextResolving,
-	);
+	const canSend = $derived(prompt.trim() !== '' && !disabled && !todoContextResolving);
 	const resolvedPlaceholder = $derived(placeholder ?? 'Ask Malini to make a change…');
 	const transcriptFactsProjector = new TranscriptFactsProjector();
 	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
@@ -409,6 +417,8 @@
 		onattachmentschange?.(localAttachments);
 		attachmentError = null;
 		submissionError = null;
+		accessPrompt = null;
+		accessSteer = false;
 		addMenuOpen = false;
 		contextOpen = false;
 		contextQuery = '';
@@ -759,7 +769,8 @@
 	}
 
 	type ComposerDelivery = Readonly<{
-		model: AgentModel;
+		provider: string;
+		model: string;
 		prompt: string;
 		workstreamId: string;
 		draftScope: string;
@@ -781,10 +792,19 @@
 		if (!trimmed) {
 			return;
 		}
-		const next = isValidAgentModel(model) ? model : defaultAgentModel();
-		model = next;
+		if (!isModelAccessReady(access)) {
+			accessPrompt = trimmed;
+			accessSteer = steer;
+			return;
+		}
+		accessPrompt = null;
+		accessSteer = false;
+		const next = isValidModelSelection(selection)
+			? selection
+			: { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
 		const submission: ComposerDelivery = {
-			model: next,
+			provider: next.provider,
+			model: next.model,
 			prompt,
 			workstreamId,
 			draftScope,
@@ -813,6 +833,29 @@
 			prompt: trimmed,
 		});
 	}
+
+	function onAccessConnected(): void {
+		const steer = accessSteer;
+		accessPrompt = null;
+		accessSteer = false;
+		submit(steer);
+	}
+
+	function cancelAccess(): void {
+		accessPrompt = null;
+		accessSteer = false;
+		queueMicrotask(() => promptEditor?.focusEditor());
+	}
+
+	$effect(() => {
+		selection.provider;
+		selection.model;
+		untrack(() => {
+			if (accessPrompt === null) return;
+			accessPrompt = null;
+			accessSteer = false;
+		});
+	});
 
 	$effect(() => {
 		const resolution = todosResolution;
@@ -868,13 +911,14 @@
 		submitComposerPromptCommand({
 			draftScope: submission.draftScope,
 			draftPrompt: submission.prompt,
-			freshIntentKey: `${submission.workstreamId}:${submission.profile.mode}:${submission.model}`,
+			freshIntentKey: `${submission.workstreamId}:${submission.profile.mode}:${submission.provider}:${submission.model}`,
 			request: {
 				requestId: newChatRequestId(),
 				workstreamId: submission.workstreamId,
 				sessionId: submission.sessionId,
 				forceFreshSession: submission.forceFreshSession,
 				prompt: deliveredPrompt,
+				provider: submission.provider,
 				model: submission.model,
 				profile: submission.profile,
 				contextFiles: submission.contextFiles,
@@ -950,9 +994,8 @@
 		addMenuOpen = !addMenuOpen;
 	}
 
-	function selectBackend(nextModel: AgentModel): void {
-		model = nextModel;
-		onbackendchange?.(nextModel);
+	function selectBackend(nextSelection: ModelSelection): void {
+		onbackendchange?.(nextSelection);
 	}
 
 	const stopsRun = $derived(isRunning && prompt.trim() === '');
@@ -1163,6 +1206,16 @@
 		</div>
 	</DropdownLayer>
 
+	{#if accessPrompt !== null && !isModelAccessReady(access)}
+		<ProviderConnectCard
+			{access}
+			modelLabel={selectedModelLabel}
+			prompt={accessPrompt}
+			onconnected={onAccessConnected}
+			oncancel={cancelAccess}
+		/>
+	{/if}
+
 	<ComposerShell
 		accent={profile.mode === 'plan'}
 		{disabled}
@@ -1230,9 +1283,13 @@
 						<Icon name="plus" size={16} />
 					</IconButton>
 				</Tooltip>
-				<ModelProfilePicker {model} disabled={backendSelectionDisabled} onchange={selectBackend} />
+				<ModelProfilePicker
+					{selection}
+					disabled={backendSelectionDisabled}
+					onchange={selectBackend}
+				/>
 				<RunProfileControls
-					{model}
+					{selection}
 					{profile}
 					{disabled}
 					onchange={(nextProfile) => onprofilechange?.(nextProfile)}

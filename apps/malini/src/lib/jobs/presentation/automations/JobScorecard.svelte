@@ -1,7 +1,11 @@
 <script lang="ts">
 	import type { AutomaticJobBuiltin } from '$contract/jobs';
 	import { Well } from '$hyper-ui/components/well';
-	import { catalogModelLabel, modelCatalogQuery } from '$shared/providers/providers.api';
+	import {
+		allProviderModels,
+		catalogModelLabel,
+		providerGroupsQuery,
+	} from '$shared/providers/providers.api';
 	import type { JobScorecard, ScorecardBand } from '$lib/jobs/domain/job-scorecard';
 	import { JOB_OUTPUT_NOUN, instructionsLabel, percent, weekdayTime } from './job-insights-copy';
 	import ScorecardChart from './ScorecardChart.svelte';
@@ -18,7 +22,7 @@
 		'border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]';
 	const FLAGGED_SHOWN = 8;
 
-	const catalog = $derived(modelCatalogQuery.data);
+	const catalog = $derived(allProviderModels(providerGroupsQuery.data));
 	const noun = $derived(JOB_OUTPUT_NOUN[builtin]);
 	const delta = $derived(
 		card.weekRate === null || card.previousWeekRate === null

@@ -14,7 +14,7 @@ import {
 	findClaudeExecutable,
 	type ClaudeAuthStatus,
 } from './installation.js';
-import type { QueryFunction } from './session.js';
+import { claudeEnvironment, type QueryFunction } from './session.js';
 
 const MODEL_PROBE_TIMEOUT_MS = 15_000;
 
@@ -113,6 +113,7 @@ async function supportedModels(
 		options: {
 			cwd: tmpdir(),
 			pathToClaudeCodeExecutable: executable,
+			env: claudeEnvironment(),
 			settingSources: ['user'],
 			settings: { disableAllHooks: true },
 			mcpServers: {},

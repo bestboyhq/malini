@@ -234,6 +234,15 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	writeFileSync(bridgeScript, bridgeSource);
 
 	const env = stringEnv(process.env);
+	for (const name of Object.keys(env)) {
+		if (
+			name.startsWith('ANTHROPIC_') ||
+			name === 'CLAUDE_CODE_SUBAGENT_MODEL' ||
+			name === 'CLAUDE_CODE_EFFORT_LEVEL'
+		) {
+			delete env[name];
+		}
+	}
 	env['SHELL'] = '/bin/sh';
 	env['HOME'] = home;
 	env['PATH'] = `${bin}:${env['PATH'] ?? '/usr/bin:/bin'}`;

@@ -537,6 +537,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			workstreamId: cmd.workstreamId,
 			cwd: cmd.worktreePath ?? process.cwd(),
 			...(cmd.model !== undefined ? { model: cmd.model } : {}),
+			...(cmd.env !== undefined ? { env: cmd.env } : {}),
 			...(cmd.providerSessionId !== undefined ? { providerSessionId: cmd.providerSessionId } : {}),
 			...(cmd.conversationHistory !== undefined
 				? { conversationHistory: cmd.conversationHistory }
@@ -606,6 +607,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			const title = await (options.suggestTitle ?? suggestClaudeTitle)(cmd.prompt, {
 				instructions: cmd.instructions,
 				model: cmd.model,
+				...(cmd.env !== undefined ? { env: cmd.env } : {}),
 			});
 			emitControl(bridgeTitleFrame(cmd.id, title));
 			emitControl(bridgeCommandAckFrame(cmd.id));
@@ -618,7 +620,11 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		try {
 			const pick = await (options.choose ?? chooseClaudeCandidate)(
 				cmd.prompt,
-				{ instructions: cmd.instructions, model: cmd.model },
+				{
+					instructions: cmd.instructions,
+					model: cmd.model,
+					...(cmd.env !== undefined ? { env: cmd.env } : {}),
+				},
 				cmd.choices,
 			);
 			emitControl(bridgeChoiceFrame(cmd.id, pick));

@@ -11,7 +11,11 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_RUN_PROFILE } from '$shared/providers/providers.api';
+	import {
+		DEFAULT_AGENT_MODEL,
+		DEFAULT_AGENT_RUN_PROFILE,
+		DEFAULT_PROVIDER_ID,
+	} from '$shared/providers/providers.api';
 	import { scheduleOf } from '$lib/jobs/domain/schedule';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import ChoiceMenu from './ChoiceMenu.svelte';
@@ -81,6 +85,7 @@
 				filled.length === 1
 					? (filled[0] ?? '')
 					: filled.map((step, index) => `${index + 1}. ${step}`).join('\n'),
+			provider: DEFAULT_PROVIDER_ID,
 			model: DEFAULT_AGENT_MODEL,
 			effort: DEFAULT_AGENT_RUN_PROFILE.effort,
 			runsIn,

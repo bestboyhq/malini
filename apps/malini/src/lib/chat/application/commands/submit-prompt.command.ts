@@ -49,7 +49,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	const role = roleForAgentMode(input.profile.mode);
 	if (!isValidAgentRunProfile(input.profile)) throw new Error('Invalid prompt run profile');
 	const optimisticRunId = runIdForPromptRequest(requestId);
-	const requestedSelection = { model: input.model };
+	const requestedSelection = { provider: input.provider, model: input.model };
 	agentPromptQueue.hydrate(workstreamId);
 	const previousQueuedTurn =
 		agentPromptQueue.entriesForSession(workstreamId, input.sessionId).at(-1) ?? null;
@@ -63,6 +63,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 		sessionId: input.sessionId,
 		forceFreshSession,
 		role,
+		provider: input.provider,
 		model: input.model,
 		profile: input.profile,
 		prompt: input.prompt,
@@ -151,6 +152,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 			sessionId,
 			prompt: input.prompt,
 			role,
+			provider: input.provider,
 			model: input.model,
 			profile: input.profile,
 			contextFiles: input.contextFiles,

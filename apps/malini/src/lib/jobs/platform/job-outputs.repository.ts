@@ -6,6 +6,7 @@ export const JOB_OUTPUT_EXCERPT_LENGTH = 240;
 
 interface JobSetupRow {
 	id: string;
+	provider: string;
 	model: string;
 	instructions: string;
 	expected_rate: number | null;
@@ -21,13 +22,14 @@ export interface JobOutputRow {
 	created_at: string;
 }
 
-const SETUP_COLUMNS = 'id, model, instructions, expected_rate, created_at';
+const SETUP_COLUMNS = 'id, provider, model, instructions, expected_rate, created_at';
 
 const OUTPUT_COLUMNS = `id, setup_id, substr(input, 1, ${JOB_OUTPUT_EXCERPT_LENGTH}) AS excerpt, output, error, created_at`;
 
 function setupFromRow(row: JobSetupRow): JobSetupRecord {
 	return {
 		id: row.id,
+		provider: row.provider,
 		model: row.model,
 		instructions: row.instructions,
 		expectedRate: row.expected_rate,
@@ -71,10 +73,11 @@ export function insertJobSetup(
 ): void {
 	run(
 		db,
-		`INSERT INTO job_setups (id, definition_id, model, instructions, expected_rate, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO job_setups (id, definition_id, provider, model, instructions, expected_rate, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		setup.id,
 		definitionId,
+		setup.provider,
 		setup.model,
 		setup.instructions,
 		setup.expectedRate,

@@ -26,14 +26,14 @@ describe('model memory', () => {
 	it('falls back to the defaults until a model is remembered', () => {
 		const storage = memoryStorage();
 		const defaults = {
-			planning: { model: 'haiku' },
-			implementation: { model: 'sonnet' },
+			planning: { provider: 'claude', model: 'haiku' },
+			implementation: { provider: 'claude', model: 'sonnet' },
 		} as const;
 		expect(readModelMemory(defaults, storage)).toEqual(defaults);
 
 		const remembered = {
-			planning: { model: 'opus' },
-			implementation: { model: 'sonnet[1m]' },
+			planning: { provider: 'claude', model: 'opus' },
+			implementation: { provider: 'claude', model: 'sonnet[1m]' },
 		} as const;
 		writeModelMemory(remembered, defaults, storage);
 
@@ -49,17 +49,39 @@ describe('model memory', () => {
 		const storage = memoryStorage();
 		writeChatModelSnapshot(
 			'session-a',
-			{ role: 'planning', selection: { model: 'opus' } },
+			{ role: 'planning', selection: { provider: 'claude', model: 'opus' } },
 			storage,
 		);
 
 		expect(JSON.parse(storage.values.get(chatModelSnapshotKey('session-a')) ?? '')).toEqual({
 			role: 'planning',
-			selection: { model: 'opus' },
+			selection: { provider: 'claude', model: 'opus' },
 		});
 		expect(readChatModelSnapshot('session-a', storage)).toEqual({
 			role: 'planning',
-			selection: { model: 'opus' },
+			selection: { provider: 'claude', model: 'opus' },
+		});
+	});
+
+	it('gives a snapshot stored before providers existed the provider its model belongs to', () => {
+		const storage = memoryStorage({
+			[chatModelSnapshotKey('session-claude')]: JSON.stringify({
+				role: 'implementation',
+				selection: { model: 'sonnet' },
+			}),
+			[chatModelSnapshotKey('session-deepseek')]: JSON.stringify({
+				role: 'planning',
+				selection: { model: 'deepseek-v4-pro' },
+			}),
+		});
+
+		expect(readChatModelSnapshot('session-claude', storage)?.selection).toEqual({
+			provider: 'claude',
+			model: 'sonnet',
+		});
+		expect(readChatModelSnapshot('session-deepseek', storage)?.selection).toEqual({
+			provider: 'deepseek',
+			model: 'deepseek-v4-pro',
 		});
 	});
 });

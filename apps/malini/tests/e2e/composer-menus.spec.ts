@@ -59,7 +59,7 @@ test('composer menus open on screen, move focus with the arrow keys, hand focus 
 		await expect(input).toBeFocused();
 
 		const model = page.getByRole('button', { name: /^Model: / });
-		const models = page.getByRole('listbox', { name: 'Claude models' });
+		const models = page.getByRole('listbox', { name: 'Models' });
 		await model.click();
 		await models.getByRole('option', { name: /^Opus/u }).click();
 		await expect(models).toBeHidden();

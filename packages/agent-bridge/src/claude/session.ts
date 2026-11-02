@@ -649,7 +649,7 @@ export class ClaudeSession implements ProviderHandle {
 			abortController: abort,
 			pathToClaudeCodeExecutable: executable,
 			env: {
-				...claudeEnvironment(),
+				...claudeEnvironment(this.#context.env),
 				CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
 				CLAUDE_CODE_SHELL: claudeShell(),
 				CLAUDE_CODE_SHELL_PREFIX: this.#secrets.runScript,
@@ -971,7 +971,13 @@ export class ClaudeSession implements ProviderHandle {
 		const executable = this.#executable;
 		if (!executable) throw new Error('Claude Code is not installed');
 		const { cwd } = this.#context;
-		return { cwd, plugins, executable, env: claudeEnvironment(), query: this.#query };
+		return {
+			cwd,
+			plugins,
+			executable,
+			env: claudeEnvironment(this.#context.env),
+			query: this.#query,
+		};
 	}
 
 	async adoptMcpServer(server: McpServerReport): Promise<void> {
@@ -1118,14 +1124,23 @@ function resultError(result: SDKResultMessage): string {
 	return text || 'Claude Code reported an error.';
 }
 
-export function claudeEnvironment(): Record<string, string> {
+export function claudeEnvironment(
+	providerEnvironment: Readonly<Record<string, string>> = {},
+): Record<string, string> {
 	const env: Record<string, string> = {};
 	for (const [name, value] of Object.entries(process.env)) {
 		if (value === undefined || name === 'ELECTRON_RUN_AS_NODE') continue;
 		if (name.startsWith('MALINI_') || name === 'AGENT_BRIDGE_LOG') continue;
+		if (
+			name.startsWith('ANTHROPIC_') ||
+			name === 'CLAUDE_CODE_SUBAGENT_MODEL' ||
+			name === 'CLAUDE_CODE_EFFORT_LEVEL'
+		) {
+			continue;
+		}
 		env[name] = value;
 	}
-	return env;
+	return { ...env, ...providerEnvironment };
 }
 
 function describe(error: unknown): string {

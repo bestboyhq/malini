@@ -32,6 +32,7 @@ function session(id: string, status: SessionState, origin: 'user' | 'job' = 'use
 		id,
 		workstreamId: 'docs',
 		displayName: origin === 'job' ? 'Fix checks' : 'Chat 1',
+		provider: 'claude',
 		model: null,
 		status,
 		currentRunId: null,

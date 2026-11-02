@@ -25,7 +25,12 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
-import { DEFAULT_AGENT_MODEL, isValidAgentModel } from '$shared/providers/providers.platform';
+import {
+	DEFAULT_AGENT_MODEL,
+	DEFAULT_PROVIDER_ID,
+	isValidAgentModel,
+	isValidProviderId,
+} from '$shared/providers/providers.platform';
 import {
 	getWorkstream,
 	listRepositoryCatalog,
@@ -128,13 +133,13 @@ export class JobError extends Error {
 
 type JobDefinitionFields = Pick<
 	JobDefinitionRecord,
-	'name' | 'instructions' | 'model' | 'effort' | 'runsIn'
+	'name' | 'instructions' | 'provider' | 'model' | 'effort' | 'runsIn'
 > &
 	Readonly<{ skills: readonly string[] | null }>;
 
 type BuiltinFields = Pick<
 	JobDefinitionRecord,
-	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'trigger'
+	'name' | 'instructions' | 'provider' | 'model' | 'effort' | 'runsIn' | 'trigger'
 >;
 
 const CHAT_TURNS_SHOWN = 100;
@@ -239,6 +244,7 @@ export function defineJobCommands(
 				? {}
 				: {
 						instructions: fields.instructions,
+						provider: fields.provider,
 						model: fields.model,
 						effort: fields.effort,
 						skills: fields.skills ?? existing.skills,
@@ -410,6 +416,7 @@ export function defineJobCommands(
 			id: randomUUID(),
 			name: suggestedJobName(prompt),
 			instructions: prompt.slice(0, JOB_INSTRUCTIONS_MAX_LENGTH),
+			provider: DEFAULT_PROVIDER_ID,
 			model: DEFAULT_AGENT_MODEL,
 			effort: 'high',
 			runsIn: 'workstream',
@@ -467,6 +474,7 @@ export function defineJobCommands(
 		const definition = requireDefinition(db, definitionId);
 		const saved = await saveChanged(definition, {
 			...definition,
+			provider: setup.provider,
 			model: setup.model,
 			instructions: setup.instructions,
 			updatedAt: setup.createdAt,
@@ -551,7 +559,7 @@ function builtinFields(builtin: JobBuiltin): BuiltinFields {
 		runsIn = 'workstream',
 		trigger = null,
 	} = BUILTIN_JOBS[builtin];
-	return { name, instructions, model, effort, runsIn, trigger };
+	return { name, instructions, provider: DEFAULT_PROVIDER_ID, model, effort, runsIn, trigger };
 }
 
 function defaultThen(db: MaliniDatabase, builtin: JobBuiltin): string | null {
@@ -572,6 +580,8 @@ function definitionFields(args: unknown): JobDefinitionFields {
 	if (instructions.length === 0 || instructions.length > JOB_INSTRUCTIONS_MAX_LENGTH) {
 		throw invalid(`\`instructions\` must be 1 to ${JOB_INSTRUCTIONS_MAX_LENGTH} characters`);
 	}
+	const provider = field(args, 'provider') ?? DEFAULT_PROVIDER_ID;
+	if (!isValidProviderId(provider)) throw invalid('`provider` must be a provider id');
 	const model = field(args, 'model');
 	if (!isValidAgentModel(model)) throw invalid('`model` must be a model id');
 	const effort = field(args, 'effort');
@@ -585,6 +595,7 @@ function definitionFields(args: unknown): JobDefinitionFields {
 	return {
 		name,
 		instructions,
+		provider,
 		model,
 		effort,
 		runsIn,
@@ -605,9 +616,11 @@ function experimentSetup(args: unknown): AutomaticJob {
 	if (instructions.length === 0 || instructions.length > JOB_INSTRUCTIONS_MAX_LENGTH) {
 		throw invalid(`\`instructions\` must be 1 to ${JOB_INSTRUCTIONS_MAX_LENGTH} characters`);
 	}
+	const provider = field(args, 'provider') ?? DEFAULT_PROVIDER_ID;
+	if (!isValidProviderId(provider)) throw invalid('`provider` must be a provider id');
 	const model = field(args, 'model');
 	if (!isValidAgentModel(model)) throw invalid('`model` must be a model id');
-	return { model, instructions };
+	return { provider, model, instructions };
 }
 
 async function triggerField(

@@ -314,6 +314,7 @@ function jobDefinition(
 		id,
 		name,
 		instructions: `Do ${name}.\nThen report.`,
+		provider: 'claude',
 		model: 'opus',
 		effort: 'high',
 		runsIn: 'workstream',
@@ -445,6 +446,7 @@ describe('platform requests from the agent', () => {
 					{
 						name: 'Ship notes',
 						instructions: 'Write.',
+						provider: 'claude',
 						model: 'opus',
 						effort: 'high',
 						runsIn: 'workstream',
@@ -459,6 +461,7 @@ describe('platform requests from the agent', () => {
 						id: 'job-2',
 						name: 'Triage',
 						instructions: 'Do Triage.\nThen report.',
+						provider: 'claude',
 						model: 'opus',
 						effort: 'low',
 						runsIn: 'workstream',

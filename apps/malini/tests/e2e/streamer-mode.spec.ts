@@ -35,7 +35,7 @@ test('streamer mode masks personal data on demand, and by itself while a streami
 			'true',
 		);
 		await streamerMode.getByRole('button', { name: 'Off' }).click();
-		await openSettings(page, '');
+		await openSettings(page, 'providers');
 		await expect(signedIn).toContainText('e2e@example.com');
 		await expect(reveal).toHaveCount(0);
 
@@ -46,12 +46,12 @@ test('streamer mode masks personal data on demand, and by itself while a streami
 			timeout: DETECTION_TIMEOUT_MS,
 		});
 		await captureFlow(app, 'streamer-mode-auto-detected');
-		await openSettings(page, '');
+		await openSettings(page, 'providers');
 		await expect(reveal).toBeVisible();
 
 		await openSettings(page, 'privacy');
 		await streamerMode.getByRole('button', { name: 'On' }).click();
-		await openSettings(page, '');
+		await openSettings(page, 'providers');
 		await page.reload();
 		await expect(reveal).toBeVisible();
 		await reveal.click();
@@ -158,7 +158,7 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 			{ useInnerText: true },
 		);
 
-		await openSettings(page, '');
+		await openSettings(page, 'providers');
 		const signedIn = page
 			.getByTestId('claude-code-setup')
 			.getByRole('list', { name: 'Claude accounts' })

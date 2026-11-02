@@ -11,6 +11,7 @@
 		MCP_SETTINGS_HREF,
 		MODEL_SETTINGS_HREF,
 		PROFILE_SETTINGS_HREF,
+		PROVIDER_SETTINGS_HREF,
 		SKILL_SETTINGS_HREF,
 	} from '$shared/router/routes-hrefs';
 	import { page } from '$shared/router/state';
@@ -25,6 +26,7 @@
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
 	import ProfileSection from './ProfileSection.svelte';
+	import ProvidersSection from './ProvidersSection.svelte';
 	import SecretsSection from './SecretsSection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
 	import SoundsSection from './SoundsSection.svelte';
@@ -45,6 +47,12 @@
 	};
 	const SECTIONS: readonly Section[] = [
 		ACCOUNTS,
+		{
+			href: PROVIDER_SETTINGS_HREF,
+			label: 'Providers',
+			icon: 'cube',
+			content: ProvidersSection,
+		},
 		{ href: MODEL_SETTINGS_HREF, label: 'Models', icon: 'brain', content: ModelsSection },
 		{
 			href: '/settings/agent-access',
