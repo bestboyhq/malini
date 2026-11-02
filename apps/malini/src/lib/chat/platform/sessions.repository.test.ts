@@ -320,7 +320,10 @@ describe('sessions', () => {
 	it('carries the profile of the latest kept run that recorded one', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, 'workstream-profile');
-		insertSession(db, session('session-job', 'workstream-profile'), { origin: 'job' });
+		insertSession(db, session('session-job', 'workstream-profile'), {
+			origin: 'job',
+			displayName: null,
+		});
 		const finished = (id: string, profile?: AgentRunProfile) =>
 			insertRun(db, {
 				id,
