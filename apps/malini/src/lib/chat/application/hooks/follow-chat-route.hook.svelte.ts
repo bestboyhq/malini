@@ -4,7 +4,9 @@ import { openWorkstreamChatCommand } from '$lib/chat/application/commands/open-w
 import { syncChatRouteCommand } from '$lib/chat/application/commands/sync-chat-route.command';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
+import { readNewChatSetup } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
+import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { closingChatsStore } from '$lib/chat/infrastructure/stores/closing-chats.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
@@ -50,6 +52,7 @@ export function followChatRouteHook(): () => void {
 		if (!chatRoute.stillTargets(workstreamId)) return;
 		if (chatSessionStore.suppressRouteActivation) return;
 		if (chatSessionStore.isPreparing(workstreamId)) return;
+		if (chatSessionStore.bootErrorLeftBehind()) chatSessionStore.bootError = null;
 		if (chatSessionStore.bootError) return;
 		if (
 			chatSessionStore.emptySessionMode === 'fresh' &&
@@ -67,6 +70,7 @@ export function followChatRouteHook(): () => void {
 				streamingStore.clearRun(sessionId);
 				chatSessionStore.sessionId = null;
 				chatSessionStore.emptySessionMode = 'fresh';
+				chatModelStore.show(readNewChatSetup(workstreamId));
 				sessionActivation.commitSessionlessPresentation(workstreamId);
 				chatSessionStore.bootError = null;
 				return;

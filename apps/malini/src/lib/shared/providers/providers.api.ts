@@ -70,6 +70,7 @@ export {
 	sameModelSelection,
 	selectionForRole,
 	type ChatModelSnapshot,
+	type ChatSetup,
 	type ModelPreferences,
 	type ModelRole,
 	type ModelSelection,

@@ -8,7 +8,6 @@ import { sessionActivation } from '$lib/chat/infrastructure/services/session-act
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
-import { roleForAgentMode } from '$shared/providers/providers.api';
 
 export { shipInForkCommand };
 
@@ -35,8 +34,7 @@ function shipInForkCommand(
 			);
 			const forked = await sessionActivation.mint({
 				workstreamId,
-				role: roleForAgentMode(profile.mode),
-				selection,
+				setup: { selection, profile },
 				activate: false,
 			});
 			submitPromptCommand({

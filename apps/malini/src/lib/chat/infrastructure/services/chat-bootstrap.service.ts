@@ -5,16 +5,12 @@ import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-que
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { chatBootstrapTelemetry } from '$lib/chat/infrastructure/services/chat-bootstrap-telemetry.service';
 import { chatRouteSync } from '$lib/chat/infrastructure/services/chat-route-sync.service';
-import {
-	readStoredRunProfile,
-	hasStoredRunProfile,
-} from '$lib/chat/infrastructure/services/model-preferences.storage';
+import { readNewChatSetup } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { promptDelivery } from '$lib/chat/infrastructure/services/prompt-delivery.service';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
-import { roleForAgentMode, selectionForRole } from '$shared/providers/providers.api';
 
 class ChatBootstrapService {
 	readonly #running = new Map<string, Promise<void>>();
@@ -38,11 +34,6 @@ class ChatBootstrapService {
 
 	async #bootstrap(workstreamId: string, seq: number, exactSessionId?: SessionId): Promise<void> {
 		if (!workstreamId) return;
-		const rememberedModels = chatModelStore.loadRememberedModels();
-		const hadStoredProfile = hasStoredRunProfile(workstreamId);
-		const storedProfile = readStoredRunProfile(workstreamId);
-		const nextRole = roleForAgentMode(storedProfile.mode);
-		const nextSelection = selectionForRole(rememberedModels, nextRole);
 		if (seq !== chatSessionStore.bootstrapSeq || chatRoute.workstreamId !== workstreamId) {
 			return;
 		}
@@ -51,13 +42,7 @@ class ChatBootstrapService {
 			chatRoute.readSessionParam() ??
 			sessionsAggregate.cachedSessionFor(workstreamId, null);
 		const selection = chatSessionStore.beginSelection(workstreamId, requestedSessionId);
-		chatModelStore.selection = nextSelection;
-		chatModelStore.profile = {
-			mode: nextRole === 'planning' ? 'plan' : 'agent',
-			effort: storedProfile.effort,
-			access: storedProfile.access,
-			report: storedProfile.report,
-		};
+		chatModelStore.show(readNewChatSetup(workstreamId));
 		try {
 			const refreshed = await sessionActivation.awaitCurrentSelection(
 				selection,
@@ -110,20 +95,6 @@ class ChatBootstrapService {
 				!chatSessionStore.isCurrentSelection(selection)
 			) {
 				return;
-			}
-			if (
-				hadStoredProfile &&
-				chatModelStore.userChoices === selection.userChoices &&
-				roleForAgentMode(chatModelStore.profile.mode) !== nextRole
-			) {
-				chatModelStore.selection = nextSelection;
-				chatModelStore.profile = {
-					mode: nextRole === 'planning' ? 'plan' : 'agent',
-					effort: storedProfile.effort,
-					access: storedProfile.access,
-					report: storedProfile.report,
-				};
-				chatSessionStore.createFreshSessionOnNextPrompt = true;
 			}
 			chatSessionStore.bootError = null;
 			promptDelivery.scheduleDrain(workstreamId);

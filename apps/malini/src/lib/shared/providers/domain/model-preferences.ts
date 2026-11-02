@@ -12,6 +12,7 @@ import {
 	providerForModel,
 	type ProviderModelSource,
 } from './provider';
+import type { AgentRunProfile } from './run-profile';
 
 export type ModelRole = 'planning' | 'implementation';
 
@@ -28,6 +29,11 @@ export type ModelPreferences = {
 export type ChatModelSnapshot = {
 	role: ModelRole;
 	selection: ModelSelection;
+};
+
+export type ChatSetup = {
+	selection: ModelSelection;
+	profile: AgentRunProfile;
 };
 
 export const DEFAULT_MODEL_PREFERENCES: ModelPreferences = {
