@@ -18,7 +18,8 @@
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
 	import ThinkingRow from './ThinkingRow.svelte';
-	import ContextHandoffDivider from './ContextHandoffDivider.svelte';
+	import TranscriptDivider from './TranscriptDivider.svelte';
+	import { continuationNotice } from './run-stop-copy';
 	import { blockKey } from './streaming-finalization';
 	import { transcriptContext } from './transcript-context';
 
@@ -45,6 +46,7 @@
 		item.kind === 'assistant' ? timelineKey(run, item.contentId ?? item.key) : null,
 	);
 	const codeRuns = $derived(message === null ? undefined : shellRunsQuery.data(message));
+	const continuation = $derived(item.kind === 'user' ? continuationNotice(item.text) : null);
 
 	function runCommand(command: string, block: number): void {
 		if (message === null) return;
@@ -57,7 +59,11 @@
 	}
 </script>
 
-{#if item.kind === 'user'}
+{#if item.kind === 'user' && continuation !== null}
+	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>
+		<TranscriptDivider label={continuation} kind="continuation" />
+	</div>
+{:else if item.kind === 'user'}
 	<ChatPromptBubble {item} {run} {isLastRun} />
 {:else if item.kind === 'thought'}
 	<ThinkingRow
@@ -151,7 +157,7 @@
 	</div>
 {:else if item.kind === 'handoff'}
 	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>
-		<ContextHandoffDivider />
+		<TranscriptDivider label="Context full, handed off to a fresh run" kind="handoff" />
 	</div>
 {:else if item.kind === 'tool'}
 	<ChatToolRow {item} {run} />

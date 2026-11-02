@@ -1,6 +1,6 @@
 # 0115 - Dogfood holds an update while an agent is mid-turn
 
-Status: accepted
+Status: superseded by 0153
 
 ## Context
 

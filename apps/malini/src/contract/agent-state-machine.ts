@@ -104,6 +104,17 @@ export const CONTINUE_AFTER_PAUSE_PROMPT =
 export const CONTINUE_AFTER_STOP_PROMPT =
 	"A usage limit or an error from Claude's API cut your last step short, and it is over now. Nobody rejected it: re-run whatever was interrupted and continue where you left off.";
 
+export type ContinuationCause = 'restart' | 'outage';
+
+const CONTINUATIONS = new Map<string, ContinuationCause>([
+	[CONTINUE_AFTER_PAUSE_PROMPT.toLowerCase(), 'restart'],
+	[CONTINUE_AFTER_STOP_PROMPT.toLowerCase(), 'outage'],
+]);
+
+export function continuationCause(prompt: string): ContinuationCause | null {
+	return CONTINUATIONS.get(prompt.trim().toLowerCase()) ?? null;
+}
+
 export function isCancellationError(error: string): boolean {
 	return /\bcancell?ed\b/iu.test(error) || error === PAUSED_FOR_EXIT_ERROR;
 }

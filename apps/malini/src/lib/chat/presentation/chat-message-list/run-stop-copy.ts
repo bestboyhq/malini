@@ -1,4 +1,5 @@
 import type { RunFailureKind } from '$contract/agent';
+import { continuationCause, type ContinuationCause } from '$contract/agent-state-machine';
 import { scheduleTime } from '$contract/automation-trigger';
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
@@ -18,6 +19,11 @@ const STOP_REASONS: Readonly<Record<RunFailureKind, string>> = {
 	billing: 'Your Claude plan or billing stopped the turn.',
 	model: 'The model is not available to your account.',
 	request: 'Claude could not take the request.',
+};
+
+const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, string>> = {
+	restart: 'Malini restarted, continuing',
+	outage: 'Claude is back, continuing',
 };
 
 const RETRIED = 'Malini stopped trying again.';
@@ -50,6 +56,11 @@ export function pauseReason(kind: RunFailureKind): string {
 
 export function failedRunNextStep(kind: RunFailureKind): string | null {
 	return NEXT_STEPS[kind];
+}
+
+export function continuationNotice(prompt: string): string | null {
+	const cause = continuationCause(prompt);
+	return cause === null ? null : CONTINUATION_NOTICES[cause];
 }
 
 function startOfDay(date: Date): number {
