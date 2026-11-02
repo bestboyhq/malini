@@ -29,8 +29,7 @@ function forkToNewChatCommand(
 			);
 			const forked = await sessionActivation.mint({
 				workstreamId,
-				role: chatModelStore.profile.mode === 'plan' ? 'planning' : 'implementation',
-				selection: chatModelStore.currentSelection(),
+				setup: chatModelStore.setup(),
 				activate: false,
 			});
 			const forkedScope = agentDraftScopeKey(workstreamId, forked);

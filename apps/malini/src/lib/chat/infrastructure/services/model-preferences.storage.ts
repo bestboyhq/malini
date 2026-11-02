@@ -2,86 +2,97 @@ import {
 	DEFAULT_AGENT_RUN_PROFILE,
 	DEFAULT_MODEL_PREFERENCES,
 	agentAccessDefaultQuery,
-	normalizeAgentRunProfile,
 	cloneModelSelection,
+	isValidAgentAccess,
 	isValidModelSelection,
-	normalizeModelPreferences,
+	modelDefaultsQuery,
+	normalizeAgentRunProfile,
 	normalizeModelSelection,
-	type AgentRunProfile,
+	roleForAgentMode,
+	type AgentAccess,
 	type ChatModelSnapshot,
-	type ModelPreferences,
+	type ChatSetup,
 } from '$shared/providers/providers.api';
 
 type ModelPreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
-export const MODEL_MEMORY_KEY = 'malini.chat.model-memory:v2';
+export const NEW_CHAT_SETUP_KEY = 'malini.chat.new-chat-setup:v1';
+const CHAT_SETUP_PREFIX = 'malini.chat.setup:v1:';
 const CHAT_SNAPSHOT_PREFIX = 'malini.chat.chat-model:v1:';
 const WORKSTREAM_PROFILE_PREFIX = 'malini.chat.profile:';
-export const LAST_EFFORT_KEY = 'malini.chat.last-effort:v1';
-const LAST_REPORT_KEY = 'malini.chat.last-report:v1';
+const LEGACY_MODEL_MEMORY_KEY = 'malini.chat.model-memory:v2';
+const LEGACY_EFFORT_KEY = 'malini.chat.last-effort:v1';
+const LEGACY_REPORT_KEY = 'malini.chat.last-report:v1';
 
-export function readStoredRunProfile(
+export function readNewChatSetup(
 	workstreamId: string,
 	storage: ModelPreferenceStorage | null = browserStorage(),
-): AgentRunProfile {
-	const access = agentAccessDefaultQuery.data;
-	const stored = normalizeAgentRunProfile(
-		readJson(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`, storage),
+): ChatSetup {
+	const access = workstreamAccess(workstreamId, storage);
+	const last = readJson(NEW_CHAT_SETUP_KEY, storage);
+	const lastProfile = isRecord(last)
+		? last.profile
+		: {
+				...DEFAULT_AGENT_RUN_PROFILE,
+				effort: readJson(LEGACY_EFFORT_KEY, storage) ?? DEFAULT_AGENT_RUN_PROFILE.effort,
+				report: readJson(LEGACY_REPORT_KEY, storage),
+			};
+	const profile = normalizeAgentRunProfile(
+		isRecord(lastProfile) ? { ...lastProfile, access } : null,
 		access,
+	) ?? { ...DEFAULT_AGENT_RUN_PROFILE, access };
+	const role = roleForAgentMode(profile.mode);
+	const legacyModels = readJson(LEGACY_MODEL_MEMORY_KEY, storage);
+	const selection = normalizeModelSelection(
+		isRecord(last) ? last.selection : isRecord(legacyModels) ? legacyModels[role] : null,
+		modelDefaultsQuery.data[role],
 	);
-	if (stored) return stored;
-	const fresh = { ...DEFAULT_AGENT_RUN_PROFILE, access };
-	const withEffort =
-		normalizeAgentRunProfile({ ...fresh, effort: readJson(LAST_EFFORT_KEY, storage) }, access) ??
-		fresh;
-	return (
-		normalizeAgentRunProfile(
-			{ ...withEffort, report: readJson(LAST_REPORT_KEY, storage) },
-			access,
-		) ?? withEffort
-	);
+	return { selection, profile };
 }
 
-export function hasStoredRunProfile(workstreamId: string): boolean {
-	try {
-		return globalThis.localStorage?.getItem(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`) !== null;
-	} catch {
-		return false;
-	}
-}
-
-export function writeStoredRunProfile(
+export function rememberNewChatSetup(
 	workstreamId: string,
-	profile: AgentRunProfile,
+	setup: ChatSetup,
 	storage: ModelPreferenceStorage | null = browserStorage(),
 ): void {
-	writeJson(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`, profile, storage);
-	writeJson(LAST_EFFORT_KEY, profile.effort, storage);
-	writeJson(LAST_REPORT_KEY, profile.report, storage);
+	writeJson(NEW_CHAT_SETUP_KEY, setup, storage);
+	writeJson(
+		`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`,
+		{ access: setup.profile.access },
+		storage,
+	);
+}
+
+export function rememberChatPick(
+	workstreamId: string,
+	sessionId: string | null,
+	setup: ChatSetup,
+	storage: ModelPreferenceStorage | null = browserStorage(),
+): void {
+	if (sessionId) writeChatSetup(sessionId, setup, storage);
+	rememberNewChatSetup(workstreamId, setup, storage);
+}
+
+export function readChatSetup(
+	sessionId: string,
+	storage: ModelPreferenceStorage | null = browserStorage(),
+): ChatSetup | null {
+	const parsed = readJson(`${CHAT_SETUP_PREFIX}${sessionId}`, storage);
+	if (!isRecord(parsed) || !isValidModelSelection(parsed.selection)) return null;
+	const profile = normalizeAgentRunProfile(parsed.profile, agentAccessDefaultQuery.data);
+	return profile ? { selection: cloneModelSelection(parsed.selection), profile } : null;
+}
+
+export function writeChatSetup(
+	sessionId: string,
+	setup: ChatSetup,
+	storage: ModelPreferenceStorage | null = browserStorage(),
+): void {
+	writeJson(`${CHAT_SETUP_PREFIX}${sessionId}`, setup, storage);
 }
 
 export function chatModelSnapshotKey(sessionId: string): string {
 	return `${CHAT_SNAPSHOT_PREFIX}${sessionId}`;
-}
-
-export function readModelMemory(
-	defaults: ModelPreferences,
-	storage: ModelPreferenceStorage | null = browserStorage(),
-): ModelPreferences {
-	return normalizeModelPreferences(
-		readJson(MODEL_MEMORY_KEY, storage),
-		normalizeModelPreferences(defaults, DEFAULT_MODEL_PREFERENCES),
-	);
-}
-
-export function writeModelMemory(
-	preferences: ModelPreferences,
-	defaults: ModelPreferences = DEFAULT_MODEL_PREFERENCES,
-	storage: ModelPreferenceStorage | null = browserStorage(),
-): ModelPreferences {
-	const normalized = normalizeModelPreferences(preferences, defaults);
-	writeJson(MODEL_MEMORY_KEY, normalized, storage);
-	return normalized;
 }
 
 export function readChatModelSnapshot(
@@ -111,6 +122,16 @@ export function writeChatModelSnapshot(
 	};
 	writeJson(chatModelSnapshotKey(sessionId), normalized, storage);
 	return normalized;
+}
+
+function workstreamAccess(
+	workstreamId: string,
+	storage: ModelPreferenceStorage | null,
+): AgentAccess {
+	const stored = readJson(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`, storage);
+	return isRecord(stored) && isValidAgentAccess(stored.access)
+		? stored.access
+		: agentAccessDefaultQuery.data;
 }
 
 function readJson(key: string, storage: ModelPreferenceStorage | null): unknown {

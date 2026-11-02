@@ -18,10 +18,13 @@ import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.
 import { chatBootstrapTelemetry } from '$lib/chat/infrastructure/services/chat-bootstrap-telemetry.service';
 import { chatRouteSync } from '$lib/chat/infrastructure/services/chat-route-sync.service';
 import { chatSessionChanges } from '$lib/chat/infrastructure/services/chat-session-changes.service';
+import { chatOccupancy } from '$lib/chat/infrastructure/services/chat-occupancy.service';
 import {
 	readChatModelSnapshot,
-	readStoredRunProfile,
+	readChatSetup,
+	readNewChatSetup,
 	writeChatModelSnapshot,
+	writeChatSetup,
 } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
@@ -31,9 +34,8 @@ import {
 	isValidAgentModel,
 	roleForAgentMode,
 	sameModelSelection,
-	type AgentRunProfile,
+	type ChatSetup,
 	type ModelRole,
-	type ModelSelection,
 } from '$shared/providers/providers.api';
 
 class SessionActivationService {
@@ -158,57 +160,34 @@ class SessionActivationService {
 		});
 	}
 
-	#selectionFor(
+	#setupFor(
 		sessionId: SessionId,
 		workstreamId: string,
 		record: SessionRecord,
-	): Readonly<{
-		selection: ModelSelection;
-		role: ModelRole;
-		profile: AgentRunProfile;
-		remembered: boolean;
-	}> {
-		const nextSelection = chatModelStore.selectionForSession(record);
-		const storedProfile = readStoredRunProfile(workstreamId);
+	): Readonly<{ setup: ChatSetup; sessionRole: ModelRole; remembered: boolean }> {
+		const own = chatModelStore.selectionForSession(record);
 		const snapshot = readChatModelSnapshot(sessionId);
-		const remembered = snapshot !== null && sameModelSelection(snapshot.selection, nextSelection);
-		const planning = sameModelSelection(nextSelection, chatModelStore.rememberedModels.planning);
-		const implementation = sameModelSelection(
-			nextSelection,
-			chatModelStore.rememberedModels.implementation,
-		);
-		const inferredRole: ModelRole =
-			planning === implementation
-				? roleForAgentMode(storedProfile.mode)
-				: planning
-					? 'planning'
-					: 'implementation';
-		const jobRan = record.origin === 'job' ? record.latestProfile : null;
-		const role = jobRan
-			? roleForAgentMode(jobRan.mode)
-			: snapshot && remembered
-				? snapshot.role
-				: inferredRole;
+		const remembered = snapshot !== null && sameModelSelection(snapshot.selection, own);
+		const kept = readChatSetup(sessionId);
+		const ran = record.latestProfile;
+		const fresh = readNewChatSetup(workstreamId).profile;
+		const profile = kept?.profile ?? (ran ? { ...fresh, effort: ran.effort } : fresh);
+		const sessionRole =
+			snapshot && remembered ? snapshot.role : roleForAgentMode((ran ?? profile).mode);
+		if (kept && !ran) return { setup: kept, sessionRole, remembered };
 		return {
-			selection: nextSelection,
-			role,
-			profile: {
-				mode: role === 'planning' ? 'plan' : 'agent',
-				effort: jobRan?.effort ?? storedProfile.effort,
-				access: storedProfile.access,
-				report: storedProfile.report,
+			setup: {
+				selection: own,
+				profile: { ...profile, mode: sessionRole === 'planning' ? 'plan' : 'agent' },
 			},
+			sessionRole,
 			remembered,
 		};
 	}
 
 	#previewSelection(sessionId: SessionId, workstreamId: string, record: SessionRecord): void {
-		const next = this.#selectionFor(sessionId, workstreamId, record);
-		chatModelStore.preview = {
-			sessionId,
-			selection: next.selection,
-			profile: next.profile,
-		};
+		const { setup } = this.#setupFor(sessionId, workstreamId, record);
+		chatModelStore.preview = { sessionId, selection: setup.selection, profile: setup.profile };
 	}
 
 	#commitSelection(
@@ -219,13 +198,19 @@ class SessionActivationService {
 	): void {
 		chatModelStore.preview = null;
 		if (chatModelStore.userChoices === request.userChoices) {
-			const next = this.#selectionFor(sessionId, workstreamId, record);
-			if (!next.remembered) {
-				writeChatModelSnapshot(sessionId, { role: next.role, selection: next.selection });
+			const { setup, sessionRole, remembered } = this.#setupFor(sessionId, workstreamId, record);
+			if (!remembered) {
+				writeChatModelSnapshot(sessionId, {
+					role: sessionRole,
+					selection: chatModelStore.selectionForSession(record),
+				});
 			}
-			chatModelStore.selection = next.selection;
-			chatModelStore.profile = next.profile;
-			chatSessionStore.createFreshSessionOnNextPrompt = false;
+			chatModelStore.show(setup);
+			chatSessionStore.createFreshSessionOnNextPrompt = chatOccupancy.freshSessionRequired(
+				sessionId,
+				roleForAgentMode(setup.profile.mode),
+				setup.selection,
+			);
 		}
 		chatSessionStore.sessionId = sessionId;
 		chatSessionStore.emptySessionMode = 'setup';
@@ -339,11 +324,12 @@ class SessionActivationService {
 
 	async mint(input: {
 		workstreamId: string;
-		role: ModelRole;
-		selection: ModelSelection;
+		setup: ChatSetup;
 		activate: boolean;
 	}): Promise<SessionId> {
-		const { workstreamId, role, selection } = input;
+		const { workstreamId, setup } = input;
+		const { selection } = setup;
+		const role = roleForAgentMode(setup.profile.mode);
 		if (!workstreamId) {
 			throw new Error('workstreamId missing in route params');
 		}
@@ -360,6 +346,7 @@ class SessionActivationService {
 			model: selection.model,
 		});
 		writeChatModelSnapshot(sessionId, { role, selection });
+		writeChatSetup(sessionId, setup);
 		if (previousSessionWasEmpty && previousSessionId && previousSessionId !== sessionId) {
 			try {
 				await agentSessions.archive(previousSessionId);
@@ -377,13 +364,7 @@ class SessionActivationService {
 		if (input.activate && chatRoute.isCurrentWorkstream(workstreamId)) {
 			chatSessionStore.suppressRouteActivation = true;
 			try {
-				chatModelStore.selection = selection;
-				chatModelStore.profile = {
-					mode: role === 'planning' ? 'plan' : 'agent',
-					effort: chatModelStore.profile.effort,
-					access: chatModelStore.profile.access,
-					report: chatModelStore.profile.report,
-				};
+				chatModelStore.show(setup);
 				chatSessionStore.sessionId = sessionId;
 				chatSessionStore.createFreshSessionOnNextPrompt = false;
 				chatSessionStore.emptySessionMode = 'setup';

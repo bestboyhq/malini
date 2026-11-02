@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	catalogModelLabel,
 	effortsForModel,
+	modelDescription,
 	modelLabel,
 	normalizeReasoningEffort,
 	pickerModels,
@@ -14,6 +15,17 @@ const catalog = [
 ] as const satisfies Parameters<typeof pickerModels>[0];
 
 describe('Claude Code model catalog', () => {
+	it("describes a model by its family in Malini's words, and keeps another model's own", () => {
+		const copyFor = (id: string, description = 'From the provider') =>
+			modelDescription({ id, label: id, description, efforts: [] });
+		expect(copyFor('opus')).toBe('Does the real work. Usually right');
+		expect(copyFor('opus[1m]')).toBe('Does the real work. Usually right');
+		expect(copyFor('claude-haiku-5-5')).toBe("Fast. Don't ask it to ponder");
+		expect(copyFor('deepseek-flash')).toBe('Quick, and it can see');
+		expect(copyFor('kimi-k3')).toBe('From the provider');
+		expect(copyFor('kimi-k3', '')).toBe('');
+	});
+
 	it('names aliases and full model ids the way people say them', () => {
 		expect(modelLabel('opus[1m]')).toBe('Opus 1M');
 		expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5');

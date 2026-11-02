@@ -12,6 +12,7 @@
 		isValidModelSelection,
 		modelAccess,
 		providerGroupsQuery,
+		type AgentReasoningEffort,
 		type ModelSelection,
 	} from '$shared/providers/providers.api';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
@@ -99,7 +100,7 @@
 		transcriptReferences?: AgentTranscriptReference[];
 		elementReferences?: AgentElementReference[];
 		oncancel?: () => void;
-		onbackendchange?: (selection: ModelSelection) => void;
+		onbackendchange?: (selection: ModelSelection, effort?: AgentReasoningEffort) => void;
 		onprofilechange?: (profile: AgentRunProfile) => void;
 		onattachmentschange?: (attachments: readonly AgentComposerFileAttachment[]) => void;
 	}
@@ -994,10 +995,6 @@
 		addMenuOpen = !addMenuOpen;
 	}
 
-	function selectBackend(nextSelection: ModelSelection): void {
-		onbackendchange?.(nextSelection);
-	}
-
 	const stopsRun = $derived(isRunning && prompt.trim() === '');
 	const queuesOnSend = $derived(isRunning && !stopsRun);
 	const submitTitle = $derived(
@@ -1285,8 +1282,9 @@
 				</Tooltip>
 				<ModelProfilePicker
 					{selection}
+					effort={profile.effort}
 					disabled={backendSelectionDisabled}
-					onchange={selectBackend}
+					onchange={(nextSelection, effort) => onbackendchange?.(nextSelection, effort)}
 				/>
 				<RunProfileControls
 					{selection}

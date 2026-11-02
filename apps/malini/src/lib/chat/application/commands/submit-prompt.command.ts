@@ -109,8 +109,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 			optimisticSessionId ??
 			(await sessionActivation.mint({
 				workstreamId,
-				role,
-				selection: requestedSelection,
+				setup: { selection: requestedSelection, profile: input.profile },
 				activate: chatRoute.workstreamId === workstreamId,
 			}));
 	} catch (error) {

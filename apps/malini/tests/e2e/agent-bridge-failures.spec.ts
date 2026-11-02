@@ -1,15 +1,18 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { DatabaseSync } from 'node:sqlite';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	startFreshChat,
 } from './harness';
 
 test('a prompt the agent refuses goes back into the composer, and the chat says so', async () => {
@@ -87,3 +90,62 @@ test('a chat whose agent session cannot start says so and takes the whole compos
 		await app.close();
 	}
 });
+
+test('a chat that cannot open keeps its error and its model to itself when you pick another chat', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ allowedDiagnostics: [/API key cannot be read/u] });
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-unreadable-key-ws', 'Key');
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		const failure = page.getByRole('alert').filter({ hasText: 'Agent session unavailable' });
+
+		await sendPrompt(page, 'EDIT:a.txt');
+		await expectAssistantReply(page);
+		const claudeChat = currentSessionId(page) ?? '';
+
+		await startFreshChat(page);
+		await picker.click();
+		await page
+			.locator(
+				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
+			)
+			.click();
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		await page.getByRole('textbox', { name: 'DeepSeek API key' }).fill('sk-e2e-deepseek');
+		await page.getByTestId('provider-connect-submit').click();
+		await expectAssistantReply(page);
+		const deepseekChat = currentSessionId(page) ?? '';
+		expect(deepseekChat).not.toBe(claudeChat);
+
+		const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+		try {
+			db.exec("UPDATE model_providers SET api_key = x'00' WHERE id = 'deepseek'");
+		} finally {
+			db.close();
+		}
+
+		await showChat(page, claudeChat);
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await showChat(page, deepseekChat);
+		await expect(failure).toContainText('The DeepSeek API key cannot be read', {
+			timeout: 20_000,
+		});
+
+		await showChat(page, claudeChat);
+		await expect(failure).toHaveCount(0, { timeout: 20_000 });
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toBeEnabled();
+		await captureFlow(app, 'agent-bridge-unreadable-key-left-behind');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+async function showChat(page: Page, sessionId: string): Promise<void> {
+	await page.locator(`[data-testid="chat-agent-tab"][data-session-id="${sessionId}"]`).click();
+	await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).toBe(sessionId);
+}

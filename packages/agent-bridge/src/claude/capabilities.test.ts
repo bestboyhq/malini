@@ -116,26 +116,42 @@ describe('probeClaudeCode', () => {
 			models: [
 				{
 					id: 'opus',
-					label: 'Opus',
-					description: 'Opus 5.5 · Best for everyday, complex tasks',
+					label: 'Opus 5.5',
+					description: 'Best for everyday, complex tasks',
 					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 				},
 				{
 					id: 'sonnet',
-					label: 'Sonnet',
-					description: 'Sonnet 5.5 · Efficient for routine tasks',
+					label: 'Sonnet 5.5',
+					description: 'Efficient for routine tasks',
 					efforts: ['low', 'medium', 'high', 'max'],
 				},
 				{
 					id: 'haiku',
-					label: 'Haiku',
-					description: 'Haiku 5.5 · Fastest for quick answers',
+					label: 'Haiku 5.5',
+					description: 'Fastest for quick answers',
 					efforts: [],
 				},
 			],
 			defaultModel: 'opus',
 			message: 'Signed in as ada@example.com',
 		});
+	});
+
+	it('keeps a name and description that do not lead with that model and its version', async () => {
+		const { options } = installed(SIGNED_IN, async () =>
+			initializeResponse([
+				{ value: 'fable', displayName: 'Fable 5.1', description: 'For the hardest tasks' },
+				{ value: 'opus', displayName: 'Opus', description: 'Sonnet 5.5 · Not this one' },
+			]),
+		);
+
+		const { models } = await probeClaudeCode(options);
+
+		expect(models.map(({ id, label, description }) => ({ id, label, description }))).toEqual([
+			{ id: 'fable', label: 'Fable 5.1', description: 'For the hardest tasks' },
+			{ id: 'opus', label: 'Opus', description: 'Sonnet 5.5 · Not this one' },
+		]);
 	});
 
 	it('reads the sign-in without the provider variables this Mac was launched with', async () => {

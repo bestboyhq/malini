@@ -4,7 +4,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { deleteProviderKeyCommand } from '$shared/providers/application/commands/delete-provider-key.command';
 	import { saveProviderKeyCommand } from '$shared/providers/application/commands/save-provider-key.command';
-	import type { AgentModelInfo } from '$shared/providers/domain/model-catalog';
+	import { modelDescription, type AgentModelInfo } from '$shared/providers/domain/model-catalog';
 	import ProviderIcon from './ProviderIcon.svelte';
 
 	interface Props {
@@ -118,7 +118,7 @@
 			{#each models as model (model.id)}
 				<li>
 					<span class="text-fg-secondary font-medium">{model.label}</span>
-					{model.description ? ` · ${model.description}` : ''}
+					{modelDescription(model) ? ` · ${modelDescription(model)}` : ''}
 				</li>
 			{/each}
 		</ul>

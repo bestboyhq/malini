@@ -7,7 +7,7 @@ import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svel
 class ChatSessionStore {
 	sessionId: SessionId | null = $state(null);
 	activatingSessionId: SessionId | null = $state(null);
-	bootError: string | null = $state(null);
+	#bootError: Readonly<{ message: string; chat: SessionId | null }> | null = $state.raw(null);
 	emptySessionMode: EmptySessionMode = $state('setup');
 	createFreshSessionOnNextPrompt: boolean = $state(false);
 	retryingSession: boolean = $state(false);
@@ -21,6 +21,18 @@ class ChatSessionStore {
 	activationFollowsRoute = false;
 	selectionGeneration = 0;
 	bootstrapSeq = 0;
+
+	get bootError(): string | null {
+		return this.#bootError?.message ?? null;
+	}
+
+	set bootError(message: string | null) {
+		this.#bootError = message === null ? null : { message, chat: chatRoute.requestedSessionId };
+	}
+
+	bootErrorLeftBehind(): boolean {
+		return this.#bootError !== null && this.#bootError.chat !== chatRoute.requestedSessionId;
+	}
 
 	beginSelection(
 		workstreamId: string,

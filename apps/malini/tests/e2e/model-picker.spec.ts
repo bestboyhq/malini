@@ -1,10 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
+	captureFlow,
 	createSourceRepo,
+	currentSessionId,
+	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	sendPrompt,
+	startFreshChat,
 } from './harness';
 
 test('the model picker is one button that opens and closes its list from the keyboard', async () => {
@@ -54,3 +59,150 @@ test('the model picker is one button that opens and closes its list from the key
 		await app.close();
 	}
 });
+
+test('every chat keeps its own model and effort, and a new chat starts with the ones you picked last', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-chat-setup-ws', 'Chat setup');
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		const effort = page.getByRole('button', { name: 'Reasoning effort' });
+
+		await pickEffort(page, 'Max');
+		const opusChat = await chatAbout(page, 'EDIT:a.txt');
+
+		await startFreshChat(page);
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('Max');
+		await pickModel(page, 'Sonnet');
+		await pickEffort(page, 'Low');
+		const sonnetChat = await chatAbout(page, 'EDIT:b.txt');
+		expect(sonnetChat).not.toBe(opusChat);
+
+		await showChat(page, opusChat);
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('Max');
+		await pickEffort(page, 'High');
+
+		await showChat(page, sonnetChat);
+		await expect(picker).toHaveAccessibleName('Model: Sonnet');
+		await expect(effort).toHaveText('Low');
+
+		await startFreshChat(page);
+		const freshChat = currentSessionId(page) ?? '';
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('High');
+
+		await showChat(page, opusChat);
+		await expect(effort).toHaveText('High');
+		await showChat(page, sonnetChat);
+		await expect(effort).toHaveText('Low');
+		await showChat(page, freshChat);
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('High');
+
+		await openWorkstream(page, workstreamId, sonnetChat);
+		await expect(picker).toHaveAccessibleName('Model: Sonnet', { timeout: 20_000 });
+		await expect(effort).toHaveText('Low');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a preset saves a model with its effort, and picking it sets both until you remove it', async () => {
+	test.setTimeout(150_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-model-presets-ws', 'Presets');
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		const effort = page.getByRole('button', { name: 'Reasoning effort' });
+		const models = page.getByRole('listbox', { name: 'Models' });
+		const presets = models.getByRole('group', { name: 'Presets' });
+		const opusMax = presets.getByRole('option', { name: 'Opus · Max' });
+		const sonnetLow = presets.getByRole('option', { name: 'Sonnet · Low' });
+
+		await pickEffort(page, 'Max');
+		await picker.click();
+		await expect(presets).toHaveCount(0);
+		await page.getByRole('button', { name: 'Save Opus · Max as a preset' }).click();
+		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await expect(page.getByRole('button', { name: 'Remove Opus · Max preset' })).toBeVisible();
+		await page.keyboard.press('Escape');
+
+		await pickModel(page, 'Sonnet');
+		await pickEffort(page, 'Low');
+		await picker.click();
+		await expect(opusMax).toHaveAttribute('aria-selected', 'false');
+		await page.getByRole('button', { name: 'Save Sonnet · Low as a preset' }).click();
+		await expect(sonnetLow).toHaveAttribute('aria-selected', 'true');
+		await captureFlow(app, 'model-presets-menu');
+		await opusMax.click();
+		await expect(models).toBeHidden();
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('Max');
+
+		await startFreshChat(page);
+		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(effort).toHaveText('Max');
+
+		await openWorkstream(page, workstreamId);
+		await picker.click();
+		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await sonnetLow.hover();
+		await presets.getByRole('button', { name: 'Remove Sonnet · Low' }).click();
+		await expect(sonnetLow).toHaveCount(0);
+		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await opusMax.focus();
+		await page.keyboard.press('ArrowDown');
+		await expect(presets.getByRole('button', { name: 'Remove Opus · Max' })).toBeFocused();
+		await page.getByRole('button', { name: 'Remove Opus · Max preset' }).click();
+		await expect(presets).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Save Opus · Max as a preset' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+async function chatAbout(page: Page, prompt: string): Promise<string> {
+	const before = currentSessionId(page);
+	await sendPrompt(page, prompt);
+	await expectAssistantReply(page);
+	await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBeNull();
+	await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(before);
+	return currentSessionId(page) ?? '';
+}
+
+async function showChat(page: Page, sessionId: string): Promise<void> {
+	await page.locator(`[data-testid="chat-agent-tab"][data-session-id="${sessionId}"]`).click();
+	await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).toBe(sessionId);
+}
+
+async function pickModel(page: Page, label: string): Promise<void> {
+	await page.getByRole('button', { name: /^Model: / }).click();
+	await page
+		.getByRole('listbox', { name: 'Models' })
+		.getByRole('group', { name: 'Models' })
+		.getByRole('option', { name: new RegExp(`^${label}`, 'u') })
+		.click();
+	await expect(page.getByRole('button', { name: /^Model: / })).toHaveAccessibleName(
+		`Model: ${label}`,
+	);
+}
+
+async function pickEffort(page: Page, label: string): Promise<void> {
+	const effort = page.getByRole('button', { name: 'Reasoning effort' });
+	await effort.click();
+	await page
+		.getByRole('listbox', { name: 'Reasoning effort levels' })
+		.getByRole('option', { name: label, exact: true })
+		.click();
+	await expect(effort).toHaveText(label);
+}
