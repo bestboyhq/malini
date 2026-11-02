@@ -21,6 +21,7 @@ export type PromptSubmission = PromptPayload &
 		workstreamId: string;
 		sessionId: SessionId | null;
 		forceFreshSession: boolean;
+		provider: string;
 		model: AgentModel;
 		profile: AgentRunProfile;
 		steer?: boolean;
@@ -34,6 +35,7 @@ export type PromptTurn = PromptPayload &
 		sessionId: SessionId | null;
 		forceFreshSession: boolean;
 		role: ModelRole;
+		provider: string;
 		model: AgentModel;
 		profile: AgentRunProfile;
 	}>;
@@ -43,6 +45,7 @@ export type PromptDispatch = PromptPayload &
 		workstreamId: string;
 		sessionId: SessionId;
 		role: ModelRole;
+		provider: string;
 		model: AgentModel;
 		profile: AgentRunProfile;
 		queueId?: string;

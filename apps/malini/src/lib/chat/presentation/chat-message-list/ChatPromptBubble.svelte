@@ -230,12 +230,12 @@
 					<div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
 						{#if controls}
 							<ModelProfilePicker
-								model={controls.model}
+								selection={controls.selection}
 								disabled={controls.backendSelectionDisabled || submitting}
 								onchange={controls.onbackendchange}
 							/>
 							<RunProfileControls
-								model={controls.model}
+								selection={controls.selection}
 								profile={controls.profile}
 								disabled={submitting}
 								onchange={controls.onprofilechange}

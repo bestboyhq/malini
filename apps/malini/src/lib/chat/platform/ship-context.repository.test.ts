@@ -21,6 +21,7 @@ function session(
 		{
 			id,
 			workstreamId: WORKSTREAM,
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'idle',

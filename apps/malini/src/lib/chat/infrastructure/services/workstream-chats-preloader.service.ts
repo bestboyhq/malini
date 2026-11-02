@@ -337,6 +337,7 @@ function hydrateSummaries(summaries: readonly ChatSessionSummary[]): void {
 			sessionId: summary.id,
 			workstreamId: summary.workstreamId,
 			displayName: summary.displayName,
+			provider: summary.provider,
 			model: summary.model,
 			status: summary.status,
 			startedAt: summary.startedAt,

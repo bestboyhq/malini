@@ -802,6 +802,11 @@ const recordPlugins = (entry) =>
 		nodePath.join(env.HOME || '/tmp', 'malini-plugins.jsonl'),
 		JSON.stringify(entry) + '\n',
 	);
+const recordSessionEnvironment = (entry) =>
+	fs.appendFileSync(
+		nodePath.join(env.HOME || '/tmp', 'malini-session-envs.jsonl'),
+		JSON.stringify(entry) + '\n',
+	);
 const STOPS = {
 	LIMIT_PAUSE: (seconds) => ({
 		error: "You've hit your session limit · resets 3pm",
@@ -1475,6 +1480,11 @@ const handle = (command) => {
 	switch (command.cmd) {
 		case 'start_session':
 			if (env.FAKE_BRIDGE_REJECT_START) return ack(command.id, env.FAKE_BRIDGE_REJECT_START);
+			recordSessionEnvironment({
+				sessionId: command.sessionId,
+				model: command.model ?? null,
+				env: command.env ?? {},
+			});
 			if (command.worktreePath) worktrees.set(command.sessionId, command.worktreePath);
 			event({
 				type: 'session.state',

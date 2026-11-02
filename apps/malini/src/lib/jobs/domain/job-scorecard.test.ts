@@ -9,7 +9,14 @@ function at(daysAgo: number, hour = 12): string {
 }
 
 function setup(id: string, daysAgo: number, expectedRate: number | null = null): JobSetupRecord {
-	return { id, model: 'haiku', instructions: id, expectedRate, createdAt: at(daysAgo, 1) };
+	return {
+		id,
+		provider: 'claude',
+		model: 'haiku',
+		instructions: id,
+		expectedRate,
+		createdAt: at(daysAgo, 1),
+	};
 }
 
 function output(setupId: string, daysAgo: number, name: string): JobOutputRecord {

@@ -13,6 +13,7 @@ const TITLE_LABEL = /^[\p{L}\s*_]*\b(?:name|label|title)[*_]*\s*:[*_\s]*/iu;
 export interface TitleJob {
 	readonly instructions: string;
 	readonly model: string;
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface TitleOptions {
@@ -36,7 +37,7 @@ export async function suggestClaudeTitle(
 				cwd: tmpdir(),
 				abortController,
 				pathToClaudeCodeExecutable: executable,
-				env: claudeEnvironment(),
+				env: claudeEnvironment(job.env),
 				model: job.model,
 				systemPrompt: job.instructions,
 				tools: [],

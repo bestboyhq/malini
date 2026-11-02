@@ -6,6 +6,7 @@ import {
 	cloneModelSelection,
 	isValidModelSelection,
 	normalizeModelPreferences,
+	normalizeModelSelection,
 	type AgentRunProfile,
 	type ChatModelSnapshot,
 	type ModelPreferences,
@@ -90,8 +91,10 @@ export function readChatModelSnapshot(
 	const parsed = readJson(chatModelSnapshotKey(sessionId), storage);
 	if (!isRecord(parsed)) return null;
 	if (parsed.role !== 'planning' && parsed.role !== 'implementation') return null;
-	if (!isValidModelSelection(parsed.selection)) return null;
-	return { role: parsed.role, selection: cloneModelSelection(parsed.selection) };
+	return {
+		role: parsed.role,
+		selection: normalizeModelSelection(parsed.selection, DEFAULT_MODEL_PREFERENCES[parsed.role]),
+	};
 }
 
 export function writeChatModelSnapshot(

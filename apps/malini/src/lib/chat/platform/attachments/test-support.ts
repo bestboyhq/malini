@@ -87,6 +87,7 @@ export function createAttachmentsTestContext(): AttachmentsTestContext {
 			insertSession(db, {
 				id: sessionId,
 				workstreamId,
+				provider: 'claude',
 				model: 'anthropic/claude-sonnet-4-6',
 				providerSessionId: null,
 				status: 'idle',

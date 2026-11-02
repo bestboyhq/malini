@@ -72,6 +72,7 @@ function job(name: string, trigger: JobTrigger | null): Promise<JobDefinitionRec
 	return context.commands.call('jobs.save-definition', {
 		name,
 		instructions: `${name}.`,
+		provider: 'claude',
 		model: 'opus',
 		effort: 'low',
 		runsIn: 'workstream',

@@ -15,6 +15,7 @@ export function seedInteractionContext(
 	insertSession(db, {
 		id: sessionId,
 		workstreamId,
+		provider: 'claude',
 		model: null,
 		providerSessionId: null,
 		status: 'waiting_for_approval',
@@ -65,6 +66,7 @@ export function seedChatSession(db: MaliniDatabase, sessionId: string, workstrea
 	insertSession(db, {
 		id: sessionId,
 		workstreamId,
+		provider: 'claude',
 		model: null,
 		providerSessionId: null,
 		status: 'idle',

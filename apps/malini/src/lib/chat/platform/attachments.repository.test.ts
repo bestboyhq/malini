@@ -59,6 +59,7 @@ describe('attachments', () => {
 		insertSession(db, {
 			id: 'session-att',
 			workstreamId: 'workstream-att',
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'idle',
@@ -181,6 +182,7 @@ describe('attachments', () => {
 		insertSession(db, {
 			id: 'session-att',
 			workstreamId: 'workstream-gc',
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'idle',

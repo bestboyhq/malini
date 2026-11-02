@@ -165,6 +165,7 @@ function schedule(when: string, mode: JobTrigger['mode'] = 'auto'): Promise<JobD
 	return context.commands.call('jobs.save-definition', {
 		name: 'Triage',
 		instructions: 'Triage what came in.',
+		provider: 'claude',
 		model: 'opus',
 		effort: 'low',
 		runsIn: 'workstream',

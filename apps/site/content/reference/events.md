@@ -799,6 +799,7 @@ type JobDefinitionRecord = Readonly<{
 	id: string;
 	name: string;
 	instructions: string;
+	provider: string;
 	model: string;
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
@@ -862,6 +863,7 @@ type JobExperimentRecord = Readonly<{
 	id: string;
 	definitionId: string;
 	name: string;
+	provider: string;
 	model: string;
 	instructions: string;
 	current: boolean;

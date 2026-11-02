@@ -52,7 +52,10 @@ class ChatOccupancyService {
 			workstreamId,
 			capturedSessionId: entry.targetSessionId,
 			forceFreshSession: entry.forceFreshSession,
-			candidates: this.submissionCandidates(entry.role, { model: entry.model }),
+			candidates: this.submissionCandidates(entry.role, {
+				provider: entry.provider,
+				model: entry.model,
+			}),
 		});
 	}
 

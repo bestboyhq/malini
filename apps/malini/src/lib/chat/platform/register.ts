@@ -24,6 +24,7 @@ import { stopBackgroundTask, stopWorkstreamBackgroundCommands } from './agent/co
 import type { AgentRunLeases } from './agent/lifecycle';
 import type { BridgeProcessFactory } from './agent/process';
 import { startAgentService, type AgentService, type BrowserAutomation } from './agent/service';
+import type { ResolveProviderEnvironment } from './agent/sessions';
 import { installAttachments, type WorkstreamCheckoutResolver } from './attachments/commands';
 import type { FilePicker } from './attachments/picker';
 import { isRecord } from '$main/db/rows';
@@ -51,6 +52,7 @@ export interface ChatDeps {
 	readonly extensions: Pick<ExtensionsPlatform, 'pluginFolders'>;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
+	readonly providerEnvironment: ResolveProviderEnvironment;
 	readonly claudeSettings: () => string;
 	readonly picker?: FilePicker;
 	readonly browser?: BrowserAutomation;
@@ -101,6 +103,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 	const agent: AgentService = await startAgentService(context, {
 		leases: deps.leases,
 		spawnEnvironment: deps.spawnEnvironment,
+		providerEnvironment: deps.providerEnvironment,
 		verifyAttachment: (stored, worktree) => verifyStagedFile(worktree, stored),
 		collectAttachmentGarbage: (workstreamId, worktree, now) => {
 			gcStaged(context.db, worktree, workstreamId, now);
@@ -155,8 +158,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		log: deps.log ?? (() => undefined),
 	});
 
-	const suggestTitle: SuggestWithJob = async (task, job) =>
-		(await agent.ensureReady()).suggestTitle(task, job);
+	const suggestTitle: SuggestWithJob = async (task, job) => {
+		const environment = await deps.providerEnvironment(job.provider, job.model);
+		return (await agent.ensureReady()).suggestTitle(task, job, environment);
+	};
 	let resumed = false;
 
 	return {
@@ -184,7 +189,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		nameService: (task) => runAutomaticJob(context.db, 'name-services', task, suggestTitle),
 		nameWorkstream: (task) => runAutomaticJob(context.db, 'name-chats', task, suggestTitle),
 		suggestTitle,
-		choose: async (task, job, choices) => (await agent.ensureReady()).choose(task, job, choices),
+		choose: async (task, job, choices) => {
+			const environment = await deps.providerEnvironment(job.provider, job.model);
+			return (await agent.ensureReady()).choose(task, job, choices, environment);
+		},
 		resume: async (event) => {
 			if (event.channel === JOBS_TIME_REACHED_CHANNEL) {
 				const paused = pausedRunReached(event.payload);

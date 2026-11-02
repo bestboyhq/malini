@@ -64,7 +64,8 @@ The [README](../README.md) has the short version.
 - **Queue or steer.** **↵** queues a prompt after the current run, **⌘↵** interrupts the turn and steers, while background commands keep running.
   Edit, reorder, or delete what's queued.
 - **Plan first.** Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
-- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku, from Low to Max effort.
+- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, from Low to Max effort.
+  Add a DeepSeek key in **Settings > Providers**.
 - **As much rope as you want to give.** **Auto**, the default, uses Claude Code's auto mode.
   **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else, and **Full access** never asks.
   Approve once, or always for the chat or the workstream.

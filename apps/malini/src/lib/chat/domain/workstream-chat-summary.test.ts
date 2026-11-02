@@ -20,6 +20,7 @@ const runningChat: SessionRecord = {
 	id: 'running-chat',
 	workstreamId: 'workstream-1',
 	displayName: 'Running chat',
+	provider: 'claude',
 	model: null,
 	status: 'running',
 	currentRunId: null,

@@ -90,6 +90,7 @@ export class JobExperiments {
 				id: randomUUID(),
 				definitionId: definition.id,
 				name: CURRENT_EXPERIMENT_NAME,
+				provider: definition.provider,
 				model: definition.model,
 				instructions: definition.instructions,
 				current: true,
@@ -126,6 +127,7 @@ export class JobExperiments {
 			id: randomUUID(),
 			definitionId: definition.id,
 			name: `Experiment ${number}`,
+			provider: setup.provider,
 			model: setup.model,
 			instructions: setup.instructions,
 			current: false,
@@ -174,6 +176,7 @@ export class JobExperiments {
 			definitionId: experiment.definitionId,
 			setup: {
 				id: randomUUID(),
+				provider: experiment.provider,
 				model: experiment.model,
 				instructions: experiment.instructions,
 				expectedRate: followed / sample.length,
@@ -226,7 +229,11 @@ export class JobExperiments {
 
 	async #replayAll(experiment: StoredJobExperiment): Promise<void> {
 		const { db, events } = this.#context;
-		const setup: AutomaticJob = { model: experiment.model, instructions: experiment.instructions };
+		const setup: AutomaticJob = {
+			provider: experiment.provider,
+			model: experiment.model,
+			instructions: experiment.instructions,
+		};
 		try {
 			const builtin = automaticBuiltinOf(db, experiment.definitionId);
 			const sample = listJobExperimentSample(db, experiment.definitionId);
@@ -281,7 +288,11 @@ export class JobExperiments {
 }
 
 function sameSetup(left: AutomaticJob, right: AutomaticJob): boolean {
-	return left.model === right.model && left.instructions === right.instructions;
+	return (
+		left.provider === right.provider &&
+		left.model === right.model &&
+		left.instructions === right.instructions
+	);
 }
 
 function automaticBuiltinOf(db: MainContext['db'], definitionId: string): AutomaticJobBuiltin {

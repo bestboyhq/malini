@@ -99,6 +99,7 @@ describe('job outputs and experiments', () => {
 
 		const experiment = await context.commands.call('jobs.save-experiment', {
 			definitionId: definition.id,
+			provider: 'claude',
 			model: 'sonnet',
 			instructions: definition.instructions,
 		});
@@ -150,6 +151,7 @@ describe('job outputs and experiments', () => {
 		).rejects.toThrow('Today is what the job runs now');
 		const draft = await context.commands.call('jobs.save-experiment', {
 			definitionId: definition.id,
+			provider: 'claude',
 			model: 'sonnet',
 			instructions: 'Name it.',
 		});
@@ -159,6 +161,7 @@ describe('job outputs and experiments', () => {
 		await expect(
 			context.commands.call('jobs.save-experiment', {
 				definitionId: definition.id,
+				provider: 'claude',
 				model: 'not a model!',
 				instructions: 'Name it.',
 			}),

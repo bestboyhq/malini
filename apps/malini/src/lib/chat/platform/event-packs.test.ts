@@ -35,6 +35,7 @@ function seedChat(db: MaliniDatabase, workstreamId: string, sessionId: string): 
 	insertSession(db, {
 		id: sessionId,
 		workstreamId,
+		provider: 'claude',
 		model: null,
 		providerSessionId: null,
 		status: 'idle',

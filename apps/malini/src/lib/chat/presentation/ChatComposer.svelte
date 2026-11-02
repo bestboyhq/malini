@@ -3,10 +3,12 @@
 	import { tick, untrack } from 'svelte';
 	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
+		CLAUDE_PROVIDER_ID,
+		DEFAULT_PROVIDER_ID,
 		claudeCodeStatusQuery,
 		defaultAgentModel,
-		isValidAgentModel,
-		type AgentModel,
+		isValidModelSelection,
+		type ModelSelection,
 	} from '$shared/providers/providers.api';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
 	import { resetFreshSubmissionIntentCommand } from '$lib/chat/application/commands/reset-fresh-submission-intent.command';
@@ -81,7 +83,7 @@
 
 	interface Props {
 		sessionId?: SessionId | null;
-		model: AgentModel;
+		selection: ModelSelection;
 		profile: AgentRunProfile;
 		envelopes?: readonly EventEnvelope[];
 		isRunning: boolean;
@@ -92,14 +94,14 @@
 		transcriptReferences?: AgentTranscriptReference[];
 		elementReferences?: AgentElementReference[];
 		oncancel?: () => void;
-		onbackendchange?: (model: AgentModel) => void;
+		onbackendchange?: (selection: ModelSelection) => void;
 		onprofilechange?: (profile: AgentRunProfile) => void;
 		onattachmentschange?: (attachments: readonly AgentComposerFileAttachment[]) => void;
 	}
 
 	let {
 		sessionId = null,
-		model = $bindable(),
+		selection,
 		profile,
 		envelopes = [],
 		isRunning,
@@ -167,7 +169,8 @@
 	let landOutgoingPrompt: (() => void) | null = null;
 	const claudeCodeStatus = $derived(claudeCodeStatusQuery.data);
 	const agentUsable = $derived(
-		claudeCodeStatus.kind !== 'missing' && claudeCodeStatus.kind !== 'signed-out',
+		claudeCodeStatus.kind !== 'missing' &&
+			(selection.provider !== CLAUDE_PROVIDER_ID || claudeCodeStatus.kind !== 'signed-out'),
 	);
 	let submissionError = $state<string | null>(null);
 	let contextOpen = $state(false);
@@ -759,7 +762,8 @@
 	}
 
 	type ComposerDelivery = Readonly<{
-		model: AgentModel;
+		provider: string;
+		model: string;
 		prompt: string;
 		workstreamId: string;
 		draftScope: string;
@@ -781,10 +785,12 @@
 		if (!trimmed) {
 			return;
 		}
-		const next = isValidAgentModel(model) ? model : defaultAgentModel();
-		model = next;
+		const next = isValidModelSelection(selection)
+			? selection
+			: { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
 		const submission: ComposerDelivery = {
-			model: next,
+			provider: next.provider,
+			model: next.model,
 			prompt,
 			workstreamId,
 			draftScope,
@@ -868,13 +874,14 @@
 		submitComposerPromptCommand({
 			draftScope: submission.draftScope,
 			draftPrompt: submission.prompt,
-			freshIntentKey: `${submission.workstreamId}:${submission.profile.mode}:${submission.model}`,
+			freshIntentKey: `${submission.workstreamId}:${submission.profile.mode}:${submission.provider}:${submission.model}`,
 			request: {
 				requestId: newChatRequestId(),
 				workstreamId: submission.workstreamId,
 				sessionId: submission.sessionId,
 				forceFreshSession: submission.forceFreshSession,
 				prompt: deliveredPrompt,
+				provider: submission.provider,
 				model: submission.model,
 				profile: submission.profile,
 				contextFiles: submission.contextFiles,
@@ -950,9 +957,8 @@
 		addMenuOpen = !addMenuOpen;
 	}
 
-	function selectBackend(nextModel: AgentModel): void {
-		model = nextModel;
-		onbackendchange?.(nextModel);
+	function selectBackend(nextSelection: ModelSelection): void {
+		onbackendchange?.(nextSelection);
 	}
 
 	const stopsRun = $derived(isRunning && prompt.trim() === '');
@@ -1230,9 +1236,13 @@
 						<Icon name="plus" size={16} />
 					</IconButton>
 				</Tooltip>
-				<ModelProfilePicker {model} disabled={backendSelectionDisabled} onchange={selectBackend} />
+				<ModelProfilePicker
+					{selection}
+					disabled={backendSelectionDisabled}
+					onchange={selectBackend}
+				/>
 				<RunProfileControls
-					{model}
+					{selection}
 					{profile}
 					{disabled}
 					onchange={(nextProfile) => onprofilechange?.(nextProfile)}

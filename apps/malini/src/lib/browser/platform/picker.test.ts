@@ -47,11 +47,17 @@ function scriptedPage(script: Script) {
 }
 
 const MODELS = [
-	{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
-	{ id: 'claude-opus-5-5', label: 'Opus 5.5' },
+	{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', provider: 'claude', providerName: 'Claude' },
+	{ id: 'claude-opus-5-5', label: 'Opus 5.5', provider: 'claude', providerName: 'Claude' },
 ];
-const REQUEST = { model: 'claude-sonnet-5-5', models: MODELS };
-const ASK = { kind: 'prompt', models: MODELS, model: 'claude-sonnet-5-5', error: null };
+const REQUEST = { provider: 'claude', model: 'claude-sonnet-5-5', models: MODELS };
+const ASK = {
+	kind: 'prompt',
+	models: MODELS,
+	provider: 'claude',
+	model: 'claude-sonnet-5-5',
+	error: null,
+};
 
 function threads(...outcomes: Array<string | Error>) {
 	const started: BrowserElementPrompt[] = [];
@@ -68,17 +74,24 @@ describe('pickElement', () => {
 	it('starts a thread with the prompt, the model, the element, its source, and a padded crop of it', async () => {
 		const { page, commands, captures } = scriptedPage({
 			selections: [SELECTION],
-			answers: [{ kind: 'send', prompt: '  Make it green  ', model: 'claude-opus-5-5' }],
+			answers: [
+				{ kind: 'send', prompt: '  Make it green  ', provider: 'claude', model: 'claude-opus-5-5' },
+			],
 			source: 'src/routes/pricing/+page.svelte:42:6',
 		});
 		const { started, start } = threads('session-1');
 
 		const picked = await pickElement(page, new AbortController().signal, REQUEST, start);
 
-		expect(picked).toEqual({ sessionId: 'session-1', model: 'claude-opus-5-5' });
+		expect(picked).toEqual({
+			sessionId: 'session-1',
+			provider: 'claude',
+			model: 'claude-opus-5-5',
+		});
 		expect(started).toEqual([
 			{
 				prompt: 'Make it green',
+				provider: 'claude',
 				model: 'claude-opus-5-5',
 				element: {
 					url: SELECTION.url,
@@ -101,15 +114,19 @@ describe('pickElement', () => {
 		const { page, commands } = scriptedPage({
 			selections: [SELECTION],
 			answers: [
-				{ kind: 'send', prompt: 'Bigger', model: 'claude-opus-5-5' },
-				{ kind: 'send', prompt: 'Bigger', model: 'claude-opus-5-5' },
+				{ kind: 'send', prompt: 'Bigger', provider: 'claude', model: 'claude-opus-5-5' },
+				{ kind: 'send', prompt: 'Bigger', provider: 'claude', model: 'claude-opus-5-5' },
 			],
 		});
 		const { started, start } = threads(new Error('Agent runtime unavailable'), 'session-2');
 
 		const picked = await pickElement(page, new AbortController().signal, REQUEST, start);
 
-		expect(picked).toEqual({ sessionId: 'session-2', model: 'claude-opus-5-5' });
+		expect(picked).toEqual({
+			sessionId: 'session-2',
+			provider: 'claude',
+			model: 'claude-opus-5-5',
+		});
 		expect(started).toHaveLength(2);
 		expect(commands).toEqual([
 			{ kind: 'select', reselect: false },
@@ -124,7 +141,7 @@ describe('pickElement', () => {
 			selections: [SELECTION, { ...SELECTION, domPath: 'main#app > h1' }],
 			answers: [
 				{ kind: 'reselect' },
-				{ kind: 'send', prompt: 'Bigger', model: 'claude-sonnet-5-5' },
+				{ kind: 'send', prompt: 'Bigger', provider: 'claude', model: 'claude-sonnet-5-5' },
 			],
 		});
 		const { started, start } = threads();
@@ -145,7 +162,7 @@ describe('pickElement', () => {
 	it('refuses a model malini did not offer', async () => {
 		const { page, commands } = scriptedPage({
 			selections: [SELECTION],
-			answers: [{ kind: 'send', prompt: 'Bigger', model: 'claude-other-1' }],
+			answers: [{ kind: 'send', prompt: 'Bigger', provider: 'claude', model: 'claude-other-1' }],
 		});
 		const { started, start } = threads();
 
@@ -194,7 +211,7 @@ describe('pickElement', () => {
 	it('drops a source location that is not one line', async () => {
 		const { page } = scriptedPage({
 			selections: [SELECTION],
-			answers: [{ kind: 'send', prompt: 'x', model: 'claude-sonnet-5-5' }],
+			answers: [{ kind: 'send', prompt: 'x', provider: 'claude', model: 'claude-sonnet-5-5' }],
 			source: 'src/a.svelte:1:1\nsrc/b.svelte:2:2',
 		});
 		const { started, start } = threads();

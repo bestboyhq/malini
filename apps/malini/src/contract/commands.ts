@@ -17,6 +17,7 @@ import type {
 	CheckpointRestoreRedoResult,
 	ClaudeAccountSwitchOutcome,
 	ClaudeSignInOutcome,
+	ModelProviderRecord,
 	ProviderCapability,
 	RestoreCheckpointResult,
 	StagedAgentAttachment,
@@ -189,9 +190,14 @@ export type ExtensionFileArgs = Readonly<{
 export type StartAgentSessionArgs = Readonly<{
 	workstreamId: string;
 	model?: string;
+	provider?: string;
 	origin?: AgentSessionOrigin;
 	displayName?: string;
 }>;
+
+export type ProviderKeyArgs = Readonly<{ providerId: string; apiKey: string }>;
+
+export type ProviderIdArgs = Readonly<{ providerId: string }>;
 
 export type StageForkTranscriptArgs = Readonly<{
 	workstreamId: string;
@@ -455,6 +461,9 @@ export interface ContractCommands {
 		result: ClaudeAccountSwitchOutcome;
 	};
 	'providers.cancel-claude-sign-in': { args: undefined; result: void };
+	'providers.list': { args: undefined; result: ModelProviderRecord[] };
+	'providers.save-key': { args: ProviderKeyArgs; result: void };
+	'providers.delete-key': { args: ProviderIdArgs; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
 	'chat.workstream-has-working-run': { args: WorkstreamIdArgs; result: boolean };
@@ -792,6 +801,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.sign-in-to-claude',
 	'providers.switch-claude-account',
 	'providers.cancel-claude-sign-in',
+	'providers.list',
+	'providers.save-key',
+	'providers.delete-key',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',
 	'chat.workstream-has-working-run',

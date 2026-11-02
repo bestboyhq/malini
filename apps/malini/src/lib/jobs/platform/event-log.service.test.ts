@@ -186,6 +186,7 @@ describe('the event log', () => {
 			{
 				id: 'chat-1',
 				workstreamId: 'ws-1',
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'running',
@@ -230,6 +231,7 @@ describe('the event log', () => {
 			{
 				id: 'chat-1',
 				workstreamId: 'ws-1',
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'idle',
@@ -306,6 +308,7 @@ describe('the event log', () => {
 			{
 				id: 'chat-1',
 				workstreamId: 'ws-1',
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'idle',
@@ -409,6 +412,7 @@ describe('the event log', () => {
 			{
 				id: 'job-chat',
 				workstreamId: 'ws-1',
+				provider: 'claude',
 				model: null,
 				providerSessionId: null,
 				status: 'idle',
@@ -443,6 +447,7 @@ describe('the event log', () => {
 		const definition = await context.commands.call('jobs.save-definition', {
 			name: 'Announce the merge',
 			instructions: 'Announce it.',
+			provider: 'claude',
 			model: 'opus',
 			effort: 'low',
 			runsIn: 'workstream',
@@ -520,6 +525,7 @@ describe('the event log', () => {
 			context.commands.call('jobs.save-definition', {
 				name,
 				instructions: 'Go.',
+				provider: 'claude',
 				model: 'opus',
 				effort: 'low',
 				runsIn: 'workstream',

@@ -42,6 +42,7 @@ beforeEach(() => {
 		insertSession(db, {
 			id: `${id}-chat`,
 			workstreamId: id,
+			provider: 'claude',
 			model: null,
 			providerSessionId: null,
 			status: 'idle',

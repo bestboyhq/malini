@@ -1,11 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Select, type SelectItem } from '$hyper-ui/components/select';
+	import { Select } from '$hyper-ui/components/select';
+	import { loadModelProvidersCommand } from '$shared/providers/application/commands/load-model-providers.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
-	import { modelCatalogQuery } from '$shared/providers/application/queries/model-catalog.query.svelte';
-	import { pickerModels } from '$shared/providers/domain/model-catalog';
-	import { isValidAgentModel } from '$shared/providers/domain/model-id';
-	import type { ModelPreferences, ModelRole } from '$shared/providers/domain/model-preferences';
+	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
+	import {
+		modelSelectionValue,
+		parseModelSelectionValue,
+		preferencesWithRoleSelection,
+		sameModelSelection,
+		type ModelPreferences,
+		type ModelRole,
+	} from '$shared/providers/domain/model-preferences';
+	import { providerSelectOptions } from './provider-select-options';
 
 	interface Props {
 		models: ModelPreferences;
@@ -27,17 +34,17 @@
 		},
 	];
 
-	const catalog = $derived(modelCatalogQuery.data);
+	const groups = $derived(providerGroupsQuery.data);
 
-	onMount(loadProviderCapabilitiesCommand);
+	onMount(() => {
+		loadProviderCapabilitiesCommand();
+		loadModelProvidersCommand();
+	});
 
-	function options(current: string): SelectItem[] {
-		return pickerModels(catalog, current).map((model) => ({ value: model.id, label: model.label }));
-	}
-
-	function select(role: ModelRole, model: string): void {
-		if (!isValidAgentModel(model) || model === models[role].model) return;
-		onchange({ ...models, [role]: { model } });
+	function select(role: ModelRole, value: string): void {
+		const selection = parseModelSelectionValue(value, models[role]);
+		if (sameModelSelection(selection, models[role])) return;
+		onchange(preferencesWithRoleSelection(models, role, selection));
 	}
 </script>
 
@@ -52,9 +59,9 @@
 			</div>
 			<Select
 				ariaLabel={label}
-				value={models[role].model}
-				options={options(models[role].model)}
-				onchange={(model) => select(role, model)}
+				value={modelSelectionValue(models[role])}
+				options={providerSelectOptions(groups, models[role])}
+				onchange={(value) => select(role, value)}
 				data-testid={`${role}-model`}
 			/>
 		</div>

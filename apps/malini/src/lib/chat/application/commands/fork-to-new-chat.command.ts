@@ -10,7 +10,6 @@ import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
-import { defaultAgentModel } from '$shared/providers/providers.api';
 
 export { forkToNewChatCommand };
 
@@ -31,7 +30,7 @@ function forkToNewChatCommand(
 			const forked = await sessionActivation.mint({
 				workstreamId,
 				role: chatModelStore.profile.mode === 'plan' ? 'planning' : 'implementation',
-				selection: { model: chatModelStore.model ?? defaultAgentModel() },
+				selection: chatModelStore.currentSelection(),
 				activate: false,
 			});
 			const forkedScope = agentDraftScopeKey(workstreamId, forked);

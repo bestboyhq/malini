@@ -1,11 +1,11 @@
 import {
 	DEFAULT_AGENT_RUN_PROFILE,
 	DEFAULT_MODEL_PREFERENCES,
+	DEFAULT_PROVIDER_ID,
 	defaultAgentModel,
 	isValidAgentModel,
 	modelDefaultsQuery,
 	preferencesWithRoleSelection,
-	type AgentModel,
 	type AgentRunProfile,
 	type ModelPreferences,
 	type ModelRole,
@@ -18,10 +18,13 @@ import {
 } from '$lib/chat/infrastructure/services/model-preferences.storage';
 
 class ChatModelStore {
-	model: AgentModel | null = $state(null);
+	selection: ModelSelection | null = $state(null);
 	profile: AgentRunProfile = $state({ ...DEFAULT_AGENT_RUN_PROFILE });
-	preview: Readonly<{ sessionId: SessionId; model: AgentModel; profile: AgentRunProfile }> | null =
-		$state.raw(null);
+	preview: Readonly<{
+		sessionId: SessionId;
+		selection: ModelSelection;
+		profile: AgentRunProfile;
+	}> | null = $state.raw(null);
 	userChoices = 0;
 
 	noteUserChoice(): void {
@@ -36,9 +39,15 @@ class ChatModelStore {
 		return sessionId !== null && this.preview?.sessionId === sessionId ? this.preview : null;
 	}
 
-	selectionForSession(record: { model: string | null }): ModelSelection {
-		if (isValidAgentModel(record.model)) return { model: record.model };
-		return { model: defaultAgentModel() };
+	currentSelection(): ModelSelection {
+		return this.selection ?? { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
+	}
+
+	selectionForSession(record: { provider: string | null; model: string | null }): ModelSelection {
+		if (isValidAgentModel(record.model)) {
+			return { provider: record.provider ?? DEFAULT_PROVIDER_ID, model: record.model };
+		}
+		return { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
 	}
 
 	loadRememberedModels(): ModelPreferences {
