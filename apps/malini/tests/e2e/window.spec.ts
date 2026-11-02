@@ -55,8 +55,8 @@ test('quitting waits on no store Chromium writes from a throttled background thr
 		await expect(app.page).toHaveTitle('Malini · Repositories');
 		await app.quit();
 		expect(
-			readdirSync(app.userDataDir).filter((name) =>
-				name.startsWith('declarative_performance_observer'),
+			readdirSync(app.userDataDir).filter(
+				(name) => name.startsWith('declarative_performance_observer') || name.startsWith('DIPS'),
 			),
 		).toEqual([]);
 	} finally {
