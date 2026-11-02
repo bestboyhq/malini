@@ -120,7 +120,15 @@ function seed(): void {
 function chat(id: string, workstreamId: string, displayName: string): void {
 	insertSession(
 		db,
-		{ id, workstreamId, provider: 'claude', model: null, providerSessionId: null, status: 'idle', startedAt: NOW },
+		{
+			id,
+			workstreamId,
+			provider: 'claude',
+			model: null,
+			providerSessionId: null,
+			status: 'idle',
+			startedAt: NOW,
+		},
 		{ origin: 'user', displayName },
 	);
 }

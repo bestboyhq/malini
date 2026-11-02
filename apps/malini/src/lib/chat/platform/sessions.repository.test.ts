@@ -263,6 +263,7 @@ describe('sessions', () => {
 			id: 'session-stale',
 			workstreamId: 'workstream-list',
 			displayName: 'New chat 4',
+			provider: 'claude',
 			model: 'anthropic/claude-sonnet-4-6',
 			status: 'idle',
 			startedAt: '2026-07-10T00:00:00Z',

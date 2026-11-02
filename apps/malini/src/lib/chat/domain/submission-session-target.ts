@@ -31,9 +31,9 @@ export function shouldForceFreshSessionAfterQueuedTurn(input: {
 	const previous = input.previousQueuedTurn;
 	return Boolean(
 		previous &&
-			(previous.role !== input.nextTurn.role ||
-				previous.provider !== input.nextTurn.provider ||
-				previous.model !== input.nextTurn.model),
+		(previous.role !== input.nextTurn.role ||
+			previous.provider !== input.nextTurn.provider ||
+			previous.model !== input.nextTurn.model),
 	);
 }
 

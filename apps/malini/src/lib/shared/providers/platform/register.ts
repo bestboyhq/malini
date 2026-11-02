@@ -91,7 +91,8 @@ function providerKeyArgs(args: unknown): Readonly<{ providerId: string; apiKey: 
 
 function providerIdArg(args: unknown): string {
 	const providerId = isRecord(args) ? args['providerId'] : undefined;
-	if (typeof providerId !== 'string') throw new Error('invalid args: `providerId` must be a string');
+	if (typeof providerId !== 'string')
+		throw new Error('invalid args: `providerId` must be a string');
 	return providerId;
 }
 

@@ -130,7 +130,10 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 ## Model and effort per prompt
 
-Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every prompt.
+Pick Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, and an effort from Low to Max, for every prompt.
+The picker groups models by provider.
+For DeepSeek, save an API key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
+DeepSeek V4 Pro is text only, and V4 Flash also reads images.
 
 ## Claude accounts
 

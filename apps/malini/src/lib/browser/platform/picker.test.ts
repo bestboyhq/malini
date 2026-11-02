@@ -74,14 +74,20 @@ describe('pickElement', () => {
 	it('starts a thread with the prompt, the model, the element, its source, and a padded crop of it', async () => {
 		const { page, commands, captures } = scriptedPage({
 			selections: [SELECTION],
-			answers: [{ kind: 'send', prompt: '  Make it green  ', provider: 'claude', model: 'claude-opus-5-5' }],
+			answers: [
+				{ kind: 'send', prompt: '  Make it green  ', provider: 'claude', model: 'claude-opus-5-5' },
+			],
 			source: 'src/routes/pricing/+page.svelte:42:6',
 		});
 		const { started, start } = threads('session-1');
 
 		const picked = await pickElement(page, new AbortController().signal, REQUEST, start);
 
-		expect(picked).toEqual({ sessionId: 'session-1', provider: 'claude', model: 'claude-opus-5-5' });
+		expect(picked).toEqual({
+			sessionId: 'session-1',
+			provider: 'claude',
+			model: 'claude-opus-5-5',
+		});
 		expect(started).toEqual([
 			{
 				prompt: 'Make it green',
@@ -116,7 +122,11 @@ describe('pickElement', () => {
 
 		const picked = await pickElement(page, new AbortController().signal, REQUEST, start);
 
-		expect(picked).toEqual({ sessionId: 'session-2', provider: 'claude', model: 'claude-opus-5-5' });
+		expect(picked).toEqual({
+			sessionId: 'session-2',
+			provider: 'claude',
+			model: 'claude-opus-5-5',
+		});
 		expect(started).toHaveLength(2);
 		expect(commands).toEqual([
 			{ kind: 'select', reselect: false },

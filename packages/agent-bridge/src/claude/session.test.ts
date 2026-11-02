@@ -1914,9 +1914,7 @@ describe('claudeEnvironment', () => {
 	} as const;
 
 	function withBootstrap(run: () => void): void {
-		const saved = new Map(
-			Object.keys(BOOTSTRAP).map((name) => [name, process.env[name]] as const),
-		);
+		const saved = new Map(Object.keys(BOOTSTRAP).map((name) => [name, process.env[name]] as const));
 		Object.assign(process.env, BOOTSTRAP);
 		try {
 			run();

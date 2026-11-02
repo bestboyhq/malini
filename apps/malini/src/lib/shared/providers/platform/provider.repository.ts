@@ -1,6 +1,6 @@
 import type { AgentModelInfo, ModelProviderKind } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
+import { all, get, isRecord, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 
 export interface StoredProvider {
 	id: string;
@@ -36,11 +36,7 @@ export function getStoredProvider(db: MaliniDatabase, id: string): StoredProvide
 	return row ? fromRow(row) : null;
 }
 
-export function setProviderKey(
-	db: MaliniDatabase,
-	id: string,
-	sealed: Uint8Array,
-): boolean {
+export function setProviderKey(db: MaliniDatabase, id: string, sealed: Uint8Array): boolean {
 	return (
 		run(
 			db,
@@ -79,15 +75,14 @@ function fromRow(row: ProviderRow): StoredProvider {
 }
 
 function isModelList(value: unknown): value is AgentModelInfo[] {
+	return Array.isArray(value) && value.every(isAgentModelInfo);
+}
+
+function isAgentModelInfo(value: unknown): value is AgentModelInfo {
 	return (
-		Array.isArray(value) &&
-		value.every(
-			(model) =>
-				typeof model === 'object' &&
-				model !== null &&
-				typeof (model as Record<string, unknown>)['id'] === 'string' &&
-				typeof (model as Record<string, unknown>)['label'] === 'string' &&
-				Array.isArray((model as Record<string, unknown>)['efforts']),
-		)
+		isRecord(value) &&
+		typeof value['id'] === 'string' &&
+		typeof value['label'] === 'string' &&
+		Array.isArray(value['efforts'])
 	);
 }

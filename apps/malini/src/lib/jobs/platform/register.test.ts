@@ -700,6 +700,7 @@ describe('scheduling', () => {
 		const { instructions } = await builtin('fix-checks');
 		expect(fakes.startSession).toHaveBeenCalledWith({
 			workstreamId: 'ws-a',
+			provider: 'claude',
 			model: 'opus',
 			origin: 'job',
 			displayName: 'Fix checks',

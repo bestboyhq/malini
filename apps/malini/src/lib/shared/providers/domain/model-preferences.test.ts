@@ -42,8 +42,9 @@ describe('model preferences', () => {
 	});
 
 	it('infers the provider of a selection stored without one', () => {
-		expect(normalizeModelSelection({ model: 'deepseek-v4-pro' }, DEFAULT_MODEL_PREFERENCES.planning))
-			.toEqual({ provider: DEEPSEEK_PROVIDER_ID, model: 'deepseek-v4-pro' });
+		expect(
+			normalizeModelSelection({ model: 'deepseek-v4-pro' }, DEFAULT_MODEL_PREFERENCES.planning),
+		).toEqual({ provider: DEEPSEEK_PROVIDER_ID, model: 'deepseek-v4-pro' });
 		expect(normalizeModelSelection({ model: 'opus' }, DEFAULT_MODEL_PREFERENCES.planning)).toEqual({
 			provider: 'claude',
 			model: 'opus',
@@ -65,8 +66,9 @@ describe('model preferences', () => {
 
 	it('round trips a selection through a select value', () => {
 		const selection = { provider: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODELS[0]?.id ?? '' };
-		expect(parseModelSelectionValue(modelSelectionValue(selection), DEFAULT_MODEL_PREFERENCES.planning))
-			.toEqual(selection);
+		expect(
+			parseModelSelectionValue(modelSelectionValue(selection), DEFAULT_MODEL_PREFERENCES.planning),
+		).toEqual(selection);
 		expect(parseModelSelectionValue('{broken', DEFAULT_MODEL_PREFERENCES.planning)).toEqual(
 			DEFAULT_MODEL_PREFERENCES.planning,
 		);
@@ -95,10 +97,17 @@ describe('model preferences', () => {
 			),
 		).toBe(true);
 		expect(
-			sameModelSelection({ provider: 'claude', model: 'opus' }, { provider: 'deepseek', model: 'opus' }),
+			sameModelSelection(
+				{ provider: 'claude', model: 'opus' },
+				{ provider: 'deepseek', model: 'opus' },
+			),
 		).toBe(false);
-		expect(sameModelSelection({ provider: 'claude', model: 'opus' }, { provider: 'claude', model: 'sonnet' }))
-			.toBe(false);
+		expect(
+			sameModelSelection(
+				{ provider: 'claude', model: 'opus' },
+				{ provider: 'claude', model: 'sonnet' },
+			),
+		).toBe(false);
 		expect(isValidModelSelection({ provider: 'claude', model: 'claude-opus-5-5' })).toBe(true);
 		expect(isValidModelSelection({ provider: 'claude', model: 'vendor/model-5' })).toBe(false);
 		expect(isValidModelSelection({ model: 'claude-opus-5-5' })).toBe(false);

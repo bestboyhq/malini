@@ -10,15 +10,17 @@ const INLINE_MODEL_KEY = 'malini.browser.inline-model:v1';
 
 type ModelStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
-export function readInlineModel(storage: ModelStorage | null = modelStorage()): ModelSelection | null {
+export function readInlineModel(
+	storage: ModelStorage | null = modelStorage(),
+): ModelSelection | null {
 	try {
 		const raw = storage?.getItem(INLINE_MODEL_KEY);
 		if (raw === null || raw === undefined) return null;
 		const parsed: unknown = JSON.parse(raw);
-		return normalizeModelSelection(
-			typeof parsed === 'string' ? { model: parsed } : parsed,
-			{ provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() },
-		);
+		return normalizeModelSelection(typeof parsed === 'string' ? { model: parsed } : parsed, {
+			provider: DEFAULT_PROVIDER_ID,
+			model: defaultAgentModel(),
+		});
 	} catch {
 		return null;
 	}

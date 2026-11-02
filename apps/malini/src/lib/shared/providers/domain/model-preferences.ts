@@ -59,10 +59,7 @@ export function modelSelectionValue(selection: ModelSelection): string {
 	return JSON.stringify({ provider: selection.provider, model: selection.model });
 }
 
-export function parseModelSelectionValue(
-	value: string,
-	fallback: ModelSelection,
-): ModelSelection {
+export function parseModelSelectionValue(value: string, fallback: ModelSelection): ModelSelection {
 	try {
 		const parsed: unknown = JSON.parse(value);
 		return normalizeModelSelection(parsed, fallback);

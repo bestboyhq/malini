@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
@@ -23,7 +24,27 @@ function sessionEnvironments(home: string): SessionEnvironment[] {
 	return readFileSync(path, 'utf8')
 		.split('\n')
 		.filter(Boolean)
-		.map((line) => JSON.parse(line) as SessionEnvironment);
+		.flatMap((line) => {
+			const entry = toSessionEnvironment(JSON.parse(line));
+			return entry === null ? [] : [entry];
+		});
+}
+
+function toSessionEnvironment(value: unknown): SessionEnvironment | null {
+	if (!isRecord(value)) return null;
+	const { sessionId, model, env } = value;
+	if (typeof sessionId !== 'string') return null;
+	if (model !== null && typeof model !== 'string') return null;
+	if (!isStringRecord(env)) return null;
+	return { sessionId, model, env };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+	return isRecord(value) && Object.values(value).every((entry) => typeof entry === 'string');
 }
 
 function claudeRuns(home: string): SessionEnvironment[] {
@@ -33,7 +54,9 @@ function claudeRuns(home: string): SessionEnvironment[] {
 async function chooseModel(page: Page, provider: string, model: string): Promise<void> {
 	await page.getByTestId('chat-composer-model').click();
 	await page
-		.locator(`[data-testid="chat-model-option"][data-provider="${provider}"][data-model="${model}"]`)
+		.locator(
+			`[data-testid="chat-model-option"][data-provider="${provider}"][data-model="${model}"]`,
+		)
 		.click();
 	await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 }
@@ -77,6 +100,7 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect(
 			page.locator('[data-testid="chat-model-option"][data-provider="claude"]'),
 		).toHaveCount(2);
+		await captureFlow(app, 'provider-models-picker');
 		await page
 			.locator(
 				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
@@ -88,9 +112,8 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect
 			.poll(
 				() =>
-					sessionEnvironments(app.home).find(
-						(entry) => entry.model === 'deepseek-v4-pro',
-					)?.env ?? null,
+					sessionEnvironments(app.home).find((entry) => entry.model === 'deepseek-v4-pro')?.env ??
+					null,
 			)
 			.toEqual({
 				ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
@@ -102,6 +125,7 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 				CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
 			});
 		await expectAssistantReply(page);
+		await captureFlow(app, 'provider-models-deepseek-run');
 
 		await page.reload();
 		await expect(page.getByRole('button', { name: 'Model: DeepSeek V4 Pro' })).toBeVisible({
@@ -116,6 +140,7 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			.toBeGreaterThan(before);
 		expect(claudeRuns(app.home).at(-1)?.env).toEqual({});
 		await expectAssistantReply(page);
+		await captureFlow(app, 'provider-models-claude-run');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

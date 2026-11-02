@@ -82,14 +82,10 @@ describe('ProviderKeys', () => {
 
 	it('refuses Claude, an unknown provider, and an empty key', async () => {
 		const providers = keys();
-		await expect(providers.save('claude', 'sk-test')).rejects.toThrow(
-			'Unknown provider `claude`',
-		);
+		await expect(providers.save('claude', 'sk-test')).rejects.toThrow('Unknown provider `claude`');
 		await expect(providers.save('missing', 'sk-test')).rejects.toThrow(
 			'Unknown provider `missing`',
 		);
-		await expect(providers.save('deepseek', '   ')).rejects.toThrow(
-			'The API key is not valid.',
-		);
+		await expect(providers.save('deepseek', '   ')).rejects.toThrow('The API key is not valid.');
 	});
 });

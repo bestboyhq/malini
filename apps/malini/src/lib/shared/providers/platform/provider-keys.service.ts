@@ -1,6 +1,10 @@
 import type { ModelProviderRecord } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
-import { CLAUDE_PROVIDER, CLAUDE_PROVIDER_ID, isValidProviderId } from '$shared/providers/domain/provider';
+import {
+	CLAUDE_PROVIDER,
+	CLAUDE_PROVIDER_ID,
+	isValidProviderId,
+} from '$shared/providers/domain/provider';
 import { providerEnvironment } from '$shared/providers/domain/provider-env';
 import type { SecretCipher } from './claude-accounts.service';
 import {

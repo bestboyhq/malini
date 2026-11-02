@@ -602,8 +602,7 @@ export async function activateAgentSession(
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
 	if (!worktreeExists(appDataRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
-	const environment =
-		model === null ? {} : await resolveProviderEnvironment(row.provider, model);
+	const environment = model === null ? {} : await resolveProviderEnvironment(row.provider, model);
 	const worktree = worktreePath(appDataRoot, row.workstream_id);
 	const supervisor = await runtime.ensureReady();
 	const command = startSessionCommand({

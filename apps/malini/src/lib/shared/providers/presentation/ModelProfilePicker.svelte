@@ -38,6 +38,9 @@
 	const signIn = $derived(claudeSignInQuery.data);
 	const signInProgress = $derived(claudeSignInProgress(signIn));
 	const setupNeeded = $derived(currentGroup !== null && !currentGroup.ready);
+	const setupName = $derived(
+		currentGroup?.id === CLAUDE_PROVIDER_ID ? 'Claude Code' : (currentGroup?.name ?? 'provider'),
+	);
 	const setupMessage = $derived(
 		currentGroup?.id !== CLAUDE_PROVIDER_ID
 			? `Add an API key for ${currentGroup?.name ?? 'this provider'}.`
@@ -88,7 +91,7 @@
 				variant="ghost"
 				size="auto"
 				active={open}
-				ariaLabel={`Model: ${selectedLabel}${setupNeeded ? `, ${currentGroup?.name ?? 'provider'} needs setup` : ''}`}
+				ariaLabel={`Model: ${selectedLabel}${setupNeeded ? `, ${setupName} needs setup` : ''}`}
 				ariaHasPopup="listbox"
 				ariaExpanded={open}
 				{disabled}
@@ -128,8 +131,7 @@
 						{group.name}
 					</div>
 					{#each group.models as option (option.id)}
-						{@const selected =
-							group.id === selection.provider && option.id === selection.model}
+						{@const selected = group.id === selection.provider && option.id === selection.model}
 						<DropdownItem
 							role="option"
 							aria-selected={selected}

@@ -51,7 +51,7 @@
 </script>
 
 <div
-	class="border-surface-50-border bg-surface-50 border-[0.5px] rounded-xl px-4 py-3.5"
+	class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-4 py-3.5"
 	data-testid={`provider-${providerId}`}
 	data-key-saved={keySaved}
 >
@@ -65,9 +65,7 @@
 		<div class="min-w-0 flex-1">
 			<h3 class="text-fg-default text-sm font-medium">{name}</h3>
 			<p class="text-fg-tertiary text-xs leading-5">
-				{keySaved
-					? 'API key saved on this Mac.'
-					: `Add an API key to use ${name} models.`}
+				{keySaved ? 'API key saved on this Mac.' : `Add an API key to use ${name} models.`}
 			</p>
 		</div>
 		{#if keySaved}

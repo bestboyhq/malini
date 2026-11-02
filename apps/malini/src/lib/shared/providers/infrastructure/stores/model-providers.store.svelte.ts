@@ -11,19 +11,20 @@ export class ModelProvidersStore {
 		return this.refresh();
 	}
 
-	refresh(): Promise<void> {
+	async refresh(): Promise<void> {
 		if (this.#inflight) return this.#inflight;
-		const operation = modelProvidersService
-			.list()
-			.then((providers) => {
-				this.providers = providers;
-				this.#loaded = true;
-			})
-			.finally(() => {
-				if (this.#inflight === operation) this.#inflight = null;
-			});
+		const operation = this.#reload();
 		this.#inflight = operation;
-		return operation;
+		try {
+			await operation;
+		} finally {
+			if (this.#inflight === operation) this.#inflight = null;
+		}
+	}
+
+	async #reload(): Promise<void> {
+		this.providers = await modelProvidersService.list();
+		this.#loaded = true;
 	}
 
 	replace(provider: ModelProviderRecord): void {

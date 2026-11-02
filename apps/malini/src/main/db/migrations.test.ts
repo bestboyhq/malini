@@ -159,23 +159,31 @@ describe('migrate', () => {
 				api_key: null,
 			},
 		]);
-		expect(JSON.parse(get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'deepseek'")?.models ?? '')).toEqual([
-				{
-					id: 'deepseek-v4-pro',
-					label: 'DeepSeek V4 Pro',
-					description: 'Text only, best for complex work',
-					efforts: ['low', 'high', 'max'],
-				},
-				{
-					id: 'deepseek-flash',
-					label: 'DeepSeek V4 Flash',
-					description: 'Text and images, faster',
-					efforts: ['low', 'high', 'max'],
-				},
-			]);
+		expect(
+			JSON.parse(
+				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'deepseek'")
+					?.models ?? '',
+			),
+		).toEqual([
+			{
+				id: 'deepseek-v4-pro',
+				label: 'DeepSeek V4 Pro',
+				description: 'Text only, best for complex work',
+				efforts: ['low', 'high', 'max'],
+			},
+			{
+				id: 'deepseek-flash',
+				label: 'DeepSeek V4 Flash',
+				description: 'Text and images, faster',
+				efforts: ['low', 'high', 'max'],
+			},
+		]);
 		for (const table of ['agent_sessions', 'job_definitions', 'job_setups', 'job_experiments']) {
 			expect(
-				all(db, `SELECT name, dflt_value FROM pragma_table_info('${table}') WHERE name = 'provider'`),
+				all(
+					db,
+					`SELECT name, dflt_value FROM pragma_table_info('${table}') WHERE name = 'provider'`,
+				),
 			).toEqual([{ name: 'provider', dflt_value: "'claude'" }]);
 		}
 		db.close();

@@ -7,8 +7,5 @@ export {
 	providerForModel,
 	type ProviderModelSource,
 } from './domain/provider';
-export {
-	providerEnvironment,
-	type ProviderEnvironmentInput,
-} from './domain/provider-env';
+export { providerEnvironment, type ProviderEnvironmentInput } from './domain/provider-env';
 export { ProviderKeys } from './platform/provider-keys.service';
