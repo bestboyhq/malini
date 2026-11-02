@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
+	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Icon } from '$hyper-ui/icons';
 	import {
 		allProviderModels,
@@ -138,36 +139,56 @@
 						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
 						{#each presets as preset (presetName(preset) + preset.selection.provider)}
 							{@const current = sameModelPreset(preset, currentPreset)}
-							<DropdownItem
-								role="option"
-								aria-selected={current}
-								aria-label={presetName(preset)}
-								checked={current}
-								class="gap-2.5"
-								data-testid="chat-model-preset"
-								onSelect={() => applyPreset(preset)}
-							>
-								<ProviderIcon
-									providerId={preset.selection.provider}
-									class="text-fg-secondary shrink-0"
-									size={13}
-								/>
-								<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
-									<span class="truncate leading-5">
-										{catalogModelLabel(catalog, preset.selection.model)}
-									</span>
-									{#if preset.effort}
-										<span class="text-fg-tertiary shrink-0 text-xs">
-											{reasoningEffortLabel(preset.effort)}
+							<div class="group/preset relative">
+								<DropdownItem
+									role="option"
+									aria-selected={current}
+									aria-label={presetName(preset)}
+									checked={current}
+									class="group-hover/preset:bg-surface-elevated-hover group-hover/preset:text-fg-default gap-2.5"
+									data-testid="chat-model-preset"
+									onSelect={() => applyPreset(preset)}
+								>
+									<ProviderIcon
+										providerId={preset.selection.provider}
+										class="text-fg-secondary shrink-0"
+										size={13}
+									/>
+									<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
+										<span class="truncate leading-5">
+											{catalogModelLabel(catalog, preset.selection.model)}
 										</span>
-									{/if}
-								</span>
-								<Icon
-									name={current ? 'check' : 'arrow-right'}
-									class={['shrink-0', current ? 'text-fg-default' : 'text-fg-tertiary']}
-									size={14}
-								/>
-							</DropdownItem>
+										{#if preset.effort}
+											<span class="text-fg-tertiary shrink-0 text-xs">
+												{reasoningEffortLabel(preset.effort)}
+											</span>
+										{/if}
+									</span>
+									<Icon
+										name={current ? 'check' : 'arrow-right'}
+										class={[
+											'shrink-0',
+											current
+												? 'text-fg-default'
+												: 'text-fg-tertiary group-hover/preset:invisible group-has-focus-visible/preset:invisible',
+										]}
+										size={14}
+									/>
+								</DropdownItem>
+								<IconButton
+									variant="ghost"
+									size="xs"
+									class={[
+										'pointer-events-none absolute top-1/2 -translate-y-1/2 opacity-0 transition-none group-hover/preset:pointer-events-auto group-hover/preset:opacity-100 group-has-focus-visible/preset:pointer-events-auto group-has-focus-visible/preset:opacity-100',
+										current ? 'right-7' : 'right-1.5',
+									]}
+									ariaLabel={`Remove ${presetName(preset)}`}
+									data-testid="chat-model-preset-remove"
+									onclick={() => toggleModelPresetCommand(preset)}
+								>
+									<Icon name="close" size={12} />
+								</IconButton>
+							</div>
 						{/each}
 					</div>
 					<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>

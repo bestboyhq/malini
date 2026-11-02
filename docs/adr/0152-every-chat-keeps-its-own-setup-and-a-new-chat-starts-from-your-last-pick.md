@@ -27,7 +27,7 @@ A chat's model and plan mode are already fixed by its session: a different model
   **Settings → Models** shows and saves the planning and implementation models in `malini.providers.model-defaults:v1`; turning plan mode on or off picks that mode's model, and **Implement plan** starts with the implementation model.
 - A pick made while a chat is still loading lands in that chat, through `chatModelStore.adoptPreview`.
 - A preset is a `ModelPreset`, a `ModelSelection` with its effort, or `null` for a model that takes no effort.
-  Presets are kept for every workstream in `malini.providers.model-presets:v1`, and the item at the bottom of the model menu saves or removes the pair the chat shows.
+  Presets are kept for every workstream in `malini.providers.model-presets:v1`, the item at the bottom of the model menu saves or removes the pair the chat shows, and the × on a preset's row removes that preset.
   Picking a preset is a pick in the composer: `selectModelCommand(selection, effort)` sets both and writes the chat's setup and the new-chat setup.
 
 ## Consequences

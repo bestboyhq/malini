@@ -124,13 +124,13 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		const picker = page.getByRole('button', { name: /^Model: / });
 		const effort = page.getByRole('button', { name: 'Reasoning effort' });
 		const models = page.getByRole('listbox', { name: 'Models' });
-		const opusMax = models
-			.getByRole('group', { name: 'Presets' })
-			.getByRole('option', { name: 'Opus · Max' });
+		const presets = models.getByRole('group', { name: 'Presets' });
+		const opusMax = presets.getByRole('option', { name: 'Opus · Max' });
+		const sonnetLow = presets.getByRole('option', { name: 'Sonnet · Low' });
 
 		await pickEffort(page, 'Max');
 		await picker.click();
-		await expect(models.getByRole('group', { name: 'Presets' })).toHaveCount(0);
+		await expect(presets).toHaveCount(0);
 		await page.getByRole('button', { name: 'Save Opus · Max as a preset' }).click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
 		await expect(page.getByRole('button', { name: 'Remove Opus · Max preset' })).toBeVisible();
@@ -140,6 +140,8 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		await pickEffort(page, 'Low');
 		await picker.click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'false');
+		await page.getByRole('button', { name: 'Save Sonnet · Low as a preset' }).click();
+		await expect(sonnetLow).toHaveAttribute('aria-selected', 'true');
 		await captureFlow(app, 'model-presets-menu');
 		await opusMax.click();
 		await expect(models).toBeHidden();
@@ -153,8 +155,12 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		await openWorkstream(page, workstreamId);
 		await picker.click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await sonnetLow.hover();
+		await presets.getByRole('button', { name: 'Remove Sonnet · Low' }).click();
+		await expect(sonnetLow).toHaveCount(0);
+		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
 		await page.getByRole('button', { name: 'Remove Opus · Max preset' }).click();
-		await expect(models.getByRole('group', { name: 'Presets' })).toHaveCount(0);
+		await expect(presets).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Save Opus · Max as a preset' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

@@ -132,9 +132,9 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 Pick Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, and an effort from Low to Max, for every prompt.
 The picker is one flat list of models, so you pick the model, not the provider.
-**Save Opus · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus Max**.
+**Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
-The same menu item removes a preset once that model and effort are what the chat shows.
+Hover a preset and click its **×** to remove it, or use the same menu item once that model and effort are what the chat shows.
 Every chat keeps its own model, effort, access and report, so what you pick in one chat never changes another.
 A new chat starts with the model, effort, plan mode and report you picked last, in any chat, and with the access you last picked in its workstream.
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
