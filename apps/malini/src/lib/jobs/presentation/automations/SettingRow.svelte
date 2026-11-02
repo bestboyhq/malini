@@ -5,10 +5,11 @@
 		title: string;
 		description?: string;
 		stacked?: boolean;
+		tag?: Snippet | undefined;
 		children: Snippet;
 	}
 
-	let { title, description, stacked = false, children }: Props = $props();
+	let { title, description, stacked = false, tag, children }: Props = $props();
 </script>
 
 <div
@@ -18,7 +19,10 @@
 	]}
 >
 	<div class="min-w-0">
-		<h3 class="text-fg-default text-sm font-medium">{title}</h3>
+		<h3 class="text-fg-default flex items-center gap-1.5 text-sm font-medium">
+			{title}
+			{@render tag?.()}
+		</h3>
 		{#if description}
 			<p class="text-fg-tertiary text-xs">{description}</p>
 		{/if}

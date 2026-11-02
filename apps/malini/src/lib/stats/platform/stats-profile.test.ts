@@ -87,7 +87,9 @@ describe('StatsProfile', () => {
 		platform.fail('/api/stats/malini', 401);
 
 		await profile.publish('szymeo');
-		await vi.waitFor(() => expect(profile.state().signInNeeded).toBe(true));
+		await vi.waitFor(() =>
+			expect(profile.state().upload).toMatchObject({ state: 'failed', retrying: false }),
+		);
 		expect(profile.state()).toMatchObject({ account: null, publishing: 'on' });
 	});
 });

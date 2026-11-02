@@ -23,6 +23,12 @@ function worktreeBesideASecret(): { worktree: string; secret: string } {
 	writeFileSync(secret, 'secret');
 	symlinkSync(secret, join(worktree, 'leak.txt'));
 	symlinkSync(root, join(worktree, 'up'));
+	mkdirSync(join(worktree, '.malini', 'agent-attachments', 'att-1'), { recursive: true });
+	writeFileSync(join(worktree, '.malini', 'agent-attachments', 'att-1', 'secret.txt'), 'secret');
+	symlinkSync(
+		join(worktree, '.malini', 'agent-attachments', 'att-1', 'secret.txt'),
+		join(worktree, 'attachment.txt'),
+	);
 	return { worktree, secret };
 }
 
@@ -40,6 +46,17 @@ describe('worktreeFile', () => {
 	it('serves nothing outside the worktree, even through a link', async () => {
 		const { worktree } = worktreeBesideASecret();
 		for (const pathname of ['/../secret.txt', '/leak.txt', '/up/secret.txt', '/', '/nope.html']) {
+			await expect(worktreeFile(worktree, pathname)).resolves.toBeNull();
+		}
+	});
+
+	it('serves nothing from the folder Malini keeps', async () => {
+		const { worktree } = worktreeBesideASecret();
+		for (const pathname of [
+			'/.malini/agent-attachments/att-1/secret.txt',
+			'/attachment.txt',
+			'/.malini',
+		]) {
 			await expect(worktreeFile(worktree, pathname)).resolves.toBeNull();
 		}
 	});

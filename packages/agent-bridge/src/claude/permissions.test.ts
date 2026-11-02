@@ -6,8 +6,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { AgentRunProfile } from '../agent-profile.js';
 import {
 	approvedInput,
+	askBeforeLeavingTheSandbox,
 	autoModeCategory,
 	autoModeRule,
+	boundarySandbox,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
@@ -357,6 +359,43 @@ describe('maliniOwnedCommand', () => {
 			'git worktree',
 		);
 		expect(maliniOwnedCommand('git worktree remove ../fork')).toBe('git worktree');
+	});
+});
+
+describe("a job's boundary", () => {
+	async function leave(input: Record<string, unknown>) {
+		const output = await askBeforeLeavingTheSandbox(
+			{
+				hook_event_name: 'PreToolUse',
+				session_id: 'session',
+				transcript_path: '/tmp/transcript.jsonl',
+				cwd: worktree,
+				tool_name: 'Bash',
+				tool_input: input,
+				tool_use_id: 'tool-use',
+			},
+			'tool-use',
+			{ signal: new AbortController().signal },
+		);
+		return 'hookSpecificOutput' in output ? output.hookSpecificOutput : undefined;
+	}
+
+	it('asks before a command runs outside the sandbox and lets every other command through', async () => {
+		expect(
+			await leave({ command: 'pnpm test:e2e', dangerouslyDisableSandbox: true }),
+		).toMatchObject({ permissionDecision: 'ask' });
+		expect(await leave({ command: 'pnpm test' })).toBeUndefined();
+	});
+
+	it('reaches only Anthropic when the internet is off, and any site but the hidden paths when on', () => {
+		const hidden = ['/data/malini/malini.sqlite'];
+		expect(boundarySandbox({ hidden, chatRecords: false, internet: false }, hidden)).toMatchObject({
+			filesystem: { allowWrite: ['/'], denyRead: hidden },
+			network: { allowedDomains: [], strictAllowlist: true },
+		});
+		expect(
+			boundarySandbox({ hidden: [], chatRecords: true, internet: true }, []).network,
+		).toMatchObject({ allowedDomains: ['*'] });
 	});
 });
 

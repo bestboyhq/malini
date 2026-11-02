@@ -1,4 +1,10 @@
-import { isShippingJobBuiltin, type JobDefinitionRecord, type JobRunRecord } from '$contract/jobs';
+import {
+	DEFAULT_JOB_BOUNDARY,
+	isShippingJobBuiltin,
+	type JobBoundary,
+	type JobDefinitionRecord,
+	type JobRunRecord,
+} from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { DispatchedEvent } from './platform/event-log.service';
 import { getJobDefinition, listJobDefinitions } from './platform/job-definitions.repository';
@@ -6,6 +12,7 @@ import {
 	activeWorkstreamJobRun,
 	findActiveJobRunForSession,
 	getJobRun,
+	latestJobRunForSession,
 	latestWorkstreamJobRun,
 } from './platform/job-runs.repository';
 
@@ -49,6 +56,13 @@ export function jobDefinitions(db: MaliniDatabase): JobDefinitionRecord[] {
 
 export function activeJobRunForSession(db: MaliniDatabase, sessionId: string): JobRunRecord | null {
 	return findActiveJobRunForSession(db, sessionId);
+}
+
+export function jobBoundaryForSession(db: MaliniDatabase, sessionId: string): JobBoundary | null {
+	const run = latestJobRunForSession(db, sessionId);
+	return run === null
+		? null
+		: (getJobDefinition(db, run.definitionId)?.boundary ?? DEFAULT_JOB_BOUNDARY);
 }
 
 export function jobDefinition(db: MaliniDatabase, id: string): JobDefinitionRecord | null {

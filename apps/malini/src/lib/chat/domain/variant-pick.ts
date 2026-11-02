@@ -40,9 +40,7 @@ export function decisionLine(pick: VariantPick): string {
 		.filter((option) => option.id !== pick.picked.id)
 		.map(variantLabel)
 		.join(', ');
-	const over = others ? ` over ${others}` : '';
-	const why = pick.reason ? ` - "${pick.reason}"` : '';
-	return `${variantLabel(pick.picked)}${over}${why}`;
+	return others ? `${variantLabel(pick.picked)} over ${others}` : variantLabel(pick.picked);
 }
 
 export function variantDecisions(runs: readonly PickedRun[]): string[] {

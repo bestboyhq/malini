@@ -7,11 +7,11 @@ import { cloneFile } from '$main/fs/copy-on-write';
 import {
 	AGENT_ATTACHMENTS_PATH,
 	AGENT_CONTEXT_PATH,
+	KEPT_WORKSTREAMS_DIR_NAME,
 	validateWorkstreamId,
 	workstreamsRoot,
 } from '$main/git/paths';
 
-const KEPT_DIR_NAME = '.kept';
 // ponytail: an archived workstream keeps its attachments, the text notes in its context folder and every file its chats showed until it is deleted; age them out if they pile up
 const KEPT_FOLDERS = [AGENT_CONTEXT_PATH, AGENT_ATTACHMENTS_PATH] as const;
 const SHOWN_DIR_NAME = 'shown';
@@ -39,7 +39,7 @@ const REBUILT_DIRECTORIES = new Set([
 const BUNDLE_DIRECTORY = /\.(?:app|bundle|dSYM|framework|xcarchive)$/u;
 
 function keptFoldersRoot(appDataRoot: string): string {
-	return join(workstreamsRoot(appDataRoot), KEPT_DIR_NAME);
+	return join(workstreamsRoot(appDataRoot), KEPT_WORKSTREAMS_DIR_NAME);
 }
 
 function keptFoldersOf(appDataRoot: string, workstreamId: string): string {

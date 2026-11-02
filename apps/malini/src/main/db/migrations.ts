@@ -1376,6 +1376,19 @@ ALTER TABLE job_experiments ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';
 UPDATE job_experiments SET provider = 'deepseek'
   WHERE model IN ('deepseek-v4-pro', 'deepseek-flash');
 `,
+	`
+ALTER TABLE job_definitions ADD COLUMN sees_event TEXT NOT NULL DEFAULT 'facts'
+  CHECK (sees_event IN ('facts', 'full'));
+ALTER TABLE job_definitions ADD COLUMN sees_before INTEGER NOT NULL DEFAULT 1
+  CHECK (sees_before IN (0, 1));
+ALTER TABLE job_definitions ADD COLUMN sees_chats TEXT NOT NULL DEFAULT 'none'
+  CHECK (sees_chats IN ('none', 'starter', 'all'));
+ALTER TABLE job_definitions ADD COLUMN sees_attachments INTEGER NOT NULL DEFAULT 0
+  CHECK (sees_attachments IN (0, 1));
+ALTER TABLE job_definitions ADD COLUMN reaches_internet INTEGER NOT NULL DEFAULT 1
+  CHECK (reaches_internet IN (0, 1));
+UPDATE job_definitions SET reaches_internet = 0 WHERE builtin IS NULL;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

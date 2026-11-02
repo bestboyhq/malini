@@ -1,4 +1,4 @@
-import { dirname } from 'node:path';
+import { dirname, isAbsolute } from 'node:path';
 import { isOneOf, isRecord } from './type-guards.js';
 
 export const AGENT_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -63,7 +63,27 @@ export interface AgentLineage {
 	readonly siblings: readonly AgentCheckout[];
 }
 
+export interface AgentBoundary {
+	readonly hidden: readonly string[];
+	readonly chatRecords: boolean;
+	readonly internet: boolean;
+}
+
 const MAX_LINEAGE_CHECKOUTS = 500;
+
+const MAX_HIDDEN_PATHS = 2_000;
+
+export function isAgentBoundary(value: unknown): value is AgentBoundary {
+	if (!isRecord(value)) return false;
+	const { hidden, chatRecords, internet } = value;
+	return (
+		Array.isArray(hidden) &&
+		hidden.length <= MAX_HIDDEN_PATHS &&
+		hidden.every((path) => isText(path) && isAbsolute(path)) &&
+		typeof chatRecords === 'boolean' &&
+		typeof internet === 'boolean'
+	);
+}
 
 export function isAgentLineage(value: unknown): value is AgentLineage {
 	if (!isRecord(value)) return false;

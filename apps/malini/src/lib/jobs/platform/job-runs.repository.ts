@@ -254,6 +254,15 @@ export function countStartedOrQueuedJobRuns(db: MaliniDatabase, definitionId: st
 	);
 }
 
+export function latestJobRunForSession(db: MaliniDatabase, sessionId: string): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		sessionId,
+	);
+	return row ? fromRow(row) : null;
+}
+
 export function latestWorkstreamJobRun(
 	db: MaliniDatabase,
 	workstreamId: string,

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { JobDefinitionRecord } from '$contract/jobs';
+import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord } from '$contract/jobs';
 import { all, run } from '$main/db/rows';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
@@ -118,6 +118,22 @@ afterEach(async () => {
 	service = undefined;
 	test.cleanup();
 });
+
+function seedInternetOffJob(): void {
+	run(
+		test.db,
+		`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, reaches_internet, created_at, updated_at)
+		 VALUES ('job-off', 'Offline job', 'Work offline.', 'opus', 'high', 'workstream', 0, ?, ?)`,
+		'2026-10-19T00:00:00.000Z',
+		'2026-10-19T00:00:00.000Z',
+	);
+	run(
+		test.db,
+		`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
+		 VALUES ('job-run-off', 'job-off', 'Offline job', 'ws-1', 'sess-1', 'manual', 'running', 'job-run-off', ?)`,
+		'2026-10-19T00:00:00.000Z',
+	);
+}
 
 function browserRequest(requestId: string, action: Record<string, unknown>, sessionId = 'sess-1') {
 	return {
@@ -291,6 +307,44 @@ describe('browser requests from the agent', () => {
 			error: 'The Malini browser is not available.',
 		});
 	});
+
+	it('keeps the browser closed to a job whose internet is off', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		seedInternetOffJob();
+		const unused = async (): Promise<never> => {
+			throw new Error('The browser must not be used.');
+		};
+		const browser: BrowserAutomation = {
+			open: unused,
+			screenshot: unused,
+			click: unused,
+			type: unused,
+			goBack: unused,
+			goForward: unused,
+			reload: unused,
+			resize: unused,
+		};
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			browser,
+			log: () => {},
+		});
+
+		bridge.send(browserRequest('req-1', { action: 'open', url: 'https://example.com' }));
+		await waitFor(() => bridge.received.some((command) => command['cmd'] === 'browser_result'));
+
+		expect(bridge.received.find((command) => command['cmd'] === 'browser_result')).toMatchObject({
+			requestId: 'req-1',
+			ok: false,
+			error: expect.stringContaining('internet off'),
+		});
+	});
 });
 
 function platformRequest(requestId: string, tool: string, input: Record<string, unknown>) {
@@ -322,6 +376,7 @@ function jobDefinition(
 		builtin: null,
 		trigger: null,
 		thenJobId: null,
+		boundary: DEFAULT_JOB_BOUNDARY,
 		createdAt: '2026-10-19T00:00:00.000Z',
 		updatedAt: '2026-10-19T00:00:00.000Z',
 		...changes,
@@ -350,6 +405,7 @@ describe('platform requests from the agent', () => {
 			jobDefinition('job-1', 'Update docs', {
 				trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
 				thenJobId: 'job-2',
+				boundary: { ...DEFAULT_JOB_BOUNDARY, chats: 'starter' },
 			}),
 			jobDefinition('job-2', 'Triage'),
 		];
@@ -413,10 +469,11 @@ describe('platform requests from the agent', () => {
 		bridge.send(platformRequest('p-8', 'events_list', {}));
 		bridge.send(platformRequest('p-9', 'jobs_save', { id: 'job-2', then: 'Nope' }));
 		bridge.send(platformRequest('p-10', 'jobs_save', { effort: 'huge' }));
+		bridge.send(platformRequest('p-11', 'jobs_run', { job: 'Triage', context: 'What I said' }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'platform_result');
-		await waitFor(() => results().length === 10, 5_000, 'ten platform results');
+		await waitFor(() => results().length === 11, 5_000, 'eleven platform results');
 		const answer = (requestId: string): unknown => {
 			const result = results().find((command) => command['requestId'] === requestId);
 			if (result?.['ok'] !== true) return result;
@@ -435,6 +492,8 @@ describe('platform requests from the agent', () => {
 				when: 'on pull-requests:ship-changed where merged is set',
 				mode: 'auto',
 				then: 'job-2',
+				sees: { event: 'facts', jobBefore: true, chats: 'starter', attachments: false },
+				internet: true,
 			},
 			expect.objectContaining({ id: 'job-2', when: null, mode: null, then: null }),
 		]);
@@ -513,6 +572,46 @@ describe('platform requests from the agent', () => {
 			ok: false,
 			error: '`effort` must be one of low, medium, high, xhigh, max.',
 		});
+		expect(answer('p-11')).toMatchObject({
+			ok: false,
+			error: expect.stringContaining('Triage does not see your chats'),
+		});
+	});
+
+	it('refuses every tool that would reach out for a job whose internet is off', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		seedInternetOffJob();
+		const { commands } = test.context;
+		commands.define('jobs.list-definitions', () => [jobDefinition('job-net', 'Reachable')]);
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			log: () => {},
+		});
+
+		bridge.send(platformRequest('n-1', 'repositories_clone', { repository: 'acme/away' }));
+		bridge.send(
+			platformRequest('n-2', 'workstreams_create', { repository: 'acme/away', prompt: 'Go' }),
+		);
+		bridge.send(
+			platformRequest('n-3', 'workstreams_send', { workstream: 'elsewhere', prompt: 'Go' }),
+		);
+		bridge.send(platformRequest('n-4', 'jobs_run', { job: 'Reachable' }));
+
+		const results = (): Array<Record<string, unknown>> =>
+			bridge.received.filter((command) => command['cmd'] === 'platform_result');
+		await waitFor(() => results().length === 4, 5_000, 'four platform results');
+		for (const requestId of ['n-1', 'n-2', 'n-3', 'n-4']) {
+			expect(results().find((command) => command['requestId'] === requestId)).toMatchObject({
+				ok: false,
+				error: expect.stringContaining('internet off'),
+			});
+		}
 	});
 
 	it('lists, hides and archives through the registered commands, never archives its own workstream, and logs every call', async () => {

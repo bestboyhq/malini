@@ -14,6 +14,7 @@ import {
 	type LocalWorkSource,
 } from '$main/git/archived-work';
 import {
+	CHECKOUT_TRASH_DIR_NAME,
 	WORKSTREAM_BRANCH_PREFIX,
 	validateWorkstreamId,
 	workstreamBranchName,
@@ -49,8 +50,6 @@ import {
 	listArchivedWorkstreams,
 	listWorkstreams,
 } from './workstreams.repository';
-
-const CHECKOUT_TRASH_DIR_NAME = '.trash';
 
 const leftoversClearing = new Set<Promise<unknown>>();
 

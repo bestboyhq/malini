@@ -17,6 +17,7 @@
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
 	import { jobCenterEntriesQuery } from '$lib/jobs/application/queries/job-center-entries.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
+	import { canLeak } from '$lib/jobs/domain/job-boundary';
 	import { asksYou } from '$lib/jobs/domain/job-center';
 	import type { AutomationsView } from './automations-state.svelte';
 	import { jobTriggerLook } from './triggers';
@@ -120,6 +121,11 @@
 						{:else if runs.some((run) => run.status === 'running')}
 							<BusyIcon size={11} />
 							<span class="sr-only">Running</span>
+						{:else if canLeak(job, jobs)}
+							<span class="text-error-content text-2xs flex shrink-0 items-center gap-1">
+								<Icon name="warning" size={11} />
+								Can leak
+							</span>
 						{:else if off}
 							<span class="text-fg-tertiary text-2xs shrink-0">Off</span>
 						{:else if job.trigger?.mode === 'ask'}

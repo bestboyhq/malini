@@ -13,6 +13,7 @@ function reference(payloads: Readonly<Record<string, string>>): ContractReferenc
 		events: Object.entries(payloads).map(([channel, payload]) => ({
 			channel,
 			description: `${channel} happened.`,
+			facts: [],
 			payloadType: 'Payload',
 			payload,
 		})),

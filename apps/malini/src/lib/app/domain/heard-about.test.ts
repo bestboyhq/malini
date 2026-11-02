@@ -8,16 +8,13 @@ describe('where you heard about Malini', () => {
 		expect(heardAboutProps(heardAbout(setting))).toEqual({ heard_about: 'hacker-news' });
 	});
 
-	it('keeps what you typed for somewhere else, without @, control characters or extra length', () => {
+	it('keeps what you typed for somewhere else on your Mac, and sends only the option', () => {
 		const setting = heardAboutSetting({
 			channel: 'somewhere-else',
 			detail: `  @theo's\nvideo ${'x'.repeat(200)}`,
 		});
 		expect(setting).toBe(`theo's video ${'x'.repeat(87)}`);
-		expect(heardAboutProps(heardAbout(setting))).toEqual({
-			heard_about: 'somewhere-else',
-			heard_about_detail: setting,
-		});
+		expect(heardAboutProps(heardAbout(setting))).toEqual({ heard_about: 'somewhere-else' });
 	});
 
 	it('sends nothing before you answer, or after you skip', () => {

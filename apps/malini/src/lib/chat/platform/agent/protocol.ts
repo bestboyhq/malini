@@ -14,6 +14,7 @@ import {
 	type AgentBackgroundTaskKind,
 	type AgentModelInfo,
 	type AgentQuestionAnswer,
+	type AgentBoundary,
 	type AgentLineage,
 	type AgentReasoningEffort,
 	type AgentRunMode,
@@ -116,6 +117,7 @@ export type BridgeCommand =
 			secrets?: Readonly<Record<string, string>>;
 			plugins?: readonly string[];
 			compactWindow?: number;
+			boundary?: AgentBoundary;
 	  }
 	| { cmd: 'set_secrets'; id: string; sessionId: string; secrets: Readonly<Record<string, string>> }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }

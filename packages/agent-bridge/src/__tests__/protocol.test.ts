@@ -725,6 +725,24 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it("parses a job's boundary and rejects one that hides a relative path or leaves out a switch", () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const boundary = '{"hidden":["/data/malini.sqlite"],"chatRecords":false,"internet":false}';
+			expect(parseCommandLine(`{${prompt},"boundary":${boundary}}`)).toMatchObject({
+				ok: true,
+				command: {
+					boundary: { hidden: ['/data/malini.sqlite'], chatRecords: false, internet: false },
+				},
+			});
+			for (const broken of [
+				'{"hidden":["data/malini.sqlite"],"chatRecords":false,"internet":false}',
+				'{"hidden":[],"chatRecords":false}',
+				'"sealed"',
+			]) {
+				expect(parseCommandLine(`{${prompt},"boundary":${broken}}`).ok).toBe(false);
+			}
+		});
+
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
 			const r = parseCommandLine(
 				'{"cmd":"approve","id":"cmd-approve","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"maybe"}',

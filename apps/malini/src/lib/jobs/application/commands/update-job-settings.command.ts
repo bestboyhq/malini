@@ -1,4 +1,4 @@
-import type { JobDefinitionRecord, JobRunsIn, JobTrigger } from '$contract/jobs';
+import type { JobBoundary, JobDefinitionRecord, JobRunsIn, JobTrigger } from '$contract/jobs';
 import { jobDefinitionsAggregate } from '$lib/jobs/infrastructure/aggregates/job-definitions.aggregate.svelte';
 import { jobsService } from '$lib/jobs/infrastructure/services/jobs.service';
 import {
@@ -12,6 +12,7 @@ type JobSettingsChange = Readonly<{
 	trigger?: JobTrigger | null;
 	thenJobId?: string | null;
 	runsIn?: JobRunsIn;
+	boundary?: JobBoundary;
 }>;
 
 function updateJobSettingsCommand(job: JobDefinitionRecord, change: JobSettingsChange): void {

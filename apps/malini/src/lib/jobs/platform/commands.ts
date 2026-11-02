@@ -8,7 +8,10 @@ import {
 } from '$contract/automation-trigger';
 import { JOBS_DEFINITION_CHANGED_CHANNEL } from '$contract/events';
 import {
+	DEFAULT_JOB_BOUNDARY,
+	NEW_JOB_BOUNDARY,
 	isAgentlessJobBuiltin,
+	type JobBoundary,
 	type JobBuiltin,
 	type JobDefinitionChangedEvent,
 	type JobDefinitionRecord,
@@ -48,6 +51,7 @@ import {
 import {
 	JOB_INSTRUCTIONS_MAX_LENGTH,
 	JOB_NAME_MAX_LENGTH,
+	isJobBoundary,
 	isJobEffort,
 	isJobRunMode,
 	isJobRunsIn,
@@ -153,6 +157,7 @@ export function seedBuiltinJobs(db: MaliniDatabase): void {
 			thenJobId: null,
 			skills: [],
 			builtin,
+			boundary: DEFAULT_JOB_BOUNDARY,
 			createdAt: now,
 			updatedAt: now,
 		};
@@ -209,6 +214,7 @@ export function defineJobCommands(
 				builtin: null,
 				trigger: trigger ?? null,
 				thenJobId: thenJobField(db, args, null) ?? null,
+				boundary: boundaryField(args) ?? NEW_JOB_BOUNDARY,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -252,6 +258,7 @@ export function defineJobCommands(
 			runsIn: existing.builtin ? existing.runsIn : fields.runsIn,
 			trigger: trigger === undefined ? existing.trigger : trigger,
 			thenJobId: thenJobId === undefined ? existing.thenJobId : thenJobId,
+			boundary: agentless ? existing.boundary : (boundaryField(args) ?? existing.boundary),
 			updatedAt: now,
 		});
 	});
@@ -282,6 +289,7 @@ export function defineJobCommands(
 			...builtinFields(builtin),
 			thenJobId: defaultThen(db, builtin),
 			skills: [],
+			boundary: DEFAULT_JOB_BOUNDARY,
 			updatedAt: nowIso8601(),
 		});
 	});
@@ -424,6 +432,7 @@ export function defineJobCommands(
 			builtin: null,
 			trigger: null,
 			thenJobId: null,
+			boundary: NEW_JOB_BOUNDARY,
 			createdAt: now,
 			updatedAt: now,
 		};
@@ -672,6 +681,23 @@ async function knownPlace(db: MaliniDatabase, place: SchedulePlace): Promise<Sch
 		'not-found',
 		`No repository in Malini belongs to \`${place.owner}\`. Add one of its repositories first, or schedule the job at Home.`,
 	);
+}
+
+function boundaryField(args: unknown): JobBoundary | undefined {
+	const value = field(args, 'boundary');
+	if (value === undefined) return undefined;
+	if (!isJobBoundary(value)) {
+		throw invalid(
+			'`boundary` must be { event: facts|full, before, chats: none|starter|all, attachments, internet }',
+		);
+	}
+	return {
+		event: value.event,
+		before: value.before,
+		chats: value.chats,
+		attachments: value.attachments,
+		internet: value.internet,
+	};
 }
 
 function thenJobField(

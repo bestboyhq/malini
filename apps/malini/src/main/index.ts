@@ -24,7 +24,7 @@ import { pinStorageName } from './storage-name';
 import { claimsUrlScheme, URL_SCHEME } from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
-const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver'];
+const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DIPS'];
 
 const productName = pinStorageName(app);
 app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));

@@ -25,7 +25,6 @@ export type PullRequestAutomationEvent = Readonly<{
 }>;
 
 export type PullRequestAutomationContext = Readonly<{
-	sessionTitle?: string;
 	runSummaries?: readonly string[];
 	commitLine?: string;
 	latestRunId?: string;
@@ -52,16 +51,6 @@ export type AutomatedPullRequestMetadata = Readonly<{
 export function sanitizePullRequestContextValue(value: string, limit: number): string {
 	return singleLine(value, Math.max(0, Math.floor(limit)));
 }
-
-const GENERIC_SESSION_TITLES = new Set([
-	'',
-	'agent session',
-	'chat',
-	'new chat',
-	'new session',
-	'new task',
-	'untitled',
-]);
 
 const DANGLING_TITLE_WORDS = new Set([
 	'a',
@@ -90,15 +79,11 @@ const DANGLING_TITLE_WORDS = new Set([
 	'without',
 ]);
 
-const REQUEST_PREFIX =
-	/^(?:please\s+|can you\s+|could you\s+|would you\s+|i need (?:you )?to\s+)/iu;
 const TRAILING_TITLE_NOISE = /[.!?:;,\-\s]+$/u;
 
 const CONVENTIONAL_COMMIT_SUBJECT = /^[a-z]+(?:\([^)]*\))?!?: \S/u;
 
 const WORKSTREAM_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/iu;
-
-const DUPLICATE_NAME_COUNTER = /\s+(?:[2-9]|[1-9][0-9]+)$/u;
 
 export function automatedPullRequestMetadata(
 	input: AutomatedPullRequestMetadataInput,
@@ -138,7 +123,6 @@ function workstreamTitle(
 		firstUseful([
 			firstSentence(context.pullRequestTitle),
 			...context.runSummaries.map(firstSentence).reverse(),
-			context.sessionTitle,
 			branchTitle(branch),
 			changedPathTitle(changedPaths),
 			'Update workstream',
@@ -196,7 +180,6 @@ function normalizedContext(
 	const context = rawContext && localContext(rawContext, workstreamPath);
 	if (!context) {
 		return {
-			sessionTitle: '',
 			runSummaries: [],
 			commitLine: '',
 			latestRunId: '',
@@ -206,9 +189,6 @@ function normalizedContext(
 		};
 	}
 	return {
-		sessionTitle: withoutDuplicateNameCounter(
-			proseLine(context.sessionTitle ?? '', AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem),
-		),
 		runSummaries: uniqueInOrder(
 			(context.runSummaries ?? [])
 				.map((summary) => proseLine(summary, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem))
@@ -245,7 +225,6 @@ function localContext(
 	const local = (value: string): string => withoutAbsolutePaths(value, workstreamPath);
 	return {
 		...context,
-		...(context.sessionTitle ? { sessionTitle: local(context.sessionTitle) } : {}),
 		...(context.pullRequestTitle ? { pullRequestTitle: local(context.pullRequestTitle) } : {}),
 		...(context.runSummaries ? { runSummaries: context.runSummaries.map(local) } : {}),
 		...(context.commitLine ? { commitLine: local(context.commitLine) } : {}),
@@ -339,15 +318,11 @@ function eventStatusLabel(status?: PullRequestAutomationEventStatus): string {
 }
 
 function firstUseful(candidates: readonly string[]): string {
-	for (const candidate of candidates) {
-		const normalized = titleText(candidate);
-		if (!GENERIC_SESSION_TITLES.has(normalized.toLocaleLowerCase())) return normalized;
-	}
-	return 'Update workstream';
+	return candidates.map(titleText).find(Boolean) ?? 'Update workstream';
 }
 
 function boundedTitle(value: string, limit: number): string {
-	const phrase = titlePhrase(value.replace(REQUEST_PREFIX, ''));
+	const phrase = titlePhrase(value);
 	if (!phrase) return 'Update workstream';
 	const titled = CONVENTIONAL_COMMIT_SUBJECT.test(phrase)
 		? phrase
@@ -457,11 +432,6 @@ function withoutAbsolutePaths(value: string, workstreamPath?: string): string {
 		)
 		.replace(ABSOLUTE_PATH, local)
 		.replace(CD_INTO_WORKSTREAM, (_match, lead: string) => (lead ? `${lead} ` : ''));
-}
-
-function withoutDuplicateNameCounter(value: string): string {
-	const stripped = value.replace(DUPLICATE_NAME_COUNTER, '').trim();
-	return /\p{L}/u.test(stripped) ? stripped : value;
 }
 
 function stripUnsafeCharacters(value: string): string {

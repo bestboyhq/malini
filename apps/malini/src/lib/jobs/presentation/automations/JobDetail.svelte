@@ -29,8 +29,9 @@
 	import JobRunTarget from '../JobRunTarget.svelte';
 	import { PageSection } from '$hyper-ui/components/page-section';
 	import ChoiceMenu from './ChoiceMenu.svelte';
+	import JobBoundary from './JobBoundary.svelte';
 	import JobScorecard from './JobScorecard.svelte';
-	import RunModePicker from './RunModePicker.svelte';
+	import SegmentedPicker from './SegmentedPicker.svelte';
 	import SchedulePlaceMenu from './SchedulePlaceMenu.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
@@ -38,6 +39,7 @@
 		builtinTrigger,
 		EVENT_RUNS_IN_OPTIONS,
 		jobSentence,
+		RUN_MODES,
 		runModeHint,
 		SCHEDULE_RUNS_IN_HINT,
 		thenChoices,
@@ -213,6 +215,8 @@
 		</Well>
 	{/if}
 
+	<JobBoundary {job} {jobs} disabled={settingsState.busy} />
+
 	<Well title="How it runs">
 		<div class={ROWS}>
 			<SettingRow title="When" description={fixed ? 'Built into Malini.' : 'What starts it.'}>
@@ -241,8 +245,9 @@
 			>
 				{#if !fixed && job.trigger !== null}
 					{@const trigger = job.trigger}
-					<RunModePicker
+					<SegmentedPicker
 						value={trigger.mode}
+						options={RUN_MODES}
 						label={`How ${job.name} runs`}
 						disabled={settingsState.busy}
 						onchange={(mode) => updateJobSettingsCommand(job, { trigger: { ...trigger, mode } })}

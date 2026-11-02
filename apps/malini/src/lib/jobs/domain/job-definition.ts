@@ -1,5 +1,5 @@
 import type { AgentReasoningEffort } from '$contract/agent';
-import type { JobRunMode, JobRunsIn } from '$contract/jobs';
+import type { JobBoundary, JobRunMode, JobRunsIn } from '$contract/jobs';
 import { AGENT_REASONING_EFFORTS } from '$shared/providers/domain/run-profile';
 
 export const JOB_NAME_MAX_LENGTH = 80;
@@ -18,6 +18,18 @@ export function isJobRunsIn(value: unknown): value is JobRunsIn {
 
 export function isJobRunMode(value: unknown): value is JobRunMode {
 	return value === 'off' || value === 'ask' || value === 'auto';
+}
+
+export function isJobBoundary(value: unknown): value is JobBoundary {
+	if (typeof value !== 'object' || value === null) return false;
+	const fields = new Map(Object.entries(value));
+	const event = fields.get('event');
+	const chats = fields.get('chats');
+	return (
+		(event === 'facts' || event === 'full') &&
+		(chats === 'none' || chats === 'starter' || chats === 'all') &&
+		['before', 'attachments', 'internet'].every((key) => typeof fields.get(key) === 'boolean')
+	);
 }
 
 export function suggestedJobName(prompt: string): string {

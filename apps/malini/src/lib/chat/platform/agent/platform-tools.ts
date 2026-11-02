@@ -17,6 +17,7 @@ import { describeError } from '$main/errors';
 import {
 	activeJobRunForSession,
 	finishAgentAction,
+	jobBoundaryForSession,
 	recordAgentAction,
 } from '$lib/jobs/jobs.platform';
 import { openFileForUser } from '$lib/extensions/extensions.platform';
@@ -126,6 +127,7 @@ async function runPlatformTool(
 ): Promise<unknown> {
 	const { db, commands } = deps;
 	const { input } = request;
+	const internetOff = jobBoundaryForSession(db, request.sessionId)?.internet === false;
 	switch (request.tool) {
 		case 'jobs_list':
 			return (await jobs(commands)).map(jobSummary);
@@ -136,7 +138,15 @@ async function runPlatformTool(
 		case 'jobs_run': {
 			const session = requestSession(db, request);
 			const job = findJob(await jobs(commands), requiredText(input, 'job'));
+			if (internetOff && job.boundary.internet) {
+				throw refusesInternet(`Running “${job.name}” reaches`);
+			}
 			const context = text(input, 'context');
+			if (context !== undefined && job.boundary.chats === 'none') {
+				throw new Error(
+					`${job.name} does not see your chats, so it takes no \`context\` from one. Run it without \`context\`, or ask the user to let it see the chat that started it on its page in Jobs.`,
+				);
+			}
 			const parent = activeJobRunForSession(db, request.sessionId);
 			const workstream = text(input, 'workstream');
 			const run = await commands.call('jobs.run', {
@@ -157,6 +167,7 @@ async function runPlatformTool(
 		case 'repositories_list':
 			return (await listRepositoryCatalog(db)).map(repositorySummary);
 		case 'repositories_clone':
+			if (internetOff) throw refusesInternet('Cloning a repository reaches');
 			return cloneRepository(deps, requiredText(input, 'repository'));
 		case 'repositories_hide': {
 			const repository = findRepository(
@@ -168,6 +179,7 @@ async function runPlatformTool(
 		}
 		case 'workstreams_list': {
 			const { workstreamId } = requestSession(db, request);
+			const seesChats = (jobBoundaryForSession(db, request.sessionId)?.chats ?? 'all') === 'all';
 			const catalog = await listRepositoryCatalog(db);
 			const reference = text(input, 'repository');
 			const only = reference === undefined ? null : findRepository(catalog, reference);
@@ -179,7 +191,7 @@ async function runPlatformTool(
 				.map((workstream) => ({
 					...workstreamSummary(workstream, catalog),
 					current: workstream.id === workstreamId,
-					...workstreamStanding(db, workstream.id),
+					...workstreamStanding(db, workstream.id, seesChats),
 				}));
 			const finished = listArchivedWorkstreams(db)
 				.filter((workstream) => workstream.startedBy === workstreamId && listed(workstream))
@@ -191,8 +203,10 @@ async function runPlatformTool(
 			return [...open, ...finished];
 		}
 		case 'workstreams_create':
+			if (internetOff) throw refusesInternet('Starting a workstream and its chat reaches');
 			return createWorkstream(deps, request);
 		case 'workstreams_send':
+			if (internetOff) throw refusesInternet('Sending a prompt to another chat reaches');
 			return sendToWorkstream(deps, request);
 		case 'workstreams_archive': {
 			const { workstreamId } = requestSession(db, request);
@@ -371,13 +385,14 @@ async function sendToWorkstream(
 function workstreamStanding(
 	db: MaliniDatabase,
 	workstreamId: string,
+	seesChats: boolean,
 ): Readonly<{
 	working: boolean;
 	outcome: string | null;
 	needs: string | null;
 	merged: MergedPullRequest | null;
 }> {
-	const turn = latestWorkstreamTurn(db, workstreamId);
+	const turn = seesChats ? latestWorkstreamTurn(db, workstreamId) : null;
 	return {
 		working: workstreamHasWorkingRun(db, workstreamId),
 		outcome: turn?.outcome ?? null,
@@ -448,6 +463,12 @@ function findRepository(
 	);
 }
 
+function refusesInternet(reaches: string): Error {
+	return new Error(
+		`${reaches} the internet, and this job runs with its internet off. Ask the user to turn it on for this job on its page in Jobs.`,
+	);
+}
+
 export function findWorkstream(workstreams: readonly Workstream[], reference: string): Workstream {
 	const byId = workstreams.find((workstream) => workstream.id === reference);
 	if (byId) return byId;
@@ -497,8 +518,19 @@ function jobs(commands: CommandRegistry): Promise<JobDefinitionRecord[]> {
 }
 
 function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>> {
-	const { id, name, instructions, runsIn, model, effort, skills, builtin, trigger, thenJobId } =
-		job;
+	const {
+		id,
+		name,
+		instructions,
+		runsIn,
+		model,
+		effort,
+		skills,
+		builtin,
+		trigger,
+		thenJobId,
+		boundary,
+	} = job;
 	return {
 		id,
 		name,
@@ -511,6 +543,13 @@ function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>>
 		when: trigger?.when ?? null,
 		mode: trigger?.mode ?? null,
 		then: thenJobId,
+		sees: {
+			event: boundary.event,
+			jobBefore: boundary.before,
+			chats: boundary.chats,
+			attachments: boundary.attachments,
+		},
+		internet: boundary.internet,
 	};
 }
 
