@@ -92,7 +92,7 @@ When a turn still stops on a limit or an outage, Malini pauses it instead of fai
 - A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
 - An error Malini does not recognize tries again once, after a minute.
 
-The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue, which the chat shows as **Claude is back, continuing**.
+The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue, which the chat shows as a divider, such as **Claude is back. Well rested**.
 **Resume now** goes on at once, and a prompt you send replaces the pause.
 A job whose turn pauses keeps running, so a merge that waits on it loses no attempt.
 A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.

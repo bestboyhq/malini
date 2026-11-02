@@ -46,7 +46,9 @@
 		item.kind === 'assistant' ? timelineKey(run, item.contentId ?? item.key) : null,
 	);
 	const codeRuns = $derived(message === null ? undefined : shellRunsQuery.data(message));
-	const continuation = $derived(item.kind === 'user' ? continuationNotice(item.text) : null);
+	const continuation = $derived(
+		item.kind === 'user' ? continuationNotice(item.text, item.seq) : null,
+	);
 
 	function runCommand(command: string, block: number): void {
 		if (message === null) return;

@@ -21,9 +21,9 @@ const STOP_REASONS: Readonly<Record<RunFailureKind, string>> = {
 	request: 'Claude could not take the request.',
 };
 
-const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, string>> = {
-	restart: 'Malini restarted, continuing',
-	outage: 'Claude is back, continuing',
+const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, readonly [string, ...string[]]>> = {
+	restart: ['Malini restarted. Probably better now', 'Malini restarted. Fresh start, same task'],
+	outage: ['Claude is back. Well rested', 'Claude is back. Coffee break over'],
 };
 
 const RETRIED = 'Malini stopped trying again.';
@@ -58,9 +58,11 @@ export function failedRunNextStep(kind: RunFailureKind): string | null {
 	return NEXT_STEPS[kind];
 }
 
-export function continuationNotice(prompt: string): string | null {
+export function continuationNotice(prompt: string, roll: number): string | null {
 	const cause = continuationCause(prompt);
-	return cause === null ? null : CONTINUATION_NOTICES[cause];
+	if (cause === null) return null;
+	const notices = CONTINUATION_NOTICES[cause];
+	return notices[roll % notices.length] ?? notices[0];
 }
 
 function startOfDay(date: Date): number {
