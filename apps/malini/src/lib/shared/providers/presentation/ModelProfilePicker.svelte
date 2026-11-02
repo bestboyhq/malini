@@ -139,13 +139,13 @@
 						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
 						{#each presets as preset (presetName(preset) + preset.selection.provider)}
 							{@const current = sameModelPreset(preset, currentPreset)}
-							<div class="group/preset relative">
+							<div class="group/preset flex items-center">
 								<DropdownItem
 									role="option"
 									aria-selected={current}
 									aria-label={presetName(preset)}
 									checked={current}
-									class="group-hover/preset:bg-surface-elevated-hover group-hover/preset:text-fg-default gap-2.5"
+									class="min-w-0 flex-1 gap-2.5"
 									data-testid="chat-model-preset"
 									onSelect={() => applyPreset(preset)}
 								>
@@ -170,16 +170,21 @@
 										size={14}
 									/>
 								</DropdownItem>
-								<IconButton
-									variant="ghost"
-									size="xs"
-									class="pointer-events-none absolute top-1/2 right-7 -translate-y-1/2 opacity-0 transition-none group-hover/preset:pointer-events-auto group-hover/preset:opacity-100 group-has-focus-visible/preset:pointer-events-auto group-has-focus-visible/preset:opacity-100"
-									ariaLabel={`Remove ${presetName(preset)}`}
-									data-testid="chat-model-preset-remove"
-									onclick={() => toggleModelPresetCommand(preset)}
+								<span
+									class="flex w-0 shrink-0 translate-x-3 justify-end overflow-hidden opacity-0 transition-[width,opacity,translate] duration-200 ease-out group-hover/preset:w-8.5 group-hover/preset:translate-x-0 group-hover/preset:opacity-100 group-has-focus-visible/preset:w-8.5 group-has-focus-visible/preset:translate-x-0 group-has-focus-visible/preset:opacity-100 motion-reduce:transition-none"
 								>
-									<Icon name="close" size={12} />
-								</IconButton>
+									<IconButton
+										variant="ghost"
+										size="auto"
+										radius="none"
+										class="size-8 rounded-lg"
+										ariaLabel={`Remove ${presetName(preset)}`}
+										data-testid="chat-model-preset-remove"
+										onclick={() => toggleModelPresetCommand(preset)}
+									>
+										<Icon name="close" size={12} />
+									</IconButton>
+								</span>
 							</div>
 						{/each}
 					</div>

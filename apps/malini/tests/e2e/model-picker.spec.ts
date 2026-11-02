@@ -159,6 +159,9 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		await presets.getByRole('button', { name: 'Remove Sonnet · Low' }).click();
 		await expect(sonnetLow).toHaveCount(0);
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
+		await opusMax.focus();
+		await page.keyboard.press('ArrowDown');
+		await expect(presets.getByRole('button', { name: 'Remove Opus · Max' })).toBeFocused();
 		await page.getByRole('button', { name: 'Remove Opus · Max preset' }).click();
 		await expect(presets).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Save Opus · Max as a preset' })).toBeVisible();
