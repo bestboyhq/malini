@@ -55,7 +55,7 @@ function pluginsOfEachPrompt(app: LaunchedApp): string[][] {
 }
 
 async function openSettings(page: Page, section: string): Promise<Locator> {
-	await page.getByTestId('sidebar-open-settings').click();
+	await page.getByTestId('global-topbar-open-settings').click();
 	const settings = page.getByRole('dialog', { name: 'Settings' });
 	await settings
 		.getByRole('navigation', { name: 'Settings' })

@@ -157,10 +157,16 @@ function modelInfo(model: ModelInfo): AgentModelInfo {
 	);
 	return {
 		id: model.value,
-		label: model.displayName,
-		description: model.description,
+		...versionedName(model),
 		efforts: model.supportsEffort === false ? [] : efforts,
 	};
+}
+
+function versionedName(model: ModelInfo): Pick<AgentModelInfo, 'label' | 'description'> {
+	const [, version, rest] = /^(\S+ \d+(?:\.\d+)*) · (.+)$/u.exec(model.description) ?? [];
+	return version?.startsWith(`${model.displayName} `) && rest
+		? { label: version, description: rest }
+		: { label: model.displayName, description: model.description };
 }
 
 export async function* idle(released: Promise<void>): AsyncIterable<SDKUserMessage> {

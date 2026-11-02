@@ -12,6 +12,7 @@
 		parseModelSelectionValue,
 		providerGroupsQuery,
 		providerSelectOptions,
+		reasoningEffortLabel,
 		selectionLabel,
 		selectionModels,
 		type AgentReasoningEffort,
@@ -25,7 +26,6 @@
 		isJobEffort,
 	} from '$lib/jobs/domain/job-definition';
 	import { SkillsField } from '$lib/skills/skills.api';
-	import { effortLabel } from './job-definition-copy';
 
 	interface Props {
 		definition: JobDefinitionRecord;
@@ -53,7 +53,7 @@
 	const efforts = $derived(effortsForModel(selectionModels(groups, selection), draft.model));
 	const modelOptions = $derived(providerSelectOptions(groups, selection));
 	const effortOptions: SelectOption[] = $derived(
-		efforts.map((effort) => ({ value: effort, label: effortLabel(effort) })),
+		efforts.map((effort) => ({ value: effort, label: reasoningEffortLabel(effort) })),
 	);
 	const dirty = $derived(differs(startingDraft(), draft));
 	const submitError = $derived(localError ?? submission.error);

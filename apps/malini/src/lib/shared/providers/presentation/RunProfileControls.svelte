@@ -14,6 +14,7 @@
 		AGENT_REPORT_DETAILS,
 		AGENT_REPORTS,
 		DEFAULT_AGENT_REPORT,
+		reasoningEffortLabel,
 		type AgentAccess,
 		type AgentReasoningEffort,
 		type AgentReport,
@@ -65,11 +66,6 @@
 			? 'Adjust reasoning effort'
 			: `${selectionLabel(providerGroupsQuery.data, selection)} does not take a reasoning effort`,
 	);
-
-	function effortLabel(value: AgentReasoningEffort): string {
-		if (value === 'xhigh') return 'Extra high';
-		return value[0]?.toUpperCase() + value.slice(1);
-	}
 
 	$effect(() => {
 		const normalized = normalizeReasoningEffort(efforts, profile.effort);
@@ -159,7 +155,7 @@
 			>
 				<Icon name="signal" size={15} />
 				<span class="@max-md/composer:hidden">
-					{effortSupported ? effortLabel(profile.effort) : 'None'}
+					{effortSupported ? reasoningEffortLabel(profile.effort) : 'None'}
 				</span>
 			</Button>
 		</Tooltip>
@@ -184,7 +180,7 @@
 						aria-selected={profile.effort === effort}
 						onclick={() => selectEffort(effort)}
 					>
-						<span>{effortLabel(effort)}</span>
+						<span>{reasoningEffortLabel(effort)}</span>
 						{#if profile.effort === effort}
 							<Icon name="check" size={14} />
 						{/if}

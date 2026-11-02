@@ -64,7 +64,7 @@ test('Settings ranks skills by use and turns a skill and a plugin off in Claude 
 		await sendPrompt(page, 'WHICH_SKILLS');
 		await expect(page.getByText('Skills: all')).toBeVisible({ timeout: 30_000 });
 
-		await page.getByTestId('sidebar-open-settings').click();
+		await page.getByTestId('global-topbar-open-settings').click();
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Skills' })

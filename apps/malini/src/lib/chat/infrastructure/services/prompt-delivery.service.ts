@@ -22,7 +22,7 @@ import { agentRunner } from '$lib/chat/infrastructure/services/agent-runner.serv
 import { chatOccupancy } from '$lib/chat/infrastructure/services/chat-occupancy.service';
 import {
 	writeChatModelSnapshot,
-	writeStoredRunProfile,
+	writeChatSetup,
 } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
@@ -166,14 +166,13 @@ class PromptDeliveryService {
 			agentPromptQueue.remove(input.workstreamId, input.queueId);
 			queueErrorsStore.clear(input.queueId);
 		}
-		chatModelStore.rememberRoleSelection(input.role, requestedSelection);
-		writeStoredRunProfile(input.workstreamId, input.profile);
+		const setup = { selection: requestedSelection, profile: input.profile };
+		writeChatSetup(input.sessionId, setup);
 		if (
 			chatRoute.workstreamId === input.workstreamId &&
 			chatSessionStore.sessionId === input.sessionId
 		) {
-			chatModelStore.selection = { provider: input.provider, model: input.model };
-			chatModelStore.profile = { ...input.profile };
+			chatModelStore.show(setup);
 			chatSessionStore.bootError = null;
 		}
 		queueSendingStore.release(input.workstreamId, input.queueId);
@@ -223,8 +222,7 @@ class PromptDeliveryService {
 				try {
 					targetSessionId = await sessionActivation.mint({
 						workstreamId,
-						role: next.role,
-						selection: requestedSelection,
+						setup: { selection: requestedSelection, profile: next.profile },
 						activate: chatRoute.workstreamId === workstreamId,
 					});
 				} catch (error) {

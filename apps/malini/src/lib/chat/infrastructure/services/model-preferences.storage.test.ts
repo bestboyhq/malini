@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MODEL_PREFERENCES } from '$shared/providers/providers.api';
 import {
 	chatModelSnapshotKey,
-	MODEL_MEMORY_KEY,
+	NEW_CHAT_SETUP_KEY,
 	readChatModelSnapshot,
-	readModelMemory,
-	readStoredRunProfile,
+	readChatSetup,
+	readNewChatSetup,
+	rememberChatPick,
 	writeChatModelSnapshot,
-	writeModelMemory,
-	writeStoredRunProfile,
 } from './model-preferences.storage';
 
 function memoryStorage(seed: Record<string, string> = {}): Pick<Storage, 'getItem' | 'setItem'> & {
@@ -22,27 +20,58 @@ function memoryStorage(seed: Record<string, string> = {}): Pick<Storage, 'getIte
 	};
 }
 
-describe('model memory', () => {
-	it('falls back to the defaults until a model is remembered', () => {
+describe('chat setup', () => {
+	it('starts a new chat in any workstream with the last pick, and keeps access per workstream', () => {
 		const storage = memoryStorage();
-		const defaults = {
-			planning: { provider: 'claude', model: 'haiku' },
-			implementation: { provider: 'claude', model: 'sonnet' },
-		} as const;
-		expect(readModelMemory(defaults, storage)).toEqual(defaults);
+		expect(readNewChatSetup('ws-new', storage)).toEqual({
+			selection: { provider: 'claude', model: 'opus' },
+			profile: { effort: 'medium', mode: 'agent', access: 'auto', report: 'medium' },
+		});
 
-		const remembered = {
-			planning: { provider: 'claude', model: 'opus' },
-			implementation: { provider: 'claude', model: 'sonnet[1m]' },
-		} as const;
-		writeModelMemory(remembered, defaults, storage);
+		rememberChatPick(
+			'ws-a',
+			'session-a',
+			{
+				selection: { provider: 'claude', model: 'sonnet' },
+				profile: { effort: 'low', mode: 'plan', access: 'full', report: 'high' },
+			},
+			storage,
+		);
 
-		expect(readModelMemory(DEFAULT_MODEL_PREFERENCES, storage)).toEqual(remembered);
+		expect(readNewChatSetup('ws-new', storage)).toEqual({
+			selection: { provider: 'claude', model: 'sonnet' },
+			profile: { effort: 'low', mode: 'plan', access: 'auto', report: 'high' },
+		});
+		expect(readNewChatSetup('ws-a', storage).profile.access).toBe('full');
+		expect(readChatSetup('session-a', storage)).toEqual({
+			selection: { provider: 'claude', model: 'sonnet' },
+			profile: { effort: 'low', mode: 'plan', access: 'full', report: 'high' },
+		});
+		expect(readChatSetup('session-b', storage)).toBeNull();
 	});
 
-	it('repairs a corrupt memory from the current defaults', () => {
-		const storage = memoryStorage({ [MODEL_MEMORY_KEY]: '{broken' });
-		expect(readModelMemory(DEFAULT_MODEL_PREFERENCES, storage)).toEqual(DEFAULT_MODEL_PREFERENCES);
+	it('starts the first new chat after the update with the effort, report and model picked before it', () => {
+		const storage = memoryStorage({
+			'malini.chat.last-effort:v1': JSON.stringify('xhigh'),
+			'malini.chat.last-report:v1': JSON.stringify('low'),
+			'malini.chat.model-memory:v2': JSON.stringify({
+				planning: { provider: 'claude', model: 'opus' },
+				implementation: { provider: 'claude', model: 'haiku' },
+			}),
+		});
+
+		expect(readNewChatSetup('ws-old', storage)).toEqual({
+			selection: { provider: 'claude', model: 'haiku' },
+			profile: { effort: 'xhigh', mode: 'agent', access: 'auto', report: 'low' },
+		});
+	});
+
+	it('repairs a corrupt last pick from the defaults', () => {
+		const storage = memoryStorage({ [NEW_CHAT_SETUP_KEY]: '{"profile":{"effort":"huge"}}' });
+		expect(readNewChatSetup('ws-a', storage)).toEqual({
+			selection: { provider: 'claude', model: 'opus' },
+			profile: { effort: 'medium', mode: 'agent', access: 'auto', report: 'medium' },
+		});
 	});
 
 	it('persists an immutable role/model snapshot per chat', () => {
@@ -82,63 +111,6 @@ describe('model memory', () => {
 		expect(readChatModelSnapshot('session-deepseek', storage)?.selection).toEqual({
 			provider: 'deepseek',
 			model: 'deepseek-v4-pro',
-		});
-	});
-});
-
-describe('run profile memory', () => {
-	it('opens a workstream without a profile of its own at the effort last used anywhere', () => {
-		const storage = memoryStorage();
-		expect(readStoredRunProfile('ws-new', storage).effort).toBe('medium');
-
-		writeStoredRunProfile(
-			'ws-a',
-			{ effort: 'xhigh', mode: 'plan', access: 'full', report: 'medium' },
-			storage,
-		);
-
-		expect(readStoredRunProfile('ws-new', storage)).toMatchObject({
-			effort: 'xhigh',
-			mode: 'agent',
-		});
-		expect(readStoredRunProfile('ws-a', storage)).toEqual({
-			effort: 'xhigh',
-			mode: 'plan',
-			access: 'full',
-			report: 'medium',
-		});
-	});
-
-	it('opens a workstream without a profile of its own at the report last picked anywhere', () => {
-		const storage = memoryStorage();
-		expect(readStoredRunProfile('ws-new', storage).report).toBe('medium');
-
-		writeStoredRunProfile(
-			'ws-a',
-			{ effort: 'high', mode: 'agent', access: 'full', report: 'low' },
-			storage,
-		);
-
-		expect(readStoredRunProfile('ws-new', storage)).toMatchObject({
-			effort: 'high',
-			report: 'low',
-		});
-	});
-
-	it('keeps a profile stored before reports existed, at the medium report', () => {
-		const storage = memoryStorage({
-			'malini.chat.profile:ws-old': JSON.stringify({
-				effort: 'high',
-				mode: 'plan',
-				access: 'full',
-			}),
-		});
-
-		expect(readStoredRunProfile('ws-old', storage)).toEqual({
-			effort: 'high',
-			mode: 'plan',
-			access: 'full',
-			report: 'medium',
 		});
 	});
 });

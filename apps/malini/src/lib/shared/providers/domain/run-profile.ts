@@ -52,11 +52,19 @@ export function isValidAgentAccess(value: unknown): value is AgentAccess {
 	return AGENT_ACCESS_LEVELS.some((access) => access === value);
 }
 
+export function isValidReasoningEffort(value: unknown): value is AgentReasoningEffort {
+	return AGENT_REASONING_EFFORTS.some((effort) => effort === value);
+}
+
+export function reasoningEffortLabel(effort: AgentReasoningEffort): string {
+	if (effort === 'xhigh') return 'Extra high';
+	return `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
+}
+
 export function isValidAgentRunProfile(value: unknown): value is AgentRunProfile {
 	if (!isRecord(value)) return false;
 	return (
-		typeof value.effort === 'string' &&
-		AGENT_REASONING_EFFORTS.some((effort) => effort === value.effort) &&
+		isValidReasoningEffort(value.effort) &&
 		typeof value.mode === 'string' &&
 		AGENT_RUN_MODES.some((mode) => mode === value.mode) &&
 		isValidAgentAccess(value.access) &&

@@ -1,4 +1,3 @@
-import type { AgentReasoningEffort } from '$contract/agent';
 import type { JobBuiltin, JobDefinitionRecord, JobRunsIn } from '$contract/jobs';
 
 export const JOB_RUNS_IN_OPTIONS: readonly Readonly<{ value: JobRunsIn; label: string }>[] = [
@@ -49,11 +48,6 @@ const RUNS_IN_WHEN: Readonly<Record<JobRunsIn, string>> = {
 	workstream: 'When you run it',
 	'new-workstream': 'When you run it, in a new workstream',
 };
-
-export function effortLabel(effort: AgentReasoningEffort): string {
-	if (effort === 'xhigh') return 'Extra high';
-	return `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
-}
 
 export function jobWhen(definition: Pick<JobDefinitionRecord, 'runsIn' | 'builtin'>): string {
 	return definition.builtin === null

@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -133,7 +133,14 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, or a model from OpenCode, paid as you go with Zen or with an OpenCode Go plan, and an effort from Low to Max, for every prompt.
 The picker is one flat list of models, so you pick the model, not the provider.
 Type in it to filter by model or provider, and press Enter to pick the first match.
-A job's chat shows the model, effort and plan mode its job ran with, so a reply you send there runs the same way unless you change it; your own chats keep what you picked.
+**Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
+Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
+Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
+Every chat keeps its own model, effort, access and report, so what you pick in one chat never changes another.
+A new chat starts with the model, effort, plan mode and report you picked last, in any chat, and with the access you last picked in its workstream.
+Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
+Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
+A job's chat shows the model, effort and plan mode its job ran with, so a reply you send there runs the same way unless you change it.
 Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, or a Claude sign-in.
 Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.

@@ -3,6 +3,7 @@
 	import { cubicOut, quartOut } from 'svelte/easing';
 	import type { TransitionConfig } from 'svelte/transition';
 	import { navigating, page } from '$shared/router/state';
+	import { SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		historyIndexFromState,
 		navigationHistoryTargetLedger,
@@ -324,6 +325,16 @@
 				>
 					<Icon name="sidebar" />
 				</button>
+			</Tooltip>
+			<Tooltip content="Settings" placement="bottom">
+				<a
+					href={SETTINGS_HREF}
+					class="topbar-chrome"
+					aria-label="Open settings"
+					data-testid="global-topbar-open-settings"
+				>
+					<Icon name="settings" />
+				</a>
 			</Tooltip>
 		{/if}
 		{#if !onboardingShown}

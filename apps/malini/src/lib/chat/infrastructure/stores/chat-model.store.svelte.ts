@@ -1,21 +1,13 @@
 import {
 	DEFAULT_AGENT_RUN_PROFILE,
-	DEFAULT_MODEL_PREFERENCES,
 	DEFAULT_PROVIDER_ID,
 	defaultAgentModel,
 	isValidAgentModel,
-	modelDefaultsQuery,
-	preferencesWithRoleSelection,
 	type AgentRunProfile,
-	type ModelPreferences,
-	type ModelRole,
+	type ChatSetup,
 	type ModelSelection,
 } from '$shared/providers/providers.api';
 import type { SessionId } from '$lib/chat/domain/session';
-import {
-	readModelMemory,
-	writeModelMemory,
-} from '$lib/chat/infrastructure/services/model-preferences.storage';
 
 class ChatModelStore {
 	selection: ModelSelection | null = $state(null);
@@ -30,10 +22,23 @@ class ChatModelStore {
 	noteUserChoice(): void {
 		this.userChoices += 1;
 	}
-	rememberedModels: ModelPreferences = $state({
-		planning: { ...DEFAULT_MODEL_PREFERENCES.planning },
-		implementation: { ...DEFAULT_MODEL_PREFERENCES.implementation },
-	});
+
+	show(setup: ChatSetup): void {
+		this.selection = { ...setup.selection };
+		this.profile = { ...setup.profile };
+	}
+
+	setup(): ChatSetup {
+		return { selection: this.currentSelection(), profile: { ...this.profile } };
+	}
+
+	adoptPreview(sessionId: SessionId | null): SessionId | null {
+		const preview = this.previewFor(sessionId);
+		if (!preview) return null;
+		this.show(preview);
+		this.preview = null;
+		return preview.sessionId;
+	}
 
 	previewFor(sessionId: SessionId | null): ChatModelStore['preview'] {
 		return sessionId !== null && this.preview?.sessionId === sessionId ? this.preview : null;
@@ -48,23 +53,6 @@ class ChatModelStore {
 			return { provider: record.provider ?? DEFAULT_PROVIDER_ID, model: record.model };
 		}
 		return { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
-	}
-
-	loadRememberedModels(): ModelPreferences {
-		this.rememberedModels = readModelMemory(modelDefaultsQuery.data);
-		return this.rememberedModels;
-	}
-
-	adoptDefaults(): void {
-		const defaults = modelDefaultsQuery.data;
-		this.rememberedModels = writeModelMemory(defaults, defaults);
-	}
-
-	rememberRoleSelection(role: ModelRole, selection: ModelSelection): ModelPreferences {
-		const defaults = modelDefaultsQuery.data;
-		const next = preferencesWithRoleSelection(readModelMemory(defaults), role, selection);
-		this.rememberedModels = writeModelMemory(next, defaults);
-		return this.rememberedModels;
 	}
 }
 

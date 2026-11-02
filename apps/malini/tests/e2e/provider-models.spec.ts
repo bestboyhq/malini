@@ -248,7 +248,7 @@ test('an OpenCode Go run uses the models models.dev lists and the subscription k
 		await expect(modelOptions(page, 'opencode-go')).toHaveCount(2);
 		const filter = page.getByRole('textbox', { name: 'Filter models' });
 		await expect(filter).toBeFocused();
-		await filter.fill('glm opencode');
+		await filter.fill('glm opencode go');
 		await expect(page.getByTestId('chat-model-option')).toHaveCount(1);
 		await captureFlow(app, 'provider-models-opencode-filter');
 		await filter.press('Enter');

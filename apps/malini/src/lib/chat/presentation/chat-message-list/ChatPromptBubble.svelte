@@ -291,6 +291,7 @@
 						{#if controls}
 							<ModelProfilePicker
 								selection={controls.selection}
+								effort={controls.profile.effort}
 								disabled={controls.backendSelectionDisabled || submitting}
 								onchange={controls.onbackendchange}
 							/>

@@ -90,7 +90,7 @@ test('every repository sits under its owner, which folds, and every workstream h
 		await expect(ownerFolder(page)).toBeFocused();
 		order = await listedRows(page);
 
-		await page.getByRole('link', { name: 'Connect repository' }).click({ force: true });
+		await page.evaluate(() => (globalThis.location.hash = '#/'));
 		const list = page.getByTestId('repository-list');
 		const section = list.getByRole('button', { name: 'acme, 2 repositories' });
 		const webRow = list.locator('[data-testid="repository-row"][data-full-name="acme/web"]');
