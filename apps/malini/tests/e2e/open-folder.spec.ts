@@ -37,7 +37,7 @@ test('opening a folder lands on its scratchpad and clones it in the background',
 		await expectScratchpadOf(page, 'meadow');
 		expect(await busyLabels(page)).toContainEqual(expect.stringContaining('Opening…'));
 
-		await page.getByRole('link', { name: 'Connect repository' }).click();
+		await page.evaluate(() => (globalThis.location.hash = '#/'));
 		await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
 		await pickFolder(app, await createSourceRepo(app.root, 'orchard'));
 		await recordBusyLabels(page);

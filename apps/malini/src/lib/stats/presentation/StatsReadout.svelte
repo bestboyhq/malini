@@ -13,6 +13,12 @@
 	import StatsPanel from './StatsPanel.svelte';
 	import { formatCpu, formatMemory } from './stats-format';
 
+	interface Props {
+		open?: boolean;
+	}
+
+	let { open = $bindable(false) }: Props = $props();
+
 	const latest = $derived(latestResourceSampleQuery.data);
 	const readout = $derived(
 		latest ? `${formatMemory(latest.memoryBytes)} · ${formatCpu(latest.cpuPercent)}` : null,
@@ -23,7 +29,6 @@
 		duration: (from) => (from === 0 || prefersReducedMotion.current ? 0 : 200),
 		easing: cubicOut,
 	});
-	let open = $state(false);
 	let trigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 
 	onMount(() => {

@@ -7,7 +7,7 @@ function sidebarRow(page: Page, workstreamId: string) {
 		.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`);
 }
 
-test('the top bar walks the history and toggles the sidebar, and the sidebar footer links back to the repositories', async () => {
+test('the top bar walks the history and toggles the sidebar', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -50,8 +50,7 @@ test('the top bar walks the history and toggles the sidebar, and the sidebar foo
 		);
 		await expect(sidebar).toBeVisible();
 
-		await expect(bar.getByRole('link', { name: 'Connect repository' })).toHaveCount(0);
-		await page.getByRole('complementary').getByRole('link', { name: 'Connect repository' }).click();
+		await page.evaluate(() => (globalThis.location.hash = '#/'));
 		await expect(page).toHaveTitle('Malini · Repositories');
 		await expect(back).toBeEnabled();
 		expectCleanConsole(app);

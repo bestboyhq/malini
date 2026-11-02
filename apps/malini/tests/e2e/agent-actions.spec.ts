@@ -104,7 +104,7 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 		});
 		await expect(decision(page)).toHaveCount(0);
 
-		await page.getByTestId('sidebar-open-settings').click();
+		await page.getByTestId('global-topbar-open-settings').click();
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Agent access', exact: true })
