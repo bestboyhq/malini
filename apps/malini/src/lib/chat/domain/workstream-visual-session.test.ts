@@ -71,5 +71,6 @@ function session(
 		lastError: null,
 		startedAt,
 		origin: 'user',
+		latestProfile: null,
 	};
 }

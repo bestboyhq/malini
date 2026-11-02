@@ -1,5 +1,5 @@
 import { SvelteSet } from 'svelte/reactivity';
-import type { AgentSessionOrigin } from '$contract/agent';
+import type { AgentRunProfile, AgentSessionOrigin } from '$contract/agent';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { RunId } from '$lib/chat/domain/run';
 import type { SessionId } from '$lib/chat/domain/session';
@@ -79,6 +79,7 @@ class SessionsAggregate {
 			lastError: null,
 			startedAt: input.startedAt ?? new Date().toISOString(),
 			origin: input.origin ?? 'user',
+			latestProfile: null,
 		};
 		this.sessionsById = {
 			...this.sessionsById,
@@ -102,6 +103,7 @@ class SessionsAggregate {
 		status: SessionState;
 		startedAt: string;
 		origin?: AgentSessionOrigin;
+		latestProfile: AgentRunProfile | null;
 	}): SessionRecord {
 		const existing = this.ensureSession(input);
 		const hasLiveLifecycleEvidence = (this.envelopesBySession[input.sessionId] ?? []).some(
@@ -116,6 +118,7 @@ class SessionsAggregate {
 			status: hasLiveLifecycleEvidence ? existing.status : input.status,
 			startedAt: input.startedAt,
 			origin: input.origin ?? existing.origin,
+			latestProfile: input.latestProfile,
 		};
 		this.sessionsById = { ...this.sessionsById, [input.sessionId]: next };
 		return next;

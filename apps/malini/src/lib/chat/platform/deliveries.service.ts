@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentRunProfile } from '$contract/agent';
+import { agentRunProfileOf, type AgentRunProfile } from '$contract/agent';
 import type { ChatDelivery } from '$contract/deliveries';
 import { CHAT_DELIVERY_CHANGED_CHANNEL, type ChatTurnFinishedPayload } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -14,7 +14,6 @@ import {
 	workstreamReport,
 } from '../domain/deliveries';
 import { isAlreadyActiveError } from '../domain/prompt-dispatch-failure';
-import { parseRunProfile } from './agent/commands';
 import {
 	insertDelivery,
 	getDelivery,
@@ -206,7 +205,7 @@ export class ChatDeliveries {
 
 function firstProfile(profiles: readonly unknown[]): AgentRunProfile | null {
 	for (const profile of profiles) {
-		const parsed = safeProfile(profile);
+		const parsed = agentRunProfileOf(profile);
 		if (parsed) return parsed;
 	}
 	return null;
@@ -225,15 +224,7 @@ function latestPromptProfile(
 	);
 	if (!row) return null;
 	try {
-		return safeProfile(JSON.parse(row.profile));
-	} catch {
-		return null;
-	}
-}
-
-function safeProfile(value: unknown): AgentRunProfile | null {
-	try {
-		return parseRunProfile(value);
+		return agentRunProfileOf(JSON.parse(row.profile));
 	} catch {
 		return null;
 	}

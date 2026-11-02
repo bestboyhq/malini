@@ -39,6 +39,7 @@ function session(id: string, status: SessionState, origin: 'user' | 'job' = 'use
 		lastError: null,
 		startedAt: '2026-10-25T10:00:00.000Z',
 		origin,
+		latestProfile: null,
 	};
 }
 
