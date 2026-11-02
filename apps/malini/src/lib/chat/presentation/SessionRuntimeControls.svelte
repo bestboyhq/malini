@@ -17,6 +17,7 @@
 	import {
 		ClaudeAccountList,
 		claudeCodeStatusQuery,
+		ProviderIcon,
 		providerGroupsQuery,
 		subscriptionBillingQuery,
 	} from '$shared/providers/providers.api';
@@ -414,7 +415,7 @@
 										aria-label={provider.name}
 										role="group"
 									>
-										<Icon name="bolt" size={13} class="shrink-0" />
+										<ProviderIcon providerId={provider.id} size={13} class="shrink-0" />
 										<span class="min-w-0 flex-1 truncate">{provider.name}</span>
 										<span class="text-2xs text-fg-tertiary shrink-0">API key</span>
 									</div>

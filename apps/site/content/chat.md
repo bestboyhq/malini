@@ -142,7 +142,7 @@ DeepSeek V4 Pro is text only, and V4 Flash also reads images.
 Point at the gauge in the composer for **Providers**: only the providers you connected, Claude when Claude Code is signed in and DeepSeek once its key is saved.
 Under Claude sits the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac.
 Usage comes from the account's runs, so a fresh account shows it after its next run.
-The same accounts sit in **Settings > Providers**.
+The same accounts sit in **Settings → Providers**, and **Accounts…** in Malini's menu bar icon opens it.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.

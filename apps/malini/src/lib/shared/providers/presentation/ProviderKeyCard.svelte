@@ -5,6 +5,7 @@
 	import { deleteProviderKeyCommand } from '$shared/providers/application/commands/delete-provider-key.command';
 	import { saveProviderKeyCommand } from '$shared/providers/application/commands/save-provider-key.command';
 	import type { AgentModelInfo } from '$shared/providers/domain/model-catalog';
+	import ProviderIcon from './ProviderIcon.svelte';
 
 	interface Props {
 		providerId: string;
@@ -60,7 +61,7 @@
 			class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
 			aria-hidden="true"
 		>
-			<Icon name="bolt" size={16} />
+			<ProviderIcon {providerId} size={16} />
 		</div>
 		<div class="min-w-0 flex-1">
 			<h3 class="text-fg-default text-sm font-medium">{name}</h3>
@@ -82,6 +83,7 @@
 				type="password"
 				size="sm"
 				autocomplete="off"
+				class="min-w-0 flex-1"
 				placeholder={keySaved ? 'Paste a new key to replace it' : 'Paste your API key'}
 				ariaLabel={`${name} API key`}
 				bind:value={draft}
