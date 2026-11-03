@@ -734,7 +734,9 @@
 									bind:clientHeight={welcomeHeight}
 									out:fade={{ duration: 150 }}
 								>
-									{@render welcome()}
+									<div class="chat-column px-4">
+										{@render welcome()}
+									</div>
 								</div>
 							{/if}
 						</div>

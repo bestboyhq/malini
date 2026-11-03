@@ -36,5 +36,8 @@ describe('stats formatting', () => {
 		expect(formatTimeAgo(12 * 60_000)).toBe('12m ago');
 		expect(formatTimeAgo(3 * 3_600_000)).toBe('3h ago');
 		expect(formatTimeAgo(49 * 3_600_000)).toBe('2d ago');
+		expect(formatTimeAgo(29 * 86_400_000)).toBe('29d ago');
+		expect(formatTimeAgo(75 * 86_400_000)).toBe('2mo ago');
+		expect(formatTimeAgo(800 * 86_400_000)).toBe('2y ago');
 	});
 });

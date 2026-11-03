@@ -7,6 +7,7 @@ import {
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
+	openRepositoriesPage,
 	passSetup,
 	listProjects,
 	seedWorkstream,
@@ -87,6 +88,7 @@ test('cloning a hidden repository again brings it back', async () => {
 			]),
 		);
 		await passSetup(page);
+		await openRepositoriesPage(page);
 		await cloneHutch(page);
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });

@@ -27,7 +27,7 @@
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
 	import { firstChatWaits } from '../first-chat';
-	import FirstChatActions from '../FirstChatActions.svelte';
+	import FirstChatRepositories from '../FirstChatRepositories.svelte';
 	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
@@ -95,7 +95,7 @@
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}
 			notice={stoppedHere || shipFailure ? workstreamNotice : undefined}
-			welcome={firstChat ? firstChatActions : undefined}
+			welcome={firstChat ? firstChatRepositories : undefined}
 		>
 			{#snippet header(presentedWorkstreamId: string)}
 				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
@@ -115,8 +115,8 @@
 	{/snippet}
 </InspectorSplit>
 
-{#snippet firstChatActions()}
-	<FirstChatActions />
+{#snippet firstChatRepositories()}
+	<FirstChatRepositories />
 {/snippet}
 
 {#snippet jobsInProgress()}

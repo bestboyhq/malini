@@ -1,11 +1,16 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	CREATED_GITHUB_REPOSITORY_FIXTURE,
+	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
 	invoke,
 	launchMalini,
 	openWorkstream,
+	passSetup,
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
@@ -198,7 +203,7 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 		await expect(where).toHaveValue('@syntaxfm podcast');
 
 		await next.click();
-		await expect(page.getByTestId('first-chat-actions')).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('first-chat-repositories')).toBeVisible({ timeout: 20_000 });
 		await expect
 			.poll(async () => (await storedSettings(page))['heard-about'])
 			.toBe('syntaxfm podcast');
@@ -208,11 +213,31 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 	}
 });
 
-test('setup ends in a chat at Home with nothing around it but Clone repo and Open folder, which stays so across a reload and opens up once you send', async () => {
+test('setup ends in a chat at Home that lists your GitHub repositories and nothing else, across a reload, and a pick clones it while you stay in the chat until you send', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
+		const hutch = await createSourceRepo(app.root, 'e2e/hutch');
+		writeFileSync(
+			join(app.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify([
+				{
+					full_name: 'e2e/hutch',
+					clone_url: `file://${hutch}`,
+					description: null,
+					private: true,
+					pushed_at: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
+				},
+				{
+					full_name: 'e2e/burrow',
+					clone_url: 'https://github.com/e2e/burrow.git',
+					description: 'Where the rabbits live.',
+					private: false,
+					pushed_at: new Date(Date.now() - 3 * 24 * 60 * 60_000).toISOString(),
+				},
+			]),
+		);
 		const setup = page.getByTestId('onboarding');
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
@@ -223,14 +248,16 @@ test('setup ends in a chat at Home with nothing around it but Clone repo and Ope
 			.click();
 		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 
-		const actions = page.getByTestId('first-chat-actions');
+		const chooser = page.getByRole('region', { name: 'Your repositories' });
+		const repositories = chooser.getByRole('list', { name: 'Your GitHub repositories' });
+		const search = chooser.getByRole('searchbox', { name: 'Search repositories' });
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
 		const tabs = page.getByRole('tablist', { name: 'Chats and files' });
-		await expect(actions).toBeVisible({ timeout: 20_000 });
-		await expect(actions.getByRole('button', { name: 'Clone a GitHub repository' })).toBeVisible();
-		await expect(
-			actions.getByRole('button', { name: 'Open a local repository folder' }),
-		).toBeVisible();
+		await expect(repositories.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
+		await expect(search).toHaveAttribute('placeholder', 'Search 2 repositories');
+		await expect(repositories.getByRole('button', { name: 'e2e/hutch' })).toContainText('2h ago');
+		await expect(repositories.getByRole('img', { name: 'Private' })).toHaveCount(1);
+		await expect(chooser.getByRole('button', { name: 'New repository' })).toBeVisible();
 		await expect(sidebar).toHaveCount(0);
 		await expect(tabs).toHaveCount(0);
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
@@ -243,17 +270,106 @@ test('setup ends in a chat at Home with nothing around it but Clone repo and Ope
 			.toEqual(['home']);
 		await captureFlow(app, 'first-chat');
 
+		await search.fill('rabbits');
+		await expect(repositories.getByRole('button')).toHaveCount(1);
+		await expect(repositories.getByRole('button', { name: 'e2e/burrow' })).toBeVisible();
+		await search.fill('warren');
+		await expect(repositories).toHaveCount(0);
+		await expect(chooser.getByText('Nothing called “warren”. Make it below')).toBeVisible();
+		await search.fill('');
+
 		await page.reload();
-		await expect(actions).toBeVisible({ timeout: 20_000 });
+		await expect(repositories.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
 		await expect(sidebar).toHaveCount(0);
 
-		await sendPrompt(page, 'I work on acme/api');
-		await expect(sidebar).toBeVisible({ timeout: 20_000 });
-		await expect(actions).toHaveCount(0);
-		await expect(page.getByTestId('lead-timeline').getByText('I work on acme/api')).toBeVisible();
+		const pick = repositories.getByRole('button', { name: 'e2e/hutch' });
+		await pick.click();
+		await expect(pick).toContainText('On this Mac', { timeout: 30_000 });
+		await expect(pick).toBeDisabled();
+		await expect(
+			sidebar.getByTestId('sidebar-connected-repository').filter({ hasText: 'hutch' }),
+		).toBeVisible();
+		await expect(chooser).toBeVisible();
+		await expect(tabs).toHaveCount(0);
+		await captureFlow(app, 'first-chat-picked');
+
+		await page.reload();
+		await expect(pick).toContainText('On this Mac', { timeout: 20_000 });
+		await expect(sidebar).toBeVisible();
+
+		await sendPrompt(page, 'Tidy up the hutch');
+		await expect(chooser).toHaveCount(0, { timeout: 20_000 });
+		await expect(tabs).toBeVisible();
+		await expect(page.getByTestId('lead-timeline').getByText('Tidy up the hutch')).toBeVisible();
 		await page.reload();
 		await expect(sidebar).toBeVisible({ timeout: 20_000 });
-		await expect(actions).toHaveCount(0);
+		await expect(chooser).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('New repository under the first chat makes one on GitHub under the owner you pick and clones it, and says why when GitHub refuses', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({
+		allowedDiagnostics: [/repositories\.create-github-repository/u],
+	});
+	try {
+		const { page } = app;
+		await passSetup(page);
+		const chooser = page.getByRole('region', { name: 'Your repositories' });
+		await expect(chooser.getByRole('searchbox')).toHaveCount(0);
+		await chooser.getByRole('button', { name: 'New repository' }).click();
+
+		const form = chooser.getByRole('form', { name: 'New repository' });
+		const name = form.getByRole('textbox', { name: 'Repository name' });
+		const owner = form.getByRole('combobox', { name: 'Owner' });
+		const create = form.getByRole('button', { name: 'Create' });
+		await expect(name).toBeFocused();
+		await expect(owner).toHaveValue('e2e-user');
+		await expect(owner.getByRole('option')).toHaveText(['e2e-user', 'e2e-org']);
+		await expect(form.getByRole('checkbox', { name: 'Private' })).toBeChecked();
+		await expect(create).toBeDisabled();
+		await owner.selectOption('e2e-org');
+		await name.fill('rabbit den');
+		await expect(create).toBeEnabled();
+
+		await create.click();
+		const failure = chooser.getByRole('alert');
+		await expect(failure).toContainText('Could not create repository', { timeout: 20_000 });
+		await expect(failure).toContainText('Name already exists on this account');
+		await expect(form).toBeVisible();
+
+		const den = await createSourceRepo(app.root, 'e2e-org/rabbit-den');
+		writeFileSync(
+			join(app.home, CREATED_GITHUB_REPOSITORY_FIXTURE),
+			JSON.stringify({
+				full_name: 'e2e-org/rabbit-den',
+				clone_url: `file://${den}`,
+				description: null,
+				private: true,
+				pushed_at: new Date().toISOString(),
+			}),
+		);
+		await create.click();
+		await expect(form).toHaveCount(0, { timeout: 20_000 });
+		await expect(failure).toHaveCount(0);
+		const made = chooser
+			.getByRole('list', { name: 'Your GitHub repositories' })
+			.getByRole('button', { name: 'e2e-org/rabbit-den' });
+		await expect(made).toContainText('On this Mac', { timeout: 30_000 });
+		await expect(chooser.getByRole('searchbox')).toHaveAttribute(
+			'placeholder',
+			'Search 1 repository',
+		);
+		await expect(
+			page
+				.getByRole('navigation', { name: 'Connected repositories' })
+				.getByTestId('sidebar-connected-repository')
+				.filter({ hasText: 'rabbit-den' }),
+		).toBeVisible();
+		await captureFlow(app, 'first-chat-new-repository');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

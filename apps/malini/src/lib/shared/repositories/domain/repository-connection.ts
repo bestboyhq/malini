@@ -11,7 +11,7 @@ import type { Workstream } from './workstream';
 export type RepositoryConnectingKind = 'folder' | 'clone';
 
 export type RepositoryConnection = Readonly<{
-	kind: RepositoryConnectingKind;
+	kind: RepositoryConnectingKind | 'create';
 	key: string;
 }>;
 

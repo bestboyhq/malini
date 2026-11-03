@@ -26,9 +26,12 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
-- **Then a chat at Home.** Setup ends in an empty chat that asks what you work on, with **Clone repo** and **Open folder** under it.
-  Name the repositories you work in, and the lead clones them once you allow it.
-  The sidebar and the rest of Malini come back with your first message.
+- **Then a chat at Home.** Setup ends in an empty chat that asks what you're working on, with your GitHub repositories under it, newest push first.
+  Pick one and Malini clones it while you stay in the chat.
+  **New repository** makes one on GitHub under you or one of your organizations, private unless you untick it, and clones that.
+  Or name the repositories in your first message, and the lead clones them once you allow it.
+  The sidebar comes back with your first repository, and the rest of Malini with your first message.
+  **Open folder**, for a repository already on your Mac, is on the Repositories page.
 
 ## Updates
 

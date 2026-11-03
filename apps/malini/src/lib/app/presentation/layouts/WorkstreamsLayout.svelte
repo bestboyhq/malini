@@ -42,7 +42,7 @@
 	} from '$shared/providers/providers.api';
 	import { leaveFirstChatCommand } from '$lib/app/application/commands/leave-first-chat.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { firstChatBegan, firstChatWaits } from '../first-chat';
+	import { firstChatBare, firstChatBegan } from '../first-chat';
 	import JobsSidebar from '../JobsSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
 	import { JOBS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
@@ -74,7 +74,7 @@
 	const pullRequestBadge = pullRequestBadgesQuery.data;
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
-	const chromeHidden = $derived(onboardingQuery.data.shown || firstChatWaits(activeWorkstreamId));
+	const chromeHidden = $derived(onboardingQuery.data.shown || firstChatBare(activeWorkstreamId));
 
 	$effect(() => {
 		if (firstChatBegan()) leaveFirstChatCommand();

@@ -13,7 +13,12 @@ import { prepareRepositoryCommand } from './prepare-repository.command';
 
 export { connectRepositoryCommand };
 
-function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: () => void): void {
+type ConnectOptions = Readonly<{ open?: boolean; onConnected?: () => void }>;
+
+function connectRepositoryCommand(
+	source: RepositoryImportSource,
+	{ open = true, onConnected }: ConnectOptions = {},
+): void {
 	if (repositoryConnectionStore.connecting !== null) return;
 	repositoryConnectionStore.connecting = repositoryConnectionFor(source);
 	repositoryConnectionStore.error = null;
@@ -22,7 +27,7 @@ function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: 
 			const { repo } = await githubService.connectRepository(source);
 			prepareRepositoryCommand(repo);
 			await repositoriesAggregate.refresh();
-			await goto(repositoryHref(repo.id));
+			if (open) await goto(repositoryHref(repo.id));
 			onConnected?.();
 		} catch (caught) {
 			repositoryConnectionStore.error = repositoryConnectFailure(

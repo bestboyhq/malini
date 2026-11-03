@@ -11,6 +11,7 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	openRepositoriesPage,
 	passSetup,
 	listProjects,
 	type WorkstreamRow,
@@ -39,6 +40,7 @@ test('cloning picks a recent GitHub repository and opens its scratchpad', async 
 		);
 
 		await passSetup(page);
+		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		const url = dialog.getByLabel('Repository URL');
@@ -108,6 +110,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		);
 
 		await passSetup(page);
+		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		await dialog.getByRole('button', { name: /e2e\/warren/u }).click();

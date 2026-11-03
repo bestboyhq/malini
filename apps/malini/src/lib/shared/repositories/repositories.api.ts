@@ -13,11 +13,16 @@ export {
 } from './domain/workstream';
 
 export {
+	githubRepositoryName,
+	type GithubRepository,
+	type NewGithubRepository,
 	type Project,
 	type ProjectId,
 	type Repository,
 	type RepositoryId,
 } from './domain/repository';
+
+export { repositoryConnectionFor } from './domain/repository-connection';
 
 export {
 	nextWorkstreamId,
@@ -150,6 +155,9 @@ export { cancelGithubSignInCommand } from './application/commands/cancel-github-
 export { clearRepositoryConnectErrorCommand } from './application/commands/clear-repository-connect-error.command';
 export { answerRepositoryConnectionRequestCommand } from './application/commands/answer-repository-connection-request.command';
 export { connectRepositoryCommand } from './application/commands/connect-repository.command';
+export { createGithubRepositoryCommand } from './application/commands/create-github-repository.command';
+export { loadGithubOwnersCommand } from './application/commands/load-github-owners.command';
+export { loadGithubRepositoriesCommand } from './application/commands/load-github-repositories.command';
 export { consumeWorkstreamCreationCommand } from './application/commands/consume-workstream-creation.command';
 export { createWorkstreamForRepositoryCommand } from './application/commands/create-workstream-for-repository.command';
 export { createWorkstreamHereCommand } from './application/commands/create-workstream-here.command';
@@ -191,6 +199,7 @@ export { bindExtensionRepositoryHook } from './application/hooks/bind-extension-
 export { followActiveWorkstreamHook } from './application/hooks/follow-active-workstream.hook';
 export { followWorkstreamSetupHook } from './application/hooks/follow-workstream-setup.hook';
 export { keepActiveWorkstreamFreshHook } from './application/hooks/keep-active-workstream-fresh.hook';
+export { reloadGithubRepositoriesOnSignInHook } from './application/hooks/reload-github-repositories-on-sign-in.hook';
 export { resumeProvisioningOnGithubCredentialHook } from './application/hooks/resume-provisioning-on-github-credential.hook';
 export { syncWorkstreamsHook } from './application/hooks/sync-workstreams.hook';
 export { trackWorkstreamChangeTotalsHook } from './application/hooks/track-workstream-change-totals.hook';
@@ -224,6 +233,9 @@ export { repositoriesScopeRetryingQuery } from './application/queries/repositori
 export { repositoryAvatarQuery } from './application/queries/repository-avatar.query.svelte';
 export { repositoryConnectErrorQuery } from './application/queries/repository-connect-error.query.svelte';
 export { repositoryConnectingQuery } from './application/queries/repository-connecting.query.svelte';
+export { repositoryConnectingKeyQuery } from './application/queries/repository-connecting-key.query.svelte';
+export { githubOwnersQuery } from './application/queries/github-owners.query.svelte';
+export { githubRepositoriesQuery } from './application/queries/github-repositories.query.svelte';
 export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
 export { repositoryConnectionRequestedQuery } from './application/queries/repository-connection-requested.query.svelte';
 export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';

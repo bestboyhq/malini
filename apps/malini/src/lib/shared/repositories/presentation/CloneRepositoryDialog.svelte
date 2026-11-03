@@ -62,7 +62,7 @@
 	function clone(cloneUrl: string = url): void {
 		if (!isCloneUrl(cloneUrl) || connecting !== null) return;
 		url = cloneUrl;
-		connectRepositoryCommand({ kind: 'clone-url', url: cloneUrl.trim() }, onclose);
+		connectRepositoryCommand({ kind: 'clone-url', url: cloneUrl.trim() }, { onConnected: onclose });
 	}
 
 	function onWindowKeydown(event: KeyboardEvent): void {

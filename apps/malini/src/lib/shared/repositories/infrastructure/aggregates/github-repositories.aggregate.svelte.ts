@@ -1,9 +1,13 @@
-import type { GithubRepositoryListing } from '$shared/repositories/domain/repository';
+import type {
+	GithubRepository,
+	GithubRepositoryListing,
+} from '$shared/repositories/domain/repository';
 import { repositoryConnectFailure } from '$shared/repositories/domain/repository-connection';
 import { githubService } from '$shared/repositories/infrastructure/services/github.service';
 
 class GithubRepositoriesAggregate {
 	listing: GithubRepositoryListing = $state.raw({ kind: 'loading' });
+	owners: readonly string[] = $state.raw([]);
 
 	#revision = 0;
 
@@ -20,6 +24,22 @@ class GithubRepositoriesAggregate {
 				failure: repositoryConnectFailure(caught, 'Could not list your GitHub repositories'),
 			};
 		}
+	}
+
+	async loadOwners(): Promise<void> {
+		try {
+			this.owners = await githubService.listGithubOwners();
+		} catch {
+			this.owners = [];
+		}
+	}
+
+	add(repository: GithubRepository): void {
+		const known = this.listing.kind === 'loaded' ? this.listing.repositories : [];
+		this.listing = {
+			kind: 'loaded',
+			repositories: [repository, ...known.filter((repo) => repo.fullName !== repository.fullName)],
+		};
 	}
 }
 

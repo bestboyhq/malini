@@ -13,12 +13,14 @@ export function firstChatWaits(workstreamId: string): boolean {
 	);
 }
 
+export function firstChatBare(workstreamId: string): boolean {
+	return firstChatWaits(workstreamId) && connectedRepositoriesQuery.data.length === 0;
+}
+
 export function firstChatBegan(): boolean {
 	const { firstChatId } = onboardingQuery.data;
 	return (
 		firstChatId !== null &&
-		(connectedRepositoriesQuery.data.length > 0 ||
-			composerPendingSubmissionsQuery.data > 0 ||
-			workstreamChatsQuery.data(firstChatId).length > 0)
+		(composerPendingSubmissionsQuery.data > 0 || workstreamChatsQuery.data(firstChatId).length > 0)
 	);
 }

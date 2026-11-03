@@ -57,6 +57,7 @@ const FIXTURE_BRIDGE = join(E2E_ROOT, 'fixtures/fake-bridge.cjs');
 
 export const PULL_REQUEST_FIXTURE = '.e2e-pull-request.json';
 export const GITHUB_REPOSITORIES_FIXTURE = '.e2e-github-repositories.json';
+export const CREATED_GITHUB_REPOSITORY_FIXTURE = '.e2e-created-github-repository.json';
 export const DOCKER_CONTAINERS_FIXTURE = '.e2e-docker-containers';
 
 export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
@@ -66,6 +67,7 @@ export const KEYCHAIN_FIXTURE = '.e2e-keychain';
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
+CREATED_GITHUB_REPOSITORY="$HOME/${CREATED_GITHUB_REPOSITORY_FIXTURE}"
 APPROVED="$HOME/${GITHUB_DEVICE_APPROVED}"
 if [ "$1 $2" = "auth login" ]; then
   echo "! First copy your one-time code: E2E0-C0DE" 1>&2
@@ -79,6 +81,8 @@ if [ -n "$E2E_GITHUB_SIGNED_OUT" ] && [ ! -f "$APPROVED" ]; then
 fi
 case "$1 $2" in
   "api user/repos"*) if [ -f "$GITHUB_REPOSITORIES" ]; then cat "$GITHUB_REPOSITORIES"; else echo "[]"; fi; exit 0 ;;
+  "api user/orgs"*) echo '[{"login":"e2e-org"}]'; exit 0 ;;
+  "api --method") if [ -f "$CREATED_GITHUB_REPOSITORY" ]; then cat "$CREATED_GITHUB_REPOSITORY"; exit 0; fi; echo '{"message":"Repository creation failed.","errors":[{"message":"name already exists on this account"}]}'; echo "gh: Repository creation failed. (HTTP 422)" 1>&2; exit 1 ;;
   "auth status") echo "github.com"; echo "  Logged in to github.com account e2e-user (keyring)"; exit 0 ;;
   "api user") echo "e2e-user"; exit 0 ;;
 esac
@@ -639,7 +643,12 @@ export async function passSetup(page: Page): Promise<void> {
 	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-	await expect(page.getByTestId('first-chat-actions')).toBeVisible({ timeout: 20_000 });
+	await expect(page.getByTestId('first-chat-repositories')).toBeVisible({ timeout: 20_000 });
+}
+
+export async function openRepositoriesPage(page: Page): Promise<void> {
+	await page.evaluate(() => (globalThis.location.hash = '#/'));
+	await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
 }
 
 function composer(page: Page) {

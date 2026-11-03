@@ -273,6 +273,12 @@ export type RedoCheckpointRestoreArgs = Readonly<{
 	restoreSeq: number;
 }>;
 
+export type CreateGithubRepositoryArgs = Readonly<{
+	owner: string;
+	name: string;
+	private: boolean;
+}>;
+
 export type CreateProjectArgs = Readonly<{
 	repoUrl: string;
 	githubToken?: string | null;
@@ -537,6 +543,11 @@ export interface ContractCommands {
 	'repositories.connect': { args: ImportRepositoryArgs; result: RepositoryConnectionDto };
 	'repositories.list-clones': { args: undefined; result: ConnectedRepositoryDto[] };
 	'repositories.list-github-repositories': { args: undefined; result: GithubRepositoryDto[] };
+	'repositories.list-github-owners': { args: undefined; result: string[] };
+	'repositories.create-github-repository': {
+		args: CreateGithubRepositoryArgs;
+		result: GithubRepositoryDto;
+	};
 	'pull-requests.mark-ready': {
 		args: PullRequestNumberArgs;
 		result: PullRequestStatusDto;
@@ -851,6 +862,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.connect',
 	'repositories.list-clones',
 	'repositories.list-github-repositories',
+	'repositories.list-github-owners',
+	'repositories.create-github-repository',
 	'pull-requests.mark-ready',
 	'pull-requests.reopen',
 	'pull-requests.merge',

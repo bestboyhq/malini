@@ -20,7 +20,7 @@
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { sidebarWidthQuery } from '$lib/app/application/queries/sidebar-width.query.svelte';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { firstChatWaits } from './first-chat';
+	import { firstChatBare } from './first-chat';
 	import {
 		globalTopBarActionMatchesPathname,
 		globalTopBarBandSlotHost,
@@ -55,7 +55,7 @@
 	const sidebarShown = $derived(!sidebarCollapsed || sidebarOverlayQuery.data);
 	const sidebarMounted = $derived(sidebarPresenceQuery.data);
 	const chromeHidden = $derived(
-		onboardingQuery.data.shown || firstChatWaits(page.params.workstreamId ?? ''),
+		onboardingQuery.data.shown || firstChatBare(page.params.workstreamId ?? ''),
 	);
 	const leftClusterTucked = $derived(sidebarCollapsed || !sidebarMounted);
 	const canNavigateBack = $derived.by(() => {
