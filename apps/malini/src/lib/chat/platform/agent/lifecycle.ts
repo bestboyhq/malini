@@ -203,12 +203,24 @@ export class AgentRunLeases {
 	private readonly tearingDown = new Set<string>();
 	private readonly movingCheckouts = new Map<string, Promise<void>>();
 	private readonly cancelledDispatches = new Map<string, string>();
+	private readonly awaitingHandoff = new Map<string, string>();
 
 	cancelDispatch(sessionId: string, runId: string): void {
 		this.cancelledDispatches.set(sessionId, runId);
 	}
 
+	awaitHandoff(sessionId: string, runId: string): void {
+		this.awaitingHandoff.set(sessionId, runId);
+	}
+
+	cancelBeforeHandoff(sessionId: string, runId: string): boolean {
+		if (this.awaitingHandoff.get(sessionId) !== runId) return false;
+		this.cancelDispatch(sessionId, runId);
+		return true;
+	}
+
 	takeDispatchCancel(sessionId: string, runId: string): boolean {
+		if (this.awaitingHandoff.get(sessionId) === runId) this.awaitingHandoff.delete(sessionId);
 		if (this.cancelledDispatches.get(sessionId) !== runId) return false;
 		this.cancelledDispatches.delete(sessionId);
 		return true;

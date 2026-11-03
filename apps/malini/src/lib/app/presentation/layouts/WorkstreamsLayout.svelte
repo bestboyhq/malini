@@ -40,7 +40,9 @@
 		loadModelProvidersCommand,
 		loadProviderCapabilitiesCommand,
 	} from '$shared/providers/providers.api';
+	import { leaveFirstChatCommand } from '$lib/app/application/commands/leave-first-chat.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import { firstChatBare, firstChatBegan } from '../first-chat';
 	import JobsSidebar from '../JobsSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
 	import { JOBS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
@@ -72,7 +74,11 @@
 	const pullRequestBadge = pullRequestBadgesQuery.data;
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
-	const onboardingShown = $derived(onboardingQuery.data.shown);
+	const chromeHidden = $derived(onboardingQuery.data.shown || firstChatBare(activeWorkstreamId));
+
+	$effect(() => {
+		if (firstChatBegan()) leaveFirstChatCommand();
+	});
 	const inJobs = $derived(page.route.id?.startsWith(JOBS_HREF) ?? false);
 	let lastWorkstreamId = $state<string | null>(null);
 	const jobsBackHref = $derived(
@@ -133,9 +139,9 @@
 	data-navigation-error-message={scopeError ?? undefined}
 	data-navigation-freshness-phase={activeWorkstreamFreshnessPhase}
 >
-	{#if !onboardingShown && inJobs}
+	{#if !chromeHidden && inJobs}
 		<JobsSidebar backHref={jobsBackHref} backLabel="Workstreams" />
-	{:else if !onboardingShown}
+	{:else if !chromeHidden}
 		<Sidebar
 			repositories={connectedRepositories}
 			{workstreams}

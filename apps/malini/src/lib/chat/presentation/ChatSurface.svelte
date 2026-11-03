@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
 	import { quartOut } from 'svelte/easing';
-	import { fly, slide, type SlideParams } from 'svelte/transition';
+	import { fade, fly, slide, type SlideParams } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Icon } from '$hyper-ui/icons';
@@ -103,6 +103,7 @@
 		workstreamsCard: Snippet<[readonly string[]]>;
 		notice?: Snippet | undefined;
 		jobs?: Snippet | undefined;
+		welcome?: Snippet | undefined;
 	}
 
 	let {
@@ -116,6 +117,7 @@
 		workstreamsCard,
 		notice,
 		jobs,
+		welcome,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -206,6 +208,32 @@
 	const footerHeight = $derived(Math.round(exactFooterHeight));
 	const composerHeight = $derived(Math.round(exactFooterHeight - (traySize?.[0]?.blockSize ?? 0)));
 	const trayHeight = $derived(footerHeight - composerHeight);
+	const WELCOME_RAISE_PX = 32;
+	const WELCOME_SETTLE_MS = 420;
+	let stageHeight = $state(0);
+	let welcomeHeight = $state(0);
+	let footerStack: HTMLElement | null = $state(null);
+	let welcomeLiftedBy = 0;
+	const welcomeLift = $derived(
+		welcome
+			? Math.max(0, Math.round((stageHeight - footerHeight + welcomeHeight) / 2) + WELCOME_RAISE_PX)
+			: 0,
+	);
+
+	$effect(() => {
+		const lift = welcomeLift;
+		if (
+			lift === 0 &&
+			welcomeLiftedBy > 0 &&
+			!window.matchMedia('(prefers-reduced-motion: reduce)').matches
+		) {
+			footerStack?.animate([{ translate: `0 ${-welcomeLiftedBy}px` }, { translate: '0 0' }], {
+				duration: WELCOME_SETTLE_MS,
+				easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+			});
+		}
+		welcomeLiftedBy = lift;
+	});
 	let transcript: ChatMessageList | null = $state(null);
 	let timelineView: LeadTimeline | null = $state(null);
 	let contentBelow = $state(false);
@@ -436,19 +464,22 @@
 					data-presented-workstream-id={presentedWorkstreamId}
 					data-navigation-retained={retainingSourcePresentation ? 'true' : undefined}
 				>
-					<ChatTabs
-						{workstreamId}
-						activeSessionId={freshChat ? null : (pendingSessionId ?? sessionId)}
-						fresh={freshChat}
-						planMode={profile.mode === 'plan'}
-						onnewchat={startFreshChatCommand}
-						onclosefresh={closeFreshChatCommand}
-						{oncloseworkstream}
-						freshCloseNavigationTarget={closeFreshNavigationTarget}
-					/>
+					{#if !welcome}
+						<ChatTabs
+							{workstreamId}
+							activeSessionId={freshChat ? null : (pendingSessionId ?? sessionId)}
+							fresh={freshChat}
+							planMode={profile.mode === 'plan'}
+							onnewchat={startFreshChatCommand}
+							onclosefresh={closeFreshChatCommand}
+							{oncloseworkstream}
+							freshCloseNavigationTarget={closeFreshNavigationTarget}
+						/>
+					{/if}
 
 					<div
 						class="transcript-stage relative min-h-0 flex-1"
+						bind:clientHeight={stageHeight}
 						aria-busy={presentationPending}
 						data-session-switching={presentationPending ? 'true' : undefined}
 					>
@@ -456,7 +487,9 @@
 							class="absolute inset-0 z-0 flex min-h-0 flex-col"
 							inert={documentActive || undefined}
 						>
-							{#if stage === 'fresh'}
+							{#if stage === 'fresh' && welcome}
+								<div class="flex-1"></div>
+							{:else if stage === 'fresh'}
 								<FreshChatSuggestions
 									{workstreamId}
 									{draftScope}
@@ -529,7 +562,9 @@
 
 						<div
 							class="chat-footer-scrim absolute inset-x-0 bottom-0 z-20 pr-[var(--scrollbar-gutter)]"
+							bind:this={footerStack}
 							bind:borderBoxSize={footerSize}
+							style:translate={welcomeLift > 0 ? `0 ${-welcomeLift}px` : undefined}
 							inert={documentActive || undefined}
 							data-testid="chat-footer-stack"
 						>
@@ -667,7 +702,14 @@
 									/>
 								{/if}
 								<SecretRequestCard sessionId={secretsSessionId} />
-								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>
+								<div
+									bind:this={composerSlot}
+									class={[
+										'mx-auto w-full transition-[max-width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
+										welcome ? 'max-w-[42rem]' : 'max-w-[52rem]',
+										composerHidden && 'hidden',
+									]}
+								>
 									<ChatComposer
 										bind:this={composer}
 										{sessionId}
@@ -680,17 +722,30 @@
 										{isRunning}
 										disabled={bootError !== null || presentationPending}
 										backendSelectionDisabled={bootError !== null || presentationPending}
-										placeholder={timeline
-											? openDecisions.length > 0
-												? 'Answer in your own words, or ask the lead anything…'
-												: 'Ask the lead anything…'
-											: undefined}
+										placeholder={welcome
+											? 'What are you working on?'
+											: timeline
+												? openDecisions.length > 0
+													? 'Answer in your own words, or ask the lead anything…'
+													: 'Ask the lead anything…'
+												: undefined}
 										oncancel={cancelRunCommand}
 										onbackendchange={selectModelCommand}
 										onprofilechange={selectRunProfileCommand}
 									/>
 								</div>
 							</div>
+							{#if welcome}
+								<div
+									class="chat-stage-inset absolute inset-x-0 top-full z-30 -mt-3 pr-[var(--scrollbar-gutter)]"
+									bind:clientHeight={welcomeHeight}
+									out:fade={{ duration: 150 }}
+								>
+									<div class="mx-auto w-full max-w-[42rem] px-4">
+										{@render welcome()}
+									</div>
+								</div>
+							{/if}
 						</div>
 
 						{#if viewedDecision && decisionFocus.viewing}

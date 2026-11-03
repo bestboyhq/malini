@@ -1,6 +1,6 @@
 # 0149 - The model is the choice, and access is asked for at send
 
-Status: accepted
+Status: superseded by 0158
 
 ## Context
 

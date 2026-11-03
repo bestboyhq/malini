@@ -56,10 +56,14 @@ export class PullRequestReader {
 		return reading;
 	}
 
-	report(workstreamId: string, pullRequest: PullRequestStatusDto): void {
-		void this.#record(workstreamId, this.#generation(workstreamId), pullRequest).catch(
-			() => undefined,
-		);
+	async report(
+		workstreamId: string,
+		read: () => Promise<PullRequestStatusDto>,
+	): Promise<PullRequestStatusDto> {
+		const generation = this.#generation(workstreamId);
+		const pullRequest = await read();
+		void this.#record(workstreamId, generation, pullRequest).catch(() => undefined);
+		return pullRequest;
 	}
 
 	forget(workstreamId: string): void {
@@ -112,6 +116,7 @@ export class PullRequestReader {
 		generation: number,
 		pullRequest: PullRequestStatusDto,
 	): Promise<PullRequestRead> {
+		if (this.#generation(workstreamId) !== generation) return NOT_READ;
 		if (pullRequest.state === 'not_open') {
 			this.#gone(workstreamId);
 			return this.#remember(workstreamId, generation, { read: true, pullRequest: null });

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { ModelSelection } from '$shared/providers/domain/model-preferences';
 	import {
-		allProviderModels,
-		catalogModelLabel,
 		effortsForModel,
 		normalizeReasoningEffort,
+		selectionLabel,
+		selectionModels,
 	} from '$shared/providers/domain/model-catalog';
 	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
 	import { agentAccessDefaultQuery } from '$shared/providers/application/queries/agent-access-default.query.svelte';
@@ -57,13 +57,14 @@
 		medium: 'checklist',
 		high: 'note',
 	};
-	const catalog = $derived(allProviderModels(providerGroupsQuery.data));
-	const efforts = $derived(effortsForModel(catalog, selection.model));
+	const efforts = $derived(
+		effortsForModel(selectionModels(providerGroupsQuery.data, selection), selection.model),
+	);
 	const effortSupported = $derived(efforts.length > 0);
 	const effortHelp = $derived(
 		effortSupported
 			? 'Adjust reasoning effort'
-			: `${catalogModelLabel(catalog, selection.model)} does not take a reasoning effort`,
+			: `${selectionLabel(providerGroupsQuery.data, selection)} does not take a reasoning effort`,
 	);
 
 	$effect(() => {

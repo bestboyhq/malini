@@ -57,6 +57,23 @@ export function allProviderModels(groups: readonly ProviderGroup[]): readonly Ag
 	return groups.flatMap((group) => group.models);
 }
 
+export function selectionModels(
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+): readonly AgentModelInfo[] {
+	const own = groups.find((group) => group.id === selection.provider)?.models ?? [];
+	return own.some((model) => model.id === selection.model)
+		? own
+		: [...own, ...allProviderModels(groups)];
+}
+
+export function selectionLabel(
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+): string {
+	return catalogModelLabel(selectionModels(groups, selection), selection.model);
+}
+
 export function pickerGroups(
 	groups: readonly ProviderGroup[],
 	selection: ModelSelection,
@@ -71,6 +88,7 @@ export function pickerGroups(
 						id: selection.provider,
 						name: selection.provider,
 						kind: 'anthropic' as const,
+						baseUrl: null,
 						models: [unlistedModel(selection.model)],
 						ready: false,
 						message: '',
@@ -89,7 +107,7 @@ export function pickerGroups(
 			...group,
 			models: group.models.map((model) => ({
 				...model,
-				label: catalogModelLabel([...catalog, model], model.id),
+				label: catalogModelLabel([...group.models, ...catalog], model.id),
 			})),
 		}));
 }
@@ -111,6 +129,55 @@ export function flatPickerModels(
 			model,
 		})),
 	);
+}
+
+export function filterPickerModels(
+	rows: readonly FlatPickerModel[],
+	query: string,
+): readonly FlatPickerModel[] {
+	const terms = query.toLowerCase().split(/\s+/u).filter(Boolean);
+	if (terms.length === 0) return rows;
+	return rows.filter((row) => {
+		const text = `${row.model.label} ${row.model.id} ${row.providerName}`.toLowerCase();
+		return terms.every((term) => text.includes(term));
+	});
+}
+
+export type PickerEntry =
+	| { readonly kind: 'model'; readonly row: FlatPickerModel }
+	| {
+			readonly kind: 'provider';
+			readonly provider: string;
+			readonly providerName: string;
+			readonly count: number;
+			readonly expanded: boolean;
+	  };
+
+export function pickerEntries(
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+	query: string,
+	expanded: ReadonlySet<string>,
+): readonly PickerEntry[] {
+	const modelEntry = (row: FlatPickerModel): PickerEntry => ({ kind: 'model', row });
+	if (query.trim() !== '') {
+		return filterPickerModels(flatPickerModels(groups, selection), query).map(modelEntry);
+	}
+	return pickerGroups(groups, selection).flatMap((group) => {
+		const rows = group.models.map((model) =>
+			modelEntry({ provider: group.id, providerName: group.name, model }),
+		);
+		if (group.kind === 'claude' || group.ready) return rows;
+		const open = expanded.has(group.id);
+		const header: PickerEntry = {
+			kind: 'provider',
+			provider: group.id,
+			providerName: group.name,
+			count: rows.length,
+			expanded: open,
+		};
+		return open ? [header, ...rows] : [header];
+	});
 }
 
 export function effortsForModel(

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { onboardingAccountsSettled, openOnboardingAccount } from './onboarding';
+import {
+	claudeCodeOnboardingStatus,
+	onboardingAccountsSettled,
+	openOnboardingAccount,
+} from './onboarding';
 
 describe('onboarding accounts', () => {
 	it('opens the first account that still needs the user', () => {
@@ -37,5 +41,12 @@ describe('onboarding accounts', () => {
 
 	it('settles when an account cannot be checked, so a failed check never traps the user', () => {
 		expect(onboardingAccountsSettled({ 'claude-code': 'ready', github: 'unknown' })).toBe(true);
+	});
+
+	it('takes an installed Claude Code as done, signed in or not, but never a missing one', () => {
+		expect(claudeCodeOnboardingStatus('signed-out')).toBe('ready');
+		expect(claudeCodeOnboardingStatus('ready')).toBe('ready');
+		expect(claudeCodeOnboardingStatus('missing')).toBe('missing');
+		expect(claudeCodeOnboardingStatus('checking')).toBe('checking');
 	});
 });

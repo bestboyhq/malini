@@ -6,21 +6,26 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
-	import { requestRepositoryConnectionCommand } from '$shared/repositories/application/commands/request-repository-connection.command';
-	import type { RepositoryConnectingKind } from '$shared/repositories/domain/repository-connection';
+	import { requestRepositoryFolderCommand } from '$shared/repositories/application/commands/request-repository-folder.command';
 
 	interface Props {
 		target: ConnectRepositoryContextMenuTarget | null;
 		onclose: () => void;
+		onfind: () => void;
 	}
 
-	let { target, onclose }: Props = $props();
+	let { target, onclose, onfind }: Props = $props();
 
 	let anchor = $state<HTMLDivElement | null>(null);
 
-	function request(kind: RepositoryConnectingKind): void {
+	function onOpenFolder(): void {
 		onclose();
-		requestRepositoryConnectionCommand(kind);
+		requestRepositoryFolderCommand();
+	}
+
+	function onFind(): void {
+		onclose();
+		onfind();
 	}
 
 	function bodyAnchor(node: HTMLDivElement): () => void {
@@ -56,23 +61,13 @@
 	testId="connect-repository-context-menu"
 >
 	<div role="menu" aria-label="Add a repository" class="space-y-0.5">
-		<DropdownItem
-			role="menuitem"
-			focusOnHover={false}
-			class="gap-2.5"
-			onclick={() => request('folder')}
-		>
+		<DropdownItem role="menuitem" focusOnHover={false} class="gap-2.5" onclick={onOpenFolder}>
 			<Icon name="folder-open" class="shrink-0" size={15} />
 			Open folder…
 		</DropdownItem>
-		<DropdownItem
-			role="menuitem"
-			focusOnHover={false}
-			class="gap-2.5"
-			onclick={() => request('clone')}
-		>
-			<Icon name="cloud-download" class="shrink-0" size={15} />
-			Clone repository…
+		<DropdownItem role="menuitem" focusOnHover={false} class="gap-2.5" onclick={onFind}>
+			<Icon name="search" class="shrink-0" size={15} />
+			Find repository…
 		</DropdownItem>
 	</div>
 </DropdownLayer>

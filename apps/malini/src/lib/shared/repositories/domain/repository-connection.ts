@@ -4,16 +4,18 @@ import {
 	type RepositoryImportSource,
 } from './github-auth';
 import { projectIdentityCandidatesForRepoUrl } from './project-identity';
-import type { Repository } from './repository';
+import type { GithubRepository, Repository } from './repository';
 import { projectIdentityIdsForRepository, repositoryCloneSource } from './repository-context';
 import type { Workstream } from './workstream';
 
 export type RepositoryConnectingKind = 'folder' | 'clone';
 
 export type RepositoryConnection = Readonly<{
-	kind: RepositoryConnectingKind;
+	kind: RepositoryConnectingKind | 'create';
 	key: string;
 }>;
+
+export type RepositoryConnectOptions = Readonly<{ open?: boolean; onConnected?: () => void }>;
 
 export function repositoryConnectionFor(source: RepositoryImportSource): RepositoryConnection {
 	if (source.kind === 'local-folder') return { kind: 'folder', key: `folder:${source.path}` };
@@ -36,6 +38,29 @@ export type RepositoryPreparation =
 	| Readonly<{ kind: 'ready' }>
 	| Readonly<{ kind: 'preparing' }>
 	| Readonly<{ kind: 'failed'; failure: RepositoryConnectFailure }>;
+
+export type GithubRepositoryState =
+	| Readonly<{ kind: 'available' }>
+	| Readonly<{ kind: 'cloning'; repository: Repository | null }>
+	| Readonly<{ kind: 'cloned'; repository: Repository }>
+	| Readonly<{ kind: 'failed'; repository: Repository }>;
+
+export function githubRepositoryState(
+	github: GithubRepository,
+	connectingKey: string | null,
+	connected: readonly Repository[],
+	preparationOf: (repository: Repository) => RepositoryPreparation,
+): GithubRepositoryState {
+	const { key } = repositoryConnectionFor({ kind: 'clone-url', url: github.cloneUrl });
+	if (connectingKey === key) return { kind: 'cloning', repository: null };
+	const fullName = github.fullName.toLowerCase();
+	const repository = connected.find((candidate) => candidate.fullName.toLowerCase() === fullName);
+	if (!repository) return { kind: 'available' };
+	const preparation = preparationOf(repository);
+	if (preparation.kind === 'preparing') return { kind: 'cloning', repository };
+	if (preparation.kind === 'failed') return { kind: 'failed', repository };
+	return { kind: 'cloned', repository };
+}
 
 export function repositoryConnectFailure(
 	caught: unknown,

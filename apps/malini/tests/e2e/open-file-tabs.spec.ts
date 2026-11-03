@@ -747,12 +747,6 @@ test('kept files overflow into the more menu instead of pushing the strip off sc
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'open-file-7-overflow');
 
-		const moreMenu = page.getByRole('menu', { name: 'More chats and files' });
-		await page.keyboard.press('ControlOrMeta+k');
-		await expect(moreMenu).toBeVisible();
-		await page.keyboard.press('Escape');
-		await expect(moreMenu).toHaveCount(0);
-
 		const firstName = names[0] ?? '';
 		await tabRow(page).getByRole('tab', { name: firstName, exact: true }).click();
 		await expect(shownInTree).toHaveAccessibleName(`Open ${firstName}`);

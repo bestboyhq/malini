@@ -35,8 +35,8 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 
 ## Where your code goes
 
-Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes four calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
+Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
+Malini makes five calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
 While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
 Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.

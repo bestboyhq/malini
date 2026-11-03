@@ -45,5 +45,8 @@ export function formatTimeAgo(milliseconds: number): string {
 	if (minutes < 1) return 'just now';
 	if (minutes < 60) return `${minutes}m ago`;
 	if (minutes < 1_440) return `${Math.floor(minutes / 60)}h ago`;
-	return `${Math.floor(minutes / 1_440)}d ago`;
+	const days = Math.floor(minutes / 1_440);
+	if (days < 30) return `${days}d ago`;
+	if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+	return `${Math.floor(days / 365)}y ago`;
 }

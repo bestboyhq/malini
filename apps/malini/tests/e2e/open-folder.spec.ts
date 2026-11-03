@@ -8,11 +8,15 @@ import {
 	expectCleanConsole,
 	git,
 	launchMalini,
+	openRepositoriesPage,
+	passSetup,
 	listProjects,
 	type LaunchedApp,
 } from './harness';
 
 const OPEN_FOLDER = 'Open a local repository folder';
+
+const LEAD_SPACE_PROJECT_ID = 'malini-lead-space';
 
 declare global {
 	var openFolderBusyLabels: string[];
@@ -23,13 +27,8 @@ test('opening a folder lands on its scratchpad and clones it in the background',
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
+		await openRepositoriesPage(page);
 
 		await pickFolder(app, await createSourceRepo(app.root, 'meadow'));
 		await recordBusyLabels(page);
@@ -45,7 +44,7 @@ test('opening a folder lands on its scratchpad and clones it in the background',
 		await expectScratchpadOf(page, 'orchard');
 		expect(await busyLabels(page)).toContainEqual('Opening…');
 		await expect
-			.poll(async () => (await listProjects(page)).map((project) => project.id).sort())
+			.poll(async () => (await repositoryIds(page)).sort())
 			.toEqual(['local__meadow', 'local__orchard']);
 		await captureFlow(app, 'open-folder-scratchpad');
 		expectCleanConsole(app);
@@ -61,13 +60,8 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 	});
 	try {
 		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
+		await openRepositoriesPage(page);
 
 		const thicket = await createSourceRepo(app.root, 'thicket');
 		const upstream = join(app.root, 'upstream');
@@ -84,9 +78,7 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 		await createSourceRepo(app.root, 'upstream');
 		await failure.getByRole('button', { name: 'Retry' }).click();
 		await expect(failure).toHaveCount(0, { timeout: 30_000 });
-		await expect
-			.poll(async () => (await listProjects(page)).map((project) => project.id))
-			.toEqual(['local__upstream']);
+		await expect.poll(() => repositoryIds(page)).toEqual(['local__upstream']);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -99,13 +91,8 @@ test('a repository cannot be removed while it clones, and can once the clone fai
 	const app = await launchMalini({ allowedDiagnostics: [/repositories\.create-repository/u] });
 	try {
 		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
+		await openRepositoriesPage(page);
 
 		const grove = await createSourceRepo(app.root, 'grove');
 		await git(grove, ['remote', 'add', 'origin', `${silent.url}/e2e/grove.git`]);
@@ -176,4 +163,10 @@ async function expectScratchpadOf(page: Page, repository: string): Promise<void>
 	await expect(
 		page.getByRole('textbox', { name: new RegExp(`^Scratchpad for .*${repository}$`, 'u') }),
 	).toBeVisible();
+}
+
+async function repositoryIds(page: Page): Promise<string[]> {
+	return (await listProjects(page))
+		.map((project) => project.id)
+		.filter((id) => id !== LEAD_SPACE_PROJECT_ID);
 }

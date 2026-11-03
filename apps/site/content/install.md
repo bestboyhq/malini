@@ -19,15 +19,20 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 
 ## First launch
 
-- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
+- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
+  Setup never asks you to sign in to Claude: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
   The step also says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
-- **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
-- **Then a repository.** Clone one from GitHub, with your recent repositories one search away, or open a folder on your Mac.
+- **Then a chat at Home.** Setup ends in an empty chat that asks what you're working on, with your five GitHub repositories pushed to last hanging under it.
+  Pick one and Malini gets it ready while you stay in the chat.
+  **More repositories** opens **Find a repository** in the command center (**⌘K**), where you type to search the rest.
+  **New repository** makes one on GitHub under you or one of your organizations, private unless you untick it.
+  Or name the repositories in your first message, and the lead clones them once you allow it.
+  The sidebar comes back with your first repository, and the rest of Malini with your first message.
 
 ## Updates
 

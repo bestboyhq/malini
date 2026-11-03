@@ -6,10 +6,6 @@
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import {
 		DEFAULT_AGENT_RUN_PROFILE,
-		type AgentReasoningEffort,
-		type ModelSelection,
-		allProviderModels,
-		catalogModelLabel,
 		effortsForModel,
 		modelSelectionValue,
 		normalizeReasoningEffort,
@@ -17,6 +13,10 @@
 		providerGroupsQuery,
 		providerSelectOptions,
 		reasoningEffortLabel,
+		selectionLabel,
+		selectionModels,
+		type AgentReasoningEffort,
+		type ModelSelection,
 	} from '$shared/providers/providers.api';
 	import { saveJobDefinitionCommand } from '$lib/jobs/application/commands/save-job-definition.command';
 	import { jobFormSubmissionQuery } from '$lib/jobs/application/queries/job-form-submission.query.svelte';
@@ -47,11 +47,10 @@
 
 	const submission = $derived(jobFormSubmissionQuery.data);
 	const groups = $derived(providerGroupsQuery.data);
-	const catalog = $derived(allProviderModels(groups));
 	const builtin = $derived(definition.builtin);
 	const thinks = $derived(!isAutomaticJobBuiltin(builtin));
-	const efforts = $derived(effortsForModel(catalog, draft.model));
 	const selection = $derived<ModelSelection>({ provider: draft.provider, model: draft.model });
+	const efforts = $derived(effortsForModel(selectionModels(groups, selection), draft.model));
 	const modelOptions = $derived(providerSelectOptions(groups, selection));
 	const effortOptions: SelectOption[] = $derived(
 		efforts.map((effort) => ({ value: effort, label: reasoningEffortLabel(effort) })),
@@ -89,7 +88,10 @@
 		const next = parseModelSelectionValue(value, selection);
 		draft.provider = next.provider;
 		draft.model = next.model;
-		draft.effort = normalizeReasoningEffort(effortsForModel(catalog, next.model), draftEffort());
+		draft.effort = normalizeReasoningEffort(
+			effortsForModel(selectionModels(groups, next), next.model),
+			draftEffort(),
+		);
 	}
 
 	function onDiscard(): void {
@@ -162,7 +164,7 @@
 				options={effortOptions}
 				disabled={effortOptions.length === 0}
 				{...effortOptions.length === 0
-					? { hint: `${catalogModelLabel(catalog, draft.model)} takes no effort setting` }
+					? { hint: `${selectionLabel(groups, selection)} takes no effort setting` }
 					: {}}
 			/>
 		{/if}

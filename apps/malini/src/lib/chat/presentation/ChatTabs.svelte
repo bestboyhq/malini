@@ -282,16 +282,9 @@
 	onMount(() => {
 		function onKeydown(event: KeyboardEvent): void {
 			if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
-			const key = event.key.toLocaleLowerCase();
-			if (key === 'w') {
-				event.preventDefault();
-				if (!event.repeat) closeCurrentTab();
-				return;
-			}
-			if (key !== 'k' || hiddenEntries.length === 0) return;
+			if (event.key.toLocaleLowerCase() !== 'w') return;
 			event.preventDefault();
-			event.stopImmediatePropagation();
-			overflowOpen = true;
+			if (!event.repeat) closeCurrentTab();
 		}
 		window.addEventListener('keydown', onKeydown, { capture: true });
 		return () => {

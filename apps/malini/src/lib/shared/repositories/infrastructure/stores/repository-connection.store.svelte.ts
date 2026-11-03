@@ -1,6 +1,5 @@
 import type {
 	RepositoryConnectFailure,
-	RepositoryConnectingKind,
 	RepositoryConnection,
 } from '$shared/repositories/domain/repository-connection';
 
@@ -9,7 +8,7 @@ class RepositoryConnectionStore {
 	error: RepositoryConnectFailure | null = $state.raw(null);
 	preparing: ReadonlySet<string> = $state.raw(new Set());
 	preparationFailures: ReadonlyMap<string, RepositoryConnectFailure> = $state.raw(new Map());
-	requested: RepositoryConnectingKind | null = $state.raw(null);
+	folderRequested = $state(false);
 
 	startPreparing(repositoryId: string): boolean {
 		if (this.preparing.has(repositoryId)) return false;

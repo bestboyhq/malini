@@ -7,6 +7,8 @@ import {
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
+	openRepositoriesPage,
+	passSetup,
 	listProjects,
 	seedWorkstream,
 } from './harness';
@@ -85,12 +87,8 @@ test('cloning a hidden repository again brings it back', async () => {
 				{ full_name: 'e2e/hutch', clone_url: `file://${source}`, description: null },
 			]),
 		);
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
+		await openRepositoriesPage(page);
 		await cloneHutch(page);
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -116,10 +114,9 @@ test('cloning a hidden repository again brings it back', async () => {
 });
 
 async function cloneHutch(page: Page): Promise<void> {
-	await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
-	const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
-	await dialog.getByRole('button', { name: /e2e\/hutch/u }).click();
-	await dialog.getByRole('button', { name: 'Clone repo' }).click();
+	await page.getByRole('button', { name: 'Find a repository' }).first().click();
+	const dialog = page.getByRole('dialog', { name: 'Command center' });
+	await dialog.getByRole('option', { name: /e2e\/hutch/u }).click();
 	await expect(dialog).toHaveCount(0, { timeout: 30_000 });
 	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });
 }

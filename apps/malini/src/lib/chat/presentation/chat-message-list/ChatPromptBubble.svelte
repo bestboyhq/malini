@@ -12,14 +12,13 @@
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
 	import type { RenderItem, RunGroup } from '../render-state';
 	import {
-		ModelProfilePicker,
-		RunProfileControls,
-		allProviderModels,
-		catalogModelLabel,
 		claudeCodeStatusQuery,
 		isModelAccessReady,
 		modelAccess,
+		ModelProfilePicker,
 		providerGroupsQuery,
+		RunProfileControls,
+		selectionLabel,
 	} from '$shared/providers/providers.api';
 	import ProviderConnectCard from '../ProviderConnectCard.svelte';
 	import { workstreamByIdQuery, workstreamNameQuery } from '$shared/repositories/repositories.api';
@@ -70,9 +69,7 @@
 			: null,
 	);
 	const editModelLabel = $derived(
-		editSelection
-			? catalogModelLabel(allProviderModels(providerGroupsQuery.data), editSelection.model)
-			: '',
+		editSelection ? selectionLabel(providerGroupsQuery.data, editSelection) : '',
 	);
 	let accessPrompt = $state<string | null>(null);
 

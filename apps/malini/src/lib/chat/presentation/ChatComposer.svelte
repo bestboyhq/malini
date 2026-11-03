@@ -3,15 +3,14 @@
 	import { tick, untrack } from 'svelte';
 	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
-		DEFAULT_PROVIDER_ID,
-		allProviderModels,
-		catalogModelLabel,
 		claudeCodeStatusQuery,
+		DEFAULT_PROVIDER_ID,
 		defaultAgentModel,
 		isModelAccessReady,
 		isValidModelSelection,
 		modelAccess,
 		providerGroupsQuery,
+		selectionLabel,
 		type AgentReasoningEffort,
 		type ModelSelection,
 	} from '$shared/providers/providers.api';
@@ -175,9 +174,7 @@
 	let landOutgoingPrompt: (() => void) | null = null;
 	const providerGroups = $derived(providerGroupsQuery.data);
 	const access = $derived(modelAccess(selection, providerGroups, claudeCodeStatusQuery.data));
-	const selectedModelLabel = $derived(
-		catalogModelLabel(allProviderModels(providerGroups), selection.model),
-	);
+	const selectedModelLabel = $derived(selectionLabel(providerGroups, selection));
 	let accessPrompt = $state<string | null>(null);
 	let accessSteer = false;
 	let submissionError = $state<string | null>(null);

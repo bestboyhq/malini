@@ -36,7 +36,9 @@
 		onkeydown?: (event: KeyboardEvent) => void;
 		onfocus?: (event: FocusEvent) => void;
 		onblur?: (event: FocusEvent) => void;
+		role?: HTMLInputAttributes['role'];
 		[attr: `data-${string}`]: string | undefined;
+		[attr: `aria-${string}`]: string | boolean | undefined;
 	}
 
 	let {

@@ -61,6 +61,25 @@ export function clearProviderKey(db: MaliniDatabase, id: string): boolean {
 	);
 }
 
+export function setProviderModels(
+	db: MaliniDatabase,
+	id: string,
+	models: readonly AgentModelInfo[],
+): boolean {
+	return (
+		run(
+			db,
+			`UPDATE model_providers SET models = ?, updated_at = ?
+			 WHERE id = ? AND kind = ? AND models IS NOT ?`,
+			JSON.stringify(models),
+			nowIso8601(),
+			id,
+			'anthropic',
+			JSON.stringify(models),
+		).changes > 0
+	);
+}
+
 function fromRow(row: ProviderRow): StoredProvider {
 	const models = parseJsonColumn(row.models);
 	return {

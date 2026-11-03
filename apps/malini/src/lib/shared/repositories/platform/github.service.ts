@@ -1,3 +1,4 @@
+import type { CreateGithubRepositoryArgs } from '$contract/commands';
 import type {
 	ConnectedRepositoryDto,
 	GithubRepositoryDto,
@@ -8,6 +9,8 @@ import { nowIso8601 } from '$main/db/rows';
 import { GhError, isGhError } from '$main/errors';
 import { parseGhJson, runGh, type GhResult } from '$main/process/gh';
 import { repositoryFullNameFromRemoteUrl } from '$shared/repositories/domain/repository-context';
+import { field, requireNonEmptyString } from './args';
+import { validateOwner } from './avatars.service';
 import {
 	findConnectedRepositoryByFullName,
 	listConnectedRepositories,
@@ -91,9 +94,113 @@ function githubRepositoryDto(raw: unknown): GithubRepositoryDto[] {
 	const fullName: unknown = Reflect.get(raw, 'full_name');
 	const cloneUrl: unknown = Reflect.get(raw, 'clone_url');
 	const description: unknown = Reflect.get(raw, 'description');
+	const pushedAt: unknown = Reflect.get(raw, 'pushed_at');
 	if (typeof fullName !== 'string' || typeof cloneUrl !== 'string') return [];
 	const summary = typeof description === 'string' ? description.trim() : '';
-	return [{ fullName, cloneUrl, description: summary.length > 0 ? summary : null }];
+	return [
+		{
+			fullName,
+			cloneUrl,
+			description: summary.length > 0 ? summary : null,
+			private: Reflect.get(raw, 'private') === true,
+			pushedAt: typeof pushedAt === 'string' ? pushedAt : null,
+		},
+	];
+}
+
+export async function listGithubOwners(run: GhRunner): Promise<string[]> {
+	const [login, orgs] = await Promise.all([
+		signedInLogin(run),
+		run(['api', 'user/orgs?per_page=100']),
+	]);
+	if (orgs.code !== 0) throw GhError.fromStderr(orgs.stderr, orgs.code);
+	const parsed = parseGhJson<unknown>(orgs, 'list GitHub organizations');
+	if (!Array.isArray(parsed)) {
+		throw new GhError('failed', 'list GitHub organizations: gh returned a body that is not a list');
+	}
+	return [login, ...parsed.flatMap(organizationLogin)];
+}
+
+function organizationLogin(raw: unknown): string[] {
+	const login: unknown = typeof raw === 'object' && raw !== null ? Reflect.get(raw, 'login') : null;
+	return typeof login === 'string' && login.length > 0 ? [login] : [];
+}
+
+const GITHUB_REPOSITORY_NAME = /^[A-Za-z0-9._-]{1,100}$/u;
+
+export function parseCreateGithubRepositoryArgs(args: unknown): CreateGithubRepositoryArgs {
+	const owner = validateOwner(field(args, 'owner'));
+	const name = requireNonEmptyString(args, 'name');
+	if (!GITHUB_REPOSITORY_NAME.test(name) || /^\.+$/u.test(name)) {
+		throw new Error(`invalid args: \`name\` is not a GitHub repository name: \`${name}\``);
+	}
+	const visibility = field(args, 'private');
+	if (typeof visibility !== 'boolean') throw new Error('invalid args: `private` must be a boolean');
+	return { owner, name, private: visibility };
+}
+
+export async function createGithubRepository(
+	run: GhRunner,
+	request: CreateGithubRepositoryArgs,
+): Promise<GithubRepositoryDto> {
+	const login = await signedInLogin(run);
+	const path =
+		request.owner.toLowerCase() === login.toLowerCase()
+			? 'user/repos'
+			: `orgs/${request.owner}/repos`;
+	const result = await run([
+		'api',
+		'--method',
+		'POST',
+		path,
+		'-f',
+		`name=${request.name}`,
+		'-F',
+		`private=${request.private}`,
+		'-F',
+		'auto_init=true',
+	]);
+	if (result.code !== 0) throw creationFailure(result);
+	const [created] = githubRepositoryDto(parseGhJson<unknown>(result, 'create a GitHub repository'));
+	if (!created) {
+		throw new GhError('failed', 'create a GitHub repository: gh returned no repository');
+	}
+	return created;
+}
+
+async function signedInLogin(run: GhRunner): Promise<string> {
+	const result = await run(['api', 'user', '--jq', '.login']);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	const login = result.stdout.trim();
+	if (login.length === 0) throw new GhError('failed', 'read your GitHub login: gh returned none');
+	return login;
+}
+
+function creationFailure(result: GhResult): GhError {
+	const failure = GhError.fromStderr(result.stderr, result.code);
+	const reason = githubErrorReason(result.stdout);
+	if (failure.kind !== 'failed' || reason === null) return failure;
+	return new GhError('failed', `${reason.charAt(0).toUpperCase()}${reason.slice(1)}`, {
+		code: result.code,
+		stderr: result.stderr,
+	});
+}
+
+function githubErrorReason(body: string): string | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(body);
+	} catch {
+		return null;
+	}
+	if (typeof parsed !== 'object' || parsed === null) return null;
+	const errors: unknown = Reflect.get(parsed, 'errors');
+	const first: unknown = Array.isArray(errors) ? errors[0] : null;
+	const specific: unknown =
+		typeof first === 'object' && first !== null ? Reflect.get(first, 'message') : null;
+	const general: unknown = Reflect.get(parsed, 'message');
+	if (typeof specific === 'string' && specific.length > 0) return specific;
+	return typeof general === 'string' && general.length > 0 ? general : null;
 }
 
 export async function listClones(db: MaliniDatabase): Promise<ConnectedRepositoryDto[]> {

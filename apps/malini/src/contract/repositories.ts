@@ -157,6 +157,8 @@ export interface GithubRepositoryDto {
 	fullName: string;
 	description: string | null;
 	cloneUrl: string;
+	private: boolean;
+	pushedAt: string | null;
 }
 
 export interface AuthStatusDto {

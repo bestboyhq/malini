@@ -156,7 +156,7 @@ export interface LocalBaseSyncedPayload {
 export type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
 export type MenuCommand =
-	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';
+	'new-workstream' | 'new-chat' | 'open-folder' | 'find-repository' | 'accounts' | 'settings';
 
 export type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 

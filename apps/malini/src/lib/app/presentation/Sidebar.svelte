@@ -29,6 +29,7 @@
 		sectionedGrouping,
 	} from '$lib/app/domain/sidebar-arrangement';
 	import { arrangeSidebarCommand } from '$lib/app/application/commands/arrange-sidebar.command';
+	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
@@ -2094,7 +2095,11 @@
 		onremove={onRemoveRepository}
 	/>
 
-	<ConnectRepositoryContextMenu target={connectMenu} onclose={closeContextMenu} />
+	<ConnectRepositoryContextMenu
+		target={connectMenu}
+		onclose={closeContextMenu}
+		onfind={() => openCommandCenterCommand('find')}
+	/>
 
 	{#if !momentQuery.data}
 		<SidebarArchived />

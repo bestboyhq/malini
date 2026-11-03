@@ -152,8 +152,8 @@ export function planWorkstreamProvisioning(input: {
 export function planLeadChatProvisioning(
 	scope: LeadScope,
 	takenNames: readonly string[],
+	workstreamId: WorkstreamId = nextWorkstreamId(),
 ): LeadChatPlan {
-	const workstreamId = nextWorkstreamId();
 	return {
 		workstreamId,
 		projectId: LEAD_SPACE_PROJECT_ID,

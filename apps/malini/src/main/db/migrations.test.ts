@@ -145,7 +145,7 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('seeds DeepSeek and defaults chats and jobs to Claude', () => {
+	it('seeds DeepSeek and OpenCode and defaults chats and jobs to Claude', () => {
 		const db = openMigratedDatabase(':memory:');
 		expect(
 			all(db, 'SELECT id, name, kind, base_url, subagent_model, api_key FROM model_providers'),
@@ -158,7 +158,26 @@ describe('migrate', () => {
 				subagent_model: 'deepseek-flash',
 				api_key: null,
 			},
+			{
+				id: 'opencode',
+				name: 'OpenCode',
+				kind: 'anthropic',
+				base_url: 'https://opencode.ai/inference/anthropic',
+				subagent_model: null,
+				api_key: null,
+			},
 		]);
+		expect(
+			JSON.parse(
+				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'opencode'")
+					?.models ?? '',
+			),
+		).toContainEqual({
+			id: 'claude-opus-5-5',
+			label: 'Claude Opus 5.5',
+			description: 'Text and images, 1M context',
+			efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+		});
 		expect(
 			JSON.parse(
 				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'deepseek'")

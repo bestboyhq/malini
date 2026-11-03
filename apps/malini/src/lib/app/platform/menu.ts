@@ -63,7 +63,7 @@ export function applicationMenu(
 				command(choose, 'new-chat', 'New Chat', 'CommandOrControl+T'),
 				SEPARATOR,
 				command(choose, 'open-folder', 'Open Folder…', 'CommandOrControl+O'),
-				command(choose, 'clone-repository', 'Clone Repository…'),
+				command(choose, 'find-repository', 'Find Repository…'),
 				SEPARATOR,
 				{ role: 'close' },
 			],

@@ -84,9 +84,9 @@ test('streamer mode hides the home folder in a typed path until the field is foc
 		await page.evaluate(() => {
 			location.hash = '#/';
 		});
-		await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
-		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
-		const url = dialog.getByLabel('Repository URL');
+		await page.getByRole('button', { name: 'Find a repository' }).first().click();
+		const dialog = page.getByRole('dialog', { name: 'Command center' });
+		const url = dialog.getByRole('combobox', { name: 'Search repositories' });
 		const mask = dialog.getByTestId('sensitive-field-mask');
 		const homePath = 'file:///Users/ada/repos/hutch';
 
@@ -96,6 +96,7 @@ test('streamer mode hides the home folder in a typed path until the field is foc
 		await expect(mask).toBeVisible();
 		await expect(mask).toHaveText('file:///Users/a***/repos/hutch');
 		await expect(url).toHaveValue(homePath);
+		await expect(dialog.getByRole('option')).toHaveText('Open file:///Users/a***/repos/hutch');
 		await captureFlow(app, 'streamer-mode-field-masked');
 
 		await url.focus();

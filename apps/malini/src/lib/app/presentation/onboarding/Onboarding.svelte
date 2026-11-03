@@ -6,6 +6,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import {
 		ONBOARDING_STEPS,
+		claudeCodeOnboardingStatus,
 		onboardingAccountsSettled,
 		type OnboardingAccountStatuses,
 		type OnboardingStep,
@@ -17,7 +18,6 @@
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
-	import { JobsIntro } from '$lib/jobs/jobs.api';
 	import { AfternoonTrial, SoundChoices } from '$shared/sounds/sounds.api';
 	import { claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import {
@@ -27,7 +27,6 @@
 	} from '$shared/repositories/repositories.api';
 	import OnboardingAccountsStep from './OnboardingAccountsStep.svelte';
 	import OnboardingHeardAboutStep from './OnboardingHeardAboutStep.svelte';
-	import OnboardingRepositoryStep from './OnboardingRepositoryStep.svelte';
 	import { rehearseStepTransition, type Rehearsal } from './rehearse-step-transition';
 
 	const STEP_COPY: Readonly<
@@ -35,12 +34,8 @@
 	> = {
 		accounts: {
 			title: 'Connect Claude Code and GitHub',
-			description: 'Malini runs Claude Code and works in your GitHub repositories.',
-		},
-		jobs: {
-			title: 'Meet your jobs',
 			description:
-				'Jobs are agent work Malini does for you, each in its own chat. These come built in, and you can run any of them from a chat by typing /.',
+				'Malini runs Claude Code with your Claude plan or another provider, and works in your GitHub repositories.',
 		},
 		sounds: {
 			title: 'Hear your afternoon',
@@ -51,18 +46,13 @@
 			title: 'Where did you hear about Malini?',
 			description: null,
 		},
-		repository: {
-			title: 'Open your first repository',
-			description:
-				'Every workstream gets its own git worktree and its own Claude Code, so you can run many at once.',
-		},
 	};
 
 	const onboarding = $derived(onboardingQuery.data);
 	const last = $derived(onboarding.index === ONBOARDING_STEPS.length - 1);
 	const copy = $derived(STEP_COPY[onboarding.step]);
 	const accounts: OnboardingAccountStatuses = $derived({
-		'claude-code': claudeCodeStatusQuery.data.kind,
+		'claude-code': claudeCodeOnboardingStatus(claudeCodeStatusQuery.data.kind),
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
@@ -124,12 +114,17 @@
 
 	function forward(): void {
 		if (asksHeardAbout) answerHeardAboutCommand(onboarding.heardAbout);
-		void go(onboarding.index + 1);
+		next();
 	}
 
 	function skipHeardAbout(): void {
 		answerHeardAboutCommand(null);
-		void go(onboarding.index + 1);
+		next();
+	}
+
+	function next(): void {
+		if (last) finishOnboardingCommand();
+		else void go(onboarding.index + 1);
 	}
 
 	function fadeOnly(duration: number): TransitionConfig {
@@ -220,17 +215,13 @@
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
 						{#if onboarding.step === 'accounts'}
 							<OnboardingAccountsStep statuses={accounts} />
-						{:else if onboarding.step === 'jobs'}
-							<JobsIntro />
 						{:else if onboarding.step === 'heard-about'}
 							<OnboardingHeardAboutStep />
-						{:else if onboarding.step === 'sounds'}
+						{:else}
 							<div class="flex flex-col gap-3">
 								<SoundChoices class="rounded-2xl" />
 								<AfternoonTrial />
 							</div>
-						{:else}
-							<OnboardingRepositoryStep />
 						{/if}
 					</div>
 				</div>
@@ -250,48 +241,25 @@
 					</Button>
 				</div>
 			{/if}
-			<div class="ml-auto grid justify-items-end">
-				{#if last}
-					<div class="col-start-1 row-start-1" transition:fade={{ duration: 150 }}>
-						<Button
-							variant="ghost"
-							size="lg"
-							class="text-fg-secondary -mr-3"
-							onclick={finishOnboardingCommand}
-						>
-							Skip for now
-						</Button>
-					</div>
-				{:else}
-					<div
-						class="col-start-1 row-start-1 flex items-center gap-1"
-						transition:fade={{ duration: 150 }}
-					>
-						{#if asksHeardAbout}
-							<div transition:fade={{ duration: 150 }}>
-								<Button
-									variant="ghost"
-									size="lg"
-									class="text-fg-secondary"
-									onclick={skipHeardAbout}
-								>
-									Skip
-								</Button>
-							</div>
-						{/if}
-						<Button
-							variant="primary"
-							size="lg"
-							radius="full"
-							class="px-6"
-							disabled={continueWaits}
-							data-testid="onboarding-continue"
-							onclick={forward}
-						>
-							Continue
+			<div class="ml-auto flex items-center gap-1">
+				{#if asksHeardAbout}
+					<div transition:fade={{ duration: 150 }}>
+						<Button variant="ghost" size="lg" class="text-fg-secondary" onclick={skipHeardAbout}>
+							Skip
 						</Button>
 					</div>
 				{/if}
+				<Button
+					variant="primary"
+					size="lg"
+					radius="full"
+					class="px-6"
+					disabled={continueWaits}
+					data-testid="onboarding-continue"
+					onclick={forward}
+				>
+					Continue
+				</Button>
 			</div>
 		</footer>
 	</article>

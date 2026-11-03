@@ -1,11 +1,7 @@
 <script lang="ts">
 	import type { AutomaticJobBuiltin } from '$contract/jobs';
 	import { Well } from '$hyper-ui/components/well';
-	import {
-		allProviderModels,
-		catalogModelLabel,
-		providerGroupsQuery,
-	} from '$shared/providers/providers.api';
+	import { providerGroupsQuery, selectionLabel } from '$shared/providers/providers.api';
 	import type { JobScorecard, ScorecardBand } from '$lib/jobs/domain/job-scorecard';
 	import { JOB_OUTPUT_NOUN, instructionsLabel, percent, weekdayTime } from './job-insights-copy';
 	import ScorecardChart from './ScorecardChart.svelte';
@@ -22,7 +18,6 @@
 		'border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]';
 	const FLAGGED_SHOWN = 8;
 
-	const catalog = $derived(allProviderModels(providerGroupsQuery.data));
 	const noun = $derived(JOB_OUTPUT_NOUN[builtin]);
 	const delta = $derived(
 		card.weekRate === null || card.previousWeekRate === null
@@ -31,7 +26,7 @@
 	);
 
 	function bandLabel(band: ScorecardBand): string {
-		const setup = `${catalogModelLabel(catalog, band.setup.model)} · ${instructionsLabel(builtin, band.setup.instructions)}`;
+		const setup = `${selectionLabel(providerGroupsQuery.data, band.setup)} · ${instructionsLabel(builtin, band.setup.instructions)}`;
 		return band.rate === null ? setup : `${setup} · ${percent(band.rate)} followed`;
 	}
 </script>

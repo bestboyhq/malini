@@ -2,6 +2,7 @@ import type { RepositoryImportSource } from '$shared/repositories/domain/github-
 import {
 	repositoryConnectFailure,
 	repositoryConnectionFor,
+	type RepositoryConnectOptions,
 } from '$shared/repositories/domain/repository-connection';
 import { repositoryIdentityForImportSource } from '$shared/repositories/domain/repository-context';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
@@ -13,7 +14,10 @@ import { prepareRepositoryCommand } from './prepare-repository.command';
 
 export { connectRepositoryCommand };
 
-function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: () => void): void {
+function connectRepositoryCommand(
+	source: RepositoryImportSource,
+	{ open = true, onConnected }: RepositoryConnectOptions = {},
+): void {
 	if (repositoryConnectionStore.connecting !== null) return;
 	repositoryConnectionStore.connecting = repositoryConnectionFor(source);
 	repositoryConnectionStore.error = null;
@@ -22,7 +26,7 @@ function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: 
 			const { repo } = await githubService.connectRepository(source);
 			prepareRepositoryCommand(repo);
 			await repositoriesAggregate.refresh();
-			await goto(repositoryHref(repo.id));
+			if (open) await goto(repositoryHref(repo.id));
 			onConnected?.();
 		} catch (caught) {
 			repositoryConnectionStore.error = repositoryConnectFailure(

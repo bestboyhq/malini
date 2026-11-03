@@ -20,6 +20,7 @@
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { sidebarWidthQuery } from '$lib/app/application/queries/sidebar-width.query.svelte';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import { firstChatBare } from './first-chat';
 	import {
 		globalTopBarActionMatchesPathname,
 		globalTopBarBandSlotHost,
@@ -53,7 +54,9 @@
 	const sidebarCollapsed = $derived(sidebarCollapsedQuery.data);
 	const sidebarShown = $derived(!sidebarCollapsed || sidebarOverlayQuery.data);
 	const sidebarMounted = $derived(sidebarPresenceQuery.data);
-	const onboardingShown = $derived(onboardingQuery.data.shown);
+	const chromeHidden = $derived(
+		onboardingQuery.data.shown || firstChatBare(page.params.workstreamId ?? ''),
+	);
 	const leftClusterTucked = $derived(sidebarCollapsed || !sidebarMounted);
 	const canNavigateBack = $derived.by(() => {
 		void page.url;
@@ -337,7 +340,7 @@
 				</a>
 			</Tooltip>
 		{/if}
-		{#if !onboardingShown}
+		{#if !chromeHidden}
 			<div class="topbar-history">
 				<Tooltip content="Go back" placement="bottom">
 					<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->

@@ -27,7 +27,15 @@ export type GithubRepository = Readonly<{
 	fullName: string;
 	description: string | null;
 	cloneUrl: string;
+	private: boolean;
+	pushedAt: string | null;
 }>;
+
+export type NewGithubRepository = Readonly<{ owner: string; name: string; private: boolean }>;
+
+export function githubRepositoryName(typed: string): string {
+	return typed.trim().replace(/[^A-Za-z0-9._-]+/gu, '-');
+}
 
 export type GithubRepositoryListing =
 	| Readonly<{ kind: 'loading' }>

@@ -737,6 +737,7 @@ async function sendAgentPromptLeased(
 			? { verify: (stored: StoredAttachment) => hooks.verifyAttachment?.(stored, worktree) }
 			: {}),
 	});
+	leases.awaitHandoff(sessionId, runId);
 	let bridgePrompt = promptWithVerifiedAttachments(withTranscripts.prompt, verifiedAttachments);
 	const withElements = promptWithElementReferences(bridgePrompt, input.elementReferences ?? []);
 	bridgePrompt = promptWithShellRuns(
@@ -783,11 +784,6 @@ async function sendAgentPromptLeased(
 		userMessageSeq,
 	);
 
-	if (leases.takeDispatchCancel(sessionId, runId)) {
-		handleSendPromptHandoffFailure(db, sessionId, runId, CANCELLED_BEFORE_START, emit);
-		await hooks.captureRunFinish(runId);
-		return runId;
-	}
 	let turn: PreparedTurn;
 	try {
 		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, hooks, log);
@@ -799,7 +795,7 @@ async function sendAgentPromptLeased(
 	}
 	lease.release();
 	const secrets = await secretsForRun(hooks, workstreamId, log);
-	const undelivered = await handPromptToBridge(supervisor, hooks.closing, {
+	const command: BridgeCommand = {
 		cmd: 'send_prompt',
 		id: supervisor.nextCommandId(),
 		sessionId,
@@ -815,7 +811,13 @@ async function sendAgentPromptLeased(
 		...(turn.plugins === null ? {} : { plugins: turn.plugins }),
 		...(hooks.compactWindow ? { compactWindow: await hooks.compactWindow() } : {}),
 		...(turn.boundary === null ? {} : { boundary: turn.boundary }),
-	});
+	};
+	if (leases.takeDispatchCancel(sessionId, runId)) {
+		handleSendPromptHandoffFailure(db, sessionId, runId, CANCELLED_BEFORE_START, emit);
+		await hooks.captureRunFinish(runId);
+		return runId;
+	}
+	const undelivered = await handPromptToBridge(supervisor, hooks.closing, command);
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
 		await hooks.captureRunFinish(runId);
@@ -1060,6 +1062,7 @@ export async function cancelAgentRun(
 		return;
 	}
 	for (const runId of activeRunIds) {
+		if (leases.cancelBeforeHandoff(sessionId, runId)) continue;
 		try {
 			await supervisor.sendCommand({
 				cmd: 'cancel_run',

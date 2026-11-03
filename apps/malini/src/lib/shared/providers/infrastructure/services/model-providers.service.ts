@@ -6,6 +6,10 @@ class ModelProvidersService {
 		return invoke('providers.list', undefined);
 	}
 
+	refreshModels(): Promise<ModelProviderRecord[]> {
+		return invoke('providers.refresh-models', undefined);
+	}
+
 	saveKey(providerId: string, apiKey: string): Promise<void> {
 		return invoke('providers.save-key', { providerId, apiKey });
 	}

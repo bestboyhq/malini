@@ -27,6 +27,11 @@ export class ModelProvidersStore {
 		this.#loaded = true;
 	}
 
+	async refreshModels(): Promise<void> {
+		this.providers = await modelProvidersService.refreshModels();
+		this.#loaded = true;
+	}
+
 	replace(provider: ModelProviderRecord): void {
 		this.providers = this.providers.map((candidate) =>
 			candidate.id === provider.id ? provider : candidate,

@@ -37,7 +37,11 @@ function boot(deps: ProvidersDeps = {}) {
 		isDev: true,
 		appVersion: '0.0.0-test',
 	};
-	const providers = registerProviders(context, { security: () => null, ...deps });
+	const providers = registerProviders(context, {
+		security: () => null,
+		fetch: () => Promise.reject(new Error('offline')),
+		...deps,
+	});
 	stops.push(() => providers.stop());
 	return { appDataRoot, commands };
 }

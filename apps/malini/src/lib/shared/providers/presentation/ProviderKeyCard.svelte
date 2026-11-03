@@ -4,18 +4,19 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { deleteProviderKeyCommand } from '$shared/providers/application/commands/delete-provider-key.command';
 	import { saveProviderKeyCommand } from '$shared/providers/application/commands/save-provider-key.command';
-	import { modelDescription, type AgentModelInfo } from '$shared/providers/domain/model-catalog';
+	import { providerKeyUrl, type ProviderGroup } from '$shared/providers/domain/provider';
 	import ProviderIcon from './ProviderIcon.svelte';
 
 	interface Props {
-		providerId: string;
-		name: string;
-		baseUrl: string;
-		models: readonly AgentModelInfo[];
-		keySaved: boolean;
+		provider: ProviderGroup;
 	}
 
-	let { providerId, name, baseUrl, models, keySaved }: Props = $props();
+	let { provider }: Props = $props();
+
+	const providerId = $derived(provider.id);
+	const name = $derived(provider.name);
+	const keySaved = $derived(provider.ready);
+	const keyUrl = $derived(providerKeyUrl(provider.id));
 
 	let draft = $state('');
 	let busy = $state(false);
@@ -67,6 +68,16 @@
 			<h3 class="text-fg-default text-sm font-medium">{name}</h3>
 			<p class="text-fg-tertiary text-xs leading-5">
 				{keySaved ? 'API key saved on this Mac.' : `Add an API key to use ${name} models.`}
+				{#if keyUrl && !keySaved}
+					<a
+						href={keyUrl}
+						target="_blank"
+						rel="noreferrer"
+						class="text-fg-secondary hover:text-fg-default underline-offset-2 hover:underline"
+					>
+						Get a key
+					</a>
+				{/if}
 			</p>
 		</div>
 		{#if keySaved}
@@ -111,17 +122,25 @@
 				</Button>
 			{/if}
 		</div>
-		<p class="text-fg-tertiary text-xs leading-5">
-			Base URL <span class="text-fg-secondary font-mono">{baseUrl}</span>
-		</p>
-		<ul class="text-fg-tertiary grid gap-0.5 text-xs leading-5" aria-label={`${name} models`}>
-			{#each models as model (model.id)}
-				<li>
-					<span class="text-fg-secondary font-medium">{model.label}</span>
-					{modelDescription(model) ? ` · ${modelDescription(model)}` : ''}
-				</li>
-			{/each}
-		</ul>
+		{#if provider.baseUrl}
+			<p class="text-fg-tertiary text-xs leading-5">
+				Base URL <span class="text-fg-secondary font-mono">{provider.baseUrl}</span>
+			</p>
+		{/if}
+		<div>
+			<p class="text-fg-tertiary text-xs leading-5">
+				{provider.models.length}
+				{provider.models.length === 1 ? 'model' : 'models'}
+			</p>
+			<ul
+				class="text-fg-secondary flex flex-wrap gap-x-2.5 gap-y-0.5 text-xs leading-5"
+				aria-label={`${name} models`}
+			>
+				{#each provider.models as model (model.id)}
+					<li>{model.label}</li>
+				{/each}
+			</ul>
+		</div>
 		{#if error}
 			<p class="text-error-content text-xs leading-5" role="alert">{error}</p>
 		{/if}

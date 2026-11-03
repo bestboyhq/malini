@@ -14,6 +14,7 @@ import {
 import type {
 	GithubRepository,
 	ImportedRepository,
+	NewGithubRepository,
 	Repository,
 } from '$shared/repositories/domain/repository';
 import { RepositoryMapper } from '$shared/repositories/infrastructure/mappers/repository.mapper';
@@ -58,6 +59,14 @@ class GithubService {
 
 	listGithubRepositories(): Promise<GithubRepository[]> {
 		return withGitHubAuth(() => invoke('repositories.list-github-repositories', undefined));
+	}
+
+	listGithubOwners(): Promise<string[]> {
+		return withGitHubAuth(() => invoke('repositories.list-github-owners', undefined));
+	}
+
+	createGithubRepository(request: NewGithubRepository): Promise<GithubRepository> {
+		return withGitHubAuth(() => invoke('repositories.create-github-repository', request));
 	}
 
 	async connectRepository(source: RepositoryImportSource): Promise<ImportedRepository> {

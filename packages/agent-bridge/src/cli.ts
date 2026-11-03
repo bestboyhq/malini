@@ -248,6 +248,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 	const inFlightPromises = new Set<Promise<void>>();
 	const activeRunSessions = new Set<string>();
 	const activeRunIdsBySession = new Map<string, Set<string>>();
+	const unsentRuns = new Set<string>();
 	const closeSessionTimeoutMs = options.closeSessionTimeoutMs ?? 3_500;
 	const requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
 	const pendingRequests = new Map<string, PendingRequest>();
@@ -560,10 +561,12 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 
 	async function handleSendPrompt(cmd: AgentCommand): Promise<void> {
 		if (cmd.cmd !== 'send_prompt') return;
+		unsentRuns.add(cmd.runId);
 		const starting = startingSessions.get(cmd.sessionId);
 		if (starting) await starting;
 		const handle = handles.get(cmd.sessionId);
 		if (!handle) {
+			if (!unsentRuns.delete(cmd.runId)) return;
 			emitRunFailure(
 				cmd.runId,
 				cmd.sessionId,
@@ -578,6 +581,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		activeRunIdsBySession.set(cmd.sessionId, activeRunIds);
 		try {
 			if (cmd.secrets) await handle.setSecrets?.(cmd.secrets);
+			if (!unsentRuns.delete(cmd.runId)) return;
 			await handle.sendPrompt(
 				cmd.prompt,
 				cmd.runId,
@@ -820,6 +824,11 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 
 	async function handleCancelRun(cmd: AgentCommand): Promise<string | null> {
 		if (cmd.cmd !== 'cancel_run') return 'invalid cancel_run command';
+		if (unsentRuns.delete(cmd.runId)) {
+			manager.emitAgentEvent({ type: 'run.started', runId: cmd.runId, sessionId: cmd.sessionId });
+			manager.emitAgentEvent({ type: 'run.failed', runId: cmd.runId, error: 'cancelled' });
+			return null;
+		}
 		const handle = handles.get(cmd.sessionId);
 		if (!handle) {
 			emitFailure('NO_SESSION', `no active session for ${cmd.sessionId}`);

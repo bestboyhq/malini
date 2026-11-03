@@ -5,7 +5,7 @@
 	import {
 		cancelClaudeSignInCommand,
 		claudeSignInQuery,
-		DEEPSEEK_PROVIDER_ID,
+		providerKeyUrl,
 		saveProviderKeyCommand,
 		signInToClaudeCommand,
 		type ModelAccess,
@@ -30,11 +30,7 @@
 	const signIn = $derived(claudeSignInQuery.data);
 	const waitingForSignIn = $derived(signIn !== 'idle' || busy);
 	const hasDraft = $derived(draft.trim().length > 0);
-	const keyUrl = $derived(
-		access.kind === 'needs-key' && access.providerId === DEEPSEEK_PROVIDER_ID
-			? 'https://platform.deepseek.com/api_keys'
-			: null,
-	);
+	const keyUrl = $derived(access.kind === 'needs-key' ? providerKeyUrl(access.providerId) : null);
 
 	$effect(() => {
 		if (access.kind !== 'needs-key') return;
@@ -95,7 +91,7 @@
 	{#if access.kind === 'needs-key'}
 		<h3 class="text-fg-default text-[13px] leading-5 font-medium">Send with {modelLabel}</h3>
 		<p class="text-fg-tertiary mt-0.5 mb-3 text-xs leading-5">
-			Paste a {access.providerName} API key to run this message. It stays in your keychain.
+			Paste your {access.providerName} API key to run this message. It stays in your keychain.
 		</p>
 		<TextInput
 			type="password"

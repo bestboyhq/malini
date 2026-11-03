@@ -434,7 +434,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'app:menu-command-chosen': {
 		description:
-			"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+			"Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
 		facts: ['command'],
 	},
 	'app:streaming-changed': {

@@ -43,7 +43,7 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 			'New Workstream',
 			'New Chat',
 			'Open Folder…',
-			'Clone Repository…',
+			'Find Repository…',
 			'Close Window',
 		]);
 		expect(await menuLabels(app, 'Malini')).toContain('Settings…');
@@ -90,9 +90,9 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 			.poll(async () => (await listProjects(page)).map((project) => project.id).sort())
 			.toEqual(['local__alpha', 'local__beta']);
 
-		await choose(app, 'clone-repository');
-		const clone = page.getByRole('dialog', { name: 'Clone GitHub repo' });
-		await expect(clone).toBeVisible();
+		await choose(app, 'find-repository');
+		const clone = page.getByRole('dialog', { name: 'Command center' });
+		await expect(clone.getByRole('combobox', { name: 'Search repositories' })).toBeFocused();
 		await captureFlow(app, 'application-menu-clone');
 		await page.keyboard.press('Escape');
 		await expect(clone).toHaveCount(0);

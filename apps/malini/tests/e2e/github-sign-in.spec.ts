@@ -107,21 +107,20 @@ test('after setup, a signed-out clone dialog asks only to connect GitHub, then l
 			value: new Date().toISOString(),
 		});
 		await page.reload();
-		await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
-		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
+		await page.getByRole('button', { name: 'Find a repository' }).first().click();
+		const dialog = page.getByRole('dialog', { name: 'Command center' });
 		const github = dialog.getByTestId('github-setup');
 		await expect(github).toHaveAttribute('data-github-status', 'signed-out');
-		await expect(dialog.getByRole('textbox')).toHaveCount(0);
-		await expect(dialog.getByRole('searchbox')).toHaveCount(0);
-		await expect(dialog.getByRole('button', { name: 'Clone repo' })).toHaveCount(0);
+		await expect(dialog.getByRole('listbox')).toHaveCount(0);
 		await captureFlow(app, 'github-sign-in-clone-dialog');
 
 		await github.getByRole('button', { name: 'Connect GitHub' }).click();
 		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
 		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
 
-		const recent = dialog.getByRole('list', { name: 'Recent repositories' });
-		await expect(recent.getByRole('button', { name: /e2e\/hutch/ })).toBeVisible();
+		const found = dialog.getByRole('listbox', { name: 'Your repositories' });
+		await expect(found.getByRole('option', { name: /e2e\/hutch/ })).toBeVisible();
+		await expect(github).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

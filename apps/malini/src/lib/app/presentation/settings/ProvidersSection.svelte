@@ -3,37 +3,27 @@
 	import { onMount } from 'svelte';
 	import {
 		ClaudeCodeSetup,
-		DEEPSEEK_BASE_URL,
-		DEEPSEEK_MODELS,
-		DEEPSEEK_PROVIDER_ID,
-		DEEPSEEK_PROVIDER_NAME,
 		ProviderKeyCard,
-		loadModelProvidersCommand,
 		providerGroupsQuery,
+		refreshModelProvidersCommand,
 	} from '$shared/providers/providers.api';
 	import SettingsSection from './SettingsSection.svelte';
 
-	const deepseek = $derived(
-		providerGroupsQuery.data.find((group) => group.id === DEEPSEEK_PROVIDER_ID),
-	);
+	const keyed = $derived(providerGroupsQuery.data.filter((group) => group.kind !== 'claude'));
 
-	onMount(loadModelProvidersCommand);
+	onMount(refreshModelProvidersCommand);
 </script>
 
 <SettingsSection
 	title="Providers"
-	description="Chats run Claude Code on this Mac. Choose what it runs as: your Claude account, or an Anthropic-compatible provider with its own API key."
+	description="Chats run Claude Code on this Mac. Choose what it runs as: your Claude account, or a provider with its own API key, such as DeepSeek or OpenCode."
 >
 	<Well title="Claude Code" headed={false}>
 		<ClaudeCodeSetup nested />
 	</Well>
-	<Well title="DeepSeek" headed={false}>
-		<ProviderKeyCard
-			providerId={DEEPSEEK_PROVIDER_ID}
-			name={DEEPSEEK_PROVIDER_NAME}
-			baseUrl={DEEPSEEK_BASE_URL}
-			models={DEEPSEEK_MODELS}
-			keySaved={deepseek?.ready ?? false}
-		/>
-	</Well>
+	{#each keyed as provider (provider.id)}
+		<Well title={provider.name} headed={false}>
+			<ProviderKeyCard {provider} />
+		</Well>
+	{/each}
 </SettingsSection>

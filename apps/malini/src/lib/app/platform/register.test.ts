@@ -412,20 +412,20 @@ describe('registerApp', () => {
 		});
 	});
 
-	it('puts Open Folder, Clone Repository, Accounts and Settings in the menu bar icon, each handed to the window once', async () => {
+	it('puts Open Folder, Find Repository, Accounts and Settings in the menu bar icon, each handed to the window once', async () => {
 		boot(context);
 		expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'));
 		const items = host.tray?.items ?? [];
 		expect(items.map((item) => ('label' in item ? item.label : item.type))).toEqual([
 			'Open Folder…',
-			'Clone Repository…',
+			'Find Repository…',
 			'separator',
 			'Accounts…',
 			'Settings…',
 		]);
 
 		for (const [label, command] of [
-			['Clone Repository…', 'clone-repository'],
+			['Find Repository…', 'find-repository'],
 			['Accounts…', 'accounts'],
 		] as const) {
 			const item = items.find((entry) => 'label' in entry && entry.label === label);
@@ -447,7 +447,7 @@ describe('registerApp', () => {
 			['New Workstream', 'CommandOrControl+N'],
 			['New Chat', 'CommandOrControl+T'],
 			['Open Folder…', 'CommandOrControl+O'],
-			['Clone Repository…', undefined],
+			['Find Repository…', undefined],
 		]);
 		expect(items.at(-1)?.role).toBe('close');
 	});

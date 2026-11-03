@@ -5,7 +5,7 @@ import {
 	isValidProviderId,
 } from '$shared/providers/providers.platform';
 
-const MAX_PICK_MODELS = 64;
+const MAX_PICK_MODELS = 512;
 const MAX_MODEL_LABEL_CHARS = 80;
 
 export function readWorkstreamId(args: unknown): string {

@@ -61,11 +61,14 @@ import { createLeadSpace } from './lead-space.service';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
+	createGithubRepository,
 	defaultGhRunner,
 	githubAuthStatus,
 	githubRepositorySize,
 	listClones,
+	listGithubOwners,
 	listGithubRepositories,
+	parseCreateGithubRepositoryArgs,
 	parseImportSource,
 	type GhRunner,
 } from './github.service';
@@ -503,6 +506,12 @@ export function registerRepositories(
 	commands.define('repositories.list-clones', () => listClones(db));
 
 	commands.define('repositories.list-github-repositories', () => listGithubRepositories(gh));
+
+	commands.define('repositories.list-github-owners', () => listGithubOwners(gh));
+
+	commands.define('repositories.create-github-repository', (args: unknown) =>
+		createGithubRepository(gh, parseCreateGithubRepositoryArgs(args)),
+	);
 
 	commands.define('repositories.connect', async (args: unknown) => {
 		const connection = await connectRepository(db, gh, parseImportSource(field(args, 'source')));

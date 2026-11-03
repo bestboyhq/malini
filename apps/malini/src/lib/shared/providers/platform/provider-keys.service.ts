@@ -74,7 +74,9 @@ export class ProviderKeys {
 			baseUrl: provider.baseUrl,
 			apiKey: await this.#decryptedKey(provider),
 			model,
-			subagentModel: provider.subagentModel,
+			subagentModel: provider.models.some(({ id }) => id === provider.subagentModel)
+				? provider.subagentModel
+				: null,
 		});
 	}
 

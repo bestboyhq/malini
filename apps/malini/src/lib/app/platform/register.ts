@@ -190,7 +190,7 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	commands.define('app.take-menu-command', () => window.takeMenuCommand());
 	host.showTray(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'), [
 		{ label: 'Open Folder…', click: () => window.chooseMenuCommand('open-folder') },
-		{ label: 'Clone Repository…', click: () => window.chooseMenuCommand('clone-repository') },
+		{ label: 'Find Repository…', click: () => window.chooseMenuCommand('find-repository') },
 		{ type: 'separator' },
 		{ label: 'Accounts…', click: () => window.chooseMenuCommand('accounts') },
 		{ label: 'Settings…', click: () => window.chooseMenuCommand('settings') },

@@ -130,8 +130,10 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 ## Model and effort per prompt
 
-Pick Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, and an effort from Low to Max, for every prompt.
-The picker is one flat list of models, so you pick the model, not the provider.
+Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, or a model from OpenCode, paid per request from your OpenCode Console credits, and an effort from Low to Max, for every prompt.
+The picker lists the models you can run, so you pick the model, not the provider.
+A provider you have not connected is one row, such as **OpenCode** with **72 models, one key away**; click it to list its models and pick one.
+Type in it to filter by model or provider, folded ones included, and press Enter to pick the first match.
 **Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
 Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
@@ -140,14 +142,15 @@ A new chat starts with the model, effort, plan mode and report you picked last, 
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
 Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
 A job's chat shows the model, effort and plan mode its job ran with, so a reply you send there runs the same way unless you change it.
-Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek API key or a Claude sign-in.
+Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, or a Claude sign-in.
 Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
-You can also save a DeepSeek API key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
-DeepSeek V4 Pro is text only, and V4 Flash also reads images.
+You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
+DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
+Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools, and leaves out free ones, which OpenCode keeps to its own apps.
 
 ## Claude accounts
 
-Point at the gauge in the composer for **Providers**: only the providers you connected, Claude when Claude Code is signed in and DeepSeek once its key is saved.
+Point at the gauge in the composer for **Providers**: only the providers you connected, Claude when Claude Code is signed in, and DeepSeek or OpenCode once its key is saved.
 Under Claude sits the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac.
 Usage comes from the account's runs, so a fresh account shows it after its next run.
 The same accounts sit in **Settings → Providers**, and **Accounts…** in Malini's menu bar icon opens it.
@@ -300,5 +303,5 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **⌘O**          | Open a folder as a repository                          |
 | **⌘,**          | Open Settings                                          |
 | **⌘W**          | Close the chat tab                                     |
-| **⌘K**          | Find a chat tab that doesn't fit                       |
+| **⌘K**          | Run a command or find a repository                     |
 | **⌥↑** / **⌥↓** | Move a repository, a workstream, or an inspector panel |

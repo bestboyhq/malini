@@ -23,11 +23,20 @@
 	let { statuses }: Props = $props();
 	let chosen = $state<OnboardingAccount | null>(null);
 
+	function signedIn(name: string | null): string {
+		return name ? `Signed in as ${name}` : 'Signed in';
+	}
+
 	const open = $derived(openOnboardingAccount(statuses, chosen));
 	const claude = $derived(claudeCodeStatusQuery.data);
-	const accountNames = $derived<Readonly<Record<OnboardingAccount, string | null>>>({
-		'claude-code': claude.kind === 'ready' ? (claude.account?.email ?? null) : null,
-		github: githubAuthQuery.data?.login ?? null,
+	const claudeDetail = $derived.by(() => {
+		if (claude.kind === 'ready') return signedIn(claude.account?.email ?? null);
+		const version = claude.kind === 'signed-out' ? claude.version : null;
+		return version ? `Installed on this Mac · v${version}` : 'Installed on this Mac';
+	});
+	const details = $derived<Readonly<Record<OnboardingAccount, string>>>({
+		'claude-code': claudeDetail,
+		github: signedIn(githubAuthQuery.data?.login ?? null),
 	});
 </script>
 
@@ -63,7 +72,6 @@
 	{#each ONBOARDING_ACCOUNTS as account, index (account)}
 		{@const expanded = open === account}
 		{@const ready = statuses[account] === 'ready'}
-		{@const accountName = accountNames[account]}
 		<li>
 			<h2>
 				{#if ready}
@@ -71,7 +79,7 @@
 						{@render marker(account, index)}
 						<span class="text-fg-default text-[15px] font-medium">{TITLES[account]}</span>
 						<span class="text-fg-tertiary ml-auto min-w-0 truncate text-sm">
-							<SensitiveText text={accountName ? `Signed in as ${accountName}` : 'Signed in'} />
+							<SensitiveText text={details[account]} />
 						</span>
 					</div>
 				{:else}

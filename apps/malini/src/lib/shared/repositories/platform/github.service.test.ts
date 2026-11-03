@@ -148,6 +148,8 @@ describe('repositories.list-github-repositories', () => {
 						full_name: 'bestboyhq/malini',
 						clone_url: 'https://github.com/bestboyhq/malini.git',
 						description: '  ADE for the rest of us. ',
+						private: true,
+						pushed_at: '2026-11-03T09:00:00Z',
 					},
 					{ full_name: 'ablaszkiewicz/gardener-game', clone_url: 'https://github.com/a/g.git' },
 					{ full_name: 'broken/entry' },
@@ -161,11 +163,15 @@ describe('repositories.list-github-repositories', () => {
 				fullName: 'bestboyhq/malini',
 				cloneUrl: 'https://github.com/bestboyhq/malini.git',
 				description: 'ADE for the rest of us.',
+				private: true,
+				pushedAt: '2026-11-03T09:00:00Z',
 			},
 			{
 				fullName: 'ablaszkiewicz/gardener-game',
 				cloneUrl: 'https://github.com/a/g.git',
 				description: null,
+				private: false,
+				pushedAt: null,
 			},
 		]);
 		expect(calls[0]?.args).toEqual(['api', expect.stringContaining('user/repos?sort=pushed')]);
@@ -179,6 +185,116 @@ describe('repositories.list-github-repositories', () => {
 		await expect(invoke('repositories.list-github-repositories')).rejects.toThrow(
 			/not logged into any GitHub hosts/,
 		);
+	});
+});
+
+describe('repositories.list-github-owners', () => {
+	it('lists your login first, then every organization you belong to', async () => {
+		const { run } = fakeRunner((args) => {
+			if (args[1] === 'user') return ok('szymeo\n');
+			return ok(JSON.stringify([{ login: 'bestboyhq' }, { login: 'logdash-io' }, {}]));
+		});
+		boot({ ghRunner: run });
+		expect(await invoke('repositories.list-github-owners')).toEqual([
+			'szymeo',
+			'bestboyhq',
+			'logdash-io',
+		]);
+	});
+});
+
+describe('repositories.create-github-repository', () => {
+	const created = {
+		full_name: 'bestboyhq/share-links',
+		clone_url: 'https://github.com/bestboyhq/share-links.git',
+		description: null,
+		private: true,
+		pushed_at: '2026-11-03T15:00:00Z',
+	};
+
+	it('creates the repository with a first commit under your account or an organization', async () => {
+		const { run, calls } = fakeRunner((args) =>
+			args[1] === 'user' ? ok('szymeo\n') : ok(JSON.stringify(created)),
+		);
+		boot({ ghRunner: run });
+		expect(
+			await invoke('repositories.create-github-repository', {
+				owner: 'bestboyhq',
+				name: 'share-links',
+				private: true,
+			}),
+		).toEqual({
+			fullName: 'bestboyhq/share-links',
+			cloneUrl: 'https://github.com/bestboyhq/share-links.git',
+			description: null,
+			private: true,
+			pushedAt: '2026-11-03T15:00:00Z',
+		});
+		await invoke('repositories.create-github-repository', {
+			owner: 'Szymeo',
+			name: 'notes',
+			private: false,
+		});
+		expect(calls.map((call) => call.args).filter((args) => args[1] === '--method')).toEqual([
+			[
+				'api',
+				'--method',
+				'POST',
+				'orgs/bestboyhq/repos',
+				'-f',
+				'name=share-links',
+				'-F',
+				'private=true',
+				'-F',
+				'auto_init=true',
+			],
+			[
+				'api',
+				'--method',
+				'POST',
+				'user/repos',
+				'-f',
+				'name=notes',
+				'-F',
+				'private=false',
+				'-F',
+				'auto_init=true',
+			],
+		]);
+	});
+
+	it('fails with the reason GitHub gives, not its status code', async () => {
+		const { run } = fakeRunner((args) =>
+			args[1] === 'user'
+				? ok('szymeo\n')
+				: ok(
+						JSON.stringify({
+							message: 'Repository creation failed.',
+							errors: [{ field: 'name', message: 'name already exists on this account' }],
+						}),
+						1,
+						'gh: Repository creation failed. (HTTP 422)',
+					),
+		);
+		boot({ ghRunner: run });
+		await expect(
+			invoke('repositories.create-github-repository', {
+				owner: 'szymeo',
+				name: 'dotfiles',
+				private: true,
+			}),
+		).rejects.toThrow('Name already exists on this account');
+	});
+
+	it('refuses a name GitHub would not take, before asking it', async () => {
+		const { run, calls } = fakeRunner(() => ok('szymeo\n'));
+		boot({ ghRunner: run });
+		for (const name of ['a/b', '..', 'with space', '']) {
+			await expect(
+				invoke('repositories.create-github-repository', { owner: 'szymeo', name, private: true }),
+			).rejects.toThrow(/invalid args/);
+		}
+		expect(calls).toEqual([]);
 	});
 });
 
