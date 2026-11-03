@@ -23,8 +23,9 @@ Logdash's `POST /web_events` takes that hash as an optional `userId` per event, 
   A count still waiting when the switch turns off is dropped.
 - The **Share usage stats** switch goes through `app.share-usage-data { shared }` instead of `app.set-setting`, so the main process sees it turn off and sends `malini_desktop_stats_off` once, with no props and no `userId`, whatever the account.
   Turning it on sends nothing extra, and nothing else goes while it is off; `DO_NOT_TRACK=1` and `MALINI_USAGE_DATA=off` still send nothing at all.
-- The first setup step, **Connect Claude Code and GitHub**, ends its description with "It shares usage stats, never your code or chats. Turn it off in Settings."
-  Those two sentences hide while sharing is off or `DO_NOT_TRACK` is set; there is no notice step, card, heading, button or line of its own, and nobody past setup sees anything new.
+- The first setup step, **Connect Claude Code and GitHub**, reads "Malini runs Claude Code and works in your GitHub repositories. It shares usage stats, never your code or chats. Turn it off in Settings.", the user's own wording, in two lines of the setup card.
+  The step's older first sentence, "Malini runs Claude Code with your Claude plan, and works in your GitHub repositories.", went, since with the two new sentences it left "in Settings." alone on a third line.
+  The last two sentences hide while sharing is off or `DO_NOT_TRACK` is set; there is no notice step, card, heading, button or line of its own, and nobody past setup sees anything new.
 - Settings, Privacy names the switch **Share usage stats** and describes it as "Once a day, Malini sends a few counts, like how many workstreams you started and merged, with your Bestboy account when signed in. Never your code or chats."
   The receipt under **Yesterday's numbers** no longer says "Nothing in it says it's you", and does not repeat the account.
 

@@ -35,8 +35,7 @@
 	> = {
 		accounts: {
 			title: 'Connect Claude Code and GitHub',
-			description:
-				'Malini runs Claude Code with your Claude plan, and works in your GitHub repositories.',
+			description: 'Malini runs Claude Code and works in your GitHub repositories.',
 		},
 		jobs: {
 			title: 'Meet your jobs',

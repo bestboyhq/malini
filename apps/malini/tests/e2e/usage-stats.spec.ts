@@ -7,8 +7,7 @@ import {
 	seedWorkstream,
 } from './harness';
 
-const RUNS_CLAUDE_CODE =
-	'Malini runs Claude Code with your Claude plan, and works in your GitHub repositories.';
+const RUNS_CLAUDE_CODE = 'Malini runs Claude Code and works in your GitHub repositories.';
 const SHARES_USAGE_STATS = `${RUNS_CLAUDE_CODE} It shares usage stats, never your code or chats. Turn it off in Settings.`;
 
 test('the first setup step says in its description that Malini shares usage stats, and no other step or line does', async () => {
@@ -28,7 +27,7 @@ test('the first setup step says in its description that Malini shares usage stat
 		});
 		await expect(stats).toHaveText(SHARES_USAGE_STATS);
 		await expect(next).toBeEnabled({ timeout: 20_000 });
-		await captureFlow(app, 'onboarding-accounts-usage-stats');
+		await captureFlow(app, 'onboarding-setup-usage-stats');
 
 		for (const heading of ['Meet your jobs', 'Hear your afternoon']) {
 			await next.click();
