@@ -15,7 +15,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 
 export type OnboardingAccount = 'claude-code' | 'github';
 
-export type OnboardingAccountStatus = ClaudeCodeStatus['kind'] | GitHubSetupStatus | 'skipped';
+export type OnboardingAccountStatus = ClaudeCodeStatus['kind'] | GitHubSetupStatus;
 
 export type OnboardingAccountStatuses = Readonly<
 	Record<OnboardingAccount, OnboardingAccountStatus>
@@ -31,7 +31,7 @@ export function clampOnboardingStep(index: number): number {
 	return Math.min(Math.max(index, 0), ONBOARDING_STEPS.length - 1);
 }
 
-const SETTLED_STATUSES: readonly OnboardingAccountStatus[] = ['ready', 'unknown', 'skipped'];
+const SETTLED_STATUSES: readonly OnboardingAccountStatus[] = ['ready', 'unknown'];
 
 export function onboardingAccountsSettled(statuses: OnboardingAccountStatuses): boolean {
 	return ONBOARDING_ACCOUNTS.every((account) => SETTLED_STATUSES.includes(statuses[account]));
@@ -39,9 +39,8 @@ export function onboardingAccountsSettled(statuses: OnboardingAccountStatuses): 
 
 export function claudeCodeOnboardingStatus(
 	status: ClaudeCodeStatus['kind'],
-	skipped: boolean,
 ): OnboardingAccountStatus {
-	return skipped && status === 'signed-out' ? 'skipped' : status;
+	return status === 'signed-out' ? 'ready' : status;
 }
 
 export function openOnboardingAccount(
@@ -51,7 +50,7 @@ export function openOnboardingAccount(
 	if (chosen !== null && statuses[chosen] !== 'ready') return chosen;
 	for (const account of ONBOARDING_ACCOUNTS) {
 		if (statuses[account] === 'checking') return null;
-		if (statuses[account] !== 'ready' && statuses[account] !== 'skipped') return account;
+		if (statuses[account] !== 'ready') return account;
 	}
 	return null;
 }

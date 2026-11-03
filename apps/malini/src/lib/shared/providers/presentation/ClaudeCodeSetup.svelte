@@ -22,10 +22,9 @@
 	interface Props {
 		step?: boolean;
 		nested?: boolean;
-		onskip?: () => void;
 	}
 
-	let { step = false, nested = false, onskip }: Props = $props();
+	let { step = false, nested = false }: Props = $props();
 	let copied = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -38,7 +37,6 @@
 			? installedDetail(status)
 			: (claudeSignInProgress(signIn) ?? statusDetail(status)),
 	);
-	const skippable = $derived(step && onskip !== undefined && setupStep === 'sign-in');
 	const actionSize = $derived(step ? 'md' : 'sm');
 	const actionRadius = $derived(step ? 'full' : 'md');
 
@@ -216,26 +214,12 @@
 		</p>
 	{:else if setupStep === 'sign-in' && signIn === 'idle'}
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			{skippable
-				? 'Sign in opens your browser. No Claude plan? Skip it'
-				: 'Sign in opens your browser. Malini notices when it finishes.'}
+			Sign in opens your browser. Malini notices when it finishes.
 		</p>
 	{/if}
 
 	{#if step}
 		<div class="mt-4 flex items-center justify-end gap-3">
-			{#if skippable && signIn === 'idle'}
-				<Button
-					variant="ghost"
-					size={actionSize}
-					radius={actionRadius}
-					class="text-fg-secondary shrink-0"
-					ariaLabel="Skip signing in to Claude Code"
-					onclick={() => onskip?.()}
-				>
-					Skip
-				</Button>
-			{/if}
 			{@render action()}
 		</div>
 	{/if}

@@ -61,9 +61,8 @@
 	const onboarding = $derived(onboardingQuery.data);
 	const last = $derived(onboarding.index === ONBOARDING_STEPS.length - 1);
 	const copy = $derived(STEP_COPY[onboarding.step]);
-	let claudeSkipped = $state(false);
 	const accounts: OnboardingAccountStatuses = $derived({
-		'claude-code': claudeCodeOnboardingStatus(claudeCodeStatusQuery.data.kind, claudeSkipped),
+		'claude-code': claudeCodeOnboardingStatus(claudeCodeStatusQuery.data.kind),
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
@@ -215,10 +214,7 @@
 
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
 						{#if onboarding.step === 'accounts'}
-							<OnboardingAccountsStep
-								statuses={accounts}
-								onskipclaude={() => (claudeSkipped = true)}
-							/>
+							<OnboardingAccountsStep statuses={accounts} />
 						{:else if onboarding.step === 'jobs'}
 							<JobsIntro />
 						{:else if onboarding.step === 'heard-about'}

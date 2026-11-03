@@ -26,8 +26,8 @@ The [README](../README.md) has the short version.
   <img src="../.github/readme/setup.webp" width="100%" alt="The first-run setup, step 1 of 4, Connect Claude Code and GitHub: both rows show a green check and Signed in as, with the Claude email blurred, and a Continue button.">
 </p>
 
-- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
-  No Claude plan? **Skip** the sign-in and connect DeepSeek or OpenCode when you first send.
+- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
+  The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
 - **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
 - **Then a repository.** Clone one or open a folder, and your first workstream is ready.

@@ -43,20 +43,10 @@ describe('onboarding accounts', () => {
 		expect(onboardingAccountsSettled({ 'claude-code': 'ready', github: 'unknown' })).toBe(true);
 	});
 
-	it('lets a signed-out Claude Code be skipped, but never a missing one', () => {
-		expect(claudeCodeOnboardingStatus('signed-out', true)).toBe('skipped');
-		expect(claudeCodeOnboardingStatus('missing', true)).toBe('missing');
-		expect(claudeCodeOnboardingStatus('signed-out', false)).toBe('signed-out');
-		expect(onboardingAccountsSettled({ 'claude-code': 'skipped', github: 'ready' })).toBe(true);
-		expect(onboardingAccountsSettled({ 'claude-code': 'skipped', github: 'signed-out' })).toBe(
-			false,
-		);
-		expect(openOnboardingAccount({ 'claude-code': 'skipped', github: 'signed-out' }, null)).toBe(
-			'github',
-		);
-		expect(openOnboardingAccount({ 'claude-code': 'skipped', github: 'ready' }, null)).toBe(null);
-		expect(
-			openOnboardingAccount({ 'claude-code': 'skipped', github: 'ready' }, 'claude-code'),
-		).toBe('claude-code');
+	it('takes an installed Claude Code as done, signed in or not, but never a missing one', () => {
+		expect(claudeCodeOnboardingStatus('signed-out')).toBe('ready');
+		expect(claudeCodeOnboardingStatus('ready')).toBe('ready');
+		expect(claudeCodeOnboardingStatus('missing')).toBe('missing');
+		expect(claudeCodeOnboardingStatus('checking')).toBe('checking');
 	});
 });

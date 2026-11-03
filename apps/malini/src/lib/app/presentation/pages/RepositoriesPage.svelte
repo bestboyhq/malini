@@ -64,9 +64,7 @@
 	const connectionRequested = $derived(repositoryConnectionRequestedQuery.data);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const claudeNeedsSetup = $derived(
-		claudeStatus.kind === 'missing' ||
-			claudeStatus.kind === 'signed-out' ||
-			claudeStatus.kind === 'unknown',
+		claudeStatus.kind === 'missing' || claudeStatus.kind === 'unknown',
 	);
 	const workstreamScopeFailure = $derived(
 		workstreamScopeError

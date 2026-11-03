@@ -19,8 +19,8 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 
 ## First launch
 
-- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
-  No Claude plan? **Skip** the sign-in, pick a DeepSeek or OpenCode model in your first chat, and Malini asks for its API key when you send.
+- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
+  Setup never asks you to sign in to Claude: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
 - **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
