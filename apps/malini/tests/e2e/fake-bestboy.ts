@@ -20,6 +20,7 @@ export type FakeBestboy = Readonly<{
 	requests: PlatformRequest[];
 	expectChallenge(challenge: string): void;
 	refuseNextStatsUpload(): void;
+	changeTerms(date: string): void;
 	listExtension(files: readonly ExtensionFile[]): void;
 	yankExtension(publisher: string, name: string, version: string): void;
 	close(): void;
@@ -77,6 +78,8 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 	let refuseStats = false;
 	const revoked = new Set<string>();
 	let profile: { handle: string | null; public: boolean } = { handle: null, public: false };
+	let terms = '2026-10-23';
+	let acceptedTerms: string | null = null;
 
 	const list = (bytes: Buffer): Listing => {
 		const files = unpacked(bytes);
@@ -194,6 +197,7 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 					return;
 				}
 				tokens += 1;
+				acceptedTerms = terms;
 				reply(200, { token: `e2e-token-${tokens}`, user: { name: 'E2E Person' }, team: {} });
 				return;
 			}
@@ -207,8 +211,15 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 			}
 			if (route === 'GET /api/me') {
 				reply(200, {
-					user: { id: 'u1', email: 'e2e@bestboy.dev', name: 'E2E Person', avatar: null },
+					user: {
+						id: 'u1',
+						email: 'e2e@bestboy.dev',
+						name: 'E2E Person',
+						avatar: null,
+						terms: acceptedTerms,
+					},
 					team: { id: 't1', name: 'E2E', plan: 'early' },
+					terms,
 					profile: profileReply(),
 				});
 				return;
@@ -220,6 +231,9 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 					return;
 				}
 				const shown = typeof body === 'object' && body ? Reflect.get(body, 'public') : undefined;
+				if (typeof body === 'object' && body && Reflect.get(body, 'terms') === terms) {
+					acceptedTerms = terms;
+				}
 				profile = {
 					handle: typeof handle === 'string' ? handle : profile.handle,
 					public: typeof shown === 'boolean' ? shown : profile.public,
@@ -263,6 +277,9 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 		},
 		refuseNextStatsUpload: () => {
 			refuseStats = true;
+		},
+		changeTerms: (date) => {
+			terms = date;
 		},
 		listExtension: (files) => {
 			list(extensionPackage(files));

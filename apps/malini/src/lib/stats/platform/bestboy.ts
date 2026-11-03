@@ -1,4 +1,4 @@
-import type { BestboyAccount, BestboyProfile, PublishedStats } from '$contract/stats';
+import type { BestboyAccount, BestboyProfile, BestboyTerms, PublishedStats } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
 
 export const BESTBOY_ORIGIN = 'https://bestboy.dev';
@@ -8,9 +8,13 @@ const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([408, 425, 429]);
 
 export type BestboyFetch = (url: string, init: RequestInit) => Promise<Response>;
 
-export type BestboyMe = Readonly<{ account: BestboyAccount; profile: BestboyProfile }>;
+export type BestboyMe = Readonly<{
+	account: BestboyAccount;
+	profile: BestboyProfile;
+	unacceptedTerms: string | null;
+}>;
 
-export type ProfileChange = Readonly<{ handle?: string; public?: boolean }>;
+export type ProfileChange = Readonly<{ handle?: string; public?: boolean; terms?: string }>;
 
 export type BestboySession = Readonly<{ token: string; handle: string | null }>;
 
@@ -64,6 +68,10 @@ export class Bestboy {
 		return new URL(this.origin).host;
 	}
 
+	termsLinks(date: string): BestboyTerms {
+		return { date, termsUrl: `${this.origin}/terms`, privacyUrl: `${this.origin}/privacy` };
+	}
+
 	loginUrl(challenge: string, state: string): string {
 		return `${this.origin}/login?${new URLSearchParams({ app: 'malini', challenge, state })}`;
 	}
@@ -82,12 +90,16 @@ export class Bestboy {
 		const user = isRecord(reply) ? reply['user'] : null;
 		const name = isRecord(user) ? user['name'] : null;
 		const email = isRecord(user) ? user['email'] : null;
+		const terms = isRecord(reply) ? reply['terms'] : null;
+		const accepted = isRecord(user) ? user['terms'] : null;
 		if (typeof email !== 'string') {
 			throw new BestboyError(`${this.host} sent an account without an email.`, 200);
 		}
 		return {
 			account: { name: typeof name === 'string' && name.length > 0 ? name : email, email },
 			profile: this.#profile(isRecord(reply) ? reply['profile'] : null),
+			unacceptedTerms:
+				typeof terms === 'string' && terms.length > 0 && terms !== accepted ? terms : null,
 		};
 	}
 

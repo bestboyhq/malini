@@ -16,7 +16,9 @@ import {
 	sendPrompt,
 	type LaunchedApp,
 } from './harness';
-import { fakeBestboy, openUrl, signInUrl } from './fake-bestboy';
+import { fakeBestboy, openUrl, signInUrl, type FakeBestboy } from './fake-bestboy';
+
+const TERMS_LINE = 'Publishing accepts the Terms and Privacy Policy.';
 
 const STATS_KEYS = [
 	'days',
@@ -63,6 +65,7 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 
 		const handle = settings.getByRole('textbox', { name: 'Your profile address' });
 		await expect(handle).toHaveValue('e2e-user');
+		await expect(settings.getByText(TERMS_LINE)).toHaveCount(0);
 		await handle.fill('taken');
 		await settings.getByRole('button', { name: 'Publish' }).click();
 		await expect(settings.getByRole('alert')).toHaveText('Someone else has that handle.');
@@ -123,6 +126,11 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 				['DELETE', '/api/stats/malini', null],
 				['PUT', '/api/profile', { public: false }],
 			]);
+		expect(profileChanges(platform)).toEqual([
+			{ handle: 'taken', public: true },
+			{ handle: 'e2e-person', public: true },
+			{ public: false },
+		]);
 
 		await settings.getByRole('button', { name: 'Sign out' }).click();
 		await expect(settings.getByText(/^Signed in to Bestboy as/u)).toHaveCount(0);
@@ -139,6 +147,57 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		platform.close();
+	}
+});
+
+test('once Bestboy changes its terms, Profile links them beside Publish my stats, and publishing accepts them and hides the line', async () => {
+	test.setTimeout(240_000);
+	const platform = await fakeBestboy();
+	const env = { MALINI_BESTBOY_ORIGIN: platform.origin };
+	const first = await launchWithPastRuns(env);
+	let again: LaunchedApp | null = null;
+	try {
+		await recordBrowser(first);
+		await openProfileSettings(first.page);
+		const signedIn = first.page.getByRole('dialog', { name: 'Settings' });
+		await signedIn.getByRole('button', { name: 'Sign in' }).click();
+		const signIn = await signInUrl(first, platform, 1);
+		await openUrl(first, `malini://auth?code=e2e-code&state=${signIn.state}`);
+		await expect(signedIn.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
+		await expect(signedIn.getByText(TERMS_LINE)).toHaveCount(0);
+		await first.quit();
+
+		platform.changeTerms('2026-11-02');
+		again = await launchMalini({ profile: first.root, env });
+		const app = again;
+		await recordBrowser(app);
+		await openProfileSettings(app.page);
+		const settings = app.page.getByRole('dialog', { name: 'Settings' });
+		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
+		await expect(settings.getByText(TERMS_LINE)).toBeVisible();
+		await captureFlow(app, 'profile-terms');
+		await settings.getByRole('link', { name: 'Terms', exact: true }).click();
+		await settings.getByRole('link', { name: 'Privacy Policy', exact: true }).click();
+		await expect
+			.poll(() => openedUrls(app))
+			.toEqual([`${platform.origin}/terms`, `${platform.origin}/privacy`]);
+
+		await settings.getByRole('switch', { name: 'Publish my stats' }).click();
+		await settings.getByRole('textbox', { name: 'Your profile address' }).fill('e2e-person');
+		await expect(settings.getByText(TERMS_LINE)).toBeVisible();
+		await settings.getByRole('button', { name: 'Publish' }).click();
+		await expect(settings.getByTestId('profile-status')).toHaveText(/^Published through /u, {
+			timeout: 20_000,
+		});
+		expect(profileChanges(platform)).toEqual([
+			{ handle: 'e2e-person', public: true, terms: '2026-11-02' },
+		]);
+		await expect(settings.getByText(TERMS_LINE)).toHaveCount(0);
+		await captureFlow(app, 'profile-terms-accepted');
+		expectCleanConsole(app);
+	} finally {
+		await (again ?? first).close();
 		platform.close();
 	}
 });
@@ -433,6 +492,12 @@ async function openProfileSettings(page: Page): Promise<void> {
 	});
 	await page.reload();
 	await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
+}
+
+function profileChanges(platform: FakeBestboy): unknown[] {
+	return platform.requests
+		.filter(({ method, path }) => method === 'PUT' && path === '/api/profile')
+		.map(({ body }) => body);
 }
 
 function statsBody(body: unknown): Readonly<Record<string, unknown>> {

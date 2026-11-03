@@ -29,6 +29,10 @@ Turn on **Publish my stats** in Settings, Profile, or click **Publish my stats**
 2. Back in Malini, you choose your profile address, `bestboy.dev/@handle`, filled in with your GitHub login.
 3. Malini sends your numbers, and **Copy link** copies your profile's address.
 
+When Bestboy's Terms and Privacy Policy change after you accepted them, **Publish my stats** says **Publishing accepts the Terms and Privacy Policy.**, and both open in your browser.
+Publishing then sends the date of the ones you saw with your handle, which accepts them, and the line goes away.
+Signing in to Bestboy accepts them too.
+
 While it stays on, Malini sends your numbers once a day, and again when you change your public repositories or what your profile shows.
 bestboy.dev publishes changes once a day at 03:00 UTC, for everyone at the same moment, so your profile never shows when you work.
 The first upload after you turn it on goes public at once.

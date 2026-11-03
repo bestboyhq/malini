@@ -74,10 +74,12 @@ export class StatsProfile {
 	}
 
 	state(): ProfileState {
-		const { token, account, profile, publishing, picked } = this.#saved;
+		const { token, account, profile, unacceptedTerms, publishing, picked } = this.#saved;
 		return {
 			account: token ? account : null,
 			profile,
+			unacceptedTerms:
+				token && unacceptedTerms ? this.#deps.bestboy.termsLinks(unacceptedTerms) : null,
 			signingIn: this.#pending !== null,
 			signInNeeded: publishing !== 'off' && !token,
 			signInProblem: this.#signInProblem,
@@ -158,7 +160,7 @@ export class StatsProfile {
 			const token = await this.#deps.bestboy.token(callback.code, pending.verifier);
 			const me = await this.#deps.bestboy.me(token);
 			this.#accountCheckedAt = Date.now();
-			await this.#save({ ...this.#saved, token, account: me.account, profile: me.profile });
+			await this.#save({ ...this.#saved, token, ...me });
 		} catch (error) {
 			this.#signInProblem = `Malini could not sign you in: ${described(error)}`;
 			this.#emit();
@@ -171,14 +173,22 @@ export class StatsProfile {
 	publish(text: string): Promise<PublishStatsResult> {
 		return this.#serial(async () => {
 			const handle = normalizedHandle(text);
-			const { token } = this.#saved;
+			const { token, unacceptedTerms } = this.#saved;
 			if (!token) return { state: this.state(), problem: 'Sign in to Bestboy first.' };
 			const problem = handleProblem(handle);
 			if (problem) return { state: this.state(), problem };
 			try {
-				const profile = await this.#deps.bestboy.putProfile(token, { handle, public: true });
+				const profile = await this.#deps.bestboy.putProfile(token, {
+					handle,
+					public: true,
+					...(unacceptedTerms ? { terms: unacceptedTerms } : {}),
+				});
 				await this.#save({ ...this.#saved, profile, publishing: 'on', publishedThrough: null });
 				this.#deps.published(profile);
+				if (unacceptedTerms) {
+					this.#accountCheckedAt = 0;
+					void this.#refresh();
+				}
 			} catch (error) {
 				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
 				return { state: this.#emit(), problem: described(error) };
@@ -292,8 +302,7 @@ export class StatsProfile {
 		if (token && Date.now() - this.#accountCheckedAt > ACCOUNT_FRESH_MS) {
 			this.#accountCheckedAt = Date.now();
 			try {
-				const me = await this.#deps.bestboy.me(token);
-				await this.#save({ ...this.#saved, account: me.account, profile: me.profile });
+				await this.#save({ ...this.#saved, ...(await this.#deps.bestboy.me(token)) });
 			} catch (error) {
 				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
 			}

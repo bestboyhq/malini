@@ -107,6 +107,7 @@ async function signedInProfile(): Promise<{
 		token: 'secret-token',
 		account: { name: 'Simon', email: 'simon@test' },
 		profile: { handle: null, public: false, url: null },
+		unacceptedTerms: null,
 		publishing: 'off',
 		publishedThrough: null,
 		picked: [],
