@@ -100,6 +100,7 @@ export interface AgentModelInfo {
 	label: string;
 	description: string;
 	efforts: AgentReasoningEffort[];
+	family?: string;
 }
 
 export type ModelProviderKind = 'claude' | 'anthropic';

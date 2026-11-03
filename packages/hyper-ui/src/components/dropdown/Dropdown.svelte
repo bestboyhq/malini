@@ -21,6 +21,7 @@
 		preventFlip?: boolean;
 		interactiveTrigger?: boolean;
 		keyboardNavigation?: boolean;
+		closeOnEscape?: boolean;
 		onOpenChange?: (open: boolean) => void;
 		trigger: Snippet;
 		content: Snippet;
@@ -43,6 +44,7 @@
 		preventFlip = false,
 		interactiveTrigger = true,
 		keyboardNavigation = true,
+		closeOnEscape = true,
 		onOpenChange,
 		trigger,
 		content,
@@ -121,6 +123,7 @@
 	{preventFlip}
 	matchAnchorWidth={fullWidth}
 	{keyboardNavigation}
+	{closeOnEscape}
 	panelClass={[
 		'overflow-hidden rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated',
 		panelClass,

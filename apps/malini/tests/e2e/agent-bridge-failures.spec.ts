@@ -108,7 +108,6 @@ test('a chat that cannot open keeps its error and its model to itself when you p
 
 		await startFreshChat(page);
 		await picker.click();
-		await page.locator('[data-testid="chat-model-provider"][data-provider="deepseek"]').click();
 		await page
 			.locator(
 				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
@@ -129,7 +128,7 @@ test('a chat that cannot open keeps its error and its model to itself when you p
 		}
 
 		await showChat(page, claudeChat);
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await showChat(page, deepseekChat);
 		await expect(failure).toContainText('The DeepSeek API key cannot be read', {
 			timeout: 20_000,
@@ -137,7 +136,7 @@ test('a chat that cannot open keeps its error and its model to itself when you p
 
 		await showChat(page, claudeChat);
 		await expect(failure).toHaveCount(0, { timeout: 20_000 });
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(picker).toBeEnabled();
 		await captureFlow(app, 'agent-bridge-unreadable-key-left-behind');
 		expectCleanConsole(app);

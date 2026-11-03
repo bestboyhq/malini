@@ -26,13 +26,10 @@ export {
 } from './domain/model-id';
 
 export {
-	allProviderModels,
-	catalogModelLabel,
 	effortsForModel,
 	modelLabel,
 	normalizeReasoningEffort,
 	pickerGroups,
-	pickerModels,
 	selectionLabel,
 	selectionModels,
 	type AgentModelInfo,

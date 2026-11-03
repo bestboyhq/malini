@@ -70,12 +70,13 @@ test('a signed-out Claude Code passes setup, and only a Claude send asks to sign
 		await expect(picker).toBeVisible({ timeout: 20_000 });
 		await picker.click();
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeVisible();
+		await page.getByRole('option', { name: /^Opus 5\.5/u }).hover();
 		await expect(
-			page.locator(
-				'[data-testid="chat-model-option"][data-provider="claude"] [data-testid="chat-model-no-access"]',
-			),
-		).toHaveCount(2);
+			page.locator('[data-testid="chat-model-runner"][data-provider="claude"]'),
+		).toContainText('Needs a sign-in');
 		await page.keyboard.press('Escape');
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
+		await expect(page.getByTestId('chat-model-runners')).toHaveCount(0);
 		await sendPrompt(page, 'SEARCH the fixture repo');
 		const connect = page.getByTestId('provider-connect-card');
 		await expect(connect).toHaveAttribute('data-access', 'claude-signed-out');

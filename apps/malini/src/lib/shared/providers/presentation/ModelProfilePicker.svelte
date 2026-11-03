@@ -1,19 +1,25 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { Badge } from '$hyper-ui/components/badge';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
+	import { createRovingFocus } from '$hyper-ui/overlay';
 	import {
 		effortsForModel,
-		filterPickerModels,
-		flatPickerModels,
-		modelDescription,
-		pickerEntries,
+		filterPickerRows,
+		pickerRows,
+		rowRunner,
+		rowRuns,
+		runs,
 		selectionLabel,
 		selectionModels,
+		type PickerRow,
+		type PickerRunner,
 	} from '$shared/providers/domain/model-catalog';
+	import { usesSubscription } from '$shared/providers/domain/claude-code-status';
 	import {
 		CLAUDE_PROVIDER_ID,
 		isModelAccessReady,
@@ -44,18 +50,27 @@
 		onchange: (selection: ModelSelection, effort?: AgentReasoningEffort) => void;
 	}
 
+	interface Flyout {
+		readonly row: PickerRow;
+		readonly anchor: HTMLElement;
+	}
+
+	const FLYOUT_OPEN_MS = 80;
+	const FLYOUT_SWITCH_MS = 200;
+
 	let { selection, effort, disabled = false, onchange }: Props = $props();
 	let open = $state(false);
 	let query = $state('');
 	let filterInput = $state<HTMLInputElement | null>(null);
-	let expanded = $state<ReadonlySet<string>>(new Set());
 	let list = $state<HTMLElement | null>(null);
+	let flyout = $state<Flyout | null>(null);
+	let flyoutContent = $state<HTMLElement | null>(null);
+	let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const groups = $derived(providerGroupsQuery.data);
-	const models = $derived(filterPickerModels(flatPickerModels(groups, selection), query));
-	const entries = $derived(pickerEntries(groups, selection, query, expanded));
-	const selectedLabel = $derived(selectionLabel(groups, selection));
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
+	const rows = $derived(filterPickerRows(pickerRows(groups, selection), query));
+	const selectedLabel = $derived(selectionLabel(groups, selection));
 	const currentPreset: ModelPreset = $derived({
 		selection,
 		effort:
@@ -64,42 +79,98 @@
 				: null,
 	});
 	const presets = $derived(
-		modelPresetsQuery.data.filter((preset) =>
-			models.some(
-				(row) =>
-					row.provider === preset.selection.provider && row.model.id === preset.selection.model,
-			),
-		),
+		modelPresetsQuery.data.filter((preset) => rows.some((row) => rowRuns(row, preset.selection))),
 	);
 	const currentSaved = $derived(
 		modelPresetsQuery.data.some((preset) => sameModelPreset(preset, currentPreset)),
 	);
+	const flyoutFocus = createRovingFocus({ container: () => flyoutContent });
+
+	function ready(runner: PickerRunner): boolean {
+		const access = modelAccess(
+			{ provider: runner.group.id, model: runner.model.id },
+			groups,
+			claudeStatus,
+		);
+		return isModelAccessReady(access);
+	}
+
+	function runnerNote(runner: PickerRunner): string {
+		if (runner.group.id !== CLAUDE_PROVIDER_ID) {
+			return runner.group.ready ? 'Key saved' : 'Needs a key';
+		}
+		switch (claudeStatus.kind) {
+			case 'ready':
+				return usesSubscription(claudeStatus) ? 'Your Claude plan' : 'Signed in';
+			case 'signed-out':
+				return 'Needs a sign-in';
+			case 'missing':
+				return 'Needs Claude Code';
+			case 'checking':
+				return 'Checking';
+			case 'unknown':
+				return "Couldn't check";
+		}
+	}
 
 	function presetName(preset: ModelPreset): string {
 		const label = selectionLabel(groups, preset.selection);
 		return preset.effort ? `${label} · ${reasoningEffortLabel(preset.effort)}` : label;
 	}
 
-	function select(provider: string, model: string): void {
+	function select(runner: PickerRunner): void {
+		flyout?.anchor.focus({ preventScroll: true });
+		closeFlyout();
 		open = false;
-		if (provider !== selection.provider || model !== selection.model) {
-			onchange({ provider, model });
-		}
-	}
-
-	async function toggleProvider(provider: string, row: HTMLElement): Promise<void> {
-		const next = new Set(expanded);
-		const opening = !next.delete(provider);
-		if (opening) next.add(provider);
-		expanded = next;
-		if (!opening) return;
-		await tick();
-		row.scrollIntoView({ block: 'start' });
+		if (!runs(runner, selection)) onchange({ provider: runner.group.id, model: runner.model.id });
 	}
 
 	function applyPreset(preset: ModelPreset): void {
 		open = false;
 		onchange({ ...preset.selection }, preset.effort ?? undefined);
+	}
+
+	function closeFlyout(): void {
+		clearTimeout(hoverTimer);
+		flyout = null;
+	}
+
+	function hover(row: PickerRow, anchor: HTMLElement): void {
+		clearTimeout(hoverTimer);
+		const next = row.runners.length > 1 ? { row, anchor } : null;
+		if (next?.row.family === flyout?.row.family) return;
+		hoverTimer = setTimeout(() => (flyout = next), flyout ? FLYOUT_SWITCH_MS : FLYOUT_OPEN_MS);
+	}
+
+	async function openFlyout(row: PickerRow, anchor: HTMLElement): Promise<void> {
+		clearTimeout(hoverTimer);
+		flyout = { row, anchor };
+		await tick();
+		flyoutContent?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
+	}
+
+	function onRowKeydown(event: KeyboardEvent, row: PickerRow): void {
+		if (event.key !== 'ArrowRight' || row.runners.length < 2) return;
+		event.preventDefault();
+		if (event.currentTarget instanceof HTMLElement) void openFlyout(row, event.currentTarget);
+	}
+
+	function onFlyoutKeydown(event: KeyboardEvent): void {
+		if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			const anchor = flyout?.anchor;
+			closeFlyout();
+			anchor?.focus({ preventScroll: true });
+			return;
+		}
+		if (flyoutFocus.handleArrowKeys(event)) event.stopPropagation();
+	}
+
+	function onListFocus(event: FocusEvent): void {
+		if (!(event.target instanceof HTMLElement) || !event.target.matches(':focus-visible')) return;
+		event.target.scrollIntoView({ block: 'nearest' });
+		if (flyout && event.target !== flyout.anchor) closeFlyout();
 	}
 
 	async function revealSelection(): Promise<void> {
@@ -112,8 +183,8 @@
 	function onOpenChange(nextOpen: boolean): void {
 		open = nextOpen;
 		query = '';
+		closeFlyout();
 		if (nextOpen) {
-			expanded = new Set([selection.provider]);
 			loadProviderCapabilitiesCommand('stale');
 			refreshModelProvidersCommand();
 			queueMicrotask(() => filterInput?.focus());
@@ -125,13 +196,14 @@
 		if (event.key === 'Home' || event.key === 'End') event.stopPropagation();
 		if (event.key !== 'Enter' || event.isComposing) return;
 		event.preventDefault();
-		const first = models[0];
-		if (first) select(first.provider, first.model.id);
+		const first = rows[0];
+		if (first) select(rowRunner(first, selection, ready));
 	}
 
 	onMount(() => {
 		loadProviderCapabilitiesCommand();
 		loadModelProvidersCommand();
+		return () => clearTimeout(hoverTimer);
 	});
 </script>
 
@@ -191,9 +263,12 @@
 			</div>
 			<div
 				bind:this={list}
-				class="min-h-0 overflow-y-auto px-1.5 pt-1.5"
+				class="min-h-0 overflow-x-hidden overflow-y-auto px-1.5 pt-1.5"
 				role="listbox"
 				aria-label="Models"
+				tabindex="-1"
+				onscroll={() => (flyout = null)}
+				onfocusin={onListFocus}
 			>
 				{#if presets.length > 0}
 					<div role="group" aria-label="Presets">
@@ -208,6 +283,7 @@
 									checked={current}
 									class="min-w-0 flex-1 gap-2.5"
 									data-testid="chat-model-preset"
+									onmouseenter={closeFlyout}
 									onSelect={() => applyPreset(preset)}
 								>
 									<ProviderIcon
@@ -255,80 +331,46 @@
 					{#if presets.length > 0}
 						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Models</p>
 					{/if}
-					{#each entries as entry (entry.kind === 'model' ? `${entry.row.provider}:${entry.row.model.id}` : entry.provider)}
-						{#if entry.kind === 'provider'}
-							<DropdownItem
-								closeOnSelect={false}
-								aria-expanded={entry.expanded}
-								class="gap-2.5 py-2"
-								data-testid="chat-model-provider"
-								data-provider={entry.provider}
-								onclick={(event) => toggleProvider(entry.provider, event.currentTarget)}
-							>
-								<ProviderIcon
-									providerId={entry.provider}
-									class="text-fg-secondary shrink-0"
-									size={14}
-								/>
-								<span class="flex min-w-0 flex-1 flex-col">
-									<span class="truncate text-[13px] leading-5">{entry.providerName}</span>
+					{#each rows as row (row.family)}
+						{@const runner = rowRunner(row, selection, ready)}
+						{@const selected = rowRuns(row, selection)}
+						{@const multiple = row.runners.length > 1}
+						<DropdownItem
+							role="option"
+							aria-selected={selected}
+							aria-haspopup={multiple ? 'listbox' : undefined}
+							aria-expanded={multiple ? flyout?.row.family === row.family : undefined}
+							checked={selected}
+							class="gap-2.5 py-2"
+							data-testid="chat-model-option"
+							data-provider={runner.group.id}
+							data-model={runner.model.id}
+							onmouseenter={(event) => hover(row, event.currentTarget)}
+							onkeydown={(event) => onRowKeydown(event, row)}
+							onSelect={() => select(runner)}
+						>
+							<span class="flex min-w-0 flex-1 flex-col">
+								<span class="truncate text-[13px] leading-5">{row.label}</span>
+								{#if row.description}
 									<span class="text-fg-tertiary text-2xs truncate leading-4">
-										{entry.count === 1 ? '1 model' : `${entry.count} models`}, one key away
-									</span>
-								</span>
-								<Icon
-									name="chevron-right"
-									class={[
-										'text-fg-tertiary shrink-0 transition-transform duration-150 motion-reduce:transition-none',
-										entry.expanded && 'rotate-90',
-									]}
-									size={12}
-								/>
-							</DropdownItem>
-						{:else}
-							{@const row = entry.row}
-							{@const selected =
-								row.provider === selection.provider && row.model.id === selection.model}
-							{@const access = modelAccess(
-								{ provider: row.provider, model: row.model.id },
-								groups,
-								claudeStatus,
-							)}
-							<DropdownItem
-								role="option"
-								aria-selected={selected}
-								checked={selected}
-								class="gap-2.5 py-2"
-								data-testid="chat-model-option"
-								data-provider={row.provider}
-								data-model={row.model.id}
-								onSelect={() => select(row.provider, row.model.id)}
-							>
-								<span class="flex min-w-0 flex-1 flex-col">
-									<span class="truncate text-[13px] leading-5">{row.model.label}</span>
-									{#if modelDescription(row.model)}
-										<span class="text-fg-tertiary text-2xs truncate leading-4">
-											{modelDescription(row.model)}
-										</span>
-									{/if}
-								</span>
-								{#if row.provider !== CLAUDE_PROVIDER_ID || !isModelAccessReady(access)}
-									<span
-										class="text-fg-tertiary text-2xs flex shrink-0 flex-col items-end leading-4"
-									>
-										{#if row.provider !== CLAUDE_PROVIDER_ID}
-											<span>via {row.providerName}</span>
-										{/if}
-										{#if !isModelAccessReady(access)}
-											<span data-testid="chat-model-no-access">No access</span>
-										{/if}
+										{row.description}
 									</span>
 								{/if}
+							</span>
+							<ProviderIcon
+								providerId={runner.group.id}
+								ariaLabel={runner.group.name}
+								class="text-fg-secondary shrink-0"
+								size={13}
+							/>
+							<span class="flex w-3.5 shrink-0 justify-center">
 								{#if selected}
-									<Icon name="check" class="text-fg-default shrink-0" size={14} />
+									<Icon name="check" class="text-fg-default" size={14} />
+								{:else if multiple}
+									<Icon name="chevron-right" class="text-fg-tertiary" size={12} />
 								{/if}
-							</DropdownItem>
-						{/if}
+							</span>
+						</DropdownItem>
 					{:else}
 						<p class="text-fg-tertiary px-2 py-1.5 text-xs leading-5">No models match</p>
 					{/each}
@@ -339,17 +381,91 @@
 				<DropdownItem
 					closeOnSelect={false}
 					class="gap-2.5"
+					aria-label={currentSaved
+						? `Remove ${presetName(currentPreset)} preset`
+						: `Save ${presetName(currentPreset)} as a preset`}
 					data-testid="chat-model-preset-toggle"
+					onmouseenter={closeFlyout}
 					onSelect={() => toggleModelPresetCommand(currentPreset)}
 				>
 					<Icon name={currentSaved ? 'minus' : 'plus'} class="shrink-0" size={14} />
-					<span class="truncate">
-						{currentSaved
-							? `Remove ${presetName(currentPreset)} preset`
-							: `Save ${presetName(currentPreset)} as a preset`}
+					<span class="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+						<span>{currentSaved ? 'Remove' : 'Save'}</span>
+						<Badge class="min-w-0 gap-1">
+							<ProviderIcon providerId={selection.provider} class="shrink-0" size={11} />
+							<span class="truncate">{presetName(currentPreset)}</span>
+						</Badge>
+						<span>{currentSaved ? 'preset' : 'as a preset'}</span>
 					</span>
 				</DropdownItem>
 			</div>
+			<Dropdown
+				nested
+				interactiveTrigger={false}
+				open={flyout !== null}
+				positionAnchor={flyout?.anchor ?? null}
+				side="right"
+				align="start"
+				sideOffset={12}
+				alignOffset={-6}
+				keyboardNavigation={false}
+				closeOnEscape={false}
+				onOpenChange={(next) => {
+					if (!next) closeFlyout();
+				}}
+				panelClass="w-56"
+				contentClass=""
+				testId="chat-model-runners"
+				owner="chat-composer"
+				role={null}
+			>
+				{#snippet trigger()}{/snippet}
+				{#snippet content()}
+					{#if flyout}
+						{@const current = rowRunner(flyout.row, selection, ready)}
+						<div
+							bind:this={flyoutContent}
+							class="p-1.5"
+							role="listbox"
+							tabindex="-1"
+							aria-label={`${flyout.row.label} runs on`}
+							onmouseenter={() => clearTimeout(hoverTimer)}
+							onkeydown={onFlyoutKeydown}
+						>
+							<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">
+								{flyout.row.label} runs on
+							</p>
+							{#each flyout.row.runners as runner (runner.group.id)}
+								{@const chosen = runner === current}
+								<DropdownItem
+									role="option"
+									aria-selected={chosen}
+									checked={chosen}
+									class="gap-2.5 py-1.5"
+									data-testid="chat-model-runner"
+									data-provider={runner.group.id}
+									onSelect={() => select(runner)}
+								>
+									<ProviderIcon
+										providerId={runner.group.id}
+										class={['shrink-0', ready(runner) ? 'text-fg-secondary' : 'text-fg-tertiary']}
+										size={14}
+									/>
+									<span class="flex min-w-0 flex-1 flex-col">
+										<span class="truncate text-[13px] leading-5">{runner.group.name}</span>
+										<span class="text-fg-tertiary text-2xs truncate leading-4">
+											{runnerNote(runner)}
+										</span>
+									</span>
+									{#if chosen}
+										<Icon name="check" class="text-fg-default shrink-0" size={14} />
+									{/if}
+								</DropdownItem>
+							{/each}
+						</div>
+					{/if}
+				{/snippet}
+			</Dropdown>
 		{/snippet}
 	</Dropdown>
 </div>

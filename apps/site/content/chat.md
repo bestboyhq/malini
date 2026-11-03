@@ -131,9 +131,10 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 ## Model and effort per prompt
 
 Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, or a model from OpenCode, paid per request from your OpenCode Console credits, and an effort from Low to Max, for every prompt.
-The picker lists the models you can run, so you pick the model, not the provider.
-A provider you have not connected is one row, such as **OpenCode** with **72 models, one key away**; click it to list its models and pick one.
-Type in it to filter by model or provider, folded ones included, and press Enter to pick the first match.
+The picker lists models, not providers: each model once, the newest of its family, so Opus 5.5 shows and Opus 4.8 does not, and everyone sees the same list whatever they connected.
+Each row shows the icon of the provider that runs it.
+A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, with what each one needs, and pick one.
+Type in it to filter by model or provider, and press Enter to pick the first match.
 **Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
 Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
