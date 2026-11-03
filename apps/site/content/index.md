@@ -44,7 +44,7 @@ Each count carries the option you picked in setup for where you heard about Mali
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
 Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
 It never contains your code, what your prompts say, paths, keys, or error messages, and Logdash stores no IP address.
-Every setup step says so under its buttons.
+The first setup step says so.
 Turn it off under Settings, Privacy, **Share usage stats**, or set `DO_NOT_TRACK=1` in your shell.
 Turning the switch off sends one last count that says so, with no account and nothing else, so we know how many people the numbers leave out; after that, nothing.
 

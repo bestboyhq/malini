@@ -12,7 +12,7 @@ Your profile lives in your Bestboy account, and publishing is off until you turn
 Settings, Profile shows your Bestboy account.
 Signed out, it says **Not signed in to Bestboy**, and **Sign in** opens your browser to sign in with Google or an email code.
 Signing in publishes nothing; it only tells Malini who you are on bestboy.dev.
-While you are signed in and have accepted Bestboy's current Terms and Privacy Policy, Malini's usage stats carry your account, as a hash made on your Mac; Settings, Privacy, **Share usage stats** turns them off.
+While you are signed in and have accepted Bestboy's current Terms and Privacy Policy, Malini's usage stats carry your account, as a hash made on your Mac; you turn them off in Settings, Privacy, **Share usage stats**.
 Signed in, it shows your name and email, and **Sign out**.
 
 Signed in, your picture and handle sit at the bottom of the sidebar.

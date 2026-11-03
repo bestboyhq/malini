@@ -7,7 +7,7 @@
 </script>
 
 <div
-	class="border-surface-50-border bg-surface-50 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border-[0.5px] px-4 py-3"
+	class="border-surface-50-border bg-surface-50 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-xl border-[0.5px] px-4 py-3"
 >
 	<div class="min-w-0">
 		<h3 id={`${switchId}-label`} class="text-fg-default text-sm font-medium">Milestone cards</h3>

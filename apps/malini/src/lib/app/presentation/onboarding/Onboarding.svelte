@@ -174,7 +174,7 @@
 
 <div class="flex w-full justify-center px-6 pt-[18vh] pb-6" data-testid="onboarding">
 	<article
-		class="bg-surface-50 border-surface-50-border flex w-[600px] max-w-full flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-5 shadow-sm"
+		class="bg-surface-50 border-surface-50-border flex w-[600px] max-w-full flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-7 shadow-sm"
 		aria-labelledby="onboarding-heading"
 		data-onboarding-step={onboarding.step}
 	>
@@ -212,6 +212,9 @@
 					{#if copy.description}
 						<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6 text-pretty">
 							{copy.description}
+							{#if onboarding.step === 'accounts' && usageDataQuery.data.shared !== false}
+								It shares usage stats, never your code or chats. Turn it off in Settings.
+							{/if}
 						</p>
 					{/if}
 
@@ -292,10 +295,5 @@
 				{/if}
 			</div>
 		</footer>
-		{#if usageDataQuery.data.shared !== false}
-			<p class="text-fg-tertiary mt-5 text-center text-xs">
-				Malini shares usage stats, never your code or chats. Settings turns them off.
-			</p>
-		{/if}
 	</article>
 </div>
