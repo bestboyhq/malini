@@ -90,14 +90,15 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
   It waits in its repository's scratchpad instead of **Recently archived**.
 - Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
-  **Open folder…** connects a folder on your Mac, and **Clone repository…** clones one from GitHub.
+  **Open folder…** connects a folder on your Mac, and **Find repository…** finds any repository you work on, on GitHub or already here, and opens it.
+  Or press **⌘K** and type its name.
 - **File → New Workstream** (**⌘N**) starts a workstream in the repository you're in, and **File → New Chat** (**⌘T**) opens a chat in the workstream you're in.
 - Open a workstream in your editor or reveal it in Finder.
 - Open a repository on GitHub from its right-click menu, the repository list, or its page.
 - Each workstream holds many chats, as tabs, named for you.
   The first chat's name names the workstream too.
   A shimmer writes each name in as it arrives: on the chat tab, on the sidebar row, and on the commands an agent leaves running.
-  **⌘W** closes one and **⌘K** finds the ones that don't fit.
+  **⌘W** closes one, and the ones that don't fit wait behind the **…** at the end of the tabs.
   A closed tab folds away, and the tabs after it slide into its place.
 - Files open as tabs beside the chats, from the **Files** tree or a file the chat names, and you edit them right there.
   Malini saves as you type, so there is nothing to press, and only a save that fails says so, under the file.

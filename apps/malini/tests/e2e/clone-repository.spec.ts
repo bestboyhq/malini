@@ -41,13 +41,13 @@ test('cloning searches your GitHub repositories in the command center and opens 
 
 		await passSetup(page);
 		await openRepositoriesPage(page);
-		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
+		await page.getByRole('button', { name: 'Find a repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
 		const search = dialog.getByRole('combobox', { name: 'Search repositories' });
 		await expect(search).toBeFocused();
 		await expect(search).toHaveAttribute('placeholder', 'Search 2 repositories or paste a URL');
 
-		const found = dialog.getByRole('listbox', { name: 'Your GitHub repositories' });
+		const found = dialog.getByRole('listbox', { name: 'Your repositories' });
 		await expect(found.getByRole('option')).toHaveCount(2);
 		await page.keyboard.type('rabbit');
 		await expect(found.getByRole('option')).toHaveCount(1);
@@ -106,7 +106,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 
 		await passSetup(page);
 		await openRepositoriesPage(page);
-		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
+		await page.getByRole('button', { name: 'Find a repository' }).click();
 		await page
 			.getByRole('dialog', { name: 'Command center' })
 			.getByRole('option', { name: /e2e\/warren/u })

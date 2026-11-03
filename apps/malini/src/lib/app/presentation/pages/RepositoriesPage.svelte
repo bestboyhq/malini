@@ -150,21 +150,20 @@
 	}
 </script>
 
-{#snippet cloneButton(size: 'sm' | 'md')}
+{#snippet findButton(size: 'sm' | 'md')}
 	<Button
 		variant="secondary"
 		{size}
 		disabled={connecting === 'folder'}
 		loading={connecting === 'clone'}
 		ariaHasPopup="dialog"
-		ariaLabel="Clone a GitHub repository"
 		data-testid="repository-clone-open"
-		onclick={() => openCommandCenterCommand('clone')}
+		onclick={() => openCommandCenterCommand('find')}
 	>
 		{#snippet leading()}
-			<Icon name="cloud-download" size={size === 'md' ? 16 : 14} />
+			<Icon name="search" size={size === 'md' ? 16 : 14} />
 		{/snippet}
-		{connecting === 'clone' ? 'Cloning…' : 'Clone repo'}
+		Find a repository
 	</Button>
 {/snippet}
 
@@ -333,7 +332,7 @@
 						</TextInput>
 					{/if}
 					<div class="ml-auto flex shrink-0 items-center gap-2">
-						{@render cloneButton('md')}
+						{@render findButton('md')}
 						{@render openFolderButton('repository-open-folder')}
 					</div>
 				</div>
@@ -408,7 +407,7 @@
 									? 'Clear the search, or connect the repository first.'
 									: allHidden
 										? 'Unhide one below, or open another folder.'
-										: 'Open a folder or clone a repository to start a workstream.'}
+										: 'Open a folder or find a repository to start a workstream.'}
 								testId="repositories-empty-block"
 							>
 								{#snippet icon()}
@@ -430,7 +429,7 @@
 										</Button>
 									{:else}
 										{#if firstRun}
-											{@render cloneButton('md')}
+											{@render findButton('md')}
 										{/if}
 										{@render openFolderButton('repository-open-folder-empty')}
 									{/if}

@@ -198,8 +198,11 @@
 					aria-selected={index === selectedIndex}
 					selected={index === selectedIndex}
 					focusOnHover={false}
+					highlightOnHover={false}
 					class="w-full gap-2.5 px-2.5 py-2 text-left"
-					onmouseenter={() => (selectedIndex = index)}
+					onpointermove={(event) => {
+						if (event.movementX !== 0 || event.movementY !== 0) selectedIndex = index;
+					}}
 					onclick={() => oncommand?.(command.name)}
 				>
 					<span class="min-w-0 flex-1">
@@ -232,8 +235,11 @@
 					aria-selected={index === selectedIndex}
 					selected={index === selectedIndex}
 					focusOnHover={false}
+					highlightOnHover={false}
 					class="w-full gap-2.5 px-2.5 py-2 text-left"
-					onmouseenter={() => (selectedIndex = index)}
+					onpointermove={(event) => {
+						if (event.movementX !== 0 || event.movementY !== 0) selectedIndex = index;
+					}}
 					onclick={() => run(job)}
 				>
 					<span class="min-w-0 flex-1">

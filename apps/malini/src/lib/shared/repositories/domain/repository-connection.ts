@@ -41,7 +41,7 @@ export type RepositoryPreparation =
 
 export type GithubRepositoryState =
 	| Readonly<{ kind: 'available' }>
-	| Readonly<{ kind: 'cloning' }>
+	| Readonly<{ kind: 'cloning'; repository: Repository | null }>
 	| Readonly<{ kind: 'cloned'; repository: Repository }>
 	| Readonly<{ kind: 'failed'; repository: Repository }>;
 
@@ -52,12 +52,12 @@ export function githubRepositoryState(
 	preparationOf: (repository: Repository) => RepositoryPreparation,
 ): GithubRepositoryState {
 	const { key } = repositoryConnectionFor({ kind: 'clone-url', url: github.cloneUrl });
-	if (connectingKey === key) return { kind: 'cloning' };
+	if (connectingKey === key) return { kind: 'cloning', repository: null };
 	const fullName = github.fullName.toLowerCase();
 	const repository = connected.find((candidate) => candidate.fullName.toLowerCase() === fullName);
 	if (!repository) return { kind: 'available' };
 	const preparation = preparationOf(repository);
-	if (preparation.kind === 'preparing') return { kind: 'cloning' };
+	if (preparation.kind === 'preparing') return { kind: 'cloning', repository };
 	if (preparation.kind === 'failed') return { kind: 'failed', repository };
 	return { kind: 'cloned', repository };
 }

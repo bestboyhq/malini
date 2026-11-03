@@ -43,7 +43,7 @@ import {
 	readPublishedStats,
 } from './published-stats';
 import { ResourceSampler, type BrowserTab } from './resource-sampler';
-import { StatsProfile } from './stats-profile';
+import { StatsProfile, type UsageAccount } from './stats-profile';
 import type { WorkstreamFolder } from './running-docker';
 import { WorkstreamRunningMonitor } from './workstream-running';
 
@@ -65,6 +65,7 @@ export interface StatsPlatform {
 	stop(): void;
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
 	openUrl(url: string): void;
+	usageAccount(): Promise<UsageAccount>;
 }
 
 export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatform {
@@ -179,6 +180,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			signedOut: () => profile.forgetSignIn(),
 		},
 		openUrl: (url) => void profile.completeSignIn(url),
+		usageAccount: () => profile.usageAccount(),
 		start: () => {
 			profile.start();
 			sampler.start();

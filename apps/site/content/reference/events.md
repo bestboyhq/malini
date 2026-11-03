@@ -1162,7 +1162,7 @@ type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
 ## `app:menu-command-chosen`
 
-Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
+Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
 
 A job sees: `command`
 
@@ -1170,7 +1170,7 @@ Payload: `MenuCommandChosen`
 
 ```ts
 type MenuCommand =
-	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';
+	'new-workstream' | 'new-chat' | 'open-folder' | 'find-repository' | 'accounts' | 'settings';
 
 type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 ```
@@ -1396,6 +1396,8 @@ type BestboyProfile = Readonly<{
 	url: string | null;
 }>;
 
+type BestboyTerms = Readonly<{ date: string; termsUrl: string; privacyUrl: string }>;
+
 type StatsPublishing = 'off' | 'on' | 'removing';
 
 type StatsUpload =
@@ -1408,6 +1410,7 @@ type StatsUpload =
 type ProfileState = Readonly<{
 	account: BestboyAccount | null;
 	profile: BestboyProfile | null;
+	unacceptedTerms: BestboyTerms | null;
 	signingIn: boolean;
 	signInNeeded: boolean;
 	signInProblem: string | null;

@@ -303,5 +303,5 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **⌘O**          | Open a folder as a repository                          |
 | **⌘,**          | Open Settings                                          |
 | **⌘W**          | Close the chat tab                                     |
-| **⌘K**          | Find a chat tab that doesn't fit                       |
+| **⌘K**          | Run a command or find a repository                     |
 | **⌥↑** / **⌥↓** | Move a repository, a workstream, or an inspector panel |

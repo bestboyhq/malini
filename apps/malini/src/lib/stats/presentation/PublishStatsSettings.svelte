@@ -35,6 +35,7 @@
 	const handle = $derived(flow.handle ?? profileState?.suggestedHandle ?? '');
 	const status = $derived(profileState ? uploadLine(profileState) : null);
 	const profileUrl = $derived(publishedProfileUrl(profileState));
+	const terms = $derived(profileState?.unacceptedTerms ?? null);
 	const switchId = $props.id();
 
 	onMount(() => {
@@ -67,11 +68,15 @@
 	}
 </script>
 
+{#snippet link(href: string, label: string)}
+	<a {href} class="text-fg-secondary hover:underline">{label}</a>
+{/snippet}
+
 <div class="flex min-w-0 flex-col gap-2" data-testid="publish-stats-settings">
 	<div
 		class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]"
 	>
-		<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-3">
+		<div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3">
 			<div class="min-w-0">
 				<h3 id={`${switchId}-label`} class="text-fg-default text-sm font-medium">
 					Publish my stats
@@ -80,6 +85,14 @@
 					A public profile at bestboy.dev shows how you work with agents: runs, agents at once, the
 					tokens they use, and how much of your work runs without your prompt.
 				</p>
+				{#if terms}
+					<p class="text-fg-tertiary mt-1 text-xs">
+						Publishing accepts the {@render link(terms.termsUrl, 'Terms')} and {@render link(
+							terms.privacyUrl,
+							'Privacy Policy',
+						)}.
+					</p>
+				{/if}
 			</div>
 			<Switch
 				{checked}

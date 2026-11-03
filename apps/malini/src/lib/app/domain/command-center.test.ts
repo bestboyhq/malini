@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { GithubRepository } from '$shared/repositories/domain/repository';
-import { commandCenterGroups, type CommandCenterSearch } from './command-center';
+import type { GithubRepository, Repository } from '$shared/repositories/domain/repository';
+import {
+	commandCenterGroups,
+	findableRepositories,
+	type CommandCenterSearch,
+} from './command-center';
 
 function repository(fullName: string, description: string | null = null): GithubRepository {
 	return {
@@ -42,7 +46,7 @@ function names(groups: ReturnType<typeof commandCenterGroups>): readonly string[
 describe('the command center', () => {
 	it('lists every command, and New chat only inside a workstream', () => {
 		expect(names(commandCenterGroups(search({})))).toEqual([
-			['Clone a repository', 'New repository', 'Open a folder', 'New chat', 'Settings'],
+			['Find a repository', 'New repository', 'Open a folder', 'New chat', 'Settings'],
 		]);
 		expect(names(commandCenterGroups(search({ inWorkstream: false }))).flat()).not.toContain(
 			'New chat',
@@ -51,36 +55,64 @@ describe('the command center', () => {
 
 	it('finds commands and repositories from one search', () => {
 		const groups = commandCenterGroups(search({ query: 'bestboy' }));
-		expect(groups.map((group) => group.heading)).toEqual(['Clone from GitHub']);
+		expect(groups.map((group) => group.heading)).toEqual(['Your repositories']);
 		expect(names(groups)).toEqual([['bestboyhq/malini', 'bestboyhq/grip']]);
 		expect(names(commandCenterGroups(search({ query: 'new' })))).toEqual([
 			['New repository', 'New chat'],
 		]);
 	});
 
-	it('searches names and descriptions on every word while cloning', () => {
-		expect(names(commandCenterGroups(search({ mode: 'clone', query: 'agents malini' })))).toEqual([
+	it('searches names and descriptions on every word while finding', () => {
+		expect(names(commandCenterGroups(search({ mode: 'find', query: 'agents malini' })))).toEqual([
 			['bestboyhq/malini'],
 		]);
-		expect(commandCenterGroups(search({ mode: 'clone', query: 'grip' }))[0]?.heading).toBe(
+		expect(commandCenterGroups(search({ mode: 'find', query: 'grip' }))[0]?.heading).toBe(
 			'1 found',
 		);
-		expect(commandCenterGroups(search({ mode: 'clone' }))[0]?.heading).toBe('Newest push first');
+		expect(commandCenterGroups(search({ mode: 'find' }))[0]?.heading).toBe('Newest push first');
 	});
 
 	it('offers to make a repository that nothing matches, and waits for the list', () => {
-		expect(names(commandCenterGroups(search({ mode: 'clone', query: 'rabbit den' })))).toEqual([
+		expect(names(commandCenterGroups(search({ mode: 'find', query: 'rabbit den' })))).toEqual([
 			['create rabbit den'],
 		]);
-		expect(commandCenterGroups(search({ mode: 'clone', repositories: null }))).toEqual([]);
+		expect(commandCenterGroups(search({ mode: 'find', repositories: null }))).toEqual([]);
 	});
 
-	it('clones a pasted URL in any mode but New repository', () => {
+	it('takes a pasted URL in any mode but New repository', () => {
 		const url = 'git@github.com:bestboyhq/malini.git';
 		expect(names(commandCenterGroups(search({ query: url })))).toEqual([[url]]);
 		expect(
-			names(commandCenterGroups(search({ mode: 'clone', query: url, repositories: null }))),
+			names(commandCenterGroups(search({ mode: 'find', query: url, repositories: null }))),
 		).toEqual([[url]]);
 		expect(commandCenterGroups(search({ mode: 'new-repository', query: url }))).toEqual([]);
+	});
+
+	it('finds the repositories you already have that GitHub does not list, after the listed ones', () => {
+		const connected: Repository[] = [
+			{
+				id: 'gh:bestboyhq/malini',
+				fullName: 'BestboyHQ/Malini',
+				defaultBranch: 'main',
+				localPath: null,
+				remoteUrl: 'https://github.com/bestboyhq/malini.git',
+				createdAt: '',
+			},
+			{
+				id: 'local:local__alpha',
+				fullName: 'local/alpha',
+				defaultBranch: 'main',
+				localPath: '/Users/ada/alpha',
+				remoteUrl: null,
+				createdAt: '',
+			},
+		];
+		expect(findableRepositories(REPOSITORIES, connected)?.map(({ fullName }) => fullName)).toEqual([
+			'bestboyhq/malini',
+			'bestboyhq/grip',
+			'szymeo/dotfiles',
+			'local/alpha',
+		]);
+		expect(findableRepositories(null, connected)).toBeNull();
 	});
 });

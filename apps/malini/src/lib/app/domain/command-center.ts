@@ -1,10 +1,10 @@
-import type { GithubRepository } from '$shared/repositories/domain/repository';
+import type { GithubRepository, Repository } from '$shared/repositories/domain/repository';
 import { isCloneUrl } from '$shared/repositories/domain/repository-connection';
 
-export type CommandCenterMode = 'commands' | 'clone' | 'new-repository';
+export type CommandCenterMode = 'commands' | 'find' | 'new-repository';
 
 export type CommandCenterCommand = Readonly<{
-	id: 'clone' | 'new-repository' | 'open-folder' | 'new-chat' | 'settings';
+	id: 'find' | 'new-repository' | 'open-folder' | 'new-chat' | 'settings';
 	label: string;
 	keys: readonly string[];
 }>;
@@ -28,7 +28,7 @@ export type CommandCenterSearch = Readonly<{
 }>;
 
 export const COMMAND_CENTER_COMMANDS: readonly CommandCenterCommand[] = [
-	{ id: 'clone', label: 'Clone a repository', keys: [] },
+	{ id: 'find', label: 'Find a repository', keys: [] },
 	{ id: 'new-repository', label: 'New repository', keys: [] },
 	{ id: 'open-folder', label: 'Open a folder', keys: ['⌘', 'O'] },
 	{ id: 'new-chat', label: 'New chat', keys: ['⌘', 'T'] },
@@ -46,7 +46,7 @@ export function commandCenterGroups(search: CommandCenterSearch): readonly Comma
 		const text = `${repository.fullName} ${repository.description ?? ''}`.toLowerCase();
 		return terms.every((term) => text.includes(term));
 	});
-	if (search.mode === 'clone') {
+	if (search.mode === 'find') {
 		if (search.repositories === null) return [];
 		if (found.length === 0) return [{ heading: null, entries: [{ kind: 'create', name: typed }] }];
 		return [
@@ -70,11 +70,29 @@ export function commandCenterGroups(search: CommandCenterSearch): readonly Comma
 	}
 	if (terms.length > 0 && found.length > 0) {
 		groups.push({
-			heading: 'Clone from GitHub',
+			heading: 'Your repositories',
 			entries: found.slice(0, REPOSITORIES_BESIDE_COMMANDS).map(repositoryEntry),
 		});
 	}
 	return groups;
+}
+
+export function findableRepositories(
+	github: readonly GithubRepository[] | null,
+	connected: readonly Repository[],
+): readonly GithubRepository[] | null {
+	if (github === null) return null;
+	const listed = new Set(github.map((repository) => repository.fullName.toLowerCase()));
+	const elsewhere = connected
+		.filter((repository) => !listed.has(repository.fullName.toLowerCase()))
+		.map((repository) => ({
+			fullName: repository.fullName,
+			description: null,
+			cloneUrl: repository.remoteUrl ?? '',
+			private: false,
+			pushedAt: null,
+		}));
+	return [...github, ...elsewhere];
 }
 
 function repositoryEntry(repository: GithubRepository): CommandCenterEntry {

@@ -1,4 +1,4 @@
-# 0156 - Nothing is connected up front, and the picker folds what is not
+# 0158 - Nothing is connected up front, and the picker folds what is not
 
 Status: accepted
 

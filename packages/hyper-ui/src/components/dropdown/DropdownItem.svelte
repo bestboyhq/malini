@@ -10,6 +10,7 @@
 		onSelect?: () => void;
 		closeOnSelect?: boolean;
 		focusOnHover?: boolean;
+		highlightOnHover?: boolean;
 		children: Snippet;
 		variant?: Variant;
 	};
@@ -20,6 +21,7 @@
 		onSelect,
 		closeOnSelect = true,
 		focusOnHover = true,
+		highlightOnHover = true,
 		children,
 		class: className,
 		variant = 'default',
@@ -65,7 +67,10 @@
 			? 'hover:bg-error/10 focus-visible:bg-error/10'
 			: selected
 				? undefined
-				: 'hover:bg-surface-elevated-hover hover:text-fg-default focus-visible:bg-surface-elevated-hover focus-visible:text-fg-default',
+				: [
+						highlightOnHover && 'hover:bg-surface-elevated-hover hover:text-fg-default',
+						'focus-visible:bg-surface-elevated-hover focus-visible:text-fg-default',
+					],
 		selected && variant === 'default' && 'bg-surface-elevated-selected text-fg-default',
 		className,
 	]}

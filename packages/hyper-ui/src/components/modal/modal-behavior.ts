@@ -1,4 +1,9 @@
-import { registerEscapeScope, returnFocus, type OverlayFocusReturn } from '../../overlay';
+import {
+	isWithinOverlaySurface,
+	registerEscapeScope,
+	returnFocus,
+	type OverlayFocusReturn,
+} from '../../overlay';
 
 const FOCUSABLE_SELECTOR = [
 	'a[href]',
@@ -74,6 +79,7 @@ export function modalBehavior(
 	}
 
 	lockBodyScroll();
+	let focusedInside: HTMLElement = node;
 	node.focus();
 
 	const releaseEscape = registerEscapeScope(() => options.onEscape?.());
@@ -84,12 +90,24 @@ export function modalBehavior(
 		}
 	}
 
+	function keepFocusInside(event: FocusEvent): void {
+		const { target } = event;
+		if (target instanceof HTMLElement && node.contains(target)) {
+			focusedInside = target;
+			return;
+		}
+		if (isWithinOverlaySurface(target)) return;
+		(focusedInside.isConnected ? focusedInside : node).focus({ preventScroll: true });
+	}
+
 	node.addEventListener('keydown', onKeydown);
+	document.addEventListener('focusin', keepFocusInside);
 
 	return {
 		destroy(): void {
 			releaseEscape();
 			node.removeEventListener('keydown', onKeydown);
+			document.removeEventListener('focusin', keepFocusInside);
 			unlockBodyScroll();
 			if (options.focusReturn?.()) return;
 			returnFocus(previouslyFocused);

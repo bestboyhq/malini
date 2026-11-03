@@ -107,7 +107,7 @@ test('after setup, a signed-out clone dialog asks only to connect GitHub, then l
 			value: new Date().toISOString(),
 		});
 		await page.reload();
-		await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
+		await page.getByRole('button', { name: 'Find a repository' }).first().click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
 		const github = dialog.getByTestId('github-setup');
 		await expect(github).toHaveAttribute('data-github-status', 'signed-out');
@@ -118,7 +118,7 @@ test('after setup, a signed-out clone dialog asks only to connect GitHub, then l
 		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
 		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
 
-		const found = dialog.getByRole('listbox', { name: 'Your GitHub repositories' });
+		const found = dialog.getByRole('listbox', { name: 'Your repositories' });
 		await expect(found.getByRole('option', { name: /e2e\/hutch/ })).toBeVisible();
 		await expect(github).toHaveCount(0);
 		expectCleanConsole(app);

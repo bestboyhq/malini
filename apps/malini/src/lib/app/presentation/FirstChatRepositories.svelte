@@ -132,7 +132,7 @@
 						? 'border-surface-50-border border-t-[0.5px]'
 						: null,
 				]}
-				onclick={() => openCommandCenterCommand('clone')}
+				onclick={() => openCommandCenterCommand('find')}
 			>
 				<span class="text-fg-tertiary grid size-5 place-items-center">
 					<Icon name="search" size={14} />

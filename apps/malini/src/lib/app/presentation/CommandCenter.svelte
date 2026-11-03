@@ -6,10 +6,10 @@
 	import CommandCenterDialog from './CommandCenterDialog.svelte';
 
 	const mode = $derived(commandCenterQuery.data);
-	const setUp = $derived(onboardingQuery.data.finished === true);
+	const inSetup = $derived(onboardingQuery.data.shown);
 
 	function onKeydown(event: KeyboardEvent): void {
-		if (!setUp || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+		if (inSetup || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
 		if (event.key.toLowerCase() !== 'k') return;
 		event.preventDefault();
 		if (mode === null) openCommandCenterCommand('commands');

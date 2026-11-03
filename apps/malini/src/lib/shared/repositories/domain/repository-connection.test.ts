@@ -69,13 +69,14 @@ describe('connecting a repository', () => {
 		expect(githubRepositoryState(hutch, null, [], ready)).toEqual({ kind: 'available' });
 		expect(
 			githubRepositoryState(hutch, 'clone:https://github.com/rabbits/hutch.git', [], ready),
-		).toEqual({ kind: 'cloning' });
+		).toEqual({ kind: 'cloning', repository: null });
 		expect(githubRepositoryState(hutch, null, [remote], ready)).toEqual({
 			kind: 'cloned',
 			repository: remote,
 		});
 		expect(githubRepositoryState(hutch, null, [remote], () => ({ kind: 'preparing' }))).toEqual({
 			kind: 'cloning',
+			repository: remote,
 		});
 		expect(
 			githubRepositoryState(hutch, null, [remote], () => ({ kind: 'failed', failure })),

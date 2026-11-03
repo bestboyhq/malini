@@ -153,6 +153,8 @@ export type BestboyProfile = Readonly<{
 	url: string | null;
 }>;
 
+export type BestboyTerms = Readonly<{ date: string; termsUrl: string; privacyUrl: string }>;
+
 export type StatsPublishing = 'off' | 'on' | 'removing';
 
 export type StatsUpload =
@@ -165,6 +167,7 @@ export type StatsUpload =
 export type ProfileState = Readonly<{
 	account: BestboyAccount | null;
 	profile: BestboyProfile | null;
+	unacceptedTerms: BestboyTerms | null;
 	signingIn: boolean;
 	signInNeeded: boolean;
 	signInProblem: string | null;

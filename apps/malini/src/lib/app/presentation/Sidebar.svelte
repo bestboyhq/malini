@@ -2098,7 +2098,7 @@
 	<ConnectRepositoryContextMenu
 		target={connectMenu}
 		onclose={closeContextMenu}
-		onclone={() => openCommandCenterCommand('clone')}
+		onfind={() => openCommandCenterCommand('find')}
 	/>
 
 	{#if !momentQuery.data}

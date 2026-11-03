@@ -153,6 +153,23 @@ export async function registerModules(
 		claudeConfig: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()),
 	});
 
+	const stats = registerStats(context, {
+		runner: processRunner,
+		browserTabs: () => browser.tabProcesses(),
+		agentHostProcessId: () => chat.bridgeProcessId(),
+		runningContainerIds: async () => {
+			if (repositories.containerCount() === 0) return [];
+			const containers = await repositories.listOwnedContainers();
+			return containers
+				.filter((container) => container.state === 'running')
+				.map((container) => container.containerId);
+		},
+		stopBackgroundTask: (sessionId, taskId) => chat.stopBackgroundTask(sessionId, taskId),
+		nameService: (task) => chat.nameService(task),
+		openExternal: (url) => shellHost.openExternal(url),
+		cipher: shellHost,
+	});
+
 	const app = registerApp(context, {
 		getMainWindow: options.getMainWindow,
 		host: shellHost,
@@ -160,6 +177,7 @@ export async function registerModules(
 		runner: processRunner,
 		cancelAgentRuns: () => chat.closeOpenRunsForExit(),
 		containerCount: () => repositories.containerCount(),
+		usageAccount: () => stats.usageAccount(),
 	});
 
 	const jobs = registerJobs(context, {
@@ -177,22 +195,6 @@ export async function registerModules(
 	app.announceUpdate();
 	app.announceStart();
 
-	const stats = registerStats(context, {
-		runner: processRunner,
-		browserTabs: () => browser.tabProcesses(),
-		agentHostProcessId: () => chat.bridgeProcessId(),
-		runningContainerIds: async () => {
-			if (repositories.containerCount() === 0) return [];
-			const containers = await repositories.listOwnedContainers();
-			return containers
-				.filter((container) => container.state === 'running')
-				.map((container) => container.containerId);
-		},
-		stopBackgroundTask: (sessionId, taskId) => chat.stopBackgroundTask(sessionId, taskId),
-		nameService: (task) => chat.nameService(task),
-		openExternal: (url) => shellHost.openExternal(url),
-		cipher: shellHost,
-	});
 	stats.start();
 	extensions.start();
 	app.streaming.start();

@@ -23,15 +23,16 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
   Setup never asks you to sign in to Claude: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
+  The step also says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
-- **Then a chat at Home.** Setup ends in an empty chat that asks what you're working on, with your GitHub repositories under it, newest push first.
-  Pick one and Malini clones it while you stay in the chat.
-  **New repository** makes one on GitHub under you or one of your organizations, private unless you untick it, and clones that.
+- **Then a chat at Home.** Setup ends in an empty chat that asks what you're working on, with your five GitHub repositories pushed to last hanging under it.
+  Pick one and Malini gets it ready while you stay in the chat.
+  **More repositories** opens **Find a repository** in the command center (**⌘K**), where you type to search the rest.
+  **New repository** makes one on GitHub under you or one of your organizations, private unless you untick it.
   Or name the repositories in your first message, and the lead clones them once you allow it.
   The sidebar comes back with your first repository, and the rest of Malini with your first message.
-  **Open folder**, for a repository already on your Mac, is on the Repositories page.
 
 ## Updates
 

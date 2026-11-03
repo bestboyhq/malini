@@ -11,10 +11,10 @@
 	interface Props {
 		target: ConnectRepositoryContextMenuTarget | null;
 		onclose: () => void;
-		onclone: () => void;
+		onfind: () => void;
 	}
 
-	let { target, onclose, onclone }: Props = $props();
+	let { target, onclose, onfind }: Props = $props();
 
 	let anchor = $state<HTMLDivElement | null>(null);
 
@@ -23,9 +23,9 @@
 		requestRepositoryFolderCommand();
 	}
 
-	function onClone(): void {
+	function onFind(): void {
 		onclose();
-		onclone();
+		onfind();
 	}
 
 	function bodyAnchor(node: HTMLDivElement): () => void {
@@ -65,9 +65,9 @@
 			<Icon name="folder-open" class="shrink-0" size={15} />
 			Open folder…
 		</DropdownItem>
-		<DropdownItem role="menuitem" focusOnHover={false} class="gap-2.5" onclick={onClone}>
-			<Icon name="cloud-download" class="shrink-0" size={15} />
-			Clone repository…
+		<DropdownItem role="menuitem" focusOnHover={false} class="gap-2.5" onclick={onFind}>
+			<Icon name="search" class="shrink-0" size={15} />
+			Find repository…
 		</DropdownItem>
 	</div>
 </DropdownLayer>

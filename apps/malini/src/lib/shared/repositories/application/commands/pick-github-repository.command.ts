@@ -23,7 +23,8 @@ function pickGithubRepositoryCommand(
 		connectRepositoryCommand({ kind: 'clone-url', url: github.cloneUrl }, options);
 		return;
 	}
-	if (state.kind !== 'cloned' || options.open === false) return;
+	const { repository } = state;
+	if (repository === null || options.open === false) return;
 	options.onConnected?.();
-	void goto(repositoryHref(state.repository.id));
+	void goto(repositoryHref(repository.id));
 }

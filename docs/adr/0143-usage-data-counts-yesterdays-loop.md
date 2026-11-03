@@ -1,6 +1,6 @@
 # 0143 - Usage data counts yesterday's loop and shows you the numbers
 
-Status: accepted
+Status: superseded by 0156
 
 ## Context
 

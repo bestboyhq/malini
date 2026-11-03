@@ -16,7 +16,7 @@ const MENU_CHOICES: Readonly<Record<MenuCommand, () => void>> = {
 	'new-workstream': createWorkstreamHereCommand,
 	'new-chat': startChatHere,
 	'open-folder': requestRepositoryFolderCommand,
-	'clone-repository': () => openCommandCenterCommand('clone'),
+	'find-repository': () => openCommandCenterCommand('find'),
 	accounts: () => void goto(PROVIDER_SETTINGS_HREF),
 	settings: () => void goto(SETTINGS_HREF),
 };

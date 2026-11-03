@@ -12,10 +12,12 @@
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
 	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
+	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
 	import { AfternoonTrial, SoundChoices } from '$shared/sounds/sounds.api';
 	import { claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import {
@@ -80,6 +82,8 @@
 	});
 
 	onMount(showOnboardingHook);
+
+	onMount(loadUsageDataCommand);
 
 	onMount(() => rehearsal.interrupt);
 
@@ -202,6 +206,9 @@
 					{#if copy.description}
 						<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6 text-pretty">
 							{copy.description}
+							{#if onboarding.step === 'accounts' && usageDataQuery.data.shared !== false}
+								It shares usage stats, never your code or chats. Turn it off in Settings.
+							{/if}
 						</p>
 					{/if}
 

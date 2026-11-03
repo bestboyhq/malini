@@ -29,20 +29,22 @@ The [README](../README.md) has the short version.
 - **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
   The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
-- **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
-- **Then a repository.** Clone one or open a folder, and your first workstream is ready.
+- **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you.
+- **Then a chat at Home.** It asks what you're working on, with your latest repositories under it to pick, and **New repository** to make one on GitHub.
+  Or name them in your first message, and the lead clones them once you allow it.
 
 ## Workstreams, side by side
 
 - **One click per task.** The **+** next to a repository starts a workstream: a fresh worktree, its own branch, and dependencies installed for you from the lockfile (pnpm, npm, yarn, or bun).
 - **Many chats per workstream,** as tabs, named for you.
-  **⌘W** closes one and **⌘K** finds the ones that don't fit.
+  **⌘W** closes one, and the ones that don't fit wait behind the **…** at the end of the tabs.
 - **A sidebar that tells you everything.** Lines added and removed, unread marks, queued prompts, pull request status, and what keeps running on every workstream.
   Drag to reorder, or use **⌥↑** and **⌥↓**.
 - **Tidy without losing work.** Hide a repository and keep its workstreams.
   Archive a workstream and restore it later.
 - **Your tools, one click away.** Open a workstream in your editor or reveal it in Finder.
-- **Any repository.** Clone one from GitHub, with your recent repositories one search away, or open a folder on your Mac.
+- **Any repository.** **⌘K**, then type its name: Malini finds it on GitHub or among the ones you already have, and opens it.
+  Or open a folder on your Mac.
 
 <p align="center">
   <img src="../.github/readme/answers.webp" width="100%" alt="A grip workstream answering how captions, zooms and keystrokes stay in sync after cuts and speed changes, with a file and line reference for each step, next to the other workstreams in the sidebar.">

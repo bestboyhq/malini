@@ -43,6 +43,7 @@
 	import {
 		COMMAND_CENTER_COMMANDS,
 		commandCenterGroups,
+		findableRepositories,
 		type CommandCenterCommand,
 		type CommandCenterEntry,
 		type CommandCenterMode,
@@ -61,7 +62,7 @@
 	const KEY =
 		'border-chip-border bg-chip text-2xs text-fg-tertiary rounded border px-1.5 py-0.5 font-sans';
 	const COMMAND_ICONS: Readonly<Record<CommandCenterCommand['id'], IconName>> = {
-		clone: 'cloud-download',
+		find: 'search',
 		'new-repository': 'folder-plus',
 		'open-folder': 'folder-open',
 		'new-chat': 'chat',
@@ -69,7 +70,7 @@
 	};
 	const INPUT_LABELS: Readonly<Record<CommandCenterMode, string>> = {
 		commands: 'Command or repository',
-		clone: 'Search repositories',
+		find: 'Search repositories',
 		'new-repository': 'Repository name',
 	};
 	const HINTS: Readonly<Record<CommandCenterMode, readonly (readonly [string, string])[]>> = {
@@ -77,8 +78,8 @@
 			['↵', 'Open'],
 			['↑↓', 'Move'],
 		],
-		clone: [
-			['↵', 'Clone'],
+		find: [
+			['↵', 'Open'],
 			['⌫', 'All commands'],
 		],
 		'new-repository': [
@@ -109,7 +110,9 @@
 		open: !stayInFirstChat,
 		onConnected: closeCommandCenterCommand,
 	});
-	const repositories = $derived(listing.kind === 'loaded' ? listing.repositories : null);
+	const repositories = $derived(
+		findableRepositories(listing.kind === 'loaded' ? listing.repositories : null, connected),
+	);
 	const groups = $derived(
 		commandCenterGroups({ mode, query, repositories, inWorkstream: workstreamId !== '' }),
 	);
@@ -123,7 +126,7 @@
 	const chip = $derived(COMMAND_CENTER_COMMANDS.find((command) => command.id === mode));
 	const needsGithub = $derived(
 		auth?.authenticated === false &&
-			(mode === 'new-repository' || (mode === 'clone' && !isCloneUrl(query))),
+			(mode === 'new-repository' || (mode === 'find' && !isCloneUrl(query))),
 	);
 	const owners = $derived.by((): readonly string[] => {
 		if (ownerLogins.length > 0) return ownerLogins;
@@ -181,7 +184,8 @@
 	function entryDisabled(entry: CommandCenterEntry): boolean {
 		if (entry.kind !== 'repository') return false;
 		const state = stateOf(entry.repository);
-		return state.kind === 'cloning' || (state.kind === 'cloned' && stayInFirstChat);
+		if (state.kind === 'cloning' && state.repository === null) return true;
+		return stayInFirstChat && (state.kind === 'cloning' || state.kind === 'cloned');
 	}
 
 	function cloningUrl(url: string): boolean {
@@ -203,7 +207,7 @@
 			return;
 		}
 		const { id } = entry.command;
-		if (id === 'clone' || id === 'new-repository') {
+		if (id === 'find' || id === 'new-repository') {
 			query = '';
 			openCommandCenterCommand(id);
 			return;
@@ -301,7 +305,7 @@
 			bind:this={list}
 			id={listId}
 			role="listbox"
-			aria-label={mode === 'clone' ? 'Your GitHub repositories' : 'Commands and repositories'}
+			aria-label={mode === 'find' ? 'Your repositories' : 'Commands and repositories'}
 			class="styled-scrollbar max-h-88 overflow-y-auto p-1.5"
 		>
 			{#each groups as group, groupIndex (group.heading ?? groupIndex)}
@@ -319,11 +323,14 @@
 							aria-selected={index === selectedIndex}
 							selected={index === selectedIndex}
 							focusOnHover={false}
+							highlightOnHover={false}
 							tabindex={-1}
 							disabled={entryDisabled(entry)}
 							class="h-9.5 gap-2.5 text-sm disabled:cursor-default"
 							onmousedown={(event) => event.preventDefault()}
-							onmouseenter={() => (selectedIndex = index)}
+							onpointermove={(event) => {
+								if (event.movementX !== 0 || event.movementY !== 0) selectedIndex = index;
+							}}
 							onclick={() => run(entry)}
 						>
 							{#if entry.kind === 'command'}
@@ -345,7 +352,7 @@
 									<Icon name="cloud-download" size={16} />
 								</span>
 								<span class="text-fg-default min-w-0 flex-1 truncate">
-									Clone <SensitiveText text={entry.url} interactive={false} />
+									Open <SensitiveText text={entry.url} interactive={false} />
 								</span>
 								{#if cloningUrl(entry.url)}
 									<BusyIcon size={13} class="text-fg-tertiary" />
@@ -366,7 +373,7 @@
 				</div>
 			{/each}
 		</div>
-	{:else if mode === 'clone' && listing.kind === 'failed'}
+	{:else if mode === 'find' && listing.kind === 'failed'}
 		<StateBlock
 			layout="inline"
 			tone="caution"
@@ -381,7 +388,7 @@
 				<Icon name="alert" size={14} />
 			{/snippet}
 		</StateBlock>
-	{:else if mode === 'clone'}
+	{:else if mode === 'find'}
 		<ul class="p-1.5" aria-busy="true" aria-label="Loading your GitHub repositories">
 			{#each SKELETON_WIDTHS as width (width)}
 				<li class="flex h-9.5 items-center gap-2.5 px-2.5">

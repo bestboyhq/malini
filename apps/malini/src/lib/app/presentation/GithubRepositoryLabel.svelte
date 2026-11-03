@@ -17,7 +17,10 @@
 
 	let { repository, state, nowMs }: Props = $props();
 
-	const owner = $derived(repositoryOwner(repository.fullName));
+	const owner = $derived(
+		repositoryOwner(repository.fullName) ? `${repositoryOwner(repository.fullName)}/` : '',
+	);
+	const name = $derived(repositoryName(repository.fullName));
 	const pushedAt = $derived(
 		repository.pushedAt === null ? Number.NaN : Date.parse(repository.pushedAt),
 	);
@@ -25,9 +28,10 @@
 
 <RepositoryAvatar fullName={repository.fullName} size={20} />
 <span class="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-	<span class="flex min-w-0">
-		<span class="text-fg-tertiary shrink-0">{owner ? `${owner}/` : ''}</span>
-		<span class="text-fg-default truncate">{repositoryName(repository.fullName)}</span>
+	<span class="sr-only">{repository.fullName}</span>
+	<span class="flex min-w-0" aria-hidden="true">
+		<span class="text-fg-tertiary shrink-0">{owner}</span>
+		<span class="text-fg-default truncate">{name}</span>
 	</span>
 	{#if repository.private}
 		<Icon name="lock" size={12} class="text-fg-tertiary shrink-0" ariaLabel="Private" />

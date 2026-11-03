@@ -568,11 +568,11 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'app:menu-command-chosen',
 			description:
-				"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+				"Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
 			facts: ['command'],
 			payloadType: 'MenuCommandChosen',
 			payload:
-				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
+				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'find-repository' | 'accounts' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
 		},
 		{
 			channel: 'app:streaming-changed',
@@ -683,7 +683,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			],
 			payloadType: 'ProfileState',
 			payload:
-				"type BestboyAccount = Readonly<{ name: string; email: string }>;\n\ntype BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;\n\ntype StatsPublishing = 'off' | 'on' | 'removing';\n\ntype StatsUpload =\n\t| Readonly<{ state: 'idle' }>\n\t| Readonly<{ state: 'sending' }>\n\t| Readonly<{ state: 'published'; through: string }>\n\t| Readonly<{ state: 'no-full-day' }>\n\t| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;\n\ntype ProfileState = Readonly<{\n\taccount: BestboyAccount | null;\n\tprofile: BestboyProfile | null;\n\tsigningIn: boolean;\n\tsignInNeeded: boolean;\n\tsignInProblem: string | null;\n\tpublishing: StatsPublishing;\n\tupload: StatsUpload;\n\tpickedRepositories: readonly string[];\n\tsuggestedHandle: string | null;\n}>;",
+				"type BestboyAccount = Readonly<{ name: string; email: string }>;\n\ntype BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;\n\ntype BestboyTerms = Readonly<{ date: string; termsUrl: string; privacyUrl: string }>;\n\ntype StatsPublishing = 'off' | 'on' | 'removing';\n\ntype StatsUpload =\n\t| Readonly<{ state: 'idle' }>\n\t| Readonly<{ state: 'sending' }>\n\t| Readonly<{ state: 'published'; through: string }>\n\t| Readonly<{ state: 'no-full-day' }>\n\t| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;\n\ntype ProfileState = Readonly<{\n\taccount: BestboyAccount | null;\n\tprofile: BestboyProfile | null;\n\tunacceptedTerms: BestboyTerms | null;\n\tsigningIn: boolean;\n\tsignInNeeded: boolean;\n\tsignInProblem: string | null;\n\tpublishing: StatsPublishing;\n\tupload: StatsUpload;\n\tpickedRepositories: readonly string[];\n\tsuggestedHandle: string | null;\n}>;",
 		},
 		{
 			channel: 'stats:profile-published',
