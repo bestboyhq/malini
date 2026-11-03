@@ -79,7 +79,9 @@ export class StatsProfile {
 			account: token ? account : null,
 			profile,
 			unacceptedTerms:
-				token && unacceptedTerms ? this.#deps.bestboy.termsLinks(unacceptedTerms) : null,
+				token && unacceptedTerms && publishing !== 'on'
+					? this.#deps.bestboy.termsLinks(unacceptedTerms)
+					: null,
 			signingIn: this.#pending !== null,
 			signInNeeded: publishing !== 'off' && !token,
 			signInProblem: this.#signInProblem,
@@ -173,7 +175,8 @@ export class StatsProfile {
 	publish(text: string): Promise<PublishStatsResult> {
 		return this.#serial(async () => {
 			const handle = normalizedHandle(text);
-			const { token, unacceptedTerms } = this.#saved;
+			const { token } = this.#saved;
+			const terms = this.state().unacceptedTerms?.date;
 			if (!token) return { state: this.state(), problem: 'Sign in to Bestboy first.' };
 			const problem = handleProblem(handle);
 			if (problem) return { state: this.state(), problem };
@@ -181,11 +184,11 @@ export class StatsProfile {
 				const profile = await this.#deps.bestboy.putProfile(token, {
 					handle,
 					public: true,
-					...(unacceptedTerms ? { terms: unacceptedTerms } : {}),
+					...(terms ? { terms } : {}),
 				});
 				await this.#save({ ...this.#saved, profile, publishing: 'on', publishedThrough: null });
 				this.#deps.published(profile);
-				if (unacceptedTerms) {
+				if (terms) {
 					this.#accountCheckedAt = 0;
 					void this.#refresh();
 				}

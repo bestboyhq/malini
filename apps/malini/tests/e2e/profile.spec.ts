@@ -151,7 +151,7 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 	}
 });
 
-test('once Bestboy changes its terms, Profile links them beside Publish my stats, and publishing accepts them and hides the line', async () => {
+test('once Bestboy changes its terms, Profile links them beside Publish my stats only while it is off, and publishing anew accepts them', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
 	const env = { MALINI_BESTBOY_ORIGIN: platform.origin };
@@ -160,41 +160,66 @@ test('once Bestboy changes its terms, Profile links them beside Publish my stats
 	try {
 		await recordBrowser(first);
 		await openProfileSettings(first.page);
-		const signedIn = first.page.getByRole('dialog', { name: 'Settings' });
-		await signedIn.getByRole('button', { name: 'Sign in' }).click();
+		const before = first.page.getByRole('dialog', { name: 'Settings' });
+		await before.getByRole('switch', { name: 'Publish my stats' }).click();
 		const signIn = await signInUrl(first, platform, 1);
 		await openUrl(first, `malini://auth?code=e2e-code&state=${signIn.state}`);
-		await expect(signedIn.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
-		await expect(signedIn.getByText(TERMS_LINE)).toHaveCount(0);
+		await before.getByRole('textbox', { name: 'Your profile address' }).fill('e2e-person');
+		await expect(before.getByText(TERMS_LINE)).toHaveCount(0);
+		await before.getByRole('button', { name: 'Publish' }).click();
+		await expect(before.getByTestId('profile-status')).toHaveText(/^Published through /u, {
+			timeout: 20_000,
+		});
 		await first.quit();
 
 		platform.changeTerms('2026-11-02');
+		const accountChecks = accountChecksOf(platform);
 		again = await launchMalini({ profile: first.root, env });
 		const app = again;
 		await recordBrowser(app);
 		await openProfileSettings(app.page);
 		const settings = app.page.getByRole('dialog', { name: 'Settings' });
-		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
+		const toggle = settings.getByRole('switch', { name: 'Publish my stats' });
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
+		await expect.poll(() => accountChecksOf(platform)).toBeGreaterThan(accountChecks);
+		await app.page.waitForTimeout(500);
+		await expect(settings.getByText(TERMS_LINE)).toHaveCount(0);
+
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
+		await expect
+			.poll(() => platform.requests.slice(-2).map(({ method, path }) => [method, path]))
+			.toEqual([
+				['DELETE', '/api/stats/malini'],
+				['PUT', '/api/profile'],
+			]);
 		await expect(settings.getByText(TERMS_LINE)).toBeVisible();
-		await captureFlow(app, 'profile-terms');
+		await captureFlow(app, 'profile-terms-off');
 		await settings.getByRole('link', { name: 'Terms', exact: true }).click();
 		await settings.getByRole('link', { name: 'Privacy Policy', exact: true }).click();
 		await expect
 			.poll(() => openedUrls(app))
 			.toEqual([`${platform.origin}/terms`, `${platform.origin}/privacy`]);
 
-		await settings.getByRole('switch', { name: 'Publish my stats' }).click();
-		await settings.getByRole('textbox', { name: 'Your profile address' }).fill('e2e-person');
+		await toggle.click();
+		await expect(settings.getByRole('textbox', { name: 'Your profile address' })).toHaveValue(
+			'e2e-person',
+		);
 		await expect(settings.getByText(TERMS_LINE)).toBeVisible();
 		await settings.getByRole('button', { name: 'Publish' }).click();
 		await expect(settings.getByTestId('profile-status')).toHaveText(/^Published through /u, {
 			timeout: 20_000,
 		});
+		await expect(settings.getByText(TERMS_LINE)).toHaveCount(0);
 		expect(profileChanges(platform)).toEqual([
+			{ handle: 'e2e-person', public: true },
+			{ public: false },
 			{ handle: 'e2e-person', public: true, terms: '2026-11-02' },
 		]);
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
+		await expect.poll(() => profileChanges(platform).length).toBe(4);
 		await expect(settings.getByText(TERMS_LINE)).toHaveCount(0);
-		await captureFlow(app, 'profile-terms-accepted');
 		expectCleanConsole(app);
 	} finally {
 		await (again ?? first).close();
@@ -492,6 +517,10 @@ async function openProfileSettings(page: Page): Promise<void> {
 	});
 	await page.reload();
 	await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
+}
+
+function accountChecksOf(platform: FakeBestboy): number {
+	return platform.requests.filter(({ path }) => path === '/api/me').length;
 }
 
 function profileChanges(platform: FakeBestboy): unknown[] {
