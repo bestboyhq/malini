@@ -211,5 +211,6 @@ Design tokens only, from `@malini/hyper-ui` (`$hyper-ui` alias): import the fold
 Icons are `<Icon name="…" />` from `$hyper-ui/icons`; a glyph the pack lacks is drawn with the `draw-icon` skill.
 Every domain has the layers `domain` / `application` / `infrastructure` / `presentation` in the renderer and `platform` in the main process.
 US English everywhere, including identifiers.
+Copy a user reads, in the app or on the site, speaks Bestboy's voice: before you write or change any, read `voice.md` in the private `bestboyhq/brand` with `gh api repos/bestboyhq/brand/contents/voice.md --jq .content | base64 -d`, and quote only shipped lines outside it (ADR 0154).
 Tabs, single quotes, 100 columns (`pnpm format`).
 Never edit a `*.generated.ts` file; edit its source and rerun the generator.

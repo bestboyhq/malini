@@ -10,7 +10,7 @@ They preferred the restarts and asked for "a mechanism that will keep it recover
 Recovery already exists: a quit pauses each running turn (`PAUSED_FOR_EXIT_ERROR`), Resume continues it once Malini started (0085), and deliveries between chats survive a restart (0109).
 What stayed broken was how a resumed turn reads: the transcript drew Malini's continuation prompt as a prompt bubble, as if the user had typed it.
 The user's database holds 212 of them, 87 more in an older lowercase "malini restarted…" wording, and 6 sent after a limit or an outage (0100); the lead brief and lead timeline skipped only the current wordings.
-The user turned down a serious notice, and weary ones too, because "they all sound kinda serious and like Claude is forced to do it", then picked upbeat lines for each cause and asked to "roll them".
+Over four rounds the user picked upbeat lines for each cause and asked to "roll them"; the rounds are in Bestboy's voice guide (0154).
 
 ## Decision
 
