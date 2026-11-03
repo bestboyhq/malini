@@ -2,6 +2,7 @@ import type { RepositoryImportSource } from '$shared/repositories/domain/github-
 import {
 	repositoryConnectFailure,
 	repositoryConnectionFor,
+	type RepositoryConnectOptions,
 } from '$shared/repositories/domain/repository-connection';
 import { repositoryIdentityForImportSource } from '$shared/repositories/domain/repository-context';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
@@ -13,11 +14,9 @@ import { prepareRepositoryCommand } from './prepare-repository.command';
 
 export { connectRepositoryCommand };
 
-type ConnectOptions = Readonly<{ open?: boolean; onConnected?: () => void }>;
-
 function connectRepositoryCommand(
 	source: RepositoryImportSource,
-	{ open = true, onConnected }: ConnectOptions = {},
+	{ open = true, onConnected }: RepositoryConnectOptions = {},
 ): void {
 	if (repositoryConnectionStore.connecting !== null) return;
 	repositoryConnectionStore.connecting = repositoryConnectionFor(source);

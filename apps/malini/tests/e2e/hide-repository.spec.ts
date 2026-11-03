@@ -115,9 +115,8 @@ test('cloning a hidden repository again brings it back', async () => {
 
 async function cloneHutch(page: Page): Promise<void> {
 	await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
-	const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
-	await dialog.getByRole('button', { name: /e2e\/hutch/u }).click();
-	await dialog.getByRole('button', { name: 'Clone repo' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Command center' });
+	await dialog.getByRole('option', { name: /e2e\/hutch/u }).click();
 	await expect(dialog).toHaveCount(0, { timeout: 30_000 });
 	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });
 }

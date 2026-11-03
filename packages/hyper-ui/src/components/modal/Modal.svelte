@@ -16,6 +16,8 @@
 
 	type ModalBackdrop = 'dim' | 'clear';
 
+	type ModalPlacement = 'center' | 'top';
+
 	type NavigationOutcomeKey = string;
 
 	interface Props {
@@ -28,6 +30,7 @@
 		children: Snippet<[dismiss: () => void]>;
 		size?: ModalSize;
 		backdrop?: ModalBackdrop;
+		placement?: ModalPlacement;
 		class?: ClassValue;
 		contentClass?: ClassValue;
 		closeOnBackdrop?: boolean;
@@ -48,6 +51,7 @@
 		children,
 		size = 'md',
 		backdrop = 'dim',
+		placement = 'center',
 		class: className,
 		contentClass,
 		closeOnBackdrop = true,
@@ -143,7 +147,10 @@
 			onclick={() => closeOnBackdrop && startClose()}
 		></div>
 		<div
-			class="styled-scrollbar absolute top-1/2 left-1/2 flex h-fit w-fit -translate-x-1/2 -translate-y-1/2 flex-col"
+			class={[
+				'styled-scrollbar absolute left-1/2 flex h-fit w-fit -translate-x-1/2 flex-col',
+				placement === 'top' ? 'top-[16vh]' : 'top-1/2 -translate-y-1/2',
+			]}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby={title ? titleId : undefined}

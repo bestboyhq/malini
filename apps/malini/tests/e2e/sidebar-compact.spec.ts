@@ -165,9 +165,8 @@ test('a repository without open work stays in the sidebar until you hide it', as
 		await passSetup(page);
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
-		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
-		await dialog.getByRole('button', { name: /e2e\/hutch/u }).click();
-		await dialog.getByRole('button', { name: 'Clone repo' }).click();
+		const dialog = page.getByRole('dialog', { name: 'Command center' });
+		await dialog.getByRole('option', { name: /e2e\/hutch/u }).click();
 		await expect(dialog).toHaveCount(0, { timeout: 30_000 });
 
 		const hutch = sidebar(page).getByRole('link', { name: /^Open .*\/hutch$/u });

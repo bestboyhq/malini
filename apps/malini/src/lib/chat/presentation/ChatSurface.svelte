@@ -702,7 +702,14 @@
 									/>
 								{/if}
 								<SecretRequestCard sessionId={secretsSessionId} />
-								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>
+								<div
+									bind:this={composerSlot}
+									class={[
+										'mx-auto w-full transition-[max-width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
+										welcome ? 'max-w-[42rem]' : 'max-w-[52rem]',
+										composerHidden && 'hidden',
+									]}
+								>
 									<ChatComposer
 										bind:this={composer}
 										{sessionId}
@@ -730,11 +737,11 @@
 							</div>
 							{#if welcome}
 								<div
-									class="chat-stage-inset absolute inset-x-0 top-full pt-4 pr-[var(--scrollbar-gutter)]"
+									class="chat-stage-inset absolute inset-x-0 top-full z-30 -mt-3 pr-[var(--scrollbar-gutter)]"
 									bind:clientHeight={welcomeHeight}
 									out:fade={{ duration: 150 }}
 								>
-									<div class="chat-column px-4">
+									<div class="mx-auto w-full max-w-[42rem] px-4">
 										{@render welcome()}
 									</div>
 								</div>

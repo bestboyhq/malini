@@ -1,8 +1,9 @@
 import type { MenuCommand } from '$contract/events';
 import { startFreshChatCommand } from '$lib/chat/application/commands/start-fresh-chat.command';
+import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 import {
 	createWorkstreamHereCommand,
-	requestRepositoryConnectionCommand,
+	requestRepositoryFolderCommand,
 } from '$shared/repositories/repositories.api';
 import { back, goto } from '$shared/router/navigation';
 import { PROVIDER_SETTINGS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
@@ -14,8 +15,8 @@ export { runMenuChoiceCommand };
 const MENU_CHOICES: Readonly<Record<MenuCommand, () => void>> = {
 	'new-workstream': createWorkstreamHereCommand,
 	'new-chat': startChatHere,
-	'open-folder': () => requestRepositoryConnectionCommand('folder'),
-	'clone-repository': () => requestRepositoryConnectionCommand('clone'),
+	'open-folder': requestRepositoryFolderCommand,
+	'clone-repository': () => openCommandCenterCommand('clone'),
 	accounts: () => void goto(PROVIDER_SETTINGS_HREF),
 	settings: () => void goto(SETTINGS_HREF),
 };

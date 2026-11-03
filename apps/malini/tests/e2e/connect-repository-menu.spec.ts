@@ -56,9 +56,8 @@ test('right-clicking the sidebar opens a folder or clones a repository', async (
 			.toEqual(['local__alpha', 'local__beta']);
 
 		await (await openAddMenu(page)).getByRole('menuitem', { name: 'Clone repository…' }).click();
-		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
-		await expect(dialog).toBeVisible();
-		await expect(page.getByTestId('repository-list-page')).toBeVisible();
+		const dialog = page.getByRole('dialog', { name: 'Command center' });
+		await expect(dialog.getByRole('combobox', { name: 'Search repositories' })).toBeFocused();
 		await captureFlow(app, 'connect-repository-menu-clone');
 		await page.keyboard.press('Escape');
 		await expect(dialog).toHaveCount(0);

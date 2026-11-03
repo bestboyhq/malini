@@ -9,9 +9,8 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import {
 		activeWorkstreamsQuery,
-		answerRepositoryConnectionRequestCommand,
+		answerRepositoryFolderRequestCommand,
 		clearRepositoryConnectErrorCommand,
-		CloneRepositoryDialog,
 		connectedRepositoriesQuery,
 		GitHubSetup,
 		githubAuthQuery,
@@ -25,7 +24,7 @@
 		repositoriesScopeRetryingQuery,
 		repositoryConnectErrorQuery,
 		repositoryConnectingQuery,
-		repositoryConnectionRequestedQuery,
+		repositoryFolderRequestedQuery,
 		retryRepositoriesScopeCommand,
 		setRepositoryHiddenCommand,
 		workstreamsForRepository,
@@ -38,6 +37,7 @@
 	} from '$shared/repositories/repositories.api';
 	import { ClaudeCodeSetup, claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import { loadOnboardingCommand } from '$lib/app/application/commands/load-onboarding.command';
+	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
 	import { repositoryGroups, type OwnerGroup } from '$lib/app/domain/repository-groups';
@@ -50,7 +50,6 @@
 		'pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100';
 
 	let query = $state('');
-	let cloneDialogOpen = $state(false);
 	let hiddenOpen = $state(false);
 
 	const workstreams = $derived(activeWorkstreamsQuery.data);
@@ -61,7 +60,7 @@
 	const githubAuth = $derived(githubAuthQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
-	const connectionRequested = $derived(repositoryConnectionRequestedQuery.data);
+	const folderRequested = $derived(repositoryFolderRequestedQuery.data);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const claudeNeedsSetup = $derived(
 		claudeStatus.kind === 'missing' || claudeStatus.kind === 'unknown',
@@ -109,8 +108,7 @@
 	});
 
 	$effect(() => {
-		if (connectionRequested)
-			answerRepositoryConnectionRequestCommand(() => (cloneDialogOpen = true));
+		if (folderRequested) answerRepositoryFolderRequestCommand();
 	});
 
 	function workstreamsFor(repo: Repository): Workstream[] {
@@ -161,7 +159,7 @@
 		ariaHasPopup="dialog"
 		ariaLabel="Clone a GitHub repository"
 		data-testid="repository-clone-open"
-		onclick={() => (cloneDialogOpen = true)}
+		onclick={() => openCommandCenterCommand('clone')}
 	>
 		{#snippet leading()}
 			<Icon name="cloud-download" size={size === 'md' ? 16 : 14} />
@@ -284,10 +282,6 @@
 		</StateBlock>
 	</div>
 {/snippet}
-
-{#if cloneDialogOpen}
-	<CloneRepositoryDialog onclose={() => (cloneDialogOpen = false)} />
-{/if}
 
 <svelte:head>
 	<title>Malini · Repositories</title>
