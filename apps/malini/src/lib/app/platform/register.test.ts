@@ -56,6 +56,7 @@ const KEPT_COMMANDS = [
 	'app.request-notification-permission',
 	'app.list-settings',
 	'app.usage-data',
+	'app.share-usage-data',
 	'app.set-setting',
 	'app.shutdown-gracefully',
 	'app.shutdown-impact',

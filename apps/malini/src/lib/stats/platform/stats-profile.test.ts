@@ -92,6 +92,35 @@ describe('StatsProfile', () => {
 		);
 		expect(profile.state()).toMatchObject({ account: null, publishing: 'on' });
 	});
+
+	it('lends usage counts the account on current terms, holds them on old terms, and lends none once signed out', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(NOW);
+		const { profile, platform } = await signedInProfile();
+		const anHourLater = (): void => {
+			vi.setSystemTime(Date.now() + 61 * 60_000);
+		};
+
+		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+
+		platform.changeTerms('2026-11-09');
+		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		anHourLater();
+		const [first, second] = await Promise.all([profile.usageAccount(), profile.usageAccount()]);
+		expect([first, second]).toEqual([{ state: 'old-terms' }, { state: 'old-terms' }]);
+		expect(profile.state().unacceptedTerms?.date).toBe('2026-11-09');
+
+		platform.accept();
+		anHourLater();
+		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+
+		await profile.signOut();
+		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		anHourLater();
+		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(3);
+	});
 });
 
 async function signedInProfile(): Promise<{
@@ -108,6 +137,7 @@ async function signedInProfile(): Promise<{
 		account: { name: 'Simon', email: 'simon@test' },
 		profile: { handle: null, public: false, url: null },
 		unacceptedTerms: null,
+		acceptedUserId: null,
 		publishing: 'off',
 		publishedThrough: null,
 		picked: [],
@@ -131,6 +161,8 @@ async function signedInProfile(): Promise<{
 function fakePlatform(): {
 	fetch: (url: string, init: RequestInit) => Promise<Response>;
 	fail(path: string, status: number): void;
+	changeTerms(date: string): void;
+	accept(): void;
 	calls(): string[];
 	uploads(): unknown[];
 } {
@@ -138,9 +170,17 @@ function fakePlatform(): {
 	const uploads: unknown[] = [];
 	const failures = new Map<string, number>();
 	let profile = { handle: null as string | null, public: false };
+	let terms = '2026-11-02';
+	let accepted = terms;
 	return {
 		fail: (path, status) => {
 			failures.set(path, status);
+		},
+		changeTerms: (date) => {
+			terms = date;
+		},
+		accept: () => {
+			accepted = terms;
 		},
 		calls: () => calls,
 		uploads: () => uploads,
@@ -151,6 +191,15 @@ function fakePlatform(): {
 			const failure = failures.get(path);
 			failures.delete(path);
 			if (failure) return Promise.resolve(new Response('{}', { status: failure }));
+			if (path === '/api/me') {
+				return Promise.resolve(
+					Response.json({
+						user: { id: 'u1', name: 'Simon', email: 'simon@test', terms: accepted },
+						terms,
+						profile,
+					}),
+				);
+			}
 			if (path === '/api/profile') {
 				profile = { ...profile, ...JSON.parse(body) };
 				return Promise.resolve(

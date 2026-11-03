@@ -11,10 +11,12 @@
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
 	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
+	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
 	import { JobsIntro } from '$lib/jobs/jobs.api';
 	import { AfternoonTrial, SoundChoices } from '$shared/sounds/sounds.api';
 	import { claudeCodeStatusQuery } from '$shared/providers/providers.api';
@@ -91,6 +93,8 @@
 	});
 
 	onMount(showOnboardingHook);
+
+	onMount(loadUsageDataCommand);
 
 	onMount(() => rehearsal.interrupt);
 
@@ -170,7 +174,7 @@
 
 <div class="flex w-full justify-center px-6 pt-[18vh] pb-6" data-testid="onboarding">
 	<article
-		class="bg-surface-50 border-surface-50-border flex w-[600px] max-w-full flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-7 shadow-sm"
+		class="bg-surface-50 border-surface-50-border flex w-[600px] max-w-full flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-5 shadow-sm"
 		aria-labelledby="onboarding-heading"
 		data-onboarding-step={onboarding.step}
 	>
@@ -288,5 +292,10 @@
 				{/if}
 			</div>
 		</footer>
+		{#if usageDataQuery.data.shared !== false}
+			<p class="text-fg-tertiary mt-5 text-center text-xs">
+				Malini shares usage stats, never your code or chats. Settings turns them off.
+			</p>
+		{/if}
 	</article>
 </div>

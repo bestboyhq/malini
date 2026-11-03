@@ -28,10 +28,16 @@ const PICKS_SETTLE_MS = 3_000;
 const FIRST_RETRY_MS = 60_000;
 const LAST_RETRY_MS = 60 * 60_000;
 const ACCOUNT_FRESH_MS = 60_000;
+const USAGE_ACCOUNT_FRESH_MS = 60 * 60_000;
 const MAX_PICKS = 10;
 const REPOSITORY_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/u;
 
 type PendingSignIn = Readonly<{ verifier: string; state: string; timer: NodeJS.Timeout }>;
+
+export type UsageAccount =
+	| Readonly<{ state: 'anonymous' }>
+	| Readonly<{ state: 'old-terms' }>
+	| Readonly<{ state: 'accepted'; userId: string }>;
 
 export class StatsProfile {
 	readonly #deps: StatsProfileDeps;
@@ -41,6 +47,7 @@ export class StatsProfile {
 	#signInProblem: string | null = null;
 	#login: string | null = null;
 	#accountCheckedAt = 0;
+	#accountCheck: Promise<void> = Promise.resolve();
 	#queue: Promise<unknown> = Promise.resolve();
 	#retryMs = FIRST_RETRY_MS;
 	#retry: NodeJS.Timeout | null = null;
@@ -121,6 +128,15 @@ export class StatsProfile {
 	cancelSignIn(): ProfileState {
 		this.#clearPending();
 		return this.#emit();
+	}
+
+	async usageAccount(): Promise<UsageAccount> {
+		// ponytail: up to an hour of counts carry the account after new terms; check /api/me per count.
+		if (await this.#checkAccount(USAGE_ACCOUNT_FRESH_MS)) this.#emit();
+		const { token, unacceptedTerms, acceptedUserId } = this.#saved;
+		if (!token) return { state: 'anonymous' };
+		if (unacceptedTerms) return { state: 'old-terms' };
+		return acceptedUserId ? { state: 'accepted', userId: acceptedUserId } : { state: 'anonymous' };
 	}
 
 	session(): BestboySession | null {
@@ -301,16 +317,27 @@ export class StatsProfile {
 
 	async #refresh(): Promise<void> {
 		this.#login ??= await this.#deps.githubLogin();
-		const { token } = this.#saved;
-		if (token && Date.now() - this.#accountCheckedAt > ACCOUNT_FRESH_MS) {
-			this.#accountCheckedAt = Date.now();
-			try {
-				await this.#save({ ...this.#saved, ...(await this.#deps.bestboy.me(token)) });
-			} catch (error) {
-				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
-			}
-		}
+		await this.#checkAccount(ACCOUNT_FRESH_MS);
 		this.#emit();
+	}
+
+	async #checkAccount(freshMs: number): Promise<boolean> {
+		const { token } = this.#saved;
+		const stale = token !== '' && Date.now() - this.#accountCheckedAt > freshMs;
+		if (stale) {
+			this.#accountCheckedAt = Date.now();
+			this.#accountCheck = this.#readAccount(token);
+		}
+		await this.#accountCheck;
+		return stale;
+	}
+
+	async #readAccount(token: string): Promise<void> {
+		try {
+			await this.#save({ ...this.#saved, ...(await this.#deps.bestboy.me(token)) });
+		} catch (error) {
+			if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
+		}
 	}
 
 	async #openSignIn(url: string, state: string): Promise<void> {
@@ -325,7 +352,7 @@ export class StatsProfile {
 	}
 
 	async #forgetToken(): Promise<void> {
-		await this.#save({ ...this.#saved, token: '', account: null });
+		await this.#save({ ...this.#saved, token: '', account: null, acceptedUserId: null });
 	}
 
 	#clearPending(): void {

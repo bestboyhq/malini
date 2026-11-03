@@ -23,6 +23,7 @@ import type { DockerOwnership } from '$main/docker/ownership';
 import { DockerCliReaper, type ContainerReaper } from '$main/docker/reclaim';
 import { currentEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
+import type { UsageAccount } from '$lib/stats/stats.platform';
 import type { AppPlatform } from '../app.platform';
 import {
 	ConfirmedShutdown,
@@ -52,13 +53,20 @@ export interface AppDeps {
 	readonly reaper?: ContainerReaper;
 	readonly cancelAgentRuns?: () => Promise<number> | number;
 	readonly containerCount?: () => number;
+	readonly usageAccount?: () => Promise<UsageAccount>;
 }
 
 export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	const host = deps.host ?? createElectronShellHost();
 	const window = defineShellCommands(context, deps, host);
 	defineSettingsCommands(context);
-	const usageData = startUsageData(context);
+	const usageData = startUsageData(
+		context,
+		deps.usageAccount ? { account: deps.usageAccount } : {},
+	);
+	context.commands.define('app.share-usage-data', (args: unknown): void =>
+		usageData.share(requireBoolean(args, 'shared')),
+	);
 	const showMenu = (update: MenuItemConstructorOptions | null): void =>
 		host.showApplicationMenu(
 			applicationMenu(host.productName, update, (command) => window.chooseMenuCommand(command)),
@@ -258,6 +266,12 @@ function recentDiagnosticsLimit(requested: unknown): number {
 function requireString(args: unknown, key: string): string {
 	const value = typeof args === 'object' && args !== null ? Reflect.get(args, key) : undefined;
 	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	return value;
+}
+
+function requireBoolean(args: unknown, key: string): boolean {
+	const value = typeof args === 'object' && args !== null ? Reflect.get(args, key) : undefined;
+	if (typeof value !== 'boolean') throw new Error(`invalid args: \`${key}\` must be a boolean`);
 	return value;
 }
 

@@ -28,6 +28,8 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
 - **Then a repository.** Clone one from GitHub, with your recent repositories one search away, or open a folder on your Mac.
 
+Under the buttons, every step says that Malini shares usage stats, never your code or chats, and that Settings turns them off.
+
 ## Updates
 
 Malini updates itself.

@@ -12,6 +12,7 @@ export type BestboyMe = Readonly<{
 	account: BestboyAccount;
 	profile: BestboyProfile;
 	unacceptedTerms: string | null;
+	acceptedUserId: string | null;
 }>;
 
 export type ProfileChange = Readonly<{ handle?: string; public?: boolean; terms?: string }>;
@@ -90,7 +91,9 @@ export class Bestboy {
 		const user = isRecord(reply) ? reply['user'] : null;
 		const name = isRecord(user) ? user['name'] : null;
 		const email = isRecord(user) ? user['email'] : null;
+		const id = isRecord(user) ? user['id'] : null;
 		const terms = isRecord(reply) ? reply['terms'] : null;
+		const current = typeof terms === 'string' && terms.length > 0 ? terms : null;
 		const accepted = isRecord(user) ? user['terms'] : null;
 		if (typeof email !== 'string') {
 			throw new BestboyError(`${this.host} sent an account without an email.`, 200);
@@ -98,8 +101,11 @@ export class Bestboy {
 		return {
 			account: { name: typeof name === 'string' && name.length > 0 ? name : email, email },
 			profile: this.#profile(isRecord(reply) ? reply['profile'] : null),
-			unacceptedTerms:
-				typeof terms === 'string' && terms.length > 0 && terms !== accepted ? terms : null,
+			unacceptedTerms: current !== null && current !== accepted ? current : null,
+			acceptedUserId:
+				current !== null && current === accepted && typeof id === 'string' && id.length > 0
+					? id
+					: null,
 		};
 	}
 

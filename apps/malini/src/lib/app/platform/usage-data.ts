@@ -1,5 +1,5 @@
 import { app, net } from 'electron';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
@@ -11,27 +11,34 @@ import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/captu
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { currentEnvironment } from '$main/process/environment';
+import type { UsageAccount } from '$lib/stats/stats.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
-import { USAGE_DATA_SETTING, usageDataShared } from '../domain/usage-data';
+import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
 import { readUsageReport } from './usage-report';
 
-export type UsageActivity = 'app_active' | 'run_finished' | 'profile_published';
+export type UsageActivity = 'app_active' | 'run_finished' | 'profile_published' | 'stats_off';
 
 export interface UsageSink {
-	activity(name: UsageActivity, props: Readonly<Record<string, string>>): void;
-	report(report: UsageReport): void;
+	activity(
+		name: UsageActivity,
+		props: Readonly<Record<string, string>>,
+		userId: string | null,
+	): void;
+	report(report: UsageReport, userId: string | null): void;
 	error(message: string): void;
 	shutdown(timeoutMs: number): Promise<void>;
 }
 
 export interface UsageData {
+	share(shared: boolean): void;
 	shutdown(): Promise<void>;
 }
 
 export interface UsageDataDeps {
 	readonly sink?: UsageSink | null;
+	readonly account?: () => Promise<UsageAccount>;
 	readonly hooks?: Pick<MainProcessHooks, 'onUncaughtException' | 'onUnhandledRejection'>;
 	readonly processGone?: (
 		listener: (process: string, reason: string, exitCode: number) => void,
@@ -47,14 +54,27 @@ const LOGDASH_ORIGIN = 'https://app.malini';
 const SHUTDOWN_FLUSH_MS = 2000;
 const REPORTED_DAY_SETTING = 'usage-data.reported-day';
 const REPORT_CHECK_MS = 60 * 60_000;
+const ANONYMOUS: UsageAccount = { state: 'anonymous' };
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
 	const sink = deps.sink === undefined ? logdashSink(context.appVersion) : deps.sink;
-	if (!sink) return { shutdown: () => Promise.resolve() };
 	const shared = (): boolean => usageDataShared(getSetting(context.db, USAGE_DATA_SETTING));
+	const share = (next: boolean): void => {
+		const was = shared();
+		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
+		if (sink && was && !next) sink.activity('stats_off', {}, null);
+	};
+	if (!sink) return { share, shutdown: () => Promise.resolve() };
+	const account = deps.account ?? ((): Promise<UsageAccount> => Promise.resolve(ANONYMOUS));
+	const send = async (deliver: (userId: string | null) => void): Promise<void> => {
+		if (!shared()) return;
+		const counted = await account();
+		if (counted.state === 'old-terms' || !shared()) return;
+		deliver(counted.state === 'accepted' ? counted.userId : null);
+	};
 	const count = (name: UsageActivity): void => {
-		if (shared())
-			sink.activity(name, heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING))));
+		const props = heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING)));
+		void send((userId) => sink.activity(name, props, userId));
 	};
 	const system =
 		deps.system ??
@@ -64,7 +84,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const report = (what: string): void => {
 		if (!shared() || reported.has(what)) return;
 		reported.add(what);
-		sink.error(`${what} · ${system}`);
+		void send(() => sink.error(`${what} · ${system}`));
 	};
 
 	const stopFailures = context.commands.observeFailures((failed) => {
@@ -100,13 +120,14 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		if (!shared() || getSetting(context.db, REPORTED_DAY_SETTING) === day) return;
 		setSetting(context.db, REPORTED_DAY_SETTING, day);
 		const report = readUsageReport(context.db, at);
-		if (report) sink.report(report);
+		if (report) void send((userId) => sink.report(report, userId));
 	};
 	const stopStarted = context.events.subscribe(APP_STARTED_CHANNEL, reportYesterday);
 	const reportTimer = setInterval(reportYesterday, REPORT_CHECK_MS);
 	reportTimer.unref();
 
 	return {
+		share,
 		shutdown: async () => {
 			clearInterval(reportTimer);
 			stopStarted();
@@ -135,6 +156,10 @@ function electronProcessGone(
 	});
 }
 
+export function logdashUserId(site: string, account: string): string {
+	return createHash('sha256').update(`${site}:${account}`).digest('hex');
+}
+
 function logdashSink(appVersion: string): UsageSink | null {
 	if (process.env['MALINI_USAGE_DATA'] === 'off') return null;
 	if (currentEnvironment().doNotTrack) return null;
@@ -153,10 +178,20 @@ function logdashSink(appVersion: string): UsageSink | null {
 			.finally(() => pending.delete(sent));
 		pending.add(sent);
 	};
-	const webEvent = (name: string, props: Readonly<Record<string, string | number>>): void => {
+	const webEvent = (
+		name: string,
+		props: Readonly<Record<string, string | number>>,
+		userId: string | null,
+	): void => {
 		if (!site) return;
 		const at = new Date().toISOString();
-		const event = { id: randomUUID(), timestamp: at, name: `malini_desktop_${name}`, path: '/' };
+		const event = {
+			id: randomUUID(),
+			timestamp: at,
+			name: `malini_desktop_${name}`,
+			path: '/',
+			...(userId ? { userId: logdashUserId(site, userId) } : {}),
+		};
 		post(
 			'/web_events',
 			{ Origin: LOGDASH_ORIGIN },
@@ -168,8 +203,8 @@ function logdashSink(appVersion: string): UsageSink | null {
 		);
 	};
 	return {
-		activity: (name, props) => webEvent(name, props),
-		report: (report) => webEvent('loop', reportProps(report)),
+		activity: (name, props, userId) => webEvent(name, props, userId),
+		report: (report, userId) => webEvent('loop', reportProps(report), userId),
 		error: (message) => {
 			if (!key) return;
 			post(

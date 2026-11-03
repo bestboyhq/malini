@@ -119,7 +119,7 @@ test('Settings → Privacy shows the numbers usage data sends about yesterday, a
 	try {
 		const { page } = app;
 		await openSettings(page, '#/settings/privacy');
-		const share = page.getByRole('switch', { name: 'Share usage data' });
+		const share = page.getByRole('switch', { name: 'Share usage stats' });
 		await expect(share).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
 		const numbers = page.getByRole('button', { name: "Yesterday's numbers" });
 		await numbers.click();
@@ -140,6 +140,7 @@ test('Settings → Privacy shows the numbers usage data sends about yesterday, a
 		await expect(share).toHaveAttribute('aria-checked', 'false');
 		await expect(numbers).toHaveCount(0);
 		await expect(page.getByRole('term')).toHaveCount(0);
+		await expect.poll(async () => (await storedSettings(page))['usage-data']).toBe('off');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -155,7 +156,7 @@ test('Settings → Privacy shows usage data off while the login shell sets DO_NO
 		await expect(page.getByText('is set in your shell, so Malini sends nothing.')).toBeVisible({
 			timeout: 20_000,
 		});
-		const share = page.getByRole('switch', { name: 'Share usage data' });
+		const share = page.getByRole('switch', { name: 'Share usage stats' });
 		await expect(share).toHaveAttribute('aria-checked', 'false');
 		await expect(share).toBeDisabled();
 		await expect(page.getByRole('button', { name: "Yesterday's numbers" })).toHaveCount(0);
