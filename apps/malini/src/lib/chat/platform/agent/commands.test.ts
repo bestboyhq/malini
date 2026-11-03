@@ -612,6 +612,32 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, next)).toMatchObject({ error: null, summary: 'done' });
 	});
 
+	it('stops a prompt whose Stop arrived after its run was recorded but before the agent had it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		let reading = false;
+		let finishReading: () => void = () => undefined;
+		test.context.commands.define('app.list-settings', () => {
+			reading = true;
+			return new Promise((resolve) => {
+				finishReading = () => resolve({});
+			});
+		});
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const sent = invokeString('chat.send-prompt', { sessionId, prompt: 'HANG' });
+		await waitFor(() => reading);
+		const stopped = invoke('chat.cancel-run', { sessionId });
+		finishReading();
+		await stopped;
+
+		const runId = await sent;
+		expect(getRun(test.db, runId)).toMatchObject({ error: 'cancelled' });
+		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(await invokeBoolean('chat.workstream-has-open-run', { workstreamId: 'ws-1' })).toBe(
+			false,
+		);
+	});
+
 	it('resumes Claude at the end of the last turn the chat still shows', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

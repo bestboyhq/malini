@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_REPORTS, type AgentReport } from '../agent-profile.js';
-import { systemPromptAppend } from './instructions.js';
+import { AGENT_REPORTS, type AgentCheckout, type AgentReport } from '../agent-profile.js';
+import { lineageInstructions, systemPromptAppend } from './instructions.js';
 
 const BODY_RULES: Record<AgentReport, string> = {
 	low: 'show, do not tell',
@@ -135,6 +135,23 @@ describe('systemPromptAppend', () => {
 		expect(lineage).toContain(
 			'Repositories you can read:\n- acme/api on main: /clones/acme-api\nWorkstreams you started; read their checkouts and reports, and never edit them:\n- acme/web on malini/w1: /workstreams/w1',
 		);
+	});
+
+	it('has a Home lead set up the workspace first while Malini has no repositories', () => {
+		const setup =
+			"- Malini has no repositories yet, so set up the user's workspace first: work out which repositories their work needs from what they tell you and `gh repo list`, and add each with `repositories_clone`, one when one covers it. For a folder they name on this Mac, clone the URL of its `origin` remote. Then carry on with what they asked.";
+		const lead = (owner: string | null, repositories: AgentCheckout[]): string =>
+			lineageInstructions({
+				lead: { owner, repositories, workstreams: [], plan: '/plans/lead-1/plan.md' },
+				startedBy: null,
+				siblings: [],
+			});
+
+		expect(lead(null, [])).toContain(setup);
+		expect(
+			lead(null, [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }]),
+		).not.toContain('no repositories yet');
+		expect(lead('acme', [])).not.toContain('no repositories yet');
 	});
 
 	it('hands a workstream a lead started its plan and siblings, and names no plan when it has none', () => {

@@ -26,6 +26,8 @@
 		WORKSTREAM_BROWSER_RATIO_KEY,
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
+	import { firstChatWaits } from '../first-chat';
+	import FirstChatActions from '../FirstChatActions.svelte';
 	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
@@ -37,6 +39,7 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
+	const firstChat = $derived(firstChatWaits(workstreamId));
 	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
 	const hasInspector = $derived(!workstream?.scope || hostsBrowser);
@@ -92,6 +95,7 @@
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}
 			notice={stoppedHere || shipFailure ? workstreamNotice : undefined}
+			welcome={firstChat ? firstChatActions : undefined}
 		>
 			{#snippet header(presentedWorkstreamId: string)}
 				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
@@ -104,10 +108,16 @@
 	{#snippet secondary()}
 		<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
 			{@render children()}
-			<JobCenter docked />
+			{#if !firstChat}
+				<JobCenter docked />
+			{/if}
 		</div>
 	{/snippet}
 </InspectorSplit>
+
+{#snippet firstChatActions()}
+	<FirstChatActions />
+{/snippet}
 
 {#snippet jobsInProgress()}
 	<WorkstreamJobRuns entries={jobs} {workstreamId} />

@@ -3,15 +3,9 @@ import type { GitHubSetupStatus } from '$shared/repositories/domain/github-auth'
 
 export const ONBOARDING_FINISHED_SETTING = 'onboarding.finished-at';
 
-export type OnboardingStep = 'accounts' | 'jobs' | 'sounds' | 'heard-about' | 'repository';
+export type OnboardingStep = 'accounts' | 'sounds' | 'heard-about';
 
-export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
-	'accounts',
-	'jobs',
-	'sounds',
-	'heard-about',
-	'repository',
-];
+export const ONBOARDING_STEPS: readonly OnboardingStep[] = ['accounts', 'sounds', 'heard-about'];
 
 export type OnboardingAccount = 'claude-code' | 'github';
 

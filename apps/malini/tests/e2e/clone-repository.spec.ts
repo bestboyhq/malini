@@ -11,6 +11,7 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	passSetup,
 	listProjects,
 	type WorkstreamRow,
 } from './harness';
@@ -37,13 +38,7 @@ test('cloning picks a recent GitHub repository and opens its scratchpad', async 
 			]),
 		);
 
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		const url = dialog.getByLabel('Repository URL');
@@ -112,12 +107,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 			]),
 		);
 
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		await dialog.getByRole('button', { name: /e2e\/warren/u }).click();
@@ -129,7 +119,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		const continueHere = gutter.getByRole('button', { name: `Continue ${title} here` });
 		await expect(continueHere).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
-		expect(await invoke(page, 'repositories.list-workstreams', undefined)).toEqual([]);
+		expect(await repositoryWorkstreams(page)).toEqual([]);
 		await continueHere.hover();
 		await captureFlow(app, 'repository-own-pull-requests');
 
@@ -138,11 +128,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		await expect(
 			page.getByTestId('sidebar-workstream').filter({ hasText: 'OAuth sign-in' }),
 		).toHaveAttribute('aria-current', 'page');
-		const workstreams = await invoke<WorkstreamRow[]>(
-			page,
-			'repositories.list-workstreams',
-			undefined,
-		);
+		const workstreams = await repositoryWorkstreams(page);
 		expect(workstreams.map(({ name, branch }) => ({ name, branch }))).toEqual([
 			{ name: 'OAuth sign-in', branch: 'feat/oauth' },
 		]);
@@ -155,6 +141,12 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		await app.close();
 	}
 });
+
+async function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
+	return (await invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined)).filter(
+		(workstream) => workstream.projectId !== 'malini-lead-space',
+	);
+}
 
 async function expectScratchpadOf(page: Page, repository: string): Promise<void> {
 	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });

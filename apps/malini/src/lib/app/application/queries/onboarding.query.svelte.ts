@@ -9,6 +9,7 @@ type Onboarding = Readonly<{
 	direction: 1 | -1;
 	shown: boolean;
 	heardAbout: HeardAbout | null;
+	firstChatId: string | null;
 }>;
 
 class OnboardingQuery {
@@ -19,6 +20,7 @@ class OnboardingQuery {
 		direction: onboardingStore.direction,
 		shown: onboardingStore.shown,
 		heardAbout: onboardingStore.heardAbout,
+		firstChatId: onboardingStore.firstChatId,
 	});
 }
 

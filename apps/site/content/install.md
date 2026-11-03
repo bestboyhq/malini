@@ -23,11 +23,12 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
   Setup never asks you to sign in to Claude: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
-- **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
-- **Then a repository.** Clone one from GitHub, with your recent repositories one search away, or open a folder on your Mac.
+- **Then a chat at Home.** Setup ends in an empty chat that asks what you work on, with **Clone repo** and **Open folder** under it.
+  Name the repositories you work in, and the lead clones them once you allow it.
+  The sidebar and the rest of Malini come back with your first message.
 
 ## Updates
 

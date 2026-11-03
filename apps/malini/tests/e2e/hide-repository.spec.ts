@@ -7,6 +7,7 @@ import {
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
+	passSetup,
 	listProjects,
 	seedWorkstream,
 } from './harness';
@@ -85,12 +86,7 @@ test('cloning a hidden repository again brings it back', async () => {
 				{ full_name: 'e2e/hutch', clone_url: `file://${source}`, description: null },
 			]),
 		);
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await passSetup(page);
 		await cloneHutch(page);
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });

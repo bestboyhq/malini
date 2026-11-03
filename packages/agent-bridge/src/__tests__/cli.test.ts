@@ -1451,6 +1451,54 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		).toMatchObject({ accepted: true });
 	});
 
+	it('cancels a run whose prompt the provider has not been handed yet, and never hands it over', async () => {
+		const prompts: string[] = [];
+		let releaseSecrets!: () => void;
+		const secretsGate = new Promise<void>((resolve) => {
+			releaseSecrets = resolve;
+		});
+		defaultProviderRegistry.setProvider(async () => ({
+			async setSecrets() {
+				await secretsGate;
+			},
+			async sendPrompt(prompt) {
+				prompts.push(prompt);
+			},
+			async cancel() {},
+			async close() {},
+		}));
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({ stdout: fakeStdout });
+		await ipc.run(
+			'{"cmd":"start_session","id":"unsent-start","sessionId":"unsent-session","workstreamId":"unsent-workstream"}',
+		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"unsent-send","sessionId":"unsent-session","runId":"unsent-run","prompt":"go","secrets":{"TOKEN":"t"}}',
+		);
+		writes.length = 0;
+
+		await ipc.run(
+			'{"cmd":"cancel_run","id":"unsent-cancel","sessionId":"unsent-session","runId":"unsent-run"}',
+		);
+		releaseSecrets();
+		await ipc.drain();
+
+		expect(prompts).toEqual([]);
+		expect(
+			parseFrames(writes.join('')).map((frame) =>
+				frame.type === 'bridge.command_ack' ? `ack ${String(frame.id)}` : frame.type,
+			),
+		).toEqual(['run.started', 'run.failed', 'ack unsent-cancel']);
+		expect(parseFrames(writes.join('')).find((frame) => frame.type === 'run.failed')).toMatchObject(
+			{ runId: 'unsent-run', error: 'cancelled' },
+		);
+	});
+
 	it('writes the cancelled terminal before its ACK under stdout backpressure', async () => {
 		defaultProviderRegistry.setProvider(async (_ctx, emit) => ({
 			async sendPrompt() {},

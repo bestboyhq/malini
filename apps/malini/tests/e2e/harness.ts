@@ -633,6 +633,15 @@ export async function openOverview(page: Page): Promise<void> {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 }
 
+export async function passSetup(page: Page): Promise<void> {
+	const setup = page.getByTestId('onboarding');
+	await setup.getByRole('button', { name: 'Continue' }).click();
+	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+	await setup.getByRole('button', { name: 'Continue' }).click();
+	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+	await expect(page.getByTestId('first-chat-actions')).toBeVisible({ timeout: 20_000 });
+}
+
 function composer(page: Page) {
 	return page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 }

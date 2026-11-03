@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { Button } from '$hyper-ui/components/button';
 	import type { LeadDecision } from '$contract/leads';
@@ -7,6 +7,7 @@
 		focusLeadDecisionCommand,
 		viewLeadDecisionCommand,
 	} from '$lib/chat/application/commands/focus-lead-decision.command';
+	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
 	import { agentInteractionStateQuery } from '$lib/chat/application/queries/agent-interaction-state.query.svelte';
 	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
 	import { workstreamImageSourceHook } from '$lib/chat/application/hooks/workstream-image-source.hook.svelte';
@@ -52,6 +53,11 @@
 
 	const AT_BOTTOM_PX = 4;
 	const THUMBNAILS = 4;
+
+	$effect(() => {
+		const current = { sessionId, envelopes };
+		untrack(() => syncInteractionsCommand(current.sessionId, current.envelopes));
+	});
 
 	const renderState = $derived(sessionProjectorCache.acquire(sessionId).render.project(envelopes));
 	const decisions = $derived(leadDecisionsQuery.data(sessionId));

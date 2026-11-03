@@ -482,6 +482,31 @@ test('allowing what a workstream it started asks stops the lead chat from waitin
 	}
 });
 
+test('a lead asks you on a card in its timeline before a step of its own, and goes on once you allow it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-own-approval-api', 'Api work');
+		await page.reload();
+		await startLead(page, 'Repo setup');
+		await sendPrompt(page, 'APPROVAL');
+		const decision = timeline(page).getByRole('group', { name: 'Permission decision' });
+		await expect(decision).toBeVisible({ timeout: 30_000 });
+		await expect(timeline(page).getByText('No longer active')).toHaveCount(0);
+
+		await decision.getByRole('button', { name: 'Allow once' }).click();
+		await expect(
+			timeline(page).getByRole('status').filter({ hasText: 'Allowed once' }),
+		).toBeVisible({ timeout: 30_000 });
+		await expect(decision).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a lead relays a picture a workstream it started took, and its alt keeps the quotes in it', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

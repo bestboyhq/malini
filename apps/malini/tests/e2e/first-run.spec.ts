@@ -21,7 +21,7 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toBeVisible();
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(5);
+		).toHaveCount(3);
 		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
 		await expect(
@@ -49,7 +49,7 @@ test('a signed-out Claude Code passes setup, and only a Claude send asks to sign
 		await expect(proceed).toBeEnabled();
 		await captureFlow(app, 'first-run-claude-installed');
 		await proceed.click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-sign-in-ws', 'Sign in');
@@ -124,7 +124,7 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 			page.evaluate(() => Reflect.get(globalThis, 'rehearsalCopies'));
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await setup.evaluate(
 			(onboarding, copySelector) =>
 				new Promise<void>((resolve) => {
@@ -147,12 +147,12 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 		expect(continueOnCopies.before).toBeGreaterThan(0);
 		expect(continueOnCopies.after).toBe(0);
 
-		const sounds = setup.getByRole('heading', { name: 'Hear your afternoon' });
-		await expect(sounds).toBeVisible();
+		const heardAbout = setup.getByRole('heading', { name: 'Where did you hear about Malini?' });
+		await expect(heardAbout).toBeVisible();
 		const copiedBefore = (await rehearsalCopies()).length;
 		await expect.poll(async () => (await rehearsalCopies()).length).toBeGreaterThan(copiedBefore);
 		await expect.poll(copiesOnStage, { timeout: 20_000 }).toBe(0);
-		await expect(sounds).toHaveCount(1);
+		await expect(heardAbout).toHaveCount(1);
 		await expect(page.locator('#onboarding-heading')).toHaveCount(1);
 
 		const copies = await rehearsalCopies();
@@ -163,7 +163,7 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 	}
 });
 
-test('setup asks where you heard about Malini, keeps your answer, and forgets it when you skip', async () => {
+test('setup asks where you heard about Malini last, keeps your answer while you go back, and opens a chat with it saved', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -171,9 +171,8 @@ test('setup asks where you heard about Malini, keeps your answer, and forgets it
 		const setup = page.getByTestId('onboarding');
 		const next = setup.getByRole('button', { name: 'Continue' });
 		await next.click();
-		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
-		await next.click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		const sounds = setup.getByRole('heading', { name: 'Hear your afternoon' });
+		await expect(sounds).toBeVisible();
 		await next.click();
 		await expect(
 			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
@@ -193,17 +192,68 @@ test('setup asks where you heard about Malini, keeps your answer, and forgets it
 		await expect(where).toBeFocused();
 		await where.fill('@syntaxfm podcast');
 		await captureFlow(app, 'setup-heard-about-somewhere-else');
+		await setup.getByRole('button', { name: 'Back' }).click();
+		await expect(sounds).toBeVisible();
 		await next.click();
-		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
+		await expect(where).toHaveValue('@syntaxfm podcast');
+
+		await next.click();
+		await expect(page.getByTestId('first-chat-actions')).toBeVisible({ timeout: 20_000 });
 		await expect
 			.poll(async () => (await storedSettings(page))['heard-about'])
 			.toBe('syntaxfm podcast');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
 
-		await setup.getByRole('button', { name: 'Back' }).click();
-		await expect(where).toHaveValue('@syntaxfm podcast');
+test('setup ends in a chat at Home with nothing around it but Clone repo and Open folder, which stays so across a reload and opens up once you send', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const setup = page.getByTestId('onboarding');
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await setup
+			.getByRole('group', { name: 'Where you heard about Malini' })
+			.getByRole('button', { name: 'Hacker News' })
+			.click();
 		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
+
+		const actions = page.getByTestId('first-chat-actions');
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		const tabs = page.getByRole('tablist', { name: 'Chats and files' });
+		await expect(actions).toBeVisible({ timeout: 20_000 });
+		await expect(actions.getByRole('button', { name: 'Clone a GitHub repository' })).toBeVisible();
+		await expect(
+			actions.getByRole('button', { name: 'Open a local repository folder' }),
+		).toBeVisible();
+		await expect(sidebar).toHaveCount(0);
+		await expect(tabs).toHaveCount(0);
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
+		await expect
+			.poll(async () =>
+				(
+					await invoke<{ scope: string | null }[]>(page, 'repositories.list-workstreams', undefined)
+				).map((workstream) => workstream.scope),
+			)
+			.toEqual(['home']);
+		await captureFlow(app, 'first-chat');
+
+		await page.reload();
+		await expect(actions).toBeVisible({ timeout: 20_000 });
+		await expect(sidebar).toHaveCount(0);
+
+		await sendPrompt(page, 'I work on acme/api');
+		await expect(sidebar).toBeVisible({ timeout: 20_000 });
+		await expect(actions).toHaveCount(0);
+		await expect(page.getByTestId('lead-timeline').getByText('I work on acme/api')).toBeVisible();
+		await page.reload();
+		await expect(sidebar).toBeVisible({ timeout: 20_000 });
+		await expect(actions).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

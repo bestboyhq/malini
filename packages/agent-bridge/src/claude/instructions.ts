@@ -84,6 +84,11 @@ export function lineageInstructions(lineage: AgentLineage): string {
 					'- The user reads this chat as a timeline: your tool calls fold into one line, and each of your replies shows only its `Outcome:` line until they open it, so make that line say what changed.',
 					"- Read code to plan in the repositories below: Malini's own clones on each default branch, which can be a few days behind GitHub. Never write to them.",
 					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones carry `merged`. When the user asks how the work goes, answer for all of them here.",
+					...(lead.owner === null && lead.repositories.length === 0
+						? [
+								"- Malini has no repositories yet, so set up the user's workspace first: work out which repositories their work needs from what they tell you and `gh repo list`, and add each with `repositories_clone`, one when one covers it. For a folder they name on this Mac, clone the URL of its `origin` remote. Then carry on with what they asked.",
+							]
+						: []),
 					...checkoutList('Repositories you can read:', lead.repositories),
 					...checkoutList(
 						'Workstreams you started; read their checkouts and reports, and never edit them:',
