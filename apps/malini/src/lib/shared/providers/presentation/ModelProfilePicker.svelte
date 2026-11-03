@@ -245,22 +245,21 @@
 		{/snippet}
 
 		{#snippet content()}
-			<div class="border-surface-elevated-border shrink-0 border-b-[0.5px] px-1.5 py-1">
+			<label
+				class="border-surface-elevated-border text-fg-tertiary flex shrink-0 items-center gap-2 border-b-[0.5px] px-4"
+			>
+				<Icon name="search" class="shrink-0" size={13} />
 				<TextInput
 					bare
-					size="sm"
 					autocomplete="off"
 					placeholder="Filter models"
 					ariaLabel="Filter models"
+					class="h-9 min-w-0 flex-1 text-[13px]"
 					bind:value={query}
 					bind:element={filterInput}
 					onkeydown={onFilterKeydown}
-				>
-					{#snippet icon()}
-						<Icon name="search" size={12} />
-					{/snippet}
-				</TextInput>
-			</div>
+				/>
+			</label>
 			<div
 				bind:this={list}
 				class="min-h-0 overflow-x-hidden overflow-y-auto px-1.5 pt-1.5"
