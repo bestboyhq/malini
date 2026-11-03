@@ -392,7 +392,7 @@ test('a turn a restart cut short goes on once the Resume rule hears Malini start
 		await openWorkstream(page, 'e2e-resume-ws');
 		await expect(
 			transcript(page).getByText(
-				/^Malini restarted\. (Probably better now|Fresh start, same task)$/u,
+				/^Malini restarted\. (Back for more|Now with upgrades|Feeling brand new)$/u,
 			),
 		).toBeVisible({ timeout: 30_000 });
 		await expect(

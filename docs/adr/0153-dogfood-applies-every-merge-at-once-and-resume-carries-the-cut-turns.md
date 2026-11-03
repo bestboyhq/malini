@@ -10,7 +10,7 @@ They preferred the restarts and asked for "a mechanism that will keep it recover
 Recovery already exists: a quit pauses each running turn (`PAUSED_FOR_EXIT_ERROR`), Resume continues it once Malini started (0085), and deliveries between chats survive a restart (0109).
 What stayed broken was how a resumed turn reads: the transcript drew Malini's continuation prompt as a prompt bubble, as if the user had typed it.
 The user's database holds 212 of them, 87 more in an older lowercase "malini restarted…" wording, and 6 sent after a limit or an outage (0100); the lead brief and lead timeline skipped only the current wordings.
-The user turned down a serious notice, and weary ones too, because "they all sound kinda serious and like Claude is forced to do it", then picked two upbeat lines per cause and asked to "roll them".
+The user turned down a serious notice, and weary ones too, because "they all sound kinda serious and like Claude is forced to do it", then picked upbeat lines for each cause and asked to "roll them".
 
 ## Decision
 
@@ -18,7 +18,7 @@ The user turned down a serious notice, and weary ones too, because "they all sou
   `agentsMidTurn` and its read-only open of the app's database are gone.
 - `continuationCause` in `$contract/agent-state-machine` recognizes a continuation Malini sent, `restart` or `outage`, in every wording it has sent, by comparing case-insensitively.
 - `ChatTimelineRow` draws a continuation as a divider instead of a prompt bubble, with a line `continuationNotice` (`chat-message-list/run-stop-copy.ts`) rolls from its cause's pool by the event's `seq`, so a divider keeps its line across renders.
-  After a restart it reads "Malini restarted. Probably better now" or "Malini restarted. Fresh start, same task", and after a limit or an outage "Claude is back. Well rested" or "Claude is back. Coffee break over".
+  After a restart it reads "Malini restarted. Back for more", "Now with upgrades" or "Feeling brand new", and after a limit or an outage "Claude is back. Well rested" or "Claude is back. Coffee break over".
   `TranscriptDivider` draws it and the context handoff divider, which it replaces.
   It stays a `user` item, so the run's opening, its undo and the scroll to a new prompt work as before.
 - `leadBrief` and the lead timeline skip continuations through the same `continuationCause`, so the older wording no longer reads as the user's.

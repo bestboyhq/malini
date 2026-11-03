@@ -22,7 +22,11 @@ const STOP_REASONS: Readonly<Record<RunFailureKind, string>> = {
 };
 
 const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, readonly [string, ...string[]]>> = {
-	restart: ['Malini restarted. Probably better now', 'Malini restarted. Fresh start, same task'],
+	restart: [
+		'Malini restarted. Back for more',
+		'Malini restarted. Now with upgrades',
+		'Malini restarted. Feeling brand new',
+	],
 	outage: ['Claude is back. Well rested', 'Claude is back. Coffee break over'],
 };
 

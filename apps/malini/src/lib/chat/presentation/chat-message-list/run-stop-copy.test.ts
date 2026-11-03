@@ -22,10 +22,13 @@ describe('pauseTitle', () => {
 describe('continuationNotice', () => {
 	it('rolls a notice for each continuation Malini sent, in every wording it has sent', () => {
 		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT, 0)).toBe(
-			'Malini restarted. Probably better now',
+			'Malini restarted. Back for more',
 		);
-		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT.replace('Malini', 'malini'), 7)).toBe(
-			'Malini restarted. Fresh start, same task',
+		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT, 4)).toBe(
+			'Malini restarted. Now with upgrades',
+		);
+		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT.replace('Malini', 'malini'), 8)).toBe(
+			'Malini restarted. Feeling brand new',
 		);
 		expect(continuationNotice(CONTINUE_AFTER_STOP_PROMPT, 2)).toBe('Claude is back. Well rested');
 		expect(continuationNotice(CONTINUE_AFTER_STOP_PROMPT, 3)).toBe(
