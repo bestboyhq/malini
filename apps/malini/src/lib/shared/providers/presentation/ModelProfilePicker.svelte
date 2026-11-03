@@ -252,8 +252,8 @@
 				<TextInput
 					bare
 					autocomplete="off"
-					placeholder="Filter models"
-					ariaLabel="Filter models"
+					placeholder="Find models"
+					ariaLabel="Find models"
 					class="h-9 min-w-0 flex-1 text-[13px]"
 					bind:value={query}
 					bind:element={filterInput}

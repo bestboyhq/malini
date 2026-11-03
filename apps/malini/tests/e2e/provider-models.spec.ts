@@ -264,7 +264,7 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 
 		await page.getByTestId('chat-composer-model').click();
 		await expect(modelOptions(page, 'opencode')).toHaveText([/^GLM-6/u, /^Kimi K4/u]);
-		const filter = page.getByRole('textbox', { name: 'Filter models' });
+		const filter = page.getByRole('textbox', { name: 'Find models' });
 		await expect(filter).toBeFocused();
 		await filter.fill('glm opencode');
 		await expect(page.getByTestId('chat-model-option')).toHaveCount(1);
