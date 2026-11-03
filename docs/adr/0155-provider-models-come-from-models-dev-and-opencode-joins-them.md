@@ -1,4 +1,4 @@
-# 0153 - Provider models come from models.dev, and OpenCode joins them
+# 0155 - Provider models come from models.dev, and OpenCode joins them
 
 Status: accepted
 

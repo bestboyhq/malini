@@ -1,8 +1,4 @@
-import {
-	CONTINUE_AFTER_PAUSE_PROMPT,
-	CONTINUE_AFTER_STOP_PROMPT,
-	isCancellationError,
-} from '$contract/agent-state-machine';
+import { continuationCause, isCancellationError } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { parseWorkstreamReport, reportedTurnEnd } from './deliveries';
 
@@ -19,7 +15,6 @@ type Line = Readonly<{ at: string; text: string }>;
 const MALINI_TOOL = 'mcp__malini__';
 const QUOTE_CHARS = 400;
 const BRIEF_CHARS = 120_000;
-const CONTINUATIONS = new Set([CONTINUE_AFTER_PAUSE_PROMPT, CONTINUE_AFTER_STOP_PROMPT]);
 
 export function leadBrief(
 	events: readonly BriefEvent[],
@@ -129,7 +124,11 @@ function promptLine(
 				.join('\n'),
 		};
 	}
-	if (Array.isArray(payload['decisions']) || CONTINUATIONS.has(text) || text.length === 0) {
+	if (
+		Array.isArray(payload['decisions']) ||
+		continuationCause(text) !== null ||
+		text.length === 0
+	) {
 		return null;
 	}
 	return { at, text: `The user: ${text}` };

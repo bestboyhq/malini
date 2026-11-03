@@ -249,6 +249,7 @@ It hands each event to your triggers first, then to its own rules at once:
   On **Draft all** or **Merge all**, Shipping runs that job in each workstream the click names, for the chat you clicked on, which hears when a run finishes or fails.
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, or after a step that brought nothing back, **Checks rerun**, the minute a fix or a re-run gives its failing checks to run again, and **Agent settled**, the 5 seconds after an agent's turn ends that let a prompt you queued start first.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
+  The chat shows each continued turn under a divider, such as **Malini restarted. Back for more**, instead of a prompt from you.
   It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
 - **Deliveries** hears **Turn finished**: it sends the report of every turn a workstream a chat started ends to that chat, with its `Outcome:`, its `Needs:` and the pictures it embeds, and hands each chat what waits for it once its turn ends.
   A turn that ends while only background commands run is a **Turn finished** at once, whose report names the commands it waits on, and the turn that goes on after them is another one when it ends.

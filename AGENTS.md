@@ -9,13 +9,13 @@ Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestb
 Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0119).
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes five outbound calls of its own (ADR 0129, ADR 0142, ADR 0153).
+The app makes five outbound calls of its own (ADR 0129, ADR 0142, ADR 0155).
 Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
 Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 The extension marketplace is read from bestboy.dev, from `src/lib/extensions/platform/marketplace.ts`, only while Settings, Extensions or Profile is open or something is installed, and a package goes up with your Bestboy token only when you press **Publish** (ADR 0142, ADR 0146).
-Provider model lists come from models.dev, from `src/lib/shared/providers/platform/models-dev.service.ts`, at launch and at most hourly as the model picker or Settings, Providers opens; `MALINI_MODELS_DEV_URL` points an unpackaged build at a local catalog (ADR 0153).
+Provider model lists come from models.dev, from `src/lib/shared/providers/platform/models-dev.service.ts`, at launch and at most hourly as the model picker or Settings, Providers opens; `MALINI_MODELS_DEV_URL` points an unpackaged build at a local catalog (ADR 0155).
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.
@@ -102,7 +102,7 @@ Every event channel has one description and the `facts` a job sees of it in `$co
 corepack enable pnpm           # once; package.json pins pnpm 12 and pnpm 10 cannot self-switch to it
 pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
-pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge once no agent is mid-turn
+pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge as it lands; Resume continues the turns a restart cuts
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed
@@ -212,5 +212,7 @@ Design tokens only, from `@malini/hyper-ui` (`$hyper-ui` alias): import the fold
 Icons are `<Icon name="…" />` from `$hyper-ui/icons`; a glyph the pack lacks is drawn with the `draw-icon` skill.
 Every domain has the layers `domain` / `application` / `infrastructure` / `presentation` in the renderer and `platform` in the main process.
 US English everywhere, including identifiers.
+"Our brand voice" is Bestboy's, and every line of copy a user reads, in the app or on the site, speaks it (ADR 0154).
+Before you write, rewrite or judge any, read and follow the `deadpan-copy` skill in the private `bestboyhq/brand`: `gh api repos/bestboyhq/brand/contents/skills/deadpan-copy/SKILL.md --jq .content | base64 -d`.
 Tabs, single quotes, 100 columns (`pnpm format`).
 Never edit a `*.generated.ts` file; edit its source and rerun the generator.

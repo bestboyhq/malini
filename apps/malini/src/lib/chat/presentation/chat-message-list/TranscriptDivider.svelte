@@ -1,12 +1,18 @@
 <script lang="ts">
+	interface Props {
+		label: string;
+		kind: 'handoff' | 'continuation';
+	}
+
+	let { label, kind }: Props = $props();
 </script>
 
 <div
 	class="text-2xs text-fg-tertiary flex w-full items-center gap-3"
-	data-message-kind="handoff"
-	data-testid="chat-context-handoff"
+	data-message-kind={kind}
+	data-testid="chat-transcript-divider"
 >
 	<span class="bg-surface-50 h-px flex-1" aria-hidden="true"></span>
-	<span class="shrink-0">Context full, handed off to a fresh run</span>
+	<span class="shrink-0">{label}</span>
 	<span class="bg-surface-50 h-px flex-1" aria-hidden="true"></span>
 </div>

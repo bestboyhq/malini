@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { pauseTitle } from './run-stop-copy';
+import {
+	CONTINUE_AFTER_PAUSE_PROMPT,
+	CONTINUE_AFTER_STOP_PROMPT,
+} from '$contract/agent-state-machine';
+import { continuationNotice, pauseTitle } from './run-stop-copy';
 
 const NOW = new Date(2026, 9, 27, 12, 0);
 
@@ -12,5 +16,24 @@ describe('pauseTitle', () => {
 		expect(pauseTitle(new Date(2026, 10, 5, 9, 0).toISOString(), NOW)).toBe(
 			'Paused until Nov 5, 09:00',
 		);
+	});
+});
+
+describe('continuationNotice', () => {
+	it('rolls a notice for each continuation Malini sent, in every wording it has sent', () => {
+		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT, 0)).toBe(
+			'Malini restarted. Back for more',
+		);
+		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT, 4)).toBe(
+			'Malini restarted. Now with upgrades',
+		);
+		expect(continuationNotice(CONTINUE_AFTER_PAUSE_PROMPT.replace('Malini', 'malini'), 8)).toBe(
+			'Malini restarted. Feeling brand new',
+		);
+		expect(continuationNotice(CONTINUE_AFTER_STOP_PROMPT, 2)).toBe('Claude is back. Well rested');
+		expect(continuationNotice(CONTINUE_AFTER_STOP_PROMPT, 3)).toBe(
+			'Claude is back. Coffee break over',
+		);
+		expect(continuationNotice('Malini restarted, can you check why?', 0)).toBeNull();
 	});
 });

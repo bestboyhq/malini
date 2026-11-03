@@ -1,4 +1,5 @@
 import type { RunFailureKind } from '$contract/agent';
+import { continuationCause, type ContinuationCause } from '$contract/agent-state-machine';
 import { scheduleTime } from '$contract/automation-trigger';
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
@@ -18,6 +19,15 @@ const STOP_REASONS: Readonly<Record<RunFailureKind, string>> = {
 	billing: 'Your Claude plan or billing stopped the turn.',
 	model: 'The model is not available to your account.',
 	request: 'Claude could not take the request.',
+};
+
+const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, readonly [string, ...string[]]>> = {
+	restart: [
+		'Malini restarted. Back for more',
+		'Malini restarted. Now with upgrades',
+		'Malini restarted. Feeling brand new',
+	],
+	outage: ['Claude is back. Well rested', 'Claude is back. Coffee break over'],
 };
 
 const RETRIED = 'Malini stopped trying again.';
@@ -50,6 +60,13 @@ export function pauseReason(kind: RunFailureKind): string {
 
 export function failedRunNextStep(kind: RunFailureKind): string | null {
 	return NEXT_STEPS[kind];
+}
+
+export function continuationNotice(prompt: string, roll: number): string | null {
+	const cause = continuationCause(prompt);
+	if (cause === null) return null;
+	const notices = CONTINUATION_NOTICES[cause];
+	return notices[roll % notices.length] ?? notices[0];
 }
 
 function startOfDay(date: Date): number {
