@@ -130,9 +130,10 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 ## Model and effort per prompt
 
-Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, or a model from OpenCode, paid as you go with Zen or with an OpenCode Go plan, and an effort from Low to Max, for every prompt.
-The picker is one flat list of models, so you pick the model, not the provider.
-Type in it to filter by model or provider, and press Enter to pick the first match.
+Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, or a model from OpenCode, paid per request from your OpenCode Console credits, and an effort from Low to Max, for every prompt.
+The picker lists the models you can run, so you pick the model, not the provider.
+A provider you have not connected is one row, such as **OpenCode** with **72 models, one key away**; click it to list its models and pick one.
+Type in it to filter by model or provider, folded ones included, and press Enter to pick the first match.
 **Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
 Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
@@ -145,7 +146,7 @@ Send with a model that is not connected and Malini asks for what it needs right 
 Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
 DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
-Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools and that OpenCode serves to Claude Code, and leaves out free ones, which OpenCode keeps to its own apps.
+Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools, and leaves out free ones, which OpenCode keeps to its own apps.
 
 ## Claude accounts
 

@@ -12,13 +12,11 @@ export const CLAUDE_PROVIDER_ID = 'claude';
 export const DEFAULT_PROVIDER_ID = CLAUDE_PROVIDER_ID;
 
 export const DEEPSEEK_PROVIDER_ID = 'deepseek';
-export const OPENCODE_GO_PROVIDER_ID = 'opencode-go';
-export const OPENCODE_ZEN_PROVIDER_ID = 'opencode';
+export const OPENCODE_PROVIDER_ID = 'opencode';
 
 const PROVIDER_KEY_URLS: Readonly<Record<string, string>> = {
 	[DEEPSEEK_PROVIDER_ID]: 'https://platform.deepseek.com/api_keys',
-	[OPENCODE_GO_PROVIDER_ID]: 'https://opencode.ai/console',
-	[OPENCODE_ZEN_PROVIDER_ID]: 'https://opencode.ai/console',
+	[OPENCODE_PROVIDER_ID]: 'https://opencode.ai/console',
 };
 
 export function providerKeyUrl(providerId: string): string | null {

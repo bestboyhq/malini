@@ -1393,19 +1393,8 @@ UPDATE job_definitions SET reaches_internet = 0 WHERE builtin IS NULL;
 INSERT INTO model_providers
   (id, name, kind, base_url, api_key, models, subagent_model, created_at, updated_at)
 VALUES (
-  'opencode-go',
-  'OpenCode Go',
-  'anthropic',
-  'https://opencode.ai/inference/go/anthropic',
-  NULL,
-  '[{"id":"kimi-k3.1-pro","label":"Kimi K3.1 Pro","description":"Text and images, 1M context","efforts":["low","high","max"]},{"id":"minimax-m3.1-flash","label":"MiniMax M3.1 Flash","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"]},{"id":"gemini-4-argon","label":"Gemini 4 Argon","description":"Text and images, 1M context","efforts":["low","medium","high"]},{"id":"claude-haiku-5-5","label":"Claude Haiku 5.5","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"]},{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"]},{"id":"mimo-v2.6-flash","label":"MiMo-V2.6-Flash","description":"Text and images, 1M context","efforts":[]},{"id":"mimo-v2.6-pro","label":"MiMo-V2.6-Pro","description":"Text and images, 1M context","efforts":[]},{"id":"grok-4.7","label":"Grok 4.7","description":"Text and images, 500K context","efforts":["low","medium","high","xhigh"]},{"id":"step-5-preview","label":"Step 5 Preview","description":"Text and images, 1M context","efforts":["low","medium","high"]},{"id":"deepseek-v4.1-flash","label":"DeepSeek V4.1 Flash","description":"Text and images, 1M context","efforts":["low","high","max"]},{"id":"muse-spark-1.3-contributor","label":"Muse Spark 1.3 Contributor","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh"]},{"id":"hy4-preview","label":"Hy4 preview","description":"Text only, 1M context","efforts":["high"]},{"id":"glm-5.3-flash","label":"GLM-5.3-Flash","description":"Text and images, 1M context","efforts":["low","high","max"]},{"id":"qwen3.8-flash","label":"Qwen3.8 Flash","description":"Text and images, 1M context","efforts":["low","medium","xhigh"]},{"id":"glm-5.3","label":"GLM-5.3","description":"Text only, 1M context","efforts":["low","high","max"]},{"id":"muse-spark-1.2-contributor","label":"Muse Spark 1.2 Contributor","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh"]},{"id":"qwen3.8-max","label":"Qwen3.8 Max","description":"Text and images, 1M context","efforts":["low","medium","xhigh"]},{"id":"kimi-k3","label":"Kimi K3","description":"Text and images, 1M context","efforts":["max"]},{"id":"gpt-5.6-luna","label":"GPT-5.6 Luna","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"]},{"id":"hy3","label":"Hy3","description":"Text only, 256K context","efforts":["low","high"]},{"id":"longcat-2.0","label":"LongCat-2.0","description":"Text only, 1M context","efforts":[]},{"id":"glm-5.2","label":"GLM-5.2","description":"Text only, 1M context","efforts":["high","max"]},{"id":"kimi-k2.7-code","label":"Kimi K2.7 Code","description":"Text and images, 262K context","efforts":[]},{"id":"qwen3.7-plus","label":"Qwen3.7 Plus","description":"Text and images, 1M context","efforts":[]},{"id":"minimax-m3","label":"MiniMax-M3","description":"Text and images, 1M context","efforts":[]},{"id":"deepseek-v4-pro","label":"DeepSeek V4 Pro (New)","description":"Text only, 1M context","efforts":["high","max"]},{"id":"mimo-v2.5","label":"MiMo V2.5","description":"Text and images, 1M context","efforts":[]},{"id":"mimo-v2.5-pro","label":"MiMo V2.5 Pro","description":"Text only, 1M context","efforts":[]}]',
-  NULL,
-  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-),
-(
   'opencode',
-  'OpenCode Zen',
+  'OpenCode',
   'anthropic',
   'https://opencode.ai/inference/anthropic',
   NULL,

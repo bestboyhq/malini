@@ -56,6 +56,10 @@ function modelOptions(page: Page, provider: string): Locator {
 	return page.locator(`[data-testid="chat-model-option"][data-provider="${provider}"]`);
 }
 
+function foldedProvider(page: Page, provider: string): Locator {
+	return page.locator(`[data-testid="chat-model-provider"][data-provider="${provider}"]`);
+}
+
 function catalogModel(id: string, name: string, releaseDate: string): Record<string, unknown> {
 	return {
 		id,
@@ -129,12 +133,14 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect(providers).toHaveCount(0);
 		await page.getByTestId('chat-composer-model').click();
 		await expect(modelOptions(page, 'claude')).toHaveCount(2);
-		await expect(modelOptions(page, 'deepseek')).toHaveCount(2);
 		await expect(modelOptions(page, 'claude').getByTestId('chat-model-no-access')).toHaveCount(0);
+		await expect(modelOptions(page, 'deepseek')).toHaveCount(0);
+		await expect(modelOptions(page, 'opencode')).toHaveCount(0);
+		await expect(foldedProvider(page, 'opencode')).toHaveAttribute('aria-expanded', 'false');
+		await expect(foldedProvider(page, 'deepseek')).toContainText('2 models, one key away');
+		await foldedProvider(page, 'deepseek').click();
+		await expect(foldedProvider(page, 'deepseek')).toHaveAttribute('aria-expanded', 'true');
 		await expect(modelOptions(page, 'deepseek').getByTestId('chat-model-no-access')).toHaveCount(2);
-		await expect(modelOptions(page, 'opencode-go').first()).toContainText(
-			/via OpenCode Go\s*No access/u,
-		);
 		await captureFlow(app, 'provider-models-picker');
 		await page
 			.locator(
@@ -213,11 +219,11 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 	}
 });
 
-test('an OpenCode Go run uses the models models.dev lists and the subscription key', async () => {
+test('an OpenCode run uses the models models.dev lists and the OpenCode key', async () => {
 	test.setTimeout(180_000);
 	const catalog = await serveModelsDev({
-		'opencode-go': {
-			id: 'opencode-go',
+		opencode: {
+			id: 'opencode',
 			models: {
 				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
 				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
@@ -236,7 +242,7 @@ test('an OpenCode Go run uses the models models.dev lists and the subscription k
 			page,
 			source,
 			'e2e-provider-opencode-ws',
-			'OpenCode Go models',
+			'OpenCode models',
 		);
 		await openWorkstream(page, workstreamId);
 		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
@@ -244,16 +250,23 @@ test('an OpenCode Go run uses the models models.dev lists and the subscription k
 		});
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'opencode-go')).toContainText(['GLM-6', 'Kimi K4']);
-		await expect(modelOptions(page, 'opencode-go')).toHaveCount(2);
+		await expect(foldedProvider(page, 'opencode')).toContainText('2 models, one key away');
+		await expect(modelOptions(page, 'opencode')).toHaveCount(0);
 		const filter = page.getByRole('textbox', { name: 'Filter models' });
 		await expect(filter).toBeFocused();
-		await filter.fill('glm opencode go');
+		await filter.fill('glm opencode');
 		await expect(page.getByTestId('chat-model-option')).toHaveCount(1);
+		await expect(page.getByTestId('chat-model-provider')).toHaveCount(0);
 		await captureFlow(app, 'provider-models-opencode-filter');
 		await filter.press('Enter');
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 		await expect(page.getByRole('button', { name: 'Model: GLM-6' })).toBeVisible();
+		await page.getByTestId('chat-composer-model').click();
+		await expect(foldedProvider(page, 'opencode')).toHaveAttribute('aria-expanded', 'true');
+		await expect(modelOptions(page, 'opencode')).toContainText(['GLM-6', 'Kimi K4']);
+		await expect(page.getByRole('option', { name: /GLM-6/u, selected: true })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 
 		await sendPrompt(page, 'SEARCH the fixture repo');
 		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
@@ -264,7 +277,7 @@ test('an OpenCode Go run uses the models models.dev lists and the subscription k
 			'href',
 			'https://opencode.ai/console',
 		);
-		await page.getByRole('textbox', { name: 'OpenCode Go API key' }).fill('oc_sk_e2e');
+		await page.getByRole('textbox', { name: 'OpenCode API key' }).fill('oc_sk_e2e');
 		await page.getByTestId('provider-connect-submit').click();
 		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
 		await expect
@@ -272,7 +285,7 @@ test('an OpenCode Go run uses the models models.dev lists and the subscription k
 				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
 			)
 			.toEqual({
-				ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/go/anthropic',
+				ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/anthropic',
 				ANTHROPIC_AUTH_TOKEN: 'oc_sk_e2e',
 				ANTHROPIC_MODEL: 'glm-6',
 				ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-6',
@@ -286,9 +299,9 @@ test('an OpenCode Go run uses the models models.dev lists and the subscription k
 			location.hash = '#/settings/providers';
 		});
 		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
-		const card = page.getByTestId('provider-opencode-go');
+		const card = page.getByTestId('provider-opencode');
 		await expect(card).toHaveAttribute('data-key-saved', 'true');
-		await expect(card.getByRole('list', { name: 'OpenCode Go models' })).toHaveText(
+		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
 			/GLM-6\s*Kimi K4/u,
 		);
 		await captureFlow(app, 'provider-models-opencode-settings');

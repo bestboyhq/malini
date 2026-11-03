@@ -6,8 +6,10 @@ import {
 	modelDescription,
 	modelLabel,
 	normalizeReasoningEffort,
+	pickerEntries,
 	pickerModels,
 } from './model-catalog';
+import type { ProviderGroup } from './provider';
 
 const catalog = [
 	{ id: 'haiku', label: 'Haiku', description: 'Fastest', efforts: [] },
@@ -66,8 +68,8 @@ describe('Claude Code model catalog', () => {
 		const rows = [
 			{ provider: 'claude', providerName: 'Claude', model: catalog[1] },
 			{
-				provider: 'opencode-go',
-				providerName: 'OpenCode Go',
+				provider: 'opencode',
+				providerName: 'OpenCode',
 				model: { id: 'glm-5.3', label: 'GLM-5.3', description: '', efforts: [] },
 			},
 			{
@@ -78,10 +80,47 @@ describe('Claude Code model catalog', () => {
 		];
 		expect(filterPickerModels(rows, '  ')).toBe(rows);
 		expect(filterPickerModels(rows, 'GLM').map((row) => row.model.id)).toEqual(['glm-5.3']);
-		expect(filterPickerModels(rows, 'go 5.3').map((row) => row.model.id)).toEqual(['glm-5.3']);
+		expect(filterPickerModels(rows, 'opencode 5.3').map((row) => row.model.id)).toEqual([
+			'glm-5.3',
+		]);
 		expect(filterPickerModels(rows, 'deepseek pro').map((row) => row.provider)).toEqual([
 			'deepseek',
 		]);
 		expect(filterPickerModels(rows, 'kimi')).toEqual([]);
+	});
+
+	it('folds each provider without a key into one row until it is opened or searched', () => {
+		const group = (id: string, kind: ProviderGroup['kind'], ready: boolean, ids: string[]) => ({
+			id,
+			name: id,
+			kind,
+			baseUrl: null,
+			ready,
+			message: '',
+			models: ids.map((model) => ({ id: model, label: model, description: '', efforts: [] })),
+		});
+		const groups = [
+			group('claude', 'claude', false, ['opus']),
+			group('deepseek', 'anthropic', true, ['deepseek-v4-pro']),
+			group('opencode', 'anthropic', false, ['glm-5.3', 'kimi-k3']),
+		];
+		const shape = (entries: ReturnType<typeof pickerEntries>) =>
+			entries.map((entry) =>
+				entry.kind === 'model' ? entry.row.model.id : `${entry.provider}:${entry.count}`,
+			);
+		const selection = { provider: 'claude', model: 'opus' };
+		expect(shape(pickerEntries(groups, selection, '', new Set()))).toEqual([
+			'opus',
+			'deepseek-v4-pro',
+			'opencode:2',
+		]);
+		expect(shape(pickerEntries(groups, selection, '', new Set(['opencode'])))).toEqual([
+			'opus',
+			'deepseek-v4-pro',
+			'opencode:2',
+			'glm-5.3',
+			'kimi-k3',
+		]);
+		expect(shape(pickerEntries(groups, selection, 'kimi', new Set()))).toEqual(['kimi-k3']);
 	});
 });

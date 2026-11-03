@@ -13,6 +13,7 @@
 
 	interface Props {
 		statuses: OnboardingAccountStatuses;
+		onskipclaude: () => void;
 	}
 
 	const TITLES: Readonly<Record<OnboardingAccount, string>> = {
@@ -20,8 +21,13 @@
 		github: 'GitHub',
 	};
 
-	let { statuses }: Props = $props();
+	let { statuses, onskipclaude }: Props = $props();
 	let chosen = $state<OnboardingAccount | null>(null);
+
+	function skipClaude(): void {
+		chosen = null;
+		onskipclaude();
+	}
 
 	const open = $derived(openOnboardingAccount(statuses, chosen));
 	const claude = $derived(claudeCodeStatusQuery.data);
@@ -96,6 +102,11 @@
 						>
 							{TITLES[account]}
 						</span>
+						{#if statuses[account] === 'skipped' && !expanded}
+							<span class="text-fg-tertiary ml-auto min-w-0 truncate text-sm">
+								Skipped. Other models it is
+							</span>
+						{/if}
 					</Button>
 				{/if}
 			</h2>
@@ -109,7 +120,7 @@
 				<div class="min-h-0 overflow-hidden">
 					<div class="pr-4 pb-5 pl-14">
 						{#if account === 'claude-code'}
-							<ClaudeCodeSetup step />
+							<ClaudeCodeSetup step onskip={skipClaude} />
 						{:else}
 							<GitHubSetup step />
 						{/if}

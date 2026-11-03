@@ -35,11 +35,32 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 	}
 });
 
-test('a signed-out Claude Code asks to sign in and the composer will not send', async () => {
+test('a signed-out Claude Code asks to sign in, can be skipped, and the composer will not send', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_CLAUDE_STATE: 'needs_auth' } });
 	try {
 		const { page } = app;
+		const setup = page.getByTestId('onboarding');
+		const step = setup.getByTestId('claude-code-setup');
+		const proceed = setup.getByTestId('onboarding-continue');
+		await expect(step).toHaveAttribute('data-claude-code-status', 'signed-out', {
+			timeout: 20_000,
+		});
+		await expect(step.getByText('No Claude plan? Skip it')).toBeVisible();
+		await expect(proceed).toBeDisabled();
+		await captureFlow(app, 'first-run-sign-in-or-skip-claude');
+		await step.getByRole('button', { name: 'Skip signing in to Claude Code' }).click();
+		const accounts = setup.getByRole('list', { name: 'Accounts' });
+		await expect(accounts.getByRole('button', { name: /^Claude Code/u })).toHaveAttribute(
+			'aria-expanded',
+			'false',
+		);
+		await expect(accounts).toContainText('Skipped. Other models it is');
+		await expect(proceed).toBeEnabled();
+		await captureFlow(app, 'first-run-skip-claude');
+		await proceed.click();
+		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-sign-in-ws', 'Sign in');
 		await page.evaluate(() => {
@@ -49,6 +70,7 @@ test('a signed-out Claude Code asks to sign in and the composer will not send', 
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'signed-out');
 		await expect(claude.getByRole('button', { name: 'Sign in to Claude Code' })).toBeVisible();
 		await expect(claude.getByText('Sign in opens your browser.')).toBeVisible();
+		await expect(claude.getByRole('button', { name: /^Skip/u })).toHaveCount(0);
 		await captureFlow(app, 'first-run-sign-in-claude');
 
 		await openWorkstream(page, workstreamId);

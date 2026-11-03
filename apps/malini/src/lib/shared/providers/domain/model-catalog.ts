@@ -143,6 +143,43 @@ export function filterPickerModels(
 	});
 }
 
+export type PickerEntry =
+	| { readonly kind: 'model'; readonly row: FlatPickerModel }
+	| {
+			readonly kind: 'provider';
+			readonly provider: string;
+			readonly providerName: string;
+			readonly count: number;
+			readonly expanded: boolean;
+	  };
+
+export function pickerEntries(
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+	query: string,
+	expanded: ReadonlySet<string>,
+): readonly PickerEntry[] {
+	const modelEntry = (row: FlatPickerModel): PickerEntry => ({ kind: 'model', row });
+	if (query.trim() !== '') {
+		return filterPickerModels(flatPickerModels(groups, selection), query).map(modelEntry);
+	}
+	return pickerGroups(groups, selection).flatMap((group) => {
+		const rows = group.models.map((model) =>
+			modelEntry({ provider: group.id, providerName: group.name, model }),
+		);
+		if (group.kind === 'claude' || group.ready) return rows;
+		const open = expanded.has(group.id);
+		const header: PickerEntry = {
+			kind: 'provider',
+			provider: group.id,
+			providerName: group.name,
+			count: rows.length,
+			expanded: open,
+		};
+		return open ? [header, ...rows] : [header];
+	});
+}
+
 export function effortsForModel(
 	models: readonly AgentModelInfo[],
 	model: string,

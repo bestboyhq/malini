@@ -17,8 +17,8 @@ function model(id: string, extra: Record<string, unknown> = {}): Record<string, 
 }
 
 const catalog = {
-	'opencode-go': {
-		id: 'opencode-go',
+	opencode: {
+		id: 'opencode',
 		models: {
 			'glm-5.3': model('glm-5.3', { name: 'GLM-5.3', release_date: '2026-08-14' }),
 			'kimi-k3': model('kimi-k3', {
@@ -38,11 +38,11 @@ const catalog = {
 				release_date: '2026-07-01',
 				provider: {
 					npm: '@ai-sdk/anthropic',
-					api: 'https://opencode.ai/inference/go/anthropic/v1',
+					api: 'https://opencode.ai/inference/anthropic/v1',
 				},
 			}),
 			'served-openai': model('served-openai', {
-				provider: { api: 'https://opencode.ai/inference/go/openai/v1' },
+				provider: { api: 'https://opencode.ai/inference/openai/v1' },
 			}),
 		},
 	},
@@ -50,7 +50,7 @@ const catalog = {
 
 describe('models.dev catalog', () => {
 	it('keeps paid tool-calling text models whichever API serves them, newest first', () => {
-		expect(modelsDevModels(catalog, 'opencode-go')).toEqual([
+		expect(modelsDevModels(catalog, 'opencode')).toEqual([
 			{
 				id: 'kimi-k3',
 				label: 'Kimi K3',
@@ -81,7 +81,7 @@ describe('models.dev catalog', () => {
 
 	it('reads nothing from a provider it does not list or a catalog it cannot read', () => {
 		expect(modelsDevModels(catalog, 'deepseek')).toEqual([]);
-		expect(modelsDevModels(null, 'opencode-go')).toEqual([]);
-		expect(modelsDevModels({ 'opencode-go': { models: [] } }, 'opencode-go')).toEqual([]);
+		expect(modelsDevModels(null, 'opencode')).toEqual([]);
+		expect(modelsDevModels({ opencode: { models: [] } }, 'opencode')).toEqual([]);
 	});
 });

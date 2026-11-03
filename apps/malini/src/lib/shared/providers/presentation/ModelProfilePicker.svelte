@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -10,6 +10,7 @@
 		filterPickerModels,
 		flatPickerModels,
 		modelDescription,
+		pickerEntries,
 		selectionLabel,
 		selectionModels,
 	} from '$shared/providers/domain/model-catalog';
@@ -47,9 +48,12 @@
 	let open = $state(false);
 	let query = $state('');
 	let filterInput = $state<HTMLInputElement | null>(null);
+	let expanded = $state<ReadonlySet<string>>(new Set());
+	let list = $state<HTMLElement | null>(null);
 
 	const groups = $derived(providerGroupsQuery.data);
 	const models = $derived(filterPickerModels(flatPickerModels(groups, selection), query));
+	const entries = $derived(pickerEntries(groups, selection, query, expanded));
 	const selectedLabel = $derived(selectionLabel(groups, selection));
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const currentPreset: ModelPreset = $derived({
@@ -83,18 +87,37 @@
 		}
 	}
 
+	async function toggleProvider(provider: string, row: HTMLElement): Promise<void> {
+		const next = new Set(expanded);
+		const opening = !next.delete(provider);
+		if (opening) next.add(provider);
+		expanded = next;
+		if (!opening) return;
+		await tick();
+		row.scrollIntoView({ block: 'start' });
+	}
+
 	function applyPreset(preset: ModelPreset): void {
 		open = false;
 		onchange({ ...preset.selection }, preset.effort ?? undefined);
+	}
+
+	async function revealSelection(): Promise<void> {
+		await tick();
+		list
+			?.querySelector('[data-testid="chat-model-option"][aria-selected="true"]')
+			?.scrollIntoView({ block: 'nearest' });
 	}
 
 	function onOpenChange(nextOpen: boolean): void {
 		open = nextOpen;
 		query = '';
 		if (nextOpen) {
+			expanded = new Set([selection.provider]);
 			loadProviderCapabilitiesCommand('stale');
 			refreshModelProvidersCommand();
 			queueMicrotask(() => filterInput?.focus());
+			void revealSelection();
 		}
 	}
 
@@ -166,7 +189,12 @@
 					{/snippet}
 				</TextInput>
 			</div>
-			<div class="min-h-0 overflow-y-auto px-1.5 pt-1.5" role="listbox" aria-label="Models">
+			<div
+				bind:this={list}
+				class="min-h-0 overflow-y-auto px-1.5 pt-1.5"
+				role="listbox"
+				aria-label="Models"
+			>
 				{#if presets.length > 0}
 					<div role="group" aria-label="Presets">
 						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
@@ -227,46 +255,80 @@
 					{#if presets.length > 0}
 						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Models</p>
 					{/if}
-					{#each models as row (row.provider + ':' + row.model.id)}
-						{@const selected =
-							row.provider === selection.provider && row.model.id === selection.model}
-						{@const access = modelAccess(
-							{ provider: row.provider, model: row.model.id },
-							groups,
-							claudeStatus,
-						)}
-						<DropdownItem
-							role="option"
-							aria-selected={selected}
-							checked={selected}
-							class="gap-2.5 py-2"
-							data-testid="chat-model-option"
-							data-provider={row.provider}
-							data-model={row.model.id}
-							onSelect={() => select(row.provider, row.model.id)}
-						>
-							<span class="flex min-w-0 flex-1 flex-col">
-								<span class="truncate text-[13px] leading-5">{row.model.label}</span>
-								{#if modelDescription(row.model)}
+					{#each entries as entry (entry.kind === 'model' ? `${entry.row.provider}:${entry.row.model.id}` : entry.provider)}
+						{#if entry.kind === 'provider'}
+							<DropdownItem
+								closeOnSelect={false}
+								aria-expanded={entry.expanded}
+								class="gap-2.5 py-2"
+								data-testid="chat-model-provider"
+								data-provider={entry.provider}
+								onclick={(event) => toggleProvider(entry.provider, event.currentTarget)}
+							>
+								<ProviderIcon
+									providerId={entry.provider}
+									class="text-fg-secondary shrink-0"
+									size={14}
+								/>
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span class="truncate text-[13px] leading-5">{entry.providerName}</span>
 									<span class="text-fg-tertiary text-2xs truncate leading-4">
-										{modelDescription(row.model)}
+										{entry.count === 1 ? '1 model' : `${entry.count} models`}, one key away
 									</span>
-								{/if}
-							</span>
-							{#if row.provider !== CLAUDE_PROVIDER_ID || !isModelAccessReady(access)}
-								<span class="text-fg-tertiary text-2xs flex shrink-0 flex-col items-end leading-4">
-									{#if row.provider !== CLAUDE_PROVIDER_ID}
-										<span>via {row.providerName}</span>
-									{/if}
-									{#if !isModelAccessReady(access)}
-										<span data-testid="chat-model-no-access">No access</span>
+								</span>
+								<Icon
+									name="chevron-right"
+									class={[
+										'text-fg-tertiary shrink-0 transition-transform duration-150 motion-reduce:transition-none',
+										entry.expanded && 'rotate-90',
+									]}
+									size={12}
+								/>
+							</DropdownItem>
+						{:else}
+							{@const row = entry.row}
+							{@const selected =
+								row.provider === selection.provider && row.model.id === selection.model}
+							{@const access = modelAccess(
+								{ provider: row.provider, model: row.model.id },
+								groups,
+								claudeStatus,
+							)}
+							<DropdownItem
+								role="option"
+								aria-selected={selected}
+								checked={selected}
+								class="gap-2.5 py-2"
+								data-testid="chat-model-option"
+								data-provider={row.provider}
+								data-model={row.model.id}
+								onSelect={() => select(row.provider, row.model.id)}
+							>
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span class="truncate text-[13px] leading-5">{row.model.label}</span>
+									{#if modelDescription(row.model)}
+										<span class="text-fg-tertiary text-2xs truncate leading-4">
+											{modelDescription(row.model)}
+										</span>
 									{/if}
 								</span>
-							{/if}
-							{#if selected}
-								<Icon name="check" class="text-fg-default shrink-0" size={14} />
-							{/if}
-						</DropdownItem>
+								{#if row.provider !== CLAUDE_PROVIDER_ID || !isModelAccessReady(access)}
+									<span
+										class="text-fg-tertiary text-2xs flex shrink-0 flex-col items-end leading-4"
+									>
+										{#if row.provider !== CLAUDE_PROVIDER_ID}
+											<span>via {row.providerName}</span>
+										{/if}
+										{#if !isModelAccessReady(access)}
+											<span data-testid="chat-model-no-access">No access</span>
+										{/if}
+									</span>
+								{/if}
+								{#if selected}
+									<Icon name="check" class="text-fg-default shrink-0" size={14} />
+								{/if}
+							</DropdownItem>
+						{/if}
 					{:else}
 						<p class="text-fg-tertiary px-2 py-1.5 text-xs leading-5">No models match</p>
 					{/each}

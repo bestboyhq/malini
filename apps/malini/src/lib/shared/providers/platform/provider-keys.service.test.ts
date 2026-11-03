@@ -18,14 +18,9 @@ function keys(): ProviderKeys {
 }
 
 describe('ProviderKeys', () => {
-	it('lists Claude and the seeded DeepSeek and OpenCode Go models without a key', () => {
+	it('lists Claude and the seeded DeepSeek and OpenCode models without a key', () => {
 		const providers = keys().list();
-		expect(providers.map((provider) => provider.id)).toEqual([
-			'claude',
-			'deepseek',
-			'opencode-go',
-			'opencode',
-		]);
+		expect(providers.map((provider) => provider.id)).toEqual(['claude', 'deepseek', 'opencode']);
 		expect(providers[1]).toEqual({
 			id: 'deepseek',
 			name: 'DeepSeek',
@@ -76,22 +71,15 @@ describe('ProviderKeys', () => {
 	it('runs OpenCode subagents on the chat model and drops a subagent model the provider no longer offers', async () => {
 		const db = openMigratedDatabase(':memory:');
 		const providers = new ProviderKeys(db, async () => cipher());
-		await providers.save('opencode-go', 'oc_sk_test');
-		await expect(providers.environment('opencode-go', 'minimax-m3')).resolves.toEqual({
-			ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/go/anthropic',
+		await providers.save('opencode', 'oc_sk_test');
+		await expect(providers.environment('opencode', 'minimax-m3')).resolves.toEqual({
+			ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/anthropic',
 			ANTHROPIC_AUTH_TOKEN: 'oc_sk_test',
 			ANTHROPIC_MODEL: 'minimax-m3',
 			ANTHROPIC_DEFAULT_OPUS_MODEL: 'minimax-m3',
 			ANTHROPIC_DEFAULT_SONNET_MODEL: 'minimax-m3',
 			ANTHROPIC_DEFAULT_HAIKU_MODEL: 'minimax-m3',
 			CLAUDE_CODE_SUBAGENT_MODEL: 'minimax-m3',
-		});
-		await providers.save('opencode', 'oc_sk_zen');
-		await expect(providers.environment('opencode', 'claude-opus-5-5')).resolves.toMatchObject({
-			ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/anthropic',
-			ANTHROPIC_AUTH_TOKEN: 'oc_sk_zen',
-			ANTHROPIC_MODEL: 'claude-opus-5-5',
-			CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-5-5',
 		});
 		await providers.save('deepseek', 'sk-test');
 		setProviderModels(db, 'deepseek', [

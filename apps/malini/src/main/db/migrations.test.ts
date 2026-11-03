@@ -145,7 +145,7 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('seeds DeepSeek, OpenCode Go and OpenCode Zen and defaults chats and jobs to Claude', () => {
+	it('seeds DeepSeek and OpenCode and defaults chats and jobs to Claude', () => {
 		const db = openMigratedDatabase(':memory:');
 		expect(
 			all(db, 'SELECT id, name, kind, base_url, subagent_model, api_key FROM model_providers'),
@@ -159,33 +159,14 @@ describe('migrate', () => {
 				api_key: null,
 			},
 			{
-				id: 'opencode-go',
-				name: 'OpenCode Go',
-				kind: 'anthropic',
-				base_url: 'https://opencode.ai/inference/go/anthropic',
-				subagent_model: null,
-				api_key: null,
-			},
-			{
 				id: 'opencode',
-				name: 'OpenCode Zen',
+				name: 'OpenCode',
 				kind: 'anthropic',
 				base_url: 'https://opencode.ai/inference/anthropic',
 				subagent_model: null,
 				api_key: null,
 			},
 		]);
-		expect(
-			JSON.parse(
-				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'opencode-go'")
-					?.models ?? '',
-			),
-		).toContainEqual({
-			id: 'minimax-m3',
-			label: 'MiniMax-M3',
-			description: 'Text and images, 1M context',
-			efforts: [],
-		});
 		expect(
 			JSON.parse(
 				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'opencode'")

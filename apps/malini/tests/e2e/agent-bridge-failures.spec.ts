@@ -108,6 +108,7 @@ test('a chat that cannot open keeps its error and its model to itself when you p
 
 		await startFreshChat(page);
 		await picker.click();
+		await page.locator('[data-testid="chat-model-provider"][data-provider="deepseek"]').click();
 		await page
 			.locator(
 				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',

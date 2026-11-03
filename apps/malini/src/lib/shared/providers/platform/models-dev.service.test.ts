@@ -6,7 +6,7 @@ import { ModelsDevCatalog, type CatalogFetch } from './models-dev.service';
 const HOUR = 60 * 60 * 1000;
 
 const catalog = {
-	'opencode-go': {
+	opencode: {
 		models: {
 			'glm-9': {
 				id: 'glm-9',
@@ -52,7 +52,7 @@ describe('ModelsDevCatalog', () => {
 			() => Response.json(catalog, { headers: { etag: '"v1"' } }),
 		]);
 		await models.refresh();
-		expect(modelIds('opencode-go')).toEqual(['glm-9']);
+		expect(modelIds('opencode')).toEqual(['glm-9']);
 		expect(modelIds('deepseek')).toEqual(['deepseek-v4-pro', 'deepseek-flash']);
 	});
 
@@ -67,7 +67,7 @@ describe('ModelsDevCatalog', () => {
 		advance(HOUR);
 		await models.refresh();
 		expect(requests).toEqual([{}, { 'if-none-match': '"v1"' }]);
-		expect(modelIds('opencode-go')).toEqual(['glm-9']);
+		expect(modelIds('opencode')).toEqual(['glm-9']);
 	});
 
 	it('asks again on the next refresh when models.dev did not answer', async () => {
@@ -83,7 +83,7 @@ describe('ModelsDevCatalog', () => {
 		await models.refresh();
 		await models.refresh();
 		expect(requests).toHaveLength(3);
-		expect(modelIds('opencode-go')).toEqual(['glm-9']);
+		expect(modelIds('opencode')).toEqual(['glm-9']);
 	});
 
 	it('keeps the models it has when models.dev is down or sends something unreadable', async () => {
@@ -91,13 +91,13 @@ describe('ModelsDevCatalog', () => {
 			() => new Response('not json', { status: 200 }),
 			() => new Response('busy', { status: 503 }),
 		]);
-		const seeded = modelIds('opencode-go');
+		const seeded = modelIds('opencode');
 		await models.refresh();
 		advance(HOUR);
 		await models.refresh();
 		advance(HOUR);
 		await models.refresh();
-		expect(modelIds('opencode-go')).toEqual(seeded);
+		expect(modelIds('opencode')).toEqual(seeded);
 		expect(seeded?.length).toBeGreaterThan(0);
 	});
 });

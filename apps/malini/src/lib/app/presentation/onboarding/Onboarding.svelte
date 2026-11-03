@@ -6,6 +6,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import {
 		ONBOARDING_STEPS,
+		claudeCodeOnboardingStatus,
 		onboardingAccountsSettled,
 		type OnboardingAccountStatuses,
 		type OnboardingStep,
@@ -34,7 +35,7 @@
 		accounts: {
 			title: 'Connect Claude Code and GitHub',
 			description:
-				'Malini runs Claude Code with your Claude plan, and works in your GitHub repositories.',
+				'Malini runs Claude Code with your Claude plan or another provider, and works in your GitHub repositories.',
 		},
 		jobs: {
 			title: 'Meet your jobs',
@@ -60,8 +61,9 @@
 	const onboarding = $derived(onboardingQuery.data);
 	const last = $derived(onboarding.index === ONBOARDING_STEPS.length - 1);
 	const copy = $derived(STEP_COPY[onboarding.step]);
+	let claudeSkipped = $state(false);
 	const accounts: OnboardingAccountStatuses = $derived({
-		'claude-code': claudeCodeStatusQuery.data.kind,
+		'claude-code': claudeCodeOnboardingStatus(claudeCodeStatusQuery.data.kind, claudeSkipped),
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
@@ -213,7 +215,10 @@
 
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
 						{#if onboarding.step === 'accounts'}
-							<OnboardingAccountsStep statuses={accounts} />
+							<OnboardingAccountsStep
+								statuses={accounts}
+								onskipclaude={() => (claudeSkipped = true)}
+							/>
 						{:else if onboarding.step === 'jobs'}
 							<JobsIntro />
 						{:else if onboarding.step === 'heard-about'}

@@ -3,8 +3,7 @@
 	import {
 		CLAUDE_PROVIDER_ID,
 		DEEPSEEK_PROVIDER_ID,
-		OPENCODE_GO_PROVIDER_ID,
-		OPENCODE_ZEN_PROVIDER_ID,
+		OPENCODE_PROVIDER_ID,
 	} from '$shared/providers/domain/provider';
 
 	interface Props extends IconProps {
@@ -18,7 +17,7 @@
 	<ClaudeIcon {...icon} />
 {:else if providerId === DEEPSEEK_PROVIDER_ID}
 	<DeepSeekIcon {...icon} />
-{:else if providerId === OPENCODE_GO_PROVIDER_ID || providerId === OPENCODE_ZEN_PROVIDER_ID}
+{:else if providerId === OPENCODE_PROVIDER_ID}
 	<OpenCodeIcon {...icon} />
 {:else}
 	<Icon name="bolt" {...icon} />

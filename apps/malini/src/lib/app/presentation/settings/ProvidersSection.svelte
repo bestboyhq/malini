@@ -16,7 +16,7 @@
 
 <SettingsSection
 	title="Providers"
-	description="Chats run Claude Code on this Mac. Choose what it runs as: your Claude account, or a provider with its own API key, such as DeepSeek, OpenCode Zen or an OpenCode Go subscription."
+	description="Chats run Claude Code on this Mac. Choose what it runs as: your Claude account, or a provider with its own API key, such as DeepSeek or OpenCode."
 >
 	<Well title="Claude Code" headed={false}>
 		<ClaudeCodeSetup nested />

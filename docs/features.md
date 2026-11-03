@@ -27,6 +27,7 @@ The [README](../README.md) has the short version.
 </p>
 
 - **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
+  No Claude plan? **Skip** the sign-in and connect DeepSeek or OpenCode when you first send.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
 - **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
 - **Then a repository.** Clone one or open a folder, and your first workstream is ready.
@@ -64,8 +65,8 @@ The [README](../README.md) has the short version.
 - **Queue or steer.** **↵** queues a prompt after the current run, **⌘↵** interrupts the turn and steers, while background commands keep running.
   Edit, reorder, or delete what's queued.
 - **Plan first.** Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
-- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, or DeepSeek V4 Pro or V4 Flash, from Low to Max effort.
-  Pick any model; sending on one that is not connected asks for its key or sign-in right there, then sends the prompt.
+- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, or any DeepSeek or OpenCode model models.dev lists, from Low to Max effort.
+  Pick any model, a provider you have not connected folded into one row; sending on it asks for its key or sign-in right there, then sends the prompt.
 - **As much rope as you want to give.** **Auto**, the default, uses Claude Code's auto mode.
   **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else, and **Full access** never asks.
   Approve once, or always for the chat or the workstream.
