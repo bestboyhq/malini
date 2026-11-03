@@ -1,6 +1,6 @@
 # 0158 - Nothing is connected up front, and the picker folds what is not
 
-Status: accepted
+Status: superseded by 0160
 
 ## Context
 

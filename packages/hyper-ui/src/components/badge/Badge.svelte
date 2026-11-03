@@ -13,17 +13,17 @@
 	let { children, variant = 'neutral', class: className }: Props = $props();
 
 	const variantClass: Record<BadgeVariant, string> = {
-		neutral: 'border-chip-border bg-chip text-fg-secondary',
-		primary: 'border-surface-100-border bg-surface-100 text-fg-default',
-		success: 'border-success-content/20 bg-success text-success-content',
-		warning: 'border-warning-content/20 bg-warning text-warning-content',
-		error: 'border-error-content/20 bg-error text-error-content',
+		neutral: 'bg-fg-default/10 text-fg-default',
+		primary: 'bg-surface-100 text-fg-default',
+		success: 'bg-success text-success-content',
+		warning: 'bg-warning text-warning-content',
+		error: 'bg-error text-error-content',
 	};
 </script>
 
 <span
 	class={[
-		'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold',
+		'inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-[650]',
 		variantClass[variant],
 		className,
 	]}

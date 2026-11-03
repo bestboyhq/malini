@@ -7,6 +7,7 @@ export const MODELS_DEV_URL = 'https://models.dev/api.json';
 
 const MAX_MODELS = 200;
 const MAX_LABEL_LENGTH = 80;
+const MAX_FAMILY_LENGTH = 64;
 
 interface CatalogModel {
 	readonly info: AgentModelInfo;
@@ -17,6 +18,7 @@ export function modelsDevModels(catalog: unknown, providerId: string): AgentMode
 	const provider = isRecord(catalog) ? catalog[providerId] : undefined;
 	const models = isRecord(provider) ? provider['models'] : undefined;
 	if (!isRecord(models)) return [];
+	const families = new Set<string>();
 	return Object.values(models)
 		.flatMap((model) => catalogModel(model) ?? [])
 		.sort(
@@ -24,27 +26,44 @@ export function modelsDevModels(catalog: unknown, providerId: string): AgentMode
 				right.released.localeCompare(left.released) ||
 				left.info.label.localeCompare(right.info.label),
 		)
+		.filter(({ info }) => {
+			const family = info.family ?? info.id;
+			if (families.has(family)) return false;
+			families.add(family);
+			return true;
+		})
 		.slice(0, MAX_MODELS)
 		.map(({ info }) => info);
 }
 
 function catalogModel(model: unknown): CatalogModel | null {
 	if (!isRecord(model)) return null;
-	const { id, name, status, tool_call: toolCall } = model;
+	const { id, name, family, status, tool_call: toolCall } = model;
 	if (!isValidAgentModel(id) || typeof name !== 'string') return null;
 	if (status === 'deprecated' || toolCall !== true || isFree(model['cost'])) return null;
 	const modalities = isRecord(model['modalities']) ? model['modalities'] : {};
 	if (!strings(modalities['output']).includes('text')) return null;
-	const label = name.trim().slice(0, MAX_LABEL_LENGTH);
+	const label = shortName(name).slice(0, MAX_LABEL_LENGTH);
 	return {
 		info: {
 			id,
 			label: label.length > 0 ? label : id,
 			description: describe(strings(modalities['input']), model['limit']),
 			efforts: model['reasoning'] === true ? efforts(model['reasoning_options']) : [],
+			...(isFamily(family) ? { family } : {}),
 		},
 		released: typeof model['release_date'] === 'string' ? model['release_date'] : '',
 	};
+}
+
+function shortName(name: string): string {
+	const trimmed = name.trim();
+	const short = trimmed.replace(/^Claude (?=\p{L})/u, '').replace(/ \d{4}$/u, '');
+	return short.length > 0 ? short : trimmed;
+}
+
+function isFamily(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0 && value.length <= MAX_FAMILY_LENGTH;
 }
 
 function isFree(cost: unknown): boolean {

@@ -53,7 +53,7 @@ describe('ModelsDevCatalog', () => {
 		]);
 		await models.refresh();
 		expect(modelIds('opencode')).toEqual(['glm-9']);
-		expect(modelIds('deepseek')).toEqual(['deepseek-v4-pro', 'deepseek-flash']);
+		expect(modelIds('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-pro']);
 	});
 
 	it('asks once an hour and sends the ETag it got last', async () => {

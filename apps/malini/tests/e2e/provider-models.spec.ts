@@ -56,8 +56,8 @@ function modelOptions(page: Page, provider: string): Locator {
 	return page.locator(`[data-testid="chat-model-option"][data-provider="${provider}"]`);
 }
 
-function foldedProvider(page: Page, provider: string): Locator {
-	return page.locator(`[data-testid="chat-model-provider"][data-provider="${provider}"]`);
+function runner(page: Page, provider: string): Locator {
+	return page.locator(`[data-testid="chat-model-runner"][data-provider="${provider}"]`);
 }
 
 function catalogModel(id: string, name: string, releaseDate: string): Record<string, unknown> {
@@ -121,7 +121,7 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		);
 		await openWorkstream(page, workstreamId);
 
-		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
+		await expect(page.getByRole('button', { name: 'Model: Opus 5.5' })).toBeVisible({
 			timeout: 20_000,
 		});
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
@@ -132,21 +132,24 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await page.mouse.move(0, 0);
 		await expect(providers).toHaveCount(0);
 		await page.getByTestId('chat-composer-model').click();
+		const models = page.getByRole('listbox', { name: 'Models' });
+		await expect(models.getByRole('option', { name: /^Opus 5\.5/u })).toHaveCount(1);
 		await expect(modelOptions(page, 'claude')).toHaveCount(2);
-		await expect(modelOptions(page, 'claude').getByTestId('chat-model-no-access')).toHaveCount(0);
-		await expect(modelOptions(page, 'deepseek')).toHaveCount(0);
-		await expect(modelOptions(page, 'opencode')).toHaveCount(0);
-		await expect(foldedProvider(page, 'opencode')).toHaveAttribute('aria-expanded', 'false');
-		await expect(foldedProvider(page, 'deepseek')).toContainText('2 models, one key away');
-		await foldedProvider(page, 'deepseek').click();
-		await expect(foldedProvider(page, 'deepseek')).toHaveAttribute('aria-expanded', 'true');
-		await expect(modelOptions(page, 'deepseek').getByTestId('chat-model-no-access')).toHaveCount(2);
+		await expect(modelOptions(page, 'deepseek')).toHaveCount(2);
+		await expect(models.getByRole('option', { name: /^GPT-6\.1 Sol/u })).toHaveAttribute(
+			'data-provider',
+			'opencode',
+		);
+		await expect(models.getByRole('option', { name: /^GPT-6 Sol/u })).toHaveCount(0);
+		await models.getByRole('option', { name: /^DeepSeek V4 Pro/u }).hover();
+		const runners = page.getByRole('listbox', { name: 'DeepSeek V4 Pro runs on' });
+		await expect(runners).toBeVisible();
+		await expect(runner(page, 'deepseek')).toContainText('Needs a key');
+		await expect(runner(page, 'opencode')).toContainText('Needs a key');
 		await captureFlow(app, 'provider-models-picker');
-		await page
-			.locator(
-				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
-			)
-			.click();
+		await runner(page, 'deepseek').click();
+		await expect(models).toBeHidden();
+		await expect(runners).toBeHidden();
 		await expect(page.getByRole('button', { name: 'Model: DeepSeek V4 Pro' })).toBeVisible();
 
 		await sendPrompt(page, 'SEARCH the fixture repo');
@@ -190,8 +193,18 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			timeout: 20_000,
 		});
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'deepseek').getByTestId('chat-model-no-access')).toHaveCount(0);
-		await expect(modelOptions(page, 'deepseek')).toContainText(['via DeepSeek', 'via DeepSeek']);
+		const pro = page.getByRole('option', { name: /^DeepSeek V4 Pro/u });
+		await expect(pro).toHaveAttribute('aria-selected', 'true');
+		await pro.focus();
+		await page.keyboard.press('ArrowRight');
+		await expect(runner(page, 'deepseek')).toBeFocused();
+		await expect(runner(page, 'deepseek')).toContainText('Key saved');
+		await expect(runner(page, 'deepseek')).toHaveAttribute('aria-selected', 'true');
+		await page.keyboard.press('ArrowDown');
+		await expect(runner(page, 'opencode')).toBeFocused();
+		await page.keyboard.press('ArrowLeft');
+		await expect(page.getByTestId('chat-model-runners')).toHaveCount(0);
+		await expect(pro).toBeFocused();
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 
@@ -250,19 +263,16 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		});
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(foldedProvider(page, 'opencode')).toContainText('2 models, one key away');
-		await expect(modelOptions(page, 'opencode')).toHaveCount(0);
-		const filter = page.getByRole('textbox', { name: 'Filter models' });
+		await expect(modelOptions(page, 'opencode')).toHaveText([/^GLM-6/u, /^Kimi K4/u]);
+		const filter = page.getByRole('textbox', { name: 'Find models' });
 		await expect(filter).toBeFocused();
 		await filter.fill('glm opencode');
 		await expect(page.getByTestId('chat-model-option')).toHaveCount(1);
-		await expect(page.getByTestId('chat-model-provider')).toHaveCount(0);
 		await captureFlow(app, 'provider-models-opencode-filter');
 		await filter.press('Enter');
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 		await expect(page.getByRole('button', { name: 'Model: GLM-6' })).toBeVisible();
 		await page.getByTestId('chat-composer-model').click();
-		await expect(foldedProvider(page, 'opencode')).toHaveAttribute('aria-expanded', 'true');
 		await expect(modelOptions(page, 'opencode')).toContainText(['GLM-6', 'Kimi K4']);
 		await expect(page.getByRole('option', { name: /GLM-6/u, selected: true })).toBeVisible();
 		await page.keyboard.press('Escape');

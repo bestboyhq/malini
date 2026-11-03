@@ -176,7 +176,7 @@ test('picking another model mid-chat sends the next prompt to a new chat, and ot
 
 		await picker.click();
 		await models.getByRole('option', { name: /^Sonnet/u }).click();
-		await expect(picker).toHaveAccessibleName('Model: Sonnet');
+		await expect(picker).toHaveAccessibleName('Model: Sonnet 5.5');
 		await sendPrompt(page, 'EDIT:c.txt');
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(sessionId);
 		const fresh = currentSessionId(page) ?? '';
@@ -188,7 +188,7 @@ test('picking another model mid-chat sends the next prompt to a new chat, and ot
 		const other = await createSourceRepo(app.root, 'other');
 		await seedWorkstream(page, other, 'e2e-model-other-ws', 'Other workstream');
 		await openWorkstream(page, 'e2e-model-other-ws');
-		await expect(picker).toHaveAccessibleName('Model: Sonnet', { timeout: 20_000 });
+		await expect(picker).toHaveAccessibleName('Model: Sonnet 5.5', { timeout: 20_000 });
 
 		expectCleanConsole(app);
 	} finally {

@@ -6,21 +6,27 @@ import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from './run-profil
 
 export type { AgentModelInfo };
 
-const FAMILY_ORDER = ['fable', 'opus', 'sonnet', 'haiku'];
+const CLAUDE_FAMILIES = ['claude-opus', 'claude-fable', 'claude-sonnet', 'claude-haiku'];
 
 const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
-	fable: 'For problems that fight back',
-	opus: 'Does the real work. Usually right',
-	sonnet: 'Routine work, no drama, less usage',
-	haiku: "Fast. Don't ask it to ponder",
-	'deepseek-v4-pro': 'Thinks hard. Text only',
+	'claude-fable': 'For problems that fight back',
+	'claude-opus': 'Does the real work. Usually right',
+	'claude-sonnet': 'Routine work, no drama, less usage',
+	'claude-haiku': "Fast. Don't ask it to ponder",
+	'deepseek-thinking': 'Thinks hard. Text only',
 	'deepseek-flash': 'Quick, and it can see',
 };
 
-export function modelDescription(model: AgentModelInfo): string {
-	const id = model.id.replace(/^claude-/u, '');
-	const key = Object.keys(MODEL_DESCRIPTIONS).find((name) => id.startsWith(name));
-	return (key && MODEL_DESCRIPTIONS[key]) ?? model.description;
+export interface PickerRunner {
+	readonly group: ProviderGroup;
+	readonly model: AgentModelInfo;
+}
+
+export interface PickerRow {
+	readonly family: string;
+	readonly label: string;
+	readonly description: string;
+	readonly runners: readonly [PickerRunner, ...PickerRunner[]];
 }
 
 export function modelLabel(model: string): string {
@@ -41,18 +47,6 @@ export function catalogModelLabel(models: readonly AgentModelInfo[], model: stri
 	return label && label !== model ? label : modelLabel(model);
 }
 
-export function pickerModels(
-	models: readonly AgentModelInfo[],
-	current: string,
-): readonly AgentModelInfo[] {
-	const listed = models.some((model) => model.id === current)
-		? models
-		: [...models, unlistedModel(current)];
-	return listed
-		.map((model) => ({ ...model, label: catalogModelLabel(listed, model.id) }))
-		.sort((left, right) => familyRank(left.id) - familyRank(right.id));
-}
-
 export function allProviderModels(groups: readonly ProviderGroup[]): readonly AgentModelInfo[] {
 	return groups.flatMap((group) => group.models);
 }
@@ -71,7 +65,8 @@ export function selectionLabel(
 	groups: readonly ProviderGroup[],
 	selection: ModelSelection,
 ): string {
-	return catalogModelLabel(selectionModels(groups, selection), selection.model);
+	const row = pickerRows(groups, selection).find((candidate) => rowRuns(candidate, selection));
+	return row?.label ?? modelLabel(selection.model);
 }
 
 export function pickerGroups(
@@ -84,15 +79,7 @@ export function pickerGroups(
 		selectedGroup === undefined
 			? [
 					...groups,
-					{
-						id: selection.provider,
-						name: selection.provider,
-						kind: 'anthropic' as const,
-						baseUrl: null,
-						models: [unlistedModel(selection.model)],
-						ready: false,
-						message: '',
-					},
+					{ ...unknownGroup(selection.provider), models: [unlistedModel(selection.model)] },
 				]
 			: selectedGroup.models.some((model) => model.id === selection.model)
 				? groups
@@ -112,71 +99,64 @@ export function pickerGroups(
 		}));
 }
 
-export interface FlatPickerModel {
-	readonly provider: string;
-	readonly providerName: string;
-	readonly model: AgentModelInfo;
+export function modelFamily(group: ProviderGroup, model: AgentModelInfo): string {
+	if (model.family) return model.family;
+	if (group.kind !== 'claude') return model.id;
+	const [name] = model.id.replace(/^claude-/u, '').split(/[-[]/u);
+	return `claude-${name ?? model.id}`;
 }
 
-export function flatPickerModels(
+export function pickerRows(
 	groups: readonly ProviderGroup[],
 	selection: ModelSelection,
-): readonly FlatPickerModel[] {
-	return pickerGroups(groups, selection).flatMap((group) =>
-		group.models.map((model) => ({
-			provider: group.id,
-			providerName: group.name,
-			model,
-		})),
+): readonly PickerRow[] {
+	const families = new Map<string, [PickerRunner, ...PickerRunner[]]>();
+	for (const group of groups) {
+		const seen = new Set<string>();
+		for (const model of group.models) {
+			const family = modelFamily(group, model);
+			if (seen.has(family)) continue;
+			seen.add(family);
+			const runners = families.get(family);
+			if (runners) runners.push({ group, model });
+			else families.set(family, [{ group, model }]);
+		}
+	}
+	const rows = [...families]
+		.map(([family, runners]) => pickerRow(family, runners))
+		.sort((left, right) => claudeRank(left.family) - claudeRank(right.family));
+	return rows.some((row) => rowRuns(row, selection))
+		? rows
+		: withSelection(rows, groups, selection);
+}
+
+export function runs(runner: PickerRunner, selection: ModelSelection): boolean {
+	return runner.group.id === selection.provider && runner.model.id === selection.model;
+}
+
+export function rowRuns(row: PickerRow, selection: ModelSelection): boolean {
+	return row.runners.some((runner) => runs(runner, selection));
+}
+
+export function rowRunner(
+	row: PickerRow,
+	selection: ModelSelection,
+	ready: (runner: PickerRunner) => boolean,
+): PickerRunner {
+	return (
+		row.runners.find((runner) => runs(runner, selection)) ??
+		row.runners.find(ready) ??
+		row.runners[0]
 	);
 }
 
-export function filterPickerModels(
-	rows: readonly FlatPickerModel[],
-	query: string,
-): readonly FlatPickerModel[] {
+export function filterPickerRows(rows: readonly PickerRow[], query: string): readonly PickerRow[] {
 	const terms = query.toLowerCase().split(/\s+/u).filter(Boolean);
 	if (terms.length === 0) return rows;
 	return rows.filter((row) => {
-		const text = `${row.model.label} ${row.model.id} ${row.providerName}`.toLowerCase();
+		const runners = row.runners.map((runner) => `${runner.model.id} ${runner.group.name}`);
+		const text = `${row.label} ${runners.join(' ')}`.toLowerCase();
 		return terms.every((term) => text.includes(term));
-	});
-}
-
-export type PickerEntry =
-	| { readonly kind: 'model'; readonly row: FlatPickerModel }
-	| {
-			readonly kind: 'provider';
-			readonly provider: string;
-			readonly providerName: string;
-			readonly count: number;
-			readonly expanded: boolean;
-	  };
-
-export function pickerEntries(
-	groups: readonly ProviderGroup[],
-	selection: ModelSelection,
-	query: string,
-	expanded: ReadonlySet<string>,
-): readonly PickerEntry[] {
-	const modelEntry = (row: FlatPickerModel): PickerEntry => ({ kind: 'model', row });
-	if (query.trim() !== '') {
-		return filterPickerModels(flatPickerModels(groups, selection), query).map(modelEntry);
-	}
-	return pickerGroups(groups, selection).flatMap((group) => {
-		const rows = group.models.map((model) =>
-			modelEntry({ provider: group.id, providerName: group.name, model }),
-		);
-		if (group.kind === 'claude' || group.ready) return rows;
-		const open = expanded.has(group.id);
-		const header: PickerEntry = {
-			kind: 'provider',
-			provider: group.id,
-			providerName: group.name,
-			count: rows.length,
-			expanded: open,
-		};
-		return open ? [header, ...rows] : [header];
 	});
 }
 
@@ -203,7 +183,51 @@ function unlistedModel(id: string): AgentModelInfo {
 	return { id, label: modelLabel(id), description: '', efforts: [...AGENT_REASONING_EFFORTS] };
 }
 
-function familyRank(model: string): number {
-	const family = FAMILY_ORDER.findIndex((name) => model.replace(/^claude-/u, '').startsWith(name));
-	return family === -1 ? FAMILY_ORDER.length : family;
+function pickerRow(family: string, runners: readonly [PickerRunner, ...PickerRunner[]]): PickerRow {
+	const named = runners.find((runner) => runner.group.kind !== 'claude') ?? runners[0];
+	return {
+		family,
+		label: catalogModelLabel([named.model], named.model.id),
+		description: MODEL_DESCRIPTIONS[family] ?? named.model.description,
+		runners,
+	};
+}
+
+function withSelection(
+	rows: readonly PickerRow[],
+	groups: readonly ProviderGroup[],
+	selection: ModelSelection,
+): readonly PickerRow[] {
+	const group =
+		groups.find((candidate) => candidate.id === selection.provider) ??
+		unknownGroup(selection.provider);
+	const model =
+		group.models.find((candidate) => candidate.id === selection.model) ??
+		unlistedModel(selection.model);
+	const family = modelFamily(group, model);
+	const row: PickerRow = {
+		family: `${selection.provider}:${selection.model}`,
+		label: catalogModelLabel([model], model.id),
+		description: model.description,
+		runners: [{ group, model }],
+	};
+	const at = rows.findIndex((candidate) => candidate.family === family);
+	return at === -1 ? [...rows, row] : [...rows.slice(0, at + 1), row, ...rows.slice(at + 1)];
+}
+
+function unknownGroup(provider: string): ProviderGroup {
+	return {
+		id: provider,
+		name: provider,
+		kind: 'anthropic',
+		baseUrl: null,
+		models: [],
+		ready: false,
+		message: '',
+	};
+}
+
+function claudeRank(family: string): number {
+	const rank = CLAUDE_FAMILIES.indexOf(family);
+	return rank === -1 ? CLAUDE_FAMILIES.length : rank;
 }

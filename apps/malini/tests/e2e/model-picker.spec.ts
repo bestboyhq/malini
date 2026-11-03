@@ -31,7 +31,7 @@ test('the model picker is one button that opens and closes its list from the key
 		await app.electronApp.evaluate(({ BrowserWindow }) =>
 			BrowserWindow.getAllWindows()[0]?.setSize(900, 700),
 		);
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		const models = page.getByRole('listbox', { name: 'Models' });
 
 		await picker.focus();
@@ -75,25 +75,25 @@ test('every chat keeps its own model and effort, and a new chat starts with the 
 		const opusChat = await chatAbout(page, 'EDIT:a.txt');
 
 		await startFreshChat(page);
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(effort).toHaveText('Max');
-		await pickModel(page, 'Sonnet');
+		await pickModel(page, 'Sonnet 5.5');
 		await pickEffort(page, 'Low');
 		const sonnetChat = await chatAbout(page, 'EDIT:b.txt');
 		expect(sonnetChat).not.toBe(opusChat);
 
 		await showChat(page, opusChat);
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(effort).toHaveText('Max');
 		await pickEffort(page, 'High');
 
 		await showChat(page, sonnetChat);
-		await expect(picker).toHaveAccessibleName('Model: Sonnet');
+		await expect(picker).toHaveAccessibleName('Model: Sonnet 5.5');
 		await expect(effort).toHaveText('Low');
 
 		await startFreshChat(page);
 		const freshChat = currentSessionId(page) ?? '';
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(effort).toHaveText('High');
 
 		await showChat(page, opusChat);
@@ -101,11 +101,11 @@ test('every chat keeps its own model and effort, and a new chat starts with the 
 		await showChat(page, sonnetChat);
 		await expect(effort).toHaveText('Low');
 		await showChat(page, freshChat);
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(effort).toHaveText('High');
 
 		await openWorkstream(page, workstreamId, sonnetChat);
-		await expect(picker).toHaveAccessibleName('Model: Sonnet', { timeout: 20_000 });
+		await expect(picker).toHaveAccessibleName('Model: Sonnet 5.5', { timeout: 20_000 });
 		await expect(effort).toHaveText('Low');
 		expectCleanConsole(app);
 	} finally {
@@ -125,46 +125,48 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		const effort = page.getByRole('button', { name: 'Reasoning effort' });
 		const models = page.getByRole('listbox', { name: 'Models' });
 		const presets = models.getByRole('group', { name: 'Presets' });
-		const opusMax = presets.getByRole('option', { name: 'Opus · Max' });
-		const sonnetLow = presets.getByRole('option', { name: 'Sonnet · Low' });
+		const opusMax = presets.getByRole('option', { name: 'Opus 5.5 · Max' });
+		const sonnetLow = presets.getByRole('option', { name: 'Sonnet 5.5 · Low' });
 
 		await pickEffort(page, 'Max');
 		await picker.click();
 		await expect(presets).toHaveCount(0);
-		await page.getByRole('button', { name: 'Save Opus · Max as a preset' }).click();
+		await page.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }).click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
-		await expect(page.getByRole('button', { name: 'Remove Opus · Max preset' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Remove Opus 5.5 · Max preset' })).toBeVisible();
 		await page.keyboard.press('Escape');
 
-		await pickModel(page, 'Sonnet');
+		await pickModel(page, 'Sonnet 5.5');
 		await pickEffort(page, 'Low');
 		await picker.click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'false');
-		await page.getByRole('button', { name: 'Save Sonnet · Low as a preset' }).click();
+		await page.getByRole('button', { name: 'Save Sonnet 5.5 · Low as a preset' }).click();
 		await expect(sonnetLow).toHaveAttribute('aria-selected', 'true');
 		await captureFlow(app, 'model-presets-menu');
 		await opusMax.click();
 		await expect(models).toBeHidden();
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(effort).toHaveText('Max');
 
 		await startFreshChat(page);
-		await expect(picker).toHaveAccessibleName('Model: Opus');
+		await expect(picker).toHaveAccessibleName('Model: Opus 5.5');
 		await expect(effort).toHaveText('Max');
 
 		await openWorkstream(page, workstreamId);
 		await picker.click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
 		await sonnetLow.hover();
-		await presets.getByRole('button', { name: 'Remove Sonnet · Low' }).click();
+		await presets.getByRole('button', { name: 'Remove Sonnet 5.5 · Low' }).click();
 		await expect(sonnetLow).toHaveCount(0);
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
 		await opusMax.focus();
 		await page.keyboard.press('ArrowDown');
-		await expect(presets.getByRole('button', { name: 'Remove Opus · Max' })).toBeFocused();
-		await page.getByRole('button', { name: 'Remove Opus · Max preset' }).click();
+		await expect(presets.getByRole('button', { name: 'Remove Opus 5.5 · Max' })).toBeFocused();
+		await page.getByRole('button', { name: 'Remove Opus 5.5 · Max preset' }).click();
 		await expect(presets).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Save Opus · Max as a preset' })).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }),
+		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

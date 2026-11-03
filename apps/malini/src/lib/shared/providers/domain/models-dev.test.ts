@@ -79,6 +79,41 @@ describe('models.dev catalog', () => {
 		]);
 	});
 
+	it('keeps the newest model of each family under the name people use', () => {
+		const families = {
+			opencode: {
+				models: {
+					'claude-opus-5-5': model('claude-opus-5-5', {
+						name: 'Claude Opus 5.5',
+						family: 'claude-opus',
+						release_date: '2026-09-22',
+					}),
+					'claude-opus-4-8': model('claude-opus-4-8', {
+						name: 'Claude Opus 4.8',
+						family: 'claude-opus',
+						release_date: '2026-05-01',
+					}),
+					'deepseek-flash': model('deepseek-flash', {
+						name: 'DeepSeek V4.1 Flash 1017',
+						family: 'deepseek-flash',
+						release_date: '2026-10-17',
+					}),
+					'deepseek-v4-flash': model('deepseek-v4-flash', {
+						name: 'DeepSeek V4 Flash',
+						family: 'deepseek-flash',
+						release_date: '2026-06-01',
+					}),
+				},
+			},
+		};
+		expect(
+			modelsDevModels(families, 'opencode').map(({ id, label, family }) => ({ id, label, family })),
+		).toEqual([
+			{ id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash', family: 'deepseek-flash' },
+			{ id: 'claude-opus-5-5', label: 'Opus 5.5', family: 'claude-opus' },
+		]);
+	});
+
 	it('reads nothing from a provider it does not list or a catalog it cannot read', () => {
 		expect(modelsDevModels(catalog, 'deepseek')).toEqual([]);
 		expect(modelsDevModels(null, 'opencode')).toEqual([]);

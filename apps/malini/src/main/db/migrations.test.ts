@@ -174,9 +174,10 @@ describe('migrate', () => {
 			),
 		).toContainEqual({
 			id: 'claude-opus-5-5',
-			label: 'Claude Opus 5.5',
+			label: 'Opus 5.5',
 			description: 'Text and images, 1M context',
 			efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+			family: 'claude-opus',
 		});
 		expect(
 			JSON.parse(
@@ -185,16 +186,18 @@ describe('migrate', () => {
 			),
 		).toEqual([
 			{
-				id: 'deepseek-v4-pro',
-				label: 'DeepSeek V4 Pro',
-				description: 'Text only, best for complex work',
+				id: 'deepseek-flash',
+				label: 'DeepSeek V4.1 Flash',
+				description: 'Text and images, 1M context',
 				efforts: ['low', 'high', 'max'],
+				family: 'deepseek-flash',
 			},
 			{
-				id: 'deepseek-flash',
-				label: 'DeepSeek V4 Flash',
-				description: 'Text and images, faster',
+				id: 'deepseek-v4-pro',
+				label: 'DeepSeek V4 Pro',
+				description: 'Text only, 1M context',
 				efforts: ['low', 'high', 'max'],
+				family: 'deepseek-thinking',
 			},
 		]);
 		for (const table of ['agent_sessions', 'job_definitions', 'job_setups', 'job_experiments']) {

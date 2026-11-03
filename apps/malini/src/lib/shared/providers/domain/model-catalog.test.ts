@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
 	catalogModelLabel,
 	effortsForModel,
-	filterPickerModels,
-	modelDescription,
+	filterPickerRows,
 	modelLabel,
 	normalizeReasoningEffort,
-	pickerEntries,
-	pickerModels,
+	pickerRows,
+	rowRunner,
+	selectionLabel,
+	type AgentModelInfo,
 } from './model-catalog';
 import type { ProviderGroup } from './provider';
 
@@ -15,20 +16,48 @@ const catalog = [
 	{ id: 'haiku', label: 'Haiku', description: 'Fastest', efforts: [] },
 	{ id: 'sonnet', label: 'Sonnet', description: 'Routine', efforts: ['low', 'high'] },
 	{ id: 'opus[1m]', label: 'Opus', description: 'Opus with 1M context', efforts: ['low', 'max'] },
-] as const satisfies Parameters<typeof pickerModels>[0];
+] as const satisfies readonly AgentModelInfo[];
+
+function model(id: string, label = id, family?: string): AgentModelInfo {
+	return {
+		id,
+		label,
+		description: `${label} from the provider`,
+		efforts: [],
+		...(family ? { family } : {}),
+	};
+}
+
+function group(
+	id: string,
+	ready: boolean,
+	models: AgentModelInfo[],
+	kind: ProviderGroup['kind'] = 'anthropic',
+): ProviderGroup {
+	return { id, name: id.toUpperCase(), kind, baseUrl: null, ready, message: '', models };
+}
+
+const groups = [
+	group(
+		'claude',
+		true,
+		[model('opus', 'Opus 4.8'), model('opus[1m]'), model('haiku', 'Haiku 5.5')],
+		'claude',
+	),
+	group('deepseek', true, [model('deepseek-flash', 'DeepSeek V4.1 Flash', 'deepseek-flash')]),
+	group('opencode', false, [
+		model('gpt-6.1-sol', 'GPT-6.1 Sol', 'gpt-sol'),
+		model('claude-fable-5-1', 'Fable 5.1', 'claude-fable'),
+		model('claude-opus-5-5', 'Opus 5.5', 'claude-opus'),
+		model('deepseek-v4.1-flash', 'DeepSeek V4.1 Flash', 'deepseek-flash'),
+		model('gpt-6-sol', 'GPT-6 Sol', 'gpt-sol'),
+	]),
+];
+
+const shape = (rows: ReturnType<typeof pickerRows>) =>
+	rows.map((row) => `${row.label}: ${row.runners.map((runner) => runner.group.id).join(' ')}`);
 
 describe('Claude Code model catalog', () => {
-	it("describes a model by its family in Malini's words, and keeps another model's own", () => {
-		const copyFor = (id: string, description = 'From the provider') =>
-			modelDescription({ id, label: id, description, efforts: [] });
-		expect(copyFor('opus')).toBe('Does the real work. Usually right');
-		expect(copyFor('opus[1m]')).toBe('Does the real work. Usually right');
-		expect(copyFor('claude-haiku-5-5')).toBe("Fast. Don't ask it to ponder");
-		expect(copyFor('deepseek-flash')).toBe('Quick, and it can see');
-		expect(copyFor('kimi-k3')).toBe('From the provider');
-		expect(copyFor('kimi-k3', '')).toBe('');
-	});
-
 	it('names aliases and full model ids the way people say them', () => {
 		expect(modelLabel('opus[1m]')).toBe('Opus 1M');
 		expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5');
@@ -42,20 +71,6 @@ describe('Claude Code model catalog', () => {
 		).toBe('Opus 5');
 	});
 
-	it('lists models by family and keeps a chat model the catalog no longer reports', () => {
-		expect(pickerModels(catalog, 'sonnet').map((model) => model.id)).toEqual([
-			'opus[1m]',
-			'sonnet',
-			'haiku',
-		]);
-		expect(pickerModels(catalog, 'claude-sonnet-4-6').map((model) => model.label)).toEqual([
-			'Opus',
-			'Sonnet',
-			'Sonnet 4.6',
-			'Haiku',
-		]);
-	});
-
 	it('offers only the efforts a model supports and falls back to the nearest one', () => {
 		expect(effortsForModel(catalog, 'haiku')).toEqual([]);
 		expect(effortsForModel(catalog, 'unknown')).toContain('max');
@@ -63,64 +78,74 @@ describe('Claude Code model catalog', () => {
 		expect(normalizeReasoningEffort(['low', 'max'], 'medium')).toBe('max');
 		expect(normalizeReasoningEffort([], 'medium')).toBe('medium');
 	});
+});
 
-	it('filters picker rows by every word across model name, id and provider', () => {
-		const rows = [
-			{ provider: 'claude', providerName: 'Claude', model: catalog[1] },
-			{
-				provider: 'opencode',
-				providerName: 'OpenCode',
-				model: { id: 'glm-5.3', label: 'GLM-5.3', description: '', efforts: [] },
-			},
-			{
-				provider: 'deepseek',
-				providerName: 'DeepSeek',
-				model: { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', description: '', efforts: [] },
-			},
-		];
-		expect(filterPickerModels(rows, '  ')).toBe(rows);
-		expect(filterPickerModels(rows, 'GLM').map((row) => row.model.id)).toEqual(['glm-5.3']);
-		expect(filterPickerModels(rows, 'opencode 5.3').map((row) => row.model.id)).toEqual([
-			'glm-5.3',
+describe('model picker rows', () => {
+	const selection = { provider: 'claude', model: 'opus' };
+
+	it('lists each model family once, with every provider that runs it, Claude families first', () => {
+		expect(shape(pickerRows(groups, selection))).toEqual([
+			'Opus 5.5: claude opencode',
+			'Fable 5.1: opencode',
+			'Haiku 5.5: claude',
+			'DeepSeek V4.1 Flash: deepseek opencode',
+			'GPT-6.1 Sol: opencode',
 		]);
-		expect(filterPickerModels(rows, 'deepseek pro').map((row) => row.provider)).toEqual([
-			'deepseek',
-		]);
-		expect(filterPickerModels(rows, 'kimi')).toEqual([]);
 	});
 
-	it('folds each provider without a key into one row until it is opened or searched', () => {
-		const group = (id: string, kind: ProviderGroup['kind'], ready: boolean, ids: string[]) => ({
-			id,
-			name: id,
-			kind,
-			baseUrl: null,
-			ready,
-			message: '',
-			models: ids.map((model) => ({ id: model, label: model, description: '', efforts: [] })),
-		});
-		const groups = [
-			group('claude', 'claude', false, ['opus']),
-			group('deepseek', 'anthropic', true, ['deepseek-v4-pro']),
-			group('opencode', 'anthropic', false, ['glm-5.3', 'kimi-k3']),
-		];
-		const shape = (entries: ReturnType<typeof pickerEntries>) =>
-			entries.map((entry) =>
-				entry.kind === 'model' ? entry.row.model.id : `${entry.provider}:${entry.count}`,
-			);
-		const selection = { provider: 'claude', model: 'opus' };
-		expect(shape(pickerEntries(groups, selection, '', new Set()))).toEqual([
-			'opus',
-			'deepseek-v4-pro',
-			'opencode:2',
+	it("describes a family in Malini's words and keeps another model's own", () => {
+		const lines = pickerRows(groups, selection).map((row) => row.description);
+		expect(lines).toEqual([
+			'Does the real work. Usually right',
+			'For problems that fight back',
+			"Fast. Don't ask it to ponder",
+			'Quick, and it can see',
+			'GPT-6.1 Sol from the provider',
 		]);
-		expect(shape(pickerEntries(groups, selection, '', new Set(['opencode'])))).toEqual([
-			'opus',
-			'deepseek-v4-pro',
-			'opencode:2',
-			'glm-5.3',
-			'kimi-k3',
+	});
+
+	it('keeps a selection the list no longer shows right after its family', () => {
+		const older = { provider: 'opencode', model: 'gpt-6-sol' };
+		expect(shape(pickerRows(groups, older)).slice(4)).toEqual([
+			'GPT-6.1 Sol: opencode',
+			'GPT-6 Sol: opencode',
 		]);
-		expect(shape(pickerEntries(groups, selection, 'kimi', new Set()))).toEqual(['kimi-k3']);
+		expect(shape(pickerRows(groups, { provider: 'gone', model: 'claude-opus-4-1' })).at(-1)).toBe(
+			'Opus 4.1: gone',
+		);
+	});
+
+	it('runs a row on the selected provider, else the first ready one, else the first', () => {
+		const rows = pickerRows(groups, selection);
+		const ready = (runner: { group: ProviderGroup }) => runner.group.ready;
+		const runnerOf = (label: string, current = selection) => {
+			const row = rows.find((candidate) => candidate.label === label);
+			return row ? rowRunner(row, current, ready).group.id : null;
+		};
+		expect(runnerOf('Opus 5.5')).toBe('claude');
+		expect(runnerOf('Opus 5.5', { provider: 'opencode', model: 'claude-opus-5-5' })).toBe(
+			'opencode',
+		);
+		expect(runnerOf('DeepSeek V4.1 Flash')).toBe('deepseek');
+		expect(runnerOf('GPT-6.1 Sol')).toBe('opencode');
+	});
+
+	it('names the selection by its row, the same for every provider that runs it', () => {
+		expect(selectionLabel(groups, selection)).toBe('Opus 5.5');
+		expect(selectionLabel(groups, { provider: 'opencode', model: 'claude-opus-5-5' })).toBe(
+			'Opus 5.5',
+		);
+		expect(selectionLabel(groups, { provider: 'claude', model: 'opus[1m]' })).toBe('Opus 1M');
+	});
+
+	it('filters rows by every word across model name, id and provider', () => {
+		const rows = pickerRows(groups, selection);
+		expect(filterPickerRows(rows, '  ')).toBe(rows);
+		expect(shape(filterPickerRows(rows, 'sol'))).toEqual(['GPT-6.1 Sol: opencode']);
+		expect(shape(filterPickerRows(rows, 'deepseek opencode'))).toEqual([
+			'DeepSeek V4.1 Flash: deepseek opencode',
+		]);
+		expect(shape(filterPickerRows(rows, 'claude haiku'))).toEqual(['Haiku 5.5: claude']);
+		expect(filterPickerRows(rows, 'kimi')).toEqual([]);
 	});
 });
