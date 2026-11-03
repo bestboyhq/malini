@@ -23,7 +23,7 @@
 
 <span
 	class={[
-		'inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-[650]',
+		'inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium',
 		variantClass[variant],
 		className,
 	]}
