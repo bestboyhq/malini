@@ -1,7 +1,6 @@
 import {
 	BRIDGE_INTERRUPTED_ERROR,
-	CONTINUE_AFTER_PAUSE_PROMPT,
-	CONTINUE_AFTER_STOP_PROMPT,
+	continuationCause,
 	ORPHAN_INTERRUPTED_ERROR,
 } from '$contract/agent-state-machine';
 import type { WorkstreamReportMedia } from '$contract/deliveries';
@@ -70,7 +69,6 @@ type Tool = Extract<RenderItem, { kind: 'tool' }>;
 type Approval = Extract<RenderItem, { kind: 'approval' }>;
 
 const MALINI_TOOL = 'mcp__malini__';
-const CONTINUATIONS = new Set([CONTINUE_AFTER_PAUSE_PROMPT, CONTINUE_AFTER_STOP_PROMPT]);
 const SILENT_TOOLS = new Set(['decisions_ask', 'decisions_answer']);
 const CLOSED_ERRORS = new Set([ORPHAN_INTERRUPTED_ERROR, BRIDGE_INTERRUPTED_ERROR]);
 const LEGACY_WAKE = 'Malini woke you';
@@ -179,7 +177,7 @@ function promptEntry(item: Extract<RenderItem, { kind: 'user' }>, current: boole
 	}
 	if (item.decisions && item.decisions.length > 0) return null;
 	const text = item.text.trim();
-	if (text.length === 0 || CONTINUATIONS.has(text)) return null;
+	if (text.length === 0 || continuationCause(text) !== null) return null;
 	if (text.startsWith(REPORTS_PREAMBLE) || text.startsWith(LEGACY_WAKE)) {
 		const reports = legacyReports(item.key, text, item.from ?? null);
 		if (reports.length > 0)

@@ -101,7 +101,7 @@ Every event channel has one description and the `facts` a job sees of it in `$co
 corepack enable pnpm           # once; package.json pins pnpm 12 and pnpm 10 cannot self-switch to it
 pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
-pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge once no agent is mid-turn
+pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge as it lands; Resume continues the turns a restart cuts
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed
@@ -211,5 +211,7 @@ Design tokens only, from `@malini/hyper-ui` (`$hyper-ui` alias): import the fold
 Icons are `<Icon name="…" />` from `$hyper-ui/icons`; a glyph the pack lacks is drawn with the `draw-icon` skill.
 Every domain has the layers `domain` / `application` / `infrastructure` / `presentation` in the renderer and `platform` in the main process.
 US English everywhere, including identifiers.
+"Our brand voice" is Bestboy's, and every line of copy a user reads, in the app or on the site, speaks it (ADR 0154).
+Before you write, rewrite or judge any, read and follow the `deadpan-copy` skill in the private `bestboyhq/brand`: `gh api repos/bestboyhq/brand/contents/skills/deadpan-copy/SKILL.md --jq .content | base64 -d`.
 Tabs, single quotes, 100 columns (`pnpm format`).
 Never edit a `*.generated.ts` file; edit its source and rerun the generator.
