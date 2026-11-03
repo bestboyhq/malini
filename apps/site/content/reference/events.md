@@ -1396,6 +1396,8 @@ type BestboyProfile = Readonly<{
 	url: string | null;
 }>;
 
+type BestboyTerms = Readonly<{ date: string; termsUrl: string; privacyUrl: string }>;
+
 type StatsPublishing = 'off' | 'on' | 'removing';
 
 type StatsUpload =
@@ -1408,6 +1410,7 @@ type StatsUpload =
 type ProfileState = Readonly<{
 	account: BestboyAccount | null;
 	profile: BestboyProfile | null;
+	unacceptedTerms: BestboyTerms | null;
 	signingIn: boolean;
 	signInNeeded: boolean;
 	signInProblem: string | null;

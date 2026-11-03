@@ -1,6 +1,6 @@
 import type { UsageDataState } from '$contract/system';
 import { invoke } from '$shared/port/invoke';
-import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '$lib/app/domain/usage-data';
+import { USAGE_DATA_SETTING, usageDataShared } from '$lib/app/domain/usage-data';
 
 class UsageDataService {
 	async read(): Promise<boolean> {
@@ -13,7 +13,7 @@ class UsageDataService {
 	}
 
 	write(shared: boolean): Promise<void> {
-		return invoke('app.set-setting', { key: USAGE_DATA_SETTING, value: usageDataSetting(shared) });
+		return invoke('app.share-usage-data', { shared });
 	}
 }
 

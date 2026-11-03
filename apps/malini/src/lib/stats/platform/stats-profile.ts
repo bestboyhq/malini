@@ -28,10 +28,16 @@ const PICKS_SETTLE_MS = 3_000;
 const FIRST_RETRY_MS = 60_000;
 const LAST_RETRY_MS = 60 * 60_000;
 const ACCOUNT_FRESH_MS = 60_000;
+const USAGE_ACCOUNT_FRESH_MS = 60 * 60_000;
 const MAX_PICKS = 10;
 const REPOSITORY_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/u;
 
 type PendingSignIn = Readonly<{ verifier: string; state: string; timer: NodeJS.Timeout }>;
+
+export type UsageAccount =
+	| Readonly<{ state: 'anonymous' }>
+	| Readonly<{ state: 'old-terms' }>
+	| Readonly<{ state: 'accepted'; userId: string }>;
 
 export class StatsProfile {
 	readonly #deps: StatsProfileDeps;
@@ -41,6 +47,7 @@ export class StatsProfile {
 	#signInProblem: string | null = null;
 	#login: string | null = null;
 	#accountCheckedAt = 0;
+	#accountCheck: Promise<void> = Promise.resolve();
 	#queue: Promise<unknown> = Promise.resolve();
 	#retryMs = FIRST_RETRY_MS;
 	#retry: NodeJS.Timeout | null = null;
@@ -74,10 +81,14 @@ export class StatsProfile {
 	}
 
 	state(): ProfileState {
-		const { token, account, profile, publishing, picked } = this.#saved;
+		const { token, account, profile, unacceptedTerms, publishing, picked } = this.#saved;
 		return {
 			account: token ? account : null,
 			profile,
+			unacceptedTerms:
+				token && unacceptedTerms && publishing !== 'on'
+					? this.#deps.bestboy.termsLinks(unacceptedTerms)
+					: null,
 			signingIn: this.#pending !== null,
 			signInNeeded: publishing !== 'off' && !token,
 			signInProblem: this.#signInProblem,
@@ -119,6 +130,15 @@ export class StatsProfile {
 		return this.#emit();
 	}
 
+	async usageAccount(): Promise<UsageAccount> {
+		// ponytail: up to an hour of counts carry the account after new terms; check /api/me per count.
+		if (await this.#checkAccount(USAGE_ACCOUNT_FRESH_MS)) this.#emit();
+		const { token, unacceptedTerms, acceptedUserId } = this.#saved;
+		if (!token) return { state: 'anonymous' };
+		if (unacceptedTerms) return { state: 'old-terms' };
+		return acceptedUserId ? { state: 'accepted', userId: acceptedUserId } : { state: 'anonymous' };
+	}
+
 	session(): BestboySession | null {
 		const { token, profile } = this.#saved;
 		return token ? { token, handle: profile?.handle ?? null } : null;
@@ -158,7 +178,7 @@ export class StatsProfile {
 			const token = await this.#deps.bestboy.token(callback.code, pending.verifier);
 			const me = await this.#deps.bestboy.me(token);
 			this.#accountCheckedAt = Date.now();
-			await this.#save({ ...this.#saved, token, account: me.account, profile: me.profile });
+			await this.#save({ ...this.#saved, token, ...me });
 		} catch (error) {
 			this.#signInProblem = `Malini could not sign you in: ${described(error)}`;
 			this.#emit();
@@ -172,13 +192,22 @@ export class StatsProfile {
 		return this.#serial(async () => {
 			const handle = normalizedHandle(text);
 			const { token } = this.#saved;
+			const terms = this.state().unacceptedTerms?.date;
 			if (!token) return { state: this.state(), problem: 'Sign in to Bestboy first.' };
 			const problem = handleProblem(handle);
 			if (problem) return { state: this.state(), problem };
 			try {
-				const profile = await this.#deps.bestboy.putProfile(token, { handle, public: true });
+				const profile = await this.#deps.bestboy.putProfile(token, {
+					handle,
+					public: true,
+					...(terms ? { terms } : {}),
+				});
 				await this.#save({ ...this.#saved, profile, publishing: 'on', publishedThrough: null });
 				this.#deps.published(profile);
+				if (terms) {
+					this.#accountCheckedAt = 0;
+					void this.#refresh();
+				}
 			} catch (error) {
 				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
 				return { state: this.#emit(), problem: described(error) };
@@ -288,17 +317,27 @@ export class StatsProfile {
 
 	async #refresh(): Promise<void> {
 		this.#login ??= await this.#deps.githubLogin();
-		const { token } = this.#saved;
-		if (token && Date.now() - this.#accountCheckedAt > ACCOUNT_FRESH_MS) {
-			this.#accountCheckedAt = Date.now();
-			try {
-				const me = await this.#deps.bestboy.me(token);
-				await this.#save({ ...this.#saved, account: me.account, profile: me.profile });
-			} catch (error) {
-				if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
-			}
-		}
+		await this.#checkAccount(ACCOUNT_FRESH_MS);
 		this.#emit();
+	}
+
+	async #checkAccount(freshMs: number): Promise<boolean> {
+		const { token } = this.#saved;
+		const stale = token !== '' && Date.now() - this.#accountCheckedAt > freshMs;
+		if (stale) {
+			this.#accountCheckedAt = Date.now();
+			this.#accountCheck = this.#readAccount(token);
+		}
+		await this.#accountCheck;
+		return stale;
+	}
+
+	async #readAccount(token: string): Promise<void> {
+		try {
+			await this.#save({ ...this.#saved, ...(await this.#deps.bestboy.me(token)) });
+		} catch (error) {
+			if (error instanceof BestboyError && error.signedOut) await this.#forgetToken();
+		}
 	}
 
 	async #openSignIn(url: string, state: string): Promise<void> {
@@ -313,7 +352,7 @@ export class StatsProfile {
 	}
 
 	async #forgetToken(): Promise<void> {
-		await this.#save({ ...this.#saved, token: '', account: null });
+		await this.#save({ ...this.#saved, token: '', account: null, acceptedUserId: null });
 	}
 
 	#clearPending(): void {

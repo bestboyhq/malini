@@ -22,6 +22,7 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 - **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
+  The step also says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
 - **Your jobs, introduced.** The built-in jobs are one slash away from any chat.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.

@@ -36,13 +36,17 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 ## Where your code goes
 
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
+Malini makes four calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
+While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
+Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.
 Each count carries the option you picked in setup for where you heard about Malini, if you answered, never the words you typed for another place.
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
 Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
 It never contains your code, what your prompts say, paths, keys, or error messages, and Logdash stores no IP address.
-Turn it off under Settings, Privacy, Share usage data, or set `DO_NOT_TRACK=1` in your shell.
+The first setup step says so.
+Turn it off under Settings, Privacy, **Share usage stats**, or set `DO_NOT_TRACK=1` in your shell.
+Turning the switch off sends one last count that says so, with no account and nothing else, so we know how many people the numbers leave out; after that, nothing.
 
 ## For agents reading this
 

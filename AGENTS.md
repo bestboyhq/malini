@@ -10,7 +10,8 @@ Its landing page embeds the real renderer, built from `apps/malini/src/renderer/
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
 The app makes four outbound calls of its own (ADR 0129, ADR 0142).
-Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143).
+Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156).
+Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old.
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
 Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.

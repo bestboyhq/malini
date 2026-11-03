@@ -41,10 +41,10 @@
 
 <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3">
 	<div class="min-w-0">
-		<h3 id="usage-data-label" class="text-fg-default text-sm font-medium">Share usage data</h3>
+		<h3 id="usage-data-label" class="text-fg-default text-sm font-medium">Share usage stats</h3>
 		<p class="text-fg-tertiary text-xs">
-			Once a day, Malini sends a few counts, like how many workstreams you started and merged. They
-			show us where work gets stuck and what to fix first.
+			Once a day, Malini sends a few counts, like how many workstreams you started and merged, with
+			your Bestboy account when signed in. Never your code or chats.
 		</p>
 		{#if usage.doNotTrack}
 			<p class="text-fg-default mt-0.5 text-xs">
@@ -80,8 +80,6 @@
 						</dl>
 						<p class="text-fg-tertiary border-surface-50-border mt-2 border-t-[0.5px] pt-2">
 							It also pings when Malini opens or finishes a run, and names the errors it hits.
-							<br />
-							Nothing in it says it's you.
 						</p>
 					{:else}
 						<p class="text-fg-tertiary">Nothing happened yesterday, so nothing went out.</p>

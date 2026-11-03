@@ -12,30 +12,38 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
+import type { UsageAccount } from '$lib/stats/stats.platform';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { setSetting } from './settings.repository';
 import { createTestContext } from './test-support';
-import { startUsageData, type UsageActivity } from './usage-data';
+import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
 
 const NOW = new Date(2026, 9, 15, 10);
 
 function harness(
 	context: MainContext = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') }),
+	account: () => UsageAccount = () => ({ state: 'anonymous' }),
 ) {
 	const activity: UsageActivity[] = [];
 	const reports: UsageReport[] = [];
 	const tags: Readonly<Record<string, string>>[] = [];
+	const accounts: (string | null)[] = [];
 	const errors: string[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
 	let goneProcess: (process: string, reason: string, exitCode: number) => void = () => undefined;
-	startUsageData(context, {
+	const usageData = startUsageData(context, {
+		account: () => Promise.resolve(account()),
 		sink: {
-			activity: (name, props) => {
+			activity: (name, props, carried) => {
 				activity.push(name);
 				tags.push(props);
+				accounts.push(carried);
 			},
-			report: (report) => reports.push(report),
+			report: (report, carried) => {
+				reports.push(report);
+				accounts.push(carried);
+			},
 			error: (message) => errors.push(message),
 			shutdown: () => Promise.resolve(),
 		},
@@ -54,14 +62,20 @@ function harness(
 	});
 	return {
 		context,
+		share: (shared: boolean) => usageData.share(shared),
 		activity,
 		reports,
 		tags,
+		accounts,
 		errors,
 		start: () => context.events.emit(APP_STARTED_CHANNEL, { version: '1.0.0' }),
 		throwUncaught: (error: unknown) => throwUncaught(error),
 		goneProcess: (process: string, reason: string) => goneProcess(process, reason, 9),
 	};
+}
+
+function settled(): Promise<void> {
+	return new Promise((resolve) => setImmediate(resolve));
 }
 
 function finishRun(context: MainContext, type: string): void {
@@ -89,24 +103,29 @@ async function failCommand(context: MainContext, error: Error): Promise<void> {
 }
 
 describe('usage data', () => {
-	it('reports the app as active once per launch', () => {
-		expect(harness().activity).toEqual(['app_active']);
+	it('reports the app as active once per launch', async () => {
+		const { activity } = harness();
+		await settled();
+		expect(activity).toEqual(['app_active']);
 	});
 
-	it('counts every run that finishes, and nothing else an agent does', () => {
+	it('counts every run that finishes, and nothing else an agent does', async () => {
 		const { context, activity } = harness();
 		finishRun(context, 'run.started');
 		finishRun(context, 'tool.completed');
 		finishRun(context, 'run.completed');
 		finishRun(context, 'run.failed');
+		await settled();
 		expect(activity).toEqual(['app_active', 'run_finished', 'run_finished']);
 	});
 
-	it('tags each count with where you heard about Malini, and counts a published profile', () => {
+	it('tags each count with where you heard about Malini, and counts a published profile', async () => {
 		const { context, activity, tags } = harness();
+		await settled();
 		setSetting(context.db, HEARD_ABOUT_SETTING, 'hacker-news');
 		finishRun(context, 'run.completed');
 		publishProfile(context);
+		await settled();
 		expect(activity).toEqual(['app_active', 'run_finished', 'profile_published']);
 		expect(tags).toEqual([{}, { heard_about: 'hacker-news' }, { heard_about: 'hacker-news' }]);
 	});
@@ -118,6 +137,7 @@ describe('usage data', () => {
 		});
 		await failCommand(context, error);
 		await context.commands.handle({ command: 'repositories.list-workstreams', args: undefined });
+		await settled();
 		expect(errors).toEqual(['repositories.list-workstreams failed: Error ENOENT · malini 1.0.0']);
 	});
 
@@ -127,20 +147,22 @@ describe('usage data', () => {
 			context,
 			Object.assign(new Error('sign in'), { name: 'GhError', kind: 'auth-required' }),
 		);
+		await settled();
 		expect(errors).toEqual([]);
 	});
 
-	it('logs crashes and uncaught exceptions', () => {
+	it('logs crashes and uncaught exceptions', async () => {
 		const { errors, throwUncaught, goneProcess } = harness();
 		throwUncaught(new TypeError('x is undefined in /Users/me'));
 		goneProcess('renderer', 'oom');
+		await settled();
 		expect(errors).toEqual([
 			'uncaught exception: TypeError · malini 1.0.0',
 			'renderer process gone: oom, exit 9 · malini 1.0.0',
 		]);
 	});
 
-	it("reports yesterday's loop once a day: workstreams started, prompts, merges, drops, and a typical merge", () => {
+	it("reports yesterday's loop once a day: workstreams started, prompts, merges, drops, and a typical merge", async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		seedLoop(context.db);
 		const first = harness(context);
@@ -148,6 +170,7 @@ describe('usage data', () => {
 		first.start();
 		const second = harness(context);
 		second.start();
+		await settled();
 		expect(first.reports).toEqual([
 			{
 				day: '2026-10-14',
@@ -163,13 +186,82 @@ describe('usage data', () => {
 		expect(second.reports).toEqual([]);
 	});
 
-	it('reports nothing for a day nothing happened', () => {
+	it('reports nothing for a day nothing happened', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		seedProject(context.db);
 		seedWorkstream(context.db, 'ws-old', { createdAt: at(1, 9) });
 		const { reports, start } = harness(context);
 		start();
+		await settled();
 		expect(reports).toEqual([]);
+	});
+
+	it('carries the account only on current terms, sends no id signed out, and nothing at all on old terms', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		seedLoop(context.db);
+		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
+		let asked = 0;
+		const { activity, reports, accounts, errors, start, throwUncaught } = harness(context, () => {
+			asked += 1;
+			return lent;
+		});
+		start();
+		await settled();
+		expect(activity).toEqual(['app_active']);
+		expect(reports).toHaveLength(1);
+		expect(accounts).toEqual(['u1', 'u1']);
+
+		lent = { state: 'anonymous' };
+		finishRun(context, 'run.completed');
+		await settled();
+		expect(accounts).toEqual(['u1', 'u1', null]);
+
+		lent = { state: 'old-terms' };
+		finishRun(context, 'run.completed');
+		publishProfile(context);
+		throwUncaught(new TypeError('x is undefined'));
+		await settled();
+		expect(activity).toEqual(['app_active', 'run_finished']);
+		expect(accounts).toEqual(['u1', 'u1', null]);
+		expect(errors).toEqual([]);
+
+		setSetting(context.db, USAGE_DATA_SETTING, 'off');
+		lent = { state: 'accepted', userId: 'u1' };
+		const askedBefore = asked;
+		finishRun(context, 'run.completed');
+		publishProfile(context);
+		await settled();
+		expect(accounts).toEqual(['u1', 'u1', null]);
+		expect(asked).toBe(askedBefore);
+	});
+
+	it('says once that usage stats went off, with no id even on old terms, and nothing after', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
+		const { activity, tags, accounts, share } = harness(context, () => lent);
+		await settled();
+		lent = { state: 'old-terms' };
+		share(false);
+		share(false);
+		finishRun(context, 'run.completed');
+		await settled();
+		expect(activity).toEqual(['app_active', 'stats_off']);
+		expect(tags.at(-1)).toEqual({});
+		expect(accounts).toEqual(['u1', null]);
+
+		lent = { state: 'accepted', userId: 'u1' };
+		share(true);
+		await settled();
+		expect(activity).toEqual(['app_active', 'stats_off']);
+		finishRun(context, 'run.completed');
+		await settled();
+		expect(activity).toEqual(['app_active', 'stats_off', 'run_finished']);
+	});
+
+	it('hashes the account with the site the way Logdash joins it to the web', () => {
+		expect(logdashUserId('malini-site', 'u1')).toBe(
+			'02dbf6f2d7d1ac7ff4622a8900e79cd4b772cba160643291bc087b175765173d',
+		);
 	});
 
 	it('sends nothing once the user turns usage data off', async () => {
@@ -181,6 +273,7 @@ describe('usage data', () => {
 		finishRun(context, 'run.completed');
 		publishProfile(context);
 		await failCommand(context, new Error('disk gone'));
+		await settled();
 		expect([...activity, ...reports, ...errors]).toEqual([]);
 	});
 });
