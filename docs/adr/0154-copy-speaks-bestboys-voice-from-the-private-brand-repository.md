@@ -13,8 +13,9 @@ Offered a place beside `docs/design.md` in `bestboyhq/platform`, the user asked 
 ## Decision
 
 - Bestboy's voice is `voice.md` in the private `bestboyhq/brand`: where it applies, its rules, the canon of lines the user picked, and the log of lines they turned down, in their words.
-- `AGENTS.md` points every agent that writes or changes copy a user reads at it, read with `gh api repos/bestboyhq/brand/contents/voice.md --jq .content | base64 -d`.
-- The `deadpan-copy` skill reads it on every run and keeps no copy; a round of copy ends with its pick and its turned-down lines in a pull request to `bestboyhq/brand`.
+- The `deadpan-copy` skill, the steps that apply the voice, is `skills/deadpan-copy/SKILL.md` beside it; a round of copy ends with its pick and its turned-down lines in a pull request to `bestboyhq/brand`.
+- `AGENTS.md` says "our brand voice" is Bestboy's, and points every agent that writes, rewrites or judges copy a user reads at the skill, read with `gh api repos/bestboyhq/brand/contents/skills/deadpan-copy/SKILL.md --jq .content | base64 -d`; the skill reads `voice.md` the same way, so no checkout or machine keeps a copy.
+- Neither is global: the user's instructions and skills for every repository leave them out, since "I'm only talking about this repo" and a global skill is "keeping things messy".
 - This repository quotes shipped lines and names the rule they follow; the rules and the log stay in `bestboyhq/brand`, so 0153 names its rounds instead of quoting them.
 - `docs/design.md` stays in `bestboyhq/platform` (0042).
 
