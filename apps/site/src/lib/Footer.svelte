@@ -39,7 +39,7 @@
 	{/if}
 	<div class="line">
 		<p class="tiny">
-			<span>© 2026 Szymon Grącki and Malini contributors</span>
+			<span>© 2026 Bestboy and Malini contributors</span>
 			{#if sitemap}<span>Claude and Claude Code are trademarks of Anthropic, PBC.</span>{/if}
 		</p>
 		<div class="end tips">
