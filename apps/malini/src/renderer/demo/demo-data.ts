@@ -274,97 +274,18 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 	},
 ];
 
-export const LEAD_PROMPT =
-	'I don’t like our OG images. Show me directions we could take them, across all our sites.';
+export const HERO_ID = 'ws-tony-hero';
 
-export const LEAD_ID = 'ws-og-lead';
+export const HERO_THOUGHT =
+	'The pill hears every word and shows none of them. I will read Pill.svelte, put what it heard above it, then capture the hero before and after.';
 
 export type StartedWorkstream = DemoWorkstream &
 	Readonly<{ workMs: number; thought: string; opens?: string }>;
 
-const startedRun = (
-	id: string,
-	product: string,
-	tools: readonly DemoTool[],
-	report: string,
-): DemoRun => ({
-	id: `run-${id}-1`,
-	prompt: `Prototype three Open Graph directions for ${product}: icon, product shot and type. Render each at 1200 by 630 under .context/ and report them as variants.`,
-	from: LEAD_ID,
-	startedAt: at('10:44'),
-	tools,
-	report,
-	usage: { inputTokens: 28_400, outputTokens: 2_210 },
-});
-
-const directions = (prefix: string, product: string): string =>
-	[
-		`![Variant A: Icon - the ${product} icon on the brand horizon](.context/${prefix}og-icon.webp)`,
-		`![Variant B: Product - the real app beside the headline](.context/${prefix}og-product.webp)`,
-		`![Variant C: Type - one loud line, the family of icons below](.context/${prefix}og-type.webp)`,
-	].join('\n');
-
-const prototypeTools = (site: string, icon: string): readonly DemoTool[] => [
-	{ name: 'Read', input: { file_path: `${site}/og/+page.svelte` } },
-	{ name: 'Read', input: { file_path: icon } },
-	{ name: 'Write', input: { file_path: '.context/og/directions.html', content: '' } },
-	{
-		name: 'Bash',
-		input: {
-			command: 'npx playwright screenshot .context/og/directions.html',
-			description: 'Render the three directions',
-		},
-		output: 'Saved 3 screenshots',
-	},
-];
-
-const prototype = (
-	id: string,
-	product: string,
-	site: string,
-	workMs: number,
-): StartedWorkstream => {
-	const repository = product.toLowerCase();
-	return {
-		id,
-		projectId: repository,
-		name: `OG directions for ${product}`,
-		branch: `malini/og-directions-for-${repository}`,
-		activeAt: at('10:45'),
-		files: [],
-		tree: TREES[repository] ?? [],
-		ship: null,
-		workMs,
-		thought: `Three directions for ${product}: its icon on the brand horizon, the real app beside the headline, and one loud line of type. I will read the current /og route first so each one keeps what already works.`,
-		runs: [
-			startedRun(
-				id,
-				product,
-				prototypeTools(
-					site,
-					repository === 'malini' ? 'apps/malini/build/icon.png' : 'build/icon.png',
-				),
-				[
-					directions(`${repository}-`, product),
-					'',
-					`- Changed: three prototypes under \`.context/og/\`, nothing in \`${site.split('/src')[0]}\` yet`,
-					'',
-					`Outcome: Three ${product} OG directions are ready to pick`,
-					'Needs: pick the direction to build into `/og`',
-				].join('\n'),
-			),
-		],
-	};
-};
-
-export const STARTED: readonly StartedWorkstream[] = [
-	prototype('ws-og-malini', 'Malini', 'apps/site/src/routes', 9_200),
-	prototype('ws-og-grip', 'Grip', 'site/src/routes', 10_800),
-	prototype('ws-og-tony', 'Tony', 'site/src/routes', 10_200),
-];
-
-export const LEAD_REPORT = [
-	directions('malini-', 'Malini'),
+const LEAD_REPORT = [
+	'![Variant A: Icon - the Malini icon on the brand horizon](.context/malini-og-icon.webp)',
+	'![Variant B: Product - the real app beside the headline](.context/malini-og-product.webp)',
+	'![Variant C: Type - one loud line, the family of icons below](.context/malini-og-type.webp)',
 	'',
 	'- Changed: nothing on any `main`, the prototypes live in their workstreams',
 	'- Verified: malini, grip and tony each rendered all three at 1200 by 630',
@@ -373,8 +294,8 @@ export const LEAD_REPORT = [
 	'Needs: pick the direction for malini, grip and tony',
 ].join('\n');
 
-export const LEAD_WORKSTREAM: DemoWorkstream = {
-	id: LEAD_ID,
+const LEAD_WORKSTREAM: DemoWorkstream = {
+	id: 'ws-og-lead',
 	projectId: 'malini-lead-space',
 	name: 'OG image directions',
 	branch: 'main',
@@ -386,7 +307,8 @@ export const LEAD_WORKSTREAM: DemoWorkstream = {
 	runs: [
 		{
 			id: 'run-og-lead-1',
-			prompt: LEAD_PROMPT,
+			prompt:
+				'I don’t like our OG images. Show me directions we could take them, across all our sites.',
 			startedAt: at('10:44'),
 			tools: [],
 			report: LEAD_REPORT,
@@ -421,7 +343,7 @@ export function workstreamDto(workstream: DemoWorkstream): WorkstreamDto {
 export const sessionId = (workstreamId: string): string => `session-${workstreamId}`;
 
 export function reportedWorkstream(id: string): DemoWorkstream | undefined {
-	return [...WORKSTREAMS, ...STARTED, LEAD_WORKSTREAM].find((workstream) => workstream.id === id);
+	return [...WORKSTREAMS, LEAD_WORKSTREAM].find((workstream) => workstream.id === id);
 }
 
 function toolInput(workstreamId: string, tool: DemoTool): Record<string, unknown> {

@@ -1,6 +1,6 @@
 # 0119 - The landing page runs the real renderer on demo data
 
-Status: accepted
+Status: superseded by 0161
 
 ## Context
 
