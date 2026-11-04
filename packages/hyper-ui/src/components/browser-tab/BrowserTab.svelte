@@ -94,6 +94,19 @@
 		return () => observer.disconnect();
 	};
 
+	const REVEAL_IN_STRIP: ScrollIntoViewOptions & Readonly<{ container: 'nearest' }> = {
+		block: 'nearest',
+		inline: 'nearest',
+		container: 'nearest',
+	};
+
+	const revealWhileSelected: Attachment<HTMLElement> = (node) => {
+		if (!selected || surface !== 'panel') return;
+		const observer = new ResizeObserver(() => node.scrollIntoView(REVEAL_IN_STRIP));
+		observer.observe(node);
+		return () => observer.disconnect();
+	};
+
 	const labelWidthClass: Record<BrowserTabSurface, string> = {
 		panel: 'max-w-[13ch]',
 		band: 'max-w-[24ch]',
@@ -189,6 +202,7 @@
 	data-selected={selected}
 	{...rest}
 	{oncontextmenu}
+	{@attach revealWhileSelected}
 	out:collapse|global
 >
 	{#if tooltip}
