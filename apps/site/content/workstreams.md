@@ -168,6 +168,8 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   When your `gh` sign-in lacks the scope, **Allow workflow changes** in the note shows a one-time code and opens GitHub, the same way setup signs you in, and once you approve it every workstream waiting on it pushes again on its own.
   Running `gh auth refresh -s workflow` in a terminal works too; then press **Retry now**.
   When a personal access token or a GitHub App pushes instead, give it the workflow permission on GitHub, then press **Retry now**.
+- **A push without write access waits for you.** When your GitHub account can read a repository but not push to it, GitHub refuses every push, so the note names the account and the repository, such as **`octocat` can't push to acme/app**, and waits for you.
+  Once an owner gives that account write access, press **Retry now**.
 - **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.

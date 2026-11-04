@@ -8,7 +8,7 @@ import {
 import type { ShippingJobBuiltin } from '$contract/jobs';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
-import { describeError, isGhError, isGitError, remoteRefusal, workflowRefusal } from '$main/errors';
+import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
 import { commitLine, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
@@ -563,7 +563,7 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 		saveShip(deps, workstreamId, { step: null, ...NO_SHIP_FAILURE, lastError: detail });
 		return;
 	}
-	const waitsFor = workflowRefusal(error);
+	const waitsFor = waitsForYou(error);
 	saveShip(deps, workstreamId, {
 		lastError: detail,
 		githubSaid: remoteRefusal(error),

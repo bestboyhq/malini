@@ -1005,6 +1005,30 @@ describe('a push GitHub refuses', () => {
 		expect(ship('ws-1')?.failures).toBe(1);
 	});
 
+	it('says the account cannot push to the repository, and waits for you instead of resetting', async () => {
+		seedWorkstream('ws-1');
+		start();
+		finishUserRun('ws-1', 'Commit: Add the Electron recipe', ['docs/electron.md']);
+		pushRefusal = GitError.commandFailed({
+			args: ['push', 'https://github.com/acme/app.git', 'malini/ws-1:refs/heads/malini/ws-1'],
+			exitCode: 128,
+			signal: null,
+			output:
+				"remote: Permission to acme/app.git denied to octocat.\nfatal: unable to access 'https://github.com/acme/app.git/': The requested URL returned error: 403\n",
+		});
+
+		await click('ws-1', 'draft');
+
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+		expect(ship('ws-1')).toMatchObject({
+			phase: 'draft',
+			lastError: "`octocat` can't push to acme/app. Ask its owners for write access, then retry.",
+			nextAttemptAt: null,
+			waitsFor: 'push-access',
+		});
+		expect(platform.failure('ws-1')).toMatchObject({ label: "Couldn't open draft" });
+	});
+
 	it('stops opening the draft on Cancel', async () => {
 		seedWorkstream('ws-1');
 		start(PATIENT);

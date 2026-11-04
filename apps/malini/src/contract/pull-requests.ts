@@ -31,7 +31,7 @@ export type ShipNeedsYou = Readonly<{
 	jobRunId: string | null;
 }>;
 
-export type ShipWaitsFor = 'workflow-scope' | 'workflow-permission';
+export type ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';
 
 export type ShipStateRecord = Readonly<{
 	workstreamId: string;
