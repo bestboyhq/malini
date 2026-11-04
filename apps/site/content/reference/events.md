@@ -536,7 +536,7 @@ type ShipNeedsYou = Readonly<{
 	jobRunId: string | null;
 }>;
 
-type ShipWaitsFor = 'workflow-scope' | 'workflow-permission';
+type ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';
 
 type ShipStateRecord = Readonly<{
 	workstreamId: string;
@@ -657,7 +657,7 @@ type ShipNeedsYou = Readonly<{
 	jobRunId: string | null;
 }>;
 
-type ShipWaitsFor = 'workflow-scope' | 'workflow-permission';
+type ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';
 
 type ShipStateRecord = Readonly<{
 	workstreamId: string;

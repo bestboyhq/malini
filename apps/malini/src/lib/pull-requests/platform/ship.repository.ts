@@ -110,7 +110,7 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 	'github-reconnect',
 	'operation-in-progress',
 ];
-const WAITS: readonly ShipWaitsFor[] = ['workflow-scope', 'workflow-permission'];
+const WAITS: readonly ShipWaitsFor[] = ['workflow-scope', 'workflow-permission', 'push-access'];
 
 const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
 	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,

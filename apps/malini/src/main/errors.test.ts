@@ -7,7 +7,7 @@ import {
 	gitFailureVerdict,
 	isNotFoundError,
 	remoteRefusal,
-	workflowRefusal as workflowRefusalOf,
+	waitsForYou,
 	type GitCommandFailure,
 } from './errors';
 
@@ -19,6 +19,10 @@ const SSH_DNS_FAILURE =
 	'ssh: Could not resolve hostname github.com: nodename nor servname provided, or not known\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n';
 const FORBIDDEN =
 	"remote: Permission to e2e/hutch.git denied to e2e-user.\nfatal: unable to access 'https://github.com/e2e/hutch.git/': The requested URL returned error: 403\n";
+const SSH_FORBIDDEN =
+	'ERROR: Permission to e2e/hutch.git denied to deploy key\nfatal: Could not read from remote repository.\n';
+const TOKEN_FORBIDDEN =
+	"remote: Write access to repository not granted.\nfatal: unable to access 'https://github.com/e2e/hutch.git/': The requested URL returned error: 403\n";
 const UNAUTHORIZED =
 	"remote: Invalid username or token. Password authentication is not supported for Git operations.\nfatal: Authentication failed for 'https://github.com/e2e/hutch.git/'\n";
 const NO_CREDENTIALS =
@@ -93,7 +97,24 @@ describe('gitFailureVerdict', () => {
 	});
 
 	it.each([
-		['a 403', FORBIDDEN],
+		['a 403', FORBIDDEN, "`e2e-user` can't push to e2e/hutch."],
+		['an ssh refusal', SSH_FORBIDDEN, "`deploy key` can't push to e2e/hutch."],
+		[
+			'a token without write access',
+			TOKEN_FORBIDDEN,
+			"This GitHub account can't push to e2e/hutch.",
+		],
+	])(
+		'names who cannot push where for %s, since signing in again changes nothing',
+		(_, stderr, who) => {
+			expect(gitFailureVerdict(stderr)).toEqual({
+				kind: 'push-denied',
+				message: `${who} Ask its owners for write access, then retry.`,
+			});
+		},
+	);
+
+	it.each([
 		['a 401', UNAUTHORIZED],
 		['missing credentials', NO_CREDENTIALS],
 	])('sends the user to sign in to GitHub for %s', (_, stderr) => {
@@ -222,23 +243,25 @@ describe('remoteRefusal', () => {
 	});
 });
 
-describe('workflowRefusal', () => {
+describe('waitsForYou', () => {
 	const refused = (actor: string, without: string): GitError =>
 		GitError.commandFailed(refusedPush(workflowRefusal(actor, without)));
 
 	it('tells a gh sign-in without the workflow scope from a token Malini cannot widen', () => {
-		expect(workflowRefusalOf(refused('OAuth App', 'workflow` scope'))).toBe('workflow-scope');
-		expect(workflowRefusalOf(refused('Personal Access Token', 'workflow` scope'))).toBe(
+		expect(waitsForYou(refused('OAuth App', 'workflow` scope'))).toBe('workflow-scope');
+		expect(waitsForYou(refused('Personal Access Token', 'workflow` scope'))).toBe(
 			'workflow-permission',
 		);
-		expect(workflowRefusalOf(refused('GitHub App', 'workflows` permission'))).toBe(
-			'workflow-permission',
-		);
+		expect(waitsForYou(refused('GitHub App', 'workflows` permission'))).toBe('workflow-permission');
+	});
+
+	it('waits for write access GitHub denied', () => {
+		expect(waitsForYou(GitError.commandFailed(refusedPush(FORBIDDEN)))).toBe('push-access');
 	});
 
 	it('leaves every other failure to the usual retries', () => {
-		expect(workflowRefusalOf(GitError.commandFailed(refusedPush(RULES_REFUSAL)))).toBeNull();
-		expect(workflowRefusalOf(new Error('boom'))).toBeNull();
+		expect(waitsForYou(GitError.commandFailed(refusedPush(RULES_REFUSAL)))).toBeNull();
+		expect(waitsForYou(new Error('boom'))).toBeNull();
 	});
 });
 
