@@ -10,17 +10,16 @@ import { DEMO_PLAY } from './demo-play';
 import {
 	closingEvents,
 	envelopesOf,
-	LEAD_PROMPT,
-	LEAD_WORKSTREAM,
-	LEAD_REPORT,
+	HERO_ID,
+	HERO_THOUGHT,
 	OWNER,
 	openingEvents,
 	PROJECTS,
 	sessionId,
-	STARTED,
 	toolEvents,
 	workstreamDto,
 	WORKSTREAMS,
+	type DemoRun,
 	type DemoWorkstream,
 	type StartedWorkstream,
 } from './demo-data';
@@ -45,31 +44,22 @@ type LeadScript = Readonly<{
 	report: string;
 }>;
 
-const OG_LEAD: LeadScript = {
-	prompt: LEAD_PROMPT,
-	name: 'OG image directions',
-	plan: 'Open Graph directions for every Bestboy site. First, what is already in flight.',
-	inFlight: '[{"name":"Show the words in the hero","repository":"bestboyhq/tony","working":false}]',
-	split: 'One workstream per site, each prototyping the same three directions.',
-	started: STARTED,
-	compare: 'All three are back with the same three directions. I will show them on Malini.',
-	report: LEAD_REPORT,
-};
+const LEAD_SCRIPTS: readonly LeadScript[] = [TOUR_LEAD];
 
-const LEAD_SCRIPTS: readonly LeadScript[] = [OG_LEAD, TOUR_LEAD];
+const HERO_WORK_MS = 8_000;
 
 const REPLIES: ReadonlyMap<string, string> = new Map([[TOUR_FEEDBACK, TOUR_THREAD_REPORT]]);
 
-const listed: DemoWorkstream[] = [
-	...(DEMO_PLAY === 'tour' ? [] : [{ ...LEAD_WORKSTREAM, name: 'New chat', runs: [] }]),
-	...WORKSTREAMS,
-];
+const HERO = WORKSTREAMS.find((workstream) => workstream.id === HERO_ID);
+const heroPlays = DEMO_PLAY === 'hero' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const listed: DemoWorkstream[] = WORKSTREAMS.map((workstream) =>
+	heroPlays && workstream === HERO ? { ...workstream, name: '', files: [], runs: [] } : workstream,
+);
 const threads = new Map<string, Readonly<{ workstreamId: string; model: string; name: string }>>();
 const statuses = new Map<string, AgentSessionSummary['status']>();
 const transcripts = new Map<string, AgentEventEnvelope[]>();
 const models = new Map<string, string>();
-let leadReported: () => void = () => {};
-export const leadReport = new Promise<void>((resolve) => (leadReported = resolve));
 
 export function workstreams(): WorkstreamDto[] {
 	return listed.map(workstreamDto);
@@ -302,17 +292,7 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 		const url = started.opens;
 		setTimeout(() => openPage(emit, workstream.id, url), started.workMs * 0.82);
 	}
-	if (run) {
-		const tools = toolEvents(workstream.id, run.id, run.tools, Date.now());
-		const gap = started.workMs / (tools.length + 2);
-		play([
-			...think(emit, id, run.id, 'plan', started.thought),
-			...tools.map((event, index): Step => [
-				index === 0 ? gap : gap * (index % 2 === 0 ? 1.6 : 0.4),
-				() => append(emit, id, run.id, event),
-			]),
-		]);
-	}
+	if (run) play(work(emit, workstream.id, run, started.thought, started.workMs));
 	listed.push(workstream);
 	const project = PROJECTS.find((candidate) => candidate.id === workstream.projectId);
 	const dto = workstreamDto(workstream);
@@ -345,6 +325,42 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 	}, started.workMs);
 }
 
+function work(
+	emit: DemoEmit,
+	workstreamId: string,
+	run: DemoRun,
+	thought: string,
+	workMs: number,
+): Step[] {
+	const id = sessionId(workstreamId);
+	const tools = toolEvents(workstreamId, run.id, run.tools, Date.now());
+	const gap = workMs / (tools.length + 2);
+	return [
+		...think(emit, id, run.id, 'plan', thought),
+		...tools.map((event, index): Step => [
+			index === 0 ? gap : gap * (index % 2 === 0 ? 1.6 : 0.4),
+			() => append(emit, id, run.id, event),
+		]),
+	];
+}
+
+function heroSteps(emit: DemoEmit, hero: DemoWorkstream, run: DemoRun): Step[] {
+	return [
+		[600, () => rename(emit, hero.id, hero.name)],
+		...work(emit, hero.id, run, HERO_THOUGHT, HERO_WORK_MS),
+		[
+			HERO_WORK_MS / 6,
+			() => {
+				listed[listed.findIndex((workstream) => workstream.id === hero.id)] = {
+					...hero,
+					runs: [run],
+				};
+				for (const event of closingEvents(run)) append(emit, sessionId(hero.id), run.id, event);
+			},
+		],
+	];
+}
+
 function leadSteps(
 	emit: DemoEmit,
 	leadId: string,
@@ -360,7 +376,6 @@ function leadSteps(
 			...think(emit, id, runId, 'compare', script.compare),
 			[300, () => undefined],
 			...reply(emit, id, runId, script.report, false),
-			[0, () => leadReported()],
 		]);
 	};
 	return [
@@ -422,48 +437,54 @@ export function sendPrompt(
 		lead && transcript(id).length === 0
 			? LEAD_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
 			: undefined;
+	const heroRun =
+		heroPlays && HERO && id === sessionId(HERO.id) && transcript(id).length === 0
+			? HERO.runs.find((run) => run.prompt === prompt.trim())
+			: undefined;
 	const answer = REPLIES.get(prompt.trim());
-	const work =
-		lead && script
-			? leadSteps(emit, lead.id, id, runId, script)
-			: answer
-				? [
-						...tool(
-							emit,
-							id,
-							runId,
-							`${runId}-read`,
-							'Read',
-							{ file_path: 'site/src/lib/Footer.svelte' },
-							'ok',
-							700,
-						),
-						...tool(
-							emit,
-							id,
-							runId,
-							`${runId}-edit`,
-							'Edit',
-							{ file_path: 'site/src/lib/Footer.svelte' },
-							'ok',
-							1_100,
-						),
-						...reply(emit, id, runId, answer, true),
-					]
-				: [
-						...tool(
-							emit,
-							id,
-							runId,
-							`${runId}-read`,
-							'Read',
-							{ file_path: 'AGENTS.md' },
-							'ok',
-							900,
-						),
-						...reply(emit, id, runId, DEMO_REPLY, true),
-					];
-	play([...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...work]);
+	const steps =
+		HERO && heroRun
+			? heroSteps(emit, HERO, { ...heroRun, id: runId })
+			: lead && script
+				? leadSteps(emit, lead.id, id, runId, script)
+				: answer
+					? [
+							...tool(
+								emit,
+								id,
+								runId,
+								`${runId}-read`,
+								'Read',
+								{ file_path: 'site/src/lib/Footer.svelte' },
+								'ok',
+								700,
+							),
+							...tool(
+								emit,
+								id,
+								runId,
+								`${runId}-edit`,
+								'Edit',
+								{ file_path: 'site/src/lib/Footer.svelte' },
+								'ok',
+								1_100,
+							),
+							...reply(emit, id, runId, answer, true),
+						]
+					: [
+							...tool(
+								emit,
+								id,
+								runId,
+								`${runId}-read`,
+								'Read',
+								{ file_path: 'AGENTS.md' },
+								'ok',
+								900,
+							),
+							...reply(emit, id, runId, DEMO_REPLY, true),
+						];
+	play([...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...steps]);
 	return runId;
 }
 
