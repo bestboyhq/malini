@@ -1,4 +1,4 @@
-import { net } from 'electron';
+import { app, BrowserWindow, net, screen } from 'electron';
 import type {
 	ActivityStats,
 	PublishedStats,
@@ -15,6 +15,8 @@ import {
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
+	FRAMES_LOG_STEM,
+	MAX_FRAMES_LOG_BYTES,
 	MAX_MEMORY_LOG_BYTES,
 	MEMORY_LOG_STEM,
 	type MemoryJournalEntry,
@@ -34,6 +36,7 @@ import {
 import { localDate, summarizeActivity } from '../domain/activity';
 import { recentMoments } from '../domain/moments';
 import { Bestboy, bestboyOrigin, type BestboyAccess, type BestboyFetch } from './bestboy';
+import { FrameJournal, type FrameJournalEntry } from './frame-journal';
 import { ProfileStore, type TokenCipher } from './profile-store';
 import {
 	createGitHubIdentity,
@@ -50,6 +53,7 @@ import { WorkstreamRunningMonitor } from './workstream-running';
 export interface StatsDeps {
 	readonly runner: ProcessRunner;
 	browserTabs(): readonly BrowserTab[];
+	mainWindow(): BrowserWindow | null;
 	agentHostProcessId(): number | null;
 	runningContainerIds(): Promise<string[]>;
 	stopBackgroundTask(sessionId: string, taskId: string): Promise<void>;
@@ -82,12 +86,31 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 				name: displayWorkstreamName(workstream),
 			})),
 		sampled: (sample) => events.emit(STATS_RESOURCES_SAMPLED_CHANNEL, sample),
-		journaled: memoryJournal(context.appDataRoot),
+		journaled: journal<MemoryJournalEntry>(
+			context.appDataRoot,
+			MEMORY_LOG_STEM,
+			MAX_MEMORY_LOG_BYTES,
+			'memory',
+		),
 	});
 
 	commands.define('stats.resources', () => sampler.history());
 	commands.define('stats.resource-breakdown', () => sampler.breakdown());
 	commands.define('stats.activity', () => readActivity(db, new Date()));
+
+	const frames = new FrameJournal({
+		write: journal<FrameJournalEntry>(
+			context.appDataRoot,
+			FRAMES_LOG_STEM,
+			MAX_FRAMES_LOG_BYTES,
+			'frame',
+		),
+		browserTabs: () => deps.browserTabs(),
+		displayHz: () => displayHz(deps.mainWindow()),
+	});
+	commands.define('stats.record-frames', (args: unknown) => frames.recordRendererFrames(args));
+	const watchStalls = (): void => frames.watchStalls();
+	const stopWatchingStalls = (): void => frames.stopWatchingStalls();
 
 	const running = new WorkstreamRunningMonitor({
 		db,
@@ -185,6 +208,9 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			profile.start();
 			sampler.start();
 			running.start();
+			app.on('browser-window-focus', watchStalls);
+			app.on('browser-window-blur', stopWatchingStalls);
+			if (BrowserWindow.getFocusedWindow()) watchStalls();
 			void running.stopLeftovers({
 				folders: [{ id: 'workstreams', path: workstreamsRoot(context.appDataRoot) }],
 				live: liveFolders(),
@@ -194,6 +220,9 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			profile.stop();
 			sampler.stop();
 			running.stop();
+			app.off('browser-window-focus', watchStalls);
+			app.off('browser-window-blur', stopWatchingStalls);
+			stopWatchingStalls();
 		},
 		stopWorkstreamLeftovers: (workstreamId) => {
 			const live = liveFolders();
@@ -238,17 +267,30 @@ export function readActivity(db: MaliniDatabase, now: Date): ActivityStats {
 	);
 }
 
-function memoryJournal(appDataRoot: string): (entry: MemoryJournalEntry) => void {
+function journal<Entry>(
+	appDataRoot: string,
+	stem: string,
+	maxBytes: number,
+	name: string,
+): (entry: Entry) => void {
 	let failureReported = false;
 	return (entry) => {
 		try {
-			appendNdjsonRecord(appDataRoot, MEMORY_LOG_STEM, entry, MAX_MEMORY_LOG_BYTES);
+			appendNdjsonRecord(appDataRoot, stem, entry, maxBytes);
 		} catch (error) {
 			if (failureReported) return;
 			failureReported = true;
-			console.warn(`malini: the memory journal is not writable: ${thrownDetail(error).reason}`);
+			console.warn(`malini: the ${name} journal is not writable: ${thrownDetail(error).reason}`);
 		}
 	};
+}
+
+function displayHz(window: BrowserWindow | null): number {
+	const display =
+		window && !window.isDestroyed()
+			? screen.getDisplayMatching(window.getBounds())
+			: screen.getPrimaryDisplay();
+	return display.displayFrequency;
 }
 
 function repositoryFullNames(db: MaliniDatabase): Map<string, string> {

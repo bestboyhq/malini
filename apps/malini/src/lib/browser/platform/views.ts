@@ -148,9 +148,10 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	tabProcesses(): BrowserTabProcess[] {
 		return [...this.entries.values()]
 			.filter((entry) => entry.alive && !entry.view.contents.isDestroyed())
-			.map(({ view: { contents } }) => ({
+			.map(({ view: { contents }, shown }) => ({
 				processId: contents.getOSProcessId(),
 				title: contents.getTitle() || contents.getURL(),
+				shown,
 			}));
 	}
 

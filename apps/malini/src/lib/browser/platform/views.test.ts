@@ -418,19 +418,32 @@ describe('BrowserViews', () => {
 		expect(viewAt(2).closed).toBe(false);
 	});
 
-	it('lists the page process and title of every open tab and forgets a closed one', () => {
+	it('lists the page process, title and placement of every open tab and forgets a closed one', () => {
 		const { browser, viewAt } = setup();
 		const second = { ...TAB, tabId: 'tab-2' };
 		browser.navigate(TAB, 'http://localhost:5173/');
 		browser.navigate(second, 'https://music.example/');
+		browser.show(second, { x: 0, y: 0, width: 300, height: 200 });
 		expect(browser.tabProcesses()).toEqual([
-			{ processId: viewAt(0).contents.processId, title: 'Title of http://localhost:5173/' },
-			{ processId: viewAt(1).contents.processId, title: 'Title of https://music.example/' },
+			{
+				processId: viewAt(0).contents.processId,
+				title: 'Title of http://localhost:5173/',
+				shown: false,
+			},
+			{
+				processId: viewAt(1).contents.processId,
+				title: 'Title of https://music.example/',
+				shown: true,
+			},
 		]);
 
 		browser.destroy(TAB);
 		expect(browser.tabProcesses()).toEqual([
-			{ processId: viewAt(1).contents.processId, title: 'Title of https://music.example/' },
+			{
+				processId: viewAt(1).contents.processId,
+				title: 'Title of https://music.example/',
+				shown: true,
+			},
 		]);
 	});
 

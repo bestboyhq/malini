@@ -109,6 +109,7 @@ import type {
 	PublicRepository,
 	PublishStatsArgs,
 	PublishStatsResult,
+	RecordFramesArgs,
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ShareCard,
@@ -780,6 +781,7 @@ export interface ContractCommands {
 	'stats.sign-out': { args: undefined; result: ProfileState };
 	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
 	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
+	'stats.record-frames': { args: RecordFramesArgs; result: void };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
 	'sounds.add': { args: AddSoundArgs; result: CustomSound };
@@ -1029,6 +1031,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.sign-out',
 	'stats.pick-repositories',
 	'stats.public-repositories',
+	'stats.record-frames',
 	'sounds.list',
 	'sounds.read',
 	'sounds.add',

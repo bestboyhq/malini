@@ -156,6 +156,7 @@ export async function registerModules(
 	const stats = registerStats(context, {
 		runner: processRunner,
 		browserTabs: () => browser.tabProcesses(),
+		mainWindow: options.getMainWindow,
 		agentHostProcessId: () => chat.bridgeProcessId(),
 		runningContainerIds: async () => {
 			if (repositories.containerCount() === 0) return [];
