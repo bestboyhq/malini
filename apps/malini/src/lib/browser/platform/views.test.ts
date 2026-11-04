@@ -308,6 +308,26 @@ describe('BrowserViews', () => {
 		expect(view.radius).toBe(20);
 	});
 
+	it('moves a shown view to new bounds without lifting it out of the window again', () => {
+		const { browser, viewAt, window } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 300, height: 200 });
+		browser.show(TAB, { x: 0, y: 0, width: 310, height: 200 });
+		browser.show(TAB, { x: 0, y: 0, width: 320, height: 200 });
+
+		expect(viewAt(0).placements).toEqual([
+			[window(), 'back'],
+			[window(), 'front'],
+		]);
+		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 0, y: 0, width: 320, height: 200 });
+
+		browser.hide(TAB);
+		browser.show(TAB, { x: 0, y: 0, width: 320, height: 200 });
+		expect(viewAt(0).placements.slice(-2)).toEqual([
+			[window(), 'back'],
+			[window(), 'front'],
+		]);
+	});
+
 	it('sends every view behind malini when its own page reloads, since no panel is left to hide them', () => {
 		const { browser, viewAt, window, resetRenderer } = setup();
 		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });

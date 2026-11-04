@@ -94,11 +94,11 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const window = entry.window;
 		if (!window || window.isDestroyed()) return;
 		const zoom = window.webContents.getZoomFactor();
-		entry.shown = true;
 		entry.bounds = toDip(bounds, zoom);
-		entry.view.placeIn(window, 'front');
 		entry.view.setBounds(entry.bounds);
 		entry.view.setBorderRadius(Math.round(CORNER_RADIUS * zoom));
+		if (!entry.shown) entry.view.placeIn(window, 'front');
+		entry.shown = true;
 	}
 
 	hide(tab: BrowserTabArgs): void {
@@ -446,6 +446,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		if (entry.window && !entry.window.isDestroyed()) entry.view.removeFrom(entry.window);
 		entry.view.placeIn(window, 'back');
 		entry.window = window;
+		entry.shown = false;
 		if (this.watchedWindows.has(window)) return;
 		this.watchedWindows.add(window);
 		this.deps.watchRendererReset(window, () => this.lowerAll(window));
