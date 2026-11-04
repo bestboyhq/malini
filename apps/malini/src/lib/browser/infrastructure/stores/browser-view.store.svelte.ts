@@ -19,6 +19,11 @@ class BrowserViewStore {
 		return this.#turns;
 	}
 
+	shownTurn(tabKey: string): number | null {
+		const placed = this.#placements.get(tabKey);
+		return placed?.placement.kind === 'shown' ? placed.turn : null;
+	}
+
 	isLatest(tabKey: string, turn: number): boolean {
 		return this.#placements.get(tabKey)?.turn === turn;
 	}

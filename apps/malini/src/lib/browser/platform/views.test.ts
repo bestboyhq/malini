@@ -656,6 +656,20 @@ describe('BrowserViews', () => {
 		expect(viewAt(0).contents.captured).toEqual(['https://example.org/']);
 	});
 
+	it('covers a shown page by copying its frame on screen and sending it behind malini in the same step', async () => {
+		const { browser, viewAt, window } = setup();
+		await browser.open(TAB, 'https://example.com');
+		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
+
+		const snapshot = browser.cover(TAB);
+
+		expect(viewAt(0).contents.captured).toEqual(['https://example.com/']);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+		expect(await snapshot).toMatch(/^data:image\/jpeg;base64,/u);
+		expect(viewAt(0).removedFrom).toEqual([]);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+	});
+
 	it('has no snapshot when the compositor fails to copy a frame', async () => {
 		vi.useFakeTimers();
 		try {

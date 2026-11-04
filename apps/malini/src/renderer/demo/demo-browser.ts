@@ -238,6 +238,12 @@ function place(bounds: BrowserBounds): void {
 	frame.hidden = false;
 }
 
+function hide(tab: BrowserTabArgs): void {
+	if (shown !== keyOf(tab)) return;
+	shown = null;
+	frameOf().hidden = true;
+}
+
 type Box = Readonly<{ left: number; top: number; width: number; height: number }>;
 
 function boxOf(element: Element): Box {
@@ -464,10 +470,10 @@ export const browserHandlers = (emit: DemoEmit): DemoHandlers => {
 			shown = keyOf(tab);
 			place(bounds);
 		},
-		'browser.hide': (tab) => {
-			if (shown !== keyOf(tab)) return;
-			shown = null;
-			frameOf().hidden = true;
+		'browser.hide': hide,
+		'browser.cover': (tab) => {
+			hide(tab);
+			return null;
 		},
 		'browser.snapshot': () => null,
 		'browser.reload': () => undefined,

@@ -450,6 +450,7 @@ export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: str
 export interface ContractCommands {
 	'browser.show': { args: BrowserShowArgs; result: void };
 	'browser.hide': { args: BrowserTabArgs; result: void };
+	'browser.cover': { args: BrowserTabArgs; result: string | null };
 	'browser.navigate': { args: BrowserNavigateArgs; result: void };
 	'browser.go-back': { args: BrowserTabArgs; result: void };
 	'browser.go-forward': { args: BrowserTabArgs; result: void };
@@ -797,6 +798,7 @@ export type CommandResult<Name extends CommandName> = ContractCommands[Name]['re
 export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.show',
 	'browser.hide',
+	'browser.cover',
 	'browser.navigate',
 	'browser.go-back',
 	'browser.go-forward',

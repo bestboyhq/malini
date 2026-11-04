@@ -1,5 +1,6 @@
 import type { BrowserTabArgs } from '$contract/browser';
 
+import { browserTabKey } from '../../domain/browser-tab';
 import { browserStatesAggregate } from '../../infrastructure/aggregates/browser-states.aggregate.svelte';
 import { browserTabsAggregate } from '../../infrastructure/aggregates/browser-tabs.aggregate.svelte';
 import {
@@ -7,6 +8,7 @@ import {
 	saveBrowserTabs,
 } from '../../infrastructure/services/browser-pages.storage';
 import { browserService } from '../../infrastructure/services/browser.service';
+import { browserViewStore } from '../../infrastructure/stores/browser-view.store.svelte';
 
 export { closeBrowserTabCommand };
 
@@ -20,5 +22,6 @@ function closeBrowserTabCommand(tab: BrowserTabArgs): void {
 		await browserService.close(tab).catch(() => undefined);
 		forgetBrowserPage(tab);
 		browserStatesAggregate.forget(tab);
+		browserViewStore.setSnapshot(browserTabKey(tab), null);
 	})();
 }

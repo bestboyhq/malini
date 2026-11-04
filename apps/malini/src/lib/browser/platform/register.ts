@@ -63,6 +63,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 
 	commands.define('browser.show', (args) => views.show(readTab(args), readBounds(args)));
 	commands.define('browser.hide', (args) => views.hide(readTab(args)));
+	commands.define('browser.cover', (args) => views.cover(readTab(args)));
 	commands.define('browser.navigate', (args) => views.navigate(readTab(args), readUrl(args)));
 	commands.define('browser.go-back', async (args) => {
 		await views.goBack(readTab(args));

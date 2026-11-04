@@ -177,6 +177,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return image && `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
 	}
 
+	cover(tab: BrowserTabArgs): Promise<string | null> {
+		const snapshot = this.snapshot(tab);
+		this.hide(tab);
+		return snapshot;
+	}
+
 	async pick(args: BrowserPickArgs): Promise<BrowserThreadStarted | null> {
 		const tab = { workstreamId: args.workstreamId, tabId: args.tabId };
 		const contents = this.openContents(tab);
