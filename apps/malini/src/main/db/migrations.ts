@@ -1414,6 +1414,48 @@ UPDATE model_providers SET
   updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = 'opencode' AND kind = 'anthropic';
 `,
+	`
+CREATE TABLE model_providers_next (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('claude', 'anthropic', 'chatgpt')),
+  base_url TEXT,
+  api_key BLOB,
+  models TEXT NOT NULL CHECK (json_valid(models) AND json_type(models) = 'array'),
+  subagent_model TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((kind = 'claude') = (base_url IS NULL)),
+  CHECK (kind <> 'chatgpt' OR api_key IS NULL)
+);
+INSERT INTO model_providers_next SELECT * FROM model_providers;
+DROP TABLE model_providers;
+ALTER TABLE model_providers_next RENAME TO model_providers;
+INSERT INTO model_providers
+  (id, name, kind, base_url, api_key, models, subagent_model, created_at, updated_at)
+VALUES (
+  'chatgpt',
+  'ChatGPT',
+  'chatgpt',
+  'https://api.openai.com/v1',
+  NULL,
+  '[{"id":"gpt-6.1-sol","label":"GPT-6.1 Sol","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-sol"},{"id":"gpt-6.1-terra","label":"GPT-6.1 Terra","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-terra"},{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"},{"id":"gpt-6-astra","label":"GPT-6 Astra","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-astra"},{"id":"gpt-5.5","label":"GPT-5.5","description":"Text and images","efforts":["low","medium","high","xhigh"],"family":"gpt"}]',
+  NULL,
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+);
+CREATE TABLE chatgpt_account (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  host_id TEXT NOT NULL,
+  client_id TEXT,
+  subject TEXT,
+  email TEXT,
+  name TEXT,
+  credentials BLOB,
+  updated_at TEXT NOT NULL,
+  CHECK (credentials IS NULL OR (client_id IS NOT NULL AND subject IS NOT NULL))
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

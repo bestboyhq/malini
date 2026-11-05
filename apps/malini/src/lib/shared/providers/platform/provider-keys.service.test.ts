@@ -18,9 +18,14 @@ function keys(): ProviderKeys {
 }
 
 describe('ProviderKeys', () => {
-	it('lists Claude and the seeded DeepSeek and OpenCode models without a key', () => {
+	it('lists Claude and the seeded DeepSeek, OpenCode and ChatGPT models without a key', () => {
 		const providers = keys().list();
-		expect(providers.map((provider) => provider.id)).toEqual(['claude', 'deepseek', 'opencode']);
+		expect(providers.map((provider) => provider.id)).toEqual([
+			'claude',
+			'deepseek',
+			'opencode',
+			'chatgpt',
+		]);
 		expect(providers[1]).toEqual({
 			id: 'deepseek',
 			name: 'DeepSeek',
@@ -43,6 +48,7 @@ describe('ProviderKeys', () => {
 				},
 			],
 			keySaved: false,
+			account: null,
 		});
 	});
 

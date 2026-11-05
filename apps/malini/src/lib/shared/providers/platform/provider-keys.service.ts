@@ -1,4 +1,4 @@
-import type { ModelProviderRecord } from '$contract/agent';
+import type { ModelProviderRecord, ProviderAccount } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
 	CLAUDE_PROVIDER,
@@ -17,13 +17,29 @@ import {
 
 const MAX_API_KEY_LENGTH = 8_192;
 
+export interface SignedInProvider {
+	account(): ProviderAccount | null;
+	endpoint(): Promise<Readonly<{ baseUrl: string; token: string }>>;
+}
+
+const SIGNED_OUT: SignedInProvider = {
+	account: () => null,
+	endpoint: () => Promise.reject(new Error('Sign in to ChatGPT in Settings, then try again.')),
+};
+
 export class ProviderKeys {
 	readonly #db: MaliniDatabase;
 	readonly #cipher: () => Promise<SecretCipher>;
+	readonly #chatgpt: SignedInProvider;
 
-	constructor(db: MaliniDatabase, cipher: () => Promise<SecretCipher>) {
+	constructor(
+		db: MaliniDatabase,
+		cipher: () => Promise<SecretCipher>,
+		chatgpt: SignedInProvider = SIGNED_OUT,
+	) {
 		this.#db = db;
 		this.#cipher = cipher;
+		this.#chatgpt = chatgpt;
 	}
 
 	list(): ModelProviderRecord[] {
@@ -34,6 +50,7 @@ export class ProviderKeys {
 			baseUrl: provider.baseUrl,
 			models: [...provider.models],
 			keySaved: provider.sealedKey !== null,
+			account: provider.kind === 'chatgpt' ? this.#chatgpt.account() : null,
 		}));
 		return [CLAUDE_PROVIDER, ...providers];
 	}
@@ -68,11 +85,12 @@ export class ProviderKeys {
 		if (!provider.models.some((candidate) => candidate.id === model)) {
 			throw new Error(`${provider.name} does not offer model \`${model}\``);
 		}
+		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint() : null;
 		return providerEnvironment({
 			name: provider.name,
 			kind: provider.kind,
-			baseUrl: provider.baseUrl,
-			apiKey: await this.#decryptedKey(provider),
+			baseUrl: endpoint?.baseUrl ?? provider.baseUrl,
+			apiKey: endpoint?.token ?? (await this.#decryptedKey(provider)),
 			model,
 			subagentModel: provider.models.some(({ id }) => id === provider.subagentModel)
 				? provider.subagentModel

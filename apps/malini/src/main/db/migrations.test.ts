@@ -29,6 +29,7 @@ const ALL_TABLES = [
 	'agent_sessions',
 	'agent_user_baselines',
 	'alarms',
+	'chatgpt_account',
 	'connected_repositories',
 	'custom_sounds',
 	'docker_containers',
@@ -145,7 +146,7 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('seeds DeepSeek and OpenCode and defaults chats and jobs to Claude', () => {
+	it('seeds DeepSeek, OpenCode and ChatGPT and defaults chats and jobs to Claude', () => {
 		const db = openMigratedDatabase(':memory:');
 		expect(
 			all(db, 'SELECT id, name, kind, base_url, subagent_model, api_key FROM model_providers'),
@@ -163,6 +164,14 @@ describe('migrate', () => {
 				name: 'OpenCode',
 				kind: 'anthropic',
 				base_url: 'https://opencode.ai/inference/anthropic',
+				subagent_model: null,
+				api_key: null,
+			},
+			{
+				id: 'chatgpt',
+				name: 'ChatGPT',
+				kind: 'chatgpt',
+				base_url: 'https://api.openai.com/v1',
 				subagent_model: null,
 				api_key: null,
 			},

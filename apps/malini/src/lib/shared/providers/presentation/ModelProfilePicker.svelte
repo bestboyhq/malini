@@ -96,6 +96,9 @@
 	}
 
 	function runnerNote(runner: PickerRunner): string {
+		if (runner.group.kind === 'chatgpt') {
+			return runner.group.ready ? 'Your ChatGPT plan' : 'Needs a sign-in';
+		}
 		if (runner.group.id !== CLAUDE_PROVIDER_ID) {
 			return runner.group.ready ? 'Key saved' : 'Needs a key';
 		}

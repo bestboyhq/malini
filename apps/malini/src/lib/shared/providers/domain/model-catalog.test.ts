@@ -34,7 +34,16 @@ function group(
 	models: AgentModelInfo[],
 	kind: ProviderGroup['kind'] = 'anthropic',
 ): ProviderGroup {
-	return { id, name: id.toUpperCase(), kind, baseUrl: null, ready, message: '', models };
+	return {
+		id,
+		name: id.toUpperCase(),
+		kind,
+		baseUrl: null,
+		ready,
+		message: '',
+		models,
+		account: null,
+	};
 }
 
 const groups = [
@@ -102,6 +111,24 @@ describe('model picker rows', () => {
 			'Quick, and it can see',
 			'GPT-6.1 Sol from the provider',
 		]);
+	});
+
+	it('names a row after the model its selected provider runs', () => {
+		const chatgpt = group(
+			'chatgpt',
+			true,
+			[model('gpt-6.1-terra', 'GPT-6.1 Terra', 'gpt-terra')],
+			'chatgpt',
+		);
+		const opencode = group('opencode', false, [
+			model('gpt-5.6-terra', 'GPT-5.6 Terra', 'gpt-terra'),
+		]);
+		const both = [opencode, chatgpt];
+		const onChatGpt = { provider: 'chatgpt', model: 'gpt-6.1-terra' };
+		const onOpenCode = { provider: 'opencode', model: 'gpt-5.6-terra' };
+		expect(shape(pickerRows(both, onOpenCode))).toEqual(['GPT-5.6 Terra: opencode chatgpt']);
+		expect(shape(pickerRows(both, onChatGpt))).toEqual(['GPT-6.1 Terra: opencode chatgpt']);
+		expect(selectionLabel(both, onChatGpt)).toBe('GPT-6.1 Terra');
 	});
 
 	it('keeps a selection the list no longer shows right after its family', () => {

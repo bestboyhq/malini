@@ -123,7 +123,7 @@ export function pickerRows(
 		}
 	}
 	const rows = [...families]
-		.map(([family, runners]) => pickerRow(family, runners))
+		.map(([family, runners]) => pickerRow(family, runners, selection))
 		.sort((left, right) => claudeRank(left.family) - claudeRank(right.family));
 	return rows.some((row) => rowRuns(row, selection))
 		? rows
@@ -183,8 +183,16 @@ function unlistedModel(id: string): AgentModelInfo {
 	return { id, label: modelLabel(id), description: '', efforts: [...AGENT_REASONING_EFFORTS] };
 }
 
-function pickerRow(family: string, runners: readonly [PickerRunner, ...PickerRunner[]]): PickerRow {
-	const named = runners.find((runner) => runner.group.kind !== 'claude') ?? runners[0];
+function pickerRow(
+	family: string,
+	runners: readonly [PickerRunner, ...PickerRunner[]],
+	selection: ModelSelection,
+): PickerRow {
+	const selected = runners.find((runner) => runs(runner, selection));
+	const named =
+		(selected?.group.kind === 'claude' ? undefined : selected) ??
+		runners.find((runner) => runner.group.kind !== 'claude') ??
+		runners[0];
 	return {
 		family,
 		label: catalogModelLabel([named.model], named.model.id),
@@ -224,6 +232,7 @@ function unknownGroup(provider: string): ProviderGroup {
 		models: [],
 		ready: false,
 		message: '',
+		account: null,
 	};
 }
 

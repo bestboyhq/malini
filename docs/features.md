@@ -67,7 +67,7 @@ The [README](../README.md) has the short version.
 - **Queue or steer.** **↵** queues a prompt after the current run, **⌘↵** interrupts the turn and steers, while background commands keep running.
   Edit, reorder, or delete what's queued.
 - **Plan first.** Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
-- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, or any DeepSeek or OpenCode model models.dev lists, from Low to Max effort.
+- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, any DeepSeek or OpenCode model models.dev lists, or a GPT model on your ChatGPT plan, from Low to Max effort.
   Pick any model, a provider you have not connected folded into one row; sending on it asks for its key or sign-in right there, then sends the prompt.
 - **As much rope as you want to give.** **Auto**, the default, uses Claude Code's auto mode.
   **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else, and **Full access** never asks.
@@ -164,7 +164,7 @@ The [README](../README.md) has the short version.
 
 Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
-Malini makes five calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev.
+Malini makes six calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 While you are signed in to Bestboy on its current terms, each count carries your account, as a hash Malini makes on your Mac.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.

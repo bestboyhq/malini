@@ -103,7 +103,13 @@ export interface AgentModelInfo {
 	family?: string;
 }
 
-export type ModelProviderKind = 'claude' | 'anthropic';
+export type ModelProviderKind = 'claude' | 'anthropic' | 'chatgpt';
+
+export interface ProviderAccount {
+	email: string | null;
+	name: string | null;
+	usageLimitReachedAt: string | null;
+}
 
 export interface ModelProviderRecord {
 	id: string;
@@ -112,6 +118,7 @@ export interface ModelProviderRecord {
 	baseUrl: string | null;
 	models: AgentModelInfo[];
 	keySaved: boolean;
+	account: ProviderAccount | null;
 }
 
 export interface AgentAccount {
@@ -133,6 +140,8 @@ export interface ProviderCapability {
 export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh | bash';
 
 export type ClaudeSignInOutcome = 'signed-in' | 'cancelled';
+
+export type ChatGptSignInOutcome = 'signed-in' | 'cancelled';
 
 export type ClaudeAccountSwitchOutcome = 'switched' | 'sign-in-needed';
 

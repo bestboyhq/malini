@@ -92,7 +92,7 @@ If we ever go wrong, fork it.
 
 **Transparent, all the way down.**
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and through the GitHub CLI, to GitHub.
-Malini makes five calls of its own: update checks, usage stats you can turn off, which carry your Bestboy account while you are signed in, model lists from models.dev, the extension marketplace while you use it, and your stats to a public profile, only if you publish them.
+Malini makes six calls of its own: update checks, usage stats you can turn off, which carry your Bestboy account while you are signed in, model lists from models.dev, the extension marketplace while you use it, your stats to a public profile, only if you publish them, and OpenAI, only after you sign in with ChatGPT, for the GPT models your plan runs.
 Every big decision is written down in [`docs/adr`](docs/adr).
 
 **On your side of the token.**

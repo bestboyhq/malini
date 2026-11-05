@@ -62,7 +62,9 @@ export class StreamingDetector {
 	async check(): Promise<void> {
 		const [executables, screenCapture] = await Promise.all([
 			this.#read(resolveToolPath('ps') ?? '/bin/ps', ['-A', '-o', 'comm=']),
-			this.#read('/usr/bin/osascript', ['-l', 'JavaScript', '-e', SCREEN_CAPTURE_PROBE]),
+			this.#appRoot
+				? null
+				: this.#read('/usr/bin/osascript', ['-l', 'JavaScript', '-e', SCREEN_CAPTURE_PROBE]),
 		]);
 		if (executables !== null) this.#appRunning = streamingAppRunning(executables, this.#appRoot);
 		if (screenCapture !== null) this.#screenCaptured = screenCapture.trim() === 'true';
