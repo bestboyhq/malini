@@ -109,6 +109,7 @@ import type {
 	PublicRepository,
 	PublishStatsArgs,
 	PublishStatsResult,
+	RecordFramesArgs,
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ShareCard,
@@ -450,6 +451,7 @@ export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: str
 export interface ContractCommands {
 	'browser.show': { args: BrowserShowArgs; result: void };
 	'browser.hide': { args: BrowserTabArgs; result: void };
+	'browser.cover': { args: BrowserTabArgs; result: string | null };
 	'browser.navigate': { args: BrowserNavigateArgs; result: void };
 	'browser.go-back': { args: BrowserTabArgs; result: void };
 	'browser.go-forward': { args: BrowserTabArgs; result: void };
@@ -779,6 +781,7 @@ export interface ContractCommands {
 	'stats.sign-out': { args: undefined; result: ProfileState };
 	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
 	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
+	'stats.record-frames': { args: RecordFramesArgs; result: void };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
 	'sounds.add': { args: AddSoundArgs; result: CustomSound };
@@ -797,6 +800,7 @@ export type CommandResult<Name extends CommandName> = ContractCommands[Name]['re
 export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.show',
 	'browser.hide',
+	'browser.cover',
 	'browser.navigate',
 	'browser.go-back',
 	'browser.go-forward',
@@ -1027,6 +1031,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.sign-out',
 	'stats.pick-repositories',
 	'stats.public-repositories',
+	'stats.record-frames',
 	'sounds.list',
 	'sounds.read',
 	'sounds.add',

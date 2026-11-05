@@ -308,6 +308,26 @@ describe('BrowserViews', () => {
 		expect(view.radius).toBe(20);
 	});
 
+	it('moves a shown view to new bounds without lifting it out of the window again', () => {
+		const { browser, viewAt, window } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 300, height: 200 });
+		browser.show(TAB, { x: 0, y: 0, width: 310, height: 200 });
+		browser.show(TAB, { x: 0, y: 0, width: 320, height: 200 });
+
+		expect(viewAt(0).placements).toEqual([
+			[window(), 'back'],
+			[window(), 'front'],
+		]);
+		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 0, y: 0, width: 320, height: 200 });
+
+		browser.hide(TAB);
+		browser.show(TAB, { x: 0, y: 0, width: 320, height: 200 });
+		expect(viewAt(0).placements.slice(-2)).toEqual([
+			[window(), 'back'],
+			[window(), 'front'],
+		]);
+	});
+
 	it('sends every view behind malini when its own page reloads, since no panel is left to hide them', () => {
 		const { browser, viewAt, window, resetRenderer } = setup();
 		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });
@@ -398,19 +418,32 @@ describe('BrowserViews', () => {
 		expect(viewAt(2).closed).toBe(false);
 	});
 
-	it('lists the page process and title of every open tab and forgets a closed one', () => {
+	it('lists the page process, title and placement of every open tab and forgets a closed one', () => {
 		const { browser, viewAt } = setup();
 		const second = { ...TAB, tabId: 'tab-2' };
 		browser.navigate(TAB, 'http://localhost:5173/');
 		browser.navigate(second, 'https://music.example/');
+		browser.show(second, { x: 0, y: 0, width: 300, height: 200 });
 		expect(browser.tabProcesses()).toEqual([
-			{ processId: viewAt(0).contents.processId, title: 'Title of http://localhost:5173/' },
-			{ processId: viewAt(1).contents.processId, title: 'Title of https://music.example/' },
+			{
+				processId: viewAt(0).contents.processId,
+				title: 'Title of http://localhost:5173/',
+				shown: false,
+			},
+			{
+				processId: viewAt(1).contents.processId,
+				title: 'Title of https://music.example/',
+				shown: true,
+			},
 		]);
 
 		browser.destroy(TAB);
 		expect(browser.tabProcesses()).toEqual([
-			{ processId: viewAt(1).contents.processId, title: 'Title of https://music.example/' },
+			{
+				processId: viewAt(1).contents.processId,
+				title: 'Title of https://music.example/',
+				shown: true,
+			},
 		]);
 	});
 
@@ -654,6 +687,20 @@ describe('BrowserViews', () => {
 
 		await Promise.all([opening, shot]);
 		expect(viewAt(0).contents.captured).toEqual(['https://example.org/']);
+	});
+
+	it('covers a shown page by copying its frame on screen and sending it behind malini in the same step', async () => {
+		const { browser, viewAt, window } = setup();
+		await browser.open(TAB, 'https://example.com');
+		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
+
+		const snapshot = browser.cover(TAB);
+
+		expect(viewAt(0).contents.captured).toEqual(['https://example.com/']);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+		expect(await snapshot).toMatch(/^data:image\/jpeg;base64,/u);
+		expect(viewAt(0).removedFrom).toEqual([]);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
 	});
 
 	it('has no snapshot when the compositor fails to copy a frame', async () => {

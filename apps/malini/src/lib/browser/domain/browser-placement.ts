@@ -2,8 +2,11 @@ import type { BrowserBounds } from '$contract/browser';
 
 export type BrowserPlacement =
 	| Readonly<{ kind: 'shown'; bounds: BrowserBounds }>
+	| Readonly<{ kind: 'overlapped' }>
 	| Readonly<{ kind: 'covered' }>
 	| Readonly<{ kind: 'hidden' }>;
+
+export type BrowserCover = 'none' | 'overlapped' | 'covered';
 
 export type BrowserViewport = Readonly<{
 	left: number;
@@ -17,14 +20,14 @@ export const HIDDEN_BROWSER: BrowserPlacement = { kind: 'hidden' };
 export function browserPlacementFor(
 	viewport: BrowserViewport,
 	hasPage: boolean,
-	covered: boolean,
+	cover: BrowserCover,
 ): BrowserPlacement {
 	const x = Math.round(viewport.left);
 	const y = Math.round(viewport.top);
 	const width = placedWidth(viewport);
 	const height = Math.round(viewport.bottom) - y;
 	if (!hasPage || width <= 0 || height <= 0) return HIDDEN_BROWSER;
-	if (covered) return { kind: 'covered' };
+	if (cover !== 'none') return { kind: cover };
 	return { kind: 'shown', bounds: { x, y, width, height } };
 }
 

@@ -14,6 +14,8 @@ export const MAIN_LOG_STEM = 'main';
 export const RENDERER_LOG_STEM = 'renderer-errors';
 export const MEMORY_LOG_STEM = 'memory';
 export const MAX_MEMORY_LOG_BYTES = 2 * 1024 * 1024;
+export const FRAMES_LOG_STEM = 'frames';
+export const MAX_FRAMES_LOG_BYTES = 1024 * 1024;
 
 export type PhysicalMemory = Readonly<{
 	usedBytes: number;

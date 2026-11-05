@@ -53,6 +53,7 @@ export interface ResourceSamplerDeps {
 export interface BrowserTab {
 	readonly processId: number;
 	readonly title: string;
+	readonly shown: boolean;
 }
 
 interface Measured {

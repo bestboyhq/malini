@@ -171,6 +171,37 @@ test('browser tabs show only once opened, each with its own page and close butto
 	}
 });
 
+test('a new browser tab scrolls the inspector tabs until all of it shows, also once its title widens it', async () => {
+	test.setTimeout(120_000);
+	const server = createServer((request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(`<!doctype html><title>Served page ${request.url}</title><h1>${request.url}</h1>`);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-browser-tab-strip-ws', 'Tab strip');
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+
+		for (const path of ['/first', '/second', '/third', '/fourth', '/fifth', '/sixth']) {
+			await openTab(page, origin, path);
+			await expect(
+				inspector.getByRole('tab', { name: `Served page ${path}`, selected: true }),
+			).toBeInViewport({ ratio: 0.99 });
+		}
+		await expect(inspector.getByRole('tab', { name: 'Files' })).not.toBeInViewport({ ratio: 1 });
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
 test('a browser tab says why its page did not load, hides the page meanwhile, and shows it once a reload reaches the server', async () => {
 	test.setTimeout(120_000);
 	const server = createServer((_request, response) => {

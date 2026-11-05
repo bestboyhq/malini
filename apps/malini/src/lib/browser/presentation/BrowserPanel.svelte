@@ -13,6 +13,7 @@
 	import { loadBrowserStateCommand } from '../application/commands/load-browser-state.command';
 	import { navigateBrowserCommand } from '../application/commands/navigate-browser.command';
 	import { openBrowserPageExternallyCommand } from '../application/commands/open-browser-page-externally.command';
+	import { pictureBrowserPageCommand } from '../application/commands/picture-browser-page.command';
 	import { placeBrowserViewCommand } from '../application/commands/place-browser-view.command';
 	import { reloadBrowserCommand } from '../application/commands/reload-browser.command';
 	import { settleBrowserAddressFocusCommand } from '../application/commands/settle-browser-address-focus.command';
@@ -24,7 +25,12 @@
 	import { browserStateQuery } from '../application/queries/browser-state.query.svelte';
 	import { browserAddressLabel } from '../domain/browser-address';
 	import { browserTabKey } from '../domain/browser-tab';
-	import { HIDDEN_BROWSER, browserPlacementFor, placedWidth } from '../domain/browser-placement';
+	import {
+		HIDDEN_BROWSER,
+		browserPlacementFor,
+		placedWidth,
+		type BrowserCover,
+	} from '../domain/browser-placement';
 	import {
 		isWorktreePage,
 		steppedVariant,
@@ -54,6 +60,7 @@
 	const shownUrl = $derived(browserAddressLabel(url));
 	const hasPage = $derived(url !== '');
 	const failure = $derived(browser?.failure ?? null);
+	const settledUrl = $derived(browser && !browser.loading && failure === null ? url : '');
 	const variants = $derived(isWorktreePage(url) ? offered.data(workstreamId) : NO_VARIANTS);
 	const switcher = $derived(variantSwitcher(url, workstreamId, variants));
 
@@ -64,6 +71,10 @@
 
 	$effect(() => watchBrowserResizesHook(tab, shownWidth, placeShown));
 
+	$effect(() => {
+		if (settledUrl) pictureBrowserPageCommand(tab);
+	});
+
 	onMount(() => {
 		loadBrowserStateCommand(tab);
 		return () => {
@@ -73,13 +84,16 @@
 
 	function placeViewport(element: HTMLElement): void {
 		const rect = element.getBoundingClientRect();
-		const covered = overlaySuppression.isSuppressed({
-			x: rect.left,
-			y: rect.top,
-			width: rect.width,
-			height: rect.height,
-		});
-		placeBrowserViewCommand(tab, browserPlacementFor(rect, hasPage && failure === null, covered));
+		placeBrowserViewCommand(
+			tab,
+			browserPlacementFor(rect, hasPage && failure === null, coverOf(rect)),
+		);
+	}
+
+	function coverOf(rect: DOMRect): BrowserCover {
+		if (overlaySuppression.blockingDepth > 0) return 'covered';
+		const hole = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+		return overlaySuppression.isSuppressed(hole) ? 'overlapped' : 'none';
 	}
 
 	function followViewport(element: HTMLElement): () => void {

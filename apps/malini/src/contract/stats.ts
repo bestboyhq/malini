@@ -184,3 +184,25 @@ export type PublishStatsResult = Readonly<{ state: ProfileState; problem: string
 export type PickRepositoriesArgs = Readonly<{ repositories: readonly string[] }>;
 
 export type PublicRepository = Readonly<{ fullName: string; runs: number }>;
+
+export type FrameKind = 'long-frame' | 'frame-gap';
+
+export type FrameScript = Readonly<{
+	invoker: string;
+	source: string;
+	durationMs: number;
+	forcedLayoutMs: number;
+}>;
+
+export type RendererFrame = Readonly<{
+	kind: FrameKind;
+	startedAt: number;
+	durationMs: number;
+	focused: boolean;
+	route: string;
+	layoutMs: number | null;
+	blockingMs: number | null;
+	scripts: readonly FrameScript[];
+}>;
+
+export type RecordFramesArgs = Readonly<{ frames: readonly RendererFrame[] }>;

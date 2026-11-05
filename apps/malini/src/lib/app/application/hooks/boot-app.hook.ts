@@ -11,6 +11,7 @@ import { updatesService } from '$lib/app/infrastructure/services/updates.service
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
 import { streamerModeStore } from '$lib/app/infrastructure/stores/streamer-mode.store.svelte';
 import { updateStatusStore } from '$lib/app/infrastructure/stores/update-status.store.svelte';
+import { watchFramesHook } from '$lib/stats/application/hooks/watch-frames.hook';
 
 export function bootAppHook(): () => void {
 	const stopWatchingZoom = watchNativeChromeZoom();
@@ -30,6 +31,7 @@ export function bootAppHook(): () => void {
 		};
 	}
 
+	const stopWatchingFrames = watchFramesHook();
 	let disposed = false;
 	let disarmCloseGuard: (() => void) | null = null;
 
@@ -50,6 +52,7 @@ export function bootAppHook(): () => void {
 		disposed = true;
 		disarmCloseGuard?.();
 		disarmCloseGuard = null;
+		stopWatchingFrames();
 		stopAnsweringMenu();
 		stopWatchingUpdates();
 		stopWatchingStreaming();

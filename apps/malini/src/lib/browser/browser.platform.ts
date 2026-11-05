@@ -14,6 +14,7 @@ export interface BrowserScreenshotFile {
 export interface BrowserTabProcess {
 	readonly processId: number;
 	readonly title: string;
+	readonly shown: boolean;
 }
 
 export interface BrowserPlatform {

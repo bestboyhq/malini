@@ -49,8 +49,12 @@ class BrowserService {
 		return invoke('browser.hide', tab);
 	}
 
+	cover(tab: BrowserTabArgs): Promise<string | null> {
+		return decoded(invoke('browser.cover', tab));
+	}
+
 	snapshot(tab: BrowserTabArgs): Promise<string | null> {
-		return invoke('browser.snapshot', tab);
+		return decoded(invoke('browser.snapshot', tab));
 	}
 
 	navigate(tab: BrowserTabArgs, url: string): Promise<void> {
@@ -80,6 +84,15 @@ class BrowserService {
 	close(tab: BrowserTabArgs): Promise<void> {
 		return invoke('browser.close', tab);
 	}
+}
+
+async function decoded(snapshot: Promise<string | null>): Promise<string | null> {
+	const source = await snapshot;
+	if (source === null) return null;
+	const image = new Image();
+	image.src = source;
+	await image.decode();
+	return source;
 }
 
 export const browserService = new BrowserService();
