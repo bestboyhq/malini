@@ -518,6 +518,25 @@ describe('ClaudeTranscript', () => {
 		);
 	});
 
+	it('ends a background agent the user stopped as stopped, not as failed', () => {
+		const stoppedAgent = (message: SDKMessage): SDKMessage =>
+			message.type === 'system' &&
+			message.subtype === 'task_notification' &&
+			message.tool_use_id === BACKGROUND_AGENT_TOOL_CALL
+				? { ...message, status: 'stopped', summary: 'Sleep probe' }
+				: message;
+		const { events } = replay(recordedMessages('backgroundAgent').map(stoppedAgent));
+
+		expect(ofType(events, 'tool.failed')).toEqual([]);
+		expect(ofType(events, 'tool.completed')).toContainEqual({
+			type: 'tool.completed',
+			runId: 'run-1',
+			name: 'Agent',
+			toolCallId: BACKGROUND_AGENT_TOOL_CALL,
+			output: 'Stopped',
+		});
+	});
+
 	it('stops a background agent still running when the run ends', () => {
 		const messages = recordedMessages('backgroundAgent');
 		const firstResult = messages.findIndex((message) => message.type === 'result');

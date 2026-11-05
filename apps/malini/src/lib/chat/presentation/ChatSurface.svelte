@@ -57,6 +57,7 @@
 	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
 	import { waitingElsewhereQuery } from '$lib/chat/application/queries/waiting-elsewhere.query.svelte';
+	import { trayWork } from '$lib/chat/domain/background-work';
 	import { isUncheckedApproval } from '$lib/chat/domain/child-requests';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
@@ -155,6 +156,7 @@
 	const selection = $derived(activeModelQuery.data);
 	const profile = $derived(runProfileQuery.data);
 	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
+	const backgroundTray = $derived(trayWork(backgroundWork));
 	const handsOffBackgroundWork = $derived(
 		backgroundWork?.waiting === true && !(sessionId && pendingPromptQuery.data(sessionId)),
 	);
@@ -590,7 +592,7 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundWork || jobs || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundTray || jobs || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -648,10 +650,10 @@
 													</div>
 												{/if}
 
-												{#if backgroundWork && sessionId}
+												{#if backgroundTray && sessionId}
 													<div transition:slide={foldMotion()}>
 														<BackgroundTaskList
-															work={backgroundWork}
+															work={backgroundTray}
 															onstop={(taskId) => stopBackgroundTaskCommand(sessionId, taskId)}
 														/>
 													</div>

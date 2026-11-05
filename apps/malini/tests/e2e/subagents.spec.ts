@@ -29,7 +29,7 @@ test('each subagent folds into one live line that ticks through its steps, then 
 		await expect(rows).toHaveCount(2, { timeout: 20_000 });
 		await expect(auth).toHaveAttribute('data-tool-status', 'running');
 		await expect(auth.getByTestId('subagent-ticker')).toHaveText('Read · src/auth.ts');
-		await expect(auth.getByTestId('subagent-meta')).toContainText('1 step');
+		await expect(auth.getByTestId('subagent-meta')).toHaveText(/^1 step · \d+s$/u);
 		await expect(tests.getByTestId('subagent-ticker')).toHaveText('Grep · signIn');
 		await expect(page.locator('[data-message-kind="tool"]')).toHaveCount(0);
 		await captureFlow(app, 'subagents-running');

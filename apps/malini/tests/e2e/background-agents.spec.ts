@@ -38,6 +38,9 @@ test('a background agent shows as running past the turn, then shows its result',
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('launched', { exact: true })).toBeVisible();
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
+		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();
+		await expect(agentRow.getByTestId('subagent-meta')).toHaveText(/^\d+s$/u);
+		await expect(page.getByTestId('background-tasks')).toHaveCount(0);
 		await expect(submit).toHaveAccessibleName('Stop current run');
 		await expect(sidebarLoader(page, 'e2e-background-agent-ws')).toBeVisible();
 		await captureFlow(app, 'background-agent-running');
@@ -48,6 +51,7 @@ test('a background agent shows as running past the turn, then shows its result',
 			timeout: 20_000,
 		});
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed');
+		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toHaveCount(0);
 		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
 		await expect(
 			page
@@ -56,6 +60,36 @@ test('a background agent shows as running past the turn, then shows its result',
 		).toBeVisible();
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-agent-completed');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a background agent stops from its own row', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		await seedWorkstream(page, source, 'e2e-background-agent-stop-ws', 'Background agent stop');
+		await openWorkstream(page, 'e2e-background-agent-stop-ws');
+
+		await sendPrompt(page, 'BACKGROUND_AGENT');
+
+		const agentRow = page.getByTestId('subagent-row').filter({ hasText: 'Sleep probe' });
+		const stop = agentRow.getByRole('button', { name: 'Stop Sleep probe' });
+		await expect(stop).toBeVisible({ timeout: 20_000 });
+
+		await stop.click();
+
+		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed', { timeout: 20_000 });
+		await expect(agentRow.getByTestId('subagent-ticker')).toHaveText('Stopped');
+		await expect(stop).toHaveCount(0);
+		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
+		await captureFlow(app, 'background-agent-stopped');
 
 		expectCleanConsole(app);
 	} finally {

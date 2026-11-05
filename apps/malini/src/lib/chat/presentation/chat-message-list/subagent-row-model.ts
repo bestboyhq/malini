@@ -45,6 +45,11 @@ export function subagentTicker(item: SubagentTimelineItem): string | null {
 	return result === null ? null : outcomeLine(result);
 }
 
+export function elapsedSeconds(startedAt: number | null, nowMs: number): string | null {
+	if (startedAt === null) return null;
+	return `${Math.max(0, Math.floor((nowMs - startedAt) / 1_000))}s`;
+}
+
 export function stepCount(count: number): string | null {
 	if (count === 0) return null;
 	return `${count} ${count === 1 ? 'step' : 'steps'}`;

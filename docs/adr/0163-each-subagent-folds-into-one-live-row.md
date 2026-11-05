@@ -9,6 +9,8 @@ Malini's instructions never mentioned subagents, so Claude Code's own advice to 
 When an agent did use one, the bridge already tagged each of its tool calls with `parentToolCallId`, but the renderer dropped the tag: one research subagent in the user's own chat spread 68 tool calls through the transcript as flat rows, around a pointer line, "This agent's report was delivered".
 A background agent also outlives a handoff (0009, 0047), so its later steps landed in the new run, apart from the row that started them.
 The user wanted each subagent to be "a stable line with load there and those beautiful vertically swapping lines", like a thinking row.
+Claude Code starts the Agent tool in the background by default, so each subagent also showed in the background tray above the composer, once as its row and once as a task.
+The row's swapped label also flipped in whole, where the thinking row's line unfolds word by word.
 
 ## Decision
 
@@ -25,11 +27,17 @@ The user wanted each subagent to be "a stable line with load there and those bea
 - **One line, live.**
   `SubagentRow.svelte` draws the row: a busy icon, the orbit wave for a background agent, then the description shimmering while it runs, a `ToolLabel` ticker that swaps to the latest step's label, and the step count and duration.
   Once finished, the ticker shows the report's first line, and a failure shows its reason.
+  Each swapped label unfolds word by word through `UnfoldText.svelte`, the reveal the thinking row's ticker uses too.
   The row is a toggle button, as `BashToolCall` is, so the `group/expand` marks of the steps inside never read its open state; open, it shows the prompt, each step as a normal tool row, and the report as Markdown, and its open state persists in `expandedActivityGroups`.
+
+- **The row is the agent's only place.**
+  `trayWork` in `background-work.ts` leaves out of the tray every agent task whose `toolCallId` has a row; the tray keeps background commands and other tasks, and the status line still counts the agents.
+  A running row shows its elapsed time, ticking each second, and a stop button for the task `agentTaskOf` finds, which sends `stop_task`.
+  A task the user stopped ends the row as completed with **Stopped**, not as failed: the transcript turns a `stopped` task notification without a `reason` into `tool.completed`.
 
 ## Consequences
 
 - A chat with subagents reads as one line per agent, and the steps are one click away.
 - A subagent's text and thinking are still dropped by the transcript; only its tool calls and its report show.
 - Both projectors must agree on placement: `incremental-run-timeline.test.ts` ("folds every subagent step into its agent row, live and replayed, across a handoff") checks every prefix of a handed-off background agent against the canonical fold.
-- Enforced also by `transcript.test.ts` ("nests subagent tool calls under the task that spawned them"), `instructions.test.ts`, and `tests/e2e/subagents.spec.ts` and `tests/e2e/background-agents.spec.ts` on the fake bridge's `SUBAGENTS` and `BACKGROUND_AGENT` directives.
+- Enforced also by `transcript.test.ts` ("nests subagent tool calls under the task that spawned them", "ends a background agent the user stopped as stopped, not as failed"), `background-work.test.ts` (`trayWork`), `instructions.test.ts`, and `tests/e2e/subagents.spec.ts` and `tests/e2e/background-agents.spec.ts` on the fake bridge's `SUBAGENTS` and `BACKGROUND_AGENT` directives.

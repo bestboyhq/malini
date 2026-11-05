@@ -415,9 +415,11 @@ const CHAT_TURN_REPORT =
 	'Outcome: The header stays pinned while the page scrolls.\n' +
 	'Needs: Approve the new shadow; Merge the pull request';
 const BACKGROUND_RELEASE = 'release-background-agent';
+const backgroundAgents = new Map();
 const backgroundAgentRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
 	const toolCallId = 'agent-' + runId;
+	backgroundAgents.set('agent-task-' + runId, { sessionId, runId, toolCallId });
 	const agentTask = {
 		taskId: 'agent-task-' + runId,
 		kind: 'agent',
@@ -430,6 +432,7 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		runId,
 		name: 'Agent',
 		toolCallId,
+		ts: Date.now(),
 		input: {
 			description: 'Sleep probe',
 			subagent_type: 'general-purpose',
@@ -444,6 +447,7 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		if (!fs.existsSync(releasePath)) return;
 		clearInterval(timer);
 		pendingRuns.delete(runId);
+		backgroundAgents.delete(agentTask.taskId);
 		event({ type: 'background.updated', runId, waiting: false, tasks: [] });
 		event({
 			type: 'tool.completed',
@@ -473,6 +477,7 @@ const subagentsRun = (sessionId, runId, releasePath) => {
 			runId,
 			name: 'Agent',
 			toolCallId,
+			ts: Date.now(),
 			input: { description, subagent_type: 'Explore', prompt },
 		});
 	const step = (parentToolCallId, name, input, done = true) => {
@@ -751,6 +756,18 @@ const handOffBackgroundCommand = (sessionId, runId, steer) => {
 		tasks: [backgroundCommandTask(waiting.startedAt)],
 	});
 	waitOnBackgroundCommand(sessionId, runId, 'Answered while the e2e suite keeps running.');
+};
+const stopBackgroundAgent = (taskId) => {
+	const agent = backgroundAgents.get(taskId);
+	if (!agent) return false;
+	const { sessionId, runId, toolCallId } = agent;
+	backgroundAgents.delete(taskId);
+	pendingRuns.delete(runId);
+	event({ type: 'background.updated', runId, waiting: false, tasks: [] });
+	event({ type: 'tool.completed', runId, name: 'Agent', toolCallId, output: 'Stopped' });
+	event({ type: 'run.completed', runId, summary: 'The Sleep probe agent was stopped.' });
+	event({ type: 'session.state', sessionId, status: 'completed' });
+	return true;
 };
 const stopBackgroundCommand = (sessionId) => {
 	const waiting = backgroundCommands.get(sessionId);
@@ -1620,7 +1637,7 @@ const handle = (command) => {
 			return start();
 		}
 		case 'stop_task': {
-			stopBackgroundCommand(command.sessionId);
+			if (!stopBackgroundAgent(command.taskId)) stopBackgroundCommand(command.sessionId);
 			return ack(command.id);
 		}
 		case 'cancel_run': {

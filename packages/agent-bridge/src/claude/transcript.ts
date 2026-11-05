@@ -17,6 +17,7 @@ export const COMPACTION_TOOL = 'Compact';
 
 const FILE_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const BACKGROUND_OUTPUT_FILE = /Output is being written to: (\S+\.output)/u;
+const STOPPED_AGENT_OUTPUT = 'Stopped';
 
 type StreamBlock = { readonly kind: 'text' | 'thinking' | 'tool'; readonly id: string };
 type StreamContentKind = Exclude<StreamBlock['kind'], 'tool'>;
@@ -289,13 +290,14 @@ export class ClaudeTranscript {
 		if (!toolCallId || !this.#backgroundAgents.delete(toolCallId)) return;
 		this.#settledTools.add(toolCallId);
 		const name = this.#toolNames.get(toolCallId)?.name ?? '';
-		if (message.status === 'completed') {
+		const stopped = message.status === 'stopped' && message.reason === undefined;
+		if (message.status === 'completed' || stopped) {
 			this.#emit({
 				type: 'tool.completed',
 				runId: this.#runId,
 				name,
 				toolCallId,
-				output: message.summary,
+				output: stopped ? STOPPED_AGENT_OUTPUT : message.summary,
 			});
 			return;
 		}
