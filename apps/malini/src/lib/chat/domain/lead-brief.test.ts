@@ -6,6 +6,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { leadBrief, type BriefEvent } from './lead-brief';
+import { savedSecretsPrompt } from './saved-secrets';
 
 type Entry = Omit<BriefEvent, 'seq'>;
 
@@ -266,6 +267,14 @@ describe('leadBrief', () => {
 		expect(text).not.toContain(CONTINUE_AFTER_PAUSE_PROMPT);
 		expect(text).not.toContain(CONTINUE_AFTER_STOP_PROMPT);
 		expect(entries(text)).toHaveLength(2);
+	});
+
+	it('tells a saved secret as what the user did, never as words the user wrote', () => {
+		const wake = savedSecretsPrompt({ names: ['DEMO_TOKEN'], unsaved: [], repository: null });
+		const text = brief(events(user('run-1', 'Deploy it', 0), user('run-2', wake, 10)));
+
+		expect(entries(text).at(-1)).toMatch(/\] The user saved DEMO_TOKEN\.$/u);
+		expect(text).not.toContain(wake);
 	});
 
 	it('says where a turn paused or failed, after what the lead said in it, and keeps quiet about a stop', () => {
