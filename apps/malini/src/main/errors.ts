@@ -20,6 +20,7 @@ export const WORKSTREAM_FOLDER_MISSING = "This workstream's folder is missing.";
 
 export type GitErrorKind =
 	| 'auth-failed'
+	| 'push-denied'
 	| 'repository-not-found'
 	| 'unsafe-path'
 	| 'not-a-repo'
@@ -172,8 +173,10 @@ export function failureOutput(error: unknown): string {
 	return error instanceof GitError ? (error.detail ?? error.message) : describeError(error);
 }
 
+const PUSH_DENIED =
+	/permission to (\S+?)(?:\.git)? denied(?: to (.+?))?\.?$|write access to repository not granted/imu;
 const AUTH_FAILURE =
-	/authentication failed|could not read (?:username|password)|requested url returned error: 40[13]\b|permission to \S+ denied|invalid username or (?:password|token)|permission denied \(publickey/iu;
+	/authentication failed|could not read (?:username|password)|requested url returned error: 40[13]\b|invalid username or (?:password|token)|permission denied \(publickey/iu;
 const REPOSITORY_NOT_FOUND = /repository not found|repository '[^']*' not found/iu;
 const REMOTE_HAS_NEW_COMMITS =
 	/\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)|updates were rejected because the (?:remote|tip)/iu;
@@ -209,8 +212,9 @@ export function remoteRefusal(error: unknown): string | null {
 	return [...new Set([...said, reason])].join('\n').slice(0, REMOTE_SAID_MAX_CHARS);
 }
 
-export function workflowRefusal(error: unknown): ShipWaitsFor | null {
+export function waitsForYou(error: unknown): ShipWaitsFor | null {
 	if (!(error instanceof GitError) || error.detail === undefined) return null;
+	if (error.kind === 'push-denied') return 'push-access';
 	const actor = WORKFLOW_REFUSED.exec(error.detail)?.[1];
 	if (actor === undefined) return null;
 	return actor === 'OAuth App' ? 'workflow-scope' : 'workflow-permission';
@@ -232,6 +236,14 @@ function folderMissing(folder: string): GitFailureVerdict {
 export function gitFailureVerdict(output: string): GitFailureVerdict {
 	const gone = FOLDER_GONE.exec(output)?.[1];
 	if (gone) return folderMissing(gone);
+	const denied = PUSH_DENIED.exec(output);
+	if (denied) {
+		const account = denied[2] ? `\`${denied[2]}\`` : 'This GitHub account';
+		return {
+			kind: 'push-denied',
+			message: `${account} can't push to ${denied[1] ?? remoteName(output)}. Ask its owners for write access, then retry.`,
+		};
+	}
 	if (AUTH_FAILURE.test(output)) {
 		return { kind: 'auth-failed', message: authFailureMessage(undefined) };
 	}
