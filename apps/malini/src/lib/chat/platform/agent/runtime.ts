@@ -698,7 +698,8 @@ export class BridgeRuntime {
 
 	private async replaceChild(): Promise<BridgeSupervisor> {
 		const current = this.supervisor;
-		if (current?.isHealthy()) return current;
+		if (current && (await current.awaitFreshHeartbeat())) return current;
+		if (current) this.log(`agent: replacing the bridge: ${current.unavailableReason()}`);
 		this.restartAttempt = Math.min(this.restartAttempt + 1, 255);
 		const attempt = this.restartAttempt;
 		let replacement: BridgeSupervisor;
