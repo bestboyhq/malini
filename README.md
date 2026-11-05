@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/report.webp" width="100%" alt="The Malini window: workstreams across malini, grip and tony in the sidebar, and a tony chat whose report shows the hero before and after the change with Wipe, Flip and Diff, one line on what changed and one on how it was checked, a next step to Ship, and Draft and Merge above 2 changed files.">
+  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: a Home chat, Changelog in every footer, with the three workstreams it started in malini, grip and tony nested under it, above more workstreams in the sidebar. The tony one is open: its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
 </p>
 
 ---

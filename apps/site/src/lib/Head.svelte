@@ -27,7 +27,7 @@
 	<meta property="og:image:height" content="630" />
 	<meta
 		property="og:image:alt"
-		content="Malini's page: Agentic development environment for builders moving fast, over the Malini window with workstreams in its sidebar, a chat, and Draft and Merge above 2 changed files."
+		content="Malini's page: Agentic development environment for builders moving fast, over the Malini window with a Home chat and the workstreams it started in its sidebar, a chat beside a browser tab, and Draft and Merge above 1 changed file."
 	/>
 	<meta name="twitter:card" content="summary_large_image" />
 	<link rel="alternate" type="text/plain" title="llms.txt" href="{SITE_URL}/llms.txt" />

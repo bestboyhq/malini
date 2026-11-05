@@ -41,7 +41,7 @@
 					src={hero}
 					width="2560"
 					height="1600"
-					alt="The Malini window: six workstreams across malini, grip, and tony in the sidebar, a finished chat, and Draft and Merge above 2 changed files"
+					alt="The Malini window: a Home chat with the three workstreams it started nested under it in the sidebar, a finished chat beside a browser tab on the site it changed, and Draft and Merge above 1 changed file"
 				/>
 			{:else}
 				<div
@@ -218,6 +218,7 @@
 
 	.og .intro {
 		padding-top: 56px;
+		padding-bottom: 72px;
 	}
 
 	.og .intro > :global(*),
