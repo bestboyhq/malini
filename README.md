@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>Agentic development environment for builders moving fast.</b><br>
-  Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.<br>
+  Run as many Claude Code agents as you want, each in its own worktree.<br>
+  Malini does the git, the pull requests and the red checks. You read reports and press Merge.<br>
   Free and open source macOS app.
 </p>
 
@@ -21,87 +22,101 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: six workstreams across malini, grip and tony in the sidebar, a finished malini chat that read the code, edited package.json and docs/packaging.md, and ended each turn with a Done report, 2 files changed with Draft and Merge in the top bar, and a Builder skills chip in the composer.">
+  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: a Home chat, Changelog in every footer, with the three workstreams it started in malini, grip and tony nested under it, above more workstreams in the sidebar. The tony one is open: its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
 </p>
 
 ---
 
-## Why it exists
+## What it fixes
 
-The best AI coding tools are closed source.
-They belong to companies with investors to answer to, and when the two of you disagree, the investors win.
-Prices change.
-Limits change.
-Features go away.
-You can't look inside, and you can't take your setup with you.
+| You have seen this                                                         | What Malini does                                                                                                           |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Two agents share one checkout. One of them wins.                           | Every task is a workstream: its own git worktree, branch and chats. Start one or a hundred.                                |
+| An agent commits half-done work and opens a pull request you never wanted. | Agents can't commit, push, rebase, reset or run `gh pr create`. Malini owns git.                                           |
+| A new prompt kills the run in flight.                                      | **↵** queues it after the run. **⌘↵** steers now.                                                                          |
+| A turn ends in a wall of text.                                             | Every turn ends in a report: a picture, one line on what changed, one on how it was checked.                               |
+| "Fixed the layout." Sure.                                                  | A visible change comes with before and after. Every changed area gets a number, including the ones nobody meant to change. |
+| You asked for a design and got one guess.                                  | An open question comes back as two to four variants. You pick, the agent builds the winner.                                |
+| The pull request sits red overnight.                                       | Press **Merge**. Malini fixes checks, merges main in, answers review, and merges exactly the commit that passed.           |
+| One change spans three repositories.                                       | A chat at Home plans it and starts one workstream per repository. It asks you only what only you can decide.               |
+| You type the same prompt every Monday.                                     | Make it a job. Give it a trigger, like a merged pull request, and a Then, like **Open draft**.                             |
+| The agent wants your API key in the chat.                                  | It asks for the key by name. Your keychain keeps it, and every output shows `[secret]`.                                    |
+| One bad turn wrecks the branch.                                            | Every turn has Undo. Or fork the chat and try again.                                                                       |
 
-Malini is the other way.
+<p align="center">
+  <img src=".github/readme/variants.webp" width="70%" alt="A Malini report with three Open Graph image directions, Icon, Product and Type, as tabs under one frame, and a Your turn row asking to pick the direction for malini, grip and tony, with Go with A.">
+</p>
 
-**Open source, so we can't rug pull you.**
-The code is public under AGPL.
-It needs no account and no subscription, and there is no Malini server.
-We can't take it back, and if we ever go wrong, you can fork it.
+<p align="center">
+  <sub>Ask for options and pick one. The rest never touch your code.</sub>
+</p>
 
-**Transparent, all the way down.**
-Your code goes to Anthropic through your own Claude Code, and to GitHub through the GitHub CLI.
-That's it.
-Malini makes four calls of its own: update checks, usage stats you can turn off, which carry your Bestboy account while you are signed in, the extension marketplace while you use it, and your stats to a public profile, only if you publish them.
-Every big decision is written down in [`docs/adr`](docs/adr).
+Everything else Malini does is in [`docs/features.md`](docs/features.md) and the [docs](https://bestboy.dev/malini/docs).
 
-**On your side of the token.**
-An AI lab earns more when you use more tokens.
-It has no reason to help you use fewer.
-Its interest and yours point in opposite directions.
-Malini earns nothing from tokens.
-It shows your context window and your plan usage, and you pick the model and the effort for every prompt.
-Claude Code also loads every skill you own into every chat.
-With 47 skills that is about 7,400 tokens before you type a word.
-Malini ranks them by how often your agents use them, so you can turn off the ones no chat needs.
+## How it works
 
-**Outcomes, not skills.**
-You never wanted skills.
-A skill is a pile of markdown files, and that's an implementation detail.
-What you wanted was the outcome: checks green, branch up to date, review answered.
-So Malini has jobs.
-A job is an outcome you ask for by name, and you can have as many as you like.
-Name the skills a job needs, and it loads only those.
-That leaves your time for the work that matters, instead of fighting your setup.
+1. **Start a task.**
+   Press **+** on a repository, or tell a chat at Home what you want and it starts the workstreams.
+   Each one gets a fresh worktree, its own branch, and dependencies installed from the lockfile.
+2. **Keep it moving.**
+   Queue prompts, plan first, and pick the model and effort for every prompt.
+   Agents write the code and test it in a browser tab beside your files.
+3. **Press Draft, then Merge.**
+   Malini commits, opens the pull request, fixes red checks, answers reviews, and merges once GitHub allows.
+   The workstream archives itself when it lands.
+
+## Jobs
+
+A job is work you reuse by name: instructions, a model, an effort, and only the skills it needs.
+You run it, an event runs it, or a schedule does, like `every weekday at 09:00`.
+A Then runs next, so "update the changelog, then open a draft" is one job.
+Ten come built in, among them **Fix checks**, **Update from main**, **Resolve conflicts** and **Address review**, and they are yours to edit.
+Type the same prompt often enough and Malini offers to make it a job.
 
 <p align="center">
   <img src=".github/readme/jobs.webp" width="100%" alt="The Changelog on merge job open on the Jobs page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
 </p>
 
-<p align="center">
-  <img src=".github/readme/job-running.webp" width="50%" alt="The top of a chat's composer: 71 files changed in this chat, and the Update from main job running.">
-</p>
+## Why open source
 
-<p align="center">
-  <sub>A job running inside a chat.</sub>
-</p>
+The best AI coding tools are closed source, and they answer to investors.
+Prices change.
+Limits change.
+Features go away.
+Malini is the other way.
 
-## How it works
+**Open source, so we can't rug pull you.**
+The code is public under AGPL.
+No account, no subscription, no Malini server.
+If we ever go wrong, fork it.
 
-1. **Start a task.**
-   Each task is a workstream: its own git worktree, its own branch, its own chats.
-   Start one or start a hundred.
-2. **Keep it moving.**
-   Queue prompts, run jobs, plan first if you like.
-   Agents write code, and Malini owns git.
-3. **Press Draft, then Merge.**
-   Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.
+**Transparent, all the way down.**
+Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and through the GitHub CLI, to GitHub.
+Malini makes five calls of its own: update checks, usage stats you can turn off, which carry your Bestboy account while you are signed in, model lists from models.dev, the extension marketplace while you use it, and your stats to a public profile, only if you publish them.
+Every big decision is written down in [`docs/adr`](docs/adr).
 
-Everything Malini can do is in [`docs/features.md`](docs/features.md).
+**On your side of the token.**
+An AI lab earns more when you use more tokens.
+Malini earns nothing from them.
+It shows your context window and your plan usage, and you pick the model and the effort for every prompt.
+Claude Code loads every skill you own into every chat: with 47 skills, that is about 7,400 tokens before you type a word.
+Malini ranks them by how often your agents use them, so you turn off the ones no chat needs.
 
 ## Install
 
 1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
 2. Open it.
-   Setup connects Claude Code and GitHub: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
-3. Add a repository.
-   Your first workstream is ready.
+   Setup installs Claude Code if this Mac lacks it, and signs you in to GitHub with a one-time code in your browser.
+3. Setup ends in a chat at Home.
+   Pick a repository there, or say what you're working on.
 
 You need macOS 13 or later on Apple silicon, and git.
-Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it.
+Malini ships the GitHub CLI.
+Agents run your own Claude Code: Fable, Opus, Sonnet or Haiku on your Claude plan, or a DeepSeek or OpenCode model on its own key.
+Malini updates itself.
+
+The docs are at [bestboy.dev/malini/docs](https://bestboy.dev/malini/docs).
+Every page is plain markdown at its URL plus `.md`, and [llms-full.txt](https://bestboy.dev/malini/llms-full.txt) holds all of them, so your agent can read them too.
 
 ## Build from source
 
@@ -112,9 +127,12 @@ git clone https://github.com/bestboyhq/malini && cd malini
 corepack enable pnpm   # once; the repository pins pnpm 12
 pnpm install
 pnpm dev               # the app, with hot reload
+pnpm check             # types and the command and event contract
+pnpm test:e2e          # builds, then Playwright drives the app
 ```
 
-Read [AGENTS.md](AGENTS.md) for the layout and the conventions.
+Malini is built in Malini.
+Read [AGENTS.md](AGENTS.md) for the layout and the conventions, and [`docs/adr`](docs/adr) for why it is built this way.
 Issues and pull requests are welcome; your first pull request asks you to sign the [CLA](CLA.md).
 Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org), and every merged `feat`, `fix`, or `perf` ships to users as an in-app update.
 

@@ -89,8 +89,8 @@
 		},
 		{
 			icon: 'eye',
-			title: 'Four calls of its own',
-			body: 'Update checks, anonymous usage data you can turn off, the extension marketplace while you use it, and your stats only if you publish them. Every big decision is written down.',
+			title: 'Five calls of its own',
+			body: 'Update checks, usage stats you can turn off, model lists from models.dev, the extension marketplace while you use it, and your stats only if you publish them. Every big decision is written down.',
 		},
 	] as const;
 
@@ -113,7 +113,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. A Bestboy account is optional, only to publish your stats or an extension, and there is no Malini server. Malini makes four calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic, or to the provider you pick. A Bestboy account is optional, only to publish your stats or an extension, and there is no Malini server. Malini makes five calls of its own: update checks to GitHub Releases, usage stats that never include your code, prompts, paths, or keys, which carry your Bestboy account while you are signed in and which you can turn off under Settings, Privacy, the model lists of DeepSeek and OpenCode from models.dev, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
@@ -128,7 +128,7 @@
 		{
 			question: 'Which agents and models can I use?',
 			answer:
-				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
+				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku on your Claude plan, or a DeepSeek or OpenCode model on its own key, at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
 		},
 		{
 			question: 'Can I extend it?',
