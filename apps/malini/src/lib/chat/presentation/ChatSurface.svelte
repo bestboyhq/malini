@@ -2,6 +2,7 @@
 	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
 	import { quartOut } from 'svelte/easing';
 	import { fade, fly, slide, type SlideParams } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { Button } from '$hyper-ui/components/button';
 	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Icon } from '$hyper-ui/icons';
@@ -240,14 +241,11 @@
 	let newContentBelow = $state(false);
 	const nudgeMotion = (): { y: number; duration: number } => ({
 		y: 4,
-		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140,
+		duration: motionOff() ? 0 : 140,
 	});
 	let presentationChanging = false;
 	const foldMotion = (): SlideParams => ({
-		duration:
-			presentationChanging || window.matchMedia('(prefers-reduced-motion: reduce)').matches
-				? 0
-				: 240,
+		duration: presentationChanging || motionOff() ? 0 : 240,
 		easing: quartOut,
 	});
 

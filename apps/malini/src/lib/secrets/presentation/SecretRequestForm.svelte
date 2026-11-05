@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { backOut, cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly, scale } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { Button } from '$hyper-ui/components/button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -36,7 +36,7 @@
 		),
 	);
 	const firstEmpty = $derived(request.names.find((name) => !Object.hasOwn(filled, name)));
-	const motion = $derived(prefersReducedMotion.current ? 0 : 1);
+	const motion = (): number => (motionOff() ? 0 : 1);
 	const headingId = $props.id();
 
 	function onSubmit(event: SubmitEvent): void {
@@ -109,7 +109,7 @@
 	class="chat-column relative z-20 px-4 pb-2"
 	aria-labelledby={headingId}
 	data-testid="secret-request"
-	in:fly={{ y: 10 * motion, duration: 240 * motion, easing: cubicOut }}
+	in:fly={{ y: 10 * motion(), duration: 240 * motion(), easing: cubicOut }}
 >
 	<form
 		class="border-surface-elevated-border bg-surface-elevated overflow-hidden rounded-xl border-[0.5px]"
@@ -193,7 +193,7 @@
 							{#if Object.hasOwn(filled, name)}
 								<span
 									class="text-success-content grid shrink-0"
-									in:scale={{ start: 0.6, duration: 220 * motion, easing: backOut }}
+									in:scale={{ start: 0.6, duration: 220 * motion(), easing: backOut }}
 								>
 									<Icon name="check" size={14} />
 								</span>

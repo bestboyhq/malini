@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
@@ -9,7 +11,7 @@ import {
 	untilStill,
 } from './harness';
 
-type WhileHidden = { bufferedCharacters: number[]; transcriptAnimations: number };
+type WhileHidden = { bufferedCharacters: number[]; animated: string[] };
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 
@@ -31,12 +33,14 @@ async function hideWindow(page: Page, { midReply }: { midReply: boolean }): Prom
 				watch.observe(body, { subtree: true, attributeFilter: ['data-buffered-characters'] });
 			});
 		}
-		const state: WhileHidden = { bufferedCharacters: [], transcriptAnimations: 0 };
+		const state: WhileHidden = { bufferedCharacters: [], animated: [] };
 		Reflect.set(view, 'whileHidden', state);
 		const prototype = view.HTMLElement.prototype;
 		const animate = prototype.animate;
 		prototype.animate = function (this: typeof body, ...args: Parameters<typeof animate>) {
-			if (this.closest('[data-testid="chat-message-list"]')) state.transcriptAnimations += 1;
+			state.animated.push(
+				this.closest('[data-testid]')?.getAttribute('data-testid') ?? this.tagName,
+			);
 			return animate.apply(this, args);
 		};
 		Object.defineProperty(doc, 'hidden', { configurable: true, get: () => true });
@@ -67,7 +71,14 @@ async function showWindow(page: Page): Promise<void> {
 	});
 }
 
-async function replyWhileHidden(page: Page): Promise<WhileHidden> {
+async function animatedWhileHidden(page: Page): Promise<string[]> {
+	const whileHidden: WhileHidden = await page.evaluate(() =>
+		Reflect.get(globalThis, 'whileHidden'),
+	);
+	return whileHidden.animated;
+}
+
+async function replyWhileHidden(page: Page): Promise<void> {
 	await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
 		timeout: 30_000,
 	});
@@ -83,7 +94,6 @@ async function replyWhileHidden(page: Page): Promise<WhileHidden> {
 		Math.max(...whileHidden.bufferedCharacters),
 		'characters held back to type out on return',
 	).toBe(0);
-	return whileHidden;
 }
 
 test('a reply that streams while the window is hidden waits whole and still for the return', async () => {
@@ -103,8 +113,36 @@ test('a reply that streams while the window is hidden waits whole and still for 
 
 		await hideWindow(page, { midReply: false });
 		await sendPrompt(page, 'STREAM:40 Talk while I am away');
-		const whileHidden = await replyWhileHidden(page);
-		expect(whileHidden.transcriptAnimations, 'transcript motion planned while hidden').toBe(0);
+		await replyWhileHidden(page);
+		expect(await animatedWhileHidden(page), 'elements that animated while hidden').toEqual([]);
+		await showWindow(page);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a thought and the tools it runs while the window is hidden start no motion', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-hidden-think', 'Away');
+		await openWorkstream(page, workstreamId);
+
+		await hideWindow(page, { midReply: false });
+		await sendPrompt(page, 'THINK while I am away');
+		const release = setInterval(() => writeFileSync(join(app.home, 'release-thought'), ''), 200);
+		try {
+			await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+				timeout: 60_000,
+			});
+		} finally {
+			clearInterval(release);
+		}
+		await expect(page.getByTestId('thinking-summary')).toHaveCount(2);
+		expect(await animatedWhileHidden(page), 'elements that animated while hidden').toEqual([]);
 		await showWindow(page);
 		expectCleanConsole(app);
 	} finally {
