@@ -261,15 +261,16 @@
 	}
 
 	const settle = createTranscriptSettleGate();
+	const motionless = (): boolean => reducedMotion || document.hidden;
 	const transcriptScroll = createTranscriptScroll({
-		prefersReducedMotion: () => reducedMotion,
+		prefersReducedMotion: motionless,
 		remember: rememberTranscriptAnchorCommand,
 	});
 	const { releaseScrollPin } = transcriptScroll;
 	const rowArrivals = createRowArrivals({
 		settle,
 		opening: () => transcriptScroll.opening,
-		prefersReducedMotion: () => reducedMotion,
+		prefersReducedMotion: motionless,
 	});
 	const { stageEnter, promptArrival, glideRowLayout, rebaseRowLayout } = rowArrivals;
 	const transcriptWindow = createTranscriptWindow();
