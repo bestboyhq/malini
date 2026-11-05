@@ -7,6 +7,7 @@ import type { WorkstreamReportMedia } from '$contract/deliveries';
 import type { LeadDecision } from '$contract/leads';
 import { Lexer } from 'marked';
 import { REPORTS_PREAMBLE } from '$lib/chat/domain/deliveries';
+import { savedSecretsWake } from '$lib/chat/domain/saved-secrets';
 import type { RenderItem, RunGroup, ToolAggregate } from './render-state';
 import { toolActionKind, toolActivityLabel, toolDescriptionLabel } from './tool-display-name';
 
@@ -37,6 +38,7 @@ export type TimelineEntry =
 	| (Timed & Readonly<{ kind: 'prompt'; text: string }>)
 	| (Timed & Readonly<{ kind: 'reports'; reports: readonly TimelineReport[] }>)
 	| (Timed & Readonly<{ kind: 'notice'; text: string }>)
+	| (Timed & Readonly<{ kind: 'saved'; names: string }>)
 	| (Timed &
 			Readonly<{
 				kind: 'work';
@@ -112,8 +114,7 @@ function runEntries(run: RunGroup, current: boolean): TimelineEntry[] {
 		if (item.kind === 'user') {
 			flushWork();
 			flushStarted();
-			const entry = promptEntry(item, current);
-			if (entry) entries.push(entry);
+			entries.push(...promptEntries(item, current));
 			continue;
 		}
 		if (item.kind === 'assistant') {
@@ -163,6 +164,27 @@ function runEntries(run: RunGroup, current: boolean): TimelineEntry[] {
 	const stop = stoppedEntry(run, current, entries.at(-1)?.at ?? null);
 	if (stop) entries.push(stop);
 	return entries;
+}
+
+function promptEntries(
+	item: Extract<RenderItem, { kind: 'user' }>,
+	current: boolean,
+): TimelineEntry[] {
+	const wake = savedSecretsWake(item.text.trim());
+	const prompt = promptEntry({ ...item, text: wake.rest }, current);
+	const saved =
+		wake.saved === null
+			? []
+			: [
+					{
+						kind: 'saved' as const,
+						key: `${item.key}-saved`,
+						at: item.at ?? null,
+						current,
+						names: wake.saved,
+					},
+				];
+	return prompt ? [prompt, ...saved] : saved;
 }
 
 function promptEntry(item: Extract<RenderItem, { kind: 'user' }>, current: boolean) {

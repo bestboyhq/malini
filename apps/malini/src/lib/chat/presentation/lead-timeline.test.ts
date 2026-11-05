@@ -5,6 +5,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { REPORTS_PREAMBLE } from '$lib/chat/domain/deliveries';
+import { savedSecretsPrompt } from '$lib/chat/domain/saved-secrets';
 import {
 	leadTimeline,
 	replyParts,
@@ -233,6 +234,17 @@ describe('the lead timeline', () => {
 			workstreamId: 'ws-a',
 			outcome: 'Variants are ready',
 		});
+	});
+
+	it('shows a saved secret as a line of what you did, not as a prompt you wrote', () => {
+		const wake = savedSecretsPrompt({
+			names: ['DEMO_TOKEN', 'STRIPE_KEY'],
+			unsaved: [],
+			repository: 'acme/shop',
+		});
+		const entries = leadTimeline([run('one', [prompt(wake)])], []);
+
+		expect(entries).toMatchObject([{ kind: 'saved', names: 'DEMO_TOKEN and STRIPE_KEY' }]);
 	});
 
 	it('keeps both reports of a turn that waited on a background command and then went on', () => {

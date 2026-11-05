@@ -14,6 +14,7 @@
 	import { finalTurnReport } from '../turn-result';
 	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { shellRunsQuery } from '$lib/chat/application/queries/shell-runs.query.svelte';
+	import { savedSecretsWake } from '$lib/chat/domain/saved-secrets';
 	import { noVariantFitsPrompt, variantPickPrompt } from '$lib/chat/domain/variant-pick';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
@@ -49,6 +50,7 @@
 	const continuation = $derived(
 		item.kind === 'user' ? continuationNotice(item.text, item.seq) : null,
 	);
+	const wake = $derived(item.kind === 'user' ? savedSecretsWake(item.text) : null);
 
 	function runCommand(command: string, block: number): void {
 		if (message === null) return;
@@ -64,6 +66,13 @@
 {#if item.kind === 'user' && continuation !== null}
 	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>
 		<TranscriptDivider label={continuation} kind="continuation" />
+	</div>
+{:else if item.kind === 'user' && wake?.saved}
+	{#if wake.rest !== ''}
+		<ChatPromptBubble item={{ ...item, text: wake.rest }} {run} {isLastRun} />
+	{/if}
+	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>
+		<TranscriptDivider label={`You saved ${wake.saved}`} kind="secrets" />
 	</div>
 {:else if item.kind === 'user'}
 	<ChatPromptBubble {item} {run} {isLastRun} />
