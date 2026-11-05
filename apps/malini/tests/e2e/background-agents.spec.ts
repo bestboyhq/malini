@@ -33,11 +33,10 @@ test('a background agent shows as running past the turn, then shows its result',
 		const backgroundStatus = page
 			.getByRole('status')
 			.filter({ hasText: '1 background agent running' });
-		const agentRow = page.getByRole('group').filter({ hasText: 'Sleep probe' });
+		const agentRow = page.getByTestId('subagent-row').filter({ hasText: 'Sleep probe' });
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('launched', { exact: true })).toBeVisible();
-		await expect(agentRow).toContainText('Background agent');
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(submit).toHaveAccessibleName('Stop current run');
 		await expect(sidebarLoader(page, 'e2e-background-agent-ws')).toBeVisible();

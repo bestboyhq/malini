@@ -462,6 +462,82 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
 };
+const SUBAGENT_RELEASE = 'release-subagent';
+const subagentsRun = (sessionId, runId, releasePath) => {
+	pendingRuns.set(runId, sessionId);
+	const auth = 'agent-auth-' + runId;
+	const tests = 'agent-tests-' + runId;
+	const startAgent = (toolCallId, description, prompt) =>
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Agent',
+			toolCallId,
+			input: { description, subagent_type: 'Explore', prompt },
+		});
+	const step = (parentToolCallId, name, input, done = true) => {
+		const toolCallId = parentToolCallId + '-' + name + '-' + Object.values(input).join('-');
+		event({ type: 'tool.started', runId, name, toolCallId, input, parentToolCallId });
+		if (done)
+			event({ type: 'tool.completed', runId, name, toolCallId, output: 'ok', parentToolCallId });
+		return toolCallId;
+	};
+	const handBack = (parentToolCallId, message) => {
+		step(parentToolCallId, 'SubagentHandback', { message });
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Agent',
+			toolCallId: parentToolCallId,
+			output: 'The report was delivered to the parent.',
+		});
+	};
+	const command = 'rg -n token src';
+	let search = '';
+	const stages = [
+		() => {
+			search = step(auth, 'Bash', { command, description: 'Find token reads' }, false);
+			step(tests, 'Glob', { pattern: 'tests/**/*.spec.ts' });
+		},
+		() => {
+			event({
+				type: 'tool.completed',
+				runId,
+				name: 'Bash',
+				toolCallId: search,
+				output: 'src/auth.ts:12',
+				parentToolCallId: auth,
+			});
+			event({ type: 'command.completed', runId, command, exitCode: 0, parentToolCallId: auth });
+			handBack(
+				auth,
+				'## Auth runs through `src/auth.ts`\n\nTokens are read in one place, line 12.',
+			);
+			handBack(tests, 'Two specs cover sign-in.');
+			event({
+				type: 'assistant.message',
+				runId,
+				contentId: 'subagents-done',
+				text: 'Both agents are back. Auth runs through `src/auth.ts`.',
+			});
+			event({ type: 'run.completed', runId, summary: 'Both agents are back.' });
+			event({ type: 'session.state', sessionId, status: 'completed' });
+		},
+	];
+	startAgent(auth, 'Map the auth flow', 'Trace how a session token is read and refreshed.');
+	startAgent(tests, 'Audit the auth tests', 'List the specs that cover sign-in.');
+	step(auth, 'Read', { file_path: 'src/auth.ts' });
+	step(tests, 'Grep', { pattern: 'signIn' });
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!fs.existsSync(releasePath)) return;
+		fs.rmSync(releasePath);
+		stages.shift()?.();
+		if (stages.length > 0) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+	}, 50);
+};
 const COMPACTION_RELEASE = 'release-compaction';
 const compactionRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
@@ -1121,6 +1197,9 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
+	}
+	if (prompt.includes('SUBAGENTS')) {
+		return subagentsRun(sessionId, runId, nodePath.join(env.HOME, SUBAGENT_RELEASE));
 	}
 	if (prompt === '/compact') {
 		return compactionRun(sessionId, runId, nodePath.join(env.HOME, COMPACTION_RELEASE));

@@ -17,6 +17,7 @@
 	import { noVariantFitsPrompt, variantPickPrompt } from '$lib/chat/domain/variant-pick';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
+	import SubagentRow from './SubagentRow.svelte';
 	import ThinkingRow from './ThinkingRow.svelte';
 	import TranscriptDivider from './TranscriptDivider.svelte';
 	import { continuationNotice } from './run-stop-copy';
@@ -163,6 +164,8 @@
 	</div>
 {:else if item.kind === 'tool'}
 	<ChatToolRow {item} {run} />
+{:else if item.kind === 'subagent'}
+	<SubagentRow {item} {run} />
 {:else if item.kind === 'file'}
 	<div
 		class="w-full"

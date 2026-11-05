@@ -3,7 +3,8 @@ import type { EventEnvelope } from '$lib/chat/domain/events';
 import { IncrementalRenderProjector } from './render-projector';
 import { IncrementalRunTimelineProjector } from './incremental-run-timeline';
 import { windowRunTimeline } from './run-timeline-window';
-import type { RenderState, RunGroup } from './render-state';
+import { foldEnvelopes, type RenderState, type RunGroup } from './render-state';
+import { linearizeRunTimeline, type RunTimelineItem } from './run-timeline';
 
 function firstRun(state: RenderState): RunGroup {
 	const run = state.runs[0];
@@ -115,5 +116,112 @@ describe('IncrementalRunTimelineProjector', () => {
 		for (const frame of frames.slice(firstWithFile)) {
 			expect(frame).toContain('file');
 		}
+	});
+
+	it('folds every subagent step into its agent row, live and replayed, across a handoff', () => {
+		const at = (runId: string, seq: number, event: EventEnvelope['event']): EventEnvelope => ({
+			sessionId: 'session-1',
+			runId,
+			seq,
+			event,
+		});
+		const child = { parentToolCallId: 'agent-1' };
+		const envelopes: EventEnvelope[] = [
+			at('run-1', 1, { type: 'run.started', runId: 'run-1', sessionId: 'session-1' }),
+			at('run-1', 2, { type: 'user.message', runId: 'run-1', text: 'Map the auth flow' }),
+			at('run-1', 3, {
+				type: 'tool.started',
+				runId: 'run-1',
+				name: 'Agent',
+				toolCallId: 'agent-1',
+				input: { description: 'Map auth', prompt: 'Map it.', run_in_background: true },
+			}),
+			at('run-1', 4, {
+				type: 'tool.started',
+				runId: 'run-1',
+				name: 'Read',
+				toolCallId: 'read-1',
+				input: { file_path: 'src/auth.ts' },
+				...child,
+			}),
+			at('run-1', 5, { type: 'tool.started', runId: 'run-1', name: 'Glob', toolCallId: 'stray' }),
+			at('run-1', 6, {
+				type: 'tool.completed',
+				runId: 'run-1',
+				name: 'Read',
+				toolCallId: 'read-1',
+				output: 'export {}',
+				...child,
+			}),
+			at('run-1', 7, {
+				type: 'tool.started',
+				runId: 'run-1',
+				name: 'Bash',
+				toolCallId: 'bash-1',
+				input: { command: 'rg token', description: 'Find token use' },
+				...child,
+			}),
+			at('run-1', 8, { type: 'run.completed', runId: 'run-1', summary: '', handedOff: true }),
+			at('run-2', 9, { type: 'run.started', runId: 'run-2', sessionId: 'session-1' }),
+			at('run-2', 10, { type: 'user.message', runId: 'run-2', text: 'How is it going?' }),
+			at('run-2', 11, {
+				type: 'tool.completed',
+				runId: 'run-2',
+				name: 'Bash',
+				toolCallId: 'bash-1',
+				output: 'src/auth.ts',
+				...child,
+			}),
+			at('run-2', 12, {
+				type: 'command.completed',
+				runId: 'run-2',
+				command: 'rg token',
+				exitCode: 0,
+				...child,
+			}),
+			at('run-2', 13, { type: 'file.changed', runId: 'run-2', path: 'notes.md', ...child }),
+			at('run-2', 14, {
+				type: 'tool.started',
+				runId: 'run-2',
+				name: 'SubagentHandback',
+				toolCallId: 'handback-1',
+				input: { message: '## Auth runs through `src/auth.ts`' },
+				...child,
+			}),
+			at('run-2', 15, {
+				type: 'tool.completed',
+				runId: 'run-2',
+				name: 'Agent',
+				toolCallId: 'agent-1',
+				output: 'Report delivered.',
+			}),
+			at('run-2', 16, { type: 'assistant.message', runId: 'run-2', text: 'Still mapping.' }),
+		];
+		const renderProjector = new IncrementalRenderProjector();
+		const timelineProjector = new IncrementalRunTimelineProjector();
+		const shape = (items: readonly RunTimelineItem[]): unknown[] =>
+			items.map((item) =>
+				item.kind === 'subagent'
+					? [item.tool.status, item.steps.map((step) => step.tool.name), item.report]
+					: item.kind,
+			);
+		let live: unknown[][] = [];
+
+		for (let length = 1; length <= envelopes.length; length += 1) {
+			const prefix = envelopes.slice(0, length);
+			const runs = renderProjector.project(prefix).runs;
+			const replayed = foldEnvelopes(prefix).runs;
+			live = runs.map((run) => {
+				const timeline = timelineProjector.project(run, []);
+				expect(timeline).toEqual(linearizeRunTimeline(run, []));
+				return shape(timeline);
+			});
+			expect(live).toEqual(replayed.map((run) => shape(linearizeRunTimeline(run, []))));
+		}
+
+		expect(live).toEqual([
+			['user', ['completed', ['Read', 'Bash'], '## Auth runs through `src/auth.ts`'], 'file'],
+			['user', 'assistant'],
+		]);
 	});
 });

@@ -54,10 +54,12 @@ const ACRONYM_LABELS: Readonly<Record<string, string>> = {
 
 const COMPACTION_TOOL_NAME = 'Compact';
 
+export function isAgentTool(rawName: string): boolean {
+	return AGENT_TOOL_NAMES.has(rawName.trim());
+}
+
 export function isBackgroundAgent(rawName: string, input: unknown): boolean {
-	return (
-		AGENT_TOOL_NAMES.has(rawName.trim()) && isRecord(input) && input['run_in_background'] === true
-	);
+	return isAgentTool(rawName) && isRecord(input) && input['run_in_background'] === true;
 }
 
 export function isCompaction(rawName: string): boolean {
@@ -147,8 +149,7 @@ export function shellCommandLabel(command: string): string {
 }
 
 export function toolDescriptionLabel(rawName: string, input: unknown): string | null {
-	const describable =
-		AGENT_TOOL_NAMES.has(rawName.trim()) || toolActionKind(rawName, input) === 'command';
+	const describable = isAgentTool(rawName) || toolActionKind(rawName, input) === 'command';
 	if (!describable) return null;
 	const description = stringAt(input, ['description']);
 	return description ? short(description) : null;

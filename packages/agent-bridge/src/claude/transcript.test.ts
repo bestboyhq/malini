@@ -389,6 +389,9 @@ describe('ClaudeTranscript', () => {
 			'tool.started',
 			'tool.completed',
 		]);
+		expect(
+			ofType(events, 'command.completed').map(({ parentToolCallId }) => parentToolCallId),
+		).toEqual([SUBAGENT_TOOL_CALL, SUBAGENT_TOOL_CALL]);
 		expect(ofType(events, 'tool.started').find(({ name }) => name === 'Agent')).toEqual(
 			expect.not.objectContaining({ parentToolCallId: expect.anything() }),
 		);

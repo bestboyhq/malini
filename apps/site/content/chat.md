@@ -251,6 +251,9 @@ The trash button beside one of yours removes it once you click **Remove**, and a
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
+- Each subagent is one line: its task, the step it is on, and how many steps it took.
+  Click it for its prompt, every step, and its report.
+  Malini asks the agent to run the independent parts of a task as parallel subagents.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, the providers you connected with the Claude account in use and its five-hour and weekly usage, and the status of your MCP servers, read live from the chat's Claude Code.

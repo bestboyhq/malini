@@ -535,7 +535,7 @@ export class ClaudeTranscript {
 					...parent,
 				});
 				const path = editedPath(name, tool?.input);
-				if (path) this.#emit({ type: 'file.changed', runId: this.#runId, path });
+				if (path) this.#emit({ type: 'file.changed', runId: this.#runId, path, ...parent });
 			}
 			if (name === 'Bash' && !autoModeReason && isRecord(tool?.input)) {
 				const command = tool.input['command'];
@@ -545,6 +545,7 @@ export class ClaudeTranscript {
 						runId: this.#runId,
 						command,
 						exitCode: block['is_error'] === true ? 1 : 0,
+						...parent,
 					});
 				}
 			}

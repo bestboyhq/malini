@@ -48,6 +48,7 @@ describe('systemPromptAppend', () => {
 			'reports that arrive while you work come as one prompt after your turn',
 		);
 		expect(prompt).toContain('Answer what your plan covers with `workstreams_send`');
+		expect(prompt).toContain('run them as parallel subagents with the Agent tool');
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).toContain('every shell code block you write has a Run button');
 		expect(prompt).not.toContain('routine');
