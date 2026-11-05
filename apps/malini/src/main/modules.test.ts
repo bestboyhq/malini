@@ -4,8 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
 	ipcMain: { handle: vi.fn() },
-	BrowserWindow: { getAllWindows: () => [] },
-	app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test', isPackaged: false },
+	BrowserWindow: { getAllWindows: () => [], getFocusedWindow: () => null },
+	app: {
+		getPath: () => '/tmp',
+		getVersion: () => '0.0.0-test',
+		isPackaged: false,
+		on: vi.fn(),
+		off: vi.fn(),
+	},
 	session: {
 		fromPartition: () => ({
 			protocol: { handle: vi.fn() },
