@@ -737,7 +737,7 @@
 								<div
 									class="chat-stage-inset absolute inset-x-0 top-full z-30 -mt-3 pr-[var(--scrollbar-gutter)]"
 									bind:clientHeight={welcomeHeight}
-									out:fade={{ duration: 150 }}
+									out:fade={{ duration: motionOff() ? 0 : 150 }}
 								>
 									<div class="mx-auto w-full max-w-[42rem] px-4">
 										{@render welcome()}

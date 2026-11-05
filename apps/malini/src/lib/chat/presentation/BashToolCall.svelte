@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { quartOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
@@ -133,10 +133,7 @@
 	{/if}
 
 	{#if expanded}
-		<div
-			class="pt-1"
-			transition:slide={{ duration: prefersReducedMotion.current ? 0 : 240, easing: quartOut }}
-		>
+		<div class="pt-1" transition:slide={{ duration: motionOff() ? 0 : 240, easing: quartOut }}>
 			<ScrollableDiv
 				orientation="xy"
 				class="border-surface-50-border ml-5.5 max-h-64 rounded-lg border-[0.5px]"

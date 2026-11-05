@@ -13,6 +13,7 @@ import { noRawFormControl } from '../src/no-raw-form-control.mjs';
 import { noExternalIconPackages } from '../src/no-external-icon-packages.mjs';
 import { noDirectComponentFileImport } from '../src/no-direct-component-file-import.mjs';
 import { noBackgroundTransition } from '../src/no-background-transition.mjs';
+import { noMotionWhileHidden } from '../src/no-motion-while-hidden.mjs';
 import { noStaticHoverToken } from '../src/no-static-hover-token.mjs';
 
 RuleTester.describe = (_text, fn) => fn();
@@ -767,6 +768,148 @@ svelteTester.run('no-static-hover-token', noStaticHoverToken, {
 			code: '<a class="data-[open]:bg-surface-50-hover">Row</a>',
 			filename: desktopFilename,
 			errors: [{ messageId: 'staticHover', data: { token: 'bg-surface-50-hover' } }],
+		},
+	],
+});
+
+const fadeImport = "<script>import { fade, fly as glide } from 'svelte/transition';";
+const motionOffImport = "import { motionOff } from '$hyper-ui/motion/motion-off';";
+/** @param {string} directive */
+const motionWhileHidden = (directive) => ({ messageId: 'motionWhileHidden', data: { directive } });
+
+svelteTester.run('no-motion-while-hidden', noMotionWhileHidden, {
+	valid: [
+		{
+			code: `${fadeImport}${motionOffImport}</script><div in:fade={{ duration: motionOff() ? 0 : 190 }}></div>`,
+			filename: chatFilename,
+		},
+		{
+			code: [
+				`${fadeImport}${motionOffImport}`,
+				'const motion = () => ({ duration: motionOff() ? 0 : 180 });',
+				"const slotMotion = () => ({ axis: 'x', ...motion() });",
+				'</script>',
+				'<span transition:glide={slotMotion()}></span>',
+			].join('\n'),
+			filename: hyperUiFilename,
+		},
+		{
+			code: [
+				'<script lang="ts">',
+				'function grow(node: Element): TransitionConfig {',
+				'	return { duration: document.hidden ? 0 : 200, css: (t) => `opacity: ${t}` };',
+				'}',
+				'</script>',
+				'<div in:grow|global></div>',
+			].join('\n'),
+			filename: chatFilename,
+		},
+		{
+			code: "<script>import { revealFade } from './arrival-motion';</script><div in:revealFade></div>",
+			filename: chatFilename,
+		},
+		{
+			code: [
+				'<script lang="ts">import { menuOpen } from \'../../overlay\';',
+				'function panelOpen(node: HTMLElement): TransitionConfig {',
+				'	measurePosition();',
+				"	return menuOpen(node, { side: 'top', align: 'center' });",
+				'}',
+				'</script>',
+				'<div in:panelOpen></div>',
+			].join('\n'),
+			filename: hyperUiFilename,
+		},
+		{
+			code: `${fadeImport}import { motionMs } from './arrival-motion';</script><p out:fade={{ duration: motionMs(150) }}></p>`,
+			filename: chatFilename,
+		},
+		{
+			code: '<div class="in:flex"></div><p>Fade in:fade out</p>',
+			filename: chatFilename,
+		},
+		{
+			code: `${fadeImport}</script><div in:fade={{ duration: 190 }}></div>`,
+			filename: testFilename,
+		},
+	],
+	invalid: [
+		{
+			code: `${fadeImport}</script>\n<div\n\tin:fade={{ duration: 190 }}></div>`,
+			filename: chatFilename,
+			errors: [{ ...motionWhileHidden('in:fade={{ duration: 190 }}'), line: 3, column: 2 }],
+		},
+		{
+			code: `${fadeImport}</script><div transition:fade></div>`,
+			filename: chatFilename,
+			errors: [motionWhileHidden('transition:fade')],
+		},
+		{
+			code: `${fadeImport}${motionOffImport}const duration = motionOff() ? 0 : 200;</script><div in:glide|global={{ y: 6, duration }}></div>`,
+			filename: chatFilename,
+			errors: [motionWhileHidden('in:glide|global={{ y: 6, duration }}')],
+		},
+		{
+			code: [
+				'<script lang="ts">',
+				'function slideIn(node: Element): TransitionConfig {',
+				'	return { duration: 200, css: (t) => `opacity: ${t}` };',
+				'}',
+				'</script>',
+				'<li in:slideIn></li>',
+			].join('\n'),
+			filename: desktopFilename,
+			errors: [motionWhileHidden('in:slideIn')],
+		},
+		{
+			code: `${fadeImport}import { measure } from './measure';function rise(node) { measure(node); return glide(node, { y: 6 }); }</script><p in:rise></p>`,
+			filename: chatFilename,
+			errors: [motionWhileHidden('in:rise')],
+		},
+		{
+			code: "<script>import { flip } from 'svelte/animate';</script>{#each rows as row (row)}<li animate:flip={{ duration: 200 }}></li>{/each}",
+			filename: desktopFilename,
+			errors: [motionWhileHidden('animate:flip={{ duration: 200 }}')],
+		},
+		{
+			code: `${fadeImport}</script><div out:fade={{ duration: menuMotionOff() ? 0 : 150 }}></div>`,
+			filename: chatFilename,
+			errors: [motionWhileHidden('out:fade={{ duration: menuMotionOff() ? 0 : 150 }}')],
+		},
+	],
+});
+
+typescriptTester.run('no-motion-while-hidden in TypeScript', noMotionWhileHidden, {
+	valid: [
+		{
+			code: [
+				"import { fade, type TransitionConfig } from 'svelte/transition';",
+				'export const motionMs = (durationMs: number): number => (document.hidden ? 0 : durationMs);',
+				'export function revealFade(node: Element): TransitionConfig {',
+				'	return fade(node, { duration: motionMs(190) });',
+				'}',
+			].join('\n'),
+			filename: '/apps/malini/src/lib/chat/presentation/arrival-motion.ts',
+		},
+		{
+			code: 'export const ease = (t: number): number => t * t;',
+			filename: '/packages/hyper-ui/src/overlay/overlay-transition.ts',
+		},
+	],
+	invalid: [
+		{
+			code: [
+				"import type { TransitionConfig } from 'svelte/transition';",
+				'function menuMotion(node: HTMLElement, duration: number): TransitionConfig {',
+				'	return { duration, css: (t) => `opacity: ${t}` };',
+				'}',
+				'export const menuOpen = (node: HTMLElement): TransitionConfig => menuMotion(node, 200);',
+			].join('\n'),
+			filename: '/packages/hyper-ui/src/overlay/overlay-transition.ts',
+			errors: [
+				{ ...motionWhileHidden('menuMotion'), line: 2 },
+				{ ...motionWhileHidden('menuOpen'), line: 5 },
+			],
 		},
 	],
 });
