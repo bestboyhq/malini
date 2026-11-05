@@ -14,7 +14,7 @@ class FakeBrowserWindow extends EventEmitter {
 		getURL: () => this.url,
 	});
 	visibilityChecks = 0;
-	constructor() {
+	constructor(readonly options: Record<string, unknown>) {
 		super();
 		for (const event of ['show', 'hide', 'minimize', 'maximize', 'restore']) {
 			this.on(event, () => {
@@ -45,7 +45,12 @@ class FakeBrowserWindow extends EventEmitter {
 }
 
 const openExternal = vi.fn();
-vi.mock('electron', () => ({ BrowserWindow: FakeBrowserWindow, shell: { openExternal } }));
+const cursorDisplay = { workArea: { x: 1920, y: 25, width: 1920, height: 1055 } };
+const screen = {
+	getCursorScreenPoint: () => ({ x: 2400, y: 400 }),
+	getDisplayNearestPoint: () => cursorDisplay,
+};
+vi.mock('electron', () => ({ BrowserWindow: FakeBrowserWindow, screen, shell: { openExternal } }));
 
 const { createMainWindow } = await import('./window');
 
@@ -57,7 +62,22 @@ function navigator(window: FakeBrowserWindow): (url: string) => boolean {
 	};
 }
 
+function lastWindow(): FakeBrowserWindow {
+	const window = created.at(-1);
+	if (!window) throw new Error('no window was created');
+	return window;
+}
+
 describe('createMainWindow', () => {
+	it('opens centered on the display under the cursor, at most 1600 by 1000', () => {
+		createMainWindow();
+		expect(lastWindow().options).toMatchObject({ x: 2080, y: 53, width: 1600, height: 1000 });
+
+		cursorDisplay.workArea = { x: 0, y: 37, width: 1470, height: 860 };
+		createMainWindow();
+		expect(lastWindow().options).toMatchObject({ x: 0, y: 37, width: 1470, height: 860 });
+	});
+
 	it('does not show a window that was destroyed before its first paint', () => {
 		createMainWindow();
 		const window = created.at(-1);
