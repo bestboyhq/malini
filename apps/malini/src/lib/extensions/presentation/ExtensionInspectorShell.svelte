@@ -631,7 +631,7 @@
 				aria-owns={inspectorTabKeys.map((key) => inspectorTabId(key)).join(' ')}
 			></div>
 			<div
-				class="inspector-tab-strip flex min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
+				class="inspector-tab-strip scroll-fade-x flex min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
 				use:roveTabFocus
 			>
 				{#each visiblePanels as panel, panelIndex (panel.id)}
