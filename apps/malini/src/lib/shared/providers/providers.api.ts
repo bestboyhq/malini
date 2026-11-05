@@ -77,6 +77,7 @@ export {
 export { type ClaudeCodeStatus } from './domain/claude-code-status';
 
 export { cancelClaudeSignInCommand } from './application/commands/cancel-claude-sign-in.command';
+export { checkProviderPlanCommand } from './application/commands/check-provider-plan.command';
 export { deleteProviderKeyCommand } from './application/commands/delete-provider-key.command';
 export { loadModelDefaultsCommand } from './application/commands/load-model-defaults.command';
 export { loadModelProvidersCommand } from './application/commands/load-model-providers.command';

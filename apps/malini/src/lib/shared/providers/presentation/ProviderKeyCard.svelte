@@ -2,9 +2,14 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
+	import { checkProviderPlanCommand } from '$shared/providers/application/commands/check-provider-plan.command';
 	import { deleteProviderKeyCommand } from '$shared/providers/application/commands/delete-provider-key.command';
 	import { saveProviderKeyCommand } from '$shared/providers/application/commands/save-provider-key.command';
-	import { providerKeyUrl, type ProviderGroup } from '$shared/providers/domain/provider';
+	import {
+		OPENCODE_PROVIDER_ID,
+		providerKeyUrl,
+		type ProviderGroup,
+	} from '$shared/providers/domain/provider';
 	import ProviderIcon from './ProviderIcon.svelte';
 
 	interface Props {
@@ -17,9 +22,11 @@
 	const name = $derived(provider.name);
 	const keySaved = $derived(provider.ready);
 	const keyUrl = $derived(providerKeyUrl(provider.id));
+	const checkable = $derived(keySaved && providerId === OPENCODE_PROVIDER_ID);
 
 	let draft = $state('');
 	let busy = $state(false);
+	let checking = $state(false);
 	let error = $state<string | null>(null);
 
 	const hasDraft = $derived(draft.trim().length > 0);
@@ -50,6 +57,21 @@
 			busy = false;
 		}
 	}
+
+	async function checkPlan(): Promise<void> {
+		if (busy) return;
+		busy = true;
+		checking = true;
+		error = null;
+		try {
+			await checkProviderPlanCommand(providerId);
+		} catch (cause) {
+			error = cause instanceof Error ? cause.message : String(cause);
+		} finally {
+			busy = false;
+			checking = false;
+		}
+	}
 </script>
 
 <div
@@ -67,7 +89,13 @@
 		<div class="min-w-0 flex-1">
 			<h3 class="text-fg-default text-sm font-medium">{name}</h3>
 			<p class="text-fg-tertiary text-xs leading-5">
-				{keySaved ? 'API key saved on this Mac.' : `Add an API key to use ${name} models.`}
+				{#if keySaved && provider.plan === 'go'}
+					Key saved. Your Go plan.
+				{:else if keySaved}
+					API key saved on this Mac.
+				{:else}
+					Add an API key to use {name} models.
+				{/if}
 				{#if keyUrl && !keySaved}
 					<a
 						href={keyUrl}
@@ -128,10 +156,25 @@
 			</p>
 		{/if}
 		<div>
-			<p class="text-fg-tertiary text-xs leading-5">
-				{provider.models.length}
-				{provider.models.length === 1 ? 'model' : 'models'}
-			</p>
+			<div class="flex items-center gap-2">
+				<p class="text-fg-tertiary text-xs leading-5">
+					{provider.models.length}
+					{provider.models.length === 1 ? 'model' : 'models'}
+				</p>
+				{#if checkable}
+					<Button
+						variant="inherit"
+						size="auto"
+						bare
+						class="text-fg-tertiary hover:text-fg-secondary inline-flex items-center gap-1 text-xs leading-5 underline-offset-2 hover:underline disabled:cursor-default disabled:no-underline"
+						disabled={busy}
+						onclick={() => void checkPlan()}
+					>
+						<Icon name="refresh" size={11} />
+						{checking ? 'Checking' : 'Check again'}
+					</Button>
+				{/if}
+			</div>
 			<ul
 				class="text-fg-secondary flex flex-wrap gap-x-2.5 gap-y-0.5 text-xs leading-5"
 				aria-label={`${name} models`}

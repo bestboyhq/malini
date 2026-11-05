@@ -10,6 +10,7 @@ const groups: readonly ProviderGroup[] = [
 		models: [],
 		ready: true,
 		message: '',
+		plan: null,
 	},
 	{
 		id: 'deepseek',
@@ -19,6 +20,7 @@ const groups: readonly ProviderGroup[] = [
 		models: [],
 		ready: false,
 		message: '',
+		plan: null,
 	},
 ];
 

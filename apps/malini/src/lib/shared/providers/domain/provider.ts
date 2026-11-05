@@ -3,6 +3,7 @@ import type {
 	ModelProviderKind,
 	ModelProviderRecord,
 	ProviderCapability,
+	ProviderPlan,
 } from '$contract/agent';
 import type { ClaudeCodeStatus } from './claude-code-status';
 import { fallbackModelCatalog } from './model-catalog';
@@ -13,6 +14,7 @@ export const DEFAULT_PROVIDER_ID = CLAUDE_PROVIDER_ID;
 
 export const DEEPSEEK_PROVIDER_ID = 'deepseek';
 export const OPENCODE_PROVIDER_ID = 'opencode';
+export const OPENCODE_GO_PROVIDER_ID = 'opencode-go';
 
 const PROVIDER_KEY_URLS: Readonly<Record<string, string>> = {
 	[DEEPSEEK_PROVIDER_ID]: 'https://platform.deepseek.com/api_keys',
@@ -45,6 +47,7 @@ export const CLAUDE_PROVIDER: ModelProviderRecord = {
 	baseUrl: null,
 	models: [],
 	keySaved: false,
+	plan: null,
 };
 
 export interface ProviderModelSource {
@@ -60,6 +63,7 @@ export interface ProviderGroup {
 	models: readonly AgentModelInfo[];
 	ready: boolean;
 	message: string;
+	plan: ProviderPlan | null;
 }
 
 const CUSTOM_PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
@@ -95,6 +99,7 @@ export function providerGroups(
 		models: claudeModels,
 		ready: capability?.state === 'ready',
 		message: capability?.message ?? 'Claude Code needs setup',
+		plan: null,
 	};
 	const custom = providers
 		.filter((provider) => provider.id !== CLAUDE_PROVIDER_ID)
@@ -106,6 +111,7 @@ export function providerGroups(
 			models: provider.models,
 			ready: provider.keySaved,
 			message: provider.keySaved ? 'Ready' : `Add an API key for ${provider.name}`,
+			plan: provider.plan,
 		}));
 	return [claude, ...custom];
 }

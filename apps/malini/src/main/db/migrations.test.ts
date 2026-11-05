@@ -148,7 +148,10 @@ describe('migrate', () => {
 	it('seeds DeepSeek and OpenCode and defaults chats and jobs to Claude', () => {
 		const db = openMigratedDatabase(':memory:');
 		expect(
-			all(db, 'SELECT id, name, kind, base_url, subagent_model, api_key FROM model_providers'),
+			all(
+				db,
+				'SELECT id, name, kind, base_url, subagent_model, api_key, plan FROM model_providers',
+			),
 		).toEqual([
 			{
 				id: 'deepseek',
@@ -157,6 +160,7 @@ describe('migrate', () => {
 				base_url: 'https://api.deepseek.com/anthropic',
 				subagent_model: 'deepseek-flash',
 				api_key: null,
+				plan: null,
 			},
 			{
 				id: 'opencode',
@@ -165,8 +169,30 @@ describe('migrate', () => {
 				base_url: 'https://opencode.ai/inference/anthropic',
 				subagent_model: null,
 				api_key: null,
+				plan: null,
+			},
+			{
+				id: 'opencode-go',
+				name: 'OpenCode Go',
+				kind: 'anthropic',
+				base_url: 'https://opencode.ai/inference/go/anthropic',
+				subagent_model: null,
+				api_key: null,
+				plan: null,
 			},
 		]);
+		expect(
+			JSON.parse(
+				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'opencode-go'")
+					?.models ?? '',
+			),
+		).toContainEqual({
+			id: 'hy4',
+			label: 'Hy4',
+			description: 'Text and images, 1M context',
+			efforts: ['high'],
+			family: 'Hy',
+		});
 		expect(
 			JSON.parse(
 				get<{ models: string }>(db, "SELECT models FROM model_providers WHERE id = 'opencode'")
