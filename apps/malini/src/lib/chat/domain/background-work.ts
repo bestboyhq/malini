@@ -73,6 +73,21 @@ export function resumesTurn(event: Readonly<{ type: string }>): boolean {
 	return AGENT_WORK.has(event.type);
 }
 
+export function trayWork(work: BackgroundWork | null): BackgroundWork | null {
+	const tasks = work?.tasks.filter((task) => task.kind !== 'agent' || !task.toolCallId) ?? [];
+	return work && tasks.length > 0 ? { ...work, tasks } : null;
+}
+
+export function agentTaskOf(
+	work: BackgroundWork | null,
+	toolCallId: string | undefined,
+): AgentBackgroundTask | null {
+	if (!toolCallId) return null;
+	return (
+		work?.tasks.find((task) => task.kind === 'agent' && task.toolCallId === toolCallId) ?? null
+	);
+}
+
 export function backgroundWorkSummary(tasks: readonly AgentBackgroundTask[]): string {
 	const kinds = new Set(tasks.map((task) => task.kind));
 	const [kind] = kinds;

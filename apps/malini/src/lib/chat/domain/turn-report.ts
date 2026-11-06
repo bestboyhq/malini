@@ -86,6 +86,12 @@ export function hasTurnReport(text: string): boolean {
 	return Boolean(reportFooter(reportLines(text)).footer.get('outcome'));
 }
 
+export function withoutReportFooter(text: string): string {
+	const lines = reportLines(text);
+	const { footer, bodyEnd } = reportFooter(lines);
+	return footer.get('outcome') ? lines.slice(0, bodyEnd).join('\n').trimEnd() : text;
+}
+
 export function offeredVariants(
 	envelopes: readonly EventEnvelope[],
 ): readonly (readonly TurnVariant[])[] {

@@ -42,6 +42,7 @@ export type AgentEvent =
 			name: string;
 			input?: unknown;
 			toolCallId?: string;
+			parentToolCallId?: string;
 			ts?: number;
 	  }
 	| {
@@ -52,6 +53,7 @@ export type AgentEvent =
 			outputTruncated?: true;
 			outputLength?: number;
 			toolCallId?: string;
+			parentToolCallId?: string;
 			ts?: number;
 	  }
 	| {
@@ -59,6 +61,7 @@ export type AgentEvent =
 			runId: string;
 			name: string;
 			toolCallId?: string;
+			parentToolCallId?: string;
 			error: string;
 			autoModeReason?: string;
 			ts?: number;
@@ -69,8 +72,9 @@ export type AgentEvent =
 			command: string;
 			description?: string;
 			exitCode: number;
+			parentToolCallId?: string;
 	  }
-	| { type: 'file.changed'; runId: string; path: string }
+	| { type: 'file.changed'; runId: string; path: string; parentToolCallId?: string }
 	| {
 			type: 'approval.requested';
 			sessionId?: string;

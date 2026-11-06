@@ -48,7 +48,7 @@
 	import type { GroupedRunTimelineItem } from './activity-group';
 	import { runProjectionVersion } from './render-projector';
 	import type { RunPick } from './turn-result';
-	import { thoughtRowKey, type RunTimelineItem } from './run-timeline';
+	import { subagentItem, thoughtRowKey, type RunTimelineItem } from './run-timeline';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import {
@@ -59,7 +59,7 @@
 	} from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
-	import { summarizeLiveToolInput } from './tool-display-name';
+	import { isAgentTool, summarizeLiveToolInput, toolDescriptionLabel } from './tool-display-name';
 	import FileMentionChooser, {
 		type FileMentionChoice,
 	} from './chat-message-list/FileMentionChooser.svelte';
@@ -360,20 +360,26 @@
 						toolInputKey(runId, entry.toolCallId),
 					),
 			)
-			.map((pending) => ({
-				kind: 'tool' as const,
-				key: stableToolKey(runId, pending.name, pending.toolCallId, 0),
-				seq: Number.MAX_SAFE_INTEGER,
-				tool: {
-					name: pending.name,
-					toolCallId: pending.toolCallId,
-					startedAt: null,
-					completedAt: null,
-					input: summarizeLiveToolInput(pending.json),
-					output: undefined,
-					status: 'running' as const,
-				},
-			}));
+			.flatMap((pending): RunTimelineItem[] => {
+				const input = summarizeLiveToolInput(pending.json);
+				const agent = isAgentTool(pending.name);
+				if (agent && toolDescriptionLabel(pending.name, input) === null) return [];
+				const item = {
+					kind: 'tool' as const,
+					key: stableToolKey(runId, pending.name, pending.toolCallId, 0),
+					seq: Number.MAX_SAFE_INTEGER,
+					tool: {
+						name: pending.name,
+						toolCallId: pending.toolCallId,
+						startedAt: null,
+						completedAt: null,
+						input,
+						output: undefined,
+						status: 'running' as const,
+					},
+				};
+				return [agent ? subagentItem(item) : item];
+			});
 		return {
 			pendingItems: [...thoughtItems, ...pendingToolItems],
 			assistant: unfinalizedBlocks.filter((block) => block.kind === 'assistant'),

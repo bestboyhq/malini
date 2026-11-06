@@ -5,9 +5,10 @@
 	import { fly } from 'svelte/transition';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
-	import { arrivalMotion, motionMs, revealFade } from '../arrival-motion';
+	import { arrivalMotion, motionMs } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
+	import UnfoldText from '../UnfoldText.svelte';
 	import { transcriptContext } from './transcript-context';
 	import {
 		thinkingOutcome,
@@ -25,40 +26,15 @@
 
 	let { text, live, durationSeconds, enterKey }: Props = $props();
 
-	const WORD_REVEAL_MS = 28;
-	const BACKLOG_CATCH_UP_MS = 600;
-
 	const transcript = transcriptContext();
 	const { stageEnter } = transcript;
 	const startedLive = untrack(() => live);
 	let stepsMounted = $state(false);
 	const line = $derived(live ? thinkingTicker(text) : { key: 0, line: thinkingOutcome(text) });
 	const lineKey = $derived(line.key);
-	const words = $derived(line.line.split(' ').filter(Boolean));
-	let revealed = $state(untrack(() => ({ key: lineKey, count: words.length })));
-	const shown = $derived(!live ? words.length : revealed.key === lineKey ? revealed.count : 0);
-	const revealing = $derived(shown < words.length);
+	const mountedLineKey = untrack(() => lineKey);
 	const steps = $derived(stepsMounted ? thinkingSteps(text) : []);
 	const flip = $derived(prefersReducedMotion.current ? 0 : 10);
-
-	$effect(() => {
-		if (!revealing) return;
-		const key = lineKey;
-		const from = untrack(() => shown);
-		const stepMs = Math.min(
-			WORD_REVEAL_MS,
-			BACKLOG_CATCH_UP_MS / untrack(() => words.length - from),
-		);
-		let startedAtMs: number | undefined;
-		let frame = requestAnimationFrame(function reveal(nowMs: number): void {
-			startedAtMs ??= nowMs;
-			const total = untrack(() => words.length);
-			const count = Math.min(total, from + 1 + Math.floor((nowMs - startedAtMs) / stepMs));
-			if (count !== untrack(() => shown)) revealed = { key, count };
-			if (count < total) frame = requestAnimationFrame(reveal);
-		});
-		return () => cancelAnimationFrame(frame);
-	});
 
 	function glideWidth(box: HTMLElement): () => void {
 		const content = box.firstElementChild;
@@ -120,9 +96,7 @@
 					in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
 					out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
 				>
-					{#each words.slice(0, shown) as word, index (index)}
-						<span in:revealFade>{index > 0 ? ` ${word}` : word}</span>
-					{/each}
+					<UnfoldText text={line.line} unfold={live && lineKey !== mountedLineKey} />
 				</span>
 			{/key}
 		</span>
