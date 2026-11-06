@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, realpathSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -50,14 +49,14 @@ export async function launch(topic, { foreground = false } = {}) {
 			BrowserWindow.getAllWindows()[0]?.webContents.invalidate(),
 		);
 		await page.waitForTimeout(REPAINT_MS);
-		const source = await app.evaluate(({ BrowserWindow }) =>
-			BrowserWindow.getAllWindows()[0]?.getMediaSourceId(),
-		);
-		const windowId = /^window:(\d+)/u.exec(source ?? '')?.[1];
-		if (!windowId) throw new Error('Malini has no window to capture');
+		const png = await app.evaluate(async ({ BrowserWindow }) => {
+			const window = BrowserWindow.getAllWindows()[0];
+			return window ? (await window.capturePage()).toPNG().toString('base64') : null;
+		});
+		if (!png) throw new Error('Malini has no window to capture');
 		mkdirSync(contextRoot, { recursive: true });
 		const path = join(contextRoot, `${name}.png`);
-		execFileSync('screencapture', ['-o', '-x', '-l', windowId, path]);
+		writeFileSync(path, Buffer.from(png, 'base64'));
 		return path;
 	}
 

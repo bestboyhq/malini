@@ -265,6 +265,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			`--user-data-dir=${userDataDir}`,
 			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost',
 			'--use-mock-keychain',
+			'--use-fake-device-for-media-stream',
 		],
 		cwd: APP_ROOT,
 		env,
@@ -277,6 +278,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	};
 	electronApp.process().stdout?.on('data', keepOutput);
 	electronApp.process().stderr?.on('data', keepOutput);
+	await keepTheClipboardInMemory(electronApp);
 	const page = await electronApp.firstWindow();
 
 	const consoleErrors: string[] = [];
@@ -543,6 +545,27 @@ export function openedUrls(app: LaunchedApp): Promise<string[]> {
 	return app.electronApp.evaluate(() => {
 		const opened: unknown = Reflect.get(globalThis, '__openedUrls');
 		return Array.isArray(opened) ? opened.map(String) : [];
+	});
+}
+
+function keepTheClipboardInMemory(electronApp: ElectronApplication): Promise<void> {
+	return electronApp.evaluate(({ clipboard, ClipboardItem }) => {
+		let items: Electron.ClipboardItem[] = [];
+		clipboard.write = async (next) => {
+			items = next;
+		};
+		clipboard.writeText = async (text) => {
+			items = [new ClipboardItem({ 'text/plain': text })];
+		};
+		clipboard.read = async () => items;
+		clipboard.readText = async () => {
+			const item = items.find((candidate) => candidate.types.includes('text/plain'));
+			const text = await item?.getType('text/plain');
+			return text instanceof Blob ? text.text() : '';
+		};
+		clipboard.clear = () => {
+			items = [];
+		};
 	});
 }
 
