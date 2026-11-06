@@ -1439,7 +1439,7 @@ VALUES (
   'chatgpt',
   'https://api.openai.com/v1',
   NULL,
-  '[{"id":"gpt-6.1-sol","label":"GPT-6.1 Sol","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-sol"},{"id":"gpt-6.1-terra","label":"GPT-6.1 Terra","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-terra"},{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"},{"id":"gpt-6-astra","label":"GPT-6 Astra","description":"Text and images","efforts":["low","medium","high","xhigh","max"],"family":"gpt-astra"},{"id":"gpt-5.5","label":"GPT-5.5","description":"Text and images","efforts":["low","medium","high","xhigh"],"family":"gpt"}]',
+  '[{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"},{"id":"gpt-5.6-terra","label":"GPT-5.6 Terra","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-terra"},{"id":"gpt-5.6-luna","label":"GPT-5.6 Luna","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"}]',
   NULL,
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')

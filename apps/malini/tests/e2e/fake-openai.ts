@@ -27,15 +27,15 @@ export type FakeOpenAi = Readonly<{
 	responses: UpstreamResponse[];
 	revoked: URLSearchParams[];
 	replyWithUsageLimit(): void;
+	dropModel(slug: string): void;
 	close(): void;
 }>;
 
 const MODELS = {
 	models: [
-		model('gpt-6.1-sol', 'GPT-6.1 Sol'),
-		model('gpt-6.1-terra', 'GPT-6.1 Terra'),
-		model('gpt-6-luna', 'GPT-6 Luna'),
-		{ ...model('gpt-6.1-sol-preview', 'GPT-6.1 Sol Preview'), visibility: 'hide' },
+		model('gpt-6-luna', 'GPT-6-Luna'),
+		model('gpt-5.6-luna', 'GPT-5.6-Luna'),
+		{ ...model('gpt-6-luna-preview', 'GPT-6-Luna-Preview'), visibility: 'hide' },
 	],
 };
 
@@ -82,7 +82,7 @@ function greeting(): Reply {
 			item_id: 'msg_e2e',
 			output_index: 0,
 			content_index: 0,
-			delta: 'Hello from GPT-6.1 Sol',
+			delta: 'Hello from GPT-6 Luna',
 			logprobs: [],
 		},
 		{
@@ -91,7 +91,7 @@ function greeting(): Reply {
 			item: {
 				...message,
 				status: 'completed',
-				content: [{ type: 'output_text', text: 'Hello from GPT-6.1 Sol', annotations: [] }],
+				content: [{ type: 'output_text', text: 'Hello from GPT-6 Luna', annotations: [] }],
 			},
 		},
 		{
@@ -118,6 +118,7 @@ export async function fakeOpenAi(): Promise<FakeOpenAi> {
 	let accessToken = '';
 	let issued = 0;
 	let usageLimit = false;
+	let models = MODELS.models;
 
 	const idToken = (nonce: string): string => {
 		const iat = Math.floor(Date.now() / 1000);
@@ -218,7 +219,7 @@ export async function fakeOpenAi(): Promise<FakeOpenAi> {
 				return json(200, {});
 			case 'GET /v1/models':
 				return headers.authorization === `Bearer ${accessToken}`
-					? json(200, MODELS)
+					? json(200, { models })
 					: json(401, { error: { code: 'invalid_token', message: 'Unknown token.' } });
 			case 'POST /v1/responses':
 				return infer(headers, body);
@@ -246,6 +247,9 @@ export async function fakeOpenAi(): Promise<FakeOpenAi> {
 		revoked,
 		replyWithUsageLimit: () => {
 			usageLimit = true;
+		},
+		dropModel: (slug) => {
+			models = models.filter((model) => model['slug'] !== slug);
 		},
 		close: () => {
 			server.closeAllConnections();

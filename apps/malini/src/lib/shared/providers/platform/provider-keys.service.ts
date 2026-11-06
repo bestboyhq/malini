@@ -19,8 +19,10 @@ const MAX_API_KEY_LENGTH = 8_192;
 
 export interface SignedInProvider {
 	account(): ProviderAccount | null;
-	endpoint(): Promise<Readonly<{ baseUrl: string; token: string }>>;
+	endpoint(session: SessionOpening): Promise<Readonly<{ baseUrl: string; token: string }>>;
 }
+
+type SessionOpening = 'new' | 'reopened';
 
 const SIGNED_OUT: SignedInProvider = {
 	account: () => null,
@@ -79,13 +81,17 @@ export class ProviderKeys {
 		}
 	}
 
-	async environment(providerId: string, model: string): Promise<Record<string, string>> {
+	async environment(
+		providerId: string,
+		model: string,
+		session: SessionOpening = 'new',
+	): Promise<Record<string, string>> {
 		if (providerId === CLAUDE_PROVIDER_ID) return {};
 		const provider = this.#customProvider(providerId);
-		if (!provider.models.some((candidate) => candidate.id === model)) {
+		if (session === 'new' && !provider.models.some((candidate) => candidate.id === model)) {
 			throw new Error(`${provider.name} does not offer model \`${model}\``);
 		}
-		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint() : null;
+		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint(session) : null;
 		return providerEnvironment({
 			name: provider.name,
 			kind: provider.kind,

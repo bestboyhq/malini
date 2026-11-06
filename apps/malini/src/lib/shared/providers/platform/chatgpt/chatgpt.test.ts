@@ -216,7 +216,7 @@ const MODELS = {
 	models: [
 		{
 			slug: 'gpt-6.2-sol',
-			display_name: 'GPT-6.2 Sol',
+			display_name: 'GPT-6.2-Sol',
 			visibility: 'list',
 			supported_in_api: true,
 			context_window: 400_000,
@@ -298,9 +298,9 @@ async function harness() {
 		signIn: async () => {
 			const listed = openai.requests.filter((request) => request === 'GET /v1/models').length;
 			expect(await account.signIn()).toBe('signed-in');
-			await expect
-				.poll(() => openai.requests.filter((request) => request === 'GET /v1/models').length)
-				.toBe(listed + 1);
+			expect(openai.requests.filter((request) => request === 'GET /v1/models')).toHaveLength(
+				listed + 1,
+			);
 		},
 		refreshes: () =>
 			openai.grants
@@ -436,17 +436,15 @@ describe('ChatGPT sign-in', () => {
 			usageLimitReachedAt: null,
 		});
 		expect(await h.account.accessToken()).toBe('at-1');
-		await expect
-			.poll(() => getStoredProvider(h.db, 'chatgpt')?.models)
-			.toEqual([
-				{
-					id: 'gpt-6.2-sol',
-					label: 'GPT-6.2 Sol',
-					description: 'Text and images, 400K context',
-					efforts: ['low', 'medium', 'high', 'xhigh'],
-					family: 'gpt-sol',
-				},
-			]);
+		expect(getStoredProvider(h.db, 'chatgpt')?.models).toEqual([
+			{
+				id: 'gpt-6.2-sol',
+				label: 'GPT-6.2 Sol',
+				description: 'Text and images, 400K context',
+				efforts: ['low', 'medium', 'high', 'xhigh'],
+				family: 'gpt-sol',
+			},
+		]);
 	});
 
 	it('turns away a callback with the wrong state and keeps waiting', async () => {
@@ -576,6 +574,25 @@ describe('ChatGptProxy', () => {
 		});
 		expect(h.account.account()?.usageLimitReachedAt).toBe(new Date(h.now()).toISOString());
 
+		h.openai.replies.push(
+			json(400, {
+				detail: "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.",
+				error: {
+					type: 'invalid_request_error',
+					code: 'model_not_found',
+					message:
+						"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.",
+				},
+			}),
+		);
+		const unlisted = await post(claudeCodeTurn(true));
+		expect(unlisted.status).toBe(404);
+		expect(unlisted.headers.get('x-should-retry')).toBe('false');
+		expect(await unlisted.json()).toEqual({
+			type: 'error',
+			error: { type: 'not_found_error', message: 'Your ChatGPT plan does not include this model.' },
+		});
+
 		h.openai.replies.push(hello('resp_1'));
 		const streamed = await post(claudeCodeTurn(true));
 		expect(streamed.status).toBe(200);
@@ -633,7 +650,7 @@ describe('ChatGptProxy', () => {
 			stop_reason: 'end_turn',
 			usage: { input_tokens: 30, cache_read_input_tokens: 20, output_tokens: 3 },
 		});
-		expect(h.openai.responses).toHaveLength(3);
+		expect(h.openai.responses).toHaveLength(4);
 	});
 });
 

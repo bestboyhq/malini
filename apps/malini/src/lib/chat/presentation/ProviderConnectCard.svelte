@@ -152,6 +152,11 @@
 				Continue in your browser.
 			</div>
 		{/if}
+	{:else if access.kind === 'chatgpt-model-missing'}
+		<h3 class="text-fg-default text-[13px] leading-5 font-medium">Send with {modelLabel}</h3>
+		<p class="text-fg-tertiary mt-0.5 mb-3 text-xs leading-5">
+			Your ChatGPT plan does not include this model.
+		</p>
 	{:else if access.kind === 'claude-code-missing'}
 		<h3 class="text-fg-default text-[13px] leading-5 font-medium">Send with {modelLabel}</h3>
 		<p class="text-fg-tertiary mt-0.5 mb-3 text-xs leading-5">

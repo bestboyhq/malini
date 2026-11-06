@@ -133,7 +133,7 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, a model from OpenCode, paid per request from your OpenCode Console credits, or a GPT model on [your ChatGPT plan](#chatgpt-plan), and an effort from Low to Max, for every prompt.
 The picker lists models, not providers: each model once, the newest of its family, so Opus 5.5 shows and Opus 4.8 does not, and everyone sees the same list whatever they connected.
 Each row shows the icon of the provider that runs it.
-A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, or ChatGPT and OpenCode for GPT-6.1 Sol, with what each one needs, and pick one.
+A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, or ChatGPT and OpenCode for GPT-6 Luna, with what each one needs, and pick one.
 The row names the model the provider you picked runs, so a family two providers sell at different versions shows the one you will get.
 Type in it to filter by model or provider, and press Enter to pick the first match.
 **Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.

@@ -100,7 +100,7 @@ export class ChatGptAccount {
 			await this.#saveConnection(connection, null);
 			this.#usageLimitReachedAt = null;
 			this.#modelsCheckedAt = Number.NEGATIVE_INFINITY;
-			void this.refreshModels().catch(() => undefined);
+			await this.refreshModels().catch(() => undefined);
 			return 'signed-in';
 		} catch (error) {
 			if (error instanceof ChatGptError && error.code === 'cancelled') return 'cancelled';
@@ -336,12 +336,19 @@ export function chatGptModels(body: unknown): AgentModelInfo[] {
 			const levels = new Set((model.supported_reasoning_levels ?? []).map(({ effort }) => effort));
 			return {
 				id: model.slug,
-				label: model.display_name,
+				label: chatGptLabel(model.display_name),
 				description: modelDescription(model.input_modalities ?? ['text'], model.context_window),
 				efforts: AGENT_REASONING_EFFORTS.filter((effort) => levels.has(effort)),
 				family: chatGptFamily(model.slug),
 			};
 		});
+}
+
+function chatGptLabel(displayName: string): string {
+	return displayName.replace(
+		/^(GPT-\d+(?:\.\d+)*)-(.+)$/u,
+		(_, version: string, name: string) => `${version} ${name.replaceAll('-', ' ')}`,
+	);
 }
 
 export function chatGptFamily(slug: string): string {

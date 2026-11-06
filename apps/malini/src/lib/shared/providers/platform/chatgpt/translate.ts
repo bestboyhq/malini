@@ -775,6 +775,7 @@ export function parseUpstreamEvent(data: string): UpstreamEvent | null {
 export type UpstreamErrorKind =
 	| 'authentication'
 	| 'invalid-request'
+	| 'model-not-found'
 	| 'overloaded'
 	| 'permission'
 	| 'prompt-too-long'
@@ -797,6 +798,8 @@ export function upstreamErrorKind(code: string | null | undefined): UpstreamErro
 	switch (code) {
 		case 'context_length_exceeded':
 			return 'prompt-too-long';
+		case 'model_not_found':
+			return 'model-not-found';
 		case 'rate_limit_exceeded':
 		case 'usage_limit_reached':
 		case 'insufficient_quota':

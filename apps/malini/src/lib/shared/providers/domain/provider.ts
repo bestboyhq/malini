@@ -139,6 +139,7 @@ export type ModelAccess =
 	| { readonly kind: 'claude-code-missing' }
 	| { readonly kind: 'claude-signed-out' }
 	| { readonly kind: 'chatgpt-signed-out' }
+	| { readonly kind: 'chatgpt-model-missing' }
 	| {
 			readonly kind: 'needs-key';
 			readonly providerId: string;
@@ -171,9 +172,14 @@ export function modelAccess(
 			providerName: selection.provider,
 		};
 	}
-	if (group.ready) return { kind: 'ready' };
-	return group.kind === 'chatgpt'
-		? { kind: 'chatgpt-signed-out' }
+	if (group.kind === 'chatgpt') {
+		if (!group.ready) return { kind: 'chatgpt-signed-out' };
+		return group.models.some((model) => model.id === selection.model)
+			? { kind: 'ready' }
+			: { kind: 'chatgpt-model-missing' };
+	}
+	return group.ready
+		? { kind: 'ready' }
 		: { kind: 'needs-key', providerId: group.id, providerName: group.name };
 }
 

@@ -9,6 +9,7 @@ import { savedSecretsPrompt } from '$lib/chat/domain/saved-secrets';
 import {
 	leadTimeline,
 	replyParts,
+	pausedLine,
 	rowSummary,
 	timelineRows,
 	type TimelineEntry,
@@ -400,5 +401,16 @@ describe('rowSummary', () => {
 		).toBe('Append the line `second` to `lead-notes.md`, so the file holds `first`…');
 		expect(rowSummary(`Read the file \`${'a'.repeat(70)}\` first`)).toBe('Read the file…');
 		expect(rowSummary(`See **${'b'.repeat(70)}** now`)).toBe('See…');
+	});
+});
+
+describe('pausedLine', () => {
+	it('says when the turn goes on, without a stop before the comma', () => {
+		expect(pausedLine('You hit your ChatGPT usage limit.', '16:40')).toBe(
+			'You hit your ChatGPT usage limit, goes on by itself at 16:40',
+		);
+		expect(pausedLine('You hit your ChatGPT usage limit.', null)).toBe(
+			'You hit your ChatGPT usage limit.',
+		);
 	});
 });

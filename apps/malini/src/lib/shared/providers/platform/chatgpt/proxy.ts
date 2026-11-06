@@ -225,6 +225,7 @@ async function upstreamFailure(response: Response): Promise<UpstreamError> {
 function kindOfStatus(status: number): UpstreamErrorKind {
 	if (status === 401) return 'authentication';
 	if (status === 403) return 'permission';
+	if (status === 404) return 'model-not-found';
 	if (status === 413) return 'prompt-too-long';
 	if (status === 429) return 'rate-limit';
 	if (status === 503 || status === 529) return 'overloaded';
@@ -312,6 +313,12 @@ function anthropicErrorOf(error: UpstreamError): {
 			return {
 				status: 400,
 				type: 'invalid_request_error',
+				message: planMessage(error.code) ?? error.message,
+			};
+		case 'model-not-found':
+			return {
+				status: 404,
+				type: 'not_found_error',
 				message: planMessage(error.code) ?? error.message,
 			};
 		case 'prompt-too-long':

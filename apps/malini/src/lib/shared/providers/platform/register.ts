@@ -98,8 +98,8 @@ export function registerProviders(
 	});
 	const keys = new ProviderKeys(context.db, deps.cipher ?? electronCipher, {
 		account: () => chatgpt.account(),
-		endpoint: async () => {
-			await chatgpt.accessToken();
+		endpoint: async (session) => {
+			if (session === 'new') await chatgpt.accessToken();
 			return proxy.address();
 		},
 	});

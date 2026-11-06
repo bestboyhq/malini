@@ -98,12 +98,15 @@ describe('ProviderKeys', () => {
 		});
 	});
 
-	it('removes the key and refuses a model the provider does not offer', async () => {
+	it('removes the key and refuses a model the provider does not offer to a new session', async () => {
 		const providers = keys();
 		await providers.save('deepseek', 'sk-test');
 		await expect(providers.environment('deepseek', 'deepseek-chat')).rejects.toThrow(
 			'DeepSeek does not offer model `deepseek-chat`',
 		);
+		await expect(
+			providers.environment('deepseek', 'deepseek-chat', 'reopened'),
+		).resolves.toMatchObject({ ANTHROPIC_MODEL: 'deepseek-chat' });
 		providers.delete('deepseek');
 		expect(providers.list()[1]?.keySaved).toBe(false);
 		await expect(providers.environment('deepseek', 'deepseek-v4-pro')).rejects.toThrow(

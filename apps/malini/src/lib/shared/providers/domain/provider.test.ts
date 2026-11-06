@@ -72,7 +72,7 @@ describe('model access', () => {
 		});
 	});
 
-	it('asks for a ChatGPT sign-in until the ChatGPT account is signed in', () => {
+	it('asks for a ChatGPT sign-in, then runs only a model the plan offers', () => {
 		const chatgpt: ModelProviderRecord = {
 			id: 'chatgpt',
 			name: 'ChatGPT',
@@ -90,6 +90,12 @@ describe('model access', () => {
 		const account = { email: 'dev@example.com', name: null, usageLimitReachedAt: null };
 		const signedIn = providerGroups(null, [{ ...chatgpt, account }]);
 		expect(signedIn[1]).toMatchObject({ ready: true, account });
-		expect(modelAccess(selection, signedIn, readyClaude)).toEqual({ kind: 'ready' });
+		expect(modelAccess(selection, signedIn, readyClaude)).toEqual({
+			kind: 'chatgpt-model-missing',
+		});
+
+		const sol = { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', description: '', efforts: [] };
+		const offered = providerGroups(null, [{ ...chatgpt, account, models: [sol] }]);
+		expect(modelAccess(selection, offered, readyClaude)).toEqual({ kind: 'ready' });
 	});
 });

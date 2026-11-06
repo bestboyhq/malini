@@ -23,6 +23,7 @@
 	import { sessionProjectorCache } from './chat-message-list/session-projectors';
 	import {
 		leadTimeline,
+		pausedLine,
 		replyParts,
 		rowSummary,
 		timelineRows,
@@ -421,9 +422,7 @@
 			</span>
 		{:else}
 			<span class="text-fg-tertiary">
-				Paused: {rowSummary(entry.text)}{#if timeOf(entry.resumeAt)}, goes on by itself at {timeOf(
-						entry.resumeAt,
-					)}{/if}
+				Paused: {pausedLine(entry.text, timeOf(entry.resumeAt))}
 			</span>
 		{/if}
 	{/if}
