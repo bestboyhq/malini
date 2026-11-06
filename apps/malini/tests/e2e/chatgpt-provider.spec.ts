@@ -174,6 +174,7 @@ test('a GPT model runs on a ChatGPT plan that offers it after one sign-in, throu
 		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
 		const card = page.getByTestId('provider-chatgpt');
 		await expect(card).toHaveAttribute('data-signed-in', 'true');
+		await expect(card).toContainText(`Using ChatGPT plan · ${CHATGPT_EMAIL}`);
 		await expect(card.getByRole('list', { name: 'ChatGPT models' })).toHaveText(
 			/^GPT-6 Luna\s*GPT-5\.6 Luna$/u,
 		);

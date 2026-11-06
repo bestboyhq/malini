@@ -51,8 +51,7 @@
 			<h3 class="text-fg-default text-sm font-medium">{provider.name}</h3>
 			<p class="text-fg-tertiary truncate text-xs leading-5">
 				{#if account}
-					Using ChatGPT plan{#if account.email}
-						· <SensitiveText text={account.email} />{/if}
+					Using ChatGPT plan{#if account.email}{' · '}<SensitiveText text={account.email} />{/if}
 				{:else}
 					Sign in to run GPT models on your ChatGPT plan.
 				{/if}
