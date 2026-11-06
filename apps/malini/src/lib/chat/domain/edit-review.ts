@@ -19,7 +19,7 @@ export type EditReview = Readonly<{
 
 type Field = readonly [key: string, label: string, show: (value: unknown) => string];
 
-const JOB_FIELDS: readonly Field[] = [
+const AUTOMATION_FIELDS: readonly Field[] = [
 	['name', 'Name', String],
 	['model', 'Model', String],
 	['effort', 'Effort', String],
@@ -30,7 +30,7 @@ const JOB_FIELDS: readonly Field[] = [
 export function editReview(
 	review: MaliniEditReview,
 	input: unknown,
-	jobName: (reference: string) => string = (reference) => reference,
+	automationName: (reference: string) => string = (reference) => reference,
 ): EditReview {
 	const proposed = (key: string): unknown =>
 		typeof input === 'object' && input !== null ? Reflect.get(input, key) : undefined;
@@ -40,9 +40,9 @@ export function editReview(
 	const when = change('when', 'When', current.trigger?.when ?? null, proposed('when'), showWhen);
 	const instructions = proposed('instructions');
 	return {
-		subject: `job ‘${current.name}’`,
+		subject: `automation ‘${current.name}’`,
 		changes: [
-			...JOB_FIELDS.flatMap(([key, label, show]) =>
+			...AUTOMATION_FIELDS.flatMap(([key, label, show]) =>
 				change(key, label, fields[key], proposed(key), show),
 			),
 			...when,
@@ -56,8 +56,8 @@ export function editReview(
 					'when',
 				),
 			),
-			...change('then', 'Then', current.thenJobId, proposed('then'), (value) =>
-				typeof value === 'string' ? jobName(value) : NO_THEN,
+			...change('then', 'Then', current.thenAutomationId, proposed('then'), (value) =>
+				typeof value === 'string' ? automationName(value) : NO_THEN,
 			),
 		],
 		text:

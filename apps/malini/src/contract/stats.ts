@@ -40,7 +40,7 @@ export type RepositoryActivity = Readonly<{ fullName: string; runs: number }>;
 export type ActivityStats = Readonly<{
 	today: string;
 	runs: number;
-	jobRuns: number;
+	automationRuns: number;
 	agentSeconds: number;
 	runningAgents: number;
 	days: readonly ActivityDay[];

@@ -14,7 +14,7 @@
 		detail: string | null;
 		actions: 'ship' | 'merge' | 'merge-neutral' | 'cancel' | null;
 		reference: boolean;
-		job: string | null;
+		automation: string | null;
 		finished: number;
 		archived: boolean;
 	}>;
@@ -26,7 +26,7 @@
 		detail: null,
 		actions: 'ship',
 		reference: false,
-		job: null,
+		automation: null,
 		finished: 0,
 		archived: false,
 	};
@@ -50,15 +50,15 @@
 			busy: true,
 			label: 'Clearing blockers',
 			actions: 'merge-neutral',
-			job: 'Address review',
+			automation: 'Address review',
 		},
 		{ ...draft, busy: true, label: 'Checks running', detail: '2 of 3 pending', finished: 1 },
 		{ ...draft, label: 'Checks failed', detail: 'test (node 24)', finished: 1 },
 		{ ...draft, busy: true, label: 'Queueing merge', actions: null, finished: 1 },
 		queued,
-		{ ...queued, detail: 'Clearing blockers', job: 'Update from main' },
+		{ ...queued, detail: 'Clearing blockers', automation: 'Update from main' },
 		{ ...queued, detail: 'Waiting for checks', finished: 2 },
-		{ ...queued, detail: 'Clearing blockers', job: 'Fix checks', finished: 2 },
+		{ ...queued, detail: 'Clearing blockers', automation: 'Fix checks', finished: 2 },
 		{ ...queued, detail: 'Waiting for checks', finished: 3 },
 		{ ...queued, detail: 'Waiting for review', finished: 3 },
 		merging,
@@ -77,18 +77,18 @@
 		return { cycle, frame: frames[step] ?? local };
 	});
 
-	let jobSeconds = $state(0);
+	let automationSeconds = $state(0);
 	let toastMounted = $state(false);
 
-	function jobSummary(frame: Frame): string {
-		if (frame.job) return '1 running';
+	function automationSummary(frame: Frame): string {
+		if (frame.automation) return '1 running';
 		return frame.finished > 0 ? `${frame.finished} finished recently` : 'ready when you are';
 	}
 
 	$effect(() => {
-		if (!layer.frame.job) return;
-		jobSeconds = 0;
-		const clock = setInterval(() => (jobSeconds += 1), 1_000);
+		if (!layer.frame.automation) return;
+		automationSeconds = 0;
+		const clock = setInterval(() => (automationSeconds += 1), 1_000);
 		return () => clearInterval(clock);
 	});
 
@@ -180,7 +180,7 @@
 	/>
 {/snippet}
 
-{#snippet jobRow(title: string, time: string)}
+{#snippet automationRow(title: string, time: string)}
 	<div class="group flex items-center gap-2 rounded-xl pr-1">
 		<span class="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-xl pl-2 text-left text-xs">
 			<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
@@ -199,7 +199,7 @@
 	</div>
 {/snippet}
 
-{#snippet jobCenter(frame: Frame, placement: string)}
+{#snippet automationCenter(frame: Frame, placement: string)}
 	<section
 		class={[
 			'border-surface-50-border bg-surface-50 flex flex-col overflow-hidden rounded-3xl border-[0.5px] p-2',
@@ -209,15 +209,15 @@
 		<div class="flex h-8 shrink-0 items-center gap-2 pl-2">
 			<p class="flex min-w-0 flex-1 items-center gap-2 text-xs">
 				<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
-					{#if frame.job}
+					{#if frame.automation}
 						<BusyIcon size={12} />
 					{:else}
 						<Icon name="checklist" size={13} />
 					{/if}
 				</span>
 				<span class="min-w-0 flex-1 truncate">
-					<span class="text-fg-default font-medium">Jobs</span>
-					<span class="text-fg-tertiary">· {jobSummary(frame)}</span>
+					<span class="text-fg-default font-medium">Automations</span>
+					<span class="text-fg-tertiary">· {automationSummary(frame)}</span>
 				</span>
 			</p>
 			<span
@@ -226,11 +226,11 @@
 				<Icon name="settings" size={13} />
 			</span>
 		</div>
-		{#if frame.job || frame.finished > 0}
+		{#if frame.automation || frame.finished > 0}
 			<div class="min-h-0 overflow-y-auto">
-				{#if frame.job}
+				{#if frame.automation}
 					<ul>
-						<li>{@render jobRow(frame.job, `${jobSeconds}s`)}</li>
+						<li>{@render automationRow(frame.automation, `${automationSeconds}s`)}</li>
 					</ul>
 				{/if}
 				{#if frame.finished > 0}
@@ -252,7 +252,7 @@
 <div
 	class="app-ui merge-mock"
 	role="img"
-	aria-label="A demo of Malini's merge queue in a workstream's inspector. A draft pull request opens, the Address review job answers a reviewer, and the checks fail. After Merge is pressed, the status goes from Queued for merge through Clearing blockers, Waiting for checks and Waiting for review to Merging while the Job center runs Update from main and Fix checks. Then the workstream is archived and a toast says the pull request merged."
+	aria-label="A demo of Malini's merge queue in a workstream's inspector. A draft pull request opens, the Address review automation answers a reviewer, and the checks fail. After Merge is pressed, the status goes from Queued for merge through Clearing blockers, Waiting for checks and Waiting for review to Merging while the Automation center runs Update from main and Fix checks. Then the workstream is archived and a toast says the pull request merged."
 	data-nosnippet
 	{@attach loop.play}
 >
@@ -416,7 +416,7 @@
 				{/if}
 
 				{#if !frame.archived}
-					{@render jobCenter(frame, 'relative z-10 mt-auto mr-3 mb-3 shrink-0')}
+					{@render automationCenter(frame, 'relative z-10 mt-auto mr-3 mb-3 shrink-0')}
 				{/if}
 			</div>
 
@@ -440,7 +440,7 @@
 							</div>
 						</div>
 					</div>
-					{@render jobCenter(frame, 'shadow-popup z-30 w-72')}
+					{@render automationCenter(frame, 'shadow-popup z-30 w-72')}
 				</div>
 			{/if}
 		</div>

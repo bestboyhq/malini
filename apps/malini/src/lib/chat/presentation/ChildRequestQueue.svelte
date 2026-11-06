@@ -29,7 +29,9 @@
 	const place = $derived(
 		step ? (workstreamNameQuery.data(step.child.workstreamId) ?? 'another workstream') : '',
 	);
-	const label = $derived(step?.child.job ? `${step.child.job} job in ${place}` : place);
+	const label = $derived(
+		step?.child.automation ? `${step.child.automation} automation in ${place}` : place,
+	);
 	const motion = (): number => (motionOff() ? 0 : 1);
 
 	function onWindowKeydown(event: KeyboardEvent): void {

@@ -158,8 +158,8 @@ function toolLine(
 			return `You sent “${name}”: ${quote(input['prompt'])}`;
 		case 'workstreams_archive':
 			return `You archived “${name}”.`;
-		case 'jobs_run':
-			return `You ran ${text_(output['job']) ?? text_(input['job']) ?? 'a job'}${text_(input['workstream']) ? ` in “${text_(input['workstream'])}”` : ''}.`;
+		case 'automations_run':
+			return `You ran ${text_(output['automation']) ?? text_(input['automation']) ?? 'an automation'}${text_(input['workstream']) ? ` in “${text_(input['workstream'])}”` : ''}.`;
 		case 'plan_write':
 			return 'You rewrote your plan.';
 		default:

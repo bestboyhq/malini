@@ -27,7 +27,7 @@ export type Schedule = Readonly<{
 
 export type ScheduleTrigger = Schedule & Readonly<{ kind: 'schedule'; description: string }>;
 
-export type AutomationTrigger =
+export type ParsedTrigger =
 	| Readonly<{ kind: 'manual'; description: string }>
 	| Readonly<{ kind: 'workstream-created'; description: string }>
 	| Readonly<{
@@ -61,6 +61,9 @@ export const SCHEDULE_CADENCES: readonly ScheduleCadence[] = [
 export const SCHEDULE_GRAMMAR =
 	'every day, every weekday or every <day of the week> at <HH:MM>, optionally followed by in <owner> or in <owner>/<repository>';
 
+const MERGED_IN_REPOSITORY =
+	'on pull-requests:ship-changed where merged is set and repositoryId is ';
+
 const EVENT_PHRASE = /^on\s+(\S+:\S+)(?:\s+where\s+(.+))?$/iu;
 
 const EVENT_CONDITION = /^([\w-]+(?:\.[\w-]+)*)\s+is\s+(.+)$/u;
@@ -68,7 +71,7 @@ const EVENT_CONDITION = /^([\w-]+(?:\.[\w-]+)*)\s+is\s+(.+)$/u;
 const SCHEDULE_PHRASE =
 	/^every\s+(\S+)\s+at\s+(\d{1,2}):(\d{2})(?:\s+in\s+([\w.-]+(?:\/[\w.-]+)?))?$/iu;
 
-export function parseAutomationTrigger(when: string): AutomationTrigger {
+export function parseAutomationTrigger(when: string): ParsedTrigger {
 	const event = EVENT_PHRASE.exec(when.trim());
 	if (event) return parseEventTrigger(event[1] ?? '', event[2]);
 	if (/^every\s/iu.test(when.trim())) return parseScheduleTrigger(when.trim());
@@ -110,6 +113,14 @@ export function parseAutomationTrigger(when: string): AutomationTrigger {
 	throw new Error(
 		`Unsupported extension automation trigger ${JSON.stringify(when)}. Try “${MANUAL_AUTOMATION_PHRASE}”, “when a new workstream is created”, “when a frontend resource becomes ready”, “when a frontend Docker container becomes ready”, “on <channel>” for any platform event, like “on pull-requests:ship-changed where merged is set”, or a schedule, like “every weekday at 09:00”.`,
 	);
+}
+
+export function mergedInRepositoryWhen(repositoryId: string): string {
+	return `${MERGED_IN_REPOSITORY}${repositoryId}`;
+}
+
+export function mergedInRepository(when: string | null | undefined): string | null {
+	return when?.startsWith(MERGED_IN_REPOSITORY) ? when.slice(MERGED_IN_REPOSITORY.length) : null;
 }
 
 export function scheduleWhen({ cadence, hour, minute, place }: Schedule): string {
@@ -157,7 +168,7 @@ function twoDigits(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
-function parseEventTrigger(channel: string, conditions: string | undefined): AutomationTrigger {
+function parseEventTrigger(channel: string, conditions: string | undefined): ParsedTrigger {
 	if (!isEventChannel(channel)) throw new Error(unknownChannelMessage(channel));
 	const where = (conditions?.split(/\s+and\s+/iu) ?? []).map(parseEventCondition);
 	const clauses = where.map(({ path, equals }) =>

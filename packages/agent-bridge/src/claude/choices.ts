@@ -3,7 +3,7 @@ import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
 import { isRecord } from '../type-guards.js';
 import { findClaudeExecutable } from './installation.js';
 import { claudeEnvironment } from './session.js';
-import type { TitleJob, TitleOptions } from './titles.js';
+import type { TitleAutomation, TitleOptions } from './titles.js';
 
 const CHOICE_TIMEOUT_MS = 20_000;
 const MAX_TASK_CHARACTERS = 8_000;
@@ -11,7 +11,7 @@ const STRUCTURED_OUTPUT_TURNS = 2;
 
 export async function chooseClaudeCandidate(
 	task: string,
-	job: TitleJob,
+	automation: TitleAutomation,
 	choices: number,
 	options: TitleOptions = {},
 ): Promise<number> {
@@ -26,9 +26,9 @@ export async function chooseClaudeCandidate(
 				cwd: tmpdir(),
 				abortController,
 				pathToClaudeCodeExecutable: executable,
-				env: claudeEnvironment(job.env),
-				model: job.model,
-				systemPrompt: job.instructions,
+				env: claudeEnvironment(automation.env),
+				model: automation.model,
+				systemPrompt: automation.instructions,
 				tools: [],
 				maxTurns: STRUCTURED_OUTPUT_TURNS,
 				thinking: { type: 'disabled' },

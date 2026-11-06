@@ -30,18 +30,26 @@ function boot() {
 	return { launch, updates };
 }
 
-const V1 = reference({ 'jobs:run-changed': 'type A = 1;', 'app:scale-changed': 'type E = {};' });
-const V2 = reference({ 'jobs:run-changed': 'type A = 2;', 'app:updated': 'type U = {};' });
+const V1 = reference({
+	'automations:run-changed': 'type A = 1;',
+	'app:scale-changed': 'type E = {};',
+});
+const V2 = reference({ 'automations:run-changed': 'type A = 2;', 'app:updated': 'type U = {};' });
 
 describe('contract changes', () => {
 	it('lists the events added, removed and whose payload changed', () => {
-		const before = { 'jobs:run-changed': 'type A = 1;', 'app:scale-changed': 'type E = {};' };
-		const after = { 'jobs:run-changed': 'type A = 2;', 'app:updated': 'type U = {};' };
+		const before = {
+			'automations:run-changed': 'type A = 1;',
+			'app:scale-changed': 'type E = {};',
+		};
+		const after = { 'automations:run-changed': 'type A = 2;', 'app:updated': 'type U = {};' };
 
 		expect(contractChanges(before, after)).toEqual({
 			added: ['app:updated'],
 			removed: ['app:scale-changed'],
-			changed: [{ channel: 'jobs:run-changed', before: 'type A = 1;', after: 'type A = 2;' }],
+			changed: [
+				{ channel: 'automations:run-changed', before: 'type A = 1;', after: 'type A = 2;' },
+			],
 		});
 		expect(contractChanges(after, after)).toEqual({ added: [], removed: [], changed: [] });
 	});
@@ -62,7 +70,9 @@ describe('announcing an update at boot', () => {
 				changes: {
 					added: ['app:updated'],
 					removed: ['app:scale-changed'],
-					changed: [{ channel: 'jobs:run-changed', before: 'type A = 1;', after: 'type A = 2;' }],
+					changed: [
+						{ channel: 'automations:run-changed', before: 'type A = 1;', after: 'type A = 2;' },
+					],
 				},
 			},
 		]);

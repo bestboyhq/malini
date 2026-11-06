@@ -370,7 +370,7 @@ describe('pull request commands', () => {
 
 	it("reads GitHub's reason for a failed Actions job it never started", async () => {
 		seedRepository();
-		const job = (id: number): string =>
+		const automation = (id: number): string =>
 			`https://github.com/bestboyhq/malini/actions/runs/37071097246/job/${id}`;
 		const { run, calls } = fakeRunner((args) => {
 			const [command, target] = args;
@@ -386,10 +386,20 @@ describe('pull request commands', () => {
 									name: 'billing',
 									status: 'COMPLETED',
 									conclusion: 'FAILURE',
-									detailsUrl: job(11),
+									detailsUrl: automation(11),
 								},
-								{ name: 'tests', status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: job(12) },
-								{ name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS', detailsUrl: job(13) },
+								{
+									name: 'tests',
+									status: 'COMPLETED',
+									conclusion: 'FAILURE',
+									detailsUrl: automation(12),
+								},
+								{
+									name: 'lint',
+									status: 'COMPLETED',
+									conclusion: 'SUCCESS',
+									detailsUrl: automation(13),
+								},
 							],
 						},
 					]),
@@ -1024,7 +1034,7 @@ describe('pull request commands', () => {
 			'2026-10-01T22:23:54.2951491Z [warn] apps/malini/src/main/git/remote.test.ts',
 			'2026-10-01T22:24:01.4963321Z [ELIFECYCLE] Command failed with exit code 1.',
 			'2026-10-01T22:24:01.5026090Z ##[error]Process completed with exit code 1.',
-			'2026-10-01T22:24:01.6000000Z Post job cleanup.',
+			'2026-10-01T22:24:01.6000000Z Post automation cleanup.',
 		].join('\n');
 		const { run, calls } = fakeRunner((args) => {
 			const [command, target] = args;

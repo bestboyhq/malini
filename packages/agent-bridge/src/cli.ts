@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createInterface, type Interface as RLInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import {
+	bridgeAnswerFrame,
 	bridgeBrowserRequestFrame,
 	bridgeCapabilitiesFrame,
 	bridgeChoiceFrame,
@@ -20,6 +21,7 @@ import {
 	parseCommandLine,
 	type AgentCommand,
 	type AgentSkill,
+	type AnswerCommand,
 	type BridgeControlFrame,
 	type CancelMcpAuthorizationCommand,
 	type ChooseCommand,
@@ -37,6 +39,7 @@ import {
 	type SetSecretsCommand,
 	type WatchMcpServersCommand,
 } from './protocol.js';
+import { answerClaude } from './claude/answers.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
 import { chooseClaudeCandidate } from './claude/choices.js';
 import { registerClaudeProvider } from './claude/index.js';
@@ -46,7 +49,7 @@ import {
 	type McpServerWatch,
 } from './claude/mcp-servers.js';
 import { listClaudeSkills } from './claude/skills.js';
-import { suggestClaudeTitle, type TitleJob } from './claude/titles.js';
+import { suggestClaudeTitle, type TitleAutomation } from './claude/titles.js';
 import { BRIDGE_HEARTBEAT_INTERVAL_MS } from './generated/protocol-contract.js';
 import { sanitizePublicError } from './error-sanitizer.js';
 import { SessionManager, UnknownSessionError } from './session-manager.js';
@@ -67,8 +70,13 @@ export interface RunOptions {
 	idleTimeoutMs?: number | null;
 	exit?: (code: number) => void;
 	capabilityProbe?: () => Promise<ProviderCapability>;
-	suggestTitle?: (task: string, job: TitleJob) => Promise<string>;
-	choose?: (task: string, job: TitleJob, choices: number) => Promise<number>;
+	suggestTitle?: (task: string, automation: TitleAutomation) => Promise<string>;
+	choose?: (task: string, automation: TitleAutomation, choices: number) => Promise<number>;
+	answer?: (
+		task: string,
+		automation: TitleAutomation,
+		schema: Readonly<Record<string, unknown>>,
+	) => Promise<Readonly<Record<string, unknown>>>;
 	listSkills?: (cwd: string, turnedOff?: TurnedOffSkills) => Promise<readonly AgentSkill[]>;
 	mcpServers?: McpServerProbes;
 	closeSessionTimeoutMs?: number;
@@ -286,6 +294,10 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		}
 		if (cmd.cmd === 'choose') {
 			trackInFlight(answerChoice(cmd));
+			return;
+		}
+		if (cmd.cmd === 'answer') {
+			trackInFlight(answerStructured(cmd));
 			return;
 		}
 		if (cmd.cmd === 'list_skills') {
@@ -636,6 +648,24 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `CHOICE_FAILED: ${errorMessage(err)}`));
+		}
+	}
+
+	async function answerStructured(cmd: AnswerCommand): Promise<void> {
+		try {
+			const answer = await (options.answer ?? answerClaude)(
+				cmd.prompt,
+				{
+					instructions: cmd.instructions,
+					model: cmd.model,
+					...(cmd.env !== undefined ? { env: cmd.env } : {}),
+				},
+				cmd.schema,
+			);
+			emitControl(bridgeAnswerFrame(cmd.id, answer));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+		} catch (err) {
+			emitControl(bridgeCommandAckFrame(cmd.id, `ANSWER_FAILED: ${errorMessage(err)}`));
 		}
 	}
 

@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, your repositories and workstreams, decisions and a plan, your jobs and events - how often they ask, and where you see every call.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, your repositories and workstreams, decisions and a plan, your automations and events - how often they ask, and where you see every call.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -100,7 +100,7 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
 
 `workstreams_list` also says whether a chat in each workstream is on a turn, and the `Outcome:` and `Needs:` its last turn stated, so a chat sees where the work it started stands without reading its code.
-In a job that does not see every chat, `Outcome:` and `Needs:` are always empty.
+In an automation that does not see every chat, `Outcome:` and `Needs:` are always empty.
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
 A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.
 Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat and the workstream from it.
@@ -112,14 +112,14 @@ A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) 
 
 ### Work it started reports back
 
-Every turn a workstream a chat started ends reaches that chat as a report from that workstream, through the [Deliveries rule](/malini/docs/jobs.md#reconciler): its `Outcome:`, its `Needs:`, the rest of its report, and the pictures it embeds.
+Every turn a workstream a chat started ends reaches that chat as a report from that workstream, through the [Deliveries rule](/malini/docs/automations.md#reconciler): its `Outcome:`, its `Needs:`, the rest of its report, and the pictures it embeds.
 A turn that ends while only background commands run reports at once that it waits on them, by name, and the agent reports again if it goes on once they end.
 Reports that arrive while the chat works wait, and come as one prompt once its turn ends.
 The agent answers what its plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and brings you only what you must decide.
 `workstreams_send` reaches only the workstreams the chat started.
 A prompt for a chat on a turn waits until that turn ends, and survives a restart of Malini, so the agent never sends it twice.
 It sends one workstream at most six prompts after your last message; past that, the agent asks you whether to go on.
-Malini may wake the chat the same way when a job it ran finishes or fails, or when a merge in work it asked for stops on conflicts while **Resolve conflicts** is off; that report says "work you asked for moved on" and needs no `workstreams_send`.
+Malini may wake the chat the same way when an automation it ran finishes or fails, or when a merge in work it asked for stops on conflicts while **Resolve conflicts** is off; that report says "work you asked for moved on" and needs no `workstreams_send`.
 It never wakes a chat only because the chat works in the workstream where something happened.
 Other Malini chats are reachable only through these tools, since Claude Code's own `ListAgents` and `SendMessage` see only its own agents.
 
@@ -143,31 +143,31 @@ A picture is a file in the checkout of a workstream the chat started, such as a 
 The agent records a decision it made itself with `decided`, and the timeline shows it as **Lead decided**.
 Only a chat at Home or in an organization keeps decisions and a plan; any other chat says what you must decide in its `Needs:` line.
 
-## Jobs and events
+## Automations and events
 
-| Tool          | What it does                                                                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, `then`, and what each one sees and reaches. |
-| `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                                                         |
-| `jobs_run`    | Asks Malini to run a job, in the chat's workstream or another one, such as one it started, with optional extra context, and returns at once.                              |
-| `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                                                         |
+| Tool               | What it does                                                                                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `automations_list` | Lists your [automations](/malini/docs/automations.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, `then`, and what each one sees and reaches. |
+| `automations_save` | Creates an automation, or changes one by id: its skills, its `when` trigger, and its `then` automation included.                                                                        |
+| `automations_run`  | Asks Malini to run an automation, in the chat's workstream or another one, such as one it started, with optional extra context, and returns at once.                                    |
+| `events_list`      | Lists every event Malini emits: its channel, what it means, and its payload type.                                                                                                       |
 
-`when` is a job's [event trigger](/malini/docs/jobs.md#when-a-job-runs) or [schedule](/malini/docs/jobs.md#on-a-schedule), and `then` names the job that runs next, by id or exact name, such as **Open draft** or **Merge**.
+`when` is an automation's [event trigger](/malini/docs/automations.md#when-an-automation-runs) or [schedule](/malini/docs/automations.md#on-a-schedule), and `then` names the automation that runs next, by id or exact name, such as **Open draft** or **Merge**.
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.
 A run the agent starts waits in its chat's composer tray until it finishes, wherever it runs.
-No tool changes [what a job sees and reaches](/malini/docs/jobs.md#what-a-job-sees-and-reaches), and `jobs_run` refuses extra context for a job that does not see your chats, so an agent cannot hand a job more than you let it see.
+No tool changes [what an automation sees and reaches](/malini/docs/automations.md#what-an-automation-sees-and-reaches), and `automations_run` refuses extra context for an automation that does not see your chats, so an agent cannot hand an automation more than you let it see.
 
-## Tools and jobs
+## Tools and automations
 
 A tool does one thing at once, such as cloning a repository.
-A job is a process with steps: **Merge** waits for checks, runs **Fix checks** and **Resolve conflicts** when it has to, and only then merges.
-So the agent clones, hides, starts and archives with tools, and opens drafts and merges by running the **Open draft** and **Merge** jobs.
+An automation is a process with steps: **Merge** waits for checks, runs **Fix checks** and **Resolve conflicts** when it has to, and only then merges.
+So the agent clones, hides, starts and archives with tools, and opens drafts and merges by running the **Open draft** and **Merge** automations.
 
 ## Shipping is your call
 
 Malini owns commits, pushes, and pull requests, so the agent cannot commit, push, open a pull request or merge one from its shell.
-The agent runs **Open draft** or **Merge**, or sets either as a job's `then`, only when you explicitly asked for it in the chat.
+The agent runs **Open draft** or **Merge**, or sets either as an automation's `then`, only when you explicitly asked for it in the chat.
 Finished work, passing tests and green checks are never a reason for it to ship on its own.
 
 When you ask it to ship, it runs **Open draft** and goes on with its turn.
@@ -178,49 +178,49 @@ A failure shows in the top bar, where pull request problems always do.
 ### Workstreams it starts
 
 When the agent hands work to workstreams it starts with `workstreams_create`, and you asked it to ship or merge that work, it ships each one from your chat instead of asking that workstream's chat to.
-Right after it starts a workstream, it runs **Open draft** or **Merge** there with `jobs_run`, so you approve it in the chat you are in, and **Always allow** for that chat covers the rest.
+Right after it starts a workstream, it runs **Open draft** or **Merge** there with `automations_run`, so you approve it in the chat you are in, and **Always allow** for that chat covers the rest.
 Malini holds each run while that workstream sets up and its chat works, then does what **Draft** or **Merge** in its top bar does once the chat ends its turn.
 So a chat that starts five workstreams and merges them leaves you five merged pull requests and five archived workstreams, not five drafts to click through.
 
-Until it finishes, the run waits in your chat's composer tray as a row that names the workstream it runs in, such as **Merge · Job in Fetch command**.
+Until it finishes, the run waits in your chat's composer tray as a row that names the workstream it runs in, such as **Merge · Automation in Fetch command**.
 Merge still waits for checks, fixes what fails and resolves conflicts first, and a problem shows in that workstream's top bar.
 
 ## You decide how often it asks
 
-- The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `secrets_request`, which only asks you, `workstreams_create`, `workstreams_send`, and the decision and plan tools.
-- Nothing inside the chat's own work asks: archiving a workstream it started, or one those started in turn, and running a job in its own workstream or in one it started go through without asking.
-- **Open draft** and **Merge**, and any job whose Thens reach them, always ask, since [shipping is your call](#shipping-is-your-call).
+- The read tools, `automations_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `secrets_request`, which only asks you, `workstreams_create`, `workstreams_send`, and the decision and plan tools.
+- Nothing inside the chat's own work asks: archiving a workstream it started, or one those started in turn, and running an automation in its own workstream or in one it started go through without asking.
+- **Open draft** and **Merge**, and any automation whose Thens reach them, always ask, since [shipping is your call](#shipping-is-your-call).
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
-- **Always allow** remembers one action: cloning repositories, hiding them, archiving workstreams, saving jobs, or running one job.
-  Always allowing **Release notes** to run never lets the agent run any other job.
+- **Always allow** remembers one action: cloning repositories, hiding them, archiving workstreams, saving automations, or running one automation.
+  Always allowing **Release notes** to run never lets the agent run any other automation.
 - **Settings > Agent access > Always allowed** lists everything you always allow, and **Revoke** takes it back.
-- A trigger the agent adds starts **Off**: the job never runs on its own until you turn it on from the [Jobs page](/malini/docs/jobs.md).
+- A trigger the agent adds starts **Off**: the automation never runs on its own until you turn it on from the [Automations page](/malini/docs/automations.md).
 
 ## See what the agent did
 
-A chat is a job without a preset, so **Jobs > Activity** lists both as runs, by day: job runs marked **Job** and chat turns marked **Chat**.
+A chat is an automation without a preset, so **Automations > Activity** lists both as runs, by day: automation runs marked **Automation** and chat turns marked **Chat**.
 A chat turn shows when its agent called Malini's tools; turn on **Every chat turn** to list the latest ones too.
 
 - **N calls** on a run folds open every call its agent made to Malini, in order: what it was, how it was approved, and when it finished.
 - Open a call to see what the agent called it with and what came back, or the error, and **Open chat** to read the turn that made it.
 - A call you denied shows too, as **You denied it**.
-- A job an agent started with `jobs_run` reads **Started by an agent**, and its own calls fold under it.
+- An automation an agent started with `automations_run` reads **Started by an agent**, and its own calls fold under it.
 
 ## Edits you review
 
-A job runs without asking when it is built in, when you always allow it to run, when its trigger is not Off, or when it is the Then of such a job.
-When the agent changes such a job, Malini shows you the change instead of saving it, and **Always allow** never skips this.
+An automation runs without asking when it is built in, when you always allow it to run, when its trigger is not Off, or when it is the Then of such an automation.
+When the agent changes such an automation, Malini shows you the change instead of saving it, and **Always allow** never skips this.
 
 - Each changed setting, such as the model, the When, or the Then, gets its own row with **Accept** and **Reject**.
 - The instructions show as a diff you can edit, and each change in them has its own **Accept** and **Reject**, with **Accept all** and **Reject all** above.
 - **Save** keeps every change you did not reject, plus your own edits, and the agent gets the version you saved.
-- **Reject** keeps the job as it was.
+- **Reject** keeps the automation as it was.
 
 ## Example
 
 > Every time one of my pull requests merges, update the docs and open a draft PR.
 
-The agent can read `events_list`, find `pull-requests:ship-changed`, and save a job:
+The agent can read `events_list`, find `pull-requests:ship-changed`, and save an automation:
 
 ```json
 {
@@ -232,4 +232,4 @@ The agent can read `events_list`, find `pull-requests:ship-changed`, and save a 
 ```
 
 You approve the save, and its trigger starts Off.
-Turn it on from the Jobs page, as **Ask me first** or **On its own**, when you trust it.
+Turn it on from the Automations page, as **Ask me first** or **On its own**, when you trust it.

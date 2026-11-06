@@ -39,12 +39,13 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		facts: ['workstreamId', 'checkpointId', 'sessionId'],
 	},
 	'chat:session-renamed': {
-		description: 'Fires when a chat gets a new name, from the user or from the Name chats job.',
+		description:
+			'Fires when a chat gets a new name, from the user or from the Name chats automation.',
 		facts: ['workstreamId', 'sessionId'],
 	},
 	'chat:turn-finished': {
 		description:
-			"Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.",
+			"Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.",
 		facts: ['workstreamId', 'sessionId', 'runId', 'status'],
 	},
 	'chat:lead-decision-changed': {
@@ -139,7 +140,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'repositories:workstream-setup-status': {
 		description:
-			'Fires when Malini starts setting up a workstream an agent or a job started, updating its base branch and installing its dependencies, and again with `done` once it finishes.',
+			'Fires when Malini starts setting up a workstream an agent or an automation started, updating its base branch and installing its dependencies, and again with `done` once it finishes.',
 		facts: ['workstreamId', 'status'],
 	},
 	'repositories:workstream-merge-conflicted': {
@@ -204,7 +205,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'state.queuedAt',
 			'state.attempts',
 			'state.checks',
-			'state.activeJobRunId',
+			'state.activeAutomationRunId',
 			'state.failures',
 			'state.failedSince',
 			'state.nextAttemptAt',
@@ -216,7 +217,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'pull-requests:pull-request-changed': {
 		description:
-			"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every job the Shipping rule starts for that pull request names the latest one as its cause.",
+			"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every automation the Shipping rule starts for that pull request names the latest one as its cause.",
 		facts: [
 			'workstreamId',
 			'pullRequestNumber',
@@ -246,12 +247,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'pull-requests:workstream-opened': {
 		description:
-			'Fires each time you open a workstream, for jobs to start on. Malini does not update a workstream from main on it: only merging does.',
+			'Fires each time you open a workstream, for automations to start on. Malini does not update a workstream from main on it: only merging does.',
 		facts: ['workstreamId'],
 	},
-	'jobs:run-changed': {
+	'automations:run-changed': {
 		description:
-			'Fires whenever a job run waits for you, is queued, starts, needs you, finishes as succeeded, failed or cancelled, or runs again because its agent went on after the background commands its turn ended over. Malini does not keep it in its event log: it keeps `jobs:run-started` and `jobs:run-finished`.',
+			'Fires whenever an automation run waits for you, is queued, starts, needs you, finishes as succeeded, failed or cancelled, or runs again because its agent went on after the background commands its turn ended over. Malini does not keep it in its event log: it keeps `automations:run-started` and `automations:run-finished`.',
 		logged: false,
 		facts: [
 			'run.id',
@@ -272,9 +273,9 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'run.finishedAt',
 		],
 	},
-	'jobs:run-started': {
+	'automations:run-started': {
 		description:
-			'Fires when a job run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.',
+			'Fires when an automation run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.',
 		facts: [
 			'run.id',
 			'run.definitionId',
@@ -294,9 +295,9 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'run.finishedAt',
 		],
 	},
-	'jobs:run-finished': {
+	'automations:run-finished': {
 		description:
-			'Fires when a job run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. A job runs after another on it, such as `on jobs:run-finished where run.status is failed`. A run whose turn ended while only background commands run finishes at once, and when its agent goes on once they end, it runs again and fires this again at its next end.',
+			'Fires when an automation run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. An automation runs after another on it, such as `on automations:run-finished where run.status is failed`. A run whose turn ended while only background commands run finishes at once, and when its agent goes on once they end, it runs again and fires this again at its next end.',
 		facts: [
 			'run.id',
 			'run.definitionId',
@@ -316,9 +317,9 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'run.finishedAt',
 		],
 	},
-	'jobs:agent-action-changed': {
+	'automations:agent-action-changed': {
 		description:
-			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `jobs:tool-called`.",
+			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `automations:tool-called`.",
 		logged: false,
 		facts: [
 			'action.id',
@@ -332,7 +333,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'action.finishedAt',
 		],
 	},
-	'jobs:tool-called': {
+	'automations:tool-called': {
 		description:
 			"Fires once when an agent calls one of Malini's tools, with the tool, its input and whether the call needed your yes.",
 		facts: [
@@ -347,12 +348,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'action.finishedAt',
 		],
 	},
-	'jobs:time-reached': {
+	'automations:time-reached': {
 		description:
-			"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
+			"Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
 		facts: ['definitionId', 'name', 'when', 'due'],
 	},
-	'jobs:decision-changed': {
+	'automations:decision-changed': {
 		description:
 			'Fires when the event reconciler decides what to do about an event no trigger handled, records that it does nothing because other work already takes it, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
 		logged: false,
@@ -366,15 +367,15 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'decision.chosen',
 			'decision.decidedBy',
 			'decision.status',
-			'decision.jobRunId',
+			'decision.automationRunId',
 			'decision.subjectRunId',
 			'decision.createdAt',
 			'decision.finishedAt',
 		],
 	},
-	'jobs:definition-changed': {
+	'automations:definition-changed': {
 		description:
-			'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
+			'Fires when an automation is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
 		facts: [
 			'definitionId',
 			'definition.id',
@@ -383,25 +384,29 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'definition.effort',
 			'definition.runsIn',
 			'definition.builtin',
-			'definition.thenJobId',
+			'definition.thenAutomationId',
 			'definition.createdAt',
 			'definition.updatedAt',
 		],
 	},
-	'jobs:suggested': {
+	'automations:suggested': {
 		description:
-			'Fires when Malini notices a prompt you keep repeating and suggests turning it into a job.',
+			'Fires when you ask for the same follow-up after another pull request merges in a repository, and Malini drafts an automation that does it after each merge. Also fires when you save or dismiss that draft.',
 		facts: [
 			'suggestion.id',
-			'suggestion.clusterKey',
+			'suggestion.repositoryId',
+			'suggestion.sessionId',
+			'suggestion.name',
+			'suggestion.when',
 			'suggestion.status',
+			'suggestion.definitionId',
 			'suggestion.createdAt',
 			'suggestion.updatedAt',
 		],
 	},
-	'jobs:experiment-changed': {
+	'automations:experiment-changed': {
 		description:
-			"Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.",
+			"Fires when an experiment on an automation's Improve page finishes replaying the automation's recent tasks, with every result.",
 		facts: [
 			'experiment.id',
 			'experiment.definitionId',

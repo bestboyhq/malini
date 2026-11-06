@@ -38,6 +38,7 @@ export type AgentCommand =
 	| StopTaskCommand
 	| SuggestTitleCommand
 	| ChooseCommand
+	| AnswerCommand
 	| ListSkillsCommand
 	| BrowserResultCommand
 	| PlatformResultCommand
@@ -208,6 +209,16 @@ export interface ChooseCommand {
 export const MIN_CHOICES = 2;
 
 export const MAX_CHOICES = 20;
+
+export interface AnswerCommand {
+	readonly cmd: 'answer';
+	readonly id: string;
+	readonly prompt: string;
+	readonly instructions: string;
+	readonly model: string;
+	readonly schema: Readonly<Record<string, unknown>>;
+	readonly env?: Readonly<Record<string, string>>;
+}
 
 export interface ListSkillsCommand {
 	readonly cmd: 'list_skills';
@@ -383,6 +394,13 @@ export interface BridgeChoiceFrame {
 	readonly pick: number;
 }
 
+export interface BridgeAnswerFrame {
+	readonly type: 'bridge.answer';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly answer: Readonly<Record<string, unknown>>;
+}
+
 export interface BridgeSkillsFrame {
 	readonly type: 'bridge.skills';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -448,6 +466,7 @@ export type BridgeControlFrame =
 	| BridgeProtocolErrorFrame
 	| BridgeTitleFrame
 	| BridgeChoiceFrame
+	| BridgeAnswerFrame
 	| BridgeSkillsFrame
 	| BridgeMcpAuthorizationFrame
 	| BridgeMcpServersFrame
@@ -488,6 +507,13 @@ export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
 
 export function bridgeChoiceFrame(id: string, pick: number): BridgeChoiceFrame {
 	return { type: 'bridge.choice', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, pick };
+}
+
+export function bridgeAnswerFrame(
+	id: string,
+	answer: Readonly<Record<string, unknown>>,
+): BridgeAnswerFrame {
+	return { type: 'bridge.answer', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, answer };
 }
 
 export function bridgeSkillsFrame(id: string, skills: readonly AgentSkill[]): BridgeSkillsFrame {
@@ -674,6 +700,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateSuggestTitle(obj);
 		case 'choose':
 			return validateChoose(obj);
+		case 'answer':
+			return validateStructuredAnswer(obj);
 		case 'list_skills':
 			return validateListSkills(obj);
 		case 'browser_result':
@@ -1341,6 +1369,42 @@ function validateChoose(obj: Record<string, unknown>): ParseResult {
 			instructions,
 			model,
 			choices,
+			...(parsedEnv.value !== undefined ? { env: parsedEnv.value } : {}),
+		},
+	};
+}
+
+function validateStructuredAnswer(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'answer');
+	if (!id.ok) return id;
+	const { prompt, instructions, model, schema } = obj;
+	if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'answer: prompt required (non-empty string)', obj);
+	}
+	if (typeof instructions !== 'string' || instructions.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'answer: instructions required (non-empty string)', obj);
+	}
+	if (typeof model !== 'string' || model.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'answer: model required (non-empty string)', obj);
+	}
+	if (!isRecord(schema) || schema['type'] !== 'object') {
+		return err(
+			'INVALID_PAYLOAD',
+			"answer: schema required (a JSON Schema with type 'object')",
+			obj,
+		);
+	}
+	const parsedEnv = validateEnvironment(obj.env, 'answer: env');
+	if (!parsedEnv.ok) return err('INVALID_PAYLOAD', parsedEnv.error, obj);
+	return {
+		ok: true,
+		command: {
+			cmd: 'answer',
+			id: id.value,
+			prompt,
+			instructions,
+			model,
+			schema,
 			...(parsedEnv.value !== undefined ? { env: parsedEnv.value } : {}),
 		},
 	};

@@ -119,7 +119,9 @@ function needsYou(
 	const explanation =
 		ship.needsYou?.detail.trim() || (reason ? needsYouReasonDescription(reason) : '');
 	const nextStep =
-		reason === 'fix-gave-up' && ship.needsYou?.jobRunId ? RETRY_IN_JOB : NEEDS_YOU_NEXT_STEP;
+		reason === 'fix-gave-up' && ship.needsYou?.automationRunId
+			? RETRY_IN_AUTOMATION
+			: NEEDS_YOU_NEXT_STEP;
 	return attention(
 		reason ? needsYouReasonLabel(reason, operation) : null,
 		[sentence(explanation), nextStep].filter(Boolean).join(' '),
@@ -129,7 +131,7 @@ function needsYou(
 
 const NEEDS_YOU_NEXT_STEP = 'The merge picks up again on its own once this is resolved.';
 
-const RETRY_IN_JOB = 'Open the job to see why, and retry the merge from there.';
+const RETRY_IN_AUTOMATION = 'Open the automation to see why, and retry the merge from there.';
 
 function needsYouAction(
 	ship: PullRequestShip,
@@ -138,7 +140,7 @@ function needsYouAction(
 ): PullRequestTopBarAction | null {
 	const destination = ship.needsYou ? needsYouDestination(ship.needsYou) : null;
 	if (destination === 'repositories') return RECONNECT;
-	if (destination === 'job') return OPEN_JOB;
+	if (destination === 'automation') return OPEN_AUTOMATION;
 	if (destination === 'pull-request') return url ? OPEN_PULL_REQUEST : null;
 	return operation ? abortOperation(operation) : null;
 }
@@ -498,10 +500,10 @@ const RETRY_NOW: PullRequestTopBarAction = {
 	confirmLabel: null,
 };
 
-const OPEN_JOB: PullRequestTopBarAction = {
-	kind: 'open-job',
-	label: 'Open job',
-	ariaLabel: 'Open the transcript of the job that stopped',
+const OPEN_AUTOMATION: PullRequestTopBarAction = {
+	kind: 'open-automation',
+	label: 'Open automation',
+	ariaLabel: 'Open the transcript of the automation that stopped',
 	tone: 'primary',
 	confirmLabel: null,
 };

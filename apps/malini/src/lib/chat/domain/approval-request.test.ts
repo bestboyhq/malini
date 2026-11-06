@@ -79,22 +79,22 @@ describe('approval request', () => {
 });
 
 describe('malini tool approval', () => {
-	it('names the job and spells out what the user approves', () => {
-		const names: Record<string, string> = { 'job-1': 'Update docs', draft: 'Open draft' };
+	it('names the automation and spells out what the user approves', () => {
+		const names: Record<string, string> = { 'automation-1': 'Update docs', draft: 'Open draft' };
 		const lookup = {
-			job: (reference: string): string => names[reference] ?? reference,
+			automation: (reference: string): string => names[reference] ?? reference,
 			workstream: (reference: string): string => reference,
 		};
 		expect(
 			maliniToolApproval(
-				'mcp__malini__jobs_run',
-				{ job: 'job-1' },
-				{ job: () => 'Update docs', workstream: (id) => id },
+				'mcp__malini__automations_run',
+				{ automation: 'automation-1' },
+				{ automation: () => 'Update docs', workstream: (id) => id },
 			)?.headline,
-		).toBe('Run job ‘Update docs’');
+		).toBe('Run automation ‘Update docs’');
 		expect(
 			maliniToolApproval(
-				'mcp__malini__jobs_save',
+				'mcp__malini__automations_save',
 				{
 					name: 'Update docs',
 					instructions: 'Read the diff.\nUpdate docs/.',
@@ -105,43 +105,49 @@ describe('malini tool approval', () => {
 				lookup,
 			),
 		).toEqual({
-			headline: 'Save job ‘Update docs’',
+			headline: 'Save automation ‘Update docs’',
 			details: [
 				{ label: 'Runs in', value: 'A new workstream' },
 				{ label: 'When', value: 'on pull-requests:ship-changed where merged is set' },
-				{ label: 'Runs', value: 'Off until you turn it on in the Jobs page' },
+				{ label: 'Runs', value: 'Off until you turn it on in the Automations page' },
 				{ label: 'Then', value: 'Open draft' },
 				{ label: 'Instructions', value: 'Read the diff.\nUpdate docs/.' },
 			],
 		});
 		expect(
-			maliniToolApproval('mcp__malini__jobs_save', { id: 'job-1', when: null, then: null }, lookup),
+			maliniToolApproval(
+				'mcp__malini__automations_save',
+				{ id: 'automation-1', when: null, then: null },
+				lookup,
+			),
 		).toEqual({
-			headline: 'Save job ‘Update docs’',
+			headline: 'Save automation ‘Update docs’',
 			details: [
 				{ label: 'When', value: 'Only when you run it' },
 				{ label: 'Then', value: 'Nothing' },
 			],
 		});
-		expect(maliniToolApproval('mcp__malini__jobs_run', { job: 'Update docs' })).toEqual({
-			headline: 'Run job ‘Update docs’',
+		expect(
+			maliniToolApproval('mcp__malini__automations_run', { automation: 'Update docs' }),
+		).toEqual({
+			headline: 'Run automation ‘Update docs’',
 			details: [],
 		});
 		expect(
 			maliniToolApproval(
-				'mcp__malini__jobs_save',
-				{ id: 'job-1', model: 'sonnet' },
-				{ job: () => 'Lint', workstream: (id) => id },
+				'mcp__malini__automations_save',
+				{ id: 'automation-1', model: 'sonnet' },
+				{ automation: () => 'Lint', workstream: (id) => id },
 			)?.headline,
-		).toBe('Save job ‘Lint’');
+		).toBe('Save automation ‘Lint’');
 		expect(
 			maliniToolApproval(
-				'mcp__malini__jobs_run',
-				{ job: 'Merge', workstream: 'ws-1' },
-				{ job: (reference) => reference, workstream: () => 'Docs pass' },
+				'mcp__malini__automations_run',
+				{ automation: 'Merge', workstream: 'ws-1' },
+				{ automation: (reference) => reference, workstream: () => 'Docs pass' },
 			),
 		).toEqual({
-			headline: 'Run job ‘Merge’',
+			headline: 'Run automation ‘Merge’',
 			details: [{ label: 'In', value: 'Docs pass' }],
 		});
 		expect(
@@ -177,6 +183,6 @@ describe('malini tool approval', () => {
 	it('leaves every other tool to the generic card', () => {
 		expect(maliniToolApproval('mcp__malini__browser_open', { url: 'x' })).toBeNull();
 		expect(maliniToolApproval('mcp__linear__create_issue', { title: 'Bug' })).toBeNull();
-		expect(maliniToolApproval('mcp__malini__jobs_run', undefined)).toBeNull();
+		expect(maliniToolApproval('mcp__malini__automations_run', undefined)).toBeNull();
 	});
 });

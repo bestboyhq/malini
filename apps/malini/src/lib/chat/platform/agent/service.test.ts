@@ -3,7 +3,10 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord } from '$contract/jobs';
+import {
+	DEFAULT_AUTOMATION_BOUNDARY,
+	type AutomationDefinitionRecord,
+} from '$contract/automations';
 import { all, run } from '$main/db/rows';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
@@ -119,18 +122,18 @@ afterEach(async () => {
 	test.cleanup();
 });
 
-function seedInternetOffJob(): void {
+function seedInternetOffAutomation(): void {
 	run(
 		test.db,
-		`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, reaches_internet, created_at, updated_at)
-		 VALUES ('job-off', 'Offline job', 'Work offline.', 'opus', 'high', 'workstream', 0, ?, ?)`,
+		`INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, reaches_internet, created_at, updated_at)
+		 VALUES ('automation-off', 'Offline automation', 'Work offline.', 'opus', 'high', 'workstream', 0, ?, ?)`,
 		'2026-10-19T00:00:00.000Z',
 		'2026-10-19T00:00:00.000Z',
 	);
 	run(
 		test.db,
-		`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
-		 VALUES ('job-run-off', 'job-off', 'Offline job', 'ws-1', 'sess-1', 'manual', 'running', 'job-run-off', ?)`,
+		`INSERT INTO automation_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
+		 VALUES ('automation-run-off', 'automation-off', 'Offline automation', 'ws-1', 'sess-1', 'manual', 'running', 'automation-run-off', ?)`,
 		'2026-10-19T00:00:00.000Z',
 	);
 }
@@ -308,10 +311,10 @@ describe('browser requests from the agent', () => {
 		});
 	});
 
-	it('keeps the browser closed to a job whose internet is off', async () => {
+	it('keeps the browser closed to an automation whose internet is off', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
-		seedInternetOffJob();
+		seedInternetOffAutomation();
 		const unused = async (): Promise<never> => {
 			throw new Error('The browser must not be used.');
 		};
@@ -359,11 +362,11 @@ function platformRequest(requestId: string, tool: string, input: Record<string, 
 	};
 }
 
-function jobDefinition(
+function automationDefinition(
 	id: string,
 	name: string,
-	changes: Partial<JobDefinitionRecord> = {},
-): JobDefinitionRecord {
+	changes: Partial<AutomationDefinitionRecord> = {},
+): AutomationDefinitionRecord {
 	return {
 		id,
 		name,
@@ -375,8 +378,8 @@ function jobDefinition(
 		skills: ['adr'],
 		builtin: null,
 		trigger: null,
-		thenJobId: null,
-		boundary: DEFAULT_JOB_BOUNDARY,
+		thenAutomationId: null,
+		boundary: DEFAULT_AUTOMATION_BOUNDARY,
 		createdAt: '2026-10-19T00:00:00.000Z',
 		updatedAt: '2026-10-19T00:00:00.000Z',
 		...changes,
@@ -384,42 +387,42 @@ function jobDefinition(
 }
 
 describe('platform requests from the agent', () => {
-	it('manages jobs, their triggers and Thens through the registered commands and answers the bridge', async () => {
+	it('manages automations, their triggers and Thens through the registered commands and answers the bridge', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		run(
 			test.db,
-			`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, created_at, updated_at)
-			 VALUES ('job-0', 'Triage issues', 'Triage.', 'opus', 'high', 'workstream', ?, ?)`,
+			`INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, created_at, updated_at)
+			 VALUES ('automation-0', 'Triage issues', 'Triage.', 'opus', 'high', 'workstream', ?, ?)`,
 			'2026-10-19T00:00:00.000Z',
 			'2026-10-19T00:00:00.000Z',
 		);
 		run(
 			test.db,
-			`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
-			 VALUES ('job-run-0', 'job-0', 'Triage issues', 'ws-1', 'sess-1', 'trigger', 'running', 'job-run-0', ?)`,
+			`INSERT INTO automation_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
+			 VALUES ('automation-run-0', 'automation-0', 'Triage issues', 'ws-1', 'sess-1', 'trigger', 'running', 'automation-run-0', ?)`,
 			'2026-10-19T00:00:00.000Z',
 		);
 		const calls: Array<readonly [string, unknown]> = [];
 		const definitions = [
-			jobDefinition('job-1', 'Update docs', {
+			automationDefinition('automation-1', 'Update docs', {
 				trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
-				thenJobId: 'job-2',
-				boundary: { ...DEFAULT_JOB_BOUNDARY, chats: 'starter' },
+				thenAutomationId: 'automation-2',
+				boundary: { ...DEFAULT_AUTOMATION_BOUNDARY, chats: 'starter' },
 			}),
-			jobDefinition('job-2', 'Triage'),
+			automationDefinition('automation-2', 'Triage'),
 		];
 		const { commands } = test.context;
-		commands.define('jobs.list-definitions', () => definitions);
-		commands.define('jobs.save-definition', (args) => {
-			calls.push(['jobs.save-definition', args]);
-			return jobDefinition('job-3', 'Ship notes');
+		commands.define('automations.list-definitions', () => definitions);
+		commands.define('automations.save-definition', (args) => {
+			calls.push(['automations.save-definition', args]);
+			return automationDefinition('automation-3', 'Ship notes');
 		});
-		commands.define('jobs.run', (args) => {
-			calls.push(['jobs.run', args]);
+		commands.define('automations.run', (args) => {
+			calls.push(['automations.run', args]);
 			return {
-				id: 'job-run-1',
-				definitionId: 'job-1',
+				id: 'automation-run-1',
+				definitionId: 'automation-1',
 				title: 'Update docs',
 				workstreamId: 'ws-1',
 				repositoryId: null,
@@ -429,10 +432,10 @@ describe('platform requests from the agent', () => {
 				origin: 'manual',
 				status: 'queued',
 				detail: null,
-				parentRunId: 'job-run-0',
+				parentRunId: 'automation-run-0',
 				chatSessionId: 'sess-1',
 				chatAfterRunId: 'run-9',
-				chainId: 'job-run-1',
+				chainId: 'automation-run-1',
 				requests: 1,
 				createdAt: '2026-10-19T00:00:00.000Z',
 				startedAt: null,
@@ -449,27 +452,40 @@ describe('platform requests from the agent', () => {
 			log: () => {},
 		});
 
-		bridge.send(platformRequest('p-1', 'jobs_list', {}));
+		bridge.send(platformRequest('p-1', 'automations_list', {}));
 		bridge.send(
-			platformRequest('p-2', 'jobs_save', {
+			platformRequest('p-2', 'automations_save', {
 				name: 'Ship notes',
 				instructions: 'Write.',
 				skills: ['humanizer'],
-				when: 'on jobs:suggested',
+				when: 'on automations:suggested',
 				then: 'triage',
 			}),
 		);
-		bridge.send(platformRequest('p-3', 'jobs_save', { id: 'job-2', effort: 'low' }));
-		bridge.send(platformRequest('p-4', 'jobs_run', { job: 'update docs', context: 'PR #12' }));
+		bridge.send(platformRequest('p-3', 'automations_save', { id: 'automation-2', effort: 'low' }));
 		bridge.send(
-			platformRequest('p-5', 'jobs_save', { id: 'job-1', when: 'on jobs:suggested', then: null }),
+			platformRequest('p-4', 'automations_run', { automation: 'update docs', context: 'PR #12' }),
 		);
-		bridge.send(platformRequest('p-6', 'jobs_save', { id: 'job-2', when: 'on jobs:suggested' }));
-		bridge.send(platformRequest('p-7', 'jobs_save', { id: 'job-1', when: null }));
+		bridge.send(
+			platformRequest('p-5', 'automations_save', {
+				id: 'automation-1',
+				when: 'on automations:suggested',
+				then: null,
+			}),
+		);
+		bridge.send(
+			platformRequest('p-6', 'automations_save', {
+				id: 'automation-2',
+				when: 'on automations:suggested',
+			}),
+		);
+		bridge.send(platformRequest('p-7', 'automations_save', { id: 'automation-1', when: null }));
 		bridge.send(platformRequest('p-8', 'events_list', {}));
-		bridge.send(platformRequest('p-9', 'jobs_save', { id: 'job-2', then: 'Nope' }));
-		bridge.send(platformRequest('p-10', 'jobs_save', { effort: 'huge' }));
-		bridge.send(platformRequest('p-11', 'jobs_run', { job: 'Triage', context: 'What I said' }));
+		bridge.send(platformRequest('p-9', 'automations_save', { id: 'automation-2', then: 'Nope' }));
+		bridge.send(platformRequest('p-10', 'automations_save', { effort: 'huge' }));
+		bridge.send(
+			platformRequest('p-11', 'automations_run', { automation: 'Triage', context: 'What I said' }),
+		);
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'platform_result');
@@ -481,7 +497,7 @@ describe('platform requests from the agent', () => {
 		};
 		expect(answer('p-1')).toEqual([
 			{
-				id: 'job-1',
+				id: 'automation-1',
 				name: 'Update docs',
 				instructions: 'Do Update docs.\nThen report.',
 				runsIn: 'workstream',
@@ -491,17 +507,17 @@ describe('platform requests from the agent', () => {
 				builtin: null,
 				when: 'on pull-requests:ship-changed where merged is set',
 				mode: 'auto',
-				then: 'job-2',
-				sees: { event: 'facts', jobBefore: true, chats: 'starter', attachments: false },
+				then: 'automation-2',
+				sees: { event: 'facts', automationBefore: true, chats: 'starter', attachments: false },
 				internet: true,
 			},
-			expect.objectContaining({ id: 'job-2', when: null, mode: null, then: null }),
+			expect.objectContaining({ id: 'automation-2', when: null, mode: null, then: null }),
 		]);
 		expect(calls).toHaveLength(6);
 		expect(calls).toEqual(
 			expect.arrayContaining([
 				[
-					'jobs.save-definition',
+					'automations.save-definition',
 					{
 						name: 'Ship notes',
 						instructions: 'Write.',
@@ -510,14 +526,14 @@ describe('platform requests from the agent', () => {
 						effort: 'high',
 						runsIn: 'workstream',
 						skills: ['humanizer'],
-						trigger: { when: 'on jobs:suggested', mode: 'off' },
-						thenJobId: 'job-2',
+						trigger: { when: 'on automations:suggested', mode: 'off' },
+						thenAutomationId: 'automation-2',
 					},
 				],
 				[
-					'jobs.save-definition',
+					'automations.save-definition',
 					{
-						id: 'job-2',
+						id: 'automation-2',
 						name: 'Triage',
 						instructions: 'Do Triage.\nThen report.',
 						provider: 'claude',
@@ -527,28 +543,31 @@ describe('platform requests from the agent', () => {
 					},
 				],
 				[
-					'jobs.save-definition',
+					'automations.save-definition',
 					expect.objectContaining({
-						id: 'job-1',
-						trigger: { when: 'on jobs:suggested', mode: 'auto' },
-						thenJobId: null,
+						id: 'automation-1',
+						trigger: { when: 'on automations:suggested', mode: 'auto' },
+						thenAutomationId: null,
 					}),
 				],
 				[
-					'jobs.save-definition',
+					'automations.save-definition',
 					expect.objectContaining({
-						id: 'job-2',
-						trigger: { when: 'on jobs:suggested', mode: 'off' },
+						id: 'automation-2',
+						trigger: { when: 'on automations:suggested', mode: 'off' },
 					}),
 				],
-				['jobs.save-definition', expect.objectContaining({ id: 'job-1', trigger: null })],
 				[
-					'jobs.run',
+					'automations.save-definition',
+					expect.objectContaining({ id: 'automation-1', trigger: null }),
+				],
+				[
+					'automations.run',
 					{
-						definitionId: 'job-1',
+						definitionId: 'automation-1',
 						workstreamId: 'ws-1',
 						context: 'PR #12',
-						parentRunId: 'job-run-0',
+						parentRunId: 'automation-run-0',
 						chatSessionId: 'sess-1',
 						chatAfterRunId: 'run-9',
 					},
@@ -556,8 +575,8 @@ describe('platform requests from the agent', () => {
 			]),
 		);
 		expect(answer('p-4')).toEqual({
-			id: 'job-run-1',
-			job: 'Update docs',
+			id: 'automation-run-1',
+			automation: 'Update docs',
 			status: 'queued',
 			workstreamId: 'ws-1',
 		});
@@ -566,7 +585,8 @@ describe('platform requests from the agent', () => {
 		);
 		expect(answer('p-9')).toMatchObject({
 			ok: false,
-			error: 'No job is named or has the id “Nope”. Call jobs_list for the jobs.',
+			error:
+				'No automation is named or has the id “Nope”. Call automations_list for the automations.',
 		});
 		expect(answer('p-10')).toMatchObject({
 			ok: false,
@@ -578,12 +598,14 @@ describe('platform requests from the agent', () => {
 		});
 	});
 
-	it('refuses every tool that would reach out for a job whose internet is off', async () => {
+	it('refuses every tool that would reach out for an automation whose internet is off', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
-		seedInternetOffJob();
+		seedInternetOffAutomation();
 		const { commands } = test.context;
-		commands.define('jobs.list-definitions', () => [jobDefinition('job-net', 'Reachable')]);
+		commands.define('automations.list-definitions', () => [
+			automationDefinition('automation-net', 'Reachable'),
+		]);
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
 			processFactory: bridge.factory,
@@ -601,7 +623,7 @@ describe('platform requests from the agent', () => {
 		bridge.send(
 			platformRequest('n-3', 'workstreams_send', { workstream: 'elsewhere', prompt: 'Go' }),
 		);
-		bridge.send(platformRequest('n-4', 'jobs_run', { job: 'Reachable' }));
+		bridge.send(platformRequest('n-4', 'automations_run', { automation: 'Reachable' }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'platform_result');

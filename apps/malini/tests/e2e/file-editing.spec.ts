@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from '
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import type { AgentActionRecord } from '../../src/contract/jobs';
+import type { AgentActionRecord } from '../../src/contract/automations';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -212,7 +212,7 @@ test('a file an agent opens in a workstream the user is not looking at waits the
 		await expect
 			.poll(
 				async () =>
-					(await invoke<AgentActionRecord[]>(page, 'jobs.list-agent-actions')).find(
+					(await invoke<AgentActionRecord[]>(page, 'automations.list-agent-actions')).find(
 						({ tool }) => tool === 'files_open',
 					)?.status,
 				{ timeout: 20_000 },
@@ -258,7 +258,7 @@ test('an agent opens a private file outside the worktree for the user, who fills
 		await expect(secretsEditor).toBeVisible({ timeout: 20_000 });
 		expect(readFileSync(secrets, 'utf8')).toBe('');
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
-		const actions = await invoke<AgentActionRecord[]>(page, 'jobs.list-agent-actions');
+		const actions = await invoke<AgentActionRecord[]>(page, 'automations.list-agent-actions');
 		expect(actions.find(({ tool }) => tool === 'files_open')).toMatchObject({
 			status: 'succeeded',
 			approval: 'not-needed',

@@ -5,7 +5,7 @@ import {
 	type ShipTargets,
 } from '$lib/app/domain/lead-progress';
 import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
-import { shippingJobRunsQuery } from '$lib/jobs/application/queries/shipping-job-runs.query.svelte';
+import { shippingAutomationRunsQuery } from '$lib/automations/application/queries/shipping-automation-runs.query.svelte';
 import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 import {
 	activeWorkstreamsQuery,
@@ -54,7 +54,7 @@ class LeadProgressQuery {
 				pullRequest: pullRequestBadgesQuery.data(workstream.id).phase,
 				changed: (changeTotalsQuery.data[workstream.id]?.files ?? 0) > 0,
 				working: this.dot(workstream) === 'running',
-				shipping: shippingJobRunsQuery.workstreamIds.has(workstream.id),
+				shipping: shippingAutomationRunsQuery.workstreamIds.has(workstream.id),
 			})),
 		),
 	);

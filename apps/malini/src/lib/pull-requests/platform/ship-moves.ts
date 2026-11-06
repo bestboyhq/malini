@@ -5,28 +5,31 @@ import {
 	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	type EventChannel,
 } from '$contract/events';
-import type { ShippingJobBuiltin } from '$contract/jobs';
+import type { ShippingAutomationBuiltin } from '$contract/automations';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
 import { commitLine, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
-	jobDefinitions,
-	jobRun,
+	automationDefinitions,
+	automationRun,
 	latestLoggedEvent,
 	type DispatchedEvent,
-} from '$lib/jobs/jobs.platform';
+} from '$lib/automations/automations.platform';
 import {
 	automatedPullRequestMetadata,
 	recordMergedPullRequest,
 	type AutomatedPullRequestMetadata,
 	type PullRequestAutomationContext,
 } from '$shared/repositories/repositories.platform';
-import { checkFixJobContext, reviewFixJobContext } from '../domain/pull-request-fix-prompt';
+import {
+	checkFixAutomationContext,
+	reviewFixAutomationContext,
+} from '../domain/pull-request-fix-prompt';
 import {
 	checksRerunOf,
-	jobStep,
+	automationStep,
 	reviewFeedbackToAddress,
 	reviewToAddress,
 	shipBackoffMs,
@@ -63,8 +66,8 @@ export type ShipState = Readonly<{
 	move: ShippingMove;
 }>;
 
-type SettledJob = Readonly<{
-	builtin: ShippingJobBuiltin | null;
+type SettledAutomation = Readonly<{
+	builtin: ShippingAutomationBuiltin | null;
 	agentRunId: string | null;
 	commitLine: string;
 }>;
@@ -140,13 +143,17 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 				{
 					phase: 'needs-you',
 					step: null,
-					needsYou: { reason: move.reason, detail: move.detail, jobRunId: move.jobRunId },
+					needsYou: {
+						reason: move.reason,
+						detail: move.detail,
+						automationRunId: move.automationRunId,
+					},
 				},
 				'queued',
 			);
 			return;
-		case 'run-job':
-			await runJob(deps, state, move, event);
+		case 'run-automation':
+			await runAutomation(deps, state, move, event);
 			if (move.builtin === 'address-review') {
 				settleShipRequest(deps.context.db, workstreamId, 'review', row.requests.review);
 			}
@@ -194,7 +201,7 @@ async function act(
 		case 'rerun-checks':
 			saveShip(deps, workstreamId, { step: 'rerunning-checks' });
 			if (!(await rerunChecks(deps, state, move))) {
-				await runJob(deps, state, fixChecksJob(move), event);
+				await runAutomation(deps, state, fixChecksAutomation(move), event);
 				return;
 			}
 			await readAgain(deps, workstreamId);
@@ -216,7 +223,7 @@ async function act(
 		}
 		case 'resolve-threads':
 			await deps.ops.resolveAddressedReviewThreads({ workstreamId, runId: move.agentRunId });
-			saveShip(deps, workstreamId, { settledJobRunId: null });
+			saveShip(deps, workstreamId, { settledAutomationRunId: null });
 			await readAgain(deps, workstreamId);
 			break;
 		case 'merge':
@@ -258,7 +265,7 @@ async function commit(deps: ShipDeps, state: ShipState): Promise<AutomatedPullRe
 	const workstreamId = row.workstreamId;
 	const shipContext = workstreamShipContext(deps.context.db, workstreamId);
 	const metadata = shipMetadata(target, worktree.dirtyPaths, shipContext);
-	const settled = settledJob(deps, row);
+	const settled = settledAutomation(deps, row);
 	if (worktree.dirtyPaths.length > 0 || worktree.operationInProgress === 'merge') {
 		const fallback = commitMessage(worktree, settled, metadata, target, '');
 		const message = commitMessage(worktree, settled, metadata, target, settled?.commitLine ?? '');
@@ -274,7 +281,7 @@ async function commit(deps: ShipDeps, state: ShipState): Promise<AutomatedPullRe
 		});
 	}
 	if (settled !== null && settled.builtin !== 'address-review') {
-		saveShip(deps, workstreamId, { settledJobRunId: null });
+		saveShip(deps, workstreamId, { settledAutomationRunId: null });
 	}
 	return metadata;
 }
@@ -367,42 +374,47 @@ export async function retitlePullRequest(
 	}
 }
 
-async function runJob(
+async function runAutomation(
 	deps: ShipDeps,
 	state: ShipState,
-	move: Extract<ShippingMove, { kind: 'run-job' }>,
+	move: Extract<ShippingMove, { kind: 'run-automation' }>,
 	event: DispatchedEvent,
 ): Promise<void> {
 	const { db, commands } = deps.context;
 	const workstreamId = state.row.workstreamId;
-	const definition = jobDefinitions(db).find((candidate) => candidate.builtin === move.builtin);
-	if (!definition) throw new Error(`The built-in ${move.builtin} job is missing`);
-	const jobContext = await shippingJobContext(deps, state, move.builtin);
+	const definition = automationDefinitions(db).find(
+		(candidate) => candidate.builtin === move.builtin,
+	);
+	if (!definition) throw new Error(`The built-in ${move.builtin} automation is missing`);
+	const automationContext = await shippingAutomationContext(deps, state, move.builtin);
 	const causeEventId = pullRequestRead(
 		deps,
 		workstreamId,
 		state.snapshot.pullRequest?.pullRequestNumber ?? state.row.pullRequestNumber,
 		event.id,
 	);
-	const run = await commands.call('jobs.run', {
+	const run = await commands.call('automations.run', {
 		definitionId: definition.id,
 		workstreamId,
-		...(jobContext === null ? {} : { context: jobContext }),
+		...(automationContext === null ? {} : { context: automationContext }),
 		origin: 'merge-queue',
 		...(causeEventId === null ? {} : { causeEventId }),
 	});
 	const started: ShipPatch = {
-		activeJobRunId: run.id,
+		activeAutomationRunId: run.id,
 		attempts: move.attempt,
 		failureSignature: move.signature,
-		step: jobStep(move.builtin),
+		step: automationStep(move.builtin),
 		...NO_SHIP_FAILURE,
-		settledJobRunId: null,
+		settledAutomationRunId: null,
 	};
 	const saved =
 		saveShip(deps, workstreamId, started, state.row.phase) ??
 		(state.row.phase === 'queued' ? null : saveShip(deps, workstreamId, started, 'queued'));
-	if (!saved) await commands.call('jobs.cancel-run', { jobRunId: run.id }).catch(() => undefined);
+	if (!saved)
+		await commands
+			.call('automations.cancel-run', { automationRunId: run.id })
+			.catch(() => undefined);
 }
 
 async function rerunChecks(
@@ -429,10 +441,10 @@ async function rerunChecks(
 	return true;
 }
 
-function fixChecksJob(
+function fixChecksAutomation(
 	move: Extract<ShippingMove, { kind: 'rerun-checks' }>,
-): Extract<ShippingMove, { kind: 'run-job' }> {
-	return { kind: 'run-job', builtin: 'fix-checks', signature: move.signature, attempt: 1 };
+): Extract<ShippingMove, { kind: 'run-automation' }> {
+	return { kind: 'run-automation', builtin: 'fix-checks', signature: move.signature, attempt: 1 };
 }
 
 function pullRequestRead(
@@ -458,10 +470,10 @@ function pullRequestRead(
 	return handled;
 }
 
-async function shippingJobContext(
+async function shippingAutomationContext(
 	deps: ShipDeps,
 	state: ShipState,
-	builtin: ShippingJobBuiltin,
+	builtin: ShippingAutomationBuiltin,
 ): Promise<string | null> {
 	const { target, snapshot, row } = state;
 	const pullRequestNumber = snapshot.pullRequest?.pullRequestNumber ?? row.pullRequestNumber ?? 0;
@@ -470,7 +482,7 @@ async function shippingJobContext(
 		case 'resolve-conflicts':
 			return null;
 		case 'fix-checks':
-			return checkFixJobContext({
+			return checkFixAutomationContext({
 				pullRequestNumber,
 				rerun: snapshot.pullRequest !== null && checksRerunOf(snapshot, snapshot.pullRequest),
 				failingChecks: (snapshot.pullRequest?.blockingChecks ?? []).map((check) => ({
@@ -492,7 +504,7 @@ async function shippingJobContext(
 				workstreamId: row.workstreamId,
 				pullRequestNumber,
 			});
-			return reviewFixJobContext({
+			return reviewFixAutomationContext({
 				pullRequestNumber,
 				reviewFeedback: snapshot.pullRequest
 					? reviewFeedbackToAddress(
@@ -545,7 +557,7 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 				{
 					phase: 'needs-you',
 					step: null,
-					needsYou: { reason: 'github-reconnect', detail, jobRunId: null },
+					needsYou: { reason: 'github-reconnect', detail, automationRunId: null },
 					...NO_SHIP_FAILURE,
 					failures,
 				},
@@ -582,15 +594,17 @@ function shipRecovered(deps: ShipDeps, workstreamId: string): void {
 	}
 }
 
-export function settledJob(deps: ShipDeps, row: ShipRow): SettledJob | null {
+export function settledAutomation(deps: ShipDeps, row: ShipRow): SettledAutomation | null {
 	const current = getShip(deps.context.db, row.workstreamId) ?? row;
-	const job =
-		current.settledJobRunId === null ? null : jobRun(deps.context.db, current.settledJobRunId);
-	return job
+	const automation =
+		current.settledAutomationRunId === null
+			? null
+			: automationRun(deps.context.db, current.settledAutomationRunId);
+	return automation
 		? {
-				builtin: shippingBuiltin(deps, job),
-				agentRunId: job.agentRunId,
-				commitLine: commitLine(job.detail ?? ''),
+				builtin: shippingBuiltin(deps, automation),
+				agentRunId: automation.agentRunId,
+				commitLine: commitLine(automation.detail ?? ''),
 			}
 		: null;
 }
@@ -611,7 +625,7 @@ export function shipMetadata(
 
 function commitMessage(
 	worktree: WorktreeStatus,
-	settled: SettledJob | null,
+	settled: SettledAutomation | null,
 	metadata: AutomatedPullRequestMetadata,
 	target: ShipTarget,
 	line: string,

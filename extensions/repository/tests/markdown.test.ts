@@ -10,7 +10,7 @@ test('a link in a markdown file resolves against the file it sits in', () => {
 		kind: 'file',
 		path: 'docs/adr/0002-contract.md',
 	});
-	assert.deepEqual(markdownLink('../features.md#jobs', from), {
+	assert.deepEqual(markdownLink('../features.md#automations', from), {
 		kind: 'file',
 		path: 'docs/features.md',
 	});

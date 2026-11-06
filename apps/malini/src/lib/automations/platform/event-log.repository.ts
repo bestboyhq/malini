@@ -1,0 +1,242 @@
+import { PULL_REQUESTS_SHIP_CHANGED_CHANNEL, type EventChannel } from '$contract/events';
+import type { EventCause, EventCauseKind, LoggedEventRecord } from '$contract/automations';
+import type { MaliniDatabase } from '$main/db/driver';
+import { all, get, run } from '$main/db/rows';
+
+export type NewLoggedEvent = Readonly<{
+	channel: string;
+	payload: string;
+	workstreamId: string | null;
+	cause: EventCause | null;
+	chainId: string;
+	emittedAt: string;
+}>;
+
+interface LoggedEventRow {
+	id: number;
+	channel: string;
+	payload: string;
+	workstream_id: string | null;
+	cause_kind: EventCauseKind | null;
+	cause_id: string | null;
+	chain_id: string;
+	emitted_at: string;
+}
+
+const COLUMNS = 'id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at';
+
+function fromRow(row: LoggedEventRow, payloadLimit: number): LoggedEventRecord {
+	return {
+		id: row.id,
+		channel: row.channel,
+		payload: row.payload.length > payloadLimit ? null : parsed(row.payload),
+		workstreamId: row.workstream_id,
+		cause:
+			row.cause_kind === null || row.cause_id === null
+				? null
+				: { kind: row.cause_kind, id: row.cause_id },
+		chainId: row.chain_id,
+		emittedAt: row.emitted_at,
+	};
+}
+
+function parsed(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+}
+
+export function insertLoggedEvent(db: MaliniDatabase, event: NewLoggedEvent): number {
+	return run(
+		db,
+		`INSERT INTO event_log
+		   (channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		event.channel,
+		event.payload,
+		event.workstreamId,
+		event.cause?.kind ?? null,
+		event.cause?.id ?? null,
+		event.chainId,
+		event.emittedAt,
+	).lastInsertRowid;
+}
+
+export function markEventHandled(db: MaliniDatabase, id: number, handledAt: string): void {
+	run(db, 'UPDATE event_log SET handled_at = ? WHERE id = ?', handledAt, id);
+}
+
+export type UnhandledEvent = Readonly<{
+	id: number;
+	channel: string;
+	payload: unknown;
+	chainId: string;
+	cause: EventCause | null;
+}>;
+
+export function listUnhandledEvents(db: MaliniDatabase, since: string): UnhandledEvent[] {
+	return all<LoggedEventRow>(
+		db,
+		`SELECT ${COLUMNS} FROM event_log
+		 WHERE handled_at IS NULL AND emitted_at >= ? ORDER BY id`,
+		since,
+	).map((row) => fromRow(row, Number.POSITIVE_INFINITY));
+}
+
+export function pruneEventLog(db: MaliniDatabase, before: string): number {
+	return db.transaction(() => {
+		const pruned = run(db, 'DELETE FROM event_log WHERE emitted_at < ?', before).changes;
+		run(db, 'DELETE FROM automation_run_events WHERE event_id NOT IN (SELECT id FROM event_log)');
+		return pruned;
+	});
+}
+
+export function eventChainId(db: MaliniDatabase, id: number): string | null {
+	return (
+		get<{ chain_id: string }>(db, 'SELECT chain_id FROM event_log WHERE id = ?', id)?.chain_id ??
+		null
+	);
+}
+
+export function heardBack(
+	db: MaliniDatabase,
+	eventId: number | null,
+	channels: readonly EventChannel[],
+): boolean {
+	return (
+		eventId !== null &&
+		get(
+			db,
+			`SELECT 1 FROM event_log
+			 WHERE cause_kind = 'event' AND cause_id = ?
+			   AND channel IN (SELECT value FROM json_each(?))
+			 LIMIT 1`,
+			String(eventId),
+			JSON.stringify(channels),
+		) !== null
+	);
+}
+
+export function getLoggedEvent(db: MaliniDatabase, id: number): LoggedEventRecord | null {
+	const row = get<LoggedEventRow>(db, `SELECT ${COLUMNS} FROM event_log WHERE id = ?`, id);
+	return row ? fromRow(row, Number.POSITIVE_INFINITY) : null;
+}
+
+export function latestLoggedEvent(
+	db: MaliniDatabase,
+	channel: EventChannel,
+	workstreamId: string,
+): LoggedEventRecord | null {
+	const row = get<LoggedEventRow>(
+		db,
+		`SELECT ${COLUMNS} FROM event_log WHERE channel = ? AND workstream_id = ?
+		 ORDER BY id DESC LIMIT 1`,
+		channel,
+		workstreamId,
+	);
+	return row ? fromRow(row, Number.POSITIVE_INFINITY) : null;
+}
+
+export function listLoggedEventsSince(
+	db: MaliniDatabase,
+	since: string,
+	limit: number,
+	payloadLimit: number,
+): LoggedEventRecord[] {
+	return all<LoggedEventRow>(
+		db,
+		`SELECT ${COLUMNS} FROM (
+		   SELECT ${COLUMNS} FROM event_log WHERE emitted_at >= ? ORDER BY id DESC LIMIT ?
+		 ) ORDER BY id`,
+		since,
+		limit,
+	).map((row) => fromRow(row, payloadLimit));
+}
+
+export function countLoggedEventsSince(
+	db: MaliniDatabase,
+	since: string,
+): Readonly<Record<string, number>> {
+	return Object.fromEntries(
+		all<{ channel: string; total: number }>(
+			db,
+			'SELECT channel, COUNT(*) AS total FROM event_log WHERE emitted_at >= ? GROUP BY channel',
+			since,
+		).map((row) => [row.channel, row.total]),
+	);
+}
+
+export function triggeredBefore(
+	db: MaliniDatabase,
+	definitionId: string,
+	eventId: number | null,
+): boolean {
+	return (
+		eventId !== null &&
+		get(
+			db,
+			`SELECT 1 FROM automation_run_events link
+			 JOIN automation_runs run ON run.id = link.automation_run_id
+			 WHERE link.event_id = ? AND run.definition_id = ?
+			 LIMIT 1`,
+			eventId,
+			definitionId,
+		) !== null
+	);
+}
+
+export function linkAutomationRunEvent(
+	db: MaliniDatabase,
+	automationRunId: string,
+	eventId: number,
+): void {
+	run(
+		db,
+		'INSERT OR IGNORE INTO automation_run_events (automation_run_id, event_id) VALUES (?, ?)',
+		automationRunId,
+		eventId,
+	);
+}
+
+export function automationRunEventIds(
+	db: MaliniDatabase,
+	automationRunIds: readonly string[],
+): Map<string, number[]> {
+	const links = new Map<string, number[]>();
+	for (const row of all<{ automation_run_id: string; event_id: number }>(
+		db,
+		`SELECT automation_run_id, event_id FROM automation_run_events
+		 WHERE automation_run_id IN (SELECT value FROM json_each(?)) ORDER BY event_id`,
+		JSON.stringify(automationRunIds),
+	)) {
+		const ids = links.get(row.automation_run_id) ?? [];
+		ids.push(row.event_id);
+		links.set(row.automation_run_id, ids);
+	}
+	return links;
+}
+
+export type LoggedMerge = Readonly<{ id: number; pullRequestNumber: number | null }>;
+
+export function latestMergeBetween(
+	db: MaliniDatabase,
+	workstreamId: string,
+	since: string,
+	until: string,
+): LoggedMerge | null {
+	const row = get<{ id: number; pull_request_number: number | null }>(
+		db,
+		`SELECT id, json_extract(payload, '$.merged.pullRequestNumber') AS pull_request_number
+		 FROM event_log
+		 WHERE channel = ? AND workstream_id = ?
+		   AND json_extract(payload, '$.merged') IS NOT NULL AND emitted_at BETWEEN ? AND ?
+		 ORDER BY id DESC LIMIT 1`,
+		PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+		workstreamId,
+		since,
+		until,
+	);
+	return row ? { id: row.id, pullRequestNumber: row.pull_request_number } : null;
+}

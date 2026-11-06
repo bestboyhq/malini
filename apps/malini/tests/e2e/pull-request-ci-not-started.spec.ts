@@ -50,7 +50,7 @@ test("checks GitHub never started say CI didn't start and leave Merge to the use
 		const status = page.getByRole('status').filter({ hasText: "CI didn't start" });
 		await expect(status).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled();
-		await expect(page.getByRole('button', { name: /^Jobs:/u })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /^Automations:/u })).toHaveCount(0);
 		await status.hover();
 		await expect(page.getByRole('tooltip')).toHaveText(
 			"CI didn't start · Recent account payments have failed or your spending limit needs to be increased",

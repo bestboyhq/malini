@@ -54,7 +54,7 @@ export type TimelineEntry =
 			}>)
 	| TimelineSent
 	| (Timed & Readonly<{ kind: 'archived'; workstreamId: string | null; name: string }>)
-	| (Timed & Readonly<{ kind: 'job'; job: string; workstream: string | null }>)
+	| (Timed & Readonly<{ kind: 'automation'; automation: string; workstream: string | null }>)
 	| (Timed & Readonly<{ kind: 'plan' }>)
 	| (Timed & Readonly<{ kind: 'decided'; decision: LeadDecision }>)
 	| (Timed & Readonly<{ kind: 'approval'; item: Approval }>)
@@ -234,12 +234,12 @@ function actionEntry(tool: string, item: Tool, current: boolean): TimelineEntry 
 		case 'workstreams_archive':
 			if (item.tool.status !== 'completed') return null;
 			return { ...base, kind: 'archived', workstreamId: text(output['id']), name };
-		case 'jobs_run':
+		case 'automations_run':
 			if (item.tool.status !== 'completed') return null;
 			return {
 				...base,
-				kind: 'job',
-				job: text(output['job']) ?? text(input['job']) ?? 'a job',
+				kind: 'automation',
+				automation: text(output['automation']) ?? text(input['automation']) ?? 'an automation',
 				workstream: text(input['workstream']),
 			};
 		case 'plan_write':

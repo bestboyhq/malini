@@ -147,7 +147,7 @@ export function localRepositoriesFromProjects(projects: readonly Project[]): Rep
 	const byFullName = new Map<string, Repository>();
 
 	for (const project of repositoryProjects(projects)) {
-		const fullName = localRepositoryFullName(project);
+		const fullName = projectFullName(project);
 		if (!fullName) {
 			continue;
 		}
@@ -174,8 +174,7 @@ export function repositoryProjectIds(
 	const fullName = repository.fullName.toLowerCase();
 	return repositoryProjects(projects)
 		.filter(
-			(project) =>
-				ids.has(project.id) || localRepositoryFullName(project)?.toLowerCase() === fullName,
+			(project) => ids.has(project.id) || projectFullName(project)?.toLowerCase() === fullName,
 		)
 		.map((project) => project.id);
 }
@@ -184,7 +183,7 @@ function repositoryProjects(projects: readonly Project[]): readonly Project[] {
 	return projects.filter((project) => project.id !== LEAD_SPACE_PROJECT_ID);
 }
 
-function localRepositoryFullName(project: Project): string | null {
+export function projectFullName(project: Project): string | null {
 	const fromRemote = project.remoteUrl ? repositoryFullNameFromRemoteUrl(project.remoteUrl) : null;
 	if (fromRemote) {
 		return fromRemote;

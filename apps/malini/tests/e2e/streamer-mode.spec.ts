@@ -145,8 +145,8 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 		const composer = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 		await composer.click();
 		await page.keyboard.type('Mail ada.lovelace@example.com about /Users/ada/notes.md');
-		await expect(page.getByRole('status').filter({ hasText: 'No job matches' })).toHaveText(
-			'No job matches “/Users/a***/notes.md”',
+		await expect(page.getByRole('status').filter({ hasText: 'No automation matches' })).toHaveText(
+			'No automation matches “/Users/a***/notes.md”',
 		);
 		await page.getByRole('button', { name: 'View MCP server status' }).focus();
 		await expect(composer).toContainText('Mail a***e@*** about /Users/a***/notes.md', {

@@ -611,7 +611,7 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
-export async function openJobs(page: Page, hash = '#/jobs'): Promise<void> {
+export async function openAutomations(page: Page, hash = '#/automations'): Promise<void> {
 	await page.evaluate((next) => {
 		globalThis.location.hash = next;
 	}, hash);
@@ -621,30 +621,32 @@ export async function openJobs(page: Page, hash = '#/jobs'): Promise<void> {
 	});
 }
 
-export function jobCard(page: Page, name: string): Locator {
-	return page.getByTestId('job-card').and(page.getByRole('article', { name, exact: true }));
+export function automationCard(page: Page, name: string): Locator {
+	return page.getByTestId('automation-card').and(page.getByRole('article', { name, exact: true }));
 }
 
-export async function draftJob(
+export async function draftAutomation(
 	page: Page,
-	job: Readonly<{ name: string; words: string; when?: string }>,
+	automation: Readonly<{ name: string; words: string; when?: string }>,
 ): Promise<void> {
-	await page.getByRole('textbox', { name: 'What should happen, and when?' }).fill(job.words);
+	await page.getByRole('textbox', { name: 'What should happen, and when?' }).fill(automation.words);
 	await page.getByRole('button', { name: /^Draft it/u }).click();
-	const draft = page.getByRole('article', { name: 'New job draft' });
-	await draft.getByRole('textbox', { name: 'Job name' }).fill(job.name);
-	await draft.getByRole('button', { name: new RegExp(`^When ${job.name} runs: `, 'u') }).click();
+	const draft = page.getByRole('article', { name: 'New automation draft' });
+	await draft.getByRole('textbox', { name: 'Automation name' }).fill(automation.name);
+	await draft
+		.getByRole('button', { name: new RegExp(`^When ${automation.name} runs: `, 'u') })
+		.click();
 	await page
 		.getByRole('dialog', { name: 'When should it run' })
-		.getByRole('option', { name: new RegExp(`^${job.when ?? 'When you run it'}`, 'u') })
+		.getByRole('option', { name: new RegExp(`^${automation.when ?? 'When you run it'}`, 'u') })
 		.click();
-	await draft.getByRole('button', { name: 'Save job' }).click();
+	await draft.getByRole('button', { name: 'Save automation' }).click();
 	await expect(draft).toHaveCount(0);
-	await expect(jobCard(page, job.name)).toBeVisible();
+	await expect(automationCard(page, automation.name)).toBeVisible();
 }
 
-export async function openJob(page: Page, name: string): Promise<Locator> {
-	await jobCard(page, name)
+export async function openAutomation(page: Page, name: string): Promise<Locator> {
+	await automationCard(page, name)
 		.getByRole('link', { name: `Set up ${name}` })
 		.click();
 	const detail = page.getByRole('region', { name, exact: true });

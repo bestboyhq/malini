@@ -196,6 +196,10 @@ const handle = (command) => {
       write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick: Number(env.FAKE_BRIDGE_CHOICE) });
       return ack(command.id);
     }
+    case 'answer': {
+      write({ type: 'bridge.answer', protocolVersion: version, id: command.id, answer: JSON.parse(env.FAKE_BRIDGE_ANSWER ?? '{}') });
+      return ack(command.id);
+    }
     default:
       return ack(command.id, 'unknown command ' + command.cmd);
   }

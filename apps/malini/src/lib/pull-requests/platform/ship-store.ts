@@ -3,14 +3,19 @@ import {
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 } from '$contract/events';
 import {
-	isShippingJobBuiltin,
-	type JobRunRecord,
-	type ShippingJobBuiltin,
+	isShippingAutomationBuiltin,
+	type AutomationRunRecord,
+	type ShippingAutomationBuiltin,
 	type ShippingWait,
-} from '$contract/jobs';
+} from '$contract/automations';
 import type { ShipButton, ShipPhase, ShipStateRecord } from '$contract/pull-requests';
 import type { MainContext } from '$main/context';
-import { clearAlarm, handledEvent, jobDefinition, setAlarm } from '$lib/jobs/jobs.platform';
+import {
+	clearAlarm,
+	handledEvent,
+	automationDefinition,
+	setAlarm,
+} from '$lib/automations/automations.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import type { ShipDelays } from '../domain/shipping';
 import type { PullRequestOperations } from './pull-request-operations';
@@ -111,16 +116,19 @@ export function settleShipRequests(deps: ShipDeps, row: ShipRow): void {
 	settleShipRequest(db, row.workstreamId, 'review', row.requests.review);
 }
 
-export function shippingBuiltin(deps: ShipDeps, run: JobRunRecord): ShippingJobBuiltin | null {
-	const builtin = jobDefinition(deps.context.db, run.definitionId)?.builtin ?? null;
-	return isShippingJobBuiltin(builtin) ? builtin : null;
+export function shippingBuiltin(
+	deps: ShipDeps,
+	run: AutomationRunRecord,
+): ShippingAutomationBuiltin | null {
+	const builtin = automationDefinition(deps.context.db, run.definitionId)?.builtin ?? null;
+	return isShippingAutomationBuiltin(builtin) ? builtin : null;
 }
 
 export function shipping(row: ShipRow): boolean {
 	return (
 		row.phase === 'queued' ||
 		row.phase === 'needs-you' ||
-		row.activeJobRunId !== null ||
+		row.activeAutomationRunId !== null ||
 		(row.phase === 'draft' && row.step !== null) ||
 		row.requests.push + row.requests.review > 0
 	);

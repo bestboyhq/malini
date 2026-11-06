@@ -126,7 +126,7 @@ export const MENUS: readonly Menu[] = [
 					{
 						title: 'Agent tools',
 						href: docHref('/docs/agent-tools'),
-						line: 'A shared browser, secrets, and jobs',
+						line: 'A shared browser, secrets, and automations',
 					},
 					{
 						title: 'Extensions',
@@ -136,7 +136,7 @@ export const MENUS: readonly Menu[] = [
 					{
 						title: 'Events',
 						href: docHref('/docs/reference/events'),
-						line: 'Every event a job can start on',
+						line: 'Every event an automation can start on',
 					},
 				],
 			},
@@ -159,7 +159,7 @@ export const SITEMAP: readonly Readonly<{ label: string; links: readonly Link[] 
 		links: [
 			{ title: 'Workstreams', href: docHref('/docs/workstreams') },
 			{ title: 'Chat', href: docHref('/docs/chat') },
-			{ title: 'Jobs', href: docHref('/docs/jobs') },
+			{ title: 'Automations', href: docHref('/docs/automations') },
 			{ title: 'Download', href: DOWNLOAD_URL },
 		],
 	},

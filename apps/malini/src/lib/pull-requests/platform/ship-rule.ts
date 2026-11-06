@@ -1,8 +1,8 @@
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
-	JOBS_RUN_FINISHED_CHANNEL,
-	JOBS_TIME_REACHED_CHANNEL,
+	AUTOMATIONS_RUN_FINISHED_CHANNEL,
+	AUTOMATIONS_TIME_REACHED_CHANNEL,
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
@@ -11,7 +11,7 @@ import {
 	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
-import { JOB_INTERRUPTED_DETAIL, type JobRunRecord } from '$contract/jobs';
+import { AUTOMATION_INTERRUPTED_DETAIL, type AutomationRunRecord } from '$contract/automations';
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
@@ -20,20 +20,20 @@ import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { latestRunEndedAt, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
-	activeShippingJobRun,
-	jobDefinitions,
-	jobRun,
-	latestShippingJobRun,
+	activeShippingAutomationRun,
+	automationDefinitions,
+	automationRun,
+	latestShippingAutomationRun,
 	type DispatchedEvent,
 	type ShippingDecision,
 	type ShippingRule,
-} from '$lib/jobs/jobs.platform';
+} from '$lib/automations/automations.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
 	addressedChangeRequests,
 	clampedFixAttempts,
-	isUpdateJob,
-	jobIsActive,
+	isUpdateAutomation,
+	automationIsActive,
 	nextShippingMove,
 	pullRequestFacts,
 	type ShippingSnapshot,
@@ -42,7 +42,7 @@ import { shipAllClicked } from './ship-intents';
 import {
 	actOnShipMove,
 	retitlePullRequest,
-	settledJob,
+	settledAutomation,
 	shipFailed,
 	shipMetadata,
 	type Idleness,
@@ -77,13 +77,13 @@ async function hear(deps: ShipDeps, event: DispatchedEvent): Promise<readonly st
 	const { db } = deps.context;
 	const { channel, payload } = event;
 	if (channel === APP_STARTED_CHANNEL) return resume(deps);
-	if (channel === JOBS_RUN_FINISHED_CHANNEL) return runFinished(deps, payload);
+	if (channel === AUTOMATIONS_RUN_FINISHED_CHANNEL) return runFinished(deps, payload);
 	const workstreamId = stringField(payload, 'workstreamId');
 	if (workstreamId === null) return [];
 	switch (channel) {
 		case PULL_REQUESTS_BUTTON_CLICKED_CHANNEL:
 			return buttonClicked(deps, workstreamId, event);
-		case JOBS_TIME_REACHED_CHANNEL:
+		case AUTOMATIONS_TIME_REACHED_CHANNEL:
 			return stringField(payload, 'wait') === 'resume' || !getShip(db, workstreamId)
 				? []
 				: [workstreamId];
@@ -125,13 +125,13 @@ async function buttonClicked(
 	const all = shipAllClicked(event.payload);
 	if (all === null) return [workstreamId];
 	const builtin = all.button === 'draft-all' ? 'open-draft' : 'merge';
-	const definition = jobDefinitions(deps.context.db).find(
+	const definition = automationDefinitions(deps.context.db).find(
 		(candidate) => candidate.builtin === builtin,
 	);
-	if (!definition) throw new Error(`The built-in ${builtin} job is missing`);
+	if (!definition) throw new Error(`The built-in ${builtin} automation is missing`);
 	await Promise.all(
 		all.workstreamIds.map((started) =>
-			deps.context.commands.call('jobs.run', {
+			deps.context.commands.call('automations.run', {
 				definitionId: definition.id,
 				workstreamId: started,
 				origin: 'merge-queue',
@@ -169,11 +169,12 @@ async function workEnded(deps: ShipDeps, workstreamId: string): Promise<readonly
 async function runFinished(deps: ShipDeps, payload: unknown): Promise<readonly string[]> {
 	const { db } = deps.context;
 	const runId = isRecord(payload) ? stringField(payload['run'], 'id') : null;
-	const run = runId === null ? null : jobRun(db, runId);
+	const run = runId === null ? null : automationRun(db, runId);
 	if (!run || run.workstreamId === null) return [];
 	const row = getShip(db, run.workstreamId);
-	if (row) await settleOtherJob(deps, row, run);
-	if (row?.activeJobRunId === run.id || run.origin === 'merge-queue') return [run.workstreamId];
+	if (row) await settleOtherAutomation(deps, row, run);
+	if (row?.activeAutomationRunId === run.id || run.origin === 'merge-queue')
+		return [run.workstreamId];
 	if (run.agentRunId !== null && run.status !== 'cancelled') {
 		return workEnded(deps, run.workstreamId);
 	}
@@ -205,10 +206,15 @@ async function decideFromState(
 	if (!getWorkstream(db, workstreamId)) {
 		return decision(deps, workstreamId, 'forget', () => dropShip(deps, workstreamId));
 	}
-	const row = await settleActiveJob(deps, found);
+	const row = await settleActiveAutomation(deps, found);
 	const { requests } = row;
 	const working = row.phase === 'local' || row.phase === 'draft';
-	if (working && requests.push === 0 && requests.review === 0 && row.activeJobRunId === null) {
+	if (
+		working &&
+		requests.push === 0 &&
+		requests.review === 0 &&
+		row.activeAutomationRunId === null
+	) {
 		return decision(deps, workstreamId, 'idle', () => {
 			saveShip(deps, workstreamId, { step: null });
 		});
@@ -217,8 +223,8 @@ async function decideFromState(
 	const idleness = await readIdleness(deps, workstreamId);
 	const worktree = await commands.call('repositories.workstream-status', { workstreamId });
 	const settled = settledFor(deps, row, worktree);
-	const job = activeShippingJobRun(db, workstreamId);
-	const lastJob = latestShippingJobRun(db, workstreamId);
+	const automation = activeShippingAutomationRun(db, workstreamId);
+	const lastAutomation = latestShippingAutomationRun(db, workstreamId);
 	const recheck = row.phase === 'needs-you';
 	let snapshot: ShippingSnapshot = {
 		phase: recheck ? 'queued' : row.phase,
@@ -227,10 +233,12 @@ async function decideFromState(
 		addressedReviews: row.addressedReviews,
 		pullRequestNumber: row.pullRequestNumber,
 		idle: idleness.idle,
-		job: job ? { builtin: shippingBuiltin(deps, job), status: job.status } : null,
-		lastJobRunId: lastJob?.id ?? null,
-		lastJobBuiltin: lastJob ? shippingBuiltin(deps, lastJob) : null,
-		settledJob: settled?.builtin ?? null,
+		automation: automation
+			? { builtin: shippingBuiltin(deps, automation), status: automation.status }
+			: null,
+		lastAutomationRunId: lastAutomation?.id ?? null,
+		lastAutomationBuiltin: lastAutomation ? shippingBuiltin(deps, lastAutomation) : null,
+		settledAutomation: settled?.builtin ?? null,
 		worktree,
 		threadResolutionRunId: settled?.builtin === 'address-review' ? settled.agentRunId : null,
 		failureSignature: row.failureSignature,
@@ -239,8 +247,8 @@ async function decideFromState(
 				? null
 				: { headSha: row.checksRerun.headSha, at: Date.parse(row.checksRerun.at) },
 		fixSucceededAt:
-			lastJob?.status === 'succeeded' && lastJob.finishedAt !== null
-				? Date.parse(lastJob.finishedAt)
+			lastAutomation?.status === 'succeeded' && lastAutomation.finishedAt !== null
+				? Date.parse(lastAutomation.finishedAt)
 				: null,
 		attempts: row.attempts,
 		fixAttemptLimit: working ? DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS : await fixAttemptLimit(deps),
@@ -290,42 +298,49 @@ function decision(
 	};
 }
 
-async function settleActiveJob(deps: ShipDeps, row: ShipRow): Promise<ShipRow> {
-	const jobRunId = row.activeJobRunId;
-	if (jobRunId === null) return row;
+async function settleActiveAutomation(deps: ShipDeps, row: ShipRow): Promise<ShipRow> {
+	const automationRunId = row.activeAutomationRunId;
+	if (automationRunId === null) return row;
 	const { db } = deps.context;
-	const job = jobRun(db, jobRunId);
-	if (job && jobIsActive({ builtin: null, status: job.status })) return row;
-	const builtin = job ? shippingBuiltin(deps, job) : null;
+	const automation = automationRun(db, automationRunId);
+	if (automation && automationIsActive({ builtin: null, status: automation.status })) return row;
+	const builtin = automation ? shippingBuiltin(deps, automation) : null;
 	const addressed =
-		job?.status === 'succeeded' && builtin === 'address-review'
+		automation?.status === 'succeeded' && builtin === 'address-review'
 			? addressedChangeRequests(row.failureSignature)
 			: [];
-	if (job?.status === 'succeeded') await jobSucceeded(deps, row);
-	const interrupted = job?.status === 'failed' && job.detail === JOB_INTERRUPTED_DETAIL;
-	const updateFailed = isUpdateJob(builtin) && job?.status === 'failed' && row.phase !== 'queued';
+	if (automation?.status === 'succeeded') await automationSucceeded(deps, row);
+	const interrupted =
+		automation?.status === 'failed' && automation.detail === AUTOMATION_INTERRUPTED_DETAIL;
+	const updateFailed =
+		isUpdateAutomation(builtin) && automation?.status === 'failed' && row.phase !== 'queued';
 	return (
 		saveShip(deps, row.workstreamId, {
-			activeJobRunId: null,
-			settledJobRunId: job?.status === 'succeeded' ? job.id : row.settledJobRunId,
+			activeAutomationRunId: null,
+			settledAutomationRunId:
+				automation?.status === 'succeeded' ? automation.id : row.settledAutomationRunId,
 			...(addressed.length > 0
 				? { addressedReviews: [...new Set([...row.addressedReviews, ...addressed])] }
 				: {}),
 			...(interrupted ? { attempts: Math.max(0, row.attempts - 1) } : {}),
-			...(updateFailed ? { lastError: job.detail } : {}),
+			...(updateFailed ? { lastError: automation.detail } : {}),
 		}) ?? row
 	);
 }
 
-async function settleOtherJob(deps: ShipDeps, row: ShipRow, run: JobRunRecord): Promise<void> {
-	if (run.id === row.activeJobRunId || run.status !== 'succeeded') return;
+async function settleOtherAutomation(
+	deps: ShipDeps,
+	row: ShipRow,
+	run: AutomationRunRecord,
+): Promise<void> {
+	if (run.id === row.activeAutomationRunId || run.status !== 'succeeded') return;
 	const builtin = shippingBuiltin(deps, run);
 	if (builtin === null || (builtin === 'update-from-main' && run.origin === 'trigger')) return;
-	await jobSucceeded(deps, row);
-	saveShip(deps, row.workstreamId, { settledJobRunId: run.id });
+	await automationSucceeded(deps, row);
+	saveShip(deps, row.workstreamId, { settledAutomationRunId: run.id });
 }
 
-async function jobSucceeded(deps: ShipDeps, row: ShipRow): Promise<void> {
+async function automationSucceeded(deps: ShipDeps, row: ShipRow): Promise<void> {
 	if (row.phase === 'draft') requestShip(deps.context.db, row.workstreamId, 'push');
 	if (row.pullRequestNumber === null) return;
 	const target = await shipTarget(deps.context.db, row.workstreamId);
@@ -342,24 +357,24 @@ async function jobSucceeded(deps: ShipDeps, row: ShipRow): Promise<void> {
 function movedOn(deps: ShipDeps, row: ShipRow): boolean {
 	const { db } = deps.context;
 	const current = getShip(db, row.workstreamId);
-	if (current?.activeJobRunId !== row.activeJobRunId) return true;
-	if (row.activeJobRunId === null) return false;
-	const job = jobRun(db, row.activeJobRunId);
-	return !job || !jobIsActive({ builtin: null, status: job.status });
+	if (current?.activeAutomationRunId !== row.activeAutomationRunId) return true;
+	if (row.activeAutomationRunId === null) return false;
+	const automation = automationRun(db, row.activeAutomationRunId);
+	return !automation || !automationIsActive({ builtin: null, status: automation.status });
 }
 
 function settledFor(
 	deps: ShipDeps,
 	row: ShipRow,
 	worktree: WorktreeStatus,
-): ReturnType<typeof settledJob> {
-	const settled = settledJob(deps, row);
+): ReturnType<typeof settledAutomation> {
+	const settled = settledAutomation(deps, row);
 	const clean =
 		worktree.dirtyPaths.length === 0 &&
 		worktree.ahead === 0 &&
 		worktree.operationInProgress === null;
 	if (settled && settled.builtin !== 'address-review' && clean) {
-		saveShip(deps, row.workstreamId, { settledJobRunId: null });
+		saveShip(deps, row.workstreamId, { settledAutomationRunId: null });
 		return null;
 	}
 	return settled;

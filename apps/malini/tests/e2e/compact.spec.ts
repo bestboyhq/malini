@@ -42,7 +42,7 @@ test('a typed /compact compacts the chat in its Claude Code and shows the compac
 		);
 		await page.keyboard.press('Enter');
 
-		await expect(page.getByTestId('job-picker')).toBeHidden();
+		await expect(page.getByTestId('automation-picker')).toBeHidden();
 		await expect(input).toHaveText('Keep this draft');
 		const tools = page.locator('[data-message-kind="tool"]');
 		await expect(tools.filter({ hasText: 'Compacting conversation' })).toHaveAttribute(

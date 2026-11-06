@@ -1,4 +1,4 @@
-import type { JobRunRecord } from '$contract/jobs';
+import type { AutomationRunRecord } from '$contract/automations';
 import {
 	askingChildren,
 	descendantWorkstreamIds,
@@ -13,15 +13,15 @@ class AskingChildrenQuery {
 	public readonly data: (
 		workstreamId: string,
 		shownSessionId: string | null,
-		jobRuns: readonly JobRunRecord[],
+		automationRuns: readonly AutomationRunRecord[],
 	) => AskingChild[] = $derived.by(() => {
 		const sessions = sessionsAggregate.listSessions();
 		const workstreams = activeWorkstreamsQuery.data;
-		return (workstreamId, shownSessionId, jobRuns) => {
+		return (workstreamId, shownSessionId, automationRuns) => {
 			const descendants = descendantWorkstreamIds(workstreamId, workstreams);
 			return askingChildren(
 				shownSessionId,
-				jobRuns,
+				automationRuns,
 				sessions.filter((session) => descendants.has(session.workstreamId)),
 			);
 		};
