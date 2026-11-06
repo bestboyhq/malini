@@ -14,7 +14,7 @@ const WORKSTREAM = 'ws-ship';
 function session(
 	db: MaliniDatabase,
 	id: string,
-	origin: 'user' | 'job',
+	origin: 'user' | 'automation',
 	displayName: string,
 ): void {
 	insertSession(
@@ -53,7 +53,7 @@ function completedRun(
 }
 
 describe('workstreamShipContext', () => {
-	it('describes the work the user asked for, never what jobs did', () => {
+	it('describes the work the user asked for, never what automations did', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({});
@@ -89,9 +89,16 @@ describe('workstreamShipContext', () => {
 		completedRun(db, 'run-undone', 'chat-new', 'Rename everything', 'Renamed every module');
 		run(db, "UPDATE agent_runs SET obsoleted_at = '2026-07-10T00:02:00Z' WHERE id = 'run-undone'");
 
-		session(db, 'job', 'job', 'Fix checks');
-		completedRun(db, 'run-job', 'job', 'Fix the failing checks', 'Fixed the lint errors', true);
-		completedRun(db, 'run-steer', 'job', 'Also bump the timeout', 'Bumped the CI timeout');
+		session(db, 'automation', 'automation', 'Fix checks');
+		completedRun(
+			db,
+			'run-automation',
+			'automation',
+			'Fix the failing checks',
+			'Fixed the lint errors',
+			true,
+		);
+		completedRun(db, 'run-steer', 'automation', 'Also bump the timeout', 'Bumped the CI timeout');
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({
 			runSummaries: ['Add the /health endpoint'],
@@ -157,21 +164,28 @@ describe('workstreamShipContext', () => {
 		db.close();
 	});
 
-	it("commits under a job's Commit: line, which never joins the user's summaries", () => {
+	it("commits under an automation's Commit: line, which never joins the user's summaries", () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
 		session(db, 'chat', 'user', 'Search');
 		completedRun(db, 'run-user', 'chat', 'Add search', 'Commit: feat: add search');
-		session(db, 'job', 'job', 'Fix checks');
+		session(db, 'automation', 'automation', 'Fix checks');
 		completedRun(
 			db,
 			'run-fix',
-			'job',
+			'automation',
 			'Fix the failing checks',
 			'Fixed the header test.\n\nCommit: fix(search): keep the header query',
 			true,
 		);
-		completedRun(db, 'run-quiet', 'job', 'Fix the failing checks', 'Nothing to change.', true);
+		completedRun(
+			db,
+			'run-quiet',
+			'automation',
+			'Fix the failing checks',
+			'Nothing to change.',
+			true,
+		);
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
 			runSummaries: ['feat: add search'],
@@ -181,32 +195,39 @@ describe('workstreamShipContext', () => {
 		db.close();
 	});
 
-	it('titles the pull request after the latest run that proposed a title, a job included', () => {
+	it('titles the pull request after the latest run that proposed a title, an automation included', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
-		session(db, 'chat', 'user', 'Jobs panel');
+		session(db, 'chat', 'user', 'Automations panel');
 		completedRun(
 			db,
 			'run-user',
 			'chat',
-			'idk why : jobs',
-			'Commit: x\nPull request: Idk why : jobs',
+			'idk why : automations',
+			'Commit: x\nPull request: Idk why : automations',
 		);
-		session(db, 'job', 'job', 'Fix checks');
+		session(db, 'automation', 'automation', 'Fix checks');
 		completedRun(
 			db,
 			'run-fix',
-			'job',
+			'automation',
 			'Fix the failing checks',
-			'Only the title fails the check.\n\nPull request: feat(jobs): dock the Job center',
+			'Only the title fails the check.\n\nPull request: feat(automations): dock the Automation center',
 			true,
 		);
-		completedRun(db, 'run-quiet', 'job', 'Fix the failing checks', 'Nothing to change.', true);
+		completedRun(
+			db,
+			'run-quiet',
+			'automation',
+			'Fix the failing checks',
+			'Nothing to change.',
+			true,
+		);
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
 			runSummaries: ['x'],
 			latestRunId: 'run-user',
-			pullRequestTitle: 'feat(jobs): dock the Job center',
+			pullRequestTitle: 'feat(automations): dock the Automation center',
 		});
 		db.close();
 	});
@@ -214,11 +235,11 @@ describe('workstreamShipContext', () => {
 	it('ships what a run malini continued after a restart did', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
-		session(db, 'chat', 'user', 'Jobs panel');
+		session(db, 'chat', 'user', 'Automations panel');
 		insertRun(db, {
 			id: 'run-paused',
 			sessionId: 'chat',
-			prompt: 'Make every job a one-liner',
+			prompt: 'Make every automation a one-liner',
 			startedAt: '2026-07-10T00:00:00Z',
 			completedAt: '2026-07-10T00:01:00Z',
 			summary: null,
@@ -229,14 +250,14 @@ describe('workstreamShipContext', () => {
 			'run-continued',
 			'chat',
 			'Malini restarted while you were working',
-			'Docked the panel.\n\nCommit: Dock the jobs panel\nPull request: feat: dock the jobs panel',
+			'Docked the panel.\n\nCommit: Dock the automations panel\nPull request: feat: dock the automations panel',
 			true,
 		);
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
-			runSummaries: ['Dock the jobs panel'],
+			runSummaries: ['Dock the automations panel'],
 			latestRunId: 'run-continued',
-			pullRequestTitle: 'feat: dock the jobs panel',
+			pullRequestTitle: 'feat: dock the automations panel',
 		});
 		db.close();
 	});

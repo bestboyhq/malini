@@ -41,7 +41,7 @@ export type PullRequestShipIntent =
 	| 'retry-now'
 	| 'keep-workstream';
 
-export type PullRequestNeedsYouDestination = 'pull-request' | 'job' | 'repositories';
+export type PullRequestNeedsYouDestination = 'pull-request' | 'automation' | 'repositories';
 
 const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 	'waiting-for-agent': 'Waiting for the agent',
@@ -106,21 +106,24 @@ export function needsYouReasonDescription(reason: ShipNeedsYouReason): string {
 	return REASON_DESCRIPTIONS[reason];
 }
 
-export type MergeStoppedOnJob = Readonly<{ jobRunId: string; detail: string }>;
+export type MergeStoppedOnAutomation = Readonly<{ automationRunId: string; detail: string }>;
 
-export function mergeStoppedOnJob(ship: PullRequestShip | null): MergeStoppedOnJob | null {
+export function mergeStoppedOnAutomation(
+	ship: PullRequestShip | null,
+): MergeStoppedOnAutomation | null {
 	const stop = ship?.phase === 'needs-you' ? ship.needsYou : null;
-	if (stop?.reason !== 'fix-gave-up' || !stop.jobRunId) return null;
+	if (stop?.reason !== 'fix-gave-up' || !stop.automationRunId) return null;
 	return {
-		jobRunId: stop.jobRunId,
+		automationRunId: stop.automationRunId,
 		detail: stop.detail.trim() || REASON_DESCRIPTIONS['fix-gave-up'],
 	};
 }
 
 export function needsYouDestination(needsYou: ShipNeedsYou): PullRequestNeedsYouDestination | null {
 	if (needsYou.reason === 'github-reconnect') return 'repositories';
-	if (needsYou.reason === 'operation-in-progress') return needsYou.jobRunId ? 'job' : null;
-	if (needsYou.reason === 'fix-gave-up' && needsYou.jobRunId) return 'job';
+	if (needsYou.reason === 'operation-in-progress')
+		return needsYou.automationRunId ? 'automation' : null;
+	if (needsYou.reason === 'fix-gave-up' && needsYou.automationRunId) return 'automation';
 	return 'pull-request';
 }
 

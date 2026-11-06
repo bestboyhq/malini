@@ -349,10 +349,10 @@
 		{@render lead()}
 		<span class="text-fg-secondary">archived</span>
 		<TimelineActor workstreamId={entry.workstreamId} fallback={entry.name} />
-	{:else if entry.kind === 'job'}
+	{:else if entry.kind === 'automation'}
 		{@render lead()}
 		<span class="text-fg-secondary">
-			ran {entry.job}{entry.workstream ? ` in ${entry.workstream}` : ''}
+			ran {entry.automation}{entry.workstream ? ` in ${entry.workstream}` : ''}
 		</span>
 	{:else if entry.kind === 'plan'}
 		{@render lead()}

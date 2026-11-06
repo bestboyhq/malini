@@ -22,8 +22,8 @@
 	);
 	const hint = $derived(
 		value.length === 0
-			? "The job's agent loads every skill that is on. Add skills to load only those."
-			: `The job's agent loads only these, ${formatTokens(skillTokens(catalog.skills, value))}`,
+			? "The automation's agent loads every skill that is on. Add skills to load only those."
+			: `The automation's agent loads only these, ${formatTokens(skillTokens(catalog.skills, value))}`,
 	);
 
 	onMount(() => ensureSkillCatalogCommand(null));

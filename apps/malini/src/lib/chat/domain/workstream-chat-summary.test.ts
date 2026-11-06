@@ -9,7 +9,7 @@ function summary(kind: AgentAttentionKind): ReturnType<typeof summarizeWorkstrea
 		session: null,
 		openingSessionId: null,
 		backgroundWait: null,
-		jobRunning: false,
+		automationRunning: false,
 		queueCount: 0,
 		attention: { kind, runId: 'run-1', sessionId: 'chat-1', updatedAt: 1 },
 		hasDraft: false,
@@ -50,7 +50,7 @@ describe('the chat a workstream opens on', () => {
 			session: runningChat,
 			openingSessionId,
 			backgroundWait: null,
-			jobRunning: false,
+			automationRunning: false,
 			queueCount: 0,
 			attention: null,
 			hasDraft: false,
@@ -70,14 +70,14 @@ describe('the loader of a workstream with only background work', () => {
 	const state = (
 		session: SessionRecord | null,
 		backgroundWait: BackgroundWait | null,
-		jobRunning: boolean,
+		automationRunning: boolean,
 		overrides: { queueCount?: number; attention?: AgentAttention } = {},
 	) =>
 		summarizeWorkstreamChat({
 			session,
 			openingSessionId: null,
 			backgroundWait,
-			jobRunning,
+			automationRunning,
 			queueCount: 0,
 			attention: null,
 			hasDraft: false,
@@ -108,16 +108,16 @@ describe('the loader of a workstream with only background work', () => {
 			tone: 'queued',
 		});
 		expect(state(runningChat, 'commands', true)).toEqual({
-			label: 'Job running',
+			label: 'Automation running',
 			tone: 'background',
 		});
 	});
 
-	it('shows a job running behind an idle chat as background work', () => {
-		expect(state(null, null, true)).toEqual({ label: 'Job running', tone: 'background' });
+	it('shows an automation running behind an idle chat as background work', () => {
+		expect(state(null, null, true)).toEqual({ label: 'Automation running', tone: 'background' });
 	});
 
-	it('keeps the working loader while the chat itself works beside a job', () => {
+	it('keeps the working loader while the chat itself works beside an automation', () => {
 		expect(state(runningChat, null, true)).toEqual({ label: 'Running', tone: 'running' });
 	});
 });

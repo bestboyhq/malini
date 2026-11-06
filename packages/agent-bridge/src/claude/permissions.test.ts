@@ -140,19 +140,19 @@ describe('permissionDescriptor', () => {
 		});
 	});
 
-	it('names the job a malini tool saves or runs', () => {
+	it('names the automation a malini tool saves or runs', () => {
 		const descriptor = (tool: string, input: Record<string, unknown>) =>
 			permissionDescriptor(`mcp__malini__${tool}`, input, worktree, undefined);
 
-		expect(descriptor('jobs_save', { name: 'Update docs', instructions: 'Read the diff' })).toEqual(
-			{
-				capability: 'write',
-				resources: [{ kind: 'tool', value: 'Save job ‘Update docs’', boundary: 'workstream' }],
-			},
-		);
-		expect(descriptor('jobs_run', { job: 'Update docs' })).toEqual({
+		expect(
+			descriptor('automations_save', { name: 'Update docs', instructions: 'Read the diff' }),
+		).toEqual({
+			capability: 'write',
+			resources: [{ kind: 'tool', value: 'Save automation ‘Update docs’', boundary: 'workstream' }],
+		});
+		expect(descriptor('automations_run', { automation: 'Update docs' })).toEqual({
 			capability: 'execute',
-			resources: [{ kind: 'tool', value: 'Run job ‘Update docs’', boundary: 'workstream' }],
+			resources: [{ kind: 'tool', value: 'Run automation ‘Update docs’', boundary: 'workstream' }],
 		});
 		expect(descriptor('repositories_hide', { repository: 'acme/site' })).toEqual({
 			capability: 'write',
@@ -221,24 +221,24 @@ describe('rememberedPermissions', () => {
 		const rule: PermissionUpdate[] = [
 			{
 				type: 'addRules',
-				rules: [{ toolName: 'mcp__malini__jobs_run' }],
+				rules: [{ toolName: 'mcp__malini__automations_run' }],
 				behavior: 'allow',
 				destination: 'localSettings',
 			},
 		];
 		for (const scope of ['session', 'workstream', 'everywhere'] as const) {
-			expect(rememberedPermissions('mcp__malini__jobs_run', rule, scope)).toBeUndefined();
+			expect(rememberedPermissions('mcp__malini__automations_run', rule, scope)).toBeUndefined();
 		}
 	});
 });
 
 describe('approvedInput', () => {
-	const input = { id: 'job-1', instructions: 'Agent text' };
-	const edited = { id: 'job-1', instructions: 'Reviewed text' };
+	const input = { id: 'automation-1', instructions: 'Agent text' };
+	const edited = { id: 'automation-1', instructions: 'Reviewed text' };
 
 	it('hands a Malini tool the version the user reviewed', () => {
-		expect(approvedInput('mcp__malini__jobs_save', input, edited)).toEqual(edited);
-		expect(approvedInput('mcp__malini__jobs_save', input, undefined)).toBe(input);
+		expect(approvedInput('mcp__malini__automations_save', input, edited)).toEqual(edited);
+		expect(approvedInput('mcp__malini__automations_save', input, undefined)).toBe(input);
 	});
 
 	it('never lets a reply rewrite any other tool', () => {
@@ -411,11 +411,11 @@ describe('steerToMalini', () => {
 		}
 	});
 
-	it('points a refused commit at the Open draft job and rules out workarounds', async () => {
+	it('points a refused commit at the Open draft automation and rules out workarounds', async () => {
 		const output = await steer('git commit -am fix');
 		expect(output).toMatchObject({ permissionDecision: 'deny' });
 		expect(output).toMatchObject({
-			permissionDecisionReason: expect.stringContaining('Open draft or Merge job'),
+			permissionDecisionReason: expect.stringContaining('Open draft or Merge automation'),
 		});
 		expect(output).toMatchObject({ permissionDecisionReason: expect.stringContaining('gh api') });
 	});

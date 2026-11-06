@@ -144,6 +144,18 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		);
 	});
 
+	it('answers a one-shot task with the object the bridge returns for its schema', async () => {
+		const supervisor = await spawn({
+			FAKE_BRIDGE_ANSWER: JSON.stringify({ verdict: 'ship', reasons: ['green checks'] }),
+		});
+		const automation = { instructions: 'Judge it.', provider: 'claude', model: 'haiku' };
+		const schema = { type: 'object', properties: { verdict: { type: 'string' } } };
+		expect(await supervisor.answer('Ship it?', automation, schema, {})).toEqual({
+			verdict: 'ship',
+			reasons: ['green checks'],
+		});
+	});
+
 	it('fails a command still in flight when the bridge is stopped as stopped, not as a protocol error', async () => {
 		const supervisor = await spawn({ FAKE_BRIDGE_ACK_DELAY_MS: '5000' });
 		const stopped = expect(

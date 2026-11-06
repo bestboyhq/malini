@@ -369,12 +369,12 @@ describe('the workstream commands', () => {
 		const { base, checkout } = await workstreamFixture(dir, 'ws-1');
 		const { invoke, db } = harness(dir);
 		seed(db, 'ws-1', base, checkout);
-		const job = { id: 'run-job', messageIfAlreadyCommitted: 'Update workstream' };
+		const automation = { id: 'run-automation', messageIfAlreadyCommitted: 'Update workstream' };
 		const resolver = { id: 'run-resolver', messageIfAlreadyCommitted: 'Update workstream' };
 		const head = async (format: string): Promise<string> =>
 			(await realGit(checkout, ['log', '-1', `--format=${format}`])).trim();
 		const commitAs = async (
-			run: typeof job,
+			run: typeof automation,
 			file: string,
 			text: string,
 			message: string,
@@ -384,13 +384,13 @@ describe('the workstream commands', () => {
 			return head('%s');
 		};
 
-		expect(await commitAs(job, 'alpha.txt', 'alpha\n', 'test: start the suite')).toBe(
+		expect(await commitAs(automation, 'alpha.txt', 'alpha\n', 'test: start the suite')).toBe(
 			'test: start the suite',
 		);
-		expect(await commitAs(job, 'beta.txt', 'beta\n', 'test: fix the flaky test')).toBe(
+		expect(await commitAs(automation, 'beta.txt', 'beta\n', 'test: fix the flaky test')).toBe(
 			'test: fix the flaky test',
 		);
-		expect(await commitAs(job, 'gamma.txt', 'gamma\n', 'test: fix the flaky test')).toBe(
+		expect(await commitAs(automation, 'gamma.txt', 'gamma\n', 'test: fix the flaky test')).toBe(
 			'Update workstream',
 		);
 
@@ -407,7 +407,7 @@ describe('the workstream commands', () => {
 		expect(await commitAs(resolver, 'delta.txt', 'delta\n', 'fix: keep both sides')).toBe(
 			'Update workstream',
 		);
-		expect(await commitAs(job, 'epsilon.txt', 'epsilon\n', 'test: cover the merge')).toBe(
+		expect(await commitAs(automation, 'epsilon.txt', 'epsilon\n', 'test: cover the merge')).toBe(
 			'test: cover the merge',
 		);
 	});

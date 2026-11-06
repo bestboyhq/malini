@@ -63,15 +63,15 @@ describe('agent chat identity', () => {
 		});
 	});
 
-	it('names a job transcript as a job', () => {
+	it('names an automation transcript as an automation', () => {
 		expect(
 			agentChatIdentity({
 				displayName: 'Fix checks',
 				model: null,
 				status: 'running',
-				origin: 'job',
+				origin: 'automation',
 			}).name,
-		).toBe('Job: Fix checks');
+		).toBe('Automation: Fix checks');
 	});
 
 	it('keeps raw provider diagnostics out of compact sidebar status labels', () => {

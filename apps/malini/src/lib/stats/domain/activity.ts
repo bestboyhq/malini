@@ -4,7 +4,7 @@ export type RepositoryDayActivity = Readonly<{
 	date: string;
 	fullName: string;
 	runs: number;
-	jobRuns: number;
+	automationRuns: number;
 	seconds: number;
 }>;
 
@@ -22,7 +22,7 @@ export function summarizeActivity(
 	return {
 		today,
 		runs: sum(activity, (entry) => entry.runs),
-		jobRuns: sum(activity, (entry) => entry.jobRuns),
+		automationRuns: sum(activity, (entry) => entry.automationRuns),
 		agentSeconds: Math.round(sum(activity, (entry) => entry.seconds)),
 		runningAgents,
 		days: [...days]

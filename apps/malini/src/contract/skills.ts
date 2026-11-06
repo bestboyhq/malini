@@ -25,14 +25,14 @@ export type TurnedOffSkills = Readonly<{ skills: readonly string[]; plugins: rea
 
 export type SwitchSkillArgs = Readonly<{ kind: 'skill' | 'plugin'; name: string; on: boolean }>;
 
-export const JOB_MAX_SKILLS = 500;
+export const AUTOMATION_MAX_SKILLS = 500;
 
 export const SKILL_NAME_MAX_LENGTH = 200;
 
 export function isSkillNameList(value: unknown): value is readonly string[] {
 	return (
 		Array.isArray(value) &&
-		value.length <= JOB_MAX_SKILLS &&
+		value.length <= AUTOMATION_MAX_SKILLS &&
 		value.every(
 			(name) =>
 				typeof name === 'string' && name.trim().length > 0 && name.length <= SKILL_NAME_MAX_LENGTH,

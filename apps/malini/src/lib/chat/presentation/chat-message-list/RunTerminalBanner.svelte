@@ -28,7 +28,7 @@
 	const signingIn = $derived(claudeSignInQuery.data !== 'idle');
 	const canContinue = $derived(latest && !transcript.chatRunInFlight);
 	const canTryAgain = $derived(
-		canContinue && runContinuationQuery.origin(transcript.sessionId) !== 'job',
+		canContinue && runContinuationQuery.origin(transcript.sessionId) !== 'automation',
 	);
 	const canSignIn = $derived(latest && failureKind === 'sign-in');
 

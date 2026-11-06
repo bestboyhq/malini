@@ -49,7 +49,7 @@ type RemoteRecordBuilder = Readonly<{
 	clientTruncated(): boolean;
 }>;
 
-export function checkFixJobContext(input: CheckFixInput): string {
+export function checkFixAutomationContext(input: CheckFixInput): string {
 	const prefix = [
 		`Pull request: #${input.pullRequestNumber}`,
 		`Blocking check details: ${checkDetails(input.failingChecks)}`,
@@ -67,7 +67,7 @@ export function checkFixJobContext(input: CheckFixInput): string {
 	});
 }
 
-export function reviewFixJobContext(input: ReviewFixInput): string {
+export function reviewFixAutomationContext(input: ReviewFixInput): string {
 	const prefix = [
 		`Pull request: #${input.pullRequestNumber}`,
 		'',

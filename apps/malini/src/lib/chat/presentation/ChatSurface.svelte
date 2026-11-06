@@ -6,7 +6,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Icon } from '$hyper-ui/icons';
-	import type { JobRunRecord } from '$contract/jobs';
+	import type { AutomationRunRecord } from '$contract/automations';
 	import { cancelRunCommand } from '$lib/chat/application/commands/cancel-run.command';
 	import { closeFreshChatCommand } from '$lib/chat/application/commands/close-fresh-chat.command';
 	import { openChangedFileCommand } from '$lib/chat/application/commands/open-changed-file.command';
@@ -97,27 +97,29 @@
 	interface Props {
 		workstreamId: string;
 		pullRequestShipped?: boolean;
-		jobRuns?: readonly JobRunRecord[];
+		automationRuns?: readonly AutomationRunRecord[];
 		timeline?: boolean;
 		oncloseworkstream: () => void;
 		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
+		afterRun: Snippet<[string]>;
 		notice?: Snippet | undefined;
-		jobs?: Snippet | undefined;
+		automations?: Snippet | undefined;
 	}
 
 	let {
 		workstreamId,
 		pullRequestShipped = false,
-		jobRuns = [],
+		automationRuns = [],
 		timeline = false,
 		oncloseworkstream,
 		onsavetoscratchpad,
 		header,
 		workstreamsCard,
+		afterRun,
 		notice,
-		jobs,
+		automations,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -176,7 +178,9 @@
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
-	const askingChildren = $derived(askingChildrenQuery.data(workstreamId, sessionId, jobRuns));
+	const askingChildren = $derived(
+		askingChildrenQuery.data(workstreamId, sessionId, automationRuns),
+	);
 	const childSteps = $derived(
 		childRequestSteps(askingChildren, childRequestsQuery.approvals, childRequestsQuery.questions),
 	);
@@ -502,6 +506,7 @@
 										overlayBelow={trayHeight}
 										{header}
 										{workstreamsCard}
+										{afterRun}
 									>
 										{#snippet empty()}
 											<FreshChatSuggestions
@@ -555,7 +560,7 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundTray || jobs || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundTray || automations || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -607,9 +612,9 @@
 													</div>
 												{/if}
 
-												{#if jobs}
+												{#if automations}
 													<div transition:slide={foldMotion()}>
-														{@render jobs()}
+														{@render automations()}
 													</div>
 												{/if}
 

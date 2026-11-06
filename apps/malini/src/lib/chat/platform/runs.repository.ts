@@ -1,5 +1,5 @@
 import type { AgentRunProfile, RunFailureKind } from '$contract/agent';
-import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/jobs';
+import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/automations';
 import {
 	isCancellationError,
 	isInterruptionError,
@@ -393,7 +393,7 @@ export interface RunActivity {
 	readonly date: string;
 	readonly projectId: string;
 	readonly runs: number;
-	readonly jobRuns: number;
+	readonly automationRuns: number;
 	readonly seconds: number;
 }
 
@@ -402,13 +402,13 @@ export function listRunActivity(db: MaliniDatabase): RunActivity[] {
 		date: string;
 		project_id: string;
 		runs: number;
-		job_runs: number;
+		automation_runs: number;
 		seconds: number;
 	}>(
 		db,
 		`SELECT date(r.started_at, 'localtime') AS date, w.project_id,
 		        COUNT(*) AS runs,
-		        SUM(s.origin = 'job') AS job_runs,
+		        SUM(s.origin = 'automation') AS automation_runs,
 		        COALESCE(SUM((julianday(r.completed_at) - julianday(r.started_at)) * 86400), 0) AS seconds
 		 FROM agent_runs r
 		 JOIN agent_sessions s ON s.id = r.session_id
@@ -419,7 +419,7 @@ export function listRunActivity(db: MaliniDatabase): RunActivity[] {
 		date: row.date,
 		projectId: row.project_id,
 		runs: row.runs,
-		jobRuns: row.job_runs,
+		automationRuns: row.automation_runs,
 		seconds: row.seconds,
 	}));
 }
@@ -429,7 +429,7 @@ export interface RunFact {
 	readonly startedAt: string;
 	readonly completedAt: string | null;
 	readonly endedAt: string | null;
-	readonly job: boolean;
+	readonly automation: boolean;
 	readonly automated: boolean;
 	readonly inputTokens: number;
 	readonly outputTokens: number;
@@ -444,7 +444,7 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		started_at: string;
 		completed_at: string | null;
 		ended_at: string | null;
-		job: number;
+		automation: number;
 		automated: number;
 		input_tokens: number;
 		output_tokens: number;
@@ -460,8 +460,8 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		             AND e.seq < (SELECT MAX(last.seq) FROM agent_events last WHERE last.run_id = r.id)),
 		          r.started_at)
 		        ELSE r.completed_at END AS ended_at,
-		        s.origin = 'job' AS job,
-		        (s.origin = 'job' OR r.automated = 1 OR (
+		        s.origin = 'automation' AS automation,
+		        (s.origin = 'automation' OR r.automated = 1 OR (
 		          SELECT CASE WHEN json_valid(substr(e.event, 14))
 		                 THEN json_extract(substr(e.event, 14), '$.from') END
 		          FROM agent_events e
@@ -481,7 +481,7 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		startedAt: row.started_at,
 		completedAt: row.completed_at,
 		endedAt: row.ended_at,
-		job: row.job === 1,
+		automation: row.automation === 1,
 		automated: row.automated === 1,
 		inputTokens: row.input_tokens,
 		outputTokens: row.output_tokens,
@@ -638,4 +638,38 @@ function firstLine(text: string): string {
 			.map((line) => line.trim())
 			.find(Boolean) ?? ''
 	);
+}
+
+export type TypedRun = Readonly<{
+	text: string;
+	startedAt: string;
+	workstreamId: string;
+	repositoryId: string;
+}>;
+
+export function typedRun(db: MaliniDatabase, runId: string): TypedRun | null {
+	const row = get<{
+		prompt: string;
+		started_at: string;
+		workstream_id: string;
+		project_id: string;
+	}>(
+		db,
+		`SELECT r.prompt, r.started_at, s.workstream_id, w.project_id
+		 FROM agent_runs r
+		 JOIN agent_sessions s ON s.id = r.session_id
+		 JOIN workstreams w ON w.id = s.workstream_id
+		 WHERE r.id = ? AND r.automated = 0 AND s.origin = 'user' AND w.scope IS NULL
+		   AND NOT EXISTS (SELECT 1 FROM agent_deliveries d WHERE d.run_id = r.id)`,
+		runId,
+	);
+	const text = row ? promptPlainText(row.prompt).trim() : '';
+	return row && text.length > 0
+		? {
+				text,
+				startedAt: row.started_at,
+				workstreamId: row.workstream_id,
+				repositoryId: row.project_id,
+			}
+		: null;
 }

@@ -208,18 +208,18 @@ async function drainRendererErrorPersistenceQueue(): Promise<void> {
 	persistenceQueueDraining = true;
 	try {
 		for (;;) {
-			const job = persistenceQueue.shift();
-			if (!job) return;
+			const automation = persistenceQueue.shift();
+			if (!automation) return;
 			let receipt: RendererErrorReceipt | null = null;
 			for (let attempt = 0; attempt < MAX_PERSISTENCE_ATTEMPTS; attempt += 1) {
 				try {
-					receipt = await invoke('app.report-renderer-error', { payload: job.payload });
+					receipt = await invoke('app.report-renderer-error', { payload: automation.payload });
 					break;
 				} catch {
 					await Promise.resolve();
 				}
 			}
-			job.resolve(receipt);
+			automation.resolve(receipt);
 		}
 	} finally {
 		persistenceQueueDraining = false;

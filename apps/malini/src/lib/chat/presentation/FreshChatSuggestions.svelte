@@ -11,7 +11,7 @@
 	} from '$lib/chat/domain/transcript-reference';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { WorkstreamJobs } from '$lib/jobs/jobs.api';
+	import { WorkstreamAutomations } from '$lib/automations/automations.api';
 
 	interface Props {
 		workstreamId: string;
@@ -106,6 +106,6 @@
 			</div>
 		{/if}
 
-		<WorkstreamJobs {workstreamId} />
+		<WorkstreamAutomations {workstreamId} />
 	</div>
 </div>

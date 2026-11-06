@@ -106,7 +106,7 @@ test('titles the pull request after the whole branch and commits under the lates
 	);
 });
 
-test("commits under a job's Commit: line, and titles after the user's work only", () => {
+test("commits under an automation's Commit: line, and titles after the user's work only", () => {
 	const metadata = automatedPullRequestMetadata({
 		branch: 'malini/workstream-1',
 		baseBranch: 'main',

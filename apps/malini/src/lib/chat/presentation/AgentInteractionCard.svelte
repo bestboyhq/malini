@@ -21,7 +21,7 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import AgentEditReview from './AgentEditReview.svelte';
 	import type { RenderItem } from './render-state';
-	import { jobName } from '$lib/jobs/jobs.api';
+	import { automationName } from '$lib/automations/automations.api';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
@@ -86,7 +86,7 @@
 		maliniToolApproval(
 			item.toolName,
 			item.input,
-			{ job: jobName, workstream: (id) => workstreamNameQuery.data(id) ?? id },
+			{ automation: automationName, workstream: (id) => workstreamNameQuery.data(id) ?? id },
 			item.review,
 		),
 	);

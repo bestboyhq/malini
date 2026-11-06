@@ -31,6 +31,7 @@ export type TranscriptContext = {
 	readonly workstreamId: string;
 	readonly sessionId: SessionId;
 	readonly workstreamsCard: Snippet<[readonly string[]]>;
+	readonly afterRun: Snippet<[string]>;
 	readonly stageEnter: RowArrivalAction;
 	transcriptSettled(): boolean;
 	readonly promptArrival: PromptArrivalAction;

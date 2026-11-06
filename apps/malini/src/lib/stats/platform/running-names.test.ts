@@ -22,7 +22,7 @@ describe('running names', () => {
 		for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 	});
 
-	it('tells the naming job what the command is', () => {
+	it('tells the naming automation what the command is', () => {
 		expect(namingTask('Restart local site preview', WRANGLER, 'site')).toBe(
 			`Description: Restart local site preview\nCommand: ${WRANGLER}\nPackage: site`,
 		);

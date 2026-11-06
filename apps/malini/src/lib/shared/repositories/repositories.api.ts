@@ -54,6 +54,7 @@ export {
 	isGithubRemoteUrl,
 	localRepositoriesFromProjects,
 	mergeRepositories,
+	projectFullName,
 	projectIdentityIdsForRepository,
 	repositoryCloneSource,
 	repositoryContextForWorkstream,

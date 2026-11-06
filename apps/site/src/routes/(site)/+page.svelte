@@ -85,7 +85,7 @@
 		},
 		{
 			title: 'Automate what repeats',
-			body: 'When you keep typing the same prompt, Malini offers to save it as a job. Give it a trigger, and it asks you first until you let it run on its own.',
+			body: 'When you keep typing the same prompt, Malini offers to save it as an automation. Give it a trigger, and it asks you first until you let it run on its own.',
 		},
 	];
 

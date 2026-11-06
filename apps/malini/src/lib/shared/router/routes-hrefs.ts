@@ -4,13 +4,13 @@ export type WorkstreamHrefOptions = Readonly<{
 
 export const REPOSITORIES_HREF = '/';
 
-export const JOBS_HREF = '/jobs';
+export const AUTOMATIONS_HREF = '/automations';
 
-export const JOBS_ACTIVITY_HREF = '/jobs/activity';
+export const AUTOMATIONS_ACTIVITY_HREF = '/automations/activity';
 
-export const JOBS_RECIPES_HREF = '/jobs/recipes';
+export const AUTOMATIONS_RECIPES_HREF = '/automations/recipes';
 
-export const JOBS_EXPLORER_HREF = '/jobs/explorer';
+export const AUTOMATIONS_EXPLORER_HREF = '/automations/explorer';
 
 export const SETTINGS_HREF = '/settings';
 
@@ -28,12 +28,12 @@ export const EXTENSION_SETTINGS_HREF = '/settings/extensions';
 
 export const PROFILE_SETTINGS_HREF = '/settings/profile';
 
-export function jobHref(definitionId: string): string {
-	return `/jobs/${encodeURIComponent(definitionId)}`;
+export function automationHref(definitionId: string): string {
+	return `/automations/${encodeURIComponent(definitionId)}`;
 }
 
-export function jobImproveHref(definitionId: string): string {
-	return `${jobHref(definitionId)}/improve`;
+export function automationImproveHref(definitionId: string): string {
+	return `${automationHref(definitionId)}/improve`;
 }
 
 export function repositoryHref(repositoryId: string): string {

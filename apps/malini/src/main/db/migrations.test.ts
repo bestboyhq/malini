@@ -29,6 +29,16 @@ const ALL_TABLES = [
 	'agent_sessions',
 	'agent_user_baselines',
 	'alarms',
+	'automation_asks',
+	'automation_definitions',
+	'automation_experiment_results',
+	'automation_experiment_samples',
+	'automation_experiments',
+	'automation_outputs',
+	'automation_run_events',
+	'automation_runs',
+	'automation_setups',
+	'automation_suggestions',
 	'chatgpt_account',
 	'connected_repositories',
 	'custom_sounds',
@@ -36,15 +46,6 @@ const ALL_TABLES = [
 	'event_log',
 	'hidden_repositories',
 	'installed_extensions',
-	'job_definitions',
-	'job_experiment_results',
-	'job_experiment_samples',
-	'job_experiments',
-	'job_outputs',
-	'job_run_events',
-	'job_runs',
-	'job_setups',
-	'job_suggestions',
 	'lead_decisions',
 	'mcp_server_folder_offs',
 	'mcp_server_listings',
@@ -87,6 +88,18 @@ const ALL_INDEXES = [
 	'idx_agent_user_baselines_run',
 	'idx_agent_user_baselines_workstream_created',
 	'idx_alarms_due',
+	'idx_automation_asks_repository',
+	'idx_automation_experiments_definition',
+	'idx_automation_outputs_definition_created',
+	'idx_automation_run_events_event',
+	'idx_automation_runs_chain',
+	'idx_automation_runs_chat_session',
+	'idx_automation_runs_definition_origin',
+	'idx_automation_runs_parent',
+	'idx_automation_runs_session',
+	'idx_automation_runs_status_created',
+	'idx_automation_setups_definition_created',
+	'idx_automation_suggestions_session',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
 	'idx_event_log_cause',
@@ -94,17 +107,6 @@ const ALL_INDEXES = [
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
 	'idx_event_log_workstream_channel',
-	'idx_job_experiments_definition',
-	'idx_job_outputs_definition_created',
-	'idx_job_run_events_event',
-	'idx_job_runs_chain',
-	'idx_job_runs_chat_session',
-	'idx_job_runs_definition_origin',
-	'idx_job_runs_parent',
-	'idx_job_runs_session',
-	'idx_job_runs_status_created',
-	'idx_job_setups_definition_created',
-	'idx_job_suggestions_cluster',
 	'idx_lead_decisions_session',
 	'idx_reconciler_decisions_chain',
 	'idx_reconciler_decisions_created',
@@ -236,7 +238,12 @@ describe('migrate', () => {
 				family: 'deepseek-thinking',
 			},
 		]);
-		for (const table of ['agent_sessions', 'job_definitions', 'job_setups', 'job_experiments']) {
+		for (const table of [
+			'agent_sessions',
+			'automation_definitions',
+			'automation_setups',
+			'automation_experiments',
+		]) {
 			expect(
 				all(
 					db,
@@ -303,7 +310,7 @@ describe('migrate', () => {
 		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
 		expect(appTables(db)).toEqual(ALL_TABLES);
 		expect(
-			all(db, 'SELECT id, skills FROM job_definitions WHERE builtin IS NULL ORDER BY id'),
+			all(db, 'SELECT id, skills FROM automation_definitions WHERE builtin IS NULL ORDER BY id'),
 		).toEqual([
 			{ id: 'copy', skills: '["humanizer","adr"]' },
 			{ id: 'gone', skills: '[]' },
@@ -408,7 +415,7 @@ describe('migrate', () => {
 		expect(
 			all(
 				db,
-				'SELECT id, origin, context, parent_run_id, scope, chain_id, requests FROM job_runs ORDER BY id',
+				'SELECT id, origin, context, parent_run_id, scope, chain_id, requests FROM automation_runs ORDER BY id',
 			),
 		).toEqual([
 			{
@@ -431,14 +438,14 @@ describe('migrate', () => {
 			},
 		]);
 		const scheduled = (id: string, scope: string) =>
-			`INSERT INTO job_runs (id, definition_id, title, origin, status, scope, chain_id, created_at)
+			`INSERT INTO automation_runs (id, definition_id, title, origin, status, scope, chain_id, created_at)
 			 VALUES ('${id}', 'job', 'Triage', 'schedule', 'waiting', '${scope}', '${id}', '2026-10-21T00:00:00Z')`;
 		db.exec(scheduled('home', 'home'));
 		db.exec(scheduled('owner', 'owner:bestboyhq'));
 		expect(() => db.exec(scheduled('nowhere', 'owner:'))).toThrow();
 		expect(() => db.exec(scheduled('elsewhere', 'repository:malini'))).toThrow();
-		db.exec("DELETE FROM job_runs WHERE id = 'first'");
-		expect(get(db, "SELECT parent_run_id FROM job_runs WHERE id = 'next'")).toEqual({
+		db.exec("DELETE FROM automation_runs WHERE id = 'first'");
+		expect(get(db, "SELECT parent_run_id FROM automation_runs WHERE id = 'next'")).toEqual({
 			parent_run_id: null,
 		});
 		db.close();
@@ -462,7 +469,7 @@ describe('migrate', () => {
 		expect(
 			all(
 				db,
-				"SELECT id, reaches_internet FROM job_definitions WHERE id IN ('fix', 'mine') ORDER BY id",
+				"SELECT id, reaches_internet FROM automation_definitions WHERE id IN ('fix', 'mine') ORDER BY id",
 			),
 		).toEqual([
 			{ id: 'fix', reaches_internet: 1 },
@@ -493,28 +500,35 @@ describe('migrate', () => {
 
 		migrate(db);
 
-		expect(all(db, 'SELECT * FROM job_runs ORDER BY id')).toEqual(runs);
-		expect(all(db, 'SELECT job_run_id, event_id FROM job_run_events ORDER BY event_id')).toEqual([
-			{ job_run_id: 'first', event_id: 7 },
-			{ job_run_id: 'next', event_id: 8 },
+		expect(all(db, 'SELECT * FROM automation_runs ORDER BY id')).toEqual(runs);
+		expect(
+			all(db, 'SELECT automation_run_id, event_id FROM automation_run_events ORDER BY event_id'),
+		).toEqual([
+			{ automation_run_id: 'first', event_id: 7 },
+			{ automation_run_id: 'next', event_id: 8 },
 		]);
-		expect(get(db, "SELECT name FROM job_definitions WHERE id = 'pick'")).toEqual({
+		expect(get(db, "SELECT name FROM automation_definitions WHERE id = 'pick'")).toEqual({
 			name: 'Choose a reaction',
 		});
 		expect(
-			all(db, "SELECT key FROM settings WHERE key IN ('jobs.reconciler', 'jobs.max-concurrent')"),
-		).toEqual([{ key: 'jobs.max-concurrent' }]);
-		db.exec(`INSERT INTO job_runs (id, definition_id, title, origin, status, chain_id, created_at)
+			all(
+				db,
+				"SELECT key FROM settings WHERE key IN ('jobs.reconciler', 'automations.max-concurrent')",
+			),
+		).toEqual([{ key: 'automations.max-concurrent' }]);
+		db.exec(`INSERT INTO automation_runs (id, definition_id, title, origin, status, chain_id, created_at)
 			VALUES ('check', 'job', 'Check compatibility', 'compatibility', 'queued', 'check', '${at}')`);
 		expect(() =>
-			db.exec(`INSERT INTO job_runs (id, definition_id, title, origin, status, chain_id, created_at)
+			db.exec(`INSERT INTO automation_runs (id, definition_id, title, origin, status, chain_id, created_at)
 				VALUES ('odd', 'job', 'Odd', 'elsewhere', 'queued', 'odd', '${at}')`),
 		).toThrow();
-		db.exec("DELETE FROM job_runs WHERE id = 'first'");
-		expect(get(db, "SELECT parent_run_id FROM job_runs WHERE id = 'next'")).toEqual({
+		db.exec("DELETE FROM automation_runs WHERE id = 'first'");
+		expect(get(db, "SELECT parent_run_id FROM automation_runs WHERE id = 'next'")).toEqual({
 			parent_run_id: null,
 		});
-		expect(all(db, 'SELECT job_run_id FROM job_run_events')).toEqual([{ job_run_id: 'next' }]);
+		expect(all(db, 'SELECT automation_run_id FROM automation_run_events')).toEqual([
+			{ automation_run_id: 'next' },
+		]);
 		db.close();
 	});
 
@@ -534,11 +548,13 @@ describe('migrate', () => {
 			  ('resolve', 'Resolve conflicts', 'Resolve.', 'opus', 'high', 'workstream', 'resolve-conflicts', '${at}', '${at}'),
 			  ('fix', 'Fix checks', 'Fix.', 'opus', 'medium', 'workstream', 'fix-checks', '${at}', '${at}');
 		`);
-		const events = all(db, 'SELECT * FROM event_log ORDER BY id');
+		const events = all<Record<string, unknown>>(db, 'SELECT * FROM event_log ORDER BY id');
 
 		migrate(db);
 
-		expect(all(db, 'SELECT * FROM event_log ORDER BY id')).toEqual(events);
+		expect(all(db, 'SELECT * FROM event_log ORDER BY id')).toEqual(
+			events.map((event) => ({ ...event, cause_kind: 'automation-run' })),
+		);
 		db.exec(`INSERT INTO event_log (channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at)
 			VALUES ('repositories:workstream-merge-conflicted', '{}', 'w', 'event', '18147', 'chain', '${at}')`);
 		expect(get(db, 'SELECT MAX(id) AS id FROM event_log')).toEqual({ id: 18149 });
@@ -549,7 +565,7 @@ describe('migrate', () => {
 		expect(
 			all(
 				db,
-				"SELECT id, trigger_when, trigger_mode FROM job_definitions WHERE id IN ('fix', 'resolve') ORDER BY id",
+				"SELECT id, trigger_when, trigger_mode FROM automation_definitions WHERE id IN ('fix', 'resolve') ORDER BY id",
 			),
 		).toEqual([
 			{ id: 'fix', trigger_when: null, trigger_mode: null },
@@ -626,7 +642,7 @@ describe('migrate', () => {
 		expect(
 			all(
 				db,
-				"SELECT id, trigger_when, trigger_mode FROM job_definitions WHERE id IN ('main', 'fix') ORDER BY id",
+				"SELECT id, trigger_when, trigger_mode FROM automation_definitions WHERE id IN ('main', 'fix') ORDER BY id",
 			),
 		).toEqual([
 			{ id: 'fix', trigger_when: null, trigger_mode: null },
@@ -637,7 +653,7 @@ describe('migrate', () => {
 			},
 		]);
 		expect(
-			all(other, "SELECT trigger_when, trigger_mode FROM job_definitions WHERE id = 'main'"),
+			all(other, "SELECT trigger_when, trigger_mode FROM automation_definitions WHERE id = 'main'"),
 		).toEqual([
 			{ trigger_when: 'on repositories:workstream-merge-conflicted', trigger_mode: 'ask' },
 		]);
@@ -663,7 +679,7 @@ describe('migrate', () => {
 		migrate(db);
 
 		expect(get(db, 'SELECT origin, display_name, status FROM agent_sessions')).toEqual({
-			origin: 'job',
+			origin: 'automation',
 			display_name: 'Chat',
 			status: 'completed',
 		});
@@ -743,11 +759,12 @@ describe('migrate', () => {
 		migrate(db);
 
 		const builtinId = (builtin: string): unknown =>
-			get<{ id: string }>(db, 'SELECT id FROM job_definitions WHERE builtin = ?', builtin)?.id;
+			get<{ id: string }>(db, 'SELECT id FROM automation_definitions WHERE builtin = ?', builtin)
+				?.id;
 		expect(
 			all(
 				db,
-				`SELECT id, trigger_when, trigger_mode, then_job_id FROM job_definitions
+				`SELECT id, trigger_when, trigger_mode, then_automation_id FROM automation_definitions
 				 WHERE builtin IS NULL OR builtin = 'update-docs' ORDER BY id`,
 			),
 		).toEqual([
@@ -755,23 +772,28 @@ describe('migrate', () => {
 				id: 'a',
 				trigger_when: 'on repositories:workstream-created',
 				trigger_mode: 'ask',
-				then_job_id: 'b',
+				then_automation_id: 'b',
 			},
-			{ id: 'b', trigger_when: null, trigger_mode: null, then_job_id: 'c' },
-			{ id: 'c', trigger_when: null, trigger_mode: null, then_job_id: null },
-			{ id: 'docs', trigger_when: null, trigger_mode: null, then_job_id: builtinId('open-draft') },
+			{ id: 'b', trigger_when: null, trigger_mode: null, then_automation_id: 'c' },
+			{ id: 'c', trigger_when: null, trigger_mode: null, then_automation_id: null },
+			{
+				id: 'docs',
+				trigger_when: null,
+				trigger_mode: null,
+				then_automation_id: builtinId('open-draft'),
+			},
 			{
 				id: 'log',
 				trigger_when: 'on pull-requests:ship-changed where merged is set',
 				trigger_mode: 'auto',
-				then_job_id: builtinId('merge'),
+				then_automation_id: builtinId('merge'),
 			},
-			{ id: 'manual', trigger_when: null, trigger_mode: null, then_job_id: null },
+			{ id: 'manual', trigger_when: null, trigger_mode: null, then_automation_id: null },
 		]);
 		expect(
 			all(
 				db,
-				"SELECT name, effort FROM job_definitions WHERE builtin IN ('open-draft', 'merge', 'update-from-main') ORDER BY name",
+				"SELECT name, effort FROM automation_definitions WHERE builtin IN ('open-draft', 'merge', 'update-from-main') ORDER BY name",
 			),
 		).toEqual([
 			{ name: 'Merge', effort: 'low' },
@@ -781,7 +803,7 @@ describe('migrate', () => {
 		expect(
 			all(
 				db,
-				'SELECT id, definition_id, workstream_id, repository_id, origin, status, context FROM job_runs ORDER BY id',
+				'SELECT id, definition_id, workstream_id, repository_id, origin, status, context FROM automation_runs ORDER BY id',
 			),
 		).toEqual([
 			{
@@ -803,16 +825,121 @@ describe('migrate', () => {
 				context: null,
 			},
 		]);
-		expect(all(db, 'SELECT id FROM job_suggestions')).toEqual([{ id: 'idea' }]);
+		expect(all(db, 'SELECT id FROM automation_suggestions')).toEqual([]);
 		expect(all(db, 'SELECT id FROM agent_permission_rules')).toEqual([{ id: 'save-jobs' }]);
 		expect(appTables(db)).toEqual(ALL_TABLES);
 		expect(indexNames(db)).toEqual(ALL_INDEXES);
 
-		db.exec("DELETE FROM job_definitions WHERE id = 'b'");
-		expect(scalar(db, "SELECT then_job_id IS NULL FROM job_definitions WHERE id = 'a'")).toBe(1);
-		expect(() => db.exec("UPDATE job_definitions SET then_job_id = 'c' WHERE id = 'c'")).toThrow();
+		db.exec("DELETE FROM automation_definitions WHERE id = 'b'");
+		expect(
+			scalar(db, "SELECT then_automation_id IS NULL FROM automation_definitions WHERE id = 'a'"),
+		).toBe(1);
 		expect(() =>
-			db.exec("UPDATE job_definitions SET trigger_when = 'on app:updated' WHERE id = 'c'"),
+			db.exec("UPDATE automation_definitions SET then_automation_id = 'c' WHERE id = 'c'"),
+		).toThrow();
+		expect(() =>
+			db.exec("UPDATE automation_definitions SET trigger_when = 'on app:updated' WHERE id = 'c'"),
+		).toThrow();
+		db.close();
+	});
+
+	it('renames jobs to automations, keeping every automation, run, event and decision', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const renamed = MIGRATIONS.findIndex((migration) =>
+			migration.includes('ALTER TABLE job_definitions RENAME TO automation_definitions'),
+		);
+		for (const migration of MIGRATIONS.slice(0, renamed)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + renamed};`);
+		seedWorkstream(db);
+		const at = '2026-11-01T00:00:00Z';
+		const grant = (id: string, value: string) =>
+			`('${id}', 'everywhere', NULL, NULL, '${id.padEnd(64, '0')}', '{"capability":"execute","resources":[{"kind":"action","value":"${value}","boundary":"everywhere"}]}', 'request', '${at}')`;
+		db.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, then_job_id, created_at, updated_at) VALUES
+			  ('mine', 'Mine', 'List them with mcp__malini__jobs_list, then call jobs_run.', 'opus', 'high', 'workstream', NULL, 'on jobs:run-finished where run.status is failed', 'ask', 'fix', '${at}', '${at}'),
+			  ('fix', 'Fix checks', 'Malini re-runs a failed GitHub Actions check once before this job starts.', 'opus', 'high', 'workstream', 'fix-checks', NULL, NULL, NULL, '${at}', '${at}');
+			INSERT INTO job_runs (id, definition_id, title, workstream_id, origin, status, chain_id, created_at) VALUES
+			  ('run', 'mine', 'Mine', 'w', 'trigger', 'succeeded', 'chain', '${at}');
+			INSERT INTO job_run_events (job_run_id, event_id) VALUES ('run', 1);
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES ('s', 'w', 'completed', '${at}', 'job');
+			INSERT INTO event_log (id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at) VALUES
+			  (1, 'jobs:run-finished', '{"run":{"id":"run","thenJobId":null},"needsYou":{"jobRunId":"run"}}', 'w', 'job-run', 'run', 'chain', '${at}');
+			INSERT INTO reconciler_decisions (id, event_id, channel, chain_id, facts, candidates, chosen, decided_by, status, job_run_id, created_at, finished_at) VALUES
+			  ('d', 1, 'jobs:run-finished', 'chain', '[]', '[{"kind":"run-job","label":"Run Mine","definitionId":"mine","workstreamId":"w","context":""},{"kind":"wake-chat","label":"Wake","about":"job"}]', 0, 'rules', 'done', 'run', '${at}', '${at}');
+			INSERT INTO workstream_ship (workstream_id, phase, active_job_run_id, updated_at) VALUES ('w', 'queued', 'run', '${at}');
+			INSERT INTO settings (key, value) VALUES ('jobs.max-concurrent', '3');
+			INSERT INTO agent_actions (id, session_id, run_id, tool, input_json, status, approval, started_at, finished_at) VALUES
+			  ('a', 's', 'r', 'jobs_run', '{}', 'succeeded', 'allowed', '${at}', '${at}');
+			INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at) VALUES
+			  ${grant('old', 'jobs.save')}, ${grant('kept', 'pull-requests.merge')};
+		`);
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				"SELECT id, instructions, trigger_when, then_automation_id FROM automation_definitions WHERE id IN ('fix', 'mine') ORDER BY id",
+			),
+		).toEqual([
+			{
+				id: 'fix',
+				instructions:
+					'Malini re-runs a failed GitHub Actions check once before this automation starts.',
+				trigger_when: null,
+				then_automation_id: null,
+			},
+			{
+				id: 'mine',
+				instructions: 'List them with mcp__malini__automations_list, then call automations_run.',
+				trigger_when: 'on automations:run-finished where run.status is failed',
+				then_automation_id: 'fix',
+			},
+		]);
+		expect(all(db, 'SELECT id, definition_id FROM automation_runs')).toEqual([
+			{ id: 'run', definition_id: 'mine' },
+		]);
+		expect(all(db, 'SELECT automation_run_id FROM automation_run_events')).toEqual([
+			{ automation_run_id: 'run' },
+		]);
+		expect(get(db, 'SELECT origin FROM agent_sessions')).toEqual({ origin: 'automation' });
+		expect(get(db, 'SELECT channel, payload, cause_kind FROM event_log')).toEqual({
+			channel: 'automations:run-finished',
+			payload: '{"run":{"id":"run","thenAutomationId":null},"needsYou":{"automationRunId":"run"}}',
+			cause_kind: 'automation-run',
+		});
+		expect(
+			get(db, 'SELECT channel, candidates, automation_run_id FROM reconciler_decisions'),
+		).toEqual({
+			channel: 'automations:run-finished',
+			candidates:
+				'[{"kind":"run-automation","label":"Run Mine","definitionId":"mine","workstreamId":"w","context":""},{"kind":"wake-chat","label":"Wake","about":"automation"}]',
+			automation_run_id: 'run',
+		});
+		expect(get(db, 'SELECT active_automation_run_id FROM workstream_ship')).toEqual({
+			active_automation_run_id: 'run',
+		});
+		expect(get(db, "SELECT value FROM settings WHERE key = 'automations.max-concurrent'")).toEqual({
+			value: '3',
+		});
+		expect(get(db, 'SELECT tool FROM agent_actions')).toEqual({ tool: 'automations_run' });
+		expect(
+			all(
+				db,
+				'SELECT id, revoked_at IS NOT NULL AS revoked FROM agent_permission_rules ORDER BY id',
+			),
+		).toEqual([
+			{ id: 'kept', revoked: 0 },
+			{ id: 'old', revoked: 1 },
+		]);
+		expect(all(db, 'PRAGMA foreign_key_check')).toEqual([]);
+		db.exec("DELETE FROM automation_definitions WHERE id = 'mine'");
+		expect(scalar(db, 'SELECT count(*) FROM automation_runs')).toBe(0);
+		expect(() =>
+			db.exec(
+				"INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES ('j', 'w', 'idle', '${at}', 'job')",
+			),
 		).toThrow();
 		db.close();
 	});

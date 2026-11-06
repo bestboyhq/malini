@@ -67,11 +67,11 @@ afterEach(() => {
 });
 
 describe('the skills a run gets', () => {
-	it('gives a chat every skill, and a job session the skills of its job', () => {
-		chooseSessionSkills(db, 'job-session', ['humanizer']);
+	it('gives a chat every skill, and an automation session the skills of its automation', () => {
+		chooseSessionSkills(db, 'automation-session', ['humanizer']);
 
 		expect(skillsForRun(db, 'chat-session')).toBeNull();
-		expect(skillsForRun(db, 'job-session')).toEqual(['humanizer']);
+		expect(skillsForRun(db, 'automation-session')).toEqual(['humanizer']);
 	});
 });
 

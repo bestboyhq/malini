@@ -1,13 +1,13 @@
 import type { MaliniEditReview } from '$contract/approvals';
-import type { JobDefinitionRecord } from '$contract/jobs';
+import type { AutomationDefinitionRecord } from '$contract/automations';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
 import type { CommandOutcome } from '$main/ipc/registry';
 import {
-	jobDefinitions,
+	automationDefinitions,
 	recordAgentAction,
 	type AgentActionContext,
-} from '$lib/jobs/jobs.platform';
+} from '$lib/automations/automations.platform';
 import { listWorkstreams } from '$shared/repositories/repositories.platform';
 import { descendantWorkstreamIds } from '../../domain/child-requests';
 import { getInteraction } from '../interactions.repository';
@@ -62,18 +62,21 @@ export function assessMaliniApproval(
 			return grant('workstreams.send');
 		case 'workstreams_archive':
 			return grant('workstreams.archive');
-		case 'jobs_run': {
-			const [job, ...others] = jobsNamed(jobDefinitions(db), field('job') ?? '');
-			return job && others.length === 0 ? grant(`jobs.run:${job.id}`) : ASK;
+		case 'automations_run': {
+			const [automation, ...others] = automationsNamed(
+				automationDefinitions(db),
+				field('automation') ?? '',
+			);
+			return automation && others.length === 0 ? grant(`automations.run:${automation.id}`) : ASK;
 		}
-		case 'jobs_save': {
-			if (id === undefined) return grant('jobs.save');
-			const definitions = jobDefinitions(db);
-			const job = definitions.find((definition) => definition.id === id);
-			if (!job) return ASK;
-			return runsWithoutAsking(db, definitions, job)
-				? { permission: null, review: { kind: 'job', current: job } }
-				: grant('jobs.save');
+		case 'automations_save': {
+			if (id === undefined) return grant('automations.save');
+			const definitions = automationDefinitions(db);
+			const automation = definitions.find((definition) => definition.id === id);
+			if (!automation) return ASK;
+			return runsWithoutAsking(db, definitions, automation)
+				? { permission: null, review: { kind: 'automation', current: automation } }
+				: grant('automations.save');
 		}
 		default:
 			return ASK;
@@ -106,10 +109,10 @@ export function allowedInTree(
 			const archived = target(field('workstream'));
 			return archived !== null && tree.has(archived);
 		}
-		case 'jobs_run': {
-			const definitions = jobDefinitions(db);
-			const [job, ...others] = jobsNamed(definitions, field('job') ?? '');
-			if (!job || others.length > 0 || shipsWork(definitions, job)) return false;
+		case 'automations_run': {
+			const definitions = automationDefinitions(db);
+			const [automation, ...others] = automationsNamed(definitions, field('automation') ?? '');
+			if (!automation || others.length > 0 || shipsWork(definitions, automation)) return false;
 			const runsIn =
 				field('workstream') === undefined ? callerWorkstreamId : target(field('workstream'));
 			return runsIn === callerWorkstreamId || (runsIn !== null && tree.has(runsIn));
@@ -120,21 +123,21 @@ export function allowedInTree(
 }
 
 function shipsWork(
-	definitions: readonly JobDefinitionRecord[],
-	job: JobDefinitionRecord,
+	definitions: readonly AutomationDefinitionRecord[],
+	automation: AutomationDefinitionRecord,
 	visited = new Set<string>(),
 ): boolean {
-	if (job.builtin === 'open-draft' || job.builtin === 'merge') return true;
-	if (job.thenJobId === null || visited.has(job.id)) return false;
-	visited.add(job.id);
-	const next = definitions.find((definition) => definition.id === job.thenJobId);
+	if (automation.builtin === 'open-draft' || automation.builtin === 'merge') return true;
+	if (automation.thenAutomationId === null || visited.has(automation.id)) return false;
+	visited.add(automation.id);
+	const next = definitions.find((definition) => definition.id === automation.thenAutomationId);
 	return next !== undefined && shipsWork(definitions, next, visited);
 }
 
-export function jobsNamed(
-	definitions: readonly JobDefinitionRecord[],
+export function automationsNamed(
+	definitions: readonly AutomationDefinitionRecord[],
 	reference: string,
-): JobDefinitionRecord[] {
+): AutomationDefinitionRecord[] {
 	const byId = definitions.find((definition) => definition.id === reference);
 	if (byId) return [byId];
 	const wanted = reference.trim().toLocaleLowerCase();
@@ -142,7 +145,7 @@ export function jobsNamed(
 }
 
 const ACTION_LABELS: Readonly<Record<string, string>> = {
-	'jobs.save': 'Save jobs',
+	'automations.save': 'Save automations',
 	'repositories.clone': 'Clone repositories',
 	'repositories.hide': 'Hide repositories',
 	'workstreams.create': 'Start workstreams',
@@ -153,9 +156,9 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
 export function maliniActionLabel(db: MaliniDatabase, action: string): string {
 	const label = ACTION_LABELS[action];
 	if (label) return label;
-	const jobId = action.slice('jobs.run:'.length);
-	const job = jobDefinitions(db).find((definition) => definition.id === jobId);
-	return `Run ‘${job?.name ?? jobId}’`;
+	const automationId = action.slice('automations.run:'.length);
+	const automation = automationDefinitions(db).find((definition) => definition.id === automationId);
+	return `Run ‘${automation?.name ?? automationId}’`;
 }
 
 export function recordDeniedMaliniCall(context: AgentActionContext, outcome: CommandOutcome): void {
@@ -189,19 +192,20 @@ export function recordDeniedMaliniCall(context: AgentActionContext, outcome: Com
 
 function runsWithoutAsking(
 	db: MaliniDatabase,
-	definitions: readonly JobDefinitionRecord[],
-	job: JobDefinitionRecord,
+	definitions: readonly AutomationDefinitionRecord[],
+	automation: AutomationDefinitionRecord,
 	visited = new Set<string>(),
 ): boolean {
-	if (visited.has(job.id)) return false;
-	visited.add(job.id);
+	if (visited.has(automation.id)) return false;
+	visited.add(automation.id);
 	return (
-		job.builtin !== null ||
-		hasActivePermissionRule(db, maliniActionFingerprint(`jobs.run:${job.id}`)) ||
-		(job.trigger !== null && job.trigger.mode !== 'off') ||
+		automation.builtin !== null ||
+		hasActivePermissionRule(db, maliniActionFingerprint(`automations.run:${automation.id}`)) ||
+		(automation.trigger !== null && automation.trigger.mode !== 'off') ||
 		definitions.some(
 			(before) =>
-				before.thenJobId === job.id && runsWithoutAsking(db, definitions, before, visited),
+				before.thenAutomationId === automation.id &&
+				runsWithoutAsking(db, definitions, before, visited),
 		)
 	);
 }

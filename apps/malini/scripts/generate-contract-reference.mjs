@@ -202,8 +202,8 @@ export async function formatPage(events) {
 			description,
 			'',
 			facts.length > 0
-				? `A job sees: ${facts.map((fact) => `\`${fact}\``).join(', ')}`
-				: 'A job sees none of its fields.',
+				? `An automation sees: ${facts.map((fact) => `\`${fact}\``).join(', ')}`
+				: 'An automation sees none of its fields.',
 			'',
 			`Payload: \`${payloadType}\``,
 			'',
@@ -221,8 +221,8 @@ export async function formatPage(events) {
 		'# Events',
 		'',
 		'Malini announces everything that happens on the platform as an event on a `<domain>:<event>` channel.',
-		'A [job](/malini/docs/jobs.md) can start on any of them, and agents inside Malini can list them with the `events_list` tool.',
-		'A job an event starts sees only the fields listed under **A job sees**, unless you let it see the whole event on its page in Jobs.',
+		'An [automation](/malini/docs/automations.md) can start on any of them, and agents inside Malini can list them with the `events_list` tool.',
+		'An automation an event starts sees only the fields listed under **An automation sees**, unless you let it see the whole event on its page in Automations.',
 		'This page is generated from the contract in `apps/malini/src/contract/events.ts`, so it always matches the app.',
 		'',
 		...sections.flatMap((section) => [section, '']),

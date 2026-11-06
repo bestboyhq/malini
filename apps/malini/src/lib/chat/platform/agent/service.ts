@@ -10,7 +10,7 @@ import { CONTEXT_WINDOW_SETTING, contextWindowOf } from '$contract/agent';
 import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
-import { jobBoundaryForSession } from '$lib/jobs/jobs.platform';
+import { automationBoundaryForSession } from '$lib/automations/automations.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	listWorkstreams,
@@ -115,12 +115,12 @@ export async function answerBrowserRequest(
 		if (!browser) return { ok: false, error: 'The Malini browser is not available.' };
 		const session = persistedBridgeSession(deps.db, request.sessionId);
 		if (!session) return { ok: false, error: `Agent session \`${request.sessionId}\` is unknown.` };
-		const boundary = jobBoundaryForSession(deps.db, request.sessionId);
+		const boundary = automationBoundaryForSession(deps.db, request.sessionId);
 		if (boundary && !boundary.internet) {
 			return {
 				ok: false,
 				error:
-					'This job runs with its internet off, so Malini does not open its browser. Ask the user to turn the internet on for this job on its page in Jobs.',
+					'This automation runs with its internet off, so Malini does not open its browser. Ask the user to turn the internet on for this automation on its page in Automations.',
 			};
 		}
 		const { workstreamId } = session;
@@ -368,8 +368,8 @@ export async function startAgentService(
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			...(deps.secrets ? { secrets: secretsReaching(db, deps.secrets) } : {}),
 			...(deps.plugins ? { plugins: deps.plugins } : {}),
-			boundary: (job, lineage) =>
-				agentBoundary(job, {
+			boundary: (automation, lineage) =>
+				agentBoundary(automation, {
 					appDataRoot: context.appDataRoot,
 					appDataEntries: appDataEntries(context.appDataRoot),
 					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),

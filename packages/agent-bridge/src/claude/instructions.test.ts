@@ -38,9 +38,11 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
 		expect(prompt).toContain('give it a `when` trigger written from `events_list`');
 		expect(prompt).toContain(
-			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
+			'run Open draft or Merge, whichever they asked for, with `automations_run` and its id in `workstream`',
 		);
-		expect(prompt).toContain("Malini holds the job until that workstream's chat ends its turn");
+		expect(prompt).toContain(
+			"Malini holds the automation until that workstream's chat ends its turn",
+		);
 		expect(prompt).toContain(
 			'every turn a workstream you started ends reaches this chat as a report from that workstream',
 		);
@@ -78,7 +80,9 @@ describe('systemPromptAppend', () => {
 		expect(prompt).not.toContain('delete the prototype');
 		expect(prompt).toContain('never delete, move or overwrite one');
 		expect(prompt).toContain('in a `mktemp -d` folder outside the worktree');
-		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');
+		expect(prompt).toContain(
+			'Other chats and automations in this workstream can run at the same time',
+		);
 		expect(prompt).toContain('never revert them, and do not report them as a blocker');
 	});
 

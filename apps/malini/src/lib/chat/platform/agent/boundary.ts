@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentBoundary } from '$contract/agent';
-import type { JobBoundary } from '$contract/jobs';
+import type { AutomationBoundary } from '$contract/automations';
 import { LEAD_PLAN_PATH } from '$contract/leads';
 import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '$contract/protocol-contract.generated';
 import {
@@ -21,11 +21,14 @@ export type BoundaryPlaces = Readonly<{
 	starterPlan: string | null;
 }>;
 
-export function agentBoundary(job: JobBoundary, places: BoundaryPlaces): AgentBoundary | null {
-	const chatRecords = job.chats === 'all';
-	if (chatRecords && job.attachments && job.internet) return null;
+export function agentBoundary(
+	automation: AutomationBoundary,
+	places: BoundaryPlaces,
+): AgentBoundary | null {
+	const chatRecords = automation.chats === 'all';
+	if (chatRecords && automation.attachments && automation.internet) return null;
 	const { appDataRoot, appDataEntries, checkouts, starterPlan } = places;
-	const attachments = job.attachments
+	const attachments = automation.attachments
 		? []
 		: checkouts.map(({ path }) => join(path, BRIDGE_AGENT_ATTACHMENTS_PATH));
 	const records = chatRecords
@@ -40,7 +43,7 @@ export function agentBoundary(job: JobBoundary, places: BoundaryPlaces): AgentBo
 					.filter((plan) => plan !== starterPlan),
 			];
 	const archived =
-		chatRecords && job.attachments
+		chatRecords && automation.attachments
 			? []
 			: [
 					join(workstreamsRoot(appDataRoot), KEPT_WORKSTREAMS_DIR_NAME),
@@ -49,7 +52,7 @@ export function agentBoundary(job: JobBoundary, places: BoundaryPlaces): AgentBo
 	return {
 		hidden: [...new Set([...attachments, ...records, ...archived])],
 		chatRecords,
-		internet: job.internet,
+		internet: automation.internet,
 	};
 }
 

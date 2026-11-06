@@ -102,7 +102,7 @@ Every number counts complete days in your time zone, through yesterday; today is
 - **Version**: always 1.
 - **Through**: the last day counted, yesterday.
 - **Since**: the first day you ran an agent.
-- **Runs**: every agent run up to that day, how many of them a job started, and how many you did not prompt: a job started it, Malini started it on its own (a workstream's report, a resume after a usage limit, **Implement** on a plan), or another chat sent its prompt.
+- **Runs**: every agent run up to that day, how many of them an automation started, and how many you did not prompt: an automation started it, Malini started it on its own (a workstream's report, a resume after a usage limit, **Implement** on a plan), or another chat sent its prompt.
 - **Runs that changed code**: runs that changed at least one file.
 - **Active days**: days with at least one run.
 - **Tool calls**: every tool call agents made, sub-agents included, and how many of them were screenshots in Malini's browser.

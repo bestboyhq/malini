@@ -62,21 +62,21 @@ Code lives in vertical domain slices under `apps/malini/src/lib/<domain>/`.
 A slice holds its renderer layers (`domain`, `application`, `infrastructure`, `presentation`) and its main-process code (`platform/`).
 Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.platform.ts` (main process).
 
-| Domain                 | What it owns                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain                  |
-| `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints                  |
-| `pull-requests`        | pull request state, shipping and its GitHub reader, top-bar status                  |
-| `jobs`                 | jobs, triggers and Thens, runs and their runner, event log, reconciler, Jobs page   |
-| `skills`               | skill usage and on/off switches in Claude settings, a job's skills                  |
-| `extensions`           | marketplace and installs, extension runtime, host adapters, inspector, opened files |
-| `browser`              | browser tabs in the inspector and the agent's browser tools                         |
-| `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile |
-| `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                     |
-| `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings     |
-| `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                |
-| `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                |
-| `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings          |
+| Domain                 | What it owns                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain                              |
+| `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints                              |
+| `pull-requests`        | pull request state, shipping and its GitHub reader, top-bar status                              |
+| `automations`          | automations, triggers and Thens, runs and their runner, event log, reconciler, Automations page |
+| `skills`               | skill usage and on/off switches in Claude settings, an automation's skills                      |
+| `extensions`           | marketplace and installs, extension runtime, host adapters, inspector, opened files             |
+| `browser`              | browser tabs in the inspector and the agent's browser tools                                     |
+| `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile             |
+| `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                                 |
+| `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings                 |
+| `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                            |
+| `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                            |
+| `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings                      |
 
 `src/main` is node bootstrap only:
 
@@ -94,7 +94,7 @@ apps/malini/src/main/
 
 Command names are `<domain>.<verb-kebab>` (`chat.send-prompt`), event channels `<domain>:<event-kebab>` (`chat:agent-event`).
 Both are declared once in `$contract` and checked on both sides by `pnpm check`.
-Every event channel has one description and the `facts` a job sees of it in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
+Every event channel has one description and the `facts` an automation sees of it in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
 
 `.agents/rules/frontend/layout.mdc` has the full tree and `.agents/rules/frontend/cross-domain-imports.mdc` the import rules.
 `@malini/desktop/domain-boundaries` enforces both at `error`.

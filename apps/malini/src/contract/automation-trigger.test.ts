@@ -20,25 +20,27 @@ describe('parseAutomationTrigger event phrases', () => {
 	});
 
 	it('parses a bare channel and dotted paths', () => {
-		expect(parseAutomationTrigger('on jobs:run-changed')).toMatchObject({
+		expect(parseAutomationTrigger('on automations:run-changed')).toMatchObject({
 			kind: 'event',
-			channel: 'jobs:run-changed',
+			channel: 'automations:run-changed',
 			where: [],
 		});
-		expect(parseAutomationTrigger('on jobs:run-changed where run.status is failed')).toMatchObject({
+		expect(
+			parseAutomationTrigger('on automations:run-changed where run.status is failed'),
+		).toMatchObject({
 			where: [{ path: 'run.status', equals: 'failed' }],
 		});
 	});
 
 	it('names the channels of the same domain for a misspelled channel', () => {
-		expect(() => parseAutomationTrigger('on jobs:run-done')).toThrow(
-			'Unknown event channel "jobs:run-done". jobs has jobs:run-changed, jobs:run-started, jobs:run-finished, jobs:definition-changed, jobs:suggested, jobs:experiment-changed, jobs:agent-action-changed, jobs:tool-called, jobs:decision-changed, jobs:time-reached.',
+		expect(() => parseAutomationTrigger('on automations:run-done')).toThrow(
+			'Unknown event channel "automations:run-done". automations has automations:run-changed, automations:run-started, automations:run-finished, automations:definition-changed, automations:suggested, automations:experiment-changed, automations:agent-action-changed, automations:tool-called, automations:decision-changed, automations:time-reached.',
 		);
 		expect(() => parseAutomationTrigger('on deploys:done')).toThrow(/with domains chat, /u);
 	});
 
 	it('rejects a condition without a value', () => {
-		expect(() => parseAutomationTrigger('on jobs:run-changed where run.status')).toThrow(
+		expect(() => parseAutomationTrigger('on automations:run-changed where run.status')).toThrow(
 			/Unsupported event condition "run.status"/u,
 		);
 	});

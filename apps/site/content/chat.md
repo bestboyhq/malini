@@ -23,7 +23,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
   It stays above the browser tabs once the chat's agent opens a page.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
   **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
-- **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
+- **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/automations.md#reconciler) runs the **Open draft** or **Merge** [automation](/malini/docs/automations.md#run-an-automation) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
   Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
   A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
@@ -73,7 +73,7 @@ When the plan changes, the lead tells the workstreams it affects.
 
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued; **↵** saves an edit and **⇧↵** adds a line.
-- A [job](/malini/docs/jobs.md#run-a-job) run from the chat, by you or the agent, waits above the composer with what you queued until it finishes, never among the messages.
+- An [automation](/malini/docs/automations.md#run-an-automation) run from the chat, by you or the agent, waits above the composer with what you queued until it finishes, never among the messages.
 - **⌘↵** steers: it interrupts the turn and sends the prompt now, while background commands keep running.
 - Steering or stopping keeps what the agent already wrote, marked **Run cancelled**.
 
@@ -94,7 +94,7 @@ When a turn still stops on a limit or an outage, Malini pauses it instead of fai
 
 The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue, which the chat shows as a divider, such as **Claude is back. Well rested**.
 **Resume now** goes on at once, and a prompt you send replaces the pause.
-A job whose turn pauses keeps running, so a merge that waits on it loses no attempt.
+An automation whose turn pauses keeps running, so a merge that waits on it loses no attempt.
 A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
 An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
 
@@ -115,7 +115,7 @@ Its output opens inside the code block, under the command, as it prints, with ho
 
 ## Compact the conversation
 
-Every chat and job compacts on its own once its context fills the context window, 280K tokens instead of the model's full window, which is 1M for Opus, and the context gauge counts against it.
+Every chat and automation compacts on its own once its context fills the context window, 280K tokens instead of the model's full window, which is 1M for Opus, and the context gauge counts against it.
 **Settings → Models → Context window** moves it from 100K to 1M; the mark on the slider is the recommended 280K.
 A chat takes a new window with its next prompt, after any run in progress ends, and Malini's window wins over one you pick with `/autocompact` or in your Claude Code settings.
 Type **/** and pick **/compact** to have the chat's Claude Code summarize the conversation so far and free up context.
@@ -144,7 +144,7 @@ Every chat keeps its own model, effort, access and report, so what you pick in o
 A new chat starts with the model, effort, plan mode and report you picked last, in any chat, and with the access you last picked in its workstream.
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
 Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
-A job's chat shows the model, effort and plan mode its job ran with, so a reply you send there runs the same way unless you change it.
+An automation's chat shows the model, effort and plan mode its automation ran with, so a reply you send there runs the same way unless you change it.
 Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
 Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
@@ -165,7 +165,7 @@ Malini keeps your ChatGPT sign-in encrypted on your Mac, and it never leaves Mal
 The context card shows your ChatGPT account with "Using ChatGPT plan" and **Manage usage**, which opens your usage on chatgpt.com, since ChatGPT does not tell apps how much of the plan is left.
 When you hit the limit, the turn [pauses](#limits-and-outages) the way a rate limit does, since ChatGPT does not say when the limit resets, and the context card says "You hit your ChatGPT usage limit." until a run goes through again.
 Each run counts against your ChatGPT plan, not an API bill, so the context card shows no cost for it.
-A job on a GPT model runs on your plan too, once you pick ChatGPT for it and turn on its trigger.
+An automation on a GPT model runs on your plan too, once you pick ChatGPT for it and turn on its trigger.
 Some of Claude Code needs Anthropic's servers and does not run on ChatGPT: web search, and Anthropic's prompt caching, which OpenAI's own caching replaces.
 The thinking you see is OpenAI's summary of the model's reasoning.
 
@@ -189,7 +189,7 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
 When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
-Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running a job in its workstream or one it started, goes through without asking, unless the job opens a draft or merges.
+Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens a draft or merges.
 See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
@@ -206,7 +206,7 @@ Other chats skip the retries while the check is known to be down, and each chat 
 Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the work a chat started show.
 
 A chat also answers for the work it started.
-When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
+When an automation it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the automation or workstream it came from.
 Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.
 **Open transcript** goes to the asking chat when you want its context.
 **Later**, or Escape, folds the queue into a **requests need you** row above the composer, so you can write to this chat, and **Answer** brings it back.
@@ -214,7 +214,7 @@ A request takes the composer slot right away, even over a draft, which waits und
 
 ### The sandbox
 
-Every command an agent runs, in a chat or a job, runs in a macOS sandbox Malini writes for it, and so does the install Malini runs when it sets up a workstream.
+Every command an agent runs, in a chat or an automation, runs in a macOS sandbox Malini writes for it, and so does the install Malini runs when it sets up a workstream.
 A package that turns out to be malicious gets the sandbox, not your Mac.
 
 In the sandbox, a command:
@@ -223,7 +223,7 @@ In the sandbox, a command:
 - never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, or take screenshots;
-- reaches localhost and, unless a job has the internet off, any site and your keychain, where `gh` keeps its sign-in.
+- reaches localhost and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
 Electron, Playwright, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
 Electron's own sandbox stays off there, since the two cannot nest.
@@ -306,14 +306,14 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 
 Every run can be undone.
 Edit an earlier message and press **↵** to resend from there, or slice and fork: a new chat starts from the chat as it stood at that run, even while the agent is still busy.
-Runs that a restart cut short pick up where they left off the next time Malini opens: Malini logs **Malini started**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s Resume rule continues them.
+Runs that a restart cut short pick up where they left off the next time Malini opens: Malini logs **Malini started**, and the [Reconciler](/malini/docs/automations.md#reconciler)'s Resume rule continues them.
 A prompt Claude had not replied to yet is sent again instead, because Claude Code keeps only a prompt it answered.
 
 ## Skills
 
 A chat loads every Claude Code skill that is on.
 Settings, Skills ranks your skills and plugins by how often Claude Code used them, and turns them off in Claude Code's own settings.
-A [job](/malini/docs/jobs.md) can name the skills it loads.
+An [automation](/malini/docs/automations.md) can name the skills it loads.
 
 ## MCP servers
 
@@ -335,7 +335,7 @@ The refresh button starts its Claude Code again, for a claude.ai connector you j
 
 ## Tools
 
-In a Malini chat the agent also has Malini's own tools: a browser it shares with you, [secrets](/malini/docs/agent-tools.md#secrets) it asks you for on a card in the chat, and your jobs and events.
+In a Malini chat the agent also has Malini's own tools: a browser it shares with you, [secrets](/malini/docs/agent-tools.md#secrets) it asks you for on a card in the chat, and your automations and events.
 See [Agent tools](/malini/docs/agent-tools.md).
 
 ## Keys
@@ -345,7 +345,7 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **↵**           | Send, or queue after the current run                   |
 | **⌘↵**          | Steer now, interrupting the run                        |
 | **@**           | Mention a file                                         |
-| **/**           | Compact the conversation, or run a job                 |
+| **/**           | Compact the conversation, or run an automation         |
 | **⌘T**          | Start a new chat in this workstream                    |
 | **⌘N**          | Start a new workstream in this repository              |
 | **⌘O**          | Open a folder as a repository                          |

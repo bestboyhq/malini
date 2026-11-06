@@ -48,7 +48,7 @@ describe('pullRequestBadge', () => {
 				pullRequestBadge(
 					ship({
 						phase: 'needs-you',
-						needsYou: { reason: 'merge-not-permitted', detail: '', jobRunId: null },
+						needsYou: { reason: 'merge-not-permitted', detail: '', automationRunId: null },
 					}),
 					state,
 				),

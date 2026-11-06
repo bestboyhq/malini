@@ -84,7 +84,7 @@ export const steerToMalini: HookCallback = async (input) => {
 function refusal(owned: string): string {
 	return BRANCH_COMMANDS.has(owned)
 		? `Malini runs \`${owned}\` itself: it owns this workstream's branch and every worktree. To restore files, use git restore. To change code in another repository, such as a fork, or apart from this branch, ${START_A_WORKSTREAM}. ${NO_WORKAROUND}`
-		: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge job with \`jobs_run\` from the \`malini\` MCP server. ${NO_WORKAROUND}`;
+		: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge automation with \`automations_run\` from the \`malini\` MCP server. ${NO_WORKAROUND}`;
 }
 
 export function maliniOwnedCommand(command: string): string | null {
@@ -288,8 +288,8 @@ const MALINI_WRITE_TOOLS: Readonly<
 		readonly [capability: PermissionCapability, action: string, nameKey: string | null]
 	>
 > = {
-	mcp__malini__jobs_save: ['write', 'Save job', 'name'],
-	mcp__malini__jobs_run: ['execute', 'Run job', 'job'],
+	mcp__malini__automations_save: ['write', 'Save automation', 'name'],
+	mcp__malini__automations_run: ['execute', 'Run automation', 'automation'],
 	mcp__malini__repositories_clone: ['write', 'Clone repository', 'repository'],
 	mcp__malini__repositories_hide: ['write', 'Hide repository', 'repository'],
 	mcp__malini__workstreams_create: ['write', 'Start a workstream in', 'repository'],

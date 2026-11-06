@@ -19,7 +19,7 @@ import {
 	type BridgeEvent,
 	type ProviderCapability,
 } from './protocol';
-import type { AutomaticJob } from '$lib/jobs/jobs.platform';
+import type { OneShotAutomation } from '$lib/automations/automations.platform';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import { killProcessGroup, processGroupIsAlive } from '$main/process/process-group';
 import { IdSequence } from '../id-sequence';
@@ -194,6 +194,7 @@ export class BridgeSupervisor {
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
 	private readonly chosenPicks = new Map<string, number>();
+	private readonly answers = new Map<string, Readonly<Record<string, unknown>>>();
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
 	private readonly mcpAuthorizations = new Map<string, string | null>();
 	private readonly mcpSwitches = new Map<string, string[]>();
@@ -463,6 +464,16 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.chosenPicks.set(control.id, control.pick);
 				return;
 			}
+			case 'bridge.answer': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: answer v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) this.answers.set(control.id, control.answer);
+				return;
+			}
 			case 'bridge.skills': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
 					this.recordProtocolError(
@@ -683,7 +694,7 @@ export class BridgeSupervisor {
 
 	async suggestTitle(
 		prompt: string,
-		job: AutomaticJob,
+		automation: OneShotAutomation,
 		environment: Readonly<Record<string, string>>,
 	): Promise<string> {
 		const id = this.nextCommandId();
@@ -692,8 +703,8 @@ export class BridgeSupervisor {
 				cmd: 'suggest_title',
 				id,
 				prompt,
-				instructions: job.instructions,
-				model: job.model,
+				instructions: automation.instructions,
+				model: automation.model,
 				env: environment,
 			});
 			const title = this.suggestedTitles.get(id);
@@ -711,7 +722,7 @@ export class BridgeSupervisor {
 
 	async choose(
 		prompt: string,
-		job: AutomaticJob,
+		automation: OneShotAutomation,
 		choices: number,
 		environment: Readonly<Record<string, string>>,
 	): Promise<number> {
@@ -721,8 +732,8 @@ export class BridgeSupervisor {
 				cmd: 'choose',
 				id,
 				prompt,
-				instructions: job.instructions,
-				model: job.model,
+				instructions: automation.instructions,
+				model: automation.model,
 				choices,
 				env: environment,
 			});
@@ -736,6 +747,36 @@ export class BridgeSupervisor {
 			return pick;
 		} finally {
 			this.chosenPicks.delete(id);
+		}
+	}
+
+	async answer(
+		prompt: string,
+		automation: OneShotAutomation,
+		schema: Readonly<Record<string, unknown>>,
+		environment: Readonly<Record<string, string>>,
+	): Promise<Readonly<Record<string, unknown>>> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({
+				cmd: 'answer',
+				id,
+				prompt,
+				instructions: automation.instructions,
+				model: automation.model,
+				schema,
+				env: environment,
+			});
+			const answer = this.answers.get(id);
+			if (answer === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'answer was acknowledged without a bridge.answer frame',
+				);
+			}
+			return answer;
+		} finally {
+			this.answers.delete(id);
 		}
 	}
 

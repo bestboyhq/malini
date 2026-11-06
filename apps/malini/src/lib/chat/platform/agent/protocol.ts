@@ -183,6 +183,15 @@ export type BridgeCommand =
 			choices: number;
 			env?: Readonly<Record<string, string>>;
 	  }
+	| {
+			cmd: 'answer';
+			id: string;
+			prompt: string;
+			instructions: string;
+			model: string;
+			schema: Readonly<Record<string, unknown>>;
+			env?: Readonly<Record<string, string>>;
+	  }
 	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer)
 	| ({ cmd: 'platform_result'; id: string; sessionId: string; requestId: string } & PlatformAnswer)
@@ -244,7 +253,7 @@ export function historyResultCommand(
 
 export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number {
 	if (command.cmd === 'start_session') return BRIDGE_START_SESSION_ACK_TIMEOUT_MS;
-	if (command.cmd === 'suggest_title' || command.cmd === 'choose') {
+	if (command.cmd === 'suggest_title' || command.cmd === 'choose' || command.cmd === 'answer') {
 		return BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS;
 	}
 	if (command.cmd === 'list_skills') return BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS;
@@ -405,6 +414,12 @@ export type BridgeControlFrame =
 	  }
 	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string }
 	| { type: 'bridge.choice'; protocolVersion: number; id: string; pick: number }
+	| {
+			type: 'bridge.answer';
+			protocolVersion: number;
+			id: string;
+			answer: Readonly<Record<string, unknown>>;
+	  }
 	| { type: 'bridge.skills'; protocolVersion: number; id: string; skills: SkillRecord[] }
 	| { type: 'bridge.mcp_authorization'; protocolVersion: number; id: string; authUrl?: string }
 	| {
@@ -518,6 +533,12 @@ class Fields {
 	optionalValue(key: string): unknown {
 		const value = this.obj[key];
 		return value === null ? undefined : value;
+	}
+
+	record(key: string): Record<string, unknown> {
+		const value = this.obj[key];
+		if (!isRecord(value)) throw new Error(this.missing(key, 'an object'));
+		return value;
 	}
 
 	optionalRecord(key: string): Record<string, unknown> | undefined {
@@ -971,6 +992,16 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						protocolVersion: f.number('protocolVersion'),
 						id: f.string('id'),
 						pick: f.number('pick'),
+					},
+				};
+			case 'bridge.answer':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						id: f.string('id'),
+						answer: f.record('answer'),
 					},
 				};
 			case 'bridge.skills':

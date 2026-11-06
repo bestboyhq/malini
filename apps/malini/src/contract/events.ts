@@ -10,13 +10,13 @@ import type { ChatDeliveryChangedEvent } from './deliveries';
 import type { GithubReach } from './github-failure';
 import type {
 	AgentActionChangedEvent,
-	JobDefinitionChangedEvent,
-	JobExperimentChangedEvent,
-	JobRunChangedEvent,
-	JobSuggestedEvent,
+	AutomationDefinitionChangedEvent,
+	AutomationExperimentChangedEvent,
+	AutomationRunChangedEvent,
+	AutomationSuggestedEvent,
 	ReconcilerDecisionChangedEvent,
 	TimeReachedEvent,
-} from './jobs';
+} from './automations';
 import type { McpServerListing, McpServerReport } from './mcp-servers';
 import type {
 	PullRequestChangedEvent,
@@ -230,16 +230,16 @@ export interface ContractEvents {
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
 	'pull-requests:button-clicked': ShipButtonClickedEvent;
 	'pull-requests:workstream-opened': WorkstreamOpenedEvent;
-	'jobs:run-changed': JobRunChangedEvent;
-	'jobs:run-started': JobRunChangedEvent;
-	'jobs:run-finished': JobRunChangedEvent;
-	'jobs:definition-changed': JobDefinitionChangedEvent;
-	'jobs:suggested': JobSuggestedEvent;
-	'jobs:experiment-changed': JobExperimentChangedEvent;
-	'jobs:agent-action-changed': AgentActionChangedEvent;
-	'jobs:tool-called': AgentActionChangedEvent;
-	'jobs:decision-changed': ReconcilerDecisionChangedEvent;
-	'jobs:time-reached': TimeReachedEvent;
+	'automations:run-changed': AutomationRunChangedEvent;
+	'automations:run-started': AutomationRunChangedEvent;
+	'automations:run-finished': AutomationRunChangedEvent;
+	'automations:definition-changed': AutomationDefinitionChangedEvent;
+	'automations:suggested': AutomationSuggestedEvent;
+	'automations:experiment-changed': AutomationExperimentChangedEvent;
+	'automations:agent-action-changed': AgentActionChangedEvent;
+	'automations:tool-called': AgentActionChangedEvent;
+	'automations:decision-changed': ReconcilerDecisionChangedEvent;
+	'automations:time-reached': TimeReachedEvent;
 	'app:started': AppStartedPayload;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
@@ -297,16 +297,16 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'pull-requests:pull-request-changed': null,
 	'pull-requests:button-clicked': null,
 	'pull-requests:workstream-opened': null,
-	'jobs:run-changed': null,
-	'jobs:run-started': null,
-	'jobs:run-finished': null,
-	'jobs:definition-changed': null,
-	'jobs:suggested': null,
-	'jobs:experiment-changed': null,
-	'jobs:agent-action-changed': null,
-	'jobs:tool-called': null,
-	'jobs:decision-changed': null,
-	'jobs:time-reached': null,
+	'automations:run-changed': null,
+	'automations:run-started': null,
+	'automations:run-finished': null,
+	'automations:definition-changed': null,
+	'automations:suggested': null,
+	'automations:experiment-changed': null,
+	'automations:agent-action-changed': null,
+	'automations:tool-called': null,
+	'automations:decision-changed': null,
+	'automations:time-reached': null,
 	'app:started': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
@@ -459,24 +459,28 @@ export const PULL_REQUESTS_BUTTON_CLICKED_CHANNEL =
 export const PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL =
 	'pull-requests:workstream-opened' satisfies EventChannel;
 
-export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
+export const AUTOMATIONS_RUN_CHANGED_CHANNEL = 'automations:run-changed' satisfies EventChannel;
 
-export const JOBS_RUN_STARTED_CHANNEL = 'jobs:run-started' satisfies EventChannel;
+export const AUTOMATIONS_RUN_STARTED_CHANNEL = 'automations:run-started' satisfies EventChannel;
 
-export const JOBS_RUN_FINISHED_CHANNEL = 'jobs:run-finished' satisfies EventChannel;
+export const AUTOMATIONS_RUN_FINISHED_CHANNEL = 'automations:run-finished' satisfies EventChannel;
 
-export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfies EventChannel;
+export const AUTOMATIONS_DEFINITION_CHANGED_CHANNEL =
+	'automations:definition-changed' satisfies EventChannel;
 
-export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;
+export const AUTOMATIONS_SUGGESTED_CHANNEL = 'automations:suggested' satisfies EventChannel;
 
-export const JOBS_EXPERIMENT_CHANGED_CHANNEL = 'jobs:experiment-changed' satisfies EventChannel;
+export const AUTOMATIONS_EXPERIMENT_CHANGED_CHANNEL =
+	'automations:experiment-changed' satisfies EventChannel;
 
-export const JOBS_AGENT_ACTION_CHANGED_CHANNEL = 'jobs:agent-action-changed' satisfies EventChannel;
+export const AUTOMATIONS_AGENT_ACTION_CHANGED_CHANNEL =
+	'automations:agent-action-changed' satisfies EventChannel;
 
-export const JOBS_TOOL_CALLED_CHANNEL = 'jobs:tool-called' satisfies EventChannel;
+export const AUTOMATIONS_TOOL_CALLED_CHANNEL = 'automations:tool-called' satisfies EventChannel;
 
-export const JOBS_DECISION_CHANGED_CHANNEL = 'jobs:decision-changed' satisfies EventChannel;
+export const AUTOMATIONS_DECISION_CHANGED_CHANNEL =
+	'automations:decision-changed' satisfies EventChannel;
 
-export const JOBS_TIME_REACHED_CHANNEL = 'jobs:time-reached' satisfies EventChannel;
+export const AUTOMATIONS_TIME_REACHED_CHANNEL = 'automations:time-reached' satisfies EventChannel;
 
 export const REPOSITORIES_CHANGED_CHANNEL = 'repositories:changed' satisfies EventChannel;

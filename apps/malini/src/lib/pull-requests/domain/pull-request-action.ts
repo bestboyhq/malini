@@ -9,7 +9,7 @@ export type PullRequestActionKind =
 	| 'retry-now'
 	| 'keep'
 	| 'open-pull-request'
-	| 'open-job'
+	| 'open-automation'
 	| 'reconnect'
 	| 'refresh'
 	| 'abort-operation';

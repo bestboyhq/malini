@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_JOB_BOUNDARY } from '$contract/jobs';
+import { DEFAULT_AUTOMATION_BOUNDARY } from '$contract/automations';
 import { agentBoundary, type BoundaryPlaces } from './boundary';
 
 const PLACES: BoundaryPlaces = {
@@ -13,9 +13,9 @@ const PLACES: BoundaryPlaces = {
 	starterPlan: '/data/malini/leads/acme/.context/plan.md',
 };
 
-describe("a job's boundary", () => {
+describe("an automation's boundary", () => {
 	it('hides every chat record and attachment, but the plan of the chat that started it', () => {
-		const boundary = agentBoundary({ ...DEFAULT_JOB_BOUNDARY, chats: 'starter' }, PLACES);
+		const boundary = agentBoundary({ ...DEFAULT_AUTOMATION_BOUNDARY, chats: 'starter' }, PLACES);
 
 		expect(boundary).toEqual({
 			hidden: [
@@ -34,8 +34,8 @@ describe("a job's boundary", () => {
 		});
 	});
 
-	it('hides nothing from a job you let see everything', () => {
-		const everything = { ...DEFAULT_JOB_BOUNDARY, chats: 'all', attachments: true } as const;
+	it('hides nothing from an automation you let see everything', () => {
+		const everything = { ...DEFAULT_AUTOMATION_BOUNDARY, chats: 'all', attachments: true } as const;
 
 		expect(agentBoundary(everything, PLACES)).toBeNull();
 		expect(agentBoundary({ ...everything, internet: false }, PLACES)).toEqual({
@@ -45,8 +45,8 @@ describe("a job's boundary", () => {
 		});
 	});
 
-	it('hides archived workstreams until a job sees every chat and attachment', () => {
-		const everything = { ...DEFAULT_JOB_BOUNDARY, chats: 'all', attachments: true } as const;
+	it('hides archived workstreams until an automation sees every chat and attachment', () => {
+		const everything = { ...DEFAULT_AUTOMATION_BOUNDARY, chats: 'all', attachments: true } as const;
 		const archived = ['/data/malini/workstreams/.kept', '/data/malini/workstreams/.trash'];
 
 		expect(agentBoundary({ ...everything, attachments: false }, PLACES)?.hidden).toEqual([
