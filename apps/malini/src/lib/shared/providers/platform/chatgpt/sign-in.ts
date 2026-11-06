@@ -289,7 +289,7 @@ export class ChatGptAuth {
 			signal,
 		});
 		const body = await jsonBody(response);
-		if (!response.ok) throw oauthError(body);
+		if (!response.ok) throw oauthError(body, form['grant_type'] === 'refresh_token');
 		const parsed = tokenResponse.safeParse(body);
 		if (!parsed.success) {
 			throw new ChatGptError('invalid_token_response', 'ChatGPT returned an incomplete sign-in.');
@@ -521,11 +521,11 @@ function sameSecret(values: readonly string[], expected: string): boolean {
 	return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
-function oauthError(body: unknown): ChatGptError {
+function oauthError(body: unknown, refreshing = false): ChatGptError {
 	const code = oauthErrorCode(body) ?? 'oauth_error';
 	return new ChatGptError(
 		code,
-		REAUTHENTICATION_CODES.has(code)
+		refreshing && REAUTHENTICATION_CODES.has(code)
 			? 'Your ChatGPT sign-in expired. Sign in again.'
 			: `ChatGPT turned down the sign-in (${code}).`,
 	);

@@ -29,6 +29,7 @@ A provider until now was a static key and base URL in the run's environment (014
   The body goes zstd-compressed with `user-agent: Malini/<version>`; Malini names itself and sends none of the Codex CLI's `originator` or `x-codex-*` headers.
   The Responses stream comes back as Anthropic stream events; a reasoning summary becomes a thinking block whose signature carries the encrypted reasoning after `malini-chatgpt-reasoning:`, so the next turn hands it back as a reasoning item.
 - **Errors:** a 401 retries once with a refreshed token, and a usage limit comes back as a 429 `rate_limit_error` with `x-should-retry: false` and "You hit your ChatGPT usage limit.", so Claude Code stops instead of retrying, and Malini pauses the turn as a rate limit (0100), since ChatGPT does not say when the limit resets.
+  Only a refused refresh says "Your ChatGPT sign-in expired. Sign in again."; a token endpoint that refuses a fresh code says "ChatGPT turned down the sign-in (<code>).", since nothing had expired.
   The account notes when it hit the limit and clears it on the next answer.
 - **The flow:** the ChatGPT group is ready once signed in, and `modelAccess` answers `chatgpt-signed-out` until then.
   The picker's flyout names ChatGPT "Your ChatGPT plan" or "Needs a sign-in"; the connect card and Settings, Providers sign in with **Continue with ChatGPT**.
@@ -47,5 +48,6 @@ A provider until now was a static key and base URL in the run's environment (014
 - Usage is a limit line and a link, not bars, until OpenAI offers a usage API.
 - zod in the main bundle adds about 250 KB.
 - Sign in with ChatGPT is a preview, so its endpoints, scopes and terms can change under Malini.
+- A Free plan cannot connect: OpenAI's consent page says "A required permission is unavailable. You can't continue with this workspace and plan." and offers Upgrade instead of Continue.
 - Must stay true: the ChatGPT token stays in the main process, the proxy answers only its own host and secret, and the translator handles every block and event type its SDK types name.
 - Enforced by `pnpm check` (the `never` checks), `translate.test.ts` (requests, streams, reasoning round trips, errors), `chatgpt.test.ts` (sign-in against a fake OpenAI, sealed tokens on real SQLite, refresh, revoke, the proxy's host and secret), `provider.test.ts` (`chatgpt-signed-out`), `model-catalog.test.ts` (the row named after the selected provider), `migrations.test.ts` (migration 94), and `tests/e2e/chatgpt-provider.spec.ts` (the whole flow in the built app).

@@ -63,6 +63,7 @@ interface Browser {
 	readonly opened: URL[];
 	readonly callbacks: number[];
 	state: string | null;
+	codeHonored: boolean;
 }
 
 function json(status: number, body: unknown): Reply {
@@ -248,18 +249,20 @@ async function harness() {
 	const openai = await fakeOpenAi(now);
 	const db = openMigratedDatabase(':memory:');
 	const endpoints = { issuer: openai.url, resource: `${openai.url}/v1` };
-	const browser: Browser = { opened: [], callbacks: [], state: null };
+	const browser: Browser = { opened: [], callbacks: [], state: null, codeHonored: true };
 
 	const openExternal = async (url: string): Promise<void> => {
 		const authorize = new URL(url);
 		browser.opened.push(authorize);
 		const params = authorize.searchParams;
 		const code = `code-${browser.opened.length}`;
-		openai.codes.set(code, {
-			redirectUri: params.get('redirect_uri') ?? '',
-			challenge: params.get('code_challenge') ?? '',
-			nonce: params.get('nonce') ?? '',
-		});
+		if (browser.codeHonored) {
+			openai.codes.set(code, {
+				redirectUri: params.get('redirect_uri') ?? '',
+				challenge: params.get('code_challenge') ?? '',
+				nonce: params.get('nonce') ?? '',
+			});
+		}
 		const callback = new URL(params.get('redirect_uri') ?? '');
 		callback.search = new URLSearchParams({
 			code,
@@ -478,7 +481,10 @@ describe('ChatGPT sign-in', () => {
 
 		h.openai.refreshTokens.clear();
 		h.advance(2 * HOUR);
-		await expect(h.account.accessToken()).rejects.toMatchObject({ code: 'invalid_grant' });
+		await expect(h.account.accessToken()).rejects.toMatchObject({
+			code: 'invalid_grant',
+			message: 'Your ChatGPT sign-in expired. Sign in again.',
+		});
 		expect(h.account.account()).toBeNull();
 
 		await h.signIn();
@@ -488,6 +494,18 @@ describe('ChatGPT sign-in', () => {
 		expect(again?.get('login_hint')).toBe('me@example.com');
 		expect(again?.get('ext_agent_host_id')).toBe(first?.get('ext_agent_host_id'));
 		expect(h.account.account()?.email).toBe('me@example.com');
+	});
+
+	it('says ChatGPT turned down a fresh sign-in whose code it will not exchange, not that it expired', async () => {
+		const h = await harness();
+		h.browser.codeHonored = false;
+
+		await expect(h.account.signIn()).rejects.toMatchObject({
+			code: 'invalid_grant',
+			message: 'ChatGPT turned down the sign-in (invalid_grant).',
+		});
+		expect(h.browser.callbacks).toEqual([200]);
+		expect(h.account.account()).toBeNull();
 	});
 
 	it('signs out by revoking the refresh token and forgetting the account', async () => {
