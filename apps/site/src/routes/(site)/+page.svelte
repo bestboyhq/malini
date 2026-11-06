@@ -90,37 +90,37 @@
 	const plans = [
 		{
 			name: 'Claude',
-			body: 'Pro or Max, signed in through Claude Code. Switch accounts without signing out.',
+			body: 'Pro or Max. Sign in once, switch accounts anytime.',
 		},
 		{
 			name: 'ChatGPT',
-			body: 'Go, Plus, or Pro. GPT models with Claude Code’s tools. No Codex.',
+			body: 'Go, Plus, or Pro. GPT models in Claude Code.',
 		},
 		{
 			name: 'OpenCode',
-			body: 'Go or Console. One key, and Malini works out which.',
+			body: 'Go or Console. Paste a key, Malini works out which.',
 		},
 		{
 			name: 'DeepSeek',
-			body: 'An API key, billed per token. V4 Pro thinks hard.',
+			body: 'Paste an API key. Pay per token, no plan needed.',
 		},
 	] as const;
 
 	const opus = [
 		{
-			stat: '280K',
-			title: 'Where Malini compacts',
-			body: 'Claude Code lets Opus fill about 967K tokens first, and every turn sends all of it.',
+			stat: '3.5×',
+			title: 'Tighter context',
+			body: 'Claude Code lets Opus fill almost 1M tokens before compacting. Malini compacts at 280K.',
 		},
 		{
-			stat: '86%',
-			title: 'Kept after a compaction',
-			body: 'Claude Code alone keeps 70% of what mattered. Malini puts every prompt and reply back right after.',
+			stat: '2×',
+			title: 'Less forgetting',
+			body: 'After compacting, Malini hands back every prompt and reply. Opus forgets half as much.',
 		},
 		{
-			stat: '16',
-			title: 'Long chats measured',
-			body: 'Replayed at windows from 200K to 1M. Lower forgets, higher costs. 280K won.',
+			stat: '0',
+			title: 'Things to set up',
+			body: 'On from your first prompt, in every chat and job. Settings has a slider if you want one.',
 		},
 	];
 
@@ -240,26 +240,26 @@
 	id="plans"
 	beat={beat('plans', 'Plans')}
 	split
-	title="Bring the plan you already pay for."
-	quiet="Malini sends no bill."
-	description="Agents run in Claude Code on your own plan. Pick a model per prompt, and Malini asks for the sign-in it needs."
+	title="Already paying for Claude or ChatGPT?"
+	quiet="You’re good."
+	description="OpenCode and DeepSeek work too. Pick the model per prompt."
 >
 	{#snippet after()}
 		<ul class="cells plans">
 			{#each plans as plan (plan.name)}
 				<li class="rise">
-					<span class={['logo', plan.name.toLowerCase()]}>
+					<h3 class={['brand', plan.name.toLowerCase()]}>
 						{#if plan.name === 'Claude'}
-							<ClaudeIcon size={22} />
+							<ClaudeIcon size={20} />
 						{:else if plan.name === 'ChatGPT'}
-							<BrandIcon brand="openai" size={22} />
+							<BrandIcon brand="openai" size={20} />
 						{:else if plan.name === 'OpenCode'}
-							<OpenCodeIcon size={22} />
+							<OpenCodeIcon size={20} />
 						{:else}
-							<DeepSeekIcon size={22} />
+							<DeepSeekIcon size={20} />
 						{/if}
-					</span>
-					<h3>{plan.name}</h3>
+						{plan.name}
+					</h3>
 					<p>{plan.body}</p>
 				</li>
 			{/each}
@@ -276,16 +276,16 @@
 					<span class="painted">25</span>
 					<span class="unit">%</span>
 				</span>
-				<span class="from">More Opus per plan, on long chats</span>
+				<span class="from">More Opus on long chats</span>
 			</p>
 			<div class="rise">
 				<h2 id="opus-title">
-					<span>Opus works overtime.</span>
-					<span class="quiet">Same pay.</span>
+					<span>Same plan.</span>
+					<span class="quiet">More Opus.</span>
 				</h2>
 				<p class="sub">
-					Malini runs Claude Code’s context for you, out of the box. A long Opus chat uses about a
-					quarter less of your plan, and forgets less of itself.
+					Malini keeps Claude Code’s context tight and hands the whole conversation back after every
+					compaction. Long sessions just last longer.
 				</p>
 				<a
 					class="arrow-link"
@@ -619,29 +619,22 @@
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
 
-	.logo {
-		--tint: var(--fg-default);
-		display: grid;
-		place-items: center;
-		width: 44px;
-		height: 44px;
-		margin-bottom: 12px;
-		border-radius: 12px;
-		background: color-mix(in oklab, var(--tint) 14%, transparent);
-		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tint) 28%, transparent);
-		color: var(--tint);
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 10px;
 	}
 
-	.claude {
-		--tint: #d97757;
+	.brand :global(svg) {
+		flex: none;
 	}
 
-	.chatgpt {
-		--tint: #10a37f;
+	.claude :global(svg) {
+		color: #d97757;
 	}
 
-	.deepseek {
-		--tint: #4d6bfe;
+	.deepseek :global(svg) {
+		color: #4d6bfe;
 	}
 
 	.flush {
