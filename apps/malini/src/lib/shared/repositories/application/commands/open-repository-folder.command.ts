@@ -1,11 +1,14 @@
-import { repositoryConnectFailure } from '$shared/repositories/domain/repository-connection';
+import {
+	repositoryConnectFailure,
+	type RepositoryConnectOptions,
+} from '$shared/repositories/domain/repository-connection';
 import { githubService } from '$shared/repositories/infrastructure/services/github.service';
 import { repositoryConnectionStore } from '$shared/repositories/infrastructure/stores/repository-connection.store.svelte';
 import { connectRepositoryCommand } from './connect-repository.command';
 
 export { openRepositoryFolderCommand };
 
-function openRepositoryFolderCommand(): void {
+function openRepositoryFolderCommand(options: RepositoryConnectOptions = {}): void {
 	if (repositoryConnectionStore.connecting !== null) return;
 	void (async () => {
 		let path: string | null;
@@ -19,6 +22,6 @@ function openRepositoryFolderCommand(): void {
 			return;
 		}
 		if (!path) return;
-		connectRepositoryCommand({ kind: 'local-folder', path });
+		connectRepositoryCommand({ kind: 'local-folder', path }, options);
 	})();
 }

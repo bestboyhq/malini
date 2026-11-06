@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
@@ -88,6 +89,7 @@ test('cloning a hidden repository again brings it back', async () => {
 			]),
 		);
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await cloneHutch(page);
 

@@ -7,6 +7,8 @@ export type OnboardingStep = 'accounts' | 'sounds' | 'heard-about';
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = ['accounts', 'sounds', 'heard-about'];
 
+export type OnboardingScreen = 'setup' | 'picker';
+
 export type OnboardingAccount = 'claude-code' | 'github';
 
 export type OnboardingAccountStatus = ClaudeCodeStatus['kind'] | GitHubSetupStatus;

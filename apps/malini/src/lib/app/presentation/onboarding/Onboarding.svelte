@@ -82,7 +82,7 @@
 		outbound: slideOut(1, STEP_BLUR_PX),
 	});
 
-	onMount(showOnboardingHook);
+	onMount(() => showOnboardingHook('setup'));
 
 	onMount(loadUsageDataCommand);
 

@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
@@ -163,6 +164,7 @@ test('a repository without open work stays in the sidebar until you hide it', as
 			]),
 		);
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Find a repository' }).first().click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
