@@ -52,7 +52,7 @@ function menuMotion(
 	params: MenuTransitionParams,
 	duration: number,
 ): TransitionConfig {
-	if (params.skip) return { duration: 0, css: () => '' };
+	if (params.skip || document.hidden) return { duration: 0, css: () => '' };
 	const reduced = prefersReducedMotion();
 	node.style.transformOrigin = transformOriginFor(params.side, params.align);
 	node.style.willChange = 'transform, opacity';

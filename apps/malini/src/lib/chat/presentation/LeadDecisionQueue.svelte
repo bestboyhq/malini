@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -29,7 +29,7 @@
 	const decision = $derived(decisions[position] ?? null);
 	const changing = $derived(decision?.answer !== null && decision?.answer !== undefined);
 	const pictured = $derived(decision?.options.some((option) => option.picture !== null) ?? false);
-	const motion = $derived(prefersReducedMotion.current ? 0 : 1);
+	const motion = (): number => (motionOff() ? 0 : 1);
 
 	function step(towards: number): void {
 		const next = decisions[(position + towards + decisions.length) % decisions.length];
@@ -63,7 +63,7 @@
 		data-testid="lead-decision-queue"
 	>
 		{#key current.id}
-			<div in:fly={{ y: 10 * motion, duration: 240 * motion, easing: cubicOut }}>
+			<div in:fly={{ y: 10 * motion(), duration: 240 * motion(), easing: cubicOut }}>
 				<ComposerShell testId="lead-decision">
 					<div
 						class="border-surface-150-border/60 flex h-10 items-center gap-1.5 border-b pr-2 pl-3.5 text-xs"

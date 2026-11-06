@@ -2,10 +2,10 @@
 	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fade, fly } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
-	import { arrivalMotion } from '../arrival-motion';
+	import { arrivalMotion, motionMs, revealFade } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import { transcriptContext } from './transcript-context';
@@ -68,7 +68,7 @@
 			const gliding = box.getAnimations().length > 0;
 			const from = gliding ? box.getBoundingClientRect().width : width;
 			width = content.offsetWidth;
-			if (from === width || prefersReducedMotion.current) return;
+			if (from === width || prefersReducedMotion.current || document.hidden) return;
 			const { durationMs, easing } = arrivalMotion();
 			box.animate([{ width: `${from}px` }, { width: `${width}px` }], {
 				duration: durationMs,
@@ -98,8 +98,8 @@
 				{#key live}
 					<span
 						class="whitespace-nowrap [grid-area:1/1]"
-						in:fly={{ y: flip, duration: 260, easing: cubicOut }}
-						out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
+						in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
+						out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
 					>
 						{#if live}
 							<ShimmerText text="Thinking" />
@@ -117,11 +117,11 @@
 			{#key lineKey}
 				<span
 					class="text-fg-tertiary/75 truncate [grid-area:1/1]"
-					in:fly={{ y: flip, duration: 260, easing: cubicOut }}
-					out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
+					in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
+					out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
 				>
 					{#each words.slice(0, shown) as word, index (index)}
-						<span in:fade={{ duration: 190 }}>{index > 0 ? ` ${word}` : word}</span>
+						<span in:revealFade>{index > 0 ? ` ${word}` : word}</span>
 					{/each}
 				</span>
 			{/key}

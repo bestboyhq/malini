@@ -170,8 +170,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			stopGrants();
 			stopHandingOutSaved();
 			stopHandingOutDeleted();
-			deliveries.stop();
-			await Promise.all([packing.stop(), agent.stop(), shellRuns.stopAll()]);
+			await Promise.all([deliveries.stop(), packing.stop(), agent.stop(), shellRuns.stopAll()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
