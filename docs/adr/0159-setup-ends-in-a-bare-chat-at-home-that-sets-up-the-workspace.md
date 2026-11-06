@@ -1,6 +1,6 @@
 # 0159 - Setup ends in a bare chat at Home that sets up the workspace
 
-Status: accepted
+Status: superseded by 0163
 
 ## Context
 

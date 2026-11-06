@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -13,6 +14,7 @@ import {
 	passSetup,
 	seedWorkstream,
 	sendPrompt,
+	type WorkstreamRow,
 } from './harness';
 
 test('a new Mac without Claude Code is walked to install it, with the command it will run', async () => {
@@ -204,7 +206,7 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 		await expect(where).toHaveValue('@syntaxfm podcast');
 
 		await next.click();
-		await expect(page.getByTestId('first-chat-repositories')).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
 		await expect
 			.poll(async () => (await storedSettings(page))['heard-about'])
 			.toBe('syntaxfm podcast');
@@ -214,7 +216,7 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 	}
 });
 
-test('setup ends in a chat at Home that lists your GitHub repositories and nothing else, across a reload, and a pick clones it while you stay in the chat until you send', async () => {
+test('setup ends on a picker of your GitHub repositories with no chat, across a reload, and a pick starts a workstream in it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -257,21 +259,18 @@ test('setup ends in a chat at Home that lists your GitHub repositories and nothi
 		const repositories = chooser.getByRole('list', { name: 'Your GitHub repositories' });
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
 		const tabs = page.getByRole('tablist', { name: 'Chats and files' });
+		const prompt = page.getByRole('textbox', { name: 'Chat prompt' });
 		await expect(repositories.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
 		await expect(repositories.getByRole('button', { name: 'e2e/hutch' })).toContainText('2h ago');
 		await expect(repositories.getByRole('img', { name: 'Private' })).toHaveCount(1);
+		await expect(chooser.getByRole('button', { name: 'Open a folder' })).toBeVisible();
 		await expect(chooser.getByRole('button', { name: 'New repository' })).toBeVisible();
 		await expect(sidebar).toHaveCount(0);
 		await expect(tabs).toHaveCount(0);
+		await expect(prompt).toHaveCount(0);
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
-		await expect
-			.poll(async () =>
-				(
-					await invoke<{ scope: string | null }[]>(page, 'repositories.list-workstreams', undefined)
-				).map((workstream) => workstream.scope),
-			)
-			.toEqual(['home']);
-		await captureFlow(app, 'first-chat');
+		expect(await workstreams(page)).toEqual([]);
+		await captureFlow(app, 'first-repository-picker');
 
 		await chooser.getByRole('button', { name: 'More repositories' }).click();
 		const search = center.getByRole('combobox', { name: 'Search repositories' });
@@ -290,41 +289,40 @@ test('setup ends in a chat at Home that lists your GitHub repositories and nothi
 		await page.reload();
 		await expect(repositories.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
 		await expect(sidebar).toHaveCount(0);
-		await page.getByRole('textbox', { name: 'Chat prompt' }).click();
 		await page.keyboard.press('ControlOrMeta+k');
 		await expect(center.getByRole('combobox', { name: 'Command or repository' })).toBeFocused();
 		await page.keyboard.press('ControlOrMeta+k');
 		await expect(center).toHaveCount(0);
 
-		const pick = repositories.getByRole('button', { name: 'e2e/hutch' });
-		await pick.click();
+		await repositories.getByRole('button', { name: 'e2e/hutch' }).click();
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
+		await expect(sidebar.getByTestId('sidebar-workstream')).toHaveAttribute('aria-current', 'page');
 		await expect(
 			sidebar.getByTestId('sidebar-connected-repository').filter({ hasText: 'hutch' }),
+		).toBeVisible();
+		await expect(
+			page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]'),
 		).toBeVisible({ timeout: 30_000 });
-		await expect(pick).toBeDisabled();
-		await expect(pick).not.toHaveAttribute('aria-busy', 'true', { timeout: 30_000 });
-		await expect(chooser).toBeVisible();
-		await expect(tabs).toHaveCount(0);
-		await captureFlow(app, 'first-chat-picked');
-
-		await page.reload();
-		await expect(sidebar).toBeVisible({ timeout: 20_000 });
-		await expect(pick).toBeDisabled();
-
-		await sendPrompt(page, 'Tidy up the hutch');
-		await expect(chooser).toHaveCount(0, { timeout: 20_000 });
-		await expect(tabs).toBeVisible();
-		await expect(page.getByTestId('lead-timeline').getByText('Tidy up the hutch')).toBeVisible();
-		await page.reload();
-		await expect(sidebar).toBeVisible({ timeout: 20_000 });
 		await expect(chooser).toHaveCount(0);
+		await expect(tabs).toBeVisible();
+		await expect
+			.poll(async () => (await workstreams(page)).map(({ projectId }) => projectId))
+			.toEqual([expect.stringContaining('hutch')]);
+		await captureFlow(app, 'first-repository-picked');
+
+		await page.reload();
+		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
+		await expect(chooser).toHaveCount(0);
+		await page.evaluate(() => (globalThis.location.hash = '#/'));
+		await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
+		await expect(page.getByTestId('repository-row').filter({ hasText: 'hutch' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('New repository under the first chat makes one on GitHub under the owner you pick and clones it, and says why when GitHub refuses', async () => {
+test('New repository on the first-run picker makes one on GitHub under the owner you pick and starts a workstream in it, and says why when GitHub refuses', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		allowedDiagnostics: [/repositories\.create-github-repository/u],
@@ -367,23 +365,76 @@ test('New repository under the first chat makes one on GitHub under the owner yo
 		);
 		await name.press('Enter');
 		await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 		await expect(
 			page
 				.getByRole('navigation', { name: 'Connected repositories' })
 				.getByTestId('sidebar-connected-repository')
 				.filter({ hasText: 'rabbit-den' }),
 		).toBeVisible();
-		await expect(
-			chooser
-				.getByRole('list', { name: 'Your GitHub repositories' })
-				.getByRole('button', { name: 'e2e-org/rabbit-den' }),
-		).toBeDisabled();
-		await captureFlow(app, 'first-chat-new-repository');
+		await expect(chooser).toHaveCount(0);
+		await expect
+			.poll(async () => (await workstreams(page)).map(({ projectId }) => projectId))
+			.toEqual([expect.stringContaining('rabbit-den')]);
+		await captureFlow(app, 'first-repository-new-repository');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
+
+test('quitting while the first pick clones reopens on Repositories with the repository, not on a blank workstream', async () => {
+	test.setTimeout(180_000);
+	const first = await launchMalini();
+	try {
+		const { page } = first;
+		const hutch = await createSourceRepo(first.root, 'e2e/hutch');
+		writeFileSync(
+			join(first.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify([{ full_name: 'e2e/hutch', clone_url: `file://${hutch}`, description: null }]),
+		);
+		await passSetup(page);
+		slowClone(join(first.home, '.local/bin'));
+		await page
+			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
+			.getByRole('button', { name: 'e2e/hutch' })
+			.click();
+		await expect(page).toHaveURL(/#\/workstreams\//u);
+		expect(await workstreams(page)).toEqual([]);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(page).toHaveURL(/#\/$/u);
+		await expect(page.getByTestId('repository-row').filter({ hasText: 'hutch' })).toBeVisible();
+		expect(await workstreams(page)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+function slowClone(binFolder: string): void {
+	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+	const stub = join(binFolder, 'git');
+	writeFileSync(
+		stub,
+		`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${git}" "$@"\n`,
+	);
+	chmodSync(stub, 0o755);
+}
+
+async function workstreams(page: Page): Promise<WorkstreamRow[]> {
+	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);
+}
 
 async function storedSettings(page: Page): Promise<Record<string, string>> {
 	return invoke<Record<string, string>>(page, 'app.list-settings', undefined);

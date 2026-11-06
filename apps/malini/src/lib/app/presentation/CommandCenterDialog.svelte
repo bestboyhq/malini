@@ -40,6 +40,7 @@
 	import { closeCommandCenterCommand } from '$lib/app/application/commands/close-command-center.command';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { runMenuChoiceCommand } from '$lib/app/application/commands/run-menu-choice.command';
+	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import {
 		COMMAND_CENTER_COMMANDS,
 		commandCenterGroups,
@@ -48,7 +49,6 @@
 		type CommandCenterEntry,
 		type CommandCenterMode,
 	} from '$lib/app/domain/command-center';
-	import { firstChatWaits } from './first-chat';
 	import GithubRepositoryLabel from './GithubRepositoryLabel.svelte';
 
 	interface Props {
@@ -105,9 +105,9 @@
 	const connectingKey = $derived(repositoryConnectingKeyQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
 	const workstreamId = $derived(page.params.workstreamId ?? '');
-	const stayInFirstChat = $derived(firstChatWaits(workstreamId));
+	const startsWorkstream = $derived(onboardingQuery.data.shown === 'picker');
 	const connectOptions: RepositoryConnectOptions = $derived({
-		open: !stayInFirstChat,
+		open: startsWorkstream ? 'workstream' : 'repository',
 		onConnected: closeCommandCenterCommand,
 	});
 	const repositories = $derived(
@@ -184,8 +184,7 @@
 	function entryDisabled(entry: CommandCenterEntry): boolean {
 		if (entry.kind !== 'repository') return false;
 		const state = stateOf(entry.repository);
-		if (state.kind === 'cloning' && state.repository === null) return true;
-		return stayInFirstChat && (state.kind === 'cloning' || state.kind === 'cloned');
+		return state.kind === 'cloning' && (state.repository === null || startsWorkstream);
 	}
 
 	function cloningUrl(url: string): boolean {

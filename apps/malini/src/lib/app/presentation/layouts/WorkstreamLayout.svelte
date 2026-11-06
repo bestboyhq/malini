@@ -18,6 +18,7 @@
 	import {
 		WorkstreamTitle,
 		archiveWorkstreamCommand,
+		leaveMissingWorkstreamCommand,
 		repositoryContextQuery,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
@@ -26,8 +27,6 @@
 		WORKSTREAM_BROWSER_RATIO_KEY,
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
-	import { firstChatWaits } from '../first-chat';
-	import FirstChatRepositories from '../FirstChatRepositories.svelte';
 	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
@@ -39,7 +38,6 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
-	const firstChat = $derived(firstChatWaits(workstreamId));
 	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
 	const hasInspector = $derived(!workstream?.scope || hostsBrowser);
@@ -61,6 +59,10 @@
 	onMount(() => {
 		loadJobsCommand();
 		return watchJobsHook();
+	});
+
+	$effect(() => {
+		if (workstream === null) leaveMissingWorkstreamCommand(workstreamId);
 	});
 
 	const pullRequestShipped = $derived(
@@ -95,7 +97,6 @@
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}
 			notice={stoppedHere || shipFailure ? workstreamNotice : undefined}
-			welcome={firstChat ? firstChatRepositories : undefined}
 		>
 			{#snippet header(presentedWorkstreamId: string)}
 				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
@@ -108,16 +109,10 @@
 	{#snippet secondary()}
 		<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
 			{@render children()}
-			{#if !firstChat}
-				<JobCenter docked />
-			{/if}
+			<JobCenter docked />
 		</div>
 	{/snippet}
 </InspectorSplit>
-
-{#snippet firstChatRepositories()}
-	<FirstChatRepositories />
-{/snippet}
 
 {#snippet jobsInProgress()}
 	<WorkstreamJobRuns entries={jobs} {workstreamId} />
