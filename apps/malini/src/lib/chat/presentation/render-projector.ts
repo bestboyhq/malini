@@ -6,9 +6,11 @@ import {
 	failedRunState,
 	firstPromptKey,
 	isContextHandoffContentId,
+	outlivesHandoff,
 	renderInteractionItem,
 	stableToolKey,
 	toolFailure,
+	toolParent,
 	truncation,
 	type RenderItem,
 	type RenderState,
@@ -32,6 +34,7 @@ import { earlierTurnsByRun, runTurn, variantPicksByRun, type EarlierTurn } from 
 
 type RunningTool = {
 	ownerRunId: string;
+	runId: string;
 	item: Extract<RenderItem, { kind: 'tool' }>;
 };
 
@@ -132,6 +135,7 @@ export class IncrementalRenderProjector {
 	#runs: RunGroup[] = [];
 	#runById = new Map<string, RunGroup>();
 	#openTools = new Map<string, RunningTool>();
+	#handedOffTools: RunningTool[] = [];
 	#settledTools = new Set<string>();
 	#runsWithPrompt = new Set<string>();
 	#controls: ControlEvent[] = [];
@@ -238,6 +242,7 @@ export class IncrementalRenderProjector {
 		this.#runs = [];
 		this.#runById.clear();
 		this.#openTools.clear();
+		this.#handedOffTools = [];
 		this.#settledTools.clear();
 		this.#runsWithPrompt.clear();
 		this.#controls = [];
@@ -404,11 +409,23 @@ export class IncrementalRenderProjector {
 		return true;
 	}
 
-	#discardOpenToolsForRun(runId: string): void {
+	#ownerRun(runId: string, parentToolCallId: string | undefined): string {
+		if (!parentToolCallId) return runId;
+		return this.#openTools.get(toolLookupKey(runId, '', parentToolCallId))?.ownerRunId ?? runId;
+	}
+
+	#discardOpenToolsForRun(runId: string, handedOff: boolean): void {
+		const carried = new Set<string>();
 		for (const [key, running] of this.#openTools) {
-			if (running.ownerRunId !== runId) continue;
-			this.#removeItem(runId, running.item);
+			if (running.runId !== runId) continue;
 			this.#openTools.delete(key);
+			const { tool } = running.item;
+			if (handedOff && outlivesHandoff(tool, carried)) {
+				if (tool.toolCallId) carried.add(tool.toolCallId);
+				this.#handedOffTools.push(running);
+			} else {
+				this.#removeItem(running.ownerRunId, running.item);
+			}
 		}
 	}
 
@@ -423,6 +440,11 @@ export class IncrementalRenderProjector {
 		switch (event.type) {
 			case 'run.started':
 				this.#runFor(runId);
+				for (const running of this.#handedOffTools) {
+					const { name, toolCallId } = running.item.tool;
+					this.#openTools.set(toolLookupKey(runId, name, toolCallId), { ...running, runId });
+				}
+				this.#handedOffTools = [];
 				return;
 			case 'user.message': {
 				this.#push(runId, {
@@ -476,9 +498,11 @@ export class IncrementalRenderProjector {
 				const lookupKey = toolLookupKey(runId, event.name, event.toolCallId);
 				const replaced = this.#openTools.get(lookupKey);
 				if (replaced) this.#removeItem(replaced.ownerRunId, replaced.item);
+				const ownerRunId = this.#ownerRun(runId, event.parentToolCallId);
 				const tool: ToolAggregate = {
 					name: event.name,
 					...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+					...toolParent(event),
 					startedAt: event.ts ?? null,
 					completedAt: null,
 					input: event.input,
@@ -487,12 +511,12 @@ export class IncrementalRenderProjector {
 				};
 				const item: Extract<RenderItem, { kind: 'tool' }> = {
 					kind: 'tool',
-					key: stableToolKey(runId, event.name, event.toolCallId, envelope.seq),
+					key: stableToolKey(ownerRunId, event.name, event.toolCallId, envelope.seq),
 					seq: envelope.seq,
 					tool,
 				};
-				this.#push(runId, item);
-				this.#openTools.set(lookupKey, { ownerRunId: runId, item });
+				this.#push(ownerRunId, item);
+				this.#openTools.set(lookupKey, { ownerRunId, runId, item });
 				return;
 			}
 			case 'tool.completed':
@@ -516,17 +540,19 @@ export class IncrementalRenderProjector {
 								: { output: event.output, ...truncation(event) }),
 						},
 					};
-					this.#replaceItem(runId, running.item, completed);
+					this.#replaceItem(running.ownerRunId, running.item, completed);
 					this.#openTools.delete(lookupKey);
 				} else {
 					const failed = event.type === 'tool.failed';
-					this.#push(runId, {
+					const ownerRunId = this.#ownerRun(runId, event.parentToolCallId);
+					this.#push(ownerRunId, {
 						kind: 'tool',
-						key: stableToolKey(runId, event.name, event.toolCallId, envelope.seq),
+						key: stableToolKey(ownerRunId, event.name, event.toolCallId, envelope.seq),
 						seq: envelope.seq,
 						tool: {
 							name: event.name,
 							...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+							...toolParent(event),
 							startedAt: null,
 							completedAt: event.ts ?? null,
 							input: undefined,
@@ -543,18 +569,20 @@ export class IncrementalRenderProjector {
 			case 'thinking.delta':
 			case 'tool.input.delta':
 				return;
-			case 'command.completed':
-				this.#push(runId, {
+			case 'command.completed': {
+				const ownerRunId = this.#ownerRun(runId, event.parentToolCallId);
+				this.#push(ownerRunId, {
 					kind: 'command',
-					key: stableCommandKey(runId, envelope.seq),
+					key: stableCommandKey(ownerRunId, envelope.seq),
 					seq: envelope.seq,
 					command: event.command,
 					...(event.description ? { description: event.description } : {}),
 					exitCode: event.exitCode,
 				});
 				return;
+			}
 			case 'file.changed':
-				this.#push(runId, {
+				this.#push(this.#ownerRun(runId, event.parentToolCallId), {
 					kind: 'file',
 					key: `${key}-${event.path}`,
 					seq: envelope.seq,
@@ -592,7 +620,7 @@ export class IncrementalRenderProjector {
 			case 'run.failed': {
 				const group = this.#runFor(runId);
 				if (group.terminal !== null) return;
-				this.#discardOpenToolsForRun(runId);
+				this.#discardOpenToolsForRun(runId, event.handedOff === true);
 				if (event.type === 'run.completed') {
 					this.#terminal = 'completed';
 					this.#withState(group, {

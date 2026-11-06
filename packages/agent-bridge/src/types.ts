@@ -74,8 +74,9 @@ export type AgentEvent =
 			command: string;
 			description?: string;
 			exitCode: number;
+			parentToolCallId?: string;
 	  }
-	| { type: 'file.changed'; runId: string; path: string }
+	| { type: 'file.changed'; runId: string; path: string; parentToolCallId?: string }
 	| {
 			type: 'approval.requested';
 			sessionId: string;

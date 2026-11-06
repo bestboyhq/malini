@@ -12,12 +12,14 @@
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
 	import { finalTurnReport } from '../turn-result';
+	import { withoutReportFooter } from '$lib/chat/domain/turn-report';
 	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { shellRunsQuery } from '$lib/chat/application/queries/shell-runs.query.svelte';
 	import { savedSecretsWake } from '$lib/chat/domain/saved-secrets';
 	import { noVariantFitsPrompt, variantPickPrompt } from '$lib/chat/domain/variant-pick';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
+	import SubagentRow from './SubagentRow.svelte';
 	import ThinkingRow from './ThinkingRow.svelte';
 	import TranscriptDivider from './TranscriptDivider.svelte';
 	import { continuationNotice } from './run-stop-copy';
@@ -37,6 +39,9 @@
 	const planKey = $derived(`${run.runId}:${item.key}`);
 	const turnReport = $derived(
 		item.kind === 'assistant' ? finalTurnReport(run, item.key, item.text) : null,
+	);
+	const reply = $derived(
+		item.kind === 'assistant' && !turnReport ? withoutReportFooter(item.text) : '',
 	);
 	const earlierTurns = $derived(turnReport ? transcript.earlierTurns(run.runId) : []);
 	const reportSeq = $derived(turnReport ? runLastSeq(run) : null);
@@ -119,7 +124,7 @@
 			</div>
 		{/if}
 	</div>
-{:else if item.kind === 'assistant'}
+{:else if item.kind === 'assistant' && (turnReport || reply !== '')}
 	<div
 		class="text-fg-default w-full text-sm leading-relaxed"
 		use:stageEnter={timelineKey(run, item.contentId ?? item.key)}
@@ -149,7 +154,7 @@
 			/>
 		{:else}
 			<BufferedStreamingMarkdown
-				text={item.text}
+				text={reply}
 				class="select-text"
 				playbackKey={item.contentId
 					? blockKey(transcript.sessionId, run.runId, item.contentId)
@@ -172,6 +177,8 @@
 	</div>
 {:else if item.kind === 'tool'}
 	<ChatToolRow {item} {run} />
+{:else if item.kind === 'subagent'}
+	<SubagentRow {item} {run} />
 {:else if item.kind === 'file'}
 	<div
 		class="w-full"

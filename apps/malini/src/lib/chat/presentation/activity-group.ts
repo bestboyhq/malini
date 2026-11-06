@@ -1,4 +1,8 @@
-import { canonicalChangedPath, type RunTimelineItem } from './run-timeline';
+import {
+	canonicalChangedPath,
+	type RunTimelineItem,
+	type SubagentTimelineItem,
+} from './run-timeline';
 import {
 	isBackgroundAgent,
 	isCompaction,
@@ -35,11 +39,20 @@ export type StartedWorkstreams = {
 	workstreamIds: readonly string[];
 };
 
-export type GroupedRunTimelineItem = RunTimelineItem | ActivityGroup | StartedWorkstreams;
+export type SubagentGroup = {
+	kind: 'subagent-group';
+	key: string;
+	agents: readonly SubagentTimelineItem[];
+};
+
+export type GroupedRunTimelineItem =
+	RunTimelineItem | ActivityGroup | StartedWorkstreams | SubagentGroup;
 
 const START_WORKSTREAM_TOOL = 'mcp__malini__workstreams_create';
 
 export const ACTIVITY_GROUP_MIN_ITEMS = 2;
+
+export const SUBAGENT_GROUP_MIN_AGENTS = 2;
 
 export const ACTIVITY_GROUP_DETAIL_MAX_CHARS = 64;
 
@@ -87,7 +100,45 @@ export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunT
 	}
 	flush();
 
+	return groupSubagents(grouped);
+}
+
+export function groupSubagents(rows: readonly GroupedRunTimelineItem[]): GroupedRunTimelineItem[] {
+	const grouped: GroupedRunTimelineItem[] = [];
+	let agents: SubagentTimelineItem[] = [];
+
+	function flush(): void {
+		const [first] = agents;
+		if (first && agents.length >= SUBAGENT_GROUP_MIN_AGENTS) {
+			grouped.push({ kind: 'subagent-group', key: `subagents-${first.key}`, agents });
+		} else grouped.push(...agents);
+		agents = [];
+	}
+
+	for (const row of rows) {
+		if (row.kind === 'subagent') agents.push(row);
+		else if (row.kind === 'subagent-group') agents.push(...row.agents);
+		else {
+			flush();
+			grouped.push(row);
+		}
+	}
+	flush();
+
 	return grouped;
+}
+
+export function withPendingRows(
+	rows: readonly GroupedRunTimelineItem[],
+	pending: readonly RunTimelineItem[],
+): readonly GroupedRunTimelineItem[] {
+	const drawn = new Set(
+		rows.flatMap((row) =>
+			row.kind === 'subagent-group' ? row.agents.map((agent) => agent.key) : [row.key],
+		),
+	);
+	const fresh = pending.filter((row) => !drawn.has(row.key));
+	return fresh.length > 0 ? groupSubagents([...rows, ...fresh]) : rows;
 }
 
 export function foldStartedWorkstreams(

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentBackgroundTask } from '$contract/agent';
 import {
+	agentTaskOf,
 	backgroundTaskElapsed,
 	backgroundWaitOf,
 	backgroundWorkSummary,
 	latestBackgroundWork,
+	trayWork,
 } from './background-work';
 import type { AgentEvent, EventEnvelope } from './events';
 
@@ -141,5 +143,20 @@ describe('backgroundTaskElapsed', () => {
 		expect(backgroundTaskElapsed(0, 42_000)).toBe('42s');
 		expect(backgroundTaskElapsed(0, 5 * 60_000 + 10_000)).toBe('5m');
 		expect(backgroundTaskElapsed(0, 125 * 60_000)).toBe('2h 5m');
+	});
+});
+
+describe('trayWork', () => {
+	const SUBAGENT: AgentBackgroundTask = { ...REVIEW, taskId: 'a2', toolCallId: 'call-1' };
+
+	it('leaves out every agent that has its own row, and the tray once nothing else runs', () => {
+		const work = { runId: 'r1', waiting: true, tasks: [E2E, REVIEW, SUBAGENT] };
+
+		expect(trayWork(work)?.tasks).toEqual([E2E, REVIEW]);
+		expect(trayWork({ ...work, tasks: [SUBAGENT] })).toBeNull();
+		expect(trayWork(null)).toBeNull();
+		expect(agentTaskOf(work, 'call-1')).toBe(SUBAGENT);
+		expect(agentTaskOf(work, 'call-2')).toBeNull();
+		expect(agentTaskOf(work, undefined)).toBeNull();
 	});
 });

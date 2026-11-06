@@ -3,10 +3,11 @@ import {
 	ACTIVITY_GROUP_DETAIL_MAX_CHARS,
 	ACTIVITY_GROUP_MIN_ITEMS,
 	groupRunTimeline,
+	withPendingRows,
 	type ActivityGroup,
 	type GroupedRunTimelineItem,
 } from './activity-group';
-import type { RunTimelineItem } from './run-timeline';
+import type { RunTimelineItem, SubagentTimelineItem } from './run-timeline';
 
 let nextSeq = 0;
 
@@ -72,6 +73,25 @@ function thought(durationSeconds: number | null = null): RunTimelineItem {
 function assistant(text = 'Here is what I found.'): RunTimelineItem {
 	const at = seq();
 	return { kind: 'assistant', key: `assistant-${at}`, seq: at, text };
+}
+
+function agent(key: string): SubagentTimelineItem {
+	const at = seq();
+	return {
+		kind: 'subagent',
+		key,
+		seq: at,
+		tool: {
+			name: 'Agent',
+			startedAt: null,
+			completedAt: null,
+			input: {},
+			output: undefined,
+			status: 'running',
+		},
+		steps: [],
+		report: null,
+	};
 }
 
 function onlyGroup(items: readonly RunTimelineItem[]): ActivityGroup {
@@ -534,5 +554,30 @@ describe('groupRunTimeline started workstreams', () => {
 	it('keeps a call whose answer names no workstream as a tool row', () => {
 		const unnamed = tool('mcp__malini__workstreams_create', {}, { output: 'not json' });
 		expect(kinds(groupRunTimeline([unnamed]))).toEqual(['tool']);
+	});
+});
+
+describe('groupRunTimeline subagents', () => {
+	it('puts subagents that run side by side under one parent, keyed by the first', () => {
+		const grouped = groupRunTimeline([thought(), agent('a'), agent('b'), agent('c'), assistant()]);
+		expect(kinds(grouped)).toEqual(['thought', 'subagent-group', 'assistant']);
+		expect(grouped[1]).toMatchObject({
+			key: 'subagents-a',
+			agents: [{ key: 'a' }, { key: 'b' }, { key: 'c' }],
+		});
+	});
+
+	it('leaves a lone subagent as its own row, and prose between agents splits them', () => {
+		expect(kinds(groupRunTimeline([agent('a'), assistant(), agent('b')]))).toEqual([
+			'subagent',
+			'assistant',
+			'subagent',
+		]);
+	});
+
+	it('joins a subagent still streaming its input to the drawn one, and never draws it twice', () => {
+		const joined = withPendingRows(groupRunTimeline([agent('a')]), [agent('b')]);
+		expect(joined).toMatchObject([{ key: 'subagents-a', agents: [{ key: 'a' }, { key: 'b' }] }]);
+		expect(withPendingRows(joined, [agent('b')])).toBe(joined);
 	});
 });
