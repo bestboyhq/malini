@@ -27,7 +27,7 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
-- **Then your repositories.** Setup ends on your five GitHub repositories pushed to last, under **What are you working on?**, and nothing to type.
+- **Then your repositories.** Setup ends on your five GitHub repositories pushed to last, under **What are we working on?**, and nothing to type.
   Pick one and Malini clones it, starts a workstream in it and opens that workstream.
   **More repositories** opens **Find a repository** in the command center (**⌘K**), where you type to search the rest, and a pick there starts a workstream too.
   **Open a folder** (**⌘O**) does the same for a repository already on your Mac.

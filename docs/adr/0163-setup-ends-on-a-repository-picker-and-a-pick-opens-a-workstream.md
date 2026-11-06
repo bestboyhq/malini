@@ -14,7 +14,7 @@ The three setup steps, ⌘K's command center and **Find a repository** from 0159
 
 - Setup creates no chat: `finishOnboardingCommand` only marks setup finished, and `RepositoriesPage` shows `FirstRepositoryPicker` in place of its empty state while Malini has no repositories.
   A `picking` flag keeps the picker up until the route changes, so the first connected repository does not swap it for the list before its workstream opens.
-- `FirstRepositoryPicker` is the heading "What are you working on?" over one card: the first five rows `repositories.list-github-repositories` returns, then **More repositories ⌘K**, **Open a folder ⌘O** and **New repository**.
+- `FirstRepositoryPicker` is the heading "What are we working on?" over one card: the first five rows `repositories.list-github-repositories` returns, then **More repositories ⌘K**, **Open a folder ⌘O** and **New repository**.
   Signed out of GitHub, `GitHubSetup` sits above a card holding only **Open a folder**.
 - Every way in starts a workstream: `RepositoryConnectOptions.open` is `'repository'` or `'workstream'`, and with `'workstream'` `connectRepositoryCommand` runs `createWorkstreamForRepositoryCommand` instead of `prepareRepositoryCommand`, so the workstream's own setup clones the repository, once, and opens it while it shows "Setting up".
   The picker's rows pass it to `pickGithubRepositoryCommand`, **Open a folder** to `openRepositoryFolderCommand`, and `CommandCenterDialog` passes it to every pick, URL and new repository while `onboardingQuery.data.shown` is `'picker'`; ⌘O and the menus' **Open Folder…** reach the same answer through `answerRepositoryFolderRequestCommand`.
