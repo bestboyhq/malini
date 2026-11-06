@@ -45,7 +45,9 @@ const LLMS: Link = { title: 'llms.txt', href: resolve('/llms.txt'), reload: true
 const LLMS_FULL: Link = { title: 'llms-full.txt', href: resolve('/llms-full.txt'), reload: true };
 const MARKDOWN: Link = { title: 'Docs as markdown', href: `${docHref('/docs')}.md`, reload: true };
 
-const BESTBOY_GITHUB = 'https://github.com/bestboyhq';
+const RELEASES: Link = { title: 'Releases', href: `${GITHUB_URL}/releases` };
+const DECISIONS: Link = { title: 'Decisions', href: `${GITHUB_URL}/tree/main/docs/adr` };
+const ISSUES: Link = { title: 'Issues', href: `${GITHUB_URL}/issues` };
 
 export const APPS: Menu = {
 	id: 'apps',
@@ -124,38 +126,36 @@ export const MENUS: readonly Menu[] = [
 				label: 'Docs',
 				links: [
 					{
-						title: 'Malini docs',
-						href: docHref('/docs'),
-						line: 'Install, workstreams, jobs, and extensions',
+						title: 'Install',
+						href: docHref('/docs/install'),
+						line: 'Connect Claude Code and GitHub',
 					},
 					{
-						title: 'Tony docs',
-						href: `${BESTBOY_URL}/tony/docs`,
-						line: 'Install, languages, your words, and privacy',
+						title: 'Agent tools',
+						href: docHref('/docs/agent-tools'),
+						line: 'A shared browser, secrets, and jobs',
 					},
 					{
-						title: 'Grip on GitHub',
-						href: `${BESTBOY_GITHUB}/grip#readme`,
-						line: 'Capture, edit, and share, in its README',
+						title: 'Extensions',
+						href: docHref('/docs/extensions'),
+						line: 'MCP servers and skills for every agent',
+					},
+					{
+						title: 'Events',
+						href: docHref('/docs/reference/events'),
+						line: 'Every event a job can start on',
 					},
 				],
 			},
 			{
 				label: 'For agents',
 				links: [
-					{
-						title: 'llms.txt',
-						href: `${BESTBOY_URL}/llms.txt`,
-						line: "Every app's docs, as markdown for agents",
-					},
-					{
-						title: 'Malini in one file',
-						href: LLMS_FULL.href,
-						reload: true,
-						line: "All its docs at once, for an agent's context",
-					},
+					{ ...LLMS, line: 'Every docs page, as markdown' },
+					{ ...LLMS_FULL, line: 'All the docs in one file, for agents' },
+					{ ...MARKDOWN, line: 'Add .md to any docs page' },
 				],
 			},
+			{ label: 'Project', plain: true, links: [RELEASES, DECISIONS, ISSUES] },
 		],
 	},
 ];
@@ -192,9 +192,9 @@ export const SITEMAP: readonly Readonly<{ label: string; links: readonly Link[] 
 		label: 'Project',
 		links: [
 			{ title: 'Source code', href: GITHUB_URL },
-			{ title: 'Releases', href: `${GITHUB_URL}/releases` },
-			{ title: 'Decisions', href: `${GITHUB_URL}/tree/main/docs/adr` },
-			{ title: 'Issues', href: `${GITHUB_URL}/issues` },
+			RELEASES,
+			DECISIONS,
+			ISSUES,
 			{ title: 'bestboy.dev', href: BESTBOY_URL },
 		],
 	},
