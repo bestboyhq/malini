@@ -15,7 +15,7 @@ declare global {
 	var subagentTitles: string[];
 }
 
-test('each subagent folds into one live line that ticks through its steps, then opens on its report', async () => {
+test('parallel subagents tick under one live parent line, fold into it once back, and open on their reports', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -43,11 +43,17 @@ test('each subagent folds into one live line that ticks through its steps, then 
 		});
 		await sendPrompt(page, 'SUBAGENTS');
 
+		const group = page.getByTestId('subagent-group');
+		const parent = group.getByTestId('subagent-group-summary');
 		const rows = page.getByTestId('subagent-row');
 		const auth = rows.filter({ hasText: 'Map the auth flow' });
 		const tests = rows.filter({ hasText: 'Audit the auth tests' });
 		const release = (): void => writeFileSync(join(app.home, 'release-subagent'), '');
-		await expect(rows).toHaveCount(2, { timeout: 20_000 });
+		await expect(group.getByTestId('subagent-row')).toHaveCount(2, { timeout: 20_000 });
+		await expect(parent).toHaveAttribute('aria-expanded', 'true');
+		await expect(group.getByTestId('subagent-group-title')).toContainText('2 subagents');
+		await expect(group.getByTestId('subagent-group-ticker')).toHaveText('0 of 2 back');
+		await expect(group.getByTestId('subagent-group-meta')).toHaveText(/^\d+s$/u);
 		await expect(auth).toHaveAttribute('data-tool-status', 'running');
 		await expect(auth.getByTestId('subagent-ticker')).toHaveText('Read · src/auth.ts');
 		await expect(auth.getByTestId('subagent-meta')).toHaveText(/^1 step · \d+s$/u);
@@ -69,14 +75,24 @@ test('each subagent folds into one live line that ticks through its steps, then 
 
 		release();
 
-		await expect(auth).toHaveAttribute('data-tool-status', 'completed', { timeout: 20_000 });
-		await expect(auth.getByTestId('subagent-ticker')).toHaveText('Auth runs through src/auth.ts');
-		await expect(auth.getByTestId('subagent-meta')).toContainText('2 steps');
-		await expect(tests.getByTestId('subagent-ticker')).toHaveText('Two specs cover sign-in.');
+		await expect(group.getByTestId('subagent-group-ticker')).toHaveText('2 of 2 back', {
+			timeout: 20_000,
+		});
+		await expect(parent).toHaveAttribute('aria-expanded', 'false');
+		await expect(rows).toHaveCount(0);
+		await expect(group.getByTestId('subagent-group-meta')).toHaveText(/^\d+ steps/u);
 		await expect(
 			page.getByTestId('markdown-text').getByText('Both agents are back.', { exact: false }),
 		).toBeVisible();
 		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
+		await captureFlow(app, 'subagents-folded');
+
+		await parent.click();
+
+		await expect(auth).toHaveAttribute('data-tool-status', 'completed');
+		await expect(auth.getByTestId('subagent-ticker')).toHaveText('Auth runs through src/auth.ts');
+		await expect(auth.getByTestId('subagent-meta')).toContainText('2 steps');
+		await expect(tests.getByTestId('subagent-ticker')).toHaveText('Two specs cover sign-in.');
 
 		await auth.getByTestId('subagent-summary').click();
 

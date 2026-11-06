@@ -11,6 +11,7 @@ A background agent also outlives a handoff (0009, 0047), so its later steps land
 The user wanted each subagent to be "a stable line with load there and those beautiful vertically swapping lines", like a thinking row.
 Claude Code starts the Agent tool in the background by default, so each subagent also showed in the background tray above the composer, once as its row and once as a task.
 The row's swapped label also flipped in whole, where the thinking row's line unfolds word by word.
+Several subagents started together still read as unrelated rows, so the user asked for them slightly indented under one line they fold into once they finish.
 
 ## Decision
 
@@ -35,10 +36,18 @@ The row's swapped label also flipped in whole, where the thinking row's line unf
   `trayWork` in `background-work.ts` leaves out of the tray every agent task whose `toolCallId` has a row; the tray keeps background commands and other tasks, and the status line still counts the agents.
   A running row shows its elapsed time, ticking each second, and a stop button for the task `agentTaskOf` finds, which sends `stop_task`.
   A task the user stopped ends the row as completed with "Stopped. No hard feelings", not as failed: the transcript turns a `stopped` task notification without a `reason` into `tool.completed`.
+- **Parallel subagents sit under one live line.**
+  `groupSubagents` in `activity-group.ts` turns two or more subagents in a row into a `subagent-group`, on the live run as on older ones, and `withPendingRows` lets an agent whose input still streams join it.
+  `SubagentGroup.svelte` draws that line like a subagent row: the busy icon, "3 subagents" shimmering, a ticker that counts "2 of 3 back", and the elapsed time; the agents sit under it, indented to its title, with no rail.
+  `ExpandMark` keeps its icon while such a line is open, so the busy icon shows the whole run.
+  Once all are back, the line folds 700 ms later, keeps "3 of 3 back" with the summed steps and the time from the first start to the last end, and a click opens it again; a toggle of the user's own wins and persists in `expandedActivityGroups`.
+  A lone subagent stays its own row.
+  Each row keeps the stop button's slot after its task ends, so the counts and times of a group line up.
 
 ## Consequences
 
 - A chat with subagents reads as one line per agent, and the steps are one click away.
 - A subagent's text and thinking are still dropped by the transcript; only its tool calls and its report show.
 - Both projectors must agree on placement: `incremental-run-timeline.test.ts` ("folds every subagent step into its agent row, live and replayed, across a handoff") checks every prefix of a handed-off background agent against the canonical fold.
-- Enforced also by `transcript.test.ts` ("nests subagent tool calls under the task that spawned them", "ends a background agent the user stopped as stopped, not as failed"), `background-work.test.ts` (`trayWork`), `instructions.test.ts`, and `tests/e2e/subagents.spec.ts` and `tests/e2e/background-agents.spec.ts` on the fake bridge's `SUBAGENTS` and `BACKGROUND_AGENT` directives.
+- Two agents a few seconds apart briefly read as one row before the second joins it under the line.
+- Enforced also by `transcript.test.ts` ("nests subagent tool calls under the task that spawned them", "ends a background agent the user stopped as stopped, not as failed"), `background-work.test.ts` (`trayWork`), `activity-group.test.ts` ("groupRunTimeline subagents"), `subagent-row-model.test.ts`, `instructions.test.ts`, and `tests/e2e/subagents.spec.ts` and `tests/e2e/background-agents.spec.ts` on the fake bridge's `SUBAGENTS` and `BACKGROUND_AGENT` directives.

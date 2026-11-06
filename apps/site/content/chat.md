@@ -254,6 +254,7 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.
   Click it for its prompt, every step, and its report.
+  Subagents that run side by side sit under one line, such as "3 subagents · 2 of 3 back", and fold into it once all are back; click it to see them again.
   Malini asks the agent to run the independent parts of a task as parallel subagents.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.

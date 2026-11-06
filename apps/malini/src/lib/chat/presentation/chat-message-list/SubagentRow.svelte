@@ -132,6 +132,8 @@
 					<Icon name="stop" size={12} />
 				</IconButton>
 			</Tooltip>
+		{:else}
+			<span class="w-5 shrink-0" aria-hidden="true"></span>
 		{/if}
 	</div>
 	{#if expanded}

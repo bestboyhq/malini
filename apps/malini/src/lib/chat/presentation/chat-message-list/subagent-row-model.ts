@@ -1,3 +1,4 @@
+import { formatToolDuration } from '../render-state';
 import type { SubagentStep, SubagentTimelineItem } from '../run-timeline';
 import {
 	toolActivityLabel,
@@ -53,6 +54,35 @@ export function elapsedSeconds(startedAt: number | null, nowMs: number): string 
 export function stepCount(count: number): string | null {
 	if (count === 0) return null;
 	return `${count} ${count === 1 ? 'step' : 'steps'}`;
+}
+
+export function subagentGroupTitle(agents: readonly SubagentTimelineItem[]): string {
+	return `${agents.length} subagents`;
+}
+
+export function subagentGroupTicker(agents: readonly SubagentTimelineItem[]): string {
+	const back = agents.filter((agent) => agent.tool.status !== 'running').length;
+	return `${back} of ${agents.length} back`;
+}
+
+export function subagentGroupMeta(
+	agents: readonly SubagentTimelineItem[],
+	nowMs: number,
+	waiting: boolean,
+): string | null {
+	const starts = agents.flatMap((agent) => agent.tool.startedAt ?? []);
+	const startedAt = starts.length > 0 ? Math.min(...starts) : null;
+	if (agents.some((agent) => agent.tool.status === 'running')) {
+		return waiting ? 'waiting' : elapsedSeconds(startedAt, nowMs);
+	}
+	const ends = agents.flatMap((agent) => agent.tool.completedAt ?? []);
+	const took =
+		startedAt === null || ends.length < agents.length
+			? null
+			: formatToolDuration(Math.max(0, Math.max(...ends) - startedAt));
+	const steps = stepCount(agents.reduce((sum, agent) => sum + agent.steps.length, 0));
+	const parts = [steps, took].filter((part) => part !== null);
+	return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
