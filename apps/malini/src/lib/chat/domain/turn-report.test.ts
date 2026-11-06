@@ -84,7 +84,9 @@ describe('turn report', () => {
 
 	it('drops the footer of a report that is not the turn card, and leaves prose alone', () => {
 		expect(
-			withoutReportFooter('I started the agent.\n\nOutcome: The agent is running\nNeeds: nothing\n'),
+			withoutReportFooter(
+				'I started the agent.\n\nOutcome: The agent is running\nNeeds: nothing\n',
+			),
 		).toBe('I started the agent.');
 		expect(withoutReportFooter('Outcome: The agent is running')).toBe('');
 		expect(withoutReportFooter('Clean.\n\nCommit: Fix the guard')).toBe(
