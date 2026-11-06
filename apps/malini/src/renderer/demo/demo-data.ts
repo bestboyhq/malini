@@ -169,9 +169,8 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 		runs: [
 			{
 				id: 'run-grip-captions-1',
-				prompt:
-					'Captions show up a beat after the word is spoken. Make them land on the word, and record a clip so I can see it.',
-				startedAt: at('10:14'),
+				prompt: 'Captions show up a beat after the word is spoken. Make them land on the word.',
+				startedAt: at('09:41'),
 				tools: [
 					{ name: 'Read', input: { file_path: 'src/engine/transcript/index.ts' } },
 					{ name: 'Grep', input: { pattern: 'endMs', path: 'src/engine/transcript' } },
@@ -188,6 +187,93 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 						input: { command: 'npm test -- transcript', description: 'Run the transcript tests' },
 						output: '✓ src/engine/transcript/index.test.ts (14 tests) 380ms',
 					},
+				],
+				report: [
+					'- Changed: a caption shows when its word starts, 180 ms sooner than before',
+					'- Verified: `npm test -- transcript` passes, 3 new cases on real recordings',
+					'- Next: hold each caption until the next word starts, so short words do not flash',
+					'',
+					'Outcome: Captions land on the word as it is spoken',
+					'Needs: nothing',
+					'Commit: fix(captions): show each word when it starts',
+				].join('\n'),
+				usage: { inputTokens: 47_820, outputTokens: 1_730 },
+			},
+			{
+				id: 'run-grip-captions-2',
+				prompt: 'Hold each caption until the next word starts, so short words do not flash',
+				startedAt: at('09:52'),
+				tools: [
+					{
+						name: 'Edit',
+						input: {
+							file_path: 'src/engine/transcript/index.ts',
+							old_string: 'const hiddenAt = word.endMs;',
+							new_string: 'const hiddenAt = Math.max(next.startMs, word.startMs + 120);',
+						},
+					},
+					{
+						name: 'Bash',
+						input: { command: 'npm test -- transcript', description: 'Run the transcript tests' },
+						output: '✓ src/engine/transcript/index.test.ts (16 tests) 410ms',
+					},
+				],
+				report: [
+					'- Changed: a caption stays up until the next word starts, never under 120 ms',
+					'- Verified: no caption in the demo clip shows for less than 120 ms',
+					'',
+					'Outcome: Short words stay up long enough to read',
+					'Needs: nothing',
+					'Commit: fix(captions): hold each word until the next one starts',
+				].join('\n'),
+				usage: { inputTokens: 51_240, outputTokens: 1_180 },
+			},
+			{
+				id: 'run-grip-captions-3',
+				prompt: 'Before we lock this in, show me a few caption styles on the real clip.',
+				startedAt: at('10:03'),
+				tools: [
+					{ name: 'Read', input: { file_path: 'src/windows/dev/labs/Transcript.svelte' } },
+					{
+						name: 'Bash',
+						input: {
+							command: 'npx tsx scripts/readme/captions/demo.ts --styles word,line,subtitles',
+							description: 'Draw each caption style on the clip',
+						},
+						output: 'Saved 3 frames to .context/',
+					},
+				],
+				report: [
+					'![Variant A: One word - the word being said, big, as today](.context/grip-caption-word.webp)',
+					'![Variant B: Line - the whole line, lit up to the word being said](.context/grip-caption-line.webp)',
+					'![Variant C: Subtitles - two quiet lines, like a film](.context/grip-caption-subtitles.webp)',
+					'',
+					'- Changed: nothing in the code, each style is drawn on the same frame of the clip',
+					'- Verified: all three fit the frame at 1152 by 720',
+					'',
+					'Outcome: Three caption styles on the real clip',
+					'Needs: pick a caption style',
+				].join('\n'),
+				usage: { inputTokens: 58_610, outputTokens: 2_020 },
+			},
+			{
+				id: 'run-grip-captions-4',
+				prompt: 'Go with variant A (One word).\nWhy: Big words read on a phone',
+				startedAt: at('10:14'),
+				tools: [
+					{
+						name: 'Edit',
+						input: {
+							file_path: 'src/engine/transcript/index.ts',
+							old_string: 'const words = line.words;',
+							new_string: 'const words = [word];',
+						},
+					},
+					{
+						name: 'Bash',
+						input: { command: 'npm test -- transcript', description: 'Run the transcript tests' },
+						output: '✓ src/engine/transcript/index.test.ts (17 tests) 420ms',
+					},
 					{
 						name: 'Bash',
 						input: {
@@ -200,16 +286,16 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 				report: [
 					'![Captions landing on each word as it is spoken](.context/grip-captions.mp4)',
 					'',
-					'- Changed: a caption shows when its word starts, 180 ms sooner than before',
+					'- Changed: one word at a time is the only style, sized to the window',
 					'- Verified: `npm test -- transcript` passes, and the clip above is a real recording',
-					'- Next: hold each caption until the next word starts, so short words do not flash',
+					'- Next: hold the last word of a sentence a beat longer',
 					'',
-					'Outcome: Captions land on the word as it is spoken',
+					'Outcome: Captions pop one word at a time, on the beat',
 					'Needs: nothing',
-					'Commit: fix(captions): show each word when it starts',
-					'Pull request: fix(captions): show each word when it starts',
+					'Commit: feat(captions): show one word at a time, on the beat',
+					'Pull request: feat(captions): show one word at a time, on the beat',
 				].join('\n'),
-				usage: { inputTokens: 47_820, outputTokens: 1_730 },
+				usage: { inputTokens: 49_370, outputTokens: 1_640 },
 			},
 		],
 	},
@@ -282,18 +368,6 @@ export const HERO_THOUGHT =
 export type StartedWorkstream = DemoWorkstream &
 	Readonly<{ workMs: number; thought: string; opens?: string }>;
 
-const LEAD_REPORT = [
-	'![Variant A: Icon - the Malini icon on the brand horizon](.context/malini-og-icon.webp)',
-	'![Variant B: Product - the real app beside the headline](.context/malini-og-product.webp)',
-	'![Variant C: Type - one loud line, the family of icons below](.context/malini-og-type.webp)',
-	'',
-	'- Changed: nothing on any `main`, the prototypes live in their workstreams',
-	'- Verified: malini, grip and tony each rendered all three at 1200 by 630',
-	'',
-	'Outcome: Three OG directions for every Bestboy site are ready',
-	'Needs: pick the direction for malini, grip and tony',
-].join('\n');
-
 const LEAD_WORKSTREAM: DemoWorkstream = {
 	id: 'ws-og-lead',
 	projectId: 'malini-lead-space',
@@ -309,10 +383,70 @@ const LEAD_WORKSTREAM: DemoWorkstream = {
 			id: 'run-og-lead-1',
 			prompt:
 				'I don’t like our OG images. Show me directions we could take them, across all our sites.',
+			startedAt: at('10:12'),
+			tools: [],
+			report: [
+				'![Variant A: Gradient - the name on the brand gradient](.context/malini-og-gradient.webp)',
+				'![Variant B: Mascot - each product drawn as a character](.context/malini-og-mascot.webp)',
+				'![Variant C: Terminal - the install command, big](.context/malini-og-terminal.webp)',
+				'',
+				'- Changed: nothing on any `main`, the prototypes live in their workstreams',
+				'- Verified: malini, grip and tony each rendered all three at 1200 by 630',
+				'',
+				'Outcome: Three OG directions for every Bestboy site',
+				'Needs: pick the direction for malini, grip and tony',
+			].join('\n'),
+			usage: { inputTokens: 21_900, outputTokens: 1_640 },
+		},
+		{
+			id: 'run-og-lead-2',
+			prompt:
+				'None of these variants fit; make new ones.\nWhy: They look like every other dev tool',
+			startedAt: at('10:20'),
+			tools: [],
+			report: [
+				'![Variant A: Icon - the Malini icon on the brand horizon](.context/malini-og-icon.webp)',
+				'![Variant B: Product - the real app beside the headline](.context/malini-og-product.webp)',
+				'![Variant C: Type - one loud line, the family of icons below](.context/malini-og-type.webp)',
+				'',
+				'- Changed: nothing on any `main`, three new prototypes in each workstream',
+				'- Verified: malini, grip and tony each rendered all three at 1200 by 630',
+				'',
+				'Outcome: Three new directions, after none fit',
+				'Needs: pick the direction for malini, grip and tony',
+			].join('\n'),
+			usage: { inputTokens: 24_310, outputTokens: 1_720 },
+		},
+		{
+			id: 'run-og-lead-3',
+			prompt: 'Go with variant B (Product).\nWhy: Show the app, not a logo',
+			startedAt: at('10:31'),
+			tools: [],
+			report: [
+				'- Changed: started a workstream in malini, grip and tony to build the Product card',
+				'- Verified: each one renders its own app, not a copy of Malini',
+				'',
+				'Outcome: The Product card is building in malini, grip and tony',
+				'Needs: nothing',
+			].join('\n'),
+			usage: { inputTokens: 26_050, outputTokens: 1_190 },
+		},
+		{
+			id: 'run-og-lead-4',
+			prompt: 'Show me the winner on malini, before and after.',
 			startedAt: at('10:44'),
 			tools: [],
-			report: LEAD_REPORT,
-			usage: { inputTokens: 21_900, outputTokens: 1_640 },
+			report: [
+				'![Before: the Malini card, the hero cut to 1200 by 630](.context/malini-og-before.webp)',
+				'![After: the Product card, the real app beside the headline](.context/malini-og-product.webp)',
+				'',
+				'- Changed: malini, grip and tony share the Product card, each with its own app inside',
+				'- Verified: each site’s og test renders it at 1200 by 630',
+				'',
+				'Outcome: Every Bestboy site shares the Product card',
+				'Needs: nothing',
+			].join('\n'),
+			usage: { inputTokens: 29_870, outputTokens: 1_460 },
 		},
 	],
 };

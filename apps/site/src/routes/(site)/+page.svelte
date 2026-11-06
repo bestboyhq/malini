@@ -13,6 +13,7 @@
 	import DemoCard from '$lib/DemoCard.svelte';
 	import DemoTour from '$lib/DemoTour.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
+	import HarnessStack from '$lib/HarnessStack.svelte';
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
@@ -25,6 +26,7 @@
 	const BEATS = [
 		'how',
 		'plans',
+		'harness',
 		'opus',
 		'report',
 		'compare',
@@ -267,6 +269,19 @@
 	{/snippet}
 </SectionHeading>
 
+<SectionHeading
+	id="harness"
+	beat={beat('harness', 'Harness')}
+	split
+	title="Seven layers."
+	quiet="You use the top one."
+	description="A model at the bottom, Malini on top, and five layers of Claude Code, sandbox and plumbing in between. Swap the model. Nothing above it moves."
+>
+	{#snippet after()}
+		<HarnessStack />
+	{/snippet}
+</SectionHeading>
+
 <section id="opus" class="beat flush" aria-labelledby="opus-title">
 	<div class="wrap">
 		<BeatLabel {...beat('opus', 'Usage')} />
@@ -317,6 +332,7 @@
 	href={doc('chat#reports')}
 	linkLabel="How reports work"
 	checks={['Your turn shows only when it needs you', 'Ship a next step, or note it for later']}
+	tall
 	panel={reportPanel}
 />
 
@@ -366,6 +382,7 @@
 	href={doc('chat#variants')}
 	linkLabel="How variants work"
 	checks={['Pictures, recordings, or live pages', 'None fit? Run another round']}
+	tall
 	panel={variantsPanel}
 />
 
@@ -489,7 +506,7 @@
 {#snippet reportPanel()}
 	<DemoCard
 		workstream="ws-grip-captions"
-		title="A Malini report on Grip with a recording of the change"
+		title="A Malini report on Grip: the earlier turns, the caption style you picked, and a recording of the change"
 	/>
 {/snippet}
 
@@ -519,8 +536,8 @@
 {#snippet variantsPanel()}
 	<DemoCard
 		workstream="ws-og-lead"
-		title="A Malini report with three Open Graph image directions to pick from"
-		play="cycle"
+		title="A Malini report on Open Graph images: a round where none fit, the direction you picked, and the winner before and after"
+		play="sweep"
 	/>
 {/snippet}
 
