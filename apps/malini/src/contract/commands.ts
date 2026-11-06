@@ -16,6 +16,7 @@ import type {
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
 	ClaudeAccountSwitchOutcome,
+	ChatGptSignInOutcome,
 	ClaudeSignInOutcome,
 	ModelProviderRecord,
 	ProviderCapability,
@@ -471,6 +472,9 @@ export interface ContractCommands {
 		result: ClaudeAccountSwitchOutcome;
 	};
 	'providers.cancel-claude-sign-in': { args: undefined; result: void };
+	'providers.sign-in-to-chatgpt': { args: undefined; result: ChatGptSignInOutcome };
+	'providers.cancel-chatgpt-sign-in': { args: undefined; result: void };
+	'providers.sign-out-of-chatgpt': { args: undefined; result: void };
 	'providers.list': { args: undefined; result: ModelProviderRecord[] };
 	'providers.refresh-models': { args: undefined; result: ModelProviderRecord[] };
 	'providers.save-key': { args: ProviderKeyArgs; result: void };
@@ -821,6 +825,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.sign-in-to-claude',
 	'providers.switch-claude-account',
 	'providers.cancel-claude-sign-in',
+	'providers.sign-in-to-chatgpt',
+	'providers.cancel-chatgpt-sign-in',
+	'providers.sign-out-of-chatgpt',
 	'providers.list',
 	'providers.refresh-models',
 	'providers.save-key',

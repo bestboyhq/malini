@@ -23,9 +23,14 @@ function openCodePlan(providers: ProviderKeys): ProviderPlan | null {
 }
 
 describe('ProviderKeys', () => {
-	it('lists Claude and the seeded DeepSeek and OpenCode models without a key', () => {
+	it('lists Claude and the seeded DeepSeek, OpenCode and ChatGPT models without a key', () => {
 		const providers = keys().list();
-		expect(providers.map((provider) => provider.id)).toEqual(['claude', 'deepseek', 'opencode']);
+		expect(providers.map((provider) => provider.id)).toEqual([
+			'claude',
+			'deepseek',
+			'opencode',
+			'chatgpt',
+		]);
 		expect(providers[1]).toEqual({
 			id: 'deepseek',
 			name: 'DeepSeek',
@@ -48,6 +53,7 @@ describe('ProviderKeys', () => {
 				},
 			],
 			keySaved: false,
+			account: null,
 			plan: null,
 		});
 	});
@@ -185,12 +191,15 @@ describe('ProviderKeys', () => {
 		});
 	});
 
-	it('removes the key and refuses a model the provider does not offer', async () => {
+	it('removes the key and refuses a model the provider does not offer to a new session', async () => {
 		const providers = keys();
 		await providers.save('deepseek', 'sk-test');
 		await expect(providers.environment('deepseek', 'deepseek-chat')).rejects.toThrow(
 			'DeepSeek does not offer model `deepseek-chat`',
 		);
+		await expect(
+			providers.environment('deepseek', 'deepseek-chat', 'reopened'),
+		).resolves.toMatchObject({ ANTHROPIC_MODEL: 'deepseek-chat' });
 		providers.delete('deepseek');
 		expect(providers.list()[1]?.keySaved).toBe(false);
 		await expect(providers.environment('deepseek', 'deepseek-v4-pro')).rejects.toThrow(

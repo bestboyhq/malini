@@ -130,10 +130,11 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 
 ## Model and effort per prompt
 
-Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, or a model from OpenCode, on whichever OpenCode plan your key is on, and an effort from Low to Max, for every prompt.
+Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, a model from OpenCode, on whichever OpenCode plan your key is on, or a GPT model on [your ChatGPT plan](#chatgpt-plan), and an effort from Low to Max, for every prompt.
 The picker lists models, not providers: each model once, the newest of its family, so Opus 5.5 shows and Opus 4.8 does not, and everyone sees the same list whatever they connected.
 Each row shows the icon of the provider that runs it.
-A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, with what each one needs, and pick one.
+A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, or ChatGPT and OpenCode for GPT-6 Luna, with what each one needs, and pick one.
+The row names the model the provider you picked runs, so a family two providers sell at different versions shows the one you will get.
 Type in it to filter by model or provider, and press Enter to pick the first match.
 **Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
@@ -143,7 +144,7 @@ A new chat starts with the model, effort, plan mode and report you picked last, 
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
 Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
 A job's chat shows the model, effort and plan mode its job ran with, so a reply you send there runs the same way unless you change it.
-Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, or a Claude sign-in.
+Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
 Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
@@ -151,9 +152,25 @@ OpenCode sells Go, a subscription, and Console, credits per request, and one key
 DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
 Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools, and leaves out free ones, which OpenCode keeps to its own apps.
 
+## ChatGPT plan
+
+A ChatGPT plan runs GPT models in Claude Code, with Claude Code's tools, subagents and plan mode, and no Codex.
+Pick a GPT model, choose **ChatGPT** where the model shows who runs it, and send.
+The first send asks you to sign in: **Continue with ChatGPT** opens your browser on OpenAI's own sign-in, and the prompt goes once you are back.
+Go, Plus and Pro plans can sign in; on a Free plan, OpenAI's page offers **Upgrade** instead of **Continue**.
+**Settings → Providers** signs in and out too, and lists the models your plan runs, which Malini reads from OpenAI after you sign in and at most once an hour.
+A plan does not run every GPT model: send with one it lacks and Malini keeps your prompt and says "Your ChatGPT plan does not include this model." until you pick another.
+Malini keeps your ChatGPT sign-in encrypted on your Mac, and it never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server talks to OpenAI.
+The context card shows your ChatGPT account with "Using ChatGPT plan" and **Manage usage**, which opens your usage on chatgpt.com, since ChatGPT does not tell apps how much of the plan is left.
+When you hit the limit, the turn [pauses](#limits-and-outages) the way a rate limit does, since ChatGPT does not say when the limit resets, and the context card says "You hit your ChatGPT usage limit." until a run goes through again.
+Each run counts against your ChatGPT plan, not an API bill, so the context card shows no cost for it.
+A job on a GPT model runs on your plan too, once you pick ChatGPT for it and turn on its trigger.
+Some of Claude Code needs Anthropic's servers and does not run on ChatGPT: web search, and Anthropic's prompt caching, which OpenAI's own caching replaces.
+The thinking you see is OpenAI's summary of the model's reasoning.
+
 ## Claude accounts
 
-Point at the gauge in the composer for **Providers**: only the providers you connected, Claude when Claude Code is signed in, and DeepSeek or OpenCode once its key is saved.
+Point at the gauge in the composer for **Providers**: only the providers you connected, Claude when Claude Code is signed in, ChatGPT once you sign in to it, and DeepSeek or OpenCode once its key is saved.
 Under Claude sits the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac.
 Usage comes from the account's runs, so a fresh account shows it after its next run.
 The same accounts sit in **Settings → Providers**, and **Accounts…** in Malini's menu bar icon opens it.

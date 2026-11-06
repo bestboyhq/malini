@@ -3,10 +3,13 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { BusyIcon } from '$hyper-ui/icons';
 	import {
+		cancelChatGptSignInCommand,
 		cancelClaudeSignInCommand,
+		chatGptSignInQuery,
 		claudeSignInQuery,
 		providerKeyUrl,
 		saveProviderKeyCommand,
+		signInToChatGptCommand,
 		signInToClaudeCommand,
 		type ModelAccess,
 	} from '$shared/providers/providers.api';
@@ -29,6 +32,7 @@
 
 	const signIn = $derived(claudeSignInQuery.data);
 	const waitingForSignIn = $derived(signIn !== 'idle' || busy);
+	const waitingForChatGpt = $derived(chatGptSignInQuery.waiting);
 	const hasDraft = $derived(draft.trim().length > 0);
 	const keyUrl = $derived(access.kind === 'needs-key' ? providerKeyUrl(access.providerId) : null);
 
@@ -51,12 +55,12 @@
 		}
 	}
 
-	async function connectWithClaude(): Promise<void> {
+	async function connectWith(signInCommand: () => Promise<boolean>): Promise<void> {
 		if (busy) return;
 		busy = true;
 		error = null;
 		try {
-			if (await signInToClaudeCommand()) onconnected();
+			if (await signInCommand()) onconnected();
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
 		} finally {
@@ -66,6 +70,7 @@
 
 	function cancel(): void {
 		if (signIn !== 'idle') cancelClaudeSignInCommand();
+		if (waitingForChatGpt) cancelChatGptSignInCommand();
 		oncancel();
 	}
 
@@ -132,6 +137,26 @@
 				Continue in your browser.
 			</div>
 		{/if}
+	{:else if access.kind === 'chatgpt-signed-out'}
+		<h3 class="text-fg-default text-[13px] leading-5 font-medium">Send with {modelLabel}</h3>
+		<p class="text-fg-tertiary mt-0.5 mb-3 text-xs leading-5">
+			Sign in to ChatGPT to run this message on your plan. It opens your browser.
+		</p>
+		{#if waitingForChatGpt}
+			<div
+				class="text-fg-tertiary flex items-center gap-2 text-xs leading-5"
+				role="status"
+				data-testid="provider-connect-waiting"
+			>
+				<BusyIcon size={14} />
+				Continue in your browser.
+			</div>
+		{/if}
+	{:else if access.kind === 'chatgpt-model-missing'}
+		<h3 class="text-fg-default text-[13px] leading-5 font-medium">Send with {modelLabel}</h3>
+		<p class="text-fg-tertiary mt-0.5 mb-3 text-xs leading-5">
+			Your ChatGPT plan does not include this model.
+		</p>
 	{:else if access.kind === 'claude-code-missing'}
 		<h3 class="text-fg-default text-[13px] leading-5 font-medium">Send with {modelLabel}</h3>
 		<p class="text-fg-tertiary mt-0.5 mb-3 text-xs leading-5">
@@ -185,10 +210,31 @@
 					variant="primary"
 					size="sm"
 					ariaBusy={busy}
-					onclick={() => void connectWithClaude()}
+					onclick={() => void connectWith(signInToClaudeCommand)}
 					data-testid="provider-connect-sign-in"
 				>
 					Sign in with Claude
+				</Button>
+			{/if}
+		{:else if access.kind === 'chatgpt-signed-out'}
+			{#if waitingForChatGpt}
+				<Button
+					variant="secondary"
+					size="sm"
+					ariaLabel="Cancel signing in to ChatGPT"
+					onclick={cancelChatGptSignInCommand}
+				>
+					Cancel sign-in
+				</Button>
+			{:else}
+				<Button
+					variant="primary"
+					size="sm"
+					ariaBusy={busy}
+					onclick={() => void connectWith(signInToChatGptCommand)}
+					data-testid="provider-connect-sign-in"
+				>
+					Continue with ChatGPT
 				</Button>
 			{/if}
 		{:else if access.kind === 'claude-code-missing'}

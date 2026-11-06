@@ -447,6 +447,13 @@ export function rowSummary(text: string): string {
 	return line;
 }
 
+export function pausedLine(text: string, resumesAt: string | null): string {
+	const summary = rowSummary(text);
+	return resumesAt === null
+		? summary
+		: `${summary.replace(/\.$/u, '')}, goes on by itself at ${resumesAt}`;
+}
+
 export function replyParts(text: string): Readonly<{ summary: string; body: string }> {
 	const lines = text.replace(/\r\n?/gu, '\n').split('\n');
 	let end = lines.length;

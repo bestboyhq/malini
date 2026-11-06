@@ -2,6 +2,7 @@ import type {
 	AgentModelInfo,
 	ModelProviderKind,
 	ModelProviderRecord,
+	ProviderAccount,
 	ProviderCapability,
 	ProviderPlan,
 } from '$contract/agent';
@@ -15,6 +16,8 @@ export const DEFAULT_PROVIDER_ID = CLAUDE_PROVIDER_ID;
 export const DEEPSEEK_PROVIDER_ID = 'deepseek';
 export const OPENCODE_PROVIDER_ID = 'opencode';
 export const OPENCODE_GO_PROVIDER_ID = 'opencode-go';
+export const CHATGPT_PROVIDER_ID = 'chatgpt';
+export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 
 const PROVIDER_KEY_URLS: Readonly<Record<string, string>> = {
 	[DEEPSEEK_PROVIDER_ID]: 'https://platform.deepseek.com/api_keys',
@@ -47,6 +50,7 @@ export const CLAUDE_PROVIDER: ModelProviderRecord = {
 	baseUrl: null,
 	models: [],
 	keySaved: false,
+	account: null,
 	plan: null,
 };
 
@@ -63,6 +67,7 @@ export interface ProviderGroup {
 	models: readonly AgentModelInfo[];
 	ready: boolean;
 	message: string;
+	account: ProviderAccount | null;
 	plan: ProviderPlan | null;
 }
 
@@ -99,21 +104,32 @@ export function providerGroups(
 		models: claudeModels,
 		ready: capability?.state === 'ready',
 		message: capability?.message ?? 'Claude Code needs setup',
+		account: null,
 		plan: null,
 	};
 	const custom = providers
 		.filter((provider) => provider.id !== CLAUDE_PROVIDER_ID)
-		.map((provider) => ({
-			id: provider.id,
-			name: provider.name,
-			kind: provider.kind,
-			baseUrl: provider.baseUrl,
-			models: provider.models,
-			ready: provider.keySaved,
-			message: provider.keySaved ? 'Ready' : `Add an API key for ${provider.name}`,
-			plan: provider.plan,
-		}));
+		.map((provider) => customGroup(provider));
 	return [claude, ...custom];
+}
+
+function customGroup(provider: ModelProviderRecord): ProviderGroup {
+	const ready = provider.kind === 'chatgpt' ? provider.account !== null : provider.keySaved;
+	const missing =
+		provider.kind === 'chatgpt'
+			? `Sign in to ${provider.name}`
+			: `Add an API key for ${provider.name}`;
+	return {
+		id: provider.id,
+		name: provider.name,
+		kind: provider.kind,
+		baseUrl: provider.baseUrl,
+		models: provider.models,
+		ready,
+		message: ready ? 'Ready' : missing,
+		account: provider.account,
+		plan: provider.plan,
+	};
 }
 
 export function providerGroupFor(
@@ -128,6 +144,8 @@ export type ModelAccess =
 	| { readonly kind: 'checking' }
 	| { readonly kind: 'claude-code-missing' }
 	| { readonly kind: 'claude-signed-out' }
+	| { readonly kind: 'chatgpt-signed-out' }
+	| { readonly kind: 'chatgpt-model-missing' }
 	| {
 			readonly kind: 'needs-key';
 			readonly providerId: string;
@@ -159,6 +177,12 @@ export function modelAccess(
 			providerId: selection.provider,
 			providerName: selection.provider,
 		};
+	}
+	if (group.kind === 'chatgpt') {
+		if (!group.ready) return { kind: 'chatgpt-signed-out' };
+		return group.models.some((model) => model.id === selection.model)
+			? { kind: 'ready' }
+			: { kind: 'chatgpt-model-missing' };
 	}
 	return group.ready
 		? { kind: 'ready' }

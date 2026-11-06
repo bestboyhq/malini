@@ -15,10 +15,13 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
 	import {
+		CHATGPT_PROVIDER_ID,
+		CHATGPT_USAGE_URL,
 		ClaudeAccountList,
 		claudeCodeStatusQuery,
 		ProviderIcon,
 		providerGroupsQuery,
+		reloadModelProvidersCommand,
 		subscriptionBillingQuery,
 	} from '$shared/providers/providers.api';
 	import { goto } from '$shared/router/navigation';
@@ -43,9 +46,10 @@
 		envelopes: readonly EventEnvelope[];
 		sessionId?: SessionId | null;
 		workstreamId?: string | null;
+		provider?: string | null;
 	}
 
-	let { envelopes, sessionId = null, workstreamId = null }: Props = $props();
+	let { envelopes, sessionId = null, workstreamId = null, provider = null }: Props = $props();
 	let contextOpen = $state(false);
 	let mcpOpen = $state(false);
 	let nowMs = $state(Date.now());
@@ -69,8 +73,12 @@
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const signedIn = $derived(claudeStatus.kind === 'ready');
 	const keyedProviders = $derived(
-		providerGroupsQuery.data.filter((group) => group.kind !== 'claude' && group.ready),
+		providerGroupsQuery.data.filter((group) => group.kind === 'anthropic' && group.ready),
 	);
+	const chatGpt = $derived(
+		providerGroupsQuery.data.find((group) => group.kind === 'chatgpt' && group.ready) ?? null,
+	);
+	const showsRunCost = $derived(provider !== CHATGPT_PROVIDER_ID && !subscriptionBillingQuery.data);
 	const chatAccount = $derived(lastRunAccount(envelopes));
 	const ranOnOtherAccount = $derived(
 		claudeStatus.kind === 'ready' &&
@@ -109,6 +117,7 @@
 		if (!next) return;
 		mcpOpen = false;
 		nowMs = Date.now();
+		reloadModelProvidersCommand();
 		if (sessionId) refreshSessionStatusCommand(sessionId);
 	}
 
@@ -367,12 +376,12 @@
 					>
 						<h3 class="text-fg-default text-sm font-medium">Last run</h3>
 						<span class="text-fg-tertiary tabular-nums">
-							{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
+							{formatRunUsage(runUsage, showsRunCost)}
 						</span>
 					</section>
 				{/if}
 
-				{#if signedIn || keyedProviders.length > 0}
+				{#if signedIn || chatGpt || keyedProviders.length > 0}
 					<section class="border-border-subtle mt-3 border-t pt-3" aria-label="Connected providers">
 						<div class="flex items-center justify-between gap-3">
 							<h3 class="text-fg-default text-sm font-medium">Providers</h3>
@@ -399,7 +408,7 @@
 									</p>
 								{/if}
 								<ClaudeAccountList
-									class={['-mx-1.5 mt-0.5', keyedProviders.length === 0 && '-mb-1.5']}
+									class={['-mx-1.5 mt-0.5', !chatGpt && keyedProviders.length === 0 && '-mb-1.5']}
 								>
 									{#snippet current()}
 										{@render planUsageRows()}
@@ -407,8 +416,48 @@
 								</ClaudeAccountList>
 							</section>
 						{/if}
+						{#if chatGpt}
+							<section class={signedIn ? 'mt-2.5' : 'mt-1'} aria-label="ChatGPT account">
+								<h4 class="text-fg-secondary flex items-center gap-2 py-1 text-xs">
+									<ProviderIcon providerId={chatGpt.id} size={13} class="shrink-0" />
+									{chatGpt.name}
+								</h4>
+								<div class="mt-0.5 py-1 text-xs">
+									<div class="flex min-h-6 min-w-0 items-center gap-2">
+										<Icon name="check" size={14} class="text-success-content shrink-0" />
+										<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
+											{#if chatGpt.account?.email}
+												<SensitiveText text={chatGpt.account.email} />
+											{:else}
+												Signed in
+											{/if}
+										</span>
+										<a
+											href={CHATGPT_USAGE_URL}
+											target="_blank"
+											rel="noreferrer"
+											class="text-2xs text-fg-tertiary hover:text-fg-secondary shrink-0 underline-offset-2 hover:underline"
+										>
+											Manage usage
+										</a>
+									</div>
+									<p
+										class={[
+											'text-2xs pl-5.5 leading-4',
+											chatGpt.account?.usageLimitReachedAt
+												? 'text-warning-content'
+												: 'text-fg-tertiary',
+										]}
+									>
+										{chatGpt.account?.usageLimitReachedAt
+											? 'You hit your ChatGPT usage limit.'
+											: 'Using ChatGPT plan'}
+									</p>
+								</div>
+							</section>
+						{/if}
 						{#if keyedProviders.length > 0}
-							<div class={signedIn ? 'mt-2.5' : 'mt-1'}>
+							<div class={signedIn || chatGpt ? 'mt-2.5' : 'mt-1'}>
 								{#each keyedProviders as provider (provider.id)}
 									<div
 										class="text-fg-secondary flex items-center gap-2 py-1 text-xs"

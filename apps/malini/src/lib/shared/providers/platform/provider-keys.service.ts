@@ -1,4 +1,4 @@
-import type { ModelProviderRecord, ProviderPlan } from '$contract/agent';
+import type { ModelProviderRecord, ProviderAccount, ProviderPlan } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
 	CLAUDE_PROVIDER,
@@ -22,15 +22,34 @@ const MAX_API_KEY_LENGTH = 8_192;
 
 export type PlanDetector = (apiKey: string) => Promise<ProviderPlan | null>;
 
+export interface SignedInProvider {
+	account(): ProviderAccount | null;
+	endpoint(session: SessionOpening): Promise<Readonly<{ baseUrl: string; token: string }>>;
+}
+
+type SessionOpening = 'new' | 'reopened';
+
+const SIGNED_OUT: SignedInProvider = {
+	account: () => null,
+	endpoint: () => Promise.reject(new Error('Sign in to ChatGPT in Settings, then try again.')),
+};
+
 export class ProviderKeys {
 	readonly #db: MaliniDatabase;
 	readonly #cipher: () => Promise<SecretCipher>;
 	readonly #detectPlan: PlanDetector;
+	readonly #chatgpt: SignedInProvider;
 
-	constructor(db: MaliniDatabase, cipher: () => Promise<SecretCipher>, detectPlan: PlanDetector) {
+	constructor(
+		db: MaliniDatabase,
+		cipher: () => Promise<SecretCipher>,
+		detectPlan: PlanDetector,
+		chatgpt: SignedInProvider = SIGNED_OUT,
+	) {
 		this.#db = db;
 		this.#cipher = cipher;
 		this.#detectPlan = detectPlan;
+		this.#chatgpt = chatgpt;
 	}
 
 	list(): ModelProviderRecord[] {
@@ -45,6 +64,7 @@ export class ProviderKeys {
 					baseUrl: served.baseUrl,
 					models: [...served.models],
 					keySaved: provider.sealedKey !== null,
+					account: provider.kind === 'chatgpt' ? this.#chatgpt.account() : null,
 					plan: provider.plan,
 				};
 			});
@@ -90,18 +110,23 @@ export class ProviderKeys {
 		await this.#adoptPlan(provider).catch(() => undefined);
 	}
 
-	async environment(providerId: string, model: string): Promise<Record<string, string>> {
+	async environment(
+		providerId: string,
+		model: string,
+		session: SessionOpening = 'new',
+	): Promise<Record<string, string>> {
 		if (providerId === CLAUDE_PROVIDER_ID) return {};
 		const provider = this.#customProvider(providerId);
 		const served = this.#servedBy(provider);
-		if (!served.models.some((candidate) => candidate.id === model)) {
+		if (session === 'new' && !served.models.some((candidate) => candidate.id === model)) {
 			throw new Error(`${provider.name} does not offer model \`${model}\``);
 		}
+		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint(session) : null;
 		return providerEnvironment({
 			name: provider.name,
 			kind: provider.kind,
-			baseUrl: served.baseUrl,
-			apiKey: await this.#decryptedKey(provider),
+			baseUrl: endpoint?.baseUrl ?? served.baseUrl,
+			apiKey: endpoint?.token ?? (await this.#decryptedKey(provider)),
 			model,
 			subagentModel: served.models.some(({ id }) => id === served.subagentModel)
 				? served.subagentModel

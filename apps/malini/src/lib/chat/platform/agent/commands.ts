@@ -558,7 +558,7 @@ export async function getOrCreateAgentSession(
 		const environment =
 			existingModel === null
 				? {}
-				: await resolveProviderEnvironment(existing.provider, existingModel);
+				: await resolveProviderEnvironment(existing.provider, existingModel, 'reopened');
 		const command = startSessionCommand({
 			commandId: supervisor.nextCommandId(),
 			sessionId: existing.id,
@@ -609,7 +609,8 @@ export async function activateAgentSession(
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
 	if (!worktreeExists(appDataRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
-	const environment = model === null ? {} : await resolveProviderEnvironment(row.provider, model);
+	const environment =
+		model === null ? {} : await resolveProviderEnvironment(row.provider, model, 'reopened');
 	const worktree = worktreePath(appDataRoot, row.workstream_id);
 	const supervisor = await runtime.ensureReady();
 	const command = startSessionCommand({
