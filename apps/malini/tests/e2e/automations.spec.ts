@@ -132,7 +132,7 @@ test('the Automations page lists your automations then the built-in ones, drafts
 	}
 });
 
-test('a workstream lists only its live automations above the composer, asks its question there, holds a queued automation closed until it starts and drops it once cancelled, and the sidebar counts them', async () => {
+test('a workstream lists only its live automations above the composer, asks its question there, holds a queued automation closed until it starts and drops it once cancelled, and the top bar counts them', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -144,11 +144,11 @@ test('a workstream lists only its live automations above the composer, asks its 
 			WORKSTREAM,
 		);
 		await openWorkstream(page, seeded.workstreamId);
-		const sidebar = page.getByTestId('sidebar-automations-row');
-		await expect(sidebar).toHaveAccessibleName('Automations', { timeout: 20_000 });
+		const topBarAutomations = page.getByTestId('global-topbar-automations');
+		await expect(topBarAutomations).toHaveAccessibleName('Automations', { timeout: 20_000 });
 		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
 
-		await sidebar.click();
+		await topBarAutomations.click();
 		await expect(page.getByRole('navigation', { name: 'Automations' })).toBeVisible();
 		await draftAutomation(page, { name: 'Ask first', words: 'QUESTION before you start' });
 		await draftAutomation(page, { name: 'Keep going', words: 'HANG until stopped' });
@@ -156,7 +156,7 @@ test('a workstream lists only its live automations above the composer, asks its 
 		await runAutomation(page, 'Keep going');
 
 		await openWorkstream(page, seeded.workstreamId);
-		await expect(sidebar).toHaveAccessibleName(/^Automations, .*1 needs you$/u, {
+		await expect(topBarAutomations).toHaveAccessibleName(/^Automations, .*1 needs you$/u, {
 			timeout: 30_000,
 		});
 		const center = page.getByRole('region', { name: /^Automations \(\d+\)$/u });
@@ -180,7 +180,7 @@ test('a workstream lists only its live automations above the composer, asks its 
 		await expect(queued).toBeVisible();
 		await confirm.click();
 		await expect(queued).toHaveCount(0, { timeout: 30_000 });
-		await expect(sidebar).toHaveAccessibleName('Automations, 1 needs you');
+		await expect(topBarAutomations).toHaveAccessibleName('Automations, 1 needs you');
 
 		await question.click();
 		await expect(page).toHaveURL(/agent=sess-/u);

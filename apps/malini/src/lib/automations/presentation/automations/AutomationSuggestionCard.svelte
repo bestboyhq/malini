@@ -84,9 +84,57 @@
 	data-testid="automation-suggestion"
 	data-suggestion-id={suggestion.id}
 >
+	<dl
+		class="border-surface-50-border bg-surface-50 grid grid-cols-[4rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2 rounded-xl border-[0.5px] px-4 py-3 text-sm"
+	>
+		{#if changing}
+			<dt class="text-fg-tertiary text-xs">Name</dt>
+			<dd>
+				<TextInput
+					bind:value={name}
+					bind:element={nameInput}
+					bare
+					ariaLabel="Automation name"
+					class="-my-1 h-7 w-full"
+					inputClass="text-fg-default text-sm"
+				/>
+			</dd>
+		{/if}
+		<dt class="text-fg-tertiary text-xs">When</dt>
+		<dd class="text-fg-default">{when}</dd>
+		<dt class="text-fg-tertiary text-xs">Does</dt>
+		<dd class="text-fg-default">
+			{#if changing}
+				<Textarea
+					bind:value={instructions}
+					bare
+					autoGrow
+					rows={1}
+					ariaLabel="What the automation does"
+					textareaClass="-my-0.5 p-0 text-sm leading-6"
+				/>
+			{:else}
+				<p class="leading-6 whitespace-pre-line">{does}</p>
+			{/if}
+		</dd>
+		<dt class="text-fg-tertiary text-xs">Runs</dt>
+		<dd class="text-fg-default">
+			{#if changing}
+				<SegmentedPicker
+					value={mode}
+					options={EDIT_MODES}
+					label="How the automation runs"
+					onchange={(next) => (mode = next)}
+				/>
+			{:else}
+				{runs}, in a new workstream
+			{/if}
+		</dd>
+	</dl>
+
 	<div class="px-5">
 		<div
-			class="border-surface-100-border bg-surface-100 flex h-9 items-center gap-2 rounded-t-xl border-x-[0.5px] border-t-[0.5px] pr-1.5 pl-3 text-xs"
+			class="border-surface-100-border bg-surface-100 flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
 		>
 			{#if saved}
 				<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
@@ -104,7 +152,7 @@
 					</Button>
 				{/if}
 			{:else}
-				<Tooltip content={why} placement="top">
+				<Tooltip content={why} placement="bottom">
 					<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
 						<Icon name="sparkles" size={12} />
 						Suggested automation
@@ -154,54 +202,6 @@
 			{/if}
 		</div>
 	</div>
-
-	<dl
-		class="border-surface-50-border bg-surface-50 grid grid-cols-[4rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2 rounded-xl border-[0.5px] px-4 py-3 text-sm"
-	>
-		{#if changing}
-			<dt class="text-fg-tertiary text-xs">Name</dt>
-			<dd>
-				<TextInput
-					bind:value={name}
-					bind:element={nameInput}
-					bare
-					ariaLabel="Automation name"
-					class="-my-1 h-7 w-full"
-					inputClass="text-fg-default text-sm"
-				/>
-			</dd>
-		{/if}
-		<dt class="text-fg-tertiary text-xs">When</dt>
-		<dd class="text-fg-default">{when}</dd>
-		<dt class="text-fg-tertiary text-xs">Does</dt>
-		<dd class="text-fg-default">
-			{#if changing}
-				<Textarea
-					bind:value={instructions}
-					bare
-					autoGrow
-					rows={1}
-					ariaLabel="What the automation does"
-					textareaClass="-my-0.5 p-0 text-sm leading-6"
-				/>
-			{:else}
-				<p class="leading-6 whitespace-pre-line">{does}</p>
-			{/if}
-		</dd>
-		<dt class="text-fg-tertiary text-xs">Runs</dt>
-		<dd class="text-fg-default">
-			{#if changing}
-				<SegmentedPicker
-					value={mode}
-					options={EDIT_MODES}
-					label="How the automation runs"
-					onchange={(next) => (mode = next)}
-				/>
-			{:else}
-				{runs}, in a new workstream
-			{/if}
-		</dd>
-	</dl>
 
 	{#if actionState.error}
 		<p class="text-error-content mt-1.5 px-1 text-xs" role="alert">{actionState.error}</p>

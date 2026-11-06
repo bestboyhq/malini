@@ -211,7 +211,7 @@ test('Malini asks before it acts on a failed automation when the model says so, 
 			),
 		);
 		expect(asked?.pick).toBe(4);
-		await expect(page.getByTestId('sidebar-automations-row')).toHaveAccessibleName(
+		await expect(page.getByTestId('global-topbar-automations')).toHaveAccessibleName(
 			'Automations, 1 needs you',
 			{ timeout: 20_000 },
 		);
@@ -259,7 +259,7 @@ test('a question on an automation goes away with its workstream', async () => {
 		const { page } = app;
 		reconcilerPicks(app, 'Ask you');
 		const workstreamId = await chatRunsFailingAutomation(app);
-		const ask = page.getByTestId('sidebar-automations-row');
+		const ask = page.getByTestId('global-topbar-automations');
 		await expect(ask).toHaveAccessibleName('Automations, 1 needs you', { timeout: 60_000 });
 
 		await invoke(page, 'repositories.archive-workstream', { workstreamId });

@@ -3,7 +3,7 @@
 	import { cubicOut, quartOut } from 'svelte/easing';
 	import type { TransitionConfig } from 'svelte/transition';
 	import { navigating, page } from '$shared/router/state';
-	import { SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { AUTOMATIONS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		historyIndexFromState,
 		navigationHistoryTargetLedger,
@@ -12,6 +12,7 @@
 	import { Popover } from '$hyper-ui/components/popover';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import ForegroundActivityIndicator from './ForegroundActivityIndicator.svelte';
+	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import { hydrateSidebarCommand } from '$lib/app/application/commands/hydrate-sidebar.command';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { toggleSidebarCommand } from '$lib/app/application/commands/toggle-sidebar.command';
@@ -36,6 +37,9 @@
 		watchGithubReachHook,
 	} from '$shared/repositories/repositories.api';
 	import { inspectorDock } from '$shared/shell/inspector-dock.svelte';
+	import { loadAutomationsCommand } from '$lib/automations/application/commands/load-automations.command';
+	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
+	import { liveAutomationsStatus } from '$lib/automations/automations.api';
 
 	interface Props {
 		actions?: readonly GlobalTopBarAction[];
@@ -45,8 +49,16 @@
 
 	onMount(() => {
 		hydrateSidebarCommand();
-		return watchGithubReachHook();
+		loadAutomationsCommand();
+		const stopWatchingAutomations = watchAutomationsHook();
+		const stopWatchingGithub = watchGithubReachHook();
+		return () => {
+			stopWatchingAutomations();
+			stopWatchingGithub();
+		};
 	});
+
+	const automations = $derived(liveAutomationsStatus());
 
 	const targetPathname = $derived(navigating.to?.url?.pathname ?? page.url.pathname);
 	const routeTransitionPending = $derived(navigating.to !== null);
@@ -330,6 +342,25 @@
 				>
 					<Icon name="sidebar" />
 				</button>
+			</Tooltip>
+			<Tooltip content={automations.label} placement="bottom">
+				<a
+					href={AUTOMATIONS_HREF}
+					class="topbar-chrome relative"
+					aria-label={automations.label}
+					data-testid="global-topbar-automations"
+				>
+					<Icon name="workflow" />
+					{#if automations.dot}
+						<span
+							class={[
+								'absolute top-[5px] right-[5px] h-1.5 w-1.5 rounded-full',
+								PROGRESS_DOT_CLASS[automations.dot],
+							]}
+							aria-hidden="true"
+						></span>
+					{/if}
+				</a>
 			</Tooltip>
 			<Tooltip content="Settings" placement="bottom">
 				<a

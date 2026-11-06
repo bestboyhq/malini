@@ -137,7 +137,7 @@ The [README](../README.md) has the short version.
 - **Suggestions from your own habits.** When the first thing you ask after a merge matches what you asked after an earlier merge, Malini suggests an automation under the reply: **Save it**, **Edit**, or **Not now**.
 - **Ask the agent for it.** In a chat, the agent lists, saves, and runs automations with its Malini tools: saving one waits for your approval, and so does running one outside the work the chat started, or any that ships.
   A trigger it adds starts Off.
-- **Automations show where they run.** A chat lists its workstream's live automations above the composer, one line each: what needs you, what runs, and what is queued; one with no workstream shows on the Automations page, which **Automations** in the sidebar opens.
+- **Automations show where they run.** A chat lists its workstream's live automations above the composer, one line each: what needs you, what runs, and what is queued; one with no workstream shows on the Automations page, which the **Automations** icon at the top opens.
   Settings decides how many automations run at once.
 
 ## A browser the agent can drive

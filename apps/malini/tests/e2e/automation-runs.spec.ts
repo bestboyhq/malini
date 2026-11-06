@@ -184,8 +184,10 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 			.poll(async () => (await runsOf(page, 'Note it'))[0], { timeout: 60_000 })
 			.toMatchObject({ status: 'waiting', origin: 'trigger', parentRunId: first.id, workstreamId });
 
-		const sidebar = page.getByTestId('sidebar-automations-row');
-		await expect(sidebar).toHaveAccessibleName('Automations, 1 needs you', { timeout: 30_000 });
+		const topBarAutomations = page.getByTestId('global-topbar-automations');
+		await expect(topBarAutomations).toHaveAccessibleName('Automations, 1 needs you', {
+			timeout: 30_000,
+		});
 		await openWorkstream(page, workstreamId);
 		const waiting = page
 			.getByRole('region', { name: /^Automations \(\d+\)$/u })
@@ -205,7 +207,7 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 		await expect(waiting).toContainText('Last run');
 		await waiting.getByRole('button', { name: 'Skip Note it' }).click();
 		await expect(waiting).toHaveCount(0);
-		await expect(sidebar).toHaveAccessibleName('Automations');
+		await expect(topBarAutomations).toHaveAccessibleName('Automations');
 		await expect
 			.poll(async () => (await runsOf(page, 'Note it')).map(({ status }) => status))
 			.toEqual(['cancelled', 'succeeded']);
