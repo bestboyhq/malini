@@ -54,4 +54,5 @@ overrides:
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64': '-'
 
 patchedDependencies:
+  app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
   svelte-sonner@1.2.1: patches/svelte-sonner@1.2.1.patch

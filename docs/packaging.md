@@ -56,6 +56,15 @@ The dmg is named `malini-arm64.dmg`, without a version, so `releases/latest/down
 The zip is named `malini-<version>-arm64-mac.zip`, and `latest-mac.yml` points the update feed at it.
 `pnpm --filter malini release` builds the same artifacts locally, signed with the keychain's Developer ID and notarized only when `APPLE_KEYCHAIN_PROFILE` is set.
 
+## The disk image
+
+The dmg mounts as `Malini` and opens on `build/background.png` and its 2x twin, which `pnpm --filter malini generate:dmg-background` renders from `build/background.html` in Electron.
+To change the window, edit the HTML, rerun the command, and commit all three files.
+Finder draws an icon's label in black over any background, so the white pills sit where it puts the labels of the icons at (130, 220) and (410, 220).
+The window is the image's size with the title bar inside it, so the bottom 33 points never show.
+Finder shows `.background.tiff` and `.VolumeIcon.icns` to anyone who shows hidden files, so `dmg.contents` parks both at y 1000, below the window.
+That takes the `position` type electron-builder 27 adds, and `patches/` adds it to the schema of electron-builder 26 until then.
+
 ## Updates
 
 `electron-builder.yml` publishes to GitHub Releases and bakes the feed into the app as `app-update.yml`.

@@ -44,7 +44,23 @@ mac:
       arch: arm64
 dmg:
   sign: true
+  title: Malini
   artifactName: malini-${arch}.${ext}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+    - x: 130
+      y: 1000
+      type: position
+      path: .background.tiff
+    - x: 410
+      y: 1000
+      type: position
+      path: .VolumeIcon.icns
 publish:
   provider: github
   owner: bestboyhq
