@@ -134,7 +134,7 @@
 
 	<div class="px-5">
 		<div
-			class="border-surface-100-border bg-surface-100 flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
+			class="border-surface-50-border flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
 		>
 			{#if saved}
 				<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
