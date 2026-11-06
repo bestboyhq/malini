@@ -36,6 +36,7 @@ export class ChatDeliveries {
 	readonly #log: (line: string) => void;
 	readonly #held = new Set<string>();
 	readonly #flushing = new Set<string>();
+	readonly #sending = new Set<Promise<void>>();
 	readonly #again = new Set<string>();
 	readonly #retries = new Map<string, number>();
 	readonly #timers = new Set<NodeJS.Timeout>();
@@ -73,54 +74,18 @@ export class ChatDeliveries {
 	}
 
 	async flush(sessionId: string): Promise<void> {
-		const { db, commands } = this.#context;
 		if (this.#stopped || this.#held.has(sessionId)) return;
 		if (this.#flushing.has(sessionId)) {
 			this.#again.add(sessionId);
 			return;
 		}
 		this.#flushing.add(sessionId);
+		const sending = this.#send(sessionId);
+		this.#sending.add(sending);
 		try {
-			const waiting = waitingDeliveries(db, sessionId);
-			if (waiting.length === 0) return;
-			const ids = waiting.map(({ id }) => id);
-			const session = getSession(db, sessionId);
-			if (!session || session.archivedAt !== null) {
-				this.#settle(ids, { status: 'failed', detail: 'That chat is gone.' });
-				return;
-			}
-			if (sessionHasWorkingRun(db, sessionId)) return;
-			const batch = deliveryBatch(waiting);
-			const profile =
-				firstProfile(waiting.map((delivery) => delivery.profile)) ??
-				latestPromptProfile(db, sessionId);
-			let runId: string;
-			try {
-				runId = await commands.call('chat.send-prompt', {
-					sessionId,
-					prompt: batch.prompt,
-					automated: batch.automated,
-					...(batch.from === null ? {} : { from: batch.from }),
-					...(batch.chainId === null ? {} : { chainId: batch.chainId }),
-					...(batch.causeEventId === null ? {} : { causeEventId: batch.causeEventId }),
-					...(profile === null ? {} : { profile }),
-					...(batch.reports.length === 0 ? {} : { reports: batch.reports }),
-					...(batch.decisions.length === 0 ? {} : { decisions: batch.decisions }),
-				});
-			} catch (error) {
-				if (isAlreadyActiveError(describeError(error))) {
-					this.#retryLater(sessionId);
-					return;
-				}
-				this.#settle(ids, {
-					status: 'failed',
-					detail: `Malini could not deliver it: ${describeError(error)}`,
-				});
-				return;
-			}
-			this.#retries.delete(sessionId);
-			this.#settle(ids, { status: 'delivered', runId, at: nowIso8601() });
+			await sending;
 		} finally {
+			this.#sending.delete(sending);
 			this.#flushing.delete(sessionId);
 			if (this.#again.delete(sessionId)) {
 				void this.flush(sessionId).catch((error: unknown) =>
@@ -130,10 +95,54 @@ export class ChatDeliveries {
 		}
 	}
 
-	stop(): void {
+	async stop(): Promise<void> {
 		this.#stopped = true;
 		for (const timer of this.#timers) clearTimeout(timer);
 		this.#timers.clear();
+		while (this.#sending.size > 0) await Promise.allSettled([...this.#sending]);
+	}
+
+	async #send(sessionId: string): Promise<void> {
+		const { db, commands } = this.#context;
+		const waiting = waitingDeliveries(db, sessionId);
+		if (waiting.length === 0) return;
+		const ids = waiting.map(({ id }) => id);
+		const session = getSession(db, sessionId);
+		if (!session || session.archivedAt !== null) {
+			this.#settle(ids, { status: 'failed', detail: 'That chat is gone.' });
+			return;
+		}
+		if (sessionHasWorkingRun(db, sessionId)) return;
+		const batch = deliveryBatch(waiting);
+		const profile =
+			firstProfile(waiting.map((delivery) => delivery.profile)) ??
+			latestPromptProfile(db, sessionId);
+		let runId: string;
+		try {
+			runId = await commands.call('chat.send-prompt', {
+				sessionId,
+				prompt: batch.prompt,
+				automated: batch.automated,
+				...(batch.from === null ? {} : { from: batch.from }),
+				...(batch.chainId === null ? {} : { chainId: batch.chainId }),
+				...(batch.causeEventId === null ? {} : { causeEventId: batch.causeEventId }),
+				...(profile === null ? {} : { profile }),
+				...(batch.reports.length === 0 ? {} : { reports: batch.reports }),
+				...(batch.decisions.length === 0 ? {} : { decisions: batch.decisions }),
+			});
+		} catch (error) {
+			if (isAlreadyActiveError(describeError(error))) {
+				this.#retryLater(sessionId);
+				return;
+			}
+			this.#settle(ids, {
+				status: 'failed',
+				detail: `Malini could not deliver it: ${describeError(error)}`,
+			});
+			return;
+		}
+		this.#retries.delete(sessionId);
+		this.#settle(ids, { status: 'delivered', runId, at: nowIso8601() });
 	}
 
 	async #reportToStarter(turn: ChatTurnFinishedPayload, eventId: number | null): Promise<void> {

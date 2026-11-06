@@ -53,8 +53,8 @@ beforeEach(() => {
 	installLeadDecisions({ db, events, commands }, deliveries);
 });
 
-afterEach(() => {
-	deliveries.stop();
+afterEach(async () => {
+	await deliveries.stop();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });

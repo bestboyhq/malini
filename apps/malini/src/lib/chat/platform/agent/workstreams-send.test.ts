@@ -61,8 +61,8 @@ beforeEach(() => {
 	};
 });
 
-afterEach(() => {
-	deps.deliveries.stop();
+afterEach(async () => {
+	await deps.deliveries.stop();
 	db.close();
 });
 
