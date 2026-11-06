@@ -223,11 +223,10 @@ const toolStreamRun = (sessionId, runId, count, slowTail, background, narrated) 
 		});
 		backgroundTasks([
 			{
-				taskId: 'agent-task-' + runId,
-				kind: 'agent',
+				taskId: 'command-task-' + runId,
+				kind: 'command',
 				description: 'Sleep probe',
 				startedAt: Date.now(),
-				toolCallId: 'agent-' + runId,
 			},
 		]);
 	}
@@ -415,9 +414,11 @@ const CHAT_TURN_REPORT =
 	'Outcome: The header stays pinned while the page scrolls.\n' +
 	'Needs: Approve the new shadow; Merge the pull request';
 const BACKGROUND_RELEASE = 'release-background-agent';
+const backgroundAgents = new Map();
 const backgroundAgentRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
 	const toolCallId = 'agent-' + runId;
+	backgroundAgents.set('agent-task-' + runId, { sessionId, runId, toolCallId });
 	const agentTask = {
 		taskId: 'agent-task-' + runId,
 		kind: 'agent',
@@ -430,6 +431,7 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		runId,
 		name: 'Agent',
 		toolCallId,
+		ts: Date.now(),
 		input: {
 			description: 'Sleep probe',
 			subagent_type: 'general-purpose',
@@ -438,12 +440,18 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		},
 	});
 	event({ type: 'background.updated', runId, waiting: false, tasks: [agentTask] });
-	event({ type: 'assistant.message', runId, contentId: 'launched', text: 'launched' });
+	event({
+		type: 'assistant.message',
+		runId,
+		contentId: 'launched',
+		text: 'launched\n\nOutcome: The Sleep probe agent is running\nNeeds: nothing',
+	});
 	const timer = setInterval(() => {
 		if (!pendingRuns.has(runId)) return clearInterval(timer);
 		if (!fs.existsSync(releasePath)) return;
 		clearInterval(timer);
 		pendingRuns.delete(runId);
+		backgroundAgents.delete(agentTask.taskId);
 		event({ type: 'background.updated', runId, waiting: false, tasks: [] });
 		event({
 			type: 'tool.completed',
@@ -461,6 +469,97 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		event({ type: 'run.completed', runId, summary: 'The Sleep probe agent finished.' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
+};
+const SUBAGENT_RELEASE = 'release-subagent';
+const AGENT_INPUT_STEP_MS = 150;
+const subagentsRun = (sessionId, runId, releasePath) => {
+	pendingRuns.set(runId, sessionId);
+	const auth = 'agent-auth-' + runId;
+	const tests = 'agent-tests-' + runId;
+	const startAgent = (toolCallId, description, prompt, then) => {
+		const input = { description, subagent_type: 'Explore', prompt };
+		const json = JSON.stringify(input);
+		const halfway = (text) => json.indexOf(text) + Math.floor(text.length / 2);
+		const cuts = [0, 2, halfway(description), halfway(prompt), json.length];
+		const chunks = cuts.slice(1).map((cut, index) => json.slice(cuts[index], cut));
+		const stream = () => {
+			const inputJsonDelta = chunks.shift();
+			if (inputJsonDelta !== undefined) {
+				event({ type: 'tool.input.delta', runId, toolCallId, name: 'Agent', inputJsonDelta });
+				return setTimeout(stream, AGENT_INPUT_STEP_MS);
+			}
+			event({ type: 'tool.started', runId, name: 'Agent', toolCallId, ts: Date.now(), input });
+			then();
+		};
+		stream();
+	};
+	const step = (parentToolCallId, name, input, done = true) => {
+		const toolCallId = parentToolCallId + '-' + name + '-' + Object.values(input).join('-');
+		event({ type: 'tool.started', runId, name, toolCallId, input, parentToolCallId });
+		if (done)
+			event({ type: 'tool.completed', runId, name, toolCallId, output: 'ok', parentToolCallId });
+		return toolCallId;
+	};
+	const handBack = (parentToolCallId, message) => {
+		step(parentToolCallId, 'SubagentHandback', { message });
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Agent',
+			toolCallId: parentToolCallId,
+			output: 'The report was delivered to the parent.',
+		});
+	};
+	const command = 'rg -n token src';
+	let search = '';
+	const stages = [
+		() => {
+			search = step(auth, 'Bash', { command, description: 'Find token reads' }, false);
+			step(tests, 'Glob', { pattern: 'tests/**/*.spec.ts' });
+		},
+		() => {
+			event({
+				type: 'tool.completed',
+				runId,
+				name: 'Bash',
+				toolCallId: search,
+				output: 'src/auth.ts:12',
+				parentToolCallId: auth,
+			});
+			event({ type: 'command.completed', runId, command, exitCode: 0, parentToolCallId: auth });
+			handBack(
+				auth,
+				'## Auth runs through `src/auth.ts`\n\nTokens are read in one place, line 12.',
+			);
+			handBack(tests, 'Two specs cover sign-in.');
+			event({
+				type: 'assistant.message',
+				runId,
+				contentId: 'subagents-done',
+				text: 'Both agents are back. Auth runs through `src/auth.ts`.',
+			});
+			event({ type: 'run.completed', runId, summary: 'Both agents are back.' });
+			event({ type: 'session.state', sessionId, status: 'completed' });
+		},
+	];
+	const release = () => {
+		const timer = setInterval(() => {
+			if (!pendingRuns.has(runId)) return clearInterval(timer);
+			if (!fs.existsSync(releasePath)) return;
+			fs.rmSync(releasePath);
+			stages.shift()?.();
+			if (stages.length > 0) return;
+			clearInterval(timer);
+			pendingRuns.delete(runId);
+		}, 50);
+	};
+	startAgent(auth, 'Map the auth flow', 'Trace how a session token is read and refreshed.', () =>
+		startAgent(tests, 'Audit the auth tests', 'List the specs that cover sign-in.', () => {
+			step(auth, 'Read', { file_path: 'src/auth.ts' });
+			step(tests, 'Grep', { pattern: 'signIn' });
+			release();
+		}),
+	);
 };
 const COMPACTION_RELEASE = 'release-compaction';
 const compactionRun = (sessionId, runId, releasePath) => {
@@ -675,6 +774,24 @@ const handOffBackgroundCommand = (sessionId, runId, steer) => {
 		tasks: [backgroundCommandTask(waiting.startedAt)],
 	});
 	waitOnBackgroundCommand(sessionId, runId, 'Answered while the e2e suite keeps running.');
+};
+const stopBackgroundAgent = (taskId) => {
+	const agent = backgroundAgents.get(taskId);
+	if (!agent) return false;
+	const { sessionId, runId, toolCallId } = agent;
+	backgroundAgents.delete(taskId);
+	pendingRuns.delete(runId);
+	event({ type: 'background.updated', runId, waiting: false, tasks: [] });
+	event({
+		type: 'tool.completed',
+		runId,
+		name: 'Agent',
+		toolCallId,
+		output: 'Stopped. No hard feelings',
+	});
+	event({ type: 'run.completed', runId, summary: 'The Sleep probe agent was stopped.' });
+	event({ type: 'session.state', sessionId, status: 'completed' });
+	return true;
 };
 const stopBackgroundCommand = (sessionId) => {
 	const waiting = backgroundCommands.get(sessionId);
@@ -1122,6 +1239,9 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}
+	if (prompt.includes('SUBAGENTS')) {
+		return subagentsRun(sessionId, runId, nodePath.join(env.HOME, SUBAGENT_RELEASE));
+	}
 	if (prompt === '/compact') {
 		return compactionRun(sessionId, runId, nodePath.join(env.HOME, COMPACTION_RELEASE));
 	}
@@ -1208,7 +1328,7 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			Number(toolStream[1]),
 			Number(toolStream[2] ?? 0),
-			prompt.includes('TRAY_AGENT'),
+			prompt.includes('TRAY_COMMAND'),
 			prompt.includes('NARRATED'),
 		);
 	}
@@ -1541,7 +1661,7 @@ const handle = (command) => {
 			return start();
 		}
 		case 'stop_task': {
-			stopBackgroundCommand(command.sessionId);
+			if (!stopBackgroundAgent(command.taskId)) stopBackgroundCommand(command.sessionId);
 			return ack(command.id);
 		}
 		case 'cancel_run': {

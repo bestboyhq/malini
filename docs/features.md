@@ -74,6 +74,7 @@ The [README](../README.md) has the short version.
   Approve once, or always for the chat or the workstream.
 - **As much reading as you want to do.** Reports run from a screenshot and one line to the full write-up.
 - **Watch it think.** Thinking shows inline, step by step, from the moment the run starts, with a diff for every file the chat changed.
+- **Watch it delegate.** Each subagent is one line with the step it is on, and its steps and report are one click away.
 - **Bring context.** **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings, and files, up to 100 MB each.
 - **Know your limits.** The context window breakdown and your plan usage, five-hour and weekly, are one click from the composer, next to MCP server status.
   Plan usage follows the Claude account you're signed in to.
