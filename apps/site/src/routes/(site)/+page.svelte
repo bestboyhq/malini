@@ -248,15 +248,17 @@
 		<ul class="cells plans">
 			{#each plans as plan (plan.name)}
 				<li class="rise">
-					{#if plan.name === 'Claude'}
-						<ClaudeIcon size={18} />
-					{:else if plan.name === 'ChatGPT'}
-						<BrandIcon brand="openai" size={18} />
-					{:else if plan.name === 'OpenCode'}
-						<OpenCodeIcon size={18} />
-					{:else}
-						<DeepSeekIcon size={18} />
-					{/if}
+					<span class={['logo', plan.name.toLowerCase()]}>
+						{#if plan.name === 'Claude'}
+							<ClaudeIcon size={22} />
+						{:else if plan.name === 'ChatGPT'}
+							<BrandIcon brand="openai" size={22} />
+						{:else if plan.name === 'OpenCode'}
+							<OpenCodeIcon size={22} />
+						{:else}
+							<DeepSeekIcon size={22} />
+						{/if}
+					</span>
 					<h3>{plan.name}</h3>
 					<p>{plan.body}</p>
 				</li>
@@ -617,8 +619,29 @@
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
 
-	.plans li > :global(svg) {
-		color: var(--fg-default);
+	.logo {
+		--tint: var(--fg-default);
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		margin-bottom: 12px;
+		border-radius: 12px;
+		background: color-mix(in oklab, var(--tint) 14%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tint) 28%, transparent);
+		color: var(--tint);
+	}
+
+	.claude {
+		--tint: #d97757;
+	}
+
+	.chatgpt {
+		--tint: #10a37f;
+	}
+
+	.deepseek {
+		--tint: #4d6bfe;
 	}
 
 	.flush {
