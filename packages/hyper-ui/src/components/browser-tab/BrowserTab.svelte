@@ -2,13 +2,13 @@
 	import type { Snippet } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide, type SlideParams, type TransitionConfig } from 'svelte/transition';
 	import Button from '../button/Button.svelte';
 	import IconButton from '../icon-button/IconButton.svelte';
 	import RenameText from '../rename-text/RenameText.svelte';
 	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { BusyIcon, Icon } from '../../icons';
+	import { motionOff } from '../../motion/motion-off';
 
 	type BrowserTabSurface = 'panel' | 'band';
 	type BrowserTabTone = 'neutral' | 'brand';
@@ -152,7 +152,7 @@
 		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
 
 	const motion = (): TransitionConfig => ({
-		duration: prefersReducedMotion.current ? 0 : 180,
+		duration: motionOff() ? 0 : 180,
 		easing: cubicOut,
 	});
 

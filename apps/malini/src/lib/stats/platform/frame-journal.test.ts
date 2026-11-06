@@ -117,8 +117,8 @@ describe('FrameJournal', () => {
 
 		frames.watchStalls();
 		await sleep(40);
-		const busyFrom = process.threadCpuUsage();
-		while (process.threadCpuUsage(busyFrom).user < 150_000);
+		const blockedFrom = process.threadCpuUsage();
+		while (process.threadCpuUsage(blockedFrom).user < 150_000);
 		await sleep(40);
 		frames.stopWatchingStalls();
 

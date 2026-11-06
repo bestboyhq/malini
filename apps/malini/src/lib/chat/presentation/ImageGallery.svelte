@@ -19,6 +19,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { announceExclusiveOverlayOpen } from '$hyper-ui/overlay';
 	import type { GalleryImage, VideoHandoff } from './transcript-gallery';
+	import { motionMs } from './arrival-motion';
 	import VideoPlayer from './VideoPlayer.svelte';
 
 	interface Props {
@@ -118,7 +119,7 @@
 			: 'center';
 		const start = 1 - 0.06 * travel;
 		return {
-			duration: 220,
+			duration: motionMs(220),
 			easing: quintOut,
 			css: (t) =>
 				`transform-origin: ${origin}; transform: scale(${start + (1 - start) * t}); opacity: ${t};`,
@@ -127,7 +128,7 @@
 
 	function slideIn(_node: Element, { x }: { x: number }): TransitionConfig {
 		return {
-			duration: 200,
+			duration: motionMs(200),
 			easing: quintOut,
 			css: (_t, u) => `transform: translateX(${x * u}px);`,
 		};
@@ -269,7 +270,7 @@
 	<div class="flex h-full w-full flex-col items-center gap-3 pt-14" data-testid="image-gallery">
 		<div class="flex min-h-0 w-full flex-1 items-center gap-4">
 			{#if browsable}
-				<div in:fly|global={{ x: -8 * travel, duration: 200, easing: quintOut }}>
+				<div in:fly|global={{ x: -8 * travel, duration: motionMs(200), easing: quintOut }}>
 					{@render arrow('Previous image', 'chevron-left', -1)}
 				</div>
 			{/if}
@@ -283,7 +284,7 @@
 					<div class="absolute inset-0" in:slideIn={{ x: direction * slideDistance }}>
 						{#if image?.media === 'video' && preview?.status === 'ready'}
 							{@const start = image.id === startId ? handoff?.playback : undefined}
-							<div class="absolute inset-0" in:fade={{ duration: 150 }}>
+							<div class="absolute inset-0" in:fade={{ duration: motionMs(150) }}>
 								<VideoPlayer
 									bind:this={player}
 									src={preview.src}
@@ -312,7 +313,7 @@
 										'transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
 								]}
 								style:transform="translate({pan.x}px, {pan.y}px) scale({zoom})"
-								in:fade={{ duration: 150 }}
+								in:fade={{ duration: motionMs(150) }}
 								onpointerdown={onPointerDown}
 								onpointermove={onPointerMove}
 								onpointerup={onPointerUp}
@@ -337,7 +338,7 @@
 			</div>
 
 			{#if browsable}
-				<div in:fly|global={{ x: 8 * travel, duration: 200, easing: quintOut }}>
+				<div in:fly|global={{ x: 8 * travel, duration: motionMs(200), easing: quintOut }}>
 					{@render arrow('Next image', 'chevron-right', 1)}
 				</div>
 			{/if}
@@ -346,7 +347,7 @@
 		{#if image}
 			<div
 				class="border-surface-elevated-border bg-surface-elevated text-2xs pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border-[0.5px] py-0.5 pr-0.5 pl-3"
-				in:fly|global={{ y: 6 * travel, duration: 200, easing: quintOut }}
+				in:fly|global={{ y: 6 * travel, duration: motionMs(200), easing: quintOut }}
 			>
 				<span class="text-fg-default truncate">{image.name}</span>
 				<span class="text-fg-tertiary shrink-0 tabular-nums" role="status">
@@ -404,7 +405,7 @@
 				class="pointer-events-auto relative flex max-w-full shrink-0 gap-1 overflow-x-auto overflow-y-hidden p-0.5"
 				aria-label="All images"
 				role="group"
-				in:fly|global={{ y: 8 * travel, duration: 200, easing: quintOut }}
+				in:fly|global={{ y: 8 * travel, duration: motionMs(200), easing: quintOut }}
 			>
 				{#each images as thumbnail, at (thumbnail.id)}
 					{@const thumbnailPreview = previewOf(thumbnail)}

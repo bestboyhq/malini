@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { quartOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
-	import { fade, slide } from 'svelte/transition';
+	import { slide } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
+	import { revealFade } from './arrival-motion';
 	import ExpandMark from './ExpandMark.svelte';
 	import ToolLabel from './ToolLabel.svelte';
 	import ToolOutputText from './ToolOutputText.svelte';
@@ -102,22 +103,17 @@
 			emphasized={description !== null}
 		/>
 		{#if waiting}
-			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono" in:fade={{ duration: 190 }}>
-				waiting
-			</span>
+			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono" in:revealFade>waiting</span>
 		{:else if blockedReason}
 			<span
 				class="text-3xs text-fg-tertiary/70 shrink-0 font-mono"
 				data-testid="tool-blocked"
-				in:fade={{ duration: 190 }}
+				in:revealFade
 			>
 				{blockedLabel(blockedReason)}
 			</span>
 		{:else if exitLabel}
-			<span
-				class="text-3xs text-error-content shrink-0 font-mono tabular-nums"
-				in:fade={{ duration: 190 }}
-			>
+			<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums" in:revealFade>
 				{exitLabel}
 			</span>
 		{/if}
@@ -127,7 +123,7 @@
 		<div
 			class="bg-error text-2xs text-error-content mt-1 ml-5.5 flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
 			data-testid="bash-command-failure"
-			in:fade={{ duration: 190 }}
+			in:revealFade
 		>
 			<Icon name="warning" size={12} class="mt-1 shrink-0" />
 			<span class="min-w-0 flex-1 break-words select-text">
@@ -137,10 +133,7 @@
 	{/if}
 
 	{#if expanded}
-		<div
-			class="pt-1"
-			transition:slide={{ duration: prefersReducedMotion.current ? 0 : 240, easing: quartOut }}
-		>
+		<div class="pt-1" transition:slide={{ duration: motionOff() ? 0 : 240, easing: quartOut }}>
 			<ScrollableDiv
 				orientation="xy"
 				class="border-surface-50-border ml-5.5 max-h-64 rounded-lg border-[0.5px]"

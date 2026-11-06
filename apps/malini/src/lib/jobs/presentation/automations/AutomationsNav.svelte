@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import type { JobDefinitionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
@@ -56,7 +56,7 @@
 	function slideIn(node: HTMLElement): ReturnType<typeof fly> {
 		return fly(node, {
 			x: 24,
-			duration: prefersReducedMotion.current ? 0 : 220,
+			duration: motionOff() ? 0 : 220,
 			easing: cubicOut,
 		});
 	}

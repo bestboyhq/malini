@@ -1,4 +1,4 @@
-# 0163 - A ChatGPT plan runs Claude Code through a private proxy
+# 0164 - A ChatGPT plan runs Claude Code through a private proxy
 
 Status: accepted
 

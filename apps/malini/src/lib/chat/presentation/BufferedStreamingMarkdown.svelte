@@ -150,15 +150,23 @@
 		else if (complete) settleTail();
 	}
 
+	function revealAll(): void {
+		stopTimer();
+		visibleText = latestSource;
+		revealedLength = latestSource.length;
+		animatedTailCharacters = 0;
+		persistPlayback();
+	}
+
+	function revealAllWhileHidden(): void {
+		if (document.hidden) revealAll();
+	}
+
 	function syncQueue(source: string, lineWidth: number): void {
 		const sourceContracted = source.length < latestSource.length;
 		latestSource = source;
-		if (flush || (complete && !draining)) {
-			stopTimer();
-			visibleText = source;
-			revealedLength = source.length;
-			animatedTailCharacters = 0;
-			persistPlayback();
+		if (flush || document.hidden || (complete && !draining)) {
+			revealAll();
 			return;
 		}
 		if (sourceContracted || source.length < revealedLength) resetPlayback();
@@ -224,6 +232,8 @@
 		stopTimer();
 	});
 </script>
+
+<svelte:document onvisibilitychange={revealAllWhileHidden} />
 
 <div
 	bind:this={host}

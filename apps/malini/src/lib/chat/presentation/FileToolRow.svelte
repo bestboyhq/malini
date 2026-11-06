@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { fade } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
+	import { revealFade } from './arrival-motion';
 	import type { EditDiffstat } from './edit-diffstat';
 	import ExpandMark from './ExpandMark.svelte';
 	import { CHIP_CLASS } from './inline-prompt-chips';
@@ -40,7 +40,7 @@
 		<Icon name={icon} size={icon === 'pencil' ? 13 : 14} class="shrink-0" />
 	</ExpandMark>
 	<span class="shrink-0">{verb}</span>
-	<span class="flex min-w-0" in:fade={{ duration: 190 }}>
+	<span class="flex min-w-0" in:revealFade>
 		<HoverCard
 			side="bottom"
 			align="start"
@@ -67,7 +67,7 @@
 					{#if diffstat}
 						<span
 							class="text-3xs shrink-0 font-mono tabular-nums"
-							in:fade={{ duration: 190 }}
+							in:revealFade
 							data-testid="tool-card-diffstat"
 							aria-label={`${diffstat.added} ${diffstat.added === 1 ? 'line' : 'lines'} added, ${diffstat.removed} ${diffstat.removed === 1 ? 'line' : 'lines'} removed`}
 						>
@@ -89,7 +89,7 @@
 	{#if durationLabel}
 		<span
 			class="text-3xs text-fg-tertiary/70 ml-auto shrink-0 font-mono tabular-nums"
-			in:fade={{ duration: 190 }}
+			in:revealFade
 		>
 			{durationLabel}
 		</span>

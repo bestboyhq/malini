@@ -42,6 +42,7 @@
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
 	import { repositoryGroups, type OwnerGroup } from '$lib/app/domain/repository-groups';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import FirstRepositoryPicker from '../FirstRepositoryPicker.svelte';
 	import Onboarding from '../onboarding/Onboarding.svelte';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure } from '$shared/errors/failure-copy';
@@ -97,6 +98,7 @@
 	const firstRun = $derived(
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
 	);
+	let picking = $state(false);
 	const searchPlaceholder = $derived(
 		`Search ${repositories.length} ${repositories.length === 1 ? 'repository' : 'repositories'}`,
 	);
@@ -108,7 +110,12 @@
 	});
 
 	$effect(() => {
-		if (folderRequested) answerRepositoryFolderRequestCommand();
+		if (folderRequested)
+			answerRepositoryFolderRequestCommand({ open: picking ? 'workstream' : 'repository' });
+	});
+
+	$effect.pre(() => {
+		if (firstRun && onboarding.finished) picking = true;
 	});
 
 	function workstreamsFor(repo: Repository): Workstream[] {
@@ -175,7 +182,7 @@
 		loading={connecting === 'folder'}
 		ariaLabel="Open a local repository folder"
 		data-testid={testId}
-		onclick={openRepositoryFolderCommand}
+		onclick={() => openRepositoryFolderCommand()}
 	>
 		{#snippet leading()}
 			<Icon name="folder-open" size={16} />
@@ -295,7 +302,9 @@
 >
 	{#if firstRun && onboarding.finished === false}
 		<Onboarding />
-	{:else if !(firstRun && onboarding.finished === null)}
+	{:else if picking}
+		<FirstRepositoryPicker />
+	{:else if !firstRun}
 		<div class="mx-auto flex w-full max-w-[640px] flex-col px-6 pt-20 pb-32">
 			<header>
 				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Repositories</h1>
@@ -312,31 +321,29 @@
 				</div>
 			{/if}
 
-			{#if !firstRun}
-				<div class="mt-6 flex h-7 items-center gap-2">
-					{#if workstreamScopeReady && !workstreamScopeFailure && repositories.length > 0}
-						<TextInput
-							bind:value={query}
-							type="search"
-							size="xs"
-							ariaLabel="Search repositories"
-							placeholder={searchPlaceholder}
-							autocomplete="off"
-							class="min-w-0 flex-1"
-							inputClass="text-xs [&::-webkit-search-cancel-button]:hidden"
-							data-testid="repository-search"
-						>
-							{#snippet icon()}
-								<Icon name="search" size={14} />
-							{/snippet}
-						</TextInput>
-					{/if}
-					<div class="ml-auto flex shrink-0 items-center gap-2">
-						{@render findButton('md')}
-						{@render openFolderButton('repository-open-folder')}
-					</div>
+			<div class="mt-6 flex h-7 items-center gap-2">
+				{#if workstreamScopeReady && !workstreamScopeFailure && repositories.length > 0}
+					<TextInput
+						bind:value={query}
+						type="search"
+						size="xs"
+						ariaLabel="Search repositories"
+						placeholder={searchPlaceholder}
+						autocomplete="off"
+						class="min-w-0 flex-1"
+						inputClass="text-xs [&::-webkit-search-cancel-button]:hidden"
+						data-testid="repository-search"
+					>
+						{#snippet icon()}
+							<Icon name="search" size={14} />
+						{/snippet}
+					</TextInput>
+				{/if}
+				<div class="ml-auto flex shrink-0 items-center gap-2">
+					{@render findButton('md')}
+					{@render openFolderButton('repository-open-folder')}
 				</div>
-			{/if}
+			</div>
 
 			{#if workstreamScopeFailure}
 				<div
@@ -382,7 +389,7 @@
 					<RepositoryListSkeleton />
 				</section>
 			{:else}
-				<section class={firstRun ? 'mt-6' : 'mt-3'} aria-label="Repositories">
+				<section class="mt-3" aria-label="Repositories">
 					{#if connectError}
 						{@render connectErrorBlock(connectError)}
 					{/if}
@@ -393,21 +400,13 @@
 							data-testid="repositories-empty-state"
 						>
 							<StateBlock
-								heading={query.trim().length > 0
-									? 'No matching repositories'
-									: allHidden
-										? 'Every repository is hidden'
-										: 'No repositories yet'}
-								detail={query.trim().length > 0
+								heading={searching ? 'No matching repositories' : 'Every repository is hidden'}
+								detail={searching
 									? `Nothing connected matches “${query.trim()}”.`
-									: allHidden
-										? 'Hidden repositories keep their workstreams.'
-										: 'A repository is a folder on this Mac, or a URL git can clone.'}
-								remedy={query.trim().length > 0
+									: 'Hidden repositories keep their workstreams.'}
+								remedy={searching
 									? 'Clear the search, or connect the repository first.'
-									: allHidden
-										? 'Unhide one below, or open another folder.'
-										: 'Open a folder or find a repository to start a workstream.'}
+									: 'Unhide one below, or open another folder.'}
 								testId="repositories-empty-block"
 							>
 								{#snippet icon()}
@@ -428,9 +427,6 @@
 											Clear search
 										</Button>
 									{:else}
-										{#if firstRun}
-											{@render findButton('md')}
-										{/if}
 										{@render openFolderButton('repository-open-folder-empty')}
 									{/if}
 								{/snippet}

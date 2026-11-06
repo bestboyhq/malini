@@ -15,7 +15,10 @@ export type RepositoryConnection = Readonly<{
 	key: string;
 }>;
 
-export type RepositoryConnectOptions = Readonly<{ open?: boolean; onConnected?: () => void }>;
+export type RepositoryConnectOptions = Readonly<{
+	open?: 'repository' | 'workstream';
+	onConnected?: () => void;
+}>;
 
 export function repositoryConnectionFor(source: RepositoryImportSource): RepositoryConnection {
 	if (source.kind === 'local-folder') return { kind: 'folder', key: `folder:${source.path}` };
