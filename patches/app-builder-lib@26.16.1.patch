@@ -1,0 +1,14 @@
+diff --git a/scheme.json b/scheme.json
+index bc95a5acc49ce81e19ddea7d342ecfb42373a464..9aaa5bc43db1d3de5f1dab62316e83427a1c2a73 100644
+--- a/scheme.json
++++ b/scheme.json
+@@ -896,7 +896,8 @@
+           "enum": [
+             "dir",
+             "file",
+-            "link"
++            "link",
++            "position"
+           ],
+           "type": "string"
+         },

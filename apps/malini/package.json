@@ -20,6 +20,7 @@
 		"test:scripts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/*.test.mjs",
 		"generate:file-icons": "node scripts/generate-file-icons.mjs",
 		"generate:contract-reference": "node scripts/generate-contract-reference.mjs",
+		"generate:dmg-background": "electron scripts/generate-dmg-background.mjs",
 		"diagnostics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/diagnostics.mjs",
 		"test:e2e": "install-electron && electron-vite build && playwright test",
 		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/fetch-gh.mjs && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
