@@ -155,7 +155,9 @@ Each model says whether it reads images and how much context it holds; Malini li
 A ChatGPT plan runs GPT models in Claude Code, with Claude Code's tools, subagents and plan mode, and no Codex.
 Pick a GPT model, choose **ChatGPT** where the model shows who runs it, and send.
 The first send asks you to sign in: **Continue with ChatGPT** opens your browser on OpenAI's own sign-in, and the prompt goes once you are back.
+Go, Plus and Pro plans can sign in; on a Free plan, OpenAI's page offers **Upgrade** instead of **Continue**.
 **Settings → Providers** signs in and out too, and lists the models your plan runs, which Malini reads from OpenAI after you sign in and at most once an hour.
+A plan does not run every GPT model: send with one it lacks and Malini keeps your prompt and says "Your ChatGPT plan does not include this model." until you pick another.
 Malini keeps your ChatGPT sign-in encrypted on your Mac, and it never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server talks to OpenAI.
 The context card shows your ChatGPT account with "Using ChatGPT plan" and **Manage usage**, which opens your usage on chatgpt.com, since ChatGPT does not tell apps how much of the plan is left.
 When you hit the limit, the turn [pauses](#limits-and-outages) the way a rate limit does, since ChatGPT does not say when the limit resets, and the context card says "You hit your ChatGPT usage limit." until a run goes through again.
