@@ -281,6 +281,9 @@
 		<span class="text-fg-tertiary">
 			Malini told the lead: <MarkdownText text={rowSummary(entry.text)} mode="inline" />
 		</span>
+	{:else if entry.kind === 'saved'}
+		<span class="text-fg-default font-medium">You saved</span>
+		<span class="text-fg-secondary">{entry.names}</span>
 	{:else if entry.kind === 'work'}
 		{@const span = minutes(entry.at, entry.endAt)}
 		{@render lead()}
