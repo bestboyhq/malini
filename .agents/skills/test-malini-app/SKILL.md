@@ -39,6 +39,7 @@ sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '$P/malini.
 The app looks for workstream checkouts inside the sandbox profile, so the snapshot alone shows every workstream without its checkout.
 Copy the checkouts in too and repoint their git metadata at the copies.
 Skip each workstream's `.context` and `node_modules`: the sandbox needs neither, and copying them once grew a profile to 1.5 million files.
+Clone `workstreams/.kept` as it is: an archived workstream keeps its `.context` and the files its chats showed there, and without it a restored chat's screenshots answer 404.
 
 ```sh
 L=~/Library/Application\ Support/malini
@@ -47,6 +48,7 @@ mkdir -p "$P/workstreams"
 for ws in "$L"/workstreams/*/; do
 	rsync -a --exclude=.context --exclude=node_modules "$ws" "$P/workstreams/$(basename "$ws")/"
 done
+cp -cR "$L/workstreams/.kept" "$P/workstreams/"
 for ws in "$P"/workstreams/*/; do
 	g=$(sed 's/^gitdir: //' "$ws.git"); ng="${g/$L/$P}"
 	echo "gitdir: $ng" > "$ws.git"; echo "${ws}.git" > "$ng/gitdir"

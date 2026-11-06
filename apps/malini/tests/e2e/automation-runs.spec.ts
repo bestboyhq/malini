@@ -252,8 +252,8 @@ test('the same ask after two merges in a repository is suggested under the reply
 		"INSERT INTO event_log (channel, payload, workstream_id, chain_id, emitted_at, handled_at) VALUES ('pull-requests:ship-changed', ?, ?, ?, ?, ?)",
 	);
 	for (const [workstreamId, pullRequestNumber] of [
-		['e2e-merged-a', 73],
-		['e2e-merged-b', 75],
+		['e2e-merged-a', 75],
+		['e2e-merged-b', 73],
 	] as const) {
 		const merged = { pullRequestNumber, pullRequestUrl: null };
 		logMerge.run(

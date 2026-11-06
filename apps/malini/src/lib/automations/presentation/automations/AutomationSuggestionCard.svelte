@@ -47,7 +47,7 @@
 	function askedAfter({ asks }: AutomationSuggestionRecord): string {
 		const numbers = asks.map(({ pullRequestNumber }) => pullRequestNumber);
 		return numbers.every((number) => number !== null)
-			? `You asked this after ${MERGES.format(numbers.map((number) => `#${number}`))} merged.`
+			? `You asked this after ${MERGES.format([...numbers].sort((a, b) => a - b).map((number) => `#${number}`))} merged.`
 			: `You asked this after ${asks.length} merges.`;
 	}
 
