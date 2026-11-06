@@ -6,6 +6,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { leadBrief, type BriefEvent } from './lead-brief';
+import { savedSecretsPrompt } from './saved-secrets';
 
 type Entry = Omit<BriefEvent, 'seq'>;
 
@@ -169,14 +170,19 @@ describe('leadBrief', () => {
 				completed('run-1', 'archive-1', '{"id":"ws-site","name":"Site analytics"}', 2),
 				started(
 					'run-1',
-					'mcp__malini__jobs_run',
-					'job-1',
-					{ job: 'update docs', workstream: 'Api analytics' },
+					'mcp__malini__automations_run',
+					'automation-1',
+					{ automation: 'update docs', workstream: 'Api analytics' },
 					3,
 				),
-				completed('run-1', 'job-1', '{"id":"job-run-1","job":"Update docs"}', 3),
-				started('run-1', 'mcp__malini__jobs_run', 'job-2', { job: 'Lint' }, 4),
-				completed('run-1', 'job-2', 'not json', 4),
+				completed(
+					'run-1',
+					'automation-1',
+					'{"id":"automation-run-1","automation":"Update docs"}',
+					3,
+				),
+				started('run-1', 'mcp__malini__automations_run', 'automation-2', { automation: 'Lint' }, 4),
+				completed('run-1', 'automation-2', 'not json', 4),
 				started('run-1', 'mcp__malini__plan_write', 'plan-1', { text: '# Plan' }, 5),
 				completed('run-1', 'plan-1', '{"path":"/lead/.context/plan.md"}', 5),
 				started('run-1', 'mcp__malini__workstreams_list', 'list-1', {}, 6),
@@ -266,6 +272,14 @@ describe('leadBrief', () => {
 		expect(text).not.toContain(CONTINUE_AFTER_PAUSE_PROMPT);
 		expect(text).not.toContain(CONTINUE_AFTER_STOP_PROMPT);
 		expect(entries(text)).toHaveLength(2);
+	});
+
+	it('tells a saved secret as what the user did, never as words the user wrote', () => {
+		const wake = savedSecretsPrompt({ names: ['DEMO_TOKEN'], unsaved: [], repository: null });
+		const text = brief(events(user('run-1', 'Deploy it', 0), user('run-2', wake, 10)));
+
+		expect(entries(text).at(-1)).toMatch(/\] The user saved DEMO_TOKEN\.$/u);
+		expect(text).not.toContain(wake);
 	});
 
 	it('says where a turn paused or failed, after what the lead said in it, and keeps quiet about a stop', () => {

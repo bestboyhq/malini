@@ -9,6 +9,7 @@ import {
 	offeredVariants,
 	parseTurnReport,
 	turnStatus,
+	withoutReportFooter,
 	workstreamImagePath,
 } from './turn-report';
 
@@ -81,7 +82,19 @@ describe('turn report', () => {
 		]);
 	});
 
-	it('keeps the resolved review threads a review job lists before the commit line in the footer', () => {
+	it('drops the footer of a report that is not the turn card, and leaves prose alone', () => {
+		expect(
+			withoutReportFooter(
+				'I started the agent.\n\nOutcome: The agent is running\nNeeds: nothing\n',
+			),
+		).toBe('I started the agent.');
+		expect(withoutReportFooter('Outcome: The agent is running')).toBe('');
+		expect(withoutReportFooter('Clean.\n\nCommit: Fix the guard')).toBe(
+			'Clean.\n\nCommit: Fix the guard',
+		);
+	});
+
+	it('keeps the resolved review threads a review automation lists before the commit line in the footer', () => {
 		const report = parseTurnReport(
 			'Renamed the helper the bot flagged.\n\nOutcome: The review is addressed.\nNeeds: nothing\nResolved: PRRT_a1\nResolved: PRRT_b2\nCommit: Rename the helper',
 		);

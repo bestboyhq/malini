@@ -6,6 +6,7 @@ import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	PULL_REQUEST_FIXTURE,
 	captureFlow,
+	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
 	git,
@@ -40,15 +41,16 @@ test('cloning searches your GitHub repositories in the command center and opens 
 		);
 
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Find a repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
 		const search = dialog.getByRole('combobox', { name: 'Search repositories' });
 		await expect(search).toBeFocused();
-		await expect(search).toHaveAttribute('placeholder', 'Search 2 repositories or paste a URL');
+		await expect(search).toHaveAttribute('placeholder', 'Search 3 repositories or paste a URL');
 
 		const found = dialog.getByRole('listbox', { name: 'Your repositories' });
-		await expect(found.getByRole('option')).toHaveCount(2);
+		await expect(found.getByRole('option')).toHaveCount(3);
 		await page.keyboard.type('rabbit');
 		await expect(found.getByRole('option')).toHaveCount(1);
 		const hutch = found.getByRole('option', { name: /e2e\/hutch/ });
@@ -105,6 +107,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		);
 
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Find a repository' }).click();
 		await page

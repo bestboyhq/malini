@@ -87,10 +87,18 @@ test('the worker marks every host but bestboy.dev noindex and never sets cookies
 });
 
 test('the worker drops trailing slashes with a permanent redirect', async () => {
-	const response = await get('https://bestboy.dev/malini/docs/jobs/?x=1');
+	const response = await get('https://bestboy.dev/malini/docs/automations/?x=1');
 	assert.equal(response.status, 301);
-	assert.equal(response.headers.get('Location'), 'https://bestboy.dev/malini/docs/jobs?x=1');
+	assert.equal(response.headers.get('Location'), 'https://bestboy.dev/malini/docs/automations?x=1');
 	assert.equal((await get('https://bestboy.dev/malini/')).headers.get('Location'), SITE);
+});
+
+test('the worker sends the old Jobs docs to Automations', async () => {
+	const page = await get('https://bestboy.dev/malini/docs/jobs?x=1');
+	assert.equal(page.status, 301);
+	assert.equal(page.headers.get('Location'), 'https://bestboy.dev/malini/docs/automations?x=1');
+	const markdown = await get('https://bestboy.dev/malini/docs/jobs.md');
+	assert.equal(markdown.headers.get('Location'), 'https://bestboy.dev/malini/docs/automations.md');
 });
 
 test('the worker caches immutable assets for a year and lets pages revalidate in the background', async () => {
@@ -99,10 +107,16 @@ test('the worker caches immutable assets for a year and lets pages revalidate in
 		assert.equal(asset.headers.get('Cache-Control'), 'public, max-age=31536000, immutable', path);
 	}
 	const swr = 'public, max-age=0, stale-while-revalidate=86400';
-	for (const path of ['', '/docs/jobs', '/docs/jobs/__data.json', '/__data.json', '/demo/app']) {
+	for (const path of [
+		'',
+		'/docs/automations',
+		'/docs/automations/__data.json',
+		'/__data.json',
+		'/demo/app',
+	]) {
 		assert.equal((await get(`${SITE}${path}`)).headers.get('Cache-Control'), swr, path);
 	}
-	assert.equal((await get(`${SITE}/docs/jobs.md`)).headers.get('Cache-Control'), null);
+	assert.equal((await get(`${SITE}/docs/automations.md`)).headers.get('Cache-Control'), null);
 	assert.equal((await get(`${SITE}/llms.txt`)).headers.get('Cache-Control'), null);
 });
 

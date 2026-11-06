@@ -161,7 +161,7 @@ export class AgentLifecycleMonitor {
 		const session = this.dependencies.sessionFor(envelope.sessionId);
 		const owner = session?.workstreamId;
 		if (!owner || owner === '_unknown') return false;
-		if (session?.origin === 'job') return true;
+		if (session?.origin === 'automation') return true;
 		const context = this.dependencies.contextFor(owner);
 		if (!context) return false;
 		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {

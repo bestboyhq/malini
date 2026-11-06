@@ -40,12 +40,10 @@
 		loadModelProvidersCommand,
 		loadProviderCapabilitiesCommand,
 	} from '$shared/providers/providers.api';
-	import { leaveFirstChatCommand } from '$lib/app/application/commands/leave-first-chat.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { firstChatBare, firstChatBegan } from '../first-chat';
-	import JobsSidebar from '../JobsSidebar.svelte';
+	import AutomationsSidebar from '../AutomationsSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
-	import { JOBS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
+	import { AUTOMATIONS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
 	import { globalTopBarBandSlot } from '$shared/shell/global-topbar-actions.svelte';
 	import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
 	import {
@@ -74,14 +72,10 @@
 	const pullRequestBadge = pullRequestBadgesQuery.data;
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
-	const chromeHidden = $derived(onboardingQuery.data.shown || firstChatBare(activeWorkstreamId));
-
-	$effect(() => {
-		if (firstChatBegan()) leaveFirstChatCommand();
-	});
-	const inJobs = $derived(page.route.id?.startsWith(JOBS_HREF) ?? false);
+	const chromeHidden = $derived(onboardingQuery.data.shown !== null);
+	const inAutomations = $derived(page.route.id?.startsWith(AUTOMATIONS_HREF) ?? false);
 	let lastWorkstreamId = $state<string | null>(null);
-	const jobsBackHref = $derived(
+	const automationsBackHref = $derived(
 		lastWorkstreamId ? workstreamHref(lastWorkstreamId) : REPOSITORIES_HREF,
 	);
 	const releases: (() => void)[] = [];
@@ -139,8 +133,8 @@
 	data-navigation-error-message={scopeError ?? undefined}
 	data-navigation-freshness-phase={activeWorkstreamFreshnessPhase}
 >
-	{#if !chromeHidden && inJobs}
-		<JobsSidebar backHref={jobsBackHref} backLabel="Workstreams" />
+	{#if !chromeHidden && inAutomations}
+		<AutomationsSidebar backHref={automationsBackHref} backLabel="Workstreams" />
 	{:else if !chromeHidden}
 		<Sidebar
 			repositories={connectedRepositories}

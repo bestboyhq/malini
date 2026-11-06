@@ -5,19 +5,27 @@
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
-	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
-	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
-	import { jobCenterEntriesQuery } from '$lib/jobs/application/queries/job-center-entries.query.svelte';
-	import { jobRunByIdQuery } from '$lib/jobs/application/queries/job-run-by-id.query.svelte';
-	import { JobCenter, WorkstreamJobRuns } from '$lib/jobs/jobs.api';
-	import { mergeStoppedOnJobQuery } from '$lib/pull-requests/application/queries/merge-stopped-on-job.query.svelte';
+	import { loadAutomationsCommand } from '$lib/automations/application/commands/load-automations.command';
+	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
+	import { liveAutomationsQuery } from '$lib/automations/application/queries/live-automations.query.svelte';
+	import { automationRunByIdQuery } from '$lib/automations/application/queries/automation-run-by-id.query.svelte';
+	import { automationSuggestionsQuery } from '$lib/automations/application/queries/automation-suggestions.query.svelte';
+	import {
+		AutomationSuggestionCard,
+		WorkstreamAutomationRuns,
+	} from '$lib/automations/automations.api';
+	import { mergeStoppedOnAutomationQuery } from '$lib/pull-requests/application/queries/merge-stopped-on-automation.query.svelte';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { shipFailureQuery } from '$lib/pull-requests/application/queries/ship-failure.query.svelte';
-	import { MergeStoppedOnJob, ShipFailureNotice } from '$lib/pull-requests/pull-requests.api';
+	import {
+		MergeStoppedOnAutomation,
+		ShipFailureNotice,
+	} from '$lib/pull-requests/pull-requests.api';
 	import { addScratchpadIdeaCommand } from '$lib/scratchpad/application/commands/add-scratchpad-idea.command';
 	import {
 		WorkstreamTitle,
 		archiveWorkstreamCommand,
+		leaveMissingWorkstreamCommand,
 		repositoryContextQuery,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
@@ -26,8 +34,6 @@
 		WORKSTREAM_BROWSER_RATIO_KEY,
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
-	import { firstChatWaits } from '../first-chat';
-	import FirstChatRepositories from '../FirstChatRepositories.svelte';
 	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
@@ -39,7 +45,6 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
-	const firstChat = $derived(firstChatWaits(workstreamId));
 	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
 	const hasInspector = $derived(!workstream?.scope || hostsBrowser);
@@ -49,30 +54,34 @@
 			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
 	);
 	const chatSessionId = $derived(activeSessionQuery.data);
-	const jobs = $derived(
-		jobCenterEntriesQuery.data.filter(
+	const automations = $derived(
+		liveAutomationsQuery.data.filter(
 			(entry) =>
 				entry.workstreamId === workstreamId ||
 				(chatSessionId !== null && entry.run?.chatSessionId === chatSessionId),
 		),
 	);
-	const jobRuns = $derived(jobs.flatMap((entry) => (entry.run ? [entry.run] : [])));
+	const automationRuns = $derived(automations.flatMap((entry) => (entry.run ? [entry.run] : [])));
 
 	onMount(() => {
-		loadJobsCommand();
-		return watchJobsHook();
+		loadAutomationsCommand();
+		return watchAutomationsHook();
+	});
+
+	$effect(() => {
+		if (workstream === null) leaveMissingWorkstreamCommand(workstreamId);
 	});
 
 	const pullRequestShipped = $derived(
 		['queued', 'merged'].includes(pullRequestBadgesQuery.data(workstreamId).phase),
 	);
 
-	const mergeStop = $derived(mergeStoppedOnJobQuery.data(workstreamId));
+	const mergeStop = $derived(mergeStoppedOnAutomationQuery.data(workstreamId));
 	const shipFailure = $derived(shipFailureQuery.data(workstreamId));
 	const stoppedHere = $derived(
 		mergeStop !== null &&
 			chatSessionId !== null &&
-			jobRunByIdQuery.data(mergeStop.jobRunId)?.sessionId === chatSessionId,
+			automationRunByIdQuery.data(mergeStop.automationRunId)?.sessionId === chatSessionId,
 	);
 
 	function closeWorkstream(): void {
@@ -87,15 +96,14 @@
 		<ChatSurface
 			{workstreamId}
 			{pullRequestShipped}
-			{jobRuns}
-			jobs={jobs.length > 0 ? jobsInProgress : undefined}
+			{automationRuns}
+			automations={automations.length > 0 ? automationsInProgress : undefined}
 			timeline={Boolean(workstream?.scope)}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}
 			notice={stoppedHere || shipFailure ? workstreamNotice : undefined}
-			welcome={firstChat ? firstChatRepositories : undefined}
 		>
 			{#snippet header(presentedWorkstreamId: string)}
 				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
@@ -103,29 +111,30 @@
 			{#snippet workstreamsCard(workstreamIds: readonly string[])}
 				<StartedWorkstreams {workstreamIds} />
 			{/snippet}
+			{#snippet afterRun(runId: string)}
+				{@const suggestion = automationSuggestionsQuery.afterRun(runId)}
+				{#if suggestion}
+					<div class="-mx-3">
+						<AutomationSuggestionCard {suggestion} />
+					</div>
+				{/if}
+			{/snippet}
 		</ChatSurface>
 	{/snippet}
 	{#snippet secondary()}
 		<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
 			{@render children()}
-			{#if !firstChat}
-				<JobCenter docked />
-			{/if}
 		</div>
 	{/snippet}
 </InspectorSplit>
 
-{#snippet firstChatRepositories()}
-	<FirstChatRepositories />
-{/snippet}
-
-{#snippet jobsInProgress()}
-	<WorkstreamJobRuns entries={jobs} {workstreamId} />
+{#snippet automationsInProgress()}
+	<WorkstreamAutomationRuns entries={automations} {workstreamId} />
 {/snippet}
 
 {#snippet workstreamNotice()}
 	{#if stoppedHere && mergeStop}
-		<MergeStoppedOnJob {workstreamId} detail={mergeStop.detail} />
+		<MergeStoppedOnAutomation {workstreamId} detail={mergeStop.detail} />
 	{:else if shipFailure}
 		<ShipFailureNotice {workstreamId} failure={shipFailure} />
 	{/if}

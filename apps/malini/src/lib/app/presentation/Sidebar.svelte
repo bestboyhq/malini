@@ -3,7 +3,7 @@
 	import { page } from '$shared/router/state';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { quartOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { slide, type SlideParams } from 'svelte/transition';
 	import { BusyIcon, ChatTileIcon, Icon } from '$hyper-ui/icons';
 	import {
@@ -593,7 +593,7 @@
 	}>;
 
 	const foldMotion = (): SlideParams => ({
-		duration: prefersReducedMotion.current ? 0 : 240,
+		duration: motionOff() ? 0 : 240,
 		easing: quartOut,
 	});
 

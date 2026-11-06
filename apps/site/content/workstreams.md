@@ -128,7 +128,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Draft** opens a draft pull request.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the branch or the files changed, never your prompt, the chat's name or the agent's reply.
-  A [job](/malini/docs/jobs.md)'s edits commit under the `Commit:` line its agent ended with, but that line never titles the pull request; **Fix checks** and **Address review** fall back to "Fix failing checks" and "Address review feedback" only when their agent wrote none, and a merge keeps its merge message.
+  An [automation](/malini/docs/automations.md)'s edits commit under the `Commit:` line its agent ended with, but that line never titles the pull request; **Fix checks** and **Address review** fall back to "Fix failing checks" and "Address review feedback" only when their agent wrote none, and a merge keeps its merge message.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
   **Keep**, beside **Cancel** while the merge is queued, leaves it open on **Merged** instead, with **Archive**.
@@ -138,19 +138,19 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   An app that never reports on your repository, such as one whose suites stay queued forever, holds nothing.
 - **Your next prompt continues it.** A prompt you send in a workstream on **Merged** first moves its branch onto the latest main, and the agent works from there.
   When it cannot, because you are offline or GitHub does not answer, a toast says why and the composer keeps your prompt.
-- **It runs on events.** **Draft**, **Merge**, **Cancel** and **Keep** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
-  It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
-  A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
+- **It runs on events.** **Draft**, **Merge**, **Cancel** and **Keep** each log a **Button clicked**, and the [Reconciler](/malini/docs/automations.md#reconciler)'s **Shipping** rule takes the workstream from there.
+  It moves only when Malini logs something, such as a turn or an automation that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
+  A chat or an automation ships with the **Open draft** or **Merge** automation, and that automation finishing moves the workstream on.
 - **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
   When the branch needs main merged in first, Malini stops those commands before it merges, since the checkout cannot move under the agent's open run.
-- **While it waits, it works.** Malini merges main into the branch when GitHub says it is behind or conflicts, and runs the **Fix checks**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
+- **While it waits, it works.** Malini merges main into the branch when GitHub says it is behind or conflicts, and runs the **Fix checks**, **Resolve conflicts**, and **Address review** [automations](/malini/docs/automations.md) as needed, then replies to and resolves the review threads it fixed.
 - **A failing check gets one re-run first.** When GitHub Actions jobs fail for the first time, Malini re-runs the failed jobs once, and the top bar names them, such as **Queued for merge · Re-running e2e on macOS 3/5**.
   When the re-run passes, the merge goes on with no agent.
   When it fails again, **Fix checks** starts, the top bar says **Fixing e2e on macOS 3/5**, and its agent hears that the failure repeated, so it fixes the cause instead of re-running it.
   A check outside GitHub Actions, or one GitHub will not re-run, goes straight to **Fix checks**.
-- **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, and every 2 minutes while it waits for a review or for you, never while an agent or a job works.
+- **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, and every 2 minutes while it waits for a review or for you, never while an agent or an automation works.
   Each read that finds something new is a `pull-requests:pull-request-changed` event: its checks, its review with each change request and open thread, how far it is behind its base, whether it conflicts, and whether you may merge it.
-  Every job Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/jobs.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
+  Every automation Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/automations.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Main reaching your files merges it in.** Malini fetches main every five minutes and compares it with each workstream, and again after every commit there.
@@ -159,7 +159,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   This happens before you click **Draft** or **Merge**, so a conflict never waits for the merge to surface.
   Main changing only other files starts nothing: the workstream stays on its own commits until you merge it.
   Lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` count only when they conflict.
-  Turn it off, make it ask, or narrow it to conflicts on **Update from main**'s page in [Jobs](/malini/docs/jobs.md).
+  Turn it off, make it ask, or narrow it to conflicts on **Update from main**'s page in [Automations](/malini/docs/automations.md).
 - **Errors are retried, in plain sight.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes.
   The top bar and the workstream in the sidebar turn amber and say what failed and since when, such as **Couldn't open draft · 3 tries since 14:02**.
   A note above the composer says why, how many times Malini tried and when it tries next, with **Retry now**, **Cancel draft** while it opens a draft, and **What GitHub said** when GitHub refused the push.
@@ -176,8 +176,8 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, your GitHub sign-in expired, or a git operation stopped part-way.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own: when GitHub shows a change, its branch moves, a turn in the chat ends, a git operation you aborted or finished leaves the checkout, or a retry comes due.
   There is no **Retry** in the top bar for these, because a retry without the details does nothing new; **Retry now** shows only beside a failure whose reason is on screen.
-  When a fix gave up, **Open job** shows that job's chat and why the merge stopped, with **Retry merge**, which queues it again.
-- **A limit doesn't stop it.** A fix job whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
+  When a fix gave up, **Open automation** shows that automation's chat and why the merge stopped, with **Retry merge**, which queues it again.
+- **A limit doesn't stop it.** A fix automation whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
 

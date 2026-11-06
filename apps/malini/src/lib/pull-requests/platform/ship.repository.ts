@@ -24,7 +24,7 @@ export type ShipRow = ShipStateRecord &
 		generatedBody: string | null;
 		addressedReviews: readonly string[];
 		requests: ShipRequests;
-		settledJobRunId: string | null;
+		settledAutomationRunId: string | null;
 	}>;
 
 export type ShipPatch = Partial<
@@ -39,7 +39,7 @@ export type ShipPatch = Partial<
 		failureSignature: string | null;
 		checksRerun: ChecksRerun | null;
 		attempts: number;
-		activeJobRunId: string | null;
+		activeAutomationRunId: string | null;
 		lastError: string | null;
 		githubSaid: string | null;
 		failedSince: string | null;
@@ -49,7 +49,7 @@ export type ShipPatch = Partial<
 		generatedBody: string | null;
 		addressedReviews: readonly string[];
 		failures: number;
-		settledJobRunId: string | null;
+		settledAutomationRunId: string | null;
 	}>
 >;
 
@@ -62,13 +62,13 @@ interface ShipDbRow {
 	pull_request_url: string | null;
 	needs_you_reason: string | null;
 	needs_you_detail: string | null;
-	needs_you_job_run_id: string | null;
+	needs_you_automation_run_id: string | null;
 	queued_at: string | null;
 	failure_signature: string | null;
 	checks_rerun_at: string | null;
 	checks_rerun_head_sha: string | null;
 	attempts: number;
-	active_job_run_id: string | null;
+	active_automation_run_id: string | null;
 	last_error: string | null;
 	github_said: string | null;
 	failed_since: string | null;
@@ -80,7 +80,7 @@ interface ShipDbRow {
 	push_requests: number;
 	review_requests: number;
 	failures: number;
-	settled_job_run_id: string | null;
+	settled_automation_run_id: string | null;
 	updated_at: string;
 }
 
@@ -113,9 +113,9 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 const WAITS: readonly ShipWaitsFor[] = ['workflow-scope', 'workflow-permission', 'push-access'];
 
 const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
-	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,
+	needs_you_detail, needs_you_automation_run_id, queued_at, failure_signature, attempts, active_automation_run_id,
 	last_error, github_said, failed_since, next_attempt_at, waits_for, generated_title, generated_body,
-	addressed_reviews, push_requests, review_requests, failures, settled_job_run_id, updated_at,
+	addressed_reviews, push_requests, review_requests, failures, settled_automation_run_id, updated_at,
 	checks_rerun_at, checks_rerun_head_sha`;
 
 const REQUEST_COLUMNS: Readonly<Record<ShipRequest, string>> = {
@@ -142,12 +142,12 @@ function fromRow(row: ShipDbRow): ShipRow {
 				: {
 						reason,
 						detail: row.needs_you_detail ?? '',
-						jobRunId: row.needs_you_job_run_id,
+						automationRunId: row.needs_you_automation_run_id,
 					},
 		queuedAt: row.queued_at,
 		attempts: row.attempts,
 		checks: signatureChecks(row.failure_signature),
-		activeJobRunId: row.active_job_run_id,
+		activeAutomationRunId: row.active_automation_run_id,
 		lastError: row.last_error,
 		githubSaid: row.github_said,
 		failures: row.failures,
@@ -167,7 +167,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 			push: row.push_requests,
 			review: row.review_requests,
 		},
-		settledJobRunId: row.settled_job_run_id,
+		settledAutomationRunId: row.settled_automation_run_id,
 	};
 }
 
@@ -192,7 +192,7 @@ export function shipRecord(row: ShipRow): ShipStateRecord {
 		queuedAt: row.queuedAt,
 		attempts: row.attempts,
 		checks: row.checks,
-		activeJobRunId: row.activeJobRunId,
+		activeAutomationRunId: row.activeAutomationRunId,
 		lastError: row.lastError,
 		githubSaid: row.githubSaid,
 		failures: row.failures,
@@ -250,7 +250,7 @@ export function updateShip(
 	if (patch.needsYou !== undefined) {
 		set('needs_you_reason', patch.needsYou?.reason ?? null);
 		set('needs_you_detail', patch.needsYou?.detail ?? null);
-		set('needs_you_job_run_id', patch.needsYou?.jobRunId ?? null);
+		set('needs_you_automation_run_id', patch.needsYou?.automationRunId ?? null);
 	}
 	if (patch.queuedAt !== undefined) set('queued_at', patch.queuedAt);
 	if (patch.failureSignature !== undefined) set('failure_signature', patch.failureSignature);
@@ -259,7 +259,8 @@ export function updateShip(
 		set('checks_rerun_head_sha', patch.checksRerun?.headSha ?? null);
 	}
 	if (patch.attempts !== undefined) set('attempts', patch.attempts);
-	if (patch.activeJobRunId !== undefined) set('active_job_run_id', patch.activeJobRunId);
+	if (patch.activeAutomationRunId !== undefined)
+		set('active_automation_run_id', patch.activeAutomationRunId);
 	if (patch.lastError !== undefined) set('last_error', patch.lastError);
 	if (patch.githubSaid !== undefined) set('github_said', patch.githubSaid);
 	if (patch.failedSince !== undefined) set('failed_since', patch.failedSince);
@@ -271,7 +272,8 @@ export function updateShip(
 		set('addressed_reviews', JSON.stringify(patch.addressedReviews));
 	}
 	if (patch.failures !== undefined) set('failures', patch.failures);
-	if (patch.settledJobRunId !== undefined) set('settled_job_run_id', patch.settledJobRunId);
+	if (patch.settledAutomationRunId !== undefined)
+		set('settled_automation_run_id', patch.settledAutomationRunId);
 	set('updated_at', nowIso8601());
 	const phaseGuard = onlyInPhase === undefined ? '' : ' AND phase = ?';
 	const { changes } = run(

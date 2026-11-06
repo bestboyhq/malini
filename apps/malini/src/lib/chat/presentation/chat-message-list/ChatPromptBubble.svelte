@@ -310,6 +310,7 @@
 								envelopes={controls.envelopes}
 								sessionId={transcript.sessionId}
 								workstreamId={transcript.workstreamId}
+								provider={controls.selection.provider}
 							/>
 						{/if}
 						{#if checkpointEdit.isArmed(item)}

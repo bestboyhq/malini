@@ -14,7 +14,7 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import type { GroupedRunTimelineItem } from '../activity-group';
+	import { withPendingRows, type GroupedRunTimelineItem } from '../activity-group';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import { runLastSeq, type RunGroup } from '../render-state';
 	import RunStatusLine from '../RunStatusLine.svelte';
@@ -22,6 +22,7 @@
 	import ChatTimelineRow from './ChatTimelineRow.svelte';
 	import RunTerminalBanner from './RunTerminalBanner.svelte';
 	import RunUndoFooter from './RunUndoFooter.svelte';
+	import SubagentGroup from './SubagentGroup.svelte';
 	import { blockKey } from './streaming-finalization';
 	import { RUN_TIMELINE_REVEAL_INCREMENT } from './timeline-derivations.svelte';
 	import { transcriptContext } from './transcript-context';
@@ -67,7 +68,7 @@
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
 	const runRows = $derived(timelines.groupedTimelineItems(run, runTimelineWindow, isLastRun));
 	const runTimelineItems = $derived(
-		live && live.pendingItems.length > 0 ? mergePendingRows(runRows, live.pendingItems) : runRows,
+		live && live.pendingItems.length > 0 ? withPendingRows(runRows, live.pendingItems) : runRows,
 	);
 	const undoTarget = $derived(
 		!run.superseded && !run.obsoleted ? transcript.undoTarget(run.runId) : null,
@@ -120,15 +121,6 @@
 				estimateRowHeight(row, transcriptWindow.textWidth);
 		}
 		return seeded;
-	}
-
-	function mergePendingRows(
-		rows: readonly GroupedRunTimelineItem[],
-		pending: readonly RunTimelineItem[],
-	): readonly GroupedRunTimelineItem[] {
-		const drawn = new Set(rows.map((row) => row.key));
-		const fresh = pending.filter((row) => !drawn.has(row.key));
-		return fresh.length > 0 ? [...rows, ...fresh] : rows;
 	}
 
 	function onShowOlder(event: MouseEvent): void {
@@ -208,6 +200,8 @@
 				>
 					{#if item.kind === 'activity-group'}
 						<ChatActivityGroup group={item} {run} {isLastRun} />
+					{:else if item.kind === 'subagent-group'}
+						<SubagentGroup group={item} {run} />
 					{:else if item.kind === 'workstreams'}
 						<div
 							class="w-full"
@@ -278,6 +272,10 @@
 			<div class="flex h-6 items-center justify-end gap-1.5" data-testid="chat-run-actions">
 				{@render runActions()}
 			</div>
+		{/if}
+
+		{#if run.terminal !== null}
+			{@render transcript.afterRun(run.runId)}
 		{/if}
 	{/if}
 </li>

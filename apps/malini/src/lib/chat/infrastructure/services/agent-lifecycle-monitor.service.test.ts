@@ -327,12 +327,12 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.notifications).toHaveLength(1);
 	});
 
-	it('leaves job runs to the Job center: no attention, no notification, no cleared dot', () => {
+	it('leaves automation runs to their own rows: no attention, no notification, no cleared dot', () => {
 		const harness = monitorHarness();
-		harness.sessions.set('job-session', {
+		harness.sessions.set('automation-session', {
 			workstreamId: 'stream-b',
 			status: 'idle',
-			origin: 'job',
+			origin: 'automation',
 		});
 		harness.contexts.set('stream-b', context('globex', 'stream-b'));
 		harness.attentions.set('user-session', {
@@ -345,31 +345,35 @@ describe('AgentLifecycleMonitor', () => {
 		harness.monitor.start();
 
 		harness.emit(
-			envelope('job-session', 'job-run', 1, {
+			envelope('automation-session', 'automation-run', 1, {
 				type: 'run.started',
-				runId: 'job-run',
-				sessionId: 'job-session',
+				runId: 'automation-run',
+				sessionId: 'automation-session',
 			}),
 		);
 		harness.emit(
-			envelope('job-session', 'job-run', 2, {
+			envelope('automation-session', 'automation-run', 2, {
 				type: 'run.completed',
-				runId: 'job-run',
+				runId: 'automation-run',
 				summary: 'Checks pass.',
 			}),
 		);
 
 		harness.emit(
-			envelope('late-job', 'late-run', 1, {
+			envelope('late-automation', 'late-run', 1, {
 				type: 'run.failed',
 				runId: 'late-run',
 				error: 'boom',
 			}),
 		);
-		harness.sessions.set('late-job', { workstreamId: 'stream-b', status: 'failed', origin: 'job' });
+		harness.sessions.set('late-automation', {
+			workstreamId: 'stream-b',
+			status: 'failed',
+			origin: 'automation',
+		});
 		harness.monitor.flushKnownSessions();
 
-		expect(harness.sessions.get('job-session')?.status).toBe('completed');
+		expect(harness.sessions.get('automation-session')?.status).toBe('completed');
 		expect(harness.attentions.get('user-session')?.runId).toBe('user-run');
 		expect(harness.notifications).toEqual([]);
 		expect(harness.sound).not.toHaveBeenCalled();

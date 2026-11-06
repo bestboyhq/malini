@@ -23,6 +23,7 @@
 	import { sessionProjectorCache } from './chat-message-list/session-projectors';
 	import {
 		leadTimeline,
+		pausedLine,
 		replyParts,
 		rowSummary,
 		timelineRows,
@@ -281,6 +282,9 @@
 		<span class="text-fg-tertiary">
 			Malini told the lead: <MarkdownText text={rowSummary(entry.text)} mode="inline" />
 		</span>
+	{:else if entry.kind === 'saved'}
+		<span class="text-fg-default font-medium">You saved</span>
+		<span class="text-fg-secondary">{entry.names}</span>
 	{:else if entry.kind === 'work'}
 		{@const span = minutes(entry.at, entry.endAt)}
 		{@render lead()}
@@ -345,10 +349,10 @@
 		{@render lead()}
 		<span class="text-fg-secondary">archived</span>
 		<TimelineActor workstreamId={entry.workstreamId} fallback={entry.name} />
-	{:else if entry.kind === 'job'}
+	{:else if entry.kind === 'automation'}
 		{@render lead()}
 		<span class="text-fg-secondary">
-			ran {entry.job}{entry.workstream ? ` in ${entry.workstream}` : ''}
+			ran {entry.automation}{entry.workstream ? ` in ${entry.workstream}` : ''}
 		</span>
 	{:else if entry.kind === 'plan'}
 		{@render lead()}
@@ -418,9 +422,7 @@
 			</span>
 		{:else}
 			<span class="text-fg-tertiary">
-				Paused: {rowSummary(entry.text)}{#if timeOf(entry.resumeAt)}, goes on by itself at {timeOf(
-						entry.resumeAt,
-					)}{/if}
+				Paused: {pausedLine(entry.text, timeOf(entry.resumeAt))}
 			</span>
 		{/if}
 	{/if}

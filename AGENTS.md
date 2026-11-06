@@ -9,7 +9,7 @@ Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestb
 Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0119).
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes five outbound calls of its own (ADR 0129, ADR 0142, ADR 0157).
+The app makes seven outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166).
 Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156).
 Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old.
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
@@ -17,13 +17,15 @@ Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, onl
 Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 The extension marketplace is read from bestboy.dev, from `src/lib/extensions/platform/marketplace.ts`, only while Settings, Extensions or Profile is open or something is installed, and a package goes up with your Bestboy token only when you press **Publish** (ADR 0142, ADR 0146).
 Provider model lists come from models.dev, from `src/lib/shared/providers/platform/models-dev.service.ts`, at launch and at most hourly as the model picker or Settings, Providers opens; `MALINI_MODELS_DEV_URL` points an unpackaged build at a local catalog (ADR 0157).
+Saving an OpenCode key sends one-token messages to opencode.ai's Go endpoint, from `src/lib/shared/providers/platform/opencode-plan.ts`, to learn whether the key runs Go or Console, and stores that plan so the picker lists only its models; `MALINI_OPENCODE_PROBE_URL` points an unpackaged build at another origin (ADR 0165).
+A ChatGPT plan reaches `auth.openai.com` and `api.openai.com`, from `src/lib/shared/providers/platform/chatgpt/`, only after you press **Continue with ChatGPT**, and the token never leaves the main process, whose proxy on `127.0.0.1` Claude Code calls; `MALINI_CHATGPT_ISSUER` and `MALINI_CHATGPT_RESOURCE` point an unpackaged build at a fake (ADR 0166).
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.
 
 Nothing is done on the strength of a unit test, a scorecard, or a component rendering in isolation.
 It is done when the flow completes in the built app or the `pnpm dev` window, proven by a screenshot of that window and a clean console for the interaction.
-Capture the app's own window only, never the full screen: `screencapture -o -l <window id> out.png` on macOS.
+Capture the app's own window only, never the full screen: `shot` in the `test-malini-app` skill takes it with Electron's `capturePage()`, which works inside Malini's sandbox.
 If you defer something, say so with the reason.
 Do not report it closed.
 
@@ -60,21 +62,21 @@ Code lives in vertical domain slices under `apps/malini/src/lib/<domain>/`.
 A slice holds its renderer layers (`domain`, `application`, `infrastructure`, `presentation`) and its main-process code (`platform/`).
 Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.platform.ts` (main process).
 
-| Domain                 | What it owns                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain                  |
-| `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints                  |
-| `pull-requests`        | pull request state, shipping and its GitHub reader, top-bar status                  |
-| `jobs`                 | jobs, triggers and Thens, runs and their runner, event log, reconciler, Jobs page   |
-| `skills`               | skill usage and on/off switches in Claude settings, a job's skills                  |
-| `extensions`           | marketplace and installs, extension runtime, host adapters, inspector, opened files |
-| `browser`              | browser tabs in the inspector and the agent's browser tools                         |
-| `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile |
-| `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                     |
-| `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings     |
-| `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                |
-| `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                |
-| `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings          |
+| Domain                 | What it owns                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain                              |
+| `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints                              |
+| `pull-requests`        | pull request state, shipping and its GitHub reader, top-bar status                              |
+| `automations`          | automations, triggers and Thens, runs and their runner, event log, reconciler, Automations page |
+| `skills`               | skill usage and on/off switches in Claude settings, an automation's skills                      |
+| `extensions`           | marketplace and installs, extension runtime, host adapters, inspector, opened files             |
+| `browser`              | browser tabs in the inspector and the agent's browser tools                                     |
+| `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile             |
+| `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                                 |
+| `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings                 |
+| `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                            |
+| `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                            |
+| `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings                      |
 
 `src/main` is node bootstrap only:
 
@@ -92,7 +94,7 @@ apps/malini/src/main/
 
 Command names are `<domain>.<verb-kebab>` (`chat.send-prompt`), event channels `<domain>:<event-kebab>` (`chat:agent-event`).
 Both are declared once in `$contract` and checked on both sides by `pnpm check`.
-Every event channel has one description and the `facts` a job sees of it in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
+Every event channel has one description and the `facts` an automation sees of it in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
 
 `.agents/rules/frontend/layout.mdc` has the full tree and `.agents/rules/frontend/cross-domain-imports.mdc` the import rules.
 `@malini/desktop/domain-boundaries` enforces both at `error`.

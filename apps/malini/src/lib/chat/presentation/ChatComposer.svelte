@@ -72,7 +72,7 @@
 	import { EnterShortcut } from '$hyper-ui/components/enter-shortcut';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import { JobPicker } from '$lib/jobs/jobs.api';
+	import { AutomationPicker } from '$lib/automations/automations.api';
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import ImageGallery from './ImageGallery.svelte';
@@ -133,7 +133,7 @@
 		endTrigger(): void;
 		removeTrigger(): void;
 	} | null = $state(null);
-	let jobPicker: {
+	let automationPicker: {
 		keydown(event: KeyboardEvent): void;
 		activeOptionId(): string | undefined;
 	} | null = $state(null);
@@ -183,9 +183,9 @@
 	let contextSearchEl: HTMLInputElement | null = $state(null);
 	let contextSelectionIndex = $state(0);
 	let contextOpenedByTyping = $state(false);
-	let jobPickerOpen = $state(false);
-	let jobQuery = $state<string | null>(null);
-	const jobPickerShown = $derived(jobPickerOpen || jobQuery !== null);
+	let automationPickerOpen = $state(false);
+	let automationQuery = $state<string | null>(null);
+	const automationPickerShown = $derived(automationPickerOpen || automationQuery !== null);
 	let selectedContextFiles = $state<string[]>([]);
 	const todosResolution = $derived(workstreamTodosResolutionQuery.data);
 	const todoContextResolving = $derived(todosResolution?.status === 'resolving');
@@ -332,10 +332,12 @@
 		contextLoadError ? describeFailure(contextLoadError, { subject: 'Workstream files' }) : null,
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
-	const jobChatSessionId = $derived(forceFreshSession ? null : sessionId);
-	const slashCommands = $derived(jobQuery !== null && jobChatSessionId ? CLAUDE_CODE_COMMANDS : []);
+	const automationChatSessionId = $derived(forceFreshSession ? null : sessionId);
+	const slashCommands = $derived(
+		automationQuery !== null && automationChatSessionId ? CLAUDE_CODE_COMMANDS : [],
+	);
 	const pendingPrompt = $derived(sessionId ? pendingPromptQuery.data(sessionId) : null);
-	const jobChatAfterRunId = $derived(pendingPrompt?.runId || transcriptFacts.lastRunId);
+	const automationChatAfterRunId = $derived(pendingPrompt?.runId || transcriptFacts.lastRunId);
 
 	function readDraft(id: string): string {
 		return id ? composerDraftQuery.data(id).text : '';
@@ -420,8 +422,8 @@
 		addMenuOpen = false;
 		contextOpen = false;
 		contextQuery = '';
-		jobPickerOpen = false;
-		jobQuery = null;
+		automationPickerOpen = false;
+		automationQuery = null;
 	});
 
 	$effect(() => {
@@ -478,7 +480,7 @@
 	async function openContextPicker(byTyping = false): Promise<void> {
 		if (disabled) return;
 		addMenuOpen = false;
-		closeJobPicker();
+		closeAutomationPicker();
 		contextOpen = true;
 		contextOpenedByTyping = byTyping;
 		contextQuery = '';
@@ -488,43 +490,43 @@
 		loadWorkstreamFilesCommand(workstreamId);
 	}
 
-	function openJobPicker(): void {
+	function openAutomationPicker(): void {
 		if (disabled) return;
 		addMenuOpen = false;
 		contextOpen = false;
-		jobPickerOpen = true;
+		automationPickerOpen = true;
 	}
 
-	function typeJobTrigger(): void {
+	function typeAutomationTrigger(): void {
 		if (disabled) return;
 		addMenuOpen = false;
 		contextOpen = false;
-		jobPickerOpen = false;
+		automationPickerOpen = false;
 		promptEditor?.beginTrigger('/');
 	}
 
-	function closeJobPicker(): void {
+	function closeAutomationPicker(): void {
 		promptEditor?.endTrigger();
-		jobQuery = null;
-		jobPickerOpen = false;
+		automationQuery = null;
+		automationPickerOpen = false;
 	}
 
-	function onJobPickerClose(): void {
-		closeJobPicker();
+	function onAutomationPickerClose(): void {
+		closeAutomationPicker();
 		void (async () => {
 			await tick();
 			promptEditor?.focusEditor();
 		})();
 	}
 
-	function onJobStarted(): void {
-		if (jobQuery !== null) promptEditor?.removeTrigger();
-		onJobPickerClose();
+	function onAutomationStarted(): void {
+		if (automationQuery !== null) promptEditor?.removeTrigger();
+		onAutomationPickerClose();
 	}
 
 	function runSlashCommand(name: string): void {
-		const chatSessionId = jobChatSessionId;
-		onJobStarted();
+		const chatSessionId = automationChatSessionId;
+		onAutomationStarted();
 		if (!chatSessionId) return;
 		sendCommandPromptCommand({
 			workstreamId,
@@ -660,7 +662,7 @@
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
-		if (jobQuery !== null) jobPicker?.keydown(event);
+		if (automationQuery !== null) automationPicker?.keydown(event);
 		if (event.defaultPrevented) return;
 		if (opensPicker(event, '@')) {
 			event.preventDefault();
@@ -669,7 +671,7 @@
 		}
 		if (opensPicker(event, '/')) {
 			event.preventDefault();
-			typeJobTrigger();
+			typeAutomationTrigger();
 			return;
 		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -1051,26 +1053,26 @@
 				role="menuitem"
 				focusOnHover={false}
 				class="gap-2.5"
-				data-testid="chat-run-job"
-				onclick={openJobPicker}
+				data-testid="chat-run-automation"
+				onclick={openAutomationPicker}
 			>
 				<Icon name="checklist" class="shrink-0" size={15} />
-				Run a job
+				Run an automation
 			</DropdownItem>
 		</div>
 	</DropdownLayer>
 
-	{#if jobPickerShown}
-		<JobPicker
-			bind:this={jobPicker}
-			anchor={jobQuery === null ? contextTriggerEl : outgoingBandEl}
-			typedQuery={jobQuery}
+	{#if automationPickerShown}
+		<AutomationPicker
+			bind:this={automationPicker}
+			anchor={automationQuery === null ? contextTriggerEl : outgoingBandEl}
+			typedQuery={automationQuery}
 			{workstreamId}
-			chatSessionId={jobChatSessionId}
-			chatAfterRunId={jobChatAfterRunId}
+			chatSessionId={automationChatSessionId}
+			chatAfterRunId={automationChatAfterRunId}
 			commands={slashCommands}
-			onclose={onJobPickerClose}
-			onstarted={onJobStarted}
+			onclose={onAutomationPickerClose}
+			onstarted={onAutomationStarted}
 			oncommand={runSlashCommand}
 		/>
 	{/if}
@@ -1230,9 +1232,11 @@
 				onvaluechange={onPromptValueChange}
 				onchipremove={onChipRemove}
 				onattachfiles={attachClipboardFiles}
-				ariaActiveDescendant={jobQuery === null ? undefined : jobPicker?.activeOptionId()}
+				ariaActiveDescendant={automationQuery === null
+					? undefined
+					: automationPicker?.activeOptionId()}
 				onkeydown={onKeydown}
-				ontriggerquery={(query) => (jobQuery = query)}
+				ontriggerquery={(query) => (automationQuery = query)}
 			/>
 		</div>
 
@@ -1260,9 +1264,9 @@
 		{#snippet footer()}
 			<div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
 				<Tooltip
-					content="Add files, context, or run a job"
+					content="Add files, context, or run an automation"
 					placement="top"
-					suppressed={addMenuOpen || contextOpen || jobPickerShown}
+					suppressed={addMenuOpen || contextOpen || automationPickerShown}
 				>
 					<IconButton
 						bind:element={contextTriggerEl}
@@ -1292,7 +1296,12 @@
 			</div>
 
 			<div class="flex shrink-0 items-center gap-1">
-				<SessionRuntimeControls {envelopes} {sessionId} {workstreamId} />
+				<SessionRuntimeControls
+					{envelopes}
+					{sessionId}
+					{workstreamId}
+					provider={selection.provider}
+				/>
 				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
 					<IconButton
 						variant={stopsRun ? 'secondary' : 'primary'}

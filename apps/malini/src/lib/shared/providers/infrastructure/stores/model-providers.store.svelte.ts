@@ -3,6 +3,7 @@ import { modelProvidersService } from '$shared/providers/infrastructure/services
 
 export class ModelProvidersStore {
 	providers = $state<ModelProviderRecord[]>([]);
+	chatGptSignIn = $state(false);
 	#loaded = false;
 	#inflight: Promise<void> | null = null;
 

@@ -10,13 +10,13 @@ import {
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 } from '$contract/events';
 import {
-	DEFAULT_JOB_BOUNDARY,
-	JOB_INTERRUPTED_DETAIL,
-	type JobDefinitionRecord,
-	type JobRunRecord,
-	type JobRunStatus,
-	type RunJobArgs,
-} from '$contract/jobs';
+	DEFAULT_AUTOMATION_BOUNDARY,
+	AUTOMATION_INTERRUPTED_DETAIL,
+	type AutomationDefinitionRecord,
+	type AutomationRunRecord,
+	type AutomationRunStatus,
+	type RunAutomationArgs,
+} from '$contract/automations';
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	type ShipButton,
@@ -33,15 +33,24 @@ import { createEventBus } from '$main/events';
 import { workstreamPath } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
-import { startEventLog } from '$lib/jobs/platform/event-log.service';
+import { startEventLog } from '$lib/automations/platform/event-log.service';
 import {
-	getBuiltinJobDefinition,
-	insertJobDefinition,
-} from '$lib/jobs/platform/job-definitions.repository';
-import { insertJobRun, saveJobRun } from '$lib/jobs/platform/job-runs.repository';
-import { createJobSchedules, type JobSchedules } from '$lib/jobs/platform/job-schedules.service';
-import { startJobTriggers, type JobTriggers } from '$lib/jobs/platform/job-triggers.service';
-import { Reconciler } from '$lib/jobs/platform/reconciler.service';
+	getBuiltinAutomationDefinition,
+	insertAutomationDefinition,
+} from '$lib/automations/platform/automation-definitions.repository';
+import {
+	insertAutomationRun,
+	saveAutomationRun,
+} from '$lib/automations/platform/automation-runs.repository';
+import {
+	createAutomationSchedules,
+	type AutomationSchedules,
+} from '$lib/automations/platform/automation-schedules.service';
+import {
+	startAutomationTriggers,
+	type AutomationTriggers,
+} from '$lib/automations/platform/automation-triggers.service';
+import { Reconciler } from '$lib/automations/platform/reconciler.service';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
@@ -342,14 +351,14 @@ let context: MainContext;
 let github: FakeGithub;
 let platform: PullRequestsPlatform;
 let eventLog: { dispose(): void } | null;
-let clock: JobSchedules | null;
-let triggers: JobTriggers | null;
+let clock: AutomationSchedules | null;
+let triggers: AutomationTriggers | null;
 let reconciler: Reconciler;
 let worktrees: Map<string, WorktreeStatus>;
 let openRuns: Set<string>;
-let jobRuns: Map<string, JobRunRecord>;
-let jobContexts: Map<string, string>;
-let jobCauses: Map<string, number | undefined>;
+let automationRuns: Map<string, AutomationRunRecord>;
+let automationContexts: Map<string, string>;
+let automationCauses: Map<string, number | undefined>;
 let settings: Record<string, string>;
 let shipEvents: ShipChangedEvent[];
 let commits: { workstreamId: string; message: string; runId: string | null; sha: string }[];
@@ -361,7 +370,7 @@ let pushRefusal: GitError | null;
 let shaCounter: number;
 let clockOffsetMs: number;
 
-const DEFINITIONS: JobDefinitionRecord[] = (
+const DEFINITIONS: AutomationDefinitionRecord[] = (
 	['fix-checks', 'update-from-main', 'resolve-conflicts', 'address-review'] as const
 ).map((builtin) => ({
 	id: `def-${builtin}`,
@@ -374,8 +383,8 @@ const DEFINITIONS: JobDefinitionRecord[] = (
 	skills: [],
 	builtin,
 	trigger: null,
-	thenJobId: null,
-	boundary: DEFAULT_JOB_BOUNDARY,
+	thenAutomationId: null,
+	boundary: DEFAULT_AUTOMATION_BOUNDARY,
 	createdAt: '2026-10-01T00:00:00Z',
 	updatedAt: '2026-10-01T00:00:00Z',
 }));
@@ -443,13 +452,14 @@ function finishUserRun(workstreamId: string, summary: string, dirtyPaths: string
 	return runId;
 }
 
-function finishJob(
-	jobRunId: string,
-	status: JobRunStatus,
+function finishAutomation(
+	automationRunId: string,
+	status: AutomationRunStatus,
 	options: { summary?: string; dirtyPaths?: string[]; resolveConflicts?: boolean } = {},
 ): void {
-	const run = jobRuns.get(jobRunId);
-	if (!run?.workstreamId || !run.agentRunId) throw new Error(`unknown job ${jobRunId}`);
+	const run = automationRuns.get(automationRunId);
+	if (!run?.workstreamId || !run.agentRunId)
+		throw new Error(`unknown automation ${automationRunId}`);
 	db.prepare('UPDATE agent_runs SET summary = ?, completed_at = ? WHERE id = ?').run(
 		options.summary ?? 'Done.',
 		'2026-10-01T00:01:00Z',
@@ -461,7 +471,7 @@ function finishJob(
 		dirtyPaths: [...current.dirtyPaths, ...(options.dirtyPaths ?? [])],
 		...(options.resolveConflicts ? { conflictedPaths: [], conflictMarkerPaths: [] } : {}),
 	});
-	const finished: JobRunRecord = {
+	const finished: AutomationRunRecord = {
 		...run,
 		status,
 		detail: options.summary ?? null,
@@ -470,11 +480,11 @@ function finishJob(
 	ended(finished);
 }
 
-function ended(run: JobRunRecord): void {
-	jobRuns.set(run.id, run);
-	saveJobRun(db, run);
-	context.events.emit('jobs:run-changed', { run });
-	context.events.emit('jobs:run-finished', { run });
+function ended(run: AutomationRunRecord): void {
+	automationRuns.set(run.id, run);
+	saveAutomationRun(db, run);
+	context.events.emit('automations:run-changed', { run });
+	context.events.emit('automations:run-finished', { run });
 }
 
 function defineFakes(): void {
@@ -595,24 +605,24 @@ function defineFakes(): void {
 		openRuns.has(String(Reflect.get(Object(args), 'workstreamId'))),
 	);
 	commands.define('app.list-settings', () => ({ ...settings }));
-	commands.define('jobs.run', async (args: RunJobArgs) => {
-		const index = jobRuns.size + 1;
+	commands.define('automations.run', async (args: RunAutomationArgs) => {
+		const index = automationRuns.size + 1;
 		const workstreamId = args.workstreamId ?? null;
 		const definition = DEFINITIONS.find((candidate) => candidate.id === args.definitionId);
-		const sessionId = `job-session-${index}`;
-		const agentRunId = `job-agent-run-${index}`;
+		const sessionId = `automation-session-${index}`;
+		const agentRunId = `automation-agent-run-${index}`;
 		db.prepare(
 			`INSERT INTO agent_sessions (id, workstream_id, model, status, started_at, display_name, origin)
-			 VALUES (?, ?, 'anthropic/claude-sonnet-4-6', 'running', '2026-10-01T00:00:00Z', 'Job', 'job')`,
+			 VALUES (?, ?, 'anthropic/claude-sonnet-4-6', 'running', '2026-10-01T00:00:00Z', 'Automation', 'automation')`,
 		).run(sessionId, workstreamId);
 		db.prepare(
 			`INSERT INTO agent_runs (id, session_id, prompt, started_at, automated)
 			 VALUES (?, ?, ?, '2026-10-01T00:00:30Z', 1)`,
 		).run(agentRunId, sessionId, `${definition?.instructions}\n\n${args.context ?? ''}`);
-		const run: JobRunRecord = {
-			id: `job-${index}`,
+		const run: AutomationRunRecord = {
+			id: `automation-${index}`,
 			definitionId: args.definitionId,
-			title: definition?.name ?? 'job',
+			title: definition?.name ?? 'automation',
 			workstreamId,
 			repositoryId: null,
 			scope: null,
@@ -624,25 +634,25 @@ function defineFakes(): void {
 			parentRunId: args.parentRunId ?? null,
 			chatSessionId: args.chatSessionId ?? null,
 			chatAfterRunId: null,
-			chainId: `job-${index}`,
+			chainId: `automation-${index}`,
 			requests: 1,
 			createdAt: new Date(Date.now() + index).toISOString(),
 			startedAt: null,
 			finishedAt: null,
 		};
-		jobRuns.set(run.id, run);
-		insertJobRun(db, run, args.context ?? null);
-		jobContexts.set(run.id, args.context ?? '');
-		jobCauses.set(run.id, args.causeEventId);
-		events.emit('jobs:run-changed', { run });
-		events.emit('jobs:run-started', { run });
+		automationRuns.set(run.id, run);
+		insertAutomationRun(db, run, args.context ?? null);
+		automationContexts.set(run.id, args.context ?? '');
+		automationCauses.set(run.id, args.causeEventId);
+		events.emit('automations:run-changed', { run });
+		events.emit('automations:run-started', { run });
 		return run;
 	});
-	commands.define('jobs.cancel-run', (args: unknown) => {
-		const id = String(Reflect.get(Object(args), 'jobRunId'));
-		const run = jobRuns.get(id);
+	commands.define('automations.cancel-run', (args: unknown) => {
+		const id = String(Reflect.get(Object(args), 'automationRunId'));
+		const run = automationRuns.get(id);
 		if (!run) throw new Error('not found');
-		const cancelled: JobRunRecord = { ...run, status: 'cancelled' };
+		const cancelled: AutomationRunRecord = { ...run, status: 'cancelled' };
 		ended(cancelled);
 		return cancelled;
 	});
@@ -656,7 +666,7 @@ function recordShipEvents(): void {
 }
 
 function seedDefinitions(): void {
-	for (const definition of DEFINITIONS) insertJobDefinition(db, definition);
+	for (const definition of DEFINITIONS) insertAutomationDefinition(db, definition);
 }
 
 function start(delays: typeof DELAYS = DELAYS): void {
@@ -665,8 +675,8 @@ function start(delays: typeof DELAYS = DELAYS): void {
 		runner: github.run,
 		ship: { delays, now },
 	});
-	clock = createJobSchedules(context, () => {}, { alarmCheckMs: 10, now });
-	triggers = startJobTriggers(context, () => {});
+	clock = createAutomationSchedules(context, () => {}, { alarmCheckMs: 10, now });
+	triggers = startAutomationTriggers(context, () => {});
 	const schedules = clock;
 	const yourTriggers = triggers;
 	reconciler = new Reconciler(
@@ -765,12 +775,12 @@ function latestLogged(channel: string): {
 	return row;
 }
 
-function activeJob(): JobRunRecord {
-	const running = [...jobRuns.values()].filter((run) => run.status === 'running');
-	const [job] = running;
-	if (!job || running.length !== 1)
-		throw new Error(`expected one running job, saw ${running.length}`);
-	return job;
+function activeAutomation(): AutomationRunRecord {
+	const running = [...automationRuns.values()].filter((run) => run.status === 'running');
+	const [automation] = running;
+	if (!automation || running.length !== 1)
+		throw new Error(`expected one running automation, saw ${running.length}`);
+	return automation;
 }
 
 beforeEach(() => {
@@ -796,9 +806,9 @@ beforeEach(() => {
 	heads.clear();
 	worktrees = new Map();
 	openRuns = new Set();
-	jobRuns = new Map();
-	jobContexts = new Map();
-	jobCauses = new Map();
+	automationRuns = new Map();
+	automationContexts = new Map();
+	automationCauses = new Map();
 	settings = {};
 	shipEvents = [];
 	commits = [];
@@ -1107,9 +1117,9 @@ describe('pushing automatically', () => {
 		expect(ship('ws-1')).toMatchObject({ phase: 'local', step: null });
 	});
 
-	it("commits a job's edits under the Commit: line it wrote, never as the pull request's title", async () => {
+	it("commits an automation's edits under the Commit: line it wrote, never as the pull request's title", async () => {
 		seedWorkstream('ws-1');
-		insertJobDefinition(db, {
+		insertAutomationDefinition(db, {
 			id: 'def-notes',
 			name: 'Write notes',
 			instructions: 'Write the notes.',
@@ -1120,20 +1130,20 @@ describe('pushing automatically', () => {
 			skills: [],
 			builtin: null,
 			trigger: null,
-			thenJobId: null,
-			boundary: DEFAULT_JOB_BOUNDARY,
+			thenAutomationId: null,
+			boundary: DEFAULT_AUTOMATION_BOUNDARY,
 			createdAt: '2026-10-01T00:00:00Z',
 			updatedAt: '2026-10-01T00:00:00Z',
 		});
 		start();
 		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 		await until(() => expect(commits).toHaveLength(1));
-		const job = await context.commands.call('jobs.run', {
+		const automation = await context.commands.call('automations.run', {
 			definitionId: 'def-notes',
 			workstreamId: 'ws-1',
 		});
 
-		finishJob(job.id, 'succeeded', {
+		finishAutomation(automation.id, 'succeeded', {
 			summary:
 				'Wrote the notes.\n\nOutcome: The notes say how search works\nCommit: docs: explain search',
 			dirtyPaths: ['docs/search.md'],
@@ -1142,7 +1152,7 @@ describe('pushing automatically', () => {
 		await until(() =>
 			expect(commits.at(-1)).toMatchObject({
 				message: 'docs: explain search',
-				runId: job.agentRunId,
+				runId: automation.agentRunId,
 			}),
 		);
 		await click('ws-1', 'draft');
@@ -1167,7 +1177,7 @@ describe('before you merge', () => {
 		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
 		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
 
-		expect(jobRuns.size).toBe(0);
+		expect(automationRuns.size).toBe(0);
 		expect(commits).toEqual([]);
 		expect(pulls).toEqual([]);
 	});
@@ -1179,13 +1189,13 @@ describe('before you merge', () => {
 		await readPullRequest();
 		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
 		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
-		expect(jobRuns.size).toBe(0);
+		expect(automationRuns.size).toBe(0);
 		expect(pulls).toEqual([]);
 
 		await click('ws-1', 'merge');
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(pulls).toEqual(['ws-1']);
-		expect(jobRuns.size).toBe(0);
+		expect(automationRuns.size).toBe(0);
 	});
 
 	it('addresses changes a reviewer requested while you work, and records the review', async () => {
@@ -1200,11 +1210,11 @@ describe('before you merge', () => {
 		await readPullRequest();
 
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
-		const job = activeJob();
-		const jobContext = jobContexts.get(job.id) ?? '';
-		expect(jobContext).toContain('"kind":"requested_change_review","id":"PRR_1"');
-		expect(jobContext).toContain('"kind":"review_thread","id":"PRRT_human"');
-		finishJob(job.id, 'succeeded', {
+		const automation = activeAutomation();
+		const automationContext = automationContexts.get(automation.id) ?? '';
+		expect(automationContext).toContain('"kind":"requested_change_review","id":"PRR_1"');
+		expect(automationContext).toContain('"kind":"review_thread","id":"PRRT_human"');
+		finishAutomation(automation.id, 'succeeded', {
 			summary: 'Added the missing test.\nResolved: PRRT_human',
 			dirtyPaths: ['src/search.ts'],
 		});
@@ -1212,7 +1222,7 @@ describe('before you merge', () => {
 		await until(() => expect(pull.threads[0]?.resolved).toBe(true));
 		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
 		expect(getShip(db, 'ws-1')?.addressedReviews).toEqual(['PRR_1']);
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 	});
 });
 
@@ -1225,7 +1235,7 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
 
-	it('marks ready, fixes failing checks with a job, merges once green and archives', async () => {
+	it('marks ready, fixes failing checks with an automation, merges once green and archives', async () => {
 		await queueWithDraft();
 		github.ciOutcomes = ['SUCCESS'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
@@ -1234,19 +1244,21 @@ describe('shipping a queued merge', () => {
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
 		expect(github.only().isDraft).toBe(false);
-		const job = activeJob();
-		expect(job).toMatchObject({ definitionId: 'def-fix-checks', origin: 'merge-queue' });
-		expect(ship('ws-1')?.activeJobRunId).toBe(job.id);
-		expect(jobContexts.get(job.id)).toContain('Blocking check details: test: FAILURE');
-		expect(jobContexts.get(job.id)).toContain('REMOTE_RECORD {"kind":"check_run"');
+		const automation = activeAutomation();
+		expect(automation).toMatchObject({ definitionId: 'def-fix-checks', origin: 'merge-queue' });
+		expect(ship('ws-1')?.activeAutomationRunId).toBe(automation.id);
+		expect(automationContexts.get(automation.id)).toContain(
+			'Blocking check details: test: FAILURE',
+		);
+		expect(automationContexts.get(automation.id)).toContain('REMOTE_RECORD {"kind":"check_run"');
 
-		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+		finishAutomation(automation.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
 			workstreamId: 'ws-1',
 			message: 'Fix failing checks',
-			runId: job.agentRunId,
+			runId: automation.agentRunId,
 		});
 		expect(github.only().state).toBe('MERGED');
 		expect(github.calls.find((call) => call[1] === 'merge')).toContain('--squash');
@@ -1264,13 +1276,13 @@ describe('shipping a queued merge', () => {
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
-		const job = activeJob();
+		const automation = activeAutomation();
 		let answer = (): void => {};
 		github.branchListHeld = new Promise((resolve) => (answer = resolve));
 		const readFromBeforeTheFix = readPullRequest();
 		await until(() => expect(github.branchListHeld).toBeNull());
 
-		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+		finishAutomation(automation.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'waiting-for-checks' }));
 		answer();
 		await readFromBeforeTheFix;
@@ -1280,19 +1292,21 @@ describe('shipping a queued merge', () => {
 		github.only().mergeStateStatus = 'CLEAN';
 
 		await until(() => expect(archived).toEqual(['ws-1']));
-		const fixes = [...jobRuns.values()].filter((run) => run.definitionId === 'def-fix-checks');
+		const fixes = [...automationRuns.values()].filter(
+			(run) => run.definitionId === 'def-fix-checks',
+		);
 		expect(fixes).toHaveLength(1);
 	});
 
-	it('commits a fix under the Commit: line its Fix checks job wrote', async () => {
+	it('commits a fix under the Commit: line its Fix checks automation wrote', async () => {
 		await queueWithDraft();
 		github.ciOutcomes = ['SUCCESS'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
-		const job = activeJob();
+		const automation = activeAutomation();
 
-		finishJob(job.id, 'succeeded', {
+		finishAutomation(automation.id, 'succeeded', {
 			summary:
 				'Fixed the header test.\n\nOutcome: The checks pass\nNeeds: nothing\nCommit: fix(search): keep the header query',
 			dirtyPaths: ['src/search.ts'],
@@ -1301,7 +1315,7 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
 			message: 'fix(search): keep the header query',
-			runId: job.agentRunId,
+			runId: automation.agentRunId,
 		});
 	});
 
@@ -1314,7 +1328,7 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks' }));
 		expect(await click('ws-1', 'keep')).toMatchObject({ phase: 'queued', keep: true });
-		finishJob(activeJob().id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+		finishAutomation(activeAutomation().id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
 		await until(() => expect(github.only().state).toBe('MERGED'));
 		await until(async () => expect(await invoke('pull-requests.ship-states')).toEqual([]));
@@ -1328,7 +1342,7 @@ describe('shipping a queued merge', () => {
 		).toEqual([{ status: 'active', merged_pull_request_number: 40 }]);
 	});
 
-	it('logs each new read of the pull request once and names it as the cause of its jobs', async () => {
+	it('logs each new read of the pull request once and names it as the cause of its automations', async () => {
 		await queueWithDraft();
 		github.ciOutcomes = ['SUCCESS'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
@@ -1336,7 +1350,7 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks' }));
-		const job = activeJob();
+		const automation = activeAutomation();
 		const failing = readsLogged().at(-1);
 		expect(failing?.payload).toMatchObject({
 			workstreamId: 'ws-1',
@@ -1345,7 +1359,7 @@ describe('shipping a queued merge', () => {
 			checks: 'failed',
 			failingChecks: ['test'],
 		});
-		expect(jobCauses.get(job.id)).toBe(failing?.id);
+		expect(automationCauses.get(automation.id)).toBe(failing?.id);
 		await invoke('pull-requests.status', {
 			repoId: 'p-1',
 			workstreamId: 'ws-1',
@@ -1354,7 +1368,7 @@ describe('shipping a queued merge', () => {
 		});
 		expect(readsLogged().at(-1)?.id).toBe(failing?.id);
 
-		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+		finishAutomation(automation.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(readsLogged().map(({ payload }) => [payload['state'], payload['checks']])).toEqual([
@@ -1396,7 +1410,7 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
-	it('merges what the Merge job queued once that job finishes, without a click', async () => {
+	it('merges what the Merge automation queued once that automation finishes, without a click', async () => {
 		await queueWithDraft();
 		const before = shipEvents.length;
 
@@ -1407,9 +1421,9 @@ describe('shipping a queued merge', () => {
 			{ workstreamId: 'ws-1', state: expect.objectContaining({ phase: 'queued', step: null }) },
 		]);
 		expect(github.only().isDraft).toBe(true);
-		const definition = getBuiltinJobDefinition(db, 'merge');
-		if (!definition) throw new Error('the Merge job is missing');
-		const merge: JobRunRecord = {
+		const definition = getBuiltinAutomationDefinition(db, 'merge');
+		if (!definition) throw new Error('the Merge automation is missing');
+		const merge: AutomationRunRecord = {
 			id: 'merge-run',
 			definitionId: definition.id,
 			title: 'Merge',
@@ -1430,8 +1444,8 @@ describe('shipping a queued merge', () => {
 			startedAt: new Date().toISOString(),
 			finishedAt: new Date().toISOString(),
 		};
-		insertJobRun(db, merge, null);
-		context.events.emit('jobs:run-finished', { run: merge });
+		insertAutomationRun(db, merge, null);
+		context.events.emit('automations:run-finished', { run: merge });
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 	});
@@ -1450,7 +1464,7 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(github.count(['pr', 'view'])).toBeGreaterThan(reads + 3));
 
 		expect(readsLogged()).toHaveLength(logged);
-		expect(jobRuns.size).toBe(0);
+		expect(automationRuns.size).toBe(0);
 		expect(ship('ws-1')?.step).toBe('waiting-for-review');
 	});
 
@@ -1464,8 +1478,8 @@ describe('shipping a queued merge', () => {
 		});
 		await readPullRequest();
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
-		const first = activeJob();
-		finishJob(first.id, 'succeeded', {
+		const first = activeAutomation();
+		finishAutomation(first.id, 'succeeded', {
 			summary: 'Done.\nResolved: PRRT_1',
 			dirtyPaths: ['src/search.ts'],
 		});
@@ -1478,15 +1492,15 @@ describe('shipping a queued merge', () => {
 
 		await readPullRequest();
 
-		await until(() => expect(jobRuns.size).toBe(2));
-		const second = activeJob();
+		await until(() => expect(automationRuns.size).toBe(2));
+		const second = activeAutomation();
 		const read = readsLogged().at(-1);
 		expect(read?.payload).toMatchObject({
 			unresolvedThreads: 1,
 			changeRequests: [{ id: 'PRR_2', by: 'alice', bot: false }],
 		});
-		expect(jobCauses.get(second.id)).toBe(read?.id);
-		expect(jobContexts.get(second.id)).toContain('"id":"PRR_2"');
+		expect(automationCauses.get(second.id)).toBe(read?.id);
+		expect(automationContexts.get(second.id)).toContain('"id":"PRR_2"');
 	});
 
 	it('merges as soon as a read of the pull request shows its checks passed', async () => {
@@ -1564,10 +1578,10 @@ describe('shipping a queued merge', () => {
 		Object.assign(github.only(), { reviewDecision: 'APPROVED', mergeStateStatus: 'CLEAN' });
 
 		await until(() => expect(archived).toEqual(['ws-1']));
-		expect([...jobRuns.values()]).toEqual([]);
+		expect([...automationRuns.values()]).toEqual([]);
 	});
 
-	it('updates a conflicting branch, resolves conflicts with a job and commits the merge', async () => {
+	it('updates a conflicting branch, resolves conflicts with an automation and commits the merge', async () => {
 		await queueWithDraft();
 		Object.assign(github.only(), {
 			isDraft: false,
@@ -1580,11 +1594,11 @@ describe('shipping a queued merge', () => {
 
 		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
 		expect(pulls).toEqual(['ws-1']);
-		const job = activeJob();
-		expect(job.definitionId).toBe('def-resolve-conflicts');
+		const automation = activeAutomation();
+		expect(automation.definitionId).toBe('def-resolve-conflicts');
 
 		pullConflicts = [];
-		finishJob(job.id, 'succeeded', {
+		finishAutomation(automation.id, 'succeeded', {
 			resolveConflicts: true,
 			summary:
 				'Kept both changes.\n\nOutcome: The merge is resolved\nCommit: fix: resolve the search conflict',
@@ -1593,13 +1607,13 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
 			message: 'Merge main into malini/ws-1',
-			runId: job.agentRunId,
+			runId: automation.agentRunId,
 		});
 	});
 
 	it('waits for the Resolve conflicts its trigger starts on the conflict, in the chain of your click, then commits the merge', async () => {
 		db.prepare(
-			`UPDATE job_definitions SET trigger_when = 'on repositories:workstream-merge-conflicted',
+			`UPDATE automation_definitions SET trigger_when = 'on repositories:workstream-merge-conflicted',
 			 trigger_mode = 'auto' WHERE id = 'def-resolve-conflicts'`,
 		).run();
 		await queueWithDraft();
@@ -1613,26 +1627,26 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
-		const job = activeJob();
-		expect(job).toMatchObject({ definitionId: 'def-resolve-conflicts', origin: 'trigger' });
+		const automation = activeAutomation();
+		expect(automation).toMatchObject({ definitionId: 'def-resolve-conflicts', origin: 'trigger' });
 		const merge = latestLogged(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL);
 		const conflict = latestLogged('repositories:workstream-merge-conflicted');
 		expect(merge.cause_kind).toBeNull();
 		expect(conflict).toMatchObject({ cause_kind: 'event', chain_id: merge.chain_id });
-		expect(jobCauses.get(job.id)).toBe(conflict.id);
+		expect(automationCauses.get(automation.id)).toBe(conflict.id);
 		await settle();
 		expect(
-			[...jobRuns.values()].filter((run) => run.definitionId === 'def-resolve-conflicts'),
+			[...automationRuns.values()].filter((run) => run.definitionId === 'def-resolve-conflicts'),
 		).toHaveLength(1);
 		expect(all(db, 'SELECT id FROM reconciler_decisions')).toEqual([]);
 
 		pullConflicts = [];
-		finishJob(job.id, 'succeeded', { resolveConflicts: true });
+		finishAutomation(automation.id, 'succeeded', { resolveConflicts: true });
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
 			message: 'Merge main into malini/ws-1',
-			runId: job.agentRunId,
+			runId: automation.agentRunId,
 		});
 	});
 
@@ -1647,18 +1661,18 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
-		const job = activeJob();
-		const jobContext = jobContexts.get(job.id) ?? '';
-		expect(jobContext).toContain('"kind":"review_thread","id":"PRRT_bot"');
-		expect(jobContext).not.toContain('PRRT_human');
+		const automation = activeAutomation();
+		const automationContext = automationContexts.get(automation.id) ?? '';
+		expect(automationContext).toContain('"kind":"review_thread","id":"PRRT_bot"');
+		expect(automationContext).not.toContain('PRRT_human');
 
-		finishJob(job.id, 'succeeded', {
+		finishAutomation(automation.id, 'succeeded', {
 			summary: 'Handled the empty query.\nResolved: PRRT_bot',
 			dirtyPaths: ['src/search.ts'],
 		});
 
 		await until(() => expect(archived).toEqual(['ws-1']));
-		const fix = commits.find((commit) => commit.runId === job.agentRunId);
+		const fix = commits.find((commit) => commit.runId === automation.agentRunId);
 		expect(fix?.message).toBe('Address review feedback');
 		expect(github.replies).toEqual([`PRRT_bot: Addressed in ${fix?.sha.slice(0, 7)}.`]);
 		expect(pull.threads.map((thread) => [thread.id, thread.resolved])).toEqual([
@@ -1667,7 +1681,7 @@ describe('shipping a queued merge', () => {
 		]);
 	});
 
-	it('addresses a human change request with a job once, then merges', async () => {
+	it('addresses a human change request with an automation once, then merges', async () => {
 		await queueWithDraft();
 		const pull = github.only();
 		Object.assign(pull, {
@@ -1680,15 +1694,17 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
-		const job = activeJob();
-		expect(jobContexts.get(job.id)).toContain('"kind":"requested_change_review","id":"PRR_1"');
-		finishJob(job.id, 'succeeded', {
+		const automation = activeAutomation();
+		expect(automationContexts.get(automation.id)).toContain(
+			'"kind":"requested_change_review","id":"PRR_1"',
+		);
+		finishAutomation(automation.id, 'succeeded', {
 			summary: 'Added the missing test.\nResolved: PRRT_human',
 			dirtyPaths: ['src/search.ts'],
 		});
 
 		await until(() => expect(archived).toEqual(['ws-1']));
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 		expect(pull.threads[0]?.resolved).toBe(true);
 	});
 
@@ -1703,10 +1719,10 @@ describe('shipping a queued merge', () => {
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({
 				phase: 'needs-you',
-				needsYou: { reason: 'reply-to-reviewer', jobRunId: null },
+				needsYou: { reason: 'reply-to-reviewer', automationRunId: null },
 			}),
 		);
-		expect(jobRuns.size).toBe(0);
+		expect(automationRuns.size).toBe(0);
 		pull.threads = [{ id: 'PRRT_question', bot: false, resolved: true }];
 		pull.mergeStateStatus = 'CLEAN';
 
@@ -1737,18 +1753,18 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
-		finishJob(activeJob().id, 'succeeded', { dirtyPaths: ['a.ts'] });
+		finishAutomation(activeAutomation().id, 'succeeded', { dirtyPaths: ['a.ts'] });
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 2 }));
-		const last = activeJob();
-		finishJob(last.id, 'failed');
+		const last = activeAutomation();
+		finishAutomation(last.id, 'failed');
 
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({
 				phase: 'needs-you',
-				needsYou: { reason: 'fix-gave-up', jobRunId: last.id },
+				needsYou: { reason: 'fix-gave-up', automationRunId: last.id },
 			}),
 		);
-		expect(jobRuns.size).toBe(2);
+		expect(automationRuns.size).toBe(2);
 		expect(github.only().state).toBe('OPEN');
 	});
 
@@ -1759,13 +1775,13 @@ describe('shipping a queued merge', () => {
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
-		finishJob(activeJob().id, 'failed');
+		finishAutomation(activeAutomation().id, 'failed');
 		await until(() => expect(ship('ws-1')?.needsYou?.reason).toBe('fix-gave-up'));
 
 		finishUserRun('ws-1', 'Fixed the failing test.', ['src/search.ts']);
 
 		await until(() => expect(archived).toEqual(['ws-1']));
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 		expect(github.only().state).toBe('MERGED');
 	});
 
@@ -1795,7 +1811,7 @@ describe('shipping a queued merge', () => {
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
 
-		finishJob(activeJob().id, 'succeeded', {
+		finishAutomation(activeAutomation().id, 'succeeded', {
 			summary: 'Only the title fails the check.\n\nPull request: feat: add search to the header',
 		});
 
@@ -1810,7 +1826,7 @@ describe('shipping a queued merge', () => {
 			},
 		];
 		await until(() => expect(archived).toEqual(['ws-1']));
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 		expect(pushes).toEqual(['ws-1']);
 	});
 
@@ -1822,9 +1838,11 @@ describe('shipping a queued merge', () => {
 		];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
-		const job = activeJob();
+		const automation = activeAutomation();
 
-		finishJob(job.id, 'succeeded', { summary: 'The test is flaky, so I changed nothing.' });
+		finishAutomation(automation.id, 'succeeded', {
+			summary: 'The test is flaky, so I changed nothing.',
+		});
 		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-checks'));
 		clockOffsetMs = 60_000;
 
@@ -1834,23 +1852,23 @@ describe('shipping a queued merge', () => {
 				needsYou: {
 					reason: 'fix-gave-up',
 					detail: 'The failing checks did not run again after the last fix.',
-					jobRunId: job.id,
+					automationRunId: automation.id,
 				},
 			}),
 		);
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 	});
 
-	it('spends no fix attempt on a job that malini closing interrupted', async () => {
+	it('spends no fix attempt on an automation that malini closing interrupted', async () => {
 		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '1';
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
 
-		finishJob(activeJob().id, 'failed', { summary: JOB_INTERRUPTED_DETAIL });
+		finishAutomation(activeAutomation().id, 'failed', { summary: AUTOMATION_INTERRUPTED_DETAIL });
 
-		await until(() => expect(jobRuns.size).toBe(2));
+		await until(() => expect(automationRuns.size).toBe(2));
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({ phase: 'queued', step: 'fixing-checks', attempts: 1 }),
 		);
@@ -1887,12 +1905,12 @@ describe('shipping a queued merge', () => {
 		);
 	});
 
-	it('cancels back to draft, stopping the running job, and retries from needs-you', async () => {
+	it('cancels back to draft, stopping the running automation, and retries from needs-you', async () => {
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
-		const job = activeJob();
+		const automation = activeAutomation();
 
 		const cancelled = await click('ws-1', 'cancel');
 
@@ -1900,9 +1918,9 @@ describe('shipping a queued merge', () => {
 			phase: 'draft',
 			step: null,
 			queuedAt: null,
-			activeJobRunId: null,
+			activeAutomationRunId: null,
 		});
-		expect(jobRuns.get(job.id)?.status).toBe('cancelled');
+		expect(automationRuns.get(automation.id)?.status).toBe('cancelled');
 		expect(github.only().state).toBe('OPEN');
 		expect(await click('ws-2', 'cancel')).toBeNull();
 
@@ -1919,12 +1937,12 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
-	it('resumes a queued merge after a restart without dispatching a second job', async () => {
+	it('resumes a queued merge after a restart without dispatching a second automation', async () => {
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
-		const job = activeJob();
+		const automation = activeAutomation();
 		stop();
 
 		context = {
@@ -1936,13 +1954,13 @@ describe('shipping a queued merge', () => {
 		defineFakes();
 		start();
 		await settle();
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 
 		github.ciOutcomes = ['SUCCESS'];
-		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+		finishAutomation(automation.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
 		await until(() => expect(archived).toEqual(['ws-1']));
-		expect(jobRuns.size).toBe(1);
+		expect(automationRuns.size).toBe(1);
 	});
 
 	it('merges whichever queued pull request is ready first', async () => {
@@ -1985,7 +2003,7 @@ describe('Draft all and Merge all', () => {
 		seedWorkstream('ws-1');
 		seedWorkstream('ws-2');
 		start();
-		const merge = getBuiltinJobDefinition(db, 'merge');
+		const merge = getBuiltinAutomationDefinition(db, 'merge');
 
 		await expect(
 			invoke('pull-requests.button-clicked', {
@@ -1995,7 +2013,7 @@ describe('Draft all and Merge all', () => {
 				chatSessionId: 'session-lead',
 			}),
 		).resolves.toBeNull();
-		await until(() => expect(jobRuns.size).toBe(2));
+		await until(() => expect(automationRuns.size).toBe(2));
 
 		const clicks = all<{ id: number; workstream_id: string }>(
 			db,
@@ -2004,13 +2022,13 @@ describe('Draft all and Merge all', () => {
 		);
 		expect(clicks).toEqual([{ id: expect.any(Number), workstream_id: 'lead' }]);
 		expect(
-			[...jobRuns.values()]
+			[...automationRuns.values()]
 				.map((run) => [
 					run.workstreamId,
 					run.definitionId,
 					run.origin,
 					run.chatSessionId,
-					jobCauses.get(run.id),
+					automationCauses.get(run.id),
 				])
 				.sort(),
 		).toEqual([
@@ -2032,7 +2050,7 @@ describe('Draft all and Merge all', () => {
 			}),
 		).rejects.toThrow('`workstreamIds` must be a non-empty list of non-empty strings');
 		await settle();
-		expect(jobRuns.size).toBe(0);
+		expect(automationRuns.size).toBe(0);
 	});
 });
 

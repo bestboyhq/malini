@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { demoHref, type DemoPlay } from './links';
+	import { demoHref, type DemoPlay } from './urls';
 
 	let { workstream, title, play }: { workstream: string; title: string; play?: DemoPlay } =
 		$props();

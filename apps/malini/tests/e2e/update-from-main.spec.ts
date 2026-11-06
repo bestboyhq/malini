@@ -3,7 +3,11 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import type { JobBuiltin, JobDefinitionRecord, TimelineRecord } from '../../src/contract/jobs';
+import type {
+	AutomationBuiltin,
+	AutomationDefinitionRecord,
+	TimelineRecord,
+} from '../../src/contract/automations';
 import {
 	captureFlow,
 	expectAssistantReply,
@@ -33,7 +37,7 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
-		await jobOff(app.page, 'update-from-main');
+		await automationOff(app.page, 'update-from-main');
 		const { page, worktree, github } = await conflictingPullRequest(app, 'e2e-conflict');
 		const branchHead = github.pushedHead();
 		await openWorkstream(page, 'e2e-conflict');
@@ -46,7 +50,7 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 			0,
 		);
 		await page.waitForTimeout(2_000);
-		expect(await jobRuns(page)).toEqual([]);
+		expect(await automationRuns(page)).toEqual([]);
 		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
 
 		await queueMerge(page);
@@ -67,7 +71,7 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 		expect(await output(github.remote, ['show', `${merge}:conflict.txt`])).toBe(
 			'branch line\nmain line',
 		);
-		expect(await jobRuns(page)).toMatchObject([
+		expect(await automationRuns(page)).toMatchObject([
 			{
 				title: 'Resolve conflicts',
 				status: 'succeeded',
@@ -75,9 +79,9 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 				parentRunId: null,
 			},
 		]);
-		await expect(page.getByRole('list', { name: 'Jobs in progress' })).toHaveCount(0);
-		expect(await invoke(page, 'jobs.list-decisions', undefined)).toEqual([]);
-		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
+		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
+		expect(await invoke(page, 'automations.list-decisions', undefined)).toEqual([]);
+		const timeline = await invoke<TimelineRecord>(page, 'automations.list-timeline', {
 			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
 		});
 		const mergeClick = timeline.events.find(
@@ -123,7 +127,7 @@ test('a draft that main starts to conflict with gets main merged in, the conflic
 		await expect
 			.poll(
 				async () =>
-					(await jobRuns(page)).map(({ title, status, origin }) => [title, status, origin]),
+					(await automationRuns(page)).map(({ title, status, origin }) => [title, status, origin]),
 				{ timeout: 60_000 },
 			)
 			.toEqual([
@@ -141,9 +145,9 @@ test('a draft that main starts to conflict with gets main merged in, the conflic
 		);
 		await expect.poll(() => github.pushedHead(), { timeout: 30_000 }).toBe(merge);
 		expect(await output(worktree, ['status', '--porcelain'])).toBe('');
-		expect(await invoke(page, 'jobs.list-decisions', undefined)).toEqual([]);
+		expect(await invoke(page, 'automations.list-decisions', undefined)).toEqual([]);
 
-		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
+		const timeline = await invoke<TimelineRecord>(page, 'automations.list-timeline', {
 			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
 		});
 		const overlaps = timeline.events.filter(
@@ -199,7 +203,7 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
 			.toBe(await output(github.remote, ['rev-parse', 'main']));
 		await page.waitForTimeout(3_000);
-		expect(await jobRuns(page)).toEqual([]);
+		expect(await automationRuns(page)).toEqual([]);
 		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
 
 		const mainHead = await commitToMain(
@@ -212,7 +216,7 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 		await expect
 			.poll(
 				async () =>
-					(await jobRuns(page)).map(({ title, status, origin, detail }) => [
+					(await automationRuns(page)).map(({ title, status, origin, detail }) => [
 						title,
 						status,
 						origin,
@@ -240,7 +244,7 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 		await expect
 			.poll(() => github.pushedHead(), { timeout: 30_000 })
 			.toBe(await output(worktree, ['rev-parse', 'HEAD']));
-		const timeline = await invoke<TimelineRecord>(page, 'jobs.list-timeline', {
+		const timeline = await invoke<TimelineRecord>(page, 'automations.list-timeline', {
 			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
 		});
 		expect(
@@ -297,7 +301,7 @@ test('main reaching the files of a workstream while it merges leaves it to its m
 			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
 			.toBe(mainHead);
 		await page.waitForTimeout(3_000);
-		expect(await jobRuns(page)).toEqual([]);
+		expect(await automationRuns(page)).toEqual([]);
 		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
 
 		github.setPullRequest({
@@ -305,7 +309,7 @@ test('main reaching the files of a workstream while it merges leaves it to its m
 		});
 		await expectMergedAndArchived(page, 'e2e-overlap-merging');
 		await page.waitForTimeout(3_000);
-		expect(await jobRuns(page)).toEqual([]);
+		expect(await automationRuns(page)).toEqual([]);
 		expect(
 			github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create'),
 		).toHaveLength(1);
@@ -336,7 +340,7 @@ test('a workstream whose pull request merged outside Malini is left alone when m
 			.toBe(mainHead);
 		await page.waitForTimeout(3_000);
 
-		expect(await jobRuns(page)).toEqual([]);
+		expect(await automationRuns(page)).toEqual([]);
 		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
 		expect(await output(worktree, ['status', '--porcelain'])).toBe('');
 		expectCleanConsole(app);
@@ -360,16 +364,16 @@ test('Resolve conflicts you cancel stays cancelled, and Shipping does not start 
 		holdAgentRuns(app, true);
 		await commitToMain(app, github.remote, 'conflict.txt', 'main line\n');
 		const runningResolve = async (): Promise<string | undefined> =>
-			(await jobRuns(page)).find(
+			(await automationRuns(page)).find(
 				(run) => run.title === 'Resolve conflicts' && run.status === 'running',
 			)?.id;
 		await expect.poll(runningResolve, { timeout: 60_000 }).toBeDefined();
 
-		await invoke(page, 'jobs.cancel-run', { jobRunId: await runningResolve() });
+		await invoke(page, 'automations.cancel-run', { automationRunId: await runningResolve() });
 		await page.waitForTimeout(8_000);
 
 		expect(
-			(await jobRuns(page)).map(({ title, status, origin }) => [title, status, origin]),
+			(await automationRuns(page)).map(({ title, status, origin }) => [title, status, origin]),
 		).toEqual([
 			['Resolve conflicts', 'cancelled', 'trigger'],
 			['Update from main', 'succeeded', 'trigger'],
@@ -419,7 +423,7 @@ test('with Resolve conflicts off, Abort merge takes a confirming click in the ba
 	const app = await launchMalini();
 	try {
 		const { page, worktree } = await conflictingPullRequest(app, 'e2e-abort-merge');
-		await jobOff(page, 'resolve-conflicts');
+		await automationOff(page, 'resolve-conflicts');
 		const head = await output(worktree, ['rev-parse', 'HEAD']);
 		await git(worktree, [...AUTHOR, 'merge', 'main']).catch(() => undefined);
 		expect(await output(worktree, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).not.toBe('');
@@ -490,11 +494,18 @@ async function conflictingPullRequest(
 	);
 }
 
-async function jobOff(page: Page, builtin: JobBuiltin): Promise<void> {
-	const definitions = await invoke<JobDefinitionRecord[]>(page, 'jobs.list-definitions', undefined);
-	const job = definitions.find((definition) => definition.builtin === builtin);
-	if (!job?.trigger) throw new Error(`${builtin} has no trigger`);
-	await invoke(page, 'jobs.save-definition', { ...job, trigger: { ...job.trigger, mode: 'off' } });
+async function automationOff(page: Page, builtin: AutomationBuiltin): Promise<void> {
+	const definitions = await invoke<AutomationDefinitionRecord[]>(
+		page,
+		'automations.list-definitions',
+		undefined,
+	);
+	const automation = definitions.find((definition) => definition.builtin === builtin);
+	if (!automation?.trigger) throw new Error(`${builtin} has no trigger`);
+	await invoke(page, 'automations.save-definition', {
+		...automation,
+		trigger: { ...automation.trigger, mode: 'off' },
+	});
 }
 
 async function commitToMain(
@@ -521,7 +532,7 @@ async function commitFile(
 	await git(repo, [...AUTHOR, 'commit', '-qm', message]);
 }
 
-function jobRuns(page: Page): Promise<
+function automationRuns(page: Page): Promise<
 	{
 		title: string;
 		status: string;
@@ -531,7 +542,7 @@ function jobRuns(page: Page): Promise<
 		detail: string | null;
 	}[]
 > {
-	return invoke(page, 'jobs.list-runs', undefined);
+	return invoke(page, 'automations.list-runs', undefined);
 }
 
 async function output(repo: string, args: readonly string[]): Promise<string> {

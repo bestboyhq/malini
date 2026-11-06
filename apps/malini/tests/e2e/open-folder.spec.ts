@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
+	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
 	git,
@@ -22,18 +23,25 @@ declare global {
 	var openFolderBusyLabels: string[];
 }
 
-test('opening a folder lands on its scratchpad and clones it in the background', async () => {
+test('the first folder you open starts a workstream in it, and a later one lands on its scratchpad and clones it in the background', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		await passSetup(page);
-		await openRepositoriesPage(page);
 
 		await pickFolder(app, await createSourceRepo(app.root, 'meadow'));
 		await recordBusyLabels(page);
-		await page.getByRole('button', { name: OPEN_FOLDER }).click();
-		await expectScratchpadOf(page, 'meadow');
+		await page
+			.getByRole('region', { name: 'Your repositories' })
+			.getByRole('button', { name: 'Open a folder' })
+			.click();
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
+		await expect(
+			page
+				.getByRole('navigation', { name: 'Connected repositories' })
+				.getByTestId('sidebar-workstream'),
+		).toHaveAttribute('aria-current', 'page');
 		expect(await busyLabels(page)).toContainEqual(expect.stringContaining('Opening…'));
 
 		await page.evaluate(() => (globalThis.location.hash = '#/'));
@@ -61,6 +69,7 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 	try {
 		const { page } = app;
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 
 		const thicket = await createSourceRepo(app.root, 'thicket');
@@ -92,6 +101,7 @@ test('a repository cannot be removed while it clones, and can once the clone fai
 	try {
 		const { page } = app;
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 
 		const grove = await createSourceRepo(app.root, 'grove');
@@ -142,16 +152,17 @@ async function pickFolder(app: LaunchedApp, folder: string): Promise<void> {
 }
 
 async function recordBusyLabels(page: Page): Promise<void> {
-	await page.locator('body').evaluate((body, name) => {
+	await page.locator('body').evaluate((body) => {
 		const labels: string[] = [];
 		globalThis.openFolderBusyLabels = labels;
 		const view = body.ownerDocument.defaultView;
 		if (!view) throw new Error('the repositories page has no window');
 		new view.MutationObserver(() => {
-			const button = body.querySelector(`button[aria-label="${name}"]`);
-			if (button?.getAttribute('aria-busy') === 'true') labels.push(button.textContent.trim());
+			for (const button of body.querySelectorAll('button[aria-busy="true"]')) {
+				labels.push(button.textContent.trim());
+			}
 		}).observe(body, { childList: true, subtree: true, attributes: true });
-	}, OPEN_FOLDER);
+	});
 }
 
 function busyLabels(page: Page): Promise<string[]> {

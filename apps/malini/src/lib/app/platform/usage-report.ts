@@ -20,7 +20,7 @@ export function readUsageReport(db: MaliniDatabase, now: Date): UsageReport | nu
 		})),
 	].filter((workstream) => workstream.scope === null);
 	const prompts = listRunFacts(db, now.toISOString()).filter(
-		(run) => !run.job && !run.automated && !run.lead,
+		(run) => !run.automation && !run.automated && !run.lead,
 	);
 	return usageReport(now, workstreams, prompts);
 }

@@ -32,7 +32,8 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		},
 		{
 			channel: 'chat:session-renamed',
-			description: 'Fires when a chat gets a new name, from the user or from the Name chats job.',
+			description:
+				'Fires when a chat gets a new name, from the user or from the Name chats automation.',
 			facts: ['workstreamId', 'sessionId'],
 			payloadType: 'SessionRenamedPayload',
 			payload:
@@ -41,7 +42,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'chat:turn-finished',
 			description:
-				"Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.",
+				"Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.",
 			facts: ['workstreamId', 'sessionId', 'runId', 'status'],
 			payloadType: 'ChatTurnFinishedPayload',
 			payload:
@@ -176,7 +177,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'repositories:workstream-setup-status',
 			description:
-				'Fires when Malini starts setting up a workstream an agent or a job started, updating its base branch and installing its dependencies, and again with `done` once it finishes.',
+				'Fires when Malini starts setting up a workstream an agent or an automation started, updating its base branch and installing its dependencies, and again with `done` once it finishes.',
 			facts: ['workstreamId', 'status'],
 			payloadType: 'WorkstreamSetupStatusPayload',
 			payload:
@@ -275,7 +276,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'state.queuedAt',
 				'state.attempts',
 				'state.checks',
-				'state.activeJobRunId',
+				'state.activeAutomationRunId',
 				'state.failures',
 				'state.failedSince',
 				'state.nextAttemptAt',
@@ -286,12 +287,12 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			],
 			payloadType: 'ShipChangedEvent',
 			payload:
-				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'rerunning-checks'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tchecks: readonly string[];\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tgithubSaid: string | null;\n\tfailures: number;\n\tfailedSince: string | null;\n\tnextAttemptAt: string | null;\n\twaitsFor: ShipWaitsFor | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
+				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'rerunning-checks'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tautomationRunId: string | null;\n}>;\n\ntype ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tchecks: readonly string[];\n\tactiveAutomationRunId: string | null;\n\tlastError: string | null;\n\tgithubSaid: string | null;\n\tfailures: number;\n\tfailedSince: string | null;\n\tnextAttemptAt: string | null;\n\twaitsFor: ShipWaitsFor | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
 		},
 		{
 			channel: 'pull-requests:pull-request-changed',
 			description:
-				"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every job the Shipping rule starts for that pull request names the latest one as its cause.",
+				"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every automation the Shipping rule starts for that pull request names the latest one as its cause.",
 			facts: [
 				'workstreamId',
 				'pullRequestNumber',
@@ -324,20 +325,20 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			facts: ['workstreamId', 'button', 'workstreamIds', 'chatSessionId'],
 			payloadType: 'ShipButtonClickedEvent',
 			payload:
-				"type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';\n\ntype ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'rerunning-checks'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tchecks: readonly string[];\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tgithubSaid: string | null;\n\tfailures: number;\n\tfailedSince: string | null;\n\tnextAttemptAt: string | null;\n\twaitsFor: ShipWaitsFor | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipAllButton = 'draft-all' | 'merge-all';\n\ntype ShipAllClicked = Readonly<{\n\tworkstreamId: string;\n\tbutton: ShipAllButton;\n\tworkstreamIds: readonly string[];\n\tchatSessionId: string | null;\n}>;\n\ntype ShipButtonClickedEvent =\n\t| Readonly<{\n\t\t\tworkstreamId: string;\n\t\t\tbutton: ShipButton;\n\t\t\tstate: ShipStateRecord | null;\n\t  }>\n\t| ShipAllClicked;",
+				"type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';\n\ntype ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'rerunning-checks'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tautomationRunId: string | null;\n}>;\n\ntype ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tkeep: boolean;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tchecks: readonly string[];\n\tactiveAutomationRunId: string | null;\n\tlastError: string | null;\n\tgithubSaid: string | null;\n\tfailures: number;\n\tfailedSince: string | null;\n\tnextAttemptAt: string | null;\n\twaitsFor: ShipWaitsFor | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipAllButton = 'draft-all' | 'merge-all';\n\ntype ShipAllClicked = Readonly<{\n\tworkstreamId: string;\n\tbutton: ShipAllButton;\n\tworkstreamIds: readonly string[];\n\tchatSessionId: string | null;\n}>;\n\ntype ShipButtonClickedEvent =\n\t| Readonly<{\n\t\t\tworkstreamId: string;\n\t\t\tbutton: ShipButton;\n\t\t\tstate: ShipStateRecord | null;\n\t  }>\n\t| ShipAllClicked;",
 		},
 		{
 			channel: 'pull-requests:workstream-opened',
 			description:
-				'Fires each time you open a workstream, for jobs to start on. Malini does not update a workstream from main on it: only merging does.',
+				'Fires each time you open a workstream, for automations to start on. Malini does not update a workstream from main on it: only merging does.',
 			facts: ['workstreamId'],
 			payloadType: 'WorkstreamOpenedEvent',
 			payload: 'type WorkstreamOpenedEvent = Readonly<{ workstreamId: string }>;',
 		},
 		{
-			channel: 'jobs:run-changed',
+			channel: 'automations:run-changed',
 			description:
-				'Fires whenever a job run waits for you, is queued, starts, needs you, finishes as succeeded, failed or cancelled, or runs again because its agent went on after the background commands its turn ended over. Malini does not keep it in its event log: it keeps `jobs:run-started` and `jobs:run-finished`.',
+				'Fires whenever an automation run waits for you, is queued, starts, needs you, finishes as succeeded, failed or cancelled, or runs again because its agent went on after the background commands its turn ended over. Malini does not keep it in its event log: it keeps `automations:run-started` and `automations:run-finished`.',
 			facts: [
 				'run.id',
 				'run.definitionId',
@@ -356,14 +357,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'run.startedAt',
 				'run.finishedAt',
 			],
-			payloadType: 'JobRunChangedEvent',
+			payloadType: 'AutomationRunChangedEvent',
 			payload:
-				"type JobRunOrigin =\n\t'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';\n\ntype JobRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype JobRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: JobRunOrigin;\n\tstatus: JobRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;",
+				"type AutomationRunOrigin =\n\t'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';\n\ntype AutomationRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
 		},
 		{
-			channel: 'jobs:run-started',
+			channel: 'automations:run-started',
 			description:
-				'Fires when a job run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.',
+				'Fires when an automation run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.',
 			facts: [
 				'run.id',
 				'run.definitionId',
@@ -382,14 +383,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'run.startedAt',
 				'run.finishedAt',
 			],
-			payloadType: 'JobRunChangedEvent',
+			payloadType: 'AutomationRunChangedEvent',
 			payload:
-				"type JobRunOrigin =\n\t'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';\n\ntype JobRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype JobRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: JobRunOrigin;\n\tstatus: JobRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;",
+				"type AutomationRunOrigin =\n\t'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';\n\ntype AutomationRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
 		},
 		{
-			channel: 'jobs:run-finished',
+			channel: 'automations:run-finished',
 			description:
-				'Fires when a job run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. A job runs after another on it, such as `on jobs:run-finished where run.status is failed`. A run whose turn ended while only background commands run finishes at once, and when its agent goes on once they end, it runs again and fires this again at its next end.',
+				'Fires when an automation run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. An automation runs after another on it, such as `on automations:run-finished where run.status is failed`. A run whose turn ended while only background commands run finishes at once, and when its agent goes on once they end, it runs again and fires this again at its next end.',
 			facts: [
 				'run.id',
 				'run.definitionId',
@@ -408,14 +409,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'run.startedAt',
 				'run.finishedAt',
 			],
-			payloadType: 'JobRunChangedEvent',
+			payloadType: 'AutomationRunChangedEvent',
 			payload:
-				"type JobRunOrigin =\n\t'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';\n\ntype JobRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype JobRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: JobRunOrigin;\n\tstatus: JobRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;",
+				"type AutomationRunOrigin =\n\t'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';\n\ntype AutomationRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
 		},
 		{
-			channel: 'jobs:definition-changed',
+			channel: 'automations:definition-changed',
 			description:
-				'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
+				'Fires when an automation is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
 			facts: [
 				'definitionId',
 				'definition.id',
@@ -424,33 +425,37 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'definition.effort',
 				'definition.runsIn',
 				'definition.builtin',
-				'definition.thenJobId',
+				'definition.thenAutomationId',
 				'definition.createdAt',
 				'definition.updatedAt',
 			],
-			payloadType: 'JobDefinitionChangedEvent',
+			payloadType: 'AutomationDefinitionChangedEvent',
 			payload:
-				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge'\n\t| 'reconcile';\n\ntype JobRunMode = 'off' | 'ask' | 'auto';\n\ntype JobTrigger = Readonly<{ when: string; mode: JobRunMode }>;\n\ntype JobEventSight = 'facts' | 'full';\n\ntype JobChatSight = 'none' | 'starter' | 'all';\n\ntype JobBoundary = Readonly<{\n\tevent: JobEventSight;\n\tbefore: boolean;\n\tchats: JobChatSight;\n\tattachments: boolean;\n\tinternet: boolean;\n}>;\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tprovider: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\tskills: readonly string[];\n\tbuiltin: JobBuiltin | null;\n\ttrigger: JobTrigger | null;\n\tthenJobId: string | null;\n\tboundary: JobBoundary;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
+				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype AutomationRunsIn = 'workstream' | 'new-workstream';\n\ntype AutomationBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge'\n\t| 'reconcile'\n\t| 'suggest-automations';\n\ntype AutomationRunMode = 'off' | 'ask' | 'auto';\n\ntype AutomationTrigger = Readonly<{ when: string; mode: AutomationRunMode }>;\n\ntype AutomationEventSight = 'facts' | 'full';\n\ntype AutomationChatSight = 'none' | 'starter' | 'all';\n\ntype AutomationBoundary = Readonly<{\n\tevent: AutomationEventSight;\n\tbefore: boolean;\n\tchats: AutomationChatSight;\n\tattachments: boolean;\n\tinternet: boolean;\n}>;\n\ntype AutomationDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tprovider: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: AutomationRunsIn;\n\tskills: readonly string[];\n\tbuiltin: AutomationBuiltin | null;\n\ttrigger: AutomationTrigger | null;\n\tthenAutomationId: string | null;\n\tboundary: AutomationBoundary;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype AutomationDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: AutomationDefinitionRecord | null;\n}>;",
 		},
 		{
-			channel: 'jobs:suggested',
+			channel: 'automations:suggested',
 			description:
-				'Fires when Malini notices a prompt you keep repeating and suggests turning it into a job.',
+				'Fires when you ask for the same follow-up after another pull request merges in a repository, and Malini drafts an automation that does it after each merge. Also fires when you save or dismiss that draft.',
 			facts: [
 				'suggestion.id',
-				'suggestion.clusterKey',
+				'suggestion.repositoryId',
+				'suggestion.sessionId',
+				'suggestion.name',
+				'suggestion.when',
 				'suggestion.status',
+				'suggestion.definitionId',
 				'suggestion.createdAt',
 				'suggestion.updatedAt',
 			],
-			payloadType: 'JobSuggestedEvent',
+			payloadType: 'AutomationSuggestedEvent',
 			payload:
-				"type JobSuggestionStatus = 'open' | 'dismissed' | 'accepted';\n\ntype JobPromptEvidence = Readonly<{\n\ttext: string;\n\trunId?: string;\n\tsessionId?: string;\n\tworkstreamId?: string;\n\tsubmittedAt?: string;\n}>;\n\ntype JobSuggestionRecord = Readonly<{\n\tid: string;\n\tclusterKey: string;\n\tstatus: JobSuggestionStatus;\n\tevidence: readonly JobPromptEvidence[];\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;",
+				"type AutomationSuggestionStatus = 'open' | 'dismissed' | 'accepted';\n\ntype AutomationAskRecord = Readonly<{\n\ttext: string;\n\tworkstreamId: string;\n\tpullRequestNumber: number | null;\n\taskedAt: string;\n}>;\n\ntype AutomationSuggestionRecord = Readonly<{\n\tid: string;\n\trepositoryId: string;\n\tsessionId: string;\n\tafterRunId: string;\n\tname: string;\n\tinstructions: string;\n\twhen: string;\n\tstatus: AutomationSuggestionStatus;\n\tdefinitionId: string | null;\n\tasks: readonly AutomationAskRecord[];\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype AutomationSuggestedEvent = Readonly<{ suggestion: AutomationSuggestionRecord }>;",
 		},
 		{
-			channel: 'jobs:experiment-changed',
+			channel: 'automations:experiment-changed',
 			description:
-				"Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.",
+				"Fires when an experiment on an automation's Improve page finishes replaying the automation's recent tasks, with every result.",
 			facts: [
 				'experiment.id',
 				'experiment.definitionId',
@@ -460,14 +465,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'experiment.running',
 				'experiment.createdAt',
 			],
-			payloadType: 'JobExperimentChangedEvent',
+			payloadType: 'AutomationExperimentChangedEvent',
 			payload:
-				'type JobExperimentResult = Readonly<{\n\toutputId: string;\n\toutput: string | null;\n\terror: string | null;\n}>;\n\ntype JobExperimentRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\tname: string;\n\tprovider: string;\n\tmodel: string;\n\tinstructions: string;\n\tcurrent: boolean;\n\trunning: boolean;\n\tresults: readonly JobExperimentResult[];\n\tcreatedAt: string;\n}>;\n\ntype JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;',
+				'type AutomationExperimentResult = Readonly<{\n\toutputId: string;\n\toutput: string | null;\n\terror: string | null;\n}>;\n\ntype AutomationExperimentRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\tname: string;\n\tprovider: string;\n\tmodel: string;\n\tinstructions: string;\n\tcurrent: boolean;\n\trunning: boolean;\n\tresults: readonly AutomationExperimentResult[];\n\tcreatedAt: string;\n}>;\n\ntype AutomationExperimentChangedEvent = Readonly<{ experiment: AutomationExperimentRecord }>;',
 		},
 		{
-			channel: 'jobs:agent-action-changed',
+			channel: 'automations:agent-action-changed',
 			description:
-				"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `jobs:tool-called`.",
+				"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `automations:tool-called`.",
 			facts: [
 				'action.id',
 				'action.sessionId',
@@ -484,7 +489,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';\n\ntype AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';\n\ntype AgentActionRecord = Readonly<{\n\tid: string;\n\tsessionId: string;\n\trunId: string;\n\tworkstreamId: string | null;\n\ttool: string;\n\tinput: Readonly<Record<string, unknown>>;\n\tstatus: AgentActionStatus;\n\tapproval: AgentActionApproval;\n\toutput: string | null;\n\tstartedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;",
 		},
 		{
-			channel: 'jobs:tool-called',
+			channel: 'automations:tool-called',
 			description:
 				"Fires once when an agent calls one of Malini's tools, with the tool, its input and whether the call needed your yes.",
 			facts: [
@@ -503,7 +508,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';\n\ntype AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';\n\ntype AgentActionRecord = Readonly<{\n\tid: string;\n\tsessionId: string;\n\trunId: string;\n\tworkstreamId: string | null;\n\ttool: string;\n\tinput: Readonly<Record<string, unknown>>;\n\tstatus: AgentActionStatus;\n\tapproval: AgentActionApproval;\n\toutput: string | null;\n\tstartedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;",
 		},
 		{
-			channel: 'jobs:decision-changed',
+			channel: 'automations:decision-changed',
 			description:
 				'Fires when the event reconciler decides what to do about an event no trigger handled, records that it does nothing because other work already takes it, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
 			facts: [
@@ -516,19 +521,19 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'decision.chosen',
 				'decision.decidedBy',
 				'decision.status',
-				'decision.jobRunId',
+				'decision.automationRunId',
 				'decision.subjectRunId',
 				'decision.createdAt',
 				'decision.finishedAt',
 			],
 			payloadType: 'ReconcilerDecisionChangedEvent',
 			payload:
-				"type WakeAbout = 'workstream' | 'job' | 'conflict';\n\ntype ReconcilerCandidate =\n\t| Readonly<{ kind: 'nothing'; label: string }>\n\t| Readonly<{\n\t\t\tkind: 'wake-chat';\n\t\t\tlabel: string;\n\t\t\tsessionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tfrom: string;\n\t\t\treport: string;\n\t\t\tabout?: WakeAbout;\n\t  }>\n\t| Readonly<{\n\t\t\tkind: 'run-job';\n\t\t\tlabel: string;\n\t\t\tdefinitionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tcontext: string;\n\t  }>\n\t| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;\n\ntype ReconcilerDecider = 'model' | 'rules' | 'you';\n\ntype ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';\n\ntype ReconcilerDecisionRecord = Readonly<{\n\tid: string;\n\teventId: number;\n\tchannel: string;\n\tchainId: string;\n\tworkstreamId: string | null;\n\tfacts: readonly string[];\n\tcandidates: readonly ReconcilerCandidate[];\n\tpick: number | null;\n\tchosen: number;\n\tdecidedBy: ReconcilerDecider;\n\tstatus: ReconcilerDecisionStatus;\n\tdetail: string | null;\n\tjobRunId: string | null;\n\tsubjectRunId: string | null;\n\tcreatedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;",
+				"type WakeAbout = 'workstream' | 'automation' | 'conflict';\n\ntype ReconcilerCandidate =\n\t| Readonly<{ kind: 'nothing'; label: string }>\n\t| Readonly<{\n\t\t\tkind: 'wake-chat';\n\t\t\tlabel: string;\n\t\t\tsessionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tfrom: string;\n\t\t\treport: string;\n\t\t\tabout?: WakeAbout;\n\t  }>\n\t| Readonly<{\n\t\t\tkind: 'run-automation';\n\t\t\tlabel: string;\n\t\t\tdefinitionId: string;\n\t\t\tworkstreamId: string;\n\t\t\tcontext: string;\n\t  }>\n\t| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;\n\ntype ReconcilerDecider = 'model' | 'rules' | 'you';\n\ntype ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';\n\ntype ReconcilerDecisionRecord = Readonly<{\n\tid: string;\n\teventId: number;\n\tchannel: string;\n\tchainId: string;\n\tworkstreamId: string | null;\n\tfacts: readonly string[];\n\tcandidates: readonly ReconcilerCandidate[];\n\tpick: number | null;\n\tchosen: number;\n\tdecidedBy: ReconcilerDecider;\n\tstatus: ReconcilerDecisionStatus;\n\tdetail: string | null;\n\tautomationRunId: string | null;\n\tsubjectRunId: string | null;\n\tcreatedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;",
 		},
 		{
-			channel: 'jobs:time-reached',
+			channel: 'automations:time-reached',
 			description:
-				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
+				"Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
 			facts: ['definitionId', 'name', 'when', 'due'],
 			payloadType: 'TimeReachedEvent',
 			payload:

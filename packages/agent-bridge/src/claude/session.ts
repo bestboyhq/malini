@@ -50,7 +50,6 @@ import {
 } from './mcp-servers.js';
 import {
 	approvedInput,
-	askBeforeLeavingTheSandbox,
 	AUTO_MODE_STOPPED,
 	AUTO_MODE_UNAVAILABLE,
 	autoModeCategory,
@@ -58,18 +57,18 @@ import {
 	autoModeRule,
 	boundaryDenials,
 	boundaryEnvironment,
-	boundarySandbox,
 	claudeAnswers,
 	claudeQuestions,
+	confineCommands,
 	disallowedTools,
 	hiddenPaths,
 	isMaliniTool,
+	leavesTheSandbox,
 	steerToMalini,
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
 	retryKey,
-	sandboxFor,
 	UNCHECKED_CALL_REASON,
 } from './permissions.js';
 import { RunFailureSignals, SIGNED_OUT_TEXT, UNKNOWN_FAILURE } from './run-failure.js';
@@ -83,6 +82,7 @@ import {
 	claudeUserDirectory,
 	userSettingsFile,
 } from './user-settings.js';
+import { canSandbox, sandboxProfile } from '../sandbox.js';
 import { isRecord } from '../type-guards.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
@@ -142,6 +142,7 @@ export interface ClaudeSessionOptions {
 	readonly query?: QueryFunction;
 	readonly outage?: AutoModeOutage;
 	readonly secrets: SessionSecrets;
+	readonly sandbox?: boolean;
 }
 
 interface RunSettings {
@@ -198,6 +199,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #interactions: ProviderInteractionBroker;
 	readonly #outage: AutoModeOutage;
 	readonly #secrets: SessionSecrets;
+	readonly #sandbox: boolean;
 	readonly #blockedCallRules = new Map<string, string>();
 	#claudeSessionId: string | undefined;
 	#seedHistory: readonly ConversationHistoryMessage[] | undefined;
@@ -215,6 +217,7 @@ export class ClaudeSession implements ProviderHandle {
 		this.#query = options.query ?? sdkQuery;
 		this.#outage = options.outage ?? new AutoModeOutage();
 		this.#secrets = options.secrets;
+		this.#sandbox = options.sandbox ?? canSandbox();
 		this.#interactions = new ProviderInteractionBroker({
 			sessionId: options.context.sessionId,
 			emit: options.emit,
@@ -657,6 +660,15 @@ export class ClaudeSession implements ProviderHandle {
 	): Options {
 		const directories = lineageDirectories(lineage);
 		const hidden = boundary ? hiddenPaths(boundary, claudeUserDirectory()) : [];
+		this.#secrets.confine(
+			this.#sandbox
+				? sandboxProfile({
+						checkout: this.#context.cwd,
+						hidden,
+						internet: boundary?.internet ?? true,
+					})
+				: null,
+		);
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
@@ -682,7 +694,7 @@ export class ClaudeSession implements ProviderHandle {
 			thinking: { type: 'adaptive', display: 'summarized' },
 			permissionMode,
 			...(permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
-			sandbox: boundary ? boundarySandbox(boundary, hidden) : sandboxFor(profile),
+			sandbox: { enabled: false },
 			disallowedTools: [
 				...disallowedTools(lineage),
 				...(boundary ? boundaryDenials(boundary, hidden) : []),
@@ -693,7 +705,12 @@ export class ClaudeSession implements ProviderHandle {
 				PreToolUse: [
 					{
 						matcher: 'Bash',
-						hooks: boundary ? [steerToMalini, askBeforeLeavingTheSandbox] : [steerToMalini],
+						hooks: this.#sandbox
+							? [
+									steerToMalini,
+									confineCommands(profile, (command) => this.#secrets.passOutside(command)),
+								]
+							: [steerToMalini],
 					},
 					{ hooks: [this.#allowApprovedRetry()] },
 				],
@@ -780,9 +797,12 @@ export class ClaudeSession implements ProviderHandle {
 				options.suggestions,
 				resolution.scope,
 			);
+			const approved = approvedInput(toolName, input, resolution.updatedInput);
 			return {
 				behavior: 'allow',
-				updatedInput: approvedInput(toolName, input, resolution.updatedInput),
+				updatedInput: leavesTheSandbox(toolName, approved)
+					? { ...approved, command: this.#secrets.passOutside(String(approved['command'])) }
+					: approved,
 				...(updatedPermissions ? { updatedPermissions } : {}),
 			};
 		};

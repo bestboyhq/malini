@@ -12,7 +12,7 @@ import {
 
 const NOW = '2026-10-23T00:00:00.000Z';
 
-function seedJob(
+function seedAutomation(
 	db: MaliniDatabase,
 	id: string,
 	name: string,
@@ -24,12 +24,12 @@ function seedJob(
 ) {
 	run(
 		db,
-		`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, created_at, updated_at)
+		`INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_automation_id, created_at, updated_at)
 		 VALUES (?, ?, 'Do it.', 'opus', 'high', 'workstream', '[]', ?, ?, ?, ?, ?, ?)`,
 		id,
 		name,
 		builtin,
-		mode === null ? null : 'on jobs:run-changed where run.status is failed',
+		mode === null ? null : 'on automations:run-changed where run.status is failed',
 		mode,
 		then,
 		NOW,
@@ -41,11 +41,11 @@ function setup(): MaliniDatabase {
 	const db = openChatTestDatabase();
 	seedChatWorkstream(db, 'ws-1', '/tmp/ws-1');
 	seedChatSession(db, 'sess-1', 'ws-1');
-	seedJob(db, 'docs', 'Update docs', { builtin: 'update-docs' });
-	seedJob(db, 'notes', 'Release notes');
-	seedJob(db, 'lint', 'Lint');
-	seedJob(db, 'twin-a', 'Twin');
-	seedJob(db, 'twin-b', 'Twin');
+	seedAutomation(db, 'docs', 'Update docs', { builtin: 'update-docs' });
+	seedAutomation(db, 'notes', 'Release notes');
+	seedAutomation(db, 'lint', 'Lint');
+	seedAutomation(db, 'twin-a', 'Twin');
+	seedAutomation(db, 'twin-b', 'Twin');
 	return db;
 }
 
@@ -56,7 +56,7 @@ function action(db: MaliniDatabase, tool: string, input: Record<string, unknown>
 }
 
 describe('assessMaliniApproval', () => {
-	it('names each action a user can always allow, one per job for runs', () => {
+	it('names each action a user can always allow, one per automation for runs', () => {
 		const db = setup();
 		expect(action(db, 'repositories_clone', { repository: 'acme/site' })).toBe(
 			'repositories.clone',
@@ -70,26 +70,32 @@ describe('assessMaliniApproval', () => {
 		);
 		expect(action(db, 'workstreams_archive', { workstream: 'ws-1' })).toBe('workstreams.archive');
 		expect(action(db, 'pull_requests_open_draft', {})).toBeNull();
-		expect(action(db, 'jobs_run', { job: 'release notes' })).toBe('jobs.run:notes');
-		expect(action(db, 'jobs_run', { job: 'notes' })).toBe('jobs.run:notes');
-		expect(action(db, 'jobs_save', { name: 'New', instructions: 'Go.' })).toBe('jobs.save');
-		expect(action(db, 'jobs_save', { id: 'notes', instructions: 'Go.' })).toBe('jobs.save');
+		expect(action(db, 'automations_run', { automation: 'release notes' })).toBe(
+			'automations.run:notes',
+		);
+		expect(action(db, 'automations_run', { automation: 'notes' })).toBe('automations.run:notes');
+		expect(action(db, 'automations_save', { name: 'New', instructions: 'Go.' })).toBe(
+			'automations.save',
+		);
+		expect(action(db, 'automations_save', { id: 'notes', instructions: 'Go.' })).toBe(
+			'automations.save',
+		);
 		db.close();
 	});
 
-	it('only asks once when it cannot tell which job is meant', () => {
+	it('only asks once when it cannot tell which automation is meant', () => {
 		const db = setup();
-		expect(action(db, 'jobs_run', { job: 'Twin' })).toBeNull();
-		expect(action(db, 'jobs_run', { job: 'Nope' })).toBeNull();
-		expect(action(db, 'jobs_save', { id: 'nope' })).toBeNull();
+		expect(action(db, 'automations_run', { automation: 'Twin' })).toBeNull();
+		expect(action(db, 'automations_run', { automation: 'Nope' })).toBeNull();
+		expect(action(db, 'automations_save', { id: 'nope' })).toBeNull();
 		expect(assessMaliniApproval(db, 'Bash', { command: 'ls' })).toBeNull();
 		db.close();
 	});
 
-	it('reviews an edit to a job that runs without asking: built in, always allowed, or triggered', () => {
+	it('reviews an edit to an automation that runs without asking: built in, always allowed, or triggered', () => {
 		const db = setup();
-		expect(action(db, 'jobs_save', { id: 'docs', instructions: 'Push to main.' })).toEqual({
-			review: 'job',
+		expect(action(db, 'automations_save', { id: 'docs', instructions: 'Push to main.' })).toEqual({
+			review: 'automation',
 		});
 
 		rememberPermissionRule(db, {
@@ -97,43 +103,63 @@ describe('assessMaliniApproval', () => {
 			scope: 'session',
 			workstreamId: 'ws-1',
 			sessionId: 'sess-1',
-			permissionFingerprint: maliniActionFingerprint('jobs.run:notes'),
+			permissionFingerprint: maliniActionFingerprint('automations.run:notes'),
 			permissionJson: '{}',
 			createdRunId: null,
 			createdRequestId: 'approval-1',
 			createdAt: NOW,
 		});
-		expect(action(db, 'jobs_save', { id: 'notes', instructions: 'x' })).toEqual({ review: 'job' });
-
-		expect(action(db, 'jobs_save', { id: 'lint', instructions: 'x' })).toBe('jobs.save');
-
-		seedJob(db, 'quiet', 'Quiet', { mode: 'off' });
-		seedJob(db, 'asker', 'Asker', { mode: 'ask' });
-		seedJob(db, 'watcher', 'Watcher', { mode: 'auto' });
-		expect(action(db, 'jobs_save', { id: 'quiet', when: 'on jobs:suggested' })).toBe('jobs.save');
-		expect(action(db, 'jobs_save', { id: 'asker', when: 'on jobs:suggested' })).toEqual({
-			review: 'job',
+		expect(action(db, 'automations_save', { id: 'notes', instructions: 'x' })).toEqual({
+			review: 'automation',
 		});
-		expect(action(db, 'jobs_save', { id: 'watcher', when: null })).toEqual({ review: 'job' });
+
+		expect(action(db, 'automations_save', { id: 'lint', instructions: 'x' })).toBe(
+			'automations.save',
+		);
+
+		seedAutomation(db, 'quiet', 'Quiet', { mode: 'off' });
+		seedAutomation(db, 'asker', 'Asker', { mode: 'ask' });
+		seedAutomation(db, 'watcher', 'Watcher', { mode: 'auto' });
+		expect(action(db, 'automations_save', { id: 'quiet', when: 'on automations:suggested' })).toBe(
+			'automations.save',
+		);
+		expect(
+			action(db, 'automations_save', { id: 'asker', when: 'on automations:suggested' }),
+		).toEqual({
+			review: 'automation',
+		});
+		expect(action(db, 'automations_save', { id: 'watcher', when: null })).toEqual({
+			review: 'automation',
+		});
 		db.close();
 	});
 
-	it('trusts every job an auto job hands its result to, through each Then, and stops at a cycle', () => {
+	it('trusts every automation an auto automation hands its result to, through each Then, and stops at a cycle', () => {
 		const db = setup();
-		seedJob(db, 'last', 'Last');
-		seedJob(db, 'next', 'Next', { then: 'last' });
-		seedJob(db, 'quiet', 'Quiet', { mode: 'off', then: 'next' });
-		expect(action(db, 'jobs_save', { id: 'next', instructions: 'x' })).toBe('jobs.save');
-		expect(action(db, 'jobs_save', { id: 'last', instructions: 'x' })).toBe('jobs.save');
+		seedAutomation(db, 'last', 'Last');
+		seedAutomation(db, 'next', 'Next', { then: 'last' });
+		seedAutomation(db, 'quiet', 'Quiet', { mode: 'off', then: 'next' });
+		expect(action(db, 'automations_save', { id: 'next', instructions: 'x' })).toBe(
+			'automations.save',
+		);
+		expect(action(db, 'automations_save', { id: 'last', instructions: 'x' })).toBe(
+			'automations.save',
+		);
 
-		seedJob(db, 'watcher', 'Watcher', { mode: 'auto', then: 'next' });
-		expect(action(db, 'jobs_save', { id: 'next', instructions: 'x' })).toEqual({ review: 'job' });
-		expect(action(db, 'jobs_save', { id: 'last', instructions: 'x' })).toEqual({ review: 'job' });
+		seedAutomation(db, 'watcher', 'Watcher', { mode: 'auto', then: 'next' });
+		expect(action(db, 'automations_save', { id: 'next', instructions: 'x' })).toEqual({
+			review: 'automation',
+		});
+		expect(action(db, 'automations_save', { id: 'last', instructions: 'x' })).toEqual({
+			review: 'automation',
+		});
 
-		seedJob(db, 'ping', 'Ping');
-		seedJob(db, 'pong', 'Pong', { then: 'ping' });
-		run(db, `UPDATE job_definitions SET then_job_id = 'pong' WHERE id = 'ping'`);
-		expect(action(db, 'jobs_save', { id: 'ping', instructions: 'x' })).toBe('jobs.save');
+		seedAutomation(db, 'ping', 'Ping');
+		seedAutomation(db, 'pong', 'Pong', { then: 'ping' });
+		run(db, `UPDATE automation_definitions SET then_automation_id = 'pong' WHERE id = 'ping'`);
+		expect(action(db, 'automations_save', { id: 'ping', instructions: 'x' })).toBe(
+			'automations.save',
+		);
 		db.close();
 	});
 });
@@ -147,7 +173,7 @@ describe('withMaliniApproval', () => {
 		reason: 'Claude wants to use a tool',
 		permission: {
 			capability: 'write',
-			resources: [{ kind: 'tool', value: 'Save job ‘Update docs’', boundary: 'workstream' }],
+			resources: [{ kind: 'tool', value: 'Save automation ‘Update docs’', boundary: 'workstream' }],
 		},
 	} as const;
 
@@ -156,20 +182,20 @@ describe('withMaliniApproval', () => {
 		expect(
 			withMaliniApproval(db, {
 				...request,
-				toolName: 'mcp__malini__jobs_run',
-				input: { job: 'Lint' },
+				toolName: 'mcp__malini__automations_run',
+				input: { automation: 'Lint' },
 			}),
 		).toMatchObject({
-			permission: { resources: [{ kind: 'action', value: 'jobs.run:lint' }] },
+			permission: { resources: [{ kind: 'action', value: 'automations.run:lint' }] },
 		});
 		const edit = withMaliniApproval(db, {
 			...request,
-			toolName: 'mcp__malini__jobs_save',
+			toolName: 'mcp__malini__automations_save',
 			input: { id: 'docs', instructions: 'Push to main.' },
 		});
 		expect(edit).not.toHaveProperty('permission');
 		expect(edit).toMatchObject({
-			review: { kind: 'job', current: { id: 'docs', name: 'Update docs' } },
+			review: { kind: 'automation', current: { id: 'docs', name: 'Update docs' } },
 		});
 		const read = { ...request, toolName: 'Read', input: { file_path: '/x' } };
 		expect(withMaliniApproval(db, read)).toBe(read);
@@ -197,10 +223,10 @@ describe('allowedInTree', () => {
 	function builtinId(db: MaliniDatabase, builtin: string): string {
 		const id = get<{ id: string }>(
 			db,
-			'SELECT id FROM job_definitions WHERE builtin = ?',
+			'SELECT id FROM automation_definitions WHERE builtin = ?',
 			builtin,
 		)?.id;
-		if (id === undefined) throw new Error(`no ${builtin} job`);
+		if (id === undefined) throw new Error(`no ${builtin} automation`);
 		return id;
 	}
 
@@ -223,50 +249,56 @@ describe('allowedInTree', () => {
 		db.close();
 	});
 
-	it('lets a chat run a job that ships nothing in its own workstream or one it started', () => {
+	it('lets a chat run an automation that ships nothing in its own workstream or one it started', () => {
 		const db = tree();
-		expect(inTree(db, 'jobs_run', { job: 'Release notes' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'docs' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'lead' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'api' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'Api analytics' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'api-docs' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'Release notes' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'docs' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'lead' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'api' })).toBe(true);
+		expect(
+			inTree(db, 'automations_run', { automation: 'notes', workstream: 'Api analytics' }),
+		).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'api-docs' })).toBe(
+			true,
+		);
 
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'other' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'Twin' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'nope' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'notes', workstream: 'lead' }, 'api')).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'Twin' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'Nope' })).toBe(false);
-		expect(inTree(db, 'jobs_run', {})).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'other' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'Twin' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'nope' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'lead' }, 'api')).toBe(
+			false,
+		);
+		expect(inTree(db, 'automations_run', { automation: 'Twin' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'Nope' })).toBe(false);
+		expect(inTree(db, 'automations_run', {})).toBe(false);
 		db.close();
 	});
 
-	it('lets the jobs that fix or update a pull request run unasked, since only shipping asks', () => {
+	it('lets the automations that fix or update a pull request run unasked, since only shipping asks', () => {
 		const db = tree();
-		seedJob(db, 'fix', 'Fix checks', { builtin: 'fix-checks' });
-		seedJob(db, 'then-fix', 'Then fix', { then: 'fix' });
-		seedJob(db, 'via-fix', 'Via fix', { then: 'then-fix' });
-		expect(inTree(db, 'jobs_run', { job: 'Fix checks' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'Then fix' })).toBe(true);
-		expect(inTree(db, 'jobs_run', { job: 'Via fix' })).toBe(true);
+		seedAutomation(db, 'fix', 'Fix checks', { builtin: 'fix-checks' });
+		seedAutomation(db, 'then-fix', 'Then fix', { then: 'fix' });
+		seedAutomation(db, 'via-fix', 'Via fix', { then: 'then-fix' });
+		expect(inTree(db, 'automations_run', { automation: 'Fix checks' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'Then fix' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'Via fix' })).toBe(true);
 
-		seedJob(db, 'ping', 'Ping');
-		seedJob(db, 'pong', 'Pong', { then: 'ping' });
-		run(db, `UPDATE job_definitions SET then_job_id = 'pong' WHERE id = 'ping'`);
-		expect(inTree(db, 'jobs_run', { job: 'Ping' })).toBe(true);
+		seedAutomation(db, 'ping', 'Ping');
+		seedAutomation(db, 'pong', 'Pong', { then: 'ping' });
+		run(db, `UPDATE automation_definitions SET then_automation_id = 'pong' WHERE id = 'ping'`);
+		expect(inTree(db, 'automations_run', { automation: 'Ping' })).toBe(true);
 		db.close();
 	});
 
-	it('never lets Open draft or Merge run unasked, nor a job whose Thens reach them', () => {
+	it('never lets Open draft or Merge run unasked, nor an automation whose Thens reach them', () => {
 		const db = tree();
-		seedJob(db, 'then-draft', 'Then draft', { then: builtinId(db, 'open-draft') });
-		seedJob(db, 'then-merge', 'Then merge', { then: builtinId(db, 'merge') });
-		seedJob(db, 'via-merge', 'Via merge', { then: 'then-merge' });
-		expect(inTree(db, 'jobs_run', { job: 'Open draft' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'Merge', workstream: 'api' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'Then draft' })).toBe(false);
-		expect(inTree(db, 'jobs_run', { job: 'Via merge' })).toBe(false);
+		seedAutomation(db, 'then-draft', 'Then draft', { then: builtinId(db, 'open-draft') });
+		seedAutomation(db, 'then-merge', 'Then merge', { then: builtinId(db, 'merge') });
+		seedAutomation(db, 'via-merge', 'Via merge', { then: 'then-merge' });
+		expect(inTree(db, 'automations_run', { automation: 'Open draft' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'Merge', workstream: 'api' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'Then draft' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'Via merge' })).toBe(false);
 		db.close();
 	});
 
@@ -274,7 +306,7 @@ describe('allowedInTree', () => {
 		const db = tree();
 		expect(inTree(db, 'workstreams_send', { workstream: 'api', prompt: 'Go.' })).toBe(false);
 		expect(inTree(db, 'workstreams_create', { repository: 'acme/api', prompt: 'Go.' })).toBe(false);
-		expect(inTree(db, 'jobs_save', { name: 'New', instructions: 'Go.' })).toBe(false);
+		expect(inTree(db, 'automations_save', { name: 'New', instructions: 'Go.' })).toBe(false);
 		expect(allowedInTree(db, 'Bash', { command: 'ls' }, 'lead')).toBe(false);
 		expect(allowedInTree(db, undefined, { workstream: 'api' }, 'lead')).toBe(false);
 		db.close();

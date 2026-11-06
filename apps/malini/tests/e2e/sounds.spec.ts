@@ -93,7 +93,7 @@ test('setup asks which sound plays when an agent finishes and when it needs you,
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-		await expect(page.getByTestId('first-chat-repositories')).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

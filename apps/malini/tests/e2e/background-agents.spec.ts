@@ -33,12 +33,15 @@ test('a background agent shows as running past the turn, then shows its result',
 		const backgroundStatus = page
 			.getByRole('status')
 			.filter({ hasText: '1 background agent running' });
-		const agentRow = page.getByRole('group').filter({ hasText: 'Sleep probe' });
+		const agentRow = page.getByTestId('subagent-row').filter({ hasText: 'Sleep probe' });
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('launched', { exact: true })).toBeVisible();
-		await expect(agentRow).toContainText('Background agent');
+		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
+		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();
+		await expect(agentRow.getByTestId('subagent-meta')).toHaveText(/^\d+s$/u);
+		await expect(page.getByTestId('background-tasks')).toHaveCount(0);
 		await expect(submit).toHaveAccessibleName('Stop current run');
 		await expect(sidebarLoader(page, 'e2e-background-agent-ws')).toBeVisible();
 		await captureFlow(app, 'background-agent-running');
@@ -49,14 +52,46 @@ test('a background agent shows as running past the turn, then shows its result',
 			timeout: 20_000,
 		});
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed');
+		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toHaveCount(0);
 		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
 		await expect(
 			page
 				.getByTestId('markdown-text')
 				.getByText('The Sleep probe agent finished with probe-done.'),
 		).toBeVisible();
+		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-agent-completed');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a background agent stops from its own row', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		await seedWorkstream(page, source, 'e2e-background-agent-stop-ws', 'Background agent stop');
+		await openWorkstream(page, 'e2e-background-agent-stop-ws');
+
+		await sendPrompt(page, 'BACKGROUND_AGENT');
+
+		const agentRow = page.getByTestId('subagent-row').filter({ hasText: 'Sleep probe' });
+		const stop = agentRow.getByRole('button', { name: 'Stop Sleep probe' });
+		await expect(stop).toBeVisible({ timeout: 20_000 });
+
+		await stop.click();
+
+		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed', { timeout: 20_000 });
+		await expect(agentRow.getByTestId('subagent-ticker')).toHaveText('Stopped. No hard feelings');
+		await expect(stop).toHaveCount(0);
+		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
+		await captureFlow(app, 'background-agent-stopped');
 
 		expectCleanConsole(app);
 	} finally {

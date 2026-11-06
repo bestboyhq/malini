@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<style>
+			@font-face {
+				font-family: 'Inter Variable';
+				font-weight: 100 900;
+				src: url('../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+					format('woff2-variations');
+			}
+
+			:root {
+				--surface: #181817;
+				--fg: #f4f4f3;
+				--fg-secondary: #a0a09e;
+				--frame: rgb(128 128 128 / 0.26);
+				--cross: rgb(128 128 128 / 0.7);
+				--ghost: rgb(255 255 255 / 0.1);
+				--label: #f4f4f3;
+				--painting: linear-gradient(
+					100deg,
+					#1957fa 6%,
+					#6365cd 26%,
+					#9e6594 42%,
+					#d35351 58%,
+					#ed3e11 72%,
+					#fb8400 94%
+				);
+			}
+
+			* {
+				box-sizing: border-box;
+				margin: 0;
+			}
+
+			html,
+			body {
+				width: 540px;
+				height: 380px;
+				overflow: hidden;
+			}
+
+			body {
+				position: relative;
+				background: var(--surface);
+				color: var(--fg);
+				font-family: 'Inter Variable', sans-serif;
+				-webkit-font-smoothing: antialiased;
+			}
+
+			body > * {
+				position: absolute;
+			}
+
+			.glow {
+				left: 60px;
+				right: 60px;
+				top: 300px;
+				height: 120px;
+				border-radius: 50%;
+				background: var(--painting);
+				filter: blur(44px);
+				opacity: 0.34;
+			}
+
+			.grain {
+				inset: 0;
+				width: 100%;
+				height: 100%;
+				opacity: 0.6;
+			}
+
+			.rail {
+				top: 0;
+				bottom: 0;
+				width: 1px;
+				background: var(--frame);
+			}
+
+			.rail.left {
+				left: 20px;
+			}
+
+			.rail.right {
+				right: 20px;
+			}
+
+			.rule {
+				left: 0;
+				right: 0;
+				top: 132px;
+				height: 1px;
+				background: var(--frame);
+			}
+
+			.cross {
+				top: 128px;
+				width: 9px;
+				height: 9px;
+				background:
+					linear-gradient(var(--cross) 0 0) 4px 0 / 1px 9px no-repeat,
+					linear-gradient(var(--cross) 0 0) 0 4px / 9px 1px no-repeat;
+			}
+
+			.cross.left {
+				left: 16px;
+			}
+
+			.cross.right {
+				right: 16px;
+			}
+
+			header {
+				top: 52px;
+				left: 0;
+				right: 0;
+				text-align: center;
+			}
+
+			h1 {
+				font-size: 27px;
+				font-weight: 640;
+				letter-spacing: -0.035em;
+				line-height: 32px;
+			}
+
+			p {
+				margin-top: 8px;
+				color: var(--fg-secondary);
+				font-size: 13px;
+				font-weight: 420;
+				letter-spacing: -0.005em;
+			}
+
+			.ghost {
+				width: 64px;
+				height: 64px;
+				border: 1px solid var(--ghost);
+				border-radius: 15px;
+			}
+
+			.ghost.near {
+				left: 106px;
+				top: 180px;
+			}
+
+			.ghost.far {
+				left: 114px;
+				top: 172px;
+				opacity: 0.55;
+			}
+
+			.trail {
+				left: 194px;
+				top: 218px;
+				width: 128px;
+				height: 4px;
+				background: var(--painting);
+				mask: radial-gradient(circle, #000 1.5px, transparent 2px) 0 0 / 9px 4px repeat-x;
+			}
+
+			.chevron {
+				left: 324px;
+				top: 211px;
+				width: 18px;
+				height: 18px;
+				color: #fb8400;
+			}
+
+			.label {
+				top: 265px;
+				height: 22px;
+				border-radius: 11px;
+				background: var(--label);
+			}
+
+			.label.app {
+				left: 98px;
+				width: 64px;
+			}
+
+			.label.applications {
+				left: 362px;
+				width: 96px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="glow"></div>
+		<svg class="grain" aria-hidden="true">
+			<filter id="grain">
+				<feTurbulence
+					type="fractalNoise"
+					baseFrequency="0.85"
+					numOctaves="2"
+					stitchTiles="stitch"
+				/>
+				<feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.07 0" />
+			</filter>
+			<rect width="100%" height="100%" filter="url(#grain)" />
+		</svg>
+		<div class="rail left"></div>
+		<div class="rail right"></div>
+		<div class="rule"></div>
+		<div class="cross left"></div>
+		<div class="cross right"></div>
+		<header>
+			<h1>Agents ready. Bring the work.</h1>
+			<p>Drag Malini into Applications to start.</p>
+		</header>
+		<div class="ghost far"></div>
+		<div class="ghost near"></div>
+		<div class="trail"></div>
+		<svg class="chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+			<path
+				d="M6 3l6 6-6 6"
+				stroke="currentColor"
+				stroke-width="2.2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			/>
+		</svg>
+		<div class="label app"></div>
+		<div class="label applications"></div>
+	</body>
+</html>

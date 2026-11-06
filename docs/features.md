@@ -67,13 +67,16 @@ The [README](../README.md) has the short version.
 - **Queue or steer.** **↵** queues a prompt after the current run, **⌘↵** interrupts the turn and steers, while background commands keep running.
   Edit, reorder, or delete what's queued.
 - **Plan first.** Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
-- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, or any DeepSeek or OpenCode model models.dev lists, from Low to Max effort.
+- **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, any DeepSeek or OpenCode model models.dev lists, or a GPT model on your ChatGPT plan, from Low to Max effort.
   Pick any model, a provider you have not connected folded into one row; sending on it asks for its key or sign-in right there, then sends the prompt.
 - **As much rope as you want to give.** **Auto**, the default, uses Claude Code's auto mode.
-  **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else, and **Full access** never asks.
+  **Sandboxed** edits the workstream and runs commands without asking, and asks for anything else, and **Full access** never asks.
   Approve once, or always for the chat or the workstream.
+- **A sandbox around every command.** Agent commands and workstream installs run in a macOS sandbox Malini writes, so a malicious package cannot read your credentials or write outside the workstream.
+  Electron, Playwright and file watchers run inside it.
 - **As much reading as you want to do.** Reports run from a screenshot and one line to the full write-up.
 - **Watch it think.** Thinking shows inline, step by step, from the moment the run starts, with a diff for every file the chat changed.
+- **Watch it delegate.** Each subagent is one line with the step it is on, and its steps and report are one click away.
 - **Bring context.** **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings, and files, up to 100 MB each.
 - **Know your limits.** The context window breakdown and your plan usage, five-hour and weekly, are one click from the composer, next to MCP server status.
   Plan usage follows the Claude account you're signed in to.
@@ -108,34 +111,34 @@ The [README](../README.md) has the short version.
 
 - **Every skill that is on loads in every chat.** No per-chat picking.
 - **Settings, Skills ranks them by use:** last use, token cost, origin, and an on/off switch, plus how many skills that are on were never used.
-- **A job can name its skills** in its editor on the Jobs page, and then loads only those.
+- **An automation can name its skills** in its editor on the Automations page, and then loads only those.
 
-## Jobs
+## Automations
 
 <p align="center">
-  <img src="../.github/readme/jobs.webp" width="100%" alt="The Changelog on merge job open on the Jobs page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
+  <img src="../.github/readme/jobs.webp" width="100%" alt="The Changelog on merge automation open on the Automations page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
 </p>
 
-- **A job is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
+- **An automation is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
   Run it in this workstream or a new one.
 - **When: what starts it.** You run it, or one event trigger runs it, like `on pull-requests:ship-changed where merged is set`, on any event Malini emits.
   Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a chat or workstream of its own, at Home, in an organization or in a repository.
   A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits in its chat with **Run it** and **Skip**.
-- **Then: what runs next.** One job runs after this one succeeds, in the same workstream, with its result.
-  **Open draft** and **Merge** are jobs, so "open a draft PR" is a Then.
+- **Then: what runs next.** One automation runs after this one succeeds, in the same workstream, with its result.
+  **Open draft** and **Merge** are automations, so "open a draft PR" is a Then.
   A Then that would loop is refused.
-- **Fire and forget.** Every way of starting a job only asks Malini's job runner, which starts it when a slot is free, the workstream has no other job, and its agent is idle.
-- **Ten jobs come built in.** **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** get a pull request merged.
+- **Fire and forget.** Every way of starting an automation only asks Malini's automation runner, which starts it when a slot is free, the workstream has no other automation, and its agent is idle.
+- **Ten automations come built in.** **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** get a pull request merged.
   **Update from main** merges the base branch without an agent and hands conflicts to **Resolve conflicts**.
   **Open draft** and **Merge** ship a workstream without an agent, **Update docs** brings a repository's docs up to date and then opens a draft, and **Check compatibility** runs after an update that changed Malini's events.
   **Name chats** and **Name services** name chats and the commands agents leave running.
   Type **/** in the composer to run one from a chat, and its result lands in that chat.
-- **The built-in jobs are yours to edit.** Reset brings back the original.
-- **Suggestions from your own habits.** Malini notices the prompts you keep repeating and offers to make them a job: **Make it a job** or **Dismiss**.
-- **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs with its Malini tools: saving one waits for your approval, and so does running one outside the work the chat started, or any that ships.
+- **The built-in automations are yours to edit.** Reset brings back the original.
+- **Suggestions from your own habits.** When the first thing you ask after a merge matches what you asked after an earlier merge, Malini suggests an automation under the reply: **Save it**, **Edit**, or **Not now**.
+- **Ask the agent for it.** In a chat, the agent lists, saves, and runs automations with its Malini tools: saving one waits for your approval, and so does running one outside the work the chat started, or any that ships.
   A trigger it adds starts Off.
-- **A Job center** shows only live jobs, one line each: what needs you, what runs, and what is queued; a job that needs you opens the chat where you make the call.
-  Settings decides how many jobs run at once.
+- **Automations show where they run.** A chat lists its workstream's live automations above the composer, one line each: what needs you, what runs, and what is queued; one with no workstream shows on the Automations page, which the **Automations** icon at the top opens.
+  Settings decides how many automations run at once.
 
 ## A browser the agent can drive
 
@@ -164,7 +167,7 @@ The [README](../README.md) has the short version.
 
 Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
-Malini makes five calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev.
+Malini makes seven calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 While you are signed in to Bestboy on its current terms, each count carries your account, as a hash Malini makes on your Mac.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.

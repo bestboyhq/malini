@@ -235,7 +235,7 @@
 			{/if}
 
 			<p class="text-fg-tertiary px-1 text-xs">
-				{plural(activity.jobRuns, 'run', 'runs')} from jobs · Counted on this Mac only
+				{plural(activity.automationRuns, 'run', 'runs')} from automations · Counted on this Mac only
 			</p>
 		</section>
 	{/if}

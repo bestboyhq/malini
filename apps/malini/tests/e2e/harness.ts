@@ -265,6 +265,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			`--user-data-dir=${userDataDir}`,
 			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost',
 			'--use-mock-keychain',
+			'--use-fake-device-for-media-stream',
 		],
 		cwd: APP_ROOT,
 		env,
@@ -277,6 +278,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	};
 	electronApp.process().stdout?.on('data', keepOutput);
 	electronApp.process().stderr?.on('data', keepOutput);
+	await keepTheClipboardInMemory(electronApp);
 	const page = await electronApp.firstWindow();
 
 	const consoleErrors: string[] = [];
@@ -546,6 +548,27 @@ export function openedUrls(app: LaunchedApp): Promise<string[]> {
 	});
 }
 
+function keepTheClipboardInMemory(electronApp: ElectronApplication): Promise<void> {
+	return electronApp.evaluate(({ clipboard, ClipboardItem }) => {
+		let items: Electron.ClipboardItem[] = [];
+		clipboard.write = async (next) => {
+			items = next;
+		};
+		clipboard.writeText = async (text) => {
+			items = [new ClipboardItem({ 'text/plain': text })];
+		};
+		clipboard.read = async () => items;
+		clipboard.readText = async () => {
+			const item = items.find((candidate) => candidate.types.includes('text/plain'));
+			const text = await item?.getType('text/plain');
+			return text instanceof Blob ? text.text() : '';
+		};
+		clipboard.clear = () => {
+			items = [];
+		};
+	});
+}
+
 export async function recordBrowserAndClipboard(app: LaunchedApp): Promise<void> {
 	await app.electronApp.evaluate(({ clipboard, shell }) => {
 		const record: { opened: string[]; copied: string[] } = { opened: [], copied: [] };
@@ -588,7 +611,7 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
-export async function openJobs(page: Page, hash = '#/jobs'): Promise<void> {
+export async function openAutomations(page: Page, hash = '#/automations'): Promise<void> {
 	await page.evaluate((next) => {
 		globalThis.location.hash = next;
 	}, hash);
@@ -598,30 +621,32 @@ export async function openJobs(page: Page, hash = '#/jobs'): Promise<void> {
 	});
 }
 
-export function jobCard(page: Page, name: string): Locator {
-	return page.getByTestId('job-card').and(page.getByRole('article', { name, exact: true }));
+export function automationCard(page: Page, name: string): Locator {
+	return page.getByTestId('automation-card').and(page.getByRole('article', { name, exact: true }));
 }
 
-export async function draftJob(
+export async function draftAutomation(
 	page: Page,
-	job: Readonly<{ name: string; words: string; when?: string }>,
+	automation: Readonly<{ name: string; words: string; when?: string }>,
 ): Promise<void> {
-	await page.getByRole('textbox', { name: 'What should happen, and when?' }).fill(job.words);
+	await page.getByRole('textbox', { name: 'What should happen, and when?' }).fill(automation.words);
 	await page.getByRole('button', { name: /^Draft it/u }).click();
-	const draft = page.getByRole('article', { name: 'New job draft' });
-	await draft.getByRole('textbox', { name: 'Job name' }).fill(job.name);
-	await draft.getByRole('button', { name: new RegExp(`^When ${job.name} runs: `, 'u') }).click();
+	const draft = page.getByRole('article', { name: 'New automation draft' });
+	await draft.getByRole('textbox', { name: 'Automation name' }).fill(automation.name);
+	await draft
+		.getByRole('button', { name: new RegExp(`^When ${automation.name} runs: `, 'u') })
+		.click();
 	await page
 		.getByRole('dialog', { name: 'When should it run' })
-		.getByRole('option', { name: new RegExp(`^${job.when ?? 'When you run it'}`, 'u') })
+		.getByRole('option', { name: new RegExp(`^${automation.when ?? 'When you run it'}`, 'u') })
 		.click();
-	await draft.getByRole('button', { name: 'Save job' }).click();
+	await draft.getByRole('button', { name: 'Save automation' }).click();
 	await expect(draft).toHaveCount(0);
-	await expect(jobCard(page, job.name)).toBeVisible();
+	await expect(automationCard(page, automation.name)).toBeVisible();
 }
 
-export async function openJob(page: Page, name: string): Promise<Locator> {
-	await jobCard(page, name)
+export async function openAutomation(page: Page, name: string): Promise<Locator> {
+	await automationCard(page, name)
 		.getByRole('link', { name: `Set up ${name}` })
 		.click();
 	const detail = page.getByRole('region', { name, exact: true });
@@ -643,7 +668,13 @@ export async function passSetup(page: Page): Promise<void> {
 	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-	await expect(page.getByTestId('first-chat-repositories')).toBeVisible({ timeout: 20_000 });
+	await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
+}
+
+export async function connectFolder(app: LaunchedApp, name: string): Promise<void> {
+	const path = await createSourceRepo(app.root, name);
+	await invoke(app.page, 'repositories.connect', { source: { kind: 'local-folder', path } });
+	await app.page.reload();
 }
 
 export async function openRepositoriesPage(page: Page): Promise<void> {

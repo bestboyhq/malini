@@ -2,7 +2,7 @@ import type { AgentTheme } from '$contract/agent';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
-	JOBS_TIME_REACHED_CHANNEL,
+	AUTOMATIONS_TIME_REACHED_CHANNEL,
 	SECRETS_DELETED_CHANNEL,
 	SECRETS_SAVED_CHANNEL,
 	type ChatTurnFinishedPayload,
@@ -15,11 +15,12 @@ import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import {
-	runAutomaticJob,
-	type ChooseWithJob,
+	runOneShotAutomation,
+	type AnswerWithAutomation,
+	type ChooseWithAutomation,
 	type DispatchedEvent,
-	type SuggestWithJob,
-} from '$lib/jobs/jobs.platform';
+	type SuggestWithAutomation,
+} from '$lib/automations/automations.platform';
 import { stopBackgroundTask, stopWorkstreamBackgroundCommands } from './agent/commands';
 import type { AgentRunLeases } from './agent/lifecycle';
 import type { BridgeProcessFactory } from './agent/process';
@@ -72,8 +73,9 @@ export interface ChatPlatform {
 	stopWorkstreamBackgroundCommands(workstreamId: string): Promise<void>;
 	nameService(task: string): Promise<string>;
 	nameWorkstream(task: string): Promise<string>;
-	suggestTitle: SuggestWithJob;
-	choose: ChooseWithJob;
+	suggestTitle: SuggestWithAutomation;
+	choose: ChooseWithAutomation;
+	answer: AnswerWithAutomation;
 	resume(event: DispatchedEvent): Promise<void>;
 	deliveries(event: DispatchedEvent): Promise<void>;
 	deliver: ChatDeliveries['deliver'];
@@ -158,9 +160,9 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		log: deps.log ?? (() => undefined),
 	});
 
-	const suggestTitle: SuggestWithJob = async (task, job) => {
-		const environment = await deps.providerEnvironment(job.provider, job.model);
-		return (await agent.ensureReady()).suggestTitle(task, job, environment);
+	const suggestTitle: SuggestWithAutomation = async (task, automation) => {
+		const environment = await deps.providerEnvironment(automation.provider, automation.model);
+		return (await agent.ensureReady()).suggestTitle(task, automation, environment);
 	};
 	let resumed = false;
 
@@ -170,8 +172,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			stopGrants();
 			stopHandingOutSaved();
 			stopHandingOutDeleted();
-			deliveries.stop();
-			await Promise.all([packing.stop(), agent.stop(), shellRuns.stopAll()]);
+			await Promise.all([deliveries.stop(), packing.stop(), agent.stop(), shellRuns.stopAll()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
@@ -186,15 +187,19 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 				shellRuns.stopWorkstream(workstreamId),
 			]);
 		},
-		nameService: (task) => runAutomaticJob(context.db, 'name-services', task, suggestTitle),
-		nameWorkstream: (task) => runAutomaticJob(context.db, 'name-chats', task, suggestTitle),
+		nameService: (task) => runOneShotAutomation(context.db, 'name-services', task, suggestTitle),
+		nameWorkstream: (task) => runOneShotAutomation(context.db, 'name-chats', task, suggestTitle),
 		suggestTitle,
-		choose: async (task, job, choices) => {
-			const environment = await deps.providerEnvironment(job.provider, job.model);
-			return (await agent.ensureReady()).choose(task, job, choices, environment);
+		choose: async (task, automation, choices) => {
+			const environment = await deps.providerEnvironment(automation.provider, automation.model);
+			return (await agent.ensureReady()).choose(task, automation, choices, environment);
+		},
+		answer: async (task, automation, schema) => {
+			const environment = await deps.providerEnvironment(automation.provider, automation.model);
+			return (await agent.ensureReady()).answer(task, automation, schema, environment);
 		},
 		resume: async (event) => {
-			if (event.channel === JOBS_TIME_REACHED_CHANNEL) {
+			if (event.channel === AUTOMATIONS_TIME_REACHED_CHANNEL) {
 				const paused = pausedRunReached(event.payload);
 				if (paused) await agent.continuePausedRun(paused, event.id);
 				return;

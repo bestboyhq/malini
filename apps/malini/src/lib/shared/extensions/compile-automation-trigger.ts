@@ -1,11 +1,11 @@
 import { EXTENSION_EVENTS } from '@malini/extension-api';
-import { parseAutomationTrigger, type AutomationTrigger } from '$contract/automation-trigger';
+import { parseAutomationTrigger, type ParsedTrigger } from '$contract/automation-trigger';
 
 export type WorkstreamAutomationEvent =
 	typeof EXTENSION_EVENTS.workstreamCreated | typeof EXTENSION_EVENTS.resourceReady;
 
 export type CompiledWorkstreamAutomationTrigger = Readonly<{
-	kind: AutomationTrigger['kind'];
+	kind: ParsedTrigger['kind'];
 	event: WorkstreamAutomationEvent | null;
 	description: string;
 	matches(payload: unknown): boolean;

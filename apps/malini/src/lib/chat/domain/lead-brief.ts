@@ -1,6 +1,7 @@
 import { continuationCause, isCancellationError } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { parseWorkstreamReport, reportedTurnEnd } from './deliveries';
+import { savedSecretsWake } from './saved-secrets';
 
 export type BriefEvent = Readonly<{
 	seq: number;
@@ -54,8 +55,7 @@ function eventLines(
 		const payload = record(event.payload);
 		switch (event.kind) {
 			case 'user.message': {
-				const line = promptLine(payload, event.at, workstreamName);
-				if (line) lines.push(line);
+				lines.push(...promptLines(payload, event.at, workstreamName));
 				break;
 			}
 			case 'assistant.message': {
@@ -105,6 +105,17 @@ function eventLines(
 	return lines;
 }
 
+function promptLines(
+	payload: Readonly<Record<string, unknown>>,
+	at: string,
+	workstreamName: (workstreamId: string) => string,
+): Line[] {
+	const wake = savedSecretsWake(text_(payload['text']) ?? '');
+	const prompt = promptLine({ ...payload, text: wake.rest }, at, workstreamName);
+	const saved = wake.saved === null ? [] : [{ at, text: `The user saved ${wake.saved}.` }];
+	return prompt ? [prompt, ...saved] : saved;
+}
+
 function promptLine(
 	payload: Readonly<Record<string, unknown>>,
 	at: string,
@@ -147,8 +158,8 @@ function toolLine(
 			return `You sent “${name}”: ${quote(input['prompt'])}`;
 		case 'workstreams_archive':
 			return `You archived “${name}”.`;
-		case 'jobs_run':
-			return `You ran ${text_(output['job']) ?? text_(input['job']) ?? 'a job'}${text_(input['workstream']) ? ` in “${text_(input['workstream'])}”` : ''}.`;
+		case 'automations_run':
+			return `You ran ${text_(output['automation']) ?? text_(input['automation']) ?? 'an automation'}${text_(input['workstream']) ? ` in “${text_(input['workstream'])}”` : ''}.`;
 		case 'plan_write':
 			return 'You rewrote your plan.';
 		default:

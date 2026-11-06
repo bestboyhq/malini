@@ -560,7 +560,7 @@ describe('what keeps running in a workstream', () => {
 		insertSession(
 			db,
 			{
-				id: 'sess-job',
+				id: 'sess-automation',
 				workstreamId: 'ws-turn',
 				provider: 'claude',
 				model: null,
@@ -568,7 +568,7 @@ describe('what keeps running in a workstream', () => {
 				status: 'idle',
 				startedAt: '2026-07-22T00:00:00Z',
 			},
-			{ origin: 'job', displayName: null },
+			{ origin: 'automation', displayName: null },
 		);
 		expect(latestWorkstreamTurn(db, 'ws-turn')).toBeNull();
 
@@ -588,7 +588,9 @@ describe('what keeps running in a workstream', () => {
 				'Started the preview.\n\nOutcome: Site preview is up\nNeeds: Open localhost:8791; Check the hero',
 		});
 		appendEvent(db, 'sess-turn', 'run-turn', 'background.updated', { waiting: true, tasks: [] });
-		appendEvent(db, 'sess-job', 'run-job', 'run.completed', { summary: 'Outcome: A job did it' });
+		appendEvent(db, 'sess-automation', 'run-automation', 'run.completed', {
+			summary: 'Outcome: An automation did it',
+		});
 
 		expect(latestWorkstreamTurn(db, 'ws-turn')).toEqual({
 			endedAt: expect.any(Number),
@@ -601,14 +603,14 @@ describe('what keeps running in a workstream', () => {
 });
 
 describe('chat turns', () => {
-	it('lists the chat turns that called Malini, or the latest ones too, never a job session, with their status and the words of their prompt', () => {
+	it('lists the chat turns that called Malini, or the latest ones too, never an automation session, with their status and the words of their prompt', () => {
 		const db = openMigratedDatabase(':memory:');
 		db.exec(`
 			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('p', 'p', '/tmp/p', 'main', '2026-10-23T00:00:00Z');
 			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES ('w', 'p', 'w', '/tmp/w', 'malini/w', 'main', 'active', '2026-10-23T00:00:00Z');
 			INSERT INTO agent_sessions (id, workstream_id, status, started_at, display_name, origin) VALUES
 			  ('chat', 'w', 'idle', '2026-10-23T00:00:00Z', 'Ship it', 'user'),
-			  ('job', 'w', 'idle', '2026-10-23T00:00:00Z', 'Fix checks', 'job');
+			  ('automation', 'w', 'idle', '2026-10-23T00:00:00Z', 'Fix checks', 'automation');
 			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, error, obsoleted_at) VALUES
 			  ('called', 'chat', '
   [[attachment:att-1]] Clone [[context:src/site.ts]] acme/site
@@ -619,10 +621,10 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			  ('reaped', 'chat', 'Mid way', '2026-10-23T15:00:00Z', '2026-10-23T15:01:00Z', 'interrupted: agent bridge restarted', NULL),
 			  ('stopped', 'chat', 'Stop', '2026-10-23T16:00:00Z', '2026-10-23T16:01:00Z', 'cancelled', NULL),
 			  ('edited', 'chat', 'Old prompt', '2026-10-23T09:00:00Z', '2026-10-23T09:01:00Z', NULL, '2026-10-23T09:02:00Z'),
-			  ('in-job', 'job', 'Fix the checks', '2026-10-23T13:00:00Z', NULL, NULL, NULL);
+			  ('in-automation', 'automation', 'Fix the checks', '2026-10-23T13:00:00Z', NULL, NULL, NULL);
 		`);
 
-		expect(listChatTurns(db, ['called', 'in-job', 'edited'], 0)).toEqual([
+		expect(listChatTurns(db, ['called', 'in-automation', 'edited'], 0)).toEqual([
 			{
 				runId: 'called',
 				sessionId: 'chat',

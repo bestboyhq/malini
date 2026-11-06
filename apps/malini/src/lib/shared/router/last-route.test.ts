@@ -13,7 +13,7 @@ const routes: RouteNode = {
 			page,
 			children: [
 				{ segment: 'workstreams', children: [{ segment: ':workstreamId', page }] },
-				{ segment: 'jobs', page },
+				{ segment: 'automations', page },
 			],
 		},
 	],
@@ -24,7 +24,7 @@ describe('bootRoute', () => {
 		expect(bootRoute('', '/workstreams/ws-1?agent=s-7', routes)).toBe(
 			'/workstreams/ws-1?agent=s-7',
 		);
-		expect(bootRoute('#/', '/jobs', routes)).toBe('/jobs');
+		expect(bootRoute('#/', '/automations', routes)).toBe('/automations');
 	});
 
 	it('respects a hash that was actually asked for', () => {
@@ -41,7 +41,7 @@ describe('bootRoute', () => {
 	});
 
 	it('follows a remembered route that moved to where it went', () => {
-		expect(bootRoute('', '/jobs/routines', appRoutes)).toBe('/jobs');
-		expect(bootRoute('', '/jobs/activity', appRoutes)).toBe('/jobs/activity');
+		expect(bootRoute('', '/automations/routines', appRoutes)).toBe('/automations');
+		expect(bootRoute('', '/automations/activity', appRoutes)).toBe('/automations/activity');
 	});
 });

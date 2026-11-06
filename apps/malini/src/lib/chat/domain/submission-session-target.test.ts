@@ -169,15 +169,15 @@ describe('resolveSubmissionSessionTarget', () => {
 		expect(target.fallbackSessionId).toBe('a-matching-newest');
 	});
 
-	it('sends to a job only from its own open transcript, never as the newest matching chat', () => {
+	it('sends to an automation only from its own open transcript, never as the newest matching chat', () => {
 		const candidates = [
 			{
-				id: 'job-newest',
+				id: 'automation-newest',
 				workstreamId: 'workstream-a',
 				startedAt: '2026-07-17T12:02:00.000Z',
 				matchesTurn: true,
 				busy: false,
-				origin: 'job' as const,
+				origin: 'automation' as const,
 			},
 			{
 				id: 'user-chat',
@@ -197,14 +197,14 @@ describe('resolveSubmissionSessionTarget', () => {
 		});
 		const steering = resolveSubmissionSessionTarget({
 			workstreamId: 'workstream-a',
-			capturedSessionId: 'job-newest',
+			capturedSessionId: 'automation-newest',
 			forceFreshSession: false,
 			candidates,
 		});
 
 		expect(unanchored.targetSessionId).toBe('user-chat');
 		expect(unanchored.fallbackSessionId).toBe('user-chat');
-		expect(steering.targetSessionId).toBe('job-newest');
+		expect(steering.targetSessionId).toBe('automation-newest');
 	});
 
 	it('claims a rapid fresh intent once, then reuses the session minted by the first turn', () => {

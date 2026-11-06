@@ -9,7 +9,7 @@ import {
 	invoke,
 	launchMalini,
 	listEvents,
-	openJobs,
+	openAutomations,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -18,7 +18,7 @@ import {
 } from './harness';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 
-const OPEN_DRAFT = { tool: 'jobs_run', input: { job: 'Open draft' } };
+const OPEN_DRAFT = { tool: 'automations_run', input: { automation: 'Open draft' } };
 
 function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
@@ -32,7 +32,7 @@ function settled(page: Page, text: string) {
 	return page.getByRole('status').filter({ hasText: text });
 }
 
-test('an agent runs the Open draft job once the user allows it, and the draft opens after its turn ends', async () => {
+test('an agent runs the Open draft automation once the user allows it, and the draft opens after its turn ends', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -41,7 +41,7 @@ test('an agent runs the Open draft job once the user allows it, and the draft op
 		agentCalls(app, OPEN_DRAFT);
 
 		await sendPrompt(page, 'EDIT:alpha.txt MALINI_TOOL COMMIT=feat: add alpha');
-		await expect(page.getByRole('heading', { name: 'Run job ‘Open draft’' })).toBeVisible({
+		await expect(page.getByRole('heading', { name: 'Run automation ‘Open draft’' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(decision(page).getByRole('button', { name: 'Always allow' })).toBeVisible();
@@ -55,17 +55,17 @@ test('an agent runs the Open draft job once the user allows it, and the draft op
 		expect(github.pullRequest()).toMatchObject({ isDraft: true, title: 'feat: add alpha' });
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
 
-		await openJobs(page, '#/jobs/activity');
+		await openAutomations(page, '#/automations/activity');
 		const activity = page.getByTestId('automations-activity');
 		await expect(
-			activity.getByTestId('job-run-row').filter({ hasText: 'Open draft' }),
+			activity.getByTestId('automation-run-row').filter({ hasText: 'Open draft' }),
 		).toContainText('Started by an agent', { timeout: 20_000 });
 		const turn = activity.getByTestId('chat-turn-row');
 		await expect(turn).toHaveCount(1);
 		await expect(turn).toContainText('Chat');
 		await turn.getByRole('button', { name: /^Show 1 call in / }).click();
 		await expect(activity.getByRole('list', { name: /^Calls in / })).toContainText(
-			'Run job ‘Open draft’',
+			'Run automation ‘Open draft’',
 		);
 		expectCleanConsole(app);
 	} finally {
@@ -128,14 +128,19 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 	}
 });
 
-test('an agent edit to a job that runs on its own waits for a review of each change, and Save keeps exactly what the user kept', async () => {
+test('an agent edit to an automation that runs on its own waits for a review of each change, and Save keeps exactly what the user kept', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
-		const { workstreamId } = await seedWorkstream(page, source, 'e2e-job-review', 'Job review');
-		const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-automation-review',
+			'Automation review',
+		);
+		const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
 			name: 'Release notes',
 			instructions: 'Read the merged pull requests.\nGroup them.\nWrite the notes.\nPost them.',
 			model: 'opus',
@@ -144,9 +149,9 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 			trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
 		});
 		agentCalls(app, {
-			tool: 'jobs_save',
+			tool: 'automations_save',
 			input: {
-				id: job.id,
+				id: automation.id,
 				model: 'sonnet',
 				instructions:
 					'Read the merged pull requests.\nGroup them by area.\nWrite the notes.\nPost them to main.\nPush to main.',
@@ -156,12 +161,14 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 
 		await sendPrompt(page, 'MALINI_TOOL');
 		await expect(
-			page.getByRole('heading', { name: 'Review Claude’s changes to the job ‘Release notes’' }),
+			page.getByRole('heading', {
+				name: 'Review Claude’s changes to the automation ‘Release notes’',
+			}),
 		).toBeVisible({ timeout: 20_000 });
 		await expect(decision(page)).toHaveCount(0);
 		const editor = page.getByRole('textbox', { name: 'Instructions' });
 		await expect(page.getByRole('button', { name: 'Accept change' })).toHaveCount(2);
-		await captureFlow(app, 'agent-job-edit-review');
+		await captureFlow(app, 'agent-automation-edit-review');
 
 		await page.getByRole('button', { name: 'Reject Model' }).click();
 		await expect(page.getByRole('listitem', { name: 'Model change' })).toContainText('Rejected');
@@ -181,7 +188,8 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 			.poll(async () => {
 				const events = await listEvents(page, currentSessionId(page) ?? '');
 				const saved = events.find(
-					({ event }) => event.type === 'tool.completed' && event.name === 'mcp__malini__jobs_save',
+					({ event }) =>
+						event.type === 'tool.completed' && event.name === 'mcp__malini__automations_save',
 				);
 				return saved?.event.type === 'tool.completed' ? String(saved.event.output) : '';
 			})
@@ -190,10 +198,10 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 			.poll(async () => {
 				const definitions = await invoke<{ id: string; model: string; instructions: string }[]>(
 					page,
-					'jobs.list-definitions',
+					'automations.list-definitions',
 					undefined,
 				);
-				return definitions.find((definition) => definition.id === job.id);
+				return definitions.find((definition) => definition.id === automation.id);
 			})
 			.toMatchObject({
 				model: 'opus',
@@ -285,7 +293,7 @@ test('an agent clones a repository, starts and archives a workstream in it witho
 			.toBe(1);
 		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
 
-		await openJobs(page, '#/jobs/activity');
+		await openAutomations(page, '#/automations/activity');
 		const activity = page.getByTestId('automations-activity');
 		const turns = activity.getByTestId('chat-turn-row');
 		await expect(turns).toHaveCount(4, { timeout: 20_000 });

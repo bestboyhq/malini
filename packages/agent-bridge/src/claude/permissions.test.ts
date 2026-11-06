@@ -6,18 +6,16 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { AgentRunProfile } from '../agent-profile.js';
 import {
 	approvedInput,
-	askBeforeLeavingTheSandbox,
 	autoModeCategory,
 	autoModeRule,
-	boundarySandbox,
 	claudeAnswers,
 	claudeQuestions,
+	confineCommands,
 	disallowedTools,
 	maliniOwnedCommand,
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
-	sandboxFor,
 	steerToMalini,
 } from './permissions.js';
 
@@ -39,40 +37,14 @@ function profile(
 
 describe('run profile mapping', () => {
 	it.each([
-		[undefined, 'auto', false],
-		[profile('agent', 'sandboxed'), 'acceptEdits', true],
-		[profile('agent', 'auto'), 'auto', false],
-		[profile('agent', 'full'), 'bypassPermissions', false],
-		[profile('plan', 'full'), 'plan', false],
-		[profile('plan', 'sandboxed'), 'plan', true],
-	] as const)('%o runs in %s with sandbox %s', (runProfile, mode, sandboxed) => {
+		[undefined, 'auto'],
+		[profile('agent', 'sandboxed'), 'acceptEdits'],
+		[profile('agent', 'auto'), 'auto'],
+		[profile('agent', 'full'), 'bypassPermissions'],
+		[profile('plan', 'full'), 'plan'],
+		[profile('plan', 'sandboxed'), 'plan'],
+	] as const)('%o runs in %s', (runProfile, mode) => {
 		expect(permissionModeFor(runProfile)).toBe(mode);
-		expect(sandboxFor(runProfile).enabled).toBe(sandboxed);
-	});
-
-	it('lets sandboxed shell commands run without asking', () => {
-		expect(sandboxFor(profile('agent', 'sandboxed'))).toMatchObject({
-			enabled: true,
-			autoAllowBashIfSandboxed: true,
-		});
-	});
-
-	it('lets sandboxed commands reach GitHub, its Actions logs, and verify certificates', () => {
-		const network = sandboxFor(profile('agent', 'sandboxed')).network;
-		expect(network?.allowedDomains).toEqual(
-			expect.arrayContaining([
-				'github.com',
-				'api.github.com',
-				'productionresultssa0.blob.core.windows.net',
-				'productionresultssa19.blob.core.windows.net',
-			]),
-		);
-		expect(network?.allowedDomains).not.toContain('*.blob.core.windows.net');
-		expect(network?.allowMachLookup).toEqual(['com.apple.trustd.agent']);
-	});
-
-	it("lets sandboxed commands serve on localhost so malini's browser can open their pages", () => {
-		expect(sandboxFor(profile('agent', 'sandboxed')).network?.allowLocalBinding).toBe(true);
 	});
 
 	it('refuses the git and pull request commands malini owns', () => {
@@ -168,19 +140,19 @@ describe('permissionDescriptor', () => {
 		});
 	});
 
-	it('names the job a malini tool saves or runs', () => {
+	it('names the automation a malini tool saves or runs', () => {
 		const descriptor = (tool: string, input: Record<string, unknown>) =>
 			permissionDescriptor(`mcp__malini__${tool}`, input, worktree, undefined);
 
-		expect(descriptor('jobs_save', { name: 'Update docs', instructions: 'Read the diff' })).toEqual(
-			{
-				capability: 'write',
-				resources: [{ kind: 'tool', value: 'Save job ‘Update docs’', boundary: 'workstream' }],
-			},
-		);
-		expect(descriptor('jobs_run', { job: 'Update docs' })).toEqual({
+		expect(
+			descriptor('automations_save', { name: 'Update docs', instructions: 'Read the diff' }),
+		).toEqual({
+			capability: 'write',
+			resources: [{ kind: 'tool', value: 'Save automation ‘Update docs’', boundary: 'workstream' }],
+		});
+		expect(descriptor('automations_run', { automation: 'Update docs' })).toEqual({
 			capability: 'execute',
-			resources: [{ kind: 'tool', value: 'Run job ‘Update docs’', boundary: 'workstream' }],
+			resources: [{ kind: 'tool', value: 'Run automation ‘Update docs’', boundary: 'workstream' }],
 		});
 		expect(descriptor('repositories_hide', { repository: 'acme/site' })).toEqual({
 			capability: 'write',
@@ -249,24 +221,24 @@ describe('rememberedPermissions', () => {
 		const rule: PermissionUpdate[] = [
 			{
 				type: 'addRules',
-				rules: [{ toolName: 'mcp__malini__jobs_run' }],
+				rules: [{ toolName: 'mcp__malini__automations_run' }],
 				behavior: 'allow',
 				destination: 'localSettings',
 			},
 		];
 		for (const scope of ['session', 'workstream', 'everywhere'] as const) {
-			expect(rememberedPermissions('mcp__malini__jobs_run', rule, scope)).toBeUndefined();
+			expect(rememberedPermissions('mcp__malini__automations_run', rule, scope)).toBeUndefined();
 		}
 	});
 });
 
 describe('approvedInput', () => {
-	const input = { id: 'job-1', instructions: 'Agent text' };
-	const edited = { id: 'job-1', instructions: 'Reviewed text' };
+	const input = { id: 'automation-1', instructions: 'Agent text' };
+	const edited = { id: 'automation-1', instructions: 'Reviewed text' };
 
 	it('hands a Malini tool the version the user reviewed', () => {
-		expect(approvedInput('mcp__malini__jobs_save', input, edited)).toEqual(edited);
-		expect(approvedInput('mcp__malini__jobs_save', input, undefined)).toBe(input);
+		expect(approvedInput('mcp__malini__automations_save', input, edited)).toEqual(edited);
+		expect(approvedInput('mcp__malini__automations_save', input, undefined)).toBe(input);
 	});
 
 	it('never lets a reply rewrite any other tool', () => {
@@ -362,9 +334,9 @@ describe('maliniOwnedCommand', () => {
 	});
 });
 
-describe("a job's boundary", () => {
-	async function leave(input: Record<string, unknown>) {
-		const output = await askBeforeLeavingTheSandbox(
+describe("Malini's sandbox", () => {
+	async function confine(runProfile: AgentRunProfile | undefined, input: Record<string, unknown>) {
+		const output = await confineCommands(runProfile, (command) => `: pass; ${command}`)(
 			{
 				hook_event_name: 'PreToolUse',
 				session_id: 'session',
@@ -380,22 +352,32 @@ describe("a job's boundary", () => {
 		return 'hookSpecificOutput' in output ? output.hookSpecificOutput : undefined;
 	}
 
-	it('asks before a command runs outside the sandbox and lets every other command through', async () => {
-		expect(
-			await leave({ command: 'pnpm test:e2e', dangerouslyDisableSandbox: true }),
-		).toMatchObject({ permissionDecision: 'ask' });
-		expect(await leave({ command: 'pnpm test' })).toBeUndefined();
+	const leaving = { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true };
+
+	it.each([undefined, profile('agent', 'auto'), profile('agent', 'sandboxed')])(
+		'%o asks before a command leaves the sandbox',
+		async (runProfile) => {
+			expect(await confine(runProfile, leaving)).toMatchObject({
+				permissionDecision: 'ask',
+				permissionDecisionReason: expect.stringContaining("outside Malini's sandbox"),
+			});
+		},
+	);
+
+	it('lets full access leave without asking, carrying a pass the run script spends', async () => {
+		expect(await confine(profile('agent', 'full'), leaving)).toMatchObject({
+			permissionDecision: 'allow',
+			updatedInput: { command: ': pass; pnpm test:e2e', dangerouslyDisableSandbox: true },
+		});
 	});
 
-	it('reaches only Anthropic when the internet is off, and any site but the hidden paths when on', () => {
-		const hidden = ['/data/malini/malini.sqlite'];
-		expect(boundarySandbox({ hidden, chatRecords: false, internet: false }, hidden)).toMatchObject({
-			filesystem: { allowWrite: ['/'], denyRead: hidden },
-			network: { allowedDomains: [], strictAllowlist: true },
+	it('runs every other command of sandboxed access unasked, and leaves the rest to auto mode', async () => {
+		expect(await confine(profile('agent', 'sandboxed'), { command: 'pnpm test' })).toMatchObject({
+			permissionDecision: 'allow',
 		});
-		expect(
-			boundarySandbox({ hidden: [], chatRecords: true, internet: true }, []).network,
-		).toMatchObject({ allowedDomains: ['*'] });
+		expect(await confine(profile('plan', 'sandboxed'), { command: 'pnpm test' })).toBeUndefined();
+		expect(await confine(profile('agent', 'auto'), { command: 'pnpm test' })).toBeUndefined();
+		expect(await confine(profile('agent', 'full'), { command: 'pnpm test' })).toBeUndefined();
 	});
 });
 
@@ -429,11 +411,11 @@ describe('steerToMalini', () => {
 		}
 	});
 
-	it('points a refused commit at the Open draft job and rules out workarounds', async () => {
+	it('points a refused commit at the Open draft automation and rules out workarounds', async () => {
 		const output = await steer('git commit -am fix');
 		expect(output).toMatchObject({ permissionDecision: 'deny' });
 		expect(output).toMatchObject({
-			permissionDecisionReason: expect.stringContaining('Open draft or Merge job'),
+			permissionDecisionReason: expect.stringContaining('Open draft or Merge automation'),
 		});
 		expect(output).toMatchObject({ permissionDecisionReason: expect.stringContaining('gh api') });
 	});

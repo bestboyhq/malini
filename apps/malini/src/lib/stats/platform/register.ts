@@ -259,7 +259,7 @@ export function readActivity(db: MaliniDatabase, now: Date): ActivityStats {
 			date: entry.date,
 			fullName: fullNames.get(entry.projectId) ?? entry.projectId,
 			runs: entry.runs,
-			jobRuns: entry.jobRuns,
+			automationRuns: entry.automationRuns,
 			seconds: entry.seconds,
 		})),
 		localDate(now),

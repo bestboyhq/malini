@@ -13,7 +13,8 @@
 		"./cli": {
 			"types": "./dist/cli.d.ts",
 			"default": "./dist/cli.js"
-		}
+		},
+		"./sandbox": "./src/sandbox.ts"
 	},
 	"bin": {
 		"agent-bridge": "./dist/cli.js"

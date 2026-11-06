@@ -27,16 +27,16 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 
 - [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, which Malini takes from Draft to merged.
 - [Chat](/malini/docs/chat.md): chats at Home or for an organization that start workstreams across repositories, queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
-- [Jobs](/malini/docs/jobs.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
-- [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.
+- [Automations](/malini/docs/automations.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
+- [Agent tools](/malini/docs/agent-tools.md): the browser, automations, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): Malini's own marketplace of MCP servers and skills for every agent, which anyone with a Bestboy handle publishes to, and the inspector they sit beside.
-- [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs working.
+- [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your automations working.
 - [Public profile](/malini/docs/profile.md): publish your stats to a profile at bestboy.dev, and share cards of it.
 
 ## Where your code goes
 
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
-Malini makes five calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, and, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev.
+Malini makes seven calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
 While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
 Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.

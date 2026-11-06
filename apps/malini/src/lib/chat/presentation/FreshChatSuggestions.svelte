@@ -11,7 +11,7 @@
 	} from '$lib/chat/domain/transcript-reference';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { WorkstreamJobs } from '$lib/jobs/jobs.api';
+	import { WorkstreamAutomations } from '$lib/automations/automations.api';
 
 	interface Props {
 		workstreamId: string;
@@ -53,10 +53,12 @@
 	aria-label="New agent chat. The next message starts a separate context."
 >
 	<div class="w-full max-w-xl text-left">
-		<p class="text-fg-secondary text-sm">Bring useful context with you</p>
-		<p class="text-fg-tertiary mt-1 text-xs leading-5">
-			Start clean, or revisit a transcript or plan already prepared here.
-		</p>
+		{#if recentChats.length > 0 || plans.length > 0}
+			<p class="text-fg-secondary text-sm">Bring useful context with you</p>
+			<p class="text-fg-tertiary mt-1 text-xs leading-5">
+				Start clean, or revisit a transcript or plan already prepared here.
+			</p>
+		{/if}
 
 		{#if recentChats.length > 0}
 			<div class="mt-5">
@@ -104,12 +106,6 @@
 			</div>
 		{/if}
 
-		{#if recentChats.length === 0}
-			<p class="text-2xs text-fg-tertiary mt-4 leading-5">
-				There is no earlier transcript or plan here yet.
-			</p>
-		{/if}
-
-		<WorkstreamJobs {workstreamId} />
+		<WorkstreamAutomations {workstreamId} />
 	</div>
 </div>

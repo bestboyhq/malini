@@ -6,7 +6,7 @@ import {
 } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
-import { clearAlarm, setAlarm } from '$lib/jobs/jobs.platform';
+import { clearAlarm, setAlarm } from '$lib/automations/automations.platform';
 import { getCheckpointForRun } from '../checkpoints.repository';
 import { getRunChange } from '../changes.repository';
 import { FinishedTurns } from '../finished-turns';

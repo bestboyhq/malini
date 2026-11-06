@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { JobRunRecord, JobRunStatus } from '$contract/jobs';
+import type { AutomationRunRecord, AutomationRunStatus } from '$contract/automations';
 import { askingChildren, descendantWorkstreamIds } from './child-requests';
 import type { SessionRecord, SessionState } from './session-record';
 
-function run(sessionId: string | null, status: JobRunStatus): JobRunRecord {
+function run(sessionId: string | null, status: AutomationRunStatus): AutomationRunRecord {
 	return {
 		id: `run-${sessionId}`,
 		definitionId: 'review',
@@ -27,11 +27,15 @@ function run(sessionId: string | null, status: JobRunStatus): JobRunRecord {
 	};
 }
 
-function session(id: string, status: SessionState, origin: 'user' | 'job' = 'user'): SessionRecord {
+function session(
+	id: string,
+	status: SessionState,
+	origin: 'user' | 'automation' = 'user',
+): SessionRecord {
 	return {
 		id,
 		workstreamId: 'docs',
-		displayName: origin === 'job' ? 'Fix checks' : 'Chat 1',
+		displayName: origin === 'automation' ? 'Fix checks' : 'Chat 1',
 		provider: 'claude',
 		model: null,
 		status,
@@ -44,23 +48,27 @@ function session(id: string, status: SessionState, origin: 'user' | 'job' = 'use
 }
 
 describe('askingChildren', () => {
-	it('brings up jobs that need you and child chats waiting on you, once each, never the shown chat', () => {
+	it('brings up automations that need you and child chats waiting on you, once each, never the shown chat', () => {
 		expect(
 			askingChildren(
 				'lead-chat',
-				[run('job-chat', 'needs-you'), run('busy-job', 'running'), run(null, 'needs-you')],
 				[
-					session('job-chat', 'waiting_for_approval', 'job'),
+					run('automation-chat', 'needs-you'),
+					run('busy-automation', 'running'),
+					run(null, 'needs-you'),
+				],
+				[
+					session('automation-chat', 'waiting_for_approval', 'automation'),
 					session('docs-chat', 'waiting_for_approval'),
-					session('fix-chat', 'waiting_for_approval', 'job'),
+					session('fix-chat', 'waiting_for_approval', 'automation'),
 					session('idle-chat', 'completed'),
 					session('lead-chat', 'waiting_for_approval'),
 				],
 			),
 		).toEqual([
-			{ sessionId: 'job-chat', workstreamId: 'switch', job: 'Address review' },
-			{ sessionId: 'docs-chat', workstreamId: 'docs', job: null },
-			{ sessionId: 'fix-chat', workstreamId: 'docs', job: 'Fix checks' },
+			{ sessionId: 'automation-chat', workstreamId: 'switch', automation: 'Address review' },
+			{ sessionId: 'docs-chat', workstreamId: 'docs', automation: null },
+			{ sessionId: 'fix-chat', workstreamId: 'docs', automation: 'Fix checks' },
 		]);
 	});
 

@@ -1,15 +1,17 @@
 import { join } from 'node:path';
-import { BrowserWindow, screen, shell } from 'electron';
+import { BrowserWindow, screen, shell, type Rectangle } from 'electron';
 
 export const BACKGROUND_WINDOW = process.env['MALINI_BACKGROUND_WINDOW'] === '1';
 const DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
+const DEFAULT_MAX_WIDTH = 1600;
+const DEFAULT_MAX_HEIGHT = 1000;
 Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL');
 
 export function createMainWindow(): BrowserWindow {
 	const window = new BrowserWindow({
-		...(BACKGROUND_WINDOW ? behindEverythingAtTheScreenEdge() : {}),
-		width: 1280,
-		height: 800,
+		...(BACKGROUND_WINDOW
+			? behindEverythingAtTheScreenEdge()
+			: defaultWindowBounds(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea)),
 		minWidth: 900,
 		minHeight: 600,
 		show: false,
@@ -53,14 +55,23 @@ export function createMainWindow(): BrowserWindow {
 	return window;
 }
 
+function defaultWindowBounds(workArea: Rectangle): Rectangle {
+	const width = Math.min(workArea.width, DEFAULT_MAX_WIDTH);
+	const height = Math.min(workArea.height, DEFAULT_MAX_HEIGHT);
+	return {
+		x: workArea.x + Math.round((workArea.width - width) / 2),
+		y: workArea.y + Math.round((workArea.height - height) / 2),
+		width,
+		height,
+	};
+}
+
 function isWebLink(url: string): boolean {
 	return /^https?:/u.test(url) && !(DEV_SERVER_URL && url.startsWith(DEV_SERVER_URL));
 }
 
-function behindEverythingAtTheScreenEdge(): {
+function behindEverythingAtTheScreenEdge(): Rectangle & {
 	type: 'desktop';
-	x: number;
-	y: number;
 	enableLargerThanScreen: true;
 } {
 	const { bounds } = screen
@@ -74,6 +85,8 @@ function behindEverythingAtTheScreenEdge(): {
 		type: 'desktop',
 		x: bounds.x + bounds.width - 1,
 		y: bounds.y,
+		width: 1280,
+		height: 800,
 		enableLargerThanScreen: true,
 	};
 }

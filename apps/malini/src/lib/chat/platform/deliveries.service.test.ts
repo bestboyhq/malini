@@ -6,7 +6,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { isRecord, run } from '$main/db/rows';
 import { createEventBus, type EventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import { recordAgentAction } from '$lib/jobs/jobs.platform';
+import { recordAgentAction } from '$lib/automations/automations.platform';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import { REPORTS_PREAMBLE } from '../domain/deliveries';
 import { getDelivery } from './deliveries.repository';
@@ -23,6 +23,7 @@ let sent: Array<Record<string, unknown>>;
 let attempts: number;
 let busy: number;
 let failure: string | null;
+let landing: Promise<void>;
 let logs: string[];
 let changed: ChatDelivery[];
 
@@ -34,10 +35,12 @@ beforeEach(() => {
 	attempts = 0;
 	busy = 0;
 	failure = null;
+	landing = Promise.resolve();
 	logs = [];
 	changed = [];
-	commands.define('chat.send-prompt', (args: unknown) => {
+	commands.define('chat.send-prompt', async (args: unknown) => {
 		attempts += 1;
+		await landing;
 		if (busy > 0) {
 			busy -= 1;
 			throw new Error('`api-chat` already has an active run');
@@ -54,8 +57,8 @@ beforeEach(() => {
 	deliveries = new ChatDeliveries({ db, commands, events }, (line) => logs.push(line));
 });
 
-afterEach(() => {
-	deliveries.stop();
+afterEach(async () => {
+	await deliveries.stop();
 	vi.useRealTimers();
 	db.close();
 });
@@ -562,12 +565,28 @@ describe('ChatDeliveries', () => {
 		vi.useFakeTimers();
 		busy = 1;
 		await deliveries.deliver(prompt('api-chat', 'Retry me.'));
-		deliveries.stop();
+		await deliveries.stop();
 		await vi.advanceTimersByTimeAsync(3_000);
 		const late = await deliveries.deliver(prompt('site-chat', 'Too late.'));
 		await deliveries.flushAll();
 
 		expect(attempts).toBe(1);
 		expect(late.status).toBe('waiting');
+	});
+
+	it('lets the prompt it is sending land before it stops', async () => {
+		let land = (): void => {};
+		landing = new Promise((resolve) => {
+			land = resolve;
+		});
+		const delivering = deliveries.deliver(prompt('api-chat', 'Go.'));
+		const stopped = (async () => {
+			await deliveries.stop();
+			return status(changed[0]?.id ?? '');
+		})();
+		land();
+
+		expect(await stopped).toBe('delivered');
+		await delivering;
 	});
 });

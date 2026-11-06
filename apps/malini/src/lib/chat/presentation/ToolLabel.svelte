@@ -2,8 +2,10 @@
 	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fade, fly } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
+	import { motionMs, revealFade } from './arrival-motion';
+	import UnfoldText from './UnfoldText.svelte';
 
 	interface Props {
 		title: string;
@@ -15,13 +17,13 @@
 
 	const SWAP_MS = 260;
 
-	let shown = $state(untrack(() => ({ title, detail, emphasized })));
+	let shown = $state(untrack(() => ({ title, detail, emphasized, swapped: false })));
 	let swappedAtMs = Number.NEGATIVE_INFINITY;
 	const flip = $derived(prefersReducedMotion.current ? 0 : 10);
 	const titleClass = $derived(['min-w-0 truncate', shown.emphasized && 'text-fg-secondary']);
 
 	$effect(() => {
-		const next = { title, detail, emphasized };
+		const next = { title, detail, emphasized, swapped: true };
 		const current = untrack(() => shown);
 		if (
 			next.title === current.title &&
@@ -45,12 +47,12 @@
 	{#key shown.title}
 		<span
 			class="flex min-w-0 items-baseline gap-2 [grid-area:1/1]"
-			in:fly={{ y: flip, duration: 260, easing: cubicOut }}
-			out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
+			in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
+			out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
 		>
-			<span class={titleClass}><SensitiveText text={shown.title} /></span>
+			<span class={titleClass}><UnfoldText text={shown.title} unfold={shown.swapped} /></span>
 			{#if shown.detail}
-				<span class="text-2xs min-w-0 flex-1 truncate font-mono" in:fade={{ duration: 190 }}>
+				<span class="text-2xs min-w-0 flex-1 truncate font-mono" in:revealFade>
 					<SensitiveText text={shown.detail} />
 				</span>
 			{/if}

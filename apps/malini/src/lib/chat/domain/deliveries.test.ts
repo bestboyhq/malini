@@ -100,14 +100,15 @@ describe('deliveryBatch', () => {
 	});
 
 	it('says work you asked for moved on when no report comes from a workstream you started', () => {
-		const job = item('report', 'Fix checks, the job you ran, failed.');
-		expect(deliveryBatch([job]).prompt).toBe(
-			[ASKED_PREAMBLE, 'Fix checks, the job you ran, failed.'].join('\n\n'),
+		const automation = item('report', 'Fix checks, the automation you ran, failed.');
+		expect(deliveryBatch([automation]).prompt).toBe(
+			[ASKED_PREAMBLE, 'Fix checks, the automation you ran, failed.'].join('\n\n'),
 		);
 		expect(
-			deliveryBatch([job, item('report', 'Api report', { report: report('api') })]).prompt.split(
-				'\n\n',
-			)[0],
+			deliveryBatch([
+				automation,
+				item('report', 'Api report', { report: report('api') }),
+			]).prompt.split('\n\n')[0],
 		).toBe(REPORTS_PREAMBLE);
 	});
 

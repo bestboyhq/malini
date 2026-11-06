@@ -79,13 +79,16 @@ export function pickerGroups(
 		selectedGroup === undefined
 			? [
 					...groups,
-					{ ...unknownGroup(selection.provider), models: [unlistedModel(selection.model)] },
+					{
+						...unknownGroup(selection.provider),
+						models: [unlistedModel(selection.model, catalog)],
+					},
 				]
 			: selectedGroup.models.some((model) => model.id === selection.model)
 				? groups
 				: groups.map((group) =>
 						group.id === selection.provider
-							? { ...group, models: [...group.models, unlistedModel(selection.model)] }
+							? { ...group, models: [...group.models, unlistedModel(selection.model, catalog)] }
 							: group,
 					);
 	return withSelection
@@ -123,7 +126,7 @@ export function pickerRows(
 		}
 	}
 	const rows = [...families]
-		.map(([family, runners]) => pickerRow(family, runners))
+		.map(([family, runners]) => pickerRow(family, runners, selection))
 		.sort((left, right) => claudeRank(left.family) - claudeRank(right.family));
 	return rows.some((row) => rowRuns(row, selection))
 		? rows
@@ -176,15 +179,29 @@ export function normalizeReasoningEffort(
 }
 
 export function fallbackModelCatalog(): readonly AgentModelInfo[] {
-	return AGENT_MODELS.map(unlistedModel);
+	return AGENT_MODELS.map((id) => unlistedModel(id));
 }
 
-function unlistedModel(id: string): AgentModelInfo {
-	return { id, label: modelLabel(id), description: '', efforts: [...AGENT_REASONING_EFFORTS] };
+function unlistedModel(id: string, catalog: readonly AgentModelInfo[] = []): AgentModelInfo {
+	return {
+		id,
+		label: catalogModelLabel(catalog, id),
+		description: '',
+		efforts: [...AGENT_REASONING_EFFORTS],
+	};
 }
 
-function pickerRow(family: string, runners: readonly [PickerRunner, ...PickerRunner[]]): PickerRow {
-	const named = runners.find((runner) => runner.group.kind !== 'claude') ?? runners[0];
+function pickerRow(
+	family: string,
+	runners: readonly [PickerRunner, ...PickerRunner[]],
+	selection: ModelSelection,
+): PickerRow {
+	const selected = runners.find((runner) => runs(runner, selection));
+	const named =
+		(selected?.group.kind === 'claude' ? undefined : selected) ??
+		runners.find((runner) => runner.group.kind !== 'claude' && runner.group.ready) ??
+		runners.find((runner) => runner.group.kind !== 'claude') ??
+		runners[0];
 	return {
 		family,
 		label: catalogModelLabel([named.model], named.model.id),
@@ -203,7 +220,7 @@ function withSelection(
 		unknownGroup(selection.provider);
 	const model =
 		group.models.find((candidate) => candidate.id === selection.model) ??
-		unlistedModel(selection.model);
+		unlistedModel(selection.model, allProviderModels(groups));
 	const family = modelFamily(group, model);
 	const row: PickerRow = {
 		family: `${selection.provider}:${selection.model}`,
@@ -224,6 +241,8 @@ function unknownGroup(provider: string): ProviderGroup {
 		models: [],
 		ready: false,
 		message: '',
+		account: null,
+		plan: null,
 	};
 }
 

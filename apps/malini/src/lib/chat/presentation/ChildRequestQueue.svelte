@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -29,8 +29,10 @@
 	const place = $derived(
 		step ? (workstreamNameQuery.data(step.child.workstreamId) ?? 'another workstream') : '',
 	);
-	const label = $derived(step?.child.job ? `${step.child.job} job in ${place}` : place);
-	const motion = $derived(prefersReducedMotion.current ? 0 : 1);
+	const label = $derived(
+		step?.child.automation ? `${step.child.automation} automation in ${place}` : place,
+	);
+	const motion = (): number => (motionOff() ? 0 : 1);
 
 	function onWindowKeydown(event: KeyboardEvent): void {
 		if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -114,7 +116,7 @@
 			{#if current.kind === 'approval'}
 				<div
 					class="chat-column relative z-20 px-4 pb-1"
-					in:fly={{ y: 10 * motion, duration: 240 * motion, easing: cubicOut }}
+					in:fly={{ y: 10 * motion(), duration: 240 * motion(), easing: cubicOut }}
 				>
 					<ComposerShell testId="child-request-shell">
 						{@render source()}

@@ -10,7 +10,7 @@ const ACTION_ICONS: Readonly<Record<PullRequestActionKind, IconName>> = {
 	'retry-now': 'refresh',
 	keep: 'lock',
 	'open-pull-request': 'external-link',
-	'open-job': 'arrow-right',
+	'open-automation': 'arrow-right',
 	reconnect: 'link',
 	refresh: 'refresh',
 	'abort-operation': 'undo',

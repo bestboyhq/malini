@@ -39,7 +39,7 @@
 | You asked for a design and got one guess.                                  | An open question comes back as two to four variants. You pick, the agent builds the winner.                                |
 | The pull request sits red overnight.                                       | Press **Merge**. Malini fixes checks, merges main in, answers review, and merges exactly the commit that passed.           |
 | One change spans three repositories.                                       | A chat at Home plans it and starts one workstream per repository. It asks you only what only you can decide.               |
-| You type the same prompt every Monday.                                     | Make it a job. Give it a trigger, like a merged pull request, and a Then, like **Open draft**.                             |
+| You type the same prompt every Monday.                                     | Make it an automation. Give it a trigger, like a merged pull request, and a Then, like **Open draft**.                     |
 | The agent wants your API key in the chat.                                  | It asks for the key by name. Your keychain keeps it, and every output shows `[secret]`.                                    |
 | One bad turn wrecks the branch.                                            | Every turn has Undo. Or fork the chat and try again.                                                                       |
 
@@ -65,16 +65,16 @@ Everything else Malini does is in [`docs/features.md`](docs/features.md) and the
    Malini commits, opens the pull request, fixes red checks, answers reviews, and merges once GitHub allows.
    The workstream archives itself when it lands.
 
-## Jobs
+## Automations
 
-A job is work you reuse by name: instructions, a model, an effort, and only the skills it needs.
+An automation is work you reuse by name: instructions, a model, an effort, and only the skills it needs.
 You run it, an event runs it, or a schedule does, like `every weekday at 09:00`.
-A Then runs next, so "update the changelog, then open a draft" is one job.
+A Then runs next, so "update the changelog, then open a draft" is one automation.
 Ten come built in, among them **Fix checks**, **Update from main**, **Resolve conflicts** and **Address review**, and they are yours to edit.
-Type the same prompt often enough and Malini offers to make it a job.
+Type the same prompt often enough and Malini offers to make it an automation.
 
 <p align="center">
-  <img src=".github/readme/jobs.webp" width="100%" alt="The Changelog on merge job open on the Jobs page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
+  <img src=".github/readme/jobs.webp" width="100%" alt="The Changelog on merge automation open on the Automations page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
 </p>
 
 ## Why open source
@@ -92,7 +92,7 @@ If we ever go wrong, fork it.
 
 **Transparent, all the way down.**
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and through the GitHub CLI, to GitHub.
-Malini makes five calls of its own: update checks, usage stats you can turn off, which carry your Bestboy account while you are signed in, model lists from models.dev, the extension marketplace while you use it, and your stats to a public profile, only if you publish them.
+Malini makes seven calls of its own: update checks, usage stats you can turn off, which carry your Bestboy account while you are signed in, model lists from models.dev, one-token checks against opencode.ai when you save an OpenCode key, the extension marketplace while you use it, your stats to a public profile, only if you publish them, and OpenAI, only after you sign in with ChatGPT, for the GPT models your plan runs.
 Every big decision is written down in [`docs/adr`](docs/adr).
 
 **On your side of the token.**

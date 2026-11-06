@@ -1,4 +1,5 @@
-import type { RenderItem, RunGroup } from './render-state';
+import type { RenderItem, RunGroup, ToolAggregate } from './render-state';
+import { isAgentTool } from './tool-display-name';
 import { relativizeWorkstreamPath } from './workstream-path';
 
 export type RunTimelineThought = {
@@ -8,9 +9,79 @@ export type RunTimelineThought = {
 	durationSeconds: number | null;
 };
 
+export type SubagentStep = Extract<RenderItem, { kind: 'tool' }>;
+
+export type SubagentTimelineItem = {
+	kind: 'subagent';
+	key: string;
+	seq: number;
+	tool: ToolAggregate;
+	steps: readonly SubagentStep[];
+	report: string | null;
+};
+
 export type RunTimelineItem =
 	| Exclude<RenderItem, { kind: 'terminal' | 'usage' }>
-	| (RunTimelineThought & { kind: 'thought'; key: string; live?: true });
+	| (RunTimelineThought & { kind: 'thought'; key: string; live?: true })
+	| SubagentTimelineItem;
+
+const HANDBACK_TOOL_NAME = 'SubagentHandback';
+
+function handbackReport(step: SubagentStep): string | null | undefined {
+	if (step.tool.name !== HANDBACK_TOOL_NAME) return undefined;
+	return stringAt(step.tool.input, ['message']);
+}
+
+export function subagentItem(agent: SubagentStep): SubagentTimelineItem {
+	const { key, seq, tool } = agent;
+	return { kind: 'subagent', key, seq, tool, steps: [], report: null };
+}
+
+export function withSubagentStep(
+	subagent: SubagentTimelineItem,
+	step: SubagentStep,
+): SubagentTimelineItem {
+	const report = handbackReport(step);
+	if (report !== undefined) return { ...subagent, report: report ?? subagent.report };
+	const steps = [...subagent.steps];
+	const index = steps.findIndex((existing) => existing.key === step.key);
+	if (index >= 0) {
+		steps[index] = step;
+		return { ...subagent, steps };
+	}
+	let at = steps.length;
+	while (at > 0 && (steps[at - 1]?.seq ?? 0) > step.seq) at -= 1;
+	steps.splice(at, 0, step);
+	return { ...subagent, steps };
+}
+
+export function foldSubagents(items: readonly RunTimelineItem[]): RunTimelineItem[] {
+	const rootByCallId = new Map<string, SubagentTimelineItem & { steps: SubagentStep[] }>();
+	const folded: RunTimelineItem[] = [];
+	for (const item of items) {
+		if (item.kind !== 'tool') {
+			folded.push(item);
+			continue;
+		}
+		const parent = item.tool.parentToolCallId;
+		const root = parent === undefined ? undefined : rootByCallId.get(parent);
+		if (root) {
+			const report = handbackReport(item);
+			if (report === undefined) root.steps.push(item);
+			else root.report = report ?? root.report;
+			if (item.tool.toolCallId) rootByCallId.set(item.tool.toolCallId, root);
+			continue;
+		}
+		if (!isAgentTool(item.tool.name)) {
+			folded.push(item);
+			continue;
+		}
+		const subagent = { ...subagentItem(item), steps: [] };
+		if (item.tool.toolCallId) rootByCallId.set(item.tool.toolCallId, subagent);
+		folded.push(subagent);
+	}
+	return folded;
+}
 
 export function thoughtRowKey(runId: string, contentId: string): string {
 	return `thought-${runId}-${contentId}`;
@@ -140,7 +211,9 @@ export function linearizeRunTimeline(
 		kind: 'thought',
 		key: thoughtRowKey(run.runId, thought.contentId),
 	}));
-	return [...durable, ...reasoning].sort(
-		(left, right) => left.seq - right.seq || left.key.localeCompare(right.key),
+	return foldSubagents(
+		[...durable, ...reasoning].sort(
+			(left, right) => left.seq - right.seq || left.key.localeCompare(right.key),
+		),
 	);
 }

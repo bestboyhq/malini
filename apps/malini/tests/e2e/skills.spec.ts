@@ -5,12 +5,12 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
-	draftJob,
+	draftAutomation,
 	expectCleanConsole,
 	invoke,
 	launchMalini,
-	openJob,
-	openJobs,
+	openAutomation,
+	openAutomations,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -116,16 +116,21 @@ test('Settings ranks skills by use and turns a skill and a plugin off in Claude 
 	}
 });
 
-test('a job names its own skills in the editor, and its agent loads only those', async () => {
+test('an automation names its own skills in the editor, and its agent loads only those', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
-		const { workstreamId } = await seedWorkstream(page, source, 'e2e-job-skills', 'Job skills');
-		await openJobs(page);
-		await draftJob(page, { name: 'Which skills', words: 'WHICH_SKILLS' });
-		const form = (await openJob(page, 'Which skills')).getByRole('form', {
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-automation-skills',
+			'Automation skills',
+		);
+		await openAutomations(page);
+		await draftAutomation(page, { name: 'Which skills', words: 'WHICH_SKILLS' });
+		const form = (await openAutomation(page, 'Which skills')).getByRole('form', {
 			name: 'Edit Which skills',
 		});
 		const skills = form.getByRole('combobox', { name: 'Skills' });
@@ -140,8 +145,8 @@ test('a job names its own skills in the editor, and its agent loads only those',
 		await skills.press('Escape');
 		await expect(form.getByRole('listbox')).toHaveCount(0);
 		await expect(form.getByRole('button', { name: /^Remove /u })).toHaveCount(2);
-		await expect(form).toContainText("The job's agent loads only these");
-		await captureFlow(app, 'skills-job-editor');
+		await expect(form).toContainText("The automation's agent loads only these");
+		await captureFlow(app, 'skills-automation-editor');
 		await form.getByRole('button', { name: 'Save changes' }).click();
 		await expect
 			.poll(
@@ -149,7 +154,7 @@ test('a job names its own skills in the editor, and its agent loads only those',
 					(
 						await invoke<{ name: string; skills: string[] }[]>(
 							page,
-							'jobs.list-definitions',
+							'automations.list-definitions',
 							undefined,
 						)
 					).find(({ name }) => name === 'Which skills')?.skills,
@@ -163,7 +168,7 @@ test('a job names its own skills in the editor, and its agent loads only those',
 					(
 						await invoke<{ name: string; skills: string[] }[]>(
 							page,
-							'jobs.list-definitions',
+							'automations.list-definitions',
 							undefined,
 						)
 					).find(({ name }) => name === 'Which skills')?.skills,
@@ -175,10 +180,10 @@ test('a job names its own skills in the editor, and its agent loads only those',
 		await input.click();
 		await page.keyboard.type('/Which', { delay: 10 });
 		await page
-			.getByRole('listbox', { name: 'Jobs' })
+			.getByRole('listbox', { name: 'Automations' })
 			.getByRole('option', { name: /^Which skills/u })
 			.click();
-		const card = page.getByRole('article', { name: 'Job Which skills' });
+		const card = page.getByRole('article', { name: 'Automation Which skills' });
 		await expect(card).toContainText('Done', { timeout: 30_000 });
 		await card.getByRole('link', { name: 'Open transcript' }).click();
 		await expect(page.getByText('Skills: dataviz', { exact: true })).toBeVisible({

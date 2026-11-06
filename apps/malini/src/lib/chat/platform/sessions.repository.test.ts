@@ -275,59 +275,59 @@ describe('sessions', () => {
 		db.close();
 	});
 
-	it('keeps job transcripts out of chat naming, titling and the default chat', () => {
+	it('keeps automation transcripts out of chat naming, titling and the default chat', () => {
 		const db = openMigratedDatabase(':memory:');
-		seedWorkstream(db, 'workstream-jobs');
-		insertSession(db, session('session-chat', 'workstream-jobs'));
-		insertSession(db, session('session-job', 'workstream-jobs'), {
-			origin: 'job',
+		seedWorkstream(db, 'workstream-automations');
+		insertSession(db, session('session-chat', 'workstream-automations'));
+		insertSession(db, session('session-automation', 'workstream-automations'), {
+			origin: 'automation',
 			displayName: 'New chat',
 		});
-		insertSession(db, session('session-job-2', 'workstream-jobs'), {
-			origin: 'job',
+		insertSession(db, session('session-automation-2', 'workstream-automations'), {
+			origin: 'automation',
 			displayName: 'New chat',
 		});
-		insertSession(db, session('session-unnamed-job', 'workstream-jobs'), {
-			origin: 'job',
+		insertSession(db, session('session-unnamed-automation', 'workstream-automations'), {
+			origin: 'automation',
 			displayName: null,
 		});
-		insertSession(db, session('session-named', 'workstream-jobs'), {
+		insertSession(db, session('session-named', 'workstream-automations'), {
 			origin: 'user',
 			displayName: 'Release notes',
 		});
 
-		expect(getSession(db, 'session-job')?.displayName).toBe('New chat');
-		expect(getSession(db, 'session-job-2')?.displayName).toBe('New chat');
-		expect(getSession(db, 'session-unnamed-job')?.displayName).toBe('Job');
+		expect(getSession(db, 'session-automation')?.displayName).toBe('New chat');
+		expect(getSession(db, 'session-automation-2')?.displayName).toBe('New chat');
+		expect(getSession(db, 'session-unnamed-automation')?.displayName).toBe('Automation');
 		expect(getSession(db, 'session-named')?.displayName).toBe('Release notes');
-		expect(nameSession(db, 'session-named', 'workstream-jobs', null)).toBe('Chat 2');
-		expect(sessionAwaitsTitle(db, 'session-job')).toBe(false);
+		expect(nameSession(db, 'session-named', 'workstream-automations', null)).toBe('Chat 2');
+		expect(sessionAwaitsTitle(db, 'session-automation')).toBe(false);
 		expect(
-			listSessionSummaries(db, 'workstream-jobs').map(({ id, origin }) => [id, origin]),
+			listSessionSummaries(db, 'workstream-automations').map(({ id, origin }) => [id, origin]),
 		).toEqual([
 			['session-named', 'user'],
-			['session-unnamed-job', 'job'],
-			['session-job-2', 'job'],
-			['session-job', 'job'],
+			['session-unnamed-automation', 'automation'],
+			['session-automation-2', 'automation'],
+			['session-automation', 'automation'],
 			['session-chat', 'user'],
 		]);
-		expect(latestSessionForWorkstream(db, 'workstream-jobs')?.id).toBe('session-named');
+		expect(latestSessionForWorkstream(db, 'workstream-automations')?.id).toBe('session-named');
 		archiveSession(db, 'session-named', '2026-07-10T00:00:01Z');
-		expect(latestSessionForWorkstream(db, 'workstream-jobs')?.id).toBe('session-chat');
+		expect(latestSessionForWorkstream(db, 'workstream-automations')?.id).toBe('session-chat');
 		db.close();
 	});
 
 	it('carries the profile of the latest kept run that recorded one', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, 'workstream-profile');
-		insertSession(db, session('session-job', 'workstream-profile'), {
-			origin: 'job',
+		insertSession(db, session('session-automation', 'workstream-profile'), {
+			origin: 'automation',
 			displayName: null,
 		});
 		const finished = (id: string, profile?: AgentRunProfile) =>
 			insertRun(db, {
 				id,
-				sessionId: 'session-job',
+				sessionId: 'session-automation',
 				prompt: 'p',
 				startedAt: '2026-07-10T00:00:00Z',
 				completedAt: '2026-07-10T00:00:01Z',
@@ -339,7 +339,7 @@ describe('sessions', () => {
 		const latest = () => listSessionSummaries(db, 'workstream-profile')[0]?.latestProfile;
 
 		expect(latest()).toBeNull();
-		finished('run-job', { effort: 'high', mode: 'agent', access: 'auto' });
+		finished('run-automation', { effort: 'high', mode: 'agent', access: 'auto' });
 		finished('run-undone', { effort: 'max', mode: 'plan', access: 'full' });
 		run(db, "UPDATE agent_runs SET obsoleted_at = '2026-07-10T00:00:02Z' WHERE id = 'run-undone'");
 		finished('run-without-profile');

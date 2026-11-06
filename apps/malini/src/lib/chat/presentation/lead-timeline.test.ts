@@ -5,9 +5,11 @@ import {
 } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { REPORTS_PREAMBLE } from '$lib/chat/domain/deliveries';
+import { savedSecretsPrompt } from '$lib/chat/domain/saved-secrets';
 import {
 	leadTimeline,
 	replyParts,
+	pausedLine,
 	rowSummary,
 	timelineRows,
 	type TimelineEntry,
@@ -168,10 +170,10 @@ describe('the lead timeline', () => {
 		expect(sent?.kind === 'sent' && [sent.deliveryId, sent.delivered]).toEqual(['d-1', false]);
 	});
 
-	it('asks for an approval where the lead waits, and shows a job it runs only once it ran', () => {
+	it('asks for an approval where the lead waits, and shows an automation it runs only once it ran', () => {
 		const merge = tool(
-			'mcp__malini__jobs_run',
-			{ job: 'Merge', workstream: 'ws-a' },
+			'mcp__malini__automations_run',
+			{ automation: 'Merge', workstream: 'ws-a' },
 			null,
 			'running',
 		);
@@ -184,8 +186,8 @@ describe('the lead timeline', () => {
 			runId: 'one',
 			approvalId: 'approval-1',
 			reason: 'Claude wants to use a Malini tool',
-			toolName: 'mcp__malini__jobs_run',
-			input: { job: 'Merge', workstream: 'ws-a' },
+			toolName: 'mcp__malini__automations_run',
+			input: { automation: 'Merge', workstream: 'ws-a' },
 			at: AT + at * 60_000,
 		};
 		const asking = leadTimeline(
@@ -200,14 +202,17 @@ describe('the lead timeline', () => {
 				run('one', [
 					prompt('Ship it'),
 					merge.kind === 'tool'
-						? { ...merge, tool: { ...merge.tool, status: 'completed', output: '{"job":"Merge"}' } }
+						? {
+								...merge,
+								tool: { ...merge.tool, status: 'completed', output: '{"automation":"Merge"}' },
+							}
 						: merge,
 					approval,
 				]),
 			],
 			[],
 		);
-		expect(kinds(ran)).toEqual(['prompt', 'job', 'approval']);
+		expect(kinds(ran)).toEqual(['prompt', 'automation', 'approval']);
 	});
 
 	it('shows a delivered report as the report of the workstream, and hides prompts Malini sends to continue', () => {
@@ -233,6 +238,17 @@ describe('the lead timeline', () => {
 			workstreamId: 'ws-a',
 			outcome: 'Variants are ready',
 		});
+	});
+
+	it('shows a saved secret as a line of what you did, not as a prompt you wrote', () => {
+		const wake = savedSecretsPrompt({
+			names: ['DEMO_TOKEN', 'STRIPE_KEY'],
+			unsaved: [],
+			repository: 'acme/shop',
+		});
+		const entries = leadTimeline([run('one', [prompt(wake)])], []);
+
+		expect(entries).toMatchObject([{ kind: 'saved', names: 'DEMO_TOKEN and STRIPE_KEY' }]);
 	});
 
 	it('keeps both reports of a turn that waited on a background command and then went on', () => {
@@ -388,5 +404,16 @@ describe('rowSummary', () => {
 		).toBe('Append the line `second` to `lead-notes.md`, so the file holds `first`…');
 		expect(rowSummary(`Read the file \`${'a'.repeat(70)}\` first`)).toBe('Read the file…');
 		expect(rowSummary(`See **${'b'.repeat(70)}** now`)).toBe('See…');
+	});
+});
+
+describe('pausedLine', () => {
+	it('says when the turn goes on, without a stop before the comma', () => {
+		expect(pausedLine('You hit your ChatGPT usage limit.', '16:40')).toBe(
+			'You hit your ChatGPT usage limit, goes on by itself at 16:40',
+		);
+		expect(pausedLine('You hit your ChatGPT usage limit.', null)).toBe(
+			'You hit your ChatGPT usage limit.',
+		);
 	});
 });

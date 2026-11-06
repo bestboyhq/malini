@@ -5,21 +5,21 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { readActivity } from './register';
 
 describe('readActivity', () => {
-	it('counts every run per local day and per repository, with job runs, agent time and open runs', () => {
+	it('counts every run per local day and per repository, with automation runs, agent time and open runs', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedRepository(db, 'bestboyhq/malini', 'local__bestboyhq__malini', 'ws-malini');
 		seedProject(db, 'local__someone__elsewhere', 'ws-elsewhere');
 		seedSession(db, 'chat', 'ws-malini', 'user');
-		seedSession(db, 'job', 'ws-malini', 'job');
+		seedSession(db, 'automation', 'ws-malini', 'automation');
 		seedSession(db, 'other', 'ws-elsewhere', 'user');
 		seedRun(db, 'run-1', 'chat', '2026-10-14T12:00:00.000Z', '2026-10-14T12:10:00.000Z');
-		seedRun(db, 'run-2', 'job', '2026-10-14T12:00:00.000Z', '2026-10-14T12:01:00.000Z');
+		seedRun(db, 'run-2', 'automation', '2026-10-14T12:00:00.000Z', '2026-10-14T12:01:00.000Z');
 		seedRun(db, 'run-3', 'other', '2026-10-15T12:00:00.000Z', null);
 
 		expect(readActivity(db, new Date(2026, 9, 15, 12))).toEqual({
 			today: '2026-10-15',
 			runs: 3,
-			jobRuns: 1,
+			automationRuns: 1,
 			agentSeconds: 660,
 			runningAgents: 1,
 			days: [
@@ -73,7 +73,7 @@ function seedSession(
 	db: MaliniDatabase,
 	sessionId: string,
 	workstreamId: string,
-	origin: 'user' | 'job',
+	origin: 'user' | 'automation',
 ): void {
 	run(
 		db,

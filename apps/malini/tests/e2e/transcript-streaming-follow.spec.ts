@@ -336,13 +336,13 @@ async function expectStatusClosesRunAboveTray(page: Page, when: string): Promise
 	).toBe(0);
 }
 
-async function chatWithJobInTray(
+async function chatWithAutomationInTray(
 	app: LaunchedApp,
 	workstreamId: string,
-): Promise<Readonly<{ jobs: Locator; jobRunId: string }>> {
+): Promise<Readonly<{ automations: Locator; automationRunId: string }>> {
 	const { page } = app;
 	await longChat(app, workstreamId);
-	const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
+	const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
 		name: 'Watch the deploy',
 		instructions: 'HANG',
 		model: 'opus',
@@ -350,17 +350,17 @@ async function chatWithJobInTray(
 		runsIn: 'workstream',
 	});
 	holdAgentRuns(app, true);
-	await sendPrompt(page, 'Wait for the deploy job');
-	const jobRun = await invoke<{ id: string }>(page, 'jobs.run', {
-		definitionId: job.id,
+	await sendPrompt(page, 'Wait for the deploy automation');
+	const automationRun = await invoke<{ id: string }>(page, 'automations.run', {
+		definitionId: automation.id,
 		workstreamId,
 	});
-	const jobs = page.getByRole('region', { name: 'Jobs (1)', exact: true });
-	await expect(jobs).toContainText('Watch the deploy', { timeout: 20_000 });
+	const automations = page.getByRole('region', { name: 'Automations (1)', exact: true });
+	await expect(automations).toContainText('Watch the deploy', { timeout: 20_000 });
 	holdAgentRuns(app, false);
 	await expectRunFinished(page, 'Hello from the fake bridge');
 	await untilStill(page);
-	return { jobs, jobRunId: jobRun.id };
+	return { automations, automationRunId: automationRun.id };
 }
 
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
@@ -440,14 +440,14 @@ test('the working status holds still above the composer while the reply streams 
 	}
 });
 
-test('a run beside a background agent ends on its working status, held still right above the tray while narrated steps arrive, also after the chat reopens', async () => {
+test('a run beside a background command ends on its working status, held still right above the tray while narrated steps arrive, also after the chat reopens', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const sessionId = await longChat(app, 'e2e-streaming-follow-tray-agent-ws');
-		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_AGENT NARRATED Read every note');
-		await expect(page.getByRole('region', { name: '1 background agent running' })).toBeVisible({
+		const sessionId = await longChat(app, 'e2e-streaming-follow-tray-command-ws');
+		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_COMMAND NARRATED Read every note');
+		await expect(page.getByRole('region', { name: '1 background command running' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await untilLatestRunShows(page, 'row-3.txt');
@@ -457,7 +457,7 @@ test('a run beside a background agent ends on its working status, held still rig
 		await startFreshChat(page);
 		await selectChat(page, sessionId);
 		await expectStatusClosesRunAboveTray(page, 'once the chat reopens');
-		await captureFlow(app, 'transcript-streaming-follow-tray-agent');
+		await captureFlow(app, 'transcript-streaming-follow-tray-command');
 
 		expectCleanConsole(app);
 	} finally {
@@ -574,24 +574,27 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 	}
 });
 
-test('a job leaving the composer tray leaves the transcript where it is', async () => {
+test('an automation leaving the composer tray leaves the transcript where it is', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { jobs, jobRunId } = await chatWithJobInTray(app, 'e2e-streaming-follow-tray-ws');
+		const { automations, automationRunId } = await chatWithAutomationInTray(
+			app,
+			'e2e-streaming-follow-tray-ws',
+		);
 
 		await startSampling(page, [LATEST_PROMPT]);
-		await invoke(page, 'jobs.cancel-run', { jobRunId });
-		await expect(jobs).toHaveCount(0, { timeout: 20_000 });
+		await invoke(page, 'automations.cancel-run', { automationRunId });
+		await expect(automations).toHaveCount(0, { timeout: 20_000 });
 		await untilStill(page);
 		const samples = await stopSampling(page);
 
 		expect(
 			drift(samples, 1),
-			'px the transcript moved when the job left the tray',
+			'px the transcript moved when the automation left the tray',
 		).toBeLessThanOrEqual(STILL_PX);
-		await captureFlow(app, 'transcript-streaming-follow-job-left-tray');
+		await captureFlow(app, 'transcript-streaming-follow-automation-left-tray');
 
 		await sendPrompt(page, 'Carry on');
 		await expectRunFinished(page, 'Hello from the fake bridge');
@@ -609,28 +612,31 @@ test('a job leaving the composer tray leaves the transcript where it is', async 
 	}
 });
 
-test('a job leaving the composer tray while the wheel scrolls at the end neither moves the transcript nor stretches it', async () => {
+test('an automation leaving the composer tray while the wheel scrolls at the end neither moves the transcript nor stretches it', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { jobs, jobRunId } = await chatWithJobInTray(app, 'e2e-streaming-follow-tray-wheel-ws');
-		const rangeWithJob = await scrollRange(page);
+		const { automations, automationRunId } = await chatWithAutomationInTray(
+			app,
+			'e2e-streaming-follow-tray-wheel-ws',
+		);
+		const rangeWithAutomation = await scrollRange(page);
 
 		await startSampling(page, [LATEST_PROMPT]);
-		await invoke(page, 'jobs.cancel-run', { jobRunId });
+		await invoke(page, 'automations.cancel-run', { automationRunId });
 		await wheel(page, 40);
-		await expect(jobs).toHaveCount(0);
+		await expect(automations).toHaveCount(0);
 		await untilStill(page);
 		const samples = await stopSampling(page);
 
 		expect(
 			drift(samples, 1),
-			'px the transcript moved while the job left the tray under the wheel',
+			'px the transcript moved while the automation left the tray under the wheel',
 		).toBeLessThanOrEqual(STILL_PX);
 		expect(
-			(await scrollRange(page)) - rangeWithJob,
-			'px the wheel stretched the transcript past the space the job left',
+			(await scrollRange(page)) - rangeWithAutomation,
+			'px the wheel stretched the transcript past the space the automation left',
 		).toBeLessThanOrEqual(STILL_PX);
 
 		expectCleanConsole(app);

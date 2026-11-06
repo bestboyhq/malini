@@ -5,9 +5,12 @@ import {
 	mutationRepresentedByTool,
 	representedBridgeEvents,
 	ChangedPathSet,
+	subagentItem,
+	withSubagentStep,
 	type RunTimelineItem,
 	type RunTimelineThought,
 } from './run-timeline';
+import { isAgentTool } from './tool-display-name';
 import {
 	runProjectionChangesSince,
 	runProjectionVersion,
@@ -19,6 +22,7 @@ type TimelineState = {
 	version: number;
 	items: RunTimelineItem[];
 	indexByKey: Map<string, number>;
+	subagentByCallId: Map<string, string>;
 	commands: Set<string>;
 	mutations: ChangedPathSet;
 	thoughtSignatureByKey: Map<string, string>;
@@ -44,6 +48,22 @@ function thoughtSignature(thought: RunTimelineThought): string {
 
 function excluded(item: RenderItem): item is Extract<RenderItem, { kind: 'terminal' | 'usage' }> {
 	return item.kind === 'terminal' || item.kind === 'usage';
+}
+
+function subagentOf(state: TimelineState, item: RenderItem): string | null {
+	if (item.kind !== 'tool' || item.tool.parentToolCallId === undefined) return null;
+	return state.subagentByCallId.get(item.tool.parentToolCallId) ?? null;
+}
+
+function subagentsByCallId(items: readonly RunTimelineItem[]): Map<string, string> {
+	const byCallId = new Map<string, string>();
+	for (const item of items) {
+		if (item.kind !== 'subagent') continue;
+		for (const { tool } of [item, ...item.steps]) {
+			if (tool.toolCallId) byCallId.set(tool.toolCallId, item.key);
+		}
+	}
+	return byCallId;
 }
 
 export class IncrementalRunTimelineProjector {
@@ -101,6 +121,7 @@ export class IncrementalRunTimelineProjector {
 			version: runProjectionVersion(run) ?? 0,
 			items,
 			indexByKey: new Map(),
+			subagentByCallId: subagentsByCallId(items),
 			commands: new Set(represented.commands),
 			mutations: represented.mutations,
 			thoughtSignatureByKey: new Map(
@@ -120,10 +141,16 @@ export class IncrementalRunTimelineProjector {
 	#applyChange(state: TimelineState, change: RunProjectionChange): boolean {
 		if (change.kind === 'remove') return false;
 		if (change.kind === 'replace') {
+			const subagent = subagentOf(state, change.item);
+			if (subagent !== null) return this.#addStep(state, subagent, change.item);
 			const index = state.indexByKey.get(change.previous.key);
 			if (index === undefined) return true;
 			if (change.previous.key !== change.item.key || excluded(change.item)) return false;
-			state.items[index] = change.item;
+			const current = state.items[index];
+			state.items[index] =
+				current?.kind === 'subagent' && change.item.kind === 'tool'
+					? { ...current, tool: change.item.tool }
+					: change.item;
 			return true;
 		}
 
@@ -140,12 +167,28 @@ export class IncrementalRunTimelineProjector {
 			}
 			const mutation = mutationRepresentedByTool(item);
 			if (mutation) state.mutations.add(mutation, item.seq);
+			const subagent = subagentOf(state, item);
+			if (subagent !== null) return this.#addStep(state, subagent, item);
+			if (isAgentTool(item.tool.name)) {
+				if (item.tool.toolCallId) state.subagentByCallId.set(item.tool.toolCallId, item.key);
+				this.#insertCanonical(state, subagentItem(item));
+				return true;
+			}
 		} else if (item.kind === 'command' && state.commands.has(item.command.trim())) {
 			return true;
 		} else if (item.kind === 'file' && state.mutations.has(item.path, item.seq)) {
 			return true;
 		}
 		this.#insertCanonical(state, item);
+		return true;
+	}
+
+	#addStep(state: TimelineState, subagentRowKey: string, step: RenderItem): boolean {
+		const index = state.indexByKey.get(subagentRowKey);
+		const subagent = index === undefined ? undefined : state.items[index];
+		if (index === undefined || subagent?.kind !== 'subagent' || step.kind !== 'tool') return false;
+		state.items[index] = withSubagentStep(subagent, step);
+		if (step.tool.toolCallId) state.subagentByCallId.set(step.tool.toolCallId, subagentRowKey);
 		return true;
 	}
 

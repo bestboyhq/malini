@@ -126,6 +126,7 @@ export interface PersistedBridgeSession {
 export type ResolveProviderEnvironment = (
 	provider: string,
 	model: string,
+	session?: 'new' | 'reopened',
 ) => Promise<Readonly<Record<string, string>>>;
 
 interface PersistedSessionRow {
@@ -181,7 +182,7 @@ export async function registerPersistedBridgeSession(
 	const worktree = worktreePath(appDataRoot, session.workstreamId);
 	const model = repairPersistedModel(db, session.id, session.model);
 	const environment =
-		model === null ? {} : await resolveProviderEnvironment(session.provider, model);
+		model === null ? {} : await resolveProviderEnvironment(session.provider, model, 'reopened');
 	const command = startSessionCommand({
 		commandId: supervisor.nextCommandId(),
 		sessionId: session.id,

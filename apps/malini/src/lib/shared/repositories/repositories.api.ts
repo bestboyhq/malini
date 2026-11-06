@@ -54,6 +54,7 @@ export {
 	isGithubRemoteUrl,
 	localRepositoriesFromProjects,
 	mergeRepositories,
+	projectFullName,
 	projectIdentityIdsForRepository,
 	repositoryCloneSource,
 	repositoryContextForWorkstream,
@@ -250,6 +251,7 @@ export { startLeadChatCommand } from './application/commands/start-lead-chat.com
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
 export { workstreamBusyActionQuery } from './application/queries/workstream-busy-action.query.svelte';
 export { workstreamByIdQuery } from './application/queries/workstream-by-id.query.svelte';
+export { leaveMissingWorkstreamCommand } from './application/commands/leave-missing-workstream.command';
 export { workstreamNameQuery } from './application/queries/workstream-name.query.svelte';
 export { namedWorkstreamsQuery } from './application/queries/named-workstreams.query.svelte';
 export { workstreamCreationContextQuery } from './application/queries/workstream-creation-context.query.svelte';

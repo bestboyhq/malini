@@ -3,7 +3,7 @@
 	import { cubicOut, quartOut } from 'svelte/easing';
 	import type { TransitionConfig } from 'svelte/transition';
 	import { navigating, page } from '$shared/router/state';
-	import { SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { AUTOMATIONS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		historyIndexFromState,
 		navigationHistoryTargetLedger,
@@ -12,6 +12,7 @@
 	import { Popover } from '$hyper-ui/components/popover';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import ForegroundActivityIndicator from './ForegroundActivityIndicator.svelte';
+	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import { hydrateSidebarCommand } from '$lib/app/application/commands/hydrate-sidebar.command';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { toggleSidebarCommand } from '$lib/app/application/commands/toggle-sidebar.command';
@@ -20,7 +21,6 @@
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { sidebarWidthQuery } from '$lib/app/application/queries/sidebar-width.query.svelte';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { firstChatBare } from './first-chat';
 	import {
 		globalTopBarActionMatchesPathname,
 		globalTopBarBandSlotHost,
@@ -37,6 +37,9 @@
 		watchGithubReachHook,
 	} from '$shared/repositories/repositories.api';
 	import { inspectorDock } from '$shared/shell/inspector-dock.svelte';
+	import { loadAutomationsCommand } from '$lib/automations/application/commands/load-automations.command';
+	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
+	import { liveAutomationsStatus } from '$lib/automations/automations.api';
 
 	interface Props {
 		actions?: readonly GlobalTopBarAction[];
@@ -46,17 +49,23 @@
 
 	onMount(() => {
 		hydrateSidebarCommand();
-		return watchGithubReachHook();
+		loadAutomationsCommand();
+		const stopWatchingAutomations = watchAutomationsHook();
+		const stopWatchingGithub = watchGithubReachHook();
+		return () => {
+			stopWatchingAutomations();
+			stopWatchingGithub();
+		};
 	});
+
+	const automations = $derived(liveAutomationsStatus());
 
 	const targetPathname = $derived(navigating.to?.url?.pathname ?? page.url.pathname);
 	const routeTransitionPending = $derived(navigating.to !== null);
 	const sidebarCollapsed = $derived(sidebarCollapsedQuery.data);
 	const sidebarShown = $derived(!sidebarCollapsed || sidebarOverlayQuery.data);
 	const sidebarMounted = $derived(sidebarPresenceQuery.data);
-	const chromeHidden = $derived(
-		onboardingQuery.data.shown || firstChatBare(page.params.workstreamId ?? ''),
-	);
+	const chromeHidden = $derived(onboardingQuery.data.shown !== null);
 	const leftClusterTucked = $derived(sidebarCollapsed || !sidebarMounted);
 	const canNavigateBack = $derived.by(() => {
 		void page.url;
@@ -167,6 +176,7 @@
 	const textOutDuration = (): number => (prefersReducedMotion() ? 120 : 140);
 
 	function textIn(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		const delay = textOutDuration();
 		if (prefersReducedMotion()) return { ...fadeOnly(160), delay };
 		return {
@@ -178,6 +188,7 @@
 	}
 
 	function textOut(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(textOutDuration());
 		return {
 			duration: textOutDuration(),
@@ -187,6 +198,7 @@
 	}
 
 	function actionIn(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(160);
 		return {
 			duration: 220,
@@ -196,6 +208,7 @@
 	}
 
 	function actionOut(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(120);
 		return {
 			duration: 140,
@@ -205,6 +218,7 @@
 	}
 
 	function unfold(node: HTMLElement): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(160);
 		const width = node.offsetWidth;
 		const gap = Number.parseFloat(getComputedStyle(node.parentElement ?? node).columnGap) || 0;
@@ -328,6 +342,25 @@
 				>
 					<Icon name="sidebar" />
 				</button>
+			</Tooltip>
+			<Tooltip content={automations.label} placement="bottom">
+				<a
+					href={AUTOMATIONS_HREF}
+					class="topbar-chrome relative"
+					aria-label={automations.label}
+					data-testid="global-topbar-automations"
+				>
+					<Icon name="workflow" />
+					{#if automations.dot}
+						<span
+							class={[
+								'absolute top-[5px] right-[5px] h-1.5 w-1.5 rounded-full',
+								PROGRESS_DOT_CLASS[automations.dot],
+							]}
+							aria-hidden="true"
+						></span>
+					{/if}
+				</a>
 			</Tooltip>
 			<Tooltip content="Settings" placement="bottom">
 				<a

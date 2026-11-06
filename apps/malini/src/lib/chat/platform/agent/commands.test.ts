@@ -221,19 +221,19 @@ describe('session commands', () => {
 		expect(fresh).not.toBe(sessionId);
 	});
 
-	it('starts a named job transcript beside the chats, and never hands it out as the chat to reuse', async () => {
+	it('starts a named automation transcript beside the chats, and never hands it out as the chat to reuse', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		const chatId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		const jobId = await invokeString('chat.start-session', {
+		const automationId = await invokeString('chat.start-session', {
 			workstreamId: 'ws-1',
-			origin: 'job',
+			origin: 'automation',
 			displayName: '  Fix\n\tchecks\u0007 ',
 		});
 
 		const summaries = await invokeRecords('chat.list-sessions', { workstreamId: 'ws-1' });
 		expect(summaries.map(({ id, displayName, origin }) => ({ id, displayName, origin }))).toEqual([
-			{ id: jobId, displayName: 'Fix checks', origin: 'job' },
+			{ id: automationId, displayName: 'Fix checks', origin: 'automation' },
 			{ id: chatId, displayName: 'New chat', origin: 'user' },
 		]);
 		expect(await invokeString('chat.get-or-create-session', { workstreamId: 'ws-1' })).toBe(chatId);
@@ -243,7 +243,7 @@ describe('session commands', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		expect(await invokeError('chat.start-session', { workstreamId: 'ws-1', origin: 'bot' })).toBe(
-			"invalid args: `origin` must be 'user', 'job' or 'thread'",
+			"invalid args: `origin` must be 'user', 'automation' or 'thread'",
 		);
 		expect(
 			await invokeError('chat.start-session', { workstreamId: 'ws-1', displayName: ' \n ' }),
@@ -251,7 +251,7 @@ describe('session commands', () => {
 		expect(
 			await invokeError('chat.start-session', {
 				workstreamId: 'ws-1',
-				origin: 'job',
+				origin: 'automation',
 				displayName: 'x'.repeat(81),
 			}),
 		).toBe('invalid args: `displayName` must be 1-80 characters');
@@ -457,7 +457,7 @@ describe('prompt round trips', () => {
 				clientRequestId: 'request-1',
 			}),
 		).toContain('already has an active run');
-		const held = invokeString('chat.send-prompt', { sessionId, prompt: 'From a job' });
+		const held = invokeString('chat.send-prompt', { sessionId, prompt: 'From an automation' });
 		await new Promise((settle) => setTimeout(settle, 50));
 		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs WHERE session_id = ?', sessionId)).toBe(
 			0,
@@ -507,7 +507,7 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, openRun)?.summary).toBe('done');
 	});
 
-	it('counts a prompt still being handed off as an open run, so no job starts beside it', async () => {
+	it('counts a prompt still being handed off as an open run, so no automation starts beside it', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		let capturing = false;
 		let finishCapture: () => void = () => undefined;
@@ -1045,30 +1045,30 @@ describe('prompt round trips', () => {
 		expect(getSession(test.db, sessionId)?.displayName).toBe('Fix the login bug');
 	});
 
-	it('never renames a job transcript or its workstream, whether the job or the user prompts it', async () => {
+	it('never renames an automation transcript or its workstream, whether the automation or the user prompts it', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
 		const before = getWorkstream(test.db, 'ws-1')?.name;
-		const jobId = await invokeString('chat.start-session', {
+		const automationId = await invokeString('chat.start-session', {
 			workstreamId: 'ws-1',
-			origin: 'job',
+			origin: 'automation',
 			displayName: 'Fix checks',
 		});
 		const automated = await invokeString('chat.send-prompt', {
-			sessionId: jobId,
+			sessionId: automationId,
 			prompt: 'Fix the failing checks',
-			clientRequestId: 'req-job',
+			clientRequestId: 'req-automation',
 			automated: true,
 		});
 		await waitFor(() => getRun(test.db, automated)?.completedAt !== null);
 		const steered = await invokeString('chat.send-prompt', {
-			sessionId: jobId,
+			sessionId: automationId,
 			prompt: 'hey so every time i log in the page goes blank',
 			clientRequestId: 'req-steer',
 		});
 		await waitFor(() => getRun(test.db, steered)?.completedAt !== null);
 
-		expect(getSession(test.db, jobId)?.displayName).toBe('Fix checks');
+		expect(getSession(test.db, automationId)?.displayName).toBe('Fix checks');
 		expect(getWorkstream(test.db, 'ws-1')?.name).toBe(before);
 		expect(
 			test.events.frames.filter(
@@ -1486,17 +1486,17 @@ describe('interactions', () => {
 		stopGrants();
 	});
 
-	it('saves the version the user reviewed, and only for a reviewed edit of the same job', async () => {
+	it('saves the version the user reviewed, and only for a reviewed edit of the same automation', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		run(
 			test.db,
-			`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, created_at, updated_at)
+			`INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, created_at, updated_at)
 			 VALUES ('docs', 'Update docs', 'Update the docs.', 'opus', 'high', 'workstream', '[]', 'update-docs', ?, ?)`,
 			'2026-10-23T00:00:00.000Z',
 			'2026-10-23T00:00:00.000Z',
 		);
 		await boot();
-		const edit = await pendingMaliniApproval('ws-1', 'jobs_save', {
+		const edit = await pendingMaliniApproval('ws-1', 'automations_save', {
 			id: 'docs',
 			instructions: 'Update the docs, then push to main.',
 		});
@@ -1512,7 +1512,7 @@ describe('interactions', () => {
 			'remembered approval requires the exact pending permission descriptor',
 		);
 		expect(await decide({ updatedInput: { id: 'other', instructions: 'x' } })).toBe(
-			'only a reviewed edit of the same job can change what is saved',
+			'only a reviewed edit of the same automation can change what is saved',
 		);
 		const reviewed = { id: 'docs', instructions: 'Update the docs.' };
 		await invoke('chat.decide-approval', {
@@ -1539,7 +1539,7 @@ describe('interactions', () => {
 				permission: cloneRepositories,
 				updatedInput: { id: 'docs' },
 			}),
-		).toBe('only a reviewed edit of the same job can change what is saved');
+		).toBe('only a reviewed edit of the same automation can change what is saved');
 	});
 
 	it('answers a question after validating it against the stored request', async () => {

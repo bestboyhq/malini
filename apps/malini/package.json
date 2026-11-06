@@ -2,7 +2,7 @@
 	"name": "malini",
 	"productName": "Malini",
 	"version": "0.1.0",
-	"description": "Local-only agent workstreams that turn repeated prompts into jobs",
+	"description": "Local-only agent workstreams that turn repeated prompts into automations",
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"main": "./out/main/index.js",
@@ -20,6 +20,7 @@
 		"test:scripts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/*.test.mjs",
 		"generate:file-icons": "node scripts/generate-file-icons.mjs",
 		"generate:contract-reference": "node scripts/generate-contract-reference.mjs",
+		"generate:dmg-background": "electron scripts/generate-dmg-background.mjs",
 		"diagnostics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/diagnostics.mjs",
 		"test:e2e": "install-electron && electron-vite build && playwright test",
 		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/fetch-gh.mjs && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
@@ -27,6 +28,7 @@
 		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/fetch-gh.mjs && node scripts/update-e2e.mjs"
 	},
 	"devDependencies": {
+		"@anthropic-ai/sdk": "^1.4.0",
 		"@eslint/js": "catalog:",
 		"@fontsource-variable/geist": "^5.3.0",
 		"@fontsource-variable/geist-mono": "^5.3.0",
@@ -68,6 +70,7 @@
 		"jsdom": "^30.0.0",
 		"marked": "catalog:",
 		"material-icon-theme": "5.37.0",
+		"openai": "^7.47.0",
 		"prosemirror-markdown": "^1.13.8",
 		"svelte": "catalog:",
 		"svelte-check": "^4.7.6",
@@ -75,6 +78,7 @@
 		"typescript": "catalog:",
 		"typescript-eslint": "catalog:",
 		"vite": "catalog:",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"zod": "^4.6.5"
 	}
 }

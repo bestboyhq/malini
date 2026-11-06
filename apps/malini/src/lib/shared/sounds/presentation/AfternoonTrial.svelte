@@ -18,7 +18,7 @@
 	}[] = [
 		{ id: 'a', name: 'Sound step in onboarding', glyph: 'pr-draft', added: 184, removed: 22 },
 		{ id: 'b', name: 'Fix login redirect', glyph: 'branch', added: 12, removed: 3 },
-		{ id: 'c', name: 'Flaky jobs e2e', glyph: 'pr-open', added: 41, removed: 17 },
+		{ id: 'c', name: 'Flaky automations e2e', glyph: 'pr-open', added: 41, removed: 17 },
 		{ id: 'd', name: 'Pricing page copy', glyph: 'branch', added: 8, removed: 0 },
 		{ id: 'e', name: 'Bump Svelte to 5.40', glyph: 'pr-draft', added: 96, removed: 88 },
 	];

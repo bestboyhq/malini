@@ -16,6 +16,7 @@ import type {
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
 	ClaudeAccountSwitchOutcome,
+	ChatGptSignInOutcome,
 	ClaudeSignInOutcome,
 	ModelProviderRecord,
 	ProviderCapability,
@@ -42,26 +43,28 @@ import type {
 	AgentActionRecord,
 	ChatTurnRecord,
 	DecideArgs,
-	JobDefinitionIdArgs,
-	JobDefinitionRecord,
-	JobExperimentIdArgs,
-	JobExperimentRecord,
-	JobExperimentsRecord,
-	JobOutputRecord,
-	JobOutputsArgs,
-	JobRunIdArgs,
-	JobRunRecord,
-	JobSetupRecord,
-	JobSuggestionIdArgs,
-	JobSuggestionRecord,
+	AutomationDefinitionIdArgs,
+	AutomationDefinitionRecord,
+	AutomationExperimentIdArgs,
+	AutomationExperimentRecord,
+	AutomationExperimentsRecord,
+	AutomationOutputRecord,
+	AutomationOutputsArgs,
+	AutomationRunIdArgs,
+	AutomationRunRecord,
+	AutomationSetupRecord,
+	AcceptAutomationSuggestionArgs,
+	AcceptedAutomationSuggestion,
+	AutomationSuggestionIdArgs,
+	AutomationSuggestionRecord,
 	ListChatTurnsArgs,
 	ListTimelineArgs,
 	ReconcilerDecisionRecord,
-	RunJobArgs,
-	SaveJobDefinitionArgs,
-	SaveJobExperimentArgs,
+	RunAutomationArgs,
+	SaveAutomationDefinitionArgs,
+	SaveAutomationExperimentArgs,
 	TimelineRecord,
-} from './jobs';
+} from './automations';
 import type {
 	ReopenPullRequestArgs,
 	ShipButtonArgs,
@@ -471,9 +474,13 @@ export interface ContractCommands {
 		result: ClaudeAccountSwitchOutcome;
 	};
 	'providers.cancel-claude-sign-in': { args: undefined; result: void };
+	'providers.sign-in-to-chatgpt': { args: undefined; result: ChatGptSignInOutcome };
+	'providers.cancel-chatgpt-sign-in': { args: undefined; result: void };
+	'providers.sign-out-of-chatgpt': { args: undefined; result: void };
 	'providers.list': { args: undefined; result: ModelProviderRecord[] };
 	'providers.refresh-models': { args: undefined; result: ModelProviderRecord[] };
 	'providers.save-key': { args: ProviderKeyArgs; result: void };
+	'providers.check-plan': { args: ProviderIdArgs; result: void };
 	'providers.delete-key': { args: ProviderIdArgs; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
@@ -583,29 +590,53 @@ export interface ContractCommands {
 	'pull-requests.button-clicked': { args: ShipButtonArgs; result: ShipStateRecord | null };
 	'pull-requests.ship-states': { args: undefined; result: ShipStateRecord[] };
 	'pull-requests.workstream-opened': { args: ShipWorkstreamArgs; result: null };
-	'jobs.list-definitions': { args: undefined; result: JobDefinitionRecord[] };
-	'jobs.save-definition': { args: SaveJobDefinitionArgs; result: JobDefinitionRecord };
-	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
-	'jobs.reset-definition': { args: JobDefinitionIdArgs; result: JobDefinitionRecord };
-	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
-	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
-	'jobs.confirm-run': { args: JobRunIdArgs; result: JobRunRecord };
-	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
-	'jobs.list-suggestions': { args: undefined; result: JobSuggestionRecord[] };
-	'jobs.accept-suggestion': { args: JobSuggestionIdArgs; result: JobDefinitionRecord };
-	'jobs.dismiss-suggestion': { args: JobSuggestionIdArgs; result: JobSuggestionRecord };
-	'jobs.list-outputs': { args: JobOutputsArgs; result: JobOutputRecord[] };
-	'jobs.list-setups': { args: JobDefinitionIdArgs; result: JobSetupRecord[] };
-	'jobs.open-experiments': { args: JobDefinitionIdArgs; result: JobExperimentsRecord };
-	'jobs.save-experiment': { args: SaveJobExperimentArgs; result: JobExperimentRecord };
-	'jobs.delete-experiment': { args: JobExperimentIdArgs; result: null };
-	'jobs.run-experiment': { args: JobExperimentIdArgs; result: JobExperimentRecord };
-	'jobs.list-agent-actions': { args: undefined; result: AgentActionRecord[] };
-	'jobs.list-chat-turns': { args: ListChatTurnsArgs; result: ChatTurnRecord[] };
-	'jobs.use-experiment': { args: JobExperimentIdArgs; result: JobDefinitionRecord };
-	'jobs.list-decisions': { args: undefined; result: ReconcilerDecisionRecord[] };
-	'jobs.decide': { args: DecideArgs; result: ReconcilerDecisionRecord };
-	'jobs.list-timeline': { args: ListTimelineArgs; result: TimelineRecord };
+	'automations.list-definitions': { args: undefined; result: AutomationDefinitionRecord[] };
+	'automations.save-definition': {
+		args: SaveAutomationDefinitionArgs;
+		result: AutomationDefinitionRecord;
+	};
+	'automations.delete-definition': { args: AutomationDefinitionIdArgs; result: null };
+	'automations.reset-definition': {
+		args: AutomationDefinitionIdArgs;
+		result: AutomationDefinitionRecord;
+	};
+	'automations.list-runs': { args: undefined; result: AutomationRunRecord[] };
+	'automations.run': { args: RunAutomationArgs; result: AutomationRunRecord };
+	'automations.confirm-run': { args: AutomationRunIdArgs; result: AutomationRunRecord };
+	'automations.cancel-run': { args: AutomationRunIdArgs; result: AutomationRunRecord };
+	'automations.list-suggestions': { args: undefined; result: AutomationSuggestionRecord[] };
+	'automations.accept-suggestion': {
+		args: AcceptAutomationSuggestionArgs;
+		result: AcceptedAutomationSuggestion;
+	};
+	'automations.dismiss-suggestion': {
+		args: AutomationSuggestionIdArgs;
+		result: AutomationSuggestionRecord;
+	};
+	'automations.list-outputs': { args: AutomationOutputsArgs; result: AutomationOutputRecord[] };
+	'automations.list-setups': { args: AutomationDefinitionIdArgs; result: AutomationSetupRecord[] };
+	'automations.open-experiments': {
+		args: AutomationDefinitionIdArgs;
+		result: AutomationExperimentsRecord;
+	};
+	'automations.save-experiment': {
+		args: SaveAutomationExperimentArgs;
+		result: AutomationExperimentRecord;
+	};
+	'automations.delete-experiment': { args: AutomationExperimentIdArgs; result: null };
+	'automations.run-experiment': {
+		args: AutomationExperimentIdArgs;
+		result: AutomationExperimentRecord;
+	};
+	'automations.list-agent-actions': { args: undefined; result: AgentActionRecord[] };
+	'automations.list-chat-turns': { args: ListChatTurnsArgs; result: ChatTurnRecord[] };
+	'automations.use-experiment': {
+		args: AutomationExperimentIdArgs;
+		result: AutomationDefinitionRecord;
+	};
+	'automations.list-decisions': { args: undefined; result: ReconcilerDecisionRecord[] };
+	'automations.decide': { args: DecideArgs; result: ReconcilerDecisionRecord };
+	'automations.list-timeline': { args: ListTimelineArgs; result: TimelineRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
@@ -820,9 +851,13 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.sign-in-to-claude',
 	'providers.switch-claude-account',
 	'providers.cancel-claude-sign-in',
+	'providers.sign-in-to-chatgpt',
+	'providers.cancel-chatgpt-sign-in',
+	'providers.sign-out-of-chatgpt',
 	'providers.list',
 	'providers.refresh-models',
 	'providers.save-key',
+	'providers.check-plan',
 	'providers.delete-key',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',
@@ -887,29 +922,29 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.button-clicked',
 	'pull-requests.ship-states',
 	'pull-requests.workstream-opened',
-	'jobs.list-definitions',
-	'jobs.save-definition',
-	'jobs.delete-definition',
-	'jobs.reset-definition',
-	'jobs.list-runs',
-	'jobs.run',
-	'jobs.confirm-run',
-	'jobs.cancel-run',
-	'jobs.list-suggestions',
-	'jobs.accept-suggestion',
-	'jobs.dismiss-suggestion',
-	'jobs.list-outputs',
-	'jobs.list-setups',
-	'jobs.open-experiments',
-	'jobs.save-experiment',
-	'jobs.delete-experiment',
-	'jobs.run-experiment',
-	'jobs.use-experiment',
-	'jobs.list-agent-actions',
-	'jobs.list-chat-turns',
-	'jobs.list-decisions',
-	'jobs.decide',
-	'jobs.list-timeline',
+	'automations.list-definitions',
+	'automations.save-definition',
+	'automations.delete-definition',
+	'automations.reset-definition',
+	'automations.list-runs',
+	'automations.run',
+	'automations.confirm-run',
+	'automations.cancel-run',
+	'automations.list-suggestions',
+	'automations.accept-suggestion',
+	'automations.dismiss-suggestion',
+	'automations.list-outputs',
+	'automations.list-setups',
+	'automations.open-experiments',
+	'automations.save-experiment',
+	'automations.delete-experiment',
+	'automations.run-experiment',
+	'automations.use-experiment',
+	'automations.list-agent-actions',
+	'automations.list-chat-turns',
+	'automations.list-decisions',
+	'automations.decide',
+	'automations.list-timeline',
 	'skills.list',
 	'skills.usage',
 	'skills.switch',

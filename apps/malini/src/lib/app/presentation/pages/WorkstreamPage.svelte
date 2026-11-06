@@ -38,7 +38,6 @@
 		worktreePendingQuery,
 	} from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
-	import { firstChatWaits } from '../first-chat';
 	import LeadTopBarStatus from '../LeadTopBarStatus.svelte';
 	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 
@@ -58,7 +57,6 @@
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
 	const repositoryScopeReady = $derived(workstreamsLoadedQuery.data);
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
-	const firstChat = $derived(firstChatWaits(workstreamId));
 	const startedWorkstreamIds = $derived(leadProgressQuery.startedIds(workstreamId));
 	const leadSessionId = $derived(workstream?.scope ? activeSessionQuery.data : null);
 	const leadDecisionCount = $derived(leadDecisionsQuery.data(leadSessionId).length);
@@ -110,47 +108,45 @@
 	}
 </script>
 
-{#if !firstChat}
-	{#if workstream?.scope}
-		<LeadTopBarStatus leadId={workstreamId} />
-	{:else}
-		<WorkstreamChatBridge {workstreamId}>
-			{#snippet children(chat)}
-				<WorkstreamTopBarStatus
-					{workstreamId}
-					{agentSessionId}
-					{extensionWorkstream}
-					{extensionGeneration}
-					{extensionReady}
-					{repositoryScopeReady}
-					{remotePullRequestsSupported}
-					{repositoryExtensionRegistered}
-					agentWork={chat.agentWork}
-					overrideStatus={provisioningStatus}
-					ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
-					onarchive={archiveWorkstream}
-				/>
-			{/snippet}
-		</WorkstreamChatBridge>
-	{/if}
-
-	<WorkstreamInspector
-		{workstreamId}
-		workstream={inspectedWorkstream}
-		activationReady={repositoryScopeReady && !worktreePending}
-		workstreamName={workstream?.name ?? null}
-		{changeTotals}
-		creationContext={(id) => (creationPending(id) ? (creationContext(id) ?? {}) : null)}
-		oncreationannounced={consumeWorkstreamCreationCommand}
-		onruntimeretry={retryRepositoryScope}
-		browserOnly={Boolean(workstream?.scope)}
-		dock={startedWorkstreamIds.length > 0 || leadDecisionCount > 0
-			? startedWorkstreamsDock
-			: undefined}
-		{builtInPanels}
-		{panelActions}
-	/>
+{#if workstream?.scope}
+	<LeadTopBarStatus leadId={workstreamId} />
+{:else}
+	<WorkstreamChatBridge {workstreamId}>
+		{#snippet children(chat)}
+			<WorkstreamTopBarStatus
+				{workstreamId}
+				{agentSessionId}
+				{extensionWorkstream}
+				{extensionGeneration}
+				{extensionReady}
+				{repositoryScopeReady}
+				{remotePullRequestsSupported}
+				{repositoryExtensionRegistered}
+				agentWork={chat.agentWork}
+				overrideStatus={provisioningStatus}
+				ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
+				onarchive={archiveWorkstream}
+			/>
+		{/snippet}
+	</WorkstreamChatBridge>
 {/if}
+
+<WorkstreamInspector
+	{workstreamId}
+	workstream={inspectedWorkstream}
+	activationReady={repositoryScopeReady && !worktreePending}
+	workstreamName={workstream?.name ?? null}
+	{changeTotals}
+	creationContext={(id) => (creationPending(id) ? (creationContext(id) ?? {}) : null)}
+	oncreationannounced={consumeWorkstreamCreationCommand}
+	onruntimeretry={retryRepositoryScope}
+	browserOnly={Boolean(workstream?.scope)}
+	dock={startedWorkstreamIds.length > 0 || leadDecisionCount > 0
+		? startedWorkstreamsDock
+		: undefined}
+	{builtInPanels}
+	{panelActions}
+/>
 
 {#snippet startedWorkstreamsDock()}
 	<StartedWorkstreams workstreamIds={startedWorkstreamIds} framed={false} heading="Started here" />
