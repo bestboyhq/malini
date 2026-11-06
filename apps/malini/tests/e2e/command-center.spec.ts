@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
@@ -29,6 +30,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 			dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] });
 		}, alpha);
 		await passSetup(page);
+		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 
 		const center = page.getByRole('dialog', { name: 'Command center' });

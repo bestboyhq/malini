@@ -1,6 +1,7 @@
 import { continuationCause, isCancellationError } from '$contract/agent-state-machine';
 import type { LeadDecision } from '$contract/leads';
 import { parseWorkstreamReport, reportedTurnEnd } from './deliveries';
+import { savedSecretsWake } from './saved-secrets';
 
 export type BriefEvent = Readonly<{
 	seq: number;
@@ -54,8 +55,7 @@ function eventLines(
 		const payload = record(event.payload);
 		switch (event.kind) {
 			case 'user.message': {
-				const line = promptLine(payload, event.at, workstreamName);
-				if (line) lines.push(line);
+				lines.push(...promptLines(payload, event.at, workstreamName));
 				break;
 			}
 			case 'assistant.message': {
@@ -103,6 +103,17 @@ function eventLines(
 	}
 	for (const runId of [...replies.keys()]) flushReply(runId);
 	return lines;
+}
+
+function promptLines(
+	payload: Readonly<Record<string, unknown>>,
+	at: string,
+	workstreamName: (workstreamId: string) => string,
+): Line[] {
+	const wake = savedSecretsWake(text_(payload['text']) ?? '');
+	const prompt = promptLine({ ...payload, text: wake.rest }, at, workstreamName);
+	const saved = wake.saved === null ? [] : [{ at, text: `The user saved ${wake.saved}.` }];
+	return prompt ? [prompt, ...saved] : saved;
 }
 
 function promptLine(

@@ -1,4 +1,4 @@
-# 0163 - One OpenCode key runs whichever plan it is on
+# 0164 - One OpenCode key runs whichever plan it is on
 
 Status: accepted
 

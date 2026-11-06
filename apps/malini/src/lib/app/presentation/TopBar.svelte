@@ -20,7 +20,6 @@
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { sidebarWidthQuery } from '$lib/app/application/queries/sidebar-width.query.svelte';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { firstChatBare } from './first-chat';
 	import {
 		globalTopBarActionMatchesPathname,
 		globalTopBarBandSlotHost,
@@ -54,9 +53,7 @@
 	const sidebarCollapsed = $derived(sidebarCollapsedQuery.data);
 	const sidebarShown = $derived(!sidebarCollapsed || sidebarOverlayQuery.data);
 	const sidebarMounted = $derived(sidebarPresenceQuery.data);
-	const chromeHidden = $derived(
-		onboardingQuery.data.shown || firstChatBare(page.params.workstreamId ?? ''),
-	);
+	const chromeHidden = $derived(onboardingQuery.data.shown !== null);
 	const leftClusterTucked = $derived(sidebarCollapsed || !sidebarMounted);
 	const canNavigateBack = $derived.by(() => {
 		void page.url;
@@ -167,6 +164,7 @@
 	const textOutDuration = (): number => (prefersReducedMotion() ? 120 : 140);
 
 	function textIn(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		const delay = textOutDuration();
 		if (prefersReducedMotion()) return { ...fadeOnly(160), delay };
 		return {
@@ -178,6 +176,7 @@
 	}
 
 	function textOut(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(textOutDuration());
 		return {
 			duration: textOutDuration(),
@@ -187,6 +186,7 @@
 	}
 
 	function actionIn(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(160);
 		return {
 			duration: 220,
@@ -196,6 +196,7 @@
 	}
 
 	function actionOut(_node: Element): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(120);
 		return {
 			duration: 140,
@@ -205,6 +206,7 @@
 	}
 
 	function unfold(node: HTMLElement): TransitionConfig {
+		if (document.hidden) return {};
 		if (prefersReducedMotion()) return fadeOnly(160);
 		const width = node.offsetWidth;
 		const gap = Number.parseFloat(getComputedStyle(node.parentElement ?? node).columnGap) || 0;

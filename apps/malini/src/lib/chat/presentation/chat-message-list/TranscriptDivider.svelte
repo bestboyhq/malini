@@ -1,7 +1,7 @@
 <script lang="ts">
 	interface Props {
 		label: string;
-		kind: 'handoff' | 'continuation';
+		kind: 'handoff' | 'continuation' | 'secrets';
 	}
 
 	let { label, kind }: Props = $props();

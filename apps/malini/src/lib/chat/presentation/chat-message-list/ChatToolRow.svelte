@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
 	import { Icon } from '$hyper-ui/icons';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { loadFullToolOutputCommand } from '$lib/chat/application/commands/load-full-tool-output.command';
 	import { fullToolOutputQuery } from '$lib/chat/application/queries/full-tool-output.query.svelte';
+	import { revealFade } from '../arrival-motion';
 	import type { RunGroup } from '../render-state';
 	import BashToolCall from '../BashToolCall.svelte';
 	import ToolCard from '../ToolCard.svelte';
@@ -76,7 +76,7 @@
 			<div
 				class="bg-error flex items-start gap-2 rounded-md px-2.5 py-2 text-xs"
 				data-testid="tool-card-failed"
-				in:fade={{ duration: 190 }}
+				in:revealFade
 			>
 				<span
 					class="bg-error-content/15 text-error-content mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm"

@@ -1,6 +1,6 @@
 # 0157 - Provider models come from models.dev, and OpenCode joins them
 
-Status: superseded by 0163
+Status: superseded by 0164
 
 ## Context
 

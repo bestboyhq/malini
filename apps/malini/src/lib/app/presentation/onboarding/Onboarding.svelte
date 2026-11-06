@@ -4,6 +4,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { fade, type TransitionConfig } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import {
 		ONBOARDING_STEPS,
 		claudeCodeOnboardingStatus,
@@ -81,7 +82,7 @@
 		outbound: slideOut(1, STEP_BLUR_PX),
 	});
 
-	onMount(showOnboardingHook);
+	onMount(() => showOnboardingHook('setup'));
 
 	onMount(loadUsageDataCommand);
 
@@ -149,11 +150,13 @@
 	}
 
 	function stepIn(_node: Element): TransitionConfig {
+		if (document.hidden) return { duration: 0 };
 		if (prefersReducedMotion.current) return fadeOnly(160);
 		return slideIn(onboarding.direction, stepBlur);
 	}
 
 	function stepOut(node: HTMLElement): TransitionConfig {
+		if (document.hidden) return { duration: 0 };
 		Object.assign(node.style, { position: 'absolute', inset: '0 0 auto' });
 		if (prefersReducedMotion.current) return fadeOnly(120);
 		return slideOut(onboarding.direction, stepBlur);
@@ -230,7 +233,7 @@
 
 		<footer class="mt-9 flex shrink-0 items-center justify-between gap-3">
 			{#if onboarding.index > 0}
-				<div transition:fade={{ duration: 150 }}>
+				<div transition:fade={{ duration: motionOff() ? 0 : 150 }}>
 					<Button
 						variant="ghost"
 						size="lg"
@@ -243,7 +246,7 @@
 			{/if}
 			<div class="ml-auto flex items-center gap-1">
 				{#if asksHeardAbout}
-					<div transition:fade={{ duration: 150 }}>
+					<div transition:fade={{ duration: motionOff() ? 0 : 150 }}>
 						<Button variant="ghost" size="lg" class="text-fg-secondary" onclick={skipHeardAbout}>
 							Skip
 						</Button>
