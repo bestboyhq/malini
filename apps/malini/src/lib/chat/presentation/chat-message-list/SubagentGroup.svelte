@@ -2,11 +2,12 @@
 	import { untrack } from 'svelte';
 	import { quartOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fade, slide } from 'svelte/transition';
+	import { slide } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import type { SubagentGroup } from '../activity-group';
+	import { motionMs, revealFade } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import type { RunGroup } from '../render-state';
 	import ToolLabel from '../ToolLabel.svelte';
@@ -86,7 +87,7 @@
 				<span
 					class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
 					data-testid="subagent-group-meta"
-					in:fade={{ duration: 190 }}
+					in:revealFade
 				>
 					{meta}
 				</span>
@@ -98,7 +99,10 @@
 		<div
 			class="mt-1 flex flex-col gap-2 pl-5.5"
 			data-testid="subagent-group-agents"
-			transition:slide={{ duration: prefersReducedMotion.current ? 0 : 240, easing: quartOut }}
+			transition:slide={{
+				duration: prefersReducedMotion.current ? 0 : motionMs(240),
+				easing: quartOut,
+			}}
 		>
 			{#each group.agents as agent (agent.key)}
 				<SubagentRow item={agent} {run} />

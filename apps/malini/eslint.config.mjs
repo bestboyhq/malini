@@ -88,6 +88,7 @@ export default [
 			'@malini/desktop/no-raw-form-control': 'error',
 			'@malini/desktop/no-native-title-attributes': 'error',
 			'@malini/desktop/no-bespoke-overlays': 'error',
+			'@malini/desktop/no-motion-while-hidden': 'error',
 			...TOKEN_RULES,
 		},
 	},

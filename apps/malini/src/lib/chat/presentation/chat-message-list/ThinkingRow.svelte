@@ -5,7 +5,7 @@
 	import { fly } from 'svelte/transition';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
-	import { arrivalMotion } from '../arrival-motion';
+	import { arrivalMotion, motionMs } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import UnfoldText from '../UnfoldText.svelte';
@@ -44,7 +44,7 @@
 			const gliding = box.getAnimations().length > 0;
 			const from = gliding ? box.getBoundingClientRect().width : width;
 			width = content.offsetWidth;
-			if (from === width || prefersReducedMotion.current) return;
+			if (from === width || prefersReducedMotion.current || document.hidden) return;
 			const { durationMs, easing } = arrivalMotion();
 			box.animate([{ width: `${from}px` }, { width: `${width}px` }], {
 				duration: durationMs,
@@ -74,8 +74,8 @@
 				{#key live}
 					<span
 						class="whitespace-nowrap [grid-area:1/1]"
-						in:fly={{ y: flip, duration: 260, easing: cubicOut }}
-						out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
+						in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
+						out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
 					>
 						{#if live}
 							<ShimmerText text="Thinking" />
@@ -93,8 +93,8 @@
 			{#key lineKey}
 				<span
 					class="text-fg-tertiary/75 truncate [grid-area:1/1]"
-					in:fly={{ y: flip, duration: 260, easing: cubicOut }}
-					out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
+					in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
+					out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
 				>
 					<UnfoldText text={line.line} unfold={live && lineKey !== mountedLineKey} />
 				</span>

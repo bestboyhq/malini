@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { fade } from 'svelte/transition';
 	import { Sensitive, sensitiveSegmentsAcross } from '$hyper-ui/components/sensitive';
+	import { revealFade } from './arrival-motion';
 
 	interface Props {
 		text: string;
@@ -39,7 +39,7 @@
 	});
 </script>
 
-{#each parts.slice(0, shown) as segments, index (index)}<span in:fade={{ duration: 190 }}>
+{#each parts.slice(0, shown) as segments, index (index)}<span in:revealFade>
 		{#each segments as segment}{#if segment.kind}<Sensitive
 					kind={segment.kind}
 					text={segment.text}

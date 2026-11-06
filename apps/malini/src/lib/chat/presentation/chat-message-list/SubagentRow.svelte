@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { quartOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fade, slide } from 'svelte/transition';
+	import { slide } from 'svelte/transition';
 	import { stopBackgroundTaskCommand } from '$lib/chat/application/commands/stop-background-task.command';
 	import { agentTaskOf } from '$lib/chat/domain/background-work';
 	import { Button } from '$hyper-ui/components/button';
@@ -11,6 +11,7 @@
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { motionMs, revealFade } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import ToolLabel from '../ToolLabel.svelte';
@@ -113,7 +114,7 @@
 				<span
 					class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
 					data-testid="subagent-meta"
-					in:fade={{ duration: 190 }}
+					in:revealFade
 				>
 					{meta}
 				</span>
@@ -140,7 +141,10 @@
 		<div
 			class="border-surface-100-border mt-1 mb-2 ml-1.5 flex flex-col gap-2 border-l pl-3.5"
 			data-testid="subagent-steps"
-			transition:slide={{ duration: prefersReducedMotion.current ? 0 : 240, easing: quartOut }}
+			transition:slide={{
+				duration: prefersReducedMotion.current ? 0 : motionMs(240),
+				easing: quartOut,
+			}}
 		>
 			{#if prompt}
 				<ScrollableDiv class="bg-surface-50 max-h-52 rounded" viewportClass="max-h-52">
@@ -159,7 +163,7 @@
 				<div
 					class="text-fg-secondary text-sm leading-relaxed select-text"
 					data-testid="subagent-result"
-					in:fade={{ duration: 190 }}
+					in:revealFade
 				>
 					<MarkdownText
 						text={result}

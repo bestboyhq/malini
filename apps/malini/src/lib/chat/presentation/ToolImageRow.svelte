@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
 	import {
 		explainUnavailableImageCommand,
 		previewWorkstreamImageCommand,
@@ -11,6 +10,7 @@
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
+	import { revealFade } from './arrival-motion';
 	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from './inline-prompt-chips';
 	import type { ToolImageRead } from './tool-image-read';
 	import { galleryImageLabel } from './workstream-images';
@@ -150,10 +150,7 @@
 	{/if}
 
 	{#if durationLabel}
-		<span
-			class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
-			in:fade={{ duration: 190 }}
-		>
+		<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums" in:revealFade>
 			{durationLabel}
 		</span>
 	{/if}
