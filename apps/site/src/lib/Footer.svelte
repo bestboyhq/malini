@@ -2,7 +2,8 @@
 	import { asset } from '$app/paths';
 	import { GitHubIcon } from '@malini/hyper-ui/icons';
 	import Arrow from './Arrow.svelte';
-	import { GITHUB_URL, HOME, isExternal, SITEMAP } from './links';
+	import { HOME, isExternal, SITEMAP } from './links';
+	import { GITHUB_URL } from './urls';
 	import ThemeSwitcher from './ThemeSwitcher.svelte';
 
 	let { sitemap = false }: { sitemap?: boolean } = $props();

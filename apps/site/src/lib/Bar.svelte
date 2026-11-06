@@ -4,15 +4,16 @@
 	import type { TransitionConfig } from 'svelte/transition';
 	import Arrow from './Arrow.svelte';
 	import {
+		APPS,
 		BESTBOY_URL,
 		docHref,
 		DOWNLOAD_URL,
-		GITHUB_URL,
-		HOME,
 		isExternal,
 		MENUS,
 		type Link,
+		type Menu,
 	} from './links';
+	import { GITHUB_URL } from './urls';
 	import {
 		CLICK_GRACE_MS,
 		drop,
@@ -32,17 +33,19 @@
 	let openedAt = 0;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let menus = $state<HTMLElement>();
+	let brand = $state<HTMLElement>();
 	let sheet = $state<HTMLElement>();
 	let size = $state<{ w: number; h: number; from: number }>();
 	const triggers: Record<string, HTMLButtonElement | undefined> = $state({});
 	const panes: Record<string, HTMLElement | undefined> = $state({});
 
 	const order = (id: string): number => MENUS.findIndex((menu) => menu.id === id);
+	const inside = (node: Node): boolean => Boolean(menus?.contains(node) || brand?.contains(node));
 
 	function show(id: string): void {
 		clearTimeout(timer);
 		if (open === id) return;
-		moving = open !== null;
+		moving = open !== null && open !== APPS.id && id !== APPS.id;
 		if (open) dir = order(id) > order(open) ? 1 : -1;
 		openedAt = performance.now();
 		open = id;
@@ -92,14 +95,12 @@
 		const all = links(id);
 		if (event.target !== (event.shiftKey ? all[0] : all.at(-1))) return;
 		const name = triggers[id];
-		if (!name) return;
+		const next = event.shiftKey
+			? name
+			: name?.closest('li')?.nextElementSibling?.querySelector<HTMLElement>('a, button');
+		if (!next) return;
 		event.preventDefault();
-		if (event.shiftKey) {
-			name.focus();
-			return;
-		}
-		const next = name.closest('li')?.nextElementSibling?.querySelector<HTMLElement>('a, button');
-		(next ?? name).focus();
+		next.focus();
 	}
 
 	function focused(event: FocusEvent): void {
@@ -110,14 +111,14 @@
 
 	function blurred(event: FocusEvent): void {
 		const to = event.relatedTarget;
-		if (to instanceof Node && !menus?.contains(to)) close();
+		if (to instanceof Node && !inside(to)) close();
 	}
 
 	$effect(() => {
 		const id = open;
 		if (!id) return;
 		const press = (event: PointerEvent): void => {
-			if (!(event.target instanceof Node) || !menus?.contains(event.target)) close();
+			if (!(event.target instanceof Node) || !inside(event.target)) close();
 		};
 		const key = (event: KeyboardEvent): void => {
 			if (event.key !== 'Escape') return;
@@ -135,12 +136,21 @@
 	$effect(() => {
 		const pane = open ? panes[open] : undefined;
 		const name = open ? triggers[open] : undefined;
-		if (pane && name)
-			size = {
-				w: pane.offsetWidth,
-				h: pane.offsetHeight,
-				from: pane.offsetLeft + pane.offsetWidth - (name.offsetLeft + name.offsetWidth / 2),
-			};
+		if (!pane || !name) return;
+		if (open === APPS.id) {
+			const at = name.getBoundingClientRect();
+			pane.style.setProperty(
+				'--from',
+				`${name.offsetLeft + name.offsetWidth / 2 - pane.offsetLeft}px`,
+			);
+			pane.style.setProperty('--name-x', `${at.left + at.width / 2}px`);
+			return;
+		}
+		size = {
+			w: pane.offsetWidth,
+			h: pane.offsetHeight,
+			from: pane.offsetLeft + pane.offsetWidth - (name.offsetLeft + name.offsetWidth / 2),
+		};
 	});
 
 	const fall = (_node: Element): Drop => (moving ? { duration: 0 } : drop());
@@ -175,6 +185,7 @@
 		class={['item', { plain }]}
 		href={link.href}
 		data-sveltekit-reload={reloads(link)}
+		aria-current={link.current ? 'true' : undefined}
 		onclick={close}
 		onkeydown={(event) => linkKey(id, event)}
 	>
@@ -188,7 +199,46 @@
 			</span>
 			{#if link.line && !plain}<span class="item-line">{link.line}</span>{/if}
 		</span>
+		{#if link.current}
+			<svg class="here" viewBox="0 0 16 16" aria-hidden="true">
+				<path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+			</svg>
+		{/if}
 	</a>
+{/snippet}
+
+{#snippet contents(menu: Menu)}
+	<div class="slide" in:slide out:slide>
+		<div class="card">
+			{#each menu.columns as column, index (index)}
+				<div class={['column', { plain: column.plain }]}>
+					{#if column.label}<p class="label">{column.label}</p>{/if}
+					<ul>
+						{#each column.links as link (link.href)}
+							<li>{@render item(menu.id, link, column.plain)}</li>
+						{/each}
+					</ul>
+				</div>
+			{/each}
+		</div>
+		{#if menu.strip}
+			<p class="strip">
+				<span>
+					<b>{menu.strip.lead}</b>
+					{menu.strip.text}
+				</span>
+				<a
+					href={menu.strip.link.href}
+					data-sveltekit-reload
+					onclick={close}
+					onkeydown={(event) => linkKey(menu.id, event)}
+				>
+					{menu.strip.link.title}
+					<Arrow class="ahead" />
+				</a>
+			</p>
+		{/if}
+	</div>
 {/snippet}
 
 <header class="topbar" data-place="bar">
@@ -198,16 +248,45 @@
 		style:--menu-h={size ? `${size.h}px` : undefined}
 		style:--menu-from={size ? `${size.from}px` : undefined}
 	>
-		<div class="brand">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="brand"
+			bind:this={brand}
+			onpointerenter={back}
+			onpointerleave={leave}
+			onfocusin={focused}
+			onfocusout={blurred}
+		>
 			<a class="mark" href={BESTBOY_URL} data-sveltekit-reload>
-				<img class="app-icon" src={asset('/icons/bestboy.webp')} width="22" height="22" alt="" />
-				<span class="org">Bestboy</span>
+				<img
+					class="app-icon"
+					src={asset('/icons/bestboy.webp')}
+					width="22"
+					height="22"
+					alt="Bestboy"
+				/>
+				<span class="org" aria-hidden="true">Bestboy</span>
 			</a>
 			<span class="slash" aria-hidden="true">/</span>
-			<a class="mark" href={HOME}>
+			<button
+				bind:this={triggers[APPS.id]}
+				class="mark switch"
+				type="button"
+				aria-expanded={open === APPS.id}
+				aria-controls="bar-{APPS.id}"
+				aria-label="Malini, switch app"
+				onpointerenter={(event) => rest(APPS.id, event)}
+				onclick={() => toggle(APPS.id)}
+				onkeydown={(event) => nameKey(APPS.id, event)}
+			>
 				<img class="app-icon" src={asset('/icons/malini.webp')} width="22" height="22" alt="" />
-				Malini
-			</a>
+				Malini{@render chevron()}
+			</button>
+			{#if open === APPS.id}
+				<div bind:this={panes[APPS.id]} id="bar-{APPS.id}" class="pane apps" transition:fall>
+					{@render contents(APPS)}
+				</div>
+			{/if}
 		</div>
 
 		<nav class="nav" aria-label="Malini">
@@ -237,37 +316,7 @@
 							</button>
 							{#if open === menu.id}
 								<div bind:this={panes[menu.id]} id="bar-{menu.id}" class="pane" transition:fall>
-									<div class="slide" in:slide out:slide>
-										<div class="card">
-											{#each menu.columns as column (column.label)}
-												<div class={['column', { plain: column.plain }]}>
-													<p class="label">{column.label}</p>
-													<ul>
-														{#each column.links as link (link.href)}
-															<li>{@render item(menu.id, link, column.plain)}</li>
-														{/each}
-													</ul>
-												</div>
-											{/each}
-										</div>
-										{#if menu.strip}
-											<p class="strip">
-												<span>
-													<b>{menu.strip.lead}</b>
-													{menu.strip.text}
-												</span>
-												<a
-													href={menu.strip.link.href}
-													data-sveltekit-reload
-													onclick={close}
-													onkeydown={(event) => linkKey(menu.id, event)}
-												>
-													{menu.strip.link.title}
-													<Arrow class="ahead" />
-												</a>
-											</p>
-										{/if}
-									</div>
+									{@render contents(menu)}
 								</div>
 							{/if}
 						</li>
@@ -278,10 +327,10 @@
 						</a>
 					</li>
 					<li>
-						<a class="link" href={GITHUB_URL}><GitHubIcon size={15} />GitHub</a>
+						<a class="link" href={GITHUB_URL}><GitHubIcon size={15} />Source</a>
 					</li>
 				</ul>
-				{#if open}
+				{#if open && open !== APPS.id}
 					<div class="shell" aria-hidden="true" transition:fall></div>
 				{/if}
 			</div>
@@ -321,7 +370,7 @@
 				{/each}
 				<div class="sheet-group">
 					<a class="row-link" href={docHref('/docs')} onclick={fold}>Docs</a>
-					<a class="row-link" href={GITHUB_URL} onclick={fold}><GitHubIcon size={15} />GitHub</a>
+					<a class="row-link" href={GITHUB_URL} onclick={fold}><GitHubIcon size={15} />Source</a>
 				</div>
 			</div>
 		</nav>
@@ -398,6 +447,26 @@
 
 	.slash {
 		color: var(--fg-faint);
+	}
+
+	.switch {
+		height: 32px;
+		margin-inline: -5px -8px;
+		padding: 0 8px 0 5px;
+		border: 0;
+		border-radius: 10px;
+		background: none;
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	.switch .chev {
+		margin: 0 0 0 -3px;
+	}
+
+	.switch:active,
+	.switch[aria-expanded='true'] {
+		background: var(--surface-hover);
 	}
 
 	.nav {
@@ -521,6 +590,29 @@
 		clip-path: inset(0 0 max(0px, 100% - var(--menu-h)) max(0px, 100% - var(--menu-w)) round 16px);
 	}
 
+	.pane.apps {
+		right: auto;
+		left: max(var(--pad), env(safe-area-inset-left));
+		transform-origin: var(--from, 50%) 0;
+		clip-path: none;
+		border-radius: 16px;
+		background: var(--surface-root);
+		box-shadow:
+			0 0 0 1px var(--ring-faint),
+			0 1px 1px rgb(0 0 0 / 0.12),
+			0 16px 40px -8px rgb(0 0 0 / 0.32);
+	}
+
+	.pane.apps::before {
+		content: '';
+		position: absolute;
+		inset: -22px 0 100%;
+	}
+
+	.pane.apps .column {
+		padding: 10px;
+	}
+
 	.slide {
 		padding: 6px;
 	}
@@ -606,6 +698,19 @@
 		font-family: var(--mono);
 		font-size: 11px;
 		font-weight: 400;
+	}
+
+	.here {
+		flex: none;
+		align-self: center;
+		width: 16px;
+		height: 16px;
+		margin-left: auto;
+		fill: none;
+		stroke: var(--fg-secondary);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
 	.item-line {
@@ -772,6 +877,10 @@
 			color: var(--fg-default);
 		}
 
+		.switch:hover {
+			background: var(--surface-hover);
+		}
+
 		.item:hover {
 			background: var(--surface-hover);
 		}
@@ -807,6 +916,23 @@
 
 		.burger {
 			display: grid;
+		}
+
+		.pane.apps {
+			position: fixed;
+			inset: calc(var(--bar-h) + 8px) max(8px, env(safe-area-inset-right)) auto
+				max(8px, env(safe-area-inset-left));
+			width: auto;
+			transform-origin: calc(var(--name-x, 50%) - max(8px, env(safe-area-inset-left))) 0;
+		}
+
+		.pane.apps .column {
+			flex: 1;
+		}
+
+		.pane.apps .strip {
+			flex-wrap: wrap;
+			gap: 4px 24px;
 		}
 	}
 

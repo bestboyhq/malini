@@ -9,7 +9,8 @@
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
-	import { docHref, DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '$lib/links';
+	import { docHref, DOWNLOAD_URL, SITE_DESCRIPTION } from '$lib/links';
+	import { GITHUB_URL } from '$lib/urls';
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 

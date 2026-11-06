@@ -87,6 +87,9 @@ test('slow frames on the page, main-thread stalls and a GPU stall land in the fr
 			const busyUntil = cpuMs() + 150;
 			while (cpuMs() < busyUntil);
 		});
+		await expect
+			.poll(() => causesCaught(journaled(app.userDataDir))['mainThreadWork'], { timeout: 10_000 })
+			.toBe(true);
 		const main = electronApp.process().pid;
 		expect(main).toEqual(expect.any(Number));
 		if (main !== undefined) await pause(main, 300);

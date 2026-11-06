@@ -1,5 +1,5 @@
-import { dev } from '$app/environment';
 import { asset, resolve } from '$app/paths';
+import { GITHUB_URL } from './urls';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
@@ -7,19 +7,12 @@ export const SITE_DESCRIPTION =
 
 export const DOWNLOAD_URL =
 	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
-export const GITHUB_URL = 'https://github.com/bestboyhq/malini';
 export const BESTBOY_URL = 'https://bestboy.dev';
 
 export const HOME = resolve('/').replace(/\/$/u, '');
 
 export function docHref(path: string): string {
 	return `${HOME}${path}`;
-}
-
-export type DemoPlay = 'hero' | 'tour' | 'sweep' | 'cycle';
-
-export function demoHref(page: 'app' | 'card', hash: string, play?: DemoPlay): string {
-	return `${asset(dev ? `/demo/${page}.html` : `/demo/${page}`)}${play ? `?play=${play}` : ''}#${hash}`;
 }
 
 export type Link = Readonly<{
@@ -29,12 +22,13 @@ export type Link = Readonly<{
 	icon?: string;
 	tag?: string;
 	reload?: boolean;
+	current?: boolean;
 }>;
 
 export type Menu = Readonly<{
 	id: string;
 	title: string;
-	columns: readonly Readonly<{ label: string; plain?: boolean; links: readonly Link[] }>[];
+	columns: readonly Readonly<{ label?: string; plain?: boolean; links: readonly Link[] }>[];
 	strip?: Readonly<{ lead: string; text: string; link: Link }>;
 }>;
 
@@ -44,7 +38,47 @@ const LLMS: Link = { title: 'llms.txt', href: resolve('/llms.txt'), reload: true
 const LLMS_FULL: Link = { title: 'llms-full.txt', href: resolve('/llms-full.txt'), reload: true };
 const MARKDOWN: Link = { title: 'Docs as markdown', href: `${docHref('/docs')}.md`, reload: true };
 
-const BESTBOY_GITHUB = 'https://github.com/bestboyhq';
+const RELEASES: Link = { title: 'Releases', href: `${GITHUB_URL}/releases` };
+const DECISIONS: Link = { title: 'Decisions', href: `${GITHUB_URL}/tree/main/docs/adr` };
+const ISSUES: Link = { title: 'Issues', href: `${GITHUB_URL}/issues` };
+
+export const APPS: Menu = {
+	id: 'apps',
+	title: 'Malini',
+	columns: [
+		{
+			links: [
+				{
+					title: 'Tony',
+					tag: 'Say it',
+					href: `${BESTBOY_URL}/tony`,
+					icon: asset('/icons/tony.webp'),
+					line: 'Speak to your agents.',
+				},
+				{
+					title: 'Malini',
+					tag: 'Build it',
+					href: HOME,
+					icon: asset('/icons/malini.webp'),
+					line: 'Ship and automate them.',
+					current: true,
+				},
+				{
+					title: 'Grip',
+					tag: 'Share it',
+					href: `${BESTBOY_URL}/grip`,
+					icon: asset('/icons/grip.webp'),
+					line: 'Showcase the results.',
+				},
+			],
+		},
+	],
+	strip: {
+		lead: 'The suite',
+		text: 'Use one, or all three together',
+		link: { title: 'How they fit', href: `${BESTBOY_URL}/#turn` },
+	},
+};
 
 export const MENUS: readonly Menu[] = [
 	{
@@ -52,45 +86,30 @@ export const MENUS: readonly Menu[] = [
 		title: 'Product',
 		columns: [
 			{
-				label: 'Apps',
+				label: 'Build',
 				links: [
-					{
-						title: 'Tony',
-						tag: 'Say it',
-						href: `${BESTBOY_URL}/tony`,
-						icon: asset('/icons/tony.webp'),
-						line: 'Hold a key. Speak. Let go.',
-					},
-					{
-						title: 'Malini',
-						tag: 'Build it',
-						href: HOME,
-						icon: asset('/icons/malini.webp'),
-						line: 'Run many agents. Come back to merged pull requests.',
-					},
-					{
-						title: 'Grip',
-						tag: 'Share it',
-						href: `${BESTBOY_URL}/grip`,
-						icon: asset('/icons/grip.webp'),
-						line: 'Record your screen. Get a video worth watching.',
-					},
+					{ title: 'Chats', href: `${HOME}#chats`, line: 'Plan across every repository' },
+					{ title: 'Browser', href: `${HOME}#browser`, line: 'Tabs you and the agent share' },
+					{ title: 'Experiments', href: `${HOME}#variants`, line: 'Try a few, build the winner' },
 				],
 			},
 			{
-				label: 'More',
-				plain: true,
+				label: 'Review and ship',
 				links: [
-					{ title: 'How they fit together', href: `${BESTBOY_URL}/#turn` },
-					{ title: 'Questions', href: `${BESTBOY_URL}/#faq` },
+					{ title: 'Reports', href: `${HOME}#report`, line: 'Every turn, read in seconds' },
+					{
+						title: 'Before and after',
+						href: `${HOME}#compare`,
+						line: 'Wipe, flip, or diff what changed',
+					},
+					{
+						title: 'Merge queue',
+						href: `${HOME}#merge`,
+						line: 'Fixes checks and reviews, then merges',
+					},
 				],
 			},
 		],
-		strip: {
-			lead: 'The suite',
-			text: 'Use one, or all three together',
-			link: { title: 'Download', href: `${BESTBOY_URL}/#top` },
-		},
 	},
 	{
 		id: 'resources',
@@ -100,38 +119,36 @@ export const MENUS: readonly Menu[] = [
 				label: 'Docs',
 				links: [
 					{
-						title: 'Malini docs',
-						href: docHref('/docs'),
-						line: 'Install, workstreams, jobs, and extensions',
+						title: 'Install',
+						href: docHref('/docs/install'),
+						line: 'Connect Claude Code and GitHub',
 					},
 					{
-						title: 'Tony docs',
-						href: `${BESTBOY_URL}/tony/docs`,
-						line: 'Install, languages, your words, and privacy',
+						title: 'Agent tools',
+						href: docHref('/docs/agent-tools'),
+						line: 'A shared browser, secrets, and jobs',
 					},
 					{
-						title: 'Grip on GitHub',
-						href: `${BESTBOY_GITHUB}/grip#readme`,
-						line: 'Capture, edit, and share, in its README',
+						title: 'Extensions',
+						href: docHref('/docs/extensions'),
+						line: 'MCP servers and skills for every agent',
+					},
+					{
+						title: 'Events',
+						href: docHref('/docs/reference/events'),
+						line: 'Every event a job can start on',
 					},
 				],
 			},
 			{
 				label: 'For agents',
 				links: [
-					{
-						title: 'llms.txt',
-						href: `${BESTBOY_URL}/llms.txt`,
-						line: "Every app's docs, as markdown for agents",
-					},
-					{
-						title: 'Malini in one file',
-						href: LLMS_FULL.href,
-						reload: true,
-						line: "All its docs at once, for an agent's context",
-					},
+					{ ...LLMS, line: 'Every docs page, as markdown' },
+					{ ...LLMS_FULL, line: 'All the docs in one file, for agents' },
+					{ ...MARKDOWN, line: 'Add .md to any docs page' },
 				],
 			},
+			{ label: 'Project', plain: true, links: [RELEASES, DECISIONS, ISSUES] },
 		],
 	},
 ];
@@ -168,9 +185,9 @@ export const SITEMAP: readonly Readonly<{ label: string; links: readonly Link[] 
 		label: 'Project',
 		links: [
 			{ title: 'Source code', href: GITHUB_URL },
-			{ title: 'Releases', href: `${GITHUB_URL}/releases` },
-			{ title: 'Decisions', href: `${GITHUB_URL}/tree/main/docs/adr` },
-			{ title: 'Issues', href: `${GITHUB_URL}/issues` },
+			RELEASES,
+			DECISIONS,
+			ISSUES,
 			{ title: 'bestboy.dev', href: BESTBOY_URL },
 		],
 	},
