@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
 	import { Icon } from '$hyper-ui/icons';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
+	import { revealFade } from './arrival-motion';
 	import DiffViewer from './DiffViewer.svelte';
 	import EditDiffPreview from './EditDiffPreview.svelte';
 	import FilePreviewHeader from './FilePreviewHeader.svelte';
@@ -161,10 +161,7 @@
 
 {#snippet duration()}
 	{#if durationLabel}
-		<span
-			class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
-			in:fade={{ duration: 190 }}
-		>
+		<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums" in:revealFade>
 			{durationLabel}
 		</span>
 	{/if}
@@ -240,7 +237,7 @@
 				<span
 					class="text-3xs text-fg-tertiary/70 shrink-0 font-mono"
 					data-testid="tool-blocked"
-					in:fade={{ duration: 190 }}
+					in:revealFade
 				>
 					{blockedLabel(blockedReason)}
 				</span>

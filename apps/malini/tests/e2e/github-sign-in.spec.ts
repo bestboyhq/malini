@@ -5,6 +5,7 @@ import {
 	GITHUB_DEVICE_APPROVED,
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	connectFolder,
 	expectCleanConsole,
 	invoke,
 	launchMalini,
@@ -106,7 +107,7 @@ test('after setup, a signed-out clone dialog asks only to connect GitHub, then l
 			key: 'onboarding.finished-at',
 			value: new Date().toISOString(),
 		});
-		await page.reload();
+		await connectFolder(app, 'pasture');
 		await page.getByRole('button', { name: 'Find a repository' }).first().click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
 		const github = dialog.getByTestId('github-setup');

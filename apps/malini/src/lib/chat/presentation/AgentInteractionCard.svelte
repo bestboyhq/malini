@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
 	import { fade, type TransitionConfig } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { decideApprovalCommand } from '$lib/chat/application/commands/decide-approval.command';
@@ -31,11 +32,8 @@
 
 	let { item, bare = false }: Props = $props();
 
-	const reducedMotion = (): boolean =>
-		window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 	function collapseAway(node: HTMLElement): TransitionConfig {
-		if (reducedMotion()) return { duration: 0 };
+		if (motionOff()) return { duration: 0 };
 		Object.assign(node.style, { position: 'absolute', top: '0', insetInline: '0' });
 		return {
 			duration: 220,
@@ -133,7 +131,7 @@
 
 {#if settled}
 	<div
-		in:fade={{ duration: reducedMotion() ? 0 : 180, delay: 60 }}
+		in:fade={motionOff() ? { duration: 0 } : { duration: 180, delay: 60 }}
 		class="text-fg-tertiary flex min-h-6 w-full items-center gap-2 text-sm"
 		data-message-kind={item.kind}
 		data-testid={`agent-${item.kind}-card`}

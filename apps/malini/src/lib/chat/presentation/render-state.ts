@@ -11,6 +11,7 @@ import {
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
+import { isBackgroundAgent } from './tool-display-name';
 import {
 	undoTargetsByRun,
 	type RunUndoTarget,
@@ -30,6 +31,7 @@ import {
 export type ToolAggregate = {
 	name: string;
 	toolCallId?: string;
+	parentToolCallId?: string;
 	startedAt: number | null;
 	completedAt: number | null;
 	input: unknown;
@@ -69,7 +71,7 @@ export function formatToolDuration(durationMs: number): string {
 	return `${seconds.toFixed(seconds < 10 ? 2 : 1)}s`;
 }
 
-type OpenToolAggregate = ToolAggregate & { ownerRunId: string; startedSeq: number };
+type OpenToolAggregate = ToolAggregate & { ownerRunId: string; runId: string; startedSeq: number };
 
 export type RenderItem =
 	| {
@@ -349,6 +351,17 @@ export function truncation(
 	};
 }
 
+export function toolParent(
+	event: Readonly<{ parentToolCallId?: string }>,
+): Pick<ToolAggregate, 'parentToolCallId'> {
+	return event.parentToolCallId ? { parentToolCallId: event.parentToolCallId } : {};
+}
+
+export function outlivesHandoff(tool: ToolAggregate, carried: ReadonlySet<string>): boolean {
+	if (isBackgroundAgent(tool.name, tool.input)) return true;
+	return tool.parentToolCallId !== undefined && carried.has(tool.parentToolCallId);
+}
+
 export function toolFailure(
 	event: Readonly<{ error: string; autoModeReason?: string }>,
 ): Pick<ToolAggregate, 'error' | 'autoModeReason'> {
@@ -423,6 +436,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 	const runs: RunGroup[] = [];
 	const runById = new Map<string, RunGroup>();
 	const openTools = new Map<string, OpenToolAggregate>();
+	let handedOffTools: OpenToolAggregate[] = [];
 	const settledTools = new Set<string>();
 	const seenInteractions = new Set<string>();
 	const questionTools = new Map<string, Extract<RenderItem, { kind: 'question' }>>();
@@ -513,11 +527,19 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		return true;
 	}
 
-	function discardOpenToolsForRun(runId: string): void {
+	function ownerRun(runId: string, parentToolCallId: string | undefined): string {
+		if (!parentToolCallId) return runId;
+		return openTools.get(openToolLookupKey(runId, '', parentToolCallId))?.ownerRunId ?? runId;
+	}
+
+	function discardOpenToolsForRun(runId: string, handedOff: boolean): void {
+		const carried = new Set<string>();
 		for (const [key, tool] of openTools) {
-			if (tool.ownerRunId === runId) {
-				openTools.delete(key);
-			}
+			if (tool.runId !== runId) continue;
+			openTools.delete(key);
+			if (!handedOff || !outlivesHandoff(tool, carried)) continue;
+			if (tool.toolCallId) carried.add(tool.toolCallId);
+			handedOffTools.push(tool);
 		}
 	}
 
@@ -530,6 +552,10 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		switch (event.type) {
 			case 'run.started': {
 				runFor(runId);
+				for (const tool of handedOffTools) {
+					openTools.set(openToolLookupKey(runId, tool.name, tool.toolCallId), { ...tool, runId });
+				}
+				handedOffTools = [];
 				break;
 			}
 			case 'user.message': {
@@ -584,10 +610,12 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 			}
 			case 'tool.started': {
 				openTools.set(openToolLookupKey(runId, event.name, event.toolCallId), {
-					ownerRunId: runId,
+					ownerRunId: ownerRun(runId, event.parentToolCallId),
+					runId,
 					startedSeq: env.seq,
 					name: event.name,
 					...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+					...toolParent(event),
 					startedAt: event.ts ?? null,
 					completedAt: null,
 					input: event.input,
@@ -608,21 +636,23 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 					if (event.outputLength !== undefined) existing.outputLength = event.outputLength;
 					existing.status = 'completed';
 					openTools.delete(lookupKey);
-					const { ownerRunId: _ownerRunId, startedSeq: _startedSeq, ...tool } = existing;
-					push(runId, {
+					const { ownerRunId, runId: _liveRunId, startedSeq, ...tool } = existing;
+					push(ownerRunId, {
 						kind: 'tool',
-						key: stableToolKey(runId, event.name, event.toolCallId, existing.startedSeq),
-						seq: existing.startedSeq,
+						key: stableToolKey(ownerRunId, event.name, event.toolCallId, startedSeq),
+						seq: startedSeq,
 						tool,
 					});
 				} else {
-					push(runId, {
+					const owner = ownerRun(runId, event.parentToolCallId);
+					push(owner, {
 						kind: 'tool',
-						key: stableToolKey(runId, event.name, event.toolCallId, env.seq),
+						key: stableToolKey(owner, event.name, event.toolCallId, env.seq),
 						seq: env.seq,
 						tool: {
 							name: event.name,
 							...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+							...toolParent(event),
 							startedAt: null,
 							completedAt: event.ts ?? null,
 							input: undefined,
@@ -644,21 +674,23 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 					existing.status = 'failed';
 					Object.assign(existing, toolFailure(event));
 					openTools.delete(lookupKey);
-					const { ownerRunId: _ownerRunId, startedSeq: _startedSeq, ...tool } = existing;
-					push(runId, {
+					const { ownerRunId, runId: _liveRunId, startedSeq, ...tool } = existing;
+					push(ownerRunId, {
 						kind: 'tool',
-						key: stableToolKey(runId, event.name, event.toolCallId, existing.startedSeq),
-						seq: existing.startedSeq,
+						key: stableToolKey(ownerRunId, event.name, event.toolCallId, startedSeq),
+						seq: startedSeq,
 						tool,
 					});
 				} else {
-					push(runId, {
+					const owner = ownerRun(runId, event.parentToolCallId);
+					push(owner, {
 						kind: 'tool',
-						key: stableToolKey(runId, event.name, event.toolCallId, env.seq),
+						key: stableToolKey(owner, event.name, event.toolCallId, env.seq),
 						seq: env.seq,
 						tool: {
 							name: event.name,
 							...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+							...toolParent(event),
 							startedAt: null,
 							completedAt: event.ts ?? null,
 							input: undefined,
@@ -677,9 +709,10 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				break;
 			}
 			case 'command.completed': {
-				push(runId, {
+				const owner = ownerRun(runId, event.parentToolCallId);
+				push(owner, {
 					kind: 'command',
-					key: stableCommandKey(runId, env.seq),
+					key: stableCommandKey(owner, env.seq),
 					seq: env.seq,
 					command: event.command,
 					...(event.description ? { description: event.description } : {}),
@@ -688,7 +721,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				break;
 			}
 			case 'file.changed': {
-				push(runId, {
+				push(ownerRun(runId, event.parentToolCallId), {
 					kind: 'file',
 					key: `${key}-${event.path}`,
 					seq: env.seq,
@@ -738,7 +771,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				if (group.terminal !== null) {
 					break;
 				}
-				discardOpenToolsForRun(runId);
+				discardOpenToolsForRun(runId, event.handedOff === true);
 				terminal = 'completed';
 				group.terminal = 'completed';
 				group.terminalText = event.summary;
@@ -757,7 +790,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				if (group.terminal !== null) {
 					break;
 				}
-				discardOpenToolsForRun(runId);
+				discardOpenToolsForRun(runId, event.handedOff === true);
 				terminal = 'failed';
 				Object.assign(group, failedRunState(event));
 				push(runId, {
@@ -787,12 +820,11 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		}
 	}
 
-	for (const [, openTool] of openTools) {
-		const { ownerRunId, startedSeq, ...tool } = openTool;
-		const group = runFor(ownerRunId);
-		if (group.terminal !== null) {
-			continue;
-		}
+	const lingering = [...openTools.values()].filter(
+		(tool) => (runById.get(tool.runId)?.terminal ?? null) === null,
+	);
+	for (const openTool of [...lingering, ...handedOffTools]) {
+		const { ownerRunId, runId: _liveRunId, startedSeq, ...tool } = openTool;
 		push(ownerRunId, {
 			kind: 'tool',
 			key: stableToolKey(ownerRunId, tool.name, tool.toolCallId, startedSeq),

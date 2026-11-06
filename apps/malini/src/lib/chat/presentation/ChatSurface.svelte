@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
 	import { quartOut } from 'svelte/easing';
-	import { fade, fly, slide, type SlideParams } from 'svelte/transition';
+	import { fly, slide, type SlideParams } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { Button } from '$hyper-ui/components/button';
 	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Icon } from '$hyper-ui/icons';
@@ -57,6 +58,7 @@
 	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
 	import { waitingElsewhereQuery } from '$lib/chat/application/queries/waiting-elsewhere.query.svelte';
+	import { trayWork } from '$lib/chat/domain/background-work';
 	import { isUncheckedApproval } from '$lib/chat/domain/child-requests';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
@@ -103,7 +105,6 @@
 		workstreamsCard: Snippet<[readonly string[]]>;
 		notice?: Snippet | undefined;
 		jobs?: Snippet | undefined;
-		welcome?: Snippet | undefined;
 	}
 
 	let {
@@ -117,7 +118,6 @@
 		workstreamsCard,
 		notice,
 		jobs,
-		welcome,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -155,6 +155,7 @@
 	const selection = $derived(activeModelQuery.data);
 	const profile = $derived(runProfileQuery.data);
 	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
+	const backgroundTray = $derived(trayWork(backgroundWork));
 	const handsOffBackgroundWork = $derived(
 		backgroundWork?.waiting === true && !(sessionId && pendingPromptQuery.data(sessionId)),
 	);
@@ -208,46 +209,17 @@
 	const footerHeight = $derived(Math.round(exactFooterHeight));
 	const composerHeight = $derived(Math.round(exactFooterHeight - (traySize?.[0]?.blockSize ?? 0)));
 	const trayHeight = $derived(footerHeight - composerHeight);
-	const WELCOME_RAISE_PX = 32;
-	const WELCOME_SETTLE_MS = 420;
-	let stageHeight = $state(0);
-	let welcomeHeight = $state(0);
-	let footerStack: HTMLElement | null = $state(null);
-	let welcomeLiftedBy = 0;
-	const welcomeLift = $derived(
-		welcome
-			? Math.max(0, Math.round((stageHeight - footerHeight + welcomeHeight) / 2) + WELCOME_RAISE_PX)
-			: 0,
-	);
-
-	$effect(() => {
-		const lift = welcomeLift;
-		if (
-			lift === 0 &&
-			welcomeLiftedBy > 0 &&
-			!window.matchMedia('(prefers-reduced-motion: reduce)').matches
-		) {
-			footerStack?.animate([{ translate: `0 ${-welcomeLiftedBy}px` }, { translate: '0 0' }], {
-				duration: WELCOME_SETTLE_MS,
-				easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
-			});
-		}
-		welcomeLiftedBy = lift;
-	});
 	let transcript: ChatMessageList | null = $state(null);
 	let timelineView: LeadTimeline | null = $state(null);
 	let contentBelow = $state(false);
 	let newContentBelow = $state(false);
 	const nudgeMotion = (): { y: number; duration: number } => ({
 		y: 4,
-		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140,
+		duration: motionOff() ? 0 : 140,
 	});
 	let presentationChanging = false;
 	const foldMotion = (): SlideParams => ({
-		duration:
-			presentationChanging || window.matchMedia('(prefers-reduced-motion: reduce)').matches
-				? 0
-				: 240,
+		duration: presentationChanging || motionOff() ? 0 : 240,
 		easing: quartOut,
 	});
 
@@ -464,22 +436,19 @@
 					data-presented-workstream-id={presentedWorkstreamId}
 					data-navigation-retained={retainingSourcePresentation ? 'true' : undefined}
 				>
-					{#if !welcome}
-						<ChatTabs
-							{workstreamId}
-							activeSessionId={freshChat ? null : (pendingSessionId ?? sessionId)}
-							fresh={freshChat}
-							planMode={profile.mode === 'plan'}
-							onnewchat={startFreshChatCommand}
-							onclosefresh={closeFreshChatCommand}
-							{oncloseworkstream}
-							freshCloseNavigationTarget={closeFreshNavigationTarget}
-						/>
-					{/if}
+					<ChatTabs
+						{workstreamId}
+						activeSessionId={freshChat ? null : (pendingSessionId ?? sessionId)}
+						fresh={freshChat}
+						planMode={profile.mode === 'plan'}
+						onnewchat={startFreshChatCommand}
+						onclosefresh={closeFreshChatCommand}
+						{oncloseworkstream}
+						freshCloseNavigationTarget={closeFreshNavigationTarget}
+					/>
 
 					<div
 						class="transcript-stage relative min-h-0 flex-1"
-						bind:clientHeight={stageHeight}
 						aria-busy={presentationPending}
 						data-session-switching={presentationPending ? 'true' : undefined}
 					>
@@ -487,9 +456,7 @@
 							class="absolute inset-0 z-0 flex min-h-0 flex-col"
 							inert={documentActive || undefined}
 						>
-							{#if stage === 'fresh' && welcome}
-								<div class="flex-1"></div>
-							{:else if stage === 'fresh'}
+							{#if stage === 'fresh'}
 								<FreshChatSuggestions
 									{workstreamId}
 									{draftScope}
@@ -562,9 +529,7 @@
 
 						<div
 							class="chat-footer-scrim absolute inset-x-0 bottom-0 z-20 pr-[var(--scrollbar-gutter)]"
-							bind:this={footerStack}
 							bind:borderBoxSize={footerSize}
-							style:translate={welcomeLift > 0 ? `0 ${-welcomeLift}px` : undefined}
 							inert={documentActive || undefined}
 							data-testid="chat-footer-stack"
 						>
@@ -590,7 +555,7 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundWork || jobs || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundTray || jobs || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -648,10 +613,10 @@
 													</div>
 												{/if}
 
-												{#if backgroundWork && sessionId}
+												{#if backgroundTray && sessionId}
 													<div transition:slide={foldMotion()}>
 														<BackgroundTaskList
-															work={backgroundWork}
+															work={backgroundTray}
 															onstop={(taskId) => stopBackgroundTaskCommand(sessionId, taskId)}
 														/>
 													</div>
@@ -704,11 +669,7 @@
 								<SecretRequestCard sessionId={secretsSessionId} />
 								<div
 									bind:this={composerSlot}
-									class={[
-										'mx-auto w-full transition-[max-width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
-										welcome ? 'max-w-[42rem]' : 'max-w-[52rem]',
-										composerHidden && 'hidden',
-									]}
+									class={['mx-auto w-full max-w-[52rem]', composerHidden && 'hidden']}
 								>
 									<ChatComposer
 										bind:this={composer}
@@ -722,30 +683,17 @@
 										{isRunning}
 										disabled={bootError !== null || presentationPending}
 										backendSelectionDisabled={bootError !== null || presentationPending}
-										placeholder={welcome
-											? 'What are you working on?'
-											: timeline
-												? openDecisions.length > 0
-													? 'Answer in your own words, or ask the lead anything…'
-													: 'Ask the lead anything…'
-												: undefined}
+										placeholder={timeline
+											? openDecisions.length > 0
+												? 'Answer in your own words, or ask the lead anything…'
+												: 'Ask the lead anything…'
+											: undefined}
 										oncancel={cancelRunCommand}
 										onbackendchange={selectModelCommand}
 										onprofilechange={selectRunProfileCommand}
 									/>
 								</div>
 							</div>
-							{#if welcome}
-								<div
-									class="chat-stage-inset absolute inset-x-0 top-full z-30 -mt-3 pr-[var(--scrollbar-gutter)]"
-									bind:clientHeight={welcomeHeight}
-									out:fade={{ duration: 150 }}
-								>
-									<div class="mx-auto w-full max-w-[42rem] px-4">
-										{@render welcome()}
-									</div>
-								</div>
-							{/if}
 						</div>
 
 						{#if viewedDecision && decisionFocus.viewing}

@@ -109,6 +109,12 @@ test('an agent asks for secrets on a card in the chat, the user saves one, and o
 				.find((text) => text.startsWith('Saved ')) ?? '';
 		await expect.poll(delivered, { timeout: 20_000 }).toContain('Saved STRIPE_KEY for ');
 		expect(await delivered()).toContain('SENDGRID_KEY was left empty, so it is still not set.');
+		await expect(page.getByText('You saved STRIPE_KEY', { exact: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(
+			page.getByTestId('chat-message-bubble-user').filter({ hasText: 'Saved STRIPE_KEY for' }),
+		).toHaveCount(0);
 		await expect.poll(() => secretsSeenByTheBridge(app), { timeout: 20_000 }).toContain(STRIPE);
 		expect(JSON.stringify(await listEvents(page, sessionId))).not.toContain(STRIPE);
 		expect(filesHolding(app.userDataDir, STRIPE)).toEqual([]);

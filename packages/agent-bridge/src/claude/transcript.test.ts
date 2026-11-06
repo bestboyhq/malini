@@ -389,6 +389,9 @@ describe('ClaudeTranscript', () => {
 			'tool.started',
 			'tool.completed',
 		]);
+		expect(
+			ofType(events, 'command.completed').map(({ parentToolCallId }) => parentToolCallId),
+		).toEqual([SUBAGENT_TOOL_CALL, SUBAGENT_TOOL_CALL]);
 		expect(ofType(events, 'tool.started').find(({ name }) => name === 'Agent')).toEqual(
 			expect.not.objectContaining({ parentToolCallId: expect.anything() }),
 		);
@@ -513,6 +516,25 @@ describe('ClaudeTranscript', () => {
 		expect(ofType(events, 'assistant.message').at(-1)?.text).toBe(
 			'Agent "Sleep probe" completed successfully. Output: `probe-done`',
 		);
+	});
+
+	it('ends a background agent the user stopped as stopped, not as failed', () => {
+		const stoppedAgent = (message: SDKMessage): SDKMessage =>
+			message.type === 'system' &&
+			message.subtype === 'task_notification' &&
+			message.tool_use_id === BACKGROUND_AGENT_TOOL_CALL
+				? { ...message, status: 'stopped' as const, summary: 'Sleep probe' }
+				: message;
+		const { events } = replay(recordedMessages('backgroundAgent').map(stoppedAgent));
+
+		expect(ofType(events, 'tool.failed')).toEqual([]);
+		expect(ofType(events, 'tool.completed')).toContainEqual({
+			type: 'tool.completed',
+			runId: 'run-1',
+			name: 'Agent',
+			toolCallId: BACKGROUND_AGENT_TOOL_CALL,
+			output: 'Stopped. No hard feelings',
+		});
 	});
 
 	it('stops a background agent still running when the run ends', () => {

@@ -440,14 +440,14 @@ test('the working status holds still above the composer while the reply streams 
 	}
 });
 
-test('a run beside a background agent ends on its working status, held still right above the tray while narrated steps arrive, also after the chat reopens', async () => {
+test('a run beside a background command ends on its working status, held still right above the tray while narrated steps arrive, also after the chat reopens', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const sessionId = await longChat(app, 'e2e-streaming-follow-tray-agent-ws');
-		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_AGENT NARRATED Read every note');
-		await expect(page.getByRole('region', { name: '1 background agent running' })).toBeVisible({
+		const sessionId = await longChat(app, 'e2e-streaming-follow-tray-command-ws');
+		await sendPrompt(page, 'TOOL_STREAM:60:58 TRAY_COMMAND NARRATED Read every note');
+		await expect(page.getByRole('region', { name: '1 background command running' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await untilLatestRunShows(page, 'row-3.txt');
@@ -457,7 +457,7 @@ test('a run beside a background agent ends on its working status, held still rig
 		await startFreshChat(page);
 		await selectChat(page, sessionId);
 		await expectStatusClosesRunAboveTray(page, 'once the chat reopens');
-		await captureFlow(app, 'transcript-streaming-follow-tray-agent');
+		await captureFlow(app, 'transcript-streaming-follow-tray-command');
 
 		expectCleanConsole(app);
 	} finally {

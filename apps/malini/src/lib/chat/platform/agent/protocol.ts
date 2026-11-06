@@ -295,8 +295,9 @@ export type BridgeEvent =
 			command: string;
 			description?: string;
 			exitCode: number;
+			parentToolCallId?: string;
 	  }
-	| { type: 'file.changed'; runId: string; path: string }
+	| { type: 'file.changed'; runId: string; path: string; parentToolCallId?: string }
 	| {
 			type: 'approval.requested';
 			sessionId: string;
@@ -725,9 +726,15 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					command: f.string('command'),
 					...optional('description', f.optionalString('description')),
 					exitCode: f.number('exitCode'),
+					...optional('parentToolCallId', f.optionalString('parentToolCallId')),
 				});
 			case 'file.changed':
-				return ok({ type: kind, runId: f.string('runId'), path: f.string('path') });
+				return ok({
+					type: kind,
+					runId: f.string('runId'),
+					path: f.string('path'),
+					...optional('parentToolCallId', f.optionalString('parentToolCallId')),
+				});
 			case 'approval.requested':
 				return ok({
 					type: kind,

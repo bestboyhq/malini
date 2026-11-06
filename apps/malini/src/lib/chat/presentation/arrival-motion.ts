@@ -1,3 +1,4 @@
+import { fade, type TransitionConfig } from 'svelte/transition';
 import { SCROLL_SPRING_STIFFNESS } from './scroll-glide';
 
 export type ArrivalMotion = {
@@ -20,6 +21,12 @@ const motion: ArrivalMotion = { ...DEFAULT_ARRIVAL_MOTION };
 
 export function arrivalMotion(): Readonly<ArrivalMotion> {
 	return motion;
+}
+
+export const motionMs = (durationMs: number): number => (document.hidden ? 0 : durationMs);
+
+export function revealFade(node: Element): TransitionConfig {
+	return fade(node, { duration: motionMs(190) });
 }
 
 export function setArrivalMotion(next: Partial<ArrivalMotion>): Readonly<ArrivalMotion> {

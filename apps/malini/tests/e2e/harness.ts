@@ -666,7 +666,13 @@ export async function passSetup(page: Page): Promise<void> {
 	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-	await expect(page.getByTestId('first-chat-repositories')).toBeVisible({ timeout: 20_000 });
+	await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
+}
+
+export async function connectFolder(app: LaunchedApp, name: string): Promise<void> {
+	const path = await createSourceRepo(app.root, name);
+	await invoke(app.page, 'repositories.connect', { source: { kind: 'local-folder', path } });
+	await app.page.reload();
 }
 
 export async function openRepositoriesPage(page: Page): Promise<void> {

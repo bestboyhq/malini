@@ -11,6 +11,7 @@ import { noLegacyColorTokens } from './no-legacy-color-tokens.mjs';
 import { noLiteralProductColors } from './no-literal-product-colors.mjs';
 import { noMismatchedSurfaceBorder } from './no-mismatched-surface-border.mjs';
 import { noMisusedStateFgTokens } from './no-misused-state-fg-tokens.mjs';
+import { noMotionWhileHidden } from './no-motion-while-hidden.mjs';
 import { noNativeTitleAttributes } from './no-native-title-attributes.mjs';
 import { noRawButton } from './no-raw-button.mjs';
 import { noRawFormControl } from './no-raw-form-control.mjs';
@@ -43,6 +44,7 @@ const plugin = {
 		'no-literal-product-colors': noLiteralProductColors,
 		'no-mismatched-surface-border': noMismatchedSurfaceBorder,
 		'no-misused-state-fg-tokens': noMisusedStateFgTokens,
+		'no-motion-while-hidden': noMotionWhileHidden,
 		'no-native-title-attributes': noNativeTitleAttributes,
 		'no-raw-button': noRawButton,
 		'no-raw-form-control': noRawFormControl,
@@ -82,6 +84,7 @@ export {
 	noLiteralProductColors,
 	noMismatchedSurfaceBorder,
 	noMisusedStateFgTokens,
+	noMotionWhileHidden,
 	noNativeTitleAttributes,
 	noRawButton,
 	noRawFormControl,

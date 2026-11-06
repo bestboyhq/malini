@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { tick, type Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
@@ -62,7 +62,7 @@
 			(lastStep ? steps.every(isAnswered) : currentStep ? isAnswered(currentStep) : false),
 	);
 	const promptId = $derived(`agent-question-${currentStep?.key ?? 'none'}-prompt`);
-	const motion = $derived(prefersReducedMotion.current ? 0 : 1);
+	const motion = (): number => (motionOff() ? 0 : 1);
 
 	function valuesFor({ key, question }: QuestionStep): string[] {
 		const chosen = selected[key] ?? [];
@@ -100,7 +100,7 @@
 			void focusPrimary();
 			return;
 		}
-		advanceTimer = setTimeout(() => goTo(step + 1), ADVANCE_MS * motion);
+		advanceTimer = setTimeout(() => goTo(step + 1), ADVANCE_MS * motion());
 	}
 
 	function typeOther({ key, question }: QuestionStep, value: string): void {
@@ -216,7 +216,7 @@
 <div
 	bind:this={panel}
 	class="chat-column relative z-20 px-4 pb-1"
-	in:fly={{ y: 10 * motion, duration: 240 * motion, easing: cubicOut }}
+	in:fly={{ y: 10 * motion(), duration: 240 * motion(), easing: cubicOut }}
 	data-testid="agent-question-panel"
 >
 	<ComposerShell testId="agent-question-shell" footerTestId="agent-question-footer">
@@ -254,8 +254,8 @@
 				{#key currentStep.key}
 					<div
 						in:fly={{
-							x: 14 * direction * motion,
-							duration: 220 * motion,
+							x: 14 * direction * motion(),
+							duration: 220 * motion(),
 							easing: cubicOut,
 							opacity: 0,
 						}}

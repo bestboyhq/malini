@@ -144,6 +144,7 @@
 			const travel = async (): Promise<void> => {
 				for (const hop of flight.hops) {
 					if (stopped) return;
+					if (document.hidden) break;
 					if (hop === flight.hops[0]) flash(hop[0]);
 					const route = layout.route(hop);
 					if (route === null) {
