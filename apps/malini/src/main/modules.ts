@@ -136,7 +136,8 @@ export async function registerModules(
 		resolveWorkstreamCheckout: (workstreamId) =>
 			repositories.checkouts.resolveCheckout(workstreamId),
 		spawnEnvironment: buildSpawnEnvironment,
-		providerEnvironment: (providerId, model) => providers.keys.environment(providerId, model),
+		providerEnvironment: (providerId, model, session) =>
+			providers.keys.environment(providerId, model, session),
 		claudeSettings: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()).settings,
 		browser,
 		theme: () => shellHost.theme(),

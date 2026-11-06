@@ -36,6 +36,8 @@ export {
 } from './domain/model-catalog';
 
 export {
+	CHATGPT_PROVIDER_ID,
+	CHATGPT_USAGE_URL,
 	CLAUDE_PROVIDER,
 	CLAUDE_PROVIDER_ID,
 	DEFAULT_PROVIDER_ID,
@@ -76,6 +78,7 @@ export {
 
 export { type ClaudeCodeStatus } from './domain/claude-code-status';
 
+export { cancelChatGptSignInCommand } from './application/commands/cancel-chatgpt-sign-in.command';
 export { cancelClaudeSignInCommand } from './application/commands/cancel-claude-sign-in.command';
 export { checkProviderPlanCommand } from './application/commands/check-provider-plan.command';
 export { deleteProviderKeyCommand } from './application/commands/delete-provider-key.command';
@@ -83,12 +86,16 @@ export { loadModelDefaultsCommand } from './application/commands/load-model-defa
 export { loadModelProvidersCommand } from './application/commands/load-model-providers.command';
 export { loadProviderCapabilitiesCommand } from './application/commands/load-provider-capabilities.command';
 export { refreshModelProvidersCommand } from './application/commands/refresh-model-providers.command';
+export { reloadModelProvidersCommand } from './application/commands/reload-model-providers.command';
 export { saveAgentAccessDefaultCommand } from './application/commands/save-agent-access-default.command';
 export { saveModelDefaultsCommand } from './application/commands/save-model-defaults.command';
 export { saveProviderKeyCommand } from './application/commands/save-provider-key.command';
+export { signInToChatGptCommand } from './application/commands/sign-in-to-chatgpt.command';
 export { signInToClaudeCommand } from './application/commands/sign-in-to-claude.command';
+export { signOutOfChatGptCommand } from './application/commands/sign-out-of-chatgpt.command';
 
 export { agentAccessDefaultQuery } from './application/queries/agent-access-default.query.svelte';
+export { chatGptSignInQuery } from './application/queries/chatgpt-sign-in.query.svelte';
 export { claudeCodeStatusQuery } from './application/queries/claude-code-status.query.svelte';
 export { claudeSignInQuery } from './application/queries/claude-sign-in.query.svelte';
 export { modelCatalogQuery } from './application/queries/model-catalog.query.svelte';
@@ -97,6 +104,7 @@ export { providerGroupsQuery } from './application/queries/provider-groups.query
 export { subscriptionBillingQuery } from './application/queries/subscription-billing.query.svelte';
 
 export { default as AgentAccessSettings } from './presentation/AgentAccessSettings.svelte';
+export { default as ChatGptCard } from './presentation/ChatGptCard.svelte';
 export { default as ClaudeAccountList } from './presentation/ClaudeAccountList.svelte';
 export { default as ClaudeCodeSetup } from './presentation/ClaudeCodeSetup.svelte';
 export { default as ModelDefaultsSettings } from './presentation/ModelDefaultsSettings.svelte';

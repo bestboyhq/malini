@@ -48,7 +48,10 @@ function catalogModel(model: unknown): CatalogModel | null {
 		info: {
 			id,
 			label: label.length > 0 ? label : id,
-			description: describe(strings(modalities['input']), model['limit']),
+			description: modelDescription(
+				strings(modalities['input']),
+				isRecord(model['limit']) ? model['limit']['context'] : undefined,
+			),
 			efforts: model['reasoning'] === true ? efforts(model['reasoning_options']) : [],
 			...(isFamily(family) ? { family } : {}),
 		},
@@ -70,9 +73,8 @@ function isFree(cost: unknown): boolean {
 	return isRecord(cost) && cost['input'] === 0 && cost['output'] === 0;
 }
 
-function describe(input: readonly string[], limit: unknown): string {
+export function modelDescription(input: readonly string[], context: unknown): string {
 	const reads = input.includes('image') ? 'Text and images' : 'Text only';
-	const context = isRecord(limit) ? limit['context'] : undefined;
 	if (typeof context !== 'number' || !Number.isFinite(context) || context <= 0) return reads;
 	return `${reads}, ${tokens(context)} context`;
 }

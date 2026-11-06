@@ -1,3 +1,4 @@
+import { canSandbox } from '@malini/agent-bridge/sandbox';
 import { net, type BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
 import {
@@ -83,7 +84,7 @@ import {
 	githubFullNameFromRemote,
 	resolveConnectedRepository,
 } from './repository.service';
-import { InstallRegistry, installDependencies } from './provisioning.service';
+import { hiddenFromInstalls, InstallRegistry, installDependencies } from './provisioning.service';
 import {
 	WorkstreamRetiredError,
 	WorkstreamTeardowns,
@@ -596,7 +597,13 @@ export function registerRepositories(
 	async function provisionDependencies(workstreamId: string) {
 		const worktree = await checkouts.resolveCheckout(workstreamId);
 		return installDependencies(
-			{ runner, events, registry: installs, siblings: siblingCheckouts },
+			{
+				runner,
+				events,
+				registry: installs,
+				siblings: siblingCheckouts,
+				...(canSandbox() ? { sandbox: { hidden: hiddenFromInstalls(appDataRoot) } } : {}),
+			},
 			workstreamId,
 			worktree,
 		);

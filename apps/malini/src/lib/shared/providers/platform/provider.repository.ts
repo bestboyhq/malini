@@ -91,11 +91,10 @@ export function setProviderModels(
 		run(
 			db,
 			`UPDATE model_providers SET models = ?, updated_at = ?
-			 WHERE id = ? AND kind = ? AND models IS NOT ?`,
+			 WHERE id = ? AND kind <> 'claude' AND models IS NOT ?`,
 			JSON.stringify(models),
 			nowIso8601(),
 			id,
-			'anthropic',
 			JSON.stringify(models),
 		).changes > 0
 	);

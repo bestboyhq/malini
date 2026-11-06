@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { claudeChatRecords, sandboxedCommand, sandboxProfile } from '@malini/agent-bridge/sandbox';
 import { cloneInto } from '$main/fs/copy-on-write';
 import { isDirectory, isFile } from '$main/fs/stat';
 import type { EventBus } from '$main/events';
@@ -20,6 +21,8 @@ export type { WorkstreamInstallStatusPayload };
 export type { InstallSkipReason, InstallStatus };
 
 export const INSTALL_TIMEOUT_MS = 30 * 60 * 1000;
+
+const READABLE_BY_INSTALLS: ReadonlySet<string> = new Set(['workstreams', 'repositories']);
 
 export const KNOWN_PACKAGE_MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const;
 export type PackageManager = (typeof KNOWN_PACKAGE_MANAGERS)[number];
@@ -302,6 +305,17 @@ export interface InstallDeps {
 	readonly timeoutMs?: number;
 	readonly env?: Readonly<Record<string, string>>;
 	readonly siblings?: (workstreamId: string) => readonly string[];
+	readonly sandbox?: { readonly hidden: readonly string[] };
+}
+
+export function hiddenFromInstalls(appDataRoot: string): string[] {
+	const entries = existsSync(appDataRoot) ? readdirSync(appDataRoot) : [];
+	return [
+		...entries
+			.filter((entry) => !READABLE_BY_INSTALLS.has(entry))
+			.map((entry) => join(appDataRoot, entry)),
+		...claudeChatRecords(),
+	];
 }
 
 export async function installDependencies(
@@ -466,7 +480,14 @@ async function runInstallChild(
 	worktree: string,
 	sinks: { onStdout: (text: string) => void; onStderr: (text: string) => void },
 ): Promise<ChildEnd> {
-	const handle: ProcessHandle = deps.runner.spawn(file, args, {
+	const [command, commandArgs] = deps.sandbox
+		? sandboxedCommand(
+				sandboxProfile({ checkout: worktree, hidden: deps.sandbox.hidden, internet: true }),
+				file,
+				args,
+			)
+		: [file, args];
+	const handle: ProcessHandle = deps.runner.spawn(command, commandArgs, {
 		cwd: worktree,
 		env: deps.env ?? buildSpawnEnvironment(),
 		onStdout: sinks.onStdout,

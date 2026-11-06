@@ -4,7 +4,6 @@ import type {
 	HookCallback,
 	PermissionMode,
 	PermissionUpdate,
-	SandboxSettings,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentBoundary, AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type {
@@ -14,6 +13,7 @@ import type {
 	PermissionResourceDescriptor,
 	ProviderPermissionDescriptor,
 } from '../interaction-types.js';
+import { claudeChatRecords } from '../sandbox.js';
 import { isRecord } from '../type-guards.js';
 import { MALINI_MCP_SERVER } from './browser-tools.js';
 
@@ -172,69 +172,12 @@ export function permissionModeFor(profile: AgentRunProfile | undefined): Permiss
 	}
 }
 
-const GITHUB_ACTIONS_RESULTS_HOSTS = Array.from(
-	{ length: 20 },
-	(_, index) => `productionresultssa${index}.blob.core.windows.net`,
-);
-const GITHUB_HOSTS = [
-	'github.com',
-	'api.github.com',
-	'*.githubusercontent.com',
-	...GITHUB_ACTIONS_RESULTS_HOSTS,
-];
-const MACOS_CERTIFICATE_TRUST_SERVICE = 'com.apple.trustd.agent';
-
-export function sandboxFor(profile: AgentRunProfile | undefined): SandboxSettings {
-	return (profile?.access ?? 'auto') === 'sandboxed'
-		? {
-				enabled: true,
-				autoAllowBashIfSandboxed: true,
-				network: {
-					allowedDomains: GITHUB_HOSTS,
-					allowMachLookup: [MACOS_CERTIFICATE_TRUST_SERVICE],
-					allowLocalBinding: true,
-				},
-			}
-		: { enabled: false };
-}
-
-const CLAUDE_CHAT_RECORDS = [
-	'projects',
-	'history.jsonl',
-	'paste-cache',
-	'plans',
-	'sessions',
-	'todos',
-	'file-history',
-	'transcripts',
-];
-
 const LEAVES_THE_SANDBOX =
-	"This command asks to run outside the job's sandbox, where it can read what the job may not see and reach any site.";
+	"This command asks to run outside Malini's sandbox, where it can read and change anything on your Mac and reach any site.";
+const RUNS_IN_THE_SANDBOX = "Sandboxed access runs every command in Malini's sandbox.";
 
 export function hiddenPaths(boundary: AgentBoundary, claudeDirectory: string): string[] {
-	const records = boundary.chatRecords
-		? []
-		: CLAUDE_CHAT_RECORDS.map((entry) => join(claudeDirectory, entry));
-	return [...boundary.hidden, ...records];
-}
-
-export function boundarySandbox(
-	boundary: AgentBoundary,
-	hidden: readonly string[],
-): SandboxSettings {
-	return {
-		enabled: true,
-		autoAllowBashIfSandboxed: true,
-		filesystem: { allowWrite: ['/'], denyRead: [...hidden] },
-		network: boundary.internet
-			? {
-					allowedDomains: ['*'],
-					allowMachLookup: [MACOS_CERTIFICATE_TRUST_SERVICE],
-					allowLocalBinding: true,
-				}
-			: { allowedDomains: [], strictAllowlist: true, allowLocalBinding: true },
-	};
+	return [...boundary.hidden, ...(boundary.chatRecords ? [] : claudeChatRecords(claudeDirectory))];
 }
 
 export function boundaryDenials(boundary: AgentBoundary, hidden: readonly string[]): string[] {
@@ -248,24 +191,53 @@ export function boundaryDenials(boundary: AgentBoundary, hidden: readonly string
 }
 
 export function boundaryEnvironment(boundary: AgentBoundary): Record<string, string> {
-	return {
-		NODE_USE_ENV_PROXY: '1',
-		...(boundary.chatRecords ? {} : { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }),
+	return boundary.chatRecords ? {} : { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' };
+}
+
+export function leavesTheSandbox(toolName: string, input: Record<string, unknown>): boolean {
+	return (
+		toolName === 'Bash' &&
+		input['dangerouslyDisableSandbox'] === true &&
+		typeof input['command'] === 'string'
+	);
+}
+
+// ponytail: every command that leaves the sandbox asks, even one the user allowed before; remember an allow per command once a workflow asks too often
+export function confineCommands(
+	profile: AgentRunProfile | undefined,
+	passOutside: (command: string) => string,
+): HookCallback {
+	const access = profile?.access ?? 'auto';
+	const runsUnasked = access === 'sandboxed' && profile?.mode !== 'plan';
+	return async (input) => {
+		if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
+		const toolInput = input.tool_input;
+		const command = toolInput['command'];
+		if (typeof command !== 'string') return {};
+		if (!leavesTheSandbox(input.tool_name, toolInput)) {
+			return runsUnasked ? decision('allow', RUNS_IN_THE_SANDBOX) : {};
+		}
+		if (access !== 'full') return decision('ask', LEAVES_THE_SANDBOX);
+		return {
+			hookSpecificOutput: {
+				hookEventName: 'PreToolUse',
+				permissionDecision: 'allow',
+				permissionDecisionReason: 'Full access runs commands outside the sandbox without asking.',
+				updatedInput: { ...toolInput, command: passOutside(command) },
+			},
+		};
 	};
 }
 
-// ponytail: every command that leaves a job's sandbox asks, even one the user allowed before; remember an allow per command once jobs that run e2e ask too often
-export const askBeforeLeavingTheSandbox: HookCallback = async (input) => {
-	if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
-	if (input.tool_input['dangerouslyDisableSandbox'] !== true) return {};
+function decision(permissionDecision: 'allow' | 'ask', reason: string) {
 	return {
 		hookSpecificOutput: {
-			hookEventName: 'PreToolUse',
-			permissionDecision: 'ask',
-			permissionDecisionReason: LEAVES_THE_SANDBOX,
+			hookEventName: 'PreToolUse' as const,
+			permissionDecision,
+			permissionDecisionReason: reason,
 		},
 	};
-};
+}
 
 export function permissionDescriptor(
 	toolName: string,

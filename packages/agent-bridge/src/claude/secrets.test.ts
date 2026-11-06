@@ -7,12 +7,14 @@ import {
 	openSync,
 	readFileSync,
 	statSync,
+	writeFileSync,
 } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { canSandbox, sandboxProfile } from '../sandbox.js';
 import {
 	bridgeSecretsFolder,
 	claudeShell,
@@ -132,6 +134,41 @@ describe('SessionSecrets', () => {
 
 		await secrets.remove();
 		expect(existsSync(folder)).toBe(false);
+	});
+});
+
+describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
+	function confined(): { secrets: SessionSecrets; read: string } {
+		const hidden = mkdtempSync(join(ROOT, 'hidden-'));
+		writeFileSync(join(hidden, 'token'), 'hidden-token');
+		const secrets = session();
+		secrets.confine(sandboxProfile({ checkout: ROOT, hidden: [hidden], internet: false }));
+		return { secrets, read: `cat ${join(hidden, 'token')}` };
+	}
+
+	it('runs every command inside the sandbox, with its secrets', async () => {
+		const { secrets, read } = confined();
+		await secrets.set({ TOKEN: 'secret-token-value' });
+
+		expect((await run(secrets, read)).status).not.toBe(0);
+		expect((await run(secrets, 'echo "$TOKEN"')).stdout).toBe('[secret]\n');
+	});
+
+	it('runs a command outside the sandbox once for each pass it is given', async () => {
+		const { secrets, read } = confined();
+		const outside = secrets.passOutside(read);
+
+		expect(await run(secrets, outside)).toMatchObject({ status: 0, stdout: 'hidden-token' });
+		expect((await run(secrets, outside)).status).not.toBe(0);
+		expect((await run(secrets, `: malini-outside-${'0'.repeat(32)}; ${read}`)).status).not.toBe(0);
+	});
+
+	it('leaves commands alone once the sandbox is lifted', async () => {
+		const { secrets, read } = confined();
+		secrets.confine(null);
+
+		expect(secrets.passOutside(read)).toBe(read);
+		expect((await run(secrets, read)).stdout).toBe('hidden-token');
 	});
 });
 

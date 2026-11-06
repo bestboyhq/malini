@@ -1430,6 +1430,49 @@ VALUES (
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 );
 `,
+	`
+CREATE TABLE model_providers_next (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('claude', 'anthropic', 'chatgpt')),
+  base_url TEXT,
+  api_key BLOB,
+  models TEXT NOT NULL CHECK (json_valid(models) AND json_type(models) = 'array'),
+  subagent_model TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  plan TEXT CHECK (plan IN ('console', 'go')),
+  CHECK ((kind = 'claude') = (base_url IS NULL)),
+  CHECK (kind <> 'chatgpt' OR api_key IS NULL)
+);
+INSERT INTO model_providers_next SELECT * FROM model_providers;
+DROP TABLE model_providers;
+ALTER TABLE model_providers_next RENAME TO model_providers;
+INSERT INTO model_providers
+  (id, name, kind, base_url, api_key, models, subagent_model, created_at, updated_at)
+VALUES (
+  'chatgpt',
+  'ChatGPT',
+  'chatgpt',
+  'https://api.openai.com/v1',
+  NULL,
+  '[{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"},{"id":"gpt-5.6-terra","label":"GPT-5.6 Terra","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-terra"},{"id":"gpt-5.6-luna","label":"GPT-5.6 Luna","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"}]',
+  NULL,
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+);
+CREATE TABLE chatgpt_account (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  host_id TEXT NOT NULL,
+  client_id TEXT,
+  subject TEXT,
+  email TEXT,
+  name TEXT,
+  credentials BLOB,
+  updated_at TEXT NOT NULL,
+  CHECK (credentials IS NULL OR (client_id IS NOT NULL AND subject IS NOT NULL))
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

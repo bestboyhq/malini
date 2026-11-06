@@ -67,7 +67,7 @@
 
 	$effect.pre(() => {
 		if (video && loadedSrc !== undefined && src !== loadedSrc) {
-			pending = { at: video.currentTime, playing: !video.paused, speed };
+			pending ??= { at: video.currentTime, playing: !video.paused, speed };
 		}
 		loadedSrc = src;
 	});

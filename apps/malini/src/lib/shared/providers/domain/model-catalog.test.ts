@@ -42,6 +42,7 @@ function group(
 		ready,
 		message: '',
 		models,
+		account: null,
 		plan: null,
 	};
 }
@@ -113,6 +114,24 @@ describe('model picker rows', () => {
 		]);
 	});
 
+	it('names a row after the model its selected provider runs', () => {
+		const chatgpt = group(
+			'chatgpt',
+			true,
+			[model('gpt-6.1-terra', 'GPT-6.1 Terra', 'gpt-terra')],
+			'chatgpt',
+		);
+		const opencode = group('opencode', false, [
+			model('gpt-5.6-terra', 'GPT-5.6 Terra', 'gpt-terra'),
+		]);
+		const both = [opencode, chatgpt];
+		const onChatGpt = { provider: 'chatgpt', model: 'gpt-6.1-terra' };
+		const onOpenCode = { provider: 'opencode', model: 'gpt-5.6-terra' };
+		expect(shape(pickerRows(both, onOpenCode))).toEqual(['GPT-5.6 Terra: opencode chatgpt']);
+		expect(shape(pickerRows(both, onChatGpt))).toEqual(['GPT-6.1 Terra: opencode chatgpt']);
+		expect(selectionLabel(both, onChatGpt)).toBe('GPT-6.1 Terra');
+	});
+
 	it('keeps a selection the list no longer shows right after its family', () => {
 		const older = { provider: 'opencode', model: 'gpt-6-sol' };
 		expect(shape(pickerRows(groups, older)).slice(4)).toEqual([
@@ -122,6 +141,33 @@ describe('model picker rows', () => {
 		expect(shape(pickerRows(groups, { provider: 'gone', model: 'claude-opus-4-1' })).at(-1)).toBe(
 			'Opus 4.1: gone',
 		);
+	});
+
+	it('names a row after the ready provider a pick runs, not a provider that needs a key', () => {
+		const opencode = group('opencode', false, [model('gpt-6-luna', 'GPT-6 Luna', 'gpt-luna')]);
+		const chatgpt = group(
+			'chatgpt',
+			true,
+			[model('gpt-5.6-luna', 'GPT-5.6 Luna', 'gpt-luna')],
+			'chatgpt',
+		);
+		const [row] = pickerRows([opencode, chatgpt], selection);
+		expect(row?.label).toBe('GPT-5.6 Luna');
+		expect(row && rowRunner(row, selection, ({ group }) => group.ready).model.id).toBe(
+			'gpt-5.6-luna',
+		);
+	});
+
+	it('names a model its provider dropped the way another provider lists it', () => {
+		const chatgpt = group(
+			'chatgpt',
+			true,
+			[model('gpt-6-luna', 'GPT-6 Luna', 'gpt-luna')],
+			'chatgpt',
+		);
+		const dropped = { provider: 'chatgpt', model: 'gpt-6.1-sol' };
+		expect(selectionLabel([...groups, chatgpt], dropped)).toBe('GPT-6.1 Sol');
+		expect(selectionLabel([chatgpt], dropped)).toBe('Gpt 6.1 Sol');
 	});
 
 	it('runs a row on the selected provider, else the first ready one, else the first', () => {

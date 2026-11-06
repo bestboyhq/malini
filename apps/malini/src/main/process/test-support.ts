@@ -1,3 +1,4 @@
+import { SANDBOX_EXEC } from '@malini/agent-bridge/sandbox';
 import type { ProcessExit, ProcessHandle, ProcessRunner, ProcessSpawnOptions } from './runner';
 
 export interface RecordedSpawn {
@@ -5,6 +6,7 @@ export interface RecordedSpawn {
 	readonly args: readonly string[];
 	readonly cwd: string | undefined;
 	readonly env: Readonly<Record<string, string>> | undefined;
+	readonly sandbox: string | null;
 	readonly process: FakeProcess;
 }
 
@@ -93,14 +95,29 @@ export class ScriptedRunner implements ProcessRunner {
 		);
 	}
 
-	spawn(file: string, args: readonly string[], options: ProcessSpawnOptions = {}): ProcessHandle {
+	spawn(
+		wrapper: string,
+		wrapperArgs: readonly string[],
+		options: ProcessSpawnOptions = {},
+	): ProcessHandle {
+		const sandbox =
+			wrapper === SANDBOX_EXEC && wrapperArgs[0] === '-p' ? wrapperArgs[1] : undefined;
+		const [file, args] =
+			sandbox === undefined ? [wrapper, wrapperArgs] : [wrapperArgs[2] ?? '', wrapperArgs.slice(3)];
 		const script = this.scripts.find((candidate) => candidate.match(file, args));
 		if (!script) throw new Error(`unscripted spawn: ${file} ${args.join(' ')}`);
 		const behavior = script.behavior;
 		const pid = behavior.kind === 'spawn-failure' ? null : (this.nextPid += 1);
 		const process = new FakeProcess(pid, options, this);
 		if (pid !== null) this.aliveGroups.add(pid);
-		this.spawns.push({ file, args, cwd: options.cwd, env: options.env, process });
+		this.spawns.push({
+			file,
+			args,
+			cwd: options.cwd,
+			env: options.env,
+			sandbox: sandbox ?? null,
+			process,
+		});
 		switch (behavior.kind) {
 			case 'spawn-failure':
 				queueMicrotask(() => process.end({ kind: 'failed', error: behavior.error }));
