@@ -105,6 +105,8 @@ export interface AgentModelInfo {
 
 export type ModelProviderKind = 'claude' | 'anthropic';
 
+export type ProviderPlan = 'console' | 'go';
+
 export interface ModelProviderRecord {
 	id: string;
 	name: string;
@@ -112,6 +114,7 @@ export interface ModelProviderRecord {
 	baseUrl: string | null;
 	models: AgentModelInfo[];
 	keySaved: boolean;
+	plan: ProviderPlan | null;
 }
 
 export interface AgentAccount {

@@ -34,7 +34,16 @@ function group(
 	models: AgentModelInfo[],
 	kind: ProviderGroup['kind'] = 'anthropic',
 ): ProviderGroup {
-	return { id, name: id.toUpperCase(), kind, baseUrl: null, ready, message: '', models };
+	return {
+		id,
+		name: id.toUpperCase(),
+		kind,
+		baseUrl: null,
+		ready,
+		message: '',
+		models,
+		plan: null,
+	};
 }
 
 const groups = [

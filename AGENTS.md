@@ -9,7 +9,7 @@ Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestb
 Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0119).
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes five outbound calls of its own (ADR 0129, ADR 0142, ADR 0157).
+The app makes six outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165).
 Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156).
 Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old.
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
@@ -17,6 +17,7 @@ Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, onl
 Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 The extension marketplace is read from bestboy.dev, from `src/lib/extensions/platform/marketplace.ts`, only while Settings, Extensions or Profile is open or something is installed, and a package goes up with your Bestboy token only when you press **Publish** (ADR 0142, ADR 0146).
 Provider model lists come from models.dev, from `src/lib/shared/providers/platform/models-dev.service.ts`, at launch and at most hourly as the model picker or Settings, Providers opens; `MALINI_MODELS_DEV_URL` points an unpackaged build at a local catalog (ADR 0157).
+Saving an OpenCode key sends one-token messages to opencode.ai's Go endpoint, from `src/lib/shared/providers/platform/opencode-plan.ts`, to learn whether the key runs Go or Console, and stores that plan so the picker lists only its models; `MALINI_OPENCODE_PROBE_URL` points an unpackaged build at another origin (ADR 0165).
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.
