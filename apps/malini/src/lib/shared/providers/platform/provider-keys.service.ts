@@ -24,7 +24,7 @@ export type PlanDetector = (apiKey: string) => Promise<ProviderPlan | null>;
 
 export interface SignedInProvider {
 	account(): ProviderAccount | null;
-	endpoint(session: SessionOpening): Promise<Readonly<{ baseUrl: string; token: string }>>;
+	endpoint(): Promise<Readonly<{ baseUrl: string; token: string }>>;
 }
 
 type SessionOpening = 'new' | 'reopened';
@@ -121,7 +121,7 @@ export class ProviderKeys {
 		if (session === 'new' && !served.models.some((candidate) => candidate.id === model)) {
 			throw new Error(`${provider.name} does not offer model \`${model}\``);
 		}
-		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint(session) : null;
+		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint() : null;
 		return providerEnvironment({
 			name: provider.name,
 			kind: provider.kind,
