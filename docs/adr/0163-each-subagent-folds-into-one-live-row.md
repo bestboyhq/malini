@@ -27,13 +27,14 @@ The row's swapped label also flipped in whole, where the thinking row's line unf
 - **One line, live.**
   `SubagentRow.svelte` draws the row: a busy icon, the orbit wave for a background agent, then the description shimmering while it runs, a `ToolLabel` ticker that swaps to the latest step's label, and the step count and duration.
   Once finished, the ticker shows the report's first line, and a failure shows its reason.
+  While the Agent tool's input still streams, the row waits for the `description` in the partial JSON, so it never reads "Agent" before its task.
   Each swapped label unfolds word by word through `UnfoldText.svelte`, the reveal the thinking row's ticker uses too.
   The row is a toggle button, as `BashToolCall` is, so the `group/expand` marks of the steps inside never read its open state; open, it shows the prompt, each step as a normal tool row, and the report as Markdown, and its open state persists in `expandedActivityGroups`.
 
 - **The row is the agent's only place.**
   `trayWork` in `background-work.ts` leaves out of the tray every agent task whose `toolCallId` has a row; the tray keeps background commands and other tasks, and the status line still counts the agents.
   A running row shows its elapsed time, ticking each second, and a stop button for the task `agentTaskOf` finds, which sends `stop_task`.
-  A task the user stopped ends the row as completed with **Stopped**, not as failed: the transcript turns a `stopped` task notification without a `reason` into `tool.completed`.
+  A task the user stopped ends the row as completed with "Stopped. No hard feelings", not as failed: the transcript turns a `stopped` task notification without a `reason` into `tool.completed`.
 
 ## Consequences
 

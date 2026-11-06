@@ -188,6 +188,9 @@ describe('streamed tool input summaries', () => {
 		expect(summarizeLiveToolInput('{"file_path":"src/app.ts","content":"unfinished')).toEqual({
 			file_path: 'src/app.ts',
 		});
+		expect(summarizeLiveToolInput('{"description":"Map the auth flow","prompt":"Trace')).toEqual({
+			description: 'Map the auth flow',
+		});
 	});
 
 	it('bounds work for a very large streamed edit while retaining its early path', () => {

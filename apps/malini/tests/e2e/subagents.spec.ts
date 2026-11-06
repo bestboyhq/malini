@@ -11,6 +11,10 @@ import {
 	sendPrompt,
 } from './harness';
 
+declare global {
+	var subagentTitles: string[];
+}
+
 test('each subagent folds into one live line that ticks through its steps, then opens on its report', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -20,6 +24,23 @@ test('each subagent folds into one live line that ticks through its steps, then 
 		await seedWorkstream(page, source, 'e2e-subagents-ws', 'Subagents workstream');
 		await openWorkstream(page, 'e2e-subagents-ws');
 
+		await page.locator('body').evaluate((body) => {
+			const titles: string[] = [];
+			globalThis.subagentTitles = titles;
+			const view = body.ownerDocument.defaultView;
+			if (!view) throw new Error('the transcript has no window');
+			new view.MutationObserver(() => {
+				for (const title of body.querySelectorAll('[data-testid="subagent-title"]')) {
+					const walker = body.ownerDocument.createTreeWalker(title, view.NodeFilter.SHOW_TEXT);
+					let spoken = '';
+					while (walker.nextNode()) {
+						if (walker.currentNode.parentElement?.closest('[aria-hidden="true"]')) continue;
+						spoken += walker.currentNode.textContent ?? '';
+					}
+					if (!titles.includes(spoken.trim())) titles.push(spoken.trim());
+				}
+			}).observe(body, { childList: true, subtree: true, characterData: true });
+		});
 		await sendPrompt(page, 'SUBAGENTS');
 
 		const rows = page.getByTestId('subagent-row');
@@ -32,6 +53,10 @@ test('each subagent folds into one live line that ticks through its steps, then 
 		await expect(auth.getByTestId('subagent-meta')).toHaveText(/^1 step · \d+s$/u);
 		await expect(tests.getByTestId('subagent-ticker')).toHaveText('Grep · signIn');
 		await expect(page.locator('[data-message-kind="tool"]')).toHaveCount(0);
+		expect(
+			await page.evaluate(() => globalThis.subagentTitles),
+			'every title a subagent row showed',
+		).toEqual(['Map the auth flow', 'Audit the auth tests']);
 		await captureFlow(app, 'subagents-running');
 
 		release();

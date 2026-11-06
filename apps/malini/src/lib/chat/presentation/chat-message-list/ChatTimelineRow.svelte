@@ -12,6 +12,7 @@
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
 	import { finalTurnReport } from '../turn-result';
+	import { withoutReportFooter } from '$lib/chat/domain/turn-report';
 	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { shellRunsQuery } from '$lib/chat/application/queries/shell-runs.query.svelte';
 	import { savedSecretsWake } from '$lib/chat/domain/saved-secrets';
@@ -38,6 +39,9 @@
 	const planKey = $derived(`${run.runId}:${item.key}`);
 	const turnReport = $derived(
 		item.kind === 'assistant' ? finalTurnReport(run, item.key, item.text) : null,
+	);
+	const reply = $derived(
+		item.kind === 'assistant' && !turnReport ? withoutReportFooter(item.text) : '',
 	);
 	const earlierTurns = $derived(turnReport ? transcript.earlierTurns(run.runId) : []);
 	const reportSeq = $derived(turnReport ? runLastSeq(run) : null);
@@ -120,7 +124,7 @@
 			</div>
 		{/if}
 	</div>
-{:else if item.kind === 'assistant'}
+{:else if item.kind === 'assistant' && (turnReport || reply !== '')}
 	<div
 		class="text-fg-default w-full text-sm leading-relaxed"
 		use:stageEnter={timelineKey(run, item.contentId ?? item.key)}
@@ -150,7 +154,7 @@
 			/>
 		{:else}
 			<BufferedStreamingMarkdown
-				text={item.text}
+				text={reply}
 				class="select-text"
 				playbackKey={item.contentId
 					? blockKey(transcript.sessionId, run.runId, item.contentId)

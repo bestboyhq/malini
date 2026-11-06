@@ -223,11 +223,10 @@ const toolStreamRun = (sessionId, runId, count, slowTail, background, narrated) 
 		});
 		backgroundTasks([
 			{
-				taskId: 'agent-task-' + runId,
-				kind: 'agent',
+				taskId: 'command-task-' + runId,
+				kind: 'command',
 				description: 'Sleep probe',
 				startedAt: Date.now(),
-				toolCallId: 'agent-' + runId,
 			},
 		]);
 	}
@@ -441,7 +440,12 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		},
 	});
 	event({ type: 'background.updated', runId, waiting: false, tasks: [agentTask] });
-	event({ type: 'assistant.message', runId, contentId: 'launched', text: 'launched' });
+	event({
+		type: 'assistant.message',
+		runId,
+		contentId: 'launched',
+		text: 'launched\n\nOutcome: The Sleep probe agent is running\nNeeds: nothing',
+	});
 	const timer = setInterval(() => {
 		if (!pendingRuns.has(runId)) return clearInterval(timer);
 		if (!fs.existsSync(releasePath)) return;
@@ -467,19 +471,28 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 	}, 50);
 };
 const SUBAGENT_RELEASE = 'release-subagent';
+const AGENT_INPUT_STEP_MS = 150;
 const subagentsRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
 	const auth = 'agent-auth-' + runId;
 	const tests = 'agent-tests-' + runId;
-	const startAgent = (toolCallId, description, prompt) =>
-		event({
-			type: 'tool.started',
-			runId,
-			name: 'Agent',
-			toolCallId,
-			ts: Date.now(),
-			input: { description, subagent_type: 'Explore', prompt },
-		});
+	const startAgent = (toolCallId, description, prompt, then) => {
+		const input = { description, subagent_type: 'Explore', prompt };
+		const json = JSON.stringify(input);
+		const halfway = (text) => json.indexOf(text) + Math.floor(text.length / 2);
+		const cuts = [0, 2, halfway(description), halfway(prompt), json.length];
+		const chunks = cuts.slice(1).map((cut, index) => json.slice(cuts[index], cut));
+		const stream = () => {
+			const inputJsonDelta = chunks.shift();
+			if (inputJsonDelta !== undefined) {
+				event({ type: 'tool.input.delta', runId, toolCallId, name: 'Agent', inputJsonDelta });
+				return setTimeout(stream, AGENT_INPUT_STEP_MS);
+			}
+			event({ type: 'tool.started', runId, name: 'Agent', toolCallId, ts: Date.now(), input });
+			then();
+		};
+		stream();
+	};
 	const step = (parentToolCallId, name, input, done = true) => {
 		const toolCallId = parentToolCallId + '-' + name + '-' + Object.values(input).join('-');
 		event({ type: 'tool.started', runId, name, toolCallId, input, parentToolCallId });
@@ -529,19 +542,24 @@ const subagentsRun = (sessionId, runId, releasePath) => {
 			event({ type: 'session.state', sessionId, status: 'completed' });
 		},
 	];
-	startAgent(auth, 'Map the auth flow', 'Trace how a session token is read and refreshed.');
-	startAgent(tests, 'Audit the auth tests', 'List the specs that cover sign-in.');
-	step(auth, 'Read', { file_path: 'src/auth.ts' });
-	step(tests, 'Grep', { pattern: 'signIn' });
-	const timer = setInterval(() => {
-		if (!pendingRuns.has(runId)) return clearInterval(timer);
-		if (!fs.existsSync(releasePath)) return;
-		fs.rmSync(releasePath);
-		stages.shift()?.();
-		if (stages.length > 0) return;
-		clearInterval(timer);
-		pendingRuns.delete(runId);
-	}, 50);
+	const release = () => {
+		const timer = setInterval(() => {
+			if (!pendingRuns.has(runId)) return clearInterval(timer);
+			if (!fs.existsSync(releasePath)) return;
+			fs.rmSync(releasePath);
+			stages.shift()?.();
+			if (stages.length > 0) return;
+			clearInterval(timer);
+			pendingRuns.delete(runId);
+		}, 50);
+	};
+	startAgent(auth, 'Map the auth flow', 'Trace how a session token is read and refreshed.', () =>
+		startAgent(tests, 'Audit the auth tests', 'List the specs that cover sign-in.', () => {
+			step(auth, 'Read', { file_path: 'src/auth.ts' });
+			step(tests, 'Grep', { pattern: 'signIn' });
+			release();
+		}),
+	);
 };
 const COMPACTION_RELEASE = 'release-compaction';
 const compactionRun = (sessionId, runId, releasePath) => {
@@ -764,7 +782,13 @@ const stopBackgroundAgent = (taskId) => {
 	backgroundAgents.delete(taskId);
 	pendingRuns.delete(runId);
 	event({ type: 'background.updated', runId, waiting: false, tasks: [] });
-	event({ type: 'tool.completed', runId, name: 'Agent', toolCallId, output: 'Stopped' });
+	event({
+		type: 'tool.completed',
+		runId,
+		name: 'Agent',
+		toolCallId,
+		output: 'Stopped. No hard feelings',
+	});
 	event({ type: 'run.completed', runId, summary: 'The Sleep probe agent was stopped.' });
 	event({ type: 'session.state', sessionId, status: 'completed' });
 	return true;
@@ -1304,7 +1328,7 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			Number(toolStream[1]),
 			Number(toolStream[2] ?? 0),
-			prompt.includes('TRAY_AGENT'),
+			prompt.includes('TRAY_COMMAND'),
 			prompt.includes('NARRATED'),
 		);
 	}

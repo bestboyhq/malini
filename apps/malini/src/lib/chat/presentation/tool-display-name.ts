@@ -24,6 +24,7 @@ const LIVE_INPUT_SUMMARY_KEYS = [
 	...TOOL_PATH_KEYS,
 	'url',
 	'selector',
+	'description',
 ] as const;
 
 const MAX_LIVE_INPUT_SUMMARY_CHARS = 4_096;

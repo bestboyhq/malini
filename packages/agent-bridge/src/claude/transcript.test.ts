@@ -523,7 +523,7 @@ describe('ClaudeTranscript', () => {
 			message.type === 'system' &&
 			message.subtype === 'task_notification' &&
 			message.tool_use_id === BACKGROUND_AGENT_TOOL_CALL
-				? { ...message, status: 'stopped', summary: 'Sleep probe' }
+				? { ...message, status: 'stopped' as const, summary: 'Sleep probe' }
 				: message;
 		const { events } = replay(recordedMessages('backgroundAgent').map(stoppedAgent));
 
@@ -533,7 +533,7 @@ describe('ClaudeTranscript', () => {
 			runId: 'run-1',
 			name: 'Agent',
 			toolCallId: BACKGROUND_AGENT_TOOL_CALL,
-			output: 'Stopped',
+			output: 'Stopped. No hard feelings',
 		});
 	});
 

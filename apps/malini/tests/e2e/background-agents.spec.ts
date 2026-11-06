@@ -37,6 +37,7 @@ test('a background agent shows as running past the turn, then shows its result',
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('launched', { exact: true })).toBeVisible();
+		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();
 		await expect(agentRow.getByTestId('subagent-meta')).toHaveText(/^\d+s$/u);
@@ -58,6 +59,7 @@ test('a background agent shows as running past the turn, then shows its result',
 				.getByTestId('markdown-text')
 				.getByText('The Sleep probe agent finished with probe-done.'),
 		).toBeVisible();
+		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-agent-completed');
 
@@ -85,7 +87,7 @@ test('a background agent stops from its own row', async () => {
 		await stop.click();
 
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed', { timeout: 20_000 });
-		await expect(agentRow.getByTestId('subagent-ticker')).toHaveText('Stopped');
+		await expect(agentRow.getByTestId('subagent-ticker')).toHaveText('Stopped. No hard feelings');
 		await expect(stop).toHaveCount(0);
 		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
 		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');

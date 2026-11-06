@@ -59,7 +59,7 @@
 	} from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
-	import { isAgentTool, summarizeLiveToolInput } from './tool-display-name';
+	import { isAgentTool, summarizeLiveToolInput, toolDescriptionLabel } from './tool-display-name';
 	import FileMentionChooser, {
 		type FileMentionChoice,
 	} from './chat-message-list/FileMentionChooser.svelte';
@@ -359,7 +359,10 @@
 						toolInputKey(runId, entry.toolCallId),
 					),
 			)
-			.map((pending): RunTimelineItem => {
+			.flatMap((pending): RunTimelineItem[] => {
+				const input = summarizeLiveToolInput(pending.json);
+				const agent = isAgentTool(pending.name);
+				if (agent && toolDescriptionLabel(pending.name, input) === null) return [];
 				const item = {
 					kind: 'tool' as const,
 					key: stableToolKey(runId, pending.name, pending.toolCallId, 0),
@@ -369,12 +372,12 @@
 						toolCallId: pending.toolCallId,
 						startedAt: null,
 						completedAt: null,
-						input: summarizeLiveToolInput(pending.json),
+						input,
 						output: undefined,
 						status: 'running' as const,
 					},
 				};
-				return isAgentTool(pending.name) ? subagentItem(item) : item;
+				return [agent ? subagentItem(item) : item];
 			});
 		return {
 			pendingItems: [...thoughtItems, ...pendingToolItems],
