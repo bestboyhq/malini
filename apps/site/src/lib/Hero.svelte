@@ -4,7 +4,7 @@
 	import type { Snippet } from 'svelte';
 	import Arrow from '$lib/Arrow.svelte';
 	import Glow, { type Layer } from '$lib/Glow.svelte';
-	import { demoHref, GITHUB_URL } from '$lib/links';
+	import { demoHref, GITHUB_URL } from '$lib/urls';
 
 	let { og = false, children }: { og?: boolean; children?: Snippet } = $props();
 

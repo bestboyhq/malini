@@ -8,12 +8,12 @@
 		BESTBOY_URL,
 		docHref,
 		DOWNLOAD_URL,
-		GITHUB_URL,
 		isExternal,
 		MENUS,
 		type Link,
 		type Menu,
 	} from './links';
+	import { GITHUB_URL } from './urls';
 	import {
 		CLICK_GRACE_MS,
 		drop,

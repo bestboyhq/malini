@@ -1,5 +1,5 @@
-import { dev } from '$app/environment';
 import { asset, resolve } from '$app/paths';
+import { GITHUB_URL } from './urls';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
@@ -7,19 +7,12 @@ export const SITE_DESCRIPTION =
 
 export const DOWNLOAD_URL =
 	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
-export const GITHUB_URL = 'https://github.com/bestboyhq/malini';
 export const BESTBOY_URL = 'https://bestboy.dev';
 
 export const HOME = resolve('/').replace(/\/$/u, '');
 
 export function docHref(path: string): string {
 	return `${HOME}${path}`;
-}
-
-export type DemoPlay = 'hero' | 'tour' | 'sweep' | 'cycle';
-
-export function demoHref(page: 'app' | 'card', hash: string, play?: DemoPlay): string {
-	return `${asset(dev ? `/demo/${page}.html` : `/demo/${page}`)}${play ? `?play=${play}` : ''}#${hash}`;
 }
 
 export type Link = Readonly<{
