@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { GitHubIcon, Icon } from '@malini/hyper-ui/icons';
+	import {
+		BrandIcon,
+		ClaudeIcon,
+		DeepSeekIcon,
+		GitHubIcon,
+		Icon,
+		OpenCodeIcon,
+	} from '@malini/hyper-ui/icons';
+	import Arrow from '$lib/Arrow.svelte';
 	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
 	import DemoCard from '$lib/DemoCard.svelte';
@@ -16,6 +24,8 @@
 
 	const BEATS = [
 		'how',
+		'plans',
+		'opus',
 		'report',
 		'compare',
 		'browser',
@@ -77,6 +87,43 @@
 		},
 	];
 
+	const plans = [
+		{
+			name: 'Claude',
+			body: 'Pro or Max, signed in through Claude Code. Switch accounts without signing out.',
+		},
+		{
+			name: 'ChatGPT',
+			body: 'Go, Plus, or Pro. GPT models with Claude Code’s tools. No Codex.',
+		},
+		{
+			name: 'OpenCode',
+			body: 'Go or Console. One key, and Malini works out which.',
+		},
+		{
+			name: 'DeepSeek',
+			body: 'An API key, billed per token. V4 Pro thinks hard.',
+		},
+	] as const;
+
+	const opus = [
+		{
+			stat: '280K',
+			title: 'Where Malini compacts',
+			body: 'Claude Code lets Opus fill about 967K tokens first, and every turn sends all of it.',
+		},
+		{
+			stat: '86%',
+			title: 'Kept after a compaction',
+			body: 'Claude Code alone keeps 70% of what mattered. Malini puts every prompt and reply back right after.',
+		},
+		{
+			stat: '16',
+			title: 'Long chats measured',
+			body: 'Replayed at windows from 200K to 1M. Lower forgets, higher costs. 280K won.',
+		},
+	];
+
 	const trust = [
 		{
 			icon: 'unlock',
@@ -90,8 +137,8 @@
 		},
 		{
 			icon: 'eye',
-			title: 'Five calls of its own',
-			body: 'Update checks, usage stats you can turn off, model lists from models.dev, the extension marketplace while you use it, and your stats only if you publish them. Every big decision is written down.',
+			title: 'Seven calls of its own',
+			body: 'Update checks, usage stats you can turn off, model lists from models.dev, a plan check when you save an OpenCode key, the extension marketplace while you use it, OpenAI only after you sign in with ChatGPT, and your stats only if you publish them. Every big decision is written down.',
 		},
 	] as const;
 
@@ -99,7 +146,12 @@
 		{
 			question: 'Is Malini free?',
 			answer:
-				'Yes. Malini is free and open source under AGPL-3.0, with no subscription and no account needed. Agents run on your own Claude Code today, so they use your own Claude plan.',
+				'Yes. Malini is free and open source under AGPL-3.0, with no subscription and no account needed. Agents run in your own Claude Code on a plan you already pay for: Claude, ChatGPT, or OpenCode, or a DeepSeek key.',
+		},
+		{
+			question: 'Will Malini eat my plan?',
+			answer:
+				'Less than Claude Code alone. Claude Code lets Opus fill its 1M window before it compacts. Malini compacts at 280K and puts every prompt and reply back right after, so a long chat uses about a quarter less of your plan and remembers more of itself. Settings, Models, Context window moves the line.',
 		},
 		{
 			question: 'What do I need?',
@@ -129,7 +181,7 @@
 		{
 			question: 'Which agents and models can I use?',
 			answer:
-				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku on your Claude plan, or a DeepSeek or OpenCode model on its own key, at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
+				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku on your Claude plan, a GPT model on your ChatGPT plan, an OpenCode model on Go or Console, or a DeepSeek model on its own key, at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
 		},
 		{
 			question: 'Can I extend it?',
@@ -183,6 +235,77 @@
 		</ol>
 	{/snippet}
 </SectionHeading>
+
+<SectionHeading
+	id="plans"
+	beat={beat('plans', 'Plans')}
+	split
+	title="Bring the plan you already pay for."
+	quiet="Malini sends no bill."
+	description="Agents run in Claude Code on your own plan. Pick a model per prompt, and Malini asks for the sign-in it needs."
+>
+	{#snippet after()}
+		<ul class="cells plans">
+			{#each plans as plan (plan.name)}
+				<li class="rise">
+					{#if plan.name === 'Claude'}
+						<ClaudeIcon size={18} />
+					{:else if plan.name === 'ChatGPT'}
+						<BrandIcon brand="openai" size={18} />
+					{:else if plan.name === 'OpenCode'}
+						<OpenCodeIcon size={18} />
+					{:else}
+						<DeepSeekIcon size={18} />
+					{/if}
+					<h3>{plan.name}</h3>
+					<p>{plan.body}</p>
+				</li>
+			{/each}
+		</ul>
+	{/snippet}
+</SectionHeading>
+
+<section id="opus" class="beat flush" aria-labelledby="opus-title">
+	<div class="wrap">
+		<BeatLabel {...beat('opus', 'Usage')} />
+		<div class="poster">
+			<p class="reading rise">
+				<span class="figure">
+					<span class="painted">25</span>
+					<span class="unit">%</span>
+				</span>
+				<span class="from">More Opus per plan, on long chats</span>
+			</p>
+			<div class="rise">
+				<h2 id="opus-title">
+					<span>Opus works overtime.</span>
+					<span class="quiet">Same pay.</span>
+				</h2>
+				<p class="sub">
+					Malini runs Claude Code’s context for you, out of the box. A long Opus chat uses about a
+					quarter less of your plan, and forgets less of itself.
+				</p>
+				<a
+					class="arrow-link"
+					href="{GITHUB_URL}/blob/main/docs/adr/0145-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md"
+				>
+					How we measured it
+					<Arrow class="ahead" />
+				</a>
+			</div>
+		</div>
+		<ul class="cells">
+			{#each opus as item, index (item.title)}
+				<li class="rise">
+					<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
+					<span class="stat">{item.stat}</span>
+					<h3>{item.title}</h3>
+					<p>{item.body}</p>
+				</li>
+			{/each}
+		</ul>
+	</div>
+</section>
 
 <FeatureRow
 	id="report"
@@ -490,6 +613,90 @@
 		text-wrap: pretty;
 	}
 
+	.plans {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.plans li > :global(svg) {
+		color: var(--fg-default);
+	}
+
+	.flush {
+		padding-bottom: 0;
+	}
+
+	.poster {
+		display: grid;
+		grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+		gap: 32px 80px;
+		align-items: center;
+	}
+
+	.reading {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.figure {
+		display: flex;
+		align-items: baseline;
+		gap: 0.02em;
+		margin: -0.06em 0 -0.1em -0.05em;
+		font-size: clamp(160px, 22vw, 300px);
+		font-weight: 550;
+		line-height: 1;
+	}
+
+	.painted {
+		background: var(--painting);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+
+	.unit {
+		color: var(--fg-faint);
+		font-size: 0.32em;
+		letter-spacing: -0.03em;
+	}
+
+	.from {
+		color: var(--fg-faint);
+		font-family: var(--mono);
+		font-size: 12px;
+		line-height: 16px;
+	}
+
+	.poster h2 {
+		font-size: clamp(34px, 4.6vw, 52px);
+		line-height: 1.06;
+		letter-spacing: -0.035em;
+	}
+
+	.poster h2 span {
+		display: block;
+	}
+
+	.quiet {
+		color: var(--fg-faint);
+	}
+
+	.poster .sub {
+		margin-top: 20px;
+	}
+
+	.poster .arrow-link {
+		margin-top: 24px;
+	}
+
+	.stat {
+		font-size: 28px;
+		font-weight: 550;
+		line-height: 1.2;
+		letter-spacing: -0.03em;
+	}
+
 	.buttons {
 		display: flex;
 		flex-wrap: wrap;
@@ -691,6 +898,14 @@
 		.cells li + li {
 			border-left: 0;
 		}
+
+		.plans {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.plans li:nth-child(even) {
+			border-left: 1px solid var(--frame);
+		}
 	}
 
 	@media (max-width: 859px) {
@@ -700,6 +915,7 @@
 			font-size: 17px;
 		}
 
+		.poster,
 		.faq {
 			grid-template-columns: minmax(0, 1fr);
 			gap: 32px;
@@ -719,6 +935,14 @@
 	}
 
 	@media (max-width: 559px) {
+		.plans {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.plans li:nth-child(even) {
+			border-left: 0;
+		}
+
 		summary {
 			grid-template-columns: minmax(0, 1fr) 16px;
 		}
