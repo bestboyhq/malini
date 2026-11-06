@@ -1,6 +1,7 @@
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { canSandbox } from '@malini/agent-bridge/sandbox';
 
 vi.mock('electron', () => ({
 	ipcMain: { handle: vi.fn() },
@@ -199,6 +200,7 @@ describe('provisioning command', () => {
 		expect(outcome).toEqual({ status: 'succeeded' });
 		expect(runner.last('npm').cwd).toBe(realpathSync(checkout));
 		expect(runner.last('npm').env?.['PATH']).toBeTruthy();
+		expect(runner.last('npm').sandbox !== null).toBe(canSandbox());
 		const frames = test.events.frames.filter(
 			(frame) => frame.channel === REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL,
 		);

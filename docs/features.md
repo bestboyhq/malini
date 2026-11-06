@@ -70,8 +70,10 @@ The [README](../README.md) has the short version.
 - **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku from Claude, any DeepSeek or OpenCode model models.dev lists, or a GPT model on your ChatGPT plan, from Low to Max effort.
   Pick any model, a provider you have not connected folded into one row; sending on it asks for its key or sign-in right there, then sends the prompt.
 - **As much rope as you want to give.** **Auto**, the default, uses Claude Code's auto mode.
-  **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else, and **Full access** never asks.
+  **Sandboxed** edits the workstream and runs commands without asking, and asks for anything else, and **Full access** never asks.
   Approve once, or always for the chat or the workstream.
+- **A sandbox around every command.** Agent commands and workstream installs run in a macOS sandbox Malini writes, so a malicious package cannot read your credentials or write outside the workstream.
+  Electron, Playwright and file watchers run inside it.
 - **As much reading as you want to do.** Reports run from a screenshot and one line to the full write-up.
 - **Watch it think.** Thinking shows inline, step by step, from the moment the run starts, with a diff for every file the chat changed.
 - **Watch it delegate.** Each subagent is one line with the step it is on, and its steps and report are one click away.

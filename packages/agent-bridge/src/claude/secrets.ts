@@ -1,22 +1,45 @@
-import { randomUUID } from 'node:crypto';
-import { accessSync, constants, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes, randomUUID } from 'node:crypto';
+import {
+	accessSync,
+	constants,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { rename, rm, writeFile } from 'node:fs/promises';
 import { constants as osConstants, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {
+	OUTSIDE_THE_SANDBOX,
+	SANDBOX_ENVIRONMENT,
+	SANDBOX_EXEC,
+	SECRETS_FOLDER_PREFIX,
+} from '../sandbox.js';
 import { errnoCode, isRecord } from '../type-guards.js';
 
 export const SECRET_MASK = '[secret]';
 export const MASKED_LENGTH = 8;
 
-const BRIDGE_FOLDER = /^malini-secrets-(\d+)-/u;
+const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
+const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
+	.map(([name, value]) => `${name}=${value}`)
+	.join(' ');
 
 const RUN_SCRIPT = `#!/bin/bash
 folder=\${0%/*}
 shell=\${CLAUDE_CODE_SHELL:-/bin/zsh}
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
-[ -s "$folder/masks" ] || exec "$shell" -c "$1"
+run=("$shell" -c "$1")
+if [ -r "$folder/sandbox.sb" ] && ! {
+	[[ $1 =~ ${OUTSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && /bin/rm "$folder/passes/\${BASH_REMATCH[1]}" 2>/dev/null
+}; then
+	run=(/usr/bin/env ${sandboxEnvironment} ${SANDBOX_EXEC} -f "$folder/sandbox.sb" "\${run[@]}")
+fi
+[ -s "$folder/masks" ] || exec "\${run[@]}"
 mask() {
 	/usr/bin/awk -v masks="$folder/masks" '
 		BEGIN { while ((getline line < masks) > 0) if (line != "") secret[++count] = line }
@@ -36,9 +59,9 @@ mask() {
 }
 set -o pipefail
 if [ /dev/fd/1 -ef /dev/fd/2 ]; then
-	"$shell" -c "$1" 2>&1 | mask
+	"\${run[@]}" 2>&1 | mask
 else
-	{ "$shell" -c "$1" 2>&1 1>&3 3>&- | mask >&2; } 3>&1 | mask
+	{ "\${run[@]}" 2>&1 1>&3 3>&- | mask >&2; } 3>&1 | mask
 fi
 `;
 
@@ -46,11 +69,28 @@ export class SessionSecrets {
 	readonly runScript: string;
 	readonly #folder: string;
 	#masks: readonly string[] = [];
+	#confined = false;
 
 	constructor(folder: string) {
 		this.#folder = folder;
 		this.runScript = join(folder, 'run');
 		writeFileSync(this.runScript, RUN_SCRIPT, { mode: 0o700 });
+	}
+
+	confine(profile: string | null): void {
+		this.#confined = profile !== null;
+		const path = join(this.#folder, 'sandbox.sb');
+		if (profile === null) rmSync(path, { force: true });
+		else writeFileSync(path, profile, { mode: 0o600 });
+	}
+
+	passOutside(command: string): string {
+		if (!this.#confined) return command;
+		const passes = join(this.#folder, 'passes');
+		const pass = randomBytes(16).toString('hex');
+		mkdirSync(passes, { recursive: true, mode: 0o700 });
+		writeFileSync(join(passes, pass), '', { mode: 0o600 });
+		return `: ${OUTSIDE_THE_SANDBOX}${pass}; ${command}`;
 	}
 
 	async set(secrets: Readonly<Record<string, string>>): Promise<void> {
@@ -83,7 +123,7 @@ export function bridgeSecretsFolder(parent: string = tmpdir()): string {
 			rmSync(join(parent, name), { recursive: true, force: true });
 		}
 	}
-	const folder = mkdtempSync(join(parent, `malini-secrets-${process.pid}-`));
+	const folder = mkdtempSync(join(parent, `${SECRETS_FOLDER_PREFIX}${process.pid}-`));
 	process.once('exit', () => rmSync(folder, { recursive: true, force: true }));
 	for (const signal of STOP_SIGNALS) {
 		process.once(signal, () => process.exit(128 + signals[signal]));

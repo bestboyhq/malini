@@ -182,10 +182,11 @@ What it reaches:
 
 - **Anthropic**, always: Claude runs the job's agent and sees what the job sees.
 - **GitHub**, through a Then of **Open draft** or **Merge**, or with `gh` while the job reaches the internet.
-- **The internet**: off for every job you make until you turn it on, and on for the built-in jobs. Off, a sandbox lets the job's commands reach no site, Claude Code drops its web tools and every MCP server but Malini's, and Malini refuses its own tools that would reach out for the job: the browser, cloning a repository, starting or messaging a workstream, and running a job whose internet is on.
+- **The internet**: off for every job you make until you turn it on, and on for the built-in jobs. Off, [the sandbox](/malini/docs/chat.md#the-sandbox) lets the job's commands reach no site but localhost, Claude Code drops its web tools and every MCP server but Malini's, and Malini refuses its own tools that would reach out for the job: the browser, cloning a repository, starting or messaging a workstream, and running a job whose internet is on.
 
-A job that does not see everything runs its commands in Claude Code's sandbox, which hides what the job may not see from its commands and its Read tool.
-A command that must run outside the sandbox, such as one that launches Electron, asks you first, every time.
+A job runs its commands in [the sandbox](/malini/docs/chat.md#the-sandbox), as every chat does, and the sandbox also hides what the job may not see from its commands; Claude Code hides it from its Read tool.
+Electron, Playwright, file watchers and terminals run inside it, so a job that runs `pnpm test:e2e` never asks.
+A command that must run outside the sandbox asks you first, every time.
 
 A job that sees your words, through a chat, an attachment, a whole event, or the report of a job before it that sees them, and reaches outside your Mac, through the internet or a Then that publishes, **can leak**.
 The Jobs page marks it **Can leak**, and its page says how, with **Stop it seeing your words** and **Turn off the internet** one click away.

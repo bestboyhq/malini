@@ -75,7 +75,8 @@ Send prompts and commit only in workstreams created inside the sandbox; a flow t
 
 `scripts/malini.mjs` exports `launch(topic, { foreground })`.
 It returns the Playwright `page`, the Electron `app`, `errors` (console and page errors), `shot(name)`, and `close()`.
-`shot` waits for transitions to settle, then captures Malini's own window with `screencapture -l` into `.context/<name>.png`.
+`shot` waits for transitions to settle, then captures Malini's own window with Electron's `capturePage()` into `.context/<name>.png`.
+It needs no screen recording permission, so it runs inside Malini's sandbox, where `screencapture` cannot.
 
 Write the flow as `$P/flow.mjs`, importing the launcher by its absolute path, and run it with `node`:
 
@@ -97,7 +98,7 @@ The window shows the theme the user is in: `launch` reads `MALINI_THEME`, which 
 Locate by role and accessible name, and wait on the state the user would see, never on a timeout.
 Playwright's `click()` may scroll the transcript to reach its target, which unpins it the way a user scrolling up would; when the flow depends on scroll position, click at the target's box with `page.mouse.click`.
 
-The window runs in the background by default: it sits behind every other app with one pixel on screen, never takes focus or clicks, and `screencapture -l` still captures all of it.
+The window runs in the background by default: it sits behind every other app with one pixel on screen, never takes focus or clicks, and `shot` still captures all of it.
 The user keeps working while you test.
 Pass `{ foreground: true }` only when the user asks to watch.
 

@@ -1,4 +1,4 @@
-# 0167 - A chat opens before its provider is connected
+# 0168 - A chat opens before its provider is connected
 
 Status: accepted
 
