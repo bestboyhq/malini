@@ -163,8 +163,10 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 ## Agent access
 
 - **Auto**, the default, uses Claude Code's auto mode.
-- **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else.
+- **Sandboxed** edits the workstream and runs commands without asking, and asks for anything else.
 - **Full access** never asks.
+
+Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
 When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
 Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running a job in its workstream or one it started, goes through without asking, unless the job opens a draft or merges.
@@ -189,6 +191,26 @@ Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›
 **Open transcript** goes to the asking chat when you want its context.
 **Later**, or Escape, folds the queue into a **requests need you** row above the composer, so you can write to this chat, and **Answer** brings it back.
 A request takes the composer slot right away, even over a draft, which waits underneath, and a new one brings the queue back after **Later**.
+
+### The sandbox
+
+Every command an agent runs, in a chat or a job, runs in a macOS sandbox Malini writes for it, and so does the install Malini runs when it sets up a workstream.
+A package that turns out to be malicious gets the sandbox, not your Mac.
+
+In the sandbox, a command:
+
+- writes only to the workstream, its git folders, temporary folders and package caches;
+- never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
+- cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
+- cannot open or script other apps, read the clipboard, or take screenshots;
+- reaches localhost and, unless a job has the internet off, any site and your keychain, where `gh` keeps its sign-in.
+
+Electron, Playwright, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
+Electron's own sandbox stays off there, since the two cannot nest.
+
+When a command needs what the sandbox blocks, the agent asks to run it outside, and the chat asks you first, every time.
+**Full access** runs it outside without asking.
+An approval lets out that one call: a command inside the sandbox cannot let itself out.
 
 ## Reports
 

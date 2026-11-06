@@ -21,7 +21,7 @@ export const AGENT_ACCESS_DETAILS: Record<AgentAccess, { label: string; descript
 	sandboxed: {
 		label: 'Sandboxed',
 		description:
-			'Claude Code edits files in the workstream and runs commands in its sandbox. Anything else asks first.',
+			"Claude Code edits files in the workstream and runs commands in Malini's sandbox. Anything else asks first.",
 	},
 	auto: {
 		label: 'Auto',

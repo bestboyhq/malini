@@ -1,6 +1,6 @@
 # 0151 - A job sees and reaches only what you set on its page
 
-Status: accepted
+Status: superseded by 0165
 
 ## Context
 

@@ -1,7 +1,7 @@
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type {
 	HookJSONOutput,
 	McpServerStatus,
@@ -15,11 +15,7 @@ import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
 import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
-import {
-	askBeforeLeavingTheSandbox,
-	AutoModeOutage,
-	UNCHECKED_CALL_REASON,
-} from './permissions.js';
+import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, claudeEnvironment } from './session.js';
 
@@ -74,6 +70,7 @@ function harness(
 		},
 		executable: options.executable === undefined ? '/opt/claude/bin/claude' : options.executable,
 		secrets: sessionSecrets(),
+		sandbox: true,
 		query: mcpServerStatus
 			? (params) => ({
 					...claude.query(params),
@@ -245,7 +242,7 @@ describe('ClaudeSession', () => {
 			cwd: '/work/repo',
 			pathToClaudeCodeExecutable: '/opt/claude/bin/claude',
 			permissionMode: 'acceptEdits',
-			sandbox: { enabled: true },
+			sandbox: { enabled: false },
 			effort: 'high',
 			includePartialMessages: true,
 		});
@@ -344,6 +341,14 @@ describe('ClaudeSession', () => {
 			chatRecords: false,
 			internet: false,
 		};
+		const sandboxOf = (run: number) =>
+			readFile(
+				join(
+					dirname(claude.runs[run]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? ''),
+					'sandbox.sb',
+				),
+				'utf8',
+			);
 
 		await session.sendPrompt(
 			'Write the docs',
@@ -351,21 +356,23 @@ describe('ClaudeSession', () => {
 			profile('agent', 'auto'),
 			...inside(sealed),
 		);
+		const sealedSandbox = await sandboxOf(0);
 		await session.sendPrompt(
 			'And again',
 			'run-2',
 			profile('agent', 'auto'),
 			...inside({ hidden: [], chatRecords: true, internet: true }),
 		);
+		const openSandbox = await sandboxOf(1);
 
 		const [first, second] = claude.runs.map(({ options }) => options);
-		const denyRead = first?.sandbox?.filesystem?.denyRead ?? [];
-		expect(denyRead).toEqual(expect.arrayContaining([...sealed.hidden]));
-		expect(denyRead.some((path) => path.endsWith('/projects'))).toBe(true);
-		expect(first?.sandbox).toMatchObject({
-			enabled: true,
-			network: { allowedDomains: [], strictAllowlist: true },
-		});
+		expect(first?.sandbox).toEqual({ enabled: false });
+		for (const path of [...sealed.hidden, '/projects"']) {
+			expect(sealedSandbox).toContain(path);
+			expect(openSandbox).not.toContain(path);
+		}
+		expect(sealedSandbox).not.toContain('(remote ip "*:*")');
+		expect(openSandbox).toContain('(remote ip "*:*")');
 		expect(first?.disallowedTools).toEqual(
 			expect.arrayContaining([
 				'Read(//data/malini/malini.sqlite/**)',
@@ -376,9 +383,6 @@ describe('ClaudeSession', () => {
 		);
 		expect(first?.strictMcpConfig).toBe(true);
 		expect(first?.env?.['CLAUDE_CODE_DISABLE_AUTO_MEMORY']).toBe('1');
-		expect(first?.hooks?.PreToolUse?.[0]?.hooks).toContain(askBeforeLeavingTheSandbox);
-		expect(second?.sandbox).toMatchObject({ network: { allowedDomains: ['*'] } });
-		expect(second?.sandbox?.filesystem?.denyRead).toEqual([]);
 		expect(second?.disallowedTools).not.toContain('WebFetch');
 		expect(second).not.toHaveProperty('strictMcpConfig');
 		expect(second?.env).not.toHaveProperty('CLAUDE_CODE_DISABLE_AUTO_MEMORY');
@@ -1076,6 +1080,49 @@ describe('ClaudeSession', () => {
 		expect(ofType(events, 'tool.failed')).toEqual([]);
 		expect(ofType(events, 'run.completed')).toEqual([]);
 		expect(events.at(-1)).toMatchObject({ type: 'run.failed', runId: 'run-1', error: 'cancelled' });
+	});
+
+	it('runs a command the user lets out of the sandbox outside it, once', async () => {
+		const outside = { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true };
+		const { session, claude } = harness(
+			[
+				[
+					{
+						canUseTool: {
+							toolName: 'Bash',
+							input: outside,
+							opts: { toolUseID: 'toolu_outside', requestId: 'request-outside' },
+						},
+					},
+					...recordedScript('readAndBash'),
+				],
+			],
+			{
+				onEvent: (event, current) => {
+					if (event.type !== 'approval.requested') return;
+					void current.respondToApproval({
+						sessionId: event.sessionId,
+						runId: event.runId,
+						approvalId: event.approvalId,
+						decision: 'allow',
+						scope: 'once',
+					});
+				},
+			},
+		);
+
+		await session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
+
+		const [result] = claude.runs[0]?.permissionResults ?? [];
+		const command = result?.behavior === 'allow' ? result.updatedInput?.['command'] : undefined;
+		const pass = /^: malini-outside-([0-9a-f]{32}); pnpm test:e2e$/u.exec(String(command))?.[1];
+		const folder = dirname(claude.runs[0]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? '');
+		expect(result).toMatchObject({
+			behavior: 'allow',
+			updatedInput: { dangerouslyDisableSandbox: true },
+		});
+		expect(pass).toBeDefined();
+		expect(existsSync(join(folder, 'passes', pass ?? ''))).toBe(true);
 	});
 
 	describe('a call auto mode blocks', () => {

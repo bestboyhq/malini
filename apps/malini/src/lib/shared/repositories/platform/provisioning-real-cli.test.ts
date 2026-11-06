@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { canSandbox } from '@malini/agent-bridge/sandbox';
 import { REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL } from '$contract/events';
 import { openMigratedDatabase } from '$main/db/open';
 import { resolveToolPath } from '$main/process/environment';
@@ -10,7 +11,7 @@ import { labeledContainerIds } from '$main/docker/cli';
 import { composeProjectName, ownershipLabels } from '$main/docker/labels';
 import { DockerOwnership, writeComposeLabelOverlay } from '$main/docker/ownership';
 import { DockerCliReaper, reclaimContainers } from '$main/docker/reclaim';
-import { InstallRegistry, installDependencies } from './provisioning.service';
+import { InstallRegistry, installDependencies, installWithArgv } from './provisioning.service';
 import { createNodeProcessRunner } from '$main/process/runner';
 import { SHUTDOWN_BUDGET_MS } from '$lib/app/app.platform';
 import { removeAll } from '$main/fs/test-support';
@@ -76,7 +77,13 @@ describe.each(['pnpm', 'npm', 'yarn', 'bun'] as const)('real %s install', (manag
 		const events = recordingEventBus();
 		const runner = createNodeProcessRunner();
 		const outcome = await installDependencies(
-			{ runner, events, registry: new InstallRegistry(runner), timeoutMs: 120_000 },
+			{
+				runner,
+				events,
+				registry: new InstallRegistry(runner),
+				timeoutMs: 120_000,
+				...(canSandbox() ? { sandbox: { hidden: [] } } : {}),
+			},
 			`ws-${manager}`,
 			checkout,
 		);
@@ -87,6 +94,33 @@ describe.each(['pnpm', 'npm', 'yarn', 'bun'] as const)('real %s install', (manag
 		expect(payloads[0]?.command).toContain('--ignore-scripts');
 		expect(outcome.status, JSON.stringify(payloads.at(-1))).toBe('succeeded');
 	}, 180_000);
+});
+
+describe.runIf(canSandbox())('a sandboxed install', () => {
+	it('writes the checkout and cannot read what Malini hides', async () => {
+		const checkout = tempDir('malini-sandboxed-install-');
+		const hidden = tempDir('malini-hidden-');
+		writeFileSync(join(hidden, 'token'), 'hidden-token');
+		const runner = createNodeProcessRunner();
+		const deps = {
+			runner,
+			events: recordingEventBus(),
+			registry: new InstallRegistry(runner),
+			sandbox: { hidden: [hidden] },
+		};
+		const install = (workstreamId: string, script: string) => {
+			const slot = deps.registry.claim(workstreamId);
+			if (!slot) throw new Error(`${workstreamId} is already installing`);
+			return installWithArgv(deps, slot, workstreamId, checkout, ['/bin/sh', '-c', script]);
+		};
+
+		expect(await install('ws-writes', 'touch installed')).toEqual({ status: 'succeeded' });
+		expect(existsSync(join(checkout, 'installed'))).toBe(true);
+		expect(await install('ws-reads', `cat ${join(hidden, 'token')}`)).toMatchObject({
+			status: 'failed',
+			detail: expect.stringContaining('Operation not permitted'),
+		});
+	});
 });
 
 describe('real docker', () => {

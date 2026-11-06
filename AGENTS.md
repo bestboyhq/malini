@@ -23,7 +23,7 @@ Everything else on GitHub is reached through the `gh` CLI.
 
 Nothing is done on the strength of a unit test, a scorecard, or a component rendering in isolation.
 It is done when the flow completes in the built app or the `pnpm dev` window, proven by a screenshot of that window and a clean console for the interaction.
-Capture the app's own window only, never the full screen: `screencapture -o -l <window id> out.png` on macOS.
+Capture the app's own window only, never the full screen: `shot` in the `test-malini-app` skill takes it with Electron's `capturePage()`, which works inside Malini's sandbox.
 If you defer something, say so with the reason.
 Do not report it closed.
 
