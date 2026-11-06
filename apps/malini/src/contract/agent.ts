@@ -111,6 +111,8 @@ export interface ProviderAccount {
 	usageLimitReachedAt: string | null;
 }
 
+export type ProviderPlan = 'console' | 'go';
+
 export interface ModelProviderRecord {
 	id: string;
 	name: string;
@@ -119,6 +121,7 @@ export interface ModelProviderRecord {
 	models: AgentModelInfo[];
 	keySaved: boolean;
 	account: ProviderAccount | null;
+	plan: ProviderPlan | null;
 }
 
 export interface AgentAccount {

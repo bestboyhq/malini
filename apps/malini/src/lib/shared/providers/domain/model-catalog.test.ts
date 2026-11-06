@@ -43,6 +43,7 @@ function group(
 		message: '',
 		models,
 		account: null,
+		plan: null,
 	};
 }
 

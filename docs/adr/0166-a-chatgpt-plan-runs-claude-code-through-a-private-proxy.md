@@ -1,4 +1,4 @@
-# 0165 - A ChatGPT plan runs Claude Code through a private proxy
+# 0166 - A ChatGPT plan runs Claude Code through a private proxy
 
 Status: accepted
 
@@ -13,7 +13,7 @@ A provider until now was a static key and base URL in the run's environment (014
 ## Decision
 
 - `chatgpt` is a third provider kind beside `claude` and `anthropic`.
-  Migration 94 rebuilds `model_providers` so a `chatgpt` row can never hold an API key, seeds `chatgpt` with base URL `https://api.openai.com/v1` and the models a Go plan's `/models` listed on 2026-11-06, GPT-6 Luna, GPT-5.6 Terra and GPT-5.6 Luna, and adds `chatgpt_account`, one row with the host id, the registered client id, the account's subject, email and name, and the sealed credentials.
+  Migration 95 rebuilds `model_providers` so a `chatgpt` row can never hold an API key, seeds `chatgpt` with base URL `https://api.openai.com/v1` and the models a Go plan's `/models` listed on 2026-11-06, GPT-6 Luna, GPT-5.6 Terra and GPT-5.6 Luna, and adds `chatgpt_account`, one row with the host id, the registered client id, the account's subject, email and name, and the sealed credentials.
 - **Sign-in** is `providers.sign-in-to-chatgpt`, in `src/lib/shared/providers/platform/chatgpt/sign-in.ts`.
   It reads `https://auth.openai.com/.well-known/openid-configuration`, listens for the callback on `http://127.0.0.1:<random port>/auth/callback`, and opens the authorize URL in the browser with PKCE S256, `state`, `nonce`, `resource=https://api.openai.com/v1` and the scopes `openid profile email offline_access resource.invoke chatgpt.tokens.use.direct`.
   The first sign-in sends `client_id=dynamic_agent_client` with `agent_name_hint=Malini`, and Malini keeps the `oaiapp_…` client id the callback hands back.

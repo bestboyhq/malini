@@ -242,6 +242,7 @@ function unknownGroup(provider: string): ProviderGroup {
 		ready: false,
 		message: '',
 		account: null,
+		plan: null,
 	};
 }
 

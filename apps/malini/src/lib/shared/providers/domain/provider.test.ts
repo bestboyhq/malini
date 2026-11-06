@@ -12,6 +12,7 @@ const groups: readonly ProviderGroup[] = [
 		ready: true,
 		message: '',
 		account: null,
+		plan: null,
 	},
 	{
 		id: 'deepseek',
@@ -22,6 +23,7 @@ const groups: readonly ProviderGroup[] = [
 		ready: false,
 		message: '',
 		account: null,
+		plan: null,
 	},
 ];
 
@@ -81,6 +83,7 @@ describe('model access', () => {
 			models: [],
 			keySaved: false,
 			account: null,
+			plan: null,
 		};
 		const selection = { provider: 'chatgpt', model: 'gpt-6.1-sol' };
 		const signedOut = providerGroups(null, [chatgpt]);

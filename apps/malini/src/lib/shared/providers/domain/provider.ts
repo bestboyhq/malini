@@ -4,6 +4,7 @@ import type {
 	ModelProviderRecord,
 	ProviderAccount,
 	ProviderCapability,
+	ProviderPlan,
 } from '$contract/agent';
 import type { ClaudeCodeStatus } from './claude-code-status';
 import { fallbackModelCatalog } from './model-catalog';
@@ -14,6 +15,7 @@ export const DEFAULT_PROVIDER_ID = CLAUDE_PROVIDER_ID;
 
 export const DEEPSEEK_PROVIDER_ID = 'deepseek';
 export const OPENCODE_PROVIDER_ID = 'opencode';
+export const OPENCODE_GO_PROVIDER_ID = 'opencode-go';
 export const CHATGPT_PROVIDER_ID = 'chatgpt';
 export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 
@@ -49,6 +51,7 @@ export const CLAUDE_PROVIDER: ModelProviderRecord = {
 	models: [],
 	keySaved: false,
 	account: null,
+	plan: null,
 };
 
 export interface ProviderModelSource {
@@ -65,6 +68,7 @@ export interface ProviderGroup {
 	ready: boolean;
 	message: string;
 	account: ProviderAccount | null;
+	plan: ProviderPlan | null;
 }
 
 const CUSTOM_PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
@@ -101,6 +105,7 @@ export function providerGroups(
 		ready: capability?.state === 'ready',
 		message: capability?.message ?? 'Claude Code needs setup',
 		account: null,
+		plan: null,
 	};
 	const custom = providers
 		.filter((provider) => provider.id !== CLAUDE_PROVIDER_ID)
@@ -123,6 +128,7 @@ function customGroup(provider: ModelProviderRecord): ProviderGroup {
 		ready,
 		message: ready ? 'Ready' : missing,
 		account: provider.account,
+		plan: provider.plan,
 	};
 }
 

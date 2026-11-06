@@ -478,6 +478,7 @@ export interface ContractCommands {
 	'providers.list': { args: undefined; result: ModelProviderRecord[] };
 	'providers.refresh-models': { args: undefined; result: ModelProviderRecord[] };
 	'providers.save-key': { args: ProviderKeyArgs; result: void };
+	'providers.check-plan': { args: ProviderIdArgs; result: void };
 	'providers.delete-key': { args: ProviderIdArgs; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
@@ -830,6 +831,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.list',
 	'providers.refresh-models',
 	'providers.save-key',
+	'providers.check-plan',
 	'providers.delete-key',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',

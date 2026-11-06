@@ -14,6 +14,10 @@ class ModelProvidersService {
 		return invoke('providers.save-key', { providerId, apiKey });
 	}
 
+	checkPlan(providerId: string): Promise<void> {
+		return invoke('providers.check-plan', { providerId });
+	}
+
 	deleteKey(providerId: string): Promise<void> {
 		return invoke('providers.delete-key', { providerId });
 	}

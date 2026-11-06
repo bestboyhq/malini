@@ -165,7 +165,7 @@ The [README](../README.md) has the short version.
 
 Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
-Malini makes six calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.
+Malini makes seven calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 While you are signed in to Bestboy on its current terms, each count carries your account, as a hash Malini makes on your Mac.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.

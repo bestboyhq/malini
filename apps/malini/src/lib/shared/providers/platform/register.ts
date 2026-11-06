@@ -24,6 +24,7 @@ import {
 	type ChatGptEndpoints,
 } from './chatgpt/sign-in';
 import { ModelsDevCatalog, modelsDevUrl, type CatalogFetch } from './models-dev.service';
+import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
 import { ProviderKeys } from './provider-keys.service';
 
 const MAX_EMAIL_LENGTH = 320;
@@ -77,6 +78,7 @@ export function registerProviders(
 	context.commands.define('providers.cancel-claude-sign-in', () => accounts.cancelSignIn());
 
 	const fetch = deps.fetch ?? electronFetch;
+	const probeOrigin = opencodeProbeOrigin(!context.isDev, process.env);
 	const endpoints = chatGptEndpoints(!context.isDev, process.env);
 	const chatgpt = new ChatGptAccount({
 		db: context.db,
@@ -96,13 +98,18 @@ export function registerProviders(
 		onUsageLimit: (reached) => chatgpt.noteUsageLimit(reached),
 		userAgent: `Malini/${context.appVersion}`,
 	});
-	const keys = new ProviderKeys(context.db, deps.cipher ?? electronCipher, {
-		account: () => chatgpt.account(),
-		endpoint: async (session) => {
-			if (session === 'new') await chatgpt.accessToken();
-			return proxy.address();
+	const keys = new ProviderKeys(
+		context.db,
+		deps.cipher ?? electronCipher,
+		(apiKey) => detectOpenCodePlan({ apiKey, origin: probeOrigin, fetch }),
+		{
+			account: () => chatgpt.account(),
+			endpoint: async (session) => {
+				if (session === 'new') await chatgpt.accessToken();
+				return proxy.address();
+			},
 		},
-	});
+	);
 	const catalog = new ModelsDevCatalog({
 		db: context.db,
 		fetch,
@@ -115,6 +122,7 @@ export function registerProviders(
 
 	context.commands.define('providers.refresh-models', async () => {
 		await Promise.all([catalog.refresh(), chatgpt.refreshModels().catch(() => undefined)]);
+		await keys.detectMissingPlan();
 		return keys.list();
 	});
 
@@ -128,6 +136,10 @@ export function registerProviders(
 		const { providerId, apiKey } = providerKeyArgs(args);
 		await keys.save(providerId, apiKey);
 	});
+
+	context.commands.define('providers.check-plan', (args: unknown) =>
+		keys.checkPlan(providerIdArg(args)),
+	);
 
 	context.commands.define('providers.delete-key', (args: unknown) =>
 		keys.delete(providerIdArg(args)),
