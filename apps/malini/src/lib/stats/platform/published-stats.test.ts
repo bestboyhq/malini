@@ -23,14 +23,14 @@ describe('readPublishedStats', () => {
 		seedWorkstream(db, 'ws-new', 'local__bestboyhq__malini', { createdAt: at(15, 9, 30) });
 		seedSession(db, 'local', 'ws-local', 'user', 'haiku');
 		seedSession(db, 'chat', 'ws-malini', 'user', 'opus');
-		seedSession(db, 'job', 'ws-malini', 'job', 'claude-sonnet-4-5');
+		seedSession(db, 'automation', 'ws-malini', 'automation', 'claude-sonnet-4-5');
 		seedSession(db, 'grip', 'ws-grip', 'user', 'fable');
 		seedSession(db, 'secret', 'ws-secret', 'user', null);
 		seedSession(db, 'lead', 'ws-lead', 'user', 'opus');
 
 		seedRun(db, 'r0', 'local', at(11, 8), at(11, 8, 10));
 		seedRun(db, 'r1', 'chat', at(13, 10), at(13, 12));
-		seedRun(db, 'r2', 'job', at(13, 11), at(13, 11, 30));
+		seedRun(db, 'r2', 'automation', at(13, 11), at(13, 11, 30));
 		seedRun(db, 'r6', 'grip', at(13, 15), at(13, 15, 5));
 		seedRun(db, 'r3', 'secret', at(14, 23), at(15, 1));
 		seedRun(db, 'r4', 'lead', at(14, 22, 30), at(16, 9), ORPHAN_INTERRUPTED_ERROR);
@@ -41,7 +41,7 @@ describe('readPublishedStats', () => {
 		seedEvent(db, 'chat', 'r1', 'user.message', at(13, 10), { text: 'go' });
 		seedEvent(db, 'chat', 'r1', 'user.message', at(13, 10, 1), { text: 'and', from: 'ws-grip' });
 		seedUsage(db, 'chat', 'r1', at(13, 12), 1_000, 50);
-		seedUsage(db, 'job', 'r2', at(13, 11, 30), 200, 10);
+		seedUsage(db, 'automation', 'r2', at(13, 11, 30), 200, 10);
 		seedUsage(db, 'grip', 'r6', at(13, 15, 5), 300, 20);
 		seedUsage(db, 'secret', 'r3', at(15, 1), 9_000, 900);
 		seedUsage(db, 'chat', 'r5', at(15, 9, 30), 9_000, 900);
@@ -52,12 +52,12 @@ describe('readPublishedStats', () => {
 			'Bash',
 			'mcp__malini__browser_screenshot',
 			'mcp__malini__browser_screenshot',
-			'mcp__malini__jobs_run',
+			'mcp__malini__automations_run',
 			'mcp__plugin_private_server__secret_tool',
 			'Skill',
 			'Compact',
 		]);
-		seedToolCalls(db, 'job', 'r2', at(13, 11, 5), ['Read', 'Read']);
+		seedToolCalls(db, 'automation', 'r2', at(13, 11, 5), ['Read', 'Read']);
 		seedToolCalls(db, 'secret', 'r3', at(14, 23, 5), ['Bash', 'Bash', 'Bash', 'Bash', 'Bash']);
 		seedToolCalls(db, 'lead', 'r4', at(14, 23, 20), ['Edit']);
 		seedEvent(db, 'lead', 'r4', 'assistant.message', at(14, 23, 30));
@@ -69,7 +69,7 @@ describe('readPublishedStats', () => {
 			['README.md', 5, 0],
 			['assets/logo.png', 0, 0],
 		]);
-		seedChange(db, 'ws-malini', 'job', 'r2', at(13, 11, 30), [['src/app.ts', 1, 1]]);
+		seedChange(db, 'ws-malini', 'automation', 'r2', at(13, 11, 30), [['src/app.ts', 1, 1]]);
 		seedChange(db, 'ws-secret', 'secret', 'r3', at(15, 1), [['src/model.py', 100, 0]]);
 
 		const stats = await readPublishedStats(db, NOW, ['bestboyhq/malini'], (name) =>
@@ -122,7 +122,7 @@ describe('readPublishedStats', () => {
 		seedGitHubRepository(db, 'bestboyhq/malini', 'ws-malini');
 		seedSession(db, 'a', 'ws-malini', 'user', 'opus');
 		seedSession(db, 'b', 'ws-malini', 'user', 'opus');
-		seedSession(db, 'c', 'ws-malini', 'job', 'opus');
+		seedSession(db, 'c', 'ws-malini', 'automation', 'opus');
 		seedRun(db, 'quick', 'a', at(12, 9), at(12, 9, 1));
 		seedRun(db, 'overnight', 'a', at(13, 22), at(14, 2));
 		seedRun(db, 'beside', 'b', at(13, 23), at(13, 23, 30));
@@ -215,7 +215,7 @@ function seedSession(
 	db: MaliniDatabase,
 	sessionId: string,
 	workstreamId: string,
-	origin: 'user' | 'job',
+	origin: 'user' | 'automation',
 	model: string | null,
 ): void {
 	run(

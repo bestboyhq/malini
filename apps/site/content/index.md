@@ -27,10 +27,10 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 
 - [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, which Malini takes from Draft to merged.
 - [Chat](/malini/docs/chat.md): chats at Home or for an organization that start workstreams across repositories, queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
-- [Jobs](/malini/docs/jobs.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
-- [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.
+- [Automations](/malini/docs/automations.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
+- [Agent tools](/malini/docs/agent-tools.md): the browser, automations, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): Malini's own marketplace of MCP servers and skills for every agent, which anyone with a Bestboy handle publishes to, and the inspector they sit beside.
-- [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs working.
+- [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your automations working.
 - [Public profile](/malini/docs/profile.md): publish your stats to a profile at bestboy.dev, and share cards of it.
 
 ## Where your code goes

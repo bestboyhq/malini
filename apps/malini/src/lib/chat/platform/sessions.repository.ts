@@ -91,7 +91,7 @@ function uniqueSessionDisplayName(
 }
 
 const NEW_CHAT_NAME = 'New chat';
-const JOB_NAME = 'Job';
+const AUTOMATION_NAME = 'Automation';
 
 function chatOrdinalName(db: MaliniDatabase, workstreamId: string, sessionId: string): string {
 	const ordinal = scalar(
@@ -128,8 +128,8 @@ export function insertSession(
 	identity: SessionIdentity = USER_CHAT,
 ): void {
 	const displayName =
-		identity.origin === 'job'
-			? (identity.displayName ?? JOB_NAME)
+		identity.origin === 'automation'
+			? (identity.displayName ?? AUTOMATION_NAME)
 			: uniqueSessionDisplayName(
 					db,
 					session.workstreamId,

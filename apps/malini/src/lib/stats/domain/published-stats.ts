@@ -7,7 +7,7 @@ export type StatsRun = Readonly<{
 	startedAt: string;
 	completedAt: string | null;
 	endedAt: string | null;
-	job: boolean;
+	automation: boolean;
 	automated: boolean;
 	inputTokens: number;
 	outputTokens: number;
@@ -85,7 +85,7 @@ export function publishedStats(sources: StatsSources, cutoff: Date): PublishedSt
 		since,
 		totals: {
 			runs: runs.length,
-			jobRuns: runs.filter((run) => run.job).length,
+			jobRuns: runs.filter((run) => run.automation).length,
 			automatedRuns: runs.filter((run) => run.automated).length,
 			changeRuns: linesByRun.size,
 			activeDays: dates.length,

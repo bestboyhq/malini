@@ -54,7 +54,7 @@ done
 sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$P');
 	update workstreams set path = replace(path, '$L', '$P');
 	update connected_repositories set local_path = null where local_path not like '$P%';
-	update job_definitions set trigger_mode = 'off' where trigger_mode != 'off';
+	update automation_definitions set trigger_mode = 'off' where trigger_mode != 'off';
 	delete from agent_deliveries;
 	delete from workstream_ship;"
 for repo in "$P"/repositories/*/base; do
@@ -64,11 +64,13 @@ done
 
 Rewrite those paths before the first launch: `projects.repo_path` is absolute, and a new workstream otherwise branches off the user's live repository.
 A repository opened from a folder keeps that folder in `connected_repositories.local_path`, which wins over the copy; clearing it makes the sandbox use its own clone.
-Turn every job trigger off and drop queued prompts, or the sandbox runs the user's jobs and delivers their prompts in the copies.
+Turn every automation trigger off and drop queued prompts, or the sandbox runs the user's automations and delivers their prompts in the copies.
 Empty the merge queue too: a snapshot keeps the user's queued pull requests, and the sandbox would mark them ready, push to them and merge them on GitHub.
 
 Block pushes from the copies: each copy tracks the user's real branch on GitHub, so a **Draft**, a **Merge** or an agent's push from a copy lands there.
 The `pushInsteadOf` rewrite sends every push from the copies to an unreachable host, while fetches still reach GitHub.
+It also fails Malini's origin check, so **Draft**, **Merge** and a prompt that continues a merged workstream stop with "workstream origin no longer matches the selected GitHub repository".
+Continuing a merged workstream deletes its branch on GitHub, so continue only one whose branch GitHub already removed (`git ls-remote origin refs/heads/<branch>` prints nothing), or ask the user first.
 Send prompts and commit only in workstreams created inside the sandbox; a flow that has to push unsets the rewrite for that run.
 
 ## Drive and capture

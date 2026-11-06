@@ -28,7 +28,7 @@ export type ShipNeedsYouReason =
 export type ShipNeedsYou = Readonly<{
 	reason: ShipNeedsYouReason;
 	detail: string;
-	jobRunId: string | null;
+	automationRunId: string | null;
 }>;
 
 export type ShipWaitsFor = 'workflow-scope' | 'workflow-permission' | 'push-access';
@@ -44,7 +44,7 @@ export type ShipStateRecord = Readonly<{
 	queuedAt: string | null;
 	attempts: number;
 	checks: readonly string[];
-	activeJobRunId: string | null;
+	activeAutomationRunId: string | null;
 	lastError: string | null;
 	githubSaid: string | null;
 	failures: number;

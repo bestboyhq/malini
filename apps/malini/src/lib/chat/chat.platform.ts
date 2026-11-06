@@ -35,10 +35,12 @@ export {
 	listOpenRuns,
 	listRunActivity,
 	listRunFacts,
+	typedRun,
 	workChatTurnInWorkstream,
 	type ChatTurnWork,
 	type RunActivity,
 	type RunFact,
+	type TypedRun,
 } from './platform/runs.repository';
 export {
 	getSession,

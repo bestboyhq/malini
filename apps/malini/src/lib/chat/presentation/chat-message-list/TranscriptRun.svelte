@@ -273,5 +273,9 @@
 				{@render runActions()}
 			</div>
 		{/if}
+
+		{#if run.terminal !== null}
+			{@render transcript.afterRun(run.runId)}
+		{/if}
 	{/if}
 </li>

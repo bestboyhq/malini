@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import type { JobRunRecord } from '../../src/contract/jobs';
+import type { AutomationRunRecord } from '../../src/contract/automations';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -12,7 +12,7 @@ import {
 	invoke,
 	launchMalini,
 	listEvents,
-	openJobs,
+	openAutomations,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -22,11 +22,14 @@ import {
 const LEAD = 'Move apps to Logdash';
 const CHILD = 'Api analytics';
 const CHILD_PROMPT = `TITLE="${CHILD}" TURN_OUTCOME="The analytics endpoint answers" TURN_NEEDS="Pick the Logdash project"`;
-const JOB = 'Run the tests';
-const TELL = new RegExp(`^Tell “.+” that ${JOB} failed$`, 'u');
-const TOLD = new RegExp(`^Show why Malini decided: Tell “.+” that ${JOB} failed, Done$`, 'u');
+const AUTOMATION = 'Run the tests';
+const TELL = new RegExp(`^Tell “.+” that ${AUTOMATION} failed$`, 'u');
+const TOLD = new RegExp(
+	`^Show why Malini decided: Tell “.+” that ${AUTOMATION} failed, Done$`,
+	'u',
+);
 const WOKEN = /^Malini woke you: work you started moved on/u;
-const WOKEN_ABOUT_JOB = /^Malini woke you: work you asked for moved on/u;
+const WOKEN_ABOUT_AUTOMATION = /^Malini woke you: work you asked for moved on/u;
 const RESENT = 'Rename the settings button';
 const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 
@@ -107,7 +110,7 @@ async function leadStartsChild(app: LaunchedApp): Promise<void> {
 	]);
 }
 
-async function chatRunsFailingJob(app: LaunchedApp): Promise<string> {
+async function chatRunsFailingAutomation(app: LaunchedApp): Promise<string> {
 	const { page } = app;
 	const api = await createSourceRepo(app.root, 'acme/api');
 	const { workstreamId } = await seedWorkstream(
@@ -116,15 +119,15 @@ async function chatRunsFailingJob(app: LaunchedApp): Promise<string> {
 		'e2e-reconcile-api',
 		'Api work',
 	);
-	await invoke(page, 'jobs.save-definition', {
-		name: JOB,
+	await invoke(page, 'automations.save-definition', {
+		name: AUTOMATION,
 		instructions: 'ROUTINE_RUN_FAIL',
 		model: 'opus',
 		effort: 'high',
 		runsIn: 'workstream',
 	});
 	await openWorkstream(page, workstreamId);
-	agentCalls(app, { tool: 'jobs_run', input: { job: JOB } });
+	agentCalls(app, { tool: 'automations_run', input: { automation: AUTOMATION } });
 	await sendPrompt(page, 'MALINI_TOOL');
 	return workstreamId;
 }
@@ -138,7 +141,7 @@ function childRow(page: Page) {
 }
 
 async function decisions(page: Page): Promise<Decision[]> {
-	return invoke<Decision[]>(page, 'jobs.list-decisions', undefined);
+	return invoke<Decision[]>(page, 'automations.list-decisions', undefined);
 }
 
 function wokenBy(page: Page, from: string) {
@@ -161,7 +164,7 @@ test('a lead chat hears every turn a workstream it started ends, and the Explore
 		expect(await decisions(page)).toEqual([]);
 		await captureFlow(app, 'deliveries-report-to-lead');
 
-		await openJobs(page, '#/jobs/explorer');
+		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
 		await map.getByRole('button', { name: 'Deliveries: 1 started' }).click();
@@ -185,13 +188,13 @@ test('a lead chat hears every turn a workstream it started ends, and the Explore
 	}
 });
 
-test('Malini asks before it acts on a failed job when the model says so, on that job in the gutter, and does what you pick', async () => {
+test('Malini asks before it acts on a failed automation when the model says so, on that automation in its workstream, and does what you pick', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'Ask you');
-		const workstreamId = await chatRunsFailingJob(app);
+		const workstreamId = await chatRunsFailingAutomation(app);
 
 		await expect
 			.poll(async () => (await decisions(page)).map((decision) => decision.status), {
@@ -200,32 +203,30 @@ test('Malini asks before it acts on a failed job when the model says so, on that
 			.toEqual(['asking']);
 		await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 		const [asked] = askedChoices(app);
-		expect(asked?.prompt).toContain(`Event: the job ${JOB} in “Api work” failed.`);
+		expect(asked?.prompt).toContain(`Event: the automation ${AUTOMATION} in “Api work” failed.`);
 		expect(asked?.prompt).toMatch(
 			new RegExp(
-				`Candidates:\\n1\\. Do nothing\\n2\\. Tell “.+” that ${JOB} failed\\n3\\. Run ${JOB} again\\n4\\. Ask you`,
+				`Candidates:\\n1\\. Do nothing\\n2\\. Tell “.+” that ${AUTOMATION} failed\\n3\\. Run ${AUTOMATION} again\\n4\\. Ask you`,
 				'u',
 			),
 		);
 		expect(asked?.pick).toBe(4);
-		const row = page
-			.getByRole('region', { name: 'Jobs: 1 needs you' })
-			.getByRole('link', { name: `${JOB} in Api work: Failed` });
-		await expect(row).toBeVisible({ timeout: 20_000 });
-		await row.click();
-		await expect(page).toHaveURL(new RegExp(`/workstreams/${workstreamId}(?:\\?|$)`, 'u'));
-		await expect(row).toHaveAttribute('aria-current', 'page');
+		await expect(page.getByTestId('sidebar-automations-row')).toHaveAccessibleName(
+			'Automations, 1 needs you',
+			{ timeout: 20_000 },
+		);
+		await openWorkstream(page, workstreamId);
 		const ask = page
-			.getByRole('region', { name: /^Jobs \(\d+\)$/u })
-			.getByRole('group', { name: new RegExp(`^${JOB} in Api work: Failed`, 'u') });
+			.getByRole('region', { name: /^Automations \(\d+\)$/u })
+			.getByRole('group', { name: new RegExp(`^${AUTOMATION} in Api work: Failed`, 'u') });
 		await expect(ask).toBeVisible({ timeout: 20_000 });
 		const choices = ask.getByRole('button');
 		await expect(choices).toHaveCount(3);
-		await expect(choices.nth(0)).toHaveAccessibleName(`Run ${JOB} again`);
+		await expect(choices.nth(0)).toHaveAccessibleName(`Run ${AUTOMATION} again`);
 		await expect(choices.nth(0)).toHaveText('Run again');
 		await expect(choices.nth(1)).toHaveAccessibleName(TELL);
 		await expect(choices.nth(1)).toHaveText('Tell its chat');
-		await expect(choices.nth(2)).toHaveAccessibleName(`Dismiss: ${JOB}`);
+		await expect(choices.nth(2)).toHaveAccessibleName(`Dismiss: ${AUTOMATION}`);
 		await captureFlow(app, 'reconciler-asks-you');
 		await ask.getByRole('button', { name: TELL }).click();
 
@@ -233,40 +234,40 @@ test('Malini asks before it acts on a failed job when the model says so, on that
 		await expect
 			.poll(async () => (await decisions(page))[0], { timeout: 30_000 })
 			.toMatchObject({ status: 'done', decidedBy: 'you' });
-		await openJobs(page, '#/jobs/activity');
+		await openAutomations(page, '#/automations/activity');
 		await page.getByRole('button', { name: TOLD }).click();
 		await expect(
 			page
 				.getByRole('list', { name: 'What Malini could do' })
 				.getByRole('listitem')
 				.filter({ hasText: 'Picked by you' }),
-		).toContainText(`that ${JOB} failed`);
+		).toContainText(`that ${AUTOMATION} failed`);
 		await openWorkstream(page, workstreamId);
-		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
+		await expect(transcript(page).getByText(WOKEN_ABOUT_AUTOMATION)).toBeVisible({
+			timeout: 30_000,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a question on a job goes away with its workstream', async () => {
+test('a question on an automation goes away with its workstream', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'Ask you');
-		const workstreamId = await chatRunsFailingJob(app);
-		const ask = page
-			.getByRole('region', { name: 'Jobs: 1 needs you' })
-			.getByRole('link', { name: `${JOB} in Api work: Failed` });
-		await expect(ask).toBeVisible({ timeout: 60_000 });
+		const workstreamId = await chatRunsFailingAutomation(app);
+		const ask = page.getByTestId('sidebar-automations-row');
+		await expect(ask).toHaveAccessibleName('Automations, 1 needs you', { timeout: 60_000 });
 
 		await invoke(page, 'repositories.archive-workstream', { workstreamId });
 		await expect
 			.poll(async () => (await decisions(page)).map(({ status }) => status), { timeout: 30_000 })
 			.toEqual(['dismissed']);
-		await expect(ask).toHaveCount(0);
-		await expect(page.getByRole('list', { name: 'Jobs in progress' })).toHaveCount(0);
+		await expect(ask).toHaveAccessibleName('Automations');
+		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -307,22 +308,24 @@ test('a lead answers what its workstream needs with workstreams_send, into that 
 	}
 });
 
-test('when the model gives no answer on a failed job, Malini decides by its rules, and Activity and the Explorer say why', async () => {
+test('when the model gives no answer on a failed automation, Malini decides by its rules, and Activity and the Explorer say why', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'FAIL');
-		const workstreamId = await chatRunsFailingJob(app);
+		const workstreamId = await chatRunsFailingAutomation(app);
 
 		await expect
 			.poll(async () => (await decisions(page))[0], { timeout: 60_000 })
 			.toMatchObject({ status: 'done', decidedBy: 'rules' });
 		expect(askedChoices(app).map(({ pick }) => pick)).toEqual([null]);
 		await openWorkstream(page, workstreamId);
-		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
+		await expect(transcript(page).getByText(WOKEN_ABOUT_AUTOMATION)).toBeVisible({
+			timeout: 30_000,
+		});
 
-		await openJobs(page, '#/jobs/activity');
+		await openAutomations(page, '#/automations/activity');
 		const row = page.getByRole('button', { name: TOLD });
 		await expect(row).toBeVisible({ timeout: 20_000 });
 		await row.click();
@@ -331,21 +334,23 @@ test('when the model gives no answer on a failed job, Malini decides by its rule
 				.getByRole('list', { name: 'What Malini could do' })
 				.getByRole('listitem')
 				.filter({ hasText: "Picked by Malini's rules" }),
-		).toContainText(`that ${JOB} failed`);
+		).toContainText(`that ${AUTOMATION} failed`);
 		await captureFlow(app, 'reconciler-default-wake');
 
-		await openJobs(page, '#/jobs/explorer');
+		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
 		await map.getByRole('button', { name: 'Choose a reaction: 1 decision' }).click();
 		await explorer
 			.getByRole('list', { name: 'Choose a reaction' })
-			.getByRole('button', { name: new RegExp(`^Tell “.+” that ${JOB} failed, Api work, `, 'u') })
+			.getByRole('button', {
+				name: new RegExp(`^Tell “.+” that ${AUTOMATION} failed, Api work, `, 'u'),
+			})
 			.click();
 		const chain = explorer.getByRole('list', { name: 'One chain' });
 		await expect(
 			chain.getByRole('listitem').filter({
-				has: page.getByRole('button', { name: new RegExp(`^${JOB}, Api work, `, 'u') }),
+				has: page.getByRole('button', { name: new RegExp(`^${AUTOMATION}, Api work, `, 'u') }),
 			}),
 		).toContainText('A chat ran it');
 		await expect(
@@ -400,7 +405,7 @@ test('a turn a restart cut short goes on once the Resume rule hears Malini start
 		).toHaveCount(0);
 		await expectAssistantReply(page);
 
-		await openJobs(page, '#/jobs/explorer');
+		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
 		await expect(map.getByRole('button', { name: 'Malini started: 2 events' })).toBeVisible();
@@ -433,7 +438,9 @@ test('Malini updating starts Check compatibility through the Compatibility rule,
 		await invoke(page, 'app.set-setting', { key: 'app.last-seen-version', value: '0.0.1' });
 		await invoke(page, 'app.set-setting', {
 			key: 'app.last-seen-contract',
-			value: JSON.stringify({ 'jobs:run-changed': 'type JobRunChangedEvent = unknown;' }),
+			value: JSON.stringify({
+				'automations:run-changed': 'type AutomationRunChangedEvent = unknown;',
+			}),
 		});
 		await first.quit();
 	} catch (error) {
@@ -444,12 +451,12 @@ test('Malini updating starts Check compatibility through the Compatibility rule,
 	const app = await launchMalini({ profile: first.root });
 	try {
 		const { page } = app;
-		const checks = async (): Promise<JobRunRecord[]> =>
-			(await invoke<JobRunRecord[]>(page, 'jobs.list-runs', undefined)).filter(
+		const checks = async (): Promise<AutomationRunRecord[]> =>
+			(await invoke<AutomationRunRecord[]>(page, 'automations.list-runs', undefined)).filter(
 				(run) => run.title === 'Check compatibility',
 			);
 		await expect.poll(async () => (await checks()).length, { timeout: 30_000 }).toBe(1);
-		await openJobs(page, '#/jobs/explorer');
+		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
 		await expect(map.getByRole('button', { name: 'Malini started: 2 events' })).toBeVisible();
@@ -533,7 +540,7 @@ for (const cut of ['before Claude Code got it', 'before Claude replied'] as cons
 					: 'resume-resends-unanswered',
 			);
 
-			await openJobs(page, '#/jobs/explorer');
+			await openAutomations(page, '#/automations/explorer');
 			const explorer = page.getByTestId('automations-explorer');
 			await explorer
 				.getByRole('region', { name: 'System map' })

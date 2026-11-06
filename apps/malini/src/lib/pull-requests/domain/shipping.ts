@@ -1,4 +1,4 @@
-import type { JobRunStatus, ShippingJobBuiltin } from '$contract/jobs';
+import type { AutomationRunStatus, ShippingAutomationBuiltin } from '$contract/automations';
 import type {
 	PullRequestChangedEvent,
 	PullRequestFailedCheck,
@@ -18,7 +18,10 @@ import type {
 
 export type PullRequestFacts = PullRequestChangedEvent;
 
-export type ShippingJob = Readonly<{ builtin: ShippingJobBuiltin | null; status: JobRunStatus }>;
+export type ShippingAutomation = Readonly<{
+	builtin: ShippingAutomationBuiltin | null;
+	status: AutomationRunStatus;
+}>;
 
 export type ShippingWorktree = Pick<
 	WorktreeStatus,
@@ -37,10 +40,10 @@ export type ShippingSnapshot = Readonly<{
 	addressedReviews: readonly string[];
 	pullRequestNumber: number | null;
 	idle: boolean;
-	job: ShippingJob | null;
-	lastJobRunId: string | null;
-	lastJobBuiltin: ShippingJobBuiltin | null;
-	settledJob: ShippingJobBuiltin | null;
+	automation: ShippingAutomation | null;
+	lastAutomationRunId: string | null;
+	lastAutomationBuiltin: ShippingAutomationBuiltin | null;
+	settledAutomation: ShippingAutomationBuiltin | null;
 	worktree: ShippingWorktree;
 	threadResolutionRunId: string | null;
 	failureSignature: string | null;
@@ -72,7 +75,12 @@ export type ShippingMove =
 			headSha: string;
 			runIds: readonly string[];
 	  }>
-	| Readonly<{ kind: 'run-job'; builtin: ShippingJobBuiltin; signature: string; attempt: number }>
+	| Readonly<{
+			kind: 'run-automation';
+			builtin: ShippingAutomationBuiltin;
+			signature: string;
+			attempt: number;
+	  }>
 	| Readonly<{ kind: 'resolve-threads'; agentRunId: string }>
 	| Readonly<{ kind: 'merge'; method: string; headSha: string }>
 	| Readonly<{ kind: 'land' }>
@@ -80,7 +88,7 @@ export type ShippingMove =
 			kind: 'needs-you';
 			reason: ShipNeedsYouReason;
 			detail: string;
-			jobRunId: string | null;
+			automationRunId: string | null;
 	  }>;
 
 export type ReviewRouting = Readonly<{
@@ -119,7 +127,7 @@ export function scaledShipDelays(scale: number): ShipDelays {
 	};
 }
 
-const ACTIVE_JOB_STATUSES: ReadonlySet<JobRunStatus> = new Set([
+const ACTIVE_AUTOMATION_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
 	'waiting',
 	'queued',
 	'running',
@@ -170,13 +178,13 @@ const REVIEW_DECISIONS: readonly NonNullable<PullRequestFacts['reviewDecision']>
 export const CHECKS_RERUN_GRACE_MS = 60_000;
 const CHECKS_SIGNATURE = 'checks';
 const ACTIONS_JOB_URL = /\/actions\/runs\/(\d+)\/job\/\d+/u;
-const JOB_STEPS: Readonly<Record<ShippingJobBuiltin, ShipStep>> = {
+const AUTOMATION_STEPS: Readonly<Record<ShippingAutomationBuiltin, ShipStep>> = {
 	'fix-checks': 'fixing-checks',
 	'update-from-main': 'updating-from-main',
 	'resolve-conflicts': 'resolving-conflicts',
 	'address-review': 'addressing-review',
 };
-const JOB_LABELS: Readonly<Record<ShippingJobBuiltin, string>> = {
+const AUTOMATION_LABELS: Readonly<Record<ShippingAutomationBuiltin, string>> = {
 	'fix-checks': 'Fixing the checks',
 	'update-from-main': 'Updating from main',
 	'resolve-conflicts': 'Resolving conflicts',
@@ -192,16 +200,16 @@ export function nextShippingMove(snapshot: ShippingSnapshot): ShippingMove {
 	return snapshot.phase === 'queued' ? queuedMove(snapshot) : workingMove(snapshot);
 }
 
-export function jobIsActive(job: ShippingJob | null): boolean {
-	return job !== null && ACTIVE_JOB_STATUSES.has(job.status);
+export function automationIsActive(automation: ShippingAutomation | null): boolean {
+	return automation !== null && ACTIVE_AUTOMATION_STATUSES.has(automation.status);
 }
 
-export function isUpdateJob(builtin: ShippingJobBuiltin | null): boolean {
+export function isUpdateAutomation(builtin: ShippingAutomationBuiltin | null): boolean {
 	return builtin === 'update-from-main' || builtin === 'resolve-conflicts';
 }
 
-export function jobStep(builtin: ShippingJobBuiltin | null): ShipStep {
-	return builtin === null ? 'waiting-for-agent' : JOB_STEPS[builtin];
+export function automationStep(builtin: ShippingAutomationBuiltin | null): ShipStep {
+	return builtin === null ? 'waiting-for-agent' : AUTOMATION_STEPS[builtin];
 }
 
 export function blockingFailedChecks(
@@ -392,10 +400,10 @@ export function clampedFixAttempts(value: string | undefined, fallback: number):
 }
 
 export function pullRequestReadEvery(
-	state: Pick<ShipStateRecord, 'phase' | 'step' | 'activeJobRunId' | 'waitsFor'>,
+	state: Pick<ShipStateRecord, 'phase' | 'step' | 'activeAutomationRunId' | 'waitsFor'>,
 	delays: ShipDelays,
 ): number | null {
-	if (state.activeJobRunId !== null || state.waitsFor !== null) return null;
+	if (state.activeAutomationRunId !== null || state.waitsFor !== null) return null;
 	if (state.phase === 'needs-you') return delays.reviewPollMs;
 	if (state.phase !== 'queued') {
 		return state.step === 'waiting-for-github' ? delays.githubPollMs : null;
@@ -419,15 +427,15 @@ export function pullRequestReadEvery(
 
 function workingMove(snapshot: ShippingSnapshot): ShippingMove {
 	const { worktree } = snapshot;
-	if (jobIsActive(snapshot.job)) {
-		return { kind: 'wait', step: jobStep(snapshot.job?.builtin ?? null) };
+	if (automationIsActive(snapshot.automation)) {
+		return { kind: 'wait', step: automationStep(snapshot.automation?.builtin ?? null) };
 	}
 	if (!snapshot.pushRequested && !snapshot.reviewRequested) {
 		return { kind: 'idle', problem: null };
 	}
 	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
 	const operation = worktree.operationInProgress;
-	if (operation === 'merge' && isUpdateJob(snapshot.lastJobBuiltin)) {
+	if (operation === 'merge' && isUpdateAutomation(snapshot.lastAutomationBuiltin)) {
 		if (worktree.conflictedPaths.length > 0 && !conflictsResolved(snapshot)) {
 			return withoutNeedsYou(resolveConflictsMove(snapshot));
 		}
@@ -455,7 +463,7 @@ function reviewMove(snapshot: ShippingSnapshot): ShippingMove {
 	}
 	const review = reviewToAddress(pullRequest, snapshot.addressedReviews);
 	if (review.changeRequests.length === 0) return { kind: 'idle', problem: null };
-	return withoutNeedsYou(fixJob(snapshot, 'address-review', reviewSignature(review)));
+	return withoutNeedsYou(fixAutomation(snapshot, 'address-review', reviewSignature(review)));
 }
 
 function hasUnsavedWork(snapshot: ShippingSnapshot): boolean {
@@ -475,8 +483,8 @@ function withoutNeedsYou(move: ShippingMove): ShippingMove {
 
 function queuedMove(snapshot: ShippingSnapshot): ShippingMove {
 	const { worktree } = snapshot;
-	if (jobIsActive(snapshot.job)) {
-		return { kind: 'wait', step: jobStep(snapshot.job?.builtin ?? null) };
+	if (automationIsActive(snapshot.automation)) {
+		return { kind: 'wait', step: automationStep(snapshot.automation?.builtin ?? null) };
 	}
 	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
 	const operation = worktree.operationInProgress;
@@ -524,7 +532,7 @@ function pullRequestMove(snapshot: ShippingSnapshot, pullRequest: PullRequestFac
 	}
 	const toAddress = reviewToAddress(pullRequest, snapshot.addressedReviews);
 	if (toAddress.threads.length > 0 || toAddress.changeRequests.length > 0) {
-		return fixJob(snapshot, 'address-review', reviewSignature(toAddress));
+		return fixAutomation(snapshot, 'address-review', reviewSignature(toAddress));
 	}
 	const review = reviewRouting(pullRequest);
 	if (merging === 'blocked') return blockedMove(snapshot, pullRequest, review);
@@ -582,14 +590,14 @@ function failingChecksMove(
 		const stale = !failing.some((check) => completedAfter(check, rerun.at));
 		return stale && snapshot.now - rerun.at < CHECKS_RERUN_GRACE_MS
 			? { kind: 'wait', step: 'rerunning-checks', until: rerun.at + CHECKS_RERUN_GRACE_MS }
-			: fixJob(snapshot, 'fix-checks', failure);
+			: fixAutomation(snapshot, 'fix-checks', failure);
 	}
 	if (snapshot.failureSignature !== failure) {
 		return firstFailureMove(snapshot, pullRequest, failure);
 	}
 	const fixedAt = snapshot.fixSucceededAt;
 	if (fixedAt === null || failing.some((check) => completedAfter(check, fixedAt))) {
-		return fixJob(snapshot, 'fix-checks', failure);
+		return fixAutomation(snapshot, 'fix-checks', failure);
 	}
 	if (snapshot.now - fixedAt < CHECKS_RERUN_GRACE_MS) {
 		return { kind: 'wait', step: 'waiting-for-checks', until: fixedAt + CHECKS_RERUN_GRACE_MS };
@@ -611,7 +619,7 @@ function firstFailureMove(
 	);
 	const headSha = pullRequest.headSha;
 	if (headSha === null || !runIds.every((id): id is string => id !== undefined)) {
-		return fixJob(snapshot, 'fix-checks', failure);
+		return fixAutomation(snapshot, 'fix-checks', failure);
 	}
 	return { kind: 'rerun-checks', signature: failure, headSha, runIds: [...new Set(runIds)] };
 }
@@ -666,9 +674,9 @@ function notPermitted(snapshot: ShippingSnapshot): ShippingMove {
 	);
 }
 
-function fixJob(
+function fixAutomation(
 	snapshot: ShippingSnapshot,
-	builtin: ShippingJobBuiltin,
+	builtin: ShippingAutomationBuiltin,
 	failure: string,
 ): ShippingMove {
 	const repeated = snapshot.failureSignature === failure;
@@ -677,11 +685,11 @@ function fixJob(
 		return needsYou(
 			snapshot,
 			'fix-gave-up',
-			`${JOB_LABELS[builtin]} did not work. Malini tried ${tries}.`,
+			`${AUTOMATION_LABELS[builtin]} did not work. Malini tried ${tries}.`,
 		);
 	}
 	return {
-		kind: 'run-job',
+		kind: 'run-automation',
 		builtin,
 		signature: failure,
 		attempt: repeated ? snapshot.attempts + 1 : 1,
@@ -697,7 +705,7 @@ function needsYou(
 		kind: 'needs-you',
 		reason,
 		detail,
-		jobRunId: reason === 'fix-gave-up' ? snapshot.lastJobRunId : null,
+		automationRunId: reason === 'fix-gave-up' ? snapshot.lastAutomationRunId : null,
 	};
 }
 
@@ -706,7 +714,7 @@ function signature(kind: string, parts: readonly string[]): string {
 }
 
 function resolveConflictsMove(snapshot: ShippingSnapshot): ShippingMove {
-	return fixJob(
+	return fixAutomation(
 		snapshot,
 		'resolve-conflicts',
 		signature('conflicts', snapshot.worktree.conflictedPaths),
@@ -715,7 +723,7 @@ function resolveConflictsMove(snapshot: ShippingSnapshot): ShippingMove {
 
 function conflictsResolved(snapshot: ShippingSnapshot): boolean {
 	return (
-		snapshot.settledJob === 'resolve-conflicts' &&
+		snapshot.settledAutomation === 'resolve-conflicts' &&
 		snapshot.worktree.conflictMarkerPaths.length === 0
 	);
 }

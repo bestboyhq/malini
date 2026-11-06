@@ -170,10 +170,10 @@ describe('the lead timeline', () => {
 		expect(sent?.kind === 'sent' && [sent.deliveryId, sent.delivered]).toEqual(['d-1', false]);
 	});
 
-	it('asks for an approval where the lead waits, and shows a job it runs only once it ran', () => {
+	it('asks for an approval where the lead waits, and shows an automation it runs only once it ran', () => {
 		const merge = tool(
-			'mcp__malini__jobs_run',
-			{ job: 'Merge', workstream: 'ws-a' },
+			'mcp__malini__automations_run',
+			{ automation: 'Merge', workstream: 'ws-a' },
 			null,
 			'running',
 		);
@@ -186,8 +186,8 @@ describe('the lead timeline', () => {
 			runId: 'one',
 			approvalId: 'approval-1',
 			reason: 'Claude wants to use a Malini tool',
-			toolName: 'mcp__malini__jobs_run',
-			input: { job: 'Merge', workstream: 'ws-a' },
+			toolName: 'mcp__malini__automations_run',
+			input: { automation: 'Merge', workstream: 'ws-a' },
 			at: AT + at * 60_000,
 		};
 		const asking = leadTimeline(
@@ -202,14 +202,17 @@ describe('the lead timeline', () => {
 				run('one', [
 					prompt('Ship it'),
 					merge.kind === 'tool'
-						? { ...merge, tool: { ...merge.tool, status: 'completed', output: '{"job":"Merge"}' } }
+						? {
+								...merge,
+								tool: { ...merge.tool, status: 'completed', output: '{"automation":"Merge"}' },
+							}
 						: merge,
 					approval,
 				]),
 			],
 			[],
 		);
-		expect(kinds(ran)).toEqual(['prompt', 'job', 'approval']);
+		expect(kinds(ran)).toEqual(['prompt', 'automation', 'approval']);
 	});
 
 	it('shows a delivered report as the report of the workstream, and hides prompts Malini sends to continue', () => {

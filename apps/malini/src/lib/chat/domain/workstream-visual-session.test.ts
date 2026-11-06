@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionRecord, SessionState } from '$lib/chat/domain/session-record';
 import {
 	preferredVisualSessionsByWorkstream,
-	workstreamsRunningJobs,
+	workstreamsRunningAutomations,
 } from './workstream-visual-session';
 
 describe('preferredVisualSessionsByWorkstream', () => {
@@ -35,22 +35,22 @@ describe('preferredVisualSessionsByWorkstream', () => {
 		expect(preferred.get('workstream')?.id).toBe('first');
 	});
 
-	it('never picks a job transcript, but reports the workstreams a job is running in', () => {
+	it('never picks an automation transcript, but reports the workstreams an automation is running in', () => {
 		const sessions = [
 			session('chat', 'workstream', 'completed', '2026-07-01T00:00:00Z'),
 			{
-				...session('job', 'workstream', 'running', '2026-07-02T00:00:00Z'),
-				origin: 'job' as const,
+				...session('automation', 'workstream', 'running', '2026-07-02T00:00:00Z'),
+				origin: 'automation' as const,
 			},
 			{
-				...session('job-done', 'quiet', 'completed', '2026-07-02T00:00:00Z'),
-				origin: 'job' as const,
+				...session('automation-done', 'quiet', 'completed', '2026-07-02T00:00:00Z'),
+				origin: 'automation' as const,
 			},
 		];
 
 		expect(preferredVisualSessionsByWorkstream(sessions).get('workstream')?.id).toBe('chat');
 		expect(preferredVisualSessionsByWorkstream(sessions).has('quiet')).toBe(false);
-		expect([...workstreamsRunningJobs(sessions)]).toEqual(['workstream']);
+		expect([...workstreamsRunningAutomations(sessions)]).toEqual(['workstream']);
 	});
 });
 

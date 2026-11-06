@@ -91,7 +91,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 }
 
 function needsYou(reason: ShipNeedsYouReason, overrides: Partial<ShipNeedsYou> = {}): ShipNeedsYou {
-	return { reason, detail: '', jobRunId: null, ...overrides };
+	return { reason, detail: '', automationRunId: null, ...overrides };
 }
 
 function topBar(
@@ -354,7 +354,7 @@ describe('the workstream status', () => {
 			},
 		],
 		[
-			'never tells you the branch conflicts with the base: a job clears that',
+			'never tells you the branch conflicts with the base: an automation clears that',
 			null,
 			open({ mergeable: false, mergeableState: 'dirty', checkItems: [passed] }),
 			'ready',
@@ -367,7 +367,7 @@ describe('the workstream status', () => {
 			},
 		],
 		[
-			'never tells you the branch is behind the base: a job clears that',
+			'never tells you the branch is behind the base: an automation clears that',
 			null,
 			open({ mergeableState: 'behind', checkItems: [passed] }, { behind: 3 }),
 			'ready',
@@ -544,8 +544,8 @@ describe('the workstream status', () => {
 			},
 		],
 		[
-			'needs you after a fix gave up and opens its job',
-			ship({ phase: 'needs-you', needsYou: needsYou('fix-gave-up', { jobRunId: 'run-1' }) }),
+			'needs you after a fix gave up and opens its automation',
+			ship({ phase: 'needs-you', needsYou: needsYou('fix-gave-up', { automationRunId: 'run-1' }) }),
 			null,
 			'ready',
 			{
@@ -553,7 +553,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Fix gave up',
 				detail: null,
-				action: 'Open job',
+				action: 'Open automation',
 			},
 		],
 		[
@@ -755,20 +755,20 @@ describe('the workstream status', () => {
 		).toBe('Octo asked for tests. The merge picks up again on its own once this is resolved.');
 	});
 
-	it('sends a merge whose fix gave up to its job to retry', () => {
+	it('sends a merge whose fix gave up to its automation to retry', () => {
 		expect(
 			status(
 				ship({
 					phase: 'needs-you',
 					needsYou: needsYou('fix-gave-up', {
 						detail: 'Fixing the checks did not work. Malini tried 3 times.',
-						jobRunId: 'run-1',
+						automationRunId: 'run-1',
 					}),
 				}),
 				null,
 			)?.tooltip,
 		).toBe(
-			'Fixing the checks did not work. Malini tried 3 times. Open the job to see why, and retry the merge from there.',
+			'Fixing the checks did not work. Malini tried 3 times. Open the automation to see why, and retry the merge from there.',
 		);
 	});
 
@@ -886,7 +886,7 @@ describe('the workstream status', () => {
 		});
 	});
 
-	it('clears blockers while a job works, keeping Merge and Draft but neutral', () => {
+	it('clears blockers while an automation works, keeping Merge and Draft but neutral', () => {
 		const local = (overrides: Parameters<typeof ship>[0] = {}) =>
 			ship({ phase: 'local', pullRequestNumber: null, pullRequestUrl: null, ...overrides });
 		expect(status(local({ step: 'updating-from-main' }), surface())).toMatchObject({

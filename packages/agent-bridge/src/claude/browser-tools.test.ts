@@ -113,9 +113,9 @@ describe('malini MCP server', () => {
 							required: ['width'],
 						},
 					},
-					{ name: 'jobs_list' },
-					{ name: 'jobs_save' },
-					{ name: 'jobs_run' },
+					{ name: 'automations_list' },
+					{ name: 'automations_save' },
+					{ name: 'automations_run' },
 					{ name: 'events_list' },
 					{ name: 'repositories_list' },
 					{ name: 'repositories_clone' },
@@ -236,7 +236,7 @@ describe('malini MCP server', () => {
 		);
 
 		expect(allowedTools.filter((name) => !name.startsWith('mcp__malini__browser_'))).toEqual([
-			'mcp__malini__jobs_list',
+			'mcp__malini__automations_list',
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',
 			'mcp__malini__workstreams_list',
@@ -250,7 +250,7 @@ describe('malini MCP server', () => {
 		]);
 	});
 
-	it('describes every field of the job tools to the agent', async () => {
+	it('describes every field of the automation tools to the agent', async () => {
 		const { call } = await connect(async () => ({ ok: true }));
 
 		const listed = await call('tools/list', {});
@@ -259,7 +259,7 @@ describe('malini MCP server', () => {
 		const schemaOf = (name: string): unknown =>
 			tools.find((tool: { name?: unknown }) => tool.name === name)?.inputSchema;
 
-		expect(schemaOf('jobs_save')).toMatchObject({
+		expect(schemaOf('automations_save')).toMatchObject({
 			type: 'object',
 			properties: {
 				id: { type: 'string', description: expect.any(String) },
@@ -275,15 +275,15 @@ describe('malini MCP server', () => {
 				then: { description: expect.any(String) },
 			},
 		});
-		expect(schemaOf('jobs_save')).not.toHaveProperty('properties.output');
-		expect(schemaOf('jobs_save')).not.toHaveProperty('required');
-		expect(schemaOf('jobs_run')).toMatchObject({
+		expect(schemaOf('automations_save')).not.toHaveProperty('properties.output');
+		expect(schemaOf('automations_save')).not.toHaveProperty('required');
+		expect(schemaOf('automations_run')).toMatchObject({
 			properties: {
-				job: { type: 'string', description: expect.any(String) },
+				automation: { type: 'string', description: expect.any(String) },
 				context: { type: 'string', description: expect.any(String) },
 				workstream: { type: 'string', description: expect.any(String) },
 			},
-			required: ['job'],
+			required: ['automation'],
 		});
 		expect(schemaOf('workstreams_create')).toMatchObject({
 			properties: {
@@ -323,10 +323,11 @@ describe('malini MCP server', () => {
 			},
 			required: ['names', 'why'],
 		});
-		const jobsSave = tools.find((tool: { name?: unknown }) => tool.name === 'jobs_save')
-			?.inputSchema?.properties?.when?.description;
-		expect(jobsSave).toContain('`on <channel>`');
-		expect(jobsSave).toContain('null for a job that runs only when asked');
+		const automationsSave = tools.find(
+			(tool: { name?: unknown }) => tool.name === 'automations_save',
+		)?.inputSchema?.properties?.when?.description;
+		expect(automationsSave).toContain('`on <channel>`');
+		expect(automationsSave).toContain('null for an automation that runs only when asked');
 	});
 
 	it('describes the decision and plan tools to the agent, with the size of every field', async () => {
@@ -423,55 +424,64 @@ describe('malini MCP server', () => {
 		for (const result of refused) expect(result).toMatchObject({ result: { isError: true } });
 	});
 
-	it('sends each job tool call to malini and returns its answer as text', async () => {
+	it('sends each automation tool call to malini and returns its answer as text', async () => {
 		const { call, platformCalls } = await connect(
 			async () => ({ ok: true }),
 			async ({ tool }) =>
-				tool === 'jobs_run'
-					? { ok: false, error: 'No job is named "Ship it".' }
+				tool === 'automations_run'
+					? { ok: false, error: 'No automation is named "Ship it".' }
 					: { ok: true, text: `[${tool}]` },
 		);
 
-		const listed = await call('tools/call', { name: 'jobs_list', arguments: {} });
+		const listed = await call('tools/call', { name: 'automations_list', arguments: {} });
 		const saved = await call('tools/call', {
-			name: 'jobs_save',
+			name: 'automations_save',
 			arguments: {
-				id: 'job-1',
+				id: 'automation-1',
 				when: 'on pull-requests:ship-changed where merged is set',
 				then: null,
 			},
 		});
-		const refused = await call('tools/call', { name: 'jobs_run', arguments: { job: 'Ship it' } });
+		const refused = await call('tools/call', {
+			name: 'automations_run',
+			arguments: { automation: 'Ship it' },
+		});
 		const hidden = await call('tools/call', {
 			name: 'repositories_hide',
 			arguments: { repository: 'acme/site' },
 		});
-		const invalid = await call('tools/call', { name: 'jobs_save', arguments: { effort: 'huge' } });
+		const invalid = await call('tools/call', {
+			name: 'automations_save',
+			arguments: { effort: 'huge' },
+		});
 
 		expect(platformCalls).toEqual([
-			{ tool: 'jobs_list', input: {} },
+			{ tool: 'automations_list', input: {} },
 			{
-				tool: 'jobs_save',
+				tool: 'automations_save',
 				input: {
-					id: 'job-1',
+					id: 'automation-1',
 					when: 'on pull-requests:ship-changed where merged is set',
 					then: null,
 				},
 			},
-			{ tool: 'jobs_run', input: { job: 'Ship it' } },
+			{ tool: 'automations_run', input: { automation: 'Ship it' } },
 			{ tool: 'repositories_hide', input: { repository: 'acme/site' } },
 		]);
 		expect(hidden).toMatchObject({
 			result: { content: [{ type: 'text', text: '[repositories_hide]' }] },
 		});
 		expect(listed).toMatchObject({
-			result: { content: [{ type: 'text', text: '[jobs_list]' }] },
+			result: { content: [{ type: 'text', text: '[automations_list]' }] },
 		});
 		expect(saved).toMatchObject({
-			result: { content: [{ type: 'text', text: '[jobs_save]' }] },
+			result: { content: [{ type: 'text', text: '[automations_save]' }] },
 		});
 		expect(refused).toMatchObject({
-			result: { isError: true, content: [{ type: 'text', text: 'No job is named "Ship it".' }] },
+			result: {
+				isError: true,
+				content: [{ type: 'text', text: 'No automation is named "Ship it".' }],
+			},
 		});
 		expect(invalid).toMatchObject({ result: { isError: true } });
 	});

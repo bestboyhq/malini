@@ -57,6 +57,7 @@
 	import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import SidebarFocusStrip, { type FocusChoice } from './SidebarFocusStrip.svelte';
+	import { AutomationsRow } from '$lib/automations/automations.api';
 	import { ScratchpadIdeasCount, ScratchpadIdeasPreview } from '$lib/scratchpad/scratchpad.api';
 	import {
 		archivedWorkstreamsQuery,
@@ -2002,6 +2003,9 @@
 							<ul class="flex w-full flex-col" aria-label="Chats">
 								<li class="w-full min-w-0">
 									{@render newChatRow('New chat', () => startLeadChatCommand(HOME_SCOPE))}
+								</li>
+								<li class="w-full min-w-0">
+									<AutomationsRow {compact} />
 								</li>
 								{#each tree.chats as chat (chat.id)}
 									{@render workstreamItem(leadRow(chat), 0, chatIds)}

@@ -5,7 +5,7 @@ import { CHAT_DELIVERY_CHANGED_CHANNEL, type ChatTurnFinishedPayload } from '$co
 import type { MainContext } from '$main/context';
 import { get, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
-import { startingSessionId } from '$lib/jobs/jobs.platform';
+import { startingSessionId } from '$lib/automations/automations.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
 	deliveryBatch,

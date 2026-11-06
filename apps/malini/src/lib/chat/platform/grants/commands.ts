@@ -25,9 +25,13 @@ export function installPermissionGrants(context: MainContext): () => void {
 		revokePermissionRuleById(db, grantId, nowIso8601());
 	});
 
-	return events.subscribe('jobs:definition-changed', ({ definitionId, definition }) => {
+	return events.subscribe('automations:definition-changed', ({ definitionId, definition }) => {
 		if (definition !== null) return;
-		revokePermissionRulesFor(db, maliniActionFingerprint(`jobs.run:${definitionId}`), nowIso8601());
+		revokePermissionRulesFor(
+			db,
+			maliniActionFingerprint(`automations.run:${definitionId}`),
+			nowIso8601(),
+		);
 	});
 }
 

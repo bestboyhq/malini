@@ -575,42 +575,44 @@ describe('SessionsAggregate', () => {
 		expect(sessionsAggregate.getSession(sessionId)).toEqual(upgraded);
 	});
 
-	it('learns a live job transcript is a job once listed, and never restores it as the default chat', () => {
+	it('learns a live automation transcript is an automation once listed, and never restores it as the default chat', () => {
 		sessionsAggregate.hydrateSession({
 			sessionId: 'sess-chat',
-			workstreamId: 'ws-jobs',
+			workstreamId: 'ws-automations',
 			model: null,
 			status: 'idle',
 			startedAt: '2026-07-18T08:00:00.000Z',
 			latestProfile: null,
 		});
 		sessionsAggregate.applyEvent(
-			env('sess-job', 'run-job', 1, {
+			env('sess-automation', 'run-automation', 1, {
 				type: 'run.started',
-				runId: 'run-job',
-				sessionId: 'sess-job',
+				runId: 'run-automation',
+				sessionId: 'sess-automation',
 			}),
 		);
-		expect(sessionsAggregate.getSession('sess-job')?.origin).toBe('user');
+		expect(sessionsAggregate.getSession('sess-automation')?.origin).toBe('user');
 
 		sessionsAggregate.hydrateSession({
-			sessionId: 'sess-job',
-			workstreamId: 'ws-jobs',
+			sessionId: 'sess-automation',
+			workstreamId: 'ws-automations',
 			displayName: 'Fix checks',
 			model: null,
 			status: 'running',
 			startedAt: '2026-07-18T09:00:00.000Z',
-			origin: 'job',
+			origin: 'automation',
 			latestProfile: null,
 		});
 
-		expect(sessionsAggregate.getSession('sess-job')).toMatchObject({
-			workstreamId: 'ws-jobs',
-			origin: 'job',
+		expect(sessionsAggregate.getSession('sess-automation')).toMatchObject({
+			workstreamId: 'ws-automations',
+			origin: 'automation',
 			status: 'running',
 		});
-		expect(sessionsAggregate.latestSessionFor('ws-jobs')).toBe('sess-chat');
-		expect(sessionsAggregate.cachedSessionFor('ws-jobs', 'sess-job')).toBe('sess-job');
+		expect(sessionsAggregate.latestSessionFor('ws-automations')).toBe('sess-chat');
+		expect(sessionsAggregate.cachedSessionFor('ws-automations', 'sess-automation')).toBe(
+			'sess-automation',
+		);
 	});
 
 	it('keeps an existing known workstream owner on a later mismatched ensure', () => {

@@ -37,7 +37,7 @@ export function workstreamShipContext(
 	);
 	const committing = all<{ id: string; summary: string }>(
 		db,
-		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin IN ('user', 'job') AND ${REPLIED}
+		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin IN ('user', 'automation') AND ${REPLIED}
 		 ORDER BY r.rowid ASC`,
 		workstreamId,
 	)

@@ -49,7 +49,7 @@ export function agentChatIdentity(
 	const activity = deriveAgentChatActivity(source.status, dispatchPending, source.backgroundWait);
 	const name = source.displayName.trim() || 'Chat';
 	return {
-		name: source.origin === 'job' ? `Job: ${name}` : name,
+		name: source.origin === 'automation' ? `Automation: ${name}` : name,
 		activity,
 		statusLabel: STATUS_LABELS[activity],
 		model: source.model,

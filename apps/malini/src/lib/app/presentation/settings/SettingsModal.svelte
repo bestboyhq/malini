@@ -21,7 +21,7 @@
 	import AgentAccessSection from './AgentAccessSection.svelte';
 	import AppearanceSection from './AppearanceSection.svelte';
 	import ExtensionsSection from './ExtensionsSection.svelte';
-	import JobsSection from './JobsSection.svelte';
+	import AutomationsSection from './AutomationsSection.svelte';
 	import McpServersSection from './McpServersSection.svelte';
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
@@ -71,7 +71,12 @@
 		},
 		APPEARANCE,
 		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
-		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist', content: JobsSection },
+		{
+			href: '/settings/automations',
+			label: 'Automations',
+			icon: 'checklist',
+			content: AutomationsSection,
+		},
 		{ href: PROFILE_SETTINGS_HREF, label: 'Profile', icon: 'globe', content: ProfileSection },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock', content: PrivacySection },
 	];

@@ -278,7 +278,7 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_forward',
 			'mcp__malini__browser_reload',
 			'mcp__malini__browser_resize',
-			'mcp__malini__jobs_list',
+			'mcp__malini__automations_list',
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',
 			'mcp__malini__workstreams_list',
@@ -321,7 +321,7 @@ describe('ClaudeSession', () => {
 		]);
 	});
 
-	it('runs a job inside its boundary and relaunches Claude Code when the boundary changes', async () => {
+	it('runs an automation inside its boundary and relaunches Claude Code when the boundary changes', async () => {
 		const script = recordedScript('readAndBash');
 		const { session, claude } = harness([script, script]);
 		const inside = (boundary: AgentBoundary) =>

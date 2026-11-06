@@ -38,7 +38,7 @@ beforeEach(() => {
 	});
 	for (const [id, origin] of [
 		['chat', 'user'],
-		['job', 'job'],
+		['automation', 'automation'],
 	] as const) {
 		insertSession(
 			db,
@@ -165,8 +165,8 @@ describe('FinishedTurns', () => {
 		expect(after('chat', 'run-2', { type: 'run.completed', summary: 'Stopped CI.' })).toBeNull();
 	});
 
-	it('stays quiet for job sessions, for turns Malini paused to quit, and mid-turn', () => {
-		expect(after('job', 'run-1', { type: 'run.completed', summary: REPORT })).toBeNull();
+	it('stays quiet for automation sessions, for turns Malini paused to quit, and mid-turn', () => {
+		expect(after('automation', 'run-1', { type: 'run.completed', summary: REPORT })).toBeNull();
 		expect(after('chat', 'run-2', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR })).toBeNull();
 		expect(after('chat', 'run-3', { type: 'assistant.message', text: 'Working on it' })).toBeNull();
 	});

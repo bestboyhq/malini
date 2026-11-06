@@ -5,7 +5,7 @@ export function preferredVisualSessionsByWorkstream(
 ): ReadonlyMap<string, SessionRecord> {
 	const preferred = new Map<string, SessionRecord>();
 	for (const session of sessions) {
-		if (session.origin === 'job') continue;
+		if (session.origin === 'automation') continue;
 		const current = preferred.get(session.workstreamId);
 		if (!current || sessionIsPreferred(session, current)) {
 			preferred.set(session.workstreamId, session);
@@ -14,10 +14,12 @@ export function preferredVisualSessionsByWorkstream(
 	return preferred;
 }
 
-export function workstreamsRunningJobs(sessions: readonly SessionRecord[]): ReadonlySet<string> {
+export function workstreamsRunningAutomations(
+	sessions: readonly SessionRecord[],
+): ReadonlySet<string> {
 	return new Set(
 		sessions
-			.filter((session) => session.origin === 'job' && session.status === 'running')
+			.filter((session) => session.origin === 'automation' && session.status === 'running')
 			.map((session) => session.workstreamId),
 	);
 }
