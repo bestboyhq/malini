@@ -6,7 +6,7 @@
 	import CommandCenterDialog from './CommandCenterDialog.svelte';
 
 	const mode = $derived(commandCenterQuery.data);
-	const inSetup = $derived(onboardingQuery.data.shown);
+	const inSetup = $derived(onboardingQuery.data.shown === 'setup');
 
 	function onKeydown(event: KeyboardEvent): void {
 		if (inSetup || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
