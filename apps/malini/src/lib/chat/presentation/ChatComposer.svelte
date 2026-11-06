@@ -1292,7 +1292,12 @@
 			</div>
 
 			<div class="flex shrink-0 items-center gap-1">
-				<SessionRuntimeControls {envelopes} {sessionId} {workstreamId} />
+				<SessionRuntimeControls
+					{envelopes}
+					{sessionId}
+					{workstreamId}
+					provider={selection.provider}
+				/>
 				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
 					<IconButton
 						variant={stopsRun ? 'secondary' : 'primary'}

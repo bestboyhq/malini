@@ -1,4 +1,4 @@
-import type { AgentModelInfo, ModelProviderKind } from '$contract/agent';
+import type { AgentModelInfo, ModelProviderKind, ProviderPlan } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, isRecord, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 
@@ -10,6 +10,7 @@ export interface StoredProvider {
 	models: readonly AgentModelInfo[];
 	subagentModel: string | null;
 	sealedKey: Uint8Array | null;
+	plan: ProviderPlan | null;
 }
 
 interface ProviderRow {
@@ -20,9 +21,10 @@ interface ProviderRow {
 	api_key: Uint8Array | null;
 	models: string;
 	subagent_model: string | null;
+	plan: string | null;
 }
 
-const COLUMNS = 'id, name, kind, base_url, api_key, models, subagent_model';
+const COLUMNS = 'id, name, kind, base_url, api_key, models, subagent_model, plan';
 
 export function listStoredProviders(db: MaliniDatabase): StoredProvider[] {
 	return all<ProviderRow>(
@@ -36,12 +38,31 @@ export function getStoredProvider(db: MaliniDatabase, id: string): StoredProvide
 	return row ? fromRow(row) : null;
 }
 
-export function setProviderKey(db: MaliniDatabase, id: string, sealed: Uint8Array): boolean {
+export function setProviderKey(
+	db: MaliniDatabase,
+	id: string,
+	sealed: Uint8Array,
+	plan: ProviderPlan | null,
+): boolean {
 	return (
 		run(
 			db,
-			'UPDATE model_providers SET api_key = ?, updated_at = ? WHERE id = ? AND kind = ?',
+			'UPDATE model_providers SET api_key = ?, plan = ?, updated_at = ? WHERE id = ? AND kind = ?',
 			sealed,
+			plan,
+			nowIso8601(),
+			id,
+			'anthropic',
+		).changes > 0
+	);
+}
+
+export function setProviderPlan(db: MaliniDatabase, id: string, plan: ProviderPlan): boolean {
+	return (
+		run(
+			db,
+			'UPDATE model_providers SET plan = ?, updated_at = ? WHERE id = ? AND kind = ?',
+			plan,
 			nowIso8601(),
 			id,
 			'anthropic',
@@ -53,7 +74,7 @@ export function clearProviderKey(db: MaliniDatabase, id: string): boolean {
 	return (
 		run(
 			db,
-			'UPDATE model_providers SET api_key = NULL, updated_at = ? WHERE id = ? AND kind = ?',
+			'UPDATE model_providers SET api_key = NULL, plan = NULL, updated_at = ? WHERE id = ? AND kind = ?',
 			nowIso8601(),
 			id,
 			'anthropic',
@@ -70,11 +91,10 @@ export function setProviderModels(
 		run(
 			db,
 			`UPDATE model_providers SET models = ?, updated_at = ?
-			 WHERE id = ? AND kind = ? AND models IS NOT ?`,
+			 WHERE id = ? AND kind <> 'claude' AND models IS NOT ?`,
 			JSON.stringify(models),
 			nowIso8601(),
 			id,
-			'anthropic',
 			JSON.stringify(models),
 		).changes > 0
 	);
@@ -90,6 +110,7 @@ function fromRow(row: ProviderRow): StoredProvider {
 		models: isModelList(models) ? models : [],
 		subagentModel: row.subagent_model,
 		sealedKey: row.api_key,
+		plan: row.plan === 'console' || row.plan === 'go' ? row.plan : null,
 	};
 }
 

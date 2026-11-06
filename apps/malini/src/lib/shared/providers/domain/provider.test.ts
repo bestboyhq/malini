@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { modelAccess, type ProviderGroup } from './provider';
+import type { ModelProviderRecord } from '$contract/agent';
+import { modelAccess, providerGroups, type ProviderGroup } from './provider';
 
 const groups: readonly ProviderGroup[] = [
 	{
@@ -10,6 +11,8 @@ const groups: readonly ProviderGroup[] = [
 		models: [],
 		ready: true,
 		message: '',
+		account: null,
+		plan: null,
 	},
 	{
 		id: 'deepseek',
@@ -19,6 +22,8 @@ const groups: readonly ProviderGroup[] = [
 		models: [],
 		ready: false,
 		message: '',
+		account: null,
+		plan: null,
 	},
 ];
 
@@ -67,5 +72,33 @@ describe('model access', () => {
 			providerId: 'zen',
 			providerName: 'zen',
 		});
+	});
+
+	it('asks for a ChatGPT sign-in, then runs only a model the plan offers', () => {
+		const chatgpt: ModelProviderRecord = {
+			id: 'chatgpt',
+			name: 'ChatGPT',
+			kind: 'chatgpt',
+			baseUrl: 'https://api.openai.com/v1',
+			models: [],
+			keySaved: false,
+			account: null,
+			plan: null,
+		};
+		const selection = { provider: 'chatgpt', model: 'gpt-6.1-sol' };
+		const signedOut = providerGroups(null, [chatgpt]);
+		expect(signedOut[1]).toMatchObject({ ready: false, message: 'Sign in to ChatGPT' });
+		expect(modelAccess(selection, signedOut, readyClaude)).toEqual({ kind: 'chatgpt-signed-out' });
+
+		const account = { email: 'dev@example.com', name: null, usageLimitReachedAt: null };
+		const signedIn = providerGroups(null, [{ ...chatgpt, account }]);
+		expect(signedIn[1]).toMatchObject({ ready: true, account });
+		expect(modelAccess(selection, signedIn, readyClaude)).toEqual({
+			kind: 'chatgpt-model-missing',
+		});
+
+		const sol = { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', description: '', efforts: [] };
+		const offered = providerGroups(null, [{ ...chatgpt, account, models: [sol] }]);
+		expect(modelAccess(selection, offered, readyClaude)).toEqual({ kind: 'ready' });
 	});
 });

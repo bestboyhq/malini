@@ -1414,6 +1414,65 @@ UPDATE model_providers SET
   updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = 'opencode' AND kind = 'anthropic';
 `,
+	`
+ALTER TABLE model_providers ADD COLUMN plan TEXT CHECK (plan IN ('console', 'go'));
+INSERT INTO model_providers
+  (id, name, kind, base_url, api_key, models, subagent_model, created_at, updated_at)
+VALUES (
+  'opencode-go',
+  'OpenCode Go',
+  'anthropic',
+  'https://opencode.ai/inference/go/anthropic',
+  NULL,
+  '[{"id":"hy4","label":"Hy4","description":"Text and images, 1M context","efforts":["high"],"family":"Hy"},{"id":"kimi-k3.1-pro","label":"Kimi K3.1 Pro","description":"Text and images, 1M context","efforts":["low","high","max"],"family":"kimi-k3"},{"id":"minimax-m3.1-flash","label":"MiniMax M3.1 Flash","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"],"family":"minimax"},{"id":"gemini-4-argon","label":"Gemini 4 Argon","description":"Text and images, 1M context","efforts":["low","medium","high"],"family":"gemini"},{"id":"claude-haiku-5-5","label":"Haiku 5.5","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"],"family":"claude-haiku"},{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"},{"id":"mimo-v2.6-flash","label":"MiMo-V2.6-Flash","description":"Text and images, 1M context","efforts":[],"family":"mimo"},{"id":"grok-4.7","label":"Grok 4.7","description":"Text and images, 500K context","efforts":["low","medium","high","xhigh"],"family":"grok"},{"id":"step-5-preview","label":"Step 5 Preview","description":"Text and images, 1M context","efforts":["low","medium","high"]},{"id":"deepseek-v4.1-flash","label":"DeepSeek V4.1 Flash","description":"Text and images, 1M context","efforts":["low","high","max"],"family":"deepseek-flash"},{"id":"muse-spark-1.3-contributor","label":"Muse Spark 1.3 Contributor","description":"Text and images, 1M context","efforts":["low","medium","high","xhigh"],"family":"muse"},{"id":"glm-5.3-flash","label":"GLM-5.3-Flash","description":"Text and images, 1M context","efforts":["low","high","max"],"family":"glm-flash"},{"id":"qwen3.8-flash","label":"Qwen3.8 Flash","description":"Text and images, 1M context","efforts":["low","medium","xhigh"],"family":"qwen"},{"id":"glm-5.3","label":"GLM-5.3","description":"Text only, 1M context","efforts":["low","high","max"],"family":"glm"},{"id":"qwen3.8-max","label":"Qwen3.8 Max","description":"Text and images, 1M context","efforts":["low","medium","xhigh"],"family":"qwen3.8-max"},{"id":"longcat-2.0","label":"LongCat-2.0","description":"Text only, 1M context","efforts":[],"family":"longcat"},{"id":"kimi-k2.7-code","label":"Kimi K2.7 Code","description":"Text and images, 262K context","efforts":[],"family":"kimi-k2"},{"id":"qwen3.7-plus","label":"Qwen3.7 Plus","description":"Text and images, 1M context","efforts":[],"family":"qwen3.7-plus"},{"id":"minimax-m3","label":"MiniMax-M3","description":"Text and images, 1M context","efforts":[],"family":"minimax-m3"},{"id":"deepseek-v4-pro","label":"DeepSeek V4 Pro","description":"Text only, 1M context","efforts":["high","max"],"family":"deepseek-thinking"},{"id":"mimo-v2.5","label":"MiMo V2.5","description":"Text and images, 1M context","efforts":[],"family":"mimo-v2.5"},{"id":"mimo-v2.5-pro","label":"MiMo V2.5 Pro","description":"Text only, 1M context","efforts":[],"family":"mimo-v2.5-pro"}]',
+  NULL,
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+);
+`,
+	`
+CREATE TABLE model_providers_next (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('claude', 'anthropic', 'chatgpt')),
+  base_url TEXT,
+  api_key BLOB,
+  models TEXT NOT NULL CHECK (json_valid(models) AND json_type(models) = 'array'),
+  subagent_model TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  plan TEXT CHECK (plan IN ('console', 'go')),
+  CHECK ((kind = 'claude') = (base_url IS NULL)),
+  CHECK (kind <> 'chatgpt' OR api_key IS NULL)
+);
+INSERT INTO model_providers_next SELECT * FROM model_providers;
+DROP TABLE model_providers;
+ALTER TABLE model_providers_next RENAME TO model_providers;
+INSERT INTO model_providers
+  (id, name, kind, base_url, api_key, models, subagent_model, created_at, updated_at)
+VALUES (
+  'chatgpt',
+  'ChatGPT',
+  'chatgpt',
+  'https://api.openai.com/v1',
+  NULL,
+  '[{"id":"gpt-6-luna","label":"GPT-6 Luna","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"},{"id":"gpt-5.6-terra","label":"GPT-5.6 Terra","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-terra"},{"id":"gpt-5.6-luna","label":"GPT-5.6 Luna","description":"Text and images, 272K context","efforts":["low","medium","high","xhigh","max"],"family":"gpt-luna"}]',
+  NULL,
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+);
+CREATE TABLE chatgpt_account (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  host_id TEXT NOT NULL,
+  client_id TEXT,
+  subject TEXT,
+  email TEXT,
+  name TEXT,
+  credentials BLOB,
+  updated_at TEXT NOT NULL,
+  CHECK (credentials IS NULL OR (client_id IS NOT NULL AND subject IS NOT NULL))
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

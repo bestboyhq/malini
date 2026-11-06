@@ -64,6 +64,19 @@ describe('streaming detection', () => {
 		expect(changes).toEqual([true, false]);
 		context.db.close();
 	});
+
+	it('ignores screen recording on this Mac while it looks only under a root', async () => {
+		process.env['MALINI_STREAMING_APP_ROOT'] = '/tmp/e2e-a';
+		try {
+			const { context, detector, probe, streaming } = startDetector();
+			probe.stdout = 'true\n';
+			await detector.check();
+			expect(await streaming()).toBe(false);
+			context.db.close();
+		} finally {
+			delete process.env['MALINI_STREAMING_APP_ROOT'];
+		}
+	});
 });
 
 function startDetector() {

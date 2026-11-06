@@ -97,6 +97,36 @@ async function serveModelsDev(catalog: unknown): Promise<CatalogServer> {
 	};
 }
 
+interface ProbeServer {
+	readonly origin: string;
+	answer(inference: number): void;
+	close(): Promise<void>;
+}
+
+async function serveOpenCodeProbe(inference: number): Promise<ProbeServer> {
+	let answer = inference;
+	const server = createServer((request, response) => {
+		response.setHeader('content-type', 'application/json');
+		if (request.url?.endsWith('/inference/go/anthropic/v1/messages')) {
+			response.writeHead(answer);
+			response.end('{}');
+			return;
+		}
+		response.writeHead(200);
+		response.end(JSON.stringify({ data: [{ id: 'glm-6' }] }));
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const address = server.address();
+	const port = typeof address === 'object' && address !== null ? address.port : 0;
+	return {
+		origin: `http://localhost:${port}`,
+		answer: (next) => {
+			answer = next;
+		},
+		close: () => new Promise((resolve) => server.close(() => resolve())),
+	};
+}
+
 async function chooseModel(page: Page, provider: string, model: string): Promise<void> {
 	await page.getByTestId('chat-composer-model').click();
 	await page
@@ -246,8 +276,18 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 				},
 			},
 		},
+		'opencode-go': {
+			id: 'opencode-go',
+			models: {
+				hy4: catalogModel('hy4', 'Hy4', '2026-10-31'),
+				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
+			},
+		},
 	});
-	const app = await launchMalini({ env: { MALINI_MODELS_DEV_URL: catalog.url } });
+	const probe = await serveOpenCodeProbe(403);
+	const app = await launchMalini({
+		env: { MALINI_MODELS_DEV_URL: catalog.url, MALINI_OPENCODE_PROBE_URL: probe.origin },
+	});
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
@@ -311,6 +351,8 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
 		const card = page.getByTestId('provider-opencode');
 		await expect(card).toHaveAttribute('data-key-saved', 'true');
+		await expect(card).toContainText('API key saved on this Mac.');
+		await expect(card.getByRole('button', { name: 'Check again' })).toBeVisible();
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
 			/GLM-6\s*Kimi K4/u,
 		);
@@ -320,5 +362,98 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 	} finally {
 		await app.close();
 		await catalog.close();
+		await probe.close();
+	}
+});
+
+test('a Go key lists Go models, runs them on the Go endpoint, and checks again', async () => {
+	test.setTimeout(180_000);
+	const catalog = await serveModelsDev({
+		opencode: {
+			id: 'opencode',
+			models: {
+				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
+				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
+			},
+		},
+		'opencode-go': {
+			id: 'opencode-go',
+			models: {
+				hy4: catalogModel('hy4', 'Hy4', '2026-10-31'),
+				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
+			},
+		},
+	});
+	const probe = await serveOpenCodeProbe(200);
+	const app = await launchMalini({
+		env: { MALINI_MODELS_DEV_URL: catalog.url, MALINI_OPENCODE_PROBE_URL: probe.origin },
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-provider-opencode-go-ws',
+			'OpenCode Go models',
+		);
+		await openWorkstream(page, workstreamId);
+		await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible({
+			timeout: 20_000,
+		});
+
+		await chooseModel(page, 'opencode', 'glm-6');
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
+			'data-access',
+			'needs-key',
+		);
+		await page.getByRole('textbox', { name: 'OpenCode API key' }).fill('oc_sk_go_e2e');
+		await page.getByTestId('provider-connect-submit').click();
+		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
+		await expect
+			.poll(
+				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
+			)
+			.toEqual({
+				ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/go/anthropic',
+				ANTHROPIC_AUTH_TOKEN: 'oc_sk_go_e2e',
+				ANTHROPIC_MODEL: 'glm-6',
+				ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-6',
+				ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-6',
+				ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-6',
+				CLAUDE_CODE_SUBAGENT_MODEL: 'glm-6',
+			});
+		await expectAssistantReply(page);
+
+		await page.getByTestId('chat-composer-model').click();
+		await expect(modelOptions(page, 'opencode')).toHaveText([/^Hy4/u, /^GLM-6/u]);
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
+
+		await page.evaluate(() => {
+			location.hash = '#/settings/providers';
+		});
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await expect(settings).toBeVisible({ timeout: 20_000 });
+		const card = page.getByTestId('provider-opencode');
+		await expect(card).toHaveAttribute('data-key-saved', 'true');
+		await expect(card).toContainText('Key saved. Your Go plan.');
+		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(/Hy4\s*GLM-6/u);
+		await expect(card).not.toContainText('Kimi K4');
+		await captureFlow(app, 'provider-models-opencode-go-settings');
+
+		probe.answer(403);
+		await card.getByRole('button', { name: 'Check again' }).click();
+		await expect(card).toContainText('API key saved on this Mac.');
+		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
+			/GLM-6\s*Kimi K4/u,
+		);
+		await captureFlow(app, 'provider-models-opencode-go-checked-again');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		await catalog.close();
+		await probe.close();
 	}
 });
