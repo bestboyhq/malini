@@ -16,6 +16,7 @@ import {
 	type SecretCipher,
 } from './claude-accounts.service';
 import { ModelsDevCatalog, modelsDevUrl, type CatalogFetch } from './models-dev.service';
+import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
 import { ProviderKeys } from './provider-keys.service';
 
 const MAX_EMAIL_LENGTH = 320;
@@ -67,10 +68,14 @@ export function registerProviders(
 
 	context.commands.define('providers.cancel-claude-sign-in', () => accounts.cancelSignIn());
 
-	const keys = new ProviderKeys(context.db, deps.cipher ?? electronCipher);
+	const fetchModels = deps.fetch ?? electronFetch;
+	const probeOrigin = opencodeProbeOrigin(!context.isDev, process.env);
+	const keys = new ProviderKeys(context.db, deps.cipher ?? electronCipher, (apiKey) =>
+		detectOpenCodePlan({ apiKey, origin: probeOrigin, fetch: fetchModels }),
+	);
 	const catalog = new ModelsDevCatalog({
 		db: context.db,
-		fetch: deps.fetch ?? electronFetch,
+		fetch: fetchModels,
 		url: modelsDevUrl(!context.isDev, process.env),
 	});
 	void catalog.refresh();
@@ -79,6 +84,7 @@ export function registerProviders(
 
 	context.commands.define('providers.refresh-models', async () => {
 		await catalog.refresh();
+		await keys.detectMissingPlan();
 		return keys.list();
 	});
 
@@ -86,6 +92,10 @@ export function registerProviders(
 		const { providerId, apiKey } = providerKeyArgs(args);
 		await keys.save(providerId, apiKey);
 	});
+
+	context.commands.define('providers.check-plan', (args: unknown) =>
+		keys.checkPlan(providerIdArg(args)),
+	);
 
 	context.commands.define('providers.delete-key', (args: unknown) =>
 		keys.delete(providerIdArg(args)),

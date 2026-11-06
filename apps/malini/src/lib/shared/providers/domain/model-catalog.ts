@@ -224,6 +224,7 @@ function unknownGroup(provider: string): ProviderGroup {
 		models: [],
 		ready: false,
 		message: '',
+		plan: null,
 	};
 }
 
