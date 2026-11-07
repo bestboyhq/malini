@@ -1,4 +1,4 @@
-# 0177 - The hero loupe parks, and the Open Graph image shows it
+# 0178 - The hero loupe parks, and the Open Graph image shows it
 
 Status: accepted
 
