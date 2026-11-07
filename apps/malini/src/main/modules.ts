@@ -25,6 +25,7 @@ import type { MainContext } from './context';
 import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerAutomations } from '$lib/automations/platform/register';
+import { registerBrain } from '$lib/brain/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerScratchpad } from '$lib/scratchpad/platform/register';
 import { registerSecrets } from '$lib/secrets/platform/register';
@@ -195,8 +196,16 @@ export async function registerModules(
 		deliver: async (wake) => {
 			await chat.deliver({ ...wake, kind: 'report' });
 		},
+		brainWorkstream: () => brain.workstream(),
+	});
+	const brain = registerBrain(context, {
+		gh: repositories.gh,
+		checkouts: repositories.checkouts,
+		secrets: () => secrets.allValues(),
+		log,
 	});
 	automations.start();
+	brain.start();
 	repositories.overlaps.start();
 	app.announceUpdate();
 	app.announceStart();
@@ -213,6 +222,7 @@ export async function registerModules(
 			app.streaming.stop();
 			pullRequests.dispose();
 			automations.dispose();
+			brain.dispose();
 			repositories.watchers.dispose();
 			repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();

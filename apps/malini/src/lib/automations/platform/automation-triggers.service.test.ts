@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	AUTOMATIONS_RUN_CHANGED_CHANNEL,
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 } from '$contract/events';
@@ -16,7 +17,7 @@ import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
-import type { AutomationsPlatform } from '../automations.platform';
+import type { AutomationsPlatform, ShippingRule } from '../automations.platform';
 import { getAutomationRunContext } from './automation-runs.repository';
 import { registerAutomations } from './register';
 
@@ -27,7 +28,7 @@ let context: MainContext;
 let automations: AutomationsPlatform;
 let logged: string[];
 
-function start(): void {
+function start(shipping?: ShippingRule): void {
 	context = {
 		db,
 		commands: new CommandRegistry(),
@@ -40,7 +41,10 @@ function start(): void {
 	};
 	context.commands.define('app.list-settings', () => ({}));
 	context.commands.define('chat.workstream-has-working-run', () => true);
-	automations = registerAutomations(context, { log: (line) => logged.push(line) });
+	automations = registerAutomations(context, {
+		log: (line) => logged.push(line),
+		...(shipping ? { shipping } : {}),
+	});
 }
 
 beforeEach(() => {
@@ -103,6 +107,37 @@ function shipMerged(): void {
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5));
 
+async function seeded(builtin: string): Promise<AutomationDefinitionRecord> {
+	const definitions = await context.commands.call('automations.list-definitions', undefined);
+	const found = definitions.find((definition) => definition.builtin === builtin);
+	if (!found) throw new Error(`${builtin} is not seeded`);
+	return found;
+}
+
+function changesRequested(): void {
+	context.events.emit(PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, {
+		workstreamId: 'ws-1',
+		pullRequestNumber: 7,
+		pullRequestUrl: null,
+		state: 'open',
+		baseBranch: 'main',
+		headSha: 'a'.repeat(40),
+		checks: 'success',
+		checksPending: false,
+		failingChecks: [],
+		blockingChecks: [],
+		reviewDecision: 'changes_requested',
+		unresolvedThreads: 0,
+		changeRequests: [{ id: 'PRR_1', by: 'alice', bot: false }],
+		threads: [],
+		behindBase: 0,
+		conflicts: false,
+		mergeability: 'blocked',
+		viewerCanMerge: true,
+		mergeMethod: 'squash',
+	});
+}
+
 describe('automation triggers', () => {
 	it('asks for a run on each matching event, waiting for you when the trigger asks first', async () => {
 		const auto = await automation('Clean up', { when: SHIP_MERGED, mode: 'auto' });
@@ -159,6 +194,50 @@ describe('automation triggers', () => {
 			expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toEqual([]),
 		);
 		expect(await statuses()).toEqual(['waiting', 'cancelled']);
+	});
+
+	it('starts Address review on changes requested, on what the event says when Shipping leaves it', async () => {
+		const review = await seeded('address-review');
+
+		changesRequested();
+		await settle();
+
+		const [run] = await runsOf(review);
+		expect(run).toMatchObject({ origin: 'trigger', workstreamId: 'ws-1' });
+		expect(getAutomationRunContext(db, run?.id ?? '')).toContain(
+			'"reviewDecision":"changes_requested"',
+		);
+	});
+
+	it('lets Shipping start the built-in it takes with its own context, and starts the rest as usual', async () => {
+		automations.dispose();
+		const offered: (string | null)[] = [];
+		start({
+			hear: async () => [],
+			decide: async () => null,
+			merging: () => false,
+			triggered: async ({ builtin, start: startRun }) => {
+				offered.push(builtin);
+				if (builtin !== 'address-review') return false;
+				await startRun('Address PRR_1.');
+				return true;
+			},
+		});
+		const review = await seeded('address-review');
+		const mine = await automation('Ping me', {
+			when: 'on pull-requests:pull-request-changed where reviewDecision is changes_requested',
+			mode: 'auto',
+		});
+
+		changesRequested();
+		await settle();
+
+		expect(offered.sort()).toEqual(['address-review', null]);
+		const [taken] = await runsOf(review);
+		expect(taken).toMatchObject({ origin: 'trigger', workstreamId: 'ws-1' });
+		expect(getAutomationRunContext(db, taken?.id ?? '')).toBe('Address PRR_1.');
+		const [own] = await runsOf(mine);
+		expect(getAutomationRunContext(db, own?.id ?? '')).toContain('"reviewDecision"');
 	});
 
 	it('ignores an event whose payload misses a condition', async () => {

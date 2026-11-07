@@ -7,6 +7,7 @@
 	import type { PageState } from '$shared/router/hash-router.svelte';
 	import {
 		ACCOUNT_SETTINGS_HREF,
+		BRAIN_SETTINGS_HREF,
 		EXTENSION_SETTINGS_HREF,
 		MCP_SETTINGS_HREF,
 		MODEL_SETTINGS_HREF,
@@ -22,6 +23,7 @@
 	import AppearanceSection from './AppearanceSection.svelte';
 	import ExtensionsSection from './ExtensionsSection.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
+	import BrainSection from './BrainSection.svelte';
 	import McpServersSection from './McpServersSection.svelte';
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
@@ -79,6 +81,7 @@
 			icon: 'checklist',
 			content: AutomationsSection,
 		},
+		{ href: BRAIN_SETTINGS_HREF, label: 'Brain', icon: 'note', content: BrainSection },
 		{ href: PROFILE_SETTINGS_HREF, label: 'Profile', icon: 'globe', content: ProfileSection },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock', content: PrivacySection },
 	];

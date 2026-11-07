@@ -3,7 +3,7 @@
 	import { cubicOut, quartOut } from 'svelte/easing';
 	import type { TransitionConfig } from 'svelte/transition';
 	import { navigating, page } from '$shared/router/state';
-	import { AUTOMATIONS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { AUTOMATIONS_HREF, BRAIN_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		historyIndexFromState,
 		navigationHistoryTargetLedger,
@@ -360,6 +360,16 @@
 							aria-hidden="true"
 						></span>
 					{/if}
+				</a>
+			</Tooltip>
+			<Tooltip content="Brain" placement="bottom">
+				<a
+					href={BRAIN_HREF}
+					class="topbar-chrome"
+					aria-label="Open the brain"
+					data-testid="global-topbar-brain"
+				>
+					<Icon name="note" />
 				</a>
 			</Tooltip>
 			<Tooltip content="Settings" placement="bottom">

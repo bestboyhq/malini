@@ -8,8 +8,10 @@ export function sanitizedMarkdownHtmlCacheKey(
 	masked: boolean,
 	runnable: boolean,
 	source: string,
+	wikiLinks: boolean = false,
 ): string {
-	return `${mode}\u0000${masked ? 'masked' : 'shown'}\u0000${runnable ? 'runnable' : 'static'}\u0000${textFingerprint(source)}`;
+	const key = `${mode}\u0000${masked ? 'masked' : 'shown'}\u0000${runnable ? 'runnable' : 'static'}\u0000${textFingerprint(source)}`;
+	return wikiLinks ? `${key}\u0000wiki` : key;
 }
 
 export const sanitizedMarkdownHtmlCache = new BoundedHtmlCache(

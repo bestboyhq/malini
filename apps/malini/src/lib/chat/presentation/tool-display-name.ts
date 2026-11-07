@@ -1,6 +1,9 @@
 import { toolTarget } from '$lib/chat/domain/tool-target';
 import { mcpServerDisplayName } from '$lib/chat/domain/mcp-server';
-import { relativizeWorkstreamCommand, relativizeWorkstreamPath } from './workstream-path';
+import {
+	relativizeWorkstreamCommand,
+	relativizeWorkstreamPath,
+} from '$shared/markdown/workstream-path';
 
 export type ToolActionKind = 'command' | 'read' | 'edit' | 'search' | 'other';
 

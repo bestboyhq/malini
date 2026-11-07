@@ -1,3 +1,4 @@
+import type { AutomationDefaults, DefaultsChoice } from '$lib/app/domain/automation-defaults';
 import type { HeardAbout } from '$lib/app/domain/heard-about';
 import {
 	ONBOARDING_STEPS,
@@ -13,6 +14,8 @@ type Onboarding = Readonly<{
 	direction: 1 | -1;
 	shown: OnboardingScreen | null;
 	heardAbout: HeardAbout | null;
+	defaultsChoice: DefaultsChoice;
+	customDefaults: AutomationDefaults;
 }>;
 
 class OnboardingQuery {
@@ -23,6 +26,8 @@ class OnboardingQuery {
 		direction: onboardingStore.direction,
 		shown: onboardingStore.shown,
 		heardAbout: onboardingStore.heardAbout,
+		defaultsChoice: onboardingStore.defaultsChoice,
+		customDefaults: onboardingStore.customDefaults,
 	});
 }
 

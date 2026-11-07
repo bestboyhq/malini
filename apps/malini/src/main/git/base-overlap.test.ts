@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { baseOverlap, changesWithEveryCommit, commitOf } from './base-overlap';
+import { baseOverlap, branchStart, changesWithEveryCommit, commitOf } from './base-overlap';
 import { initRealRepo, realGit, removeDir, tempDir } from './fixtures.test-support';
 
 const TEN_LINES = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n';
@@ -56,6 +56,7 @@ describe('baseOverlap', () => {
 
 		expect(await overlapOfTopic(repo)).toEqual({
 			behind: 1,
+			pristine: false,
 			conflictedPaths: ['shared.txt'],
 			overlappingPaths: ['shared.txt'],
 		});
@@ -69,17 +70,23 @@ describe('baseOverlap', () => {
 
 		expect(await overlapOfTopic(repo)).toEqual({
 			behind: 2,
+			pristine: false,
 			conflictedPaths: [],
 			overlappingPaths: ['lines.txt'],
 		});
 	});
 
-	it('finds nothing when the base changed only files the branch left alone', async () => {
+	it('counts the commits behind with no overlap when the base changed only files the branch left alone', async () => {
 		const repo = await repoWith({ 'mine.txt': 'a\n', 'theirs.txt': 'b\n' });
 		await onBranch(repo, 'topic', { 'mine.txt': 'topic\n' });
 		await onBranch(repo, 'main', { 'theirs.txt': 'main\n' });
 
-		expect(await overlapOfTopic(repo)).toBeNull();
+		expect(await overlapOfTopic(repo)).toEqual({
+			behind: 1,
+			pristine: false,
+			conflictedPaths: [],
+			overlappingPaths: [],
+		});
 	});
 
 	it('ignores lockfiles, changelogs and generated files that merge cleanly, but not their conflicts', async () => {
@@ -100,18 +107,19 @@ describe('baseOverlap', () => {
 			'CHANGELOG.md': TEN_LINES.replace('10\n', 'ten\n'),
 			'contract.generated.ts': TEN_LINES.replace('10\n', 'ten\n'),
 		});
-		expect(await overlapOfTopic(repo)).toBeNull();
+		expect(await overlapOfTopic(repo)).toMatchObject({ behind: 1, overlappingPaths: [] });
 
 		await onBranch(repo, 'topic', { 'yarn.lock': 'topic\n' });
 		await onBranch(repo, 'main', { 'yarn.lock': 'main\n' });
 		expect(await overlapOfTopic(repo)).toEqual({
 			behind: 2,
+			pristine: false,
 			conflictedPaths: ['yarn.lock'],
 			overlappingPaths: ['yarn.lock'],
 		});
 	});
 
-	it('finds nothing for a branch the base already holds or one with no commits of its own', async () => {
+	it('finds nothing for a branch the base already holds, and calls one with no commits of its own pristine', async () => {
 		const repo = await repoWith({ 'shared.txt': 'base\n' });
 		await onBranch(repo, 'topic', { 'shared.txt': 'topic\n' });
 		expect(await overlapOfTopic(repo)).toBeNull();
@@ -119,7 +127,26 @@ describe('baseOverlap', () => {
 		await realGit(repo, ['checkout', '-q', 'main']);
 		await realGit(repo, ['merge', '-q', '--ff-only', 'topic']);
 		await commitFiles(repo, { 'shared.txt': 'main\n' }, 'main moves on');
-		expect(await overlapOfTopic(repo)).toBeNull();
+		expect(await overlapOfTopic(repo)).toEqual({
+			behind: 1,
+			pristine: true,
+			conflictedPaths: [],
+			overlappingPaths: [],
+		});
+	});
+});
+
+describe('branchStart', () => {
+	it('reads what a branch was created from, through its worktree, and null for an unknown branch', async () => {
+		const repo = await repoWith({ 'shared.txt': 'base\n' });
+		const fork = await commitOf(repo, 'main');
+		const checkout = join(repo, '.worktrees', 'pinned');
+		await realGit(repo, ['worktree', 'add', '-q', '-b', 'pinned', checkout, fork ?? '']);
+		await realGit(repo, ['worktree', 'add', '-q', '-b', 'fresh', `${checkout}-fresh`, 'main']);
+
+		expect(await branchStart(checkout, 'pinned')).toBe(fork);
+		expect(await branchStart(checkout, 'fresh')).toBe('main');
+		expect(await branchStart(checkout, 'missing')).toBeNull();
 	});
 });
 

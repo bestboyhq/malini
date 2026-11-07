@@ -13,7 +13,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { motionMs, revealFade } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
-	import MarkdownText from '../MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import ToolLabel from '../ToolLabel.svelte';
 	import { formatToolDuration, toolDurationMs, type RunGroup } from '../render-state';
 	import type { SubagentTimelineItem } from '../run-timeline';

@@ -58,7 +58,7 @@
 		bind:this={element}
 		bind:checked
 		bind:indeterminate
-		class="border-surface-input-border text-brand accent-brand focus-visible:ring-border-default/50 mt-0.5 h-4 w-4 rounded focus-visible:ring-2"
+		class="border-surface-input-border text-brand accent-brand focus-visible:ring-border-default/50 mt-0.5 h-4 w-4 shrink-0 rounded focus-visible:ring-2"
 		onchange={(event) => onchange?.(event.currentTarget.checked)}
 	/>
 	<span class="min-w-0">

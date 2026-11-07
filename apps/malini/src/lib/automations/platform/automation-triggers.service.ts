@@ -11,11 +11,16 @@ import {
 	AUTOMATIONS_RUN_STARTED_CHANNEL,
 	type EventChannel,
 } from '$contract/events';
-import type { AutomationDefinitionRecord, AutomationRunMode } from '$contract/automations';
+import type {
+	AutomationDefinitionRecord,
+	AutomationRunMode,
+	AutomationRunRecord,
+} from '$contract/automations';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
+import type { ShippingRule } from '../automations.platform';
 import { AUTOMATION_CHAIN_MAX_DEPTH, truncateAutomationContext } from '../domain/automation-run';
 import { triggeredBefore } from './event-log.repository';
 import { findString, type DispatchedEvent } from './event-log.service';
@@ -44,6 +49,7 @@ export type AutomationTriggers = Readonly<{
 export function startAutomationTriggers(
 	context: MainContext,
 	log: (line: string) => void,
+	shipping: Pick<ShippingRule, 'triggered'>,
 ): AutomationTriggers {
 	const { db, events, commands } = context;
 	let armed: readonly ArmedAutomation[] = [];
@@ -87,22 +93,25 @@ export function startAutomationTriggers(
 		const repositoryId = findString(payload, 'repositoryId');
 		const parentRunId = RUN_CHANNELS.has(channel) ? runIdOf(payload) : null;
 		if (parentRunId !== null && inChain(definition.id, parentRunId)) return;
-		await commands
-			.call('automations.run', {
+		const start = (context: string): Promise<AutomationRunRecord> =>
+			commands.call('automations.run', {
 				definitionId: definition.id,
 				origin: 'trigger',
-				context: truncateAutomationContext(
-					JSON.stringify({ event: channel, payload: seenPayload(definition, channel, payload) }),
-				),
+				context: truncateAutomationContext(context),
 				waitForYou: mode === 'ask',
 				...(workstreamId === null ? {} : { workstreamId }),
 				...(repositoryId === null ? {} : { repositoryId }),
 				...(parentRunId === null ? {} : { parentRunId }),
 				...(event.id === null ? {} : { causeEventId: event.id }),
-			})
-			.catch((error: unknown) => {
-				log(`automations: ${definition.name} did not start on ${channel}: ${describeError(error)}`);
 			});
+		try {
+			if (await shipping.triggered({ builtin: definition.builtin, event, start })) return;
+			await start(
+				JSON.stringify({ event: channel, payload: seenPayload(definition, channel, payload) }),
+			);
+		} catch (error) {
+			log(`automations: ${definition.name} did not start on ${channel}: ${describeError(error)}`);
+		}
 	};
 
 	const inChain = (definitionId: string, runId: string): boolean =>

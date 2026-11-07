@@ -5,6 +5,7 @@ import type {
 	BrowserTabArgs,
 	BrowserThreadOpened,
 } from './browser';
+import type { BrainChangedEvent } from './brain';
 import type { LeadDecisionChangedEvent } from './leads';
 import type { ChatDeliveryChangedEvent } from './deliveries';
 import type { GithubReach } from './github-failure';
@@ -121,6 +122,7 @@ export interface WorkstreamBaseOverlappedPayload {
 	head: string;
 	baseHead: string;
 	behind: number;
+	overlapping: boolean;
 	conflicts: boolean;
 	conflictedPaths: string[];
 	overlappingPaths: string[];
@@ -259,6 +261,7 @@ export interface ContractEvents {
 	'stats:profile-changed': ProfileState;
 	'stats:profile-published': BestboyProfile;
 	'secrets:requested': SecretsRequestedEvent;
+	'brain:changed': BrainChangedEvent;
 	'secrets:saved': SecretsSavedEvent;
 	'secrets:request-dismissed': SecretRequestDismissedEvent;
 	'secrets:deleted': SecretDeletedEvent;
@@ -326,6 +329,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'stats:profile-changed': null,
 	'stats:profile-published': null,
 	'secrets:requested': null,
+	'brain:changed': null,
 	'secrets:saved': null,
 	'secrets:request-dismissed': null,
 	'secrets:deleted': null,
@@ -436,6 +440,8 @@ export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies E
 export const STATS_PROFILE_PUBLISHED_CHANNEL = 'stats:profile-published' satisfies EventChannel;
 
 export const SECRETS_REQUESTED_CHANNEL = 'secrets:requested' satisfies EventChannel;
+
+export const BRAIN_CHANGED_CHANNEL = 'brain:changed' satisfies EventChannel;
 
 export const SECRETS_SAVED_CHANNEL = 'secrets:saved' satisfies EventChannel;
 

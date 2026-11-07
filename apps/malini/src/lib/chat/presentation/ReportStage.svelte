@@ -2,19 +2,19 @@
 	import type { Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import {
-		isVideoPath,
-		type TurnComparison,
-		type TurnReport,
-		type TurnReportImage,
-		type TurnVariant,
+	import { isVideoPath } from '$contract/workstream-images';
+	import type {
+		TurnComparison,
+		TurnReport,
+		TurnReportImage,
+		TurnVariant,
 	} from '$lib/chat/domain/turn-report';
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
 	import ImageCompare from './ImageCompare.svelte';
 	import ReportMedia from './ReportMedia.svelte';
 	import type { VideoHandoff } from './transcript-gallery';
 	import VideoCompare from './VideoCompare.svelte';
-	import { galleryImageId } from './workstream-images';
+	import { galleryImageId } from '$shared/markdown/workstream-images';
 
 	type Shot = Readonly<
 		{ key: string; label: string; thumb: string } & (

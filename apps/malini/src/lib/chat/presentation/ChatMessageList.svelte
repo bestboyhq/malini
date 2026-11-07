@@ -63,7 +63,7 @@
 	import FileMentionChooser, {
 		type FileMentionChoice,
 	} from './chat-message-list/FileMentionChooser.svelte';
-	import type { FileMentionTarget } from './file-mention-links';
+	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
 	import { createCheckpointEditor } from './chat-message-list/checkpoint-edit.svelte';
 	import { createDestructiveConfirm } from './chat-message-list/destructive-confirm.svelte';
 	import { createOpenRunGuard } from './chat-message-list/open-run-guard.svelte';

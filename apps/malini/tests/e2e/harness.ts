@@ -662,11 +662,25 @@ export async function openOverview(page: Page): Promise<void> {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 }
 
+export async function passDefaults(page: Page): Promise<void> {
+	const setup = page.getByTestId('onboarding');
+	await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
+	await setup.getByRole('radio', { name: /^Customize/u }).click();
+	await setup.getByRole('checkbox', { name: /^Keep a second brain/u }).uncheck();
+	const proceed = setup.getByRole('button', { name: 'Continue' });
+	await expect(proceed).toBeEnabled();
+	await proceed.click();
+}
+
 export async function passSetup(page: Page): Promise<void> {
 	const setup = page.getByTestId('onboarding');
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 	await setup.getByRole('button', { name: 'Continue' }).click();
+	await passDefaults(page);
+	await expect(
+		setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+	).toBeVisible();
 	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 	await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
 }

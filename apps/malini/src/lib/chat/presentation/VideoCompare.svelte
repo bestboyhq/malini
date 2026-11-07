@@ -3,9 +3,10 @@
 	import { Playhead } from '$hyper-ui/components/playhead';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import { mediaMarker, mediaPath, type TurnComparison } from '$lib/chat/domain/turn-report';
+	import { mediaPath } from '$contract/workstream-images';
+	import { mediaMarker, type TurnComparison } from '$lib/chat/domain/turn-report';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
-	import { reportMediaSource } from './workstream-images';
+	import { reportMediaSource } from '$shared/markdown/workstream-images';
 
 	interface Props {
 		comparison: TurnComparison;

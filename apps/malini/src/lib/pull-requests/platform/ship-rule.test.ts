@@ -669,6 +669,26 @@ function seedDefinitions(): void {
 	for (const definition of DEFINITIONS) insertAutomationDefinition(db, definition);
 }
 
+function armAddressReview(): void {
+	db.prepare(
+		`UPDATE automation_definitions SET trigger_mode = 'auto',
+		 trigger_when = 'on pull-requests:pull-request-changed where reviewDecision is changes_requested'
+		 WHERE id = 'def-address-review'`,
+	).run();
+}
+
+function requestChanges(...ids: string[]): FakePullRequest {
+	return Object.assign(github.only(), {
+		reviewDecision: 'CHANGES_REQUESTED',
+		changeRequests: ids.map((id) => ({ id, login: 'alice', bot: false })),
+		threads: [{ id: 'PRRT_human', bot: false, resolved: false }],
+	});
+}
+
+function reviewRuns(): AutomationRunRecord[] {
+	return [...automationRuns.values()].filter((run) => run.definitionId === 'def-address-review');
+}
+
 function start(delays: typeof DELAYS = DELAYS): void {
 	const now = (): number => Date.now() + clockOffsetMs;
 	platform = registerPullRequests(context, {
@@ -676,7 +696,7 @@ function start(delays: typeof DELAYS = DELAYS): void {
 		ship: { delays, now },
 	});
 	clock = createAutomationSchedules(context, () => {}, { alarmCheckMs: 10, now });
-	triggers = startAutomationTriggers(context, () => {});
+	triggers = startAutomationTriggers(context, () => {}, platform.shipping);
 	const schedules = clock;
 	const yourTriggers = triggers;
 	reconciler = new Reconciler(
@@ -1199,22 +1219,40 @@ describe('before you merge', () => {
 		expect(automationRuns.size).toBe(0);
 	});
 
-	it('addresses changes a reviewer requested while you work, and records the review', async () => {
+	it('leaves changes a reviewer requested while you work to you while Address review is off', async () => {
 		await openDraft();
-		const pull = github.only();
-		Object.assign(pull, {
-			reviewDecision: 'CHANGES_REQUESTED',
-			changeRequests: [{ id: 'PRR_1', login: 'alice', bot: false }],
-			threads: [{ id: 'PRRT_human', bot: false, resolved: false }],
-		});
+		requestChanges('PRR_1');
+
+		await readPullRequest();
+		await settle();
+
+		expect(reviewRuns()).toHaveLength(0);
+		expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null });
+	});
+
+	it('adopts the Address review its trigger starts on a change request, pushes the fix once and records the review', async () => {
+		armAddressReview();
+		await openDraft();
+		const pull = requestChanges('PRR_1');
+		const pushed = pushes.length;
 
 		await readPullRequest();
 
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
 		const automation = activeAutomation();
+		expect(automation).toMatchObject({ definitionId: 'def-address-review', origin: 'trigger' });
+		expect(ship('ws-1')?.activeAutomationRunId).toBe(automation.id);
+		expect(automationCauses.get(automation.id)).toBe(
+			latestLogged(PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL).id,
+		);
 		const automationContext = automationContexts.get(automation.id) ?? '';
 		expect(automationContext).toContain('"kind":"requested_change_review","id":"PRR_1"');
 		expect(automationContext).toContain('"kind":"review_thread","id":"PRRT_human"');
+		pull.headRefOid = 'b'.repeat(40);
+		await readPullRequest();
+		await settle();
+		expect(reviewRuns()).toHaveLength(1);
+
 		finishAutomation(automation.id, 'succeeded', {
 			summary: 'Added the missing test.\nResolved: PRRT_human',
 			dirtyPaths: ['src/search.ts'],
@@ -1222,8 +1260,55 @@ describe('before you merge', () => {
 
 		await until(() => expect(pull.threads[0]?.resolved).toBe(true));
 		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
+		expect(commits.at(-1)).toMatchObject({ runId: automation.agentRunId });
+		expect(pushes.length - pushed).toBe(1);
 		expect(getShip(db, 'ws-1')?.addressedReviews).toEqual(['PRR_1']);
-		expect(automationRuns.size).toBe(1);
+		await readPullRequest();
+		await settle();
+		expect(reviewRuns()).toHaveLength(1);
+		expect(pushes.length - pushed).toBe(1);
+		expect(github.only().state).toBe('OPEN');
+	});
+
+	it('starts no Address review from its trigger while Shipping addresses the review itself', async () => {
+		armAddressReview();
+		await openDraft();
+		openRuns.add('ws-1');
+		requestChanges('PRR_1');
+
+		await readPullRequest();
+		await settle();
+		expect(reviewRuns()).toHaveLength(0);
+		finishUserRun('ws-1', 'Looked around.', []);
+
+		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
+		const automation = activeAutomation();
+		expect(automation).toMatchObject({ definitionId: 'def-address-review', origin: 'merge-queue' });
+		requestChanges('PRR_1', 'PRR_2');
+		await readPullRequest();
+		await settle();
+		expect(reviewRuns()).toHaveLength(1);
+		expect(ship('ws-1')?.activeAutomationRunId).toBe(automation.id);
+	});
+
+	it('leaves a review whose fixes ran out of attempts to you instead of triggering it again', async () => {
+		armAddressReview();
+		await openDraft();
+		const pull = requestChanges('PRR_1');
+		for (let attempt = 1; attempt <= 3; attempt += 1) {
+			pull.headRefOid = attempt.toString(16).padStart(40, 'c');
+			await readPullRequest();
+			await until(() => expect(reviewRuns()).toHaveLength(attempt));
+			finishAutomation(activeAutomation().id, 'failed');
+			await until(() => expect(ship('ws-1')?.activeAutomationRunId ?? null).toBeNull());
+		}
+		pull.headRefOid = 'd'.repeat(40);
+
+		await readPullRequest();
+		await settle();
+
+		expect(reviewRuns()).toHaveLength(3);
+		expect(reviewRuns().every((run) => run.status === 'failed')).toBe(true);
 	});
 });
 
@@ -1470,6 +1555,7 @@ describe('shipping a queued merge', () => {
 	});
 
 	it('answers a second change request whose counts match the first, naming its own read', async () => {
+		armAddressReview();
 		await queueWithDraft();
 		const pull = github.only();
 		Object.assign(pull, {
@@ -1706,6 +1792,30 @@ describe('shipping a queued merge', () => {
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(automationRuns.size).toBe(1);
+		expect(pull.threads[0]?.resolved).toBe(true);
+	});
+
+	it('addresses a change request once when its trigger and the merge queue both see it, then merges', async () => {
+		armAddressReview();
+		await queueWithDraft();
+		const pull = requestChanges('PRR_1');
+		pull.mergeStateStatus = 'BLOCKED';
+
+		await click('ws-1', 'merge');
+
+		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
+		const automation = activeAutomation();
+		expect(ship('ws-1')?.activeAutomationRunId).toBe(automation.id);
+		await settle();
+		expect(reviewRuns()).toHaveLength(1);
+		finishAutomation(automation.id, 'succeeded', {
+			summary: 'Added the missing test.\nResolved: PRRT_human',
+			dirtyPaths: ['src/search.ts'],
+		});
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(reviewRuns()).toHaveLength(1);
+		expect(github.count(['pr', 'merge'])).toBe(1);
 		expect(pull.threads[0]?.resolved).toBe(true);
 	});
 

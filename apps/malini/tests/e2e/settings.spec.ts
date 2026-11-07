@@ -14,6 +14,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
+import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
 
 function settingsSection(page: Page, name: string) {
 	return page
@@ -26,6 +27,15 @@ async function openSettings(page: Page, hash: string): Promise<void> {
 		location.hash = next;
 	}, hash);
 	await page.reload();
+}
+
+async function builtinMode(page: Page, builtin: string): Promise<string | null> {
+	const definitions = await invoke<{ builtin: string | null; trigger: { mode: string } | null }[]>(
+		page,
+		'automations.list-definitions',
+		undefined,
+	);
+	return definitions.find((definition) => definition.builtin === builtin)?.trigger?.mode ?? null;
 }
 
 async function storedSettings(page: Page): Promise<Record<string, string>> {
@@ -216,6 +226,73 @@ test('Settings → Automations shows the defaults, clamps a value out of range, 
 		await openSettings(page, '#/settings/automations');
 		await expect(running).toHaveValue('10', { timeout: 20_000 });
 		await expect(attempts).toHaveValue('1');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Settings → Automations reads Recommended or Custom from the live automations, and Recommended puts every default back', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await brainOnGithub(app, 'missing');
+		await openSettings(page, '#/settings/automations');
+		const choice = page.getByRole('group', { name: 'Defaults' });
+		const recommended = choice.getByRole('button', { name: 'Recommended' });
+		const custom = choice.getByRole('button', { name: 'Custom' });
+		const review = page.getByRole('switch', { name: 'Address review comments' });
+		const brain = page.getByRole('switch', { name: 'Keep a second brain' });
+		const updates = page.getByRole('group', { name: 'Update from main' });
+		await expect(custom).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+		await expect(brain).toHaveAttribute('aria-checked', 'false');
+		await expect(review).toHaveAttribute('aria-checked', 'true');
+
+		await recommended.click();
+		await expect(brain).toHaveAttribute('aria-checked', 'true');
+		await expect(recommended).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
+		await expect(brain).toBeEnabled();
+		await captureFlow(app, 'settings-automations-defaults');
+
+		await review.click();
+		await expect(review).toHaveAttribute('aria-checked', 'false');
+		await expect(custom).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(async () => await builtinMode(page, 'address-review')).toBe('off');
+		await updates.getByRole('button', { name: 'Always' }).click();
+		await expect(updates.getByRole('button', { name: 'Always' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(
+			page.getByText('Merges main into every workstream you worked in this week. Never pushes.'),
+		).toBeVisible();
+
+		await recommended.click();
+		await expect(review).toHaveAttribute('aria-checked', 'true');
+		await expect(updates.getByRole('button', { name: 'Touches my files' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(recommended).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(async () => await builtinMode(page, 'address-review')).toBe('auto');
+
+		await openSettings(page, '#/settings/brain');
+		await expect(settingsSection(page, 'Brain')).toHaveAttribute('aria-current', 'page', {
+			timeout: 20_000,
+		});
+		await expect(page.getByRole('switch', { name: 'Second brain' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await expect(page.getByRole('switch', { name: 'Sync with GitHub' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await expect(page.getByText(`Pushes to main in ${FAKE_BRAIN}`)).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Edit Write the notes' })).toBeVisible();
+		await expect(page.getByText('Sunday at 18:00. Reads the log')).toBeVisible();
+		await captureFlow(app, 'settings-brain');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

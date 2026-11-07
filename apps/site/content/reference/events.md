@@ -380,9 +380,9 @@ interface WorkstreamMergeConflictedPayload {
 
 ## `repositories:workstream-base-overlapped`
 
-Fires when a workstream's base branch has commits the workstream lacks that conflict with it or change files it changed too, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream and each time it fetches the base branch, every five minutes, and only while no agent works there and nothing is left uncommitted. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A base branch that changed only other files fires nothing. Update from main runs on it.
+Fires when a workstream's base branch has commits the workstream lacks, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream, each time it fetches the base branch, every five minutes, and right after its merge queue lands a pull request; once the base branch moves, it waits until it has held still for 30 seconds, and it looks only while no agent works there, nothing is left uncommitted and no service the workstream started runs. `overlapping` says whether those commits conflict with the workstream or change files it changed too; it fires with `overlapping` false only for a workstream someone worked in during the last 7 days. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A workstream with no commits of its own fires nothing: it fast-forwards to the base branch when it started from it, and stays where it started when it started from a tag or a commit. Update from main runs on it where `overlapping` is true, or on every one once you pick Always.
 
-An automation sees: `workstreamId`, `baseBranch`, `head`, `baseHead`, `behind`, `conflicts`, `conflictedPaths`, `overlappingPaths`
+An automation sees: `workstreamId`, `baseBranch`, `head`, `baseHead`, `behind`, `overlapping`, `conflicts`, `conflictedPaths`, `overlappingPaths`
 
 Payload: `WorkstreamBaseOverlappedPayload`
 
@@ -393,6 +393,7 @@ interface WorkstreamBaseOverlappedPayload {
 	head: string;
 	baseHead: string;
 	behind: number;
+	overlapping: boolean;
 	conflicts: boolean;
 	conflictedPaths: string[];
 	overlappingPaths: string[];
@@ -855,7 +856,9 @@ type AutomationBuiltin =
 	| 'open-draft'
 	| 'merge'
 	| 'reconcile'
-	| 'suggest-automations';
+	| 'suggest-automations'
+	| 'capture-brain'
+	| 'write-brain-notes';
 
 type AutomationRunMode = 'off' | 'ask' | 'auto';
 
@@ -1463,6 +1466,29 @@ type SecretRequest = Readonly<{
 }>;
 
 type SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;
+```
+
+## `brain:changed`
+
+Fires when your second brain changes: it is set up, a capture or new notes land in it, a push to GitHub goes through or stops on a problem, or you turn its sync on or off, with its `status`. It never carries what the brain says.
+
+An automation sees: `status.set`, `status.repository`, `status.sync`, `status.syncedAt`, `status.unpushed`, `status.problem`
+
+Payload: `BrainChangedEvent`
+
+```ts
+type BrainStatus = Readonly<{
+	set: boolean;
+	repository: string | null;
+	sync: boolean;
+	workstreamId: string | null;
+	location: string | null;
+	syncedAt: string | null;
+	unpushed: number;
+	problem: string | null;
+}>;
+
+type BrainChangedEvent = Readonly<{ status: BrainStatus }>;
 ```
 
 ## `secrets:saved`

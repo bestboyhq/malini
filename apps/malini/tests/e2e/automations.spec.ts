@@ -34,7 +34,7 @@ test('the Automations page lists your automations then the built-in ones, drafts
 		const { page } = app;
 		await openAutomations(page);
 		const cards = page.getByRole('region', { name: 'Your automations' }).getByRole('article');
-		await expect(cards).toHaveCount(12);
+		await expect(cards).toHaveCount(14);
 		for (const [index, name] of [
 			'Name chats',
 			'Name services',
@@ -48,6 +48,8 @@ test('the Automations page lists your automations then the built-in ones, drafts
 			'Merge',
 			'Choose a reaction',
 			'Suggest automations',
+			'Capture to the log',
+			'Write the notes',
 		].entries()) {
 			await expect(cards.nth(index)).toHaveAccessibleName(name);
 		}

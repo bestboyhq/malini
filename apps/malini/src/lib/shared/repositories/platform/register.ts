@@ -33,6 +33,7 @@ import {
 	abortWorkstreamOperation,
 	commitWorkstreamBranch,
 	countCommitsBehindBase,
+	fastForwardCheckout,
 	fetchRemoteStart,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
@@ -53,7 +54,7 @@ import {
 import { parseLeadScope } from '../domain/lead-scope';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
-import { BASE_FETCH_EVERY_MS, BaseOverlapWatch } from './base-overlap.service';
+import { BASE_FETCH_EVERY_MS, BASE_QUIET_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
@@ -176,13 +177,15 @@ export function registerRepositories(
 	});
 	void watchers.start();
 	const baseFetchMs = context.isDev ? Number(process.env['MALINI_BASE_FETCH_MS']) : Number.NaN;
+	const baseQuietMs = context.isDev ? Number(process.env['MALINI_BASE_QUIET_MS']) : Number.NaN;
 	const overlaps = new BaseOverlapWatch({
 		db,
 		events,
 		checkouts,
 		fetchBase: (repoPath, baseBranch) => baseSync.fetchBase(repoPath, baseBranch),
-		agentWorking: (workstreamId) =>
-			commands.call('chat.workstream-has-working-run', { workstreamId }),
+		busy: (workstreamId) => commands.call('chat.workstream-has-open-run', { workstreamId }),
+		fastForward: (workstreamId, checkout, baseRef) =>
+			guardCheckoutMove(workstreamId, () => fastForwardCheckout(checkout, baseRef)),
 		merging: async (workstreamId) =>
 			(await commands.call('pull-requests.ship-states', undefined)).some(
 				(ship) =>
@@ -201,6 +204,7 @@ export function registerRepositories(
 			return state === 'merged' || state === 'closed';
 		},
 		fetchEveryMs: baseFetchMs > 0 ? baseFetchMs : BASE_FETCH_EVERY_MS,
+		quietMs: baseQuietMs >= 0 ? baseQuietMs : BASE_QUIET_MS,
 		log: deps.log ?? ((line) => console.error(line)),
 	});
 

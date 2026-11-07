@@ -475,6 +475,7 @@ describe('the event reconciler', () => {
 				},
 				decide: async () => null,
 				merging: () => false,
+				triggered: async () => false,
 			},
 			deliveries: async ({ channel }) => {
 				heard.push(`deliveries ${channel}`);
