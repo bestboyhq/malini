@@ -13,6 +13,7 @@
 		linkLabel: string;
 		checks: string[];
 		mirrored?: boolean;
+		tall?: boolean;
 		header?: Snippet;
 		panel: Snippet;
 	};
@@ -26,6 +27,7 @@
 		linkLabel,
 		checks,
 		mirrored = false,
+		tall = false,
 		header,
 		panel,
 	}: Props = $props();
@@ -61,7 +63,7 @@
 				caster={panelElement}
 				bind:lit
 			/>
-			<div class={['panel', 'rise', { lit }]} bind:this={panelElement}>
+			<div class={['panel', 'rise', { lit, tall }]} bind:this={panelElement}>
 				{#if header}
 					<div class="panel-header">{@render header()}</div>
 				{/if}
@@ -129,6 +131,7 @@
 		font-family: var(--mono);
 		font-size: 13px;
 		line-height: 20px;
+		text-wrap: pretty;
 	}
 
 	.tick {
@@ -172,6 +175,11 @@
 			var(--app-shadow),
 			0 0 0 1px var(--app-line);
 		color: var(--app-fg);
+	}
+
+	.panel.tall {
+		height: auto;
+		aspect-ratio: 1;
 	}
 
 	.panel.lit {
