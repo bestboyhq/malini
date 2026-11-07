@@ -2,14 +2,19 @@
 	import { Loop } from './loop.svelte';
 
 	const RULE = '- No stacked PRs';
+	const LINES = ['## Rules', '- pnpm, never npm', '- Tabs, not spaces'];
 
 	const FILES = [
-		{ name: 'CLAUDE.md', last: '- Tabs, not spaces', edited: 'Oct 2' },
-		{ name: 'AGENTS.md', last: '- Tabs, not spaces', edited: 'Oct 2' },
-		{ name: 'GEMINI.md', last: '- Tabs, not spaces', edited: 'Oct 2' },
+		{ name: 'CLAUDE.md', first: 12 },
+		{ name: 'AGENTS.md', first: 31 },
+		{ name: 'GEMINI.md', first: 7 },
 	] as const;
 
-	const STALE = { name: '.cursorrules', last: '- npm is fine', edited: 'Aug 14' };
+	const STALE = {
+		name: '.cursorrules',
+		first: 2,
+		lines: ['## Rules', '- npm is fine', '- Tabs, not spaces'],
+	} as const;
 
 	const loop = new Loop([900, 1100, 1100, 1100, 4400]);
 	const pasted = $derived(Math.min(loop.step, FILES.length));
@@ -17,196 +22,180 @@
 </script>
 
 <div class="rules" {@attach loop.play}>
-	<div class="clip">
-		<span class="keys">
-			<kbd>⌘</kbd>
-			<kbd>V</kbd>
-		</span>
-		<span class="rule">{RULE}</span>
-		<span class="count">{pasted} of {FILES.length + 1} files</span>
-	</div>
-	<ul class="tree">
-		{#each FILES as file, index (file.name)}
-			{@const done = index < pasted}
-			<li class={['branch', { done }]}>
-				<span class="file">
-					<span class="name">{file.name}</span>
-					<span class="last">
-						{#if done}
-							<span class="typed">{RULE}</span>
-						{:else}
-							{file.last}
-						{/if}
+	{#each FILES as file, index (file.name)}
+		{@const done = index < pasted}
+		<div class={['pane', { done }]}>
+			<div class="bar">
+				<i></i>
+				<span class="name">{file.name}</span>
+				<span class="when">{done ? 'just now' : 'Oct 2'}</span>
+			</div>
+			<div class="code">
+				{#each LINES as line, offset (offset)}
+					<span class="line">
+						<span class="number">{file.first + offset}</span>
+						<span class="text">{line}</span>
 					</span>
-					<span class="edited">{done ? 'just now' : file.edited}</span>
+				{/each}
+				<span class="line added">
+					<span class="number">{file.first + LINES.length}</span>
+					{#if done}
+						<span class="text typed">{RULE}</span>
+					{/if}
 				</span>
-			</li>
-		{/each}
-		<li class={['branch', { stale: caught }]}>
-			<span class="file">
-				<span class="name">{STALE.name}</span>
-				<span class="last">{STALE.last}</span>
-				<span class="edited">{STALE.edited}</span>
+			</div>
+		</div>
+	{/each}
+	<div class={['pane', { stale: caught }]}>
+		<div class="bar">
+			<i></i>
+			<span class="name">{STALE.name}</span>
+			<span class="when">Aug 14</span>
+		</div>
+		<div class="code">
+			{#each STALE.lines as line, offset (offset)}
+				<span class="line">
+					<span class="number">{STALE.first + offset}</span>
+					<span class="text">
+						<span class={{ squiggle: offset === 1 }}>{line}</span>
+					</span>
+				</span>
+			{/each}
+			<span class="line">
+				<span class="number">{STALE.first + STALE.lines.length}</span>
 			</span>
-		</li>
-	</ul>
+		</div>
+	</div>
 </div>
 
 <style>
 	.rules {
-		display: flex;
+		display: grid;
 		flex: 1;
-		flex-direction: column;
-		justify-content: center;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-rows: repeat(2, minmax(0, 1fr));
 		gap: 10px;
-		padding: 20px;
+		padding: 14px;
 		background: radial-gradient(120% 90% at 0% 0%, var(--term-card), var(--term) 60%);
 	}
 
-	.clip {
+	.pane {
 		display: flex;
-		align-items: center;
-		gap: 10px;
-		height: 20px;
-		white-space: nowrap;
-	}
-
-	.keys {
-		display: flex;
-		gap: 3px;
-	}
-
-	kbd {
-		display: grid;
-		place-items: center;
-		min-width: 20px;
-		height: 20px;
-		border-radius: 5px;
-		background: var(--term-raised);
-		box-shadow:
-			inset 0 -1px 0 rgb(0 0 0 / 0.45),
-			0 0 0 1px var(--term-edge);
-		color: var(--term-fg);
-		font: inherit;
-		font-size: 10.5px;
-	}
-
-	.rule {
-		min-width: 0;
+		flex-direction: column;
 		overflow: hidden;
-		color: var(--term-ok);
-		text-overflow: ellipsis;
-	}
-
-	.count {
-		flex: none;
-		margin-left: auto;
-		color: var(--term-faint);
-		font-size: 11px;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.tree {
-		display: grid;
-		gap: 8px;
-		margin-left: 10px;
-		list-style: none;
-	}
-
-	.branch {
-		--wire: var(--term-edge);
-		position: relative;
-		padding-left: 18px;
-	}
-
-	.branch::before,
-	.branch::after {
-		position: absolute;
-		left: 0;
-		border: 0 solid var(--wire);
-		content: '';
-		transition: border-color 400ms var(--ease);
-	}
-
-	.branch::before {
-		top: -8px;
-		bottom: 0;
-		border-left-width: 1px;
-	}
-
-	.branch:first-child::before {
-		top: -10px;
-	}
-
-	.branch::after {
-		top: 50%;
-		width: 12px;
-		border-top-width: 1px;
-	}
-
-	.branch:last-child::before {
-		bottom: 50%;
-		width: 12px;
-		border-bottom-width: 1px;
-		border-bottom-left-radius: 7px;
-	}
-
-	.branch:last-child::after {
-		content: none;
-	}
-
-	.done {
-		--wire: color-mix(in srgb, var(--term-ok) 65%, transparent);
-	}
-
-	.stale {
-		--wire: color-mix(in srgb, var(--term-wait) 65%, transparent);
-	}
-
-	.stale::before {
-		border-style: dashed;
-	}
-
-	.file {
-		display: flex;
-		align-items: center;
-		gap: 14px;
-		height: 38px;
-		padding: 0 12px;
 		border-radius: 8px;
-		background: var(--term-card);
+		background: var(--term-2);
 		box-shadow: 0 0 0 1px var(--term-line);
+	}
+
+	.bar {
+		display: flex;
+		flex: none;
+		align-items: center;
+		gap: 8px;
+		height: 28px;
+		padding: 0 10px;
+		border-bottom: 1px solid var(--term-line);
+		background: rgb(255 255 255 / 0.02);
+		font-size: 11px;
 		white-space: nowrap;
-		transition: box-shadow 400ms var(--ease);
 	}
 
-	.done .file {
-		box-shadow: 0 0 0 1px color-mix(in srgb, var(--term-ok) 30%, transparent);
+	.bar i {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: currentColor;
+		color: var(--term-raised);
+		transition:
+			color 300ms var(--ease),
+			box-shadow 300ms var(--ease);
 	}
 
-	.stale .file {
-		box-shadow:
-			0 0 0 1px color-mix(in srgb, var(--term-wait) 55%, transparent),
-			0 0 24px -6px color-mix(in srgb, var(--term-wait) 45%, transparent);
+	.done .bar i {
+		color: var(--term-pick);
+		box-shadow: 0 0 8px color-mix(in srgb, var(--term-pick) 70%, transparent);
+	}
+
+	.stale .bar i {
+		color: var(--term-clay);
+		box-shadow: 0 0 8px color-mix(in srgb, var(--term-clay) 60%, transparent);
 	}
 
 	.name {
-		flex: none;
-		width: 12ch;
 		color: var(--term-fg);
+		font-weight: 500;
 	}
 
-	.last {
-		flex: 1;
+	.when {
+		margin-left: auto;
+		color: var(--term-faint);
+		font-variant-numeric: tabular-nums;
+		transition: color 300ms var(--ease);
+	}
+
+	.done .when {
+		color: var(--term-pick);
+	}
+
+	.stale .when {
+		color: var(--term-clay);
+	}
+
+	.code {
+		display: flex;
+		flex-direction: column;
+		padding: 6px 0;
+	}
+
+	.line {
+		position: relative;
+		display: flex;
+		height: 18px;
+		white-space: nowrap;
+	}
+
+	.number {
+		flex: none;
+		width: 4ch;
+		padding-right: 1ch;
+		color: var(--term-faint);
+		text-align: right;
+		opacity: 0.7;
+	}
+
+	.text {
 		min-width: 0;
 		overflow: hidden;
+		padding-left: 2ch;
 		color: var(--term-dim);
 		text-overflow: ellipsis;
 	}
 
+	.added::before {
+		position: absolute;
+		top: 2px;
+		bottom: 2px;
+		left: calc(4ch + 0.75ch);
+		width: 2px;
+		border-radius: 1px;
+		background: var(--term-pick);
+		content: '';
+		opacity: 0;
+		transition: opacity 300ms var(--ease);
+	}
+
+	.done .added {
+		background: color-mix(in srgb, var(--term-pick) 9%, transparent);
+	}
+
+	.done .added::before {
+		opacity: 1;
+	}
+
 	.typed {
-		color: var(--term-ok);
-		animation: type 700ms steps(16) both;
+		color: var(--term-fg);
+		animation: type 650ms steps(16) both;
 	}
 
 	@keyframes type {
@@ -215,31 +204,49 @@
 		}
 	}
 
-	.edited {
-		flex: none;
-		color: var(--term-faint);
-		font-size: 11px;
-		font-variant-numeric: tabular-nums;
-		transition: color 400ms var(--ease);
+	.squiggle {
+		position: relative;
 	}
 
-	.done .edited {
-		color: var(--term-ok);
+	.squiggle::after {
+		position: absolute;
+		right: 0;
+		bottom: -1px;
+		left: 0;
+		height: 4px;
+		background: var(--term-clay);
+		content: '';
+		opacity: 0;
+		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='4'%3E%3Cpath d='M0 3 Q1.5 0.5 3 2 T6 1' fill='none' stroke='black' stroke-width='1.1'/%3E%3C/svg%3E")
+			repeat-x 0 0 / 6px 4px;
+		transition: opacity 400ms var(--ease);
 	}
 
-	.stale .last,
-	.stale .edited {
-		color: var(--term-wait);
+	.stale .squiggle::after {
+		opacity: 1;
 	}
 
 	@media (max-width: 559px) {
 		.rules {
-			padding: 16px;
+			gap: 8px;
+			padding: 10px;
 		}
 
-		.file {
-			gap: 10px;
-			padding: 0 10px;
+		.number {
+			width: 3ch;
+			padding-right: 0.5ch;
+		}
+
+		.text {
+			padding-left: 1.5ch;
+		}
+
+		.added::before {
+			left: 3.4ch;
+		}
+
+		.when {
+			display: none;
 		}
 	}
 
