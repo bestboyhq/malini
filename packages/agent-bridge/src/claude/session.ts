@@ -201,6 +201,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #secrets: SessionSecrets;
 	readonly #sandbox: boolean;
 	readonly #blockedCallRules = new Map<string, string>();
+	#outsideAllowed = false;
 	#claudeSessionId: string | undefined;
 	#seedHistory: readonly ConversationHistoryMessage[] | undefined;
 	#active: ActiveRun | null = null;
@@ -708,7 +709,11 @@ export class ClaudeSession implements ProviderHandle {
 						hooks: this.#sandbox
 							? [
 									steerToMalini,
-									confineCommands(profile, (command) => this.#secrets.passOutside(command)),
+									confineCommands(
+										profile,
+										(command) => this.#secrets.passOutside(command),
+										() => this.#outsideAllowed,
+									),
 								]
 							: [steerToMalini],
 					},
@@ -792,17 +797,25 @@ export class ClaudeSession implements ProviderHandle {
 				}
 				return { behavior: 'deny', message: 'The user denied this action.', interrupt: true };
 			}
+			const approved = approvedInput(toolName, input, resolution.updatedInput);
+			if (leavesTheSandbox(toolName, approved)) {
+				if (resolution.scope === 'session') this.#outsideAllowed = true;
+				return {
+					behavior: 'allow',
+					updatedInput: {
+						...approved,
+						command: this.#secrets.passOutside(String(approved['command'])),
+					},
+				};
+			}
 			const updatedPermissions = rememberedPermissions(
 				toolName,
 				options.suggestions,
 				resolution.scope,
 			);
-			const approved = approvedInput(toolName, input, resolution.updatedInput);
 			return {
 				behavior: 'allow',
-				updatedInput: leavesTheSandbox(toolName, approved)
-					? { ...approved, command: this.#secrets.passOutside(String(approved['command'])) }
-					: approved,
+				updatedInput: approved,
 				...(updatedPermissions ? { updatedPermissions } : {}),
 			};
 		};

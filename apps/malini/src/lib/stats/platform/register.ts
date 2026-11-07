@@ -32,6 +32,7 @@ import {
 	listConnectedRepositories,
 	listWorkstreams,
 	managedProjectIdForRepository,
+	type PullRequestChef,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
 import { recentMoments } from '../domain/moments';
@@ -70,6 +71,7 @@ export interface StatsPlatform {
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
 	openUrl(url: string): void;
 	usageAccount(): Promise<UsageAccount>;
+	chef(): Promise<PullRequestChef | null>;
 }
 
 export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatform {
@@ -204,6 +206,16 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		},
 		openUrl: (url) => void profile.completeSignIn(url),
 		usageAccount: () => profile.usageAccount(),
+		chef: async () => {
+			const { publishing, profile: published } = profile.state();
+			if (publishing === 'on' && published?.public && published.handle && published.url) {
+				return { handle: published.handle, url: published.url };
+			}
+			const identity = await github();
+			return identity
+				? { handle: identity.login, url: `https://github.com/${identity.login}` }
+				: null;
+		},
 		start: () => {
 			profile.start();
 			sampler.start();
@@ -212,7 +224,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			app.on('browser-window-blur', stopWatchingStalls);
 			if (BrowserWindow.getFocusedWindow()) watchStalls();
 			void running.stopLeftovers({
-				folders: [{ id: 'workstreams', path: workstreamsRoot(context.appDataRoot) }],
+				folders: [{ id: 'workstreams', path: workstreamsRoot(context.checkoutsRoot) }],
 				live: liveFolders(),
 			});
 		},

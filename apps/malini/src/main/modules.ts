@@ -75,7 +75,7 @@ export async function registerModules(
 	const shellHost = overrides.shellHost ?? createElectronShellHost();
 	followSavedThemeMode(context.db, shellHost);
 
-	await restoreStrandedCheckouts(context.db, context.appDataRoot);
+	await restoreStrandedCheckouts(context.db, context.checkoutsRoot);
 	const stopBackgroundCommands = async (workstreamId: string): Promise<void> => {
 		await chat.stopWorkstreamBackgroundCommands(workstreamId);
 		await agentRunLeases.runChangeCaptureSettled(workstreamId);
@@ -104,7 +104,10 @@ export async function registerModules(
 		...(overrides.startupReclaim === undefined ? {} : { startupReclaim: overrides.startupReclaim }),
 	});
 
-	const pullRequests = registerPullRequests(context, { runner: repositories.gh });
+	const pullRequests = registerPullRequests(context, {
+		runner: repositories.gh,
+		chef: () => stats.chef(),
+	});
 
 	registerScratchpad(context);
 

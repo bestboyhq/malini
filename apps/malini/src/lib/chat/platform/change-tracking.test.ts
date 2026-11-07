@@ -55,7 +55,7 @@ async function gitWorkstream(workstreamId: string): Promise<string> {
 async function boot(env: Record<string, string> = {}): Promise<void> {
 	const leases = new AgentRunLeases();
 	const checkpoints = installCheckpoints(test.context, {
-		resolver: createCheckoutResolver({ db: test.db, appDataRoot: test.appDataRoot }),
+		resolver: createCheckoutResolver({ db: test.db, checkoutsRoot: test.appDataRoot }),
 		leases,
 	});
 	service = await startAgentService(test.context, {

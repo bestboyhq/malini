@@ -30,7 +30,7 @@ test('a checkout moved back from the trash at boot shows its file changes after 
 		throw error;
 	}
 
-	const trash = join(first.userDataDir, 'workstreams', '.trash');
+	const trash = join(first.userDataDir, 'checkouts', 'workstreams', '.trash');
 	mkdirSync(trash, { recursive: true });
 	renameSync(worktree, join(trash, `e2e-stranded-ws-${Date.now()}`));
 

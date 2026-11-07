@@ -51,7 +51,7 @@ export interface CloneSeed {
 
 export interface EnsureBaseCloneInput {
 	repoPath: string;
-	appDataRoot: string;
+	checkoutsRoot: string;
 	githubToken: string | null | undefined;
 	credentials: GitCredentialEnv;
 	onProgress: (progress: Progress) => void;
@@ -72,8 +72,8 @@ const SHARED_PACK_NOTE = 'shared with the folder Malini cloned this repository f
 export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise<BaseCloneOutcome> {
 	const projectId = deriveProjectId(input.repoPath);
 	return withProjectLock(projectId, async () => {
-		const { appDataRoot, onProgress } = input;
-		const baseDir = repositoryBaseDir(appDataRoot, projectId);
+		const { checkoutsRoot, onProgress } = input;
+		const baseDir = repositoryBaseDir(checkoutsRoot, projectId);
 		const repoDir = dirname(baseDir);
 
 		onProgress({ stage: 'fetch', fraction: 0.05 });

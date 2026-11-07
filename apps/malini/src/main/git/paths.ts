@@ -16,6 +16,7 @@ export const WORKSTREAM_BRANCH_PREFIX = 'malini/';
 export const REPOSITORIES_DIR_NAME = 'repositories';
 export const LEGACY_PROJECTS_DIR_NAME = 'projects';
 export const WORKSTREAMS_DIR_NAME = 'workstreams';
+export const CHECKOUTS_DIR_NAME = 'checkouts';
 export const KEPT_WORKSTREAMS_DIR_NAME = '.kept';
 export const CHECKOUT_TRASH_DIR_NAME = '.trash';
 
@@ -181,34 +182,34 @@ export function validateBranch(branch: string): void {
 	}
 }
 
-export function repositoriesRoot(appDataRoot: string): string {
-	return join(appDataRoot, REPOSITORIES_DIR_NAME);
+export function repositoriesRoot(checkoutsRoot: string): string {
+	return join(checkoutsRoot, REPOSITORIES_DIR_NAME);
 }
 
-export function legacyProjectsRoot(appDataRoot: string): string {
-	return join(appDataRoot, LEGACY_PROJECTS_DIR_NAME);
+export function legacyProjectsRoot(checkoutsRoot: string): string {
+	return join(checkoutsRoot, LEGACY_PROJECTS_DIR_NAME);
 }
 
-export function repositoryBaseDir(appDataRoot: string, projectId: string): string {
-	return join(repositoriesRoot(appDataRoot), projectId, 'base');
+export function repositoryBaseDir(checkoutsRoot: string, projectId: string): string {
+	return join(repositoriesRoot(checkoutsRoot), projectId, 'base');
 }
 
-export function legacyProjectBaseDir(appDataRoot: string, projectId: string): string {
-	return join(legacyProjectsRoot(appDataRoot), projectId, 'base');
+export function legacyProjectBaseDir(checkoutsRoot: string, projectId: string): string {
+	return join(legacyProjectsRoot(checkoutsRoot), projectId, 'base');
 }
 
-export function workstreamsRoot(appDataRoot: string): string {
-	return join(appDataRoot, WORKSTREAMS_DIR_NAME);
+export function workstreamsRoot(checkoutsRoot: string): string {
+	return join(checkoutsRoot, WORKSTREAMS_DIR_NAME);
 }
 
-export function workstreamPath(appDataRoot: string, workstreamId: string): string {
+export function workstreamPath(checkoutsRoot: string, workstreamId: string): string {
 	validateWorkstreamId(workstreamId);
-	return join(workstreamsRoot(appDataRoot), workstreamId);
+	return join(workstreamsRoot(checkoutsRoot), workstreamId);
 }
 
-export function workstreamCheckoutExists(appDataRoot: string, workstreamId: string): boolean {
+export function workstreamCheckoutExists(checkoutsRoot: string, workstreamId: string): boolean {
 	try {
-		return isDirectory(workstreamPath(appDataRoot, workstreamId));
+		return isDirectory(workstreamPath(checkoutsRoot, workstreamId));
 	} catch {
 		return false;
 	}
@@ -247,21 +248,21 @@ export function pathCanonicalizeDeleteGuard(worktreePath: string, worktreesRoot:
 }
 
 export function resolveWorkstreamCheckoutCanonical(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 ): string {
-	return resolveWorkstreamCheckoutCanonicalRecorded(appDataRoot, workstreamId, null);
+	return resolveWorkstreamCheckoutCanonicalRecorded(checkoutsRoot, workstreamId, null);
 }
 
 export function resolveWorkstreamCheckoutCanonicalRecorded(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	recordedPath: string | null,
 ): string {
 	validateWorkstreamId(workstreamId);
-	const workstreams = workstreamsRoot(appDataRoot);
+	const workstreams = workstreamsRoot(checkoutsRoot);
 	const candidates: Array<[root: string, candidate: string]> = [
-		[workstreams, workstreamPath(appDataRoot, workstreamId)],
+		[workstreams, workstreamPath(checkoutsRoot, workstreamId)],
 	];
 	const recorded = recordedPath?.trim() ?? '';
 	if (recorded.length > 0 && recorded !== workstreams && recorded.startsWith(workstreams + sep)) {
@@ -285,7 +286,7 @@ export interface WorkstreamCheckoutHealth {
 }
 
 export function assessWorkstreamCheckout(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	recordedPath: string,
 ): WorkstreamCheckoutHealth {
@@ -298,12 +299,12 @@ export function assessWorkstreamCheckout(
 
 	let canonical: string;
 	try {
-		canonical = resolveWorkstreamCheckoutCanonicalRecorded(appDataRoot, workstreamId, recorded);
+		canonical = resolveWorkstreamCheckoutCanonicalRecorded(checkoutsRoot, workstreamId, recorded);
 	} catch (error) {
 		if (error instanceof GitError && error.kind === 'io' && error.code === 'ENOENT') {
 			let expected = recorded;
 			try {
-				expected = workstreamPath(appDataRoot, workstreamId);
+				expected = workstreamPath(checkoutsRoot, workstreamId);
 			} catch {}
 			return health(
 				'missing',

@@ -1,4 +1,4 @@
-# 0169 - A page in Malini's own frames scrolls only itself
+# 0173 - A page in Malini's own frames scrolls only itself
 
 Status: accepted
 

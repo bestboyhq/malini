@@ -122,6 +122,8 @@ Type **/** and pick **/compact** to have the chat's Claude Code summarize the co
 Type instructions after **/compact** to say what the summary should keep.
 Right after any compaction, Malini puts every message of the chat back into the agent's context, word for word: each prompt you wrote and each reply the agent gave, without the turns you undid, the newest 256 KB of them.
 The summary still covers tool calls and their output, which the agent can read again.
+**Settings → Models → Optimize context** does both, and stays on until you turn it off.
+Turned off, Malini sets no window and puts nothing back: Claude Code compacts at its own window, or the one you pick with `/autocompact` or in your Claude Code settings, and the agent keeps only the summary.
 A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
 
 ## Plan first
@@ -221,13 +223,15 @@ In the sandbox, a command:
 - writes only to the workstream, its git folders, temporary folders and package caches;
 - never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
-- cannot open or script other apps, read the clipboard, or take screenshots;
+- cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
 - reaches localhost and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
 Electron, Playwright, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
 Electron's own sandbox stays off there, since the two cannot nest.
+An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 
-When a command needs what the sandbox blocks, the agent asks to run it outside, and the chat asks you first, every time.
+When a command needs what the sandbox blocks, the agent asks to run it outside, and the chat asks you first.
+**Allow for this chat** runs every later one in that chat outside without asking, and a new chat, or the same chat after Malini restarts, asks again.
 **Full access** runs it outside without asking.
 An approval lets out that one call: a command inside the sandbox cannot let itself out.
 

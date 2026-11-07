@@ -14,11 +14,11 @@ export async function readProjectRemoteUrl(repoPath: string): Promise<string | n
 }
 
 export function workstreamDto(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstream: Workstream,
 	activeAt: string,
 ): WorkstreamDto {
-	const health = assessWorkstreamCheckout(appDataRoot, workstream.id, workstream.path);
+	const health = assessWorkstreamCheckout(checkoutsRoot, workstream.id, workstream.path);
 	return {
 		...workstream,
 		activeAt,

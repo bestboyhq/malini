@@ -15,6 +15,7 @@ import { BridgeRuntime, pumpStep, SessionCorrelator, type RunFinishedInput } fro
 import {
 	createTestContext,
 	envelopesOn,
+	emptyHome,
 	externalReadPath,
 	seedOpenRun,
 	seedSession,
@@ -39,6 +40,7 @@ beforeEach(() => {
 
 afterEach(async () => {
 	vi.useRealTimers();
+	vi.unstubAllEnvs();
 	while (cleanups.length > 0) await cleanups.pop()?.();
 	fake.cleanup();
 	test.cleanup();
@@ -51,7 +53,7 @@ function runtimeWith(
 	const runtime = new BridgeRuntime({
 		db: test.db,
 		events: test.events,
-		appDataRoot: test.appDataRoot,
+		checkoutsRoot: test.appDataRoot,
 		supervisorConfig: fake.supervisorConfig(env),
 		leases: new AgentRunLeases(),
 		hooks,
@@ -416,9 +418,11 @@ describe('BridgeRuntime with the fake bridge', () => {
 	});
 
 	it('auto-approves a remembered read without emitting the request, and audits it', async () => {
+		vi.stubEnv('HOME', test.appDataRoot);
 		const checkout = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const approvalPath = externalReadPath();
+		vi.stubEnv('HOME', emptyHome());
 		const permission = {
 			capability: 'read',
 			resources: [

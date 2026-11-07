@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -20,6 +21,8 @@ import {
 } from './fake-github';
 
 const OPEN_DRAFT = 'Open a draft pull request';
+const MALINI_CO_AUTHOR =
+	'Co-authored-by: malini-agent[bot] <338999285+malini-agent[bot]@users.noreply.github.com>';
 const QUEUE_MERGE = 'Merge pull request #7';
 
 test('Open draft commits and pushes the work under its generated title, and every later run is pushed once the workstream goes idle', async () => {
@@ -31,6 +34,8 @@ test('Open draft commits and pushes the work under its generated title, and ever
 			'e2e-open-draft',
 			null,
 		);
+		git(worktree, 'config', 'user.name', 'E2E Chef');
+		git(worktree, 'config', 'user.email', 'chef@example.com');
 		await openWorkstream(page, 'e2e-open-draft');
 		const status = sidebarStatus(page, 'e2e-open-draft');
 
@@ -49,6 +54,11 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
 		expect(github.pushedHead()).toBe(headOf(worktree));
+		expect(git(worktree, 'log', '-1', '--format=%an <%ae>')).toBe('E2E Chef <chef@example.com>');
+		expect(git(worktree, 'log', '-1', '--format=%(trailers:only,unfold)')).toBe(MALINI_CO_AUTHOR);
+		expect(github.pullRequest()?.body).toMatch(
+			/<summary>🧑‍🍳 <sub>Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/github\.com\/e2e-user">@e2e-user<\/a><\/td><\/tr>\n<tr><td>Kitchen<\/td><td>1 agent<\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did em<\/td><\/tr>\n<\/table>\n<\/details>$/u,
+		);
 		await expect(status).toHaveAttribute('data-workstream-pull-request-state', 'draft');
 		await expect(status).toHaveAccessibleName(/ · Draft pull request$/u);
 		await captureFlow(app, 'open-draft');
@@ -60,6 +70,45 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(github.pushedHead()).toBe(headOf(worktree));
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('With Sign contributions off in Settings, Open draft pushes commits without Malini and a body without the footer', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-draft-unsigned',
+			null,
+		);
+		await openWorkstream(page, 'e2e-draft-unsigned');
+		await page.getByTestId('global-topbar-open-settings').click();
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await settings
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Privacy', exact: true })
+			.click();
+		const sign = settings.getByRole('switch', { name: 'Sign contributions' });
+		await expect(sign).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
+		await captureFlow(app, 'settings-sign-contributions');
+		await sign.click();
+		await expect(sign).toHaveAttribute('aria-checked', 'false');
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: OPEN_DRAFT }).click();
+		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled({
+			timeout: 30_000,
+		});
+		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
+		expect(git(worktree, 'log', '-1', '--format=%(trailers:only,unfold)')).toBe('');
+		expect(github.pullRequest()?.body).not.toContain('Cooked with');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -158,4 +207,8 @@ async function expectRunEdited(page: Page, path: string): Promise<void> {
 
 function pullRequestCreations(github: FakeGithub): string[][] {
 	return github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create');
+}
+
+function git(repo: string, ...args: string[]): string {
+	return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
 }

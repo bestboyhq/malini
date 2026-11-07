@@ -23,9 +23,9 @@ export interface BrowserDeps {
 }
 
 export function registerBrowser(context: MainContext, deps: BrowserDeps): BrowserPlatform {
-	const { commands, events, db, appDataRoot } = context;
+	const { commands, events, db, checkoutsRoot } = context;
 	const worktree = (workstreamId: string): string =>
-		resolveWorkstreamCheckoutCanonical(appDataRoot, workstreamId);
+		resolveWorkstreamCheckoutCanonical(checkoutsRoot, workstreamId);
 	serveWorktreeFiles((host) => {
 		const workstream = listWorkstreams(db).find(({ id }) => id.toLowerCase() === host);
 		try {

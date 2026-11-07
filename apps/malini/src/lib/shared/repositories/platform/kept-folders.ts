@@ -38,30 +38,30 @@ const REBUILT_DIRECTORIES = new Set([
 ]);
 const BUNDLE_DIRECTORY = /\.(?:app|bundle|dSYM|framework|xcarchive)$/u;
 
-function keptFoldersRoot(appDataRoot: string): string {
-	return join(workstreamsRoot(appDataRoot), KEPT_WORKSTREAMS_DIR_NAME);
+function keptFoldersRoot(checkoutsRoot: string): string {
+	return join(workstreamsRoot(checkoutsRoot), KEPT_WORKSTREAMS_DIR_NAME);
 }
 
-function keptFoldersOf(appDataRoot: string, workstreamId: string): string {
+function keptFoldersOf(checkoutsRoot: string, workstreamId: string): string {
 	validateWorkstreamId(workstreamId);
-	return join(keptFoldersRoot(appDataRoot), workstreamId);
+	return join(keptFoldersRoot(checkoutsRoot), workstreamId);
 }
 
 export async function keepFolders(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	checkout: string,
 ): Promise<void> {
-	const kept = keptFoldersOf(appDataRoot, workstreamId);
+	const kept = keptFoldersOf(checkoutsRoot, workstreamId);
 	for (const folder of KEPT_FOLDERS) await moveMerging(join(checkout, folder), join(kept, folder));
 }
 
 export async function restoreKeptFolders(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	checkout: string,
 ): Promise<void> {
-	const kept = keptFoldersOf(appDataRoot, workstreamId);
+	const kept = keptFoldersOf(checkoutsRoot, workstreamId);
 	for (const folder of KEPT_FOLDERS) await moveMerging(join(kept, folder), join(checkout, folder));
 	for (const entry of await readdir(kept).catch(() => [])) {
 		if (entry !== SHOWN_DIR_NAME) await rm(join(kept, entry), { recursive: true, force: true });
@@ -70,13 +70,13 @@ export async function restoreKeptFolders(
 }
 
 export async function keepShownFile(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	key: string,
 	file: string,
 ): Promise<void> {
 	if (!(await entryAt(file))?.isFile()) return;
-	const kept = shownFileOf(appDataRoot, workstreamId, key);
+	const kept = shownFileOf(checkoutsRoot, workstreamId, key);
 	const partial = `${kept}.${randomUUID()}.partial`;
 	await mkdir(dirname(kept), { recursive: true });
 	try {
@@ -89,35 +89,35 @@ export async function keepShownFile(
 }
 
 export async function shownFile(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	key: string,
 ): Promise<string | null> {
-	const kept = shownFileOf(appDataRoot, workstreamId, key);
+	const kept = shownFileOf(checkoutsRoot, workstreamId, key);
 	return (await entryAt(kept)) === null ? null : kept;
 }
 
-function shownFileOf(appDataRoot: string, workstreamId: string, key: string): string {
+function shownFileOf(checkoutsRoot: string, workstreamId: string, key: string): string {
 	const name = createHash('sha256').update(key).digest('hex');
-	return join(keptFoldersOf(appDataRoot, workstreamId), SHOWN_DIR_NAME, name);
+	return join(keptFoldersOf(checkoutsRoot, workstreamId), SHOWN_DIR_NAME, name);
 }
 
-export function dropKeptFolders(appDataRoot: string, workstreamId: string): Promise<void> {
-	return rm(keptFoldersOf(appDataRoot, workstreamId), { recursive: true, force: true });
+export function dropKeptFolders(checkoutsRoot: string, workstreamId: string): Promise<void> {
+	return rm(keptFoldersOf(checkoutsRoot, workstreamId), { recursive: true, force: true });
 }
 
-export async function pruneKeptContext(appDataRoot: string, workstreamId: string): Promise<void> {
-	const kept = keptFoldersOf(appDataRoot, workstreamId);
+export async function pruneKeptContext(checkoutsRoot: string, workstreamId: string): Promise<void> {
+	const kept = keptFoldersOf(checkoutsRoot, workstreamId);
 	if ((await entryAt(kept)) === null) return;
 	await pruneToSmallText(join(kept, AGENT_CONTEXT_PATH));
 	await writeFile(join(kept, PRUNED_MARK), '');
 }
 
 export async function keptContextPruned(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 ): Promise<boolean> {
-	return (await entryAt(join(keptFoldersOf(appDataRoot, workstreamId), PRUNED_MARK))) !== null;
+	return (await entryAt(join(keptFoldersOf(checkoutsRoot, workstreamId), PRUNED_MARK))) !== null;
 }
 
 async function pruneToSmallText(directory: string): Promise<void> {
@@ -155,10 +155,10 @@ async function isSmallText(path: string): Promise<boolean> {
 }
 
 export async function sweepKeptFolders(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	isWorkstream: (workstreamId: string) => boolean,
 ): Promise<void> {
-	const root = keptFoldersRoot(appDataRoot);
+	const root = keptFoldersRoot(checkoutsRoot);
 	const entries = await readdir(root).catch(() => []);
 	for (const entry of entries) {
 		if (!isWorkstream(entry)) await rm(join(root, entry), { recursive: true, force: true });

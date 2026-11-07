@@ -16,7 +16,7 @@ import {
 	automationDefinition,
 	setAlarm,
 } from '$lib/automations/automations.platform';
-import { getWorkstream } from '$shared/repositories/repositories.platform';
+import { getWorkstream, type PullRequestChef } from '$shared/repositories/repositories.platform';
 import type { ShipDelays } from '../domain/shipping';
 import type { PullRequestOperations } from './pull-request-operations';
 import type { PullRequestReader } from './pull-request-reader.service';
@@ -39,6 +39,7 @@ export type ShipDeps = Readonly<{
 	delays: ShipDelays;
 	now: () => number;
 	running: () => boolean;
+	chef?: () => Promise<PullRequestChef | null>;
 }>;
 
 export const NO_SHIP_FAILURE = {
