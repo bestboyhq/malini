@@ -273,8 +273,8 @@
 	id="harness"
 	beat={beat('harness', 'Harness')}
 	split
-	title="Seven layers."
-	quiet="You use the top one."
+	title="New model."
+	quiet="Same muscle memory."
 	description="A model at the bottom, Malini on top, and five layers of Claude Code, sandbox and plumbing in between. Swap the model. Nothing above it moves."
 >
 	{#snippet after()}
