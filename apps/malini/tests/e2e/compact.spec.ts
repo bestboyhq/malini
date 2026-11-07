@@ -1,11 +1,13 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { OPTIMIZE_CONTEXT_SETTING } from '../../src/contract/agent';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -108,6 +110,64 @@ test('a compaction puts back every message Malini kept, without the turns the us
 		await expect(record).toContainText('[user] /compact');
 		await expect(record).not.toContainText('cedar');
 		await captureFlow(app, 'compaction-record');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('with Optimize context off, a chat compacts at its own window and gets nothing put back', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-unoptimized-ws',
+			'Unoptimized workstream',
+		);
+		await openWorkstream(page, workstreamId);
+
+		await page.getByTestId('global-topbar-open-settings').click();
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Models', exact: true })
+			.click();
+		const optimize = page.getByRole('switch', { name: 'Optimize context' });
+		await expect(optimize).toHaveAttribute('aria-checked', 'true');
+		await expect(page.getByRole('slider', { name: 'Context window' })).toBeVisible();
+		await optimize.click();
+		await expect(optimize).toHaveAttribute('aria-checked', 'false');
+		await expect(page.getByRole('slider', { name: 'Context window' })).toBeHidden();
+		await expect
+			.poll(
+				async () =>
+					(await invoke<Record<string, string>>(page, 'app.list-settings', undefined))[
+						OPTIMIZE_CONTEXT_SETTING
+					],
+			)
+			.toBe('off');
+		await captureFlow(app, 'settings-optimize-context-off');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+		await sendPrompt(page, 'WHICH_WINDOW');
+		await expect(page.getByText('Compacts at none')).toBeVisible({ timeout: 30_000 });
+		await sendPrompt(page, '/compact');
+		const tools = page.locator('[data-message-kind="tool"]');
+		await expect(tools.filter({ hasText: 'Compacting conversation' })).toHaveAttribute(
+			'data-tool-status',
+			'running',
+		);
+		writeFileSync(join(app.home, 'release-compaction'), '');
+
+		const record = page.getByTestId('chat-message-bubble').filter({ hasText: 'Malini put back' });
+		await expect(record).toBeVisible({ timeout: 30_000 });
+		await expect(record).not.toContainText('[user]');
+		await expect(record).not.toContainText('[assistant]');
 
 		expectCleanConsole(app);
 	} finally {

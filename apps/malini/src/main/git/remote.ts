@@ -14,6 +14,7 @@ import {
 	WORKTREE_CONTENT_PATHSPEC,
 } from './paths';
 import { attributeCredentials, failureOutput, GitError } from '$main/errors';
+import { runGh } from '$main/process/gh';
 import {
 	ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG,
 	DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG,
@@ -24,18 +25,36 @@ import {
 import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 import { conflictMarkerPaths, inProgressOperation, statusCollector } from './status';
 
-const AGENT_COMMIT_CONFIG = [
-	'-c',
-	'commit.gpgsign=false',
-	'-c',
-	`user.email=${AGENT_IDENTITY.email}`,
-	'-c',
-	`user.name=${AGENT_IDENTITY.name}`,
-] as const;
+async function commitConfig(worktree: string): Promise<string[]> {
+	return ['-c', 'commit.gpgsign=false', ...(await identityWhenGitHasNone(worktree))];
+}
+
+async function identityWhenGitHasNone(worktree: string): Promise<string[]> {
+	const email = await runGit(['-C', worktree, 'config', 'user.email']).catch(() => '');
+	if (email.trim()) return [];
+	const account = await githubAccount();
+	return account ? ['-c', `user.name=${account.name}`, '-c', `user.email=${account.email}`] : [];
+}
+
+async function githubAccount(): Promise<Readonly<{ name: string; email: string }> | null> {
+	const result = await runGh(['api', 'user', '--jq', '[.id, .login, .name // ""] | @tsv']).catch(
+		() => null,
+	);
+	const [id = '', login = '', name = ''] =
+		result?.code === 0 ? result.stdout.trim().split('\t') : [];
+	if (!/^\d+$/u.test(id) || !/^[A-Za-z0-9-]{1,39}$/u.test(login)) return null;
+	return { name: name.trim() || login, email: `${id}+${login}@users.noreply.github.com` };
+}
 
 export const MAX_ADDED_FILES_PER_COMMIT = 2_000;
 
-export async function commitWorktreeChanges(worktree: string, message: string): Promise<string> {
+export const MALINI_CO_AUTHOR = `Co-authored-by: ${AGENT_IDENTITY.name} <${AGENT_IDENTITY.email}>`;
+
+export async function commitWorktreeChanges(
+	worktree: string,
+	message: string,
+	signed = false,
+): Promise<string> {
 	await ensureStagingPrecondition(worktree);
 	const operation = await inProgressOperation(worktree);
 	if (operation !== null && operation !== 'merge') {
@@ -56,9 +75,11 @@ export async function commitWorktreeChanges(worktree: string, message: string): 
 	await runGit([
 		'-C',
 		worktree,
-		...AGENT_COMMIT_CONFIG,
+		...(await commitConfig(worktree)),
 		'commit',
-		...(merging ? ['--no-edit', '--cleanup=strip'] : ['-m', message, '--', ...REPORTING_PATHSPECS]),
+		...(merging
+			? ['--no-edit', '--cleanup=strip']
+			: ['-m', message, ...(signed ? ['-m', MALINI_CO_AUTHOR] : []), '--', ...REPORTING_PATHSPECS]),
 	]);
 	return (await runGit(['-C', worktree, 'rev-parse', '--short', 'HEAD'])).trim();
 }
@@ -115,9 +136,10 @@ export async function commitWorkstreamBranch(
 	worktreePath: string,
 	expectedBranch: string,
 	message: string,
+	signed = false,
 ): Promise<string> {
 	requireWorkstreamBranch(expectedBranch, await currentBranch(worktreePath));
-	return commitWorktreeChanges(worktreePath, message);
+	return commitWorktreeChanges(worktreePath, message, signed);
 }
 
 export async function verifyOriginMatchesExpectedGithubRepository(
@@ -283,7 +305,7 @@ export async function restartWorkstreamOnBase(
 			await runGit([
 				'-C',
 				worktreePath,
-				...AGENT_COMMIT_CONFIG,
+				...(await commitConfig(worktreePath)),
 				'-c',
 				DISABLED_GIT_HOOKS_CONFIG,
 				'rebase',
@@ -377,7 +399,7 @@ async function mergeRemoteRef(
 		await runGit([
 			'-C',
 			worktreePath,
-			...AGENT_COMMIT_CONFIG,
+			...(await commitConfig(worktreePath)),
 			'merge',
 			'--no-edit',
 			'-m',

@@ -10,6 +10,12 @@ export type AgentReport = 'low' | 'medium' | 'high';
 
 export type AgentTheme = 'light' | 'dark';
 
+export const OPTIMIZE_CONTEXT_SETTING = 'chat.optimize-context';
+
+export function optimizesContext(setting: string | null | undefined): boolean {
+	return setting !== 'off';
+}
+
 export const CONTEXT_WINDOW_SETTING = 'chat.context-window';
 
 export const DEFAULT_CONTEXT_WINDOW = 280_000;
