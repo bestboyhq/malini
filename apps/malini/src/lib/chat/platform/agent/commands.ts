@@ -184,6 +184,11 @@ export interface CheckpointCaptureInput {
 	readonly worktree: string;
 }
 
+export interface TurnSettings {
+	readonly compactWindow: number | null;
+	readonly steReplies: boolean;
+}
+
 export interface SendPromptHooks {
 	readonly captureCheckpoint: (input: CheckpointCaptureInput) => Promise<string>;
 	readonly captureRunFinish: (runId: string) => Promise<void>;
@@ -201,8 +206,7 @@ export interface SendPromptHooks {
 	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
 	readonly theme?: () => AgentTheme;
-	readonly compactWindow?: () => Promise<number | null>;
-	readonly steReplies?: () => Promise<boolean>;
+	readonly turnSettings?: () => Promise<TurnSettings>;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
@@ -801,8 +805,10 @@ async function sendAgentPromptLeased(
 	}
 	lease.release();
 	const secrets = await secretsForRun(hooks, workstreamId, log);
-	const compactWindow = (await hooks.compactWindow?.()) ?? null;
-	const steReplies = (await hooks.steReplies?.()) ?? false;
+	const { compactWindow, steReplies } = (await hooks.turnSettings?.()) ?? {
+		compactWindow: null,
+		steReplies: false,
+	};
 	const command: BridgeCommand = {
 		cmd: 'send_prompt',
 		id: supervisor.nextCommandId(),

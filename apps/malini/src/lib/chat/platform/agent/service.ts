@@ -393,14 +393,14 @@ export async function startAgentService(
 					starterPlan: lineage?.startedBy?.plan ?? null,
 				}),
 			providerEnvironment: deps.providerEnvironment ?? (async () => ({})),
-			async compactWindow() {
+			async turnSettings() {
 				const settings = await savedSettings();
-				return optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
-					? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
-					: null;
-			},
-			async steReplies() {
-				return writesSte((await savedSettings())[STE_REPLIES_SETTING]);
+				return {
+					compactWindow: optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
+						? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
+						: null,
+					steReplies: writesSte(settings[STE_REPLIES_SETTING]),
+				};
 			},
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
