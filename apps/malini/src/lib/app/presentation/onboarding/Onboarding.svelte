@@ -171,9 +171,8 @@
 		return slideIn(onboarding.direction, stepBlur);
 	}
 
-	function stepOut(node: HTMLElement): TransitionConfig {
+	function stepOut(_node: Element): TransitionConfig {
 		if (document.hidden) return { duration: 0 };
-		Object.assign(node.style, { position: 'absolute', inset: '0 0 auto' });
 		if (prefersReducedMotion.current) return fadeOnly(120);
 		return slideOut(onboarding.direction, stepBlur);
 	}
@@ -219,7 +218,7 @@
 
 		<div bind:this={stage} class={['relative', resizing && 'overflow-y-clip']}>
 			{#key onboarding.step}
-				<div class="flex flex-col" in:stepIn out:stepOut>
+				<div class="flex flex-col inert:absolute inert:inset-x-0 inert:top-0" in:stepIn out:stepOut>
 					<h1
 						id="onboarding-heading"
 						class="text-fg-default mt-7 text-2xl font-medium tracking-tight outline-none"
