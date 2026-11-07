@@ -6,7 +6,7 @@ import {
 } from '$lib/chat/domain/run-evidence';
 import { variantDecisions } from '$lib/chat/domain/variant-pick';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, isRecord } from '$main/db/rows';
+import { all, get, isRecord } from '$main/db/rows';
 import type {
 	PullRequestAutomationContext,
 	PullRequestAutomationEvent,
@@ -20,6 +20,18 @@ const VALIDATION_EVENT_LIMIT = 12;
 const WORKSTREAM_RUNS = `agent_runs r JOIN agent_sessions s ON s.id = r.session_id
 	WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL`;
 const REPLIED = 'r.error IS NULL AND r.summary IS NOT NULL';
+
+export function workstreamAgentCount(db: MaliniDatabase, workstreamId: string): number {
+	const count = get<{ agents: number }>(
+		db,
+		`SELECT COUNT(DISTINCT s.id) + COALESCE(SUM(
+				(SELECT SUM(t.calls) FROM agent_run_tool_calls t WHERE t.run_id = r.id AND t.tool = 'Agent')
+			), 0) AS agents
+		 FROM ${WORKSTREAM_RUNS}`,
+		workstreamId,
+	);
+	return count?.agents ?? 0;
+}
 
 export function workstreamShipContext(
 	db: MaliniDatabase,

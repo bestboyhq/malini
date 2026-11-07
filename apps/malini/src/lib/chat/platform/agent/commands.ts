@@ -202,7 +202,7 @@ export interface SendPromptHooks {
 	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
 	readonly theme?: () => AgentTheme;
-	readonly compactWindow?: () => Promise<number>;
+	readonly compactWindow?: () => Promise<number | null>;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
@@ -819,6 +819,7 @@ async function sendAgentPromptLeased(
 	}
 	lease.release();
 	const secrets = await secretsForRun(hooks, workstreamId, log);
+	const compactWindow = (await hooks.compactWindow?.()) ?? null;
 	const command: BridgeCommand = {
 		cmd: 'send_prompt',
 		id: supervisor.nextCommandId(),
@@ -833,7 +834,7 @@ async function sendAgentPromptLeased(
 		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
 		...(secrets === null ? {} : { secrets }),
 		...(turn.plugins === null ? {} : { plugins: turn.plugins }),
-		...(hooks.compactWindow ? { compactWindow: await hooks.compactWindow() } : {}),
+		...(compactWindow === null ? {} : { compactWindow }),
 		...(turn.boundary === null ? {} : { boundary: turn.boundary }),
 	};
 	if (leases.takeDispatchCancel(sessionId, runId)) {

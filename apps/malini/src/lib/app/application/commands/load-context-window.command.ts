@@ -4,7 +4,9 @@ import { contextWindowStore } from '$lib/app/infrastructure/stores/context-windo
 export function loadContextWindowCommand(): void {
 	void (async () => {
 		try {
-			contextWindowStore.replace(await contextWindowService.read());
+			const { tokens, optimized } = await contextWindowService.read();
+			contextWindowStore.replace(tokens);
+			contextWindowStore.optimize(optimized);
 		} catch (error) {
 			console.error('[malini app] could not read the context window', error);
 		}
