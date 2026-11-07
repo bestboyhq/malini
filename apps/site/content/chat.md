@@ -155,8 +155,9 @@ A new chat starts with the model, effort, plan mode and report you picked last, 
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
 Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
 An automation's chat shows the model, effort and plan mode its automation ran with, so a reply you send there runs the same way unless you change it.
-Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
-Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
+Send with a model that is not connected and the prompt still lands in the chat, with a strip under it that asks for what it needs: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
+Connecting runs the prompt, and **Cancel** or Escape puts it back in the composer.
+It waits under its strip while you switch chats or restart Malini, the sidebar marks its workstream **Needs you**, and an edited prompt rewinds its checkpoint, then waits the same way.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**

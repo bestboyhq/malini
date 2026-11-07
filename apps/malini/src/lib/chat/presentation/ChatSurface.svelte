@@ -42,6 +42,7 @@
 	import { emptySessionModeQuery } from '$lib/chat/application/queries/empty-session-mode.query.svelte';
 	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
 	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
+	import { heldPromptQuery } from '$lib/chat/application/queries/held-prompt.query.svelte';
 	import { openingChangedFileQuery } from '$lib/chat/application/queries/opening-changed-file.query.svelte';
 	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
 	import { pendingQuestionsQuery } from '$lib/chat/application/queries/pending-questions.query.svelte';
@@ -168,7 +169,10 @@
 	const presentedSessionId = $derived(presentedTranscript.sessionId);
 	const envelopes = $derived(sessionEnvelopesQuery.data(sessionId));
 	const closeFreshNavigationTarget = $derived(freshChatReturnQuery.data);
-	const queuedPrompts = $derived(queuedPromptsQuery.data);
+	const heldPrompt = $derived(heldPromptQuery.data(workstreamId, sessionId));
+	const queuedPrompts = $derived(
+		queuedPromptsQuery.data.filter((entry) => entry.id !== heldPrompt?.id),
+	);
 	const queuePaused = $derived(queuePausedQuery.data);
 	const queueSendingId = $derived(queueSendingQuery.data);
 	const queueErrorById = $derived(queueErrorsQuery.data);

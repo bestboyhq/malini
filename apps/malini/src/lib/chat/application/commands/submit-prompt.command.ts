@@ -20,7 +20,12 @@ import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
-import { isValidAgentRunProfile, roleForAgentMode } from '$shared/providers/providers.api';
+import {
+	isModelAccessReady,
+	isValidAgentRunProfile,
+	modelAccessQuery,
+	roleForAgentMode,
+} from '$shared/providers/providers.api';
 import {
 	mergedHeadQuery,
 	restartWorkstreamOnBaseCommand,
@@ -50,6 +55,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	if (!isValidAgentRunProfile(input.profile)) throw new Error('Invalid prompt run profile');
 	const optimisticRunId = runIdForPromptRequest(requestId);
 	const requestedSelection = { provider: input.provider, model: input.model };
+	const waitsForAccess = !isModelAccessReady(modelAccessQuery.data(requestedSelection));
 	agentPromptQueue.hydrate(workstreamId);
 	const previousQueuedTurn =
 		agentPromptQueue.entriesForSession(workstreamId, input.sessionId).at(-1) ?? null;
@@ -89,11 +95,11 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	if (target.targetIsBusy || targetQueue.length > 0) {
 		const queued = enqueuePromptCommand({ ...turn, sessionId: target.queueTargetSessionId });
 		consumeFreshSessionIntent(workstreamId, forceFreshSession);
-		if (input.steer === true) sendQueuedPromptCommand(queued.id);
+		if (input.steer === true && !waitsForAccess) sendQueuedPromptCommand(queued.id);
 		else if (!target.targetIsBusy) drainPromptQueueCommand(workstreamId);
 		return;
 	}
-	if (optimisticSessionId) {
+	if (optimisticSessionId && !waitsForAccess) {
 		pendingPromptStore.set({
 			sessionId: optimisticSessionId,
 			origin: 'composer',
@@ -122,6 +128,10 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	consumeFreshSessionIntent(workstreamId, forceFreshSession);
 	chatRequestsStore.land(requestId, sessionId);
 	const targetedTurn: PromptTurn = { ...turn, sessionId, forceFreshSession: false };
+	if (waitsForAccess) {
+		enqueuePromptCommand(targetedTurn);
+		return;
+	}
 	if (!optimisticSessionId) {
 		pendingPromptStore.set({
 			sessionId,

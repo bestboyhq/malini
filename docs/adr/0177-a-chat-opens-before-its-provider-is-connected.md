@@ -1,6 +1,6 @@
 # 0177 - A chat opens before its provider is connected
 
-Status: accepted
+Status: superseded by 0178
 
 ## Context
 

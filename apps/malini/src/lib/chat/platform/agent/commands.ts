@@ -84,7 +84,10 @@ import {
 } from '$lib/automations/automations.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
-import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
+import {
+	DEFAULT_PROVIDER_ID,
+	ProviderNotConnectedError,
+} from '$shared/providers/providers.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { leavesTheSandbox } from '$lib/chat/domain/approval-request';
 import { userPromptText } from '../fork-transcript';
@@ -472,7 +475,10 @@ function readyEnvironment(
 	session: SessionOpening,
 ): Promise<Readonly<Record<string, string>> | null> {
 	if (model === null) return Promise.resolve({});
-	return resolveProviderEnvironment(provider, model, session).catch(() => null);
+	return resolveProviderEnvironment(provider, model, session).catch((error: unknown) => {
+		if (error instanceof ProviderNotConnectedError) return null;
+		throw error;
+	});
 }
 
 export async function startAgentSession(

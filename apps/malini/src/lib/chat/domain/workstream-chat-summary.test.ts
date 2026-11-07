@@ -11,6 +11,7 @@ function summary(kind: AgentAttentionKind): ReturnType<typeof summarizeWorkstrea
 		backgroundWait: null,
 		automationRunning: false,
 		queueCount: 0,
+		held: false,
 		attention: { kind, runId: 'run-1', sessionId: 'chat-1', updatedAt: 1 },
 		hasDraft: false,
 	});
@@ -52,6 +53,7 @@ describe('the chat a workstream opens on', () => {
 			backgroundWait: null,
 			automationRunning: false,
 			queueCount: 0,
+			held: false,
 			attention: null,
 			hasDraft: false,
 		});
@@ -71,7 +73,7 @@ describe('the loader of a workstream with only background work', () => {
 		session: SessionRecord | null,
 		backgroundWait: BackgroundWait | null,
 		automationRunning: boolean,
-		overrides: { queueCount?: number; attention?: AgentAttention } = {},
+		overrides: { queueCount?: number; held?: boolean; attention?: AgentAttention } = {},
 	) =>
 		summarizeWorkstreamChat({
 			session,
@@ -79,6 +81,7 @@ describe('the loader of a workstream with only background work', () => {
 			backgroundWait,
 			automationRunning,
 			queueCount: 0,
+			held: false,
 			attention: null,
 			hasDraft: false,
 			...overrides,
@@ -106,6 +109,10 @@ describe('the loader of a workstream with only background work', () => {
 		expect(state(runningChat, 'commands', false, { queueCount: 2 })).toEqual({
 			label: '2 queued',
 			tone: 'queued',
+		});
+		expect(state(runningChat, 'commands', false, { queueCount: 1, held: true })).toEqual({
+			label: 'Needs you',
+			tone: 'waiting',
 		});
 		expect(state(runningChat, 'commands', true)).toEqual({
 			label: 'Automation running',

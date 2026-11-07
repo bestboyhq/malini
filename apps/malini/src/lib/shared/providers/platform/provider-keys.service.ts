@@ -7,7 +7,10 @@ import {
 	OPENCODE_PROVIDER_ID,
 	isValidProviderId,
 } from '$shared/providers/domain/provider';
-import { providerEnvironment } from '$shared/providers/domain/provider-env';
+import {
+	ProviderNotConnectedError,
+	providerEnvironment,
+} from '$shared/providers/domain/provider-env';
 import type { SecretCipher } from './claude-accounts.service';
 import {
 	clearProviderKey,
@@ -119,7 +122,7 @@ export class ProviderKeys {
 		const provider = this.#customProvider(providerId);
 		const served = this.#servedBy(provider);
 		if (session === 'new' && !served.models.some((candidate) => candidate.id === model)) {
-			throw new Error(`${provider.name} does not offer model \`${model}\``);
+			throw new ProviderNotConnectedError(`${provider.name} does not offer model \`${model}\``);
 		}
 		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint() : null;
 		return providerEnvironment({
