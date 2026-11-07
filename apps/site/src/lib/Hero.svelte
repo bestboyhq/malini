@@ -1,5 +1,4 @@
 <script lang="ts">
-	import hero from '../../../../.github/readme/hero.webp';
 	import { GitHubIcon } from '@malini/hyper-ui/icons';
 	import type { Snippet } from 'svelte';
 	import Arrow from '$lib/Arrow.svelte';
@@ -31,17 +30,7 @@
 			<Glow layers={HORIZON} opacity={0.85} />
 		</div>
 		<div class="wrap window">
-			{#if og}
-				<img
-					class="shot"
-					src={hero}
-					width="2560"
-					height="1600"
-					alt="The Malini window: a Home chat with the three workstreams it started nested under it in the sidebar, a finished chat beside a browser tab on the site it changed, and Draft and Merge above 1 changed file"
-				/>
-			{:else}
-				<SetupLoupe />
-			{/if}
+			<SetupLoupe />
 		</div>
 	</div>
 </section>
@@ -167,17 +156,6 @@
 		--delay: 350ms;
 		position: relative;
 		container-type: inline-size;
-	}
-
-	.shot {
-		display: block;
-		width: 100%;
-		height: auto;
-		border-radius: calc(100cqi * 46 / 2560);
-		box-shadow:
-			0 0 0 1px var(--ring-faint),
-			0 2px 4px rgb(0 0 0 / 0.08),
-			0 32px 64px -24px rgb(0 0 0 / 0.45);
 	}
 
 	.og .intro {

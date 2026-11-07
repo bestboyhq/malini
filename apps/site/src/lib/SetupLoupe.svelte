@@ -71,37 +71,37 @@
 		{
 			col: 0,
 			color: '#c5a0f0',
-			at: 0.36,
+			at: 0.3,
 			lines: ['.claude/skills/', '  draw-icon/', '    SKILL.md'],
 		},
 		{
 			col: 2,
 			color: '#5fb3a1',
-			at: 0.5,
+			at: 0.34,
 			lines: ['"enabledPlugins": {', '  "svelte@svelte": true'],
 		},
 		{
 			col: 2,
 			color: '#82aef7',
-			at: 0.34,
+			at: 0.7,
 			lines: ['"PreToolUse": [', '  "guard-secrets.sh"'],
 		},
 		{
 			col: 2,
 			color: '#62c073',
-			at: 0.62,
+			at: 0.34,
 			lines: ['"allow": [', '  "Bash(pnpm check:*)"'],
 		},
 		{
 			col: 0,
 			color: '#e8b86f',
-			at: 0.44,
+			at: 0.2,
 			lines: ['~/.claude/CLAUDE.md', '## Done means done', 'Checked in the app.'],
 		},
 		{
 			col: 0,
 			color: '#c5a0f0',
-			at: 0.58,
+			at: 0.66,
 			lines: ['.claude/skills/', '  test-malini-app/', '    SKILL.md'],
 		},
 	];
@@ -165,6 +165,7 @@
 <div
 	class={['stage', { narrow }]}
 	role="img"
+	aria-busy={!ready}
 	aria-label="A Malini chat adds Duplicate to a chat tab’s menu. It loads a skill from the repository, calls a plugin’s tool, passes a hook, runs a command a permission rule allows, and checks its work in the app because CLAUDE.md says so. A loupe moves over the window and magnifies the line of your own Claude Code setup each step came from: CLAUDE.md, settings.json and the skills folder."
 	bind:this={stage}
 	bind:clientWidth={width}

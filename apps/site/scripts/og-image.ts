@@ -14,6 +14,7 @@ export const COMMAND = 'pnpm --filter @malini/site generate:og-image';
 const ORIGIN = 'https://bestboy.dev';
 const VIEW = '/malini/og';
 const KIT = '/malini/_app/immutable/';
+const DEMO = '/malini/demo/';
 const SIZE = { width: 1200, height: 630 };
 
 const SITE_URL = /\/malini\/[\w./-]+?\.(?:css|js|woff2|webp|png|jpe?g|svg)\b/gu;
@@ -29,9 +30,10 @@ const READY = `(async () => {
 	const drawn = () => [...document.querySelectorAll('canvas')].every(
 		(canvas) => canvas.width === Math.round(canvas.clientWidth * devicePixelRatio),
 	);
+	const busy = () => document.querySelector('[aria-busy="true"]') !== null;
 	const deadline = performance.now() + 20000;
-	while (!drawn()) {
-		if (performance.now() > deadline) throw new Error('a canvas never drew');
+	while (!drawn() || busy()) {
+		if (performance.now() > deadline) throw new Error('a canvas never drew or a frame never loaded');
 		await new Promise(requestAnimationFrame);
 	}
 })()`;
@@ -99,6 +101,7 @@ export function readOgView(): { source: string; loads: Set<string> } {
 async function render(): Promise<void> {
 	const { app, BrowserWindow, net, session } = await import('electron');
 	app.dock?.hide();
+	app.commandLine.appendSwitch('force-prefers-reduced-motion');
 	const watchdog = setTimeout(() => {
 		console.error('the view took over a minute to render');
 		app.exit(1);
@@ -134,7 +137,9 @@ async function render(): Promise<void> {
 			image = next;
 		}
 		const unhashed = [...requested].filter(
-			(url) => !url.startsWith(ORIGIN) || !view.loads.has(url.slice(ORIGIN.length)),
+			(url) =>
+				!url.startsWith(`${ORIGIN}${DEMO}`) &&
+				(!url.startsWith(ORIGIN) || !view.loads.has(url.slice(ORIGIN.length))),
 		);
 		if (unhashed.length > 0) {
 			throw new Error(`the view loaded ${unhashed.join(', ')}, which its source hash misses`);
