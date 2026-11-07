@@ -7,7 +7,7 @@ const WIPE: readonly (readonly [number, number])[] = [
 	[2_450, 80],
 	[2_900, 50],
 ];
-export const WIPE_MS = 2_900;
+const WIPE_MS = 2_900;
 const CYCLE_MS = 2_600;
 
 type Stop = () => void;
@@ -23,7 +23,7 @@ export function playOf(value: string | null): DemoPlay | null {
 
 export const smooth = (t: number): number => t * t * t * (10 + t * (6 * t - 15));
 
-export function wipeAt(ms: number): number {
+function wipeAt(ms: number): number {
 	const next = WIPE.findIndex(([at]) => at > ms);
 	const to = WIPE[next];
 	const from = WIPE[next - 1];

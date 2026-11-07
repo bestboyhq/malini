@@ -2,6 +2,7 @@ import type { Attachment } from 'svelte/attachments';
 
 export class Loop {
 	step = $state(0);
+	held = false;
 	readonly #durations: readonly number[];
 
 	constructor(durations: readonly number[], initial = 0) {
@@ -21,7 +22,7 @@ export class Loop {
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const tick = () => {
 			timer = setTimeout(() => {
-				this.step = this.step >= this.last ? 0 : this.step + 1;
+				if (!this.held) this.step = this.step >= this.last ? 0 : this.step + 1;
 				tick();
 			}, this.#durations[this.step] ?? 1000);
 		};
@@ -39,4 +40,20 @@ export class Loop {
 
 export function steps(count: number, each: number, rest: number): number[] {
 	return Array.from({ length: count }, (_, index) => (index === count - 1 ? rest : each));
+}
+
+export function ticker(every: number, tick: () => void): Attachment<HTMLElement> {
+	return (node) => {
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		let timer: ReturnType<typeof setInterval> | undefined;
+		const observer = new IntersectionObserver(([entry]) => {
+			clearInterval(timer);
+			if (entry?.isIntersecting) timer = setInterval(tick, every);
+		});
+		observer.observe(node);
+		return () => {
+			clearInterval(timer);
+			observer.disconnect();
+		};
+	};
 }

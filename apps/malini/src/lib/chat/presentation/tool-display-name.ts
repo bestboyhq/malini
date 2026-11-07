@@ -1,5 +1,5 @@
 import { toolTarget } from '$lib/chat/domain/tool-target';
-import { mcpServerDisplayName } from '$lib/chat/domain/mcp-server';
+import { mcpServerDisplayName, withoutPluginPrefix } from '$lib/chat/domain/mcp-server';
 import {
 	relativizeWorkstreamCommand,
 	relativizeWorkstreamPath,
@@ -175,6 +175,8 @@ export function toolActivityLabel(rawName: string, input: unknown): string {
 	}
 	if (kind === 'search' && query) return `${displayName} · ${short(query)}`;
 	if (target) return `${displayName} · ${short(relativizeWorkstreamPath(target))}`;
+	const skill = rawName.trim() === 'Skill' ? stringAt(input, ['skill']) : null;
+	if (skill) return `${displayName} · ${skill}`;
 	return displayName;
 }
 
@@ -217,7 +219,7 @@ export function summarizeLiveToolInput(json: string | null | undefined): unknown
 
 function joinedProtocolLabel(rawServer: string, rawOperation: string): string {
 	const server = mcpServerDisplayName(rawServer);
-	const serverKey = identifierKey(rawServer.replace(/(?:[-_.:/]+mcp)$/iu, ''));
+	const serverKey = identifierKey(withoutPluginPrefix(rawServer).replace(/(?:[-_.:/]+mcp)$/iu, ''));
 	let operationSource = rawOperation;
 	const operationKey = identifierKey(operationSource);
 	if (serverKey && operationKey.startsWith(`${serverKey}_`)) {

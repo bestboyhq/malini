@@ -1,12 +1,12 @@
-# 0177 - Address review runs on its trigger, and Shipping adopts it
+# 0178 - Address review runs on its trigger, and Shipping adopts it
 
 Status: accepted
 
 ## Context
 
 0023 had Shipping request **Address review** on every `changes_requested` it read, and 0086 kept that as handlers: on a draft, Shipping started it once the agent went idle, with no switch to stop it, and in the merge queue it ran when a change request blocked the merge.
-Planning read the code as "Address review has no trigger today [...] only the Shipping rule runs it, after you press Merge", and the user asked for a "checkbox: auto address review?" in setup and Settings (0176).
-0176 makes each default one built-in's trigger, so a switch that turned the trigger off while Shipping still answered reviews on drafts would lie.
+Planning read the code as "Address review has no trigger today [...] only the Shipping rule runs it, after you press Merge", and the user asked for a "checkbox: auto address review?" in setup and Settings (0177).
+0177 makes each default one built-in's trigger, so a switch that turned the trigger off while Shipping still answered reviews on drafts would lie.
 The user's call: Address review is on in Recommended, "It pushes to its own branch and never merges", and "Existing installs keep their current trigger state; only new installs and the defaults step turn it on."
 They also asked that it never runs twice with the merge queue, and that this be tested hardest.
 

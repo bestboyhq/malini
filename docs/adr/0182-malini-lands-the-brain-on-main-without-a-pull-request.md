@@ -1,13 +1,13 @@
-# 0181 - Malini lands the brain on main without a pull request
+# 0182 - Malini lands the brain on main without a pull request
 
 Status: accepted
 
 ## Context
 
 Every workstream reaches `main` through a pull request that Malini opens and merges, and nothing pushed to `main` before.
-The brain (0179) is a private repository only you read, with no checks and no reviewer, written by a capture every archive and a rewrite every week: a pull request each time would be noise to merge by hand.
+The brain (0180) is a private repository only you read, with no checks and no reviewer, written by a capture every archive and a rewrite every week: a pull request each time would be noise to merge by hand.
 The planning brief said "A brain probably pushes straight to main with no pull request", and the user asked that Malini, not the agent, commit and push it.
-The agent that writes the notes reaches no internet (0179), so it could not push anyway.
+The agent that writes the notes reaches no internet (0180), so it could not push anyway.
 A brain lands from more than one place, such as two Macs, and from a network that may be gone.
 
 ## Decision
