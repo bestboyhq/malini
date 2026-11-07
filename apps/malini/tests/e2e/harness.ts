@@ -200,13 +200,25 @@ function stringEnv(base: NodeJS.ProcessEnv): Record<string, string> {
 	return out;
 }
 
+const KEEP_ROOTS = process.env['MALINI_E2E_KEEP'] === '1';
+const temporaryRoots = new Set<string>();
+process.once('exit', () => {
+	for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
+});
+
+export function temporaryRoot(prefix = 'malini-e2e-'): string {
+	const root = mkdtempSync(join(tmpdir(), prefix));
+	if (!KEEP_ROOTS) temporaryRoots.add(root);
+	return root;
+}
+
 function userColorScheme(): 'light' | 'dark' | null {
 	const theme = process.env['MALINI_THEME'];
 	return theme === 'light' || theme === 'dark' ? theme : null;
 }
 
 export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
-	const root = options.profile ?? mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = options.profile ?? temporaryRoot();
 	const home = join(root, 'home');
 	const bin = join(root, 'bin');
 	const userDataDir = join(root, 'user-data');
@@ -318,7 +330,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			try {
 				await handle.quit();
 			} finally {
-				if (process.env['MALINI_E2E_KEEP'] === '1') {
+				if (KEEP_ROOTS) {
 					console.error(`malini-e2e kept profile at ${root}`);
 				} else {
 					rmSync(root, { recursive: true, force: true });
