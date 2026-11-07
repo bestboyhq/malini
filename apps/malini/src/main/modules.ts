@@ -24,7 +24,7 @@ import { followSavedThemeMode, registerApp } from '$lib/app/platform/register';
 import type { MainContext } from './context';
 import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import { registerExtensions } from '$lib/extensions/platform/register';
-import { registerJobs } from '$lib/jobs/platform/register';
+import { registerAutomations } from '$lib/automations/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerScratchpad } from '$lib/scratchpad/platform/register';
 import { registerSecrets } from '$lib/secrets/platform/register';
@@ -182,9 +182,10 @@ export async function registerModules(
 		usageAccount: () => stats.usageAccount(),
 	});
 
-	const jobs = registerJobs(context, {
-		suggestTitle: (task, job) => chat.suggestTitle(task, job),
-		choose: (task, job, choices) => chat.choose(task, job, choices),
+	const automations = registerAutomations(context, {
+		suggestTitle: (task, automation) => chat.suggestTitle(task, automation),
+		choose: (task, automation, choices) => chat.choose(task, automation, choices),
+		answer: (task, automation, schema) => chat.answer(task, automation, schema),
 		shipping: pullRequests.shipping,
 		resume: (event) => chat.resume(event),
 		deliveries: (event) => chat.deliveries(event),
@@ -192,7 +193,7 @@ export async function registerModules(
 			await chat.deliver({ ...wake, kind: 'report' });
 		},
 	});
-	jobs.start();
+	automations.start();
 	repositories.overlaps.start();
 	app.announceUpdate();
 	app.announceStart();
@@ -208,7 +209,7 @@ export async function registerModules(
 			extensions.stop();
 			app.streaming.stop();
 			pullRequests.dispose();
-			jobs.dispose();
+			automations.dispose();
 			repositories.watchers.dispose();
 			repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();

@@ -5,7 +5,7 @@ import {
 } from '$lib/chat/domain/workstream-chat-summary';
 import {
 	preferredVisualSessionsByWorkstream,
-	workstreamsRunningJobs,
+	workstreamsRunningAutomations,
 } from '$lib/chat/domain/workstream-visual-session';
 import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
@@ -19,7 +19,7 @@ class WorkstreamChatSummaryQuery {
 	public readonly data: (workstreamId: string) => WorkstreamChatSummary = $derived.by(() => {
 		const sessions = sessionsAggregate.listSessions();
 		const visualSessions = preferredVisualSessionsByWorkstream(sessions);
-		const runningJobs = workstreamsRunningJobs(sessions);
+		const runningAutomations = workstreamsRunningAutomations(sessions);
 		return (workstreamId: string) => {
 			const session = visualSessions.get(workstreamId) ?? null;
 			return summarizeWorkstreamChat({
@@ -29,7 +29,7 @@ class WorkstreamChatSummaryQuery {
 					session?.status === 'running'
 						? backgroundWaitOf(chatOccupancy.backgroundWork(session.id))
 						: null,
-				jobRunning: runningJobs.has(workstreamId),
+				automationRunning: runningAutomations.has(workstreamId),
 				queueCount: agentPromptQueue.waitingCountFor(workstreamId),
 				attention: agentActivity.attentionFor(workstreamId),
 				hasDraft: agentDrafts.hasDraftForWorkstream(workstreamId),

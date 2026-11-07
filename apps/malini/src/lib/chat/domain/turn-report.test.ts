@@ -94,7 +94,7 @@ describe('turn report', () => {
 		);
 	});
 
-	it('keeps the resolved review threads a review job lists before the commit line in the footer', () => {
+	it('keeps the resolved review threads a review automation lists before the commit line in the footer', () => {
 		const report = parseTurnReport(
 			'Renamed the helper the bot flagged.\n\nOutcome: The review is addressed.\nNeeds: nothing\nResolved: PRRT_a1\nResolved: PRRT_b2\nCommit: Rename the helper',
 		);

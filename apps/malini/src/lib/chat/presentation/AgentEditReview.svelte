@@ -7,7 +7,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { decideApprovalCommand } from '$lib/chat/application/commands/decide-approval.command';
 	import { editReview, keepsCurrent, reviewedInput } from '$lib/chat/domain/edit-review';
-	import { jobName } from '$lib/jobs/jobs.api';
+	import { automationName } from '$lib/automations/automations.api';
 	import type { RenderItem } from './render-state';
 
 	interface Props {
@@ -21,7 +21,7 @@
 
 	type Decision = 'pending' | 'accepted' | 'rejected';
 
-	const edit = $derived(editReview(review, item.input, jobName));
+	const edit = $derived(editReview(review, item.input, automationName));
 	let decisions = $state<Record<string, Decision>>({});
 	let text = $state(untrack(() => edit.text?.after ?? null));
 

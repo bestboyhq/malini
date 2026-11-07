@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { cameraFor, messageType, shotOf, TOUR_MESSAGE, type Shot } from './camera';
-	import { demoHref } from './links';
+	import { demoHref } from './urls';
 
 	let { workstream, title }: { workstream: string; title: string } = $props();
 

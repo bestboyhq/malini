@@ -9,7 +9,8 @@
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
-	import { docHref, DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '$lib/links';
+	import { docHref, DOWNLOAD_URL, SITE_DESCRIPTION } from '$lib/links';
+	import { GITHUB_URL } from '$lib/urls';
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 
@@ -72,7 +73,7 @@
 		},
 		{
 			title: 'Automate what repeats',
-			body: 'When you keep typing the same prompt, Malini offers to save it as a job. Give it a trigger, and it asks you first until you let it run on its own.',
+			body: 'When you keep typing the same prompt, Malini offers to save it as an automation. Give it a trigger, and it asks you first until you let it run on its own.',
 		},
 	];
 

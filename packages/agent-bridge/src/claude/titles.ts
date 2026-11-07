@@ -10,7 +10,7 @@ const MAX_TITLE_CHARACTERS = 40;
 const TITLE_EDGE = /^["'`*_\s]+|["'`*_.!?,;:\s]+$/gu;
 const TITLE_LABEL = /^[\p{L}\s*_]*\b(?:name|label|title)[*_]*\s*:[*_\s]*/iu;
 
-export interface TitleJob {
+export interface TitleAutomation {
 	readonly instructions: string;
 	readonly model: string;
 	readonly env?: Readonly<Record<string, string>>;
@@ -23,7 +23,7 @@ export interface TitleOptions {
 
 export async function suggestClaudeTitle(
 	task: string,
-	job: TitleJob,
+	automation: TitleAutomation,
 	options: TitleOptions = {},
 ): Promise<string> {
 	const executable = (options.findExecutable ?? findClaudeExecutable)();
@@ -37,9 +37,9 @@ export async function suggestClaudeTitle(
 				cwd: tmpdir(),
 				abortController,
 				pathToClaudeCodeExecutable: executable,
-				env: claudeEnvironment(job.env),
-				model: job.model,
-				systemPrompt: job.instructions,
+				env: claudeEnvironment(automation.env),
+				model: automation.model,
+				systemPrompt: automation.instructions,
 				tools: [],
 				maxTurns: 1,
 				thinking: { type: 'disabled' },

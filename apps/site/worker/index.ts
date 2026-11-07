@@ -9,6 +9,10 @@ const PAGE = 'public, max-age=0, stale-while-revalidate=86400';
 const LOGDASH_SCRIPT = '/malini/_ld/script.js';
 const LOGDASH_EVENTS = '/malini/_ld/events';
 const MAX_EVENTS_BYTES = 32768;
+const MOVED: Readonly<Partial<Record<string, string>>> = {
+	'/malini/docs/jobs': '/malini/docs/automations',
+	'/malini/docs/jobs.md': '/malini/docs/automations.md',
+};
 const EDGE_HOUR: RequestInit & { cf: object } = {
 	cf: { cacheEverything: true, cacheTtlByStatus: { '200-299': 3600 } },
 };
@@ -104,19 +108,22 @@ function withPolicy(response: Response, url: URL): Response {
 	});
 }
 
+function redirect(url: URL, pathname: string): Response {
+	const target = new URL(url);
+	target.pathname = pathname;
+	return withPolicy(new Response(null, { status: 301, headers: { Location: target.href } }), url);
+}
+
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
 		if (url.pathname === LOGDASH_SCRIPT) return logdashScript();
 		if (url.pathname === LOGDASH_EVENTS) return logdashEvents(request);
 		if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
-			const target = new URL(url);
-			target.pathname = url.pathname.replace(/\/+$/u, '') || '/';
-			return withPolicy(
-				new Response(null, { status: 301, headers: { Location: target.href } }),
-				url,
-			);
+			return redirect(url, url.pathname.replace(/\/+$/u, '') || '/');
 		}
+		const moved = MOVED[url.pathname];
+		if (moved) return redirect(url, moved);
 		return withPolicy(await env.ASSETS.fetch(request), url);
 	},
 };

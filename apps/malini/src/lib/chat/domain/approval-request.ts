@@ -75,12 +75,12 @@ export const NO_TRIGGER = 'Only when you run it';
 export const NO_THEN = 'Nothing';
 
 export type MaliniNames = Readonly<{
-	job: (reference: string) => string;
+	automation: (reference: string) => string;
 	workstream: (reference: string) => string;
 }>;
 
 const AS_GIVEN: MaliniNames = {
-	job: (reference) => reference,
+	automation: (reference) => reference,
 	workstream: (reference) => reference,
 };
 
@@ -100,27 +100,30 @@ export function maliniToolApproval(
 	const when = field('when');
 	const then = field('then');
 	const cleared = (key: string): boolean => Reflect.get(input, key) === null;
-	const { job: jobName } = names;
+	const { automation: automationName } = names;
 	const repository = field('repository');
 	const workstream = field('workstream');
 	switch (toolName) {
-		case 'mcp__malini__jobs_save':
+		case 'mcp__malini__automations_save':
 			return {
-				headline: named('Save job', field('name') ?? review?.current.name ?? (id && jobName(id))),
+				headline: named(
+					'Save automation',
+					field('name') ?? review?.current.name ?? (id && automationName(id)),
+				),
 				details: present([
 					['Runs in', runsIn && (RUNS_IN_COPY[runsIn] ?? runsIn)],
 					['When', cleared('when') ? NO_TRIGGER : when],
-					['Runs', when && 'Off until you turn it on in the Jobs page'],
-					['Then', cleared('then') ? NO_THEN : then && jobName(then)],
+					['Runs', when && 'Off until you turn it on in the Automations page'],
+					['Then', cleared('then') ? NO_THEN : then && automationName(then)],
 					['Model', field('model')],
 					['Effort', field('effort')],
 					['Instructions', field('instructions')],
 				]),
 			};
-		case 'mcp__malini__jobs_run': {
-			const job = field('job');
+		case 'mcp__malini__automations_run': {
+			const automation = field('automation');
 			return {
-				headline: named('Run job', job && jobName(job)),
+				headline: named('Run automation', automation && automationName(automation)),
 				details: present([
 					['In', workstream && names.workstream(workstream)],
 					['Context', field('context')],

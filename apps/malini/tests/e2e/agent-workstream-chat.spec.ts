@@ -230,9 +230,12 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			started.getByRole('status', { name: 'Workstream status: Setting up' }),
 		).toBeVisible({ timeout: 20_000 });
 
-		agentCalls(app, { tool: 'jobs_run', input: { job: 'Merge', workstream: startedId } });
+		agentCalls(app, {
+			tool: 'automations_run',
+			input: { automation: 'Merge', workstream: startedId },
+		});
 		await sendPrompt(page, 'MALINI_TOOL');
-		await expect(page.getByRole('heading', { name: 'Run job ‘Merge’' })).toBeVisible({
+		await expect(page.getByRole('heading', { name: 'Run automation ‘Merge’' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await captureFlow(app, 'agent-merge-approval');
@@ -240,12 +243,12 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			.getByRole('group', { name: 'Permission decision' })
 			.getByRole('button', { name: 'Allow once' })
 			.click();
-		const tray = page.getByRole('region', { name: 'Jobs (1)', exact: true });
+		const tray = page.getByRole('region', { name: 'Automations (1)', exact: true });
 		const queued = tray.getByRole('button', {
-			name: /^Merge job in .+, Queued\. The transcript opens once the job starts$/u,
+			name: /^Merge automation in .+, Queued\. The transcript opens once the automation starts$/u,
 		});
 		await expect(queued).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByRole('article', { name: /^Job Merge/u })).toHaveCount(0);
+		await expect(page.getByRole('article', { name: /^Automation Merge/u })).toHaveCount(0);
 		await page.waitForTimeout(3_000);
 		await expect(queued).toBeVisible();
 		await captureFlow(app, 'agent-merge-waits-for-setup');
@@ -258,7 +261,7 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			})
 			.toBe(true);
 		const named = tray.getByRole('button', {
-			name: 'Merge job in Fetch command, Queued. The transcript opens once the job starts',
+			name: 'Merge automation in Fetch command, Queued. The transcript opens once the automation starts',
 		});
 		await expect(named).toBeVisible({ timeout: 20_000 });
 		await page.waitForTimeout(2_000);
@@ -271,7 +274,11 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			.poll(
 				async () =>
 					(
-						await invoke<{ title: string; status: string }[]>(page, 'jobs.list-runs', undefined)
+						await invoke<{ title: string; status: string }[]>(
+							page,
+							'automations.list-runs',
+							undefined,
+						)
 					).find(({ title }) => title === 'Merge')?.status,
 			)
 			.toBe('succeeded');
@@ -292,7 +299,7 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			isDraft: false,
 			title: 'feat: add a fetch command',
 		});
-		await expect(page.getByRole('article', { name: /^Job Merge/u })).toHaveCount(0);
+		await expect(page.getByRole('article', { name: /^Automation Merge/u })).toHaveCount(0);
 		await captureFlow(app, 'agent-merge-merged');
 		expectCleanConsole(app);
 	} finally {

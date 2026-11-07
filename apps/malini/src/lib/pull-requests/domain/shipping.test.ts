@@ -130,10 +130,10 @@ function queued(overrides: Fixture = {}): ShippingSnapshot {
 		addressedReviews: [],
 		pullRequestNumber: 7,
 		idle: true,
-		job: null,
-		lastJobRunId: 'job-last',
-		lastJobBuiltin: null,
-		settledJob: null,
+		automation: null,
+		lastAutomationRunId: 'automation-last',
+		lastAutomationBuiltin: null,
+		settledAutomation: null,
 		worktree: {
 			dirtyPaths: [],
 			conflictedPaths: [],
@@ -259,7 +259,7 @@ describe('a local or draft workstream before you merge', () => {
 				...overrides,
 			});
 		expect(nextShippingMove(requested())).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":["PRR_2"],"threads":["PRRT_human"]}',
 			attempt: 1,
@@ -285,12 +285,12 @@ describe('a local or draft workstream before you merge', () => {
 		).toEqual({ kind: 'resolve-threads', agentRunId: 'run-fix' });
 	});
 
-	it('shows the update and conflict jobs while they run', () => {
+	it('shows the update and conflict automations while they run', () => {
 		expect(
-			nextShippingMove(local({ job: { builtin: 'update-from-main', status: 'running' } })),
+			nextShippingMove(local({ automation: { builtin: 'update-from-main', status: 'running' } })),
 		).toEqual({ kind: 'wait', step: 'updating-from-main' });
 		expect(
-			nextShippingMove(local({ job: { builtin: 'resolve-conflicts', status: 'queued' } })),
+			nextShippingMove(local({ automation: { builtin: 'resolve-conflicts', status: 'queued' } })),
 		).toEqual({ kind: 'wait', step: 'resolving-conflicts' });
 	});
 
@@ -299,16 +299,16 @@ describe('a local or draft workstream before you merge', () => {
 		const unstaged = merging({ conflictedPaths: ['a.ts'] });
 		const afterUpdate = {
 			pushRequested: true,
-			lastJobBuiltin: 'update-from-main' as const,
-			settledJob: 'update-from-main' as const,
+			lastAutomationBuiltin: 'update-from-main' as const,
+			settledAutomation: 'update-from-main' as const,
 		};
 		const afterResolve = {
 			pushRequested: true,
-			lastJobBuiltin: 'resolve-conflicts' as const,
-			settledJob: 'resolve-conflicts' as const,
+			lastAutomationBuiltin: 'resolve-conflicts' as const,
+			settledAutomation: 'resolve-conflicts' as const,
 		};
 		const resolve = {
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'resolve-conflicts',
 			signature: 'conflicts:["a.ts"]',
 			attempt: 1,
@@ -370,16 +370,16 @@ describe('a queued workstream', () => {
 		expect(nextShippingMove(queued({ waitsForYou: true }))).toEqual({ kind: 'held' });
 	});
 
-	it('waits while the agent or its own job is busy, showing the job step', () => {
+	it('waits while the agent or its own automation is busy, showing the automation step', () => {
 		expect(nextShippingMove(queued({ idle: false }))).toEqual({
 			kind: 'wait',
 			step: 'waiting-for-agent',
 		});
-		expect(nextShippingMove(queued({ job: { builtin: 'fix-checks', status: 'running' } }))).toEqual(
-			{ kind: 'wait', step: 'fixing-checks' },
-		);
 		expect(
-			nextShippingMove(queued({ job: { builtin: 'address-review', status: 'needs-you' } })),
+			nextShippingMove(queued({ automation: { builtin: 'fix-checks', status: 'running' } })),
+		).toEqual({ kind: 'wait', step: 'fixing-checks' });
+		expect(
+			nextShippingMove(queued({ automation: { builtin: 'address-review', status: 'needs-you' } })),
 		).toEqual({ kind: 'wait', step: 'addressing-review' });
 	});
 
@@ -390,7 +390,7 @@ describe('a queued workstream', () => {
 			kind: 'needs-you',
 			reason: 'operation-in-progress',
 			detail: 'A cherry-pick is in progress in this workstream. Finish or abort it, then retry.',
-			jobRunId: null,
+			automationRunId: null,
 		});
 	});
 
@@ -399,7 +399,7 @@ describe('a queued workstream', () => {
 		expect(
 			nextShippingMove(queued({ worktree: { ...merging, conflictedPaths: ['b.ts', 'a.ts'] } })),
 		).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'resolve-conflicts',
 			signature: 'conflicts:["a.ts","b.ts"]',
 			attempt: 1,
@@ -407,29 +407,29 @@ describe('a queued workstream', () => {
 		expect(nextShippingMove(queued({ worktree: merging }))).toEqual({ kind: 'push' });
 	});
 
-	it('commits conflicts a resolve-conflicts job cleared of markers, even when it left them unstaged', () => {
+	it('commits conflicts a resolve-conflicts automation cleared of markers, even when it left them unstaged', () => {
 		const unstaged = {
 			...worktree,
 			operationInProgress: 'merge' as const,
 			conflictedPaths: ['a.ts'],
 		};
 		expect(
-			nextShippingMove(queued({ settledJob: 'resolve-conflicts', worktree: unstaged })),
+			nextShippingMove(queued({ settledAutomation: 'resolve-conflicts', worktree: unstaged })),
 		).toEqual({ kind: 'push' });
 		expect(
-			nextShippingMove(queued({ settledJob: 'update-from-main', worktree: unstaged })),
-		).toMatchObject({ kind: 'run-job', builtin: 'resolve-conflicts' });
+			nextShippingMove(queued({ settledAutomation: 'update-from-main', worktree: unstaged })),
+		).toMatchObject({ kind: 'run-automation', builtin: 'resolve-conflicts' });
 		expect(
 			nextShippingMove(
 				queued({
-					settledJob: 'resolve-conflicts',
+					settledAutomation: 'resolve-conflicts',
 					failureSignature: 'conflicts:["a.ts"]',
 					attempts: 1,
 					worktree: { ...unstaged, conflictMarkerPaths: ['a.ts'] },
 				}),
 			),
 		).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'resolve-conflicts',
 			signature: 'conflicts:["a.ts"]',
 			attempt: 2,
@@ -448,7 +448,7 @@ describe('a queued workstream', () => {
 		});
 	});
 
-	it('resolves the threads an address-review job fixed once its work is pushed', () => {
+	it('resolves the threads an address-review automation fixed once its work is pushed', () => {
 		expect(nextShippingMove(queued({ threadResolutionRunId: 'run-9' }))).toEqual({
 			kind: 'resolve-threads',
 			agentRunId: 'run-9',
@@ -469,7 +469,7 @@ describe('a queued workstream', () => {
 			kind: 'needs-you',
 			reason: 'pull-request-closed',
 			detail: 'Pull request #7 was closed without merging.',
-			jobRunId: null,
+			automationRunId: null,
 		});
 		expect(nextShippingMove(queued({ pullRequest: pullRequest({ state: 'not_open' }) }))).toEqual({
 			kind: 'open-draft',
@@ -510,7 +510,7 @@ describe('a queued workstream', () => {
 			],
 		});
 		expect(nextShippingMove(queued({ pullRequest: failing }))).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'fix-checks',
 			signature: 'checks:["lint","test"]',
 			attempt: 1,
@@ -522,19 +522,19 @@ describe('a queued workstream', () => {
 		const same = 'checks:["lint"]';
 		expect(
 			nextShippingMove(queued({ pullRequest: failing, failureSignature: same, attempts: 2 })),
-		).toMatchObject({ kind: 'run-job', attempt: 3 });
+		).toMatchObject({ kind: 'run-automation', attempt: 3 });
 		expect(
 			nextShippingMove(
 				queued({ pullRequest: failing, failureSignature: 'checks:["test"]', attempts: 3 }),
 			),
-		).toMatchObject({ kind: 'run-job', attempt: 1 });
+		).toMatchObject({ kind: 'run-automation', attempt: 1 });
 		expect(
 			nextShippingMove(queued({ pullRequest: failing, failureSignature: same, attempts: 3 })),
 		).toEqual({
 			kind: 'needs-you',
 			reason: 'fix-gave-up',
 			detail: 'Fixing the checks did not work. Malini tried 3 times.',
-			jobRunId: 'job-last',
+			automationRunId: 'automation-last',
 		});
 		expect(
 			nextShippingMove(
@@ -567,13 +567,13 @@ describe('a queued workstream', () => {
 			kind: 'needs-you',
 			reason: 'fix-gave-up',
 			detail: 'The failing checks did not run again after the last fix.',
-			jobRunId: 'job-last',
+			automationRunId: 'automation-last',
 		});
 		expect(
 			nextShippingMove(after([ranAt('2026-10-12T11:06:00Z')], fixedAt + 60_000)),
-		).toMatchObject({ kind: 'run-job', attempt: 2 });
+		).toMatchObject({ kind: 'run-automation', attempt: 2 });
 		expect(nextShippingMove(after([check('conventional', 'FAILURE')], fixedAt))).toMatchObject({
-			kind: 'run-job',
+			kind: 'run-automation',
 			attempt: 2,
 		});
 	});
@@ -608,7 +608,7 @@ describe('a queued workstream', () => {
 			nextShippingMove(
 				queued({ pullRequest: failing([job('lint', 41, null), check('vercel', 'FAILURE')]) }),
 			),
-		).toMatchObject({ kind: 'run-job', builtin: 'fix-checks', attempt: 1 });
+		).toMatchObject({ kind: 'run-automation', builtin: 'fix-checks', attempt: 1 });
 
 		expect(nextShippingMove(afterRerun(running(head), rerunAt + 1_000))).toEqual({
 			kind: 'wait',
@@ -628,7 +628,7 @@ describe('a queued workstream', () => {
 			until: rerunAt + 60_000,
 		});
 		expect(nextShippingMove(afterRerun(stale, rerunAt + 60_000))).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'fix-checks',
 			signature,
 			attempt: 1,
@@ -638,20 +638,20 @@ describe('a queued workstream', () => {
 			job('lint', 41, '2026-10-30T14:20:02Z'),
 		]);
 		expect(nextShippingMove(afterRerun(again, rerunAt + 1_000))).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'fix-checks',
 			signature,
 			attempt: 1,
 		});
 		const onlyE2e = failing([job('e2e', 41, '2026-10-30T14:47:00Z')]);
 		expect(nextShippingMove(afterRerun(onlyE2e, rerunAt + 1_000))).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'fix-checks',
 			signature: 'checks:["e2e"]',
 			attempt: 1,
 		});
 		expect(nextShippingMove({ ...afterRerun(again, rerunAt + 1_000), attempts: 1 })).toMatchObject({
-			kind: 'run-job',
+			kind: 'run-automation',
 			attempt: 2,
 		});
 	});
@@ -698,7 +698,7 @@ describe('a queued workstream', () => {
 			reviewFeedback: feedback([thread('PRRT_human', false), thread('PRRT_bot', true)]),
 		});
 		expect(nextShippingMove(withThreads)).toEqual({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":[],"threads":["PRRT_bot"]}',
 			attempt: 1,
@@ -708,7 +708,7 @@ describe('a queued workstream', () => {
 			reviewFeedback: feedback([], [{ id: 'PRR_1', login: 'linter[bot]', bot: true }]),
 		});
 		expect(nextShippingMove(botRequest)).toMatchObject({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":["PRR_1"],"threads":[]}',
 		});
@@ -720,7 +720,7 @@ describe('a queued workstream', () => {
 			),
 		});
 		expect(nextShippingMove(humanRequest)).toMatchObject({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":["PRR_2"],"threads":["PRRT_human"]}',
 		});
@@ -738,7 +738,7 @@ describe('a queued workstream', () => {
 			),
 		};
 		expect(nextShippingMove(queued(requested))).toMatchObject({
-			kind: 'run-job',
+			kind: 'run-automation',
 			builtin: 'address-review',
 		});
 		expect(nextShippingMove(queued({ ...requested, addressedReviews: ['PRR_2'] }))).toEqual({
@@ -775,7 +775,7 @@ describe('a queued workstream', () => {
 			kind: 'needs-you',
 			reason: 'reply-to-reviewer',
 			detail: '@alice requested changes.',
-			jobRunId: null,
+			automationRunId: null,
 		});
 		expect(
 			nextShippingMove(
@@ -813,7 +813,7 @@ describe('a queued workstream', () => {
 			kind: 'needs-you',
 			reason: 'merge-not-permitted',
 			detail: 'GitHub blocks this merge. Check the branch rules on GitHub.',
-			jobRunId: null,
+			automationRunId: null,
 		});
 	});
 
@@ -895,7 +895,7 @@ describe('shipping helpers', () => {
 		expect(reviewToAddress(facts(pullRequest(), review), []).changeRequests).toEqual([]);
 	});
 
-	it('reads back the change requests a review job addressed from its signature', () => {
+	it('reads back the change requests a review automation addressed from its signature', () => {
 		const review = reviewToAddress(
 			facts(
 				pullRequest({ reviewDecision: 'changes_requested' }),
@@ -1028,8 +1028,12 @@ describe('when Malini reads GitHub on its own', () => {
 	const ship = (
 		phase: 'local' | 'draft' | 'queued' | 'needs-you',
 		step: Parameters<typeof pullRequestReadEvery>[0]['step'] = null,
-		activeJobRunId: string | null = null,
-	) => pullRequestReadEvery({ phase, step, activeJobRunId, waitsFor: null }, DEFAULT_SHIP_DELAYS);
+		activeAutomationRunId: string | null = null,
+	) =>
+		pullRequestReadEvery(
+			{ phase, step, activeAutomationRunId, waitsFor: null },
+			DEFAULT_SHIP_DELAYS,
+		);
 
 	it('reads only while shipping waits on GitHub, as often as the wait needs', () => {
 		expect(ship('local')).toBeNull();
@@ -1042,10 +1046,10 @@ describe('when Malini reads GitHub on its own', () => {
 		expect(ship('needs-you')).toBe(120_000);
 	});
 
-	it('never reads while an agent or a job works: their own events say when they finish', () => {
+	it('never reads while an agent or an automation works: their own events say when they finish', () => {
 		expect(ship('queued', 'waiting-for-agent')).toBeNull();
 		expect(ship('queued', 'fixing-checks')).toBeNull();
-		expect(ship('queued', null, 'job-1')).toBeNull();
+		expect(ship('queued', null, 'automation-1')).toBeNull();
 	});
 
 	it('never reads while a refusal waits for you: only you can clear it', () => {
@@ -1054,7 +1058,7 @@ describe('when Malini reads GitHub on its own', () => {
 				{
 					phase: 'queued',
 					step: 'opening-draft',
-					activeJobRunId: null,
+					activeAutomationRunId: null,
 					waitsFor: 'workflow-scope',
 				},
 				DEFAULT_SHIP_DELAYS,

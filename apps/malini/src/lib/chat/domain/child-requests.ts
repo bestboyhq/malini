@@ -1,8 +1,12 @@
-import type { JobRunRecord } from '$contract/jobs';
+import type { AutomationRunRecord } from '$contract/automations';
 import type { EventEnvelope } from './events';
 import type { SessionRecord } from './session-record';
 
-export type AskingChild = Readonly<{ sessionId: string; workstreamId: string; job: string | null }>;
+export type AskingChild = Readonly<{
+	sessionId: string;
+	workstreamId: string;
+	automation: string | null;
+}>;
 
 const REQUEST_EVENT_TYPES: ReadonlySet<string> = new Set([
 	'approval.requested',
@@ -15,16 +19,16 @@ const REQUEST_EVENT_TYPES: ReadonlySet<string> = new Set([
 
 export function askingChildren(
 	shownSessionId: string | null,
-	jobRuns: readonly JobRunRecord[],
+	automationRuns: readonly AutomationRunRecord[],
 	childSessions: readonly SessionRecord[],
 ): AskingChild[] {
 	const asking = new Map<string, AskingChild>();
-	for (const run of jobRuns) {
+	for (const run of automationRuns) {
 		if (run.status !== 'needs-you' || run.sessionId === null || run.workstreamId === null) continue;
 		asking.set(run.sessionId, {
 			sessionId: run.sessionId,
 			workstreamId: run.workstreamId,
-			job: run.title,
+			automation: run.title,
 		});
 	}
 	for (const session of childSessions) {
@@ -56,7 +60,7 @@ function askingSession(session: SessionRecord): AskingChild {
 	return {
 		sessionId: session.id,
 		workstreamId: session.workstreamId,
-		job: session.origin === 'job' ? session.displayName : null,
+		automation: session.origin === 'automation' ? session.displayName : null,
 	};
 }
 

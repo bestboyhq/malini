@@ -6,7 +6,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { isRecord, run } from '$main/db/rows';
 import { createEventBus, type EventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import { recordAgentAction } from '$lib/jobs/jobs.platform';
+import { recordAgentAction } from '$lib/automations/automations.platform';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import { REPORTS_PREAMBLE } from '../domain/deliveries';
 import { getDelivery } from './deliveries.repository';

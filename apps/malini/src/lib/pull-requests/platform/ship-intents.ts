@@ -5,7 +5,7 @@ import {
 	type ShipButton,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
-import { clearAlarm } from '$lib/jobs/jobs.platform';
+import { clearAlarm } from '$lib/automations/automations.platform';
 import { shipFailure } from '../domain/ship-failure';
 import { field, requireString, requireStrings } from './args';
 import {
@@ -148,15 +148,17 @@ async function cancel(deps: ShipDeps, workstreamId: string): Promise<ShipStateRe
 			queuedAt: null,
 			attempts: 0,
 			failureSignature: null,
-			activeJobRunId: null,
+			activeAutomationRunId: null,
 			...NO_SHIP_FAILURE,
 		},
 		undefined,
 		'cancel',
 	);
 	stopTrying(deps, workstreamId);
-	if (row.activeJobRunId) {
-		await commands.call('jobs.cancel-run', { jobRunId: row.activeJobRunId }).catch(() => undefined);
+	if (row.activeAutomationRunId) {
+		await commands
+			.call('automations.cancel-run', { automationRunId: row.activeAutomationRunId })
+			.catch(() => undefined);
 	}
 	return saved ? shipRecord(saved) : null;
 }

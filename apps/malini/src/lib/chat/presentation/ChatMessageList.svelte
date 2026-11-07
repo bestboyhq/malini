@@ -96,6 +96,7 @@
 		empty: Snippet;
 		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
+		afterRun: Snippet<[string]>;
 	}
 
 	let {
@@ -112,6 +113,7 @@
 		empty,
 		header,
 		workstreamsCard,
+		afterRun,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -538,6 +540,9 @@
 		},
 		get workstreamsCard() {
 			return workstreamsCard;
+		},
+		get afterRun() {
+			return afterRun;
 		},
 		stageEnter: stageLatestRunEnter,
 		transcriptSettled: settle.isSettled,

@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import { CONTEXT_WINDOW_SETTING } from '../../src/contract/agent';
-import { JOBS_MAX_CONCURRENT_SETTING } from '../../src/contract/jobs';
+import { AUTOMATIONS_MAX_CONCURRENT_SETTING } from '../../src/contract/automations';
 import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
 	captureFlow,
@@ -167,30 +167,30 @@ test('Settings → Privacy shows usage data off while the login shell sets DO_NO
 	}
 });
 
-test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a cleared one, and saves', async () => {
+test('Settings → Automations shows the defaults, clamps a value out of range, keeps a cleared one, and saves', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		await invoke(page, 'app.set-setting', { key: MERGE_QUEUE_FIX_ATTEMPTS_SETTING, value: '7' });
-		await openSettings(page, '#/settings/jobs');
+		await openSettings(page, '#/settings/automations');
 
-		const running = page.getByRole('spinbutton', { name: 'Jobs running at once' });
+		const running = page.getByRole('spinbutton', { name: 'Automations running at once' });
 		const attempts = page.getByRole('spinbutton', { name: 'Fix attempts before asking you' });
-		await expect(settingsSection(page, 'Jobs')).toHaveAttribute('aria-current', 'page', {
+		await expect(settingsSection(page, 'Automations')).toHaveAttribute('aria-current', 'page', {
 			timeout: 20_000,
 		});
 		await expect(running).toHaveValue('3');
 		await expect(attempts).toHaveValue('7');
 		await expect(page.getByRole('switch', { name: 'Reconcile events' })).toHaveCount(0);
 		await expect(page.getByRole('combobox', { name: 'Update from main' })).toHaveCount(0);
-		await captureFlow(app, 'settings-jobs');
+		await captureFlow(app, 'settings-automations');
 
 		await running.fill('5');
 		await running.press('Enter');
 		await expect(running).toHaveValue('5');
 		await expect
-			.poll(async () => (await storedSettings(page))[JOBS_MAX_CONCURRENT_SETTING])
+			.poll(async () => (await storedSettings(page))[AUTOMATIONS_MAX_CONCURRENT_SETTING])
 			.toBe('5');
 
 		await running.fill('50');
@@ -202,7 +202,10 @@ test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a
 		await expect
 			.poll(async () => {
 				const stored = await storedSettings(page);
-				return [stored[JOBS_MAX_CONCURRENT_SETTING], stored[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]];
+				return [
+					stored[AUTOMATIONS_MAX_CONCURRENT_SETTING],
+					stored[MERGE_QUEUE_FIX_ATTEMPTS_SETTING],
+				];
 			})
 			.toEqual(['10', '1']);
 
@@ -210,7 +213,7 @@ test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a
 		await running.press('Enter');
 		await expect(running).toHaveValue('10');
 
-		await openSettings(page, '#/settings/jobs');
+		await openSettings(page, '#/settings/automations');
 		await expect(running).toHaveValue('10', { timeout: 20_000 });
 		await expect(attempts).toHaveValue('1');
 		expectCleanConsole(app);

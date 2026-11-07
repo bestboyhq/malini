@@ -46,7 +46,7 @@ beforeEach(() => {
 	seedSession(test.db, 'lead-chat', 'lead');
 	run(
 		test.db,
-		`INSERT INTO job_definitions
+		`INSERT INTO automation_definitions
 		 (id, name, instructions, model, effort, runs_in, skills, created_at, updated_at)
 		 VALUES ('notes', 'Release notes', 'Write them.', 'opus', 'high', 'workstream', '[]', ?, ?)`,
 		NOW,
@@ -118,8 +118,8 @@ describe('Malini calls inside the chat’s own tree', () => {
 		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_permission_rules')).toBe(0);
 	}, 15_000);
 
-	it('runs a job that ships nothing in a workstream the chat started without asking', async () => {
-		await call('jobs_run', { job: 'Release notes', workstream: 'api' });
+	it('runs an automation that ships nothing in a workstream the chat started without asking', async () => {
+		await call('automations_run', { automation: 'Release notes', workstream: 'api' });
 		await answered();
 
 		expect(getRun(test.db, 'run-1')?.summary).toBe('approved:allow:once');
@@ -128,7 +128,7 @@ describe('Malini calls inside the chat’s own tree', () => {
 			source: 'auto',
 			response: {
 				tree: true,
-				permission: { resources: [{ kind: 'action', value: 'jobs.run:notes' }] },
+				permission: { resources: [{ kind: 'action', value: 'automations.run:notes' }] },
 			},
 		});
 	}, 15_000);

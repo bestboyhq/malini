@@ -16,7 +16,7 @@ export type Heading = Readonly<{ id: string; text: string; depth: number }>;
 
 const NAV: readonly (readonly [string, readonly string[]])[] = [
 	['Get started', ['', 'install', 'updates']],
-	['Using Malini', ['workstreams', 'chat', 'jobs', 'profile']],
+	['Using Malini', ['workstreams', 'chat', 'automations', 'profile']],
 	['Build on Malini', ['agent-tools', 'extensions', 'reference/events']],
 ];
 

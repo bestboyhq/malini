@@ -14,7 +14,7 @@ import {
 import { pullRequestTopBar } from '$lib/pull-requests/domain/pull-request-top-bar';
 import { pullRequestShipAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-ship.aggregate.svelte';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
-import { jobRunsService } from '$lib/pull-requests/infrastructure/services/job-runs.service';
+import { automationRunsService } from '$lib/pull-requests/infrastructure/services/automation-runs.service';
 import { pullRequestActionStore } from '$lib/pull-requests/infrastructure/stores/pull-request-action.store.svelte';
 import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/pull-request-scope.store.svelte';
 
@@ -73,16 +73,20 @@ function runPullRequestActionCommand(
 		reopenPullRequestCommand(workstreamId, pullRequestNumber);
 		return;
 	}
-	if (kind === 'open-job' && ship?.needsYou?.jobRunId) {
-		openJobTranscript(workstreamId, ship.needsYou.jobRunId, url);
+	if (kind === 'open-automation' && ship?.needsYou?.automationRunId) {
+		openAutomationTranscript(workstreamId, ship.needsYou.automationRunId, url);
 		return;
 	}
 	if (kind === 'open-pull-request' && url) openPullRequest(url);
 }
 
-function openJobTranscript(workstreamId: string, jobRunId: string, url: string | null): void {
+function openAutomationTranscript(
+	workstreamId: string,
+	automationRunId: string,
+	url: string | null,
+): void {
 	void (async () => {
-		const sessionId = await jobRunsService.sessionFor(jobRunId).catch(() => null);
+		const sessionId = await automationRunsService.sessionFor(automationRunId).catch(() => null);
 		if (sessionId) {
 			await goto(workstreamHref(workstreamId, { agentSessionId: sessionId }));
 			return;
@@ -91,7 +95,10 @@ function openJobTranscript(workstreamId: string, jobRunId: string, url: string |
 			openPullRequest(url);
 			return;
 		}
-		toast.info('The transcript of that job is no longer available', aboutWorkstream(workstreamId));
+		toast.info(
+			'The transcript of that automation is no longer available',
+			aboutWorkstream(workstreamId),
+		);
 	})();
 }
 

@@ -206,9 +206,9 @@ describe('protocol: parseCommandLine', () => {
 			});
 			expect(
 				parseCommandLine(
-					'{"cmd":"platform_result","id":"p2","sessionId":"s1","requestId":"q1","ok":false,"error":"No job is named x."}',
+					'{"cmd":"platform_result","id":"p2","sessionId":"s1","requestId":"q1","ok":false,"error":"No automation is named x."}',
 				),
-			).toMatchObject({ ok: true, command: { ok: false, error: 'No job is named x.' } });
+			).toMatchObject({ ok: true, command: { ok: false, error: 'No automation is named x.' } });
 			for (const invalid of [
 				'{"cmd":"platform_result","id":"p3","sessionId":"s1","requestId":"q1"}',
 				'{"cmd":"platform_result","id":"p4","sessionId":"","requestId":"q1","ok":true}',
@@ -335,7 +335,7 @@ describe('protocol: parseCommandLine', () => {
 					approvalId: 'a1',
 					decision: 'allow',
 					scope: 'everywhere',
-					updatedInput: { id: 'job-1', instructions: 'Reviewed' },
+					updatedInput: { id: 'automation-1', instructions: 'Reviewed' },
 				}),
 			);
 			expect(r).toEqual({
@@ -348,7 +348,7 @@ describe('protocol: parseCommandLine', () => {
 					approvalId: 'a1',
 					decision: 'allow',
 					scope: 'everywhere',
-					updatedInput: { id: 'job-1', instructions: 'Reviewed' },
+					updatedInput: { id: 'automation-1', instructions: 'Reviewed' },
 				},
 			});
 		});
@@ -365,8 +365,8 @@ describe('protocol: parseCommandLine', () => {
 						...fields,
 					}),
 				);
-			expect(approve({ decision: 'deny', updatedInput: { id: 'job-1' } }).ok).toBe(false);
-			expect(approve({ decision: 'allow', updatedInput: ['job-1'] }).ok).toBe(false);
+			expect(approve({ decision: 'deny', updatedInput: { id: 'automation-1' } }).ok).toBe(false);
+			expect(approve({ decision: 'allow', updatedInput: ['automation-1'] }).ok).toBe(false);
 		});
 
 		it('parses structured question answers with full correlation', () => {
@@ -518,7 +518,7 @@ describe('protocol: parseCommandLine', () => {
 			).toBe(false);
 		});
 
-		it('parses suggest_title with the naming job and rejects a missing part', () => {
+		it('parses suggest_title with the naming automation and rejects a missing part', () => {
 			expect(
 				parseCommandLine(
 					'{"cmd":"suggest_title","id":"t1","prompt":"Version the bundle","instructions":"Name it.","model":"haiku"}',
@@ -549,7 +549,7 @@ describe('protocol: parseCommandLine', () => {
 			).toBe(false);
 		});
 
-		it('parses choose with the job and how many candidates it picks from, and rejects any other count', () => {
+		it('parses choose with the automation and how many candidates it picks from, and rejects any other count', () => {
 			expect(
 				parseCommandLine(
 					'{"cmd":"choose","id":"c1","prompt":"Candidates:\\n1. Do nothing\\n2. Ask you","instructions":"Pick one.","model":"haiku","choices":2}',
@@ -581,6 +581,40 @@ describe('protocol: parseCommandLine', () => {
 			);
 			expect(choose('"prompt":"x","model":"haiku","choices":2')).toBe(false);
 			expect(choose('"prompt":"x","instructions":"Pick one.","choices":2')).toBe(false);
+		});
+
+		it('parses answer with the automation and an object schema, and rejects any other schema', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"answer","id":"a1","prompt":"Summarize it","instructions":"Answer it.","model":"haiku","schema":{"type":"object","properties":{"title":{"type":"string"}}}}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'answer',
+					id: 'a1',
+					prompt: 'Summarize it',
+					instructions: 'Answer it.',
+					model: 'haiku',
+					schema: { type: 'object', properties: { title: { type: 'string' } } },
+				},
+			});
+			const answer = (fields: string) =>
+				parseCommandLine(`{"cmd":"answer","id":"a2",${fields}}`).ok;
+			const automation = '"prompt":"x","instructions":"Answer it.","model":"haiku"';
+			expect(answer(`${automation},"schema":{"type":"string"}`)).toBe(false);
+			expect(answer(`${automation},"schema":[{"type":"object"}]`)).toBe(false);
+			expect(answer(`${automation},"schema":"object"`)).toBe(false);
+			expect(answer(automation)).toBe(false);
+			expect(
+				answer(
+					'"prompt":" ","instructions":"Answer it.","model":"haiku","schema":{"type":"object"}',
+				),
+			).toBe(false);
+			expect(answer('"prompt":"x","model":"haiku","schema":{"type":"object"}')).toBe(false);
+			expect(answer('"prompt":"x","instructions":"Answer it.","schema":{"type":"object"}')).toBe(
+				false,
+			);
 		});
 
 		it('parses list_skills for an absolute folder and rejects any other', () => {
@@ -725,7 +759,7 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
-		it("parses a job's boundary and rejects one that hides a relative path or leaves out a switch", () => {
+		it("parses an automation's boundary and rejects one that hides a relative path or leaves out a switch", () => {
 			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
 			const boundary = '{"hidden":["/data/malini.sqlite"],"chatRecords":false,"internet":false}';
 			expect(parseCommandLine(`{${prompt},"boundary":${boundary}}`)).toMatchObject({
@@ -768,6 +802,7 @@ describe('protocol: parseCommandLine', () => {
 				'stop_task',
 				'suggest_title',
 				'choose',
+				'answer',
 				'list_skills',
 				'browser_result',
 				'platform_result',
@@ -783,6 +818,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.protocol_error',
 				'bridge.title',
 				'bridge.choice',
+				'bridge.answer',
 				'bridge.skills',
 				'bridge.mcp_authorization',
 				'bridge.mcp_servers',
@@ -793,9 +829,9 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.history_request',
 			]);
 			expect(BRIDGE_PLATFORM_TOOLS).toEqual([
-				'jobs_list',
-				'jobs_save',
-				'jobs_run',
+				'automations_list',
+				'automations_save',
+				'automations_run',
 				'events_list',
 				'repositories_list',
 				'repositories_clone',
@@ -866,7 +902,7 @@ describe('protocol: parseCommandLine', () => {
 			});
 			expect(
 				bridgePlatformRequestFrame('q3', 's1', {
-					tool: 'jobs_save',
+					tool: 'automations_save',
 					input: { name: 'Docs after merge', when: null },
 					runId: 'r1',
 				}),
@@ -876,7 +912,7 @@ describe('protocol: parseCommandLine', () => {
 				requestId: 'q3',
 				sessionId: 's1',
 				runId: 'r1',
-				tool: 'jobs_save',
+				tool: 'automations_save',
 				input: { name: 'Docs after merge', when: null },
 			});
 			const linear = { name: 'linear', status: 'connected', source: 'user', toolCount: 4 };

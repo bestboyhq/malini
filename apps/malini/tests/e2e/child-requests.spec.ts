@@ -22,15 +22,15 @@ function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
 }
 
-async function saveApprovalJob(page: Page): Promise<string> {
-	const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
+async function saveApprovalAutomation(page: Page): Promise<string> {
+	const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
 		name: 'Address review',
 		instructions: 'APPROVAL',
 		model: 'opus',
 		effort: 'medium',
 		runsIn: 'workstream',
 	});
-	return job.id;
+	return automation.id;
 }
 
 async function finishedRun(page: Page, title: string): Promise<RunRow> {
@@ -38,7 +38,7 @@ async function finishedRun(page: Page, title: string): Promise<RunRow> {
 	await expect
 		.poll(
 			async () => {
-				const runs = await invoke<RunRow[]>(page, 'jobs.list-runs', undefined);
+				const runs = await invoke<RunRow[]>(page, 'automations.list-runs', undefined);
 				finished = runs.find((run) => run.title === title);
 				return finished?.status;
 			},
@@ -49,7 +49,7 @@ async function finishedRun(page: Page, title: string): Promise<RunRow> {
 	return finished;
 }
 
-test('a job a chat runs in another workstream asks for permission in that chat, and the chat answers it', async () => {
+test('an automation a chat runs in another workstream asks for permission in that chat, and the chat answers it', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -68,14 +68,14 @@ test('a job a chat runs in another workstream asks for permission in that chat, 
 		const chat = currentSessionId(page);
 		if (!chat) throw new Error('the chat did not commit a session id');
 
-		await invoke(page, 'jobs.run', {
-			definitionId: await saveApprovalJob(page),
+		await invoke(page, 'automations.run', {
+			definitionId: await saveApprovalAutomation(page),
 			workstreamId: child.workstreamId,
 			chatSessionId: chat,
 		});
 
 		const asking = page.getByRole('region', {
-			name: 'Address review job in Release automation switch needs you',
+			name: 'Address review automation in Release automation switch needs you',
 		});
 		const decision = asking.getByRole('group', { name: 'Permission decision' });
 		await expect(decision).toBeVisible({ timeout: 30_000 });
@@ -194,9 +194,9 @@ test('requests from several children queue in the composer slot one at a time, o
 		await input.click();
 		await page.keyboard.type('half a thought', { delay: 5 });
 
-		const definitionId = await saveApprovalJob(page);
+		const definitionId = await saveApprovalAutomation(page);
 		const runIn = (child: { workstreamId: string }) =>
-			invoke(page, 'jobs.run', {
+			invoke(page, 'automations.run', {
 				definitionId,
 				workstreamId: child.workstreamId,
 				chatSessionId: chat,
@@ -237,7 +237,7 @@ test('requests from several children queue in the composer slot one at a time, o
 		await expect
 			.poll(
 				async () =>
-					(await invoke<RunRow[]>(page, 'jobs.list-runs', undefined))
+					(await invoke<RunRow[]>(page, 'automations.list-runs', undefined))
 						.filter((run) => run.title === 'Address review')
 						.map((run) => run.status),
 				{ timeout: 30_000 },

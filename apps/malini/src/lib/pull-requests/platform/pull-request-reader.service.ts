@@ -2,7 +2,7 @@ import { PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL } from '$contract/events';
 import type { PullRequestStatusDto, ReviewFeedbackDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import { jsonEqual } from '$main/db/rows';
-import { latestLoggedEvent } from '$lib/jobs/jobs.platform';
+import { latestLoggedEvent } from '$lib/automations/automations.platform';
 import {
 	needsReviewFeedback,
 	pullRequestChange,

@@ -508,14 +508,18 @@ describe('platform requests', () => {
 	it('decodes a tool call with its run and answers it with its ids', () => {
 		const decoded = decodeControlFrame({
 			...frame,
-			tool: 'jobs_save',
+			tool: 'automations_save',
 			input: { name: 'Docs after merge', when: null },
 		});
 		expect(decoded).toEqual({
 			ok: true,
-			value: { ...frame, tool: 'jobs_save', input: { name: 'Docs after merge', when: null } },
+			value: {
+				...frame,
+				tool: 'automations_save',
+				input: { name: 'Docs after merge', when: null },
+			},
 		});
-		const request = { ...frame, tool: 'jobs_list', input: {} } as const;
+		const request = { ...frame, tool: 'automations_list', input: {} } as const;
 		expect(platformResultCommand('cmd-1', request, { ok: true, text: '[]' })).toEqual({
 			cmd: 'platform_result',
 			id: 'cmd-1',
@@ -527,15 +531,17 @@ describe('platform requests', () => {
 	});
 
 	it('refuses a tool it does not know, a missing input or a request with no run', () => {
-		expect(decodeControlFrame({ ...frame, tool: 'jobs_delete', input: {} })).toEqual({
+		expect(decodeControlFrame({ ...frame, tool: 'automations_delete', input: {} })).toEqual({
 			ok: false,
-			error: 'bridge.platform_request: unknown tool `jobs_delete`',
+			error: 'bridge.platform_request: unknown tool `automations_delete`',
 		});
-		expect(decodeControlFrame({ ...frame, tool: 'jobs_list' })).toEqual({
+		expect(decodeControlFrame({ ...frame, tool: 'automations_list' })).toEqual({
 			ok: false,
 			error: 'bridge.platform_request: field `input` must be an object',
 		});
-		expect(decodeControlFrame({ ...frame, runId: '', tool: 'jobs_list', input: {} })).toEqual({
+		expect(
+			decodeControlFrame({ ...frame, runId: '', tool: 'automations_list', input: {} }),
+		).toEqual({
 			ok: false,
 			error: 'bridge.platform_request: `requestId`, `sessionId` and `runId` must not be empty',
 		});

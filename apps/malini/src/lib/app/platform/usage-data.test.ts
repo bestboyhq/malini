@@ -301,7 +301,7 @@ function seedLoop(db: MaliniDatabase): void {
 	seedWorkstream(db, 'ws-today', { createdAt: at(15, 9) });
 	seedRun(db, 'r1', 'ws-a', at(14, 9, 5));
 	seedRun(db, 'r2', 'ws-a', at(14, 9, 30));
-	seedRun(db, 'r3', 'ws-a', at(14, 9, 40), 'job');
+	seedRun(db, 'r3', 'ws-a', at(14, 9, 40), 'automation');
 	seedRun(db, 'r4', 'ws-b', at(13, 9, 5));
 	seedRun(db, 'r5', 'ws-b', at(13, 10));
 	seedRun(db, 'r6', 'ws-b', at(14, 11));
@@ -337,7 +337,7 @@ function seedRun(
 	id: string,
 	workstreamId: string,
 	startedAt: string,
-	origin: 'user' | 'job' = 'user',
+	origin: 'user' | 'automation' = 'user',
 ): void {
 	run(
 		db,

@@ -1,5 +1,5 @@
 import type { ShipFailure } from '$contract/pull-requests';
-import type { ShippingRule } from '$lib/jobs/jobs.platform';
+import type { ShippingRule } from '$lib/automations/automations.platform';
 
 export type {
 	CheckAnnotationDto,

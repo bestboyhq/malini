@@ -805,7 +805,7 @@ const stopBackgroundCommand = (sessionId) => {
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
 const CHOICE_FILE = nodePath.join(env.HOME || '/tmp', 'malini-choice.txt');
 const PRE_APPROVED_TOOLS = new Set([
-	'jobs_list',
+	'automations_list',
 	'events_list',
 	'repositories_list',
 	'workstreams_list',
@@ -1911,6 +1911,11 @@ const handle = (command) => {
 			);
 			if (pick === null) return ack(command.id, 'CHOICE_FAILED: the model gave no answer');
 			write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick });
+			return ack(command.id);
+		}
+		case 'answer': {
+			const answer = JSON.parse(env.FAKE_BRIDGE_ANSWER || '{}');
+			write({ type: 'bridge.answer', protocolVersion: version, id: command.id, answer });
 			return ack(command.id);
 		}
 		case 'browser_result': {

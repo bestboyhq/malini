@@ -156,18 +156,18 @@ describe('repositories.list-workstreams', () => {
 });
 
 describe('repositories.list-workstreams activity', () => {
-	it('stamps each row with the last time you or its agent worked there, leaving jobs and naming runs out', async () => {
+	it('stamps each row with the last time you or its agent worked there, leaving automations and naming runs out', async () => {
 		seedProject('p1', join(root, 'p1'));
 		seedWorkstream('ws-quiet', 'p1', join(root, 'ws-quiet'));
 		seedWorkstream('ws-busy', 'p1', join(root, 'ws-busy'));
 		db.exec(`
 			INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES
 				('chat', 'ws-busy', 'completed', '2026-10-20T08:00:00.000Z', 'user'),
-				('job', 'ws-busy', 'completed', '2026-10-25T08:00:00.000Z', 'job');
+				('automation', 'ws-busy', 'completed', '2026-10-25T08:00:00.000Z', 'automation');
 			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, automated) VALUES
 				('run', 'chat', 'go', '2026-10-21T08:00:00.000Z', '2026-10-21T09:00:00.000Z', 0),
 				('naming', 'chat', 'name it', '2026-10-24T08:00:00.000Z', NULL, 1),
-				('job-run', 'job', 'update', '2026-10-25T08:00:00.000Z', '2026-10-25T08:05:00.000Z', 0);
+				('automation-run', 'automation', 'update', '2026-10-25T08:00:00.000Z', '2026-10-25T08:05:00.000Z', 0);
 		`);
 
 		const rows = await invoke<WorkstreamDto[]>('repositories.list-workstreams', undefined);

@@ -640,9 +640,11 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		};
 		const ipc = createIpc({
 			stdout: fakeStdout,
-			suggestTitle: async (task, job) => {
+			suggestTitle: async (task, automation) => {
 				if (task === 'hey') throw new Error('no usable title');
-				return job.model === 'haiku' && job.instructions === 'Name it.' ? 'Bundle versioning' : '';
+				return automation.model === 'haiku' && automation.instructions === 'Name it.'
+					? 'Bundle versioning'
+					: '';
 			},
 		});
 
@@ -675,9 +677,11 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		};
 		const ipc = createIpc({
 			stdout: fakeStdout,
-			choose: async (task, job, choices) => {
+			choose: async (task, automation, choices) => {
 				if (task === 'unclear') throw new Error('Claude Code picked no candidate');
-				return job.model === 'haiku' && job.instructions === 'Pick one.' ? choices : 1;
+				return automation.model === 'haiku' && automation.instructions === 'Pick one.'
+					? choices
+					: 1;
 			},
 		});
 
@@ -697,6 +701,45 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 				id: 'choice-2',
 				accepted: false,
 				error: 'CHOICE_FAILED: Claude Code picked no candidate',
+			}),
+		]);
+	});
+
+	it('answers answer with an answer frame, and a failed answer with a rejected ack', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			answer: async (task, automation, schema) => {
+				if (task === 'unclear') throw new Error('Claude Code gave no answer object');
+				return { task, model: automation.model, schemaType: schema['type'] };
+			},
+		});
+
+		await ipc.run(
+			'{"cmd":"answer","id":"answer-1","prompt":"Summarize it","instructions":"Answer it.","model":"haiku","schema":{"type":"object"}}',
+		);
+		await ipc.run(
+			'{"cmd":"answer","id":"answer-2","prompt":"unclear","instructions":"Answer it.","model":"haiku","schema":{"type":"object"}}',
+		);
+		await ipc.drain();
+
+		expect(parseFrames(writes.join(''))).toEqual([
+			expect.objectContaining({
+				type: 'bridge.answer',
+				id: 'answer-1',
+				answer: { task: 'Summarize it', model: 'haiku', schemaType: 'object' },
+			}),
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'answer-1', accepted: true }),
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				id: 'answer-2',
+				accepted: false,
+				error: 'ANSWER_FAILED: Claude Code gave no answer object',
 			}),
 		]);
 	});
@@ -1202,7 +1245,11 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		defaultProviderRegistry.setProvider(async (ctx) => ({
 			async sendPrompt(_prompt, runId) {
 				results.push(
-					await ctx.requestPlatform({ tool: 'jobs_run', input: { job: 'Update docs' }, runId }),
+					await ctx.requestPlatform({
+						tool: 'automations_run',
+						input: { automation: 'Update docs' },
+						runId,
+					}),
 				);
 			},
 			async cancel() {},
@@ -1234,8 +1281,8 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 			requestId: expect.any(String),
 			sessionId: 's-platform',
 			runId: 'run-platform',
-			tool: 'jobs_run',
-			input: { job: 'Update docs' },
+			tool: 'automations_run',
+			input: { automation: 'Update docs' },
 		});
 
 		await ipc.run(
@@ -1245,12 +1292,14 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 				sessionId: 's-platform',
 				requestId: request.requestId,
 				ok: true,
-				text: '{"id":"job-run-1"}',
+				text: '{"id":"automation-run-1"}',
 			}),
 		);
 		await ipc.drain();
 
-		expect(results).toEqual([expect.objectContaining({ ok: true, text: '{"id":"job-run-1"}' })]);
+		expect(results).toEqual([
+			expect.objectContaining({ ok: true, text: '{"id":"automation-run-1"}' }),
+		]);
 		expect(parseFrames(writes.join(''))).toContainEqual(
 			expect.objectContaining({ id: 'result-platform', accepted: true }),
 		);

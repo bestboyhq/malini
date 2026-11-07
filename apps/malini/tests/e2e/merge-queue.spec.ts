@@ -11,7 +11,7 @@ import {
 	invoke,
 	launchMalini,
 	openedUrls,
-	openJobs,
+	openAutomations,
 	openWorkstream,
 	recordBrowser,
 	sendPrompt,
@@ -36,7 +36,7 @@ const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
 const KEEP_EXPLAINER = 'Skip archiving after the merge';
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
-const FLAKY_JOB = 'e2e on macOS 3/5';
+const FLAKY_AUTOMATION = 'e2e on macOS 3/5';
 const WORKERS_BUILDS = 85455;
 const SILENT_APP = 29110;
 const WORKERS_BUILD_PASSED = {
@@ -59,7 +59,7 @@ function checkSuite(app: number, status: string, runs: number) {
 function actionsJob(conclusion: string | null, completedAt: string | null = null) {
 	return [
 		{
-			name: FLAKY_JOB,
+			name: FLAKY_AUTOMATION,
 			status: conclusion === null ? 'IN_PROGRESS' : 'COMPLETED',
 			conclusion,
 			detailsUrl: 'https://github.com/e2e/hutch/actions/runs/41/job/410',
@@ -288,9 +288,9 @@ test('Draft all and Merge all on a chat ship the workstreams it started once the
 		await captureFlow(app, 'lead-merge-all-offered');
 
 		await draftAll.click();
-		const tray = page.getByRole('region', { name: 'Jobs (1)', exact: true });
+		const tray = page.getByRole('region', { name: 'Automations (1)', exact: true });
 		const drafting = tray.getByRole('button', {
-			name: `Open draft job in ${name}, Queued. The transcript opens once the job starts`,
+			name: `Open draft automation in ${name}, Queued. The transcript opens once the automation starts`,
 		});
 		await expect(drafting).toBeVisible({ timeout: 20_000 });
 		await expect(mergeAll).toHaveCount(0);
@@ -325,14 +325,14 @@ test('Draft all and Merge all on a chat ship the workstreams it started once the
 		await expect(topBarStatus(page, /^1 of 1 merged/u)).toBeVisible({ timeout: 90_000 });
 		expect(github.pullRequest()).toMatchObject({ state: 'MERGED', isDraft: false });
 		await expect(mergeAll).toHaveCount(0);
-		const jobs = await invoke<
+		const automations = await invoke<
 			{ title: string; status: string; chatSessionId: string | null; origin: string }[]
-		>(page, 'jobs.list-runs', undefined);
+		>(page, 'automations.list-runs', undefined);
 		const sessions = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
 			workstreamId: 'e2e-lead-merges-all',
 		});
 		expect(
-			jobs
+			automations
 				.filter(({ title }) => title === 'Open draft' || title === 'Merge')
 				.map(({ title, status, chatSessionId, origin }) => [title, status, chatSessionId, origin])
 				.sort(),
@@ -343,7 +343,7 @@ test('Draft all and Merge all on a chat ship the workstreams it started once the
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'lead-merge-all-merged');
 
-		await openJobs(page, '#/jobs/explorer');
+		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
 		const shipping = map.getByRole('button', { name: /^Shipping: \d+ started$/u });
@@ -446,7 +446,7 @@ test('the queue waits for a Workers build that has not posted its check yet, and
 	}
 });
 
-test('a failing check starts a Fix checks job whose transcript opens from the Job center, the queue merges the fix, and the Explorer chains them from the read of GitHub', async () => {
+test('a failing check starts a Fix checks automation whose transcript opens from its workstream, the queue merges the fix, and the Explorer chains them from the read of GitHub', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -467,37 +467,37 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 			timeout: 30_000,
 		});
 		expect(rerunCalls(github)).toEqual([]);
-		const jobs = page.getByRole('region', { name: 'Jobs: 1 running' });
-		await expect(jobs).toBeVisible({ timeout: 30_000 });
-		const transcript = jobs.getByRole('link', {
-			name: 'Open transcript: Fix checks · Pull request workstream, Running',
+		const automations = page.getByRole('region', { name: 'Automations (1)', exact: true });
+		await expect(automations).toBeVisible({ timeout: 30_000 });
+		const transcript = automations.getByRole('link', {
+			name: 'Open transcript: Fix checks automation, Running',
 		});
 		await expect(transcript).toBeVisible();
-		await captureFlow(app, 'merge-queue-job-center');
+		await captureFlow(app, 'merge-queue-automation-in-workstream');
 		await transcript.click();
 
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBeNull();
-		const jobSession = currentSessionId(page);
+		const automationSession = currentSessionId(page);
 		await expect(
-			page.locator(`[data-testid="chat-message-viewport"][data-session-id="${jobSession}"]`),
+			page.locator(`[data-testid="chat-message-viewport"][data-session-id="${automationSession}"]`),
 		).toContainText("Fix the failing checks on this workstream's pull request.", {
 			timeout: 20_000,
 		});
-		await expect(page.getByRole('tab', { name: /Job: Fix checks/u })).toHaveAttribute(
+		await expect(page.getByRole('tab', { name: /Automation: Fix checks/u })).toHaveAttribute(
 			'aria-current',
 			'page',
 		);
 
 		holdAgentRuns(app, false);
 		await expectAssistantReply(page);
-		await captureFlow(app, 'merge-queue-job-transcript');
+		await captureFlow(app, 'merge-queue-automation-transcript');
 
 		await expectMergedAndArchived(page, 'e2e-fix-checks');
 		expect(github.pushedSubjects()[0]).toBe('Fix failing checks');
 		expect(mergeCalls(github)).toHaveLength(1);
-		await expect(page.getByRole('list', { name: 'Jobs in progress' })).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
 
-		await openJobs(page, '#/jobs/explorer');
+		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		await explorer
 			.getByRole('region', { name: 'System map' })
@@ -549,7 +549,9 @@ test('a failing GitHub Actions job is re-run once, and the queue merges when the
 
 		await queueMerge(page);
 
-		await expect(topBarStatus(page, `Queued for merge · Re-running ${FLAKY_JOB}`)).toBeVisible({
+		await expect(
+			topBarStatus(page, `Queued for merge · Re-running ${FLAKY_AUTOMATION}`),
+		).toBeVisible({
 			timeout: 30_000,
 		});
 		expect(rerunCalls(github)).toEqual([
@@ -585,14 +587,14 @@ test('a re-run that fails again starts Fix checks, which hears the failure repea
 
 		await queueMerge(page);
 
-		await expect(topBarStatus(page, `Queued for merge · Fixing ${FLAKY_JOB}`)).toBeVisible({
+		await expect(topBarStatus(page, `Queued for merge · Fixing ${FLAKY_AUTOMATION}`)).toBeVisible({
 			timeout: 30_000,
 		});
 		expect(rerunCalls(github)).toHaveLength(1);
 		await captureFlow(app, 'merge-queue-fixing-after-rerun');
 		await page
-			.getByRole('region', { name: 'Jobs: 1 running' })
-			.getByRole('link', { name: 'Open transcript: Fix checks · Pull request workstream, Running' })
+			.getByRole('region', { name: 'Automations (1)', exact: true })
+			.getByRole('link', { name: 'Open transcript: Fix checks automation, Running' })
 			.click();
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBeNull();
 		await expect(
@@ -699,7 +701,7 @@ test('a merge GitHub blocks needs you once in a toast, offers no blind Retry, an
 	}
 });
 
-test('a Fix checks job that keeps failing gives up, says so once, and Retry merge in the transcript Open job shows queues it again', async () => {
+test('a Fix checks automation that keeps failing gives up, says so once, and Retry merge in the transcript Open automation shows queues it again', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -716,18 +718,20 @@ test('a Fix checks job that keeps failing gives up, says so once, and Retry merg
 
 		await expect(topBarStatus(page, /Fix gave up/u)).toBeVisible({ timeout: 120_000 });
 		await expect(toastSaying(page, `${WORKSTREAM_NAME} needs you · Fix gave up`)).toHaveCount(1);
-		await expect(page.getByRole('region', { name: /^Jobs: .*needs? you/u })).toHaveCount(0);
+		await expect(page.getByRole('region', { name: /^Automations: .*needs? you/u })).toHaveCount(0);
 		expect(mergeCalls(github)).toEqual([]);
 
-		await page.getByRole('button', { name: 'Open the transcript of the job that stopped' }).click();
-		await expect(page.getByRole('tab', { name: /Job: Fix checks/u })).toHaveAttribute(
+		await page
+			.getByRole('button', { name: 'Open the transcript of the automation that stopped' })
+			.click();
+		await expect(page.getByRole('tab', { name: /Automation: Fix checks/u })).toHaveAttribute(
 			'aria-current',
 			'page',
 			{ timeout: 20_000 },
 		);
-		const stopped = page.getByRole('region', { name: 'Merge stopped on this job' });
+		const stopped = page.getByRole('region', { name: 'Merge stopped on this automation' });
 		await expect(stopped).toContainText('Malini tried 3 times');
-		await captureFlow(app, 'merge-queue-retry-merge-in-job');
+		await captureFlow(app, 'merge-queue-retry-merge-in-automation');
 
 		github.setPullRequest({
 			checksHead: github.pushedHead(),
@@ -804,7 +808,7 @@ function rerunCalls(github: FakeGithub): string[][] {
 }
 
 async function fixChecksRuns(page: Page): Promise<{ title: string }[]> {
-	const runs = await invoke<{ title: string }[]>(page, 'jobs.list-runs', undefined);
+	const runs = await invoke<{ title: string }[]>(page, 'automations.list-runs', undefined);
 	return runs.filter((run) => run.title === 'Fix checks');
 }
 

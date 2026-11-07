@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { MaliniEditReview } from '$contract/approvals';
-import { DEFAULT_JOB_BOUNDARY, type JobDefinitionRecord } from '$contract/jobs';
+import {
+	DEFAULT_AUTOMATION_BOUNDARY,
+	type AutomationDefinitionRecord,
+} from '$contract/automations';
 import { editReview, keepsCurrent, reviewedInput } from './edit-review';
 
-function job(changes: Partial<JobDefinitionRecord> = {}): MaliniEditReview {
+function automation(changes: Partial<AutomationDefinitionRecord> = {}): MaliniEditReview {
 	return {
-		kind: 'job',
+		kind: 'automation',
 		current: {
 			id: 'docs',
 			name: 'Update docs',
@@ -17,8 +20,8 @@ function job(changes: Partial<JobDefinitionRecord> = {}): MaliniEditReview {
 			skills: [],
 			builtin: 'update-docs',
 			trigger: null,
-			thenJobId: 'draft',
-			boundary: DEFAULT_JOB_BOUNDARY,
+			thenAutomationId: 'draft',
+			boundary: DEFAULT_AUTOMATION_BOUNDARY,
 			createdAt: '2026-10-23T00:00:00.000Z',
 			updatedAt: '2026-10-23T00:00:00.000Z',
 			...changes,
@@ -27,12 +30,12 @@ function job(changes: Partial<JobDefinitionRecord> = {}): MaliniEditReview {
 }
 
 const names: Record<string, string> = { draft: 'Open draft', merge: 'Merge' };
-const jobName = (reference: string): string => names[reference] ?? reference;
+const automationName = (reference: string): string => names[reference] ?? reference;
 
 describe('editReview', () => {
 	it('lists each field the agent changes, and the instructions as text to merge', () => {
 		const edit = editReview(
-			job(),
+			automation(),
 			{
 				id: 'docs',
 				name: 'Update docs',
@@ -40,10 +43,10 @@ describe('editReview', () => {
 				then: 'merge',
 				instructions: 'Read the diff.\nUpdate docs/ and push to main.',
 			},
-			jobName,
+			automationName,
 		);
 
-		expect(edit.subject).toBe('job ‘Update docs’');
+		expect(edit.subject).toBe('automation ‘Update docs’');
 		expect(edit.changes.map(({ label, before, after }) => [label, before, after])).toEqual([
 			['Model', 'opus', 'sonnet'],
 			['Then', 'Open draft', 'Merge'],
@@ -55,14 +58,14 @@ describe('editReview', () => {
 	});
 
 	it('saves each accepted change, the current value of each rejected one, and the merged text', () => {
-		const edit = editReview(job(), {
+		const edit = editReview(automation(), {
 			id: 'docs',
 			model: 'sonnet',
 			then: 'Merge',
 			instructions: 'x',
 		});
 
-		expect(reviewedInput(job(), edit, new Set(['then']), 'Mine')).toEqual({
+		expect(reviewedInput(automation(), edit, new Set(['then']), 'Mine')).toEqual({
 			id: 'docs',
 			model: 'sonnet',
 			then: 'draft',
@@ -74,41 +77,41 @@ describe('editReview', () => {
 		expect(keepsCurrent(edit, new Set(['model', 'then']), 'Mine')).toBe(false);
 	});
 
-	it('shows the Then by name, and no change when the agent names the job it already has', () => {
-		const edit = editReview(job(), { id: 'docs', then: 'Open draft' }, jobName);
+	it('shows the Then by name, and no change when the agent names the automation it already has', () => {
+		const edit = editReview(automation(), { id: 'docs', then: 'Open draft' }, automationName);
 		expect(edit.changes).toEqual([]);
 		expect(
-			editReview(job(), { id: 'docs', then: null }, jobName).changes.map(
+			editReview(automation(), { id: 'docs', then: null }, automationName).changes.map(
 				({ label, before, after }) => [label, before, after],
 			),
 		).toEqual([['Then', 'Open draft', 'Nothing']]);
 	});
 
 	it('shows how a new trigger runs, decided with its When, and never saves the run mode', () => {
-		const added = editReview(job(), { id: 'docs', when: 'on jobs:suggested' });
+		const added = editReview(automation(), { id: 'docs', when: 'on automations:suggested' });
 		expect(
 			added.changes.map(({ label, before, after, follows }) => [label, before, after, follows]),
 		).toEqual([
-			['When', 'Only when you run it', 'on jobs:suggested', null],
+			['When', 'Only when you run it', 'on automations:suggested', null],
 			['Runs', 'Only when you run it', 'Off', 'when'],
 		]);
-		expect(reviewedInput(job(), added, new Set(), null)).toEqual({
+		expect(reviewedInput(automation(), added, new Set(), null)).toEqual({
 			id: 'docs',
-			when: 'on jobs:suggested',
+			when: 'on automations:suggested',
 		});
 		expect(keepsCurrent(added, new Set(['when']), null)).toBe(true);
 
-		const auto = job({ trigger: { when: 'on jobs:suggested', mode: 'auto' } });
-		const moved = editReview(auto, { id: 'docs', when: 'on jobs:run-changed' });
+		const auto = automation({ trigger: { when: 'on automations:suggested', mode: 'auto' } });
+		const moved = editReview(auto, { id: 'docs', when: 'on automations:run-changed' });
 		expect(moved.changes.map(({ label }) => label)).toEqual(['When']);
 		const cleared = editReview(auto, { id: 'docs', when: null });
 		expect(cleared.changes.map(({ label, before, after }) => [label, before, after])).toEqual([
-			['When', 'on jobs:suggested', 'Only when you run it'],
+			['When', 'on automations:suggested', 'Only when you run it'],
 			['Runs', 'On its own', 'Only when you run it'],
 		]);
 		expect(reviewedInput(auto, cleared, new Set(['when']), null)).toEqual({
 			id: 'docs',
-			when: 'on jobs:suggested',
+			when: 'on automations:suggested',
 		});
 	});
 });

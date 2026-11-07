@@ -2,11 +2,11 @@ import type { AgentReasoningEffort } from '$contract/agent';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import type {
 	AgentActionApproval,
-	JobDefinitionRecord,
-	JobRunsIn,
-	JobTrigger,
-	SaveJobDefinitionArgs,
-} from '$contract/jobs';
+	AutomationDefinitionRecord,
+	AutomationRunsIn,
+	AutomationTrigger,
+	SaveAutomationDefinitionArgs,
+} from '$contract/automations';
 import type { MergedPullRequest, Workstream } from '$contract/repositories';
 import { isSkillNameList } from '$contract/skills';
 import type { MainContext } from '$main/context';
@@ -15,11 +15,11 @@ import type { CommandRegistry } from '$main/ipc/registry';
 import { isRecord, jsonEqual } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import {
-	activeJobRunForSession,
+	activeAutomationRunForSession,
 	finishAgentAction,
-	jobBoundaryForSession,
+	automationBoundaryForSession,
 	recordAgentAction,
-} from '$lib/jobs/jobs.platform';
+} from '$lib/automations/automations.platform';
 import { openFileForUser } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import { DEFAULT_AGENT_MODEL, DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
@@ -48,12 +48,12 @@ import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { chatTurnChainId, storedRunProfile } from '../runs.repository';
 import { latestSessionForWorkstream } from '../sessions.repository';
 import { parseRunProfile, type PromptsInFlight } from './commands';
-import { jobsNamed } from './malini-approvals.service';
+import { automationsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, worktreePath, type PersistedBridgeSession } from './sessions';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies AgentReasoningEffort[];
-const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies JobRunsIn[];
+const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies AutomationRunsIn[];
 const CLONE_WAIT_MS = 40_000;
 const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
@@ -127,30 +127,37 @@ async function runPlatformTool(
 ): Promise<unknown> {
 	const { db, commands } = deps;
 	const { input } = request;
-	const internetOff = jobBoundaryForSession(db, request.sessionId)?.internet === false;
+	const internetOff = automationBoundaryForSession(db, request.sessionId)?.internet === false;
 	switch (request.tool) {
-		case 'jobs_list':
-			return (await jobs(commands)).map(jobSummary);
-		case 'jobs_save': {
-			const args = jobDefinition(input, await jobs(commands));
-			return reviewed(db, request, jobSummary(await commands.call('jobs.save-definition', args)));
+		case 'automations_list':
+			return (await automations(commands)).map(automationSummary);
+		case 'automations_save': {
+			const args = automationDefinition(input, await automations(commands));
+			return reviewed(
+				db,
+				request,
+				automationSummary(await commands.call('automations.save-definition', args)),
+			);
 		}
-		case 'jobs_run': {
+		case 'automations_run': {
 			const session = requestSession(db, request);
-			const job = findJob(await jobs(commands), requiredText(input, 'job'));
-			if (internetOff && job.boundary.internet) {
-				throw refusesInternet(`Running “${job.name}” reaches`);
+			const automation = findAutomation(
+				await automations(commands),
+				requiredText(input, 'automation'),
+			);
+			if (internetOff && automation.boundary.internet) {
+				throw refusesInternet(`Running “${automation.name}” reaches`);
 			}
 			const context = text(input, 'context');
-			if (context !== undefined && job.boundary.chats === 'none') {
+			if (context !== undefined && automation.boundary.chats === 'none') {
 				throw new Error(
-					`${job.name} does not see your chats, so it takes no \`context\` from one. Run it without \`context\`, or ask the user to let it see the chat that started it on its page in Jobs.`,
+					`${automation.name} does not see your chats, so it takes no \`context\` from one. Run it without \`context\`, or ask the user to let it see the chat that started it on its page in Automations.`,
 				);
 			}
-			const parent = activeJobRunForSession(db, request.sessionId);
+			const parent = activeAutomationRunForSession(db, request.sessionId);
 			const workstream = text(input, 'workstream');
-			const run = await commands.call('jobs.run', {
-				definitionId: job.id,
+			const run = await commands.call('automations.run', {
+				definitionId: automation.id,
 				workstreamId:
 					workstream === undefined
 						? session.workstreamId
@@ -160,7 +167,12 @@ async function runPlatformTool(
 				chatSessionId: request.sessionId,
 				chatAfterRunId: request.runId,
 			});
-			return { id: run.id, job: run.title, status: run.status, workstreamId: run.workstreamId };
+			return {
+				id: run.id,
+				automation: run.title,
+				status: run.status,
+				workstreamId: run.workstreamId,
+			};
 		}
 		case 'events_list':
 			return CONTRACT_REFERENCE.events;
@@ -179,7 +191,8 @@ async function runPlatformTool(
 		}
 		case 'workstreams_list': {
 			const { workstreamId } = requestSession(db, request);
-			const seesChats = (jobBoundaryForSession(db, request.sessionId)?.chats ?? 'all') === 'all';
+			const seesChats =
+				(automationBoundaryForSession(db, request.sessionId)?.chats ?? 'all') === 'all';
 			const catalog = await listRepositoryCatalog(db);
 			const reference = text(input, 'repository');
 			const only = reference === undefined ? null : findRepository(catalog, reference);
@@ -466,7 +479,7 @@ function findRepository(
 
 function refusesInternet(reaches: string): Error {
 	return new Error(
-		`${reaches} the internet, and this job runs with its internet off. Ask the user to turn it on for this job on its page in Jobs.`,
+		`${reaches} the internet, and this automation runs with its internet off. Ask the user to turn it on for this automation on its page in Automations.`,
 	);
 }
 
@@ -514,11 +527,13 @@ function requestSession(
 	return session;
 }
 
-function jobs(commands: CommandRegistry): Promise<JobDefinitionRecord[]> {
-	return commands.call('jobs.list-definitions', undefined);
+function automations(commands: CommandRegistry): Promise<AutomationDefinitionRecord[]> {
+	return commands.call('automations.list-definitions', undefined);
 }
 
-function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>> {
+function automationSummary(
+	automation: AutomationDefinitionRecord,
+): Readonly<Record<string, unknown>> {
 	const {
 		id,
 		name,
@@ -529,9 +544,9 @@ function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>>
 		skills,
 		builtin,
 		trigger,
-		thenJobId,
+		thenAutomationId,
 		boundary,
-	} = job;
+	} = automation;
 	return {
 		id,
 		name,
@@ -543,10 +558,10 @@ function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>>
 		builtin,
 		when: trigger?.when ?? null,
 		mode: trigger?.mode ?? null,
-		then: thenJobId,
+		then: thenAutomationId,
 		sees: {
 			event: boundary.event,
-			jobBefore: boundary.before,
+			automationBefore: boundary.before,
 			chats: boundary.chats,
 			attachments: boundary.attachments,
 		},
@@ -554,10 +569,10 @@ function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>>
 	};
 }
 
-function jobDefinition(
+function automationDefinition(
 	input: Input,
-	definitions: readonly JobDefinitionRecord[],
-): SaveJobDefinitionArgs {
+	definitions: readonly AutomationDefinitionRecord[],
+): SaveAutomationDefinitionArgs {
 	const id = text(input, 'id');
 	const name = text(input, 'name');
 	const instructions = text(input, 'instructions');
@@ -573,16 +588,18 @@ function jobDefinition(
 	const existing =
 		id === undefined ? undefined : definitions.find((definition) => definition.id === id);
 	if (id !== undefined && !existing) {
-		throw new Error(`No job has the id \`${id}\`. Call jobs_list for the ids.`);
+		throw new Error(`No automation has the id \`${id}\`. Call automations_list for the ids.`);
 	}
 	const links = {
 		...(skills === undefined ? {} : { skills }),
 		...(when === undefined ? {} : { trigger: trigger(when, existing?.trigger ?? null) }),
-		...(then === undefined ? {} : { thenJobId: then && findJob(definitions, then).id }),
+		...(then === undefined
+			? {}
+			: { thenAutomationId: then && findAutomation(definitions, then).id }),
 	};
 	if (!existing) {
 		if (name === undefined || instructions === undefined) {
-			throw new Error('To create a job, pass its name and instructions.');
+			throw new Error('To create an automation, pass its name and instructions.');
 		}
 		return {
 			name,
@@ -606,21 +623,21 @@ function jobDefinition(
 	};
 }
 
-function trigger(when: string | null, current: JobTrigger | null): JobTrigger | null {
+function trigger(when: string | null, current: AutomationTrigger | null): AutomationTrigger | null {
 	return when === null ? null : { when, mode: current?.mode ?? 'off' };
 }
 
-function findJob(
-	definitions: readonly JobDefinitionRecord[],
+function findAutomation(
+	definitions: readonly AutomationDefinitionRecord[],
 	reference: string,
-): JobDefinitionRecord {
-	const named = jobsNamed(definitions, reference);
+): AutomationDefinitionRecord {
+	const named = automationsNamed(definitions, reference);
 	const [only] = named;
 	if (only && named.length === 1) return only;
 	throw new Error(
 		named.length > 1
-			? `Several jobs are named “${reference}”. Pass the id from jobs_list instead.`
-			: `No job is named or has the id “${reference}”. Call jobs_list for the jobs.`,
+			? `Several automations are named “${reference}”. Pass the id from automations_list instead.`
+			: `No automation is named or has the id “${reference}”. Call automations_list for the automations.`,
 	);
 }
 

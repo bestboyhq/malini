@@ -1473,6 +1473,198 @@ CREATE TABLE chatgpt_account (
   CHECK (credentials IS NULL OR (client_id IS NOT NULL AND subject IS NOT NULL))
 );
 `,
+	`
+ALTER TABLE job_definitions RENAME TO automation_definitions;
+ALTER TABLE automation_definitions RENAME COLUMN then_job_id TO then_automation_id;
+ALTER TABLE job_runs RENAME TO automation_runs;
+ALTER TABLE job_run_events RENAME TO automation_run_events;
+ALTER TABLE automation_run_events RENAME COLUMN job_run_id TO automation_run_id;
+ALTER TABLE job_setups RENAME TO automation_setups;
+ALTER TABLE job_outputs RENAME TO automation_outputs;
+ALTER TABLE job_experiments RENAME TO automation_experiments;
+ALTER TABLE job_experiment_samples RENAME TO automation_experiment_samples;
+ALTER TABLE job_experiment_results RENAME TO automation_experiment_results;
+ALTER TABLE reconciler_decisions RENAME COLUMN job_run_id TO automation_run_id;
+ALTER TABLE workstream_ship RENAME COLUMN needs_you_job_run_id TO needs_you_automation_run_id;
+ALTER TABLE workstream_ship RENAME COLUMN active_job_run_id TO active_automation_run_id;
+ALTER TABLE workstream_ship RENAME COLUMN settled_job_run_id TO settled_automation_run_id;
+DROP TABLE job_suggestions;
+
+CREATE TABLE automation_definitions_next (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('name-chats','name-services','fix-checks','update-from-main','resolve-conflicts','address-review','check-compatibility','update-docs','open-draft','merge','reconcile','suggest-automations')),
+  skills TEXT NOT NULL DEFAULT '[]',
+  trigger_when TEXT,
+  trigger_mode TEXT CHECK (trigger_mode IN ('off','ask','auto')),
+  then_automation_id TEXT REFERENCES automation_definitions_next(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'claude',
+  sees_event TEXT NOT NULL DEFAULT 'facts' CHECK (sees_event IN ('facts', 'full')),
+  sees_before INTEGER NOT NULL DEFAULT 1 CHECK (sees_before IN (0, 1)),
+  sees_chats TEXT NOT NULL DEFAULT 'none' CHECK (sees_chats IN ('none', 'starter', 'all')),
+  sees_attachments INTEGER NOT NULL DEFAULT 0 CHECK (sees_attachments IN (0, 1)),
+  reaches_internet INTEGER NOT NULL DEFAULT 1 CHECK (reaches_internet IN (0, 1)),
+  CHECK ((trigger_when IS NULL) = (trigger_mode IS NULL)),
+  CHECK (then_automation_id IS NULL OR then_automation_id != id)
+);
+INSERT INTO automation_definitions_next
+  (id, name, instructions, model, effort, runs_in, builtin, skills, trigger_when, trigger_mode,
+   then_automation_id, created_at, updated_at, provider, sees_event, sees_before, sees_chats,
+   sees_attachments, reaches_internet)
+  SELECT id, name,
+    replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(
+      instructions,
+      'jobs_list', 'automations_list'),
+      'jobs_save', 'automations_save'),
+      'jobs_run', 'automations_run'),
+      'before this job starts', 'before this automation starts'),
+      'user''s jobs', 'user''s automations'),
+      'every job', 'every automation'),
+      'Never delete a job,', 'Never delete an automation,'),
+      'leave that job alone', 'leave that automation alone'),
+      'each job you changed', 'each automation you changed'),
+      'no job''s trigger', 'no automation''s trigger'),
+      'Run a job again', 'Run an automation again'),
+      'Find every job whose', 'Find every automation whose'),
+    model, effort, runs_in, builtin, skills,
+    replace(replace(replace(trigger_when, 'jobs:', 'automations:'),
+      'JobRunId', 'AutomationRunId'), 'jobRunId', 'automationRunId'),
+    trigger_mode, then_automation_id, created_at, updated_at, provider, sees_event, sees_before,
+    sees_chats, sees_attachments, reaches_internet
+  FROM automation_definitions;
+DROP TABLE automation_definitions;
+ALTER TABLE automation_definitions_next RENAME TO automation_definitions;
+
+DROP INDEX idx_job_runs_status_created;
+DROP INDEX idx_job_runs_session;
+DROP INDEX idx_job_runs_chat_session;
+DROP INDEX idx_job_runs_parent;
+DROP INDEX idx_job_runs_definition_origin;
+DROP INDEX idx_job_runs_chain;
+DROP INDEX idx_job_run_events_event;
+DROP INDEX idx_job_setups_definition_created;
+DROP INDEX idx_job_outputs_definition_created;
+DROP INDEX idx_job_experiments_definition;
+CREATE INDEX idx_automation_runs_status_created ON automation_runs(status, created_at);
+CREATE INDEX idx_automation_runs_session ON automation_runs(session_id);
+CREATE INDEX idx_automation_runs_chat_session ON automation_runs(chat_session_id);
+CREATE INDEX idx_automation_runs_parent ON automation_runs(parent_run_id);
+CREATE INDEX idx_automation_runs_definition_origin ON automation_runs(definition_id, origin, created_at);
+CREATE INDEX idx_automation_runs_chain ON automation_runs(chain_id, definition_id);
+CREATE INDEX idx_automation_run_events_event ON automation_run_events(event_id);
+CREATE INDEX idx_automation_setups_definition_created ON automation_setups(definition_id, created_at);
+CREATE INDEX idx_automation_outputs_definition_created ON automation_outputs(definition_id, created_at);
+CREATE INDEX idx_automation_experiments_definition ON automation_experiments(definition_id, created_at);
+
+CREATE TABLE agent_sessions_next (
+  id TEXT PRIMARY KEY,
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id),
+  model TEXT,
+  status TEXT NOT NULL CHECK (status IN ('idle','running','waiting_for_approval','completed','failed')),
+  started_at TEXT NOT NULL,
+  provider_session_id TEXT,
+  display_name TEXT NOT NULL DEFAULT '',
+  archived_at TEXT,
+  forked_from_session_id TEXT,
+  fork_seq INTEGER,
+  origin TEXT NOT NULL DEFAULT 'user' CHECK (origin IN ('user','automation','thread')),
+  provider TEXT NOT NULL DEFAULT 'claude'
+);
+INSERT INTO agent_sessions_next (id, workstream_id, model, status, started_at, provider_session_id,
+  display_name, archived_at, forked_from_session_id, fork_seq, origin, provider)
+SELECT id, workstream_id, model, status, started_at, provider_session_id,
+  display_name, archived_at, forked_from_session_id, fork_seq,
+  CASE origin WHEN 'job' THEN 'automation' ELSE origin END, provider
+FROM agent_sessions;
+DROP TABLE agent_sessions;
+ALTER TABLE agent_sessions_next RENAME TO agent_sessions;
+CREATE INDEX idx_agent_sessions_workstream_archived_started
+  ON agent_sessions(workstream_id, archived_at, started_at DESC);
+
+CREATE TABLE event_log_next (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  workstream_id TEXT,
+  cause_kind TEXT CHECK (cause_kind IS NULL OR cause_kind IN ('automation-run','chat-turn','event')),
+  cause_id TEXT,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  emitted_at TEXT NOT NULL,
+  handled_at TEXT,
+  CHECK ((cause_kind IS NULL) = (cause_id IS NULL))
+);
+INSERT INTO event_log_next
+  (id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at)
+  SELECT id,
+    CASE WHEN channel LIKE 'jobs:%' THEN 'automations:' || substr(channel, 6) ELSE channel END,
+    replace(replace(replace(replace(replace(replace(payload,
+      '"jobRunId":', '"automationRunId":'),
+      '"activeJobRunId":', '"activeAutomationRunId":'),
+      '"thenJobId":', '"thenAutomationId":'),
+      '"kind":"run-job"', '"kind":"run-automation"'),
+      '"about":"job"', '"about":"automation"'),
+      '"origin":"job"', '"origin":"automation"'),
+    workstream_id,
+    CASE cause_kind WHEN 'job-run' THEN 'automation-run' ELSE cause_kind END,
+    cause_id, chain_id, emitted_at, handled_at
+  FROM event_log;
+DELETE FROM sqlite_sequence WHERE name = 'event_log_next';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'event_log_next', seq FROM sqlite_sequence WHERE name = 'event_log';
+DROP TABLE event_log;
+ALTER TABLE event_log_next RENAME TO event_log;
+CREATE INDEX idx_event_log_emitted ON event_log(emitted_at);
+CREATE INDEX idx_event_log_chain ON event_log(chain_id);
+CREATE INDEX idx_event_log_unhandled ON event_log(emitted_at) WHERE handled_at IS NULL;
+CREATE INDEX idx_event_log_workstream_channel ON event_log(workstream_id, channel);
+CREATE INDEX idx_event_log_cause ON event_log(cause_kind, cause_id);
+
+UPDATE reconciler_decisions SET
+  channel = CASE WHEN channel LIKE 'jobs:%' THEN 'automations:' || substr(channel, 6) ELSE channel END,
+  candidates = replace(replace(candidates,
+    '"kind":"run-job"', '"kind":"run-automation"'),
+    '"about":"job"', '"about":"automation"');
+UPDATE settings SET key = 'automations.max-concurrent' WHERE key = 'jobs.max-concurrent';
+UPDATE agent_actions SET tool = 'automations_' || substr(tool, 6)
+  WHERE tool IN ('jobs_list', 'jobs_save', 'jobs_run');
+UPDATE agent_run_tool_calls SET tool = 'mcp__malini__automations_' || substr(tool, 19)
+  WHERE tool IN ('mcp__malini__jobs_list', 'mcp__malini__jobs_save', 'mcp__malini__jobs_run');
+UPDATE agent_permission_rules SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  WHERE revoked_at IS NULL AND instr(permission_json, '"value":"jobs.') > 0;
+
+CREATE TABLE automation_suggestions (
+  id TEXT PRIMARY KEY,
+  repository_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  after_run_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  trigger_when TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open','dismissed','accepted')),
+  definition_id TEXT REFERENCES automation_definitions(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_automation_suggestions_session ON automation_suggestions(session_id);
+CREATE TABLE automation_asks (
+  id TEXT PRIMARY KEY,
+  merge_event_id INTEGER NOT NULL UNIQUE,
+  repository_id TEXT NOT NULL,
+  workstream_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  pull_request_number INTEGER,
+  suggestion_id TEXT REFERENCES automation_suggestions(id) ON DELETE SET NULL,
+  asked_at TEXT NOT NULL
+);
+CREATE INDEX idx_automation_asks_repository ON automation_asks(repository_id, asked_at);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

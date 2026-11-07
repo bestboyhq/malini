@@ -77,11 +77,11 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import {
-	activeJobRunForSession,
+	activeAutomationRunForSession,
 	clearAlarm,
-	jobBoundaryForSession,
-	runAutomaticJob,
-} from '$lib/jobs/jobs.platform';
+	automationBoundaryForSession,
+	runOneShotAutomation,
+} from '$lib/automations/automations.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
 import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
@@ -109,7 +109,7 @@ import {
 	type RunLease,
 } from './lifecycle';
 import type { AgentBoundary, AgentLineage } from '$contract/agent';
-import type { JobBoundary } from '$contract/jobs';
+import type { AutomationBoundary } from '$contract/automations';
 import type { WorkstreamReport } from '$contract/deliveries';
 import { parseWorkstreamReport } from '../../domain/deliveries';
 import { leadBriefFor } from '../lead-brief.service';
@@ -207,7 +207,10 @@ export interface SendPromptHooks {
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
 	readonly plugins?: () => readonly string[];
-	readonly boundary: (job: JobBoundary, lineage: AgentLineage | null) => AgentBoundary | null;
+	readonly boundary: (
+		automation: AutomationBoundary,
+		lineage: AgentLineage | null,
+	) => AgentBoundary | null;
 	readonly providerEnvironment?: ResolveProviderEnvironment;
 }
 
@@ -875,8 +878,8 @@ async function preparedTurn(
 ) {
 	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
 	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
-	const job = jobBoundaryForSession(db, sessionId);
-	const lineage = job?.chats === 'none' ? null : await lineageForRun(db, workstreamId, log);
+	const automation = automationBoundaryForSession(db, sessionId);
+	const lineage = automation?.chats === 'none' ? null : await lineageForRun(db, workstreamId, log);
 	return {
 		prompt: brief === null ? prompt : `${brief}\n\n${prompt}`,
 		resumePoint: handsOff
@@ -885,9 +888,9 @@ async function preparedTurn(
 				? { freshConversation: true as const }
 				: providerResumePoint(db, sessionId),
 		skills: skillsForRun(db, sessionId),
-		plugins: job?.internet === false ? [] : (hooks.plugins?.() ?? null),
+		plugins: automation?.internet === false ? [] : (hooks.plugins?.() ?? null),
 		lineage,
-		boundary: job === null ? null : hooks.boundary(job, lineage),
+		boundary: automation === null ? null : hooks.boundary(automation, lineage),
 	};
 }
 
@@ -977,9 +980,10 @@ async function suggestedTitle(
 	const task = promptPlainText(prompt).trim();
 	if (task.length === 0) return null;
 	try {
-		return await runAutomaticJob(db, 'name-chats', task, async (named, job) => {
-			const environment = (await hooks.providerEnvironment?.(job.provider, job.model)) ?? {};
-			return supervisor.suggestTitle(named, job, environment);
+		return await runOneShotAutomation(db, 'name-chats', task, async (named, automation) => {
+			const environment =
+				(await hooks.providerEnvironment?.(automation.provider, automation.model)) ?? {};
+			return supervisor.suggestTitle(named, automation, environment);
 		});
 	} catch (error) {
 		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
@@ -1145,7 +1149,7 @@ export function listAgentEventPage(
 	};
 }
 
-const REVIEWED_TOOL = 'mcp__malini__jobs_save';
+const REVIEWED_TOOL = 'mcp__malini__automations_save';
 
 function requestToolName(record: AgentInteractionRecord): string | undefined {
 	const toolName = isRecord(record.requestPayload) ? record.requestPayload['toolName'] : undefined;
@@ -1168,7 +1172,7 @@ function reviewedInput(
 		typeof requested['id'] !== 'string' ||
 		updatedInput['id'] !== requested['id']
 	) {
-		throw new Error('only a reviewed edit of the same job can change what is saved');
+		throw new Error('only a reviewed edit of the same automation can change what is saved');
 	}
 	return updatedInput;
 }
@@ -1525,8 +1529,8 @@ export async function continuePausedRun(
 ): Promise<boolean> {
 	const stopped = continuableRun(db, paused.sessionId);
 	if (stopped?.runId !== paused.runId || stopped.resumeAt === null) return false;
-	const job = userSessionWorkstreamId(db, paused.sessionId) === null;
-	if (job && activeJobRunForSession(db, paused.sessionId) === null) return false;
+	const automation = userSessionWorkstreamId(db, paused.sessionId) === null;
+	if (automation && activeAutomationRunForSession(db, paused.sessionId) === null) return false;
 	await sendContinuation(db, sendPrompt, stopped, causeEventId, CONTINUE_AFTER_STOP_PROMPT);
 	return true;
 }
@@ -2022,8 +2026,8 @@ function optionalStringArray(args: unknown, key: string): string[] {
 
 function parseSessionIdentity(args: unknown): SessionIdentity {
 	const origin = field(args, 'origin') ?? 'user';
-	if (origin !== 'user' && origin !== 'job' && origin !== 'thread') {
-		throw new Error("invalid args: `origin` must be 'user', 'job' or 'thread'");
+	if (origin !== 'user' && origin !== 'automation' && origin !== 'thread') {
+		throw new Error("invalid args: `origin` must be 'user', 'automation' or 'thread'");
 	}
 	const requestedName = optionalString(args, 'displayName');
 	if (requestedName === null) return { origin, displayName: null };

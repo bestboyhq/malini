@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-	mergeStoppedOnJob,
+	mergeStoppedOnAutomation,
 	needsYouDestination,
 	pullRequestNeedsYouAnnouncement,
 	type PullRequestShip,
@@ -27,7 +27,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 	};
 }
 
-const REVIEWER = { reason: 'reply-to-reviewer', detail: '', jobRunId: null } as const;
+const REVIEWER = { reason: 'reply-to-reviewer', detail: '', automationRunId: null } as const;
 
 describe('pullRequestNeedsYouAnnouncement', () => {
 	it('announces a workstream that starts needing you, once', () => {
@@ -73,75 +73,79 @@ describe('pullRequestNeedsYouAnnouncement', () => {
 describe('needsYouDestination', () => {
 	it('sends each reason to the place that resolves it', () => {
 		expect(needsYouDestination(REVIEWER)).toBe('pull-request');
-		expect(needsYouDestination({ reason: 'merge-not-permitted', detail: '', jobRunId: null })).toBe(
+		expect(
+			needsYouDestination({ reason: 'merge-not-permitted', detail: '', automationRunId: null }),
+		).toBe('pull-request');
+		expect(
+			needsYouDestination({ reason: 'pull-request-closed', detail: '', automationRunId: null }),
+		).toBe('pull-request');
+		expect(
+			needsYouDestination({ reason: 'fix-gave-up', detail: '', automationRunId: 'run-1' }),
+		).toBe('automation');
+		expect(needsYouDestination({ reason: 'fix-gave-up', detail: '', automationRunId: null })).toBe(
 			'pull-request',
-		);
-		expect(needsYouDestination({ reason: 'pull-request-closed', detail: '', jobRunId: null })).toBe(
-			'pull-request',
-		);
-		expect(needsYouDestination({ reason: 'fix-gave-up', detail: '', jobRunId: 'run-1' })).toBe(
-			'job',
-		);
-		expect(needsYouDestination({ reason: 'fix-gave-up', detail: '', jobRunId: null })).toBe(
-			'pull-request',
-		);
-		expect(needsYouDestination({ reason: 'github-reconnect', detail: '', jobRunId: null })).toBe(
-			'repositories',
 		);
 		expect(
-			needsYouDestination({ reason: 'operation-in-progress', detail: '', jobRunId: 'run-2' }),
-		).toBe('job');
+			needsYouDestination({ reason: 'github-reconnect', detail: '', automationRunId: null }),
+		).toBe('repositories');
 		expect(
-			needsYouDestination({ reason: 'operation-in-progress', detail: '', jobRunId: null }),
+			needsYouDestination({
+				reason: 'operation-in-progress',
+				detail: '',
+				automationRunId: 'run-2',
+			}),
+		).toBe('automation');
+		expect(
+			needsYouDestination({ reason: 'operation-in-progress', detail: '', automationRunId: null }),
 		).toBeNull();
 	});
 });
 
-describe('mergeStoppedOnJob', () => {
-	it('names the job a merge stopped on, with why', () => {
+describe('mergeStoppedOnAutomation', () => {
+	it('names the automation a merge stopped on, with why', () => {
 		expect(
-			mergeStoppedOnJob(
+			mergeStoppedOnAutomation(
 				ship({
 					phase: 'needs-you',
 					needsYou: {
 						reason: 'fix-gave-up',
 						detail: 'Fixing the checks did not work. Malini tried 3 times.',
-						jobRunId: 'run-1',
+						automationRunId: 'run-1',
 					},
 				}),
 			),
 		).toEqual({
-			jobRunId: 'run-1',
+			automationRunId: 'run-1',
 			detail: 'Fixing the checks did not work. Malini tried 3 times.',
 		});
 		expect(
-			mergeStoppedOnJob(
+			mergeStoppedOnAutomation(
 				ship({
 					phase: 'needs-you',
-					needsYou: { reason: 'fix-gave-up', detail: ' ', jobRunId: 'run-1' },
+					needsYou: { reason: 'fix-gave-up', detail: ' ', automationRunId: 'run-1' },
 				}),
 			)?.detail,
 		).toBe('The agent could not fix the same failure after several attempts');
 	});
 
-	it('names no job for a stop without one, or a merge that moved on', () => {
-		expect(mergeStoppedOnJob(ship({ phase: 'needs-you', needsYou: REVIEWER }))).toBeNull();
+	it('names no automation for a stop without one, or a merge that moved on', () => {
+		expect(mergeStoppedOnAutomation(ship({ phase: 'needs-you', needsYou: REVIEWER }))).toBeNull();
 		expect(
-			mergeStoppedOnJob(
+			mergeStoppedOnAutomation(
 				ship({
 					phase: 'needs-you',
-					needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: null },
+					needsYou: { reason: 'fix-gave-up', detail: '', automationRunId: null },
 				}),
 			),
 		).toBeNull();
 		expect(
-			mergeStoppedOnJob(
+			mergeStoppedOnAutomation(
 				ship({
 					phase: 'queued',
-					needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: 'run-1' },
+					needsYou: { reason: 'fix-gave-up', detail: '', automationRunId: 'run-1' },
 				}),
 			),
 		).toBeNull();
-		expect(mergeStoppedOnJob(null)).toBeNull();
+		expect(mergeStoppedOnAutomation(null)).toBeNull();
 	});
 });

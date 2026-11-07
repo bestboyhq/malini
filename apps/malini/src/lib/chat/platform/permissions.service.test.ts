@@ -266,31 +266,33 @@ describe('Malini actions', () => {
 	it('remembers a Malini tool only as the one action Malini named', () => {
 		const root = tempDir();
 		const normalized = normalizeRememberablePermission(
-			action('jobs.run:job-1'),
+			action('automations.run:automation-1'),
 			root,
-			'mcp__malini__jobs_run',
+			'mcp__malini__automations_run',
 		);
-		expect(normalized.fingerprint).toBe(maliniActionFingerprint('jobs.run:job-1'));
-		expect(maliniActionFingerprint('jobs.run:job-2')).not.toBe(normalized.fingerprint);
+		expect(normalized.fingerprint).toBe(maliniActionFingerprint('automations.run:automation-1'));
+		expect(maliniActionFingerprint('automations.run:automation-2')).not.toBe(
+			normalized.fingerprint,
+		);
 		expect(() =>
 			normalizeRememberablePermission(
 				{
 					capability: 'write',
-					resources: [{ kind: 'tool', value: 'Save job', boundary: 'workstream' }],
+					resources: [{ kind: 'tool', value: 'Save automation', boundary: 'workstream' }],
 				},
 				root,
-				'mcp__malini__jobs_save',
+				'mcp__malini__automations_save',
 			),
 		).toThrow('a Malini tool is remembered only as one Malini action');
 		expect(() =>
-			normalizeRememberablePermission(action('anything'), root, 'mcp__malini__jobs_save'),
+			normalizeRememberablePermission(action('anything'), root, 'mcp__malini__automations_save'),
 		).toThrow('`anything` is not a Malini action');
 	});
 
 	it('never lets another tool borrow a Malini action', () => {
-		expect(() => normalizeRememberablePermission(action('jobs.save'), tempDir(), 'Bash')).toThrow(
-			'only canonical external reads can be remembered',
-		);
+		expect(() =>
+			normalizeRememberablePermission(action('automations.save'), tempDir(), 'Bash'),
+		).toThrow('only canonical external reads can be remembered');
 	});
 });
 

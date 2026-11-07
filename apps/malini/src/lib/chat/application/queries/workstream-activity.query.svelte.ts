@@ -7,7 +7,7 @@ class WorkstreamActivityQuery {
 	public readonly activeAt: (workstreamId: string) => number | null = $derived.by(() => {
 		const latest = new Map<string, number>();
 		for (const session of sessionsAggregate.listSessions()) {
-			if (session.origin === 'job') continue;
+			if (session.origin === 'automation') continue;
 			const at = Math.max(
 				Date.parse(session.startedAt) || 0,
 				agentActivity.activeAtForChat(session.id) ?? 0,
