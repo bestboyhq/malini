@@ -6,10 +6,11 @@ import {
 	type EventChannel,
 } from '$contract/events';
 import type { ShippingAutomationBuiltin } from '$contract/automations';
+import { SIGN_CONTRIBUTIONS_SETTING, signsContributions } from '$contract/pull-requests';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
-import { commitLine, workstreamShipContext } from '$lib/chat/chat.platform';
+import { commitLine, workstreamAgentCount, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
 	automationDefinitions,
@@ -22,6 +23,7 @@ import {
 	recordMergedPullRequest,
 	type AutomatedPullRequestMetadata,
 	type PullRequestAutomationContext,
+	type PullRequestCredit,
 } from '$shared/repositories/repositories.platform';
 import {
 	checkFixAutomationContext,
@@ -278,6 +280,7 @@ async function commit(deps: ShipDeps, state: ShipState): Promise<AutomatedPullRe
 			workstreamId,
 			message,
 			...(run ? { run } : {}),
+			signed: await signs(deps),
 		});
 	}
 	if (settled !== null && settled.builtin !== 'address-review') {
@@ -290,13 +293,19 @@ async function commitAndPush(deps: ShipDeps, state: ShipState, retitle: boolean)
 	const { row, target } = state;
 	const workstreamId = row.workstreamId;
 	const shipContext = workstreamShipContext(deps.context.db, workstreamId);
-	const metadata = await commit(deps, state);
+	await commit(deps, state);
 	await deps.context.commands.call('repositories.push-workstream', {
 		workstreamId,
 		expectedRepositoryFullName: target.repository.fullName,
 	});
 	if (retitle && (shipContext.runSummaries?.length ?? 0) > 0) {
-		await retitlePullRequest(deps, target, workstreamId, metadata.title, metadata.body);
+		const { title, body } = shipMetadata(
+			target,
+			state.worktree.dirtyPaths,
+			shipContext,
+			await shipCredit(deps, workstreamId),
+		);
+		await retitlePullRequest(deps, target, workstreamId, title, body);
 	}
 }
 
@@ -322,6 +331,7 @@ async function openPullRequest(deps: ShipDeps, state: ShipState): Promise<void> 
 		target,
 		state.worktree.dirtyPaths,
 		workstreamShipContext(deps.context.db, workstreamId),
+		await shipCredit(deps, workstreamId),
 	);
 	const created = await deps.ops.create({
 		repoId: target.repoId,
@@ -609,10 +619,29 @@ export function settledAutomation(deps: ShipDeps, row: ShipRow): SettledAutomati
 		: null;
 }
 
+async function signs(deps: ShipDeps): Promise<boolean> {
+	const settings = await deps.context.commands
+		.call('app.list-settings', undefined)
+		.catch(() => null);
+	return settings !== null && signsContributions(settings[SIGN_CONTRIBUTIONS_SETTING]);
+}
+
+async function shipCredit(
+	deps: ShipDeps,
+	workstreamId: string,
+): Promise<PullRequestCredit | undefined> {
+	if (!(await signs(deps))) return undefined;
+	return {
+		chef: (await deps.chef?.().catch(() => null)) ?? null,
+		agents: workstreamAgentCount(deps.context.db, workstreamId),
+	};
+}
+
 export function shipMetadata(
 	target: ShipTarget,
 	changedPaths: readonly string[],
 	shipContext: PullRequestAutomationContext,
+	credit?: PullRequestCredit,
 ): AutomatedPullRequestMetadata {
 	return automatedPullRequestMetadata({
 		branch: target.workstream.branch,
@@ -620,6 +649,7 @@ export function shipMetadata(
 		changedPaths,
 		workstreamPath: target.workstream.path,
 		context: shipContext,
+		...(credit ? { credit } : {}),
 	});
 }
 

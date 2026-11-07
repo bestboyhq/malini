@@ -104,7 +104,10 @@ export async function registerModules(
 		...(overrides.startupReclaim === undefined ? {} : { startupReclaim: overrides.startupReclaim }),
 	});
 
-	const pullRequests = registerPullRequests(context, { runner: repositories.gh });
+	const pullRequests = registerPullRequests(context, {
+		runner: repositories.gh,
+		chef: () => stats.chef(),
+	});
 
 	registerScratchpad(context);
 

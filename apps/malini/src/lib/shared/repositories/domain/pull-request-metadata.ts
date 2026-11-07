@@ -33,12 +33,20 @@ export type PullRequestAutomationContext = Readonly<{
 	decisions?: readonly string[];
 }>;
 
+export type PullRequestChef = Readonly<{
+	handle: string;
+	url: string;
+}>;
+
+export type PullRequestCredit = Readonly<{ chef: PullRequestChef | null; agents: number }>;
+
 export type AutomatedPullRequestMetadataInput = Readonly<{
 	branch: string;
 	baseBranch: string;
 	changedPaths: readonly string[];
 	workstreamPath?: string;
 	context?: PullRequestAutomationContext;
+	credit?: PullRequestCredit;
 }>;
 
 export type AutomatedPullRequestMetadata = Readonly<{
@@ -85,6 +93,10 @@ const CONVENTIONAL_COMMIT_SUBJECT = /^[a-z]+(?:\([^)]*\))?!?: \S/u;
 
 const WORKSTREAM_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/iu;
 
+const MALINI_URL = 'https://bestboy.dev/malini';
+
+const HANDLE = /^[A-Za-z0-9-]{1,39}$/u;
+
 export function automatedPullRequestMetadata(
 	input: AutomatedPullRequestMetadataInput,
 ): AutomatedPullRequestMetadata {
@@ -96,7 +108,8 @@ export function automatedPullRequestMetadata(
 	const changedPaths = normalizedChangedPaths(input.changedPaths, input.workstreamPath);
 	const context = normalizedContext(input.context, input.workstreamPath);
 	const title = workstreamTitle(branch, changedPaths, context);
-	const body = boundedBody(
+	const footer = input.credit ? `\n\n${cookedFooter(input.credit)}` : '';
+	const body = `${boundedBody(
 		buildBody({
 			title,
 			branch,
@@ -104,7 +117,8 @@ export function automatedPullRequestMetadata(
 			changedPaths,
 			context,
 		}),
-	);
+		AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body - codePointLength(footer),
+	)}${footer}`;
 
 	return {
 		title,
@@ -307,6 +321,32 @@ function buildBody(
 	return sections.join('\n').trim();
 }
 
+function cookedFooter({ chef, agents }: PullRequestCredit): string {
+	const rows: Array<readonly [string, string]> = [
+		...(chef && HANDLE.test(chef.handle) ? [['Chef', chefLink(chef)] as const] : []),
+		...(agents > 0
+			? [['Kitchen', `${agents.toLocaleString('en-US')} agent${agents === 1 ? '' : 's'}`] as const]
+			: []),
+		['Dishes', 'Agents did em'],
+	];
+	return [
+		'<details>',
+		`<summary>🧑‍🍳 <sub>Cooked with <a href="${MALINI_URL}">Malini</a></sub></summary>`,
+		'<table>',
+		...rows.map(([label, cell]) => `<tr><td>${label}</td><td>${cell}</td></tr>`),
+		'</table>',
+		'</details>',
+	].join('\n');
+}
+
+function chefLink(chef: PullRequestChef): string {
+	const url = URL.canParse(chef.url) ? new URL(chef.url) : null;
+	const name = `@${chef.handle}`;
+	return url && (url.protocol === 'https:' || url.protocol === 'http:')
+		? `<a href="${url.href}">${name}</a>`
+		: name;
+}
+
 function eventStatusLabel(status?: PullRequestAutomationEventStatus): string {
 	return {
 		passed: 'Passed - ',
@@ -353,8 +393,7 @@ function wordBoundaryHead(value: string, limit: number): string {
 
 const WORD_BOUNDARY_FLOOR = 0.6;
 
-function boundedBody(value: string): string {
-	const limit = AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body;
+function boundedBody(value: string, limit: number): string {
 	if (codePointLength(value) <= limit) return value;
 	const head = bounded(value, limit - 2);
 	const lastLineBreak = head.lastIndexOf('\n');
