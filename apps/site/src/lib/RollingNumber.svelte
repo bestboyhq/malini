@@ -5,7 +5,7 @@
 	let { value }: { value: number } = $props();
 
 	const chars = $derived([...value.toLocaleString('en-US')]);
-	const roll = { duration: 420, easing: cubicOut, opacity: 0.2 };
+	const roll = { duration: 220, easing: cubicOut, opacity: 0.2 };
 </script>
 
 <span class="number">

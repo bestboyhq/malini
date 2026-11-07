@@ -8,9 +8,9 @@
 
 <div
 	class="till"
-	{@attach ticker(1400, () => {
-		tokensIn += Math.round(9000 + Math.random() * 28000);
-		tokensOut += Math.round(300 + Math.random() * 1400);
+	{@attach ticker(450, () => {
+		tokensIn += Math.round(2600 + Math.random() * 1800);
+		tokensOut += Math.round(70 + Math.random() * 110);
 	})}
 >
 	<div class="slot"></div>
