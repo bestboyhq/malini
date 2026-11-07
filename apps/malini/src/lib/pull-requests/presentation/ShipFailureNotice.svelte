@@ -72,7 +72,6 @@
 		<span class="text-warning-content flex min-w-0 items-center gap-1.5">
 			<Icon name="alert" size={12} class="shrink-0" />
 			<span class="truncate">{failure.label}</span>
-			<span class="text-fg-tertiary shrink-0 tabular-nums">· {failure.since}</span>
 		</span>
 		<div class="ml-auto flex shrink-0 items-center gap-1">
 			{#if failure.stage === 'draft' && !allowing}
