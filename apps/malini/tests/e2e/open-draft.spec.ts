@@ -34,6 +34,8 @@ test('Open draft commits and pushes the work under its generated title, and ever
 			'e2e-open-draft',
 			null,
 		);
+		git(worktree, 'config', 'user.name', 'E2E Chef');
+		git(worktree, 'config', 'user.email', 'chef@example.com');
 		await openWorkstream(page, 'e2e-open-draft');
 		const status = sidebarStatus(page, 'e2e-open-draft');
 
@@ -52,7 +54,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
 		expect(github.pushedHead()).toBe(headOf(worktree));
-		expect(git(worktree, 'log', '-1', '--format=%an')).toBe(git(worktree, 'config', 'user.name'));
+		expect(git(worktree, 'log', '-1', '--format=%an <%ae>')).toBe('E2E Chef <chef@example.com>');
 		expect(git(worktree, 'log', '-1', '--format=%(trailers:only,unfold)')).toBe(MALINI_CO_AUTHOR);
 		expect(github.pullRequest()?.body).toMatch(
 			/<summary>🧑‍🍳 <sub>Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/github\.com\/e2e-user">@e2e-user<\/a><\/td><\/tr>\n<tr><td>Kitchen<\/td><td>1 agent<\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did em<\/td><\/tr>\n<\/table>\n<\/details>$/u,
