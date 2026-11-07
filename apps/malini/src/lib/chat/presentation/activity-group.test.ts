@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	ACTIVITY_GROUP_DETAIL_MAX_CHARS,
 	ACTIVITY_GROUP_MIN_ITEMS,
+	foldRunWork,
 	groupRunTimeline,
 	withPendingRows,
 	type ActivityGroup,
@@ -579,5 +580,43 @@ describe('groupRunTimeline subagents', () => {
 		const joined = withPendingRows(groupRunTimeline([agent('a')]), [agent('b')]);
 		expect(joined).toMatchObject([{ key: 'subagents-a', agents: [{ key: 'a' }, { key: 'b' }] }]);
 		expect(withPendingRows(joined, [agent('b')])).toBe(joined);
+	});
+});
+
+describe('foldRunWork', () => {
+	const prompt: RunTimelineItem = { kind: 'user', key: 'prompt', seq: 0, text: 'Fix it' };
+
+	it('keeps the prompt, started workstreams and the last answer, and folds the work between', () => {
+		const note = assistant('Reading first.');
+		const answer = assistant('Fixed.');
+		const rows = groupRunTimeline([
+			prompt,
+			thought(2),
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Edit', { file_path: 'src/a.ts' }),
+			note,
+			startWorkstream('ws-1'),
+			command(),
+			answer,
+		]);
+		const folded = foldRunWork(rows);
+		expect(kinds(folded)).toEqual(['user', 'work-fold', 'workstreams', 'assistant']);
+		const fold = folded[1];
+		if (fold?.kind !== 'work-fold') throw new Error('expected a fold');
+		expect(kinds(fold.rows)).toEqual(['thought', 'activity-group', 'assistant', 'command']);
+		expect(fold.rows).toContain(note);
+		expect(folded[3]).toBe(answer);
+		expect(`${fold.verb} ${fold.detail}`).toBe('Edited a.ts, ran 1 command');
+	});
+
+	it('leaves a run with one step of work as it is', () => {
+		const rows = [prompt, tool('Read', { file_path: 'src/a.ts' }), assistant()];
+		expect(foldRunWork(rows)).toBe(rows);
+	});
+
+	it('counts steps when the work holds no tool calls', () => {
+		const fold = foldRunWork([prompt, thought(1), assistant('Thinking aloud.'), assistant()])[1];
+		if (fold?.kind !== 'work-fold') throw new Error('expected a fold');
+		expect(`${fold.verb} ${fold.detail}`).toBe('Worked 2 steps');
 	});
 });
