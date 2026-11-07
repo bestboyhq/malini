@@ -4,6 +4,11 @@ import { app, BrowserWindow, dialog } from 'electron';
 import { bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
 import { declareWorktreeScheme } from '$lib/browser/platform/worktree-files';
 import {
+	checkoutsHome,
+	moveCheckoutsHome,
+	reinstallMovedCheckouts,
+} from '$lib/shared/repositories/platform/checkouts-home';
+import {
 	serveWorkstreamImages,
 	WORKSTREAM_IMAGE_SCHEME_PRIVILEGES,
 } from '$lib/shared/repositories/platform/image-protocol';
@@ -90,11 +95,17 @@ async function boot(): Promise<void> {
 		return;
 	}
 
+	const checkoutsRoot = await moveCheckoutsHome({
+		db,
+		appDataRoot,
+		checkoutsRoot: checkoutsHome(appDataRoot, app.commandLine.hasSwitch('user-data-dir')),
+	});
 	const context: MainContext = {
 		db,
 		commands,
 		events: createEventBus(),
 		appDataRoot,
+		checkoutsRoot,
 		resourcesRoot: app.isPackaged ? process.resourcesPath : join(__dirname, '../..'),
 		isDev: !app.isPackaged,
 		appVersion: app.getVersion(),
@@ -109,6 +120,7 @@ async function boot(): Promise<void> {
 	if (context.isDev) assertContractIsRegistered(context.commands.names());
 	context.commands.install();
 	createMainWindow();
+	void reinstallMovedCheckouts(db, context.commands);
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

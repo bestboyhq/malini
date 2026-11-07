@@ -64,7 +64,7 @@ async function call(tool: string, input: object): Promise<void> {
 	runtime = new BridgeRuntime({
 		db: test.db,
 		events: test.events,
-		appDataRoot: test.appDataRoot,
+		checkoutsRoot: test.appDataRoot,
 		supervisorConfig: fake.supervisorConfig(),
 		leases: new AgentRunLeases(),
 		log: () => {},

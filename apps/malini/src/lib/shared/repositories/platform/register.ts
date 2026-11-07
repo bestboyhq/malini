@@ -138,7 +138,7 @@ export function registerRepositories(
 	context: MainContext,
 	deps: RepositoriesDeps = {},
 ): RepositoriesPlatform {
-	const { commands, db, events, appDataRoot } = context;
+	const { commands, db, events, appDataRoot, checkoutsRoot } = context;
 	const credentials = deps.credentials ?? noPromptCredentialEnv;
 	const shell = deps.shell ?? defaultCheckoutShell;
 	const githubReach = new GithubReachWatch({
@@ -158,7 +158,7 @@ export function registerRepositories(
 		(context.isDev ? DEVELOPMENT_BUNDLE_IDENTIFIER : PRODUCTION_BUNDLE_IDENTIFIER);
 	const ownership = new DockerOwnership({ db, runner, appDataRoot, bundleIdentifier });
 	const installs = new InstallRegistry(runner);
-	const checkouts = createCheckoutResolver({ db, appDataRoot });
+	const checkouts = createCheckoutResolver({ db, checkoutsRoot });
 	const media = workstreamMedia(context, checkouts);
 	const recordedBranch = (workstreamId: string): string =>
 		getWorkstream(db, workstreamId)?.branch ?? workstreamBranchName(workstreamId);
@@ -224,6 +224,7 @@ export function registerRepositories(
 		db,
 		events,
 		appDataRoot,
+		checkoutsRoot,
 		credentials,
 		baseSync,
 		guardTeardown,
@@ -232,7 +233,7 @@ export function registerRepositories(
 	commands.define('repositories.list-workstreams', () => {
 		const activeAt = workstreamActiveTimes(db);
 		return listWorkstreams(db).map((row) =>
-			workstreamDto(appDataRoot, row, activeAt.get(row.id) ?? row.createdAt),
+			workstreamDto(checkoutsRoot, row, activeAt.get(row.id) ?? row.createdAt),
 		);
 	});
 
@@ -287,7 +288,7 @@ export function registerRepositories(
 			workstreamId: checkedWorkstreamId(args),
 			name: requireNonEmptyString(args, 'name'),
 		});
-		return workstreamDto(appDataRoot, lead, lead.createdAt);
+		return workstreamDto(checkoutsRoot, lead, lead.createdAt);
 	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>
@@ -616,7 +617,7 @@ export function registerRepositories(
 				return [];
 			}
 			try {
-				return [recordedCheckoutPath(db, appDataRoot, row.id)];
+				return [recordedCheckoutPath(db, checkoutsRoot, row.id)];
 			} catch {
 				return [];
 			}
@@ -658,7 +659,7 @@ export function registerRepositories(
 	};
 
 	if (deps.startupReclaim ?? true) void reportStartupReclaim(platform);
-	void sweepArchivedLeftovers(db, appDataRoot);
+	void sweepArchivedLeftovers(db, checkoutsRoot);
 
 	return platform;
 }

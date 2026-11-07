@@ -92,7 +92,7 @@ export function cloneSeedFolder(db: MaliniDatabase, repoUrl: string): string | n
 
 export function resolveRepositoryCheckout(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	repository: ConnectedRepository,
 ): string | null {
 	if (repository.localPath && isGitCheckout(repository.localPath)) {
@@ -104,7 +104,7 @@ export function resolveRepositoryCheckout(
 	if (project && project.repoPath.length > 0 && existsSync(project.repoPath)) {
 		return project.repoPath;
 	}
-	const baseDir = repositoryBaseDir(appDataRoot, projectId);
+	const baseDir = repositoryBaseDir(checkoutsRoot, projectId);
 	return existsSync(baseDir) ? baseDir : null;
 }
 

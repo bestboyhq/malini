@@ -12,6 +12,7 @@
 		approvalReason,
 		approvalShortTarget,
 		approvalTargets,
+		leavesTheSandbox,
 		maliniToolApproval,
 	} from '$lib/chat/domain/approval-request';
 	import type { AgentApprovalScope } from '$lib/chat/domain/agent-interaction';
@@ -82,6 +83,7 @@
 	const submitting = $derived(interactionState.status === 'submitting');
 	const headingId = $derived(`agent-interaction-${item.kind}-${item.sessionId}-${item.seq}`);
 	const canOfferPersistentScope = $derived(canPersistAgentApproval(item.permission));
+	const leavesSandbox = $derived(leavesTheSandbox(item.toolName, item.input));
 	const maliniTool = $derived(
 		maliniToolApproval(
 			item.toolName,
@@ -246,6 +248,17 @@
 							Always allow
 						</Button>
 					</Tooltip>
+				{:else if leavesSandbox}
+					<Button
+						variant="secondary"
+						size="md"
+						bordered
+						class="text-xs"
+						disabled={submitting}
+						onclick={() => decideApproval(item, 'allow', 'session')}
+					>
+						Allow for this chat
+					</Button>
 				{:else if canOfferPersistentScope}
 					<Dropdown
 						bind:open={alwaysAllowOpen}

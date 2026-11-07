@@ -212,7 +212,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			app.on('browser-window-blur', stopWatchingStalls);
 			if (BrowserWindow.getFocusedWindow()) watchStalls();
 			void running.stopLeftovers({
-				folders: [{ id: 'workstreams', path: workstreamsRoot(context.appDataRoot) }],
+				folders: [{ id: 'workstreams', path: workstreamsRoot(context.checkoutsRoot) }],
 				live: liveFolders(),
 			});
 		},

@@ -92,7 +92,7 @@ export interface BridgeRuntimeHooks {
 export interface BridgeRuntimeDeps {
 	readonly db: MaliniDatabase;
 	readonly events: EventBus;
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly supervisorConfig: BridgeSupervisorConfig;
 	readonly leases: AgentRunLeases;
 	readonly providerEnvironment?: ResolveProviderEnvironment;
@@ -543,7 +543,7 @@ const TERMINAL_CAPTURE_STOP_BUDGET_MS = 10_000;
 export class BridgeRuntime {
 	private readonly db: MaliniDatabase;
 	private readonly events: EventBus;
-	private readonly appDataRoot: string;
+	private readonly checkoutsRoot: string;
 	private readonly supervisorConfig: BridgeSupervisorConfig;
 	private readonly leases: AgentRunLeases;
 	private readonly providerEnvironment: ResolveProviderEnvironment;
@@ -566,7 +566,7 @@ export class BridgeRuntime {
 		this.db = deps.db;
 		this.finishedTurns = new FinishedTurns(deps.db);
 		this.events = deps.events;
-		this.appDataRoot = deps.appDataRoot;
+		this.checkoutsRoot = deps.checkoutsRoot;
 		this.supervisorConfig = deps.supervisorConfig;
 		this.leases = deps.leases;
 		this.providerEnvironment = deps.providerEnvironment ?? (async () => ({}));
@@ -676,7 +676,7 @@ export class BridgeRuntime {
 		if (!session) throw new Error(`agent session \`${sessionId}\` not found`);
 		await registerPersistedBridgeSession(
 			this.db,
-			this.appDataRoot,
+			this.checkoutsRoot,
 			supervisor,
 			session,
 			this.providerEnvironment,
@@ -761,7 +761,7 @@ export class BridgeRuntime {
 			try {
 				await registerPersistedBridgeSession(
 					this.db,
-					this.appDataRoot,
+					this.checkoutsRoot,
 					replacement,
 					session,
 					this.providerEnvironment,

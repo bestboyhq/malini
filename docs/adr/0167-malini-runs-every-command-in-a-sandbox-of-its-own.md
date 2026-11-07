@@ -1,6 +1,6 @@
 # 0167 - Malini runs every command in a sandbox of its own
 
-Status: accepted
+Status: superseded by 0170
 
 ## Context
 

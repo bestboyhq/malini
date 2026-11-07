@@ -42,6 +42,7 @@ beforeEach(() => {
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: '/tmp/malini',
+		checkoutsRoot: '/tmp/malini',
 		resourcesRoot: '/tmp/malini',
 		isDev: false,
 		appVersion: '0.0.0',

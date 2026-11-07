@@ -78,6 +78,43 @@ test('a permission request waits for the user, hands the agent their decision, a
 	}
 });
 
+test('a command that asks to leave the sandbox can be allowed for the rest of the chat', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-sandbox-exit-ws',
+			'Sandbox exit workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+
+		await sendPrompt(page, 'SANDBOX_EXIT');
+		await expect(decision).toBeVisible({ timeout: 20_000 });
+		await expect(decision.getByRole('button', { name: 'Always allow' })).toHaveCount(0);
+		await captureFlow(app, 'sandbox-exit-allow-for-this-chat');
+		await decision.getByRole('button', { name: 'Allow for this chat' }).click();
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Allowed for this chat' }),
+		).toBeVisible();
+		await expectAssistantReply(page);
+		expect(await decisionTheAgentGot(page)).toEqual({ decision: 'allow', scope: 'session' });
+		await openWorkstream(page, workstreamId, currentSessionId(page) ?? undefined);
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Allowed for this chat' }),
+		).toBeVisible();
+		await captureFlow(app, 'sandbox-exit-allowed-for-this-chat');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a call auto mode blocks asks the user, and Always allow hands Claude the rule to keep', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

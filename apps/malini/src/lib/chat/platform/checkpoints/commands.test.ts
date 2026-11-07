@@ -51,6 +51,7 @@ async function harness(): Promise<Harness> {
 		commands,
 		events,
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot: appDataRoot,
 		isDev: true,
 		appVersion: '0.0.0-test',

@@ -102,7 +102,7 @@ export interface AgentServiceDeps {
 
 export interface BrowserRequestDeps {
 	readonly db: MaliniDatabase;
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly browser: BrowserAutomation | undefined;
 }
 
@@ -134,7 +134,7 @@ export async function answerBrowserRequest(
 				};
 			}
 			case 'screenshot': {
-				const shot = await browser.screenshot(tab, worktreePath(deps.appDataRoot, workstreamId));
+				const shot = await browser.screenshot(tab, worktreePath(deps.checkoutsRoot, workstreamId));
 				return {
 					ok: true,
 					text: `Screenshot of ${shot.url} saved to ${shot.path}. Embed it in your report as ![what it shows](${shot.path}).`,
@@ -265,7 +265,7 @@ export async function startAgentService(
 	const runtime = new BridgeRuntime({
 		db,
 		events: context.events,
-		appDataRoot: context.appDataRoot,
+		checkoutsRoot: context.checkoutsRoot,
 		leases: deps.leases,
 		...(deps.providerEnvironment ? { providerEnvironment: deps.providerEnvironment } : {}),
 		supervisorConfig: {
@@ -313,7 +313,7 @@ export async function startAgentService(
 						db,
 						commands: context.commands,
 						events: context.events,
-						appDataRoot: context.appDataRoot,
+						checkoutsRoot: context.checkoutsRoot,
 						sending,
 						deliveries,
 						...(deps.secrets ? { secrets: deps.secrets } : {}),
@@ -326,7 +326,7 @@ export async function startAgentService(
 					request,
 					await answerBrowserRequest(request, {
 						db,
-						appDataRoot: context.appDataRoot,
+						checkoutsRoot: context.checkoutsRoot,
 						browser: deps.browser,
 					}),
 				);
@@ -352,7 +352,7 @@ export async function startAgentService(
 	const commandDeps: BridgeCommandDeps = {
 		db,
 		runtime,
-		appDataRoot: context.appDataRoot,
+		checkoutsRoot: context.checkoutsRoot,
 		ids: new IdSequence(),
 		leases: deps.leases,
 		sending,
@@ -372,6 +372,7 @@ export async function startAgentService(
 				agentBoundary(automation, {
 					appDataRoot: context.appDataRoot,
 					appDataEntries: appDataEntries(context.appDataRoot),
+					checkoutsRoot: context.checkoutsRoot,
 					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),
 					starterPlan: lineage?.startedBy?.plan ?? null,
 				}),

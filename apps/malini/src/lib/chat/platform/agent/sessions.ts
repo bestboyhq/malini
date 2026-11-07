@@ -27,16 +27,16 @@ export function repairPersistedModel(
 	return repaired;
 }
 
-export function worktreePath(appDataRoot: string, workstreamId: string): string {
+export function worktreePath(checkoutsRoot: string, workstreamId: string): string {
 	try {
-		return resolveWorkstreamCheckoutCanonical(appDataRoot, workstreamId);
+		return resolveWorkstreamCheckoutCanonical(checkoutsRoot, workstreamId);
 	} catch (error) {
 		throw new Error(error instanceof Error ? error.message : String(error));
 	}
 }
 
-export function worktreeExists(appDataRoot: string, workstreamId: string): boolean {
-	return workstreamCheckoutExists(appDataRoot, workstreamId);
+export function worktreeExists(checkoutsRoot: string, workstreamId: string): boolean {
+	return workstreamCheckoutExists(checkoutsRoot, workstreamId);
 }
 
 export interface StartSessionInput {
@@ -174,12 +174,12 @@ export function persistedBridgeSessions(
 
 export async function registerPersistedBridgeSession(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	supervisor: BridgeSupervisor,
 	session: PersistedBridgeSession,
 	resolveProviderEnvironment: ResolveProviderEnvironment,
 ): Promise<void> {
-	const worktree = worktreePath(appDataRoot, session.workstreamId);
+	const worktree = worktreePath(checkoutsRoot, session.workstreamId);
 	const model = repairPersistedModel(db, session.id, session.model);
 	const environment =
 		model === null ? {} : await resolveProviderEnvironment(session.provider, model, 'reopened');

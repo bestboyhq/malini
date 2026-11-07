@@ -86,6 +86,7 @@ import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
 import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
+import { leavesTheSandbox } from '$lib/chat/domain/approval-request';
 import { userPromptText } from '../fork-transcript';
 import { agentRunProfileOf, isAgentApprovalScope } from '$contract/agent';
 import type { PermissionRuleScope } from '../permissions.repository';
@@ -465,7 +466,7 @@ function bridgeUnavailable(error: unknown): LifecycleError {
 export async function startAgentSession(
 	db: MaliniDatabase,
 	supervisor: BridgeSupervisor,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	provider: string,
 	model: string | null,
@@ -479,10 +480,10 @@ export async function startAgentSession(
 		throw new LifecycleError('invalid_agent_model', describe(error));
 	}
 	ensureBridgeReady(supervisor);
-	if (!worktreeExists(appDataRoot, workstreamId)) throw new LifecycleError('workstream_missing');
+	if (!worktreeExists(checkoutsRoot, workstreamId)) throw new LifecycleError('workstream_missing');
 	let worktree: string;
 	try {
-		worktree = worktreePath(appDataRoot, workstreamId);
+		worktree = worktreePath(checkoutsRoot, workstreamId);
 	} catch (error) {
 		throw bridgeUnavailable(error);
 	}
@@ -535,7 +536,7 @@ export async function startAgentSession(
 export async function getOrCreateAgentSession(
 	db: MaliniDatabase,
 	supervisor: BridgeSupervisor,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	provider: string,
 	model: string | null,
@@ -548,10 +549,10 @@ export async function getOrCreateAgentSession(
 		throw new LifecycleError('invalid_agent_model', describe(error));
 	}
 	ensureBridgeReady(supervisor);
-	if (!worktreeExists(appDataRoot, workstreamId)) throw new LifecycleError('workstream_missing');
+	if (!worktreeExists(checkoutsRoot, workstreamId)) throw new LifecycleError('workstream_missing');
 	let worktree: string;
 	try {
-		worktree = worktreePath(appDataRoot, workstreamId);
+		worktree = worktreePath(checkoutsRoot, workstreamId);
 	} catch (error) {
 		throw bridgeUnavailable(error);
 	}
@@ -582,7 +583,7 @@ export async function getOrCreateAgentSession(
 	return startAgentSession(
 		db,
 		supervisor,
-		appDataRoot,
+		checkoutsRoot,
 		workstreamId,
 		provider,
 		model,
@@ -594,7 +595,7 @@ export async function getOrCreateAgentSession(
 export async function activateAgentSession(
 	db: MaliniDatabase,
 	runtime: BridgeRuntime,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	sessionId: string,
 	resolveProviderEnvironment: ResolveProviderEnvironment,
 ): Promise<void> {
@@ -610,11 +611,11 @@ export async function activateAgentSession(
 	);
 	if (!row) throw new Error('Query returned no rows');
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
-	if (!worktreeExists(appDataRoot, row.workstream_id)) return;
+	if (!worktreeExists(checkoutsRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
 	const environment =
 		model === null ? {} : await resolveProviderEnvironment(row.provider, model, 'reopened');
-	const worktree = worktreePath(appDataRoot, row.workstream_id);
+	const worktree = worktreePath(checkoutsRoot, row.workstream_id);
 	const supervisor = await runtime.ensureReady();
 	const command = startSessionCommand({
 		commandId: supervisor.nextCommandId(),
@@ -1279,7 +1280,14 @@ export async function decideAgentApproval(
 		fingerprint: string;
 		permission: unknown;
 	} | null = null;
-	if (decision === 'allow' && scope !== 'once') {
+	const forThisChat =
+		decision === 'allow' &&
+		scope === 'session' &&
+		leavesTheSandbox(
+			requestToolName(record),
+			isRecord(record.requestPayload) ? record.requestPayload['input'] : undefined,
+		);
+	if (decision === 'allow' && scope !== 'once' && !forThisChat) {
 		if (permission === null)
 			throw new Error('remembered approval requires the exact pending permission descriptor');
 		const identity = activeRunWorkstreamIdentity(db, sessionId, runId);
@@ -1475,7 +1483,7 @@ export async function resetAgentWorkstreamRuns(
 export interface BridgeCommandDeps {
 	readonly db: MaliniDatabase;
 	readonly runtime: BridgeRuntime;
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly hooks: SendPromptHooks;
 	readonly ids: IdSequence;
 	readonly leases: AgentRunLeases;
@@ -1645,7 +1653,7 @@ export function defineBridgeCommands(
 	commands: CommandRegistry,
 	deps: BridgeCommandDeps,
 ): SendPrompt {
-	const { db, runtime, appDataRoot, ids, leases, sending } = deps;
+	const { db, runtime, checkoutsRoot, ids, leases, sending } = deps;
 	const log = deps.log ?? defaultLog;
 	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
 
@@ -1658,7 +1666,7 @@ export function defineBridgeCommands(
 		const sessionId = await startAgentSession(
 			db,
 			supervisor,
-			appDataRoot,
+			checkoutsRoot,
 			workstreamId,
 			provider,
 			model,
@@ -1678,7 +1686,7 @@ export function defineBridgeCommands(
 		const sessionId = await getOrCreateAgentSession(
 			db,
 			supervisor,
-			appDataRoot,
+			checkoutsRoot,
 			workstreamId,
 			provider,
 			model,
@@ -1713,7 +1721,7 @@ export function defineBridgeCommands(
 		activateAgentSession(
 			db,
 			runtime,
-			appDataRoot,
+			checkoutsRoot,
 			requireString(args, 'sessionId'),
 			deps.providerEnvironment,
 		),
@@ -1742,7 +1750,7 @@ export function defineBridgeCommands(
 		const requested = optionalStringArray(args, 'attachmentIds');
 		const worktree = resolvePromptWorktree(
 			db,
-			appDataRoot,
+			checkoutsRoot,
 			workstreamId,
 			[...requested, ...promptChipIds(prompt, 'attachment')],
 			deps.hooks,
@@ -1942,7 +1950,7 @@ export function defineBridgeCommands(
 
 function resolvePromptWorktree(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	attachmentIds: readonly string[],
 	hooks: SendPromptHooks,
@@ -1950,7 +1958,7 @@ function resolvePromptWorktree(
 	const recorded = getWorkstream(db, workstreamId)?.path ?? null;
 	let worktree: string;
 	try {
-		worktree = resolveWorkstreamCheckoutCanonicalRecorded(appDataRoot, workstreamId, recorded);
+		worktree = resolveWorkstreamCheckoutCanonicalRecorded(checkoutsRoot, workstreamId, recorded);
 	} catch (error) {
 		throw new LifecycleError('start_snapshot_failed', describe(error));
 	}

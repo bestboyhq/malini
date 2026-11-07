@@ -75,7 +75,7 @@ export async function registerModules(
 	const shellHost = overrides.shellHost ?? createElectronShellHost();
 	followSavedThemeMode(context.db, shellHost);
 
-	await restoreStrandedCheckouts(context.db, context.appDataRoot);
+	await restoreStrandedCheckouts(context.db, context.checkoutsRoot);
 	const stopBackgroundCommands = async (workstreamId: string): Promise<void> => {
 		await chat.stopWorkstreamBackgroundCommands(workstreamId);
 		await agentRunLeases.runChangeCaptureSettled(workstreamId);

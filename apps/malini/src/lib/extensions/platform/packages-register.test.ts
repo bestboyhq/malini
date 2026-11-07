@@ -42,6 +42,7 @@ function boot(): { context: MainContext; runtime: ExtensionsPlatform; root: stri
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot,
 		isDev: true,
 		appVersion: '0.1.0-test',
