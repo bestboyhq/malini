@@ -54,6 +54,7 @@ export interface PageEvents {
 
 export interface HostWindow {
 	isDestroyed(): boolean;
+	isFocused(): boolean;
 	readonly webContents: { getZoomFactor(): number; focus(): void };
 }
 
