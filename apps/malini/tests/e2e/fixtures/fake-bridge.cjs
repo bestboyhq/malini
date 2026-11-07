@@ -1192,6 +1192,25 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('SANDBOX_EXIT')) {
+		const input = { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true };
+		pendingRuns.set(runId, sessionId);
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-outside-1',
+			reason:
+				"This command asks to run outside Malini's sandbox, where it can read and change anything on your Mac and reach any site.",
+			toolName: 'Bash',
+			input,
+			permission: {
+				capability: 'execute',
+				resources: [{ kind: 'command', value: input.command, boundary: 'unknown' }],
+			},
+		});
+		return;
+	}
 	if (prompt.includes('APPROVAL')) {
 		pendingRuns.set(runId, sessionId);
 		if (prompt.includes('APPROVAL_HOLD')) heldApprovals.add(runId);

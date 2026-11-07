@@ -41,6 +41,7 @@ beforeEach(() => {
 		commands: new CommandRegistry(),
 		events,
 		appDataRoot: '/tmp/automations-test',
+		checkoutsRoot: '/tmp/automations-test',
 		resourcesRoot: '/tmp/automations-test',
 		isDev: true,
 		appVersion: '0.0.0-test',

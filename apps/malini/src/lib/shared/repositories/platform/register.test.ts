@@ -83,6 +83,7 @@ beforeEach(() => {
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: root,
+		checkoutsRoot: root,
 		resourcesRoot: root,
 		isDev: true,
 		appVersion: '0.0.0-test',

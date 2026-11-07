@@ -3,6 +3,16 @@ export type WorkstreamStatus = 'active' | 'paused' | 'merged' | 'archived';
 export type WorkstreamCheckoutState =
 	'healthy' | 'path-diverged' | 'missing' | 'not-a-checkout' | 'unresolvable';
 
+export type CheckoutsFolderProblem =
+	'inside-checkouts' | 'other-disk' | 'not-empty' | 'not-writable' | 'move-failed';
+
+export type CheckoutsFolder = Readonly<{
+	folder: string;
+	next: string | null;
+	home: string;
+	problem: Readonly<{ folder: string; reason: CheckoutsFolderProblem }> | null;
+}>;
+
 export interface Project {
 	id: string;
 	name: string;

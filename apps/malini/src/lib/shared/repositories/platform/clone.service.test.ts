@@ -38,7 +38,7 @@ describe('ensureBaseClone', () => {
 
 		const path = await ensureBaseClone({
 			repoPath: source,
-			appDataRoot: appData,
+			checkoutsRoot: appData,
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: (progress) => events.push(progress),
@@ -58,7 +58,7 @@ describe('ensureBaseClone', () => {
 		const appData = join(dir, 'app-data');
 		const input = {
 			repoPath: source,
-			appDataRoot: appData,
+			checkoutsRoot: appData,
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
@@ -90,7 +90,7 @@ describe('ensureBaseClone', () => {
 		};
 		await ensureBaseClone({
 			repoPath: 'https://example.com/acme/repo-token.git',
-			appDataRoot: appData,
+			checkoutsRoot: appData,
 			githubToken: '  ghs_live  ',
 			credentials,
 			onProgress: () => undefined,
@@ -117,7 +117,7 @@ describe('ensureBaseClone', () => {
 		await expect(
 			ensureBaseClone({
 				repoPath: join(dir, 'does-not-exist'),
-				appDataRoot: appData,
+				checkoutsRoot: appData,
 				githubToken: null,
 				credentials: noPromptCredentialEnv,
 				onProgress: () => undefined,
@@ -136,7 +136,7 @@ describe('ensureBaseClone', () => {
 		await expect(
 			ensureBaseClone({
 				repoPath: join(dir, 'does-not-exist'),
-				appDataRoot: appData,
+				checkoutsRoot: appData,
 				githubToken: null,
 				credentials: noPromptCredentialEnv,
 				onProgress: () => undefined,
@@ -174,7 +174,7 @@ describe('ensureBaseClone', () => {
 
 		const { path } = await ensureBaseCloneWithOutcome({
 			repoPath: remote,
-			appDataRoot: join(dir, 'app-data'),
+			checkoutsRoot: join(dir, 'app-data'),
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
@@ -216,7 +216,7 @@ describe('ensureBaseClone', () => {
 		await expect(
 			ensureBaseCloneWithOutcome({
 				repoPath: join(dir, 'gone.git'),
-				appDataRoot: appData,
+				checkoutsRoot: appData,
 				githubToken: null,
 				credentials: noPromptCredentialEnv,
 				onProgress: () => undefined,
@@ -236,7 +236,7 @@ describe('ensureBaseClone', () => {
 
 		const { path } = await ensureBaseCloneWithOutcome({
 			repoPath: remote,
-			appDataRoot: join(dir, 'app-data'),
+			checkoutsRoot: join(dir, 'app-data'),
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
@@ -255,7 +255,7 @@ describe('ensureBaseClone', () => {
 
 		const { path } = await ensureBaseCloneWithOutcome({
 			repoPath: `file://${remote}`,
-			appDataRoot: join(dir, 'app-data'),
+			checkoutsRoot: join(dir, 'app-data'),
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,

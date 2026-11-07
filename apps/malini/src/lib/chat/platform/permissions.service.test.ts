@@ -58,7 +58,6 @@ afterEach(() => {
 
 describe('normalizeRememberablePermission', () => {
 	beforeEach(() => vi.stubEnv('HOME', tempDir()));
-	afterEach(() => vi.unstubAllEnvs());
 
 	it('normalizes only canonical external reads', () => {
 		const root = tempDir();

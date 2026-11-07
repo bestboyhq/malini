@@ -10,7 +10,14 @@ const asarArchive = join(dirname(electronBinary), '..', 'Resources', 'default_ap
 
 test('boot empties a trashed checkout whose node_modules holds an asar archive', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
-	const trashed = join(root, 'user-data', 'workstreams', '.trash', `gone-ws-${Date.now()}`);
+	const trashed = join(
+		root,
+		'user-data',
+		'checkouts',
+		'workstreams',
+		'.trash',
+		`gone-ws-${Date.now()}`,
+	);
 	const resources = join(trashed, 'node_modules', 'electron', 'dist', 'Resources');
 	mkdirSync(resources, { recursive: true });
 	copyFileSync(asarArchive, join(resources, 'default_app.asar'));

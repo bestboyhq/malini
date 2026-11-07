@@ -124,6 +124,7 @@ function harness(database: MaliniDatabase): MainContext {
 		commands,
 		events,
 		appDataRoot: '/tmp/automations-test',
+		checkoutsRoot: '/tmp/automations-test',
 		resourcesRoot: '/tmp/automations-test',
 		isDev: true,
 		appVersion: '0.0.0-test',

@@ -58,7 +58,10 @@ const CLONE_WAIT_MS = 40_000;
 const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
 
-export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events' | 'appDataRoot'> &
+export type PlatformRequestDeps = Pick<
+	MainContext,
+	'db' | 'commands' | 'events' | 'checkoutsRoot'
+> &
 	Readonly<{
 		sending: PromptsInFlight;
 		deliveries: ChatDeliveries;
@@ -244,7 +247,7 @@ async function runPlatformTool(
 			const { workstreamId } = requestSession(db, request);
 			return openFileForUser(deps, {
 				workstreamId,
-				worktree: worktreePath(deps.appDataRoot, workstreamId),
+				worktree: worktreePath(deps.checkoutsRoot, workstreamId),
 				path: requiredText(input, 'path'),
 				line: lineNumber(input, 'line'),
 			});

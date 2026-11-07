@@ -113,6 +113,7 @@ function harness(): MainContext {
 		commands,
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: '/tmp/automation-schedules-test',
+		checkoutsRoot: '/tmp/automation-schedules-test',
 		resourcesRoot: '/tmp/automation-schedules-test',
 		isDev: true,
 		appVersion: '0.0.0-test',
