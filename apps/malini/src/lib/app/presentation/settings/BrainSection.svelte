@@ -5,7 +5,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Switch } from '$hyper-ui/components/switch';
 	import { Well } from '$hyper-ui/components/well';
-	import { AUTOMATIONS_HREF, automationHref } from '$shared/router/routes-hrefs';
+	import { AUTOMATIONS_HREF, BRAIN_HREF, automationHref } from '$shared/router/routes-hrefs';
 	import { revealWorkstreamInFinderCommand } from '$shared/repositories/repositories.api';
 	import { applyAutomationDefaultsCommand } from '$lib/app/application/commands/apply-automation-defaults.command';
 	import { automationDefaultsQuery } from '$lib/app/application/queries/automation-defaults.query.svelte';
@@ -66,6 +66,14 @@
 </script>
 
 <SettingsSection title="Brain" description="Notes on what your chats taught you.">
+	{#snippet actions()}
+		{#if status?.set}
+			<Button variant="secondary" size="md" radius="full" bordered href={BRAIN_HREF}>
+				Open the brain
+			</Button>
+		{/if}
+	{/snippet}
+
 	{#if status?.problem}
 		<div
 			class="border-surface-50-border bg-surface-50 flex items-center gap-3 rounded-xl border-[0.5px] px-4 py-3"

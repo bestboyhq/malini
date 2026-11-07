@@ -213,7 +213,7 @@ An automation shows where it runs.
 Above the composer, a chat lists its workstream's live automations, one line each: first the ones that need you, then the running ones, then the queue, oldest first.
 A finished automation leaves the list.
 An automation with no workstream, such as a schedule at Home, shows under **In progress** on the Automations page.
-The **Automations** icon at the top, between the sidebar and Settings icons, opens that page.
+The **Automations** icon at the top, beside the sidebar icon, opens that page.
 Its dot shows that something needs you or runs, and its tooltip counts them.
 
 An automation that needs you says why at the end of its line: **Conflicts**, **Failed**, **Wants to run**, or **Asks you**.

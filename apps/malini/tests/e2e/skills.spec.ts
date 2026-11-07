@@ -14,6 +14,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	openSettingsFromMenu,
 } from './harness';
 
 test('setup goes from accounts straight to sounds, with no skills to sort', async () => {
@@ -64,7 +65,7 @@ test('Settings ranks skills by use and turns a skill and a plugin off in Claude 
 		await sendPrompt(page, 'WHICH_SKILLS');
 		await expect(page.getByText('Skills: all')).toBeVisible({ timeout: 30_000 });
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Skills' })

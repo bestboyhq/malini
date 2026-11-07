@@ -29,16 +29,15 @@ test('the Brain page renders a note, its wiki link jumps to the log day, and the
 			'Sandbox rules',
 		);
 		await openWorkstream(page, seeded.workstreamId);
-		await page.getByRole('link', { name: 'Open the brain' }).click();
-		await expect(page).toHaveTitle('Malini · Brain');
-		await expect(page.getByRole('heading', { name: 'No brain yet', level: 1 })).toBeVisible({
-			timeout: 20_000,
-		});
-		await expect(page.getByRole('button', { name: 'Set up the brain' })).toBeVisible();
-		await captureFlow(app, 'brain-page-not-set-up');
-
 		const status = await invoke<BrainStatus>(page, 'brain.set-up', { sync: true });
 		expect(status.location).toBeTruthy();
+		await page.evaluate(() => {
+			location.hash = '#/settings/brain';
+		});
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await settings.getByRole('link', { name: 'Open the brain' }).click();
+		await expect(settings).toHaveCount(0);
+		await expect(page).toHaveTitle('Malini · Brain');
 		await expect(page.getByRole('heading', { name: 'Nothing here yet', level: 1 })).toBeVisible({
 			timeout: 20_000,
 		});

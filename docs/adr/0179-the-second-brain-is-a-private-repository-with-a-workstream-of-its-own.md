@@ -32,7 +32,7 @@ Chats hold secrets and private code, and 0167 lets an automation see only what i
   Its boundary is the event's facts, no automation before it, no chat, no attachment and no internet, so under 0167 it reads and writes its checkout and nothing else.
   When it succeeds, Malini puts back whatever it changed under `log/` (`restoreLog` in `brain-git.ts`) before it commits, so the log stays append-only whatever the instructions say.
 - **A slice of its own.**
-  `src/lib/brain` holds the platform (`brain.platform.ts`, with `brain.status`, `brain.set-up`, `brain.set-sync`, `brain.list`, `brain.read`, `brain.capture` and the `brain:changed` event) and the renderer layers behind `brain.api.ts`; the Brain page, its route and sidebar entry, Settings, Brain and setup's checkbox live in `app`.
+  `src/lib/brain` holds the platform (`brain.platform.ts`, with `brain.status`, `brain.set-up`, `brain.set-sync`, `brain.list`, `brain.read`, `brain.capture` and the `brain:changed` event) and the renderer layers behind `brain.api.ts`; the Brain page, its route, Settings, Brain with its **Open the brain** and setup's checkbox live in `app`, and **Brain** in the profile menu lives in `stats`.
   `brain.read` opens only a `.md` file under `notes/` or `log/`, and lists the notes that link to it with `[[<path>]]` as **Linked from**.
 
 ## Consequences

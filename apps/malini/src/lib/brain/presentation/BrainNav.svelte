@@ -63,7 +63,9 @@
 
 	<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Brain">
 		<nav class="flex flex-col gap-px px-2.5 pt-4 pb-4" aria-label="Brain">
-			<h2 class="text-fg-tertiary px-2 pt-1 pb-2.5 text-xs font-medium">Brain</h2>
+			{#if topics.length > 0}
+				<h2 class="text-fg-tertiary px-2 pt-1 pb-2.5 text-xs font-medium">Brain</h2>
+			{/if}
 			{#each topics as topic (topic.key)}
 				{@const open = inTopic(topic, shown)}
 				{@const href = topic.entry?.path ?? topic.children[0]?.path ?? null}
@@ -78,7 +80,14 @@
 			{/each}
 
 			{#if logDays.length > 0}
-				<h2 class="text-fg-tertiary px-2 pt-6 pb-2.5 text-xs font-medium">Log</h2>
+				<h2
+					class={[
+						'text-fg-tertiary px-2 pb-2.5 text-xs font-medium',
+						topics.length > 0 ? 'pt-6' : 'pt-1',
+					]}
+				>
+					Log
+				</h2>
 				{#each logDays as day (day.entry.path)}
 					{@render row(day.label, day.entry.path, 0, false)}
 				{/each}

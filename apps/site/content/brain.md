@@ -75,7 +75,7 @@ Malini sends no chat anywhere else, and the brain reaches GitHub through the Git
 
 ## The Brain page
 
-The note icon at the top of the sidebar, between Automations and Settings, opens it.
+**Brain** in your profile menu, at the bottom of the sidebar, opens it, and so does **Open the brain** in Settings, Brain.
 Its sidebar lists the notes by topic and the log by day, and **Workstreams** takes you back.
 A note shows when it was last rewritten, its links to log days open them, and **Linked from** lists the notes that link to the page you read.
 The line on top says where the brain is: synced to your repository and when, waiting to push, or on this Mac.

@@ -611,6 +611,14 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
+export async function openSettingsFromMenu(page: Page): Promise<void> {
+	await page.getByTestId('sidebar-open-profile').click();
+	await page
+		.getByRole('menu', { name: 'Your profile' })
+		.getByRole('menuitem', { name: 'Settings' })
+		.click();
+}
+
 export async function openAutomations(page: Page, hash = '#/automations'): Promise<void> {
 	await page.evaluate((next) => {
 		globalThis.location.hash = next;

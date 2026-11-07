@@ -13,6 +13,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	openSettingsFromMenu,
 } from './harness';
 import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
 
@@ -54,7 +55,7 @@ test('Settings open over the current page, take focus, and close on Escape', asy
 			timeout: 20_000,
 		});
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		const dialog = page.getByRole('dialog', { name: 'Settings' });
 		await expect(dialog).toBeVisible();
 		await expect(settingsSection(page, 'Accounts')).toHaveAttribute('aria-current', 'page');
@@ -347,7 +348,7 @@ test('Settings → Models sets the window every chat compacts at, 280K until the
 		await sendPrompt(page, 'WHICH_WINDOW');
 		await expect(page.getByText('Compacts at 280000')).toBeVisible({ timeout: 30_000 });
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await settingsSection(page, 'Models').click();
 		const slider = page.getByRole('slider', { name: 'Context window' });
 		await expect(slider).toHaveValue('280000');
