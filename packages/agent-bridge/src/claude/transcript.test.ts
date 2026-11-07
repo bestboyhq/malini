@@ -21,6 +21,7 @@ const RECORDED_SCENARIOS: readonly RecordedScenario[] = [
 	'retriedStream',
 	'nonStreamingFallback',
 	'compact',
+	'steRewrite',
 ];
 const RETRIED_MESSAGE = 'msg_011Cg8VYeFbmT1U91bsswPCg';
 const RETRY_MESSAGE = 'msg_011Cg8VYwWSAspzarueMPAGY';
@@ -32,12 +33,15 @@ const BACKGROUND_COMMAND = {
 	startedAt: expect.any(Number),
 };
 
-function replay(messages: readonly SDKMessage[]): {
+function replay(
+	messages: readonly SDKMessage[],
+	holdsReplies = false,
+): {
 	events: AgentEvent[];
 	transcript: ClaudeTranscript;
 } {
 	const events: AgentEvent[] = [];
-	const transcript = new ClaudeTranscript('run-1', (event) => events.push(event));
+	const transcript = new ClaudeTranscript('run-1', (event) => events.push(event), holdsReplies);
 	for (const message of messages) transcript.accept(message);
 	return { events, transcript };
 }
@@ -147,6 +151,33 @@ describe('ClaudeTranscript', () => {
 		expect(closed.map(({ text }) => text)).toEqual(['', '']);
 		expect(new Set(closed.map(({ contentId }) => contentId))).toEqual(announced);
 	});
+
+	it('shows only the rewrite of a reply the reply check sent back', () => {
+		const { events } = replay(recordedMessages('steRewrite'), true);
+
+		const [rejected, rewrite] = ofType(replayRecorded('steRewrite').events, 'assistant.message');
+		expect(ofType(events, 'assistant.message')).toEqual([rewrite]);
+		expect(ofType(events, 'stream.discarded')).toEqual([
+			{
+				type: 'stream.discarded',
+				runId: 'run-1',
+				contentIds: [rejected?.contentId],
+				toolCallIds: [],
+			},
+		]);
+		for (const [id, endings] of streamEndings(events)) {
+			expect({ id, endings: endings.length }).toEqual({ id, endings: 1 });
+		}
+	});
+
+	it.each(RECORDED_SCENARIOS.filter((scenario) => scenario !== 'steRewrite'))(
+		'keeps every reply of %s, in order, when it holds replies for the reply check',
+		(scenario) => {
+			const held = replay(recordedMessages(scenario), true).events;
+
+			expect(held).toEqual(replayRecorded(scenario).events);
+		},
+	);
 
 	it.each(RECORDED_SCENARIOS)('ends every block streamed in %s exactly once', (scenario) => {
 		const { events } = replayRecorded(scenario);

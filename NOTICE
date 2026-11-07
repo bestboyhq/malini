@@ -131,6 +131,12 @@ device-added.flac and service-login.flac in apps/malini/src/renderer/public/soun
 Malini changed each file: it leveled the loudness and converted it to FLAC.
 The changed files are licensed under CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/.
 
+Adapted work
+------------
+
+Close My Lid (MIT): Copyright (c) 2026 Krish Kalaria (https://github.com/krishkalaria12/close-my-lid)
+Keep working with the lid closed, in apps/malini/src/lib/app/platform/lid-hold.ts, follows its design and its sudoers rule.
+
 Website
 -------
 
