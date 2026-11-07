@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
+	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { Skeleton } from '$hyper-ui/components/skeleton';
 	import { Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
@@ -32,9 +33,10 @@
 	const CLOCK_MS = 30_000;
 	const SKELETON_WIDTHS = ['38%', '30%', '44%', '26%', '34%'];
 	const ROW =
-		'hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex h-11 w-full cursor-pointer items-center gap-3 px-4 text-left outline-none';
-	const SECONDARY_ROW =
-		'border-surface-50-border text-fg-secondary hover:text-fg-default not-first:border-t-[0.5px] text-sm';
+		'hover:bg-surface-100-hover focus-visible:bg-surface-100-hover flex h-8 w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 text-left outline-none disabled:cursor-default disabled:hover:bg-transparent';
+	const ACTION_ROW =
+		'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default text-sm';
+	const ICON_SLOT = 'text-fg-tertiary grid size-4 shrink-0 place-items-center';
 	const KEY =
 		'border-chip-border bg-chip text-2xs text-fg-tertiary rounded border px-1.5 py-0.5 font-sans';
 
@@ -48,6 +50,7 @@
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
 	const rows = $derived(listing.kind === 'loaded' ? listing.repositories.slice(0, ROWS) : []);
+	const listed = $derived(listing.kind !== 'loaded' || rows.length > 0);
 
 	onMount(() => showOnboardingHook('picker'));
 
@@ -68,32 +71,29 @@
 </script>
 
 <div
-	class="flex w-full justify-center px-6 pt-[18vh] pb-6"
+	class="mx-auto flex w-full max-w-[640px] px-6 pt-[18vh] pb-6"
 	in:fade={{ duration: motionOff() ? 0 : 150 }}
 >
 	<section
-		class="flex w-[600px] max-w-full flex-col"
+		class="flex w-full flex-col gap-5"
 		aria-label="Your repositories"
 		data-testid="first-repository-picker"
 	>
 		<h1 class="text-fg-default text-2xl font-medium tracking-tight">What are we working on?</h1>
 		{#if signedOut}
-			<div class="mt-6">
-				<GitHubSetup nested />
-			</div>
+			<GitHubSetup nested />
 		{/if}
-		<div
-			class={[
-				'border-surface-50-border bg-surface-50 overflow-hidden rounded-2xl border-[0.5px]',
-				signedOut ? 'mt-3' : 'mt-6',
-			]}
-		>
-			{#if !signedOut}
+		<ComposerShell>
+			{#if !signedOut && listed}
 				{#if listing.kind === 'loading'}
-					<ul aria-busy="true" aria-label="Loading your GitHub repositories">
+					<ul
+						class="flex flex-col p-1"
+						aria-busy="true"
+						aria-label="Loading your GitHub repositories"
+					>
 						{#each SKELETON_WIDTHS as width (width)}
-							<li class="flex h-11 items-center gap-3 px-4">
-								<Skeleton shape="rect" width="1.25rem" height="1.25rem" />
+							<li class="flex h-8 items-center gap-3 px-2.5">
+								<Skeleton shape="rect" width="1rem" height="1rem" />
 								<Skeleton shape="text" {width} height="0.625rem" />
 							</li>
 						{/each}
@@ -102,7 +102,7 @@
 					<StateBlock
 						layout="inline"
 						tone="caution"
-						class="px-4"
+						class="px-3.5"
 						heading="Could not load your GitHub repositories"
 						detail={listing.failure.detail}
 						remedy={listing.failure.remedy}
@@ -113,76 +113,76 @@
 							<Icon name="alert" size={14} />
 						{/snippet}
 					</StateBlock>
-				{:else if rows.length > 0}
-					<ul aria-label="Your GitHub repositories">
+				{:else}
+					<ul class="flex flex-col p-1" aria-label="Your GitHub repositories">
 						{#each rows as repository (repository.fullName)}
 							{@const state = stateOf(repository)}
-							<li class="border-surface-50-border not-first:border-t-[0.5px]">
+							<li>
 								<Button
 									bare
 									ariaLabel={repository.fullName}
 									disabled={state.kind === 'cloning'}
 									ariaBusy={state.kind === 'cloning'}
-									class={[ROW, 'disabled:cursor-default disabled:hover:bg-transparent']}
+									class={ROW}
 									data-testid="first-repository"
 									onclick={() =>
 										pickGithubRepositoryCommand(repository, state, { open: 'workstream' })}
 								>
-									<GithubRepositoryLabel {repository} {state} {nowMs} />
+									<GithubRepositoryLabel {repository} {state} {nowMs} compact />
 								</Button>
 							</li>
 						{/each}
 					</ul>
 				{/if}
-				<Button
-					bare
-					ariaHasPopup="dialog"
-					ariaKeyshortcuts="Meta+K"
-					class={[ROW, SECONDARY_ROW]}
-					onclick={() => openCommandCenterCommand('find')}
-				>
-					<span class="text-fg-tertiary grid size-5 place-items-center">
-						<Icon name="search" size={14} />
-					</span>
-					<span class="flex-1">More repositories</span>
-					<kbd class={KEY}>⌘K</kbd>
-				</Button>
+				<div class="border-surface-150-border mx-3.5 border-t-[0.5px]" role="separator"></div>
 			{/if}
-			<Button
-				bare
-				ariaKeyshortcuts="Meta+O"
-				disabled={connecting !== null}
-				ariaBusy={connecting === 'folder'}
-				class={[ROW, SECONDARY_ROW, 'disabled:cursor-default disabled:hover:bg-transparent']}
-				onclick={() => openRepositoryFolderCommand({ open: 'workstream' })}
-			>
-				<span class="text-fg-tertiary grid size-5 place-items-center">
-					<Icon name="folder-open" size={14} />
-				</span>
-				<span class="flex-1">{connecting === 'folder' ? 'Opening…' : 'Open a folder'}</span>
-				<kbd class={KEY}>⌘O</kbd>
-			</Button>
-			{#if !signedOut}
-				<Button
-					bare
-					ariaHasPopup="dialog"
-					class={[ROW, SECONDARY_ROW]}
-					onclick={() => openCommandCenterCommand('new-repository')}
-				>
-					<span
-						class="border-border-default text-fg-tertiary grid size-5 place-items-center rounded-md border-[0.5px] border-dashed"
+			<div class="flex flex-col p-1">
+				{#if !signedOut}
+					<Button
+						bare
+						ariaHasPopup="dialog"
+						ariaKeyshortcuts="Meta+K"
+						class={[ROW, ACTION_ROW]}
+						onclick={() => openCommandCenterCommand('find')}
 					>
-						<Icon name="plus" size={14} />
+						<span class={ICON_SLOT}>
+							<Icon name="search" size={14} />
+						</span>
+						<span class="flex-1">More repositories</span>
+						<kbd class={KEY}>⌘K</kbd>
+					</Button>
+				{/if}
+				<Button
+					bare
+					ariaKeyshortcuts="Meta+O"
+					disabled={connecting !== null}
+					ariaBusy={connecting === 'folder'}
+					class={[ROW, ACTION_ROW]}
+					onclick={() => openRepositoryFolderCommand({ open: 'workstream' })}
+				>
+					<span class={ICON_SLOT}>
+						<Icon name="folder-open" size={14} />
 					</span>
-					New repository
+					<span class="flex-1">{connecting === 'folder' ? 'Opening…' : 'Open a folder'}</span>
+					<kbd class={KEY}>⌘O</kbd>
 				</Button>
-			{/if}
-		</div>
+				{#if !signedOut}
+					<Button
+						bare
+						ariaHasPopup="dialog"
+						class={[ROW, ACTION_ROW]}
+						onclick={() => openCommandCenterCommand('new-repository')}
+					>
+						<span class={[ICON_SLOT, 'border-border-default rounded-md border border-dashed']}>
+							<Icon name="plus" size={12} />
+						</span>
+						New repository
+					</Button>
+				{/if}
+			</div>
+		</ComposerShell>
 		{#if connectError}
-			<div
-				class="border-border-default mt-3 rounded-2xl border-[0.5px] px-2"
-				data-testid="repository-connect-error"
-			>
+			<ComposerShell class="px-2" testId="repository-connect-error">
 				<StateBlock
 					layout="inline"
 					live="alert"
@@ -196,7 +196,7 @@
 						<Icon name="alert" size={14} />
 					{/snippet}
 				</StateBlock>
-			</div>
+			</ComposerShell>
 		{/if}
 	</section>
 </div>
