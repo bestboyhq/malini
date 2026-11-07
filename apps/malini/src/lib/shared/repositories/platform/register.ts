@@ -57,6 +57,7 @@ import { BASE_FETCH_EVERY_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
+import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
 import { createLeadSpace } from './lead-space.service';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
@@ -491,6 +492,18 @@ export function registerRepositories(
 	});
 
 	commands.define('repositories.pick-folder', () => picker.pick(getMainWindow()));
+	commands.define('repositories.checkouts-folder', () =>
+		checkoutsFolder(db, appDataRoot, checkoutsRoot),
+	);
+	commands.define('repositories.choose-checkouts-folder', async () => {
+		const picked = await picker.pick(getMainWindow());
+		return picked === null
+			? checkoutsFolder(db, appDataRoot, checkoutsRoot)
+			: chooseCheckoutsFolder(db, appDataRoot, checkoutsRoot, picked);
+	});
+	commands.define('repositories.keep-checkouts-folder', () =>
+		keepCheckoutsFolder(db, appDataRoot, checkoutsRoot),
+	);
 
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
 	commands.define('repositories.github-reach', () => githubReach.reach);

@@ -1,4 +1,12 @@
-import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -7,7 +15,9 @@ import { initRealRepo, realGit, tempDir, workstreamFixture } from '$main/git/fix
 import { workstreamBranchName } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
 import {
+	checkoutsFolder,
 	checkoutsHome,
+	chooseCheckoutsFolder,
 	moveCheckoutsHome,
 	pendingReinstalls,
 	reinstallMovedCheckouts,
@@ -21,6 +31,12 @@ let appData: string;
 let home: string;
 let claude: string;
 let db: MaliniDatabase;
+let locked: string[] = [];
+
+function lock(folder: string): void {
+	chmodSync(folder, 0o555);
+	locked.push(folder);
+}
 
 function chatRecords(cwd: string): string {
 	return join(claude, 'projects', cwd.replace(/[^a-zA-Z0-9]/gu, '-'));
@@ -58,6 +74,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+	for (const folder of locked) chmodSync(folder, 0o755);
+	locked = [];
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });
@@ -87,7 +105,12 @@ describe('moveCheckoutsHome', () => {
 		const moved = (path: string) => join(checkoutsRoot, path.slice(appData.length + 1));
 
 		expect(
-			await moveCheckoutsHome({ db, appDataRoot: appData, checkoutsRoot, claudeDirectory: claude }),
+			await moveCheckoutsHome({
+				db,
+				appDataRoot: appData,
+				defaultRoot: checkoutsRoot,
+				claudeDirectory: claude,
+			}),
 		).toBe(checkoutsRoot);
 		expect(pendingReinstalls(db)).toEqual(['ws-1']);
 		for (const name of ['repositories', 'workstreams']) {
@@ -112,7 +135,12 @@ describe('moveCheckoutsHome', () => {
 		expect(existsSync(join(moved(checkout), INSTALL_COMPLETION_PATH))).toBe(false);
 
 		expect(
-			await moveCheckoutsHome({ db, appDataRoot: appData, checkoutsRoot, claudeDirectory: claude }),
+			await moveCheckoutsHome({
+				db,
+				appDataRoot: appData,
+				defaultRoot: checkoutsRoot,
+				claudeDirectory: claude,
+			}),
 		).toBe(checkoutsRoot);
 		expect(pendingReinstalls(db)).toEqual(['ws-1']);
 	});
@@ -125,7 +153,12 @@ describe('moveCheckoutsHome', () => {
 			mkdirSync(join(checkout, INSTALL_COMPLETION_PATH, '..'), { recursive: true });
 			writeFileSync(join(checkout, INSTALL_COMPLETION_PATH), 'fingerprint');
 		}
-		await moveCheckoutsHome({ db, appDataRoot: appData, checkoutsRoot, claudeDirectory: claude });
+		await moveCheckoutsHome({
+			db,
+			appDataRoot: appData,
+			defaultRoot: checkoutsRoot,
+			claudeDirectory: claude,
+		});
 		const installed: string[] = [];
 		const launch = (finishes: (workstreamId: string) => boolean) => {
 			const commands = new CommandRegistry();
@@ -159,10 +192,123 @@ describe('moveCheckoutsHome', () => {
 		mkdirSync(join(appData, 'workstreams', 'ws-old'), { recursive: true });
 		mkdirSync(join(checkoutsRoot, 'workstreams', 'ws-new'), { recursive: true });
 
-		await moveCheckoutsHome({ db, appDataRoot: appData, checkoutsRoot, claudeDirectory: claude });
+		await moveCheckoutsHome({
+			db,
+			appDataRoot: appData,
+			defaultRoot: checkoutsRoot,
+			claudeDirectory: claude,
+		});
 
 		expect(existsSync(join(checkoutsRoot, 'workstreams', 'ws-old'))).toBe(true);
 		expect(existsSync(join(checkoutsRoot, 'workstreams', 'ws-new'))).toBe(true);
 		expect(lstatSync(join(appData, 'workstreams')).isSymbolicLink()).toBe(true);
+	});
+
+	it('moves checkouts to a folder you choose, and back again', async () => {
+		const { base, checkout } = await workstreamFixture(appData, 'ws-1');
+		seed('ws-1', 'proj', base, checkout);
+		const malini = join(home, 'malini');
+		const chosen = join(root, 'code', 'checkouts');
+		mkdirSync(chosen, { recursive: true });
+		const move = () =>
+			moveCheckoutsHome({ db, appDataRoot: appData, defaultRoot: malini, claudeDirectory: claude });
+		const at = (folder: string, path = checkout) => join(folder, path.slice(appData.length + 1));
+		await move();
+
+		expect((await chooseCheckoutsFolder(db, appData, malini, chosen)).next).toBe(chosen);
+		expect(await move()).toBe(chosen);
+		expect(checkoutsFolder(db, appData, chosen)).toMatchObject({ folder: chosen, next: null });
+		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(chosen));
+		expect(realpathSync(join(malini, 'workstreams'))).toBe(join(chosen, 'workstreams'));
+		expect((await chooseCheckoutsFolder(db, appData, chosen, malini)).problem).toBeNull();
+		expect(await move()).toBe(malini);
+
+		expect(lstatSync(join(malini, 'workstreams')).isDirectory()).toBe(true);
+		expect(realpathSync(join(chosen, 'workstreams'))).toBe(join(malini, 'workstreams'));
+		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(malini));
+		expect(getProject(db, 'proj')?.repoPath).toBe(at(malini, base));
+		for (const folder of [appData, chosen]) {
+			for (const name of ['repositories', 'workstreams']) rmSync(join(folder, name));
+		}
+		await realGit(at(malini, base), ['worktree', 'prune']);
+		expect(await worktreePaths(at(malini, base))).toEqual([at(malini, base), at(malini)]);
+	});
+
+	it('refuses a folder it cannot move checkouts into, and keeps the one you chose', async () => {
+		const current = join(home, 'malini');
+		const empty = join(root, 'empty');
+		const full = join(root, 'full');
+		const locked = join(root, 'locked');
+		mkdirSync(join(current, 'workstreams'), { recursive: true });
+		for (const folder of [empty, full, locked]) mkdirSync(folder, { recursive: true });
+		writeFileSync(join(empty, '.DS_Store'), '');
+		writeFileSync(join(full, 'notes.md'), '');
+		lock(locked);
+		const refusal = async (folder: string) =>
+			(await chooseCheckoutsFolder(db, appData, current, folder)).problem?.reason ?? null;
+
+		expect((await chooseCheckoutsFolder(db, appData, current, empty)).next).toBe(empty);
+		expect(await refusal(full)).toBe('not-empty');
+		expect(await refusal(join(current, 'workstreams'))).toBe('inside-checkouts');
+		expect(await refusal(locked)).toBe('not-writable');
+		expect(await refusal('/dev')).toBe('other-disk');
+		expect(checkoutsFolder(db, appData, current).next).toBe(empty);
+		expect((await chooseCheckoutsFolder(db, appData, current, current)).next).toBeNull();
+	});
+
+	it('puts back what it moved when a move fails, and keeps checkouts where they were', async () => {
+		const chosen = join(root, 'chosen');
+		mkdirSync(join(appData, 'repositories', 'proj'), { recursive: true });
+		mkdirSync(join(appData, 'workstreams', 'ws-1'), { recursive: true });
+		mkdirSync(chosen);
+		lock(join(appData, 'workstreams'));
+		await moveCheckoutsHome({
+			db,
+			appDataRoot: appData,
+			defaultRoot: appData,
+			claudeDirectory: claude,
+		});
+		await chooseCheckoutsFolder(db, appData, appData, chosen);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		expect(
+			await moveCheckoutsHome({
+				db,
+				appDataRoot: appData,
+				defaultRoot: appData,
+				claudeDirectory: claude,
+			}),
+		).toBe(appData);
+
+		expect(lstatSync(join(appData, 'repositories', 'proj')).isDirectory()).toBe(true);
+		expect(existsSync(join(chosen, 'repositories'))).toBe(false);
+		expect(checkoutsFolder(db, appData, appData)).toMatchObject({
+			next: null,
+			problem: { folder: chosen, reason: 'move-failed' },
+		});
+	});
+
+	it('ignores the folders a profile copied from another Malini recorded', async () => {
+		const theirs = join(root, 'their-checkouts');
+		mkdirSync(join(theirs, 'workstreams', 'ws-theirs'), { recursive: true });
+		mkdirSync(join(appData, 'workstreams', 'ws-1'), { recursive: true });
+		const recorded = JSON.stringify({ appData: join(root, 'their-app-data'), folder: theirs });
+		for (const key of ['checkouts.home', 'checkouts.folder']) {
+			db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, recorded);
+		}
+		const checkoutsRoot = join(appData, 'checkouts');
+
+		expect(
+			await moveCheckoutsHome({
+				db,
+				appDataRoot: appData,
+				defaultRoot: checkoutsRoot,
+				claudeDirectory: claude,
+			}),
+		).toBe(checkoutsRoot);
+
+		expect(existsSync(join(theirs, 'workstreams', 'ws-theirs'))).toBe(true);
+		expect(existsSync(join(checkoutsRoot, 'workstreams', 'ws-1'))).toBe(true);
+		expect(existsSync(join(checkoutsRoot, 'workstreams', 'ws-theirs'))).toBe(false);
 	});
 });

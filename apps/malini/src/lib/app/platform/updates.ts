@@ -29,7 +29,11 @@ export function startUpdates(
 	{ commands, events }: Pick<MainContext, 'commands' | 'events'>,
 	showUpdateItem: (item: MenuItemConstructorOptions) => void,
 ): Updates {
-	const exitNow = (): void => app.exit(0);
+	let relaunching = false;
+	const exitNow = (): void => {
+		if (relaunching) app.relaunch();
+		app.exit(0);
+	};
 	let shown = IDLE;
 	let checkNow = (): void => {
 		throw new Error('this build does not update itself');
@@ -40,6 +44,10 @@ export function startUpdates(
 	commands.define('app.update-status', () => shown);
 	commands.define('app.check-for-updates', () => checkNow());
 	commands.define('app.restart-to-update', () => restartToLatest());
+	commands.define('app.relaunch', () => {
+		relaunching = true;
+		app.quit();
+	});
 	if (!app.isPackaged || !existsSync(join(process.resourcesPath, 'app-update.yml'))) {
 		return { exit: exitNow };
 	}

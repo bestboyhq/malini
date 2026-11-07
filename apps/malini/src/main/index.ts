@@ -98,7 +98,7 @@ async function boot(): Promise<void> {
 	const checkoutsRoot = await moveCheckoutsHome({
 		db,
 		appDataRoot,
-		checkoutsRoot: checkoutsHome(appDataRoot, app.commandLine.hasSwitch('user-data-dir')),
+		defaultRoot: checkoutsHome(appDataRoot, app.commandLine.hasSwitch('user-data-dir')),
 	});
 	const context: MainContext = {
 		db,
