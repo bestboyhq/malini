@@ -38,6 +38,7 @@ const CREDENTIALS = [
 ];
 
 const CACHES = ['Library/Caches', '.cache', '.npm', 'Library/pnpm/store'];
+const PNPM_LINK_PROBES = 'Library/pnpm/_tmp_';
 const TEMP_FOLDERS = ['/private/tmp', '/private/var/folders'];
 const DEVICES = [
 	'(literal "/dev/null")',
@@ -137,6 +138,7 @@ export function sandboxProfile(
 	const root = canonicalPath(checkout);
 	const git = gitFolders(root);
 	const writable = [root, ...git, ...TEMP_FOLDERS, ...CACHES.map((entry) => join(home, entry))];
+	const pnpmLinkProbes = regex(`^${escapeRegex(canonicalPath(join(home, PNPM_LINK_PROBES)))}`);
 	const sockets = [...[root, ...TEMP_FOLDERS].map(subpath), literal(DNS_SOCKET)];
 	const secret = [...CREDENTIALS.map((entry) => join(home, entry)), ...hidden];
 	return [
@@ -149,7 +151,7 @@ export function sandboxProfile(
 		'(allow sysctl-read system-info)',
 		'(allow sysctl-write (sysctl-name "kern.tcsm_enable"))',
 		'(allow file-read* file-ioctl file-map-executable)',
-		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), ...DEVICES].join(' ')})`,
+		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), pnpmLinkProbes, ...DEVICES].join(' ')})`,
 		`(deny file-write* ${ranOutside(root, git).join(' ')})`,
 		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), regex(`/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
 		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}))`,
