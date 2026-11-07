@@ -179,20 +179,25 @@
 			<p class="text-fg-tertiary text-sm tabular-nums">
 				Step {onboarding.index + 1} of {ONBOARDING_STEPS.length}
 			</p>
-			<ol class="flex items-center gap-2" aria-label="Setup progress">
-				{#each ONBOARDING_STEPS as step, index (step)}
-					<li aria-current={index === onboarding.index ? 'step' : undefined}>
-						<span
-							class={[
-								'block h-1.5 rounded-full transition-[width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
-								index === onboarding.index
-									? 'bg-button-primary w-6'
-									: 'bg-surface-50-selected w-1.5',
-							]}
-						></span>
-					</li>
-				{/each}
-			</ol>
+			<div class="relative">
+				<ol class="flex items-center gap-2" aria-label="Setup progress">
+					{#each ONBOARDING_STEPS as step, index (step)}
+						<li aria-current={index === onboarding.index ? 'step' : undefined}>
+							<span
+								class={[
+									'bg-surface-50-selected block h-1.5 rounded-full transition-[width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
+									index === onboarding.index ? 'w-6' : 'w-1.5',
+								]}
+							></span>
+						</li>
+					{/each}
+				</ol>
+				<span
+					class="bg-button-primary absolute top-0 left-0 h-1.5 w-6 translate-x-[calc(var(--step)*(--spacing(1.5)+--spacing(2)))] rounded-full transition-[translate] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none"
+					style:--step={onboarding.index}
+					aria-hidden="true"
+				></span>
+			</div>
 		</header>
 
 		<div bind:this={stage} class={['relative', resizing && 'overflow-y-clip']}>
