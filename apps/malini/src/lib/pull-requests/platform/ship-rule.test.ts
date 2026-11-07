@@ -1299,9 +1299,11 @@ describe('before you merge', () => {
 			pull.headRefOid = attempt.toString(16).padStart(40, 'c');
 			await readPullRequest();
 			await until(() => expect(reviewRuns()).toHaveLength(attempt));
-			finishAutomation(activeAutomation().id, 'failed');
-			await until(() => expect(ship('ws-1')?.activeAutomationRunId ?? null).toBeNull());
+			const failed = activeAutomation().id;
+			finishAutomation(failed, 'failed');
+			await until(() => expect(ship('ws-1')?.activeAutomationRunId).not.toBe(failed));
 		}
+		await until(() => expect(ship('ws-1')?.activeAutomationRunId ?? null).toBeNull());
 		pull.headRefOid = 'd'.repeat(40);
 
 		await readPullRequest();
