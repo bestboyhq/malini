@@ -17,6 +17,7 @@ Blanking the frames removed every jump, and neither `overflow-anchor: none` nor 
   The default session serves only the frames inside Malini's own window; `BROWSER_PARTITION` serves the browser tab, a top-level page.
 - For the default session, an `.html` or `.htm` file gets one inline script right after its doctype, before any script of its own.
   It wraps `Element.prototype.scrollIntoView` to pass `container: 'nearest'`, so the page scrolls its own scroller and never Malini's.
+  A call made before the frame has a size, `innerHeight` 0, waits for the first `resize` that gives it one: an out-of-process frame can run its script before Malini's renderer sends its size, and the call would scroll nothing.
   The bytes around it pass through untouched, read and joined as `latin1`, and `Content-Length` goes.
 - The browser tab serves every page as written.
 
