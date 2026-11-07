@@ -82,6 +82,7 @@ export interface SendPromptCommand {
 	readonly plugins?: readonly string[];
 	readonly compactWindow?: number;
 	readonly boundary?: AgentBoundary;
+	readonly steReplies?: boolean;
 }
 
 export type Secrets = Readonly<Record<string, string>>;
@@ -888,6 +889,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const plugins = obj.plugins;
 	const compactWindow = obj.compactWindow;
 	const boundary = obj.boundary;
+	const steReplies = obj.steReplies;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -912,6 +914,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	}
 	if (steer !== undefined && typeof steer !== 'boolean') {
 		return err('INVALID_PAYLOAD', 'send_prompt: steer must be a boolean', obj);
+	}
+	if (steReplies !== undefined && typeof steReplies !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'send_prompt: steReplies must be a boolean', obj);
 	}
 	if (theme !== undefined && !isAgentTheme(theme)) {
 		return err('INVALID_PAYLOAD', 'send_prompt: theme, when present, must be light or dark', obj);
@@ -969,6 +974,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(plugins !== undefined ? { plugins } : {}),
 			...(compactWindow !== undefined ? { compactWindow } : {}),
 			...(boundary !== undefined ? { boundary } : {}),
+			...(steReplies === true ? { steReplies } : {}),
 		},
 	};
 }

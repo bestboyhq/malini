@@ -66,7 +66,8 @@ export type RecordedScenario =
 	| 'network'
 	| 'signedOut'
 	| 'billing'
-	| 'promptTooLong';
+	| 'promptTooLong'
+	| 'steRewrite';
 
 export interface FakeRun {
 	readonly options: Options;
