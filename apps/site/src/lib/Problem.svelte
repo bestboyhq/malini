@@ -140,6 +140,7 @@
 		font-variant-ligatures: none;
 		user-select: none;
 		-webkit-user-select: none;
+		overflow-anchor: none;
 	}
 
 	h3 {

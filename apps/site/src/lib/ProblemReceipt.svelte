@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ticker } from './loop.svelte';
+	import RollingNumber from './RollingNumber.svelte';
 
 	let tokensIn = $state(1_284_019);
 	let tokensOut = $state(92_410);
@@ -7,9 +8,9 @@
 
 <div
 	class="till"
-	{@attach ticker(90, () => {
-		tokensIn += Math.round(900 + Math.random() * 2400);
-		tokensOut += Math.round(40 + Math.random() * 120);
+	{@attach ticker(1400, () => {
+		tokensIn += Math.round(9000 + Math.random() * 28000);
+		tokensOut += Math.round(300 + Math.random() * 1400);
 	})}
 >
 	<div class="slot"></div>
@@ -19,11 +20,11 @@
 		<hr />
 		<div class="row">
 			<span>Tokens in</span>
-			<span>{tokensIn.toLocaleString('en-US')}</span>
+			<RollingNumber value={tokensIn} />
 		</div>
 		<div class="row">
 			<span>Tokens out</span>
-			<span>{tokensOut.toLocaleString('en-US')}</span>
+			<RollingNumber value={tokensOut} />
 		</div>
 		<div class="row">
 			<span>Same file, again</span>

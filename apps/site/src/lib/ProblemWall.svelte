@@ -1,11 +1,8 @@
 <script lang="ts">
 	import { Loop, steps } from './loop.svelte';
+	import TerminalLines, { type TerminalLine } from './TerminalLines.svelte';
 
-	type Line =
-		| { kind: 'tool'; tool: string; text: string }
-		| { kind: 'result' | 'say' | 'heading' | 'para' | 'item' | 'table'; text: string };
-
-	const LINES: readonly Line[] = [
+	const LINES: readonly TerminalLine[] = [
 		{ kind: 'tool', tool: 'Update', text: 'src/lib/auth/LoginButton.svelte' },
 		{ kind: 'result', text: 'Updated with 1 addition and 1 removal' },
 		{ kind: 'tool', tool: 'Bash', text: 'pnpm test' },
@@ -44,11 +41,13 @@
 		{ kind: 'item', text: 'Calling `preventDefault()`. Couples the button to its form.' },
 		{ kind: 'item', text: 'Moving sign-in to a store. Cleaner, but a bigger change.' },
 		{ kind: 'heading', text: 'Files changed' },
-		{ kind: 'table', text: '┌────────────────────┬────────┐' },
-		{ kind: 'table', text: '│ File               │ Change │' },
-		{ kind: 'table', text: '├────────────────────┼────────┤' },
-		{ kind: 'table', text: '│ LoginButton.svelte │ +1 −1  │' },
-		{ kind: 'table', text: '└────────────────────┴────────┘' },
+		{
+			kind: 'table',
+			rows: [
+				['File', 'Change'],
+				['LoginButton.svelte', '+1 −1'],
+			],
+		},
 		{ kind: 'heading', text: 'Testing' },
 		{ kind: 'item', text: 'All 214 tests pass.' },
 		{ kind: 'item', text: '`pnpm check` reports no type errors.' },
@@ -86,6 +85,8 @@
 		{ kind: 'para', text: 'Let me know if you’d like me to make any other changes!' },
 	];
 
+	const countWords = (text: string) => text.split(/\s+/).filter((word) => /\w/.test(word)).length;
+
 	const SHOWN_AT_START = 4;
 	const SPINNER = ['✻', '✶', '✳', '✢', '·', '✢', '✳', '✶'];
 
@@ -96,7 +97,7 @@
 		shown
 			.slice(SHOWN_AT_START)
 			.reduce(
-				(sum, line) => sum + line.text.split(/\s+/).filter((word) => /\w/.test(word)).length,
+				(sum, line) => sum + countWords('rows' in line ? line.rows.flat().join(' ') : line.text),
 				0,
 			),
 	);
@@ -116,31 +117,7 @@
 		</span>
 	</div>
 	<div class="scroll">
-		{#each shown as line, index (index)}
-			<div class={['line', line.kind]}>
-				{#if line.kind === 'tool'}
-					<span class="dot">⏺</span>
-					<b>{line.tool}</b>
-					<span class="text arg">{line.text}</span>
-				{:else if line.kind === 'result'}
-					<span class="elbow">⎿</span>
-					<span class="text">{line.text}</span>
-				{:else if line.kind === 'say'}
-					<span class="dot said">⏺</span>
-					<span class="text">{line.text}</span>
-				{:else}
-					<span class="text">
-						{#each line.text.split('`') as part, index (index)}
-							{#if index % 2}
-								<code>{part}</code>
-							{:else}
-								{part}
-							{/if}
-						{/each}
-					</span>
-				{/if}
-			</div>
-		{/each}
+		<TerminalLines lines={shown} />
 	</div>
 	<div class="status">
 		{#if done}
@@ -211,93 +188,6 @@
 		overflow: hidden;
 		padding: 0 16px;
 		mask-image: linear-gradient(transparent, #000 48px);
-	}
-
-	.line {
-		display: flex;
-		flex: none;
-		min-height: 18px;
-	}
-
-	.tool,
-	.result {
-		white-space: nowrap;
-	}
-
-	.text {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.dot {
-		flex: none;
-		margin-right: 1ch;
-		color: var(--term-ok);
-	}
-
-	.said,
-	b {
-		color: var(--term-fg);
-	}
-
-	b {
-		flex: none;
-		font-weight: 600;
-	}
-
-	.arg,
-	.result {
-		color: var(--term-dim);
-	}
-
-	.arg::before,
-	.arg::after {
-		color: var(--term-fg);
-	}
-
-	.arg::before {
-		content: '(';
-	}
-
-	.arg::after {
-		content: ')';
-	}
-
-	.elbow {
-		flex: none;
-		padding: 0 2ch;
-		color: var(--term-faint);
-	}
-
-	.heading,
-	.para,
-	.item,
-	.table {
-		padding-left: 2ch;
-		color: var(--term-fg);
-	}
-
-	.heading {
-		margin-top: 6px;
-		font-weight: 600;
-	}
-
-	.item::before {
-		content: '-';
-		flex: none;
-		width: 2ch;
-		color: var(--term-dim);
-	}
-
-	.table {
-		color: var(--term-dim);
-		white-space: pre;
-	}
-
-	code {
-		color: var(--term-pick);
-		font: inherit;
 	}
 
 	.status {
