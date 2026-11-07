@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
+	import type { ClassValue } from 'svelte/elements';
 	import { fade, type TransitionConfig } from 'svelte/transition';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
@@ -29,9 +30,10 @@
 	interface Props {
 		item: Extract<RenderItem, { kind: 'approval' }>;
 		bare?: boolean;
+		class?: ClassValue;
 	}
 
-	let { item, bare = false }: Props = $props();
+	let { item, bare = false, class: className }: Props = $props();
 
 	function collapseAway(node: HTMLElement): TransitionConfig {
 		if (motionOff()) return { duration: 0 };
@@ -131,6 +133,148 @@
 	}
 </script>
 
+{#snippet request()}
+	<h3 id={headingId} class="text-fg-default text-sm leading-5 font-medium">{headline}</h3>
+	{#each targets as target, index (`${target.value}-${index}`)}
+		<code
+			class="text-fg-secondary mt-1 block font-mono text-xs leading-5 break-words select-text"
+			data-testid="approval-normalized-resource"
+		>
+			{#if target.kind === 'command'}
+				<CodeTokens code={target.value} language="shell" />
+			{:else}
+				<SensitiveText text={target.value} />
+			{/if}
+		</code>
+	{/each}
+	{#if maliniTool && maliniTool.details.length > 0}
+		<dl class="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs leading-5">
+			{#each maliniTool.details as detail (detail.label)}
+				<dt class="text-fg-tertiary">{detail.label}</dt>
+				<dd
+					class="text-fg-secondary max-h-40 overflow-y-auto break-words whitespace-pre-wrap select-text"
+				>
+					<SensitiveText text={detail.value} />
+				</dd>
+			{/each}
+		</dl>
+	{/if}
+	{#if reason}
+		<p class="text-fg-tertiary mt-1 text-xs leading-4 select-text">
+			<SensitiveText text={reason} />
+		</p>
+	{/if}
+{/snippet}
+
+{#snippet decisions(size: 'sm' | 'md')}
+	{@const text = size === 'md' ? 'text-xs' : ''}
+	<Button
+		variant="ghost"
+		{size}
+		class={text}
+		disabled={submitting}
+		onclick={() => decideApproval(item, 'deny', 'once')}
+	>
+		{item.autoModeRule || item.autoModeUnavailable ? 'Keep blocked' : 'Deny'}
+	</Button>
+	{#if item.autoModeRule}
+		{@const rule = item.autoModeRule}
+		{#snippet ruleHint()}
+			Adds <code class="font-mono"><SensitiveText text={rule} /></code>
+			to your Claude Code settings
+		{/snippet}
+		<Tooltip content={ruleHint}>
+			<Button
+				variant="secondary"
+				{size}
+				bordered
+				class={text}
+				disabled={submitting}
+				onclick={() => decideApproval(item, 'allow', 'once', true)}
+			>
+				Always allow
+			</Button>
+		</Tooltip>
+	{:else if leavesSandbox}
+		<Button
+			variant="secondary"
+			{size}
+			bordered
+			class={text}
+			disabled={submitting}
+			onclick={() => decideApproval(item, 'allow', 'session')}
+		>
+			Allow for this chat
+		</Button>
+	{:else if canOfferPersistentScope}
+		<Dropdown
+			bind:open={alwaysAllowOpen}
+			side="bottom"
+			align="end"
+			role={null}
+			panelClass="w-72"
+			contentClass="overflow-hidden"
+		>
+			{#snippet trigger()}
+				<Button
+					variant="secondary"
+					{size}
+					bordered
+					class={['gap-1', text]}
+					disabled={submitting}
+					ariaHasPopup="menu"
+					ariaExpanded={alwaysAllowOpen}
+				>
+					Always allow
+					{#snippet trailing()}
+						<Icon name="chevron-down" size={10} />
+					{/snippet}
+				</Button>
+			{/snippet}
+			{#snippet content()}
+				<div class="p-1.5" role="menu" aria-label="Always allow">
+					{#each ALWAYS_ALLOW as choice (choice.scope)}
+						<DropdownItem
+							role="menuitem"
+							class="gap-2.5 py-2"
+							onSelect={() => decideApproval(item, 'allow', choice.scope)}
+						>
+							<Icon name={choice.icon} size={14} class="text-fg-tertiary shrink-0" />
+							<span class="flex min-w-0 flex-1 flex-col">
+								<span class="truncate text-[13px] leading-5">{choice.label}</span>
+								<span class="text-fg-tertiary text-2xs truncate leading-4">
+									{choice.description}
+								</span>
+							</span>
+						</DropdownItem>
+					{/each}
+				</div>
+			{/snippet}
+		</Dropdown>
+	{/if}
+	<Button
+		variant="primary"
+		{size}
+		class={text}
+		disabled={submitting}
+		onclick={() => decideApproval(item, 'allow', 'once')}
+	>
+		Allow once
+	</Button>
+{/snippet}
+
+{#snippet failure()}
+	{#if interactionState.status === 'error'}
+		<p class="text-2xs text-error-content mt-2 flex items-start gap-1.5 leading-4" role="alert">
+			<Icon name="alert" class="mt-px shrink-0" size={13} />
+			<span class="min-w-0">
+				<SensitiveText text={sanitizeFailureDetail(interactionState.message)} /> Claude is still waiting,
+				so you can answer again.
+			</span>
+		</p>
+	{/if}
+{/snippet}
+
 {#if settled}
 	<div
 		in:fade={motionOff() ? { duration: 0 } : { duration: 180, delay: 60 }}
@@ -160,12 +304,14 @@
 			</span>
 		{/if}
 	</div>
-{:else}
+{:else if bare || item.review}
 	<section
 		out:collapseAway
 		class={[
-			'w-full px-3.5 py-3',
-			!bare && 'bg-surface-50 border-surface-50-border rounded-xl border',
+			'py-3',
+			bare
+				? 'w-full px-3.5'
+				: ['bg-surface-50 border-surface-50-border rounded-xl border px-3', className],
 		]}
 		data-message-kind={item.kind}
 		data-testid={`agent-${item.kind}-card`}
@@ -181,38 +327,7 @@
 					<Icon name="shield-alert" class="text-brand-icon" size={15} />
 				</span>
 				<div class="min-w-0 flex-1">
-					<h3 id={headingId} class="text-fg-default text-sm leading-5 font-medium">{headline}</h3>
-					{#each targets as target, index (`${target.value}-${index}`)}
-						<code
-							class="text-fg-secondary mt-1 block font-mono text-xs leading-5 break-words select-text"
-							data-testid="approval-normalized-resource"
-						>
-							{#if target.kind === 'command'}
-								<CodeTokens code={target.value} language="shell" />
-							{:else}
-								<SensitiveText text={target.value} />
-							{/if}
-						</code>
-					{/each}
-					{#if maliniTool && maliniTool.details.length > 0}
-						<dl
-							class="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs leading-5"
-						>
-							{#each maliniTool.details as detail (detail.label)}
-								<dt class="text-fg-tertiary">{detail.label}</dt>
-								<dd
-									class="text-fg-secondary max-h-40 overflow-y-auto break-words whitespace-pre-wrap select-text"
-								>
-									<SensitiveText text={detail.value} />
-								</dd>
-							{/each}
-						</dl>
-					{/if}
-					{#if reason}
-						<p class="text-fg-tertiary mt-1 text-xs leading-4 select-text">
-							<SensitiveText text={reason} />
-						</p>
-					{/if}
+					{@render request()}
 				</div>
 			</div>
 
@@ -221,110 +336,43 @@
 				role="group"
 				aria-label="Permission decision"
 			>
-				<Button
-					variant="ghost"
-					size="md"
-					class="text-xs"
-					disabled={submitting}
-					onclick={() => decideApproval(item, 'deny', 'once')}
-				>
-					{item.autoModeRule || item.autoModeUnavailable ? 'Keep blocked' : 'Deny'}
-				</Button>
-				{#if item.autoModeRule}
-					{@const rule = item.autoModeRule}
-					{#snippet ruleHint()}
-						Adds <code class="font-mono"><SensitiveText text={rule} /></code>
-						to your Claude Code settings
-					{/snippet}
-					<Tooltip content={ruleHint}>
-						<Button
-							variant="secondary"
-							size="md"
-							bordered
-							class="text-xs"
-							disabled={submitting}
-							onclick={() => decideApproval(item, 'allow', 'once', true)}
-						>
-							Always allow
-						</Button>
-					</Tooltip>
-				{:else if leavesSandbox}
-					<Button
-						variant="secondary"
-						size="md"
-						bordered
-						class="text-xs"
-						disabled={submitting}
-						onclick={() => decideApproval(item, 'allow', 'session')}
-					>
-						Allow for this chat
-					</Button>
-				{:else if canOfferPersistentScope}
-					<Dropdown
-						bind:open={alwaysAllowOpen}
-						side="bottom"
-						align="end"
-						role={null}
-						panelClass="w-72"
-						contentClass="overflow-hidden"
-					>
-						{#snippet trigger()}
-							<Button
-								variant="secondary"
-								size="md"
-								bordered
-								class="gap-1 text-xs"
-								disabled={submitting}
-								ariaHasPopup="menu"
-								ariaExpanded={alwaysAllowOpen}
-							>
-								Always allow
-								{#snippet trailing()}
-									<Icon name="chevron-down" size={10} />
-								{/snippet}
-							</Button>
-						{/snippet}
-						{#snippet content()}
-							<div class="p-1.5" role="menu" aria-label="Always allow">
-								{#each ALWAYS_ALLOW as choice (choice.scope)}
-									<DropdownItem
-										role="menuitem"
-										class="gap-2.5 py-2"
-										onSelect={() => decideApproval(item, 'allow', choice.scope)}
-									>
-										<Icon name={choice.icon} size={14} class="text-fg-tertiary shrink-0" />
-										<span class="flex min-w-0 flex-1 flex-col">
-											<span class="truncate text-[13px] leading-5">{choice.label}</span>
-											<span class="text-fg-tertiary text-2xs truncate leading-4">
-												{choice.description}
-											</span>
-										</span>
-									</DropdownItem>
-								{/each}
-							</div>
-						{/snippet}
-					</Dropdown>
-				{/if}
-				<Button
-					variant="primary"
-					size="md"
-					class="text-xs"
-					disabled={submitting}
-					onclick={() => decideApproval(item, 'allow', 'once')}
-				>
-					Allow once
-				</Button>
+				{@render decisions('md')}
 			</div>
 		{/if}
 
-		{#if interactionState.status === 'error'}
-			<p class="text-2xs text-error-content mt-2 flex items-start gap-1.5 leading-4" role="alert">
-				<Icon name="alert" class="mt-px shrink-0" size={13} />
-				<span class="min-w-0">
-					<SensitiveText text={sanitizeFailureDetail(interactionState.message)} /> Claude is still waiting,
-					so you can answer again.
+		{@render failure()}
+	</section>
+{:else}
+	<section
+		out:collapseAway
+		class={className}
+		data-message-kind={item.kind}
+		data-testid={`agent-${item.kind}-card`}
+		data-interaction-state={interactionState.status}
+		aria-labelledby={headingId}
+		aria-busy={submitting}
+	>
+		<div class="bg-surface-50 border-surface-50-border rounded-xl border-[0.5px] px-3 py-3">
+			{@render request()}
+		</div>
+		<div class="px-5">
+			<div
+				class="border-surface-50-border flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
+			>
+				<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
+					<Icon name="shield-alert" size={12} />
+					<span class="truncate">Permission request</span>
 				</span>
-			</p>
-		{/if}
+				<div
+					class="ml-auto flex shrink-0 items-center gap-1"
+					role="group"
+					aria-label="Permission decision"
+				>
+					{@render decisions('sm')}
+				</div>
+			</div>
+		</div>
+
+		{@render failure()}
 	</section>
 {/if}

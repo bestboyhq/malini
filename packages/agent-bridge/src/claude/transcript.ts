@@ -12,6 +12,7 @@ import type {
 import type { AgentEvent, BackgroundTask, BackgroundTaskKind } from '../types.js';
 import { isRecord } from '../type-guards.js';
 import { AUTO_MODE_UNAVAILABLE, autoModeCategory } from './permissions.js';
+import { rejectsReply } from './reply-check.js';
 
 export const COMPACTION_TOOL = 'Compact';
 
@@ -21,6 +22,7 @@ const STOPPED_AGENT_OUTPUT = 'Stopped. No hard feelings';
 
 type StreamBlock = { readonly kind: 'text' | 'thinking' | 'tool'; readonly id: string };
 type StreamContentKind = Exclude<StreamBlock['kind'], 'tool'>;
+type AssistantMessage = Extract<AgentEvent, { type: 'assistant.message' }>;
 
 export interface RunUsage {
 	readonly inputTokens: number;
@@ -31,6 +33,8 @@ export interface RunUsage {
 export class ClaudeTranscript {
 	#runId: string;
 	readonly #emit: (event: AgentEvent) => void;
+	readonly #holdsReplies: boolean;
+	#heldReply: AssistantMessage | null = null;
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #autoModeBlocks = new Map<string, string>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
@@ -57,9 +61,10 @@ export class ClaudeTranscript {
 	#stoppedByUser = false;
 	#compaction: string | null = null;
 
-	constructor(runId: string, emit: (event: AgentEvent) => void) {
+	constructor(runId: string, emit: (event: AgentEvent) => void, holdsReplies = false) {
 		this.#runId = runId;
 		this.#emit = emit;
+		this.#holdsReplies = holdsReplies;
 	}
 
 	get cursor(): string | null {
@@ -79,6 +84,7 @@ export class ClaudeTranscript {
 	}
 
 	releaseBackgroundWork(): void {
+		this.#releaseReply();
 		this.#emit({
 			type: 'background.updated',
 			runId: this.#runId,
@@ -115,6 +121,7 @@ export class ClaudeTranscript {
 	}
 
 	markStoppedByUser(): void {
+		this.#releaseReply();
 		this.#stoppedByUser = true;
 		this.#settleInterruptedStream();
 	}
@@ -124,6 +131,7 @@ export class ClaudeTranscript {
 	}
 
 	interruptTurn(): void {
+		this.#releaseReply();
 		for (const toolCallId of this.#openTools) this.#interruptedTools.add(toolCallId);
 		this.#settleInterruptedStream();
 	}
@@ -136,6 +144,8 @@ export class ClaudeTranscript {
 	}
 
 	accept(message: SDKMessage): void {
+		if (rejectsReply(message)) this.#dropHeldReply();
+		else if (releasesReply(message)) this.#releaseReply();
 		switch (message.type) {
 			case 'stream_event':
 				if (message.parent_tool_use_id === null) this.#acceptStreamEvent(message.event);
@@ -177,6 +187,7 @@ export class ClaudeTranscript {
 	}
 
 	endBackgroundWork(): void {
+		this.#releaseReply();
 		this.#backgroundTasks.clear();
 		this.#emitBackground();
 		for (const toolCallId of this.#backgroundAgents) {
@@ -397,6 +408,7 @@ export class ClaudeTranscript {
 		}
 		for (const block of message['content']) {
 			if (!isRecord(block)) continue;
+			if (parentToolUseId === null) this.#releaseReply();
 			const index = this.#nextBlockIndex(messageId);
 			if (block['type'] === 'tool_use' && typeof block['id'] === 'string') {
 				this.#unsettledBlocks.delete(block['id']);
@@ -419,7 +431,7 @@ export class ClaudeTranscript {
 				if (this.#settledOnInterrupt.has(id)) continue;
 				if (typeof block['text'] !== 'string' || !block['text']) continue;
 				this.#settleBlock(id);
-				this.#emit({
+				this.#reply({
 					type: 'assistant.message',
 					runId: this.#runId,
 					contentId: id,
@@ -437,6 +449,29 @@ export class ClaudeTranscript {
 				});
 			}
 		}
+	}
+
+	#reply(message: AssistantMessage): void {
+		if (!this.#holdsReplies) return this.#emit(message);
+		this.#releaseReply();
+		this.#heldReply = message;
+	}
+
+	#releaseReply(): void {
+		if (this.#heldReply) this.#emit(this.#heldReply);
+		this.#heldReply = null;
+	}
+
+	#dropHeldReply(): void {
+		const held = this.#heldReply;
+		this.#heldReply = null;
+		if (!held?.contentId) return;
+		this.#emit({
+			type: 'stream.discarded',
+			runId: held.runId,
+			contentIds: [held.contentId],
+			toolCallIds: [],
+		});
 	}
 
 	#openStreamBlock(index: number, block: StreamBlock): void {
@@ -581,6 +616,18 @@ export class ClaudeTranscript {
 	recordContextWindow(tokens: number | undefined): void {
 		if (tokens && tokens > 0) this.#contextWindowTokens = tokens;
 	}
+}
+
+function releasesReply(message: SDKMessage): boolean {
+	if (message.type === 'result') return true;
+	if (message.type === 'stream_event') {
+		const starts =
+			message.event.type === 'message_start' || message.event.type === 'content_block_start';
+		return starts && message.parent_tool_use_id === null;
+	}
+	return (
+		(message.type === 'assistant' || message.type === 'user') && message.parent_tool_use_id === null
+	);
 }
 
 function backgroundTaskKind(taskType: string): BackgroundTaskKind {

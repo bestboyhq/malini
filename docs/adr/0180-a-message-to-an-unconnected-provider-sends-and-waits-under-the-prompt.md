@@ -1,14 +1,14 @@
-# 0178 - A message to an unconnected provider sends, and waits under the prompt
+# 0180 - A message to an unconnected provider sends, and waits under the prompt
 
 Status: accepted
 
 ## Context
 
 0149 had Send on a model without access open `ProviderConnectCard` above the composer, echoing the prompt while the composer still held the same draft.
-Once 0177 let any chat open on any model, that card became the first thing a signed-out send met, and the user said: "after sending a msg im confused i have both composer and permission prompt".
+Once 0179 let any chat open on any model, that card became the first thing a signed-out send met, and the user said: "after sending a msg im confused i have both composer and permission prompt".
 Moving the card into the composer's place still left the prompt unsent, so they asked: "couldnt we just send a message, or make it look like it sent prompt, and underneath show the gutter with CTA? just like with suggested automation", and picked the prototype that sends for real.
-0177's `readyEnvironment` also answered `null` on any error, so a DeepSeek key the keychain could not read opened its chat in silence instead of saying so, which `agent-bridge-failures.spec.ts` caught.
-This replaces 0149's connect card and edit gate, which 0158 and 0160 kept, and 0177's catch-all; 0149's `modelAccess` rule and the rest of 0177 stay in force.
+0179's `readyEnvironment` also answered `null` on any error, so a DeepSeek key the keychain could not read opened its chat in silence instead of saying so, which `agent-bridge-failures.spec.ts` caught.
+This replaces 0149's connect card and edit gate, which 0158 and 0160 kept, and 0179's catch-all; 0149's `modelAccess` rule and the rest of 0179 stay in force.
 
 ## Decision
 
@@ -22,7 +22,7 @@ This replaces 0149's connect card and edit gate, which 0158 and 0160 kept, and 0
   Connecting drains the queue; **Cancel**, or Escape while focus is in the strip or nowhere, runs `withdrawHeldPromptCommand`, which puts the prompt back in the composer as its draft.
 - The sidebar reads **Needs you** for a workstream with a held prompt, not **1 queued**, through `held` in `summarizeWorkstreamChat`.
 - An edited prompt rewinds its checkpoint and then sends through `submitPromptCommand`, so it holds the same way; `ProviderConnectCard` and the edit gate in `ChatPromptBubble` are deleted.
-- `readyEnvironment` in `src/lib/chat/platform/agent/commands.ts` answers `null` only for `ProviderNotConnectedError`, from `$shared/providers/domain/provider-env.ts`, which `ProviderKeys.environment` throws for a missing key and for a model the provider does not offer a new session; any other error, such as an unreadable key, fails the open as before 0177.
+- `readyEnvironment` in `src/lib/chat/platform/agent/commands.ts` answers `null` only for `ProviderNotConnectedError`, from `$shared/providers/domain/provider-env.ts`, which `ProviderKeys.environment` throws for a missing key and for a model the provider does not offer a new session; any other error, such as an unreadable key, fails the open as before 0179.
 
 ## Consequences
 

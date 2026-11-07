@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, keep working with the lid closed, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -199,7 +199,7 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 
 Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
-When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+When the agent asks, the chat shows what it wants to do, with a **Permission request** strip under it: deny it, or approve once, or always for the chat, the workstream, or everywhere.
 Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens a draft or merges.
 See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
@@ -294,6 +294,33 @@ Every pick stays in the chat as a step, with what lost and why; click any varian
 The pull request description lists which variant won over which, never your reason: what you type stays in the chat.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
+
+### Plain replies
+
+**Settings → Models → Plain replies** has every agent write its replies in ASD-STE100 Simplified Technical English, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
+At the low and medium report resolutions, a reply also stays under 135 words, code, paths and the footer not counted.
+Before you see a reply, the provider's small model, Haiku on a Claude plan, reads it beside your prompt.
+A reply that breaks a rule goes back to the agent once, with what to fix, and you see only the rewrite.
+Ask for another style or length in a prompt, such as "in detail" or "reply casually", and that reply keeps it.
+A reply that passes waits a few seconds for the check; one that goes back costs a rewrite.
+It is off until you turn it on, and the next prompt of every chat follows it.
+
+## The lid closed
+
+**Settings → Power → Keep working with the lid closed** keeps your Mac awake with its lid closed while an agent works, so a turn goes on in your bag.
+It is off until you turn it on.
+Turning it on asks for your password once: Malini adds `/etc/sudoers.d/malini`, which lets your account run `pmset -a disablesleep 1` and `pmset -a disablesleep 0` as root without a password, and nothing else.
+If `/etc/sudoers.d/close-my-lid` already allows those two commands, Malini asks for nothing.
+It also adds a background item, `app.malini.desktop.lid.<id>.plist` in `~/Library/LaunchAgents`, and macOS tells you so once.
+Every 30 seconds it checks that the Malini that turned sleep off still runs, and turns sleep back on when it doesn't.
+
+- While any turn runs, Malini turns sleep off with `pmset -a disablesleep 1`, and turns it back on once no turn runs, when you turn the switch off, and when Malini quits.
+- On battery at 5% or less, Malini lets the Mac sleep even while a turn runs.
+- If Malini crashes or is force-quit while it holds the lid, the background item turns sleep back on within 30 seconds; if the Mac lost power, once you log in.
+- When something else already turned sleep off, such as Close My Lid, Malini leaves it alone.
+
+Turning the switch off removes the background item, and `sudo rm /etc/sudoers.d/malini` removes the rule.
+It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12).
 
 ## Sounds
 

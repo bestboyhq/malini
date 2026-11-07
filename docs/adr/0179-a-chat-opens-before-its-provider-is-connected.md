@@ -1,6 +1,6 @@
-# 0177 - A chat opens before its provider is connected
+# 0179 - A chat opens before its provider is connected
 
-Status: superseded by 0178
+Status: superseded by 0180
 
 ## Context
 

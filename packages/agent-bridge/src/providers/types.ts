@@ -44,6 +44,7 @@ export interface ProviderHandle {
 		plugins?: readonly string[],
 		compactWindow?: number,
 		boundary?: AgentBoundary,
+		steReplies?: boolean,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;
