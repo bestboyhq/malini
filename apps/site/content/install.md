@@ -25,6 +25,11 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
   The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
   The step also says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
+- **Pick your defaults.** What Malini does without asking.
+  **Recommended** turns on all four: **Resolve merge conflicts**, **Address review comments**, **Keep a second brain**, and **Update from main** when main touches your files.
+  **Customize** lets you untick any of them, and set Update from main to **Touches my files**, **Always** or **Never**.
+  Each one is the trigger of a [built-in automation](/malini/docs/automations.md#built-in-automations), and the same switches live in Settings, Automations.
+  The [second brain](/malini/docs/brain.md) keeps what you typed in archived chats and Home chats, with secrets taken out, in a private GitHub repository, and nowhere else.
 - **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
   The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
 - **Then your repositories.** Setup ends on your five GitHub repositories pushed to last, under **What are we working on?**, and nothing to type.

@@ -6,9 +6,10 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { compareImagesCommand } from '$lib/chat/application/commands/compare-images.command';
 	import { imageComparisonQuery } from '$lib/chat/application/queries/image-comparison.query.svelte';
-	import { workstreamImagePath, type TurnComparison } from '$lib/chat/domain/turn-report';
+	import { workstreamImagePath } from '$contract/workstream-images';
+	import type { TurnComparison } from '$lib/chat/domain/turn-report';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
-	import { galleryImageId, reportMediaSource } from './workstream-images';
+	import { galleryImageId, reportMediaSource } from '$shared/markdown/workstream-images';
 
 	type Mode = 'wipe' | 'flip' | 'diff';
 	type View = Readonly<{ scale: number; x: number; y: number }>;

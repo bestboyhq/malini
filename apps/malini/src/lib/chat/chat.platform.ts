@@ -1,6 +1,6 @@
 export { resumesTurn } from './domain/background-work';
 export { commitLine } from './domain/run-evidence';
-export { hasTurnReport } from './domain/turn-report';
+export { hasTurnReport, parseTurnReport } from './domain/turn-report';
 export { AgentRunLeases, type Lease } from './platform/agent/lifecycle';
 export {
 	agentHasReadFile,
@@ -23,6 +23,7 @@ export {
 	type WorkstreamSnapshotRefs,
 } from './platform/checkpoints.repository';
 export { unpackRestoredChats } from './platform/event-packs.service';
+export { userPromptText } from './platform/fork-transcript';
 export { listRunChangedFiles, type RunChangedFile } from './platform/changes.repository';
 export {
 	chatTurnChainId,

@@ -1,4 +1,4 @@
-import { canonicalChangedPath } from './run-timeline';
+import { canonicalChangedPath } from './workstream-path';
 
 export type FileMentionTarget = {
 	readonly path: string;

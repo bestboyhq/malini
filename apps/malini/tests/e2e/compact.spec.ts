@@ -14,6 +14,7 @@ import {
 	sendPrompt,
 	undoRun,
 	visibleRunIds,
+	openSettingsFromMenu,
 } from './harness';
 
 test('a typed /compact compacts the chat in its Claude Code and shows the compaction as a step', async () => {
@@ -131,7 +132,7 @@ test('with Optimize context off, a chat compacts at its own window and gets noth
 		);
 		await openWorkstream(page, workstreamId);
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Models', exact: true })

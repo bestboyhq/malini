@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { mediaKind } from '$lib/chat/domain/turn-report';
+	import { mediaKind } from '$contract/workstream-images';
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
 	import ReportMedia from './ReportMedia.svelte';
-	import { galleryImageId, galleryImageLabel } from './workstream-images';
+	import { galleryImageId, galleryImageLabel } from '$shared/markdown/workstream-images';
 
 	interface Props {
 		pick: VariantPick;

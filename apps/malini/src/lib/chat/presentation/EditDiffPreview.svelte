@@ -10,7 +10,8 @@
 	import { BusyIcon } from '$hyper-ui/icons';
 	import DiffViewer from './DiffViewer.svelte';
 	import FilePreviewHeader from './FilePreviewHeader.svelte';
-	import { canonicalChangedPath, changedPathsMatch } from './run-timeline';
+	import { canonicalChangedPath } from '$shared/markdown/workstream-path';
+	import { changedPathsMatch } from './run-timeline';
 
 	interface Props {
 		workstreamId: string;

@@ -42,8 +42,14 @@
 	} from '$shared/providers/providers.api';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import AutomationsSidebar from '../AutomationsSidebar.svelte';
+	import BrainSidebar from '../BrainSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
-	import { AUTOMATIONS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
+	import {
+		AUTOMATIONS_HREF,
+		BRAIN_HREF,
+		REPOSITORIES_HREF,
+		workstreamHref,
+	} from '$shared/router/routes-hrefs';
 	import { globalTopBarBandSlot } from '$shared/shell/global-topbar-actions.svelte';
 	import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
 	import {
@@ -74,6 +80,7 @@
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
 	const chromeHidden = $derived(onboardingQuery.data.shown !== null);
 	const inAutomations = $derived(page.route.id?.startsWith(AUTOMATIONS_HREF) ?? false);
+	const inBrain = $derived(page.route.id?.startsWith(BRAIN_HREF) ?? false);
 	let lastWorkstreamId = $state<string | null>(null);
 	const automationsBackHref = $derived(
 		lastWorkstreamId ? workstreamHref(lastWorkstreamId) : REPOSITORIES_HREF,
@@ -135,6 +142,8 @@
 >
 	{#if !chromeHidden && inAutomations}
 		<AutomationsSidebar backHref={automationsBackHref} backLabel="Workstreams" />
+	{:else if !chromeHidden && inBrain}
+		<BrainSidebar backHref={automationsBackHref} backLabel="Workstreams" />
 	{:else if !chromeHidden}
 		<Sidebar
 			repositories={connectedRepositories}

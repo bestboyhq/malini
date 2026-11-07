@@ -6,7 +6,10 @@
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { Icon } from '$hyper-ui/icons';
 	import { workstreamByIdQuery } from '$shared/repositories/repositories.api';
-	import { WORKSTREAM_IMAGE_ATTRIBUTE, workstreamImageFilePath } from './workstream-images';
+	import {
+		WORKSTREAM_IMAGE_ATTRIBUTE,
+		workstreamImageFilePath,
+	} from '$shared/markdown/workstream-images';
 
 	interface Props {
 		workstreamId: string;

@@ -2,8 +2,8 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import type { FileMentionTarget } from './file-mention-links';
-	import MarkdownText from './MarkdownText.svelte';
+	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 
 	interface Props {
 		steps: readonly string[];

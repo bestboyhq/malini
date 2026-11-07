@@ -3,8 +3,8 @@ import {
 	isVideoAttachment,
 	type StagedAgentAttachment,
 } from '$lib/chat/domain/composer-actions';
-import { mediaKind } from '$lib/chat/domain/turn-report';
-import { renderSanitizedHtml } from './MarkdownText.svelte';
+import { mediaKind } from '$contract/workstream-images';
+import { renderSanitizedHtml } from '$shared/markdown/MarkdownText.svelte';
 import type { RenderItem, RunGroup } from './render-state';
 import { toolImageRead } from './tool-image-read';
 import {
@@ -14,7 +14,7 @@ import {
 	markdownImageId,
 	markdownImageName,
 	WORKSTREAM_IMAGE_ATTRIBUTE,
-} from './workstream-images';
+} from '$shared/markdown/workstream-images';
 
 export type GalleryImage = Readonly<{
 	id: string;
