@@ -18,6 +18,7 @@
 	} from '$lib/chat/domain/approval-request';
 	import type { AgentApprovalScope } from '$lib/chat/domain/agent-interaction';
 	import { Button } from '$hyper-ui/components/button';
+	import { Strip } from '$hyper-ui/components/strip';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon, type IconName } from '$hyper-ui/icons';
@@ -349,39 +350,35 @@
 		<div class="bg-surface-50 border-surface-50-border rounded-xl border-[0.5px] px-3 py-3">
 			{@render request()}
 		</div>
-		<div class="px-5">
-			<div
-				class="border-surface-50-border flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
-			>
-				{#if settled}
-					<span
-						in:fade={motionOff() ? { duration: 0 } : { duration: 180, delay: 60 }}
-						class="text-fg-secondary flex min-w-0 items-center gap-1.5"
-						role="status"
-					>
-						<Icon name={settledIcon} size={12} />
-						<span class="shrink-0">{settledMessage}</span>
-						{#if alwaysAllowed && item.autoModeRule}
-							<span class="text-fg-tertiary text-2xs min-w-0 truncate font-mono">
-								<SensitiveText text={item.autoModeRule} />
-							</span>
-						{/if}
-					</span>
-				{:else}
-					<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
-						<Icon name="shield-alert" size={12} />
-						<span class="truncate">Permission request</span>
-					</span>
-					<div
-						class="ml-auto flex shrink-0 items-center gap-1"
-						role="group"
-						aria-label="Permission decision"
-					>
-						{@render decisions('sm')}
-					</div>
-				{/if}
-			</div>
-		</div>
+		<Strip>
+			{#if settled}
+				<span
+					in:fade={motionOff() ? { duration: 0 } : { duration: 180, delay: 60 }}
+					class="text-fg-secondary flex min-w-0 items-center gap-1.5"
+					role="status"
+				>
+					<Icon name={settledIcon} size={12} />
+					<span class="shrink-0">{settledMessage}</span>
+					{#if alwaysAllowed && item.autoModeRule}
+						<span class="text-fg-tertiary text-2xs min-w-0 truncate font-mono">
+							<SensitiveText text={item.autoModeRule} />
+						</span>
+					{/if}
+				</span>
+			{:else}
+				<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
+					<Icon name="shield-alert" size={12} />
+					<span class="truncate">Permission request</span>
+				</span>
+				<div
+					class="ml-auto flex shrink-0 items-center gap-1"
+					role="group"
+					aria-label="Permission decision"
+				>
+					{@render decisions('sm')}
+				</div>
+			{/if}
+		</Strip>
 
 		{@render failure()}
 	</section>

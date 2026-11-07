@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ClassValue } from 'svelte/elements';
 	import { Button } from '$hyper-ui/components/button';
+	import { Strip } from '$hyper-ui/components/strip';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
@@ -31,7 +32,7 @@
 	let draft = $state('');
 	let busy = $state(false);
 	let error = $state<string | null>(null);
-	let strip = $state<HTMLElement | null>(null);
+	let strip = $state<HTMLDivElement | null>(null);
 	let keyInput = $state<HTMLInputElement | null>(null);
 	let primary = $state<HTMLAnchorElement | HTMLButtonElement | null>(null);
 
@@ -106,14 +107,12 @@
 <svelte:window onkeydown={onWindowKeydown} />
 
 <div
-	class={['w-full px-5', className]}
+	bind:this={strip}
+	class={['w-full', className]}
 	data-testid="provider-connect-strip"
 	data-access={access.kind}
 >
-	<div
-		bind:this={strip}
-		class="border-surface-50-border flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
-	>
+	<Strip>
 		{#if access.kind === 'needs-key'}
 			<span class="text-fg-secondary flex shrink-0 items-center">
 				<Icon name="key" size={12} />
@@ -216,11 +215,11 @@
 				{/if}
 			{/if}
 		</div>
-	</div>
+	</Strip>
 
 	{#if error}
 		<p
-			class="text-error-content mt-1.5 px-1 text-xs"
+			class="text-error-content mt-1.5 px-6 text-xs"
 			role="alert"
 			data-testid="provider-connect-error"
 		>

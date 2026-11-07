@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { Strip } from '$hyper-ui/components/strip';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { claudeSignInQuery, signInToClaudeCommand } from '$shared/providers/providers.api';
 	import { continueRunCommand } from '$lib/chat/application/commands/continue-run.command';
@@ -49,8 +49,8 @@
 		<span class="tracking-wide uppercase">{terminalLabel(run)}</span>
 	</div>
 {:else if run.terminal === 'paused' && run.resumeAt !== null}
-	<div
-		class="border-surface-50-border bg-surface-50 flex w-full items-start gap-2.5 self-start rounded-md border-[0.5px] px-3 py-2.5 text-xs"
+	<section
+		class="-mx-3"
 		use:stageEnter={timelineKey(run, 'terminal')}
 		role="status"
 		data-message-kind="terminal"
@@ -58,139 +58,142 @@
 		data-terminal-state={run.terminal}
 		data-testid="chat-run-paused"
 	>
-		<span class="text-fg-tertiary mt-0.5 grid h-5 w-5 shrink-0 place-items-center">
-			<Icon name="pause" size={13} />
-		</span>
-		<div class="min-w-0 flex-1">
-			<div class="text-fg-default font-medium">{pauseTitle(run.resumeAt, new Date())}</div>
-			<div class="text-fg-secondary mt-0.5 leading-5">
-				{pauseReason(failureKind ?? 'unknown')}
-			</div>
+		<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-3">
+			<p class="text-fg-default text-sm leading-6">{pauseReason(failureKind ?? 'unknown')}</p>
 			{#if errorDisplay.primary}
-				<div
-					class="text-2xs text-fg-tertiary mt-1 line-clamp-2 break-words select-text"
+				<p
+					class="text-2xs text-fg-tertiary mt-0.5 line-clamp-2 break-words select-text"
 					data-testid="chat-run-paused-error"
 				>
 					{errorDisplay.primary}
-				</div>
+				</p>
 			{/if}
 		</div>
-		{#if canContinue}
-			<Button
-				variant="secondary"
-				size="sm"
-				disabled={continuing}
-				ariaBusy={continuing}
-				onclick={continueRun}
-			>
-				Resume now
-			</Button>
-		{/if}
-	</div>
+		<Strip>
+			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
+				<Icon name="pause" size={12} class="shrink-0" />
+				<span class="truncate">{pauseTitle(run.resumeAt, new Date())}</span>
+			</span>
+			{#if canContinue}
+				<Button
+					variant="secondary"
+					size="sm"
+					bordered
+					class="ml-auto"
+					disabled={continuing}
+					ariaBusy={continuing}
+					onclick={continueRun}
+				>
+					Resume now
+				</Button>
+			{/if}
+		</Strip>
+	</section>
 {:else}
-	<div
-		class="border-error-content/25 bg-error text-error-content flex w-full items-start gap-2.5 self-start rounded-md border-[0.5px] px-3 py-2.5 text-xs"
+	<section
+		class="-mx-3"
 		use:stageEnter={timelineKey(run, 'terminal')}
+		aria-label={terminalLabel(run)}
 		data-message-kind="terminal"
 		data-terminal="failed"
 		data-terminal-state={run.terminal}
 		data-testid="chat-run-error"
 	>
-		<span class="bg-error-content/15 mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-sm">
-			<Icon name="close" size={12} />
-		</span>
-		<div class="min-w-0 flex-1">
-			<div class="text-2xs font-medium tracking-wide uppercase">{terminalLabel(run)}</div>
-			{#if run.terminalText}
-				<div
-					class="text-2xs text-error-content/90 mt-1 font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
-					data-testid="chat-run-error-text"
-				>
-					<MarkdownText
-						text={errorDisplay.primary}
-						mode="plain"
-						onopenfile={transcript.openFileMention}
-						canopenfile={transcript.canOpenFileMention}
-					/>
-				</div>
-				{#if errorDisplay.diagnostics}
-					<details
-						class="group border-error-content/20 bg-error-content/[0.04] mt-2 overflow-hidden rounded border-[0.5px]"
-						data-testid="chat-run-error-details"
-					>
-						<summary
-							class="text-2xs text-error-content/75 hover:bg-error-content/[0.06] flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 font-medium"
-						>
-							<Icon
-								name="chevron-right"
-								size={12}
-								class="shrink-0 transition-transform duration-100 group-open:rotate-90"
-							/>
-							<span>Diagnostics</span>
-						</summary>
-						<div
-							class="border-error-content/15 text-2xs text-error-content/80 max-h-56 overflow-auto border-t px-2 py-2 font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
-							data-testid="chat-run-error-diagnostics"
-						>
-							<MarkdownText
-								text={errorDisplay.diagnostics}
-								mode="plain"
-								onopenfile={transcript.openFileMention}
-								canopenfile={transcript.canOpenFileMention}
-							/>
-						</div>
-					</details>
-				{/if}
-			{/if}
+		<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-3">
+			<div
+				class="text-2xs text-fg-secondary font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
+				data-testid="chat-run-error-text"
+			>
+				<MarkdownText
+					text={errorDisplay.primary || 'Agent run failed'}
+					mode="plain"
+					onopenfile={transcript.openFileMention}
+					canopenfile={transcript.canOpenFileMention}
+				/>
+			</div>
 			{#if nextStep}
-				<div class="text-2xs text-error-content/80 mt-1">{nextStep}</div>
+				<p class="text-2xs text-fg-tertiary mt-1">{nextStep}</p>
 			{/if}
-			{#if canSignIn || canTryAgain}
-				<div class="mt-2 flex items-center gap-1.5">
-					{#if canSignIn}
-						<Button
-							variant="secondary"
-							size="sm"
-							disabled={signingIn}
-							ariaBusy={signingIn}
-							onclick={() => signInToClaudeCommand()}
-						>
-							Sign in
-						</Button>
-					{/if}
-					{#if canTryAgain}
-						<Button
-							variant="secondary"
-							size="sm"
-							disabled={continuing}
-							ariaBusy={continuing}
-							onclick={continueRun}
-						>
-							Try again
-						</Button>
-					{/if}
-				</div>
+			{#if errorDisplay.diagnostics}
+				<details class="group mt-1.5" data-testid="chat-run-error-details">
+					<summary
+						class="text-2xs text-fg-tertiary hover:text-fg-secondary inline-flex cursor-pointer list-none items-center gap-1 font-medium"
+					>
+						Diagnostics
+						<Icon
+							name="chevron-down"
+							size={10}
+							class="transition-transform duration-100 group-open:rotate-180"
+						/>
+					</summary>
+					<div
+						class="text-2xs text-fg-tertiary mt-1 max-h-56 overflow-auto font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
+						data-testid="chat-run-error-diagnostics"
+					>
+						<MarkdownText
+							text={errorDisplay.diagnostics}
+							mode="plain"
+							onopenfile={transcript.openFileMention}
+							canopenfile={transcript.canOpenFileMention}
+						/>
+					</div>
+				</details>
 			{/if}
 		</div>
-		{#if run.terminalText}
-			<Tooltip
-				content={transcript.copiedErrorKey === run.runId
-					? 'Copied'
-					: errorDisplay.diagnostics
-						? 'Copy full diagnostics'
-						: 'Copy full error'}
-				placement="top"
-			>
-				<IconButton
-					bare
-					class="text-error-content/70 hover:bg-error-content/10 hover:text-error-content focus-visible:ring-error-content/30 grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
-					ariaLabel="Copy run error"
-					onclick={() =>
-						transcript.copyErrorText(run.runId, errorDisplay.diagnostics ?? errorDisplay.primary)}
-				>
-					<Icon name="copy" size={14} />
-				</IconButton>
-			</Tooltip>
-		{/if}
-	</div>
+		<Strip>
+			<span class="text-error-content flex min-w-0 items-center gap-1.5">
+				<Icon name="close" size={12} class="shrink-0" />
+				<span class="truncate">{terminalLabel(run)}</span>
+			</span>
+			<div class="ml-auto flex shrink-0 items-center gap-1">
+				{#if run.terminalText}
+					<Tooltip
+						content={transcript.copiedErrorKey === run.runId
+							? 'Copied'
+							: errorDisplay.diagnostics
+								? 'Copy full diagnostics'
+								: 'Copy full error'}
+						placement="top"
+					>
+						<Button
+							variant="ghost"
+							size="sm"
+							class="gap-1"
+							onclick={() =>
+								transcript.copyErrorText(
+									run.runId,
+									errorDisplay.diagnostics ?? errorDisplay.primary,
+								)}
+						>
+							<Icon name="copy" size={12} />
+							Copy error
+						</Button>
+					</Tooltip>
+				{/if}
+				{#if canTryAgain}
+					<Button
+						variant={canSignIn ? 'secondary' : 'primary'}
+						size="sm"
+						bordered={canSignIn}
+						disabled={continuing}
+						ariaBusy={continuing}
+						onclick={continueRun}
+					>
+						Try again
+					</Button>
+				{/if}
+				{#if canSignIn}
+					<Button
+						variant="primary"
+						size="sm"
+						disabled={signingIn}
+						ariaBusy={signingIn}
+						onclick={() => signInToClaudeCommand()}
+					>
+						Sign in
+					</Button>
+				{/if}
+			</div>
+		</Strip>
+	</section>
 {/if}

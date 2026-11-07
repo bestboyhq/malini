@@ -424,7 +424,6 @@
 	style:width={splitInset.extent > 0 ? `${splitInset.extent}px` : undefined}
 	style:padding-right="{splitInset.secondarySize}px"
 >
-	<AgentProcessDiedBanner />
 	<WorkstreamProvisioningBanner {workstreamId} />
 	<DependencyInstallBanner {workstreamId} />
 	<div class="min-h-0 flex-1">
@@ -563,6 +562,7 @@
 								</div>
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
+								<AgentProcessDiedBanner />
 								<div bind:borderBoxSize={traySize}>
 									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundTray || automations || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
