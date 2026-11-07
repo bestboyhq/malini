@@ -41,3 +41,19 @@ export class Loop {
 export function steps(count: number, each: number, rest: number): number[] {
 	return Array.from({ length: count }, (_, index) => (index === count - 1 ? rest : each));
 }
+
+export function ticker(every: number, tick: () => void): Attachment<HTMLElement> {
+	return (node) => {
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		let timer: ReturnType<typeof setInterval> | undefined;
+		const observer = new IntersectionObserver(([entry]) => {
+			clearInterval(timer);
+			if (entry?.isIntersecting) timer = setInterval(tick, every);
+		});
+		observer.observe(node);
+		return () => {
+			clearInterval(timer);
+			observer.disconnect();
+		};
+	};
+}

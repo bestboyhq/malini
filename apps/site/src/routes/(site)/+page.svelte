@@ -7,6 +7,7 @@
 		Icon,
 		OpenCodeIcon,
 	} from '@malini/hyper-ui/icons';
+	import type { Snippet } from 'svelte';
 	import Arrow from '$lib/Arrow.svelte';
 	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
@@ -17,14 +18,16 @@
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
+	import Problem from '$lib/Problem.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
+	import SoldCard from '$lib/SoldCard.svelte';
 	import { docHref, DOWNLOAD_URL, SITE_DESCRIPTION } from '$lib/links';
 	import { GITHUB_URL } from '$lib/urls';
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 
 	const BEATS = [
-		'how',
+		'problem',
 		'plans',
 		'harness',
 		'opus',
@@ -73,21 +76,6 @@
 			for (const element of waiting) delete element.dataset.reveal;
 		};
 	});
-
-	const steps = [
-		{
-			title: 'Start a task',
-			body: 'Each task is a workstream with its own git worktree, branch, and chats. Describe what you want and let the agent run.',
-		},
-		{
-			title: 'Press Draft, then Merge',
-			body: 'Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.',
-		},
-		{
-			title: 'Automate what repeats',
-			body: 'When you keep typing the same prompt, Malini offers to save it as an automation. Give it a trigger, and it asks you first until you let it run on its own.',
-		},
-	];
 
 	const plans = [
 		{
@@ -144,7 +132,11 @@
 		},
 	] as const;
 
-	const faqs = [
+	const faqs: readonly { question: string; answer: string | Snippet }[] = [
+		{
+			question: 'How do you make money?',
+			answer: money,
+		},
 		{
 			question: 'Is Malini free?',
 			answer:
@@ -198,6 +190,13 @@
 	];
 </script>
 
+{#snippet money()}
+	Sponsors, not you. We plan to grow the biggest community of builders out there, and sponsors pay
+	to be part of it. It beats the usual endings: pulling the rug on users, or <SoldCard
+		word="selling"
+	/>.
+{/snippet}
+
 <Head title="Malini: agentic development environment" description={SITE_DESCRIPTION} path="" />
 
 <Hero>
@@ -217,26 +216,7 @@
 	</p>
 </Hero>
 
-<SectionHeading
-	id="how"
-	beat={beat('how', 'How it works')}
-	split
-	title="You describe the task."
-	quiet="Malini runs the loop."
-	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request."
->
-	{#snippet after()}
-		<ol class="cells">
-			{#each steps as step, index (step.title)}
-				<li class="rise">
-					<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
-					<h3>{step.title}</h3>
-					<p>{step.body}</p>
-				</li>
-			{/each}
-		</ol>
-	{/snippet}
-</SectionHeading>
+<Problem beat={beat('problem', 'Problem')} />
 
 <SectionHeading
 	id="plans"
@@ -439,7 +419,7 @@
 		<BeatLabel {...beat('faq')} />
 		<div class="faq">
 			<div class="faq-intro rise">
-				<h2 id="faq-title">Questions</h2>
+				<h2 id="faq-title">Good questions</h2>
 				<p>
 					Another question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
 				</p>
@@ -452,7 +432,9 @@
 							<span class="q">{faq.question}</span>
 							<span class="plus" aria-hidden="true"></span>
 						</summary>
-						<p>{faq.answer}</p>
+						<p>
+							{#if typeof faq.answer === 'string'}{faq.answer}{:else}{@render faq.answer()}{/if}
+						</p>
 					</details>
 				{/each}
 			</div>
