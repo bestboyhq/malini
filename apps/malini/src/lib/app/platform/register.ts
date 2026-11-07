@@ -191,6 +191,7 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		window.setInterfaceScale(args),
 	);
 	commands.define('app.logical-viewport', () => window.logicalViewport());
+	commands.define('app.full-screen', () => window.isFullScreen());
 	commands.define('app.close-guard', (args: CloseGuardArgs) => window.setCloseGuard(args));
 	commands.define('app.destroy-window', () => window.destroy());
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));

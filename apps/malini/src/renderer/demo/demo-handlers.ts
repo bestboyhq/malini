@@ -182,6 +182,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	}),
 	'app.theme-mode': () => undefined,
 	'app.streaming': () => false,
+	'app.full-screen': () => false,
 	'app.update-status': () => ({ state: 'idle' }),
 	'app.close-guard': () => undefined,
 	'app.report-toast': () => ({ path: '', persistedAt: NOW, sizeBytes: 0, rotated: false }),

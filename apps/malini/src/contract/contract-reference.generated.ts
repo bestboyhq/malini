@@ -195,20 +195,21 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'repositories:workstream-base-overlapped',
 			description:
-				"Fires when a workstream's base branch has commits the workstream lacks that conflict with it or change files it changed too, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream and each time it fetches the base branch, every five minutes, and only while no agent works there and nothing is left uncommitted. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A base branch that changed only other files fires nothing. Update from main runs on it.",
+				"Fires when a workstream's base branch has commits the workstream lacks, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream, each time it fetches the base branch, every five minutes, and right after its merge queue lands a pull request; once the base branch moves, it waits until it has held still for 30 seconds, and it looks only while no agent works there, nothing is left uncommitted and no service the workstream started runs. `overlapping` says whether those commits conflict with the workstream or change files it changed too; it fires with `overlapping` false only for a workstream someone worked in during the last 7 days. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A workstream with no commits of its own fires nothing: it fast-forwards to the base branch when it started from it, and stays where it started when it started from a tag or a commit. Update from main runs on it where `overlapping` is true, or on every one once you pick Always.",
 			facts: [
 				'workstreamId',
 				'baseBranch',
 				'head',
 				'baseHead',
 				'behind',
+				'overlapping',
 				'conflicts',
 				'conflictedPaths',
 				'overlappingPaths',
 			],
 			payloadType: 'WorkstreamBaseOverlappedPayload',
 			payload:
-				'interface WorkstreamBaseOverlappedPayload {\n\tworkstreamId: string;\n\tbaseBranch: string;\n\thead: string;\n\tbaseHead: string;\n\tbehind: number;\n\tconflicts: boolean;\n\tconflictedPaths: string[];\n\toverlappingPaths: string[];\n}',
+				'interface WorkstreamBaseOverlappedPayload {\n\tworkstreamId: string;\n\tbaseBranch: string;\n\thead: string;\n\tbaseHead: string;\n\tbehind: number;\n\toverlapping: boolean;\n\tconflicts: boolean;\n\tconflictedPaths: string[];\n\toverlappingPaths: string[];\n}',
 		},
 		{
 			channel: 'repositories:workstream-head-moved',
@@ -431,7 +432,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			],
 			payloadType: 'AutomationDefinitionChangedEvent',
 			payload:
-				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype AutomationRunsIn = 'workstream' | 'new-workstream';\n\ntype AutomationBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge'\n\t| 'reconcile'\n\t| 'suggest-automations';\n\ntype AutomationRunMode = 'off' | 'ask' | 'auto';\n\ntype AutomationTrigger = Readonly<{ when: string; mode: AutomationRunMode }>;\n\ntype AutomationEventSight = 'facts' | 'full';\n\ntype AutomationChatSight = 'none' | 'starter' | 'all';\n\ntype AutomationBoundary = Readonly<{\n\tevent: AutomationEventSight;\n\tbefore: boolean;\n\tchats: AutomationChatSight;\n\tattachments: boolean;\n\tinternet: boolean;\n}>;\n\ntype AutomationDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tprovider: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: AutomationRunsIn;\n\tskills: readonly string[];\n\tbuiltin: AutomationBuiltin | null;\n\ttrigger: AutomationTrigger | null;\n\tthenAutomationId: string | null;\n\tboundary: AutomationBoundary;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype AutomationDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: AutomationDefinitionRecord | null;\n}>;",
+				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype AutomationRunsIn = 'workstream' | 'new-workstream';\n\ntype AutomationBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge'\n\t| 'reconcile'\n\t| 'suggest-automations'\n\t| 'capture-brain'\n\t| 'write-brain-notes';\n\ntype AutomationRunMode = 'off' | 'ask' | 'auto';\n\ntype AutomationTrigger = Readonly<{ when: string; mode: AutomationRunMode }>;\n\ntype AutomationEventSight = 'facts' | 'full';\n\ntype AutomationChatSight = 'none' | 'starter' | 'all';\n\ntype AutomationBoundary = Readonly<{\n\tevent: AutomationEventSight;\n\tbefore: boolean;\n\tchats: AutomationChatSight;\n\tattachments: boolean;\n\tinternet: boolean;\n}>;\n\ntype AutomationDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tprovider: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: AutomationRunsIn;\n\tskills: readonly string[];\n\tbuiltin: AutomationBuiltin | null;\n\ttrigger: AutomationTrigger | null;\n\tthenAutomationId: string | null;\n\tboundary: AutomationBoundary;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype AutomationDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: AutomationDefinitionRecord | null;\n}>;",
 		},
 		{
 			channel: 'automations:suggested',
@@ -562,6 +563,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			facts: [],
 			payloadType: 'EmptyEventPayload',
 			payload: 'type EmptyEventPayload = Readonly<Record<string, never>>;',
+		},
+		{
+			channel: 'app:full-screen-changed',
+			description:
+				'Fires when the Malini window enters or leaves full screen, with whether it is full screen now. Malini does not keep it in its event log.',
+			facts: ['fullScreen'],
+			payloadType: 'FullScreenChangedPayload',
+			payload: 'type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;',
 		},
 		{
 			channel: 'app:notification-opened',
@@ -714,6 +723,22 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'SecretsRequestedEvent',
 			payload:
 				'type SecretRequest = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tnames: readonly string[];\n\twhy: string;\n\trepository: string | null;\n\tsaved: readonly string[];\n\taskedAt: string;\n}>;\n\ntype SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;',
+		},
+		{
+			channel: 'brain:changed',
+			description:
+				'Fires when your second brain changes: it is set up, a capture or new notes land in it, a push to GitHub goes through or stops on a problem, or you turn its sync on or off, with its `status`. It never carries what the brain says.',
+			facts: [
+				'status.set',
+				'status.repository',
+				'status.sync',
+				'status.syncedAt',
+				'status.unpushed',
+				'status.problem',
+			],
+			payloadType: 'BrainChangedEvent',
+			payload:
+				'type BrainStatus = Readonly<{\n\tset: boolean;\n\trepository: string | null;\n\tsync: boolean;\n\tworkstreamId: string | null;\n\tlocation: string | null;\n\tsyncedAt: string | null;\n\tunpushed: number;\n\tproblem: string | null;\n}>;\n\ntype BrainChangedEvent = Readonly<{ status: BrainStatus }>;',
 		},
 		{
 			channel: 'secrets:saved',

@@ -7,7 +7,7 @@
 	import { continueRunCommand } from '$lib/chat/application/commands/continue-run.command';
 	import { runContinuationQuery } from '$lib/chat/application/queries/run-continuation.query.svelte';
 	import { splitRunErrorText, type RunGroup } from '../render-state';
-	import MarkdownText from '../MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import { failedRunNextStep, pauseReason, pauseTitle } from './run-stop-copy';
 	import { terminalLabel } from './transcript-labels';
 	import { transcriptContext } from './transcript-context';

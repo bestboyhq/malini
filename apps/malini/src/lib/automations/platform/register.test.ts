@@ -336,13 +336,22 @@ describe('automation definitions', () => {
 			'fix-checks': defaults('Fix checks', 'high'),
 			'update-from-main': {
 				...defaults('Update from main', 'low'),
-				trigger: { when: 'on repositories:workstream-base-overlapped', mode: 'auto' },
+				trigger: {
+					when: 'on repositories:workstream-base-overlapped where overlapping is true',
+					mode: 'auto',
+				},
 			},
 			'resolve-conflicts': {
 				...defaults('Resolve conflicts', 'high'),
 				trigger: { when: 'on repositories:workstream-merge-conflicted', mode: 'auto' },
 			},
-			'address-review': defaults('Address review', 'medium'),
+			'address-review': {
+				...defaults('Address review', 'medium'),
+				trigger: {
+					when: 'on pull-requests:pull-request-changed where reviewDecision is changes_requested',
+					mode: 'auto',
+				},
+			},
 			'check-compatibility': defaults('Check compatibility', 'high'),
 			'update-docs': {
 				...defaults('Update docs', 'high'),
@@ -353,6 +362,14 @@ describe('automation definitions', () => {
 			merge: defaults('Merge', 'low'),
 			reconcile: defaults('Choose a reaction', 'low', 'haiku'),
 			'suggest-automations': defaults('Suggest automations', 'low', 'haiku'),
+			'capture-brain': {
+				...defaults('Capture to the log', 'low'),
+				trigger: { when: 'on repositories:workstream-removed where archived is set', mode: 'off' },
+			},
+			'write-brain-notes': {
+				...defaults('Write the notes', 'medium'),
+				trigger: { when: 'every sunday at 18:00', mode: 'off' },
+			},
 		});
 	});
 

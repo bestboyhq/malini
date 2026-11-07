@@ -17,7 +17,7 @@
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import AgentInteractionCard from './AgentInteractionCard.svelte';
-	import MarkdownText from './MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import MediaViewer, { type ViewerItem } from './MediaViewer.svelte';
 	import ProviderConnectStrip from './ProviderConnectStrip.svelte';
 	import TimelineActor from './TimelineActor.svelte';

@@ -19,3 +19,11 @@ export function relativizeWorkstreamCommand(command: string): string {
 		)
 		.replace(BARE_WORKSTREAM_PATH_RE, (_, rest: string) => rest || '.');
 }
+
+export function canonicalChangedPath(value: string): string {
+	const normalized = relativizeWorkstreamPath(value.trim().replaceAll('\\', '/'));
+	return normalized
+		.replace(/^(?:\.\/)+/u, '')
+		.replace(/^\/+/u, '')
+		.replace(/\/+$/u, '');
+}

@@ -39,6 +39,7 @@ const ALL_TABLES = [
 	'automation_runs',
 	'automation_setups',
 	'automation_suggestions',
+	'brain_captures',
 	'chatgpt_account',
 	'connected_repositories',
 	'custom_sounds',
@@ -648,7 +649,7 @@ describe('migrate', () => {
 			{ id: 'fix', trigger_when: null, trigger_mode: null },
 			{
 				id: 'main',
-				trigger_when: 'on repositories:workstream-base-overlapped',
+				trigger_when: 'on repositories:workstream-base-overlapped where overlapping is true',
 				trigger_mode: 'auto',
 			},
 		]);
@@ -659,6 +660,43 @@ describe('migrate', () => {
 		]);
 		db.close();
 		other.close();
+	});
+
+	it('keeps Update from main on files you touch once the event fires for every workstream behind', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const overlapping = MIGRATIONS.findIndex((migration) =>
+			migration.includes("'on repositories:workstream-base-overlapped where overlapping is true'"),
+		);
+		for (const migration of MIGRATIONS.slice(0, overlapping)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + overlapping};`);
+		const at = '2026-11-01T00:00:00Z';
+		db.exec(`
+			INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at) VALUES
+			  ('main', 'Update from main', 'Merge.', 'opus', 'low', 'workstream', 'update-from-main', 'on repositories:workstream-base-overlapped', 'off', '${at}', '${at}'),
+			  ('mine', 'Rebase', 'Rebase.', 'opus', 'low', 'workstream', NULL, 'on repositories:workstream-base-overlapped', 'auto', '${at}', '${at}');
+		`);
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				"SELECT id, trigger_when, trigger_mode FROM automation_definitions WHERE id IN ('main', 'mine') ORDER BY id",
+			),
+		).toEqual([
+			{
+				id: 'main',
+				trigger_when: 'on repositories:workstream-base-overlapped where overlapping is true',
+				trigger_mode: 'off',
+			},
+			{
+				id: 'mine',
+				trigger_when: 'on repositories:workstream-base-overlapped',
+				trigger_mode: 'auto',
+			},
+		]);
+		db.close();
 	});
 
 	it('lets a chat be a thread from a page, keeping every chat and what hangs off it', () => {

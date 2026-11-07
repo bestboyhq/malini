@@ -1236,7 +1236,8 @@ export function claudeEnvironment(
 		if (
 			name.startsWith('ANTHROPIC_') ||
 			name === 'CLAUDE_CODE_SUBAGENT_MODEL' ||
-			name === 'CLAUDE_CODE_EFFORT_LEVEL'
+			name === 'CLAUDE_CODE_EFFORT_LEVEL' ||
+			name === 'CLAUDE_CODE_DISABLE_AUTO_MEMORY'
 		) {
 			continue;
 		}

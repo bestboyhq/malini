@@ -7,7 +7,7 @@
 	import EditDiffPreview from '../EditDiffPreview.svelte';
 	import FileToolRow from '../FileToolRow.svelte';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
-	import MarkdownText from '../MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';

@@ -17,7 +17,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { announceExclusiveOverlayOpen } from '$hyper-ui/overlay';
-	import { mediaKind } from '$lib/chat/domain/turn-report';
+	import { mediaKind } from '$contract/workstream-images';
 	import WorkstreamMedia from './WorkstreamMedia.svelte';
 
 	interface Props {

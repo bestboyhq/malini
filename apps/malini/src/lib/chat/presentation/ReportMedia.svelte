@@ -2,11 +2,11 @@
 	import type { Snippet } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { worktreePageUrl } from '$contract/browser';
-	import { mediaKind, mediaPath } from '$lib/chat/domain/turn-report';
+	import { mediaKind, mediaPath } from '$contract/workstream-images';
 	import { Button } from '$hyper-ui/components/button';
 	import type { VideoHandoff } from './transcript-gallery';
 	import VideoPlayer from './VideoPlayer.svelte';
-	import { galleryImageLabel, reportMediaSource } from './workstream-images';
+	import { galleryImageLabel, reportMediaSource } from '$shared/markdown/workstream-images';
 
 	interface Props {
 		src: string;

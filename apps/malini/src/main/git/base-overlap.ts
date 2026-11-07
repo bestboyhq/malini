@@ -6,6 +6,7 @@ export const MAX_OVERLAP_PATHS = 100;
 
 export type BaseOverlap = Readonly<{
 	behind: number;
+	pristine: boolean;
 	conflictedPaths: readonly string[];
 	overlappingPaths: readonly string[];
 }>;
@@ -33,6 +34,7 @@ const LOCKFILES: ReadonlySet<string> = new Set([
 const CHANGELOG = /^(?:changelog|changes)(?:\.[a-z]+)?$/iu;
 const TREE_LINE = /^[0-9a-f]+[\n\0]/u;
 const GENERATED = new Set(['set', 'true']);
+const CREATED_FROM = /^branch: Created from (.+)$/u;
 
 export function changesWithEveryCommit(path: string): boolean {
 	const name = basename(path);
@@ -62,11 +64,24 @@ export async function baseOverlap(
 	baseHead: string,
 ): Promise<BaseOverlap | null> {
 	const forkPoint = await mergeBase(worktreePath, head, baseHead);
-	if (forkPoint === null || forkPoint === head || forkPoint === baseHead) return null;
-	const [mine, theirs, conflictedPaths] = await Promise.all([
+	if (forkPoint === null || forkPoint === baseHead) return null;
+	const countBehind = async (): Promise<number> =>
+		Number(
+			(await runGit(['-C', worktreePath, 'rev-list', '--count', `${head}..${baseHead}`])).trim(),
+		);
+	if (forkPoint === head) {
+		return {
+			behind: await countBehind(),
+			pristine: true,
+			conflictedPaths: [],
+			overlappingPaths: [],
+		};
+	}
+	const [mine, theirs, conflictedPaths, behind] = await Promise.all([
 		changedPaths(worktreePath, forkPoint, head),
 		changedPaths(worktreePath, forkPoint, baseHead),
 		mergeConflicts(worktreePath, head, baseHead),
+		countBehind(),
 	]);
 	const changedOnBase = new Set(theirs);
 	const conflicted = new Set(conflictedPaths);
@@ -78,13 +93,26 @@ export async function baseOverlap(
 		...conflictedPaths,
 		...changedOnBoth.filter((path) => !generated.has(path)),
 	];
-	if (overlappingPaths.length === 0) return null;
-	const behind = await runGit(['-C', worktreePath, 'rev-list', '--count', `${head}..${baseHead}`]);
 	return {
-		behind: Number(behind.trim()),
+		behind,
+		pristine: false,
 		conflictedPaths: conflictedPaths.slice(0, MAX_OVERLAP_PATHS),
 		overlappingPaths: overlappingPaths.slice(0, MAX_OVERLAP_PATHS),
 	};
+}
+
+export async function branchStart(worktreePath: string, branch: string): Promise<string | null> {
+	const reflog = await runGit([
+		'-C',
+		worktreePath,
+		'reflog',
+		'show',
+		'--format=%gs',
+		`refs/heads/${branch}`,
+		'--',
+	]).catch(() => '');
+	const created = reflog.trimEnd().split('\n').at(-1) ?? '';
+	return CREATED_FROM.exec(created)?.[1] ?? null;
 }
 
 async function mergeBase(

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
 	GH_CREDENTIAL_HELPER_CONFIG,
+	noPromptCredentialEnv,
 	normalizeGithubToken,
 	type GitCredentialEnv,
 } from './credentials';
@@ -25,18 +26,26 @@ import {
 import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 import { conflictMarkerPaths, inProgressOperation, statusCollector } from './status';
 
-async function commitConfig(worktree: string): Promise<string[]> {
-	return ['-c', 'commit.gpgsign=false', ...(await identityWhenGitHasNone(worktree))];
+type CommitIdentity = Readonly<{ name: string; email: string }>;
+
+async function commitConfig(
+	worktree: string,
+	fallback: CommitIdentity | null = null,
+): Promise<string[]> {
+	return ['-c', 'commit.gpgsign=false', ...(await identityWhenGitHasNone(worktree, fallback))];
 }
 
-async function identityWhenGitHasNone(worktree: string): Promise<string[]> {
+async function identityWhenGitHasNone(
+	worktree: string,
+	fallback: CommitIdentity | null,
+): Promise<string[]> {
 	const email = await runGit(['-C', worktree, 'config', 'user.email']).catch(() => '');
 	if (email.trim()) return [];
-	const account = await githubAccount();
+	const account = (await githubAccount()) ?? fallback;
 	return account ? ['-c', `user.name=${account.name}`, '-c', `user.email=${account.email}`] : [];
 }
 
-async function githubAccount(): Promise<Readonly<{ name: string; email: string }> | null> {
+async function githubAccount(): Promise<CommitIdentity | null> {
 	const result = await runGh(['api', 'user', '--jq', '[.id, .login, .name // ""] | @tsv']).catch(
 		() => null,
 	);
@@ -219,6 +228,81 @@ export async function pushWorkstreamBranch(
 		`refs/heads/${branch}`,
 	]);
 	return branch;
+}
+
+export async function commitPaths(
+	worktree: string,
+	message: string,
+	paths: readonly string[],
+): Promise<boolean> {
+	await runGit(['-C', worktree, 'add', '-A', '--', ...paths]);
+	const staged = await runGit(['-C', worktree, 'diff', '--cached', '--name-only', '--', ...paths]);
+	if (staged.trim().length === 0) return false;
+	await runGit([
+		'-C',
+		worktree,
+		...(await commitConfig(worktree, AGENT_IDENTITY)),
+		'-c',
+		DISABLED_GIT_HOOKS_CONFIG,
+		'commit',
+		'-q',
+		'-m',
+		message,
+		'--',
+		...paths,
+	]);
+	return true;
+}
+
+export const MAIN_DIVERGED =
+	'GitHub has brain changes this Mac lacks, and they clash with its own. Pull them into the Brain workstream, then retry.';
+
+export async function pushHeadToGithubMain(
+	worktreePath: string,
+	repositoryFullName: string,
+	credentials: GitCredentialEnv = noPromptCredentialEnv,
+): Promise<void> {
+	const canonicalUrl = canonicalGithubHttpsUrl(repositoryFullName);
+	const env = await credentials.prepare(null);
+	const push = (): Promise<string> =>
+		runGit(githubPushArgs(worktreePath, canonicalUrl, 'HEAD:refs/heads/main'), env);
+	try {
+		await push();
+	} catch (error) {
+		if (!REMOTE_HAS_NEW_COMMITS.test(failureOutput(error))) throw error;
+		const remoteRef = await syncRemoteBase(worktreePath, 'main', null, credentials);
+		try {
+			await runGit([
+				'-C',
+				worktreePath,
+				...(await commitConfig(worktreePath, AGENT_IDENTITY)),
+				'-c',
+				DISABLED_GIT_HOOKS_CONFIG,
+				'rebase',
+				remoteRef,
+			]);
+		} catch {
+			if ((await inProgressOperation(worktreePath)) === 'rebase') {
+				await runGit(['-C', worktreePath, 'rebase', '--abort']);
+			}
+			throw GitError.git(MAIN_DIVERGED);
+		}
+		try {
+			await push();
+		} catch (again) {
+			if (REMOTE_HAS_NEW_COMMITS.test(failureOutput(again))) throw GitError.git(MAIN_DIVERGED);
+			throw again;
+		}
+	}
+	await runGit([
+		'-C',
+		worktreePath,
+		'-c',
+		DISABLED_GIT_HOOKS_CONFIG,
+		'update-ref',
+		'refs/remotes/origin/main',
+		'HEAD',
+	]);
 }
 
 function githubPushArgs(

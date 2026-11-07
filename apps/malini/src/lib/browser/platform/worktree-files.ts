@@ -12,7 +12,7 @@ const PAGE = /\.html?$/iu;
 const DOCTYPE = /^(?:\xEF\xBB\xBF)?\s*<!doctype[^>]*>/iu;
 // ponytail: only the nearest scroller moves, so a target inside a nested scroller leaves the page itself still; walk the page's scrollers if a preview needs both
 const CONTAINED_SCROLL = Buffer.from(
-	"<script>{const scroll=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){scroll.call(this,{...(typeof options==='object'&&options!==null?options:{block:options===false?'end':'start'}),container:'nearest'})}}</script>",
+	"<script>{const scroll=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){const contained={...(typeof options==='object'&&options!==null?options:{block:options===false?'end':'start'}),container:'nearest'};if(innerHeight>0)return scroll.call(this,contained);const sized=()=>{if(innerHeight===0)return;removeEventListener('resize',sized);scroll.call(this,contained)};addEventListener('resize',sized)}}</script>",
 );
 
 export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []): void {

@@ -11,6 +11,7 @@ import { BrowserViews, DEFAULT_VIEW_SIZE, NOTHING_OPEN, RESIZE_ANSWER_MS, toDip 
 class FakeWindow {
 	destroyed = false;
 	onScreen = true;
+	focused = true;
 	focusCount = 0;
 	readonly webContents = {
 		getZoomFactor: (): number => this.zoom,
@@ -23,6 +24,10 @@ class FakeWindow {
 
 	isDestroyed(): boolean {
 		return this.destroyed;
+	}
+
+	isFocused(): boolean {
+		return this.focused;
 	}
 }
 
@@ -752,6 +757,22 @@ describe('BrowserViews', () => {
 		const ends = viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"end"'));
 		expect(ends).toHaveLength(2);
 		expect(window().focusCount).toBe(2);
+	});
+
+	it('picks without focusing anything while its window is in the background, since focusing activates the app', async () => {
+		const { browser, viewAt, window } = setup();
+		await browser.open(TAB, 'https://example.com');
+		window().focused = false;
+
+		const selects = () =>
+			viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"select"'));
+		const picking = browser.pick(PICK);
+		await expect.poll(selects).toHaveLength(1);
+		browser.cancelPick(TAB);
+		await expect(picking).resolves.toBeNull();
+
+		expect(viewAt(0).contents.focused).toBe(false);
+		expect(window().focusCount).toBe(0);
 	});
 
 	it('waits for a page still loading before it picks, and ends the pick quietly when that page fails', async () => {

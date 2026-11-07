@@ -15,6 +15,7 @@ import {
 	sendPrompt,
 	startFreshChat,
 	type LaunchedApp,
+	openSettingsFromMenu,
 } from './harness';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 
@@ -106,7 +107,7 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 		});
 		await expect(decision(page)).toHaveCount(0);
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Agent access', exact: true })

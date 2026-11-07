@@ -130,6 +130,7 @@ test('a thought and the tools it runs while the window is hidden start no motion
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-hidden-think', 'Away');
 		await openWorkstream(page, workstreamId);
+		await untilStill(page);
 
 		await hideWindow(page, { midReply: false });
 		await sendPrompt(page, 'THINK while I am away');

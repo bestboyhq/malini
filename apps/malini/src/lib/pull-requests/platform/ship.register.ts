@@ -47,6 +47,7 @@ export function registerShip(
 		delays,
 		now,
 		running: () => running,
+		starting: new Map(),
 		...(options.chef ? { chef: options.chef } : {}),
 		reader: new PullRequestReader(context, operations, delays, now, (id) =>
 			pullRequestGone(deps, id),

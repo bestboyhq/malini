@@ -7,7 +7,7 @@ import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
-import type { FileMentionTarget } from '../file-mention-links';
+import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
 import type { RunGroup, ToolAggregate } from '../render-state';
 import type { VideoHandoff } from '../transcript-gallery';
 import type { EarlierTurn, RunPick } from '../turn-result';

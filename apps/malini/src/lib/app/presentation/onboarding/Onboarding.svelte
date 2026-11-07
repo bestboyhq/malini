@@ -13,12 +13,15 @@
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
 	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
+	import { applyAutomationDefaultsCommand } from '$lib/app/application/commands/apply-automation-defaults.command';
 	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
+	import { RECOMMENDED } from '$lib/app/domain/automation-defaults';
+	import { automationsLoadQuery } from '$lib/automations/application/queries/automations-load.query.svelte';
 	import { AfternoonTrial, SoundChoices } from '$shared/sounds/sounds.api';
 	import { claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import {
@@ -27,6 +30,7 @@
 		githubSetupStatus,
 	} from '$shared/repositories/repositories.api';
 	import OnboardingAccountsStep from './OnboardingAccountsStep.svelte';
+	import OnboardingDefaultsStep from './OnboardingDefaultsStep.svelte';
 	import OnboardingHeardAboutStep from './OnboardingHeardAboutStep.svelte';
 	import { rehearseStepTransition, type Rehearsal } from './rehearse-step-transition';
 
@@ -43,6 +47,10 @@
 			description:
 				'Choose what you hear when an agent finishes, and when it needs you. Then try an afternoon of workstreams to hear how it feels.',
 		},
+		defaults: {
+			title: 'Pick your defaults',
+			description: 'What Malini does without asking. Everything here has a switch in Settings.',
+		},
 		'heard-about': {
 			title: 'Where did you hear about Malini?',
 			description: null,
@@ -57,8 +65,11 @@
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
+	const asksDefaults = $derived(onboarding.step === 'defaults');
+	const skippable = $derived(asksHeardAbout || asksDefaults);
 	const continueWaits = $derived(
 		(onboarding.step === 'accounts' && !onboardingAccountsSettled(accounts)) ||
+			(asksDefaults && automationsLoadQuery.data.state !== 'ready') ||
 			(asksHeardAbout && onboarding.heardAbout === null),
 	);
 
@@ -115,11 +126,16 @@
 
 	function forward(): void {
 		if (asksHeardAbout) answerHeardAboutCommand(onboarding.heardAbout);
+		if (asksDefaults) {
+			applyAutomationDefaultsCommand(
+				onboarding.defaultsChoice === 'recommended' ? RECOMMENDED : onboarding.customDefaults,
+			);
+		}
 		next();
 	}
 
-	function skipHeardAbout(): void {
-		answerHeardAboutCommand(null);
+	function skip(): void {
+		if (asksHeardAbout) answerHeardAboutCommand(null);
 		next();
 	}
 
@@ -155,9 +171,8 @@
 		return slideIn(onboarding.direction, stepBlur);
 	}
 
-	function stepOut(node: HTMLElement): TransitionConfig {
+	function stepOut(_node: Element): TransitionConfig {
 		if (document.hidden) return { duration: 0 };
-		Object.assign(node.style, { position: 'absolute', inset: '0 0 auto' });
 		if (prefersReducedMotion.current) return fadeOnly(120);
 		return slideOut(onboarding.direction, stepBlur);
 	}
@@ -169,9 +184,10 @@
 
 <svelte:window onfocus={() => (windowShown = true)} />
 
-<div class="flex w-full justify-center px-6 pt-[18vh] pb-6" data-testid="onboarding">
+<div class="flex h-full w-full flex-col items-center px-6 pb-6" data-testid="onboarding">
+	<div class="h-[18vh] min-h-6" aria-hidden="true"></div>
 	<article
-		class="bg-surface-50 border-surface-50-border flex w-[600px] max-w-full flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-7 shadow-sm"
+		class="bg-surface-50 border-surface-50-border flex w-[600px] max-w-full shrink-0 flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-7 shadow-sm"
 		aria-labelledby="onboarding-heading"
 		data-onboarding-step={onboarding.step}
 	>
@@ -202,7 +218,7 @@
 
 		<div bind:this={stage} class={['relative', resizing && 'overflow-y-clip']}>
 			{#key onboarding.step}
-				<div class="flex flex-col" in:stepIn out:stepOut>
+				<div class="flex flex-col inert:absolute inert:inset-x-0 inert:top-0" in:stepIn out:stepOut>
 					<h1
 						id="onboarding-heading"
 						class="text-fg-default mt-7 text-2xl font-medium tracking-tight outline-none"
@@ -223,6 +239,8 @@
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
 						{#if onboarding.step === 'accounts'}
 							<OnboardingAccountsStep statuses={accounts} />
+						{:else if asksDefaults}
+							<OnboardingDefaultsStep />
 						{:else if onboarding.step === 'heard-about'}
 							<OnboardingHeardAboutStep />
 						{:else}
@@ -250,11 +268,9 @@
 				</div>
 			{/if}
 			<div class="ml-auto flex items-center gap-1">
-				{#if asksHeardAbout}
+				{#if skippable}
 					<div transition:fade={{ duration: motionOff() ? 0 : 150 }}>
-						<Button variant="ghost" size="lg" class="text-fg-secondary" onclick={skipHeardAbout}>
-							Skip
-						</Button>
+						<Button variant="ghost" size="lg" class="text-fg-secondary" onclick={skip}>Skip</Button>
 					</div>
 				{/if}
 				<Button

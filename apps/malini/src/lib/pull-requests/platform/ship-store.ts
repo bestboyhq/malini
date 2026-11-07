@@ -39,6 +39,7 @@ export type ShipDeps = Readonly<{
 	delays: ShipDelays;
 	now: () => number;
 	running: () => boolean;
+	starting: Map<string, Promise<void>>;
 	chef?: () => Promise<PullRequestChef | null>;
 }>;
 
@@ -123,6 +124,25 @@ export function shippingBuiltin(
 ): ShippingAutomationBuiltin | null {
 	const builtin = automationDefinition(deps.context.db, run.definitionId)?.builtin ?? null;
 	return isShippingAutomationBuiltin(builtin) ? builtin : null;
+}
+
+export async function startingAlone(
+	deps: ShipDeps,
+	workstreamId: string,
+	start: () => Promise<void>,
+): Promise<void> {
+	const previous = deps.starting.get(workstreamId);
+	const turn = (async () => {
+		await previous;
+		await start();
+	})();
+	const settled = turn.catch(() => undefined);
+	deps.starting.set(workstreamId, settled);
+	try {
+		await turn;
+	} finally {
+		if (deps.starting.get(workstreamId) === settled) deps.starting.delete(workstreamId);
+	}
 }
 
 export function shipping(row: ShipRow): boolean {

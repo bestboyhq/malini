@@ -19,8 +19,9 @@
 <script lang="ts">
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { ShellRun } from '$contract/shell-runs';
-	import type { FileMentionTarget } from './file-mention-links';
-	import MarkdownText from './MarkdownText.svelte';
+	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
+	import ShellRunCard from './ShellRunCard.svelte';
 	import {
 		nextCompleteVisualLineChunk,
 		revealIntervalMs,
@@ -254,6 +255,7 @@
 			{onopenimage}
 			{onruncommand}
 			{coderuns}
+			coderuncard={ShellRunCard}
 		/>
 	{/if}
 </div>

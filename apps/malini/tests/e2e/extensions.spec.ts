@@ -13,6 +13,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
+	openSettingsFromMenu,
 } from './harness';
 import { fakeBestboy, openUrl, signInUrl, type ExtensionFile } from './fake-bestboy';
 
@@ -55,7 +56,7 @@ function pluginsOfEachPrompt(app: LaunchedApp): string[][] {
 }
 
 async function openSettings(page: Page, section: string): Promise<Locator> {
-	await page.getByTestId('global-topbar-open-settings').click();
+	await openSettingsFromMenu(page);
 	const settings = page.getByRole('dialog', { name: 'Settings' });
 	await settings
 		.getByRole('navigation', { name: 'Settings' })

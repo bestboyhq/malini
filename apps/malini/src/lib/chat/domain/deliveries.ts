@@ -1,6 +1,7 @@
 import type { WorkstreamReport, WorkstreamReportMedia } from '$contract/deliveries';
 import { backgroundCommandsPhrase } from './background-work';
-import { parseTurnReport, workstreamImagePath, type TurnReport } from './turn-report';
+import { workstreamImagePath } from '$contract/workstream-images';
+import { parseTurnReport, type TurnReport } from './turn-report';
 import { variantLabel } from './variant-pick';
 
 export type DeliveryKind = 'prompt' | 'report' | 'decision';
