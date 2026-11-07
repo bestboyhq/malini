@@ -36,6 +36,8 @@ Malini owns the rest, and the adapter enforces it:
   An overload reports `error: 'server_error'` with `api_error_status: 529`, and a dropped connection `server_error` with no status, which is `network`.
   That synthetic assistant message carries `is_api_error_message: true`, and the transcript does not emit it as a reply: the `run.failed` already carries its text.
   Older Claude Code versions report only text, so `API Error: 529` and the signed-out wording still classify; the app decides from `kind` whether the turn pauses (`docs/adr/0100-a-limit-or-an-outage-pauses-a-run-and-malini-continues-it.md`).
+- Reply check: `send_prompt` carries `steReplies` while **Settings → Models → Simplified Technical English** is on; the session adds the STE line to the instructions and a callback `Stop` hook (`reply-check.ts`) that asks a one-turn, tool-less, hook-less `haiku` query about the prompt and `last_assistant_message`.
+  A fail blocks with a reason that starts with `SENT_BACK`; Claude Code hands it back as a top-level `Stop hook feedback:` user message, `stop_hook_active` lets the rewrite end, and the transcript drops the held reply and its preview, so only the rewrite shows (`docs/adr/0173-a-small-model-checks-each-reply-for-simplified-technical-english.md`).
 - Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Secrets: `send_prompt` and `set_secrets` carry the values that reach a session, and `SessionSecrets` (`secrets.ts`) writes them to a private folder whose `run` script is Claude Code's `CLAUDE_CODE_SHELL_PREFIX`, beside `CLAUDE_CODE_SHELL`.
   Claude Code wraps every Bash command and command hook in that prefix after permissions are decided, so the script exports the values and masks them in stdout and stderr, failing commands included; a `PostToolUse` hook masks every other tool's output through `updatedToolOutput`.
@@ -76,6 +78,7 @@ It records every message, `canUseTool` call and `PreToolUse`, `PermissionDenied`
 Other tools are allowed; `DECISION=deny` denies them the way Malini does, which records the `deny` scenario.
 A call auto mode blocks is retried and let through the way Malini does after the user allows it.
 A call auto mode could not check is retried the way Malini does: three times without the `PreToolUse` allow, then once more after `setPermissionMode('acceptEdits')`.
+`STOP_FEEDBACK=<reason>` registers a `Stop` callback that blocks once with that reason; with a reason from `sentBack(...)` and a prompt for an 80-word paragraph, it records `steRewrite`.
 `OPS_TOOL=1` adds an in-process `ops` MCP server whose `set_member_role` auto mode blocks when a file asks for an owner grant; with `MODEL=sonnet`, `auto` mode and a `TODO.md` asking for one, it records `autoModeBlock`.
 `RESUME=<session id>` resumes an earlier probe session; `orphanedTask` resumes one whose run was killed while its background agent still ran.
 Recorded runs live in `src/claude/fixtures/transcripts.json`; tests replay them through `fakeClaude`, so a new behavior gets a recorded scenario, not a hand-written one.

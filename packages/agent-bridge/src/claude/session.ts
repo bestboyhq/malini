@@ -41,6 +41,7 @@ import {
 } from './config-snapshot.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
+import { claudeReplyChecker, sentBack, type ReplyChecker } from './reply-check.js';
 import {
 	mcpServerReport,
 	probeMcpServer,
@@ -143,6 +144,7 @@ export interface ClaudeSessionOptions {
 	readonly outage?: AutoModeOutage;
 	readonly secrets: SessionSecrets;
 	readonly sandbox?: boolean;
+	readonly checkReply?: ReplyChecker;
 }
 
 interface RunSettings {
@@ -153,11 +155,13 @@ interface RunSettings {
 	readonly plugins: readonly string[];
 	readonly compactWindow: number | undefined;
 	readonly boundary: AgentBoundary | undefined;
+	readonly steReplies: boolean;
 }
 
 interface ActiveRun {
 	runId: string;
 	promptId: UUID;
+	request: string;
 	profile: AgentRunProfile | undefined;
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
@@ -165,6 +169,7 @@ interface ActiveRun {
 	readonly plugins: readonly string[];
 	readonly compactWindow: number | undefined;
 	readonly boundary: AgentBoundary | undefined;
+	readonly steReplies: boolean;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -200,6 +205,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #outage: AutoModeOutage;
 	readonly #secrets: SessionSecrets;
 	readonly #sandbox: boolean;
+	readonly #checkReply: ReplyChecker;
 	readonly #blockedCallRules = new Map<string, string>();
 	#outsideAllowed = false;
 	#claudeSessionId: string | undefined;
@@ -219,6 +225,11 @@ export class ClaudeSession implements ProviderHandle {
 		this.#outage = options.outage ?? new AutoModeOutage();
 		this.#secrets = options.secrets;
 		this.#sandbox = options.sandbox ?? canSandbox();
+		this.#checkReply =
+			options.checkReply ??
+			(options.executable
+				? claudeReplyChecker(options.executable, claudeEnvironment(options.context.env))
+				: async () => null);
 		this.#interactions = new ProviderInteractionBroker({
 			sessionId: options.context.sessionId,
 			emit: options.emit,
@@ -242,8 +253,18 @@ export class ClaudeSession implements ProviderHandle {
 		plugins: readonly string[] = [],
 		compactWindow?: number,
 		boundary?: AgentBoundary,
+		steReplies = false,
 	): Promise<void> {
-		const run: RunSettings = { profile, skills, theme, lineage, plugins, compactWindow, boundary };
+		const run: RunSettings = {
+			profile,
+			skills,
+			theme,
+			lineage,
+			plugins,
+			compactWindow,
+			boundary,
+			steReplies,
+		};
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -325,6 +346,7 @@ export class ClaudeSession implements ProviderHandle {
 		const active: ActiveRun = {
 			runId,
 			promptId: randomUUID(),
+			request: '',
 			profile: run.profile,
 			skills: run.skills,
 			theme: run.theme,
@@ -332,6 +354,7 @@ export class ClaudeSession implements ProviderHandle {
 			plugins: run.plugins,
 			compactWindow: run.compactWindow,
 			boundary: run.boundary,
+			steReplies: run.steReplies,
 			results: [],
 			costBefore: 0,
 			query,
@@ -340,7 +363,7 @@ export class ClaudeSession implements ProviderHandle {
 			abort,
 			finished,
 			end,
-			transcript: new ClaudeTranscript(runId, this.#emit),
+			transcript: new ClaudeTranscript(runId, this.#emit, run.steReplies),
 			failureSignals: new RunFailureSignals(),
 			turnEnded: finished,
 			cancelled: false,
@@ -388,7 +411,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.promptId = randomUUID();
 		active.results = [];
 		active.snapshot = null;
-		active.transcript = new ClaudeTranscript(runId, this.#emit);
+		active.transcript = new ClaudeTranscript(runId, this.#emit, active.steReplies);
 		active.failureSignals = new RunFailureSignals();
 		const outcome = await this.#turn(active, prompt, profile, 'warm');
 		return outcome === 'process-ended' ? outcome : 'done';
@@ -412,6 +435,7 @@ export class ClaudeSession implements ProviderHandle {
 		try {
 			await this.#applyEffort(active, profile);
 			if (active.runId === runId) {
+				active.request = prompt;
 				active.turns.push(userTurn(this.#promptWithSeed(prompt), promptId));
 			}
 			const ended = await this.#consume(active);
@@ -529,6 +553,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.failureSignals = new RunFailureSignals();
 		await this.#applyEffort(active, profile);
 		if (interrupt) await active.query.interrupt().catch(() => undefined);
+		active.request = prompt;
 		active.turns.push(userTurn(prompt, active.promptId));
 		await active.turnEnded;
 	}
@@ -655,7 +680,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme, lineage, plugins, compactWindow, boundary }: RunSettings,
+		{ profile, skills, theme, lineage, plugins, compactWindow, boundary, steReplies }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -673,6 +698,7 @@ export class ClaudeSession implements ProviderHandle {
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
+		const report = profile?.report ?? 'medium';
 		return {
 			cwd: this.#context.cwd,
 			abortController: abort,
@@ -689,7 +715,7 @@ export class ClaudeSession implements ProviderHandle {
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(this.#context.cwd, profile?.report ?? 'medium', theme, lineage),
+				append: systemPromptAppend(this.#context.cwd, report, theme, lineage, steReplies),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },
@@ -726,6 +752,7 @@ export class ClaudeSession implements ProviderHandle {
 				SessionStart: [
 					{ matcher: 'compact', hooks: recordHooks(() => this.#context.requestHistory()) },
 				],
+				...(steReplies ? { Stop: [{ hooks: [this.#checkReplyHook(report !== 'high')] }] } : {}),
 			},
 			...(compactWindow ? { settings: { autoCompactWindow: compactWindow } } : {}),
 			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
@@ -896,6 +923,22 @@ export class ClaudeSession implements ProviderHandle {
 			active.fallback = null;
 			void active.query.setPermissionMode('auto').catch(() => undefined);
 		}, this.#outage.remainingMs).unref();
+	}
+
+	#checkReplyHook(terse: boolean): HookCallback {
+		return async (input, _toolUseId, { signal }) => {
+			const active = this.#active;
+			if (input.hook_event_name !== 'Stop' || input.stop_hook_active || !active) return {};
+			const reply = input.last_assistant_message?.trim();
+			if (!reply) return {};
+			const fix = await this.#checkReply({ request: active.request, reply, terse }, signal).catch(
+				(error: unknown) => {
+					process.stderr.write(`[claude] could not check the reply: ${describe(error)}\n`);
+					return null;
+				},
+			);
+			return fix === null ? {} : { decision: 'block', reason: sentBack(fix) };
+		};
 	}
 
 	#maskSecrets(): HookCallback {
@@ -1128,7 +1171,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canContinue(
 	active: ActiveRun,
-	{ profile, skills, theme, lineage, plugins, boundary }: RunSettings,
+	{ profile, skills, theme, lineage, plugins, boundary, steReplies }: RunSettings,
 	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -1140,6 +1183,7 @@ function canContinue(
 		profile?.mode === active.profile?.mode &&
 		profile?.report === active.profile?.report &&
 		theme === active.theme &&
+		steReplies === active.steReplies &&
 		skills?.join('\n') === active.skills?.join('\n') &&
 		JSON.stringify(lineage ?? null) === JSON.stringify(active.lineage ?? null) &&
 		JSON.stringify(plugins) === JSON.stringify(active.plugins) &&

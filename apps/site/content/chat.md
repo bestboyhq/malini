@@ -278,6 +278,16 @@ The pull request description lists which variant won over which, never your reas
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
+### Simplified Technical English
+
+**Settings → Models → Simplified Technical English** has every agent write its replies in ASD-STE100, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
+At the low and medium report resolutions, a reply also stays under 135 words, code, paths and the footer not counted.
+Before you see a reply, the provider's small model, Haiku on a Claude plan, reads it beside your prompt.
+A reply that breaks a rule goes back to the agent once, with what to fix, and you see only the rewrite.
+Ask for another style or length in a prompt, such as "in detail" or "reply casually", and that reply keeps it.
+A reply that passes waits a few seconds for the check; one that goes back costs a rewrite.
+It is off until you turn it on, and the next prompt of every chat follows it.
+
 ## Sounds
 
 Malini plays one sound when an agent finishes and another when it needs you: a question, an approval, or a failed run.

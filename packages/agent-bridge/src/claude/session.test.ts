@@ -17,6 +17,7 @@ import type { AgentEvent } from '../types.js';
 import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
 import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
+import { sentBack, type ReplyChecker } from './reply-check.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, claudeEnvironment } from './session.js';
 
@@ -25,6 +26,18 @@ const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
 const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
 const SLEEP_TOOL = 'toolu_steered_sleep';
 const STEER = [undefined, undefined, undefined, true] as const;
+const STE_REPLIES = [
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	true,
+] as const;
 
 const SECRETS = mkdtempSync(join(tmpdir(), 'malini-session-secrets-'));
 
@@ -58,6 +71,7 @@ function harness(
 		readonly onEvent?: (event: AgentEvent, session: ClaudeSession) => void;
 		readonly mcpServerStatus?: () => readonly McpServerStatus[];
 		readonly outage?: AutoModeOutage;
+		readonly checkReply?: ReplyChecker;
 	} = {},
 ) {
 	const claude = fakeClaude(scripts);
@@ -79,6 +93,7 @@ function harness(
 				})
 			: claude.query,
 		...(options.outage ? { outage: options.outage } : {}),
+		...(options.checkReply ? { checkReply: options.checkReply } : {}),
 	});
 	return { session, claude, events };
 }
@@ -593,6 +608,65 @@ describe('ClaudeSession', () => {
 		]);
 		expect(claude.runs[0]?.followUps).toContain('Same window');
 		expect(claude.runs[0]?.followUps).not.toContain('Bigger window');
+	});
+
+	it('sends a reply that breaks the reply rules back once, with what to fix, and shows only the rewrite', async () => {
+		const script = recordedScript('steRewrite');
+		const checkReply = vi.fn<ReplyChecker>(async () => 'Two statements in one sentence.');
+		const { session, claude, events } = harness([script], { checkReply });
+
+		await session.sendPrompt('What is a git tag?', 'run-1', profile(), ...STE_REPLIES);
+
+		const [rejected, rewrite] = script.flatMap((step) =>
+			typeof step === 'object' && 'type' in step && step.type === 'assistant'
+				? step.message.content.flatMap((block) => (block.type === 'text' ? [block.text] : []))
+				: [],
+		);
+		expect(checkReply).toHaveBeenCalledExactlyOnceWith(
+			{ request: 'What is a git tag?', reply: rejected, terse: true },
+			expect.any(AbortSignal),
+		);
+		expect(claude.runs[0]?.hookOutputs).toEqual([
+			{ decision: 'block', reason: sentBack('Two statements in one sentence.') },
+		]);
+		expect(ofType(events, 'assistant.message').map(({ text }) => text)).toEqual([rewrite]);
+		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		expect(claude.runs[0]?.options.systemPrompt).toEqual(
+			expect.objectContaining({
+				append: expect.stringContaining('Write every reply in ASD-STE100'),
+			}),
+		);
+	});
+
+	it('lets a reply through when the reply check cannot answer', async () => {
+		const checkReply = vi.fn<ReplyChecker>(async () => {
+			throw new Error('overloaded');
+		});
+		const { session, claude, events } = harness([recordedScript('steRewrite')], { checkReply });
+
+		await session.sendPrompt('What is a git tag?', 'run-1', profile(), ...STE_REPLIES);
+
+		expect(checkReply).toHaveBeenCalledOnce();
+		expect(claude.runs[0]?.hookOutputs).toEqual([]);
+		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+	});
+
+	it('checks replies only once the user turns Simplified Technical English on, in a fresh Claude Code', async () => {
+		const script = recordedScript('readAndBash');
+		const warm = [...script, 'wait-for-prompt' as const, ...script];
+		const checkReply = vi.fn<ReplyChecker>(async () => null);
+		const { session, claude } = harness([warm, warm], { checkReply });
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await session.sendPrompt('Still plain', 'run-2', profile());
+		await session.sendPrompt('Now in STE', 'run-3', profile(), ...STE_REPLIES);
+
+		expect(claude.runs.map(({ options }) => Boolean(options.hooks?.Stop))).toEqual([false, true]);
+		expect(claude.runs[0]?.followUps).toContain('Still plain');
+		expect(claude.runs[0]?.options.systemPrompt).toEqual(
+			expect.objectContaining({ append: expect.not.stringContaining('ASD-STE100') }),
+		);
+		expect(checkReply).toHaveBeenCalledTimes(0);
 	});
 
 	it('resumes the persisted Claude session, rewound to the requested message', async () => {

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
-import { CONTEXT_WINDOW_SETTING } from '../../src/contract/agent';
+import { CONTEXT_WINDOW_SETTING, STE_REPLIES_SETTING } from '../../src/contract/agent';
 import { AUTOMATIONS_MAX_CONCURRENT_SETTING } from '../../src/contract/automations';
 import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
@@ -248,6 +248,41 @@ test('Settings → Models picks the model new chats start with for each mode, an
 		await expect(page.getByRole('combobox', { name: 'Planning model' })).toHaveValue(other, {
 			timeout: 20_000,
 		});
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Settings → Models turns on Simplified Technical English for the next prompt of every chat', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-ste-replies-ws',
+			'STE replies',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'WHICH_STYLE');
+		await expect(page.getByText('Replies as they come')).toBeVisible({ timeout: 30_000 });
+
+		await page.getByTestId('global-topbar-open-settings').click();
+		await settingsSection(page, 'Models').click();
+		const ste = page.getByRole('switch', { name: 'Simplified Technical English' });
+		await expect(ste).not.toBeChecked();
+		await ste.click();
+		await expect(ste).toBeChecked();
+		await expect.poll(async () => (await storedSettings(page))[STE_REPLIES_SETTING]).toBe('on');
+		await captureFlow(app, 'settings-ste-replies');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+		await sendPrompt(page, 'WHICH_STYLE');
+		await expect(page.getByText('Replies in STE')).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
