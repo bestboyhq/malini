@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, keep working with the lid closed, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -303,6 +303,23 @@ A reply that breaks a rule goes back to the agent once, with what to fix, and yo
 Ask for another style or length in a prompt, such as "in detail" or "reply casually", and that reply keeps it.
 A reply that passes waits a few seconds for the check; one that goes back costs a rewrite.
 It is off until you turn it on, and the next prompt of every chat follows it.
+
+## The lid closed
+
+**Settings → Power → Keep working with the lid closed** keeps your Mac awake with its lid closed while an agent works, so a turn goes on in your bag.
+It is off until you turn it on.
+Turning it on asks for your password once: Malini adds `/etc/sudoers.d/malini`, which lets your account run `pmset -a disablesleep 1` and `pmset -a disablesleep 0` as root without a password, and nothing else.
+If `/etc/sudoers.d/close-my-lid` already allows those two commands, Malini asks for nothing.
+It also adds a background item, `app.malini.desktop.lid.<id>.plist` in `~/Library/LaunchAgents`, and macOS tells you so once.
+Every 30 seconds it checks that the Malini that turned sleep off still runs, and turns sleep back on when it doesn't.
+
+- While any turn runs, Malini turns sleep off with `pmset -a disablesleep 1`, and turns it back on once no turn runs, when you turn the switch off, and when Malini quits.
+- On battery at 5% or less, Malini lets the Mac sleep even while a turn runs.
+- If Malini crashes or is force-quit while it holds the lid, the background item turns sleep back on within 30 seconds; if the Mac lost power, once you log in.
+- When something else already turned sleep off, such as Close My Lid, Malini leaves it alone.
+
+Turning the switch off removes the background item, and `sudo rm /etc/sudoers.d/malini` removes the rule.
+It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12).
 
 ## Sounds
 
