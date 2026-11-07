@@ -619,6 +619,60 @@ test('a report puts every picture in one frame, and a lone prototype there shows
 	}
 });
 
+test('a page that scrolls itself into place on load leaves the chat at its bottom', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-page-scroll',
+			[
+				'![Variant A: Plans - the page opens on its plans](.context/plans.html)',
+				'',
+				...Array.from({ length: 40 }, (_, line) => `- Changed: pricing line ${line + 1}.`),
+				'',
+				'Outcome: The pricing page opens on its plans.',
+				'Needs: nothing',
+			].join('\n'),
+			[],
+			{
+				'plans.html': [
+					'<!doctype html>',
+					'<html lang="en"><head><meta charset="utf-8" /><title>Plans</title></head><body>',
+					'<h1>Pricing</h1><div style="height: 3000px"></div><h2 id="plans">Plans</h2>',
+					"<script>document.getElementById('plans').scrollIntoView({ block: 'start' })</script>",
+					'</body></html>',
+				].join('\n'),
+			},
+		);
+		const plans = page
+			.getByRole('article', { name: 'Turn result' })
+			.locator('iframe:not([inert])')
+			.contentFrame();
+		await expect(plans.getByRole('heading', { name: 'Plans' })).toBeAttached({ timeout: 30_000 });
+		await expect
+			.poll(() => plans.locator('body').evaluate((body) => body.ownerDocument.defaultView?.scrollY))
+			.toBeGreaterThan(2000);
+		await untilStill(page);
+		const scroller = page.getByTestId('chat-message-scroller');
+		expect(
+			await scroller.evaluate((element) =>
+				Math.round(element.scrollHeight - element.clientHeight - element.scrollTop),
+			),
+			'px the page pulled the chat above its bottom',
+		).toBeLessThanOrEqual(1);
+		await expect(page.getByTestId('chat-message-viewport')).toHaveAttribute(
+			'data-scroll-follow',
+			'bottom',
+		);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a report picture that is gone from the worktree says so instead of showing a broken image', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

@@ -8,6 +8,12 @@ import { AGENT_ATTACHMENTS_PATH } from '$main/git/paths';
 import { BROWSER_PARTITION } from './electron-view';
 
 const APP_MANAGED_DIR = dirname(AGENT_ATTACHMENTS_PATH);
+const PAGE = /\.html?$/iu;
+const DOCTYPE = /^(?:\xEF\xBB\xBF)?\s*<!doctype[^>]*>/iu;
+// ponytail: only the nearest scroller moves, so a target inside a nested scroller leaves the page itself still; walk the page's scrollers if a preview needs both
+const CONTAINED_SCROLL = Buffer.from(
+	"<script>{const scroll=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){scroll.call(this,{...(typeof options==='object'&&options!==null?options:{block:options===false?'end':'start'}),container:'nearest'})}}</script>",
+);
 
 export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []): void {
 	protocol.registerSchemesAsPrivileged([
@@ -20,16 +26,30 @@ export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []
 }
 
 export function serveWorktreeFiles(worktreeOf: (host: string) => string | null): void {
-	const serve = async (request: Request): Promise<Response> => {
-		const url = new URL(request.url);
-		const worktree = worktreeOf(url.hostname);
-		const file = worktree ? await worktreeFile(worktree, decodeURIComponent(url.pathname)) : null;
-		return file
-			? uncached(await net.fetch(pathToFileURL(file).href))
-			: new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
-	};
-	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve);
-	protocol.handle(BROWSER_WORKTREE_SCHEME, serve);
+	const serve =
+		(framedInMalini: boolean) =>
+		async (request: Request): Promise<Response> => {
+			const url = new URL(request.url);
+			const worktree = worktreeOf(url.hostname);
+			const file = worktree ? await worktreeFile(worktree, decodeURIComponent(url.pathname)) : null;
+			if (!file)
+				return new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
+			const response = await net.fetch(pathToFileURL(file).href);
+			return uncached(framedInMalini && PAGE.test(file) ? await containScroll(response) : response);
+		};
+	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve(false));
+	protocol.handle(BROWSER_WORKTREE_SCHEME, serve(true));
+}
+
+async function containScroll(response: Response): Promise<Response> {
+	const page = Buffer.from(await response.arrayBuffer());
+	const at = DOCTYPE.exec(page.toString('latin1', 0, 1024))?.[0].length ?? 0;
+	const headers = new Headers(response.headers);
+	headers.delete('Content-Length');
+	return new Response(Buffer.concat([page.subarray(0, at), CONTAINED_SCROLL, page.subarray(at)]), {
+		status: response.status,
+		headers,
+	});
 }
 
 function uncached(response: Response): Response {
