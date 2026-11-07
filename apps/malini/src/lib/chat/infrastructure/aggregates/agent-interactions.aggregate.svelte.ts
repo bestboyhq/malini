@@ -16,6 +16,7 @@ import {
 	type AgentInteractionReference,
 	type AgentInteractionState,
 } from '$lib/chat/domain/agent-interaction-state';
+import { leavesTheSandbox } from '$lib/chat/domain/approval-request';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import { agentInteractions } from '$lib/chat/infrastructure/services/agent-interactions.service';
 import { agentActivity } from './agent-activity.aggregate.svelte';
@@ -34,6 +35,7 @@ type RegisteredApproval = Readonly<{
 	permission?: AgentPermissionDescriptor;
 	autoModeRule?: string;
 	autoModeUnavailable?: true;
+	leavesTheSandbox?: true;
 }>;
 
 type RegisteredInteraction =
@@ -181,6 +183,7 @@ export class AgentInteractionCommands {
 					...(event.permission ? { permission: event.permission } : {}),
 					...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
 					...(event.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
+					...(leavesTheSandbox(event.toolName, event.input) ? { leavesTheSandbox: true } : {}),
 				});
 			} else {
 				const questionIds = new Set(event.questions.map(({ id }) => id));
@@ -300,7 +303,8 @@ export class AgentInteractionCommands {
 		if (
 			input.decision === 'allow' &&
 			input.scope !== 'once' &&
-			(!request || request.kind !== 'approval' || !canPersistAgentApproval(request.permission))
+			(request?.kind !== 'approval' ||
+				!(canPersistAgentApproval(request.permission) || allowedForThisChat(request, input.scope)))
 		) {
 			this.#fail(key, 'This permission can only be allowed once.');
 			return false;
@@ -338,7 +342,9 @@ export class AgentInteractionCommands {
 			if (input.decision === 'allow' || keptBlockedRunsOn) {
 				this.#resolved(key, input.sessionId, input.runId);
 			}
-			const remembered = input.decision === 'allow' && result.remembered;
+			const remembered =
+				input.decision === 'allow' &&
+				(result.remembered || allowedForThisChat(request, input.scope));
 			this.states = {
 				...this.states,
 				[key]: {
@@ -450,11 +456,20 @@ function runsOnWhenKeptBlocked(request: RegisteredApproval): boolean {
 	return request.autoModeRule !== undefined || request.autoModeUnavailable === true;
 }
 
+function allowedForThisChat(
+	request: RegisteredInteraction | undefined,
+	scope: AgentApprovalScope,
+): boolean {
+	return scope === 'session' && request?.kind === 'approval' && request.leavesTheSandbox === true;
+}
+
 function decidedState(
 	decided: ApprovalDecided,
 	request: RegisteredApproval,
 ): AgentInteractionState {
-	const remembered = decided.decision === 'allow' && decided.remembered;
+	const remembered =
+		decided.decision === 'allow' &&
+		(decided.remembered || allowedForThisChat(request, decided.scope));
 	return {
 		status: 'resolved',
 		message: resolvedMessage(decided, remembered, runsOnWhenKeptBlocked(request)),

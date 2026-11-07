@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import {
 	AUTOMATED_PULL_REQUEST_METADATA_LIMITS,
 	automatedPullRequestMetadata,
+	type PullRequestCredit,
 } from '$shared/repositories/domain/pull-request-metadata';
 
 test('never publishes an absolute path: workstream paths turn relative, others shrink to a name', () => {
@@ -358,4 +359,40 @@ test('lists the variants picked under Decisions, and no section when none were p
 
 	expect(metadata.body).toMatch(/\n## Decisions\n\n- B · Bold over A · Calm\n\n## Validation\n/u);
 	expect(automatedPullRequestMetadata(input).body).not.toContain('## Decisions');
+});
+
+test('ends a signed body with who cooked it, how many agents and who did the dishes, whatever the length, and an unsigned one with nothing', () => {
+	const input = {
+		branch: 'malini/hero',
+		baseBranch: 'main',
+		changedPaths: Array.from({ length: 40 }, (_, index) => `src/${'deep/'.repeat(20)}${index}.ts`),
+		context: { runSummaries: ['Built the bold hero'] },
+	} as const;
+	const footer = (rows: string) =>
+		`\n\n<details>\n<summary>🧑‍🍳 <sub>Cooked with <a href="https://bestboy.dev/malini">Malini</a></sub></summary>\n<table>\n${rows}<tr><td>Dishes</td><td>Agents did em</td></tr>\n</table>\n</details>`;
+	const ending = (credit: PullRequestCredit, rows: string) => {
+		const body = automatedPullRequestMetadata({ ...input, credit }).body;
+		expect(body.length).toBeLessThanOrEqual(AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body);
+		return [body.slice(-footer(rows).length), footer(rows)];
+	};
+
+	const chef = '<tr><td>Chef</td><td><a href="https://bestboy.dev/@szymeo">@szymeo</a></td></tr>\n';
+	const [cooked, expected] = ending(
+		{ chef: { handle: 'szymeo', url: 'https://bestboy.dev/@szymeo' }, agents: 5 },
+		`${chef}<tr><td>Kitchen</td><td>5 agents</td></tr>\n`,
+	);
+	expect(cooked).toBe(expected);
+	const [unlinked, plain] = ending(
+		{ chef: { handle: 'szymeo', url: 'javascript:alert(1)' }, agents: 1 },
+		'<tr><td>Chef</td><td>@szymeo</td></tr>\n<tr><td>Kitchen</td><td>1 agent</td></tr>\n',
+	);
+	expect(unlinked).toBe(plain);
+	const [nameless, bare] = ending(
+		{ chef: { handle: 'bad"><script>', url: 'https://github.com/x' }, agents: 0 },
+		'',
+	);
+	expect(nameless).toBe(bare);
+	const unsigned = automatedPullRequestMetadata(input).body;
+	expect(unsigned).not.toContain('<details>');
+	expect(unsigned.length).toBeLessThanOrEqual(AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body);
 });

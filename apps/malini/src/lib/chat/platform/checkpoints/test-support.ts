@@ -38,7 +38,7 @@ export async function seededWorkstream(appDataRoot: string): Promise<string> {
 }
 
 export function databaseResolver(db: MaliniDatabase, appDataRoot: string): CheckoutResolver {
-	return createCheckoutResolver({ db, appDataRoot });
+	return createCheckoutResolver({ db, checkoutsRoot: appDataRoot });
 }
 
 export function seedRunChangeDb(db: MaliniDatabase, repo: string): void {

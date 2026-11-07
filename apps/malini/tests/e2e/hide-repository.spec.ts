@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	clickRevealedOnHover,
 	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
@@ -42,7 +43,7 @@ test('hiding a repository takes it out of the sidebar and the list, and unhiding
 		await expect(sidebar.getByRole('link', { name: 'Open alpha' })).toHaveCount(0);
 		await expect(sidebar.getByRole('link', { name: 'Open beta' })).toBeVisible();
 		await expect(list.getByText('alpha', { exact: true })).toHaveCount(0);
-		await page.getByText('Hidden (1)').click();
+		await page.getByRole('button', { name: 'Hidden, 1 repository' }).click();
 		await expect(hidden.getByText('alpha', { exact: true })).toBeVisible();
 		expect((await listProjects(page)).map((project) => project.id).sort()).toEqual([
 			'local__alpha',
@@ -64,8 +65,11 @@ test('hiding a repository takes it out of the sidebar and the list, and unhiding
 			page.getByRole('region', { name: 'Repositories' }).getByText('Every repository is hidden'),
 		).toBeVisible();
 
-		await page.getByText('Hidden (2)').click();
-		await hidden.getByRole('button', { name: 'Unhide alpha' }).click();
+		await page.getByRole('button', { name: 'Hidden, 2 repositories' }).click();
+		await clickRevealedOnHover(
+			hidden.getByTestId('hidden-repository-row').filter({ hasText: 'alpha' }),
+			hidden.getByRole('button', { name: 'Unhide alpha' }),
+		);
 		await expect(sidebar.getByRole('link', { name: 'Open alpha' })).toBeVisible();
 		await expect(list.getByText('alpha', { exact: true })).toBeVisible();
 		await expect(hidden.getByText('beta', { exact: true })).toBeVisible();

@@ -37,6 +37,7 @@ import type { RunFinishedInput } from './runtime';
 import {
 	createTestContext,
 	envelopesOn,
+	emptyHome,
 	externalReadPath,
 	seedOpenRun,
 	seedSession,
@@ -59,6 +60,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await service?.stop();
+	vi.unstubAllEnvs();
 	fake.cleanup();
 	test.cleanup();
 });
@@ -1319,6 +1321,7 @@ describe('interactions', () => {
 	});
 
 	it('remembers a session-scoped allow as a rule and reports its id', async () => {
+		vi.stubEnv('HOME', emptyHome());
 		const { sessionId, runId } = await pendingApproval();
 		const permission = permissionFor(approvalPath);
 		expect(

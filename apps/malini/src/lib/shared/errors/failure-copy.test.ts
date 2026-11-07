@@ -49,6 +49,12 @@ describe('sanitizeFailureDetail', () => {
 		expect(sanitizeFailureDetail(raw)).toBe('fatal: could not read managed repository storage');
 	});
 
+	it('replaces checkout paths in the home folder', () => {
+		expect(
+			sanitizeFailureDetail('fatal: not a git repository: /Users/ada/malini/workstreams/ws-1'),
+		).toBe('fatal: not a git repository: managed repository storage');
+	});
+
 	it('replaces other absolute home paths without leaking the user name', () => {
 		expect(sanitizeFailureDetail('ENOENT: /Users/ada/dev/malini/package.json')).toBe(
 			'ENOENT: a local path',

@@ -30,6 +30,7 @@
 	import SecretsSection from './SecretsSection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
 	import SoundsSection from './SoundsSection.svelte';
+	import StorageSection from './StorageSection.svelte';
 
 	type Section = Readonly<{ href: string; label: string; icon: IconName; content: Component }>;
 
@@ -70,6 +71,7 @@
 			content: ExtensionsSection,
 		},
 		APPEARANCE,
+		{ href: '/settings/storage', label: 'Storage', icon: 'folder-open', content: StorageSection },
 		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{
 			href: '/settings/automations',

@@ -23,21 +23,21 @@ export interface CheckoutResolver {
 
 export interface CheckoutResolverDeps {
 	readonly db: MaliniDatabase;
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 }
 
 export function recordedCheckoutPath(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 ): string {
 	const recorded = getWorkstream(db, workstreamId)?.path ?? null;
-	return resolveWorkstreamCheckoutCanonicalRecorded(appDataRoot, workstreamId, recorded);
+	return resolveWorkstreamCheckoutCanonicalRecorded(checkoutsRoot, workstreamId, recorded);
 }
 
 export function recordedBaseRepository(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 ): string | null {
 	const workstream = getWorkstream(db, workstreamId);
@@ -45,8 +45,8 @@ export function recordedBaseRepository(
 	const project = getProject(db, workstream.projectId);
 	const candidates = [
 		project?.repoPath ?? null,
-		repositoryBaseDir(appDataRoot, workstream.projectId),
-		legacyProjectBaseDir(appDataRoot, workstream.projectId),
+		repositoryBaseDir(checkoutsRoot, workstream.projectId),
+		legacyProjectBaseDir(checkoutsRoot, workstream.projectId),
 	];
 	for (const candidate of candidates) {
 		if (candidate && existsSync(join(candidate, '.git'))) return candidate;
@@ -68,13 +68,13 @@ async function canonicalDirectory(path: string): Promise<string> {
 }
 
 export function createCheckoutResolver(deps: CheckoutResolverDeps): CheckoutResolver {
-	const { db, appDataRoot } = deps;
+	const { db, checkoutsRoot } = deps;
 	return {
 		async resolveCheckout(workstreamId) {
 			if (getWorkstream(db, workstreamId) === null) {
 				throw new Error(`${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
 			}
-			return recordedCheckoutPath(db, appDataRoot, workstreamId);
+			return recordedCheckoutPath(db, checkoutsRoot, workstreamId);
 		},
 		async resolveRepositoryRoot(workstreamId) {
 			const workstream = getWorkstream(db, workstreamId);

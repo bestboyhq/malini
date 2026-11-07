@@ -6,7 +6,12 @@ import {
 	type SessionRenamedPayload,
 	type WorkstreamRenamedPayload,
 } from '$contract/events';
-import { CONTEXT_WINDOW_SETTING, contextWindowOf } from '$contract/agent';
+import {
+	CONTEXT_WINDOW_SETTING,
+	OPTIMIZE_CONTEXT_SETTING,
+	contextWindowOf,
+	optimizesContext,
+} from '$contract/agent';
 import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -102,7 +107,7 @@ export interface AgentServiceDeps {
 
 export interface BrowserRequestDeps {
 	readonly db: MaliniDatabase;
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly browser: BrowserAutomation | undefined;
 }
 
@@ -134,7 +139,7 @@ export async function answerBrowserRequest(
 				};
 			}
 			case 'screenshot': {
-				const shot = await browser.screenshot(tab, worktreePath(deps.appDataRoot, workstreamId));
+				const shot = await browser.screenshot(tab, worktreePath(deps.checkoutsRoot, workstreamId));
 				return {
 					ok: true,
 					text: `Screenshot of ${shot.url} saved to ${shot.path}. Embed it in your report as ![what it shows](${shot.path}).`,
@@ -265,7 +270,7 @@ export async function startAgentService(
 	const runtime = new BridgeRuntime({
 		db,
 		events: context.events,
-		appDataRoot: context.appDataRoot,
+		checkoutsRoot: context.checkoutsRoot,
 		leases: deps.leases,
 		...(deps.providerEnvironment ? { providerEnvironment: deps.providerEnvironment } : {}),
 		supervisorConfig: {
@@ -304,7 +309,7 @@ export async function startAgentService(
 	async function answerFor(id: string, request: BridgeAgentRequest): Promise<BridgeCommand> {
 		switch (request.type) {
 			case 'bridge.history_request':
-				return historyResultCommand(id, request, recordOf(request.sessionId));
+				return historyResultCommand(id, request, await recordOf(request.sessionId));
 			case 'bridge.platform_request':
 				return platformResultCommand(
 					id,
@@ -313,7 +318,7 @@ export async function startAgentService(
 						db,
 						commands: context.commands,
 						events: context.events,
-						appDataRoot: context.appDataRoot,
+						checkoutsRoot: context.checkoutsRoot,
 						sending,
 						deliveries,
 						...(deps.secrets ? { secrets: deps.secrets } : {}),
@@ -326,20 +331,29 @@ export async function startAgentService(
 					request,
 					await answerBrowserRequest(request, {
 						db,
-						appDataRoot: context.appDataRoot,
+						checkoutsRoot: context.checkoutsRoot,
 						browser: deps.browser,
 					}),
 				);
 		}
 	}
 
-	function recordOf(sessionId: string): HistoryAnswer {
+	async function recordOf(sessionId: string): Promise<HistoryAnswer> {
+		if (!optimizesContext((await savedSettings())[OPTIMIZE_CONTEXT_SETTING])) {
+			return { ok: true, messages: [] };
+		}
 		try {
 			return { ok: true, messages: conversationRecord(db, sessionId) ?? [] };
 		} catch (error) {
 			log(`agent: could not hand chat \`${sessionId}\` its record back: ${describe(error)}`);
 			return { ok: false, error: describe(error) };
 		}
+	}
+
+	function savedSettings(): Promise<Readonly<Record<string, string>>> {
+		return context.commands
+			.call('app.list-settings', undefined)
+			.catch((): Record<string, string> => ({}));
 	}
 
 	let started = false;
@@ -352,7 +366,7 @@ export async function startAgentService(
 	const commandDeps: BridgeCommandDeps = {
 		db,
 		runtime,
-		appDataRoot: context.appDataRoot,
+		checkoutsRoot: context.checkoutsRoot,
 		ids: new IdSequence(),
 		leases: deps.leases,
 		sending,
@@ -372,15 +386,16 @@ export async function startAgentService(
 				agentBoundary(automation, {
 					appDataRoot: context.appDataRoot,
 					appDataEntries: appDataEntries(context.appDataRoot),
+					checkoutsRoot: context.checkoutsRoot,
 					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),
 					starterPlan: lineage?.startedBy?.plan ?? null,
 				}),
 			providerEnvironment: deps.providerEnvironment ?? (async () => ({})),
 			async compactWindow() {
-				const settings = await context.commands
-					.call('app.list-settings', undefined)
-					.catch((): Record<string, string> => ({}));
-				return contextWindowOf(settings[CONTEXT_WINDOW_SETTING]);
+				const settings = await savedSettings();
+				return optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
+					? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
+					: null;
 			},
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),

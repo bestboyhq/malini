@@ -65,7 +65,7 @@ function seedWorkstream(id: string, projectId: string, path: string): void {
 beforeEach(() => {
 	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-checkouts-')));
 	db = openMigratedDatabase(':memory:');
-	resolver = createCheckoutResolver({ db, appDataRoot: root });
+	resolver = createCheckoutResolver({ db, checkoutsRoot: root });
 });
 
 afterEach(() => {

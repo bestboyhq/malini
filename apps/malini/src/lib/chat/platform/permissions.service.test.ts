@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
 	ipcMain: { handle: vi.fn() },
@@ -57,6 +57,8 @@ afterEach(() => {
 });
 
 describe('normalizeRememberablePermission', () => {
+	beforeEach(() => vi.stubEnv('HOME', tempDir()));
+
 	it('normalizes only canonical external reads', () => {
 		const root = tempDir();
 		const workstream = canonicalDir(root, 'workstream');

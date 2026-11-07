@@ -1,4 +1,4 @@
-# 0169 - The landing page hero shows Malini over your Claude Code
+# 0173 - The landing page hero shows Malini over your Claude Code
 
 Status: accepted
 

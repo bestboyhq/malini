@@ -6,6 +6,7 @@ import {
 import { SHIP_BUTTONS, type ShipButton } from '$contract/pull-requests';
 import type { PullRequestStatusDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
+import type { PullRequestChef } from '$shared/repositories/repositories.platform';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import { shipFailure } from '../domain/ship-failure';
 import { DEFAULT_SHIP_DELAYS, type ShipDelays } from '../domain/shipping';
@@ -20,6 +21,7 @@ import { dropShip, type ShipDeps } from './ship-store';
 export interface ShippingOptions {
 	delays?: Partial<ShipDelays>;
 	now?: () => number;
+	chef?: () => Promise<PullRequestChef | null>;
 }
 
 export type ShipPlatform = PullRequestsPlatform &
@@ -45,6 +47,7 @@ export function registerShip(
 		delays,
 		now,
 		running: () => running,
+		...(options.chef ? { chef: options.chef } : {}),
 		reader: new PullRequestReader(context, operations, delays, now, (id) =>
 			pullRequestGone(deps, id),
 		),
