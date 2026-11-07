@@ -104,10 +104,7 @@ export function registerProviders(
 		(apiKey) => detectOpenCodePlan({ apiKey, origin: probeOrigin, fetch }),
 		{
 			account: () => chatgpt.account(),
-			endpoint: async (session) => {
-				if (session === 'new') await chatgpt.accessToken();
-				return proxy.address();
-			},
+			endpoint: () => proxy.address(),
 		},
 	);
 	const catalog = new ModelsDevCatalog({

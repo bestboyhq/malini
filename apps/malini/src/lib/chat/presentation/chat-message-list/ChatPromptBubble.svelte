@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
 	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
@@ -11,16 +10,8 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
 	import type { RenderItem, RunGroup } from '../render-state';
-	import {
-		claudeCodeStatusQuery,
-		isModelAccessReady,
-		modelAccess,
-		ModelProfilePicker,
-		providerGroupsQuery,
-		RunProfileControls,
-		selectionLabel,
-	} from '$shared/providers/providers.api';
-	import ProviderConnectCard from '../ProviderConnectCard.svelte';
+	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
+	import ProviderConnectStrip from '../ProviderConnectStrip.svelte';
 	import { workstreamByIdQuery, workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import InlinePromptContent from '../InlinePromptContent.svelte';
@@ -62,47 +53,7 @@
 	const canSend = $derived(
 		!blocked && !submitting && checkpointEdit.editingPrompt.trim().length > 0,
 	);
-	const editSelection = $derived(transcript.composerControls?.selection ?? null);
-	const editAccess = $derived(
-		editSelection
-			? modelAccess(editSelection, providerGroupsQuery.data, claudeCodeStatusQuery.data)
-			: null,
-	);
-	const editModelLabel = $derived(
-		editSelection ? selectionLabel(providerGroupsQuery.data, editSelection) : '',
-	);
-	let accessPrompt = $state<string | null>(null);
-
-	function submitEdit(): void {
-		const text = checkpointEdit.editingPrompt.trim();
-		if (!text) return;
-		if (editAccess && !isModelAccessReady(editAccess)) {
-			accessPrompt = text;
-			return;
-		}
-		accessPrompt = null;
-		checkpointEdit.submitCheckpointEdit(item);
-	}
-
-	function connectedEdit(): void {
-		accessPrompt = null;
-		checkpointEdit.submitCheckpointEdit(item);
-	}
-
-	$effect(() => {
-		editSelection?.provider;
-		editSelection?.model;
-		untrack(() => {
-			accessPrompt = null;
-		});
-	});
-
-	$effect(() => {
-		if (editing) return;
-		untrack(() => {
-			accessPrompt = null;
-		});
-	});
+	const held = $derived(run.runId === transcript.heldRunId ? transcript.heldPrompt : null);
 
 	let editorEl: HTMLFormElement | null = $state(null);
 
@@ -239,18 +190,9 @@
 			data-testid="chat-message-editor"
 			onsubmit={(event) => {
 				event.preventDefault();
-				submitEdit();
+				checkpointEdit.submitCheckpointEdit(item);
 			}}
 		>
-			{#if accessPrompt !== null && editAccess && !isModelAccessReady(editAccess)}
-				<ProviderConnectCard
-					access={editAccess}
-					modelLabel={editModelLabel}
-					prompt={accessPrompt}
-					onconnected={connectedEdit}
-					oncancel={() => (accessPrompt = null)}
-				/>
-			{/if}
 			<ComposerShell
 				accent={transcript.composerControls?.profile.mode === 'plan'}
 				testId="chat-message-editor-shell"
@@ -264,7 +206,7 @@
 					ariaLabel="Edit message"
 					testId="chat-message-edit-input"
 					disabled={submitting}
-					onsubmit={submitEdit}
+					onsubmit={() => checkpointEdit.submitCheckpointEdit(item)}
 					oncancel={checkpointEdit.cancelCheckpointEdit}
 				/>
 				{#if checkpointEdit.checkpointEditError}
@@ -392,6 +334,9 @@
 				{@render promptBody()}
 				{@render copyPromptButton()}
 			</div>
+			{#if held}
+				<ProviderConnectStrip workstreamId={transcript.workstreamId} {held} class="-mt-1.5" />
+			{/if}
 		{/if}
 	{/if}
 	<ChatPromptChips

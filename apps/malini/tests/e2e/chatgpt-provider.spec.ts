@@ -71,11 +71,11 @@ test('a GPT model runs on a ChatGPT plan that offers it after one sign-in, throu
 		await expect(page.getByRole('button', { name: 'Model: GPT-5.6 Terra' })).toBeVisible();
 
 		await sendPrompt(page, 'SEARCH the fixture repo');
-		const connect = page.getByTestId('provider-connect-card');
+		const connect = page.getByTestId('provider-connect-strip');
 		await expect(connect).toHaveAttribute('data-access', 'chatgpt-signed-out');
-		await expect(connect).toContainText('Sign in to ChatGPT to run this message on your plan.');
+		await expect(connect).toContainText('Sign in to ChatGPT to run this');
 		await connect.getByRole('button', { name: 'Continue with ChatGPT' }).click();
-		await expect(connect.getByRole('status')).toHaveText('Continue in your browser.');
+		await expect(connect.getByRole('status')).toHaveText('Continue in your browser');
 		await expect.poll(async () => (await openedUrls(app)).length).toBe(1);
 		const authorize = new URL((await openedUrls(app))[0] ?? '');
 		expect(`${authorize.origin}${authorize.pathname}`).toBe(`${openai.url}/oauth/authorize`);
@@ -86,15 +86,17 @@ test('a GPT model runs on a ChatGPT plan that offers it after one sign-in, throu
 
 		expect((await fetch(authorize)).status).toBe(200);
 		await expect(connect).toHaveAttribute('data-access', 'chatgpt-model-missing');
-		await expect(connect).toContainText('Your ChatGPT plan does not include this model.');
+		await expect(connect).toContainText('Not on your ChatGPT plan');
 		await captureFlow(app, 'chatgpt-model-missing');
-		expect(runEnvironment(app.home, 'gpt-5.6-terra')).toBeNull();
+		expect(existsSync(join(app.home, 'malini-plugins.jsonl'))).toBe(false);
 
+		await connect.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await expect(connect).toHaveCount(0);
+		await expect(page.getByTestId('chat-composer-input')).toHaveText('SEARCH the fixture repo');
 		await page.getByTestId('chat-composer-model').click();
 		await models.getByRole('option', { name: /^GPT-6 Luna/u }).hover();
 		await runner(page, 'chatgpt').click();
 		await expect(page.getByRole('button', { name: 'Model: GPT-6 Luna' })).toBeVisible();
-		await expect(connect).toHaveCount(0);
 		await page.getByTestId('chat-composer-submit').click();
 		await expect.poll(() => runEnvironment(app.home, 'gpt-6-luna')).not.toBeNull();
 		const run = runEnvironment(app.home, 'gpt-6-luna') ?? {};
@@ -197,12 +199,15 @@ test('a GPT model runs on a ChatGPT plan that offers it after one sign-in, throu
 		await expect(reopened.getByRole('button', { name: 'Model: GPT-6 Luna' })).toBeEnabled();
 
 		await sendPrompt(reopened, 'SEARCH it again');
-		const again = reopened.getByTestId('provider-connect-card');
+		const again = reopened.getByTestId('provider-connect-strip');
 		await expect(again).toHaveAttribute('data-access', 'chatgpt-signed-out');
 		await again.getByRole('button', { name: 'Continue with ChatGPT' }).click();
 		await expect.poll(async () => (await openedUrls(app)).length).toBe(1);
 		expect((await fetch((await openedUrls(app))[0] ?? '')).status).toBe(200);
 		await expect(again).toHaveAttribute('data-access', 'chatgpt-model-missing');
+		await again.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await expect(again).toHaveCount(0);
+		await expect(reopened.getByTestId('chat-composer-input')).toHaveText('SEARCH it again');
 
 		await reopened.getByTestId('chat-composer-model').click();
 		await reopened
@@ -211,7 +216,6 @@ test('a GPT model runs on a ChatGPT plan that offers it after one sign-in, throu
 			.hover();
 		await runner(reopened, 'chatgpt').click();
 		await expect(reopened.getByRole('button', { name: 'Model: GPT-5.6 Luna' })).toBeVisible();
-		await expect(again).toHaveCount(0);
 		await reopened.getByTestId('chat-composer-submit').click();
 		await expect.poll(() => runEnvironment(app.home, 'gpt-5.6-luna')).not.toBeNull();
 		expectCleanConsole(app);

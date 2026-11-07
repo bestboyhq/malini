@@ -2,6 +2,7 @@
 	import { tick } from 'svelte';
 	import type { AutomationRunMode, AutomationSuggestionRecord } from '$contract/automations';
 	import { Button } from '$hyper-ui/components/button';
+	import { Strip } from '$hyper-ui/components/strip';
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -132,76 +133,72 @@
 		</dd>
 	</dl>
 
-	<div class="px-5">
-		<div
-			class="border-surface-50-border flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
-		>
-			{#if saved}
+	<Strip>
+		{#if saved}
+			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
+				<Icon name="check" size={12} />
+				Saved as an automation
+			</span>
+			{#if suggestion.definitionId}
+				<Button
+					variant="ghost"
+					size="sm"
+					class="ml-auto"
+					href={automationHref(suggestion.definitionId)}
+				>
+					Open
+				</Button>
+			{/if}
+		{:else}
+			<Tooltip content={why} placement="bottom">
 				<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
-					<Icon name="check" size={12} />
-					Saved as an automation
+					<Icon name="sparkles" size={12} />
+					Suggested automation
 				</span>
-				{#if suggestion.definitionId}
+			</Tooltip>
+			<div class="ml-auto flex shrink-0 items-center gap-1">
+				{#if changing}
 					<Button
 						variant="ghost"
 						size="sm"
-						class="ml-auto"
-						href={automationHref(suggestion.definitionId)}
+						disabled={actionState.busy}
+						onclick={() => (editing = false)}
 					>
-						Open
+						Cancel
+					</Button>
+				{:else}
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={actionState.busy}
+						data-testid="automation-suggestion-dismiss"
+						onclick={() => dismissAutomationSuggestionCommand(suggestion.id)}
+					>
+						Not now
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={actionState.busy}
+						data-testid="automation-suggestion-edit"
+						onclick={edit}
+					>
+						Edit
 					</Button>
 				{/if}
-			{:else}
-				<Tooltip content={why} placement="bottom">
-					<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
-						<Icon name="sparkles" size={12} />
-						Suggested automation
-					</span>
-				</Tooltip>
-				<div class="ml-auto flex shrink-0 items-center gap-1">
-					{#if changing}
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={actionState.busy}
-							onclick={() => (editing = false)}
-						>
-							Cancel
-						</Button>
-					{:else}
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={actionState.busy}
-							data-testid="automation-suggestion-dismiss"
-							onclick={() => dismissAutomationSuggestionCommand(suggestion.id)}
-						>
-							Not now
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={actionState.busy}
-							data-testid="automation-suggestion-edit"
-							onclick={edit}
-						>
-							Edit
-						</Button>
-					{/if}
-					<Button
-						variant="primary"
-						size="sm"
-						loading={actionState.busy}
-						disabled={!canSave}
-						data-testid="automation-suggestion-accept"
-						onclick={save}
-					>
-						Save it
-					</Button>
-				</div>
-			{/if}
-		</div>
-	</div>
+				<Button
+					variant="primary"
+					size="sm"
+					loading={actionState.busy}
+					disabled={!canSave}
+					data-testid="automation-suggestion-accept"
+					onclick={save}
+				>
+					Save it
+				</Button>
+			</div>
+		{/if}
+	</Strip>
 
 	{#if actionState.error}
 		<p class="text-error-content mt-1.5 px-1 text-xs" role="alert">{actionState.error}</p>

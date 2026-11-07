@@ -26,6 +26,7 @@ type WorkstreamChatSummaryInput = Readonly<{
 	backgroundWait: BackgroundWait | null;
 	automationRunning: boolean;
 	queueCount: number;
+	held: boolean;
 	attention: AgentAttention | null;
 	hasDraft: boolean;
 }>;
@@ -51,6 +52,7 @@ function workstreamChatState(input: WorkstreamChatSummaryInput): WorkstreamChatS
 		return { label: 'Background agents running', tone: 'background' };
 	}
 	if (input.automationRunning) return { label: 'Automation running', tone: 'background' };
+	if (input.held) return { label: 'Needs you', tone: 'waiting' };
 	if (input.queueCount > 0) return { label: `${input.queueCount} queued`, tone: 'queued' };
 	if (input.attention?.kind === 'failed') return { label: 'Failed', tone: 'failed' };
 	if (input.attention?.kind === 'approval') return { label: 'Approval', tone: 'waiting' };
