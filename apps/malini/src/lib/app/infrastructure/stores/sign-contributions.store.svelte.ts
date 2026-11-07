@@ -1,4 +1,4 @@
-class SignPullRequestsStore {
+class SignContributionsStore {
 	signed = $state<boolean | null>(null);
 
 	set(signed: boolean | null): void {
@@ -6,4 +6,4 @@ class SignPullRequestsStore {
 	}
 }
 
-export const signPullRequestsStore = new SignPullRequestsStore();
+export const signContributionsStore = new SignContributionsStore();

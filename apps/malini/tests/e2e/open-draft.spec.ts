@@ -74,7 +74,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 	}
 });
 
-test('With Sign pull requests off in Settings, Open draft pushes commits without Malini and a body without the footer', async () => {
+test('With Sign contributions off in Settings, Open draft pushes commits without Malini and a body without the footer', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -90,9 +90,9 @@ test('With Sign pull requests off in Settings, Open draft pushes commits without
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Privacy', exact: true })
 			.click();
-		const sign = settings.getByRole('switch', { name: 'Sign pull requests' });
+		const sign = settings.getByRole('switch', { name: 'Sign contributions' });
 		await expect(sign).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
-		await captureFlow(app, 'settings-sign-pull-requests');
+		await captureFlow(app, 'settings-sign-contributions');
 		await sign.click();
 		await expect(sign).toHaveAttribute('aria-checked', 'false');
 		await page.keyboard.press('Escape');

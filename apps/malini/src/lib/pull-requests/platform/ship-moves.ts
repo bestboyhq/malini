@@ -6,7 +6,7 @@ import {
 	type EventChannel,
 } from '$contract/events';
 import type { ShippingAutomationBuiltin } from '$contract/automations';
-import { SIGN_PULL_REQUESTS_SETTING, signsPullRequests } from '$contract/pull-requests';
+import { SIGN_CONTRIBUTIONS_SETTING, signsContributions } from '$contract/pull-requests';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
@@ -623,7 +623,7 @@ async function signs(deps: ShipDeps): Promise<boolean> {
 	const settings = await deps.context.commands
 		.call('app.list-settings', undefined)
 		.catch(() => null);
-	return settings !== null && signsPullRequests(settings[SIGN_PULL_REQUESTS_SETTING]);
+	return settings !== null && signsContributions(settings[SIGN_CONTRIBUTIONS_SETTING]);
 }
 
 async function shipCredit(

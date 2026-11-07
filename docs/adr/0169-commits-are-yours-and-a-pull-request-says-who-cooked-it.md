@@ -12,7 +12,7 @@ Of seven footers over two rounds they picked a collapsed one, "maybe this with c
 On the built footer, which showed a streak and the workstream's agents, turns and hours: "dont log days straight or turns/hours, should be "agents did em"".
 Shown the agent count alone in a Kitchen row, they said "very nice".
 Apple draws 🍳 as a black pan, so on GitHub's dark theme it read as a 🔍; of 🧑‍🍳, 🥘 and 🔥 at full size they picked 🧑‍🍳.
-Then: "maybe lets dont do anything and just let users decide?"; of a switch in Settings that is on until turned off, and a card that asks on the first draft, they picked the switch: "keep signing commits as we used to, but disable all signing if someone switches it off".
+Then: "maybe lets dont do anything and just let users decide?"; of a switch in Settings that is on until turned off, and a card that asks on the first draft, they picked the switch: "keep signing commits as we used to, but disable all signing if someone switches it off", and named it: "mby it should be just "sign contributions"".
 The CLA check fails a pull request whose opener wrote none of its commits (0084), and its allowlist already names the `Co-authored-by:` identities of Claude Code, Copilot and Cursor, so a bot author breaks contributors' pull requests where a co-author trailer does not.
 0084's last consequence about the CLA check said `malini-agent[bot]` writes every commit in pull requests `szymeo` opens; that is no longer true.
 
@@ -22,7 +22,7 @@ The CLA check fails a pull request whose opener wrote none of its commits (0084)
   When git has no `user.email`, `identityWhenGitHasNone` takes it from `gh api user`: the GitHub name, or the login, and `<id>+<login>@users.noreply.github.com`.
   Without either, git decides, as it would for you.
 - `malini-agent[bot]` authors only archive snapshot commits (`AGENT_IDENTITY` in `snapshots.ts`), which live on private refs and are never pushed.
-- Settings, Privacy, **Sign pull requests** (`SignPullRequestsSettings.svelte`) stores `pull-requests.sign` (`SIGN_PULL_REQUESTS_SETTING` in `$contract/pull-requests.ts`); anything but `off` signs, so it is on until you turn it off.
+- Settings, Privacy, **Sign contributions** (`SignContributionsSettings.svelte`) stores `pull-requests.sign` (`SIGN_CONTRIBUTIONS_SETTING` in `$contract/pull-requests.ts`); anything but `off` signs, so it is on until you turn it off.
   `signs` in `apps/malini/src/lib/pull-requests/platform/ship-moves.ts` reads it for every commit and pull request body, and treats a settings read that fails as off.
 - A signed commit ends with `MALINI_CO_AUTHOR`, `Co-authored-by: malini-agent[bot] <338999285+malini-agent[bot]@users.noreply.github.com>`, passed as `signed` to `repositories.commit-workstream` and added by `commitWorktreeChanges` in `apps/malini/src/main/git/remote.ts`; merge commits and commits an extension makes carry no trailer.
 - Every signed pull request body Malini writes, opened or retitled, ends with a footer from `cookedFooter` in `apps/malini/src/lib/shared/repositories/domain/pull-request-metadata.ts`: a `<details>` whose summary reads `🧑‍🍳 Cooked with Malini`, the emoji at full size and the words in `<sub>` linking `https://bestboy.dev/malini`, over a table.
@@ -43,4 +43,4 @@ The CLA check fails a pull request whose opener wrote none of its commits (0084)
 - A user who never published sees the Chef row link their GitHub profile; the placeholder profile and a nudge when someone visits it need the platform and are not built.
 - Switched off, nothing Malini pushes names Malini: no trailer and no footer, and a body Malini still owns loses its footer at the next retitle.
 - The setting is per Mac, not per repository, so signing work repositories but not personal ones means switching it by hand.
-- `pull-request-metadata.test.ts` fails when the footer's rows, links, guards or place in a cut body change, or an unsigned body gets one; `remote.test.ts` fails when a commit's author is not the checkout's identity or the trailer shows up unsigned or goes missing signed; `open-draft.spec.ts` fails when a pushed commit's author differs from `git config user.name`, when a signed draft lacks the trailer or the footer, or when a draft opened after turning **Sign pull requests** off has either.
+- `pull-request-metadata.test.ts` fails when the footer's rows, links, guards or place in a cut body change, or an unsigned body gets one; `remote.test.ts` fails when a commit's author is not the checkout's identity or the trailer shows up unsigned or goes missing signed; `open-draft.spec.ts` fails when a pushed commit's author differs from `git config user.name`, when a signed draft lacks the trailer or the footer, or when a draft opened after turning **Sign contributions** off has either.

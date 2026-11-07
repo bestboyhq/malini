@@ -34,7 +34,7 @@ The agent bridge refuses to commit, push, rebase, reset, or run `gh pr create`.
 It refuses `git checkout`, `git switch` and `git worktree` too, and points the agent at a new workstream instead.
 Agents write code, and Malini writes the history: it commits, pushes, and opens the pull request when you ask it to.
 It commits as you, with the name and email in your git config, or your GitHub name and noreply address when git has none.
-While Settings, Privacy, **Sign pull requests** is on, as it is unless you turn it off, each commit ends with `Co-authored-by: malini-agent[bot]`; turned off, nothing names Malini.
+While Settings, Privacy, **Sign contributions** is on, as it is unless you turn it off, each commit ends with `Co-authored-by: malini-agent[bot]`; turned off, nothing names Malini.
 
 ## The sidebar
 
@@ -131,7 +131,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the branch or the files changed, never your prompt, the chat's name or the agent's reply.
   An [automation](/malini/docs/automations.md)'s edits commit under the `Commit:` line its agent ended with, but that line never titles the pull request; **Fix checks** and **Address review** fall back to "Fix failing checks" and "Address review feedback" only when their agent wrote none, and a merge keeps its merge message.
-  While **Sign pull requests** is on, the description ends with **🧑‍🍳 Cooked with Malini**, which opens into a table: **Chef** links your [Bestboy profile](/malini/docs/profile.md) once it is public, and your GitHub profile until then, **Kitchen** counts the agents that worked in the workstream, and **Dishes** says who did them.
+  While **Sign contributions** is on, the description ends with **🧑‍🍳 Cooked with Malini**, which opens into a table: **Chef** links your [Bestboy profile](/malini/docs/profile.md) once it is public, and your GitHub profile until then, **Kitchen** counts the agents that worked in the workstream, and **Dishes** says who did them.
   Turned off, a pull request Malini already opened loses the footer the next time Malini retitles it, unless you edited the description yourself.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.

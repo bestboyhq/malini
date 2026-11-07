@@ -143,9 +143,9 @@ export type PullRequestChangedEvent = Readonly<{
 
 export const MERGE_QUEUE_FIX_ATTEMPTS_SETTING = 'merge-queue.fix-attempts';
 
-export const SIGN_PULL_REQUESTS_SETTING = 'pull-requests.sign';
+export const SIGN_CONTRIBUTIONS_SETTING = 'pull-requests.sign';
 
-export function signsPullRequests(setting: string | null | undefined): boolean {
+export function signsContributions(setting: string | null | undefined): boolean {
 	return setting !== 'off';
 }
 
