@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { findPage, pages, renderMarkdown } from '$lib/content.server';
+import { findPage, pages, renderDoc } from '$lib/content.server';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 export const entries: EntryGenerator = () => pages.map((page) => ({ slug: page.slug }));
@@ -13,7 +13,7 @@ export const load: PageServerLoad = ({ params }) => {
 	const page = findPage(params.slug);
 	if (!page) error(404, 'Not found');
 	const index = pages.indexOf(page);
-	const { html, headings } = renderMarkdown(page.markdown);
+	const { blocks, headings } = renderDoc(page.markdown);
 	return {
 		page: {
 			slug: page.slug,
@@ -21,7 +21,7 @@ export const load: PageServerLoad = ({ params }) => {
 			title: page.title,
 			description: page.description,
 			section: page.section,
-			html,
+			blocks,
 			headings: headings.filter((heading) => heading.depth === 2),
 		},
 		previous: neighbor(index - 1),

@@ -22,6 +22,7 @@
 	import ChatTimelineRow from './ChatTimelineRow.svelte';
 	import RunTerminalBanner from './RunTerminalBanner.svelte';
 	import RunUndoFooter from './RunUndoFooter.svelte';
+	import RunWorkFold from './RunWorkFold.svelte';
 	import SubagentGroup from './SubagentGroup.svelte';
 	import { blockKey } from './streaming-finalization';
 	import { RUN_TIMELINE_REVEAL_INCREMENT } from './timeline-derivations.svelte';
@@ -38,35 +39,43 @@
 	interface Props {
 		run: RunGroup;
 		isLastRun: boolean;
+		folded: boolean;
 		live: LiveRunBlocks | null;
 		copied: boolean;
 	}
 
-	let { run, isLastRun, live, copied }: Props = $props();
+	let { run, isLastRun, folded, live, copied }: Props = $props();
 
 	const transcript = transcriptContext();
 	const { timelines, stageEnter, timelineKey } = transcript;
 	const transcriptWindow = transcript.window;
 
-	const runKey = $derived(runWindowKey(run.runId));
+	const runKey = $derived(runWindowKey(run.runId, folded));
 	const opening = $derived(run.items.find((item) => item.kind === 'user'));
 	const editing = $derived(
 		opening?.kind === 'user' &&
 			opening.checkpointId !== undefined &&
 			transcript.checkpointEdit.editingCheckpointId === opening.checkpointId,
 	);
+
+	let rowsRendered = false;
+	let seededRows: ReadonlySet<string> | null = null;
+
 	const initiallyMounted = untrack(() => isLastRun || transcript.openingBudget(run.runId) > 0);
 	const mounted = $derived(
-		isLastRun || editing || transcriptWindow.mounted(runKey, initiallyMounted),
+		isLastRun || editing || transcriptWindow.mounted(runKey, initiallyMounted || rowsRendered),
 	);
 	const placeholderHeight = $derived(
 		mounted
 			? null
-			: (transcriptWindow.heightOf(runKey) ?? estimateRunHeight(run, transcriptWindow.textWidth)),
+			: (transcriptWindow.heightOf(runKey) ??
+					estimateRunHeight(run, transcriptWindow.textWidth, folded)),
 	);
 
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
-	const runRows = $derived(timelines.groupedTimelineItems(run, runTimelineWindow, isLastRun));
+	const runRows = $derived(
+		timelines.groupedTimelineItems(run, runTimelineWindow, isLastRun, folded),
+	);
 	const runTimelineItems = $derived(
 		live && live.pendingItems.length > 0 ? withPendingRows(runRows, live.pendingItems) : runRows,
 	);
@@ -83,9 +92,6 @@
 	const endsQuietly = $derived(
 		run.terminal === 'cancelled' || (run.terminal === 'paused' && !isLastRun),
 	);
-
-	let rowsRendered = false;
-	let seededRows: ReadonlySet<string> | null = null;
 
 	$effect(() => {
 		rowsRendered = mounted;
@@ -136,6 +142,51 @@
 	}
 </script>
 
+{#snippet showOlder()}
+	{#if runTimelineWindow.hiddenCount > 0}
+		<div class="flex justify-center pb-1">
+			<Button
+				variant="secondary"
+				size="sm"
+				bordered
+				class="border-chip-border bg-chip hover:bg-chip-hover h-8 px-3"
+				data-testid="chat-show-older-activity"
+				data-run-id={run.runId}
+				onclick={onShowOlder}
+			>
+				Show {Math.min(RUN_TIMELINE_REVEAL_INCREMENT, runTimelineWindow.hiddenCount)} older events
+			</Button>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet timelineRow(item: GroupedRunTimelineItem)}
+	{#if item.kind === 'activity-group'}
+		<ChatActivityGroup group={item} {run} {isLastRun} />
+	{:else if item.kind === 'subagent-group'}
+		<SubagentGroup group={item} {run} />
+	{:else if item.kind === 'workstreams'}
+		<div class="w-full" use:stageEnter={timelineKey(run, item.key)} data-message-kind="workstreams">
+			{@render transcript.workstreamsCard(item.workstreamIds)}
+		</div>
+	{:else if item.kind === 'work-fold'}
+		<RunWorkFold fold={item}>
+			{@render showOlder()}
+			{#each item.rows as row (row.key)}
+				<TranscriptRow
+					rowKey={rowKey(row)}
+					initiallyMounted
+					estimate={() => estimateRowHeight(row, transcriptWindow.textWidth)}
+				>
+					{@render timelineRow(row)}
+				</TranscriptRow>
+			{/each}
+		</RunWorkFold>
+	{:else}
+		<ChatTimelineRow {item} {run} {isLastRun} />
+	{/if}
+{/snippet}
+
 {#snippet runActions()}
 	<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
 	{@render copyResponse()}
@@ -173,20 +224,8 @@
 	{@attach isLastRun ? transcript.glideRowLayout : undefined}
 >
 	{#if mounted}
-		{#if runTimelineWindow.hiddenCount > 0}
-			<div class="flex justify-center pb-1">
-				<Button
-					variant="secondary"
-					size="sm"
-					bordered
-					class="border-chip-border bg-chip hover:bg-chip-hover h-8 px-3"
-					data-testid="chat-show-older-activity"
-					data-run-id={run.runId}
-					onclick={onShowOlder}
-				>
-					Show {Math.min(RUN_TIMELINE_REVEAL_INCREMENT, runTimelineWindow.hiddenCount)} older events
-				</Button>
-			</div>
+		{#if !folded}
+			{@render showOlder()}
 		{/if}
 
 		{#each runTimelineItems as item (item.key)}
@@ -198,21 +237,7 @@
 					initiallyMounted={rowInitiallyMounted(item)}
 					estimate={() => estimateRowHeight(item, transcriptWindow.textWidth)}
 				>
-					{#if item.kind === 'activity-group'}
-						<ChatActivityGroup group={item} {run} {isLastRun} />
-					{:else if item.kind === 'subagent-group'}
-						<SubagentGroup group={item} {run} />
-					{:else if item.kind === 'workstreams'}
-						<div
-							class="w-full"
-							use:stageEnter={timelineKey(run, item.key)}
-							data-message-kind="workstreams"
-						>
-							{@render transcript.workstreamsCard(item.workstreamIds)}
-						</div>
-					{:else}
-						<ChatTimelineRow {item} {run} {isLastRun} />
-					{/if}
+					{@render timelineRow(item)}
 				</TranscriptRow>
 			{/if}
 		{/each}

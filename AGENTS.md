@@ -8,6 +8,7 @@ There is no backend service and no cloud.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
 Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0119).
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
+A docs section can lead with that renderer on `?play=docs` from a `<!-- demo <workstream> <height>` directive in its markdown, its text folded below it (ADR 0175).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
 The app makes seven outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166).
 Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156).

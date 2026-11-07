@@ -1,5 +1,6 @@
 import { Marked } from 'marked';
 import { createHighlighter } from 'shiki';
+import type { DocDemo } from '$lib/DocDemo.svelte';
 import { SITE_DESCRIPTION, SITE_URL } from '$lib/links';
 
 export type DocPage = Readonly<{
@@ -14,6 +15,8 @@ export type DocPage = Readonly<{
 
 export type Heading = Readonly<{ id: string; text: string; depth: number }>;
 
+export type DocBlock = Readonly<{ html: string }> | Readonly<{ demo: DocDemo }>;
+
 const NAV: readonly (readonly [string, readonly string[]])[] = [
 	['Get started', ['', 'install', 'updates']],
 	['Using Malini', ['workstreams', 'chat', 'automations', 'brain', 'profile']],
@@ -21,6 +24,13 @@ const NAV: readonly (readonly [string, readonly string[]])[] = [
 ];
 
 const NAV_ORDER = NAV.flatMap(([, slugs]) => slugs);
+
+const DEMO = /^<!-- demo (\S+) (\d+)\n(.+)\n((?:- .+\n)*)-->\n*/gmu;
+const DEMO_MARK = /<!--demo:(\d+)-->\n?/u;
+
+export function withoutDemos(source: string): string {
+	return source.replace(DEMO, '');
+}
 
 const files = import.meta.glob<string>('/content/**/*.md', {
 	query: '?raw',
@@ -63,7 +73,7 @@ function parse(slug: string, source: string): DocPage {
 		description: fields.get('description') ?? '',
 		section: sectionOf(slug),
 		markdown,
-		source,
+		source: withoutDemos(source),
 	};
 }
 
@@ -157,15 +167,68 @@ const markdown = new Marked({
 	},
 });
 
-export function renderMarkdown(source: string): { html: string; headings: Heading[] } {
+function renderMarkdown(source: string): { html: string; headings: Heading[] } {
 	headings = [];
 	ids = new Map();
 	const html = markdown.parse(source, { async: false });
 	return { html, headings };
 }
 
+type Directive = Readonly<{ workstream: string; height: number; lead: string; tries: string[] }>;
+
+function sectionTitle(html: string): string {
+	const id = [...html.matchAll(/<h2 id="([^"]+)"/gu)].at(-1)?.[1];
+	return headings.find((heading) => heading.id === id)?.text ?? '';
+}
+
+export function renderDoc(source: string): { blocks: DocBlock[]; headings: Heading[] } {
+	const directives: Directive[] = [];
+	const marked = source.replace(
+		DEMO,
+		(_, workstream: string, height: string, lead: string, tries: string) => {
+			directives.push({
+				workstream,
+				height: Number(height),
+				lead,
+				tries: tries.split('\n').flatMap((line) => (line ? [line.slice(2)] : [])),
+			});
+			return `<!--demo:${directives.length - 1}-->\n\n`;
+		},
+	);
+	const rendered = renderMarkdown(marked);
+	const blocks: DocBlock[] = [];
+	let rest = rendered.html;
+	for (let mark = DEMO_MARK.exec(rest); mark; mark = DEMO_MARK.exec(rest)) {
+		const directive = directives[Number(mark[1])];
+		const before = rest.slice(0, mark.index);
+		const after = rest.slice(mark.index + mark[0].length);
+		const end = after.search(/<h2 |<!--demo:/u);
+		const more = end === -1 ? after : after.slice(0, end);
+		if (directive) {
+			blocks.push({ html: before });
+			blocks.push({
+				demo: {
+					workstream: directive.workstream,
+					height: directive.height,
+					title: sectionTitle(before),
+					lead: markdown.parseInline(directive.lead, { async: false }),
+					tries: directive.tries.map((line) => markdown.parseInline(line, { async: false })),
+					more,
+					words: plain(more).split(/\s+/u).filter(Boolean).length,
+				},
+			});
+		}
+		rest = end === -1 ? '' : after.slice(end);
+	}
+	blocks.push({ html: rest });
+	return {
+		blocks: blocks.filter((block) => !('html' in block) || block.html.trim()),
+		headings: rendered.headings,
+	};
+}
+
 export function asMarkdownDocument(page: DocPage): string {
-	return `# ${page.title}\n\n${page.description ? `> ${page.description}\n\n` : ''}${page.markdown}\n`;
+	return `# ${page.title}\n\n${page.description ? `> ${page.description}\n\n` : ''}${withoutDemos(page.markdown)}\n`;
 }
 
 export function llmsText(): string {

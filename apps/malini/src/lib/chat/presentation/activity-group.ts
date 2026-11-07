@@ -42,8 +42,19 @@ export type SubagentGroup = {
 	agents: readonly SubagentTimelineItem[];
 };
 
+export type FoldedRow = RunTimelineItem | ActivityGroup | SubagentGroup;
+
+export type WorkFold = {
+	kind: 'work-fold';
+	key: string;
+	rows: readonly FoldedRow[];
+	verb: string;
+	detail: string;
+	actionKinds: readonly ToolActionKind[];
+};
+
 export type GroupedRunTimelineItem =
-	RunTimelineItem | ActivityGroup | StartedWorkstreams | SubagentGroup;
+	RunTimelineItem | ActivityGroup | StartedWorkstreams | SubagentGroup | WorkFold;
 
 const START_WORKSTREAM_TOOL = 'mcp__malini__workstreams_create';
 
@@ -125,6 +136,37 @@ export function groupSubagents(rows: readonly GroupedRunTimelineItem[]): Grouped
 	return grouped;
 }
 
+export function foldRunWork(
+	rows: readonly GroupedRunTimelineItem[],
+): readonly GroupedRunTimelineItem[] {
+	const answer = rows.filter((row) => row.kind === 'assistant').at(-1);
+	const work = rows.filter(
+		(row): row is FoldedRow =>
+			row !== answer &&
+			row.kind !== 'user' &&
+			row.kind !== 'workstreams' &&
+			row.kind !== 'work-fold',
+	);
+	const [first] = work;
+	if (!first || work.length < ACTIVITY_GROUP_MIN_ITEMS) return rows;
+	const ran = work
+		.flatMap((row): readonly FoldedRow[] => (row.kind === 'activity-group' ? row.items : [row]))
+		.filter(isMachineActivity)
+		.filter((item) => !blockedByAutoMode(item));
+	const actions = ran.map(itemActionKind);
+	const actionKinds = distinct(actions);
+	const fold: WorkFold = {
+		kind: 'work-fold',
+		key: `work-${first.key}`,
+		rows: work,
+		verb: VERB_FORMS[ran.length > 0 ? verbStem(actionKinds) : 'work'].past,
+		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(work.length, 'step'),
+		actionKinds,
+	};
+	const folded = new Set<GroupedRunTimelineItem>(work);
+	return rows.flatMap((row) => (row === first ? [fold] : folded.has(row) ? [] : [row]));
+}
+
 export function withPendingRows(
 	rows: readonly GroupedRunTimelineItem[],
 	pending: readonly RunTimelineItem[],
@@ -164,7 +206,7 @@ function startedWorkstreamId(item: RunTimelineItem): string | null {
 	}
 }
 
-function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
+function isMachineActivity(item: FoldedRow): item is MachineActivityItem {
 	return (
 		(item.kind === 'tool' &&
 			!isBackgroundAgent(item.tool.name, item.tool.input) &&

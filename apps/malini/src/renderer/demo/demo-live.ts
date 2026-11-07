@@ -6,6 +6,7 @@ import type { WorkstreamDto } from '$contract/repositories';
 import type { AgentEvent } from '$lib/chat/domain/events';
 import type { DemoEmit } from './demo-bridge';
 import { openPage } from './demo-browser';
+import { DOCS_LIVE, DOCS_REPLIES, DOCS_WORKSTREAMS } from './demo-docs';
 import { DEMO_PLAY } from './demo-play';
 import {
 	closingEvents,
@@ -53,9 +54,14 @@ const REPLIES: ReadonlyMap<string, string> = new Map([[TOUR_FEEDBACK, TOUR_THREA
 const HERO = WORKSTREAMS.find((workstream) => workstream.id === HERO_ID);
 const heroPlays = DEMO_PLAY === 'hero' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const listed: DemoWorkstream[] = WORKSTREAMS.map((workstream) =>
-	heroPlays && workstream === HERO ? { ...workstream, name: '', files: [], runs: [] } : workstream,
-);
+const listed: DemoWorkstream[] = [
+	...WORKSTREAMS.map((workstream) =>
+		heroPlays && workstream === HERO
+			? { ...workstream, name: '', files: [], runs: [] }
+			: workstream,
+	),
+	...(DEMO_PLAY === 'docs' ? DOCS_WORKSTREAMS : []),
+];
 const threads = new Map<string, Readonly<{ workstreamId: string; model: string; name: string }>>();
 const statuses = new Map<string, AgentSessionSummary['status']>();
 const transcripts = new Map<string, AgentEventEnvelope[]>();
@@ -156,8 +162,7 @@ function stream(emit: DemoEmit, id: string, runId: string, contentId: string, te
 	});
 }
 
-function think(emit: DemoEmit, id: string, runId: string, key: string, text: string): Step[] {
-	const contentId = `${runId}-${key}`;
+function think(emit: DemoEmit, id: string, runId: string, contentId: string, text: string): Step[] {
 	const words = text.split(/(?<=\s)/u);
 	return [
 		...words.map((chunk): Step => [
@@ -177,12 +182,30 @@ function think(emit: DemoEmit, id: string, runId: string, key: string, text: str
 
 type Step = readonly [number, () => void];
 
-function play(steps: readonly Step[]): void {
+const timers = new Map<string, ReturnType<typeof setTimeout>[]>();
+const running = new Map<string, string>();
+
+function play(steps: readonly Step[], runId?: string): void {
 	let delay = 0;
-	for (const [wait, step] of steps) {
+	const scheduled = steps.map(([wait, step]) => {
 		delay += wait;
-		setTimeout(step, delay);
-	}
+		return setTimeout(step, delay);
+	});
+	if (runId) timers.set(runId, scheduled);
+}
+
+function finish(id: string, runId: string): void {
+	if (running.get(id) === runId) running.delete(id);
+	timers.delete(runId);
+	if (statuses.has(id)) statuses.set(id, 'completed');
+}
+
+export function cancelRun(emit: DemoEmit, id: string): void {
+	const runId = running.get(id);
+	if (!runId) return;
+	for (const timer of timers.get(runId) ?? []) clearTimeout(timer);
+	finish(id, runId);
+	append(emit, id, runId, { type: 'run.failed', runId, error: 'cancelled' });
 }
 
 function reply(emit: DemoEmit, id: string, runId: string, text: string, streamed: boolean): Step[] {
@@ -194,7 +217,7 @@ function reply(emit: DemoEmit, id: string, runId: string, text: string, streamed
 		[
 			0,
 			() => {
-				if (statuses.has(id)) statuses.set(id, 'completed');
+				finish(id, runId);
 				append(emit, id, runId, { type: 'run.completed', runId, summary: '' });
 			},
 		],
@@ -328,19 +351,27 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 function work(
 	emit: DemoEmit,
 	workstreamId: string,
-	run: DemoRun,
-	thought: string,
+	run: Pick<DemoRun, 'id' | 'tools'>,
+	thought: string | null,
 	workMs: number,
 ): Step[] {
 	const id = sessionId(workstreamId);
 	const tools = toolEvents(workstreamId, run.id, run.tools, Date.now());
 	const gap = workMs / (tools.length + 2);
 	return [
-		...think(emit, id, run.id, 'plan', thought),
-		...tools.map((event, index): Step => [
-			index === 0 ? gap : gap * (index % 2 === 0 ? 1.6 : 0.4),
-			() => append(emit, id, run.id, event),
-		]),
+		...(thought === null ? [] : think(emit, id, run.id, `${run.id}-plan`, thought)),
+		...tools.flatMap((event, index): Step[] => {
+			const wait = index === 0 ? gap : gap * (index % 2 === 0 ? 1.6 : 0.4);
+			if (event.type === 'thinking.message') {
+				return [[wait, () => undefined], ...think(emit, id, run.id, event.contentId, event.text)];
+			}
+			return [
+				[
+					wait,
+					() => append(emit, id, run.id, 'ts' in event ? { ...event, ts: Date.now() } : event),
+				],
+			];
+		}),
 	];
 }
 
@@ -373,13 +404,13 @@ function leadSteps(
 		if (--waiting > 0) return;
 		play([
 			[400, () => undefined],
-			...think(emit, id, runId, 'compare', script.compare),
+			...think(emit, id, runId, `${runId}-compare`, script.compare),
 			[300, () => undefined],
 			...reply(emit, id, runId, script.report, false),
 		]);
 	};
 	return [
-		...think(emit, id, runId, 'plan', script.plan),
+		...think(emit, id, runId, `${runId}-plan`, script.plan),
 		[100, () => rename(emit, leadId, script.name)],
 		...tool(
 			emit,
@@ -392,7 +423,7 @@ function leadSteps(
 			600,
 		),
 		[200, () => undefined],
-		...think(emit, id, runId, 'split', script.split),
+		...think(emit, id, runId, `${runId}-split`, script.split),
 		...script.started.flatMap((started): Step[] => {
 			const toolCallId = `${runId}-start-${started.id}`;
 			const name = 'mcp__malini__workstreams_create';
@@ -430,9 +461,13 @@ export function sendPrompt(
 	id: string,
 	prompt: string,
 	clientRequestId: string | undefined,
+	steer = false,
 ): string {
+	if (steer) cancelRun(emit, id);
 	const runId = runIdForPromptRequest(clientRequestId) ?? `run-demo-${++runs}`;
 	const lead = listed.find((workstream) => sessionId(workstream.id) === id && workstream.scope);
+	const scene = listed.find((workstream) => sessionId(workstream.id) === id);
+	const docsReply = DOCS_REPLIES.get(prompt.trim());
 	const script =
 		lead && transcript(id).length === 0
 			? LEAD_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
@@ -447,45 +482,92 @@ export function sendPrompt(
 			? heroSteps(emit, HERO, { ...heroRun, id: runId })
 			: lead && script
 				? leadSteps(emit, lead.id, id, runId, script)
-				: answer
+				: scene && docsReply
 					? [
-							...tool(
-								emit,
-								id,
-								runId,
-								`${runId}-read`,
-								'Read',
-								{ file_path: 'site/src/lib/Footer.svelte' },
-								'ok',
-								700,
-							),
-							...tool(
-								emit,
-								id,
-								runId,
-								`${runId}-edit`,
-								'Edit',
-								{ file_path: 'site/src/lib/Footer.svelte' },
-								'ok',
-								1_100,
-							),
-							...reply(emit, id, runId, answer, true),
+							...work(emit, scene.id, { ...docsReply, id: runId }, null, docsReply.workMs),
+							...reply(emit, id, runId, docsReply.report, true),
 						]
-					: [
-							...tool(
-								emit,
-								id,
-								runId,
-								`${runId}-read`,
-								'Read',
-								{ file_path: 'AGENTS.md' },
-								'ok',
-								900,
-							),
-							...reply(emit, id, runId, DEMO_REPLY, true),
-						];
-	play([...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...steps]);
+					: answer
+						? [
+								...tool(
+									emit,
+									id,
+									runId,
+									`${runId}-read`,
+									'Read',
+									{ file_path: 'site/src/lib/Footer.svelte' },
+									'ok',
+									700,
+								),
+								...tool(
+									emit,
+									id,
+									runId,
+									`${runId}-edit`,
+									'Edit',
+									{ file_path: 'site/src/lib/Footer.svelte' },
+									'ok',
+									1_100,
+								),
+								...reply(emit, id, runId, answer, true),
+							]
+						: [
+								...tool(
+									emit,
+									id,
+									runId,
+									`${runId}-read`,
+									'Read',
+									{ file_path: 'AGENTS.md' },
+									'ok',
+									900,
+								),
+								...reply(emit, id, runId, DEMO_REPLY, true),
+							];
+	running.set(id, runId);
+	play(
+		[...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...steps],
+		runId,
+	);
 	return runId;
+}
+
+function whenSeen(run: () => void): void {
+	const observer = new IntersectionObserver(
+		([entry]) => {
+			if (!entry?.isIntersecting) return;
+			observer.disconnect();
+			run();
+		},
+		{ threshold: 0.5 },
+	);
+	observer.observe(document.documentElement);
+}
+
+export function playDocsScenes(emit: DemoEmit): void {
+	if (DEMO_PLAY !== 'docs') return;
+	for (const { workstreamId, run, workMs } of DOCS_LIVE) {
+		const id = sessionId(workstreamId);
+		transcript(id);
+		statuses.set(id, 'running');
+		running.set(id, run.id);
+		for (const event of openingEvents(workstreamId, run)) append(emit, id, run.id, event);
+		whenSeen(() =>
+			play(
+				[
+					...work(emit, workstreamId, run, null, workMs),
+					[
+						workMs / 6,
+						() => {
+							finish(id, run.id);
+							for (const event of closingEvents(run)) append(emit, id, run.id, event);
+						},
+					],
+				],
+				run.id,
+			),
+		);
+	}
 }
 
 const NOW = new Date().toISOString();

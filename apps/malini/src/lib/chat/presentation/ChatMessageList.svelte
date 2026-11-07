@@ -71,7 +71,10 @@
 	import { createRowArrivals } from './chat-message-list/row-arrival';
 	import { sessionProjectorCache } from './chat-message-list/session-projectors';
 	import { blockKey, toolInputKey } from './chat-message-list/streaming-finalization';
-	import { createTimelineDerivations } from './chat-message-list/timeline-derivations.svelte';
+	import {
+		createTimelineDerivations,
+		foldsWork,
+	} from './chat-message-list/timeline-derivations.svelte';
 	import {
 		setTranscriptContext,
 		type TranscriptComposerControls,
@@ -291,7 +294,13 @@
 	}
 
 	function openingRows(run: RunGroup): readonly GroupedRunTimelineItem[] {
-		return timelines.groupedTimelineItems(run, timelines.timelineWindow(run), run === runs.at(-1));
+		const index = runs.indexOf(run);
+		return timelines.groupedTimelineItems(
+			run,
+			timelines.timelineWindow(run),
+			index === runs.length - 1,
+			foldsWork(runs, index),
+		);
 	}
 
 	let viewportEl: HTMLDivElement | null = $state(null);
@@ -932,6 +941,7 @@
 						<TranscriptRun
 							{run}
 							isLastRun={runIndex === runs.length - 1}
+							folded={foldsWork(runs, runIndex)}
 							live={liveBlocksFor(run)}
 							copied={copiedResponseRunId === run.runId}
 						/>
