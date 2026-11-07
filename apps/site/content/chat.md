@@ -71,6 +71,13 @@ When the plan changes, the lead tells the workstreams it affects.
 
 ## Queue or steer
 
+<!-- demo docs-queue 560
+<kbd>↵</kbd> waits its turn. <kbd>⌘↵</kbd> cuts in
+- Press <kbd>↵</kbd> to queue the draft
+- Type anything, then <kbd>⌘↵</kbd>
+- Click the square to stop
+-->
+
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued; **↵** saves an edit and **⇧↵** adds a line.
 - An [automation](/malini/docs/automations.md#run-an-automation) run from the chat, by you or the agent, waits above the composer with what you queued until it finishes, never among the messages.
@@ -237,6 +244,13 @@ An approval lets out that one call: a command inside the sandbox cannot let itse
 
 ## Reports
 
+<!-- demo ws-tony-hero 680
+Every turn ends in a report. Proof included
+- Drag the **Wipe** divider
+- Click **Diff**
+- Click **Ship** on the next step
+-->
+
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under the **Details** row, which says how many words it holds.
 Reports run from a screenshot and one line to the full write-up.
@@ -288,6 +302,13 @@ Your own sounds join both lists, and **No sound** turns one off.
 The trash button beside one of yours removes it once you click **Remove**, and a moment that played it goes back to its default.
 
 ## Context
+
+<!-- demo docs-context 600
+Old turns fold. Subagents get a line each. Files show their diff
+- Click **3 subagents**
+- Point at **merge.ts**
+- Scroll up to the folded turn
+-->
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
