@@ -12,7 +12,7 @@ A Claude Code `prompt` Stop hook cannot do the job: its evaluator sees only the 
 
 ## Decision
 
-- **Settings → Models → Simplified Technical English** is a switch, off until turned on, saved as `chat.ste-replies` in the settings table, `on` when on.
+- **Settings → Models → Plain replies** is a switch, off until turned on, saved as `chat.ste-replies` in the settings table, `on` when on.
   `writesSte` in `src/contract/agent.ts` reads it: only `on` is on.
 - Main's `steReplies` hook in `src/lib/chat/platform/agent/service.ts` reads it for each prompt, and `send_prompt` carries `steReplies: true` while it is on.
 - The bridge (`packages/agent-bridge/src/claude/reply-check.ts`) adds the STE line to the `<malini>` instructions, with the 135-word limit only below the high report resolution, and registers a callback `Stop` hook on the query.
@@ -27,4 +27,4 @@ A Claude Code `prompt` Stop hook cannot do the job: its evaluator sees only the 
 - A reply waits for the check before it settles, a few seconds on a pass, and a sent-back reply costs a rewrite.
 - A request for another style or length passes, since the checker reads the prompt beside the reply.
 - If a background agent's message arrives between a reply and its check, that reply shows beside its rewrite.
-- Enforced by `transcript.test.ts` ("shows only the rewrite of a reply the reply check sent back", and every recorded scenario keeps every reply in order while held), `session.test.ts` (the hook blocks once on the recorded `steRewrite` turn, lets a reply through when the check fails, and runs only once the switch is on, in a fresh Claude Code) and `tests/e2e/settings.spec.ts` ("Settings → Models turns on Simplified Technical English for the next prompt of every chat").
+- Enforced by `transcript.test.ts` ("shows only the rewrite of a reply the reply check sent back", and every recorded scenario keeps every reply in order while held), `session.test.ts` (the hook blocks once on the recorded `steRewrite` turn, lets a reply through when the check fails, and runs only once the switch is on, in a fresh Claude Code) and `tests/e2e/settings.spec.ts` ("Settings → Models turns on plain replies for the next prompt of every chat").

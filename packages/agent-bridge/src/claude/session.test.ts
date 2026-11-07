@@ -651,7 +651,7 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 	});
 
-	it('checks replies only once the user turns Simplified Technical English on, in a fresh Claude Code', async () => {
+	it('checks replies only once the user turns plain replies on, in a fresh Claude Code', async () => {
 		const script = recordedScript('readAndBash');
 		const warm = [...script, 'wait-for-prompt' as const, ...script];
 		const checkReply = vi.fn<ReplyChecker>(async () => null);

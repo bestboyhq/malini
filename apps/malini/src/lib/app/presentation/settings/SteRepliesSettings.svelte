@@ -14,9 +14,9 @@
 	class="border-surface-50-border bg-surface-50 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-xl border-[0.5px] px-4 py-3"
 >
 	<div class="min-w-0">
-		<h3 id={labelId} class="text-fg-default text-sm font-medium">Simplified Technical English</h3>
+		<h3 id={labelId} class="text-fg-default text-sm font-medium">Plain replies</h3>
 		<p class="text-fg-tertiary text-xs">
-			Replies in ASD-STE100, the English of aircraft manuals. Ramblers go back for one rewrite
+			Short sentences, common words, no filler. A small model checks each reply before you read it
 		</p>
 	</div>
 	<Switch

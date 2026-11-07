@@ -254,7 +254,7 @@ test('Settings → Models picks the model new chats start with for each mode, an
 	}
 });
 
-test('Settings → Models turns on Simplified Technical English for the next prompt of every chat', async () => {
+test('Settings → Models turns on plain replies for the next prompt of every chat', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -272,7 +272,7 @@ test('Settings → Models turns on Simplified Technical English for the next pro
 
 		await page.getByTestId('global-topbar-open-settings').click();
 		await settingsSection(page, 'Models').click();
-		const ste = page.getByRole('switch', { name: 'Simplified Technical English' });
+		const ste = page.getByRole('switch', { name: 'Plain replies' });
 		await expect(ste).not.toBeChecked();
 		await ste.click();
 		await expect(ste).toBeChecked();
