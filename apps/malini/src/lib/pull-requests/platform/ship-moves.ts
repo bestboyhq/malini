@@ -9,7 +9,7 @@ import type { ShippingAutomationBuiltin } from '$contract/automations';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
-import { commitLine, workstreamKitchen, workstreamShipContext } from '$lib/chat/chat.platform';
+import { commitLine, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
 	automationDefinitions,
@@ -23,7 +23,6 @@ import {
 	type AutomatedPullRequestMetadata,
 	type PullRequestAutomationContext,
 	type PullRequestChef,
-	type PullRequestKitchen,
 } from '$shared/repositories/repositories.platform';
 import {
 	checkFixAutomationContext,
@@ -302,7 +301,7 @@ async function commitAndPush(deps: ShipDeps, state: ShipState, retitle: boolean)
 			target,
 			state.worktree.dirtyPaths,
 			shipContext,
-			await shipCredit(deps, workstreamId),
+			await shipChef(deps),
 		);
 		await retitlePullRequest(deps, target, workstreamId, title, body);
 	}
@@ -330,7 +329,7 @@ async function openPullRequest(deps: ShipDeps, state: ShipState): Promise<void> 
 		target,
 		state.worktree.dirtyPaths,
 		workstreamShipContext(deps.context.db, workstreamId),
-		await shipCredit(deps, workstreamId),
+		await shipChef(deps),
 	);
 	const created = await deps.ops.create({
 		repoId: target.repoId,
@@ -618,20 +617,15 @@ export function settledAutomation(deps: ShipDeps, row: ShipRow): SettledAutomati
 		: null;
 }
 
-type ShipCredit = Readonly<{ kitchen: PullRequestKitchen; chef: PullRequestChef | null }>;
-
-async function shipCredit(deps: ShipDeps, workstreamId: string): Promise<ShipCredit> {
-	return {
-		kitchen: workstreamKitchen(deps.context.db, workstreamId),
-		chef: (await deps.chef?.().catch(() => null)) ?? null,
-	};
+async function shipChef(deps: ShipDeps): Promise<PullRequestChef | null> {
+	return (await deps.chef?.().catch(() => null)) ?? null;
 }
 
 export function shipMetadata(
 	target: ShipTarget,
 	changedPaths: readonly string[],
 	shipContext: PullRequestAutomationContext,
-	credit?: ShipCredit,
+	chef: PullRequestChef | null = null,
 ): AutomatedPullRequestMetadata {
 	return automatedPullRequestMetadata({
 		branch: target.workstream.branch,
@@ -639,7 +633,7 @@ export function shipMetadata(
 		changedPaths,
 		workstreamPath: target.workstream.path,
 		context: shipContext,
-		...credit,
+		chef,
 	});
 }
 

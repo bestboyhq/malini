@@ -52,7 +52,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(github.pushedHead()).toBe(headOf(worktree));
 		expect(git(worktree, 'log', '-1', '--format=%an')).toBe(git(worktree, 'config', 'user.name'));
 		expect(github.pullRequest()?.body).toMatch(
-			/<summary><sub>🍳 Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/github\.com\/e2e-user">@e2e-user<\/a><\/td><\/tr>\n<tr><td>Kitchen<\/td><td>1 agent, 1 turn, (?:under a minute|\d+ minutes?)<\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did them<\/td><\/tr>\n<\/table>\n<\/details>$/u,
+			/<summary><sub>🍳 Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/github\.com\/e2e-user">@e2e-user<\/a><\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did em<\/td><\/tr>\n<\/table>\n<\/details>$/u,
 		);
 		await expect(status).toHaveAttribute('data-workstream-pull-request-state', 'draft');
 		await expect(status).toHaveAccessibleName(/ · Draft pull request$/u);

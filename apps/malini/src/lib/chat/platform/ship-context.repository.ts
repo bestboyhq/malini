@@ -6,11 +6,10 @@ import {
 } from '$lib/chat/domain/run-evidence';
 import { variantDecisions } from '$lib/chat/domain/variant-pick';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, isRecord } from '$main/db/rows';
+import { all, isRecord } from '$main/db/rows';
 import type {
 	PullRequestAutomationContext,
 	PullRequestAutomationEvent,
-	PullRequestKitchen,
 } from '$shared/repositories/repositories.platform';
 import { decodeEvent } from './events.repository';
 import { promptPlainText } from './sessions.repository';
@@ -72,20 +71,6 @@ export function workstreamShipContext(
 		...(events.length > 0 ? { events } : {}),
 		...(decisions.length > 0 ? { decisions } : {}),
 	};
-}
-
-export function workstreamKitchen(db: MaliniDatabase, workstreamId: string): PullRequestKitchen {
-	const kitchen = get<PullRequestKitchen>(
-		db,
-		`SELECT COUNT(DISTINCT s.id) + COALESCE(SUM(
-				(SELECT SUM(t.calls) FROM agent_run_tool_calls t WHERE t.run_id = r.id AND t.tool = 'Agent')
-			), 0) AS agents,
-			COUNT(r.id) AS turns,
-			COALESCE(SUM((julianday(r.completed_at) - julianday(r.started_at)) * 1440), 0) AS minutes
-		 FROM ${WORKSTREAM_RUNS}`,
-		workstreamId,
-	);
-	return kitchen ?? { agents: 0, turns: 0, minutes: 0 };
 }
 
 function validationEvents(

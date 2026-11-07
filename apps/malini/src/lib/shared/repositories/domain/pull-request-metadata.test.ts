@@ -360,33 +360,38 @@ test('lists the variants picked under Decisions, and no section when none were p
 	expect(automatedPullRequestMetadata(input).body).not.toContain('## Decisions');
 });
 
-test('ends the body with who cooked it, the kitchen and the dishes, whatever the length', () => {
+test('ends the body with who cooked it and who did the dishes, whatever the length', () => {
 	const input = {
 		branch: 'malini/hero',
 		baseBranch: 'main',
 		changedPaths: Array.from({ length: 40 }, (_, index) => `src/${'deep/'.repeat(20)}${index}.ts`),
 		context: { runSummaries: ['Built the bold hero'] },
 	} as const;
+	const footer = (chef: string) =>
+		`\n\n<details>\n<summary><sub>🍳 Cooked with <a href="https://bestboy.dev/malini">Malini</a></sub></summary>\n<table>\n${chef}<tr><td>Dishes</td><td>Agents did em</td></tr>\n</table>\n</details>`;
 
 	const cooked = automatedPullRequestMetadata({
 		...input,
-		kitchen: { agents: 5, turns: 10, minutes: 191.4 },
-		chef: { handle: 'szymeo', url: 'https://bestboy.dev/@szymeo', streakDays: 28 },
-	});
-
-	expect(cooked.body.length).toBeLessThanOrEqual(AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body);
-	expect(cooked.body).toMatch(
-		/\n\n<details>\n<summary><sub>🍳 Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/bestboy\.dev\/@szymeo">@szymeo<\/a>, 28 days straight<\/td><\/tr>\n<tr><td>Kitchen<\/td><td>5 agents, 10 turns, 3 hours<\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did them<\/td><\/tr>\n<\/table>\n<\/details>$/u,
-	);
-	const solo = automatedPullRequestMetadata({
-		...input,
-		kitchen: { agents: 1, turns: 1, minutes: 0.4 },
-		chef: { handle: 'bad"><script>', url: 'javascript:alert(1)', streakDays: 1 },
+		chef: { handle: 'szymeo', url: 'https://bestboy.dev/@szymeo' },
 	}).body;
-	expect(solo).toContain('<summary><sub>🍳 Cooked with');
-	expect(solo).toContain('<td>1 agent, 1 turn, under a minute</td>');
-	expect(solo).not.toMatch(/Chef|script|javascript/u);
-	expect(automatedPullRequestMetadata(input).body).toMatch(
-		/\n\n<sub>🍳 Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub>$/u,
-	);
+
+	expect(cooked.length).toBeLessThanOrEqual(AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body);
+	expect(
+		cooked.endsWith(
+			footer('<tr><td>Chef</td><td><a href="https://bestboy.dev/@szymeo">@szymeo</a></td></tr>\n'),
+		),
+	).toBe(true);
+	expect(
+		automatedPullRequestMetadata({
+			...input,
+			chef: { handle: 'szymeo', url: 'javascript:alert(1)' },
+		}).body.endsWith(footer('<tr><td>Chef</td><td>@szymeo</td></tr>\n')),
+	).toBe(true);
+	expect(
+		automatedPullRequestMetadata({
+			...input,
+			chef: { handle: 'bad"><script>', url: 'https://github.com/x' },
+		}).body.endsWith(footer('')),
+	).toBe(true);
+	expect(automatedPullRequestMetadata(input).body.endsWith(footer(''))).toBe(true);
 });

@@ -84,7 +84,6 @@ export {
 	type PullRequestAutomationContext,
 	type PullRequestAutomationEvent,
 	type PullRequestChef,
-	type PullRequestKitchen,
 } from './domain/pull-request-metadata';
 export {
 	listRepositoryCatalog,

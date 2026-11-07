@@ -36,7 +36,6 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
 import { recentMoments } from '../domain/moments';
-import { publishedStreak } from '../domain/published-stats';
 import { Bestboy, bestboyOrigin, type BestboyAccess, type BestboyFetch } from './bestboy';
 import { FrameJournal, type FrameJournalEntry } from './frame-journal';
 import { ProfileStore, type TokenCipher } from './profile-store';
@@ -210,13 +209,11 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		chef: async () => {
 			const { publishing, profile: published } = profile.state();
 			if (publishing === 'on' && published?.public && published.handle && published.url) {
-				const stats = await cardStats();
-				const streakDays = stats ? publishedStreak(stats) : 0;
-				return { handle: published.handle, url: published.url, streakDays };
+				return { handle: published.handle, url: published.url };
 			}
 			const identity = await github();
 			return identity
-				? { handle: identity.login, url: `https://github.com/${identity.login}`, streakDays: 0 }
+				? { handle: identity.login, url: `https://github.com/${identity.login}` }
 				: null;
 		},
 		start: () => {
