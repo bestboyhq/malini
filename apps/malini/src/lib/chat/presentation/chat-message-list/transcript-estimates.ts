@@ -1,6 +1,7 @@
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 import type { GroupedRunTimelineItem } from '../activity-group';
 import type { RunGroup } from '../render-state';
+import { foldsWork } from './timeline-derivations.svelte';
 import { rowWindowKey, runWindowKey, type TranscriptWindow } from './transcript-window.svelte';
 
 const LINE_PX = 22.75;
@@ -32,7 +33,12 @@ export function estimateRowHeight(item: GroupedRunTimelineItem, textWidth: numbe
 	}
 }
 
-export function estimateRunHeight(run: RunGroup, textWidth: number): number {
+export function estimateRunHeight(run: RunGroup, textWidth: number, folded: boolean): number {
+	if (folded) {
+		const answer = run.items.filter((item) => item.kind === 'assistant').at(-1);
+		const answerPx = answer ? estimateTextHeight(answer.text, textWidth) + ROW_GAP_PX : 0;
+		return PROMPT_PX + ROW_PX + ROW_GAP_PX + answerPx + ROW_PX;
+	}
 	let height = PROMPT_PX;
 	let inActivity = false;
 	for (const item of run.items) {
@@ -82,8 +88,10 @@ export function openingBudgets(
 		const run = runs[index];
 		if (!run) continue;
 		budgets.set(run.runId, budget);
+		const folded = foldsWork(runs, index);
 		budget -=
-			measure.heightOf(runWindowKey(run.runId)) ?? estimateRunHeight(run, measure.textWidth);
+			measure.heightOf(runWindowKey(run.runId, folded)) ??
+			estimateRunHeight(run, measure.textWidth, folded);
 	}
 	return budgets;
 }
@@ -108,8 +116,10 @@ export function anchoredOpeningBudgets(
 		const run = runs[index];
 		if (!run) continue;
 		budgets.set(run.runId, budget);
+		const folded = foldsWork(runs, index);
 		budget -=
-			measure.heightOf(runWindowKey(run.runId)) ?? estimateRunHeight(run, measure.textWidth);
+			measure.heightOf(runWindowKey(run.runId, folded)) ??
+			estimateRunHeight(run, measure.textWidth, folded);
 	}
 	return budgets;
 }
