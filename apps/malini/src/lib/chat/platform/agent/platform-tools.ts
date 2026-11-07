@@ -317,6 +317,7 @@ async function createWorkstream(
 		chat = await commands.call('chat.start-session', {
 			workstreamId,
 			origin: 'user',
+			provider: source.provider,
 			...(source.model === null ? {} : { model: source.model }),
 		});
 	} catch (error) {

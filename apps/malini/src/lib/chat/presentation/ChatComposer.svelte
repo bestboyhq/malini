@@ -3,14 +3,9 @@
 	import { tick, untrack } from 'svelte';
 	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
-		claudeCodeStatusQuery,
 		DEFAULT_PROVIDER_ID,
 		defaultAgentModel,
-		isModelAccessReady,
 		isValidModelSelection,
-		modelAccess,
-		providerGroupsQuery,
-		selectionLabel,
 		type AgentReasoningEffort,
 		type ModelSelection,
 	} from '$shared/providers/providers.api';
@@ -38,6 +33,7 @@
 	import { workstreamFileListingQuery } from '$lib/chat/application/queries/workstream-file-listing.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { CLAUDE_CODE_COMMANDS } from '$lib/chat/domain/claude-code-commands';
+	import type { DraftRestoration } from '$lib/chat/domain/composer-submission-recovery';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { clearWorkstreamTodosResolutionCommand } from '$lib/chat/application/commands/clear-workstream-todos-resolution.command';
 	import { resolveWorkstreamTodosCommand } from '$lib/chat/application/commands/resolve-workstream-todos.command';
@@ -81,7 +77,6 @@
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
-	import ProviderConnectCard from './ProviderConnectCard.svelte';
 	import { TranscriptFactsProjector } from './transcript-facts';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure, sanitizeFailureDetail } from '$shared/errors/failure-copy';
@@ -172,11 +167,6 @@
 	let outgoingBandEl: HTMLDivElement | null = $state(null);
 	let outgoingPrompts = $state(0);
 	let landOutgoingPrompt: (() => void) | null = null;
-	const providerGroups = $derived(providerGroupsQuery.data);
-	const access = $derived(modelAccess(selection, providerGroups, claudeCodeStatusQuery.data));
-	const selectedModelLabel = $derived(selectionLabel(providerGroups, selection));
-	let accessPrompt = $state<string | null>(null);
-	let accessSteer = false;
 	let submissionError = $state<string | null>(null);
 	let contextOpen = $state(false);
 	let contextQuery = $state('');
@@ -417,8 +407,6 @@
 		onattachmentschange?.(localAttachments);
 		attachmentError = null;
 		submissionError = null;
-		accessPrompt = null;
-		accessSteer = false;
 		addMenuOpen = false;
 		contextOpen = false;
 		contextQuery = '';
@@ -435,11 +423,14 @@
 
 	$effect(() => {
 		const scope = draftScope;
-		const revision = draftRestoration;
+		const restoration = draftRestoration;
+		const revision = restoration?.revision ?? 0;
 		const baseline = draftRestorationBaseline;
 		draftRestorationBaseline = { scope, revision };
-		if (!baseline || baseline.scope !== scope || baseline.revision === revision) return;
-		untrack(() => restoreFailedDraftInComposer(scope));
+		if (!restoration || !baseline || baseline.scope !== scope || baseline.revision === revision) {
+			return;
+		}
+		untrack(() => restoreDraftInComposer(scope, restoration.cause));
 	});
 
 	const filteredContextFiles = $derived.by(() => {
@@ -792,13 +783,6 @@
 		if (!trimmed) {
 			return;
 		}
-		if (!isModelAccessReady(access)) {
-			accessPrompt = trimmed;
-			accessSteer = steer;
-			return;
-		}
-		accessPrompt = null;
-		accessSteer = false;
 		const next = isValidModelSelection(selection)
 			? selection
 			: { provider: DEFAULT_PROVIDER_ID, model: defaultAgentModel() };
@@ -833,29 +817,6 @@
 			prompt: trimmed,
 		});
 	}
-
-	function onAccessConnected(): void {
-		const steer = accessSteer;
-		accessPrompt = null;
-		accessSteer = false;
-		submit(steer);
-	}
-
-	function cancelAccess(): void {
-		accessPrompt = null;
-		accessSteer = false;
-		queueMicrotask(() => promptEditor?.focusEditor());
-	}
-
-	$effect(() => {
-		selection.provider;
-		selection.model;
-		untrack(() => {
-			if (accessPrompt === null) return;
-			accessPrompt = null;
-			accessSteer = false;
-		});
-	});
 
 	$effect(() => {
 		const resolution = todosResolution;
@@ -952,14 +913,15 @@
 		);
 	}
 
-	function restoreFailedDraftInComposer(scope: string): void {
+	function restoreDraftInComposer(scope: string, cause: DraftRestoration['cause']): void {
 		prompt = readDraft(scope);
 		selectedContextFiles = readContextDraft(scope);
 		localAttachments = readAttachmentDraft(scope);
 		transcriptReferences = readTranscriptReferenceDraft(scope);
 		elementReferences = readElementReferenceDraft(scope);
 		onattachmentschange?.(localAttachments);
-		submissionError = 'Prompt could not be sent. Its complete draft was restored.';
+		submissionError =
+			cause === 'failed' ? 'Prompt could not be sent. Its complete draft was restored.' : null;
 		queueMicrotask(() => promptEditor?.focusEditor());
 	}
 
@@ -1201,16 +1163,6 @@
 			</div>
 		</div>
 	</DropdownLayer>
-
-	{#if accessPrompt !== null && !isModelAccessReady(access)}
-		<ProviderConnectCard
-			{access}
-			modelLabel={selectedModelLabel}
-			prompt={accessPrompt}
-			onconnected={onAccessConnected}
-			oncancel={cancelAccess}
-		/>
-	{/if}
 
 	<ComposerShell
 		accent={profile.mode === 'plan'}

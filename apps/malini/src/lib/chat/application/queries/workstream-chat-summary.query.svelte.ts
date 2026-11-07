@@ -1,3 +1,4 @@
+import { heldPromptQuery } from '$lib/chat/application/queries/held-prompt.query.svelte';
 import { backgroundWaitOf } from '$lib/chat/domain/background-work';
 import {
 	summarizeWorkstreamChat,
@@ -22,6 +23,7 @@ class WorkstreamChatSummaryQuery {
 		const runningAutomations = workstreamsRunningAutomations(sessions);
 		return (workstreamId: string) => {
 			const session = visualSessions.get(workstreamId) ?? null;
+			const held = heldPromptQuery.countFor(workstreamId);
 			return summarizeWorkstreamChat({
 				session,
 				openingSessionId: sessionsAggregate.openingSessionFor(workstreamId),
@@ -30,7 +32,8 @@ class WorkstreamChatSummaryQuery {
 						? backgroundWaitOf(chatOccupancy.backgroundWork(session.id))
 						: null,
 				automationRunning: runningAutomations.has(workstreamId),
-				queueCount: agentPromptQueue.waitingCountFor(workstreamId),
+				queueCount: agentPromptQueue.waitingCountFor(workstreamId) - held,
+				held: held > 0,
 				attention: agentActivity.attentionFor(workstreamId),
 				hasDraft: agentDrafts.hasDraftForWorkstream(workstreamId),
 			});

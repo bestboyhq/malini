@@ -3,6 +3,7 @@
 	import { agentProcessDiedQuery } from '$lib/chat/application/queries/agent-process-died.query.svelte';
 	import { agentRestartingQuery } from '$lib/chat/application/queries/agent-restarting.query.svelte';
 	import { Button } from '$hyper-ui/components/button';
+	import { Strip } from '$hyper-ui/components/strip';
 	import { Icon } from '$hyper-ui/icons';
 
 	const died = $derived(agentProcessDiedQuery.data);
@@ -10,37 +11,34 @@
 </script>
 
 {#if died}
-	<div
+	<section
+		class="chat-column relative z-20 px-4 pb-2"
 		role="status"
 		aria-live="polite"
 		data-testid="agent-process-died-banner"
-		class="border-surface-50-border bg-surface-50 text-fg-default flex w-full shrink-0 items-start gap-3 border-b px-4 py-3"
 	>
-		<div
-			class="bg-warning text-warning-content grid h-7 w-7 shrink-0 place-items-center rounded-md"
-			aria-hidden="true"
-		>
-			<Icon name="alert" size={16} />
-		</div>
-		<div class="min-w-0 flex-1">
-			<p class="text-fg-default text-sm font-medium">Agent process died</p>
-			<p class="text-fg-secondary mt-1 text-sm leading-6">
+		<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-3">
+			<p class="text-fg-default text-sm leading-6">
 				The agent bridge stopped responding mid-run. Restart it now, clear the stuck run, and
 				reconnect this workstream without reloading Malini.
 			</p>
-			<div class="mt-3">
-				<Button
-					variant="warning"
-					size="auto"
-					class="px-3 py-1.5 text-xs"
-					data-testid="agent-process-died-reset"
-					disabled={restarting}
-					ariaBusy={restarting}
-					onclick={restartAgentCommand}
-				>
-					{restarting ? 'Restarting…' : 'Restart agent process'}
-				</Button>
-			</div>
 		</div>
-	</div>
+		<Strip>
+			<span class="text-warning-content flex min-w-0 items-center gap-1.5">
+				<Icon name="alert" size={12} class="shrink-0" />
+				<span class="truncate">Agent process died</span>
+			</span>
+			<Button
+				variant="primary"
+				size="sm"
+				class="ml-auto"
+				data-testid="agent-process-died-reset"
+				disabled={restarting}
+				ariaBusy={restarting}
+				onclick={restartAgentCommand}
+			>
+				{restarting ? 'Restarting…' : 'Restart agent process'}
+			</Button>
+		</Strip>
+	</section>
 {/if}

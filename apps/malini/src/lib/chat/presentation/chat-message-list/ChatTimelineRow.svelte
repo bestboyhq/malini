@@ -207,7 +207,7 @@
 	</div>
 {:else if item.kind === 'approval'}
 	<div class="relative w-full" use:stageEnter={timelineKey(run, item.key)}>
-		<AgentInteractionCard {item} />
+		<AgentInteractionCard {item} class="-mx-3" />
 	</div>
 {:else if item.kind === 'question'}
 	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>

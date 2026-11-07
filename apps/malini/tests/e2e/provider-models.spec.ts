@@ -183,17 +183,19 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 		await expect(page.getByRole('button', { name: 'Model: DeepSeek V4 Pro' })).toBeVisible();
 
 		await sendPrompt(page, 'SEARCH the fixture repo');
-		await expect(page.getByTestId('provider-connect-card')).toBeVisible();
-		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
+		await expect(page.getByTestId('provider-connect-strip')).toBeVisible();
+		await expect(page.getByTestId('provider-connect-strip')).toHaveAttribute(
 			'data-access',
 			'needs-key',
 		);
-		await expect(page.getByTestId('provider-connect-prompt')).toHaveText('SEARCH the fixture repo');
+		await expect(page.getByTestId('chat-message-bubble-user')).toHaveText([
+			'SEARCH the fixture repo',
+		]);
 		await expect(page.getByTestId('provider-connect-key')).toBeFocused();
 		await captureFlow(app, 'provider-models-connect-card');
 		await page.getByRole('textbox', { name: 'DeepSeek API key' }).fill('sk-e2e-deepseek');
 		await page.getByTestId('provider-connect-submit').click();
-		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
+		await expect(page.getByTestId('provider-connect-strip')).toHaveCount(0);
 
 		await expect
 			.poll(
@@ -319,7 +321,7 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 
 		await sendPrompt(page, 'SEARCH the fixture repo');
-		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
+		await expect(page.getByTestId('provider-connect-strip')).toHaveAttribute(
 			'data-access',
 			'needs-key',
 		);
@@ -329,7 +331,7 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		);
 		await page.getByRole('textbox', { name: 'OpenCode API key' }).fill('oc_sk_e2e');
 		await page.getByTestId('provider-connect-submit').click();
-		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
+		await expect(page.getByTestId('provider-connect-strip')).toHaveCount(0);
 		await expect
 			.poll(
 				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
@@ -404,13 +406,13 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 
 		await chooseModel(page, 'opencode', 'glm-6');
 		await sendPrompt(page, 'SEARCH the fixture repo');
-		await expect(page.getByTestId('provider-connect-card')).toHaveAttribute(
+		await expect(page.getByTestId('provider-connect-strip')).toHaveAttribute(
 			'data-access',
 			'needs-key',
 		);
 		await page.getByRole('textbox', { name: 'OpenCode API key' }).fill('oc_sk_go_e2e');
 		await page.getByTestId('provider-connect-submit').click();
-		await expect(page.getByTestId('provider-connect-card')).toHaveCount(0);
+		await expect(page.getByTestId('provider-connect-strip')).toHaveCount(0);
 		await expect
 			.poll(
 				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,

@@ -68,6 +68,8 @@
 	import { createDestructiveConfirm } from './chat-message-list/destructive-confirm.svelte';
 	import { createOpenRunGuard } from './chat-message-list/open-run-guard.svelte';
 	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
+	import { heldPromptQuery } from '$lib/chat/application/queries/held-prompt.query.svelte';
+	import { runIdForPromptRequest } from '$contract/chat-identity';
 	import { createRowArrivals } from './chat-message-list/row-arrival';
 	import { sessionProjectorCache } from './chat-message-list/session-projectors';
 	import { blockKey, toolInputKey } from './chat-message-list/streaming-finalization';
@@ -127,6 +129,14 @@
 	const sessionProjectors = $derived(sessionProjectorCache.acquire(sessionId));
 	const renderState = $derived<RenderState>(sessionProjectors.render.project(envelopes));
 	const pendingPrompt = $derived(pendingPromptQuery.data(sessionId));
+	const heldPrompt = $derived(heldPromptQuery.data(workstreamId, sessionId));
+	const heldRunId = $derived(heldPrompt ? runIdForPromptRequest(heldPrompt.id) : null);
+	const openingPrompt = $derived(
+		pendingPrompt ??
+			(heldPrompt
+				? { runId: heldRunId, text: heldPrompt.prompt, attachments: heldPrompt.attachments }
+				: null),
+	);
 	const rememberedAnchor = $derived(transcriptAnchorQuery.data(sessionId));
 	const rememberedHeights = $derived(transcriptHeightsQuery.data(sessionId));
 	const historyComplete = $derived(transcriptHistoryCompleteQuery.data(sessionId));
@@ -140,16 +150,16 @@
 	);
 	const runs = $derived.by(() => {
 		const visible = visibleRuns;
-		const runId = pendingPrompt?.runId;
-		if (!pendingPrompt || !runId) return visible;
+		const runId = openingPrompt?.runId;
+		if (!openingPrompt || !runId) return visible;
 		if (visible.some((run) => run.runId === runId)) return visible;
 		const opening: RenderItem = {
 			kind: 'user',
 			key: firstPromptKey(runId),
 			seq: 0,
-			text: pendingPrompt.text,
-			...(pendingPrompt.attachments.length
-				? { attachments: pendingPrompt.attachments.map((attachment) => ({ ...attachment })) }
+			text: openingPrompt.text,
+			...(openingPrompt.attachments.length
+				? { attachments: openingPrompt.attachments.map((attachment) => ({ ...attachment })) }
 				: {}),
 		};
 		return [
@@ -184,7 +194,7 @@
 
 	const isEmpty = $derived(
 		(envelopes.length === 0 || !hasTranscriptContent) &&
-			!pendingPrompt &&
+			!openingPrompt &&
 			!hasSupersededRuns &&
 			!redoCheckpointTarget,
 	);
@@ -560,6 +570,12 @@
 		firstUserKey,
 		get submittedRunId() {
 			return pendingPrompt?.runId ?? null;
+		},
+		get heldPrompt() {
+			return heldPrompt;
+		},
+		get heldRunId() {
+			return heldRunId;
 		},
 		checkpointEdit,
 		get composerControls() {

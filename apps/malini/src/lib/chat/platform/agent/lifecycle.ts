@@ -26,7 +26,6 @@ export type LifecycleErrorKind =
 	| 'workstream_teardown_blocked'
 	| 'bridge_unavailable'
 	| 'invalid_agent_model'
-	| 'provider_not_ready'
 	| 'invalid_prompt_context'
 	| 'start_snapshot_failed'
 	| 'db'
@@ -63,8 +62,6 @@ export class LifecycleError extends Error {
 				return `bridge unavailable: ${detail}`;
 			case 'invalid_agent_model':
 				return `invalid agent model: ${detail}`;
-			case 'provider_not_ready':
-				return detail;
 			case 'invalid_prompt_context':
 				return `invalid prompt context: ${detail}`;
 			case 'start_snapshot_failed':

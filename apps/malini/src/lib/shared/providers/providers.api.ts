@@ -98,6 +98,7 @@ export { agentAccessDefaultQuery } from './application/queries/agent-access-defa
 export { chatGptSignInQuery } from './application/queries/chatgpt-sign-in.query.svelte';
 export { claudeCodeStatusQuery } from './application/queries/claude-code-status.query.svelte';
 export { claudeSignInQuery } from './application/queries/claude-sign-in.query.svelte';
+export { modelAccessQuery } from './application/queries/model-access.query.svelte';
 export { modelCatalogQuery } from './application/queries/model-catalog.query.svelte';
 export { modelDefaultsQuery } from './application/queries/model-defaults.query.svelte';
 export { providerGroupsQuery } from './application/queries/provider-groups.query.svelte';

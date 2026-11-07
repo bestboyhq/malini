@@ -83,9 +83,9 @@ test('a signed-out Claude Code passes setup, and only a Claude send asks to sign
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 		await expect(page.getByTestId('chat-model-runners')).toHaveCount(0);
 		await sendPrompt(page, 'SEARCH the fixture repo');
-		const connect = page.getByTestId('provider-connect-card');
+		const connect = page.getByTestId('provider-connect-strip');
 		await expect(connect).toHaveAttribute('data-access', 'claude-signed-out');
-		await expect(connect).toContainText('Sign in to Claude Code to run this message.');
+		await expect(connect).toContainText('Sign in to Claude Code to run this');
 		await expect(connect.getByRole('button', { name: 'Sign in with Claude' })).toBeVisible();
 		await expect(page.getByTestId('chat-prompt-pick')).toHaveCount(0);
 		await captureFlow(app, 'composer-sign-in-claude');
