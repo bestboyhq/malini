@@ -72,6 +72,13 @@ When the plan changes, the lead tells the workstreams it affects.
 
 ## Queue or steer
 
+<!-- demo docs-queue 560
+<kbd>↵</kbd> waits its turn. <kbd>⌘↵</kbd> cuts in
+- Press <kbd>↵</kbd> to queue the draft
+- Type anything, then <kbd>⌘↵</kbd>
+- Click the square to stop
+-->
+
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued; **↵** saves an edit and **⇧↵** adds a line.
 - An [automation](/malini/docs/automations.md#run-an-automation) run from the chat, by you or the agent, waits above the composer with what you queued until it finishes, never among the messages.
@@ -238,6 +245,13 @@ An approval lets out that one call: a command inside the sandbox cannot let itse
 
 ## Reports
 
+<!-- demo ws-tony-hero 680
+Every turn ends in a report. Proof included
+- Drag the **Wipe** divider
+- Click **Diff**
+- Click **Ship** on the next step
+-->
+
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under the **Details** row, which says how many words it holds.
 Reports run from a screenshot and one line to the full write-up.
@@ -305,6 +319,13 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 
 ## Context
 
+<!-- demo docs-context 600
+Old turns fold. Subagents get a line each. Files show their diff
+- Click **3 subagents**
+- Point at **merge.ts**
+- Scroll up to the folded turn
+-->
+
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
 - Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
@@ -312,6 +333,9 @@ The trash button beside one of yours removes it once you click **Remove**, and a
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
+- Only the last two turns show their work.
+  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs, ran 79 commands**.
+  Click it if you miss them.
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.
   Click it for its prompt, every step, and its report.

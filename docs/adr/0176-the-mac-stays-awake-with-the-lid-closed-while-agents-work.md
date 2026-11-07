@@ -1,4 +1,4 @@
-# 0173 - The Mac stays awake with the lid closed while agents work
+# 0176 - The Mac stays awake with the lid closed while agents work
 
 Status: accepted
 
