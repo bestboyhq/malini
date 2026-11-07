@@ -3,8 +3,6 @@
 	import { playLoupe, type Use } from './loupe';
 	import { demoHref } from './urls';
 
-	type Step = Use & Readonly<{ row: number; tag: string }>;
-
 	const ROWS_MESSAGE = 'malini-demo:rows';
 
 	const APP_WIDTH = 1200;
@@ -69,50 +67,38 @@
 		],
 	];
 
-	const STEPS: readonly Step[] = [
+	const STEPS: readonly Use[] = [
 		{
-			row: 1,
-			tag: 'the repo’s skill',
 			col: 0,
 			color: '#c5a0f0',
 			at: 0.36,
 			lines: ['.claude/skills/', '  draw-icon/', '    SKILL.md'],
 		},
 		{
-			row: 3,
-			tag: 'your plugin',
 			col: 2,
 			color: '#5fb3a1',
 			at: 0.5,
 			lines: ['"enabledPlugins": {', '  "svelte@svelte": true'],
 		},
 		{
-			row: 4,
-			tag: 'your hook, passed',
 			col: 2,
 			color: '#82aef7',
 			at: 0.34,
 			lines: ['"PreToolUse": [', '  "guard-secrets.sh"'],
 		},
 		{
-			row: 4,
-			tag: 'allowed by your rule',
 			col: 2,
 			color: '#62c073',
 			at: 0.62,
 			lines: ['"allow": [', '  "Bash(pnpm check:*)"'],
 		},
 		{
-			row: 5,
-			tag: 'your rules',
 			col: 0,
 			color: '#e8b86f',
 			at: 0.44,
 			lines: ['~/.claude/CLAUDE.md', '## Done means done', 'Checked in the app.'],
 		},
 		{
-			row: 6,
-			tag: 'the repo’s skill',
 			col: 0,
 			color: '#c5a0f0',
 			at: 0.58,
@@ -129,13 +115,12 @@
 	let width = $state(0);
 	let height = $state(0);
 	let rows = $state<(Shot | null)[]>([]);
-	let step = $state(-1);
 	let loaded = $state(false);
 
 	const narrow = $derived(width > 0 && width < NARROW);
 	const pools = $derived(narrow ? [POOLS.flat()] : POOLS);
-	const scale = $derived(Math.min(1, Math.max(0.6, width / APP_WIDTH)));
-	const app = $derived(Math.max(APP_WIDTH, Math.round(width / scale)));
+	const zoom = $derived(Math.min(1, Math.max(0.6, width / APP_WIDTH)));
+	const app = $derived(Math.max(APP_WIDTH, Math.round(width / zoom)));
 	const placed = $derived(rows.filter((shot) => shot !== null));
 	const chat = $derived(
 		placed.length
@@ -144,10 +129,8 @@
 					2
 			: app / 2,
 	);
-	const offset = $derived(Math.min(0, Math.max(width - app * scale, width / 2 - chat * scale)));
+	const offset = $derived(Math.min(0, Math.max(width - app * zoom, width / 2 - chat * zoom)));
 	const ready = $derived(loaded && placed.length > 0);
-	const lit = $derived(STEPS[step]);
-	const row = $derived(lit ? rows[lit.row] : undefined);
 
 	function rowsOf(data: unknown): (Shot | null)[] {
 		const listed = typeof data === 'object' && data !== null && 'rows' in data ? data.rows : null;
@@ -175,7 +158,6 @@
 			pools,
 			uses: narrow ? STEPS.map((use) => ({ ...use, col: 0, at: NARROW_AT })) : STEPS,
 			resting: 4,
-			show: (index) => (step = index),
 		});
 	});
 </script>
@@ -199,23 +181,14 @@
 			src={demoHref('app', '/workstreams/ws-malini-duplicate', 'setup')}
 			title="Malini on demo data"
 			width={app}
-			height={Math.round(height / scale)}
-			style:scale
+			height={Math.round(height / zoom)}
+			style:scale={zoom}
 			style:translate="{offset}px 0"
 			tabindex="-1"
 			inert
 			class:ready
 			onload={() => (loaded = true)}
 		></iframe>
-		<i
-			class={['lit', { on: row }]}
-			style:--tint={lit?.color}
-			style:translate={row ? `${offset + row.x * scale - 6}px ${row.y * scale}px` : null}
-			style:width={row ? `${row.width * scale + 12}px` : null}
-			style:height={row ? `${row.height * scale}px` : null}
-		>
-			<span class="tag">{lit?.tag}</span>
-		</i>
 	</div>
 	<canvas class="gl" aria-hidden="true" bind:this={canvas}></canvas>
 	<div class="lens" aria-hidden="true" bind:this={lens}></div>
@@ -348,40 +321,6 @@
 
 	iframe.ready {
 		opacity: 1;
-	}
-
-	.lit {
-		position: absolute;
-		top: 0;
-		left: 0;
-		border-radius: 6px;
-		background: color-mix(in srgb, var(--tint) 12%, transparent);
-		box-shadow: inset 2px 0 0 var(--tint);
-		opacity: 0;
-		pointer-events: none;
-		transition:
-			opacity 400ms ease,
-			translate 700ms var(--ease),
-			width 700ms var(--ease),
-			height 700ms var(--ease);
-	}
-
-	.lit.on {
-		opacity: 1;
-	}
-
-	.tag {
-		position: absolute;
-		top: 50%;
-		right: 6px;
-		padding: 0 6px;
-		border-radius: 4px;
-		background: color-mix(in srgb, var(--tint) 18%, var(--app-root));
-		color: light-dark(color-mix(in srgb, var(--tint) 55%, #000), var(--tint));
-		font: 500 11px/18px var(--mono);
-		white-space: nowrap;
-		translate: 0 -50%;
-		transition: color 500ms ease;
 	}
 
 	.gl {

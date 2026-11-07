@@ -9,7 +9,6 @@ export type LoupeParts = Readonly<{
 	pools: readonly (readonly string[])[];
 	uses: readonly Use[];
 	resting: number;
-	show: (index: number) => void;
 }>;
 
 type Point = { x: number; y: number };
@@ -471,7 +470,6 @@ export function playLoupe(parts: LoupeParts): () => void {
 		const col = use ? cols[use.col] : undefined;
 		if (!use || !col) return;
 		current = index;
-		parts.show(index);
 		const shift = shiftOf(col, use);
 		col.queue.unshift(...use.lines.map((text): Queued => [text, use.color, shift]));
 		col.mark = use.lines.length;
@@ -506,7 +504,6 @@ export function playLoupe(parts: LoupeParts): () => void {
 			rest.lines.forEach((text, offset) =>
 				rows[at + offset]?.replaceWith(line(text, rest.color, shift)),
 			);
-			parts.show(parts.resting);
 			pos = spot(restCol, (at + rest.lines.length / 2) * ROW);
 		} else pos = { x: w / 2, y: h / 2 };
 		paint();
