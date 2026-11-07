@@ -184,12 +184,17 @@
 					<li aria-current={index === onboarding.index ? 'step' : undefined}>
 						<span
 							class={[
-								'block h-1.5 rounded-full transition-[width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
-								index === onboarding.index
-									? 'bg-button-primary w-6'
-									: 'bg-surface-50-selected w-1.5',
+								'bg-surface-50-selected relative block h-1.5 rounded-full transition-[width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
+								index === onboarding.index ? 'w-6' : 'w-1.5',
 							]}
-						></span>
+						>
+							<span
+								class={[
+									'bg-button-primary absolute inset-0 rounded-full transition-opacity duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
+									index !== onboarding.index && 'opacity-0',
+								]}
+							></span>
+						</span>
 					</li>
 				{/each}
 			</ol>
