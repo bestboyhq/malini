@@ -153,7 +153,7 @@ export function startLidHold(
 			['-e', administratorScript(GRANT_SCRIPT, GRANT_PROMPT)],
 			PROMPT_TIMEOUT_MS,
 		);
-		if (/User cancel+ed|\(-128\)/u.test(run.stderr)) return false;
+		if (run.exitCode === null || /User cancel+ed|\(-128\)/u.test(run.stderr)) return false;
 		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'osascript'));
 		if (!(await granted())) throw new Error('this Mac account is not an administrator');
 		return true;
