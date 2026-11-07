@@ -21,6 +21,8 @@ import {
 } from './fake-github';
 
 const OPEN_DRAFT = 'Open a draft pull request';
+const MALINI_CO_AUTHOR =
+	'Co-authored-by: malini-agent[bot] <338999285+malini-agent[bot]@users.noreply.github.com>';
 const QUEUE_MERGE = 'Merge pull request #7';
 
 test('Open draft commits and pushes the work under its generated title, and every later run is pushed once the workstream goes idle', async () => {
@@ -51,6 +53,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
 		expect(github.pushedHead()).toBe(headOf(worktree));
 		expect(git(worktree, 'log', '-1', '--format=%an')).toBe(git(worktree, 'config', 'user.name'));
+		expect(git(worktree, 'log', '-1', '--format=%(trailers:only,unfold)')).toBe(MALINI_CO_AUTHOR);
 		expect(github.pullRequest()?.body).toMatch(
 			/<summary>🧑‍🍳 <sub>Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/github\.com\/e2e-user">@e2e-user<\/a><\/td><\/tr>\n<tr><td>Kitchen<\/td><td>1 agent<\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did em<\/td><\/tr>\n<\/table>\n<\/details>$/u,
 		);
@@ -65,6 +68,45 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(github.pushedHead()).toBe(headOf(worktree));
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('With Sign pull requests off in Settings, Open draft pushes commits without Malini and a body without the footer', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-draft-unsigned',
+			null,
+		);
+		await openWorkstream(page, 'e2e-draft-unsigned');
+		await page.getByTestId('global-topbar-open-settings').click();
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await settings
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Privacy', exact: true })
+			.click();
+		const sign = settings.getByRole('switch', { name: 'Sign pull requests' });
+		await expect(sign).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
+		await captureFlow(app, 'settings-sign-pull-requests');
+		await sign.click();
+		await expect(sign).toHaveAttribute('aria-checked', 'false');
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: OPEN_DRAFT }).click();
+		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled({
+			timeout: 30_000,
+		});
+		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
+		expect(git(worktree, 'log', '-1', '--format=%(trailers:only,unfold)')).toBe('');
+		expect(github.pullRequest()?.body).not.toContain('Cooked with');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

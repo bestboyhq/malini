@@ -143,6 +143,12 @@ export type PullRequestChangedEvent = Readonly<{
 
 export const MERGE_QUEUE_FIX_ATTEMPTS_SETTING = 'merge-queue.fix-attempts';
 
+export const SIGN_PULL_REQUESTS_SETTING = 'pull-requests.sign';
+
+export function signsPullRequests(setting: string | null | undefined): boolean {
+	return setting !== 'off';
+}
+
 export const DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS = 3;
 
 export const MERGE_QUEUE_FIX_ATTEMPTS_RANGE = Object.freeze({ min: 1, max: 20 });

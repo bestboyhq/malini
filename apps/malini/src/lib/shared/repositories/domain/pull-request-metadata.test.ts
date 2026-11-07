@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import {
 	AUTOMATED_PULL_REQUEST_METADATA_LIMITS,
 	automatedPullRequestMetadata,
-	type AutomatedPullRequestMetadataInput,
+	type PullRequestCredit,
 } from '$shared/repositories/domain/pull-request-metadata';
 
 test('never publishes an absolute path: workstream paths turn relative, others shrink to a name', () => {
@@ -361,7 +361,7 @@ test('lists the variants picked under Decisions, and no section when none were p
 	expect(automatedPullRequestMetadata(input).body).not.toContain('## Decisions');
 });
 
-test('ends the body with who cooked it, how many agents and who did the dishes, whatever the length', () => {
+test('ends a signed body with who cooked it, how many agents and who did the dishes, whatever the length, and an unsigned one with nothing', () => {
 	const input = {
 		branch: 'malini/hero',
 		baseBranch: 'main',
@@ -370,11 +370,8 @@ test('ends the body with who cooked it, how many agents and who did the dishes, 
 	} as const;
 	const footer = (rows: string) =>
 		`\n\n<details>\n<summary>🧑‍🍳 <sub>Cooked with <a href="https://bestboy.dev/malini">Malini</a></sub></summary>\n<table>\n${rows}<tr><td>Dishes</td><td>Agents did em</td></tr>\n</table>\n</details>`;
-	const ending = (
-		credit: Pick<AutomatedPullRequestMetadataInput, 'chef' | 'agents'>,
-		rows: string,
-	) => {
-		const body = automatedPullRequestMetadata({ ...input, ...credit }).body;
+	const ending = (credit: PullRequestCredit, rows: string) => {
+		const body = automatedPullRequestMetadata({ ...input, credit }).body;
 		expect(body.length).toBeLessThanOrEqual(AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body);
 		return [body.slice(-footer(rows).length), footer(rows)];
 	};
@@ -395,4 +392,7 @@ test('ends the body with who cooked it, how many agents and who did the dishes, 
 		'',
 	);
 	expect(nameless).toBe(bare);
+	const unsigned = automatedPullRequestMetadata(input).body;
+	expect(unsigned).not.toContain('<details>');
+	expect(unsigned.length).toBeLessThanOrEqual(AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body);
 });

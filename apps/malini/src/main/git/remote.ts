@@ -22,7 +22,7 @@ import {
 	REQUIRE_TLS_VERIFICATION_CONFIG,
 	runGit,
 } from './run';
-import { SNAPSHOT_REF_ROOT } from './snapshots';
+import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 import { conflictMarkerPaths, inProgressOperation, statusCollector } from './status';
 
 async function commitConfig(worktree: string): Promise<string[]> {
@@ -48,7 +48,13 @@ async function githubAccount(): Promise<Readonly<{ name: string; email: string }
 
 export const MAX_ADDED_FILES_PER_COMMIT = 2_000;
 
-export async function commitWorktreeChanges(worktree: string, message: string): Promise<string> {
+export const MALINI_CO_AUTHOR = `Co-authored-by: ${AGENT_IDENTITY.name} <${AGENT_IDENTITY.email}>`;
+
+export async function commitWorktreeChanges(
+	worktree: string,
+	message: string,
+	signed = false,
+): Promise<string> {
 	await ensureStagingPrecondition(worktree);
 	const operation = await inProgressOperation(worktree);
 	if (operation !== null && operation !== 'merge') {
@@ -71,7 +77,9 @@ export async function commitWorktreeChanges(worktree: string, message: string): 
 		worktree,
 		...(await commitConfig(worktree)),
 		'commit',
-		...(merging ? ['--no-edit', '--cleanup=strip'] : ['-m', message, '--', ...REPORTING_PATHSPECS]),
+		...(merging
+			? ['--no-edit', '--cleanup=strip']
+			: ['-m', message, ...(signed ? ['-m', MALINI_CO_AUTHOR] : []), '--', ...REPORTING_PATHSPECS]),
 	]);
 	return (await runGit(['-C', worktree, 'rev-parse', '--short', 'HEAD'])).trim();
 }
@@ -128,9 +136,10 @@ export async function commitWorkstreamBranch(
 	worktreePath: string,
 	expectedBranch: string,
 	message: string,
+	signed = false,
 ): Promise<string> {
 	requireWorkstreamBranch(expectedBranch, await currentBranch(worktreePath));
-	return commitWorktreeChanges(worktreePath, message);
+	return commitWorktreeChanges(worktreePath, message, signed);
 }
 
 export async function verifyOriginMatchesExpectedGithubRepository(

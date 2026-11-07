@@ -18,6 +18,7 @@ import {
 	commitWorkstreamBranch,
 	commitWorktreeChanges,
 	countCommitsBehindBase,
+	MALINI_CO_AUTHOR,
 	MAX_ADDED_FILES_PER_COMMIT,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
@@ -84,15 +85,23 @@ describe('commitWorkstreamBranch', () => {
 		expect(calls).toHaveLength(1);
 	});
 
-	it('commits on the workstream branch as you and reports the short sha', async () => {
+	it('commits on the workstream branch as you, credits Malini only when signed, and reports the short sha', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const { checkout } = await workstreamFixture(dir, 'ws-1');
+		const lastCommit = async () =>
+			(
+				await realGit(checkout, ['log', '-1', '--format=%s|%an|%cn|%(trailers:only,unfold)'])
+			).trim();
 		await writeFile(join(checkout, 'work.txt'), 'work\n');
 		const sha = await commitWorkstreamBranch(checkout, 'malini/ws-1', 'did work');
 		expect((await realGit(checkout, ['rev-parse', '--short', 'HEAD'])).trim()).toBe(sha);
-		expect((await realGit(checkout, ['log', '-1', '--format=%s|%an|%cn'])).trim()).toBe(
-			'did work|t|t',
+		expect(await lastCommit()).toBe('did work|t|t|');
+		await writeFile(join(checkout, 'more.txt'), 'more\n');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'did more', true);
+		expect(await lastCommit()).toBe(`did more|t|t|${MALINI_CO_AUTHOR}`);
+		expect(MALINI_CO_AUTHOR).toBe(
+			'Co-authored-by: malini-agent[bot] <338999285+malini-agent[bot]@users.noreply.github.com>',
 		);
 	});
 });

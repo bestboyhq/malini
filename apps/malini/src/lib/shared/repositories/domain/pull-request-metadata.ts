@@ -38,14 +38,15 @@ export type PullRequestChef = Readonly<{
 	url: string;
 }>;
 
+export type PullRequestCredit = Readonly<{ chef: PullRequestChef | null; agents: number }>;
+
 export type AutomatedPullRequestMetadataInput = Readonly<{
 	branch: string;
 	baseBranch: string;
 	changedPaths: readonly string[];
 	workstreamPath?: string;
 	context?: PullRequestAutomationContext;
-	chef?: PullRequestChef | null;
-	agents?: number;
+	credit?: PullRequestCredit;
 }>;
 
 export type AutomatedPullRequestMetadata = Readonly<{
@@ -107,7 +108,7 @@ export function automatedPullRequestMetadata(
 	const changedPaths = normalizedChangedPaths(input.changedPaths, input.workstreamPath);
 	const context = normalizedContext(input.context, input.workstreamPath);
 	const title = workstreamTitle(branch, changedPaths, context);
-	const footer = cookedFooter(input.chef ?? null, input.agents ?? 0);
+	const footer = input.credit ? `\n\n${cookedFooter(input.credit)}` : '';
 	const body = `${boundedBody(
 		buildBody({
 			title,
@@ -116,8 +117,8 @@ export function automatedPullRequestMetadata(
 			changedPaths,
 			context,
 		}),
-		AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body - codePointLength(footer) - 2,
-	)}\n\n${footer}`;
+		AUTOMATED_PULL_REQUEST_METADATA_LIMITS.body - codePointLength(footer),
+	)}${footer}`;
 
 	return {
 		title,
@@ -320,7 +321,7 @@ function buildBody(
 	return sections.join('\n').trim();
 }
 
-function cookedFooter(chef: PullRequestChef | null, agents: number): string {
+function cookedFooter({ chef, agents }: PullRequestCredit): string {
 	const rows: Array<readonly [string, string]> = [
 		...(chef && HANDLE.test(chef.handle) ? [['Chef', chefLink(chef)] as const] : []),
 		...(agents > 0

@@ -6,6 +6,7 @@ import {
 	type EventChannel,
 } from '$contract/events';
 import type { ShippingAutomationBuiltin } from '$contract/automations';
+import { SIGN_PULL_REQUESTS_SETTING, signsPullRequests } from '$contract/pull-requests';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
@@ -22,7 +23,7 @@ import {
 	recordMergedPullRequest,
 	type AutomatedPullRequestMetadata,
 	type PullRequestAutomationContext,
-	type PullRequestChef,
+	type PullRequestCredit,
 } from '$shared/repositories/repositories.platform';
 import {
 	checkFixAutomationContext,
@@ -279,6 +280,7 @@ async function commit(deps: ShipDeps, state: ShipState): Promise<AutomatedPullRe
 			workstreamId,
 			message,
 			...(run ? { run } : {}),
+			signed: await signs(deps),
 		});
 	}
 	if (settled !== null && settled.builtin !== 'address-review') {
@@ -617,9 +619,18 @@ export function settledAutomation(deps: ShipDeps, row: ShipRow): SettledAutomati
 		: null;
 }
 
-type ShipCredit = Readonly<{ chef: PullRequestChef | null; agents: number }>;
+async function signs(deps: ShipDeps): Promise<boolean> {
+	const settings = await deps.context.commands
+		.call('app.list-settings', undefined)
+		.catch(() => null);
+	return settings !== null && signsPullRequests(settings[SIGN_PULL_REQUESTS_SETTING]);
+}
 
-async function shipCredit(deps: ShipDeps, workstreamId: string): Promise<ShipCredit> {
+async function shipCredit(
+	deps: ShipDeps,
+	workstreamId: string,
+): Promise<PullRequestCredit | undefined> {
+	if (!(await signs(deps))) return undefined;
 	return {
 		chef: (await deps.chef?.().catch(() => null)) ?? null,
 		agents: workstreamAgentCount(deps.context.db, workstreamId),
@@ -630,7 +641,7 @@ export function shipMetadata(
 	target: ShipTarget,
 	changedPaths: readonly string[],
 	shipContext: PullRequestAutomationContext,
-	credit?: ShipCredit,
+	credit?: PullRequestCredit,
 ): AutomatedPullRequestMetadata {
 	return automatedPullRequestMetadata({
 		branch: target.workstream.branch,
@@ -638,7 +649,7 @@ export function shipMetadata(
 		changedPaths,
 		workstreamPath: target.workstream.path,
 		context: shipContext,
-		...credit,
+		...(credit ? { credit } : {}),
 	});
 }
 
