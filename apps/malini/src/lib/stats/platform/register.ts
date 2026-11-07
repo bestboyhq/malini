@@ -32,9 +32,11 @@ import {
 	listConnectedRepositories,
 	listWorkstreams,
 	managedProjectIdForRepository,
+	type PullRequestChef,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
 import { recentMoments } from '../domain/moments';
+import { publishedStreak } from '../domain/published-stats';
 import { Bestboy, bestboyOrigin, type BestboyAccess, type BestboyFetch } from './bestboy';
 import { FrameJournal, type FrameJournalEntry } from './frame-journal';
 import { ProfileStore, type TokenCipher } from './profile-store';
@@ -70,6 +72,7 @@ export interface StatsPlatform {
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
 	openUrl(url: string): void;
 	usageAccount(): Promise<UsageAccount>;
+	chef(): Promise<PullRequestChef | null>;
 }
 
 export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatform {
@@ -204,6 +207,18 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		},
 		openUrl: (url) => void profile.completeSignIn(url),
 		usageAccount: () => profile.usageAccount(),
+		chef: async () => {
+			const { publishing, profile: published } = profile.state();
+			if (publishing === 'on' && published?.public && published.handle && published.url) {
+				const stats = await cardStats();
+				const streakDays = stats ? publishedStreak(stats) : 0;
+				return { handle: published.handle, url: published.url, streakDays };
+			}
+			const identity = await github();
+			return identity
+				? { handle: identity.login, url: `https://github.com/${identity.login}`, streakDays: 0 }
+				: null;
+		},
 		start: () => {
 			profile.start();
 			sampler.start();

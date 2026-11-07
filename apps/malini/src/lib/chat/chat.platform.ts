@@ -48,4 +48,4 @@ export {
 	threadWorkstreamId,
 	userSessionWorkstreamId,
 } from './platform/sessions.repository';
-export { workstreamShipContext } from './platform/ship-context.repository';
+export { workstreamKitchen, workstreamShipContext } from './platform/ship-context.repository';

@@ -122,6 +122,8 @@ Every number counts complete days in your time zone, through yesterday; today is
 The only names Malini sends are the public repositories you picked.
 It sends no tool, skill, MCP server, model or language name.
 
+A pull request Malini opens ends with its [**Cooked with Malini**](/malini/docs/workstreams.md#from-prompt-to-merged) table, which counts that workstream's agents, turns and agent time whether or not you publish, and adds your streak only to a public profile.
+
 ## What never leaves your Mac
 
 - Your prompts, code, file names, and paths.
