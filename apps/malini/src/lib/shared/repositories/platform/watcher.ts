@@ -164,6 +164,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 	const reportFacts = async (set: WatcherSet): Promise<void> => {
 		const { workstreamId, worktreePath, facts: previous } = set;
 		if (set.closing || worktreePath === null || previous === null) return;
+		const reportedBeforeRead = reportedConflicts.get(workstreamId);
 		const next = await readGitFacts(worktreePath);
 		if (set.closing) return;
 		set.facts = next;
@@ -188,7 +189,9 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			});
 		}
 		if (next.mergeHead === null) {
-			reportedConflicts.delete(workstreamId);
+			if (reportedConflicts.get(workstreamId) === reportedBeforeRead) {
+				reportedConflicts.delete(workstreamId);
+			}
 			return;
 		}
 		if (reportedConflicts.get(workstreamId) === next.mergeHead) return;

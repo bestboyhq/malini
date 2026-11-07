@@ -747,6 +747,7 @@ export interface ContractCommands {
 	};
 	'repositories.restore-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.clear-merged-from-starter': { args: WorkstreamIdsArgs; result: void };
+	'repositories.detach-from-starter': { args: WorkstreamIdArgs; result: void };
 	'repositories.reveal-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.sync-workstream-base': {
 		args: WorkstreamIdArgs;
@@ -1042,6 +1043,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.restore-checkpoint',
 	'repositories.restore-workstream',
 	'repositories.clear-merged-from-starter',
+	'repositories.detach-from-starter',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'repositories.list-own-pull-requests',

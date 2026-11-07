@@ -96,6 +96,7 @@ import {
 import { createWorkstreamWatchers } from './watcher';
 import {
 	clearMergedFromStarter,
+	detachFromStarter,
 	getWorkstream,
 	listWorkstreams,
 	recordMergedPullRequest,
@@ -336,6 +337,10 @@ export function registerRepositories(
 
 	commands.define('repositories.clear-merged-from-starter', (args: unknown) =>
 		clearMergedFromStarter(db, requireStringArray(args, 'workstreamIds')),
+	);
+
+	commands.define('repositories.detach-from-starter', (args: unknown) =>
+		detachFromStarter(db, checkedWorkstreamId(args)),
 	);
 
 	commands.define('repositories.workstream-diff', (args: unknown) => {
