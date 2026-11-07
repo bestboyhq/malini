@@ -147,7 +147,12 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 		expect(launchAgents(tools)).toHaveLength(1);
 		expect(fileExists(join(tools, 'loaded'))).toBe(true);
 		await captureFlow(app, 'lid-hold-settings');
+		const closed = page.evaluate(
+			"new Promise((resolve) => addEventListener('popstate', resolve, { once: true }))",
+		);
 		await page.keyboard.press('Escape');
+		await closed;
+		await expect(settings).toBeHidden();
 
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'HANG');
