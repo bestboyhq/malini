@@ -79,7 +79,9 @@
 		aria-label="Your repositories"
 		data-testid="first-repository-picker"
 	>
-		<h1 class="text-fg-default text-2xl font-medium tracking-tight">What are we working on?</h1>
+		<h1 class="text-fg-default px-[15px] text-2xl font-medium tracking-tight">
+			What are we working on?
+		</h1>
 		{#if signedOut}
 			<GitHubSetup nested />
 		{/if}
