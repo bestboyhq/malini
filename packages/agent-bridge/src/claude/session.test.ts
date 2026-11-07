@@ -10,6 +10,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { AgentBoundary, AgentLineage, AgentRunProfile } from '../agent-profile.js';
+import type { ApprovalScope } from '../interaction-types.js';
 import type { ConversationHistoryMessage } from '../protocol.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
@@ -1123,6 +1124,136 @@ describe('ClaudeSession', () => {
 		});
 		expect(pass).toBeDefined();
 		expect(existsSync(join(folder, 'passes', pass ?? ''))).toBe(true);
+	});
+
+	describe('a command the user lets out of the sandbox for this chat', () => {
+		const outside = { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true };
+
+		function leaves(toolUseId: string): ScriptStep {
+			return {
+				hook: {
+					session_id: READ_AND_BASH_SESSION,
+					transcript_path: '/tmp/transcript.jsonl',
+					cwd: '/work/repo',
+					hook_event_name: 'PreToolUse',
+					tool_name: 'Bash',
+					tool_input: outside,
+					tool_use_id: toolUseId,
+				},
+			};
+		}
+
+		function asked(toolUseId: string): ScriptStep {
+			return {
+				canUseTool: {
+					toolName: 'Bash',
+					input: outside,
+					opts: { toolUseID: toolUseId, requestId: `request-${toolUseId}` },
+				},
+			};
+		}
+
+		function allowing(scope: ApprovalScope) {
+			return (event: AgentEvent, current: ClaudeSession) => {
+				if (event.type !== 'approval.requested') return;
+				void current.respondToApproval({
+					sessionId: event.sessionId,
+					runId: event.runId,
+					approvalId: event.approvalId,
+					decision: 'allow',
+					scope,
+				});
+			};
+		}
+
+		function exits(outputs: readonly HookJSONOutput[] | undefined) {
+			return (outputs ?? []).flatMap((output) =>
+				'hookSpecificOutput' in output && output.hookSpecificOutput?.hookEventName === 'PreToolUse'
+					? [
+							{
+								decision: output.hookSpecificOutput.permissionDecision,
+								command: output.hookSpecificOutput.updatedInput?.['command'],
+							},
+						]
+					: [],
+			);
+		}
+
+		const PASSED = /^: malini-outside-[0-9a-f]{32}; pnpm test:e2e$/u;
+
+		it('runs every later exit in the chat outside without asking, each on a pass of its own', async () => {
+			const { session, claude } = harness(
+				[
+					[
+						leaves('toolu_first'),
+						asked('toolu_first'),
+						leaves('toolu_second'),
+						leaves('toolu_third'),
+						...recordedScript('readAndBash'),
+					],
+					[leaves('toolu_next_run'), ...recordedScript('readAndBash')],
+				],
+				{ onEvent: allowing('session') },
+			);
+
+			await session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
+			await session.sendPrompt(
+				'Run it again',
+				'run-2',
+				profile('agent', 'auto'),
+				READ_AND_BASH_CURSOR,
+			);
+
+			const later = [
+				...exits(claude.runs[0]?.hookOutputs).slice(1),
+				...exits(claude.runs[1]?.hookOutputs),
+			];
+			expect(exits(claude.runs[0]?.hookOutputs)[0]).toEqual({
+				decision: 'ask',
+				command: undefined,
+			});
+			expect(later.map(({ decision }) => decision)).toEqual(['allow', 'allow', 'allow']);
+			expect(later.every(({ command }) => PASSED.test(String(command)))).toBe(true);
+			expect(new Set(later.map(({ command }) => command)).size).toBe(3);
+		});
+
+		it('asks again for the next exit after an allow once', async () => {
+			const { session, claude } = harness(
+				[
+					[
+						leaves('toolu_first'),
+						asked('toolu_first'),
+						leaves('toolu_second'),
+						...recordedScript('readAndBash'),
+					],
+				],
+				{ onEvent: allowing('once') },
+			);
+
+			await session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
+
+			expect(exits(claude.runs[0]?.hookOutputs).map(({ decision }) => decision)).toEqual([
+				'ask',
+				'ask',
+			]);
+		});
+
+		it('asks again in another chat', async () => {
+			const first = harness(
+				[[leaves('toolu_first'), asked('toolu_first'), ...recordedScript('readAndBash')]],
+				{ onEvent: allowing('session') },
+			);
+			await first.session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
+			const second = harness([[leaves('toolu_other_chat'), ...recordedScript('readAndBash')]], {
+				context: { sessionId: 'session-2' },
+			});
+
+			await second.session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
+
+			expect(exits(second.claude.runs[0]?.hookOutputs).map(({ decision }) => decision)).toEqual([
+				'ask',
+			]);
+		});
 	});
 
 	describe('a call auto mode blocks', () => {

@@ -335,8 +335,16 @@ describe('maliniOwnedCommand', () => {
 });
 
 describe("Malini's sandbox", () => {
-	async function confine(runProfile: AgentRunProfile | undefined, input: Record<string, unknown>) {
-		const output = await confineCommands(runProfile, (command) => `: pass; ${command}`)(
+	async function confine(
+		runProfile: AgentRunProfile | undefined,
+		input: Record<string, unknown>,
+		allowedForThisChat = false,
+	) {
+		const output = await confineCommands(
+			runProfile,
+			(command) => `: pass; ${command}`,
+			() => allowedForThisChat,
+		)(
 			{
 				hook_event_name: 'PreToolUse',
 				session_id: 'session',
@@ -368,6 +376,22 @@ describe("Malini's sandbox", () => {
 		expect(await confine(profile('agent', 'full'), leaving)).toMatchObject({
 			permissionDecision: 'allow',
 			updatedInput: { command: ': pass; pnpm test:e2e', dangerouslyDisableSandbox: true },
+		});
+	});
+
+	it.each([undefined, profile('agent', 'auto'), profile('agent', 'sandboxed')])(
+		'%o lets a command out without asking once the user allowed it for this chat',
+		async (runProfile) => {
+			expect(await confine(runProfile, leaving, true)).toMatchObject({
+				permissionDecision: 'allow',
+				updatedInput: { command: ': pass; pnpm test:e2e', dangerouslyDisableSandbox: true },
+			});
+		},
+	);
+
+	it('still asks in plan mode after the user allowed it for this chat', async () => {
+		expect(await confine(profile('plan', 'auto'), leaving, true)).toMatchObject({
+			permissionDecision: 'ask',
 		});
 	});
 

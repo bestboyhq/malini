@@ -30,7 +30,7 @@ export function sanitizeFailureDetail(raw: string | null | undefined): string {
 	if (typeof raw !== 'string') return '';
 	const collapsed = raw
 		.replace(
-			/(?:\/[^\s"':]*)?\/Library\/Application Support\/malini\b[^\s"':]*/g,
+			/(?:\/[^\s"':]*)?\/(?:Library\/Application Support\/malini|malini\/(?:workstreams|repositories))\b[^\s"':]*/g,
 			'managed repository storage',
 		)
 		.replace(/\/Users\/[^\s"':]+/g, 'a local path')

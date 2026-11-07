@@ -4,6 +4,7 @@ import { agentBoundary, type BoundaryPlaces } from './boundary';
 
 const PLACES: BoundaryPlaces = {
 	appDataRoot: '/data/malini',
+	checkoutsRoot: '/data/malini',
 	appDataEntries: ['malini.sqlite', 'malini.sqlite-wal', 'workstreams', 'repositories', 'logs'],
 	checkouts: [
 		{ path: '/data/malini/workstreams/ws-1', lead: false },

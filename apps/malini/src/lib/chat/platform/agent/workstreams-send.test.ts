@@ -54,7 +54,7 @@ beforeEach(() => {
 		db,
 		commands,
 		events,
-		appDataRoot: '/tmp/malini-app-data',
+		checkoutsRoot: '/tmp/malini-app-data',
 		sending: new PromptsInFlight(),
 		deliveries: new ChatDeliveries({ db, commands, events }, () => {}),
 		log: () => {},

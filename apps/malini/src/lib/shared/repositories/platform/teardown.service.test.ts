@@ -66,6 +66,7 @@ async function harness(): Promise<Harness> {
 			commands,
 			events: createEventBus({ forwardToWindows: false }),
 			appDataRoot: dir,
+			checkoutsRoot: dir,
 			resourcesRoot: dir,
 			isDev: true,
 			appVersion: '0.0.0-test',

@@ -33,6 +33,7 @@ function start(): void {
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: '/tmp/automation-triggers-test',
+		checkoutsRoot: '/tmp/automation-triggers-test',
 		resourcesRoot: '/tmp/automation-triggers-test',
 		isDev: true,
 		appVersion: '0.0.0-test',

@@ -46,6 +46,7 @@ beforeEach(async () => {
 		commands: new CommandRegistry(),
 		events,
 		appDataRoot: root,
+		checkoutsRoot: root,
 		resourcesRoot: root,
 		isDev: true,
 		appVersion: '0.0.0-test',

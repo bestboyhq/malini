@@ -124,6 +124,7 @@ import type {
 	AddressedReviewThreadsDto,
 	ArchivedWorkstreamDto,
 	AuthStatusDto,
+	CheckoutsFolder,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
 	GitHubDeviceCodeDto,
@@ -687,6 +688,9 @@ export interface ContractCommands {
 		result: StagedAgentAttachment[];
 	};
 	'repositories.pick-folder': { args: undefined; result: string | null };
+	'repositories.checkouts-folder': { args: undefined; result: CheckoutsFolder };
+	'repositories.choose-checkouts-folder': { args: undefined; result: CheckoutsFolder };
+	'repositories.keep-checkouts-folder': { args: undefined; result: CheckoutsFolder };
 	'repositories.provision-dependencies': {
 		args: WorkstreamIdArgs;
 		result: InstallOutcomeResult;
@@ -798,6 +802,7 @@ export interface ContractCommands {
 	'app.update-status': { args: undefined; result: UpdateStatus };
 	'app.check-for-updates': { args: undefined; result: void };
 	'app.restart-to-update': { args: undefined; result: void };
+	'app.relaunch': { args: undefined; result: void };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
 	'stats.resource-breakdown': { args: undefined; result: readonly ResourceKindBreakdown[] };
@@ -986,6 +991,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.shutdown-impact',
 	'chat.pick-and-stage-attachments',
 	'repositories.pick-folder',
+	'repositories.checkouts-folder',
+	'repositories.choose-checkouts-folder',
+	'repositories.keep-checkouts-folder',
 	'repositories.provision-dependencies',
 	'repositories.pull-workstream',
 	'repositories.count-behind-base',
@@ -1052,6 +1060,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.update-status',
 	'app.check-for-updates',
 	'app.restart-to-update',
+	'app.relaunch',
 	'stats.activity',
 	'stats.resources',
 	'stats.resource-breakdown',

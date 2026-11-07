@@ -1,4 +1,10 @@
+import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
+
+const TEMP = join(tmpdir(), 'malini-bridge-tests');
+mkdirSync(TEMP, { recursive: true });
 
 export default defineConfig({
 	test: {
@@ -8,5 +14,6 @@ export default defineConfig({
 		pool: 'threads',
 		maxWorkers: 1,
 		reporters: ['default'],
+		env: { TMPDIR: TEMP },
 	},
 });

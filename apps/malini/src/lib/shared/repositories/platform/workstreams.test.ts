@@ -101,6 +101,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		commands,
 		events,
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot: appDataRoot,
 		isDev: true,
 		appVersion: '0.0.0-test',

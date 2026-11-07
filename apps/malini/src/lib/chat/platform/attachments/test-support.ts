@@ -47,6 +47,7 @@ export function createAttachmentsTestContext(): AttachmentsTestContext {
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot: appDataRoot,
 		isDev: true,
 		appVersion: '0.0.0-test',
