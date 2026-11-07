@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { Icon } from '@malini/hyper-ui/icons';
+	import DocDemo from '$lib/DocDemo.svelte';
 	import Head from '$lib/Head.svelte';
 	import { docHref, SITE_URL } from '$lib/links';
 	import type { PageProps } from './$types';
@@ -13,8 +14,17 @@
 	let article: HTMLElement | undefined = $state();
 	let active = $state('');
 
+	function revealTarget(): void {
+		const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+		const fold = target?.closest('details');
+		if (!target || !fold || fold.open) return;
+		fold.open = true;
+		target.scrollIntoView();
+	}
+
 	afterNavigate(({ type }) => {
 		if (type !== 'enter' && !location.hash) heading?.focus({ preventScroll: true });
+		revealTarget();
 	});
 
 	$effect(() => {
@@ -45,6 +55,8 @@
 	path={page.path}
 />
 
+<svelte:window onhashchange={revealTarget} />
+
 <svelte:head>
 	<link rel="alternate" type="text/markdown" href="{SITE_URL}{page.path}.md" />
 </svelte:head>
@@ -63,7 +75,13 @@
 			</a>
 		</header>
 		<div class="prose">
-			{@html page.html}
+			{#each page.blocks as block, index (index)}
+				{#if 'demo' in block}
+					<DocDemo demo={block.demo} />
+				{:else}
+					{@html block.html}
+				{/if}
+			{/each}
 		</div>
 		<nav class="pager" aria-label="Previous and next page">
 			{#if data.previous}

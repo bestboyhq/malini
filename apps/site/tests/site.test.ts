@@ -214,6 +214,29 @@ test('the landing page embeds the app and its reports from the demo build', () =
 		assert.ok(existsSync(join(build, 'demo', `${page}.html`)), page);
 });
 
+test('a docs demo plays its demo workstream in the app and stays out of the markdown', () => {
+	const demoScripts = readdirSync(join(build, 'demo', 'assets'))
+		.filter((file) => file.endsWith('.js'))
+		.map((file) => read(join('demo', 'assets', file)))
+		.join('\n');
+	for (const [index, file] of markdownFiles(content).entries()) {
+		const path = docPaths[index] ?? '';
+		const workstreams = [
+			...readFileSync(join(content, file), 'utf8').matchAll(/^<!-- demo (\S+) \d+$/gmu),
+		].map(([, workstream]) => workstream);
+		const frames = [
+			...read(htmlFile(path)).matchAll(
+				/<iframe src="\/malini\/demo\/app\?play=docs#\/workstreams\/([^"]+)"/gu,
+			),
+		].map(([, workstream]) => workstream);
+		assert.deepEqual(frames, workstreams, path);
+		for (const workstream of workstreams)
+			assert.ok(demoScripts.includes(`"${workstream}"`), workstream);
+		assert.doesNotMatch(read(`${path.slice(1)}.md`), /<!-- demo/u, path);
+	}
+	assert.doesNotMatch(read('llms-full.txt'), /<!-- demo/u);
+});
+
 test('the hero is the only README image the site uses', () => {
 	const sources = readdirSync(root, { recursive: true, encoding: 'utf8' }).filter(
 		(file) =>

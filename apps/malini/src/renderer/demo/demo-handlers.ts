@@ -14,9 +14,11 @@ import { browserHandlers } from './demo-browser';
 import { demoMediaUrl } from './demo-media';
 import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
 import {
+	cancelRun,
 	clickShipButton,
 	createLead,
 	mergedPullRequest,
+	playDocsScenes,
 	pullRequestUrl,
 	sendPrompt,
 	sessionSummaries,
@@ -161,7 +163,12 @@ function totals(workstreamId: string): { additions: number; deletions: number; f
 	};
 }
 
-export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
+export const demoHandlers = (emit: DemoEmit): DemoHandlers => {
+	playDocsScenes(emit);
+	return demoHandlersFor(emit);
+};
+
+const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	...browserHandlers(emit),
 	'app.take-notification-target': () => null,
 	'app.take-menu-command': () => null,
@@ -186,6 +193,7 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	}),
 	'app.list-settings': () => ({ 'sounds.finished': 'none', 'sounds.needs-you': 'none' }),
 	'app.set-setting': () => undefined,
+	'stats.record-frames': () => undefined,
 	'repositories.github-reach': () => 'ok',
 	'repositories.github-auth-status': () => ({
 		authenticated: true,
@@ -250,8 +258,9 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'chat.get-or-create-session': ({ workstreamId, model }) => startSession(workstreamId, model),
 	'chat.start-session': ({ workstreamId, model }) => startSession(workstreamId, model),
 	'chat.activate-session': () => undefined,
-	'chat.send-prompt': ({ sessionId: id, prompt, clientRequestId }) =>
-		sendPrompt(emit, id, prompt, clientRequestId),
+	'chat.send-prompt': ({ sessionId: id, prompt, clientRequestId, steer }) =>
+		sendPrompt(emit, id, prompt, clientRequestId, steer),
+	'chat.cancel-run': ({ sessionId: id }) => cancelRun(emit, id),
 	'chat.list-events': ({ sessionId: id, afterSeq }) =>
 		transcript(id).filter((envelope) => envelope.seq > afterSeq),
 	'chat.list-event-page': ({ sessionId: id, afterSeq }) => {

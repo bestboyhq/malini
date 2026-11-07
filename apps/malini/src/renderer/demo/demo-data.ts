@@ -22,19 +22,29 @@ export const PROJECTS: ProjectDto[] = ['malini', 'platform', 'grip', 'tony'].map
 
 type DemoFile = Readonly<{ path: string; additions: number; deletions: number }>;
 
-type DemoTool = Readonly<{
+export type DemoTool = Readonly<{
 	name: string;
 	input: Record<string, unknown>;
 	output?: unknown;
 	say?: string;
 }>;
 
+export type DemoSubagent = Readonly<{
+	description: string;
+	prompt: string;
+	tools: readonly DemoTool[];
+	report: string;
+}>;
+
+export type DemoStep =
+	DemoTool | Readonly<{ thought: string }> | Readonly<{ agents: readonly DemoSubagent[] }>;
+
 export type DemoRun = Readonly<{
 	id: string;
 	prompt: string;
 	from?: string;
 	startedAt: string;
-	tools: readonly DemoTool[];
+	tools: readonly DemoStep[];
 	report: string;
 	usage: Readonly<{ inputTokens: number; outputTokens: number }>;
 }>;
@@ -541,44 +551,117 @@ function toolInput(workstreamId: string, tool: DemoTool): Record<string, unknown
 	return { ...tool.input, file_path: `${WORKSTREAM_PATH(workstreamId)}/${path}` };
 }
 
+function toolCall(
+	workstreamId: string,
+	runId: string,
+	toolCallId: string,
+	tool: DemoTool,
+	ts: number,
+	ms: number,
+	parentToolCallId?: string,
+): AgentEvent[] {
+	const parent = parentToolCallId ? { parentToolCallId } : {};
+	return [
+		{
+			type: 'tool.started',
+			runId,
+			name: tool.name,
+			input: toolInput(workstreamId, tool),
+			toolCallId,
+			ts,
+			...parent,
+		},
+		{
+			type: 'tool.completed',
+			runId,
+			name: tool.name,
+			output: tool.output ?? 'ok',
+			toolCallId,
+			ts: ts + ms,
+			...parent,
+		},
+	];
+}
+
+function subagentEvents(
+	workstreamId: string,
+	runId: string,
+	toolCallId: string,
+	agent: DemoSubagent,
+	ts: number,
+): AgentEvent[] {
+	const input = { description: agent.description, subagent_type: 'Explore', prompt: agent.prompt };
+	const steps = agent.tools.flatMap((tool, index) =>
+		toolCall(
+			workstreamId,
+			runId,
+			`${toolCallId}-${index}`,
+			tool,
+			ts + (index + 1) * 6_000,
+			TOOL_MS[index % TOOL_MS.length] ?? 0,
+			toolCallId,
+		),
+	);
+	const back = ts + (agent.tools.length + 1) * 6_000;
+	return [
+		{ type: 'tool.started', runId, name: 'Agent', input, toolCallId, ts },
+		...steps,
+		...toolCall(
+			workstreamId,
+			runId,
+			`${toolCallId}-back`,
+			{ name: 'SubagentHandback', input: { message: agent.report } },
+			back,
+			0,
+			toolCallId,
+		),
+		{
+			type: 'tool.completed',
+			runId,
+			name: 'Agent',
+			output: 'The report was delivered to the parent.',
+			toolCallId,
+			ts: back,
+		},
+	];
+}
+
+const timeOf = (event: AgentEvent): number => ('ts' in event ? (event.ts ?? 0) : 0);
+
+export function stepEvents(
+	step: DemoStep,
+	workstreamId: string,
+	runId: string,
+	index: number,
+	ts: number,
+): AgentEvent[] {
+	const key = `${runId}-step-${index}`;
+	if ('thought' in step) {
+		return [{ type: 'thinking.message', runId, contentId: key, text: step.thought }];
+	}
+	if ('agents' in step) {
+		return step.agents
+			.flatMap((agent, at) => subagentEvents(workstreamId, runId, `${key}-agent-${at}`, agent, ts))
+			.sort((left, right) => timeOf(left) - timeOf(right));
+	}
+	const said: AgentEvent[] = step.say
+		? [{ type: 'assistant.message', runId, text: step.say, contentId: `${runId}-say-${index}` }]
+		: [];
+	return [
+		...said,
+		...toolCall(workstreamId, runId, key, step, ts, TOOL_MS[index % TOOL_MS.length] ?? 0),
+	];
+}
+
 export function toolEvents(
 	workstreamId: string,
 	runId: string,
-	tools: readonly DemoTool[],
+	tools: readonly DemoStep[],
 	started: number,
 ): AgentEvent[] {
-	return tools.flatMap((tool, index): AgentEvent[] => {
-		const toolCallId = `${runId}-tool-${index}`;
-		const ts = started + (index + 1) * 9_000;
-		return [
-			...(tool.say
-				? [
-						{
-							type: 'assistant.message' as const,
-							runId,
-							text: tool.say,
-							contentId: `${runId}-say-${index}`,
-						},
-					]
-				: []),
-			{
-				type: 'tool.started',
-				runId,
-				name: tool.name,
-				input: toolInput(workstreamId, tool),
-				toolCallId,
-				ts,
-			},
-			{
-				type: 'tool.completed',
-				runId,
-				name: tool.name,
-				output: tool.output ?? 'ok',
-				toolCallId,
-				ts: ts + (TOOL_MS[index % TOOL_MS.length] ?? 0),
-			},
-		];
-	});
+	return tools.flatMap((step, index) =>
+		stepEvents(step, workstreamId, runId, index, started + (index + 1) * 9_000),
+	);
 }
 
 export function openingEvents(workstreamId: string, run: DemoRun): AgentEvent[] {

@@ -1,4 +1,5 @@
 import {
+	foldRunWork,
 	foldStartedWorkstreams,
 	groupRunTimeline,
 	groupSubagents,
@@ -12,6 +13,11 @@ import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block
 
 export const INITIAL_RUN_TIMELINE_WINDOW_SIZE = 200;
 export const RUN_TIMELINE_REVEAL_INCREMENT = 200;
+export const UNFOLDED_ROUNDS = 2;
+
+export function foldsWork(runs: readonly RunGroup[], index: number): boolean {
+	return index < runs.length - UNFOLDED_ROUNDS && runs[index]?.terminal !== null;
+}
 
 const EMPTY_TIMELINE: readonly RunTimelineItem[] = [];
 const EMPTY_WINDOW: RunTimelineWindow = { items: [], hiddenCount: 0 };
@@ -23,6 +29,7 @@ type TimelineDerivation = {
 	limit: number;
 	window: RunTimelineWindow;
 	grouped: readonly GroupedRunTimelineItem[] | null;
+	folded: readonly GroupedRunTimelineItem[] | null;
 	shownLinear: boolean;
 };
 
@@ -33,6 +40,7 @@ export type TimelineDerivations = {
 		run: RunGroup,
 		window: RunTimelineWindow,
 		isLastRun: boolean,
+		folded: boolean,
 	): readonly GroupedRunTimelineItem[];
 	revealOlderTimeline(runId: string): void;
 };
@@ -89,6 +97,7 @@ export function createTimelineDerivations(input: {
 			limit,
 			window: windowRunTimeline(items, limit),
 			grouped: null,
+			folded: null,
 			shownLinear: cached?.shownLinear ?? false,
 		};
 		timelineDerivations.set(run.runId, fresh);
@@ -127,8 +136,15 @@ export function createTimelineDerivations(input: {
 			run: RunGroup,
 			window: RunTimelineWindow,
 			isLastRun: boolean,
+			folded: boolean,
 		): readonly GroupedRunTimelineItem[] {
 			const derivation = derivationFor(run);
+			if (folded) {
+				if (!derivation) return foldRunWork(groupRunTimeline(window.items));
+				derivation.grouped ??= groupRunTimeline(window.items);
+				derivation.folded ??= foldRunWork(derivation.grouped);
+				return derivation.folded;
+			}
 			if (derivation && isLastRun) derivation.shownLinear = true;
 			if (isLastRun || derivation?.shownLinear) {
 				return groupSubagents(foldStartedWorkstreams(window.items));

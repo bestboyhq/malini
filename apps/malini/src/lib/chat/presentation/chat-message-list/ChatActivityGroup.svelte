@@ -3,6 +3,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import type { ActivityGroup } from '../activity-group';
 	import type { RunGroup } from '../render-state';
+	import ActivityKindIcons from './ActivityKindIcons.svelte';
 	import ChatTimelineRow from './ChatTimelineRow.svelte';
 	import { transcriptContext } from './transcript-context';
 
@@ -46,19 +47,7 @@
 			</span>
 			<span class="text-fg-secondary shrink-0">{group.verb}</span>
 			<span class="min-w-0 truncate"><SensitiveText text={group.detail} /></span>
-			<span class="flex shrink-0 items-center gap-1" aria-hidden="true">
-				{#each group.actionKinds as actionKind (actionKind)}
-					{#if actionKind === 'edit'}
-						<Icon name="pencil" class="shrink-0" size={12} />
-					{:else if actionKind === 'command'}
-						<Icon name="terminal" size={12} class="shrink-0" />
-					{:else if actionKind === 'read'}
-						<Icon name="note" size={12} class="shrink-0" />
-					{:else if actionKind === 'search'}
-						<Icon name="search" size={12} class="shrink-0" />
-					{/if}
-				{/each}
-			</span>
+			<ActivityKindIcons actionKinds={group.actionKinds} />
 			{#if group.exitCodes.length > 0}
 				<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums">
 					exit {group.exitCodes.join(', ')}
