@@ -23,8 +23,8 @@ After that, rebuild what you changed (`corepack pnpm --filter malini build` for 
 
 ## Use a sandboxed profile
 
-The live profile is `~/Library/Application Support/malini`; `pnpm dev` and the installed app both write there.
-Every run gets its own profile outside the worktree, at `$P` below, which is where `launch(topic)` points the app.
+The live profile is `~/Library/Application Support/malini`, and its checkouts are in `~/malini`; `pnpm dev` and the installed app both write there.
+Every run gets its own profile outside the worktree, at `$P` below, which is where `launch(topic)` points the app, and keeps its checkouts in `$P/checkouts`.
 The single-instance lock is per profile, so the sandbox runs beside the user's own Malini.
 The real `HOME` stays, so the bridge reaches the user's `claude` login and git config.
 
@@ -36,30 +36,37 @@ P=$(realpath "${TMPDIR:-/tmp}")/malini-profile-<topic>; mkdir -p "$P"
 sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '$P/malini.sqlite'"
 ```
 
-The app looks for workstream checkouts inside the sandbox profile, so the snapshot alone shows every workstream without its checkout.
+The app looks for workstream checkouts in `$P/checkouts`, so the snapshot alone shows every workstream without its checkout.
 Copy the checkouts in too and repoint their git metadata at the copies.
 Skip each workstream's `.context` and `node_modules`: the sandbox needs neither, and copying them once grew a profile to 1.5 million files.
 Clone `workstreams/.kept` as it is: an archived workstream keeps its `.context` and the files its chats showed there, and without it a restored chat's screenshots answer 404.
+Copy the lead space too: the workstreams of Home chats are worktrees of it, and their links would otherwise point at the live one.
+A workstream of a repository opened from a folder keeps its link to that folder, so the loop never writes into the user's own repository.
+The loop drops each copied worktree entry that still names a folder outside the profile, such as a worktree Claude Code made elsewhere: the move at launch runs `git worktree repair`, which would otherwise write into that real worktree.
 
 ```sh
-L=~/Library/Application\ Support/malini
-cp -cR "$L/repositories" "$P/"
-mkdir -p "$P/workstreams"
+A=~/Library/Application\ Support/malini; L=~/malini; C="$P/checkouts"
+mkdir -p "$C/workstreams"
+cp -cR "$L/repositories" "$C/"
+cp -cR "$A/lead-space" "$P/"
 for ws in "$L"/workstreams/*/; do
-	rsync -a --exclude=.context --exclude=node_modules "$ws" "$P/workstreams/$(basename "$ws")/"
+	rsync -a --exclude=.context --exclude=node_modules "$ws" "$C/workstreams/$(basename "$ws")/"
 done
-cp -cR "$L/workstreams/.kept" "$P/workstreams/"
-for ws in "$P"/workstreams/*/; do
-	g=$(sed 's/^gitdir: //' "$ws.git"); ng="${g/$L/$P}"
-	echo "gitdir: $ng" > "$ws.git"; echo "${ws}.git" > "$ng/gitdir"
-done
-sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$P');
-	update workstreams set path = replace(path, '$L', '$P');
-	update connected_repositories set local_path = null where local_path not like '$P%';
+cp -cR "$L/workstreams/.kept" "$C/workstreams/"
+find "$C/repositories" "$P/lead-space" -maxdepth 6 -path '*/.git/worktrees/*/gitdir' |
+	while read -r admin; do
+		g=$(cat "$admin"); ng="${g/#"$L"/$C}"; ng="${ng/#"$A"/$P}"
+		if [ "$ng" != "$g" ] && [ -f "$ng" ]; then
+			echo "$ng" > "$admin"; echo "gitdir: ${admin%/gitdir}" > "$ng"
+		else rm -rf "${admin%/gitdir}"; fi
+	done
+sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$C');
+	update workstreams set path = replace(path, '$L', '$C');
+	update connected_repositories set local_path = null where local_path not like '$C%';
 	update automation_definitions set trigger_mode = 'off' where trigger_mode != 'off';
 	delete from agent_deliveries;
 	delete from workstream_ship;"
-for repo in "$P"/repositories/*/base; do
+for repo in "$C"/repositories/*/base; do
 	git -C "$repo" config url."https://sandbox-never-pushes.invalid/".pushInsteadOf https://github.com/
 done
 ```

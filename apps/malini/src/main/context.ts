@@ -7,6 +7,7 @@ export interface MainContext {
 	readonly commands: CommandRegistry;
 	readonly events: EventBus;
 	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly resourcesRoot: string;
 	readonly isDev: boolean;
 	readonly appVersion: string;

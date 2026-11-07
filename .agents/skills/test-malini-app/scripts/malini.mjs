@@ -12,7 +12,8 @@ const REPAINT_MS = 300;
 
 export async function launch(topic, { foreground = false } = {}) {
 	const userDataDir = join(realpathSync(tmpdir()), `malini-profile-${topic}`);
-	mkdirSync(userDataDir, { recursive: true });
+	const temp = join(userDataDir, 'tmp');
+	mkdirSync(temp, { recursive: true });
 	const theme = process.env.MALINI_THEME;
 	const app = await electron.launch({
 		args: ['.', `--user-data-dir=${userDataDir}`],
@@ -21,6 +22,7 @@ export async function launch(topic, { foreground = false } = {}) {
 		env: {
 			...process.env,
 			MALINI_USAGE_DATA: 'off',
+			TMPDIR: temp,
 			...(foreground ? {} : { MALINI_BACKGROUND_WINDOW: '1' }),
 		},
 	});

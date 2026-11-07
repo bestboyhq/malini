@@ -4,7 +4,7 @@ import { rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { canSandbox, sandboxedCommand, sandboxProfile } from './sandbox.js';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'malini-sandbox-test-'));
@@ -62,12 +62,20 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 	});
 
 	it("hides every bridge's secrets folder", async () => {
-		const folder = join(ROOT, 'malini-secrets-1-x');
-		mkdirSync(folder);
-		writeFileSync(join(folder, 'secrets.sh'), 'TOKEN=1');
+		const bridgeSecrets = mkdtempSync(join(tmpdir(), `malini-secrets-${process.pid}-`));
+		onTestFinished(() => rm(bridgeSecrets, { recursive: true, force: true }));
+		writeFileSync(join(bridgeSecrets, 'secrets.sh'), 'TOKEN=1');
 
-		expect(await inside(`cat ${join(folder, 'secrets.sh')}`)).not.toBe(0);
-		expect(await inside(`touch ${join(folder, 'pass')}`)).not.toBe(0);
+		expect(await inside(`cat ${join(bridgeSecrets, 'secrets.sh')}`)).not.toBe(0);
+		expect(await inside(`touch ${join(bridgeSecrets, 'pass')}`)).not.toBe(0);
+	});
+
+	it('lets a Malini a command starts keep its own secrets folder', async () => {
+		const profileTemp = join(ROOT, 'malini-profile-test', 'tmp');
+
+		expect(
+			await inside(`mkdir -p ${profileTemp} && mktemp -d ${profileTemp}/malini-secrets-1-XXXXXX`),
+		).toBe(0);
 	});
 
 	it('leaves a process that already runs in a sandbox to that sandbox', async () => {

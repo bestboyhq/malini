@@ -57,6 +57,7 @@ import { BASE_FETCH_EVERY_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
+import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
 import { createLeadSpace } from './lead-space.service';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
@@ -138,7 +139,7 @@ export function registerRepositories(
 	context: MainContext,
 	deps: RepositoriesDeps = {},
 ): RepositoriesPlatform {
-	const { commands, db, events, appDataRoot } = context;
+	const { commands, db, events, appDataRoot, checkoutsRoot } = context;
 	const credentials = deps.credentials ?? noPromptCredentialEnv;
 	const shell = deps.shell ?? defaultCheckoutShell;
 	const githubReach = new GithubReachWatch({
@@ -158,7 +159,7 @@ export function registerRepositories(
 		(context.isDev ? DEVELOPMENT_BUNDLE_IDENTIFIER : PRODUCTION_BUNDLE_IDENTIFIER);
 	const ownership = new DockerOwnership({ db, runner, appDataRoot, bundleIdentifier });
 	const installs = new InstallRegistry(runner);
-	const checkouts = createCheckoutResolver({ db, appDataRoot });
+	const checkouts = createCheckoutResolver({ db, checkoutsRoot });
 	const media = workstreamMedia(context, checkouts);
 	const recordedBranch = (workstreamId: string): string =>
 		getWorkstream(db, workstreamId)?.branch ?? workstreamBranchName(workstreamId);
@@ -224,6 +225,7 @@ export function registerRepositories(
 		db,
 		events,
 		appDataRoot,
+		checkoutsRoot,
 		credentials,
 		baseSync,
 		guardTeardown,
@@ -232,7 +234,7 @@ export function registerRepositories(
 	commands.define('repositories.list-workstreams', () => {
 		const activeAt = workstreamActiveTimes(db);
 		return listWorkstreams(db).map((row) =>
-			workstreamDto(appDataRoot, row, activeAt.get(row.id) ?? row.createdAt),
+			workstreamDto(checkoutsRoot, row, activeAt.get(row.id) ?? row.createdAt),
 		);
 	});
 
@@ -287,7 +289,7 @@ export function registerRepositories(
 			workstreamId: checkedWorkstreamId(args),
 			name: requireNonEmptyString(args, 'name'),
 		});
-		return workstreamDto(appDataRoot, lead, lead.createdAt);
+		return workstreamDto(checkoutsRoot, lead, lead.createdAt);
 	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>
@@ -491,6 +493,18 @@ export function registerRepositories(
 	});
 
 	commands.define('repositories.pick-folder', () => picker.pick(getMainWindow()));
+	commands.define('repositories.checkouts-folder', () =>
+		checkoutsFolder(db, appDataRoot, checkoutsRoot),
+	);
+	commands.define('repositories.choose-checkouts-folder', async () => {
+		const picked = await picker.pick(getMainWindow());
+		return picked === null
+			? checkoutsFolder(db, appDataRoot, checkoutsRoot)
+			: chooseCheckoutsFolder(db, appDataRoot, checkoutsRoot, picked);
+	});
+	commands.define('repositories.keep-checkouts-folder', () =>
+		keepCheckoutsFolder(db, appDataRoot, checkoutsRoot),
+	);
 
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
 	commands.define('repositories.github-reach', () => githubReach.reach);
@@ -617,7 +631,7 @@ export function registerRepositories(
 				return [];
 			}
 			try {
-				return [recordedCheckoutPath(db, appDataRoot, row.id)];
+				return [recordedCheckoutPath(db, checkoutsRoot, row.id)];
 			} catch {
 				return [];
 			}
@@ -659,7 +673,7 @@ export function registerRepositories(
 	};
 
 	if (deps.startupReclaim ?? true) void reportStartupReclaim(platform);
-	void sweepArchivedLeftovers(db, appDataRoot);
+	void sweepArchivedLeftovers(db, checkoutsRoot);
 
 	return platform;
 }

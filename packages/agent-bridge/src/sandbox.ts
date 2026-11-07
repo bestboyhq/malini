@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 
 export const SANDBOX_EXEC = '/usr/bin/sandbox-exec';
@@ -134,6 +134,7 @@ export function sandboxedCommand(
 export function sandboxProfile(
 	{ checkout, hidden, internet }: SandboxPlaces,
 	home: string = homedir(),
+	temp: string = tmpdir(),
 ): string {
 	const root = canonicalPath(checkout);
 	const git = gitFolders(root);
@@ -153,7 +154,7 @@ export function sandboxProfile(
 		'(allow file-read* file-ioctl file-map-executable)',
 		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), pnpmLinkProbes, ...DEVICES].join(' ')})`,
 		`(deny file-write* ${ranOutside(root, git).join(' ')})`,
-		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), regex(`/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
+		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
 		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}))`,
 		`(allow mach-register (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
 		'(allow ipc-posix-shm ipc-posix-sem)',

@@ -137,12 +137,12 @@ function registerMarketplace(context: MainContext, deps: ExtensionsPlatformDeps)
 }
 
 async function publishSources(context: MainContext): Promise<PublishSource[]> {
-	const { db, appDataRoot } = context;
+	const { db, checkoutsRoot } = context;
 	const sources: PublishSource[] = [];
 	for (const repository of await listRepositoryCatalog(db)) {
 		if (repository.hidden) continue;
 		const connected = await resolveConnectedRepository(db, repository.id);
-		const dir = connected ? resolveRepositoryCheckout(db, appDataRoot, connected) : null;
+		const dir = connected ? resolveRepositoryCheckout(db, checkoutsRoot, connected) : null;
 		if (dir) sources.push({ id: repository.id, fullName: repository.fullName, dir });
 	}
 	return sources;

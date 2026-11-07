@@ -48,11 +48,15 @@ export interface AttachmentsDeps {
 }
 
 export function createDefaultCheckoutResolver(
-	context: Pick<MainContext, 'db' | 'appDataRoot'>,
+	context: Pick<MainContext, 'db' | 'checkoutsRoot'>,
 ): WorkstreamCheckoutResolver {
 	return (workstreamId) => {
 		const recorded = getWorkstream(context.db, workstreamId)?.path ?? null;
-		return resolveWorkstreamCheckoutCanonicalRecorded(context.appDataRoot, workstreamId, recorded);
+		return resolveWorkstreamCheckoutCanonicalRecorded(
+			context.checkoutsRoot,
+			workstreamId,
+			recorded,
+		);
 	};
 }
 

@@ -63,6 +63,7 @@ function boot(rules: Pick<AutomationsOptions, 'shipping' | 'resume' | 'deliverie
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: '/tmp/reconciler-test',
+		checkoutsRoot: '/tmp/reconciler-test',
 		resourcesRoot: '/tmp/reconciler-test',
 		isDev: true,
 		appVersion: '0.0.0-test',
