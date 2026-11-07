@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
 	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
@@ -72,6 +72,9 @@
 		editSelection ? selectionLabel(providerGroupsQuery.data, editSelection) : '',
 	);
 	let accessPrompt = $state<string | null>(null);
+	const connecting = $derived(
+		accessPrompt !== null && editAccess !== null && !isModelAccessReady(editAccess),
+	);
 
 	function submitEdit(): void {
 		const text = checkpointEdit.editingPrompt.trim();
@@ -87,6 +90,12 @@
 	function connectedEdit(): void {
 		accessPrompt = null;
 		checkpointEdit.submitCheckpointEdit(item);
+	}
+
+	async function cancelEditAccess(): Promise<void> {
+		accessPrompt = null;
+		await tick();
+		checkpointEdit.field?.focus();
 	}
 
 	$effect(() => {
@@ -242,16 +251,17 @@
 				submitEdit();
 			}}
 		>
-			{#if accessPrompt !== null && editAccess && !isModelAccessReady(editAccess)}
+			{#if connecting && accessPrompt !== null && editAccess !== null}
 				<ProviderConnectCard
 					access={editAccess}
 					modelLabel={editModelLabel}
 					prompt={accessPrompt}
 					onconnected={connectedEdit}
-					oncancel={() => (accessPrompt = null)}
+					oncancel={() => void cancelEditAccess()}
 				/>
 			{/if}
 			<ComposerShell
+				class={[connecting && 'hidden']}
 				accent={transcript.composerControls?.profile.mode === 'plan'}
 				testId="chat-message-editor-shell"
 				footerTestId="chat-message-editor-toolbar"

@@ -66,8 +66,19 @@ test('a new chat opens on a provider you have not connected, and its first messa
 
 		await sendPrompt(page, 'SEARCH on my ChatGPT plan');
 		const connect = page.getByTestId('provider-connect-card');
+		const draft = page.getByTestId('chat-composer-input');
+		const signIn = connect.getByRole('button', { name: 'Continue with ChatGPT' });
 		await expect(connect).toHaveAttribute('data-access', 'chatgpt-signed-out');
-		await connect.getByRole('button', { name: 'Continue with ChatGPT' }).click();
+		await expect(draft).toBeHidden();
+		await expect(signIn).toBeFocused();
+		await captureFlow(app, 'unconnected-provider-connect-card');
+		await page.keyboard.press('Escape');
+		await expect(connect).toHaveCount(0);
+		await expect(draft).toHaveText('SEARCH on my ChatGPT plan');
+		await expect(draft).toBeFocused();
+		await page.keyboard.press('Enter');
+		await expect(signIn).toBeFocused();
+		await signIn.click();
 		await expect.poll(async () => (await openedUrls(app)).length).toBe(1);
 		expect((await fetch((await openedUrls(app))[0] ?? '')).status).toBe(200);
 		await expect(connect).toHaveCount(0);
@@ -81,6 +92,7 @@ test('a new chat opens on a provider you have not connected, and its first messa
 
 		await sendPrompt(page, 'SEARCH on DeepSeek');
 		await expect(connect).toHaveAttribute('data-access', 'needs-key');
+		await expect(draft).toBeHidden();
 		await page.getByRole('textbox', { name: 'DeepSeek API key' }).fill('sk-e2e-deepseek');
 		await page.getByTestId('provider-connect-submit').click();
 		await expect(connect).toHaveCount(0);

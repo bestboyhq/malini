@@ -176,6 +176,7 @@
 	const access = $derived(modelAccess(selection, providerGroups, claudeCodeStatusQuery.data));
 	const selectedModelLabel = $derived(selectionLabel(providerGroups, selection));
 	let accessPrompt = $state<string | null>(null);
+	const connecting = $derived(accessPrompt !== null && !isModelAccessReady(access));
 	let accessSteer = false;
 	let submissionError = $state<string | null>(null);
 	let contextOpen = $state(false);
@@ -841,10 +842,11 @@
 		submit(steer);
 	}
 
-	function cancelAccess(): void {
+	async function cancelAccess(): Promise<void> {
 		accessPrompt = null;
 		accessSteer = false;
-		queueMicrotask(() => promptEditor?.focusEditor());
+		await tick();
+		promptEditor?.focusEditor();
 	}
 
 	$effect(() => {
@@ -1202,17 +1204,18 @@
 		</div>
 	</DropdownLayer>
 
-	{#if accessPrompt !== null && !isModelAccessReady(access)}
+	{#if connecting && accessPrompt !== null}
 		<ProviderConnectCard
 			{access}
 			modelLabel={selectedModelLabel}
 			prompt={accessPrompt}
 			onconnected={onAccessConnected}
-			oncancel={cancelAccess}
+			oncancel={() => void cancelAccess()}
 		/>
 	{/if}
 
 	<ComposerShell
+		class={[connecting && 'hidden']}
 		accent={profile.mode === 'plan'}
 		{disabled}
 		testId="chat-composer-shell"
