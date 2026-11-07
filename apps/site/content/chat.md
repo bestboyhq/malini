@@ -37,6 +37,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
   Hover the chat's row to list them.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
+  The × beside **Started by** disconnects it from that chat: its turns stop reporting there, the chat can no longer send it prompts, and it leaves the chat's row in the sidebar.
 - The agent in that workstream knows which chat started it, reads the chat's [plan](#one-plan), and reads the checkouts of the other workstreams that chat started.
 
 ### The timeline

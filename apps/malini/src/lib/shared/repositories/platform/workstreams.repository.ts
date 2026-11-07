@@ -271,6 +271,10 @@ export function clearMergedFromStarter(db: MaliniDatabase, workstreamIds: readon
 	});
 }
 
+export function detachFromStarter(db: MaliniDatabase, workstreamId: string): void {
+	run(db, 'UPDATE workstreams SET started_by = NULL WHERE id = ?', workstreamId);
+}
+
 export function recordMergedPullRequest(
 	db: MaliniDatabase,
 	workstreamId: string,
