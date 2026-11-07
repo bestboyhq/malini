@@ -10,6 +10,8 @@ import { canSandbox, sandboxedCommand, sandboxProfile } from './sandbox.js';
 const ROOT = mkdtempSync(join(tmpdir(), 'malini-sandbox-test-'));
 const CHECKOUT = join(ROOT, 'checkout');
 const IN_HOME = join(homedir(), `.malini-sandbox-test-${process.pid}`);
+const PNPM_HOME = join(homedir(), 'Library/pnpm');
+const IN_PNPM_HOME = join(PNPM_HOME, `malini-sandbox-test-${process.pid}`);
 
 mkdirSync(CHECKOUT);
 execFileSync('git', ['init', '--quiet'], { cwd: CHECKOUT });
@@ -17,6 +19,7 @@ execFileSync('git', ['init', '--quiet'], { cwd: CHECKOUT });
 afterAll(async () => {
 	await rm(ROOT, { recursive: true, force: true });
 	await rm(IN_HOME, { force: true });
+	await rm(IN_PNPM_HOME, { force: true });
 });
 
 function inside(command: string): Promise<number> {
@@ -37,8 +40,19 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		expect(await inside('echo hi > notes.txt && git add notes.txt && mkdir -p .cache/x')).toBe(0);
 	});
 
+	it('lets pnpm link into its home, so it keeps its store there instead of in the checkout', async () => {
+		const probe = join(PNPM_HOME, `_tmp_${process.pid}_sandbox`);
+
+		expect(
+			await inside(
+				`touch linked && mkdir '${probe}' && ln linked '${probe}/linked' && rm -r '${probe}'`,
+			),
+		).toBe(0);
+	});
+
 	it.each([
 		['the home folder', `touch ${IN_HOME}`],
+		['the pnpm home', `touch '${IN_PNPM_HOME}'`],
 		['a git hook', 'touch .git/hooks/pre-commit'],
 		['the git config', 'git config core.hooksPath /tmp'],
 		["Claude Code's settings", 'mkdir -p .claude && touch .claude/settings.json'],

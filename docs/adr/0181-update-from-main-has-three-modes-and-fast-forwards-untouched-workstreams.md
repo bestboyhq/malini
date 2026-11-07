@@ -1,4 +1,4 @@
-# 0180 - Update from main has three modes and fast-forwards untouched workstreams
+# 0181 - Update from main has three modes and fast-forwards untouched workstreams
 
 Status: accepted
 
@@ -9,7 +9,7 @@ The user: "Id love my all workstreams always to do it, but thats because there a
 A workstream with no commits of its own got nothing from 0137, since it touches no file, and merging main into it would only add a merge commit.
 0134 stops the dev server an agent left running when a branch updates, so an update that arrives while you look at that server takes it away.
 A burst of merges moves main several times in a minute, and 0137 compared after each one.
-0178 makes the setup step and Settings rewrite Update from main's trigger, so each mode has to be a When, not a setting.
+0179 makes the setup step and Settings rewrite Update from main's trigger, so each mode has to be a When, not a setting.
 
 ## Decision
 

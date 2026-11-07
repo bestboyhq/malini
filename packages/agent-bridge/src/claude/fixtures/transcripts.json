@@ -9436,5 +9436,1428 @@
 			"uuid": "153ad549-f667-40d1-8c3f-ab598f69e03d",
 			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480"
 		}
+	],
+	"steRewrite": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "f4c8f76a-57eb-4a69-bea8-78b31a591d03",
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "17013d1c-f770-4828-abf0-2e72e9992b89"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "message_start",
+				"message": {
+					"model": "claude-haiku-5-5",
+					"id": "msg_011Cgp7rTjBD95yEDFqFsoAx",
+					"type": "message",
+					"role": "assistant",
+					"content": [],
+					"container": null,
+					"stop_reason": null,
+					"stop_sequence": null,
+					"stop_details": null,
+					"usage": {
+						"input_tokens": 2,
+						"cache_creation_input_tokens": 0,
+						"cache_read_input_tokens": 15314,
+						"cache_creation": {
+							"ephemeral_5m_input_tokens": 0,
+							"ephemeral_1h_input_tokens": 0
+						},
+						"output_tokens": 7,
+						"service_tier": "standard",
+						"inference_geo": "global",
+						"speed": "standard"
+					},
+					"input_transformations": [],
+					"diagnostics": null,
+					"context_management": null
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "71ab5dd6-1e41-4ba8-8c2a-c8acc5ef89a8",
+			"ttft_ms": 1379,
+			"thinking_display": "summarized",
+			"user_message_uuid": "afd17d0f-a6dc-420b-8cde-54f2ae41d745",
+			"user_message_uuids": ["afd17d0f-a6dc-420b-8cde-54f2ae41d745"]
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_start",
+				"index": 0,
+				"content_block": {
+					"type": "text",
+					"text": ""
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2bfcc8a8-0f3e-48e5-8032-4bbbd1944c9b"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "A git tag is a named"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "83473f30-8dcf-4085-84cb-373894bef557"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": ", f"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "8899c6cf-524b-47d1-8e81-5e5f4614df43"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "ixed reference to a spec"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "62c0ac41-4669-4434-ad07-6bc2d51d6350"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "ific commit,"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "77501de0-76fa-4a3b-8bd4-41baf0c6abfc"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " most"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "d585c804-61f7-4062-a39d-cde0a2eddbda"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " often"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "5fc89bfd-cfe0-48c1-90bb-63f1721440f0"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " used to mark release"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "a8f68f98-fc13-4386-bdeb-733ab1c64c6d"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " points such as v"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "84919b4c-ce39-4542-8e98-bea8de4bed57"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "1.0 "
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "287540c0-d417-4bb9-86f9-1c3bd3a2c0ae"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "or v2.3"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "fc8e9190-7307-40bb-8d3f-462320aa391d"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "."
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "11861cf7-76db-4743-ba79-674195968a56"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "1. Unlike a"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2ba18336-0dba-4348-bb30-e94032ca86da"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " branch, which"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "e7267aeb-5f0c-4d3e-847f-f3d0577efc78"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " moves for"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "c54458e8-8637-4d5d-9ff4-ba0c23be6482"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "ward as new commits are added,"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2c1e267f-3fd0-4844-8e69-3f3a50bbfa19"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " a tag st"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "39e97701-49c2-4f19-8013-d0340a258a14"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "ays pointed"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "5a67dc57-b537-4f4c-807b-8b998030f634"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " at the same commit perm"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "315c7de2-1db1-4541-a4e0-3bb3961ee214"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "anently,"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "da521a4e-28c0-4d8e-91b2-38c55ef63716"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " so it works"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "fa6f6c1c-36ca-4e28-8687-a3103cba9e68"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " as a st"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "d46ce89b-a68e-4003-a5c3-c1f380458f25"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "able snapshot of the"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "3798e288-5eac-48e8-b0f7-2b751d74ecac"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " code"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2bcb303b-4aff-41ad-b5ad-6772dca7433e"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": ". Git"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "ef8c27dd-09f5-468a-8939-8326f5d94284"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " has"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "9bde6ca0-fca7-464d-b226-80d99fc77481"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " two k"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "a84b3c59-b178-4f04-a96f-b68a50253efb"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "inds: lightweight t"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "f3347a42-4ac5-4feb-9784-7f5f6de93f5c"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "ags, which are just a name"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "6ca5691e-d08b-498e-9271-4791bd590233"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " pointing at"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "3534bcd6-20d2-4f7d-a7d8-2d848a729dcc"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " a commit, and annotated"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "746195a0-9a55-490e-b3d8-05b319eb3f9c"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " tags, which are"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "dcc0465a-2783-466f-ac3a-77bd74b9ff90"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " full"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "4713c136-8377-4b26-a68c-4cc688bfee73"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " objects that"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "4e59e59f-593d-4f2b-add4-97f0b22c7b3f"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " also"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2fe11438-cd83-41a4-8a15-2f995f58c30e"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " store the"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "222b6739-bd9e-4737-85a8-6eb820db36c7"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " tagger, a date"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "7e2b98a4-23c8-4d94-a2b6-326439d36cbc"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": ", a"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "e09fd215-00bb-47be-840b-513da620bd57"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " message, and optionally a G"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "20a88ffc-57b0-49fc-8b0f-22d081c2a9b9"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "PG signature. You create them"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "ecd55d59-70b8-4242-b424-4a9a45b7e982"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " with `git tag` and share"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "fe28fcda-a7be-4e75-91b2-e297d7e68e8a"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " them with `git push --tags"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "e06a584d-152e-4b77-8663-e6e9ecd15570"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "`"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "c2a7645a-2314-4867-bd7b-57dd166dafa0"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": " or `git push origin <"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "ea813e03-9870-4871-984f-6b2f8699d952"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "tag"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "66279d3d-90ff-44cc-ad5d-29a57825916b"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 0,
+				"delta": {
+					"type": "text_delta",
+					"text": "name>`."
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "46203193-6692-48c0-917c-ed8d21022ae4"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-haiku-5-5",
+				"id": "msg_011Cgp7rTjBD95yEDFqFsoAx",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "A git tag is a named, fixed reference to a specific commit, most often used to mark release points such as v1.0 or v2.3.1. Unlike a branch, which moves forward as new commits are added, a tag stays pointed at the same commit permanently, so it works as a stable snapshot of the code. Git has two kinds: lightweight tags, which are just a name pointing at a commit, and annotated tags, which are full objects that also store the tagger, a date, a message, and optionally a GPG signature. You create them with `git tag` and share them with `git push --tags` or `git push origin <tagname>`."
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 15314,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 7,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"uuid": "3c673a8f-5b5b-4819-9b58-b0fc86091127",
+			"timestamp": "2026-11-07T19:27:42.437Z",
+			"request_id": "req_011Cgp7rTYGY3y33rFYPc3xw",
+			"user_message_uuid": "afd17d0f-a6dc-420b-8cde-54f2ae41d745",
+			"user_message_uuids": ["afd17d0f-a6dc-420b-8cde-54f2ae41d745"]
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_stop",
+				"index": 0
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2e01fe9b-d377-44bd-ad4e-0def1091f3f6"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "message_delta",
+				"delta": {
+					"stop_reason": "end_turn",
+					"stop_sequence": null,
+					"stop_details": null,
+					"container": null
+				},
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 15314,
+					"output_tokens": 195,
+					"output_tokens_details": {
+						"thinking_tokens": 0
+					}
+				},
+				"context_management": {
+					"applied_edits": []
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "dc005ad8-6034-437e-87b0-f1267e322116"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "message_stop"
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "e3cff155-8ae8-440d-bfdc-d57a848b489b"
+		},
+		{
+			"hook": {
+				"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+				"cwd": "/work/repo",
+				"prompt_id": "d35edb74-6561-44bd-bde1-8c671b8c3ff5",
+				"permission_mode": "default",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "Stop",
+				"stop_hook_active": false,
+				"last_assistant_message": "A git tag is a named, fixed reference to a specific commit, most often used to mark release points such as v1.0 or v2.3.1. Unlike a branch, which moves forward as new commits are added, a tag stays pointed at the same commit permanently, so it works as a stable snapshot of the code. Git has two kinds: lightweight tags, which are just a name pointing at a commit, and annotated tags, which are full objects that also store the tagger, a date, a message, and optionally a GPG signature. You create them with `git tag` and share them with `git push --tags` or `git push origin <tagname>`.",
+				"background_tasks": [],
+				"session_crons": []
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "text",
+						"text": "Stop hook feedback:\nThe reply check sent this reply back. It breaks these reply rules:\n\"A git tag is a named, fixed reference to a specific commit, most often used to mark a release.\" has 19 words but two statements. Rewrite: \"A git tag is a fixed name for one commit. Teams use tags to mark releases.\"\nWrite the whole reply again in STE, footer included."
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"uuid": "7a578518-e622-4da8-bb25-9d123c51f89c",
+			"timestamp": "2026-11-07T19:27:42.447Z",
+			"isSynthetic": true
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "message_start",
+				"message": {
+					"model": "claude-haiku-5-5",
+					"id": "msg_011Cgp7rd7yGev9i33JASzBi",
+					"type": "message",
+					"role": "assistant",
+					"content": [],
+					"container": null,
+					"stop_reason": null,
+					"stop_sequence": null,
+					"stop_details": null,
+					"usage": {
+						"input_tokens": 2,
+						"cache_creation_input_tokens": 3877,
+						"cache_read_input_tokens": 11892,
+						"cache_creation": {
+							"ephemeral_5m_input_tokens": 0,
+							"ephemeral_1h_input_tokens": 3877
+						},
+						"output_tokens": 3,
+						"service_tier": "standard",
+						"inference_geo": "global",
+						"speed": "standard"
+					},
+					"input_transformations": [],
+					"diagnostics": {
+						"cache_miss_reason": {
+							"type": "messages_changed",
+							"cache_missed_input_tokens": 3683
+						}
+					},
+					"context_management": null
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "d98a3226-5303-40a0-849c-f11e17ec5a0b",
+			"ttft_ms": 1165,
+			"thinking_display": "summarized"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-haiku-5-5",
+				"id": "msg_011Cgp7rd7yGev9i33JASzBi",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": "I'm noting that the hook feedback arrived as a user-turn message marked as stop hook feedback, so I should act on it. It asks me to rewrite the whole reply in Simplified Technical English, with short sentences and about 80 words in one paragraph, without using tools. It also mentions a footer, though I haven't written one before, so I'm trying to work out what it refers to.\n\nI'm settling on a short footer line, something like a source note, since the feedback seems to expect one. I'm also weighing how to hit about 80 words while keeping each sentence brief and one statement each.\n\nI'm finishing the git tag paragraph with the lightweight and annotated tag types and the commands to create and share tags.\n\nI'm adding a sentence about tags giving a stable snapshot to bring the word count near 80. Then I'll add a short source footer line.\n\n",
+						"signature": "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"
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 3877,
+					"cache_read_input_tokens": 11892,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 3877
+					},
+					"output_tokens": 3,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": {
+					"cache_miss_reason": {
+						"type": "messages_changed",
+						"cache_missed_input_tokens": 3683
+					}
+				},
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"uuid": "c4c76b4c-2856-4a59-825c-dfb6244f3a32",
+			"timestamp": "2026-11-07T19:27:50.670Z",
+			"request_id": "req_011Cgp7rctbTp2ikbw48yLhv",
+			"thinking_duration_ms": 7055
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_stop",
+				"index": 0
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "d3ab5ddc-a2d1-424d-aee1-7349c4b70126"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_start",
+				"index": 1,
+				"content_block": {
+					"type": "text",
+					"text": ""
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "33520dbf-e088-4712-a214-3ee35aed241a"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "A git tag"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "2a1de459-7504-4915-baa2-6b1c824493c4"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " is a fixed name for one"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "4a7e961b-b57c-4411-981e-6a282c7a5777"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " commit. Teams use t"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "6f44366a-5879-4bba-bf2f-fda08d5e9eb0"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "ags to mark releases, such"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "17b86ced-389e-4075-96f0-4a21e0361253"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " as v1.0. A t"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "b439765f-b9ab-4222-8589-3d3c879fb4fc"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "ag does not move when new commits"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "a812ab3e-fd07-4eac-87e4-ce1b58336de2"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " are added. A branch does move"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "209b7c96-cb88-4e0a-9a26-92526da5f985"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": ". Tags give a stable"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "e94a4bc9-6837-4141-879f-e42d9f0bc09b"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " snapshot of"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "7488b0ed-ee6e-4cdf-a4f5-c8fc550ba6b0"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " the code. Git has two t"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "5521d206-b270-4b5b-8006-5d37bea33119"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "ag types. A lightweight"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "72f3170e-e4cf-49d8-aa2f-a6f9927d65f4"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " tag is only a name. An"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "cbc4d987-b8c0-4e79-817c-21f625a5cff3"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " annotated tag is a full"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "32aac5da-d3bc-424d-b99e-ee1da98f8740"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " object. It stores the tag"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "7538d30f-5f1a-4dd7-8494-c9aad2d6780c"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "ger, a date, and a message"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "c8dee5da-9ea8-4bd0-a0e8-a7bd63fe6335"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": ". Create a tag with git"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "3548c5af-e5c8-4ec9-b5fd-90739ab51c59"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " tag. Share tags with"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "b92b7a58-df0d-4aef-9779-6a27944f215b"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": " git push --tags."
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "4bad5b26-b839-400b-bbdb-b3e3ae4c8c5c"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "\n\nSource: general Git knowled"
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "42b748fe-8545-4e6f-ba0a-ade896e9c1c9"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_delta",
+				"index": 1,
+				"delta": {
+					"type": "text_delta",
+					"text": "ge."
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "753bf648-8366-42ca-a522-91b33ba9697a"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-haiku-5-5",
+				"id": "msg_011Cgp7rd7yGev9i33JASzBi",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "A git tag is a fixed name for one commit. Teams use tags to mark releases, such as v1.0. A tag does not move when new commits are added. A branch does move. Tags give a stable snapshot of the code. Git has two tag types. A lightweight tag is only a name. An annotated tag is a full object. It stores the tagger, a date, and a message. Create a tag with git tag. Share tags with git push --tags.\n\nSource: general Git knowledge."
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 3877,
+					"cache_read_input_tokens": 11892,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 3877
+					},
+					"output_tokens": 3,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": {
+					"cache_miss_reason": {
+						"type": "messages_changed",
+						"cache_missed_input_tokens": 3683
+					}
+				},
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"uuid": "7b1a89bc-2e9d-4dbc-83f1-983b14923598",
+			"timestamp": "2026-11-07T19:27:50.671Z",
+			"request_id": "req_011Cgp7rctbTp2ikbw48yLhv"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "content_block_stop",
+				"index": 1
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "3bd3acae-cbfb-4fd0-a149-3529d9fb5a9a"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "message_delta",
+				"delta": {
+					"stop_reason": "end_turn",
+					"stop_sequence": null,
+					"stop_details": null,
+					"container": null
+				},
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 3877,
+					"cache_read_input_tokens": 11892,
+					"output_tokens": 1261,
+					"output_tokens_details": {
+						"thinking_tokens": 1112
+					}
+				},
+				"context_management": {
+					"applied_edits": []
+				}
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "4e0c14c6-7379-4826-ab86-9b300182578d"
+		},
+		{
+			"type": "stream_event",
+			"event": {
+				"type": "message_stop"
+			},
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"parent_tool_use_id": null,
+			"uuid": "35ccd314-d00e-4de4-8d20-2330b301213d"
+		},
+		{
+			"hook": {
+				"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+				"cwd": "/work/repo",
+				"prompt_id": "d35edb74-6561-44bd-bde1-8c671b8c3ff5",
+				"permission_mode": "default",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "Stop",
+				"stop_hook_active": true,
+				"last_assistant_message": "A git tag is a fixed name for one commit. Teams use tags to mark releases, such as v1.0. A tag does not move when new commits are added. A branch does move. Tags give a stable snapshot of the code. Git has two tag types. A lightweight tag is only a name. An annotated tag is a full object. It stores the tagger, a date, and a message. Create a tag with git tag. Share tags with git push --tags.\n\nSource: general Git knowledge.",
+				"background_tasks": [],
+				"session_crons": []
+			}
+		},
+		{
+			"duration_api_ms": 10497,
+			"stop_reason": "end_turn",
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b",
+			"total_cost_usd": 0.00177586,
+			"usage": {
+				"input_tokens": 4,
+				"cache_creation_input_tokens": 3877,
+				"cache_read_input_tokens": 27206,
+				"output_tokens": 1456,
+				"output_tokens_details": {
+					"thinking_tokens": 1112
+				},
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 3877,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "global",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {
+				"claude-haiku-5-5": {
+					"inputTokens": 4,
+					"outputTokens": 1456,
+					"cacheReadInputTokens": 27206,
+					"cacheCreationInputTokens": 3877,
+					"webSearchRequests": 0,
+					"costUSD": 0.00177586,
+					"contextWindow": 1000000,
+					"maxOutputTokens": 128000,
+					"thinkingTokens": 1112,
+					"canonicalModel": "claude-haiku-5-5",
+					"provider": "firstParty",
+					"costBasis": "list"
+				}
+			},
+			"permission_denials": [],
+			"terminal_reason": "completed",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": false,
+			"num_turns": 2,
+			"subtype": "success",
+			"api_error_status": null,
+			"result": "A git tag is a fixed name for one commit. Teams use tags to mark releases, such as v1.0. A tag does not move when new commits are added. A branch does move. Tags give a stable snapshot of the code. Git has two tag types. A lightweight tag is only a name. An annotated tag is a full object. It stores the tagger, a date, and a message. Create a tag with git tag. Share tags with git push --tags.\n\nSource: general Git knowledge.",
+			"ttft_ms": 2293,
+			"type": "result",
+			"duration_ms": 10529,
+			"uuid": "688f2a7d-7a78-4a61-950b-787f4eaf080a",
+			"ttft_stream_ms": 1403,
+			"time_to_request_ms": 24,
+			"first_content_frame_ms": 1403,
+			"user_message_uuid": "afd17d0f-a6dc-420b-8cde-54f2ae41d745",
+			"user_message_uuids": ["afd17d0f-a6dc-420b-8cde-54f2ae41d745"],
+			"request_sent_wall_ms": 1794079660169,
+			"first_request_input_tokens": 15316,
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "6895cbbc-c77d-488d-bd72-ad538ec8bbc6",
+			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b"
+		}
 	]
 }

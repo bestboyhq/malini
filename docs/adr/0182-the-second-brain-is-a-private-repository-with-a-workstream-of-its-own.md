@@ -1,4 +1,4 @@
-# 0181 - The second brain is a private repository with a workstream of its own
+# 0182 - The second brain is a private repository with a workstream of its own
 
 Status: accepted
 
@@ -24,7 +24,7 @@ Chats hold secrets and private code, and 0167 lets an automation see only what i
   `brain.since-seq` is the newest event when the brain was made, so nothing typed before it lands in the log.
   When the Brain workstream is archived, the next run that needs it starts a new one in the same repository.
 - **Two automations.**
-  **Capture to the log** (`capture-brain`) runs without an agent (0182).
+  **Capture to the log** (`capture-brain`) runs without an agent (0183).
   **Write the notes** (`write-brain-notes`) is an agent automation, `every sunday at 18:00`, whose builder-minded instructions, products, bets, lessons, people, decisions and open questions, live only in its editable instructions.
   Both start Off and are triggerable; `brain.set-up` turns them on, and Reset keeps their trigger.
   Every run of either, from a trigger, a schedule, a Then, the agent's tools or **Run**, runs in the Brain workstream: `automations.run` targets it through `brainWorkstream`, which `src/main/modules.ts` hands from the brain to the automations platform, and refuses with "Set up the brain first in Settings, Brain." when there is none.

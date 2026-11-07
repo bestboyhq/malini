@@ -92,6 +92,17 @@ const run = query({
 					],
 				},
 			],
+			Stop: [
+				{
+					hooks: [
+						async (input) => {
+							steps.push({ hook: input });
+							if (!process.env.STOP_FEEDBACK || input.stop_hook_active) return {};
+							return { decision: 'block', reason: process.env.STOP_FEEDBACK };
+						},
+					],
+				},
+			],
 			SessionStart: [
 				{
 					matcher: 'compact',

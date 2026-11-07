@@ -1,10 +1,10 @@
-# 0182 - Capture to the log runs without an agent when you archive
+# 0183 - Capture to the log runs without an agent when you archive
 
 Status: accepted
 
 ## Context
 
-The brain (0181) needs what you typed in a chat once you are done with it.
+The brain (0182) needs what you typed in a chat once you are done with it.
 `repositories:workstream-removed` fires once for both an archive and a delete, with `archived` or `deleted` set, and the user wanted capture to "run on archive", never on a delete.
 An agent that read chats to capture them would see every chat and reach Anthropic with all of them, which is what 0167's boundary keeps an automation from by default, and a model could paraphrase, drop or invent a line in a log meant to be raw.
 Copying what you typed needs no model: **Open draft** and **Merge** already run as Malini code under an automation's name.
@@ -26,7 +26,7 @@ Home chats are never archived, so an archive alone would never capture them.
 - **Secrets out first.**
   `redactBrainText` in `capture-log.ts` masks every value you saved in Settings, Secrets (0141) as `[secret]`, the longest first, skipping values shorter than four characters, which would mask ordinary words, then runs `redactSensitiveText`, which drops token shapes, passwords in URLs, emails and your home folder as diagnostics do.
   Chat names go through the same.
-- Malini then commits and pushes the log (0183).
+- Malini then commits and pushes the log (0184).
 
 ## Consequences
 
