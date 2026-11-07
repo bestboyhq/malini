@@ -107,12 +107,17 @@
 			? item.autoModeRule
 			: (maliniTool?.headline ?? approvalShortTarget(item.toolName, item.permission)),
 	);
-	const settledTone = $derived(
+	const settledIcon = $derived<IconName>(
 		interactionState.status === 'stale'
-			? 'stale'
+			? 'clock'
 			: interactionState.status === 'resolved' && interactionState.decision === 'deny'
-				? 'denied'
-				: 'allowed',
+				? 'circle-slash'
+				: 'check',
+	);
+	const settledMessage = $derived(
+		interactionState.status === 'resolved' || interactionState.status === 'stale'
+			? interactionState.message
+			: '',
 	);
 
 	function decideApproval(
@@ -275,7 +280,7 @@
 	{/if}
 {/snippet}
 
-{#if settled}
+{#if settled && (bare || item.review)}
 	<div
 		in:fade={motionOff() ? { duration: 0 } : { duration: 180, delay: 60 }}
 		class="text-fg-tertiary flex min-h-6 w-full items-center gap-2 text-sm"
@@ -285,19 +290,9 @@
 		role="status"
 	>
 		<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
-			{#if settledTone === 'denied'}
-				<Icon name="circle-slash" size={13} />
-			{:else if settledTone === 'stale'}
-				<Icon name="clock" size={13} />
-			{:else}
-				<Icon name="check" size={13} />
-			{/if}
+			<Icon name={settledIcon} size={13} />
 		</span>
-		<span class="text-fg-secondary shrink-0">
-			{interactionState.status === 'resolved' || interactionState.status === 'stale'
-				? interactionState.message
-				: ''}
-		</span>
+		<span class="text-fg-secondary shrink-0">{settledMessage}</span>
 		{#if settledSubject}
 			<span class="text-2xs min-w-0 flex-1 truncate font-mono">
 				<SensitiveText text={settledSubject} />
@@ -344,7 +339,6 @@
 	</section>
 {:else}
 	<section
-		out:collapseAway
 		class={className}
 		data-message-kind={item.kind}
 		data-testid={`agent-${item.kind}-card`}
@@ -359,17 +353,33 @@
 			<div
 				class="border-surface-50-border flex h-9 items-center gap-2 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-3 text-xs"
 			>
-				<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
-					<Icon name="shield-alert" size={12} />
-					<span class="truncate">Permission request</span>
-				</span>
-				<div
-					class="ml-auto flex shrink-0 items-center gap-1"
-					role="group"
-					aria-label="Permission decision"
-				>
-					{@render decisions('sm')}
-				</div>
+				{#if settled}
+					<span
+						in:fade={motionOff() ? { duration: 0 } : { duration: 180, delay: 60 }}
+						class="text-fg-secondary flex min-w-0 items-center gap-1.5"
+						role="status"
+					>
+						<Icon name={settledIcon} size={12} />
+						<span class="shrink-0">{settledMessage}</span>
+						{#if alwaysAllowed && item.autoModeRule}
+							<span class="text-fg-tertiary text-2xs min-w-0 truncate font-mono">
+								<SensitiveText text={item.autoModeRule} />
+							</span>
+						{/if}
+					</span>
+				{:else}
+					<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
+						<Icon name="shield-alert" size={12} />
+						<span class="truncate">Permission request</span>
+					</span>
+					<div
+						class="ml-auto flex shrink-0 items-center gap-1"
+						role="group"
+						aria-label="Permission decision"
+					>
+						{@render decisions('sm')}
+					</div>
+				{/if}
 			</div>
 		</div>
 

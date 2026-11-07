@@ -200,6 +200,7 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
 When the agent asks, the chat shows what it wants to do, with a **Permission request** strip under it: deny it, or approve once, or always for the chat, the workstream, or everywhere.
+The request stays in the chat, and its strip then says what you picked.
 Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens a draft or merges.
 See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.

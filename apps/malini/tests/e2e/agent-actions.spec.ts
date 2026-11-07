@@ -49,6 +49,8 @@ test('an agent runs the Open draft automation once the user allows it, and the d
 		await decision(page).getByRole('button', { name: 'Allow once' }).click();
 
 		await expect(settled(page, 'Allowed once')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Run automation ‘Open draft’' })).toBeVisible();
+		await captureFlow(app, 'agent-open-draft-allowed');
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
 			timeout: 30_000,
 		});
