@@ -348,7 +348,7 @@ test('Settings → Models turns on plain replies for the next prompt of every ch
 		await sendPrompt(page, 'WHICH_STYLE');
 		await expect(page.getByText('Replies as they come')).toBeVisible({ timeout: 30_000 });
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await settingsSection(page, 'Models').click();
 		const ste = page.getByRole('switch', { name: 'Plain replies' });
 		await expect(ste).not.toBeChecked();
