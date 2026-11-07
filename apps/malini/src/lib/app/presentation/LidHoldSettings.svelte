@@ -10,6 +10,17 @@
 	onMount(loadLidHoldCommand);
 </script>
 
+{#snippet credit(href: string, label: string)}
+	<a
+		{href}
+		target="_blank"
+		rel="noreferrer"
+		class="text-fg-secondary hover:text-fg-default underline-offset-2 hover:underline"
+	>
+		{label}
+	</a>
+{/snippet}
+
 <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3">
 	<div class="min-w-0">
 		<h3 id={labelId} class="text-fg-default text-sm font-medium">
@@ -20,16 +31,8 @@
 			or at 5% battery. macOS asks for your password once.
 		</p>
 		<p class="text-fg-tertiary mt-0.5 text-xs">
-			From
-			<a
-				href="https://github.com/krishkalaria12/close-my-lid"
-				target="_blank"
-				rel="noreferrer"
-				class="text-fg-secondary hover:text-fg-default underline-offset-2 hover:underline"
-			>
-				Close My Lid
-			</a>
-			by Krish Kalaria.
+			From {@render credit('https://github.com/krishkalaria12/close-my-lid', 'Close My Lid')} by
+			{@render credit('https://github.com/krishkalaria12', 'Krish Kalaria')}.
 		</p>
 		{#if lidHoldQuery.refused}
 			<p class="text-error-content mt-1 text-xs" role="alert">

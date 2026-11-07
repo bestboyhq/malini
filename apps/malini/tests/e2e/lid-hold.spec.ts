@@ -86,6 +86,10 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 		const settings = await openPowerSettings(page);
 		const lid = settings.getByRole('switch', { name: 'Keep working with the lid closed' });
 		await expect(lid).not.toBeChecked();
+		await expect(settings.getByRole('link', { name: 'Krish Kalaria' })).toHaveAttribute(
+			'href',
+			'https://github.com/krishkalaria12',
+		);
 
 		await lid.click();
 		await expect.poll(() => adminPrompts(tools)).toBe(1);

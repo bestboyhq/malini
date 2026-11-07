@@ -75,7 +75,7 @@ The [README](../README.md) has the short version.
 - **A sandbox around every command.** Agent commands and workstream installs run in a macOS sandbox Malini writes, so a malicious package cannot read your credentials or write outside the workstream.
   Electron, Playwright and file watchers run inside it.
 - **Close the lid, keep working.** Turn on **Keep working with the lid closed** in Settings, Power, and your Mac stays awake with its lid closed while an agent works, and sleeps once it is done or at 5% battery.
-  From [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by Krish Kalaria.
+  From [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12).
 - **As much reading as you want to do.** Reports run from a screenshot and one line to the full write-up.
 - **Watch it think.** Thinking shows inline, step by step, from the moment the run starts, with a diff for every file the chat changed.
 - **Watch it delegate.** Each subagent is one line with the step it is on, and its steps and report are one click away.

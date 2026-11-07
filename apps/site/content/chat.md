@@ -291,7 +291,7 @@ If `/etc/sudoers.d/close-my-lid` already allows those two commands, Malini asks 
 - When something else already turned sleep off, such as Close My Lid, Malini leaves it alone.
 
 `sudo rm /etc/sudoers.d/malini` removes the rule.
-It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by Krish Kalaria.
+It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12).
 
 ## Sounds
 
