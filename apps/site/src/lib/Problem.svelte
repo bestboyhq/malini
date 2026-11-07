@@ -22,7 +22,7 @@
 			visual: ProblemTabs,
 		},
 		{
-			title: 'Same rules, four files',
+			title: 'Config hell',
 			body: 'Each agent wants its own rulebook, so you copy yours by hand. One copy is always a few weeks behind. Guess which.',
 			visual: ProblemRules,
 		},
