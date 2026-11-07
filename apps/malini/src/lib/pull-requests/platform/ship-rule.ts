@@ -192,6 +192,7 @@ async function runFinished(deps: ShipDeps, payload: unknown): Promise<readonly s
 	const runId = isRecord(payload) ? stringField(payload['run'], 'id') : null;
 	const run = runId === null ? null : automationRun(db, runId);
 	if (!run || run.workstreamId === null) return [];
+	await deps.starting.get(run.workstreamId);
 	const row = getShip(db, run.workstreamId);
 	if (row) await settleOtherAutomation(deps, row, run);
 	if (row?.activeAutomationRunId === run.id || run.origin === 'merge-queue')
