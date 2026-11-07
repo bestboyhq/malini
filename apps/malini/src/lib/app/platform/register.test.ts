@@ -47,6 +47,7 @@ const KEPT_COMMANDS = [
 	'app.recent-diagnostics',
 	'app.interface-scale',
 	'app.logical-viewport',
+	'app.full-screen',
 	'app.close-guard',
 	'app.destroy-window',
 	'app.notify',

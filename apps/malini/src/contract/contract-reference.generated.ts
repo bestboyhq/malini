@@ -565,6 +565,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type EmptyEventPayload = Readonly<Record<string, never>>;',
 		},
 		{
+			channel: 'app:full-screen-changed',
+			description:
+				'Fires when the Malini window enters or leaves full screen, with whether it is full screen now. Malini does not keep it in its event log.',
+			facts: ['fullScreen'],
+			payloadType: 'FullScreenChangedPayload',
+			payload: 'type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;',
+		},
+		{
 			channel: 'app:notification-opened',
 			description: 'Fires when you click a Malini notification, with the chat it points to.',
 			facts: ['workstreamId', 'sessionId'],

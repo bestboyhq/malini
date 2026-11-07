@@ -111,6 +111,7 @@ export interface FakeWindow {
 	bounds: { x: number; y: number; width: number; height: number };
 	zoom: number;
 	minimized: boolean;
+	fullScreen: boolean;
 	destroyed: boolean;
 	contentsDestroyed: boolean;
 }
@@ -138,6 +139,7 @@ export function createFakeWindow(): FakeWindow {
 			fake.calls.push('focus');
 		},
 		isMinimized: () => fake.minimized,
+		isFullScreen: () => fake.fullScreen,
 		restore: () => {
 			fake.calls.push('restore');
 			fake.minimized = false;
@@ -180,6 +182,7 @@ export function createFakeWindow(): FakeWindow {
 		bounds: { x: 10, y: 20, width: 1280, height: 800 },
 		zoom: 1,
 		minimized: false,
+		fullScreen: false,
 		destroyed: false,
 		contentsDestroyed: false,
 		emit(event) {

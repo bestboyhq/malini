@@ -1157,6 +1157,18 @@ Payload: `EmptyEventPayload`
 type EmptyEventPayload = Readonly<Record<string, never>>;
 ```
 
+## `app:full-screen-changed`
+
+Fires when the Malini window enters or leaves full screen, with whether it is full screen now. Malini does not keep it in its event log.
+
+An automation sees: `fullScreen`
+
+Payload: `FullScreenChangedPayload`
+
+```ts
+type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;
+```
+
 ## `app:notification-opened`
 
 Fires when you click a Malini notification, with the chat it points to.

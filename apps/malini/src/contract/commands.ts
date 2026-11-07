@@ -811,6 +811,7 @@ export interface ContractCommands {
 	'app.close-guard': { args: CloseGuardArgs; result: void };
 	'app.destroy-window': { args: undefined; result: void };
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
+	'app.full-screen': { args: undefined; result: boolean };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
@@ -1076,6 +1077,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.close-guard',
 	'app.destroy-window',
 	'app.logical-viewport',
+	'app.full-screen',
 	'app.interface-scale',
 	'app.theme-mode',
 	'app.runtime-info',

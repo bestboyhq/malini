@@ -434,6 +434,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		logged: false,
 		facts: [],
 	},
+	'app:full-screen-changed': {
+		description:
+			'Fires when the Malini window enters or leaves full screen, with whether it is full screen now. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['fullScreen'],
+	},
 	'app:notification-opened': {
 		description: 'Fires when you click a Malini notification, with the chat it points to.',
 		facts: ['workstreamId', 'sessionId'],

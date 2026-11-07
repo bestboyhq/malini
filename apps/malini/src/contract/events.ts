@@ -164,6 +164,8 @@ export type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 
 export type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
 
+export type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;
+
 export type ContractEventReference = Readonly<{
 	channel: string;
 	description: string;
@@ -245,6 +247,7 @@ export interface ContractEvents {
 	'app:started': AppStartedPayload;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
+	'app:full-screen-changed': FullScreenChangedPayload;
 	'app:notification-opened': NotificationTarget;
 	'app:menu-command-chosen': MenuCommandChosen;
 	'app:streaming-changed': StreamingChangedPayload;
@@ -313,6 +316,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:started': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
+	'app:full-screen-changed': null,
 	'app:notification-opened': null,
 	'app:menu-command-chosen': null,
 	'app:streaming-changed': null,
@@ -406,6 +410,8 @@ export const APP_STARTED_CHANNEL = 'app:started' satisfies EventChannel;
 export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies EventChannel;
 
 export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChannel;
+
+export const APP_FULL_SCREEN_CHANGED_CHANNEL = 'app:full-screen-changed' satisfies EventChannel;
 
 export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfies EventChannel;
 
