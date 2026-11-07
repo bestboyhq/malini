@@ -3,7 +3,7 @@ import { DOCS_DRAFTS, DOCS_WORKSTREAMS } from './demo-docs';
 import { demoHandlers } from './demo-handlers';
 import { passScrollToTheSite } from './demo-scroll';
 import { DEMO_PLAY } from './demo-play';
-import { playHero } from './demo-script';
+import { reportRows } from './demo-setup';
 import { playTour } from './demo-tour';
 
 const SITE_THEME = 'theme';
@@ -36,8 +36,8 @@ passScrollToTheSite();
 
 await import('../src/main');
 
-if (DEMO_PLAY === 'hero') void playHero();
 if (DEMO_PLAY === 'tour') void playTour();
+if (DEMO_PLAY === 'setup') reportRows();
 if (DEMO_PLAY === 'docs') {
 	const { chooseThemeModeCommand } =
 		await import('$lib/app/application/commands/choose-theme-mode.command');

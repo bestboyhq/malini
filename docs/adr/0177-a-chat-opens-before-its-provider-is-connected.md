@@ -1,4 +1,4 @@
-# 0176 - A chat opens before its provider is connected
+# 0177 - A chat opens before its provider is connected
 
 Status: accepted
 

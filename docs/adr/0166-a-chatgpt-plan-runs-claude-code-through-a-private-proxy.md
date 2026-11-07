@@ -1,6 +1,6 @@
 # 0166 - A ChatGPT plan runs Claude Code through a private proxy
 
-Status: superseded by 0176
+Status: superseded by 0177
 
 ## Context
 

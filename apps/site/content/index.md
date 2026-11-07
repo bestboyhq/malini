@@ -7,6 +7,8 @@ Malini is agentic development environment for builders moving fast, as a Mac app
 Each task you start is a **workstream**: its own git worktree, its own branch, and its own agent chats.
 Agents write the code, and Malini owns git: it commits, opens the pull request, fixes red checks, answers reviews, and merges.
 It runs on Claude Code today.
+Agents run on a plan you already pay for: Claude Pro or Max, ChatGPT Go, Plus or Pro, OpenCode Go or Console, or a DeepSeek key, picked [per prompt](/malini/docs/chat.md#model-and-effort-per-prompt).
+Malini compacts a long chat at 280K tokens instead of near Claude Code's 1M and puts every message back, so a long Opus chat uses about a quarter less of your plan and remembers more ([how](/malini/docs/chat.md#compact-the-conversation)).
 
 Malini is free and open source under AGPL-3.0.
 Malini needs no account and no subscription, and there is no Malini server.
