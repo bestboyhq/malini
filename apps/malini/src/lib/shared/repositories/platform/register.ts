@@ -397,6 +397,7 @@ export function registerRepositories(
 				worktree,
 				recordedBranch(workstreamId),
 				commitMessage,
+				field(args, 'signed') === true,
 			);
 			if (run && !used && !(merging && commitRunConsumed(db, workstreamId, run.id))) {
 				recordCommitRun(db, workstreamId, run.id, sha);

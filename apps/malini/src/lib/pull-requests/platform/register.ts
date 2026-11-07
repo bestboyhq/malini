@@ -20,6 +20,7 @@ import {
 	resolveConnectedRepository,
 	resolveRepositoryCheckout,
 	type ConnectedRepository,
+	type PullRequestChef,
 } from '$shared/repositories/repositories.platform';
 import { blockingFailedChecks, scaledShipDelays } from '../domain/shipping';
 import { addressedReviewThreadIds } from '../domain/pull-request-fix-prompt';
@@ -74,6 +75,7 @@ export const PULL_REQUEST_COMMAND_NAMES = [
 export interface PullRequestsDeps {
 	runner?: GhRunner;
 	ship?: ShippingOptions;
+	chef?: () => Promise<PullRequestChef | null>;
 }
 
 function testShipOptions(context: MainContext): ShippingOptions {
@@ -319,7 +321,7 @@ export function registerPullRequests(
 			reviewFeedback,
 			resolveAddressedReviewThreads,
 		},
-		deps.ship ?? testShipOptions(context),
+		{ ...(deps.ship ?? testShipOptions(context)), ...(deps.chef ? { chef: deps.chef } : {}) },
 	);
 	commands.define('pull-requests.status', (args: unknown) => {
 		const workstreamId = optionalString(args, 'workstreamId');

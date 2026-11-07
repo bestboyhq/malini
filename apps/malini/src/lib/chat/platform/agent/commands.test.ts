@@ -60,6 +60,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await service?.stop();
+	vi.unstubAllEnvs();
 	fake.cleanup();
 	test.cleanup();
 });

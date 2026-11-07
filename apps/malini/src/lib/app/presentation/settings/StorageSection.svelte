@@ -34,7 +34,9 @@
 			<div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3">
 				<div class="min-w-0">
 					<h3 id={headingId} class="text-fg-default text-sm font-medium">Checkouts folder</h3>
-					<p class="text-fg-tertiary text-xs">Empty folder, same disk. Moves on restart</p>
+					<p class="text-fg-tertiary text-xs">
+						Pick an empty folder on this disk. Malini moves them at its next restart.
+					</p>
 					{#if checkouts}
 						<p class="text-fg-default text-2xs mt-1 font-mono wrap-anywhere">{checkouts.folder}</p>
 					{/if}
@@ -51,12 +53,12 @@
 				{#if checkouts?.next}
 					<div class="col-span-2 mt-2.5 flex items-center gap-3">
 						<p class="text-fg-default min-w-0 flex-1 text-xs">
-							Moving to <span class="text-2xs font-mono wrap-anywhere">{checkouts.next}</span>
-							on restart
+							Moves to <span class="text-2xs font-mono wrap-anywhere">{checkouts.next}</span>
+							when Malini restarts.
 						</p>
 						<div class="flex shrink-0 gap-1.5">
 							<Button variant="ghost" size="sm" onclick={keepCheckoutsFolderCommand}>
-								Stay put
+								Cancel move
 							</Button>
 							<Button variant="primary-soft" size="sm" onclick={restartMaliniCommand}>
 								Restart now

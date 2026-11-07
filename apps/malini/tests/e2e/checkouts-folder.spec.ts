@@ -39,7 +39,7 @@ test('a checkouts folder chosen in Settings takes every checkout along at the ne
 		await expect(settings.getByText(join(first.userDataDir, 'checkouts'))).toBeVisible();
 		await settings.getByRole('button', { name: 'Change…' }).click();
 
-		await expect(settings.getByText(`Moving to ${chosen} on restart`)).toBeVisible();
+		await expect(settings.getByText(`Moves to ${chosen} when Malini restarts.`)).toBeVisible();
 		await expect(settings.getByRole('button', { name: 'Restart now' })).toBeVisible();
 		await first.quit();
 	} catch (error) {
@@ -63,7 +63,7 @@ test('a checkouts folder chosen in Settings takes every checkout along at the ne
 
 		const settings = await openStorageSettings(page);
 		await expect(settings.getByText(chosen, { exact: true })).toBeVisible();
-		await expect(settings.getByText(/^Moving to /u)).toBeHidden();
+		await expect(settings.getByText(/^Moves to /u)).toBeHidden();
 		await captureFlow(app, 'checkouts-folder');
 		expectCleanConsole(app);
 	} finally {

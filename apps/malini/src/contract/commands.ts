@@ -317,6 +317,7 @@ export type CommitWorkstreamArgs = Readonly<{
 	workstreamId: string;
 	message: string;
 	run?: CommitWorkstreamRun | null;
+	signed?: boolean;
 }>;
 
 export type PushWorkstreamArgs = Readonly<{
