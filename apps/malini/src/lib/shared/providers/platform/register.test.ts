@@ -33,6 +33,7 @@ function boot(deps: ProvidersDeps = {}) {
 		commands,
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot: appDataRoot,
 		isDev: true,
 		appVersion: '0.0.0-test',

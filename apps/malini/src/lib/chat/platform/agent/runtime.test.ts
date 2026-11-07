@@ -16,6 +16,7 @@ import { BridgeRuntime, pumpStep, SessionCorrelator, type RunFinishedInput } fro
 import {
 	createTestContext,
 	envelopesOn,
+	emptyHome,
 	externalReadPath,
 	seedOpenRun,
 	seedSession,
@@ -53,7 +54,7 @@ function runtimeWith(
 	const runtime = new BridgeRuntime({
 		db: test.db,
 		events: test.events,
-		appDataRoot: test.appDataRoot,
+		checkoutsRoot: test.appDataRoot,
 		supervisorConfig: fake.supervisorConfig(env, supervisor),
 		leases: new AgentRunLeases(),
 		hooks,
@@ -437,6 +438,7 @@ describe('BridgeRuntime with the fake bridge', () => {
 		const checkout = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const approvalPath = externalReadPath();
+		vi.stubEnv('HOME', emptyHome());
 		const permission = {
 			capability: 'read',
 			resources: [

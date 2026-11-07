@@ -90,6 +90,7 @@ export interface WorkstreamsDeps {
 	readonly db: MaliniDatabase;
 	readonly events: EventBus;
 	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly credentials: GitCredentialEnv;
 	readonly baseSync: WorkstreamBaseSync;
 	readonly guardTeardown?: TeardownGuard;
@@ -122,20 +123,20 @@ export async function createRepository(
 	deps: WorkstreamsDeps,
 	input: CreateRepositoryInput,
 ): Promise<string> {
-	const { db, events, appDataRoot, credentials } = deps;
+	const { db, events, checkoutsRoot, credentials } = deps;
 	const repoId = deriveProjectId(input.repoUrl);
 	const seedFolder = input.seedFolder ?? null;
 	const sizeBytes = seedFolder === null ? (input.sizeBytes ?? 0) : 0;
 	const blobless = sizeBytes >= BLOBLESS_CLONE_MIN_BYTES;
 	await requireFreeSpace(
-		appDataRoot,
+		checkoutsRoot,
 		MINIMUM_FREE_BYTES + (blobless ? 0 : sizeBytes),
 		'cloning this repository',
 	);
 	let lastEmittedAt = Date.now() - 100;
 	const outcome = await ensureBaseCloneWithOutcome({
 		repoPath: input.repoUrl,
-		appDataRoot,
+		checkoutsRoot,
 		githubToken: input.githubToken,
 		credentials,
 		seed:
@@ -173,12 +174,12 @@ export async function createWorkstream(
 	deps: WorkstreamsDeps,
 	input: CreateWorkstreamInput,
 ): Promise<string> {
-	const { db, events, appDataRoot, baseSync } = deps;
+	const { db, events, checkoutsRoot, baseSync } = deps;
 	const { projectRepoPath, workstreamId, baseBranch, projectId, name } = input;
 
-	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
-	await requireFreeSpace(appDataRoot, MINIMUM_FREE_BYTES, 'starting a workstream');
-	const worktreePath = workstreamPath(appDataRoot, workstreamId);
+	await mkdir(workstreamsRoot(checkoutsRoot), { recursive: true });
+	await requireFreeSpace(checkoutsRoot, MINIMUM_FREE_BYTES, 'starting a workstream');
+	const worktreePath = workstreamPath(checkoutsRoot, workstreamId);
 	const branch = input.branch ?? workstreamBranchName(workstreamId);
 	const start =
 		input.startRef === undefined
@@ -238,7 +239,7 @@ export async function retireWorkstream(
 	const { worktreePath, savedWork } = await teardownWorkstreamCheckout(
 		{
 			db: deps.db,
-			appDataRoot: deps.appDataRoot,
+			checkoutsRoot: deps.checkoutsRoot,
 			...(deps.guardTeardown ? { guardTeardown: deps.guardTeardown } : {}),
 		},
 		workstreamId,
@@ -263,7 +264,7 @@ export async function archiveWorkstream(
 	shelf: Exclude<WorkstreamRetirement, 'deleted'>,
 ): Promise<WorkstreamRetirementReceipt> {
 	if (moveArchivedWorkstream(deps.db, workstreamId, shelf === 'saved-for-later')) {
-		if (shelf === 'archived') await slimKeptContext(deps.appDataRoot, workstreamId);
+		if (shelf === 'archived') await slimKeptContext(deps.checkoutsRoot, workstreamId);
 		return { savedWork: null };
 	}
 	return retireWorkstream(deps, workstreamId, shelf);
@@ -273,22 +274,22 @@ export async function restoreWorkstream(
 	deps: WorkstreamsDeps,
 	workstreamId: string,
 ): Promise<void> {
-	const { db, events, appDataRoot, baseSync } = deps;
+	const { db, events, checkoutsRoot, baseSync } = deps;
 	const archived = getArchivedWorkstream(db, workstreamId);
 	if (archived === null) throw new Error(`Not an archived workstream: ${workstreamId}`);
 	const project = getProject(db, archived.projectId);
-	const repository = recordedBaseRepository(db, appDataRoot, workstreamId);
+	const repository = recordedBaseRepository(db, checkoutsRoot, workstreamId);
 	if (project === null || repository === null) {
 		throw new Error('Its repository is no longer on this Mac');
 	}
-	const checkout = workstreamPath(appDataRoot, workstreamId);
+	const checkout = workstreamPath(checkoutsRoot, workstreamId);
 	const branch = archived.branch;
 	validateBranch(branch);
 	await archivedLeftoversCleared();
 	const checkoutExisted = existsSync(checkout);
 	const branchExisted = (await branchList(repository)).includes(branch);
-	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
-	await requireFreeSpace(appDataRoot, MINIMUM_FREE_BYTES, 'restoring a workstream');
+	await mkdir(workstreamsRoot(checkoutsRoot), { recursive: true });
+	await requireFreeSpace(checkoutsRoot, MINIMUM_FREE_BYTES, 'restoring a workstream');
 	try {
 		await restoreArchivedWork({
 			repository,
@@ -316,7 +317,7 @@ export async function restoreWorkstream(
 	}
 	unpackRestoredChats(db);
 	await settleRestoredCheckout(workstreamId, repository, checkout, branch, archived.archivedRef);
-	await restoreKeptFolders(appDataRoot, workstreamId, checkout).catch((error: unknown) =>
+	await restoreKeptFolders(checkoutsRoot, workstreamId, checkout).catch((error: unknown) =>
 		console.error(
 			`malini: restored workstream \`${workstreamId}\` without the folders it kept when archived; the next restore retries: ${describeError(error)}`,
 		),

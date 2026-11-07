@@ -13,9 +13,10 @@
 		repository: GithubRepository;
 		state: GithubRepositoryState;
 		nowMs: number;
+		compact?: boolean;
 	}
 
-	let { repository, state, nowMs }: Props = $props();
+	let { repository, state, nowMs, compact = false }: Props = $props();
 
 	const owner = $derived(
 		repositoryOwner(repository.fullName) ? `${repositoryOwner(repository.fullName)}/` : '',
@@ -26,7 +27,7 @@
 	);
 </script>
 
-<RepositoryAvatar fullName={repository.fullName} size={20} />
+<RepositoryAvatar fullName={repository.fullName} size={compact ? 16 : 20} />
 <span class="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
 	<span class="sr-only">{repository.fullName}</span>
 	<span class="flex min-w-0" aria-hidden="true">
@@ -37,7 +38,12 @@
 		<Icon name="lock" size={12} class="text-fg-tertiary shrink-0" ariaLabel="Private" />
 	{/if}
 </span>
-<span class="text-fg-tertiary flex shrink-0 items-center gap-1.5 text-sm tabular-nums">
+<span
+	class={[
+		'text-fg-tertiary flex shrink-0 items-center gap-1.5 tabular-nums',
+		compact ? 'text-xs' : 'text-sm',
+	]}
+>
 	{#if state.kind === 'cloning'}
 		<BusyIcon size={13} />
 	{:else if state.kind === 'failed'}

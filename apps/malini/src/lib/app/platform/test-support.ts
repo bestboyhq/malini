@@ -209,6 +209,7 @@ export function createTestContext(
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot: appDataRoot,
 		isDev: true,
 		appVersion: '0.1.0',

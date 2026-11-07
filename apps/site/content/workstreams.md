@@ -12,6 +12,24 @@ Malini installs dependencies for you from the lockfile: pnpm, npm, yarn, or bun.
 
 Two agents never edit one checkout, so they never clobber each other.
 
+## Where checkouts live
+
+Checkouts live in `~/malini` unless you pick another folder, where Finder, your editor and your terminal find them:
+
+- `~/malini/repositories` holds the clone of each repository;
+- `~/malini/workstreams/<id>` holds each workstream.
+
+Malini's own data, its database and settings, stays in `~/Library/Application Support/malini`.
+
+To keep checkouts elsewhere, open Settings, Storage and press **Change…**.
+The folder must be empty and on the same disk, since the move is a rename, not a copy.
+Malini moves every checkout there the next time it starts, the same way it moved them to `~/malini` below; **Restart now** starts it again right away, and **Cancel move** keeps them where they are.
+If a move fails, Malini puts back what it moved, keeps the checkouts where they were and says so in Settings, Storage.
+
+Malini used to keep checkouts there too.
+The first launch after the update moves them to `~/malini`, archived workstreams included, and leaves a link at each old folder, so an old path still opens.
+It repairs each checkout's git links, moves its Claude Code chat records along, and reinstalls each moved workstream's dependencies once in the background, carrying on at the next launch if you quit first.
+
 ## Disk space
 
 Workstreams share disk space, so you can keep as many as you like.

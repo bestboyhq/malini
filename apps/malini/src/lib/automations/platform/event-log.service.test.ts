@@ -39,6 +39,7 @@ function freshContext(): MainContext {
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: '/tmp/event-log-test',
+		checkoutsRoot: '/tmp/event-log-test',
 		resourcesRoot: '/tmp/event-log-test',
 		isDev: true,
 		appVersion: '0.0.0-test',

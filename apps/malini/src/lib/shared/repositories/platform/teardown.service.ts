@@ -88,7 +88,7 @@ export class WorkstreamRetiredError extends Error {
 
 export interface TeardownDeps {
 	readonly db: MaliniDatabase;
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly guardTeardown?: TeardownGuard;
 }
 
@@ -104,15 +104,15 @@ export async function teardownWorkstreamCheckout(
 	workstreamId: string,
 	retirement: WorkstreamRetirement,
 ): Promise<RetiredCheckout> {
-	const { db, appDataRoot } = deps;
+	const { db, checkoutsRoot } = deps;
 	let resolved: string | null;
 	try {
-		resolved = recordedCheckoutPath(db, appDataRoot, workstreamId);
+		resolved = recordedCheckoutPath(db, checkoutsRoot, workstreamId);
 	} catch (error) {
 		if (!isNotFoundError(error)) throw error;
 		resolved = null;
 	}
-	const reportedPath = resolved ?? workstreamPath(appDataRoot, workstreamId);
+	const reportedPath = resolved ?? workstreamPath(checkoutsRoot, workstreamId);
 	const guardTeardown = deps.guardTeardown;
 	const guard = guardTeardown
 		? <T>(body: () => Promise<T>) => guardTeardown(workstreamId, body)
@@ -139,7 +139,7 @@ function trackLeftovers<T>(work: Promise<T>): Promise<T> {
 }
 
 interface TeardownLeftovers {
-	readonly appDataRoot: string;
+	readonly checkoutsRoot: string;
 	readonly retirement: WorkstreamRetirement;
 	readonly workstreamId: string;
 	readonly repository: string | null;
@@ -156,7 +156,7 @@ async function retireCheckout(
 	checkout: string | null,
 	retirement: WorkstreamRetirement,
 ): Promise<TeardownLeftovers> {
-	const { db, appDataRoot } = deps;
+	const { db, checkoutsRoot } = deps;
 	const row = getWorkstream(db, workstreamId);
 	const wasArchived = row?.status === 'archived';
 	if (wasArchived && retirement !== 'deleted') {
@@ -165,7 +165,7 @@ async function retireCheckout(
 	const branch = row && !wasArchived ? row.branch : null;
 	const repository =
 		(checkout === null ? null : await owningRepositoryOfCheckout(checkout)) ??
-		recordedBaseRepository(db, appDataRoot, workstreamId);
+		recordedBaseRepository(db, checkoutsRoot, workstreamId);
 	const baseBranch = row?.baseBranch ?? null;
 	const savedWork =
 		repository !== null && branch !== null
@@ -185,7 +185,7 @@ async function retireCheckout(
 		}
 	};
 	const leftovers = {
-		appDataRoot,
+		checkoutsRoot,
 		retirement,
 		workstreamId,
 		repository,
@@ -198,23 +198,23 @@ async function retireCheckout(
 		retireRecord();
 		return { ...leftovers, trash: null };
 	}
-	const trash = await moveCheckoutToTrash(appDataRoot, workstreamId, checkout);
+	const trash = await moveCheckoutToTrash(checkoutsRoot, workstreamId, checkout);
 	try {
 		retireRecord();
 	} catch (error) {
 		await putCheckoutBack(workstreamId, trash, checkout, error);
 		throw error;
 	}
-	if (retirement !== 'deleted' && !(await keptFoldersFrom(appDataRoot, workstreamId, trash))) {
+	if (retirement !== 'deleted' && !(await keptFoldersFrom(checkoutsRoot, workstreamId, trash))) {
 		return { ...leftovers, trash: null };
 	}
-	if (retirement === 'archived') await slimKeptContext(appDataRoot, workstreamId);
+	if (retirement === 'archived') await slimKeptContext(checkoutsRoot, workstreamId);
 	return { ...leftovers, trash };
 }
 
-export async function slimKeptContext(appDataRoot: string, workstreamId: string): Promise<void> {
+export async function slimKeptContext(checkoutsRoot: string, workstreamId: string): Promise<void> {
 	try {
-		await pruneKeptContext(appDataRoot, workstreamId);
+		await pruneKeptContext(checkoutsRoot, workstreamId);
 	} catch (error) {
 		console.error(
 			`malini: could not slim the context folder archived workstream \`${workstreamId}\` keeps; the next start retries: ${errorWithStack(error)}`,
@@ -223,12 +223,12 @@ export async function slimKeptContext(appDataRoot: string, workstreamId: string)
 }
 
 async function keptFoldersFrom(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	trash: string,
 ): Promise<boolean> {
 	try {
-		await keepFolders(appDataRoot, workstreamId, trash);
+		await keepFolders(checkoutsRoot, workstreamId, trash);
 		return true;
 	} catch (error) {
 		console.error(
@@ -263,11 +263,11 @@ async function saveWorkBeforeRemoval(
 }
 
 async function moveCheckoutToTrash(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	workstreamId: string,
 	checkout: string,
 ): Promise<string> {
-	const trashRoot = checkoutTrashRoot(appDataRoot);
+	const trashRoot = checkoutTrashRoot(checkoutsRoot);
 	const trash = join(trashRoot, `${workstreamId}-${Date.now()}`);
 	try {
 		await mkdir(trashRoot, { recursive: true });
@@ -387,7 +387,7 @@ async function clearLeftovers(leftovers: TeardownLeftovers): Promise<void> {
 	const { workstreamId, repository, branch, baseBranch, snapshotRefs, trash, savedWork } =
 		leftovers;
 	if (leftovers.retirement === 'deleted') {
-		await dropKeptFolders(leftovers.appDataRoot, workstreamId).catch((error: unknown) =>
+		await dropKeptFolders(leftovers.checkoutsRoot, workstreamId).catch((error: unknown) =>
 			console.error(
 				`malini: could not delete the kept folders of workstream \`${workstreamId}\`; the next start retries: ${errorWithStack(error)}`,
 			),
@@ -417,18 +417,21 @@ async function clearLeftovers(leftovers: TeardownLeftovers): Promise<void> {
 	}
 }
 
-export function checkoutTrashRoot(appDataRoot: string): string {
-	return join(workstreamsRoot(appDataRoot), CHECKOUT_TRASH_DIR_NAME);
+export function checkoutTrashRoot(checkoutsRoot: string): string {
+	return join(workstreamsRoot(checkoutsRoot), CHECKOUT_TRASH_DIR_NAME);
 }
 
 export function sweepArchivedLeftovers(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 ): Promise<readonly string[]> {
-	return trackLeftovers(sweepLeftovers(db, appDataRoot));
+	return trackLeftovers(sweepLeftovers(db, checkoutsRoot));
 }
 
-async function sweepLeftovers(db: MaliniDatabase, appDataRoot: string): Promise<readonly string[]> {
+async function sweepLeftovers(
+	db: MaliniDatabase,
+	checkoutsRoot: string,
+): Promise<readonly string[]> {
 	try {
 		const projects = listProjects(db);
 		const liveWorkstreamIds = new Set(listWorkstreams(db).map((workstream) => workstream.id));
@@ -440,14 +443,17 @@ async function sweepLeftovers(db: MaliniDatabase, appDataRoot: string): Promise<
 			await sweepOrphanBranches(db, project.repoPath, project.defaultBranch);
 		}
 		const remaining = await sweepCheckoutTrash(
-			appDataRoot,
+			checkoutsRoot,
 			liveWorkstreamIds,
 			archivedWorkstreamIds,
 		);
-		await sweepKeptFolders(appDataRoot, (workstreamId) => getWorkstream(db, workstreamId) !== null);
+		await sweepKeptFolders(
+			checkoutsRoot,
+			(workstreamId) => getWorkstream(db, workstreamId) !== null,
+		);
 		for (const { id, savedForLater } of archived) {
-			if (savedForLater || (await keptContextPruned(appDataRoot, id))) continue;
-			await slimKeptContext(appDataRoot, id);
+			if (savedForLater || (await keptContextPruned(checkoutsRoot, id))) continue;
+			await slimKeptContext(checkoutsRoot, id);
 		}
 		return remaining;
 	} catch (error) {
@@ -538,9 +544,9 @@ async function deleteBranchIfItsWorkIsKept(
 	}
 }
 
-async function trashEntries(appDataRoot: string): Promise<readonly string[]> {
+async function trashEntries(checkoutsRoot: string): Promise<readonly string[]> {
 	try {
-		return await readdir(checkoutTrashRoot(appDataRoot));
+		return await readdir(checkoutTrashRoot(checkoutsRoot));
 	} catch {
 		return [];
 	}
@@ -548,16 +554,16 @@ async function trashEntries(appDataRoot: string): Promise<readonly string[]> {
 
 export async function restoreStrandedCheckouts(
 	db: MaliniDatabase,
-	appDataRoot: string,
+	checkoutsRoot: string,
 ): Promise<void> {
 	try {
 		const liveCheckouts = new Map(
 			listWorkstreams(db).map((workstream) => [workstream.id, workstream.path]),
 		);
-		for (const entry of await trashEntries(appDataRoot)) {
+		for (const entry of await trashEntries(checkoutsRoot)) {
 			const checkout = liveCheckouts.get(trashedWorkstreamId(entry));
 			if (checkout === undefined) continue;
-			await restoreStrandedCheckout(join(checkoutTrashRoot(appDataRoot), entry), checkout);
+			await restoreStrandedCheckout(join(checkoutTrashRoot(checkoutsRoot), entry), checkout);
 		}
 	} catch (error) {
 		console.error(`malini: the restore of stranded checkouts stopped: ${errorWithStack(error)}`);
@@ -569,18 +575,18 @@ function trashedWorkstreamId(entry: string): string {
 }
 
 async function sweepCheckoutTrash(
-	appDataRoot: string,
+	checkoutsRoot: string,
 	liveWorkstreamIds: ReadonlySet<string>,
 	archivedWorkstreamIds: ReadonlySet<string>,
 ): Promise<readonly string[]> {
 	const remaining: string[] = [];
-	for (const entry of await trashEntries(appDataRoot)) {
+	for (const entry of await trashEntries(checkoutsRoot)) {
 		const workstreamId = trashedWorkstreamId(entry);
-		const trash = join(checkoutTrashRoot(appDataRoot), entry);
+		const trash = join(checkoutTrashRoot(checkoutsRoot), entry);
 		if (
 			liveWorkstreamIds.has(workstreamId) ||
 			(archivedWorkstreamIds.has(workstreamId) &&
-				!(await keptFoldersFrom(appDataRoot, workstreamId, trash)))
+				!(await keptFoldersFrom(checkoutsRoot, workstreamId, trash)))
 		) {
 			remaining.push(entry);
 			continue;

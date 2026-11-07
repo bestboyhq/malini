@@ -71,6 +71,7 @@ export function createTestContext(): TestContext {
 		commands: new CommandRegistry(),
 		events,
 		appDataRoot,
+		checkoutsRoot: appDataRoot,
 		resourcesRoot: appDataRoot,
 		isDev: true,
 		appVersion: '0.0.0-test',

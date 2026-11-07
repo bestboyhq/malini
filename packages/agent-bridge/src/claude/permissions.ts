@@ -175,6 +175,8 @@ export function permissionModeFor(profile: AgentRunProfile | undefined): Permiss
 const LEAVES_THE_SANDBOX =
 	"This command asks to run outside Malini's sandbox, where it can read and change anything on your Mac and reach any site.";
 const RUNS_IN_THE_SANDBOX = "Sandboxed access runs every command in Malini's sandbox.";
+const FULL_RUNS_OUTSIDE = 'Full access runs commands outside the sandbox without asking.';
+const CHAT_RUNS_OUTSIDE = 'The user allowed commands outside the sandbox for this chat.';
 
 export function hiddenPaths(boundary: AgentBoundary, claudeDirectory: string): string[] {
 	return [...boundary.hidden, ...(boundary.chatRecords ? [] : claudeChatRecords(claudeDirectory))];
@@ -202,13 +204,14 @@ export function leavesTheSandbox(toolName: string, input: Record<string, unknown
 	);
 }
 
-// ponytail: every command that leaves the sandbox asks, even one the user allowed before; remember an allow per command once a workflow asks too often
 export function confineCommands(
 	profile: AgentRunProfile | undefined,
 	passOutside: (command: string) => string,
+	allowedOutside: () => boolean,
 ): HookCallback {
 	const access = profile?.access ?? 'auto';
-	const runsUnasked = access === 'sandboxed' && profile?.mode !== 'plan';
+	const plan = profile?.mode === 'plan';
+	const runsUnasked = access === 'sandboxed' && !plan;
 	return async (input) => {
 		if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
 		const toolInput = input.tool_input;
@@ -217,12 +220,13 @@ export function confineCommands(
 		if (!leavesTheSandbox(input.tool_name, toolInput)) {
 			return runsUnasked ? decision('allow', RUNS_IN_THE_SANDBOX) : {};
 		}
-		if (access !== 'full') return decision('ask', LEAVES_THE_SANDBOX);
+		const full = access === 'full';
+		if (!full && (plan || !allowedOutside())) return decision('ask', LEAVES_THE_SANDBOX);
 		return {
 			hookSpecificOutput: {
 				hookEventName: 'PreToolUse',
 				permissionDecision: 'allow',
-				permissionDecisionReason: 'Full access runs commands outside the sandbox without asking.',
+				permissionDecisionReason: full ? FULL_RUNS_OUTSIDE : CHAT_RUNS_OUTSIDE,
 				updatedInput: { ...toolInput, command: passOutside(command) },
 			},
 		};

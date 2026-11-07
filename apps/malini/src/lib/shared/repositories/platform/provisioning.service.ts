@@ -22,7 +22,11 @@ export type { InstallSkipReason, InstallStatus };
 
 export const INSTALL_TIMEOUT_MS = 30 * 60 * 1000;
 
-const READABLE_BY_INSTALLS: ReadonlySet<string> = new Set(['workstreams', 'repositories']);
+const READABLE_BY_INSTALLS: ReadonlySet<string> = new Set([
+	'checkouts',
+	'workstreams',
+	'repositories',
+]);
 
 export const KNOWN_PACKAGE_MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const;
 export type PackageManager = (typeof KNOWN_PACKAGE_MANAGERS)[number];

@@ -10,13 +10,20 @@ import {
 	workstreamsRoot,
 } from '$main/git/paths';
 
-const READABLE_APP_DATA = new Set(['workstreams', 'repositories', 'agent', 'extensions']);
+const READABLE_APP_DATA = new Set([
+	'checkouts',
+	'workstreams',
+	'repositories',
+	'agent',
+	'extensions',
+]);
 
 export type BoundaryCheckout = Readonly<{ path: string; lead: boolean }>;
 
 export type BoundaryPlaces = Readonly<{
 	appDataRoot: string;
 	appDataEntries: readonly string[];
+	checkoutsRoot: string;
 	checkouts: readonly BoundaryCheckout[];
 	starterPlan: string | null;
 }>;
@@ -27,7 +34,7 @@ export function agentBoundary(
 ): AgentBoundary | null {
 	const chatRecords = automation.chats === 'all';
 	if (chatRecords && automation.attachments && automation.internet) return null;
-	const { appDataRoot, appDataEntries, checkouts, starterPlan } = places;
+	const { appDataRoot, appDataEntries, checkoutsRoot, checkouts, starterPlan } = places;
 	const attachments = automation.attachments
 		? []
 		: checkouts.map(({ path }) => join(path, BRIDGE_AGENT_ATTACHMENTS_PATH));
@@ -46,8 +53,8 @@ export function agentBoundary(
 		chatRecords && automation.attachments
 			? []
 			: [
-					join(workstreamsRoot(appDataRoot), KEPT_WORKSTREAMS_DIR_NAME),
-					join(workstreamsRoot(appDataRoot), CHECKOUT_TRASH_DIR_NAME),
+					join(workstreamsRoot(checkoutsRoot), KEPT_WORKSTREAMS_DIR_NAME),
+					join(workstreamsRoot(checkoutsRoot), CHECKOUT_TRASH_DIR_NAME),
 				];
 	return {
 		hidden: [...new Set([...attachments, ...records, ...archived])],

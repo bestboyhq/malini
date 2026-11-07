@@ -791,6 +791,7 @@ beforeEach(() => {
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
 		appDataRoot: join(root, 'app-data'),
+		checkoutsRoot: join(root, 'app-data'),
 		resourcesRoot: root,
 		isDev: true,
 		appVersion: '0.1.0',

@@ -30,6 +30,16 @@ export function approvalHeadline(
 	return `Claude wants to use ${tool}`;
 }
 
+export function leavesTheSandbox(toolName: string | undefined, input: unknown): boolean {
+	return (
+		toolName === 'Bash' &&
+		typeof input === 'object' &&
+		input !== null &&
+		Reflect.get(input, 'dangerouslyDisableSandbox') === true &&
+		typeof Reflect.get(input, 'command') === 'string'
+	);
+}
+
 export function approvalTargets(
 	permission: AgentPermissionDescriptor | undefined,
 ): readonly ApprovalTarget[] {
