@@ -39,6 +39,7 @@ beforeEach(() => {
 
 afterEach(async () => {
 	vi.useRealTimers();
+	vi.unstubAllEnvs();
 	while (cleanups.length > 0) await cleanups.pop()?.();
 	fake.cleanup();
 	test.cleanup();
@@ -432,6 +433,7 @@ describe('BridgeRuntime with the fake bridge', () => {
 	});
 
 	it('auto-approves a remembered read without emitting the request, and audits it', async () => {
+		vi.stubEnv('HOME', test.appDataRoot);
 		const checkout = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const approvalPath = externalReadPath();
