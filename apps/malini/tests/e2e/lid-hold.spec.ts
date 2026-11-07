@@ -127,6 +127,10 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 			'href',
 			'https://github.com/krishkalaria12',
 		);
+		await expect(settings.getByRole('link', { name: 'Close My Lid' })).toHaveAttribute(
+			'href',
+			'https://github.com/krishkalaria12/close-my-lid',
+		);
 
 		await lid.click();
 		await expect.poll(() => adminPrompts(tools)).toBe(1);

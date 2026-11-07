@@ -31,8 +31,8 @@
 			or at 5% battery. macOS asks for your password once.
 		</p>
 		<p class="text-fg-tertiary mt-0.5 text-xs">
-			From {@render credit('https://github.com/krishkalaria12/close-my-lid', 'Close My Lid')} by
-			{@render credit('https://github.com/krishkalaria12', 'Krish Kalaria')}.
+			Thanks to {@render credit('https://github.com/krishkalaria12', 'Krish Kalaria')}, who built
+			{@render credit('https://github.com/krishkalaria12/close-my-lid', 'Close My Lid')}
 		</p>
 		{#if lidHoldQuery.refused}
 			<p class="text-error-content mt-1 text-xs" role="alert">
