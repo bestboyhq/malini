@@ -9,7 +9,7 @@ import type { ShippingAutomationBuiltin } from '$contract/automations';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
-import { commitLine, workstreamShipContext } from '$lib/chat/chat.platform';
+import { commitLine, workstreamAgentCount, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
 	automationDefinitions,
@@ -301,7 +301,7 @@ async function commitAndPush(deps: ShipDeps, state: ShipState, retitle: boolean)
 			target,
 			state.worktree.dirtyPaths,
 			shipContext,
-			await shipChef(deps),
+			await shipCredit(deps, workstreamId),
 		);
 		await retitlePullRequest(deps, target, workstreamId, title, body);
 	}
@@ -329,7 +329,7 @@ async function openPullRequest(deps: ShipDeps, state: ShipState): Promise<void> 
 		target,
 		state.worktree.dirtyPaths,
 		workstreamShipContext(deps.context.db, workstreamId),
-		await shipChef(deps),
+		await shipCredit(deps, workstreamId),
 	);
 	const created = await deps.ops.create({
 		repoId: target.repoId,
@@ -617,15 +617,20 @@ export function settledAutomation(deps: ShipDeps, row: ShipRow): SettledAutomati
 		: null;
 }
 
-async function shipChef(deps: ShipDeps): Promise<PullRequestChef | null> {
-	return (await deps.chef?.().catch(() => null)) ?? null;
+type ShipCredit = Readonly<{ chef: PullRequestChef | null; agents: number }>;
+
+async function shipCredit(deps: ShipDeps, workstreamId: string): Promise<ShipCredit> {
+	return {
+		chef: (await deps.chef?.().catch(() => null)) ?? null,
+		agents: workstreamAgentCount(deps.context.db, workstreamId),
+	};
 }
 
 export function shipMetadata(
 	target: ShipTarget,
 	changedPaths: readonly string[],
 	shipContext: PullRequestAutomationContext,
-	chef: PullRequestChef | null = null,
+	credit?: ShipCredit,
 ): AutomatedPullRequestMetadata {
 	return automatedPullRequestMetadata({
 		branch: target.workstream.branch,
@@ -633,7 +638,7 @@ export function shipMetadata(
 		changedPaths,
 		workstreamPath: target.workstream.path,
 		context: shipContext,
-		chef,
+		...credit,
 	});
 }
 

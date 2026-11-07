@@ -45,6 +45,7 @@ export type AutomatedPullRequestMetadataInput = Readonly<{
 	workstreamPath?: string;
 	context?: PullRequestAutomationContext;
 	chef?: PullRequestChef | null;
+	agents?: number;
 }>;
 
 export type AutomatedPullRequestMetadata = Readonly<{
@@ -106,7 +107,7 @@ export function automatedPullRequestMetadata(
 	const changedPaths = normalizedChangedPaths(input.changedPaths, input.workstreamPath);
 	const context = normalizedContext(input.context, input.workstreamPath);
 	const title = workstreamTitle(branch, changedPaths, context);
-	const footer = cookedFooter(input.chef ?? null);
+	const footer = cookedFooter(input.chef ?? null, input.agents ?? 0);
 	const body = `${boundedBody(
 		buildBody({
 			title,
@@ -319,14 +320,17 @@ function buildBody(
 	return sections.join('\n').trim();
 }
 
-function cookedFooter(chef: PullRequestChef | null): string {
+function cookedFooter(chef: PullRequestChef | null, agents: number): string {
 	const rows: Array<readonly [string, string]> = [
 		...(chef && HANDLE.test(chef.handle) ? [['Chef', chefLink(chef)] as const] : []),
+		...(agents > 0
+			? [['Kitchen', `${agents.toLocaleString('en-US')} agent${agents === 1 ? '' : 's'}`] as const]
+			: []),
 		['Dishes', 'Agents did em'],
 	];
 	return [
 		'<details>',
-		`<summary><sub>🍳 Cooked with <a href="${MALINI_URL}">Malini</a></sub></summary>`,
+		`<summary>🧑‍🍳 <sub>Cooked with <a href="${MALINI_URL}">Malini</a></sub></summary>`,
 		'<table>',
 		...rows.map(([label, cell]) => `<tr><td>${label}</td><td>${cell}</td></tr>`),
 		'</table>',
