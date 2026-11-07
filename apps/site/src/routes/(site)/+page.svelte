@@ -1,21 +1,36 @@
 <script lang="ts">
-	import { GitHubIcon, Icon } from '@malini/hyper-ui/icons';
+	import {
+		BrandIcon,
+		ClaudeIcon,
+		DeepSeekIcon,
+		GitHubIcon,
+		Icon,
+		OpenCodeIcon,
+	} from '@malini/hyper-ui/icons';
+	import type { Snippet } from 'svelte';
+	import Arrow from '$lib/Arrow.svelte';
 	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
 	import DemoCard from '$lib/DemoCard.svelte';
 	import DemoTour from '$lib/DemoTour.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
+	import HarnessStack from '$lib/HarnessStack.svelte';
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
+	import Problem from '$lib/Problem.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
+	import SoldCard from '$lib/SoldCard.svelte';
 	import { docHref, DOWNLOAD_URL, SITE_DESCRIPTION } from '$lib/links';
 	import { GITHUB_URL } from '$lib/urls';
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 
 	const BEATS = [
-		'how',
+		'problem',
+		'plans',
+		'harness',
+		'opus',
 		'report',
 		'compare',
 		'browser',
@@ -62,18 +77,40 @@
 		};
 	});
 
-	const steps = [
+	const plans = [
 		{
-			title: 'Start a task',
-			body: 'Each task is a workstream with its own git worktree, branch, and chats. Describe what you want and let the agent run.',
+			name: 'Claude',
+			body: 'Pro or Max. Sign in once, switch accounts anytime.',
 		},
 		{
-			title: 'Press Draft, then Merge',
-			body: 'Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.',
+			name: 'ChatGPT',
+			body: 'Go, Plus, or Pro. GPT models in Claude Code.',
 		},
 		{
-			title: 'Automate what repeats',
-			body: 'When you keep typing the same prompt, Malini offers to save it as an automation. Give it a trigger, and it asks you first until you let it run on its own.',
+			name: 'OpenCode',
+			body: 'Go or Console. Paste a key, Malini works out which.',
+		},
+		{
+			name: 'DeepSeek',
+			body: 'Paste an API key. Pay per token, no plan needed.',
+		},
+	] as const;
+
+	const opus = [
+		{
+			stat: '3.5×',
+			title: 'Tighter context',
+			body: 'Claude Code lets Opus fill almost 1M tokens before compacting. Malini compacts at 280K.',
+		},
+		{
+			stat: '2×',
+			title: 'Less forgetting',
+			body: 'After compacting, Malini hands back every prompt and reply. Opus forgets half as much.',
+		},
+		{
+			stat: '0',
+			title: 'Things to set up',
+			body: 'On from your first prompt, in every chat and job. Settings has a slider if you want one.',
 		},
 	];
 
@@ -90,16 +127,25 @@
 		},
 		{
 			icon: 'eye',
-			title: 'Five calls of its own',
-			body: 'Update checks, usage stats you can turn off, model lists from models.dev, the extension marketplace while you use it, and your stats only if you publish them. Every big decision is written down.',
+			title: 'Seven calls of its own',
+			body: 'Update checks, usage stats you can turn off, model lists from models.dev, a plan check when you save an OpenCode key, the extension marketplace while you use it, OpenAI only after you sign in with ChatGPT, and your stats only if you publish them. Every big decision is written down.',
 		},
 	] as const;
 
-	const faqs = [
+	const faqs: readonly { question: string; answer: string | Snippet }[] = [
+		{
+			question: 'How do you make money?',
+			answer: money,
+		},
 		{
 			question: 'Is Malini free?',
 			answer:
-				'Yes. Malini is free and open source under AGPL-3.0, with no subscription and no account needed. Agents run on your own Claude Code today, so they use your own Claude plan.',
+				'Yes. Malini is free and open source under AGPL-3.0, with no subscription and no account needed. Agents run in your own Claude Code on a plan you already pay for: Claude, ChatGPT, or OpenCode, or a DeepSeek key.',
+		},
+		{
+			question: 'Will Malini eat my plan?',
+			answer:
+				'Less than Claude Code alone. Claude Code lets Opus fill its 1M window before it compacts. Malini compacts at 280K and puts every prompt and reply back right after, so a long chat uses about a quarter less of your plan and remembers more of itself. Settings, Models, Context window moves the line.',
 		},
 		{
 			question: 'What do I need?',
@@ -129,7 +175,7 @@
 		{
 			question: 'Which agents and models can I use?',
 			answer:
-				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku on your Claude plan, or a DeepSeek or OpenCode model on its own key, at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
+				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku on your Claude plan, a GPT model on your ChatGPT plan, an OpenCode model on Go or Console, or a DeepSeek model on its own key, at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
 		},
 		{
 			question: 'Can I extend it?',
@@ -143,6 +189,13 @@
 		},
 	];
 </script>
+
+{#snippet money()}
+	Sponsors, not you. We plan to grow the biggest community of builders out there, and sponsors pay
+	to be part of it. It beats the usual endings: pulling the rug on users, or <SoldCard
+		word="selling"
+	/>.
+{/snippet}
 
 <Head title="Malini: agentic development environment" description={SITE_DESCRIPTION} path="" />
 
@@ -163,26 +216,93 @@
 	</p>
 </Hero>
 
+<Problem beat={beat('problem', 'Problem')} />
+
 <SectionHeading
-	id="how"
-	beat={beat('how', 'How it works')}
+	id="plans"
+	beat={beat('plans', 'Plans')}
 	split
-	title="You describe the task."
-	quiet="Malini runs the loop."
-	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request."
+	title="Already paying for Claude or ChatGPT?"
+	quiet="You’re good."
+	description="OpenCode and DeepSeek work too. Pick the model per prompt."
 >
 	{#snippet after()}
-		<ol class="cells">
-			{#each steps as step, index (step.title)}
+		<ul class="cells plans">
+			{#each plans as plan (plan.name)}
 				<li class="rise">
-					<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
-					<h3>{step.title}</h3>
-					<p>{step.body}</p>
+					<h3 class={['brand', plan.name.toLowerCase()]}>
+						{#if plan.name === 'Claude'}
+							<ClaudeIcon size={20} />
+						{:else if plan.name === 'ChatGPT'}
+							<BrandIcon brand="openai" size={20} />
+						{:else if plan.name === 'OpenCode'}
+							<OpenCodeIcon size={20} />
+						{:else}
+							<DeepSeekIcon size={20} />
+						{/if}
+						{plan.name}
+					</h3>
+					<p>{plan.body}</p>
 				</li>
 			{/each}
-		</ol>
+		</ul>
 	{/snippet}
 </SectionHeading>
+
+<SectionHeading
+	id="harness"
+	beat={beat('harness', 'Harness')}
+	split
+	title="New model."
+	quiet="Same muscle memory."
+	description="A model at the bottom, Malini on top, and five layers of Claude Code, sandbox and plumbing in between. Swap the model. Nothing above it moves."
+>
+	{#snippet after()}
+		<HarnessStack />
+	{/snippet}
+</SectionHeading>
+
+<section id="opus" class="beat flush" aria-labelledby="opus-title">
+	<div class="wrap">
+		<BeatLabel {...beat('opus', 'Usage')} />
+		<div class="poster">
+			<p class="reading rise">
+				<span class="figure">
+					<span class="painted">25</span>
+					<span class="unit">%</span>
+				</span>
+				<span class="from">More Opus on long chats</span>
+			</p>
+			<div class="rise">
+				<h2 id="opus-title">
+					<span>Same plan.</span>
+					<span class="quiet">More Opus.</span>
+				</h2>
+				<p class="sub">
+					Malini keeps Claude Code’s context tight and hands the whole conversation back after every
+					compaction. Long sessions just last longer.
+				</p>
+				<a
+					class="arrow-link"
+					href="{GITHUB_URL}/blob/main/docs/adr/0145-a-chat-compacts-at-280k-and-gets-every-message-malini-kept-back.md"
+				>
+					How we measured it
+					<Arrow class="ahead" />
+				</a>
+			</div>
+		</div>
+		<ul class="cells">
+			{#each opus as item, index (item.title)}
+				<li class="rise">
+					<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
+					<span class="stat">{item.stat}</span>
+					<h3>{item.title}</h3>
+					<p>{item.body}</p>
+				</li>
+			{/each}
+		</ul>
+	</div>
+</section>
 
 <FeatureRow
 	id="report"
@@ -192,6 +312,7 @@
 	href={doc('chat#reports')}
 	linkLabel="How reports work"
 	checks={['Your turn shows only when it needs you', 'Ship a next step, or note it for later']}
+	tall
 	panel={reportPanel}
 />
 
@@ -241,6 +362,7 @@
 	href={doc('chat#variants')}
 	linkLabel="How variants work"
 	checks={['Pictures, recordings, or live pages', 'None fit? Run another round']}
+	tall
 	panel={variantsPanel}
 />
 
@@ -297,7 +419,7 @@
 		<BeatLabel {...beat('faq')} />
 		<div class="faq">
 			<div class="faq-intro rise">
-				<h2 id="faq-title">Questions</h2>
+				<h2 id="faq-title">Good questions</h2>
 				<p>
 					Another question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
 				</p>
@@ -310,7 +432,9 @@
 							<span class="q">{faq.question}</span>
 							<span class="plus" aria-hidden="true"></span>
 						</summary>
-						<p>{faq.answer}</p>
+						<p>
+							{#if typeof faq.answer === 'string'}{faq.answer}{:else}{@render faq.answer()}{/if}
+						</p>
 					</details>
 				{/each}
 			</div>
@@ -364,7 +488,7 @@
 {#snippet reportPanel()}
 	<DemoCard
 		workstream="ws-grip-captions"
-		title="A Malini report on Grip with a recording of the change"
+		title="A Malini report on Grip: the earlier turns, the caption style you picked, and a recording of the change"
 	/>
 {/snippet}
 
@@ -394,8 +518,8 @@
 {#snippet variantsPanel()}
 	<DemoCard
 		workstream="ws-og-lead"
-		title="A Malini report with three Open Graph image directions to pick from"
-		play="cycle"
+		title="A Malini report on Open Graph images: a round where none fit, the direction you picked, and the winner before and after"
+		play="sweep"
 	/>
 {/snippet}
 
@@ -488,6 +612,104 @@
 		font-size: 15px;
 		line-height: 1.6;
 		text-wrap: pretty;
+	}
+
+	.plans {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.brand :global(svg) {
+		flex: none;
+	}
+
+	.claude :global(svg) {
+		color: #d97757;
+	}
+
+	.deepseek :global(svg) {
+		color: #4d6bfe;
+	}
+
+	.flush {
+		padding-bottom: 0;
+	}
+
+	.poster {
+		display: grid;
+		grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+		gap: 32px 80px;
+		align-items: center;
+	}
+
+	.reading {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.figure {
+		display: flex;
+		align-items: baseline;
+		gap: 0.02em;
+		margin: -0.06em 0 -0.1em -0.05em;
+		font-size: clamp(160px, 22vw, 300px);
+		font-weight: 550;
+		line-height: 1;
+	}
+
+	.painted {
+		background: var(--painting);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+
+	.unit {
+		color: var(--fg-faint);
+		font-size: 0.32em;
+		letter-spacing: -0.03em;
+	}
+
+	.from {
+		color: var(--fg-faint);
+		font-family: var(--mono);
+		font-size: 12px;
+		line-height: 16px;
+	}
+
+	.poster h2 {
+		font-size: clamp(34px, 4.6vw, 52px);
+		line-height: 1.06;
+		letter-spacing: -0.035em;
+	}
+
+	.poster h2 span {
+		display: block;
+	}
+
+	.quiet {
+		color: var(--fg-faint);
+	}
+
+	.poster .sub {
+		margin-top: 20px;
+	}
+
+	.poster .arrow-link {
+		margin-top: 24px;
+	}
+
+	.stat {
+		font-size: 28px;
+		font-weight: 550;
+		line-height: 1.2;
+		letter-spacing: -0.03em;
 	}
 
 	.buttons {
@@ -691,6 +913,14 @@
 		.cells li + li {
 			border-left: 0;
 		}
+
+		.plans {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.plans li:nth-child(even) {
+			border-left: 1px solid var(--frame);
+		}
 	}
 
 	@media (max-width: 859px) {
@@ -700,6 +930,7 @@
 			font-size: 17px;
 		}
 
+		.poster,
 		.faq {
 			grid-template-columns: minmax(0, 1fr);
 			gap: 32px;
@@ -719,6 +950,14 @@
 	}
 
 	@media (max-width: 559px) {
+		.plans {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.plans li:nth-child(even) {
+			border-left: 0;
+		}
+
 		summary {
 			grid-template-columns: minmax(0, 1fr) 16px;
 		}

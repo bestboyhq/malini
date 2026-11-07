@@ -18,8 +18,9 @@ export function passScrollToTheSite(): void {
 			) {
 				if (canScroll(at, event.deltaY)) return;
 			}
+			event.preventDefault();
 			window.parent.scrollBy({ top: event.deltaY, behavior: 'instant' });
 		},
-		{ passive: true },
+		{ passive: false },
 	);
 }

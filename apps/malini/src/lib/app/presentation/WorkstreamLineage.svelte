@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
+	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { ChatTileIcon, Icon } from '$hyper-ui/icons';
 	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
 	import {
 		activeWorkstreamsQuery,
+		detachFromStarterCommand,
 		repositoryContextQuery,
 		workstreamByIdQuery,
 		workstreamNameQuery,
@@ -90,5 +93,17 @@
 				<span>+{siblings.length - SIBLINGS_SHOWN} more</span>
 			{/if}
 		{/if}
+		<span class="-my-1 -mr-1.5 ml-auto">
+			<Tooltip content="Disconnect. Reports stop going there">
+				<IconButton
+					variant="ghost"
+					size="xs"
+					ariaLabel={`Disconnect from ${starterName}`}
+					onclick={() => detachFromStarterCommand(workstreamId)}
+				>
+					<Icon name="close" size={12} />
+				</IconButton>
+			</Tooltip>
+		</span>
 	</div>
 {/if}

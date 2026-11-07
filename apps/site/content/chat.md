@@ -37,6 +37,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
   Hover the chat's row to list them.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
+  The × beside **Started by** disconnects it from that chat: its turns stop reporting there, the chat can no longer send it prompts, and it leaves the chat's row in the sidebar.
 - The agent in that workstream knows which chat started it, reads the chat's [plan](#one-plan), and reads the checkouts of the other workstreams that chat started.
 
 ### The timeline
@@ -70,6 +71,13 @@ It writes the plan before it starts workstreams, and every workstream it starts 
 When the plan changes, the lead tells the workstreams it affects.
 
 ## Queue or steer
+
+<!-- demo docs-queue 560
+<kbd>↵</kbd> waits its turn. <kbd>⌘↵</kbd> cuts in
+- Press <kbd>↵</kbd> to queue the draft
+- Type anything, then <kbd>⌘↵</kbd>
+- Click the square to stop
+-->
 
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued; **↵** saves an edit and **⇧↵** adds a line.
@@ -122,6 +130,7 @@ Type **/** and pick **/compact** to have the chat's Claude Code summarize the co
 Type instructions after **/compact** to say what the summary should keep.
 Right after any compaction, Malini puts every message of the chat back into the agent's context, word for word: each prompt you wrote and each reply the agent gave, without the turns you undid, the newest 256 KB of them.
 The summary still covers tool calls and their output, which the agent can read again.
+On 16 long chats, the 280K window with every message put back cost about 76% of Claude Code's own window, and a compaction kept 86% of what mattered instead of 70%.
 **Settings → Models → Optimize context** does both, and stays on until you turn it off.
 Turned off, Malini sets no window and puts nothing back: Claude Code compacts at its own window, or the one you pick with `/autocompact` or in your Claude Code settings, and the agent keeps only the summary.
 A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
@@ -237,6 +246,13 @@ An approval lets out that one call: a command inside the sandbox cannot let itse
 
 ## Reports
 
+<!-- demo ws-tony-hero 680
+Every turn ends in a report. Proof included
+- Drag the **Wipe** divider
+- Click **Diff**
+- Click **Ship** on the next step
+-->
+
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under the **Details** row, which says how many words it holds.
 Reports run from a screenshot and one line to the full write-up.
@@ -299,6 +315,13 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 
 ## Context
 
+<!-- demo docs-context 600
+Old turns fold. Subagents get a line each. Files show their diff
+- Click **3 subagents**
+- Point at **merge.ts**
+- Scroll up to the folded turn
+-->
+
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
 - Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
@@ -306,6 +329,9 @@ The trash button beside one of yours removes it once you click **Remove**, and a
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
+- Only the last two turns show their work.
+  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs, ran 79 commands**.
+  Click it if you miss them.
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.
   Click it for its prompt, every step, and its report.

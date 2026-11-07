@@ -4,16 +4,12 @@
 	import type { Snippet } from 'svelte';
 	import Arrow from '$lib/Arrow.svelte';
 	import Glow, { type Layer } from '$lib/Glow.svelte';
-	import { demoHref, GITHUB_URL } from '$lib/urls';
+	import SetupLoupe from '$lib/SetupLoupe.svelte';
+	import { GITHUB_URL } from '$lib/urls';
 
 	let { og = false, children }: { og?: boolean; children?: Snippet } = $props();
 
 	const HORIZON: readonly Layer[] = [{ box: [0, -0.46, 1, 0.9], peak: [0.42, 0.86], start: 0.18 }];
-	const APP_WIDTH = 1280;
-	const APP_HEIGHT = 860;
-
-	let width = $state(APP_WIDTH);
-	let ready = $state(false);
 </script>
 
 <section class="hero" class:og aria-labelledby="hero-title" data-place="hero">
@@ -24,8 +20,8 @@
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">
-			<span>Agentic development environment</span>
-			<span class="quiet">for builders moving fast.</span>
+			<span>Missing abstraction layer</span>
+			<span class="quiet">for building with agents</span>
 		</h1>
 		{@render children?.()}
 	</div>
@@ -44,21 +40,7 @@
 					alt="The Malini window: a Home chat with the three workstreams it started nested under it in the sidebar, a finished chat beside a browser tab on the site it changed, and Draft and Merge above 1 changed file"
 				/>
 			{:else}
-				<div
-					class="shot app"
-					bind:clientWidth={width}
-					style:--fit={width / APP_WIDTH}
-					style:aspect-ratio="{APP_WIDTH} / {APP_HEIGHT}"
-				>
-					<iframe
-						src={demoHref('app', '/workstreams/ws-tony-hero', 'hero')}
-						width={APP_WIDTH}
-						height={APP_HEIGHT}
-						title="Malini, running in your browser on demo data"
-						class:ready
-						onload={() => (ready = true)}
-					></iframe>
-				</div>
+				<SetupLoupe />
 			{/if}
 		</div>
 	</div>
@@ -198,24 +180,6 @@
 			0 32px 64px -24px rgb(0 0 0 / 0.45);
 	}
 
-	.app {
-		overflow: hidden;
-		background: light-dark(#fbfbfb, #191919);
-	}
-
-	iframe {
-		display: block;
-		border: 0;
-		transform-origin: 0 0;
-		scale: var(--fit);
-		opacity: 0;
-		transition: opacity 500ms var(--enter-ease);
-	}
-
-	iframe.ready {
-		opacity: 1;
-	}
-
 	.og .intro {
 		padding-top: 56px;
 		padding-bottom: 72px;
@@ -262,10 +226,6 @@
 	@media (max-width: 639px) {
 		.plate {
 			padding: 40px 0;
-		}
-
-		iframe {
-			pointer-events: none;
 		}
 
 		.window {

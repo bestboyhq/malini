@@ -5,8 +5,8 @@ const MOUNT_MARGIN = '150% 0px';
 
 export const PLACEHOLDER_ATTRIBUTE = 'data-transcript-placeholder';
 
-export function runWindowKey(runId: string): string {
-	return `run:${runId}`;
+export function runWindowKey(runId: string, folded: boolean): string {
+	return folded ? `run:${runId}:folded` : `run:${runId}`;
 }
 
 export function rowWindowKey(runId: string, itemKey: string): string {
