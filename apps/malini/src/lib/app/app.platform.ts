@@ -4,6 +4,7 @@ export interface AppPlatform {
 	shutdownGracefully(budgetMs?: number): Promise<ShutdownOutcome>;
 	shutdownImpact(): ShutdownImpact;
 	shutdownUsageData(): Promise<void>;
+	stopLidHold(): Promise<void>;
 	windowStateSaved(): Promise<void>;
 	exit(): void;
 	announceUpdate(): void;
