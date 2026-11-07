@@ -880,6 +880,7 @@ const skillsOfRun = new Map();
 const maliniCalls = new Map();
 const themeOfRun = new Map();
 const windowOfRun = new Map();
+const steRuns = new Set();
 
 const lineageOfRun = new Map();
 const briefOfRun = new Map();
@@ -961,6 +962,17 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			contentId: 'c1',
 			text: 'Compacts at ' + (windowOfRun.get(runId) ?? 'none'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('WHICH_STYLE')) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: steRuns.has(runId) ? 'Replies in STE' : 'Replies as they come',
 		});
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
@@ -1650,6 +1662,7 @@ const handle = (command) => {
 			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (command.theme) themeOfRun.set(runId, command.theme);
 			if (command.compactWindow) windowOfRun.set(runId, command.compactWindow);
+			if (command.steReplies) steRuns.add(runId);
 			if (command.lineage) lineageOfRun.set(runId, command.lineage);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);

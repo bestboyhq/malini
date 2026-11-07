@@ -9,8 +9,10 @@ import {
 import {
 	CONTEXT_WINDOW_SETTING,
 	OPTIMIZE_CONTEXT_SETTING,
+	STE_REPLIES_SETTING,
 	contextWindowOf,
 	optimizesContext,
+	writesSte,
 } from '$contract/agent';
 import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
@@ -391,11 +393,14 @@ export async function startAgentService(
 					starterPlan: lineage?.startedBy?.plan ?? null,
 				}),
 			providerEnvironment: deps.providerEnvironment ?? (async () => ({})),
-			async compactWindow() {
+			async turnSettings() {
 				const settings = await savedSettings();
-				return optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
-					? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
-					: null;
+				return {
+					compactWindow: optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
+						? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
+						: null,
+					steReplies: writesSte(settings[STE_REPLIES_SETTING]),
+				};
 			},
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
