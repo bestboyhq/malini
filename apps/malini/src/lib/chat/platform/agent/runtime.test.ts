@@ -33,6 +33,7 @@ const cleanups: Array<() => Promise<void> | void> = [];
 
 beforeEach(() => {
 	test = createTestContext();
+	vi.stubEnv('HOME', test.appDataRoot);
 	fake = writeFakeBridge();
 });
 

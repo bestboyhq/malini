@@ -46,6 +46,7 @@ export default defineConfig({
 					environment: 'node',
 					testTimeout: 30_000,
 					env: { ELECTRON_OVERRIDE_DIST_PATH: '/unit-tests-never-launch-electron' },
+					unstubEnvs: true,
 				},
 			},
 			{

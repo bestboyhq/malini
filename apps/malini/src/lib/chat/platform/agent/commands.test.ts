@@ -54,6 +54,7 @@ let service: AgentService;
 
 beforeEach(async () => {
 	test = createTestContext();
+	vi.stubEnv('HOME', test.appDataRoot);
 	fake = writeFakeBridge();
 });
 
