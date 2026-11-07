@@ -110,7 +110,7 @@ function gateLeadCheckouts(app: LaunchedApp): Readonly<{ held: string; failing: 
 	return { held, failing };
 }
 
-test('a Home chat starts workstreams in two organizations, which fold under it and list beside the chat', async () => {
+test('a Home chat starts workstreams in two organizations, which fold under it, list beside the chat and disconnect from it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -230,6 +230,21 @@ test('a Home chat starts workstreams in two organizations, which fold under it a
 		await expect(started.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(started.getByRole('group', { name: /^solo\/site, .*, Archived, / })).toBeVisible();
 		await captureFlow(app, 'lead-chat-started-card');
+
+		const startedApi = nested.locator(
+			'[data-testid="sidebar-workstream"][data-repository-full-name="acme/api"]',
+		);
+		await startedApi.click();
+		await expect(startedApi).toHaveAttribute('aria-current', 'page');
+		await lineage.getByRole('button', { name: 'Disconnect from Move apps to Logdash' }).click();
+		await expect(lineage).toHaveCount(0);
+		await expect(startedApi).toHaveCount(0);
+		await expect(startedIn('acme/api')).toHaveCount(2);
+		const workstreamsAfter = await invoke<readonly Readonly<{ startedBy: string | null }>[]>(
+			page,
+			'repositories.list-workstreams',
+		);
+		expect(workstreamsAfter.filter((workstream) => workstream.startedBy !== null)).toEqual([]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
