@@ -296,6 +296,9 @@ The trash button beside one of yours removes it once you click **Remove**, and a
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
+- Only the last two turns show their work.
+  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs, ran 79 commands**.
+  Click it if you miss them.
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.
   Click it for its prompt, every step, and its report.
