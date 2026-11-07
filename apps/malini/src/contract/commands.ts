@@ -400,6 +400,8 @@ export type SetSettingArgs = Readonly<{ key: string; value: string }>;
 
 export type ShareUsageDataArgs = Readonly<{ shared: boolean }>;
 
+export type HoldLidArgs = Readonly<{ on: boolean }>;
+
 export type StageAttachmentBytesArgs = Readonly<{
 	workstreamId: string;
 	fileName: string;
@@ -545,6 +547,7 @@ export interface ContractCommands {
 	'app.list-settings': { args: undefined; result: Record<string, string> };
 	'app.usage-data': { args: undefined; result: UsageDataState };
 	'app.share-usage-data': { args: ShareUsageDataArgs; result: void };
+	'app.hold-lid': { args: HoldLidArgs; result: boolean };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
 		args: WorkstreamBaseBranchArgs;
@@ -913,6 +916,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
+	'app.hold-lid',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',
 	'repositories.workstream-diff',

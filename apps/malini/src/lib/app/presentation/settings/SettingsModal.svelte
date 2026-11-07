@@ -26,6 +26,7 @@
 	import BrainSection from './BrainSection.svelte';
 	import McpServersSection from './McpServersSection.svelte';
 	import ModelsSection from './ModelsSection.svelte';
+	import PowerSection from './PowerSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
 	import ProfileSection from './ProfileSection.svelte';
 	import ProvidersSection from './ProvidersSection.svelte';
@@ -74,6 +75,7 @@
 		},
 		APPEARANCE,
 		{ href: '/settings/storage', label: 'Storage', icon: 'folder-open', content: StorageSection },
+		{ href: '/settings/power', label: 'Power', icon: 'bolt', content: PowerSection },
 		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{
 			href: '/settings/automations',

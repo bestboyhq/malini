@@ -228,6 +228,7 @@ export async function registerModules(
 			repositories.cancelGitHubSignIn();
 			providers.stop();
 			await chat.stop();
+			await app.stopLidHold();
 			try {
 				const outcome = await app.shutdownGracefully();
 				if (outcome.errors.length > 0) {
