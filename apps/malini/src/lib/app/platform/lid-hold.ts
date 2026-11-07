@@ -1,4 +1,6 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { APP_STARTED_CHANNEL, CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -14,7 +16,6 @@ import { openAgentRunCount } from './graceful-shutdown';
 import { getSetting, setSetting } from './settings.repository';
 
 const PMSET = '/usr/bin/pmset';
-const HELD_SETTING = 'app.lid-held';
 const GRANT_FILE = '/etc/sudoers.d/malini';
 const GRANT_RULE = `%admin ALL=(root) NOPASSWD: ${PMSET} -a disablesleep 1, ${PMSET} -a disablesleep 0`;
 const GRANT_SCRIPT = [
@@ -26,7 +27,14 @@ const GRANT_SCRIPT = [
 	`/usr/sbin/visudo -cf "$t" > /dev/null && /bin/mv "$t" ${GRANT_FILE} || { /bin/rm -f "$t"; exit 1; }`,
 ].join('; ');
 const GRANT_PROMPT = 'Malini needs this once to keep your Mac awake with the lid closed.';
-const WATCHDOG_SCRIPT = `read _; exec "$0" -n ${PMSET} -a disablesleep 0`;
+const PROCESS_STARTED = 'LC_ALL=C TZ=UTC0 /bin/ps -o lstart= -p "$pid"';
+const AGENT_SCRIPT = [
+	'[ -f "$0" ] || exit 0',
+	'pid=$(/usr/bin/head -n 1 "$0")',
+	`[ -n "$pid" ] && [ "$(${PROCESS_STARTED})" = "$(/usr/bin/tail -n +2 "$0")" ] && exit 0`,
+	`"$1" -n ${PMSET} -a disablesleep 0 && /bin/rm -f "$0"`,
+].join('\n');
+const AGENT_INTERVAL_SECONDS = 30;
 const BATTERY_FLOOR_PERCENT = 5;
 const CHECK_MS = 60_000;
 const TOOL_TIMEOUT_MS = 10_000;
@@ -37,6 +45,8 @@ export interface LidTools {
 	readonly sudo: string;
 	readonly pmset: string;
 	readonly osascript: string;
+	readonly launchctl: string;
+	readonly agents: string;
 }
 
 export interface LidHold {
@@ -46,11 +56,21 @@ export interface LidHold {
 
 export function lidTools(packaged: boolean, env: NodeJS.ProcessEnv): LidTools {
 	const local = packaged ? undefined : env['MALINI_LID_TOOLS'];
-	if (!local) return { sudo: '/usr/bin/sudo', pmset: PMSET, osascript: '/usr/bin/osascript' };
+	if (!local) {
+		return {
+			sudo: '/usr/bin/sudo',
+			pmset: PMSET,
+			osascript: '/usr/bin/osascript',
+			launchctl: '/bin/launchctl',
+			agents: join(homedir(), 'Library', 'LaunchAgents'),
+		};
+	}
 	return {
 		sudo: join(local, 'sudo'),
 		pmset: join(local, 'pmset'),
 		osascript: join(local, 'osascript'),
+		launchctl: join(local, 'launchctl'),
+		agents: join(local, 'LaunchAgents'),
 	};
 }
 
@@ -73,8 +93,28 @@ export function administratorScript(shellScript: string, prompt: string): string
 	return `do shell script ${quoted(shellScript)} with prompt ${quoted(prompt)} with administrator privileges`;
 }
 
+export function launchAgentPlist(label: string, programArguments: readonly string[]): string {
+	const string = (text: string): string =>
+		`<string>${text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</string>`;
+	return [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+		'<plist version="1.0">',
+		'<dict>',
+		`<key>Label</key>${string(label)}`,
+		`<key>ProgramArguments</key><array>${programArguments.map(string).join('')}</array>`,
+		`<key>StartInterval</key><integer>${AGENT_INTERVAL_SECONDS}</integer>`,
+		'<key>RunAtLoad</key><true/>',
+		`<key>ProcessType</key>${string('Background')}`,
+		`<key>AssociatedBundleIdentifiers</key><array>${string('app.malini.desktop')}</array>`,
+		'</dict>',
+		'</plist>',
+		'',
+	].join('\n');
+}
+
 export function startLidHold(
-	{ db, events }: Pick<MainContext, 'db' | 'events'>,
+	{ db, events, appDataRoot }: Pick<MainContext, 'db' | 'events' | 'appDataRoot'>,
 	runner: ProcessRunner,
 	tools: LidTools,
 ): LidHold {
@@ -87,30 +127,56 @@ export function startLidHold(
 	const readSleepDisabled = async (): Promise<boolean> =>
 		sleepDisabled((await tool(tools.pmset, ['-g'])).stdout);
 
-	let watchdog: ChildProcess | null = null;
-	let stale: boolean | null = null;
+	const marker = join(appDataRoot, 'lid-held');
+	const label = `app.malini.desktop.lid.${createHash('sha256').update(appDataRoot).digest('hex').slice(0, 12)}`;
+	const agentFile = join(tools.agents, `${label}.plist`);
+	const agentPlist = launchAgentPlist(label, ['/bin/sh', '-c', AGENT_SCRIPT, marker, tools.sudo]);
+	const domain = `gui/${userInfo().uid}`;
+
+	let held = false;
 	let stopping = false;
 	let failing = false;
 	let tail: Promise<unknown> = Promise.resolve();
 
+	const installAgent = async (): Promise<void> => {
+		const current = existsSync(agentFile) ? readFileSync(agentFile, 'utf8') : '';
+		if (
+			current === agentPlist &&
+			boundedRunSucceeded(await tool(tools.launchctl, ['print', `${domain}/${label}`]))
+		) {
+			return;
+		}
+		mkdirSync(tools.agents, { recursive: true });
+		writeFileSync(agentFile, agentPlist);
+		await tool(tools.launchctl, ['bootout', `${domain}/${label}`]);
+		const run = await tool(tools.launchctl, ['bootstrap', domain, agentFile]);
+		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'launchctl'));
+	};
+	const removeAgent = async (): Promise<void> => {
+		await tool(tools.launchctl, ['bootout', `${domain}/${label}`]);
+		rmSync(agentFile, { force: true });
+	};
 	const acquire = async (): Promise<void> => {
 		if (await readSleepDisabled()) return;
-		if (!(await setSleepDisabled(true))) throw new Error('sudo refused to turn sleep off');
-		setSetting(db, HELD_SETTING, 'yes');
-		const guard = spawn('/bin/sh', ['-c', WATCHDOG_SCRIPT, tools.sudo], {
-			detached: true,
-			stdio: ['pipe', 'ignore', 'ignore'],
-		});
-		guard.on('error', (error) =>
-			console.warn(`malini: lid watchdog failed: ${describeError(error)}`),
-		);
-		watchdog = guard;
+		await installAgent();
+		const started = await tool('/bin/sh', [
+			'-c',
+			`pid=$0; ${PROCESS_STARTED}`,
+			String(process.pid),
+		]);
+		if (!boundedRunSucceeded(started)) throw new Error(boundedRunFailureReason(started, 'ps'));
+		writeFileSync(`${marker}.tmp`, `${process.pid}\n${started.stdout}`);
+		renameSync(`${marker}.tmp`, marker);
+		if (!(await setSleepDisabled(true))) {
+			rmSync(marker, { force: true });
+			throw new Error('sudo refused to turn sleep off');
+		}
+		held = true;
 	};
 	const release = async (): Promise<void> => {
 		if (!(await setSleepDisabled(false))) throw new Error('sudo refused to turn sleep back on');
-		watchdog?.kill();
-		watchdog = null;
-		setSetting(db, HELD_SETTING, 'no');
+		rmSync(marker, { force: true });
+		held = false;
 	};
 	const wanted = async (): Promise<boolean> =>
 		!stopping &&
@@ -118,13 +184,9 @@ export function startLidHold(
 		openAgentRunCount(db) > 0 &&
 		!batteryLow((await tool(tools.pmset, ['-g', 'batt'])).stdout);
 	const settle = async (): Promise<void> => {
-		stale ??= getSetting(db, HELD_SETTING) === 'yes';
-		if (stale) {
-			await release();
-			stale = false;
-		}
+		if (!held && existsSync(marker)) await release();
 		const want = await wanted();
-		if (want === (watchdog !== null)) return;
+		if (want === held) return;
 		await (want ? acquire() : release());
 	};
 	const serial = <T>(step: () => Promise<T>): Promise<T> => {
@@ -158,6 +220,11 @@ export function startLidHold(
 		if (!(await granted())) throw new Error('this Mac account is not an administrator');
 		return true;
 	};
+	const switchOn = async (): Promise<boolean> => {
+		if (!(await granted()) && !(await grant())) return false;
+		await installAgent();
+		return true;
+	};
 
 	const unsubscribers = [
 		events.subscribe(APP_STARTED_CHANNEL, () => void reconcile()),
@@ -170,9 +237,14 @@ export function startLidHold(
 
 	return {
 		hold: async (on) => {
-			if (on && !(await serial(async () => (await granted()) || grant()))) return false;
+			if (on && !(await serial(switchOn))) return false;
 			setSetting(db, LID_HOLD_SETTING, on ? 'on' : 'off');
 			await reconcile();
+			if (!on) {
+				await serial(async () => {
+					if (!held) await removeAgent();
+				});
+			}
 			return on;
 		},
 		stop: () => {

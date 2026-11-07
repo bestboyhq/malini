@@ -1,5 +1,12 @@
+import { homedir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { administratorScript, batteryLow, lidTools, sleepDisabled } from './lid-hold';
+import {
+	administratorScript,
+	batteryLow,
+	launchAgentPlist,
+	lidTools,
+	sleepDisabled,
+} from './lid-hold';
 
 describe('the lid hold', () => {
 	it('reads SleepDisabled from pmset -g, absent meaning off', () => {
@@ -33,6 +40,14 @@ describe('the lid hold', () => {
 			sudo: '/usr/bin/sudo',
 			pmset: '/usr/bin/pmset',
 			osascript: '/usr/bin/osascript',
+			launchctl: '/bin/launchctl',
+			agents: `${homedir()}/Library/LaunchAgents`,
 		});
+	});
+
+	it('escapes the launch agent arguments for XML', () => {
+		expect(launchAgentPlist('a.b', ['/bin/sh', '[ "$0" ] && x <y>'])).toContain(
+			'<array><string>/bin/sh</string><string>[ "$0" ] &amp;&amp; x &lt;y&gt;</string></array>',
+		);
 	});
 });

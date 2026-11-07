@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -37,6 +46,16 @@ echo osascript >> "$tools/calls"
 case "$2" in *'NOPASSWD: /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset -a disablesleep 0'*) touch "$tools/granted" ;; *) exit 1 ;; esac
 `;
 
+const LAUNCHCTL = `#!/bin/sh
+tools="$(dirname "$0")"
+echo "launchctl $1" >> "$tools/calls"
+case "$1" in
+print) [ -f "$tools/loaded" ] ;;
+bootstrap) plutil -lint -s "$3" && touch "$tools/loaded" ;;
+bootout) rm -f "$tools/loaded" ;;
+esac
+`;
+
 function fakeLidTools(root: string): string {
 	const tools = join(root, 'lid-tools');
 	mkdirSync(tools);
@@ -44,6 +63,7 @@ function fakeLidTools(root: string): string {
 		['sudo', SUDO],
 		['pmset', PMSET],
 		['osascript', OSASCRIPT],
+		['launchctl', LAUNCHCTL],
 	] as const) {
 		writeFileSync(join(tools, name), script);
 		chmodSync(join(tools, name), 0o755);
@@ -62,6 +82,23 @@ function adminPrompts(tools: string): number {
 	return readFileSync(join(tools, 'calls'), 'utf8')
 		.split('\n')
 		.filter((line) => line === 'osascript').length;
+}
+
+function launchAgents(tools: string): string[] {
+	return fileExists(join(tools, 'LaunchAgents')) ? readdirSync(join(tools, 'LaunchAgents')) : [];
+}
+
+function runLaunchAgent(tools: string): void {
+	const [plist = ''] = launchAgents(tools);
+	const agent = JSON.parse(
+		execFileSync(
+			'/usr/bin/plutil',
+			['-convert', 'json', '-o', '-', join(tools, 'LaunchAgents', plist)],
+			{ encoding: 'utf8' },
+		),
+	) as { ProgramArguments: string[] };
+	const [program = '', ...args] = agent.ProgramArguments;
+	execFileSync(program, args);
 }
 
 async function openPowerSettings(page: Page) {
@@ -103,6 +140,8 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 		await expect(lid).toBeEnabled();
 		expect(adminPrompts(tools)).toBe(2);
 		expect(sleepDisabled(tools)).toBe('0');
+		expect(launchAgents(tools)).toHaveLength(1);
+		expect(fileExists(join(tools, 'loaded'))).toBe(true);
 		await captureFlow(app, 'lid-hold-settings');
 		await page.keyboard.press('Escape');
 
@@ -120,20 +159,24 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 		await expect.poll(() => sleepDisabled(tools)).toBe('1');
 		expect(await invoke<boolean>(page, 'app.hold-lid', { on: false })).toBe(false);
 		await expect.poll(() => sleepDisabled(tools)).toBe('0');
+		expect(launchAgents(tools)).toEqual([]);
+		expect(fileExists(join(tools, 'loaded'))).toBe(false);
 		expect(await invoke<boolean>(page, 'app.hold-lid', { on: true })).toBe(true);
 		expect(adminPrompts(tools)).toBe(2);
 		await expect.poll(() => sleepDisabled(tools)).toBe('1');
+		expect(launchAgents(tools)).toHaveLength(1);
 
 		expectCleanConsole(app);
 		await app.quit();
 		expect(sleepDisabled(tools)).toBe('0');
+		expect(launchAgents(tools)).toHaveLength(1);
 	} finally {
 		await app.close();
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test('a Malini that dies while it holds the lid lets the Mac sleep again, then and on its next launch', async () => {
+test('once the Malini that holds the lid is gone, launchd or its next launch lets the Mac sleep again', async () => {
 	test.setTimeout(180_000);
 	const root = mkdtempSync(join(tmpdir(), 'malini-lid-'));
 	const tools = fakeLidTools(root);
@@ -151,18 +194,33 @@ test('a Malini that dies while it holds the lid lets the Mac sleep again, then a
 		await expect.poll(() => sleepDisabled(tools)).toBe('1');
 
 		app.electronApp.process().kill('SIGKILL');
-		await expect.poll(() => sleepDisabled(tools), { timeout: 20_000 }).toBe('0');
 		await app.quit().catch(() => undefined);
+		expect(sleepDisabled(tools)).toBe('1');
 
-		writeFileSync(join(tools, 'sleep-disabled'), '1');
 		const relaunched = await launchMalini({ profile: app.root, env });
 		try {
 			await expect.poll(() => sleepDisabled(tools), { timeout: 20_000 }).toBe('0');
 			expect(await invoke<boolean>(relaunched.page, 'app.hold-lid', { on: true })).toBe(true);
 			expect(sleepDisabled(tools)).toBe('0');
+			await openWorkstream(relaunched.page, workstreamId);
+			await sendPrompt(relaunched.page, 'HANG');
+			await expect.poll(() => sleepDisabled(tools)).toBe('1');
+			runLaunchAgent(tools);
+			expect(sleepDisabled(tools)).toBe('1');
 			expectCleanConsole(relaunched);
+
+			relaunched.electronApp.process().kill('SIGKILL');
+			await expect
+				.poll(() => {
+					runLaunchAgent(tools);
+					return sleepDisabled(tools);
+				})
+				.toBe('0');
+			writeFileSync(join(tools, 'sleep-disabled'), '1');
+			runLaunchAgent(tools);
+			expect(sleepDisabled(tools)).toBe('1');
 		} finally {
-			await relaunched.quit();
+			await relaunched.quit().catch(() => undefined);
 		}
 	} finally {
 		await app.close().catch(() => undefined);
