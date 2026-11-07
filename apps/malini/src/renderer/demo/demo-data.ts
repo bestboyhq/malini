@@ -22,7 +22,12 @@ export const PROJECTS: ProjectDto[] = ['malini', 'platform', 'grip', 'tony'].map
 
 type DemoFile = Readonly<{ path: string; additions: number; deletions: number }>;
 
-type DemoTool = Readonly<{ name: string; input: Record<string, unknown>; output?: unknown }>;
+type DemoTool = Readonly<{
+	name: string;
+	input: Record<string, unknown>;
+	output?: unknown;
+	say?: string;
+}>;
 
 export type DemoRun = Readonly<{
 	id: string;
@@ -360,10 +365,58 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 	},
 ];
 
-export const HERO_ID = 'ws-tony-hero';
-
-export const HERO_THOUGHT =
-	'The pill hears every word and shows none of them. I will read Pill.svelte, put what it heard above it, then capture the hero before and after.';
+export const SETUP_WORKSTREAM: DemoWorkstream = {
+	id: 'ws-malini-duplicate',
+	projectId: 'malini',
+	name: 'Duplicate a chat from its tab',
+	branch: 'malini/duplicate-a-chat-from-its-tab',
+	activeAt: at('10:40'),
+	files: [
+		{ path: 'apps/malini/src/lib/chat/presentation/ChatTabs.svelte', additions: 14, deletions: 1 },
+		{ path: 'packages/hyper-ui/src/icons/copy.svg', additions: 4, deletions: 0 },
+	],
+	tree: TREES['malini'] ?? [],
+	ship: null,
+	runs: [
+		{
+			id: 'run-malini-duplicate-1',
+			prompt: 'Add Duplicate to the chat tab’s menu, with an icon to match.',
+			startedAt: at('10:31'),
+			tools: [
+				{
+					say: 'The icon pack has no copy glyph, so I’ll draw one.',
+					name: 'Skill',
+					input: { skill: 'draw-icon' },
+				},
+				{
+					say: 'Adding Duplicate to the tab’s menu.',
+					name: 'mcp__plugin_svelte_svelte__svelte-autofixer',
+					input: { code: '<Menu.Item onclick={duplicate}>', desired_svelte_version: 5 },
+					output: 'No issues found',
+				},
+				{
+					name: 'Bash',
+					input: { command: 'pnpm check', description: 'Type-check and lint' },
+					output: '✓ 0 errors, 0 warnings',
+				},
+				{
+					say: 'Your CLAUDE.md says done means checked in the app.',
+					name: 'Skill',
+					input: { skill: 'test-malini-app' },
+				},
+			],
+			report: [
+				'- Changed: Duplicate sits in the chat tab’s menu, with a copy icon drawn for the pack',
+				'- Verified: `pnpm check` passes, and Duplicate opens a copy in the built app',
+				'',
+				'Outcome: A chat duplicates from its tab',
+				'Needs: nothing',
+				'Commit: feat(chat): duplicate a chat from its tab',
+			].join('\n'),
+			usage: { inputTokens: 44_120, outputTokens: 1_910 },
+		},
+	],
+};
 
 export type StartedWorkstream = DemoWorkstream &
 	Readonly<{ workMs: number; thought: string; opens?: string }>;
@@ -477,7 +530,9 @@ export function workstreamDto(workstream: DemoWorkstream): WorkstreamDto {
 export const sessionId = (workstreamId: string): string => `session-${workstreamId}`;
 
 export function reportedWorkstream(id: string): DemoWorkstream | undefined {
-	return [...WORKSTREAMS, LEAD_WORKSTREAM].find((workstream) => workstream.id === id);
+	return [...WORKSTREAMS, LEAD_WORKSTREAM, SETUP_WORKSTREAM].find(
+		(workstream) => workstream.id === id,
+	);
 }
 
 function toolInput(workstreamId: string, tool: DemoTool): Record<string, unknown> {
@@ -496,6 +551,16 @@ export function toolEvents(
 		const toolCallId = `${runId}-tool-${index}`;
 		const ts = started + (index + 1) * 9_000;
 		return [
+			...(tool.say
+				? [
+						{
+							type: 'assistant.message' as const,
+							runId,
+							text: tool.say,
+							contentId: `${runId}-say-${index}`,
+						},
+					]
+				: []),
 			{
 				type: 'tool.started',
 				runId,

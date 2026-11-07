@@ -1,6 +1,6 @@
 # 0161 - The landing page hero plays one workstream
 
-Status: accepted
+Status: superseded by 0169
 
 ## Context
 

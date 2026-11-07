@@ -31,6 +31,7 @@ describe('toolDisplayName', () => {
 		['mcp__github__create_issue', 'GitHub · Create Issue'],
 		['mcp__plugin_svelte_svelte__list-sections', 'Svelte · List Sections'],
 		['mcp__plugin_cloudflare_cloudflare-api__execute', 'Cloudflare API · Execute'],
+		['mcp__plugin_svelte_svelte__svelte-autofixer', 'Svelte · Autofixer'],
 	])('removes protocol syntax from %s without losing its operation', (raw, expected) => {
 		expect(toolDisplayName(raw)).toBe(expected);
 	});
@@ -45,6 +46,11 @@ describe('tool transcript labels', () => {
 		expect(toolActivityLabel('Read', { path: 'src/main.ts' })).toBe('Read · src/main.ts');
 		expect(toolActivityLabel('Bash', { command: 'pnpm test' })).toBe('Bash · pnpm test');
 		expect(toolActivityLabel('Write', { file: 'src/output.ts' })).toBe('Write · src/output.ts');
+	});
+
+	it('names the skill a Skill call loads', () => {
+		expect(toolActivityLabel('Skill', { skill: 'draw-icon' })).toBe('Skill · draw-icon');
+		expect(toolActivityLabel('Skill', {})).toBe('Skill');
 	});
 
 	it('names the page or element a browser call acts on', () => {
