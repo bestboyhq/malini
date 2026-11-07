@@ -50,7 +50,7 @@ test('the first folder you open starts a workstream in it, and a later one lands
 		await recordBusyLabels(page);
 		await page.getByRole('button', { name: OPEN_FOLDER }).click();
 		await expectScratchpadOf(page, 'orchard');
-		expect(await busyLabels(page)).toContainEqual('Opening…');
+		expect(await busyLabels(page)).toContainEqual(OPEN_FOLDER);
 		await expect
 			.poll(async () => (await repositoryIds(page)).sort())
 			.toEqual(['local__meadow', 'local__orchard']);
@@ -159,7 +159,7 @@ async function recordBusyLabels(page: Page): Promise<void> {
 		if (!view) throw new Error('the repositories page has no window');
 		new view.MutationObserver(() => {
 			for (const button of body.querySelectorAll('button[aria-busy="true"]')) {
-				labels.push(button.textContent.trim());
+				labels.push(button.getAttribute('aria-label') ?? button.textContent.trim());
 			}
 		}).observe(body, { childList: true, subtree: true, attributes: true });
 	});
