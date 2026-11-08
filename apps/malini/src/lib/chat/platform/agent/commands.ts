@@ -54,33 +54,23 @@ import {
 } from '../runs.repository';
 import {
 	archiveSession,
-	conciseSessionTitle,
 	discardUnregisteredSession,
 	ensureSessionDisplayNames,
 	insertSession,
 	latestSessionForWorkstream,
 	listSessionSummaries,
-	nameSession,
-	promptPlainText,
 	repairSessionStatusesWithoutOpenRuns,
-	sessionAwaitsTitle,
 	sessionContextIdentity,
 	userSessionWorkstreamId,
 	type AgentSessionSummary,
 	type SessionIdentity,
 } from '../sessions.repository';
-import {
-	getWorkstream,
-	renameWorkstream,
-	workstreamAwaitsName,
-	workstreamLineage,
-} from '$shared/repositories/repositories.platform';
+import { getWorkstream, workstreamLineage } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import {
 	activeAutomationRunForSession,
 	clearAlarm,
 	automationBoundaryForSession,
-	runOneShotAutomation,
 } from '$lib/automations/automations.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
@@ -208,8 +198,7 @@ export interface SendPromptHooks {
 			attachmentIds: readonly string[];
 		}>,
 	) => Promise<{ prompt: string; attachmentIds: string[] }>;
-	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
-	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
+	readonly promptSent?: (sessionId: string, workstreamId: string, prompt: string) => void;
 	readonly theme?: () => AgentTheme;
 	readonly turnSettings?: () => Promise<TurnSettings>;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
@@ -220,7 +209,6 @@ export interface SendPromptHooks {
 		automation: AutomationBoundary,
 		lineage: AgentLineage | null,
 	) => AgentBoundary | null;
-	readonly providerEnvironment?: ResolveProviderEnvironment;
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -764,7 +752,7 @@ async function sendAgentPromptLeased(
 		...(input.chainId ? { chainId: input.chainId } : {}),
 		...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
 	};
-	if (input.automated !== true) nameFromFirstUserPrompt(db, supervisor, input, hooks, log);
+	if (input.automated !== true) hooks.promptSent?.(sessionId, workstreamId, prompt);
 	const verifiedAttachments = insertRunAndBindAttachments(db, {
 		workstreamId,
 		run: agentRun,
@@ -950,62 +938,6 @@ async function lineageForRun(
 	} catch (error) {
 		log(`agent: could not tell \`${workstreamId}\` about its lineage: ${describe(error)}`);
 		return null;
-	}
-}
-
-function nameFromFirstUserPrompt(
-	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
-	input: SendPromptInput,
-	hooks: SendPromptHooks,
-	log: (line: string) => void,
-): void {
-	if (!sessionAwaitsTitle(db, input.sessionId)) return;
-	const namesWorkstream = workstreamAwaitsName(db, input.workstreamId);
-	void nameChat(db, supervisor, input, namesWorkstream, hooks, log);
-}
-
-async function nameChat(
-	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
-	{ sessionId, workstreamId, prompt }: SendPromptInput,
-	namesWorkstream: boolean,
-	hooks: SendPromptHooks,
-	log: (line: string) => void,
-): Promise<void> {
-	const title = await suggestedTitle(db, supervisor, prompt, hooks, log);
-	try {
-		hooks.notifySessionRenamed?.(
-			workstreamId,
-			sessionId,
-			nameSession(db, sessionId, workstreamId, title),
-		);
-		if (!namesWorkstream || title === null) return;
-		const workstreamName = renameWorkstream(db, workstreamId, title);
-		if (workstreamName !== null) hooks.notifyWorkstreamRenamed?.(workstreamId, workstreamName);
-	} catch (error) {
-		log(`agent: could not name chat \`${sessionId}\`: ${describe(error)}`);
-	}
-}
-
-async function suggestedTitle(
-	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
-	prompt: string,
-	hooks: SendPromptHooks,
-	log: (line: string) => void,
-): Promise<string | null> {
-	const task = promptPlainText(prompt).trim();
-	if (task.length === 0) return null;
-	try {
-		return await runOneShotAutomation(db, 'name-chats', task, async (named, automation) => {
-			const environment =
-				(await hooks.providerEnvironment?.(automation.provider, automation.model)) ?? {};
-			return supervisor.suggestTitle(named, automation, environment);
-		});
-	} catch (error) {
-		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
-		return conciseSessionTitle(prompt);
 	}
 }
 

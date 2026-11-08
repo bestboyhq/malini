@@ -31,7 +31,7 @@ export const BUILTIN_WHEN: Readonly<Record<AutomationBuiltin, string>> = {
 
 const BUILTIN_WHEN_DETAIL: Readonly<Record<AutomationBuiltin, string>> = {
 	'name-chats':
-		'Runs on its own when you send the first message in a chat. It names the chat, and the workstream on its first chat.',
+		'Runs on its own when you send a message in a chat with no name yet, and again when that turn ends, with the reply. It names the chat in three words at most, and the workstream while it is still New workstream.',
 	'name-services':
 		'Runs on its own when an agent leaves a command running in the background. It names what keeps running in the sidebar.',
 	'fix-checks':

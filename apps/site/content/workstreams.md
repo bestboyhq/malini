@@ -116,7 +116,10 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
 - Open a workstream in your editor or reveal it in Finder.
 - Open a repository on GitHub from its right-click menu, the repository list, or its page.
 - Each workstream holds many chats, as tabs, named for you.
-  The first chat's name names the workstream too.
+  A new workstream is **New workstream** until its first chat has a name, and that name names the workstream too.
+  **Name chats** names a chat from your message as you send it, and again from the reply once the turn ends.
+  A name is three words at most.
+  A message with no task in it, such as hi, leaves the name as it is, and the next turn tries again.
   A shimmer writes each name in as it arrives: on the chat tab, on the sidebar row, and on the commands an agent leaves running.
   **⌘W** closes one, and the ones that don't fit wait behind the **…** at the end of the tabs.
   A closed tab folds away, and the tabs after it slide into its place.

@@ -228,15 +228,14 @@ export function ensureSessionDisplayNames(db: MaliniDatabase, workstreamId: stri
 	}
 }
 
-export function sessionAwaitsTitle(db: MaliniDatabase, sessionId: string): boolean {
+export function namedChatName(db: MaliniDatabase, sessionId: string): string | null {
 	return (
-		scalar(
+		get<{ display_name: string }>(
 			db,
-			`SELECT COUNT(*) FROM agent_sessions s
-			 WHERE s.id = ? AND s.origin IN ('user', 'thread')
-			 AND NOT EXISTS (SELECT 1 FROM agent_runs r WHERE r.session_id = s.id AND r.automated = 0)`,
+			`SELECT display_name FROM agent_sessions
+			 WHERE id = ? AND origin IN ('user', 'thread') AND archived_at IS NULL`,
 			sessionId,
-		) > 0
+		)?.display_name ?? null
 	);
 }
 
@@ -244,10 +243,9 @@ export function nameSession(
 	db: MaliniDatabase,
 	sessionId: string,
 	workstreamId: string,
-	title: string | null,
+	title: string,
 ): string {
-	const baseName = title ?? chatOrdinalName(db, workstreamId, sessionId);
-	const displayName = uniqueSessionDisplayName(db, workstreamId, baseName, sessionId);
+	const displayName = uniqueSessionDisplayName(db, workstreamId, title, sessionId);
 	run(db, 'UPDATE agent_sessions SET display_name = ? WHERE id = ?', displayName, sessionId);
 	return displayName;
 }

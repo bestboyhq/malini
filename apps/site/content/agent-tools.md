@@ -103,7 +103,8 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 In an automation that does not see every chat, `Outcome:` and `Needs:` are always empty.
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
 A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.
-Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat and the workstream from it.
+**Name chats** names the workstream from the agent's prompt before `workstreams_create` returns, so the agent gets that name back.
+Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat from it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
 Malini remembers which chat started each workstream.

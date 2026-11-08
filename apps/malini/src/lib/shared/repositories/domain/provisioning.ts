@@ -142,7 +142,7 @@ export function planWorkstreamProvisioning(input: {
 		cloneProgressId: identity.name,
 		repoUrl,
 		repositoryFullName: input.repo.fullName,
-		name: uniqueWorkstreamName(workstreamId, input.takenNames ?? []),
+		name: uniqueWorkstreamName(input.takenNames ?? []),
 		branch: workstreamBranch(workstreamId),
 		baseBranch: input.repo.defaultBranch,
 		scope: null,
@@ -157,7 +157,7 @@ export function planLeadChatProvisioning(
 	return {
 		workstreamId,
 		projectId: LEAD_SPACE_PROJECT_ID,
-		name: uniqueWorkstreamName(workstreamId, takenNames),
+		name: uniqueWorkstreamName(takenNames),
 		branch: workstreamBranch(workstreamId),
 		baseBranch: LEAD_SPACE_BRANCH,
 		scope,

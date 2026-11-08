@@ -37,7 +37,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 			'Fork workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const parent = currentSessionId(page);
 		if (!parent) throw new Error('the first chat did not commit a session id');
@@ -68,7 +68,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 		).toEqual([]);
 		await captureFlow(app, 'flow-4-fork-new-chat');
 
-		await sendPrompt(page, 'Carry on from the transcript');
+		await sendPrompt(page, 'Continue the transcript');
 		await expectAssistantReply(page);
 		expect(currentSessionId(page)).toBe(forked);
 		await expect(composer.getByLabel(`Attached file: ${transcriptName}`)).toHaveCount(0);
@@ -76,7 +76,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 		const prompt = (await listEvents(page, forked ?? '')).find(
 			(entry) => entry.event.type === 'user.message',
 		)?.event;
-		expect(prompt?.['text']).toContain('Carry on from the transcript');
+		expect(prompt?.['text']).toContain('Continue the transcript');
 		expect(prompt?.['attachments']).toEqual([
 			expect.objectContaining({ displayName: transcriptName, mediaType: 'text/plain' }),
 		]);
@@ -86,14 +86,14 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 			[
 				`# Transcript of ${parentName}`,
 				'## User',
-				'Explain the login flow',
+				'Explain login flow',
 				'## Assistant',
 				'Hello from the fake bridge',
 				'[Result: done]',
 			].join('\n\n') + '\n',
 		);
 		expect(conversation(await listEvents(page, parent))).toEqual(parentEvents);
-		const forkedName = 'Carry on from the transcript';
+		const forkedName = 'Continue the transcript';
 		expect(
 			(await listSessions(page, workstreamId)).find((session) => session.id === forked)
 				?.displayName,
@@ -109,7 +109,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 			[
 				`# Transcript of ${forkedName}`,
 				'## User',
-				`[attachment: [${transcriptName}](<${BRIDGE_AGENT_ATTACHMENTS_PATH}/${staged}/${transcriptName}>)] Carry on from the transcript`,
+				`[attachment: [${transcriptName}](<${BRIDGE_AGENT_ATTACHMENTS_PATH}/${staged}/${transcriptName}>)] Continue the transcript`,
 				'## Assistant',
 				'Hello from the fake bridge',
 				'[Result: done]',
@@ -135,7 +135,7 @@ test('forking with an unsent message puts the transcript first and the message a
 			'Fork draft workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const composer = page.getByTestId('chat-composer-input');
 		await composer.click();
@@ -143,11 +143,11 @@ test('forking with an unsent message puts the transcript first and the message a
 
 		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const transcriptChip = composer.getByLabel(
-			'Attached file: Transcript of Explain the login flow.md',
+			'Attached file: Transcript of Explain login flow.md',
 		);
 		await expect(transcriptChip).toBeVisible({ timeout: 20_000 });
 		await expect(composer).toHaveText(
-			/Transcript of Explain the login flow\.md\s+now refactor it\s*$/u,
+			/Transcript of Explain login flow\.md\s+now refactor it\s*$/u,
 		);
 		const forked = currentSessionId(page);
 
@@ -158,7 +158,7 @@ test('forking with an unsent message puts the transcript first and the message a
 		)?.event;
 		expect(prompt?.['text']).toMatch(/^\[\[attachment:[^\]]+\]\] now refactor it$/u);
 		await expect(page.getByTestId('chat-message-bubble-user')).toHaveText(
-			/Transcript of Explain the login flow\.md\s+now refactor it\s*$/u,
+			/Transcript of Explain login flow\.md\s+now refactor it\s*$/u,
 		);
 		expectCleanConsole(app);
 	} finally {
@@ -174,13 +174,13 @@ test('forking twice opens a new chat for each fork, right after the chat it came
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-fork-twice-ws', 'Fork twice');
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const strip = page.getByTestId('chat-agent-tabs');
-		const parentTab = strip.getByRole('tab', { name: /Explain the login flow/u });
+		const parentTab = strip.getByRole('tab', { name: /Explain login flow/u });
 		const composer = page.getByTestId('chat-composer-input');
 		const transcriptChip = composer.getByLabel(
-			'Attached file: Transcript of Explain the login flow.md',
+			'Attached file: Transcript of Explain login flow.md',
 		);
 
 		await page.getByRole('button', { name: 'Slice and fork' }).click();
@@ -199,7 +199,7 @@ test('forking twice opens a new chat for each fork, right after the chat it came
 
 		const names = (await strip.getByRole('tab').allTextContents()).map((name) => name.trim());
 		const selected = (await strip.getByRole('tab', { selected: true }).textContent())?.trim();
-		const parentIndex = names.findIndex((name) => /Explain the login flow/u.test(name));
+		const parentIndex = names.findIndex((name) => /Explain login flow/u.test(name));
 		expect(selected).not.toBe(firstForkName?.trim());
 		expect(names[parentIndex + 1]).toBe(selected);
 		expect(names[parentIndex + 2]).toBe(firstForkName?.trim());
@@ -229,18 +229,18 @@ test('hovering the wide transcript chip shows its preview centered over the chip
 			'Chip preview workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const chip = page
 			.getByTestId('chat-composer-input')
-			.getByLabel('Attached file: Transcript of Explain the login flow.md');
+			.getByLabel('Attached file: Transcript of Explain login flow.md');
 		await expect(chip).toBeVisible({ timeout: 20_000 });
 
 		await chip.hover();
 		const preview = page.getByTestId('chat-composer-chip-preview');
 		await expect(preview).toBeVisible();
-		await expect(preview).toContainText('Transcript of Explain the login flow.md');
+		await expect(preview).toContainText('Transcript of Explain login flow.md');
 		await expect(preview.getByText(/^\d+ B · Markdown$/u)).toBeVisible();
 		await expect(preview).not.toContainText('text/plain');
 
@@ -273,14 +273,14 @@ test('forking a run stages the transcript in the fork only, never in the chat it
 			'Fork parent draft',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const parent = currentSessionId(page);
 		const strip = page.getByTestId('chat-agent-tabs');
-		const parentTab = strip.getByRole('tab', { name: /Explain the login flow/u });
+		const parentTab = strip.getByRole('tab', { name: /Explain login flow/u });
 		const composer = page.getByTestId('chat-composer-input');
 		const transcriptChip = composer.getByRole('button', {
-			name: 'Remove Transcript of Explain the login flow.md',
+			name: 'Remove Transcript of Explain login flow.md',
 		});
 		const anyChip = composer.getByRole('button', { name: /^Remove /u });
 
@@ -320,11 +320,11 @@ test('removing a chip between two words sends the prompt with one space between 
 			'Chip space workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const composer = page.getByTestId('chat-composer-input');
-		const chip = composer.getByLabel('Attached file: Transcript of Explain the login flow.md');
+		const chip = composer.getByLabel('Attached file: Transcript of Explain login flow.md');
 		await expect(chip).toBeVisible({ timeout: 20_000 });
 		await expect(composer).toBeFocused();
 		await page.keyboard.type('and this end.');
@@ -364,11 +364,11 @@ test('removing the only chip from a composer leaves it empty, with no draft behi
 			'Chip only workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const composer = page.getByTestId('chat-composer-input');
-		const chip = composer.getByLabel('Attached file: Transcript of Explain the login flow.md');
+		const chip = composer.getByLabel('Attached file: Transcript of Explain login flow.md');
 		await expect(chip).toBeVisible({ timeout: 20_000 });
 		const draftIndicator = page.getByTestId('sidebar-workstream-draft');
 		await expect(draftIndicator).toHaveCount(1);
@@ -411,10 +411,10 @@ test('a new fork is named New chat again once the earlier fork tab is closed', a
 			'Fork name workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const strip = page.getByTestId('chat-agent-tabs');
-		const parentTab = strip.getByRole('tab', { name: /Explain the login flow/u });
+		const parentTab = strip.getByRole('tab', { name: /Explain login flow/u });
 		const newChatTab = strip.getByRole('tab', { name: /New chat$/u });
 
 		for (let fork = 0; fork < 2; fork += 1) {
@@ -441,7 +441,7 @@ test('a finished chat forks while another chat in its workstream is still runnin
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-fork-busy-ws', 'Fork busy');
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const finished = currentSessionId(page);
 		if (!finished) throw new Error('the first chat did not commit a session id');

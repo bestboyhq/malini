@@ -1122,4 +1122,58 @@ describe('migrate', () => {
 		]);
 		db.close();
 	});
+
+	it('renames the word-pair names to New workstream and updates Name chats unless you edited it', () => {
+		const sql = MIGRATIONS.at(-1) ?? '';
+		const quoted = (pattern: RegExp): string =>
+			(pattern.exec(sql)?.[1] ?? '').replaceAll("''", "'");
+		const before = quoted(/AND instructions = '((?:[^']|'')*)';/u);
+		const after = quoted(/SET instructions = '((?:[^']|'')*)'/u);
+		const migrated = (instructions: string): Database => {
+			const db = openDatabase(':memory:');
+			db.exec(SCHEMA);
+			for (const migration of MIGRATIONS.slice(0, -1)) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+			seedWorkstream(db);
+			db.prepare(
+				`INSERT INTO automation_definitions
+				 (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at)
+				 VALUES ('d', 'Name chats', ?, 'haiku', 'low', 'workstream', 'name-chats', '2026-07-19', '2026-07-19')`,
+			).run(instructions);
+			return db;
+		};
+
+		const db = migrated(before);
+		db.exec(`
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('q', 'q', '/tmp/q', 'main', '2026-07-19T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES
+			  ('a', 'p', 'Electric Arc', '/tmp/a', 'malini/a', 'main', 'active', '2026-07-19T00:00:00Z'),
+			  ('b', 'p', 'Swift Beacon 2', '/tmp/b', 'malini/b', 'main', 'active', '2026-07-19T00:00:00Z'),
+			  ('c', 'p', 'Lunar Relay', '/tmp/c', 'malini/c', 'main', 'archived', '2026-07-19T00:00:00Z'),
+			  ('d', 'p', 'Login bug', '/tmp/d', 'malini/d', 'main', 'active', '2026-07-19T00:00:00Z'),
+			  ('e', 'q', 'Neon Pulse', '/tmp/e', 'malini/e', 'main', 'active', '2026-07-19T00:00:00Z');
+		`);
+		migrate(db);
+		expect(all(db, 'SELECT id, name FROM workstreams ORDER BY id')).toEqual([
+			{ id: 'a', name: 'New workstream' },
+			{ id: 'b', name: 'New workstream 2' },
+			{ id: 'c', name: 'New workstream' },
+			{ id: 'd', name: 'Login bug' },
+			{ id: 'e', name: 'New workstream' },
+			{ id: 'w', name: 'w' },
+		]);
+		expect(get(db, "SELECT instructions FROM automation_definitions WHERE id = 'd'")).toEqual({
+			instructions: after,
+		});
+		expect(after).toMatch(/^You name the work in a coding agent's chat/u);
+		expect(before).toMatch(/^You name the tasks people give a coding agent/u);
+		db.close();
+
+		const edited = migrated('Name it after a fruit.');
+		migrate(edited);
+		expect(get(edited, "SELECT instructions FROM automation_definitions WHERE id = 'd'")).toEqual({
+			instructions: 'Name it after a fruit.',
+		});
+		edited.close();
+	});
 });
