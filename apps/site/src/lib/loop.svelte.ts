@@ -42,17 +42,27 @@ export function steps(count: number, each: number, rest: number): number[] {
 	return Array.from({ length: count }, (_, index) => (index === count - 1 ? rest : each));
 }
 
-export function ticker(every: number, tick: () => void): Attachment<HTMLElement> {
+export function frames(tick: (seconds: number) => void): Attachment<HTMLElement> {
 	return (node) => {
 		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-		let timer: ReturnType<typeof setInterval> | undefined;
+		let frame = 0;
+		let seconds = 0;
+		let last = 0;
+		const draw = (time: number) => {
+			seconds += Math.min(Math.max(time - last, 0), 100) / 1000;
+			last = time;
+			tick(seconds);
+			frame = requestAnimationFrame(draw);
+		};
 		const observer = new IntersectionObserver(([entry]) => {
-			clearInterval(timer);
-			if (entry?.isIntersecting) timer = setInterval(tick, every);
+			cancelAnimationFrame(frame);
+			if (!entry?.isIntersecting) return;
+			last = performance.now();
+			frame = requestAnimationFrame(draw);
 		});
 		observer.observe(node);
 		return () => {
-			clearInterval(timer);
+			cancelAnimationFrame(frame);
 			observer.disconnect();
 		};
 	};

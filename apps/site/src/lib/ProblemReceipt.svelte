@@ -1,18 +1,11 @@
 <script lang="ts">
-	import { ticker } from './loop.svelte';
+	import { frames } from './loop.svelte';
 	import RollingNumber from './RollingNumber.svelte';
 
-	let tokensIn = $state(1_284_019);
-	let tokensOut = $state(92_410);
+	let elapsed = $state(0);
 </script>
 
-<div
-	class="till"
-	{@attach ticker(450, () => {
-		tokensIn += Math.round(2600 + Math.random() * 1800);
-		tokensOut += Math.round(70 + Math.random() * 110);
-	})}
->
+<div class="till" {@attach frames((seconds) => (elapsed = seconds))}>
 	<div class="slot"></div>
 	<div class="paper">
 		<div class="center">AGENT TOOL</div>
@@ -20,11 +13,11 @@
 		<hr />
 		<div class="row">
 			<span>Tokens in</span>
-			<RollingNumber value={tokensIn} />
+			<RollingNumber from={1_284_019} rate={7_800} {elapsed} />
 		</div>
 		<div class="row">
 			<span>Tokens out</span>
-			<RollingNumber value={tokensOut} />
+			<RollingNumber from={92_410} rate={520} {elapsed} />
 		</div>
 		<div class="row">
 			<span>Same file, again</span>

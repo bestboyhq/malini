@@ -13,6 +13,8 @@ export type LoupeParts = Readonly<{
 
 type Point = { x: number; y: number };
 
+type Start = Point & { at: number };
+
 type Col = {
 	box: HTMLElement;
 	feed: HTMLElement;
@@ -38,10 +40,10 @@ const EVERY = 4_800;
 const GLIDE = 1_800;
 const RISE = 1_600;
 const RESUME = 1_200;
+const CATCH = 600;
 const SPEED = [9, 7, 11];
 const STIFF = 40;
-const DAMP = 2 * Math.sqrt(STIFF);
-const WALL = 0.6;
+export const GRIP = 1_600;
 
 const TOKEN =
 	/(?<c>(?:^|\s)[;#]\s.*$|^##?\s.*$)|(?<s>"[^"]*"|~\/[^\s)"]*)|(?<o>\btrue\b|✓)|(?<w>\b(?:Bash|Read|Edit|Write|Grep)\b)|(?<f>(?<=\s)--?[a-z][\w-]*)/gu;
@@ -215,6 +217,17 @@ const pop = (t: number): number => 1 - (1 + 30 * t) * Math.exp(-30 * t);
 
 const hole = (x: number, y: number, r: number): string =>
 	`radial-gradient(circle at ${x.toFixed(1)}px ${y.toFixed(1)}px, transparent ${Math.max(0, r - SOFT).toFixed(1)}px, #000 ${r.toFixed(1)}px)`;
+
+export function spring(pos: Point, vel: Point, aim: Point, stiff: number, dt: number): void {
+	const damp = 2 * Math.sqrt(stiff);
+	for (let remaining = dt / 1_000; remaining > 0; remaining -= 1 / 240) {
+		const step = Math.min(remaining, 1 / 240);
+		vel.x += (stiff * (aim.x - pos.x) - damp * vel.x) * step;
+		vel.y += (stiff * (aim.y - pos.y) - damp * vel.y) * step;
+		pos.x += vel.x * step;
+		pos.y += vel.y * step;
+	}
+}
 
 export function playLoupe(parts: LoupeParts): () => void {
 	const { stage, glass, lens, canvas, uses } = parts;
@@ -481,7 +494,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 		return first * ROW - col.y + (use.lines.length * ROW) / 2;
 	};
 
-	let from: (Point & { at: number }) | null = null;
+	let from: Start | null = null;
 
 	const show = (index: number): void => {
 		const use = uses[index];
@@ -543,41 +556,27 @@ export function playLoupe(parts: LoupeParts): () => void {
 	}
 
 	let pointer: Point | null = null;
-	let caught = false;
+	let grab: Start | null = null;
 	const vel: Point = { x: 0, y: 0 };
 
+	const toward = (start: Start | null, end: Point, span: number): Point => {
+		if (!start) return end;
+		const k = smooth((clock - start.at) / span);
+		return { x: start.x + (end.x - start.x) * k, y: start.y + (end.y - start.y) * k };
+	};
+
 	const follow = (dt: number): void => {
-		const k = from ? smooth((clock - from.at) / GLIDE) : 1;
-		const aim = pointer ?? {
-			x: from ? from.x + (held.x - from.x) * k : held.x,
-			y: from ? from.y + (held.y - from.y) * k : held.y,
-		};
-		for (let remaining = dt / 1_000; remaining > 0; remaining -= 1 / 240) {
-			const step = Math.min(remaining, 1 / 240);
-			vel.x += (STIFF * (aim.x - pos.x) - DAMP * vel.x) * step;
-			vel.y += (STIFF * (aim.y - pos.y) - DAMP * vel.y) * step;
-			pos.x += vel.x * step;
-			pos.y += vel.y * step;
-		}
-		if (!pointer) return;
-		const dx = pos.x - pointer.x;
-		const dy = pos.y - pointer.y;
-		const d = Math.hypot(dx, dy);
-		const wall = WALL * R;
-		caught ||= d <= wall;
-		if (caught && d > wall) {
-			pos.x = pointer.x + (dx * wall) / d;
-			pos.y = pointer.y + (dy * wall) / d;
-		}
+		if (pointer) spring(pos, vel, toward(grab, pointer, CATCH), GRIP, dt);
+		else spring(pos, vel, toward(from, held, GLIDE), STIFF, dt);
 	};
 
 	listen('pointermove', (event) => {
 		const box = stage.getBoundingClientRect();
+		if (!pointer) grab = { at: clock, x: pos.x, y: pos.y };
 		pointer = { x: event.clientX - box.left, y: event.clientY - box.top };
 	});
 	listen('pointerleave', () => {
 		pointer = null;
-		caught = false;
 		from = { at: clock, x: pos.x, y: pos.y };
 	});
 
