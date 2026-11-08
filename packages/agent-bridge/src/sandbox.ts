@@ -6,7 +6,10 @@ import { basename, dirname, join, resolve } from 'node:path';
 export const SANDBOX_EXEC = '/usr/bin/sandbox-exec';
 export const SECRETS_FOLDER_PREFIX = 'malini-secrets-';
 export const OUTSIDE_THE_SANDBOX = 'malini-outside-';
-export const SANDBOX_ENVIRONMENT = { ELECTRON_DISABLE_SANDBOX: '1' } as const;
+export const SANDBOX_ENVIRONMENT = {
+	ELECTRON_DISABLE_SANDBOX: '1',
+	AGENT_BROWSER_ARGS: '--no-sandbox',
+} as const;
 
 const CLAUDE_CHAT_RECORDS = [
 	'projects',
@@ -38,6 +41,11 @@ const CREDENTIALS = [
 ];
 
 const CACHES = ['Library/Caches', '.cache', '.npm', 'Library/pnpm/store'];
+const TOOL_HOMES = [
+	'.agent-browser',
+	'Library/Preferences/.wrangler/logs',
+	'Library/Preferences/.wrangler/registry',
+];
 const PNPM_LINK_PROBES = 'Library/pnpm/_tmp_';
 const TEMP_FOLDERS = ['/private/tmp', '/private/var/folders'];
 const DEVICES = [
@@ -91,11 +99,11 @@ const SERVICES = [
 	'com.apple.windowserver.active',
 ];
 const KEYCHAIN_SERVICE = 'com.apple.SecurityServer';
-const ELECTRON_RENDEZVOUS = 'com.github.Electron.MachPortRendezvousServer.';
+const CHROMIUM_RENDEZVOUS = '\\.MachPortRendezvousServer\\.[0-9]+$';
 const REGISTERED_SERVICES = ['com.apple.axserver', 'com.apple.coredrag', 'com.apple.tsm.portname'];
 const DNS_SOCKET = '/private/var/run/mDNSResponder';
 const LAUNCHD_SOCKETS = '^/private/tmp/com\\.apple\\.launchd\\.';
-const UNSANDBOXED_TOOLS = ['/bin/ps', '/usr/bin/top'];
+const UNSANDBOXED_TOOLS = ['/bin/ps', '/usr/bin/top', '/usr/bin/log'];
 
 export interface SandboxPlaces {
 	readonly checkout: string;
@@ -138,9 +146,19 @@ export function sandboxProfile(
 ): string {
 	const root = canonicalPath(checkout);
 	const git = gitFolders(root);
-	const writable = [root, ...git, ...TEMP_FOLDERS, ...CACHES.map((entry) => join(home, entry))];
+	const tools = TOOL_HOMES.map((entry) => join(home, entry));
+	const writable = [
+		root,
+		...git,
+		...TEMP_FOLDERS,
+		...CACHES.map((entry) => join(home, entry)),
+		...tools,
+	];
 	const pnpmLinkProbes = regex(`^${escapeRegex(canonicalPath(join(home, PNPM_LINK_PROBES)))}`);
-	const sockets = [...[root, ...TEMP_FOLDERS].map(subpath), literal(DNS_SOCKET)];
+	const sockets = [
+		...[root, ...TEMP_FOLDERS, ...tools].map((path) => subpath(canonicalPath(path))),
+		literal(DNS_SOCKET),
+	];
 	const secret = [...CREDENTIALS.map((entry) => join(home, entry)), ...hidden];
 	return [
 		'(version 1)',
@@ -155,8 +173,8 @@ export function sandboxProfile(
 		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), pnpmLinkProbes, ...DEVICES].join(' ')})`,
 		`(deny file-write* ${ranOutside(root, git).join(' ')})`,
 		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
-		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}))`,
-		`(allow mach-register (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
+		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}))`,
+		`(allow mach-register (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
 		'(allow ipc-posix-shm ipc-posix-sem)',
 		'(allow iokit-open iokit-get-properties)',
 		'(allow user-preference-read)',

@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, globSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,13 @@ const CHECKOUT = join(ROOT, 'checkout');
 const IN_HOME = join(homedir(), `.malini-sandbox-test-${process.pid}`);
 const PNPM_HOME = join(homedir(), 'Library/pnpm');
 const IN_PNPM_HOME = join(PNPM_HOME, `malini-sandbox-test-${process.pid}`);
+const AGENT_BROWSER = join(homedir(), '.agent-browser');
+const PLAYWRIGHT_BROWSERS = join(homedir(), 'Library/Caches/ms-playwright');
+const HEADLESS_CHROMIUM = globSync('chromium_headless_shell-*/*/chrome-headless-shell', {
+	cwd: PLAYWRIGHT_BROWSERS,
+})
+	.map((path) => join(PLAYWRIGHT_BROWSERS, path))
+	.at(-1);
 
 mkdirSync(CHECKOUT);
 execFileSync('git', ['init', '--quiet'], { cwd: CHECKOUT });
@@ -20,6 +27,7 @@ afterAll(async () => {
 	await rm(ROOT, { recursive: true, force: true });
 	await rm(IN_HOME, { force: true });
 	await rm(IN_PNPM_HOME, { force: true });
+	await rm(join(AGENT_BROWSER, 'sandbox-test'), { force: true });
 });
 
 function inside(command: string): Promise<number> {
@@ -30,7 +38,7 @@ function inside(command: string): Promise<number> {
 	);
 	return new Promise((resolve) => {
 		execFile(file, args, { cwd: CHECKOUT }, (error) =>
-			resolve(typeof error?.code === 'number' ? error.code : 0),
+			resolve(typeof error?.code === 'number' ? error.code : error ? 1 : 0),
 		);
 	});
 }
@@ -83,6 +91,23 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		const probe = `node --input-type=module -e "import { canSandbox } from '${module}'; process.exit(canSandbox() ? 3 : 4)"`;
 
 		expect(await inside(probe)).toBe(4);
+	});
+
+	it.runIf(HEADLESS_CHROMIUM)("lets Playwright's Chromium start", async () => {
+		expect(await inside(`'${HEADLESS_CHROMIUM}' --no-sandbox --dump-dom 'data:text/html,ok'`)).toBe(
+			0,
+		);
+	});
+
+	it.runIf(existsSync(AGENT_BROWSER))(
+		'lets agent-browser keep its sockets in its home',
+		async () => {
+			expect(await inside(`touch ${AGENT_BROWSER}/sandbox-test`)).toBe(0);
+		},
+	);
+
+	it('lets a command read the system log, which refuses to run in a sandbox', async () => {
+		expect(await inside('/usr/bin/log show --last 1s --style compact')).toBe(0);
 	});
 
 	it('keeps a command off the internet when the internet is off', async () => {

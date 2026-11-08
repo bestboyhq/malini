@@ -232,14 +232,14 @@ A package that turns out to be malicious gets the sandbox, not your Mac.
 
 In the sandbox, a command:
 
-- writes only to the workstream, its git folders, temporary folders and package caches;
+- writes only to the workstream, its git folders, temporary folders, package caches, and the folders where agent-browser and wrangler keep their sessions and logs;
 - never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
 - reaches localhost and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
-Electron, Playwright, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
-Electron's own sandbox stays off there, since the two cannot nest.
+Electron, Playwright with its Chromium, agent-browser, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
+Electron and Chrome keep their own sandbox off there, since the two cannot nest.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 
 When a command needs what the sandbox blocks, the agent asks to run it outside, and the chat asks you first.
