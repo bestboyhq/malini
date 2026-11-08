@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -11,10 +10,11 @@ import {
 	launchMalini,
 	openAutomation,
 	openAutomations,
+	openSettingsFromMenu,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	openSettingsFromMenu,
+	temporaryRoot,
 } from './harness';
 
 test('setup goes from accounts straight to sounds, with no skills to sort', async () => {
@@ -36,7 +36,7 @@ test('setup goes from accounts straight to sounds, with no skills to sort', asyn
 
 test('Settings ranks skills by use and turns a skill and a plugin off in Claude Code settings', async () => {
 	test.setTimeout(120_000);
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	const home = join(root, 'home');
 	const settingsFile = join(home, '.claude', 'settings.json');
 	mkdirSync(join(home, '.claude'), { recursive: true });

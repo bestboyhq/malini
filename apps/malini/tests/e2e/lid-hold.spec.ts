@@ -1,14 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import {
-	chmodSync,
-	mkdirSync,
-	mkdtempSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -22,6 +13,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	temporaryRoot,
 } from './harness';
 
 const SUDO = `#!/bin/sh
@@ -113,7 +105,7 @@ async function openPowerSettings(page: Page) {
 
 test('with the lid switch on, the Mac stays awake while an agent works and sleeps once it stops', async () => {
 	test.setTimeout(120_000);
-	const root = mkdtempSync(join(tmpdir(), 'malini-lid-'));
+	const root = temporaryRoot('malini-lid-');
 	const tools = fakeLidTools(root);
 	writeFileSync(join(tools, 'cancel'), '');
 	const app = await launchMalini({ env: { MALINI_LID_TOOLS: tools } });
@@ -188,7 +180,7 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 
 test('once the Malini that holds the lid is gone, launchd or its next launch lets the Mac sleep again', async () => {
 	test.setTimeout(180_000);
-	const root = mkdtempSync(join(tmpdir(), 'malini-lid-'));
+	const root = temporaryRoot('malini-lid-');
 	const tools = fakeLidTools(root);
 	writeFileSync(join(tools, 'granted'), '');
 	const env = { MALINI_LID_TOOLS: tools };
