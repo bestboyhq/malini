@@ -1,10 +1,10 @@
-import { mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
-const TEMP = join(tmpdir(), 'malini-bridge-tests');
-mkdirSync(TEMP, { recursive: true });
+const TEMP = mkdtempSync(join(tmpdir(), 'malini-bridge-tests-'));
+process.once('exit', () => rmSync(TEMP, { recursive: true, force: true }));
 
 export default defineConfig({
 	test: {

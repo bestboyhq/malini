@@ -1,5 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -7,10 +6,11 @@ import {
 	clickRevealedOnHover,
 	createSourceRepo,
 	expectCleanConsole,
+	type LaunchedApp,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
-	type LaunchedApp,
+	temporaryRoot,
 } from './harness';
 
 const HEALTHY = 'community.healthy';
@@ -145,7 +145,7 @@ test.fixme(
 	},
 	async () => {
 		test.setTimeout(180_000);
-		const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+		const root = temporaryRoot();
 		const home = join(root, 'extension-home');
 		const healthy = installExtensions(home, root);
 		const app = await launchMalini({
@@ -207,7 +207,7 @@ test.fixme(
 
 test('recovery mode starts no local extension', async () => {
 	test.setTimeout(120_000);
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	const home = join(root, 'extension-home');
 	installExtensions(home, root);
 	writeFileSync(join(home, 'recovery-mode'), 'enabled\n');

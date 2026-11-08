@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator } from '@playwright/test';
 import {
@@ -7,12 +6,13 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	type LaunchedApp,
 	launchMalini,
+	openSettingsFromMenu,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	type LaunchedApp,
-	openSettingsFromMenu,
+	temporaryRoot,
 } from './harness';
 
 const SERVERS = [
@@ -25,7 +25,7 @@ const SERVERS = [
 ];
 
 function claudeHome(): { root: string; settingsFile: string } {
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	const settingsFile = join(root, 'home', '.claude', 'settings.json');
 	mkdirSync(join(root, 'home', '.claude'), { recursive: true });
 	writeFileSync(settingsFile, JSON.stringify({ theme: 'dark' }, null, 2));

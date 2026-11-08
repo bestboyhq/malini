@@ -506,6 +506,31 @@ describe('createWorkstreamWatchers', () => {
 		expect(factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL)).toHaveLength(1);
 	});
 
+	it('leaves the conflict of a pull to the pull, however long it takes to report it', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		await divergedOnSeed(path);
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		const reportedDuringPull = await watchers.whilePulling('ws-1', async () => {
+			await expect(git(path, 'merge', 'topic')).rejects.toThrow();
+			await sleep(SETTLE_MS);
+			const reported = factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL).length;
+			watchers.reportMergeConflict({
+				workstreamId: 'ws-1',
+				baseBranch: 'main',
+				conflictedPaths: ['seed.txt'],
+				mergeHead: await git(path, 'rev-parse', 'MERGE_HEAD'),
+			});
+			return reported;
+		});
+		await sleep(SETTLE_MS);
+
+		expect(reportedDuringPull).toBe(0);
+		expect(factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL)).toHaveLength(1);
+	});
+
 	it("reports Malini's own commit the moment it asks, and never again when the watcher catches up", async () => {
 		const path = join(root, 'ws-1');
 		await initRepo(path);
