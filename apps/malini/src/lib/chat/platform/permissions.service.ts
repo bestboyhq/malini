@@ -4,7 +4,9 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, posix } from 'node:path';
 import { errorCode } from '$main/errors';
 import type { MaliniDatabase } from '$main/db/driver';
-import { listPermissionRules } from './permissions.repository';
+import { grantProblem, type SandboxGrant } from '@malini/agent-bridge/sandbox';
+import { activePermissionsForSession, listPermissionRules } from './permissions.repository';
+import { leavesTheSandbox } from '../domain/approval-request';
 
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
@@ -73,6 +75,21 @@ export function rememberedResources(permissionJson: string): RememberedResource[
 	});
 }
 
+export const RUNS_OUTSIDE = finishNormalization(
+	JSON.stringify({ capability: 'outside', resources: [] }),
+);
+
+export function normalizeRequestedPermission(
+	permission: unknown,
+	workstreamPath: string,
+	toolName: string | undefined,
+	input: unknown,
+): NormalizedPermission {
+	const opensTheSandbox = isPlainObject(permission) && permission['capability'] === 'sandbox';
+	if (!opensTheSandbox && leavesTheSandbox(toolName, input)) return RUNS_OUTSIDE;
+	return normalizeRememberablePermission(permission, workstreamPath, toolName);
+}
+
 export function normalizeRememberablePermission(
 	permission: unknown,
 	workstreamPath: string,
@@ -92,6 +109,7 @@ export function normalizeRememberablePermission(
 		throw new Error(`remembered permissions require 1-${MAX_PERMISSION_RESOURCES} resources`);
 	}
 	if (toolName?.startsWith(MALINI_TOOL_PREFIX)) return normalizeMaliniAction(wire);
+	if (wire.capability === 'sandbox') return normalizeSandboxGrants(wire.resources, workstreamPath);
 	if (wire.capability !== 'read') {
 		throw new Error('only canonical external reads can be remembered');
 	}
@@ -202,6 +220,70 @@ function normalizeExternalReadPermission(
 		})),
 	});
 	return finishNormalization(canonicalJson);
+}
+
+function normalizeSandboxGrants(
+	resources: PermissionResourceWire[],
+	workstreamPath: string,
+): NormalizedPermission {
+	const workstream = canonicalizeAllowMissing(workstreamPath);
+	const grants = resources.map(({ kind, value, boundary, canonicalValue, readOnly }) => {
+		if (
+			(kind !== 'path' && kind !== 'socket') ||
+			boundary !== 'external' ||
+			canonicalValue !== undefined ||
+			readOnly !== undefined
+		) {
+			throw new Error('a sandbox grant opens only external paths and sockets');
+		}
+		if (!isUsablePathValue(value)) throw new Error('sandbox grant path is empty or too large');
+		const path = strictlyNormalizedAbsolutePath(value);
+		if (path !== value || canonicalizeAllowMissing(path) !== path) {
+			throw new Error(`sandbox grant \`${value}\` is not host-canonical`);
+		}
+		if (isAtOrInsideDirectory(workstream, path) || isAtOrInsideDirectory(path, workstream)) {
+			throw new Error(`sandbox grant \`${value}\` overlaps the active workstream`);
+		}
+		const problem = isSensitivePath(path)
+			? 'holds credentials'
+			: grantProblem({ kind, path }, { checkout: workstream, hidden: [] });
+		if (problem !== null) throw new Error(`sandbox grant \`${value}\` ${problem}`);
+		return { kind, value: path, boundary: 'external' };
+	});
+	const unique = [...new Map(grants.map((grant) => [`${grant.kind} ${grant.value}`, grant]))];
+	return finishNormalization(
+		JSON.stringify({
+			capability: 'sandbox',
+			resources: unique.sort(([a], [b]) => compareBytewise(a, b)).map(([, grant]) => grant),
+		}),
+	);
+}
+
+export function sandboxGrantsFor(
+	db: MaliniDatabase,
+	workstreamId: string,
+	sessionId: string,
+): SandboxGrant[] {
+	const grants = new Map<string, SandboxGrant>();
+	for (const permissionJson of activePermissionsForSession(db, workstreamId, sessionId)) {
+		const permission: unknown = JSON.parse(permissionJson);
+		if (!isPlainObject(permission) || permission['capability'] !== 'sandbox') continue;
+		for (const { kind, value } of rememberedResources(permissionJson)) {
+			if (kind === 'path' || kind === 'socket')
+				grants.set(`${kind} ${value}`, { kind, path: value });
+		}
+	}
+	return [...grants.values()];
+}
+
+export function outsideAllowedFor(
+	db: MaliniDatabase,
+	workstreamId: string,
+	sessionId: string,
+): boolean {
+	return activePermissionsForSession(db, workstreamId, sessionId).includes(
+		RUNS_OUTSIDE.canonicalJson,
+	);
 }
 
 function finishNormalization(canonicalJson: string): NormalizedPermission {
@@ -353,7 +435,9 @@ export function validateApprovalDecision(
 		throw new Error('approval decision must be `allow` or `deny`');
 	}
 	if (!isAgentApprovalScope(scope)) {
-		throw new Error('approval scope must be `once`, `session`, `workstream`, or `everywhere`');
+		throw new Error(
+			'approval scope must be `once`, `session`, `workstream`, `repository`, or `everywhere`',
+		);
 	}
 }
 

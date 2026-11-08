@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
+	renameSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
@@ -12,6 +13,7 @@ import { rename, rm, writeFile } from 'node:fs/promises';
 import { constants as osConstants, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+	INSIDE_THE_SANDBOX,
 	OUTSIDE_THE_SANDBOX,
 	SANDBOX_ENVIRONMENT,
 	SANDBOX_EXEC,
@@ -34,10 +36,15 @@ folder=\${0%/*}
 shell=\${CLAUDE_CODE_SHELL:-/bin/zsh}
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
 run=("$shell" -c "$1")
+profile=(-f "$folder/sandbox.sb")
+if [[ $1 =~ ${INSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && once="$folder/passes/\${BASH_REMATCH[1]}.sb" &&
+	granted=$(/bin/cat "$once" 2>/dev/null) && /bin/rm "$once"; then
+	profile=(-p "$granted")
+fi
 if [ -r "$folder/sandbox.sb" ] && ! {
 	[[ $1 =~ ${OUTSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && /bin/rm "$folder/passes/\${BASH_REMATCH[1]}" 2>/dev/null
 }; then
-	run=(/usr/bin/env ${sandboxEnvironment} ${SANDBOX_EXEC} -f "$folder/sandbox.sb" "\${run[@]}")
+	run=(/usr/bin/env ${sandboxEnvironment} ${SANDBOX_EXEC} "\${profile[@]}" "\${run[@]}")
 fi
 [ -s "$folder/masks" ] || exec "\${run[@]}"
 mask() {
@@ -80,17 +87,31 @@ export class SessionSecrets {
 	confine(profile: string | null): void {
 		this.#confined = profile !== null;
 		const path = join(this.#folder, 'sandbox.sb');
-		if (profile === null) rmSync(path, { force: true });
-		else writeFileSync(path, profile, { mode: 0o600 });
+		if (profile === null) {
+			rmSync(path, { force: true });
+			return;
+		}
+		const next = `${path}.${randomUUID()}`;
+		writeFileSync(next, profile, { mode: 0o600 });
+		renameSync(next, path);
 	}
 
 	passOutside(command: string): string {
 		if (!this.#confined) return command;
+		return `: ${OUTSIDE_THE_SANDBOX}${this.#pass('', '')}; ${command}`;
+	}
+
+	passInside(command: string, profile: string): string {
+		if (!this.#confined) return command;
+		return `: ${INSIDE_THE_SANDBOX}${this.#pass('.sb', profile)}; ${command}`;
+	}
+
+	#pass(extension: string, contents: string): string {
 		const passes = join(this.#folder, 'passes');
 		const pass = randomBytes(16).toString('hex');
 		mkdirSync(passes, { recursive: true, mode: 0o700 });
-		writeFileSync(join(passes, pass), '', { mode: 0o600 });
-		return `: ${OUTSIDE_THE_SANDBOX}${pass}; ${command}`;
+		writeFileSync(join(passes, `${pass}${extension}`), contents, { mode: 0o600 });
+		return pass;
 	}
 
 	async set(secrets: Readonly<Record<string, string>>): Promise<void> {

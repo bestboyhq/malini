@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { APP_DATA_ROOT } from '@malini/agent-bridge/sandbox';
 import {
 	CHAT_SESSION_RENAMED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
@@ -287,6 +288,7 @@ export async function startAgentService(
 					...deps.spawnEnvironment(),
 					AGENT_BRIDGE_LOG: join(context.appDataRoot, 'agent-bridge.log'),
 					MALINI_AGENT_BRIDGE_PRIVATE_RUNTIME_ROOT: privateRuntimeRoot,
+					[APP_DATA_ROOT]: context.appDataRoot,
 				},
 			},
 			...(deps.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: deps.readyTimeoutMs }),

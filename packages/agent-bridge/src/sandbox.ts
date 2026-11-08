@@ -1,12 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, resolve } from 'node:path';
 
 export const SANDBOX_EXEC = '/usr/bin/sandbox-exec';
 export const SECRETS_FOLDER_PREFIX = 'malini-secrets-';
 export const OUTSIDE_THE_SANDBOX = 'malini-outside-';
+export const INSIDE_THE_SANDBOX = 'malini-inside-';
+export const SANDBOX_TAG_PREFIX = 'malini-sandbox-';
 export const SANDBOX_ENVIRONMENT = { ELECTRON_DISABLE_SANDBOX: '1' } as const;
+export const APP_DATA_ROOT = 'MALINI_APP_DATA_ROOT';
 
 const CLAUDE_CHAT_RECORDS = [
 	'projects',
@@ -36,6 +39,42 @@ const CREDENTIALS = [
 	'Library/Application Support/BraveSoftware',
 	'Library/Application Support/Microsoft Edge',
 ];
+
+const RUN_OUTSIDE_LATER = [
+	'Library/LaunchAgents',
+	'.zshrc',
+	'.zshenv',
+	'.zprofile',
+	'.zlogin',
+	'.zlogout',
+	'.bashrc',
+	'.bash_profile',
+	'.bash_login',
+	'.profile',
+	'.config/fish',
+	'.gitconfig',
+	'.config/git',
+	'.config/gh',
+	'.claude',
+	'.claude.json',
+];
+const KEY_AGENTS = ['.ssh', '.gnupg', '.secrets'];
+const SHARED_FOLDERS = [
+	'/',
+	'/Applications',
+	'/Library',
+	'/System',
+	'/Users',
+	'/Volumes',
+	'/opt',
+	'/opt/homebrew',
+	'/private',
+	'/private/etc',
+	'/private/var',
+	'/usr',
+	'/usr/local',
+];
+const SHARED_HOME_FOLDERS = ['', 'Library', '.config', '.local', '.local/share', '.local/state'];
 
 const CACHES = ['Library/Caches', '.cache', '.npm', 'Library/pnpm/store'];
 const PNPM_LINK_PROBES = 'Library/pnpm/_tmp_';
@@ -91,16 +130,34 @@ const SERVICES = [
 	'com.apple.windowserver.active',
 ];
 const KEYCHAIN_SERVICE = 'com.apple.SecurityServer';
-const ELECTRON_RENDEZVOUS = 'com.github.Electron.MachPortRendezvousServer.';
+const CHROMIUM_RENDEZVOUS = '\\.MachPortRendezvousServer\\.[0-9]+$';
 const REGISTERED_SERVICES = ['com.apple.axserver', 'com.apple.coredrag', 'com.apple.tsm.portname'];
 const DNS_SOCKET = '/private/var/run/mDNSResponder';
 const LAUNCHD_SOCKETS = '^/private/tmp/com\\.apple\\.launchd\\.';
-const UNSANDBOXED_TOOLS = ['/bin/ps', '/usr/bin/top'];
+const UNSANDBOXED_TOOLS = ['/bin/ps', '/usr/bin/top', '/usr/bin/log'];
+const DENIAL =
+	/^(?:\d+ duplicate reports? for )?Sandbox: (.+?)\(\d+\) deny\(\d+\) (\S+)(?: (.+))?$/u;
 
-export interface SandboxPlaces {
+export type SandboxGrantKind = 'path' | 'socket';
+
+export type SandboxGrant = Readonly<{ kind: SandboxGrantKind; path: string }>;
+
+export type SandboxDenial = Readonly<{
+	tag: string;
+	process: string;
+	operation: string;
+	target: string;
+}>;
+
+export interface GrantPlaces {
 	readonly checkout: string;
 	readonly hidden: readonly string[];
+}
+
+export interface SandboxPlaces extends GrantPlaces {
 	readonly internet: boolean;
+	readonly tag?: string;
+	readonly grants?: readonly SandboxGrant[];
 }
 
 export function claudeChatRecords(
@@ -132,19 +189,32 @@ export function sandboxedCommand(
 }
 
 export function sandboxProfile(
-	{ checkout, hidden, internet }: SandboxPlaces,
+	{ checkout, hidden, internet, tag, grants = [] }: SandboxPlaces,
 	home: string = homedir(),
 	temp: string = tmpdir(),
 ): string {
 	const root = canonicalPath(checkout);
 	const git = gitFolders(root);
-	const writable = [root, ...git, ...TEMP_FOLDERS, ...CACHES.map((entry) => join(home, entry))];
+	const closed = closedPlaces({ checkout, hidden }, home);
+	const granted = grants.filter((grant) => refusal(grant, closed) === null);
+	const grantedPaths = granted.filter(({ kind }) => kind === 'path').map(({ path }) => path);
+	const grantedSockets = granted.filter(({ kind }) => kind === 'socket').map(({ path }) => path);
+	const writable = [
+		root,
+		...git,
+		...TEMP_FOLDERS,
+		...CACHES.map((entry) => join(home, entry)),
+		...grantedPaths,
+	];
 	const pnpmLinkProbes = regex(`^${escapeRegex(canonicalPath(join(home, PNPM_LINK_PROBES)))}`);
-	const sockets = [...[root, ...TEMP_FOLDERS].map(subpath), literal(DNS_SOCKET)];
+	const sockets = [
+		...[root, ...TEMP_FOLDERS, ...grantedPaths].map((path) => subpath(canonicalPath(path))),
+		...[DNS_SOCKET, ...grantedSockets].map(literal),
+	];
 	const secret = [...CREDENTIALS.map((entry) => join(home, entry)), ...hidden];
 	return [
 		'(version 1)',
-		'(deny default)',
+		tag ? `(deny default (with message ${quoted(tag)}))` : '(deny default)',
 		'(allow process-exec process-fork)',
 		`(allow process-exec (with no-sandbox) ${UNSANDBOXED_TOOLS.map(literal).join(' ')})`,
 		'(allow process-info* signal mach-priv-task-port (target same-sandbox))',
@@ -153,10 +223,10 @@ export function sandboxProfile(
 		'(allow sysctl-write (sysctl-name "kern.tcsm_enable"))',
 		'(allow file-read* file-ioctl file-map-executable)',
 		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), pnpmLinkProbes, ...DEVICES].join(' ')})`,
-		`(deny file-write* ${ranOutside(root, git).join(' ')})`,
+		`(deny file-write* ${ranOutside(root, git, grantedPaths.map(canonicalPath)).join(' ')})`,
 		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
-		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}))`,
-		`(allow mach-register (global-name-prefix ${quoted(ELECTRON_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
+		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}))`,
+		`(allow mach-register (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
 		'(allow ipc-posix-shm ipc-posix-sem)',
 		'(allow iokit-open iokit-get-properties)',
 		'(allow user-preference-read)',
@@ -171,6 +241,117 @@ export function sandboxProfile(
 	].join('\n');
 }
 
+export function sandboxDenial(message: string): SandboxDenial | null {
+	const split = message.lastIndexOf('\n');
+	const tag = message.slice(split + 1).trim();
+	const match = DENIAL.exec(message.slice(0, split).trim());
+	if (split < 0 || !match || !tag.startsWith(SANDBOX_TAG_PREFIX)) return null;
+	const [, process = '', operation = '', target = ''] = match;
+	return { tag, process, operation, target };
+}
+
+export function sandboxGrant(
+	{ operation, target }: SandboxDenial,
+	places: GrantPlaces,
+	home: string = homedir(),
+): SandboxGrant | null {
+	if (!isAbsolute(target)) return null;
+	const grant: SandboxGrant | null = operation.startsWith('file-write')
+		? { kind: 'path', path: grantFolder(target, home) }
+		: operation === 'network-outbound'
+			? { kind: 'socket', path: target }
+			: null;
+	return grant && grantProblem(grant, places, home) === null ? grant : null;
+}
+
+export function grantProblem(
+	grant: SandboxGrant,
+	places: GrantPlaces,
+	home: string = homedir(),
+): string | null {
+	return refusal(grant, closedPlaces(places, home));
+}
+
+interface ClosedPlaces {
+	readonly home: string;
+	readonly checkout: readonly string[];
+	readonly malini: readonly string[];
+	readonly secret: readonly string[];
+	readonly runOutsideLater: readonly string[];
+	readonly keyAgents: readonly string[];
+}
+
+function closedPlaces({ checkout, hidden }: GrantPlaces, home: string): ClosedPlaces {
+	const root = canonicalPath(checkout);
+	const inHome = (entries: readonly string[]) =>
+		entries.map((entry) => canonicalPath(join(home, entry)));
+	const hiddenPaths = hidden.map(canonicalPath);
+	const agent = process.env['SSH_AUTH_SOCK'];
+	const appData = process.env[APP_DATA_ROOT];
+	return {
+		home: canonicalPath(home),
+		checkout: [root, ...gitFolders(root)],
+		malini: appData && isAbsolute(appData) ? [canonicalPath(appData)] : [],
+		secret: [...inHome(CREDENTIALS), ...hiddenPaths],
+		runOutsideLater: inHome(RUN_OUTSIDE_LATER),
+		keyAgents: [
+			...inHome(KEY_AGENTS),
+			...hiddenPaths,
+			...(agent && isAbsolute(agent) ? [canonicalPath(agent)] : []),
+		],
+	};
+}
+
+function refusal({ kind, path }: SandboxGrant, closed: ClosedPlaces): string | null {
+	if (!isAbsolute(path) || normalize(path) !== path || path.includes('\0') || path.endsWith('/')) {
+		return 'is not an absolute, normalized path';
+	}
+	if (path.split('/').some((part) => part.startsWith(SECRETS_FOLDER_PREFIX))) {
+		return "holds Malini's secrets";
+	}
+	const within = (roots: readonly string[]) => roots.some((root) => isWithin(root, path));
+	if (kind === 'socket') {
+		return within(closed.keyAgents) || new RegExp(LAUNCHD_SOCKETS, 'u').test(path)
+			? 'reaches a key agent'
+			: null;
+	}
+	if (isSharedFolder(path, closed.home)) return 'is a folder every app shares';
+	if (within(closed.checkout)) return 'is in the checkout, which stays protected';
+	if (closed.checkout.some((root) => isWithin(path, root))) return 'holds the checkout';
+	if (within(closed.malini) || closed.malini.some((root) => isWithin(path, root))) {
+		return "holds Malini's own data";
+	}
+	if (within(closed.secret)) return 'holds credentials';
+	if (within(closed.runOutsideLater)) return 'runs outside the sandbox later';
+	return null;
+}
+
+function grantFolder(target: string, home: string): string {
+	const shared = canonicalPath(home);
+	let child = target;
+	let parent = dirname(target);
+	while (parent !== child && !isSharedFolder(parent, shared)) {
+		child = parent;
+		parent = dirname(parent);
+	}
+	return child;
+}
+
+function isSharedFolder(folder: string, home: string): boolean {
+	if (SHARED_FOLDERS.includes(folder)) return true;
+	if (!isWithin(home, folder)) return false;
+	const inHome = folder.slice(home.length + 1);
+	return (
+		SHARED_HOME_FOLDERS.includes(inHome) ||
+		dirname(inHome) === 'Library' ||
+		(!inHome.includes('/') && !inHome.startsWith('.'))
+	);
+}
+
+function isWithin(root: string, path: string): boolean {
+	return path === root || path.startsWith(root === '/' ? '/' : `${root}/`);
+}
+
 function gitFolders(checkout: string): string[] {
 	const dotGit = join(checkout, '.git');
 	const link = /^gitdir:\s*(.+)$/mu.exec(readText(dotGit) ?? '')?.[1];
@@ -179,7 +360,11 @@ function gitFolders(checkout: string): string[] {
 	return [...new Set([gitdir, common ? resolve(gitdir, common) : gitdir].map(canonicalPath))];
 }
 
-function ranOutside(checkout: string, git: readonly string[]): string[] {
+function ranOutside(
+	checkout: string,
+	git: readonly string[],
+	granted: readonly string[],
+): string[] {
 	return [
 		...git.flatMap((folder) => [
 			regex(`^${escapeRegex(folder)}/(.+/)?hooks(/|$)`),
@@ -187,6 +372,11 @@ function ranOutside(checkout: string, git: readonly string[]): string[] {
 		]),
 		regex(`^${escapeRegex(checkout)}/\\.claude/settings(\\.local)?\\.json$`),
 		literal(join(checkout, '.mcp.json')),
+		...granted.flatMap((folder) => [
+			regex(`^${escapeRegex(folder)}/(.+/)?\\.git/(.+/)?(hooks(/|$)|config(\\.worktree)?$)`),
+			regex(`^${escapeRegex(folder)}/(.+/)?\\.claude/settings(\\.local)?\\.json$`),
+			regex(`^${escapeRegex(folder)}/(.+/)?\\.mcp\\.json$`),
+		]),
 	];
 }
 

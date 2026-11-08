@@ -16,7 +16,9 @@ import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
 import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
-import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
+import type { SandboxDenial } from '../sandbox.js';
+import type { SandboxDenialSource } from '../sandbox-denials.js';
+import { AutoModeOutage, SANDBOX_BLOCKED, UNCHECKED_CALL_REASON } from './permissions.js';
 import { sentBack, type ReplyChecker } from './reply-check.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, claudeEnvironment } from './session.js';
@@ -72,6 +74,7 @@ function harness(
 		readonly mcpServerStatus?: () => readonly McpServerStatus[];
 		readonly outage?: AutoModeOutage;
 		readonly checkReply?: ReplyChecker;
+		readonly denials?: SandboxDenialSource;
 	} = {},
 ) {
 	const claude = fakeClaude(scripts);
@@ -86,6 +89,7 @@ function harness(
 		executable: options.executable === undefined ? '/opt/claude/bin/claude' : options.executable,
 		secrets: sessionSecrets(),
 		sandbox: true,
+		denials: options.denials ?? denialFeed(),
 		query: mcpServerStatus
 			? (params) => ({
 					...claude.query(params),
@@ -96,6 +100,48 @@ function harness(
 		...(options.checkReply ? { checkReply: options.checkReply } : {}),
 	});
 	return { session, claude, events };
+}
+
+function denialFeed(...blocked: readonly (readonly [operation: string, target: string])[]) {
+	const listeners = new Map<string, (denial: SandboxDenial) => void>();
+	const block = (operation: string, target: string) => {
+		for (const [tag, listener] of listeners)
+			listener({ tag, process: 'docker', operation, target });
+	};
+	return {
+		watch(tag: string, listener: (denial: SandboxDenial) => void) {
+			listeners.set(tag, listener);
+			for (const [operation, target] of blocked) block(operation, target);
+			return () => listeners.delete(tag);
+		},
+		hold: () => Promise.resolve(() => {}),
+		block,
+	};
+}
+
+function ranInside(command: string): ScriptStep {
+	return {
+		hook: {
+			session_id: READ_AND_BASH_SESSION,
+			transcript_path: '/tmp/transcript.jsonl',
+			cwd: '/work/repo',
+			hook_event_name: 'PostToolUseFailure',
+			tool_name: 'Bash',
+			tool_input: { command },
+			tool_use_id: 'toolu_ran_inside',
+			error: 'Exit code 1',
+		},
+	};
+}
+
+function askedToLeave(command: string, toolUseId: string): ScriptStep {
+	return {
+		canUseTool: {
+			toolName: 'Bash',
+			input: { command, dangerouslyDisableSandbox: true },
+			opts: { toolUseID: toolUseId, requestId: `request-${toolUseId}` },
+		},
+	};
 }
 
 function afterTool(toolResponse: unknown): ScriptStep {
@@ -1158,17 +1204,11 @@ describe('ClaudeSession', () => {
 	});
 
 	it('runs a command the user lets out of the sandbox outside it, once', async () => {
-		const outside = { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true };
 		const { session, claude } = harness(
 			[
 				[
-					{
-						canUseTool: {
-							toolName: 'Bash',
-							input: outside,
-							opts: { toolUseID: 'toolu_outside', requestId: 'request-outside' },
-						},
-					},
+					ranInside('pnpm test:e2e'),
+					askedToLeave('pnpm test:e2e', 'toolu_outside'),
 					...recordedScript('readAndBash'),
 				],
 			],
@@ -1198,6 +1238,182 @@ describe('ClaudeSession', () => {
 		});
 		expect(pass).toBeDefined();
 		expect(existsSync(join(folder, 'passes', pass ?? ''))).toBe(true);
+	});
+
+	it('sends a command back into the sandbox, once, when Malini never saw it run there', async () => {
+		const requests: Extract<AgentEvent, { type: 'approval.requested' }>[] = [];
+		const { session, claude } = harness(
+			[
+				[
+					askedToLeave('docker ps', 'toolu_unseen'),
+					askedToLeave('docker ps', 'toolu_unseen_again'),
+					...recordedScript('readAndBash'),
+				],
+			],
+			{
+				onEvent: (event, current) => {
+					if (event.type !== 'approval.requested') return;
+					requests.push(event);
+					void current.respondToApproval({
+						sessionId: event.sessionId,
+						runId: event.runId,
+						approvalId: event.approvalId,
+						decision: 'allow',
+						scope: 'once',
+					});
+				},
+			},
+		);
+
+		await session.sendPrompt('Count the containers', 'run-1', profile('agent', 'auto'));
+
+		expect(claude.runs[0]?.permissionResults).toMatchObject([
+			{ behavior: 'deny', message: expect.stringContaining('without dangerouslyDisableSandbox') },
+			{
+				behavior: 'allow',
+				updatedInput: {
+					command: expect.stringMatching(/^: malini-outside-[0-9a-f]{32}; docker ps$/u),
+				},
+			},
+		]);
+		expect(requests).toMatchObject([{ approvalId: 'approval-toolu_unseen_again' }]);
+	});
+
+	describe('a command that needs what the sandbox blocked', () => {
+		const socket = '/Users/someone/.docker/run/docker.sock';
+		const asked = askedToLeave('pnpm test', 'toolu_grant');
+
+		function grantRun(scope: ApprovalScope, steps: readonly ScriptStep[] = [asked]) {
+			const requests: Extract<AgentEvent, { type: 'approval.requested' }>[] = [];
+			const run = harness([[...steps, ...recordedScript('readAndBash')]], {
+				denials: denialFeed(['network-outbound', socket]),
+				onEvent: (event, current) => {
+					if (event.type !== 'approval.requested') return;
+					requests.push(event);
+					void current.respondToApproval({
+						sessionId: event.sessionId,
+						runId: event.runId,
+						approvalId: event.approvalId,
+						decision: 'allow',
+						scope,
+					});
+				},
+			});
+			return { ...run, requests };
+		}
+
+		function folderOf(claude: ReturnType<typeof fakeClaude>): string {
+			return dirname(claude.runs[0]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? '');
+		}
+
+		function approvedCommand(claude: ReturnType<typeof fakeClaude>): string {
+			const [result] = claude.runs[0]?.permissionResults ?? [];
+			return String(result?.behavior === 'allow' ? result.updatedInput?.['command'] : undefined);
+		}
+
+		it('asks to open only what it blocked, and opens it for that command on Allow once', async () => {
+			const { session, claude, requests } = grantRun('once');
+
+			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
+
+			const pass = /^: malini-inside-([0-9a-f]{32}); pnpm test$/u.exec(
+				approvedCommand(claude),
+			)?.[1];
+			expect(requests).toMatchObject([
+				{
+					reason: SANDBOX_BLOCKED,
+					permission: {
+						capability: 'sandbox',
+						resources: [{ kind: 'socket', value: socket, boundary: 'external' }],
+					},
+				},
+			]);
+			expect(await readFile(join(folderOf(claude), 'passes', `${pass}.sb`), 'utf8')).toContain(
+				socket,
+			);
+			expect(await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8')).not.toContain(socket);
+		});
+
+		it('offers the same again when that command asks to leave after Allow once', async () => {
+			const { session, requests } = grantRun('once', [
+				asked,
+				askedToLeave('pnpm test', 'toolu_grant_again'),
+			]);
+
+			await session.sendPrompt('Run the tests twice', 'run-1', profile('agent', 'auto'));
+
+			const blockedSocket = {
+				reason: SANDBOX_BLOCKED,
+				permission: { capability: 'sandbox', resources: [{ kind: 'socket', value: socket }] },
+			};
+			expect(requests).toMatchObject([blockedSocket, blockedSocket]);
+		});
+
+		it('keeps it open for the chat on Always allow, until Malini sends the grants again', async () => {
+			const { session, claude } = grantRun('repository');
+
+			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
+			const kept = await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8');
+			await session.sendPrompt(
+				'Run them again',
+				'run-2',
+				profile('agent', 'auto'),
+				READ_AND_BASH_CURSOR,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				false,
+				[],
+			);
+
+			expect(approvedCommand(claude)).toBe('pnpm test');
+			expect(kept).toContain(socket);
+			expect(await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8')).not.toContain(socket);
+		});
+
+		it('tells the agent what the sandbox blocked while a command ran', async () => {
+			const feed = denialFeed();
+			const script = recordedScript('readAndBash');
+			const command = {
+				session_id: READ_AND_BASH_SESSION,
+				transcript_path: '/tmp/transcript.jsonl',
+				cwd: '/work/repo',
+				tool_name: 'Bash',
+				tool_input: { command: 'pnpm test' },
+				tool_use_id: 'toolu_blocked',
+			};
+			const { session, claude } = harness(
+				[
+					[
+						...script.slice(0, 1),
+						{ hook: { ...command, hook_event_name: 'PreToolUse' } },
+						...script.slice(1, 10),
+						{ hook: { ...command, hook_event_name: 'PostToolUseFailure', error: 'Exit code 1' } },
+						...script.slice(10),
+					],
+				],
+				{
+					denials: feed,
+					onEvent: (event) => {
+						if (event.type === 'tool.started') feed.block('network-outbound', socket);
+					},
+				},
+			);
+
+			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.hookOutputs).toContainEqual({
+				hookSpecificOutput: {
+					hookEventName: 'PostToolUseFailure',
+					additionalContext: expect.stringContaining(`- docker: network-outbound ${socket}`),
+				},
+			});
+		});
 	});
 
 	describe('a command the user lets out of the sandbox for this chat', () => {
@@ -1259,42 +1475,67 @@ describe('ClaudeSession', () => {
 			const { session, claude } = harness(
 				[
 					[
+						ranInside(outside.command),
 						leaves('toolu_first'),
 						asked('toolu_first'),
 						leaves('toolu_second'),
 						leaves('toolu_third'),
 						...recordedScript('readAndBash'),
 					],
-					[leaves('toolu_next_run'), ...recordedScript('readAndBash')],
 				],
 				{ onEvent: allowing('session') },
 			);
 
 			await session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
-			await session.sendPrompt(
-				'Run it again',
-				'run-2',
-				profile('agent', 'auto'),
-				READ_AND_BASH_CURSOR,
-			);
 
-			const later = [
-				...exits(claude.runs[0]?.hookOutputs).slice(1),
-				...exits(claude.runs[1]?.hookOutputs),
-			];
+			const later = exits(claude.runs[0]?.hookOutputs).slice(1);
 			expect(exits(claude.runs[0]?.hookOutputs)[0]).toEqual({
 				decision: 'ask',
 				command: undefined,
 			});
-			expect(later.map(({ decision }) => decision)).toEqual(['allow', 'allow', 'allow']);
+			expect(later.map(({ decision }) => decision)).toEqual(['allow', 'allow']);
 			expect(later.every(({ command }) => PASSED.test(String(command)))).toBe(true);
-			expect(new Set(later.map(({ command }) => command)).size).toBe(3);
+			expect(new Set(later.map(({ command }) => command)).size).toBe(2);
+		});
+
+		it('runs exits outside from the first prompt Malini sends for an allowed chat, until it stops', async () => {
+			const { session, claude } = harness([
+				[leaves('toolu_restored'), ...recordedScript('readAndBash')],
+				[leaves('toolu_revoked'), ...recordedScript('readAndBash')],
+			]);
+			const prompt = (text: string, runId: string, outsideAllowed: boolean, resumeAt?: string) =>
+				session.sendPrompt(
+					text,
+					runId,
+					profile('agent', 'auto'),
+					resumeAt,
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					[],
+					undefined,
+					undefined,
+					false,
+					[],
+					outsideAllowed,
+				);
+
+			await prompt('Run the e2e suite', 'run-1', true);
+			await prompt('Run it again', 'run-2', false, READ_AND_BASH_CURSOR);
+
+			const [restored] = exits(claude.runs[0]?.hookOutputs);
+			expect(restored?.decision).toBe('allow');
+			expect(PASSED.test(String(restored?.command))).toBe(true);
+			expect(exits(claude.runs[1]?.hookOutputs)).toEqual([{ decision: 'ask', command: undefined }]);
 		});
 
 		it('asks again for the next exit after an allow once', async () => {
 			const { session, claude } = harness(
 				[
 					[
+						ranInside(outside.command),
 						leaves('toolu_first'),
 						asked('toolu_first'),
 						leaves('toolu_second'),
@@ -1314,7 +1555,14 @@ describe('ClaudeSession', () => {
 
 		it('asks again in another chat', async () => {
 			const first = harness(
-				[[leaves('toolu_first'), asked('toolu_first'), ...recordedScript('readAndBash')]],
+				[
+					[
+						ranInside(outside.command),
+						leaves('toolu_first'),
+						asked('toolu_first'),
+						...recordedScript('readAndBash'),
+					],
+				],
 				{ onEvent: allowing('session') },
 			);
 			await first.session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));

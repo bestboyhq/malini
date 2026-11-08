@@ -15,6 +15,8 @@
 		approvalTargets,
 		leavesTheSandbox,
 		maliniToolApproval,
+		sandboxGrantRows,
+		type SandboxGrantRow,
 	} from '$lib/chat/domain/approval-request';
 	import type { AgentApprovalScope } from '$lib/chat/domain/agent-interaction';
 	import { Button } from '$hyper-ui/components/button';
@@ -66,12 +68,36 @@
 			description: 'Every workstream, until you revoke it',
 			icon: 'globe',
 		},
-	] as const satisfies readonly {
+	] as const satisfies readonly AlwaysAllowChoice[];
+
+	const ALWAYS_ALLOW_IN_THE_SANDBOX = [
+		ALWAYS_ALLOW[0],
+		{
+			scope: 'repository',
+			label: 'Allow for this repository',
+			description: 'Every chat in this repository',
+			icon: 'book',
+		},
+		{
+			scope: 'everywhere',
+			label: 'Allow everywhere',
+			description: 'Every repository, until you revoke it',
+			icon: 'globe',
+		},
+	] as const satisfies readonly AlwaysAllowChoice[];
+
+	const GRANT_ICONS: Record<SandboxGrantRow['kind'], IconName> = {
+		folder: 'folder-open',
+		socket: 'plug',
+		docker: 'cube',
+	};
+
+	interface AlwaysAllowChoice {
 		scope: AgentApprovalScope;
 		label: string;
 		description: string;
 		icon: IconName;
-	}[];
+	}
 
 	const reference = $derived({
 		kind: item.kind,
@@ -86,7 +112,13 @@
 	const submitting = $derived(interactionState.status === 'submitting');
 	const headingId = $derived(`agent-interaction-${item.kind}-${item.sessionId}-${item.seq}`);
 	const canOfferPersistentScope = $derived(canPersistAgentApproval(item.permission));
-	const leavesSandbox = $derived(leavesTheSandbox(item.toolName, item.input));
+	const grants = $derived(sandboxGrantRows(item.permission));
+	const leavesSandbox = $derived(
+		grants.length === 0 && leavesTheSandbox(item.toolName, item.input),
+	);
+	const alwaysAllowChoices = $derived(
+		grants.length > 0 ? ALWAYS_ALLOW_IN_THE_SANDBOX : ALWAYS_ALLOW,
+	);
 	const maliniTool = $derived(
 		maliniToolApproval(
 			item.toolName,
@@ -98,7 +130,7 @@
 	const headline = $derived(
 		maliniTool?.headline ?? approvalHeadline(item.toolName, item.permission),
 	);
-	const targets = $derived(maliniTool ? [] : approvalTargets(item.permission));
+	const targets = $derived(maliniTool ? [] : approvalTargets(item.permission, item.input));
 	const reason = $derived(maliniTool ? null : approvalReason(item.reason));
 	const alwaysAllowed = $derived(
 		interactionState.status === 'resolved' && interactionState.alwaysAllowed === true,
@@ -153,6 +185,26 @@
 			{/if}
 		</code>
 	{/each}
+	{#if grants.length > 0}
+		<ul class="mt-2 flex flex-col gap-2" aria-label="Blocked by the sandbox">
+			{#each grants as grant (grant.path)}
+				<li class="flex items-start gap-2">
+					<span class="grid h-5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
+						<Icon name={GRANT_ICONS[grant.kind]} size={13} class="text-fg-tertiary" />
+					</span>
+					<span class="flex min-w-0 flex-col">
+						<span class="text-xs leading-5">
+							<span class="text-fg-default">{grant.name}</span>
+							<code class="text-fg-secondary ml-1 font-mono break-all select-text">
+								<SensitiveText text={grant.path} />
+							</code>
+						</span>
+						<span class="text-fg-tertiary text-2xs leading-4">{grant.risk}</span>
+					</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 	{#if maliniTool && maliniTool.details.length > 0}
 		<dl class="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs leading-5">
 			{#each maliniTool.details as detail (detail.label)}
@@ -239,7 +291,7 @@
 			{/snippet}
 			{#snippet content()}
 				<div class="p-1.5" role="menu" aria-label="Always allow">
-					{#each ALWAYS_ALLOW as choice (choice.scope)}
+					{#each alwaysAllowChoices as choice (choice.scope)}
 						<DropdownItem
 							role="menuitem"
 							class="gap-2.5 py-2"

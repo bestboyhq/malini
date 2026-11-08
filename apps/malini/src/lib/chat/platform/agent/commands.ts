@@ -86,7 +86,10 @@ import type { PermissionRuleScope } from '../permissions.repository';
 import {
 	approvalDecisionResult,
 	normalizeRememberablePermission,
+	outsideAllowedFor,
 	rememberedRuleIdForResolvedApproval,
+	RUNS_OUTSIDE,
+	sandboxGrantsFor,
 	validateApprovalDecision,
 	type AgentApprovalDecision,
 	type AgentApprovalDecisionResult,
@@ -820,6 +823,8 @@ async function sendAgentPromptLeased(
 	}
 	lease.release();
 	const secrets = await secretsForRun(hooks, workstreamId, log);
+	const sandboxGrants = sandboxGrantsFor(db, workstreamId, sessionId);
+	const outsideAllowed = outsideAllowedFor(db, workstreamId, sessionId);
 	const { compactWindow, steReplies } = (await hooks.turnSettings?.()) ?? {
 		compactWindow: null,
 		steReplies: false,
@@ -841,6 +846,8 @@ async function sendAgentPromptLeased(
 		...(compactWindow === null ? {} : { compactWindow }),
 		...(turn.boundary === null ? {} : { boundary: turn.boundary }),
 		...(steReplies ? { steReplies } : {}),
+		...(sandboxGrants.length > 0 ? { sandboxGrants } : {}),
+		...(outsideAllowed ? { outsideAllowed } : {}),
 	};
 	if (leases.takeDispatchCancel(sessionId, runId)) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, CANCELLED_BEFORE_START, emit);
@@ -1252,11 +1259,20 @@ export async function decideAgentApproval(
 	const forThisChat =
 		decision === 'allow' &&
 		scope === 'session' &&
+		!(isRecord(permission) && permission['capability'] === 'sandbox') &&
 		leavesTheSandbox(
 			requestToolName(record),
 			isRecord(record.requestPayload) ? record.requestPayload['input'] : undefined,
 		);
-	if (decision === 'allow' && scope !== 'once' && !forThisChat) {
+	if (forThisChat && record.permissionFingerprint === RUNS_OUTSIDE.fingerprint) {
+		const canonical: unknown = JSON.parse(RUNS_OUTSIDE.canonicalJson);
+		remembered = {
+			id: ids.next('rule'),
+			scope,
+			fingerprint: RUNS_OUTSIDE.fingerprint,
+			permission: canonical,
+		};
+	} else if (decision === 'allow' && scope !== 'once' && !forThisChat) {
 		if (permission === null)
 			throw new Error('remembered approval requires the exact pending permission descriptor');
 		const identity = activeRunWorkstreamIdentity(db, sessionId, runId);

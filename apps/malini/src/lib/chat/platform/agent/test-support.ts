@@ -129,6 +129,20 @@ const handle = (command) => {
           input: JSON.parse(malini[2]), permission: { capability: 'write', resources: [{ kind: 'tool', value: malini[1], boundary: 'workstream' }] } });
         return;
       }
+      if (prompt.includes('SANDBOX_GRANT')) {
+        pendingRuns.set(runId, sessionId);
+        event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'Everything else stays in the sandbox.', toolName: 'Bash',
+          input: { command: 'pnpm test', dangerouslyDisableSandbox: true },
+          permission: { capability: 'sandbox', resources: [{ kind: 'socket', value: env.FAKE_BRIDGE_SANDBOX_SOCKET, boundary: 'external' }] } });
+        return;
+      }
+      if (prompt.includes('SANDBOX_EXIT')) {
+        pendingRuns.set(runId, sessionId);
+        event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'Claude wants to use Bash', toolName: 'Bash',
+          input: { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true },
+          permission: { capability: 'execute', resources: [{ kind: 'command', value: 'pnpm test:e2e', boundary: 'unknown' }] } });
+        return;
+      }
       if (prompt.includes('APPROVAL')) {
         pendingRuns.set(runId, sessionId);
         event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'read outside', toolName: 'read_file',

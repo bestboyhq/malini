@@ -232,18 +232,26 @@ A package that turns out to be malicious gets the sandbox, not your Mac.
 
 In the sandbox, a command:
 
-- writes only to the workstream, its git folders, temporary folders and package caches;
+- writes only to the workstream, its git folders, temporary folders, package caches, and the folders you open for it;
 - never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
-- reaches localhost and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
+- reaches localhost, the sockets you open for it and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
-Electron, Playwright, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
-Electron's own sandbox stays off there, since the two cannot nest.
+Electron, Playwright with its Chromium, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
+Electron and Chrome keep their own sandbox off there, since the two cannot nest.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 
-When a command needs what the sandbox blocks, the agent asks to run it outside, and the chat asks you first.
-**Allow for this chat** runs every later one in that chat outside without asking, and a new chat, or the same chat after Malini restarts, asks again.
+When a command needs what the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
+The card lists each blocked folder or socket, such as Docker's, and what opening it lets a command do.
+**Allow once** opens it for that command, and the same card comes back the next time it asks.
+**Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.
+The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json` and `.mcp.json` closed.
+Malini never offers your credentials, its own data, the workstream or a folder every app shares.
+An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
+
+When Malini sees nothing it can open, the chat asks to run the command outside instead.
+**Allow for this chat** runs every later one in that chat outside without asking, after a restart too, until you revoke it in Settings, Agent access, and a new chat asks again.
 **Full access** runs it outside without asking.
 An approval lets out that one call: a command inside the sandbox cannot let itself out.
 

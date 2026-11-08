@@ -1,6 +1,10 @@
 import { isAgentApprovalScope, type AgentApprovalScope } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
-import { findActivePermissionRule, type RememberPermissionRule } from './permissions.repository';
+import {
+	markPermissionRuleUsed,
+	rememberPermissionRule,
+	type RememberPermissionRule,
+} from './permissions.repository';
 import { invariant } from '$main/errors';
 import { all, canonicalJson, get, jsonEqual, parseJsonColumn, run, scalar } from '$main/db/rows';
 
@@ -461,50 +465,27 @@ export function finalizeInteractionResponse(
 			) {
 				throw invariant('remembered rule does not match the approved request');
 			}
-			const ruleSession = remember.scope === 'session' ? sessionId : null;
-			const existing = findActivePermissionRule(
-				db,
-				record.workstreamId,
+			effectiveRuleId = rememberPermissionRule(db, {
+				id: remember.id,
+				scope: remember.scope,
+				workstreamId: record.workstreamId,
 				sessionId,
-				remember.permissionFingerprint,
-				remember.scope,
-			);
-			if (existing) {
-				effectiveRuleId = existing.id;
-			} else {
-				run(
-					db,
-					`INSERT INTO agent_permission_rules
-					 (id, scope, workstream_id, session_id, permission_fingerprint,
-					  permission_json, created_run_id, created_request_id, created_at)
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					remember.id,
-					remember.scope,
-					remember.scope === 'everywhere' ? null : record.workstreamId,
-					ruleSession,
-					remember.permissionFingerprint,
-					canonicalJson(remember.permission),
-					runId,
-					requestId,
-					decidedAt,
-				);
-				effectiveRuleId = remember.id;
-			}
+				permissionFingerprint: remember.permissionFingerprint,
+				permissionJson: canonicalJson(remember.permission),
+				createdRunId: runId,
+				createdRequestId: requestId,
+				createdAt: decidedAt,
+			});
 		}
 		if (matchedRuleId !== null) {
-			const touched = run(
-				db,
-				`UPDATE agent_permission_rules SET last_used_at = ?
-				 WHERE id = ? AND permission_fingerprint = ?
-				   AND (scope = 'everywhere' OR (workstream_id = ?
-				     AND (scope = 'workstream' OR (scope = 'session' AND session_id = ?))))`,
-				decidedAt,
-				matchedRuleId,
-				record.permissionFingerprint,
-				record.workstreamId,
+			const touched = markPermissionRuleUsed(db, {
+				ruleId: matchedRuleId,
+				workstreamId: record.workstreamId,
 				sessionId,
-			).changes;
-			if (touched !== 1) {
+				permissionFingerprint: record.permissionFingerprint ?? '',
+				usedAt: decidedAt,
+			});
+			if (!touched) {
 				throw invariant(
 					`matched permission rule \`${matchedRuleId}\` no longer matches the approval context`,
 				);

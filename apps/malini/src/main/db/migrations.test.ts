@@ -78,6 +78,7 @@ const ALL_INDEXES = [
 	'idx_agent_events_session_seq',
 	'idx_agent_interactions_pending',
 	'idx_agent_permission_rules_active_everywhere',
+	'idx_agent_permission_rules_active_repository',
 	'idx_agent_permission_rules_active_session',
 	'idx_agent_permission_rules_active_workstream',
 	'idx_agent_permission_rules_effective',
@@ -1124,7 +1125,8 @@ describe('migrate', () => {
 	});
 
 	it('renames the word-pair names to New workstream and updates Name chats unless you edited it', () => {
-		const sql = MIGRATIONS.at(-1) ?? '';
+		const index = MIGRATIONS.findIndex((migration) => migration.includes("'New workstream'"));
+		const sql = MIGRATIONS[index] ?? '';
 		const quoted = (pattern: RegExp): string =>
 			(pattern.exec(sql)?.[1] ?? '').replaceAll("''", "'");
 		const before = quoted(/AND instructions = '((?:[^']|'')*)';/u);
@@ -1132,8 +1134,8 @@ describe('migrate', () => {
 		const migrated = (instructions: string): Database => {
 			const db = openDatabase(':memory:');
 			db.exec(SCHEMA);
-			for (const migration of MIGRATIONS.slice(0, -1)) db.exec(migration);
-			db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+			for (const migration of MIGRATIONS.slice(0, index)) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + index};`);
 			seedWorkstream(db);
 			db.prepare(
 				`INSERT INTO automation_definitions

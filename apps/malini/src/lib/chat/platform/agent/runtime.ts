@@ -39,7 +39,11 @@ import {
 } from '../runs.repository';
 import { setProviderSessionId, setSessionStatus, type SessionStatus } from '../sessions.repository';
 import { get, nowIso8601 } from '$main/db/rows';
-import { normalizeRememberablePermission, type NormalizedPermission } from '../permissions.service';
+import {
+	normalizeRequestedPermission,
+	RUNS_OUTSIDE,
+	type NormalizedPermission,
+} from '../permissions.service';
 import {
 	camelEnvelopeJson,
 	terminalizeRunsAfterBridgeLoss,
@@ -162,11 +166,13 @@ export function recordBridgeInteractionRequest(
 	let requestId: string;
 	let permission: unknown;
 	let toolName: string | undefined;
+	let input: unknown;
 	if (event.type === 'approval.requested') {
 		kind = 'approval';
 		requestId = event.approvalId;
 		permission = event.permission;
 		toolName = event.toolName;
+		input = event.input;
 	} else if (event.type === 'question.requested') {
 		kind = 'question';
 		requestId = event.questionId;
@@ -183,7 +189,12 @@ export function recordBridgeInteractionRequest(
 			throw new Error(`interaction \`${requestId}\` belongs to a stale session/run correlation`);
 		}
 		try {
-			normalizedPermission = normalizeRememberablePermission(permission, identity.path, toolName);
+			normalizedPermission = normalizeRequestedPermission(
+				permission,
+				identity.path,
+				toolName,
+				input,
+			);
 		} catch {
 			normalizedPermission = null;
 		}
@@ -240,7 +251,7 @@ export async function tryAutoApprove(
 	if (recorded === null) return false;
 	if (suppressed(recorded.outcome)) return true;
 	const normalized = recorded.normalizedPermission;
-	if (normalized === null) return false;
+	if (normalized === null || normalized.fingerprint === RUNS_OUTSIDE.fingerprint) return false;
 	const identity = activeRunWorkstreamIdentity(db, sessionId, runId);
 	if (!identity) return false;
 	let rule;

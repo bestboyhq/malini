@@ -1,6 +1,8 @@
-import { rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Writable } from 'node:stream';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { WORKSTREAM_FOLDER_MISSING } from '$main/errors';
 
 vi.mock('electron', () => ({
@@ -1227,6 +1229,28 @@ describe('prompt round trips', () => {
 	});
 });
 
+function recordingBridge(sent: Array<Record<string, unknown>>): BridgeProcessFactory {
+	const factory = fake.supervisorConfig().processFactory;
+	return {
+		async spawn(spec) {
+			const child = await factory.spawn(spec);
+			const stdin = new Writable({
+				write(chunk: Buffer, _encoding, done) {
+					for (const line of chunk.toString().split('\n')) {
+						const command: unknown = line.trim() === '' ? null : JSON.parse(line);
+						if (isRecord(command)) sent.push(command);
+					}
+					child.stdin.write(chunk, done);
+				},
+				final(done) {
+					child.stdin.end(done);
+				},
+			});
+			return { ...child, stdin };
+		},
+	};
+}
+
 describe('interactions', () => {
 	let approvalPath = '';
 	function permissionFor(path: string) {
@@ -1367,6 +1391,102 @@ describe('interactions', () => {
 			{ approvalId: 'approval-1', decision: 'allow', scope: 'session', remembered: true },
 		]);
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+	});
+
+	it('remembers what the sandbox blocked for the repository and hands it to every new chat there', async () => {
+		const folder = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-socket-')));
+		onTestFinished(() => rmSync(folder, { recursive: true, force: true }));
+		const socket = join(folder, 'docker.sock');
+		const permission = {
+			capability: 'sandbox',
+			resources: [{ kind: 'socket', value: socket, boundary: 'external' }],
+		};
+		const sent: Array<Record<string, unknown>> = [];
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({ FAKE_BRIDGE_SANDBOX_SOCKET: socket }, { processFactory: recordingBridge(sent) });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'SANDBOX_GRANT' });
+		await waitFor(
+			() => getInteraction(test.db, 'approval', sessionId, runId, 'approval-1') !== null,
+		);
+		await service.runtime.settlePump();
+
+		expect(
+			await invokeRecord('chat.decide-approval', {
+				sessionId,
+				runId,
+				approvalId: 'approval-1',
+				decision: 'allow',
+				scope: 'repository',
+				permission,
+			}),
+		).toMatchObject({ decision: 'allow', scope: 'repository', remembered: true });
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+
+		const next = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const nextRun = await invokeString('chat.send-prompt', { sessionId: next, prompt: 'hello' });
+		await waitFor(() => getRun(test.db, nextRun)?.completedAt !== null);
+		const prompts = sent.filter((command) => command['cmd'] === 'send_prompt');
+		expect(prompts.map((command) => command['sandboxGrants'])).toEqual([
+			undefined,
+			[{ kind: 'socket', path: socket }],
+		]);
+	});
+
+	it('keeps a chat let out of the sandbox out for its next prompts, until the allow is revoked', async () => {
+		const permission = {
+			capability: 'execute',
+			resources: [{ kind: 'command', value: 'pnpm test:e2e', boundary: 'unknown' }],
+		};
+		const sent: Array<Record<string, unknown>> = [];
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({}, { processFactory: recordingBridge(sent) });
+		onTestFinished(installPermissionGrants(test.context));
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'SANDBOX_EXIT' });
+		await waitFor(
+			() => getInteraction(test.db, 'approval', sessionId, runId, 'approval-1') !== null,
+		);
+		await service.runtime.settlePump();
+		const decided = await invokeRecord('chat.decide-approval', {
+			sessionId,
+			runId,
+			approvalId: 'approval-1',
+			decision: 'allow',
+			scope: 'session',
+			permission,
+		});
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		const prompt = async (id: string) => {
+			const run = await invokeString('chat.send-prompt', { sessionId: id, prompt: 'hello' });
+			await waitFor(() => getRun(test.db, run)?.completedAt !== null);
+		};
+
+		await prompt(sessionId);
+		const askedAgain = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'SANDBOX_EXIT',
+		});
+		await waitFor(
+			() => getInteraction(test.db, 'approval', sessionId, askedAgain, 'approval-1') !== null,
+		);
+		await service.runtime.settlePump();
+		const stillAsks = getInteraction(test.db, 'approval', sessionId, askedAgain, 'approval-1');
+		await invoke('chat.cancel-run', { sessionId });
+		await waitFor(() => getRun(test.db, askedAgain)?.completedAt !== null);
+		await prompt(await invokeString('chat.start-session', { workstreamId: 'ws-1' }));
+		const grants = await invokeRecords('chat.list-permission-grants');
+		await invoke('chat.revoke-permission-grant', { grantId: grants[0]?.['id'] });
+		await prompt(sessionId);
+
+		expect(decided).toMatchObject({ decision: 'allow', scope: 'session', remembered: true });
+		expect(stillAsks).toMatchObject({ state: 'pending', decision: null });
+		expect(grants).toMatchObject([{ scope: 'session', what: 'Run commands outside the sandbox' }]);
+		expect(
+			sent
+				.filter((command) => command['cmd'] === 'send_prompt')
+				.map((command) => command['outsideAllowed']),
+		).toEqual([undefined, true, true, undefined, undefined]);
 	});
 
 	it('hands Claude an always-allow only for a call auto mode blocked', async () => {
@@ -1667,28 +1787,6 @@ describe('lead chats', () => {
 	function seedLead(): void {
 		seedWorkstream(test.db, test.appDataRoot, 'lead');
 		run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'home' WHERE id = 'lead'`);
-	}
-
-	function recordingBridge(sent: Array<Record<string, unknown>>): BridgeProcessFactory {
-		const factory = fake.supervisorConfig().processFactory;
-		return {
-			async spawn(spec) {
-				const child = await factory.spawn(spec);
-				const stdin = new Writable({
-					write(chunk: Buffer, _encoding, done) {
-						for (const line of chunk.toString().split('\n')) {
-							const command: unknown = line.trim() === '' ? null : JSON.parse(line);
-							if (isRecord(command)) sent.push(command);
-						}
-						child.stdin.write(chunk, done);
-					},
-					final(done) {
-						child.stdin.end(done);
-					},
-				});
-				return { ...child, stdin };
-			},
-		};
 	}
 
 	async function bootRecording(): Promise<Array<Record<string, unknown>>> {

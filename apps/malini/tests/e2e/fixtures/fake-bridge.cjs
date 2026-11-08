@@ -11,6 +11,11 @@ const reverse = Number(env.FAKE_BRIDGE_REVERSE_ACKS || 0);
 const approvalPath =
 	env.FAKE_BRIDGE_APPROVAL_PATH ||
 	nodePath.join(fs.realpathSync(require('node:os').tmpdir()), 'outside.txt');
+const dockerSocket = nodePath.join(
+	fs.realpathSync(require('node:os').tmpdir()),
+	'malini-e2e-docker',
+	'docker.sock',
+);
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\n');
 const signedInEmail = () => {
 	if (!env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE) return null;
@@ -1200,6 +1205,23 @@ const respond = async (sessionId, runId, prompt) => {
 			permission: {
 				capability: 'write',
 				resources: [{ kind: 'tool', value: call.tool, boundary: 'workstream' }],
+			},
+		});
+		return;
+	}
+	if (prompt.includes('SANDBOX_GRANT')) {
+		pendingRuns.set(runId, sessionId);
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-grant-' + runId,
+			reason: 'Everything else stays in the sandbox.',
+			toolName: 'Bash',
+			input: { command: 'pnpm test test/mcp/mcp.spec.ts', dangerouslyDisableSandbox: true },
+			permission: {
+				capability: 'sandbox',
+				resources: [{ kind: 'socket', value: dockerSocket, boundary: 'external' }],
 			},
 		});
 		return;

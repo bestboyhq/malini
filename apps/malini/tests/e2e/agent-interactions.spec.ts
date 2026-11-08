@@ -7,6 +7,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	listEvents,
+	openSettingsFromMenu,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -78,7 +79,7 @@ test('a permission request waits for the user, hands the agent their decision, a
 	}
 });
 
-test('a command that asks to leave the sandbox can be allowed for the rest of the chat', async () => {
+test('a command that asks to leave the sandbox can be allowed for the rest of the chat, listed in Settings until revoked', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -108,6 +109,84 @@ test('a command that asks to leave the sandbox can be allowed for the rest of th
 			page.getByRole('status').filter({ hasText: 'Allowed for this chat' }),
 		).toBeVisible();
 		await captureFlow(app, 'sandbox-exit-allowed-for-this-chat');
+
+		await openSettingsFromMenu(page);
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Agent access', exact: true })
+			.click();
+		const grant = page.getByRole('list', { name: 'Always allowed' }).getByRole('listitem');
+		await expect(grant).toHaveCount(1);
+		await expect(grant).toContainText('Run commands outside the sandbox');
+		await expect(grant).toContainText('One chat in Sandbox exit workstream');
+		await captureFlow(app, 'sandbox-exit-in-settings');
+		await grant.getByRole('button', { name: 'Revoke' }).click();
+		await expect(grant).toHaveCount(0);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('what the sandbox blocked can be allowed for the repository, stays listed in Settings, and is not asked again', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-sandbox-grant-ws',
+			'Sandbox grant workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+
+		await sendPrompt(page, 'SANDBOX_GRANT');
+		await expect(decision).toBeVisible({ timeout: 20_000 });
+		await expect(
+			page.getByRole('heading', { name: 'The sandbox blocked one thing this command needs' }),
+		).toBeVisible();
+		await expect(
+			page.getByRole('list', { name: 'Blocked by the sandbox' }).getByRole('listitem'),
+		).toContainText('Docker');
+		await expect(decision.getByRole('button', { name: 'Allow for this chat' })).toHaveCount(0);
+		await expect(decision.getByRole('button', { name: /outside/u })).toHaveCount(0);
+		await captureFlow(app, 'sandbox-grant-card');
+		await decision.getByRole('button', { name: 'Always allow' }).click();
+		const scopes = page.getByRole('menu', { name: 'Always allow' });
+		await expect(scopes.getByRole('menuitem')).toHaveText([
+			/Allow for this chat/u,
+			/Allow for this repository/u,
+			/Allow everywhere/u,
+		]);
+		await captureFlow(app, 'sandbox-grant-scopes');
+		await scopes.getByRole('menuitem', { name: 'Allow for this repository' }).click();
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Allowed for this repository' }),
+		).toBeVisible();
+		await expectAssistantReply(page);
+		expect(await decisionTheAgentGot(page)).toEqual({ decision: 'allow', scope: 'repository' });
+
+		await startFreshChat(page);
+		await sendPrompt(page, 'SANDBOX_GRANT');
+		await expectAssistantReply(page);
+		await expect(decision).toHaveCount(0);
+		expect(await decisionTheAgentGot(page)).toEqual({ decision: 'allow', scope: 'repository' });
+
+		await openSettingsFromMenu(page);
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Agent access', exact: true })
+			.click();
+		const grant = page.getByRole('list', { name: 'Always allowed' }).getByRole('listitem');
+		await expect(grant).toHaveCount(1);
+		await expect(grant).toContainText('Sandbox: connect to');
+		await expect(grant).toContainText('docker.sock');
+		await expect(grant.getByText('source', { exact: true })).toBeVisible();
+		await captureFlow(app, 'sandbox-grant-in-settings');
 
 		expectCleanConsole(app);
 	} finally {
