@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({ app: {}, net: {} }));
+const { fetchMock } = vi.hoisted(() => ({
+	fetchMock: vi.fn((_url: string, _init: RequestInit) => Promise.resolve(new Response('{}'))),
+}));
+
+vi.mock('electron', () => ({ app: {}, net: { fetch: fetchMock } }));
 
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
 import type { UsageReport } from '$contract/system';
@@ -14,20 +21,30 @@ import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
 import type { UsageAccount } from '$lib/stats/stats.platform';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
+import { ONBOARDING_FINISHED_SETTING } from '../domain/onboarding';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
-import { setSetting } from './settings.repository';
+import { getSetting, setSetting } from './settings.repository';
 import { createTestContext } from './test-support';
 import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
 
 const NOW = new Date(2026, 9, 15, 10);
 
+const LATER_DAY = { week_first: 'yes', month_first: 'yes', age: 'later' };
+const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1' };
+
+interface HarnessOptions {
+	readonly now?: () => Date;
+	readonly freshInstall?: boolean;
+}
+
 function harness(
 	context: MainContext = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') }),
 	account: () => UsageAccount = () => ({ state: 'anonymous' }),
+	options: HarnessOptions = {},
 ) {
 	const activity: UsageActivity[] = [];
 	const reports: UsageReport[] = [];
-	const tags: Readonly<Record<string, string>>[] = [];
+	const tags: Readonly<Record<string, string | number>>[] = [];
 	const accounts: (string | null)[] = [];
 	const errors: string[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
@@ -58,11 +75,13 @@ function harness(
 			goneProcess = listener;
 		},
 		system: 'malini 1.0.0',
-		now: () => NOW,
+		now: options.now ?? (() => NOW),
+		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
 	});
 	return {
 		context,
 		share: (shared: boolean) => usageData.share(shared),
+		journey: (marker: Parameters<typeof usageData.journey>[0]) => usageData.journey(marker),
 		activity,
 		reports,
 		tags,
@@ -95,6 +114,43 @@ function publishProfile(context: MainContext): void {
 	});
 }
 
+function addRepository(context: MainContext): void {
+	context.events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
+}
+
+function addWorkstream(context: MainContext, scope: string | null = null): void {
+	context.events.emit(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, {
+		workstreamId: 'ws-a',
+		project: {
+			id: 'p',
+			name: 'p',
+			repoPath: '/tmp/repo',
+			defaultBranch: 'main',
+			createdAt: at(1, 9),
+		},
+		workstream: {
+			id: 'ws-a',
+			projectId: 'p',
+			name: 'ws-a',
+			path: '/tmp/ws',
+			branch: 'malini/ws',
+			baseBranch: 'main',
+			status: 'active',
+			createdAt: at(15, 9),
+			scope,
+			startedBy: null,
+		},
+	});
+}
+
+function mergeWorkstream(context: MainContext): void {
+	context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+		workstreamId: 'ws-a',
+		state: null,
+		merged: { pullRequestNumber: 7, pullRequestUrl: null },
+	});
+}
+
 async function failCommand(context: MainContext, error: Error): Promise<void> {
 	context.commands.define('repositories.list-workstreams', () => {
 		throw error;
@@ -106,7 +162,7 @@ describe('usage data', () => {
 	it('reports the app as active once per launch', async () => {
 		const { activity } = harness();
 		await settled();
-		expect(activity).toEqual(['app_active']);
+		expect(activity).toEqual(['app_active', 'day']);
 	});
 
 	it('counts every run that finishes, and nothing else an agent does', async () => {
@@ -116,7 +172,7 @@ describe('usage data', () => {
 		finishRun(context, 'run.completed');
 		finishRun(context, 'run.failed');
 		await settled();
-		expect(activity).toEqual(['app_active', 'run_finished', 'run_finished']);
+		expect(activity).toEqual(['app_active', 'day', 'run_finished', 'run_finished']);
 	});
 
 	it('tags each count with where you heard about Malini, and counts a published profile', async () => {
@@ -126,8 +182,13 @@ describe('usage data', () => {
 		finishRun(context, 'run.completed');
 		publishProfile(context);
 		await settled();
-		expect(activity).toEqual(['app_active', 'run_finished', 'profile_published']);
-		expect(tags).toEqual([{}, { heard_about: 'hacker-news' }, { heard_about: 'hacker-news' }]);
+		expect(activity).toEqual(['app_active', 'day', 'run_finished', 'profile_published']);
+		expect(tags).toEqual([
+			{},
+			LATER_DAY,
+			{ heard_about: 'hacker-news' },
+			{ heard_about: 'hacker-news' },
+		]);
 	});
 
 	it('logs a failed command by its error name, never its message, once per launch', async () => {
@@ -207,22 +268,22 @@ describe('usage data', () => {
 		});
 		start();
 		await settled();
-		expect(activity).toEqual(['app_active']);
+		expect(activity).toEqual(['app_active', 'day']);
 		expect(reports).toHaveLength(1);
-		expect(accounts).toEqual(['u1', 'u1']);
+		expect(accounts).toEqual(['u1', 'u1', 'u1']);
 
 		lent = { state: 'anonymous' };
 		finishRun(context, 'run.completed');
 		await settled();
-		expect(accounts).toEqual(['u1', 'u1', null]);
+		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
 
 		lent = { state: 'old-terms' };
 		finishRun(context, 'run.completed');
 		publishProfile(context);
 		throwUncaught(new TypeError('x is undefined'));
 		await settled();
-		expect(activity).toEqual(['app_active', 'run_finished']);
-		expect(accounts).toEqual(['u1', 'u1', null]);
+		expect(activity).toEqual(['app_active', 'day', 'run_finished']);
+		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
 		expect(errors).toEqual([]);
 
 		setSetting(context.db, USAGE_DATA_SETTING, 'off');
@@ -231,7 +292,7 @@ describe('usage data', () => {
 		finishRun(context, 'run.completed');
 		publishProfile(context);
 		await settled();
-		expect(accounts).toEqual(['u1', 'u1', null]);
+		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
 		expect(asked).toBe(askedBefore);
 	});
 
@@ -245,17 +306,17 @@ describe('usage data', () => {
 		share(false);
 		finishRun(context, 'run.completed');
 		await settled();
-		expect(activity).toEqual(['app_active', 'stats_off']);
+		expect(activity).toEqual(['app_active', 'day', 'stats_off']);
 		expect(tags.at(-1)).toEqual({});
-		expect(accounts).toEqual(['u1', null]);
+		expect(accounts).toEqual(['u1', 'u1', null]);
 
 		lent = { state: 'accepted', userId: 'u1' };
 		share(true);
 		await settled();
-		expect(activity).toEqual(['app_active', 'stats_off']);
+		expect(activity).toEqual(['app_active', 'day', 'stats_off']);
 		finishRun(context, 'run.completed');
 		await settled();
-		expect(activity).toEqual(['app_active', 'stats_off', 'run_finished']);
+		expect(activity).toEqual(['app_active', 'day', 'stats_off', 'run_finished']);
 	});
 
 	it('hashes the account with the site the way Logdash joins it to the web', () => {
@@ -275,6 +336,387 @@ describe('usage data', () => {
 		await failCommand(context, new Error('disk gone'));
 		await settled();
 		expect([...activity, ...reports, ...errors]).toEqual([]);
+	});
+});
+
+describe('usage journeys', () => {
+	it('opens a fresh install once, with its cohort and day zero', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const first = harness(context, undefined, { freshInstall: true });
+		await settled();
+		expect(first.activity).toEqual(['app_active', 'first_open', 'day']);
+		expect(first.tags[1]).toEqual({ cohort: '2026-10-15', days: 0 });
+		expect(first.tags[2]).toEqual(FIRST_DAY);
+
+		const again = harness(context, undefined, { freshInstall: true });
+		await settled();
+		expect(again.activity).toEqual(['app_active']);
+	});
+
+	it('never sends first_open for an install that existed before', async () => {
+		const { activity } = harness();
+		await settled();
+		expect(activity).toEqual(['app_active', 'day']);
+	});
+
+	it('sends setup_finished once, when onboarding finishes', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		setSetting(context.db, ONBOARDING_FINISHED_SETTING, at(15, 10));
+		launched.journey('setup_finished');
+		launched.journey('setup_finished');
+		await settled();
+		expect(launched.activity).toEqual(['app_active', 'first_open', 'day', 'setup_finished']);
+		expect(launched.tags.at(-1)).toEqual({ cohort: '2026-10-15', days: 0 });
+	});
+
+	it('sends setup_finished at launch when onboarding finished off screen', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const first = harness(context, undefined, { freshInstall: true });
+		await settled();
+		setSetting(context.db, ONBOARDING_FINISHED_SETTING, at(15, 10));
+		const second = harness(context);
+		await settled();
+		expect(first.activity).toEqual(['app_active', 'first_open', 'day']);
+		expect(second.activity).toEqual(['app_active', 'setup_finished']);
+	});
+
+	it('records the first repository, workstream, merge and prompt once each', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		seedProject(context.db);
+		seedWorkstream(context.db, 'ws-a', { createdAt: at(15, 9) });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		addRepository(context);
+		addRepository(context);
+		addWorkstream(context);
+		addWorkstream(context);
+		mergeWorkstream(context);
+		mergeWorkstream(context);
+		seedRun(context.db, 'r1', 'ws-a', at(15, 9));
+		finishRun(context, 'run.completed');
+		finishRun(context, 'run.completed');
+		await vi.waitFor(() => expect(launched.activity).toContain('first_repository'));
+		const journeys = launched.activity.filter(
+			(name) => name !== 'app_active' && name !== 'day' && name !== 'run_finished',
+		);
+		expect(journeys.sort()).toEqual([
+			'first_merge',
+			'first_open',
+			'first_prompt',
+			'first_repository',
+			'first_workstream',
+		]);
+		const marker = launched.tags[launched.activity.indexOf('first_workstream')];
+		expect(marker).toEqual({ cohort: '2026-10-15', days: 0 });
+	});
+
+	it('counts no workstream created for the lead space', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		addWorkstream(context, 'home');
+		await settled();
+		expect(launched.activity).not.toContain('first_workstream');
+	});
+
+	it('sends no merge marker when a ship changes without a merge', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId: 'ws-a', state: null });
+		await settled();
+		expect(launched.activity).not.toContain('first_merge');
+	});
+
+	it('records the first published profile once', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		publishProfile(context);
+		publishProfile(context);
+		await settled();
+		expect(launched.activity.filter((name) => name === 'first_profile_published')).toHaveLength(1);
+		expect(launched.activity.filter((name) => name === 'profile_published')).toHaveLength(2);
+	});
+
+	it('records the first return on day 7 and on day 30, each once', async () => {
+		const week = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let clock = NOW;
+		harness(week, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+		clock = new Date(2026, 9, 22, 10);
+		const daySeven = harness(week, undefined, { now: () => clock });
+		await settled();
+		expect(daySeven.activity).toEqual(['app_active', 'returned_week_1', 'day']);
+		expect(daySeven.tags[daySeven.activity.indexOf('returned_week_1')]).toEqual({
+			cohort: '2026-10-15',
+			days: 7,
+		});
+		const later = harness(week, undefined, { now: () => clock });
+		await settled();
+		expect(later.activity).toEqual(['app_active']);
+
+		const month = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		clock = NOW;
+		harness(month, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+		clock = new Date(2026, 10, 14, 10);
+		const dayThirty = harness(month, undefined, { now: () => clock });
+		await settled();
+		expect(dayThirty.activity).toContain('returned_month_1');
+		expect(dayThirty.activity).not.toContain('returned_week_1');
+		expect(dayThirty.tags[dayThirty.activity.indexOf('returned_month_1')]).toEqual({
+			cohort: '2026-10-15',
+			days: 30,
+		});
+	});
+
+	it('records no return after day 30', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let clock = NOW;
+		harness(context, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+		clock = new Date(2026, 10, 15, 10);
+		const late = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(late.activity).not.toContain('returned_week_1');
+		expect(late.activity).not.toContain('returned_month_1');
+		expect(late.tags[late.activity.indexOf('day')]).toEqual({
+			week_first: 'yes',
+			month_first: 'yes',
+			age: 'later',
+		});
+	});
+});
+
+describe('usage days and months', () => {
+	it('marks each local day once with the week and month it starts', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let clock = NOW;
+		const thursday = harness(context, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+		expect(thursday.tags.at(-1)).toEqual(FIRST_DAY);
+
+		const sameDay = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(sameDay.activity).toEqual(['app_active']);
+
+		clock = new Date(2026, 9, 16, 9);
+		const friday = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(friday.activity).toEqual(['app_active', 'returned_week_1', 'day']);
+		expect(friday.tags[friday.activity.indexOf('day')]).toEqual({
+			week_first: 'no',
+			month_first: 'no',
+			age: 'week_1',
+		});
+
+		clock = new Date(2026, 9, 19, 9);
+		const monday = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(monday.tags[monday.activity.indexOf('day')]).toEqual({
+			week_first: 'yes',
+			month_first: 'no',
+			age: 'week_1',
+		});
+
+		clock = new Date(2026, 10, 1, 9);
+		const november = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(november.activity).toEqual(['app_active', 'returned_month_1', 'month', 'day']);
+		expect(november.tags[november.activity.indexOf('day')]).toEqual({
+			week_first: 'yes',
+			month_first: 'yes',
+			age: 'month_1',
+		});
+	});
+
+	it('reports the last active month once, with its active days, then forgets them', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let clock = NOW;
+		const firstDay = harness(context, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+		expect(firstDay.activity).toEqual(['app_active', 'first_open', 'day']);
+
+		clock = new Date(2026, 9, 16, 9);
+		harness(context, undefined, { now: () => clock });
+		await settled();
+
+		clock = new Date(2026, 10, 1, 9);
+		const november = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(november.activity).toEqual(['app_active', 'returned_month_1', 'month', 'day']);
+		expect(november.tags[november.activity.indexOf('month')]).toEqual({
+			month: '2026-10',
+			active_days: 2,
+		});
+		expect(getSetting(context.db, 'usage-data.active-days')).toBe('["2026-11-01"]');
+
+		const again = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(again.activity).toEqual(['app_active']);
+
+		clock = new Date(2026, 10, 2, 9);
+		const nextDay = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(nextDay.activity).toEqual(['app_active', 'day']);
+
+		clock = new Date(2026, 11, 1, 9);
+		const december = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(december.activity).toEqual(['app_active', 'month', 'day']);
+		expect(december.tags[december.activity.indexOf('month')]).toEqual({
+			month: '2026-11',
+			active_days: 2,
+		});
+	});
+
+	it('ages an existing install from its earliest project', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		seedProject(context.db);
+		const launched = harness(context);
+		await settled();
+		expect(launched.activity).toEqual(['app_active', 'day']);
+		expect(launched.tags[launched.activity.indexOf('day')]).toEqual({
+			week_first: 'yes',
+			month_first: 'yes',
+			age: 'month_1',
+		});
+	});
+
+	it('holds a journey marker while sharing is off until it can go', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		setSetting(context.db, USAGE_DATA_SETTING, 'off');
+		const off = harness(context, undefined, { freshInstall: true });
+		await settled();
+		expect(off.activity).toEqual([]);
+		off.share(true);
+		await settled();
+		expect(off.activity).toEqual(['first_open', 'day']);
+	});
+
+	it('sends no journey marker on old terms, then sends it once accepted', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const old = harness(context, () => ({ state: 'old-terms' }), { freshInstall: true });
+		await settled();
+		expect(old.activity).toEqual([]);
+
+		const accepted = harness(context, () => ({ state: 'accepted', userId: 'u1' }));
+		await settled();
+		expect(accepted.activity).toEqual(['app_active', 'first_open', 'day']);
+		expect(accepted.accounts).toEqual(['u1', 'u1', 'u1']);
+	});
+
+	it('counts nothing at launch while sharing is off, only the day later', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		setSetting(context.db, USAGE_DATA_SETTING, 'off');
+		const off = harness(context);
+		await settled();
+		expect(off.activity).toEqual([]);
+		off.share(true);
+		await settled();
+		expect(off.activity).toEqual(['day']);
+	});
+});
+
+describe('the Logdash sink', () => {
+	const noHooks = {
+		onUncaughtException: () => () => undefined,
+		onUnhandledRejection: () => () => undefined,
+	};
+
+	it('posts the exact web event body for the new markers', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		vi.stubEnv('MAIN_VITE_LOGDASH_API_KEY', '');
+		fetchMock.mockClear();
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			account: () => Promise.resolve({ state: 'accepted', userId: 'u1' }),
+			hooks: noHooks,
+			processGone: () => undefined,
+			now: () => NOW,
+			system: 'malini 1.0.0',
+			freshInstall: true,
+		});
+		await settled();
+		await usageData.shutdown();
+		const posted = fetchMock.mock.calls.map(([url, init]) => ({
+			url,
+			origin: new Headers(init.headers).get('Origin'),
+			body: JSON.parse(String(init.body)) as {
+				siteId: string;
+				sentAt: string;
+				events: Array<Record<string, unknown>>;
+			},
+		}));
+		expect(posted.map(({ url }) => url)).toEqual([
+			'https://api.logdash.io/web_events',
+			'https://api.logdash.io/web_events',
+			'https://api.logdash.io/web_events',
+		]);
+		expect(posted.map(({ origin }) => origin)).toEqual([
+			'https://app.malini',
+			'https://app.malini',
+			'https://app.malini',
+		]);
+		expect(posted.map(({ body }) => body.siteId)).toEqual([
+			'malini-site',
+			'malini-site',
+			'malini-site',
+		]);
+		expect(posted.map(({ body }) => body.events[0]?.['name'])).toEqual([
+			'malini_desktop_app_active',
+			'malini_desktop_first_open',
+			'malini_desktop_day',
+		]);
+		expect(posted[0]?.body.events[0]).not.toHaveProperty('props');
+		expect(posted[1]?.body.events[0]).toMatchObject({
+			path: '/',
+			props: { cohort: '2026-10-15', days: 0 },
+			userId: logdashUserId('malini-site', 'u1'),
+		});
+		expect(posted[2]?.body.events[0]?.['props']).toEqual(FIRST_DAY);
+		context.db.close();
+	});
+
+	it('sends nothing with MALINI_USAGE_DATA=off', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		vi.stubEnv('MALINI_USAGE_DATA', 'off');
+		fetchMock.mockClear();
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			account: () => Promise.resolve({ state: 'anonymous' }),
+			hooks: noHooks,
+			processGone: () => undefined,
+			now: () => NOW,
+			system: 'malini 1.0.0',
+			freshInstall: true,
+		});
+		await settled();
+		await usageData.shutdown();
+		expect(fetchMock).not.toHaveBeenCalled();
+		context.db.close();
+	});
+
+	it('sends nothing with DO_NOT_TRACK=1', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		vi.stubEnv('DO_NOT_TRACK', '1');
+		fetchMock.mockClear();
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			account: () => Promise.resolve({ state: 'anonymous' }),
+			hooks: noHooks,
+			processGone: () => undefined,
+			now: () => NOW,
+			system: 'malini 1.0.0',
+			freshInstall: true,
+		});
+		await settled();
+		await usageData.shutdown();
+		expect(fetchMock).not.toHaveBeenCalled();
+		context.db.close();
 	});
 });
 

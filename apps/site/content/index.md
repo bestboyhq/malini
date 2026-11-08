@@ -41,6 +41,9 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
 Malini makes seven calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
+For a new install, it marks each first step once: the first open, setup finished, the first repository, workstream, prompt, merge and published profile, and the first return in the following week and month.
+Each mark says the day you first opened Malini and how many days have passed.
+On the first launch of a new month, it also sends how many days Malini ran in the last month you used it.
 While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
 Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.
 Each count carries the option you picked in setup for where you heard about Malini, if you answered, never the words you typed for another place.
