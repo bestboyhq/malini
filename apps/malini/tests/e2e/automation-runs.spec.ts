@@ -333,6 +333,9 @@ test('an automation asked for twice before it starts runs once, and its row says
 		);
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'HANG');
+		await expect
+			.poll(() => invoke(page, 'chat.workstream-has-working-run', { workstreamId }))
+			.toBe(true);
 		const automation = await saveAutomation(page, { name: 'Bump version', instructions: 'Hello' });
 		const ask = (context: string) =>
 			invoke<RunRow & Readonly<{ requests: number }>>(page, 'automations.run', {
