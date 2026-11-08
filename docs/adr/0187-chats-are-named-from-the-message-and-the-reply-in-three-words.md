@@ -14,6 +14,7 @@ The user picked the fix: "build the reply-aware namer, the retry, a 3-word limit
 ## Decision
 
 - A new workstream is **New workstream**, or **New workstream N** when that name is taken in its repository (`uniqueWorkstreamName` in `src/lib/shared/repositories/domain/workstream-names.ts`).
+  The user picked it over **Fresh workstream**, alone or with **Fresh chat**, because it pairs with **New chat** on the same screen.
   `isPlaceholderWorkstreamName` and `isPlaceholderChatName` (`src/lib/chat/domain/chat-names.ts`) say which names still wait for Name chats.
 - `ChatNamer` in `src/lib/chat/platform/agent/naming.ts` names a chat and its workstream twice.
   When you send a message, it names whichever of the two still has a placeholder, from `<message>` alone.
