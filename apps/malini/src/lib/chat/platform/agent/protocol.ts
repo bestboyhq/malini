@@ -369,6 +369,13 @@ export type BridgeEvent =
 			handedOff?: boolean;
 	  }
 	| { type: 'session.state'; sessionId: string; status: string; providerSessionId?: string }
+	| {
+			type: 'sandbox.granted';
+			sessionId: string;
+			runId: string;
+			process: string;
+			grant: { kind: 'path' | 'socket'; path: string };
+	  }
 	| { type: 'assistant.delta'; runId: string; contentId: string; text: string }
 	| { type: 'thinking.delta'; runId: string; contentId: string; text: string }
 	| {
@@ -833,6 +840,20 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					status: f.string('status'),
 					...optional('providerSessionId', f.optionalString('providerSessionId')),
 				});
+			case 'sandbox.granted': {
+				const grant = new Fields(f.record('grant'), 'sandbox.granted.grant');
+				const grantKind = grant.string('kind');
+				if (grantKind !== 'path' && grantKind !== 'socket') {
+					throw new Error(`sandbox.granted: unknown grant kind \`${grantKind}\``);
+				}
+				return ok({
+					type: kind,
+					sessionId: f.string('sessionId'),
+					runId: f.string('runId'),
+					process: f.string('process'),
+					grant: { kind: grantKind, path: grant.string('path') },
+				});
+			}
 			case 'tool.input.delta':
 				return ok({
 					type: kind,
@@ -1164,6 +1185,7 @@ export function eventSessionId(event: BridgeEvent): string | null {
 		case 'approval.requested':
 		case 'question.requested':
 		case 'session.state':
+		case 'sandbox.granted':
 			return event.sessionId;
 		default:
 			return null;

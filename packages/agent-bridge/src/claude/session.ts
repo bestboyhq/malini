@@ -92,6 +92,7 @@ import {
 	SANDBOX_TAG_PREFIX,
 	sandboxGrant,
 	sandboxProfile,
+	toolStateGrant,
 	type SandboxDenial,
 	type SandboxGrant,
 	type SandboxPlaces,
@@ -590,6 +591,19 @@ export class ClaudeSession implements ProviderHandle {
 			{ denial, grant, at: Date.now() },
 			MAX_BLOCKED,
 		);
+		const toolState = toolStateGrant(denial, places);
+		if (!toolState || this.#grants.some((granted) => grantKey(granted) === grantKey(toolState))) {
+			return;
+		}
+		this.#grants = [...this.#grants, toolState];
+		this.#confine();
+		this.#emit({
+			type: 'sandbox.granted',
+			sessionId: this.#context.sessionId,
+			runId: this.#active?.runId ?? '',
+			process: denial.process,
+			grant: toolState,
+		});
 	}
 
 	#grantable(command: string): SandboxGrant[] {

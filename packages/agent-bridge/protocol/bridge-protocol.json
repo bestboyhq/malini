@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 50,
+	"protocolVersion": 51,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -58,7 +58,8 @@
 		"background.updated",
 		"run.completed",
 		"run.failed",
-		"session.state"
+		"session.state",
+		"sandbox.granted"
 	],
 	"controls": [
 		"bridge.ready",

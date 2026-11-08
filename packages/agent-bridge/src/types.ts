@@ -1,5 +1,6 @@
 import { BRIDGE_EVENT_TYPES } from './generated/protocol-contract.js';
 import type { AgentQuestion, ProviderPermissionDescriptor } from './interaction-types.js';
+import type { SandboxGrant } from './sandbox.js';
 
 export type RunFailureKind =
 	| 'usage-limit'
@@ -144,6 +145,13 @@ export type AgentEvent =
 			sessionId: string;
 			status: SessionStatus;
 			providerSessionId?: string;
+	  }
+	| {
+			type: 'sandbox.granted';
+			sessionId: string;
+			runId: string;
+			process: string;
+			grant: SandboxGrant;
 	  };
 
 type MissingGeneratedEvent = Exclude<AgentEvent['type'], (typeof BRIDGE_EVENT_TYPES)[number]>;
