@@ -340,10 +340,7 @@ export function defineAutomationCommands(
 	commands.define('automations.run', async (args: unknown) => {
 		const definition = requireDefinition(db, requireString(args, 'definitionId'));
 		if (!isRunnableAutomation(definition)) {
-			throw new AutomationError(
-				'builtin',
-				`${definition.name} runs on its own when you send the first message in a chat.`,
-			);
+			throw new AutomationError('builtin', `${definition.name} runs on its own.`);
 		}
 		const workstreamId = optionalString(args, 'workstreamId');
 		const repositoryId = optionalString(args, 'repositoryId');

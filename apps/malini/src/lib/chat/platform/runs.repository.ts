@@ -123,6 +123,19 @@ export function getRun(db: MaliniDatabase, runId: string): AgentRun | null {
 	return row ? runFromRow(row) : null;
 }
 
+export function userTurn(
+	db: MaliniDatabase,
+	runId: string,
+): Readonly<{ prompt: string; summary: string | null }> | null {
+	return (
+		get<{ prompt: string; summary: string | null }>(
+			db,
+			'SELECT prompt, summary FROM agent_runs WHERE id = ? AND automated = 0',
+			runId,
+		) ?? null
+	);
+}
+
 export function storedRunProfile(db: MaliniDatabase, runId: string): unknown {
 	const row = get<{ profile: string | null }>(
 		db,

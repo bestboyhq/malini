@@ -21,7 +21,6 @@
 	const label = $derived(
 		displayWorkstreamName(
 			{
-				id: record.plan.workstreamId,
 				name: record.plan.name,
 				baseBranch: record.plan.baseBranch,
 				scope: record.plan.scope,

@@ -5,8 +5,8 @@ import { claudeEnvironment } from './session.js';
 
 const TITLE_TIMEOUT_MS = 15_000;
 const MAX_TASK_CHARACTERS = 4_000;
-const MAX_TITLE_WORDS = 5;
-const MAX_TITLE_CHARACTERS = 40;
+const MAX_TITLE_WORDS = 7;
+const MAX_TITLE_CHARACTERS = 60;
 const TITLE_EDGE = /^["'`*_\s]+|["'`*_.!?,;:\s]+$/gu;
 const TITLE_LABEL = /^[\p{L}\s*_]*\b(?:name|label|title)[*_]*\s*:[*_\s]*/iu;
 

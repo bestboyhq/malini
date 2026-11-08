@@ -195,7 +195,6 @@ describe('createWorkstreamWatchers', () => {
 
 		for (let index = 0; index < 10; index += 1) {
 			writeFileSync(join(path, `file-${index}.txt`), `${index}\n`);
-			await sleep(5);
 		}
 		await waitFor(() => emitted.length === 1);
 		await sleep(SETTLE_MS);
