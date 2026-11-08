@@ -84,7 +84,10 @@ const SHIPPING = {
 		opening: 'Queued to merge. Malini opens the pull request once the workstream is idle.',
 		pushing: 'Queued to merge:',
 	},
-} as const satisfies Record<Exclude<AgentlessAutomationBuiltin, 'update-from-main'>, object>;
+} as const satisfies Record<
+	Exclude<AgentlessAutomationBuiltin, 'update-from-main' | 'capture-brain'>,
+	object
+>;
 
 export const BUSY_RETRY_MS = 3_000;
 
@@ -348,12 +351,28 @@ export class AutomationRunner {
 			await this.#updateFromMain(automationRun, workstreamId);
 			return;
 		}
+		if (builtin === 'capture-brain') {
+			await this.#captureBrain(automationRun.id);
+			return;
+		}
 		const { command, opening, pushing } = SHIPPING[builtin];
 		try {
 			const { pullRequestUrl } = await this.#context.commands.call(command, { workstreamId });
 			this.#succeed(automationRun.id, pullRequestUrl ? `${pushing} ${pullRequestUrl}` : opening);
 		} catch (error) {
 			this.#finish(automationRun.id, 'failed', describeError(error));
+		}
+	}
+
+	async #captureBrain(automationRunId: string): Promise<void> {
+		try {
+			const { chats, turns } = await this.#context.commands.call('brain.capture', undefined);
+			this.#succeed(
+				automationRunId,
+				chats === 0 ? 'Nothing new' : `${counted(chats, 'chat')}, ${counted(turns, 'turn')}`,
+			);
+		} catch (error) {
+			this.#finish(automationRunId, 'failed', describeError(error));
 		}
 	}
 
@@ -841,4 +860,8 @@ function lifecycleEnvelope(envelope: AgentEventEnvelope): LifecycleEnvelope[] {
 				},
 			]
 		: [];
+}
+
+function counted(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }

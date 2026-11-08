@@ -5,7 +5,8 @@ import {
 	type ChatRequestOutcome,
 } from '$lib/chat/domain/chat-request';
 import type { RenderItem, RunGroup } from '../render-state';
-import { canonicalChangedPath, mutationRepresentedByTool } from '../run-timeline';
+import { canonicalChangedPath } from '$shared/markdown/workstream-path';
+import { mutationRepresentedByTool } from '../run-timeline';
 
 export type DestructiveConfirmState = 'idle' | 'submitting' | 'failed';
 

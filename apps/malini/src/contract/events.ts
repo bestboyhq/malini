@@ -5,6 +5,7 @@ import type {
 	BrowserTabArgs,
 	BrowserThreadOpened,
 } from './browser';
+import type { BrainChangedEvent } from './brain';
 import type { LeadDecisionChangedEvent } from './leads';
 import type { ChatDeliveryChangedEvent } from './deliveries';
 import type { GithubReach } from './github-failure';
@@ -121,6 +122,7 @@ export interface WorkstreamBaseOverlappedPayload {
 	head: string;
 	baseHead: string;
 	behind: number;
+	overlapping: boolean;
 	conflicts: boolean;
 	conflictedPaths: string[];
 	overlappingPaths: string[];
@@ -161,6 +163,8 @@ export type MenuCommand =
 export type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 
 export type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
+
+export type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;
 
 export type ContractEventReference = Readonly<{
 	channel: string;
@@ -243,6 +247,7 @@ export interface ContractEvents {
 	'app:started': AppStartedPayload;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
+	'app:full-screen-changed': FullScreenChangedPayload;
 	'app:notification-opened': NotificationTarget;
 	'app:menu-command-chosen': MenuCommandChosen;
 	'app:streaming-changed': StreamingChangedPayload;
@@ -259,6 +264,7 @@ export interface ContractEvents {
 	'stats:profile-changed': ProfileState;
 	'stats:profile-published': BestboyProfile;
 	'secrets:requested': SecretsRequestedEvent;
+	'brain:changed': BrainChangedEvent;
 	'secrets:saved': SecretsSavedEvent;
 	'secrets:request-dismissed': SecretRequestDismissedEvent;
 	'secrets:deleted': SecretDeletedEvent;
@@ -310,6 +316,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:started': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
+	'app:full-screen-changed': null,
 	'app:notification-opened': null,
 	'app:menu-command-chosen': null,
 	'app:streaming-changed': null,
@@ -326,6 +333,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'stats:profile-changed': null,
 	'stats:profile-published': null,
 	'secrets:requested': null,
+	'brain:changed': null,
 	'secrets:saved': null,
 	'secrets:request-dismissed': null,
 	'secrets:deleted': null,
@@ -403,6 +411,8 @@ export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies Event
 
 export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChannel;
 
+export const APP_FULL_SCREEN_CHANGED_CHANNEL = 'app:full-screen-changed' satisfies EventChannel;
+
 export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfies EventChannel;
 
 export const APP_MENU_COMMAND_CHOSEN_CHANNEL = 'app:menu-command-chosen' satisfies EventChannel;
@@ -436,6 +446,8 @@ export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies E
 export const STATS_PROFILE_PUBLISHED_CHANNEL = 'stats:profile-published' satisfies EventChannel;
 
 export const SECRETS_REQUESTED_CHANNEL = 'secrets:requested' satisfies EventChannel;
+
+export const BRAIN_CHANGED_CHANNEL = 'brain:changed' satisfies EventChannel;
 
 export const SECRETS_SAVED_CHANNEL = 'secrets:saved' satisfies EventChannel;
 

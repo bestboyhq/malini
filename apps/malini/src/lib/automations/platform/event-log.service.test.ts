@@ -358,6 +358,7 @@ describe('the event log', () => {
 				},
 				decide: async () => null,
 				merging: () => false,
+				triggered: async () => false,
 			},
 		});
 		automations.start();
@@ -518,6 +519,7 @@ describe('the event log', () => {
 				},
 				decide: async () => null,
 				merging: () => false,
+				triggered: async () => false,
 			},
 		});
 		automations.start();

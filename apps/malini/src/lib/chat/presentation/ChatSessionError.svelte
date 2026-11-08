@@ -6,6 +6,7 @@
 	import { sessionRetryingQuery } from '$lib/chat/application/queries/session-retrying.query.svelte';
 	import { newChatRequestId } from '$lib/chat/domain/chat-request';
 	import { Button } from '$hyper-ui/components/button';
+	import { Strip } from '$hyper-ui/components/strip';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 
@@ -31,11 +32,11 @@
 </script>
 
 <div
-	class="chat-stage-inset grid min-h-0 flex-1 place-items-center px-6 pt-10"
+	class="chat-stage-inset min-h-0 flex-1 overflow-y-auto pt-2"
 	style:padding-bottom="calc(2.5rem + {footerInset}px)"
 >
-	<div
-		class="border-surface-50-border bg-surface-50 w-full max-w-md rounded-md border p-4 text-left shadow-sm"
+	<section
+		class="chat-column px-4"
 		role="alert"
 		data-testid="agent-session-error"
 		data-navigation-error="true"
@@ -43,38 +44,35 @@
 		data-navigation-workstream-id={workstreamId}
 		data-navigation-agent-session-id={sessionId ?? undefined}
 	>
-		<div class="flex items-start gap-3">
-			<span
-				class="bg-error/10 text-error-content grid h-8 w-8 shrink-0 place-items-center rounded-full"
-				aria-hidden="true"
+		<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-3">
+			<p
+				class="text-2xs text-fg-secondary font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
+				data-testid="agent-session-error-text"
 			>
-				<Icon name="alert" size={16} />
+				<SensitiveText text={error} />
+			</p>
+		</div>
+		<Strip>
+			<span class="text-error-content flex min-w-0 items-center gap-1.5">
+				<Icon name="alert" size={12} class="shrink-0" />
+				<span class="truncate">Agent session unavailable</span>
 			</span>
-			<div class="min-w-0 flex-1">
-				<h3 class="text-fg-default text-sm font-medium">Agent session unavailable</h3>
-				<p
-					class="text-fg-tertiary mt-1 text-xs leading-5 break-words whitespace-pre-wrap select-text"
-					data-testid="agent-session-error-text"
-				>
-					<SensitiveText text={error} />
-				</p>
+			<div class="ml-auto flex shrink-0 items-center gap-1">
 				<Tooltip content={copied ? 'Copied' : 'Copy full session error'} placement="top">
 					<Button
 						variant="ghost"
-						size="auto"
-						class="text-2xs text-fg-tertiary mt-2 h-7 px-2"
-						ariaLabel="Copy session error"
+						size="sm"
+						class="gap-1"
 						data-testid="agent-session-error-copy"
 						onclick={onCopy}
 					>
-						<Icon name="copy" size={13} />
+						<Icon name="copy" size={12} />
 						Copy error
 					</Button>
 				</Tooltip>
 				<Button
 					variant="primary"
 					size="sm"
-					class="mt-3 h-8 px-3 text-xs"
 					disabled={retrying}
 					ariaBusy={retrying}
 					data-testid="agent-session-retry"
@@ -83,6 +81,6 @@
 					{retrying ? 'Retrying…' : 'Retry session'}
 				</Button>
 			</div>
-		</div>
-	</div>
+		</Strip>
+	</section>
 </div>

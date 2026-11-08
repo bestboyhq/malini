@@ -31,6 +31,7 @@ export type AskedSecrets = Readonly<{
 export type SecretsPlatform = Readonly<{
 	request(asked: AskedSecrets): Readonly<Record<string, unknown>>;
 	valuesReaching(repository: string | null): Record<string, string>;
+	allValues(): string[];
 }>;
 
 type SecretsContext = Pick<MainContext, 'db' | 'events'>;
@@ -61,6 +62,7 @@ export function registerSecrets(context: MainContext, deps: SecretsPlatformDeps)
 	return {
 		request: (asked) => requestSecrets(context, keychain, asked),
 		valuesReaching: (repository) => keychain.valuesReaching(repository),
+		allValues: () => keychain.allValues(),
 	};
 }
 

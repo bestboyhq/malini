@@ -103,6 +103,8 @@ export type ReviewToAddress = Readonly<{
 	threads: readonly PullRequestReviewItem[];
 }>;
 
+export type ReviewStart = Readonly<{ signature: string; attempt: number }>;
+
 export const DEFAULT_SHIP_DELAYS = Object.freeze({
 	idleDebounceMs: 5_000,
 	checksPollMs: 45_000,
@@ -361,6 +363,24 @@ export function reviewSignature(review: ReviewToAddress): string {
 		changeRequests: sortedIds(review.changeRequests),
 		threads: sortedIds(review.threads),
 	})}`;
+}
+
+export function reviewToStart(
+	pullRequest: PullRequestFacts,
+	ship: Readonly<{
+		addressedReviews: readonly string[];
+		failureSignature: string | null;
+		attempts: number;
+	}>,
+	attemptLimit: number,
+): ReviewStart | null {
+	if (pullRequest.state !== 'open' && pullRequest.state !== 'draft') return null;
+	const review = reviewToAddress(pullRequest, ship.addressedReviews);
+	if (review.changeRequests.length === 0) return null;
+	const signature = reviewSignature(review);
+	const repeated = ship.failureSignature === signature;
+	if (repeated && ship.attempts >= attemptLimit) return null;
+	return { signature, attempt: repeated ? ship.attempts + 1 : 1 };
 }
 
 export function addressedChangeRequests(signature: string | null): readonly string[] {

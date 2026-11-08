@@ -271,7 +271,7 @@
 					{@render runActions()}
 				{/if}
 			</div>
-		{:else if isLastRun || run.terminal === null}
+		{:else if (isLastRun || run.terminal === null) && run.runId !== transcript.heldRunId}
 			<RunStatusLine
 				{run}
 				waitingForUser={isLastRun && transcript.waitingForUser}

@@ -42,6 +42,7 @@
 	import { emptySessionModeQuery } from '$lib/chat/application/queries/empty-session-mode.query.svelte';
 	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
 	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
+	import { heldPromptQuery } from '$lib/chat/application/queries/held-prompt.query.svelte';
 	import { openingChangedFileQuery } from '$lib/chat/application/queries/opening-changed-file.query.svelte';
 	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
 	import { pendingQuestionsQuery } from '$lib/chat/application/queries/pending-questions.query.svelte';
@@ -168,7 +169,10 @@
 	const presentedSessionId = $derived(presentedTranscript.sessionId);
 	const envelopes = $derived(sessionEnvelopesQuery.data(sessionId));
 	const closeFreshNavigationTarget = $derived(freshChatReturnQuery.data);
-	const queuedPrompts = $derived(queuedPromptsQuery.data);
+	const heldPrompt = $derived(heldPromptQuery.data(workstreamId, sessionId));
+	const queuedPrompts = $derived(
+		queuedPromptsQuery.data.filter((entry) => entry.id !== heldPrompt?.id),
+	);
 	const queuePaused = $derived(queuePausedQuery.data);
 	const queueSendingId = $derived(queueSendingQuery.data);
 	const queueErrorById = $derived(queueErrorsQuery.data);
@@ -420,7 +424,6 @@
 	style:width={splitInset.extent > 0 ? `${splitInset.extent}px` : undefined}
 	style:padding-right="{splitInset.secondarySize}px"
 >
-	<AgentProcessDiedBanner />
 	<WorkstreamProvisioningBanner {workstreamId} />
 	<DependencyInstallBanner {workstreamId} />
 	<div class="min-h-0 flex-1">
@@ -559,6 +562,7 @@
 								</div>
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
+								<AgentProcessDiedBanner />
 								<div bind:borderBoxSize={traySize}>
 									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || decisionsWaiting || backgroundTray || automations || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>

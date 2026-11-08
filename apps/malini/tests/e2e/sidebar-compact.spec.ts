@@ -11,6 +11,7 @@ import {
 	openRepositoriesPage,
 	passSetup,
 	seedWorkstream,
+	openSettingsFromMenu,
 } from './harness';
 
 function sidebar(page: Page) {
@@ -36,7 +37,7 @@ async function listedRows(page: Page): Promise<(string | null)[]> {
 }
 
 async function sidebarDensity(page: Page, density: 'Comfortable' | 'Compact') {
-	await page.getByRole('link', { name: 'Open settings' }).click({ force: true });
+	await openSettingsFromMenu(page);
 	await page
 		.getByRole('navigation', { name: 'Settings' })
 		.getByRole('link', { name: 'Appearance' })

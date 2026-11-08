@@ -1,3 +1,8 @@
+import {
+	RECOMMENDED,
+	type AutomationDefaults,
+	type DefaultsChoice,
+} from '$lib/app/domain/automation-defaults';
 import type { HeardAbout } from '$lib/app/domain/heard-about';
 import type { OnboardingScreen } from '$lib/app/domain/onboarding';
 
@@ -7,6 +12,8 @@ class OnboardingStore {
 	direction = $state<1 | -1>(1);
 	shown = $state<OnboardingScreen | null>(null);
 	heardAbout = $state<HeardAbout | null>(null);
+	defaultsChoice = $state<DefaultsChoice>('recommended');
+	customDefaults = $state<AutomationDefaults>(RECOMMENDED);
 	finishing = false;
 }
 

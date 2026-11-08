@@ -12,6 +12,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
+	openSettingsFromMenu,
 } from './harness';
 
 const SERVERS = [
@@ -71,7 +72,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function openMcpSettings(page: LaunchedApp['page']): Promise<Locator> {
-	await page.getByTestId('global-topbar-open-settings').click();
+	await openSettingsFromMenu(page);
 	await page
 		.getByRole('navigation', { name: 'Settings' })
 		.getByRole('link', { name: 'MCP servers' })
@@ -163,7 +164,7 @@ test('Settings lists MCP servers by where they come from, signs in, and turns on
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-mcp-settings', 'MCP');
 		await openWorkstream(page, workstreamId);
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'MCP servers' })
@@ -191,7 +192,7 @@ test('Settings lists MCP servers by where they come from, signs in, and turns on
 		await expect(settings.getByRole('heading', { level: 4 })).toHaveText(['Datadog']);
 
 		await page.getByRole('button', { name: 'Close settings' }).click();
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'MCP servers' })

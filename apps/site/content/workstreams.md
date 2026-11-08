@@ -187,7 +187,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   Turn it off, make it ask, or narrow it to conflicts on **Update from main**'s page in [Automations](/malini/docs/automations.md).
 - **Errors are retried, in plain sight.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes.
   The top bar and the workstream in the sidebar turn amber and say what failed and since when, such as **Couldn't open draft · 3 tries since 14:02**.
-  A note above the composer says why, how many times Malini tried and when it tries next, with **Retry now**, **Cancel draft** while it opens a draft, and **What GitHub said** when GitHub refused the push.
+  A note above the composer says why, how many times Malini tried and when it tries next, and **What GitHub said** when GitHub refused the push; the strip under it names what failed, with **Retry now**, and **Cancel draft** while it opens a draft.
   The agent reads the same note with your next prompt, so asking it why the pull request is not open gets the real reason.
 - **A workflow refusal waits for you.** GitHub refuses a push that adds or changes a file under `.github/workflows/` when the sign-in that pushes lacks the `workflow` scope, and no retry fixes that, so Malini stops trying and the note says **waits for you**.
   When your `gh` sign-in lacks the scope, **Allow workflow changes** in the note shows a one-time code and opens GitHub, the same way setup signs you in, and once you approve it every workstream waiting on it pushes again on its own.

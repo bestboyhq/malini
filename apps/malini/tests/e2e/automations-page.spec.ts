@@ -58,7 +58,7 @@ test('the Automations page slides the sidebar into its sections and opens the au
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 		await expect(
 			page.getByRole('region', { name: 'Your automations' }).getByRole('article'),
-		).toHaveCount(12);
+		).toHaveCount(14);
 
 		for (const [name, title] of [
 			['Activity', 'Activity'],

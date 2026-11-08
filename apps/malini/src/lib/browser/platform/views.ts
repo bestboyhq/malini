@@ -313,7 +313,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		if (signal.aborted || entry.failure) return null;
 		const contents = this.openContents(entry.tab);
 		if (!contents) throw new Error(PICK_WITHOUT_PAGE);
-		contents.focus();
+		if (entry.window?.isFocused()) contents.focus();
 		return pickElement(
 			pickerPage(contents),
 			signal,
@@ -471,7 +471,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	private returnFocus(entry: Entry<W>): void {
 		const window = entry.window;
-		if (!entry.alive || !window || window.isDestroyed()) return;
+		if (!entry.alive || !window || window.isDestroyed() || !window.isFocused()) return;
 		if (entry.view.contents.isFocused()) window.webContents.focus();
 	}
 

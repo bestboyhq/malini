@@ -2,8 +2,8 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import type { TurnNote } from '$lib/chat/domain/turn-report';
-	import type { FileMentionTarget } from './file-mention-links';
-	import MarkdownText from './MarkdownText.svelte';
+	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 
 	interface Props {
 		notes: readonly TurnNote[];

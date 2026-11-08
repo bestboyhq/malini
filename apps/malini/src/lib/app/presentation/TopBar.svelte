@@ -3,7 +3,7 @@
 	import { cubicOut, quartOut } from 'svelte/easing';
 	import type { TransitionConfig } from 'svelte/transition';
 	import { navigating, page } from '$shared/router/state';
-	import { AUTOMATIONS_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { AUTOMATIONS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		historyIndexFromState,
 		navigationHistoryTargetLedger,
@@ -360,16 +360,6 @@
 							aria-hidden="true"
 						></span>
 					{/if}
-				</a>
-			</Tooltip>
-			<Tooltip content="Settings" placement="bottom">
-				<a
-					href={SETTINGS_HREF}
-					class="topbar-chrome"
-					aria-label="Open settings"
-					data-testid="global-topbar-open-settings"
-				>
-					<Icon name="settings" />
 				</a>
 			</Tooltip>
 		{/if}

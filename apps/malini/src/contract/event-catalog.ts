@@ -150,13 +150,14 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'repositories:workstream-base-overlapped': {
 		description:
-			"Fires when a workstream's base branch has commits the workstream lacks that conflict with it or change files it changed too, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream and each time it fetches the base branch, every five minutes, and only while no agent works there and nothing is left uncommitted. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A base branch that changed only other files fires nothing. Update from main runs on it.",
+			"Fires when a workstream's base branch has commits the workstream lacks, once for each pair of `head` and `baseHead` commits. Malini looks after each commit in the workstream, each time it fetches the base branch, every five minutes, and right after its merge queue lands a pull request; once the base branch moves, it waits until it has held still for 30 seconds, and it looks only while no agent works there, nothing is left uncommitted and no service the workstream started runs. `overlapping` says whether those commits conflict with the workstream or change files it changed too; it fires with `overlapping` false only for a workstream someone worked in during the last 7 days. `conflicts` says whether merging the base branch would stop on conflicts, with the `conflictedPaths`; `overlappingPaths` are the files both sides changed, leaving out lockfiles, changelogs and files `.gitattributes` marks `linguist-generated` unless they conflict. A workstream with no commits of its own fires nothing: it fast-forwards to the base branch when it started from it, and stays where it started when it started from a tag or a commit. Update from main runs on it where `overlapping` is true, or on every one once you pick Always.",
 		facts: [
 			'workstreamId',
 			'baseBranch',
 			'head',
 			'baseHead',
 			'behind',
+			'overlapping',
 			'conflicts',
 			'conflictedPaths',
 			'overlappingPaths',
@@ -433,6 +434,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		logged: false,
 		facts: [],
 	},
+	'app:full-screen-changed': {
+		description:
+			'Fires when the Malini window enters or leaves full screen, with whether it is full screen now. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['fullScreen'],
+	},
 	'app:notification-opened': {
 		description: 'Fires when you click a Malini notification, with the chat it points to.',
 		facts: ['workstreamId', 'sessionId'],
@@ -530,6 +537,18 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'request.repository',
 			'request.saved',
 			'request.askedAt',
+		],
+	},
+	'brain:changed': {
+		description:
+			'Fires when your second brain changes: it is set up, a capture or new notes land in it, a push to GitHub goes through or stops on a problem, or you turn its sync on or off, with its `status`. It never carries what the brain says.',
+		facts: [
+			'status.set',
+			'status.repository',
+			'status.sync',
+			'status.syncedAt',
+			'status.unpushed',
+			'status.problem',
 		],
 	},
 	'secrets:saved': {

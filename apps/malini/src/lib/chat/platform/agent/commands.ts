@@ -74,7 +74,10 @@ import {
 } from '$lib/automations/automations.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
-import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
+import {
+	DEFAULT_PROVIDER_ID,
+	ProviderNotConnectedError,
+} from '$shared/providers/providers.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { leavesTheSandbox } from '$lib/chat/domain/approval-request';
 import { userPromptText } from '../fork-transcript';
@@ -115,11 +118,13 @@ import type { BridgeRuntime } from './runtime';
 import {
 	repairPersistedModel,
 	conversationRecord,
+	sessionOpening,
 	startSessionCommand,
 	validateAgentModel,
 	worktreeExists,
 	worktreePath,
 	type ResolveProviderEnvironment,
+	type SessionOpening,
 } from './sessions';
 import { waitUntil, type BridgeSupervisor } from './supervisor';
 import type { IdSequence } from '../id-sequence';
@@ -456,9 +461,22 @@ function bridgeUnavailable(error: unknown): LifecycleError {
 	return new LifecycleError('bridge_unavailable', describe(error));
 }
 
+function readyEnvironment(
+	resolveProviderEnvironment: ResolveProviderEnvironment,
+	provider: string,
+	model: string | null,
+	session: SessionOpening,
+): Promise<Readonly<Record<string, string>> | null> {
+	if (model === null) return Promise.resolve({});
+	return resolveProviderEnvironment(provider, model, session).catch((error: unknown) => {
+		if (error instanceof ProviderNotConnectedError) return null;
+		throw error;
+	});
+}
+
 export async function startAgentSession(
 	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
+	runtime: BridgeRuntime,
 	checkoutsRoot: string,
 	workstreamId: string,
 	provider: string,
@@ -472,6 +490,7 @@ export async function startAgentSession(
 	} catch (error) {
 		throw new LifecycleError('invalid_agent_model', describe(error));
 	}
+	const supervisor = await runtime.ensureReady();
 	ensureBridgeReady(supervisor);
 	if (!worktreeExists(checkoutsRoot, workstreamId)) throw new LifecycleError('workstream_missing');
 	let worktree: string;
@@ -480,22 +499,8 @@ export async function startAgentSession(
 	} catch (error) {
 		throw bridgeUnavailable(error);
 	}
-	let environment: Readonly<Record<string, string>>;
-	try {
-		environment = model === null ? {} : await resolveProviderEnvironment(provider, model);
-	} catch (error) {
-		throw new LifecycleError('provider_not_ready', describe(error));
-	}
+	const environment = await readyEnvironment(resolveProviderEnvironment, provider, model, 'new');
 	const sessionId = ids.next('sess');
-	const command = startSessionCommand({
-		commandId: supervisor.nextCommandId(),
-		sessionId,
-		workstreamId,
-		model,
-		providerSessionId: null,
-		worktreePath: worktree,
-		environment,
-	});
 	insertSession(
 		db,
 		{
@@ -509,6 +514,16 @@ export async function startAgentSession(
 		},
 		identity,
 	);
+	if (environment === null) return sessionId;
+	const command = startSessionCommand({
+		commandId: supervisor.nextCommandId(),
+		sessionId,
+		workstreamId,
+		model,
+		providerSessionId: null,
+		worktreePath: worktree,
+		environment,
+	});
 	try {
 		await supervisor.sendCommand(command);
 	} catch (error) {
@@ -523,12 +538,13 @@ export async function startAgentSession(
 		}
 		throw new LifecycleError('bridge_unavailable', registrationError);
 	}
+	runtime.markSessionRegistered(sessionId, supervisor);
 	return sessionId;
 }
 
 export async function getOrCreateAgentSession(
 	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
+	runtime: BridgeRuntime,
 	checkoutsRoot: string,
 	workstreamId: string,
 	provider: string,
@@ -541,21 +557,26 @@ export async function getOrCreateAgentSession(
 	} catch (error) {
 		throw new LifecycleError('invalid_agent_model', describe(error));
 	}
-	ensureBridgeReady(supervisor);
-	if (!worktreeExists(checkoutsRoot, workstreamId)) throw new LifecycleError('workstream_missing');
-	let worktree: string;
-	try {
-		worktree = worktreePath(checkoutsRoot, workstreamId);
-	} catch (error) {
-		throw bridgeUnavailable(error);
-	}
 	const existing = latestSessionForWorkstream(db, workstreamId);
 	if (existing) {
+		const supervisor = await runtime.ensureReady();
+		ensureBridgeReady(supervisor);
+		if (!worktreeExists(checkoutsRoot, workstreamId))
+			throw new LifecycleError('workstream_missing');
+		let worktree: string;
+		try {
+			worktree = worktreePath(checkoutsRoot, workstreamId);
+		} catch (error) {
+			throw bridgeUnavailable(error);
+		}
 		const existingModel = repairPersistedModel(db, existing.id, existing.model);
-		const environment =
-			existingModel === null
-				? {}
-				: await resolveProviderEnvironment(existing.provider, existingModel, 'reopened');
+		const environment = await readyEnvironment(
+			resolveProviderEnvironment,
+			existing.provider,
+			existingModel,
+			sessionOpening(existing.providerSessionId),
+		);
+		if (environment === null) return existing.id;
 		const command = startSessionCommand({
 			commandId: supervisor.nextCommandId(),
 			sessionId: existing.id,
@@ -571,11 +592,12 @@ export async function getOrCreateAgentSession(
 		} catch (error) {
 			throw bridgeUnavailable(error);
 		}
+		runtime.markSessionRegistered(existing.id, supervisor);
 		return existing.id;
 	}
 	return startAgentSession(
 		db,
-		supervisor,
+		runtime,
 		checkoutsRoot,
 		workstreamId,
 		provider,
@@ -606,8 +628,13 @@ export async function activateAgentSession(
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
 	if (!worktreeExists(checkoutsRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
-	const environment =
-		model === null ? {} : await resolveProviderEnvironment(row.provider, model, 'reopened');
+	const environment = await readyEnvironment(
+		resolveProviderEnvironment,
+		row.provider,
+		model,
+		sessionOpening(row.provider_session_id),
+	);
+	if (environment === null) return;
 	const worktree = worktreePath(checkoutsRoot, row.workstream_id);
 	const supervisor = await runtime.ensureReady();
 	const command = startSessionCommand({
@@ -1604,10 +1631,9 @@ export function defineBridgeCommands(
 		const provider = optionalString(args, 'provider') ?? DEFAULT_PROVIDER_ID;
 		const model = optionalString(args, 'model');
 		const identity = parseSessionIdentity(args);
-		const supervisor = await runtime.ensureReady();
-		const sessionId = await startAgentSession(
+		return startAgentSession(
 			db,
-			supervisor,
+			runtime,
 			checkoutsRoot,
 			workstreamId,
 			provider,
@@ -1616,18 +1642,15 @@ export function defineBridgeCommands(
 			deps.providerEnvironment,
 			identity,
 		);
-		runtime.markSessionRegistered(sessionId, supervisor);
-		return sessionId;
 	});
 
 	commands.define('chat.get-or-create-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
 		const provider = optionalString(args, 'provider') ?? DEFAULT_PROVIDER_ID;
 		const model = optionalString(args, 'model');
-		const supervisor = await runtime.ensureReady();
-		const sessionId = await getOrCreateAgentSession(
+		return getOrCreateAgentSession(
 			db,
-			supervisor,
+			runtime,
 			checkoutsRoot,
 			workstreamId,
 			provider,
@@ -1635,8 +1658,6 @@ export function defineBridgeCommands(
 			ids,
 			deps.providerEnvironment,
 		);
-		runtime.markSessionRegistered(sessionId, supervisor);
-		return sessionId;
 	});
 
 	commands.define('chat.list-sessions', (args: unknown) =>

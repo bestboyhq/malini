@@ -18,7 +18,9 @@ export type AutomationBuiltin =
 	| 'open-draft'
 	| 'merge'
 	| 'reconcile'
-	| 'suggest-automations';
+	| 'suggest-automations'
+	| 'capture-brain'
+	| 'write-brain-notes';
 
 export type OneShotAutomationBuiltin =
 	'name-chats' | 'name-services' | 'reconcile' | 'suggest-automations';
@@ -26,7 +28,10 @@ export type OneShotAutomationBuiltin =
 export type ShippingAutomationBuiltin =
 	'fix-checks' | 'update-from-main' | 'resolve-conflicts' | 'address-review';
 
-export type AgentlessAutomationBuiltin = 'update-from-main' | 'open-draft' | 'merge';
+export type AgentlessAutomationBuiltin =
+	'update-from-main' | 'open-draft' | 'merge' | 'capture-brain';
+
+export type BrainAutomationBuiltin = 'capture-brain' | 'write-brain-notes';
 
 export function isOneShotAutomationBuiltin(
 	builtin: AutomationBuiltin | null,
@@ -53,7 +58,18 @@ export function isShippingAutomationBuiltin(
 export function isAgentlessAutomationBuiltin(
 	builtin: AutomationBuiltin | null,
 ): builtin is AgentlessAutomationBuiltin {
-	return builtin === 'update-from-main' || builtin === 'open-draft' || builtin === 'merge';
+	return (
+		builtin === 'update-from-main' ||
+		builtin === 'open-draft' ||
+		builtin === 'merge' ||
+		builtin === 'capture-brain'
+	);
+}
+
+export function isBrainAutomationBuiltin(
+	builtin: AutomationBuiltin | null,
+): builtin is BrainAutomationBuiltin {
+	return builtin === 'capture-brain' || builtin === 'write-brain-notes';
 }
 
 export type AutomationEventSight = 'facts' | 'full';

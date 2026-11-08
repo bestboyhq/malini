@@ -3,8 +3,8 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
 	import type { TurnVariant } from '$lib/chat/domain/turn-report';
-	import type { FileMentionTarget } from './file-mention-links';
-	import MarkdownText from './MarkdownText.svelte';
+	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 
 	interface Props {
 		chosen: TurnVariant;

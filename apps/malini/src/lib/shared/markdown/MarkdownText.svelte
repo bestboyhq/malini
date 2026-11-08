@@ -11,6 +11,7 @@
 	import { maskSensitiveText } from '$hyper-ui/components/sensitive';
 	import { languageHintLabel, languageLabel, resolveLanguage } from '@malini/extension-api';
 	import { linkifyFileMentionsIn, markFileMentions } from './file-mention-links';
+	import { linkifyWikiLinksIn } from './wiki-links';
 	import {
 		holdWorkstreamImagesIn,
 		offerImages,
@@ -191,16 +192,19 @@
 
 	type CodeBlockButtons = Readonly<{ copy: string; run: string }>;
 
+	type SegmentOptions = CodeBlockButtons & Readonly<{ wikiLinks: boolean }>;
+
 	function decoratedFragment(
 		source: string,
 		mode: MarkdownRenderMode,
 		masked: boolean,
-		buttons: CodeBlockButtons,
+		buttons: SegmentOptions,
 	): DocumentFragment {
 		const fragment = DOMPurify.sanitize(unsanitizedHtml(source, mode), {
 			RETURN_DOM_FRAGMENT: true,
 		});
 		holdWorkstreamImagesIn(fragment);
+		if (buttons.wikiLinks) linkifyWikiLinksIn(fragment);
 		linkifyFileMentionsIn(fragment);
 		if (masked) maskSensitiveText(fragment);
 		wrapCodeBlocks(fragment, buttons);
@@ -250,14 +254,20 @@
 		mode: MarkdownRenderMode,
 		masked: boolean,
 		tailCharacters: number,
-		buttons: CodeBlockButtons,
+		buttons: SegmentOptions,
 	): SegmentContent {
 		if (tailCharacters > 0) {
 			const fragment = decoratedFragment(source, mode, masked, buttons);
 			fadeStreamingTail(fragment, tailCharacters);
 			return { fragment, html: null };
 		}
-		const key = sanitizedMarkdownHtmlCacheKey(mode, masked, buttons.run !== '', source);
+		const key = sanitizedMarkdownHtmlCacheKey(
+			mode,
+			masked,
+			buttons.run !== '',
+			source,
+			buttons.wikiLinks,
+		);
 		const cached = sanitizedMarkdownHtmlCache.get(key);
 		if (cached !== undefined) return { fragment: parsedHtml(cached), html: cached };
 		const fragment = decoratedFragment(source, mode, masked, buttons);
@@ -488,11 +498,13 @@
 		container: HTMLElement;
 		copyButton?: string;
 		runButton?: string;
+		wikiLinks?: boolean;
 	}): StreamingMarkdownRenderer {
 		const { container } = options;
-		const buttons: CodeBlockButtons = {
+		const buttons: SegmentOptions = {
 			copy: options.copyButton ?? '',
 			run: options.runButton ?? '',
+			wikiLinks: options.wikiLinks ?? false,
 		};
 		const segments: RenderedSegment[] = [];
 		let decorations: MarkdownDecorations = {
@@ -588,7 +600,13 @@
 		function remask(masked: boolean, mode: MarkdownRenderMode, tail: number): void {
 			segments.forEach((segment, index) => {
 				const segmentTail = index === segments.length - 1 ? tail : 0;
-				const key = sanitizedMarkdownHtmlCacheKey(mode, masked, buttons.run !== '', segment.source);
+				const key = sanitizedMarkdownHtmlCacheKey(
+					mode,
+					masked,
+					buttons.run !== '',
+					segment.source,
+					buttons.wikiLinks,
+				);
 				if (segmentTail === 0 && sanitizedMarkdownHtmlCache.get(key) === segment.html) return;
 				const before = nextNodeAfter(segment);
 				for (const node of segment.nodes) node.remove();
@@ -725,13 +743,11 @@
 	import { revealSensitiveCode } from '$hyper-ui/components/code-tokens';
 	import { revealSensitiveTarget, sensitiveMasking } from '$hyper-ui/components/sensitive';
 	import { tooltip } from '$hyper-ui/components/tooltip';
-	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
-	import { openExternalUrlCommand } from '$lib/chat/application/commands/open-external-url.command';
-	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
-	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
+	import { clipboardService } from '$shared/system/clipboard.service';
+	import { externalUrlService } from '$shared/system/external-url.service';
 	import { readFileMentionTarget, type FileMentionTarget } from './file-mention-links';
+	import { readWikiLinkTarget } from './wiki-links';
 	import { GALLERY_IMAGE_ATTRIBUTE } from './workstream-images';
-	import ShellRunCard from './ShellRunCard.svelte';
 
 	interface Props {
 		text: string;
@@ -754,6 +770,8 @@
 		onopenimage?: ((id: string) => void) | undefined;
 		onruncommand?: ((command: string, block: number) => void) | undefined;
 		coderuns?: ReadonlyMap<number, ShellRun> | undefined;
+		coderuncard?: Component<{ run: ShellRun }> | undefined;
+		onopenwikilink?: ((target: string) => void) | undefined;
 	}
 
 	let {
@@ -767,6 +785,8 @@
 		onopenimage,
 		onruncommand,
 		coderuns,
+		coderuncard,
+		onopenwikilink,
 	}: Props = $props();
 
 	const COPY_SELECTOR = '[data-testid="markdown-code-copy"]';
@@ -786,20 +806,19 @@
 		props: { run: ShellRun };
 		instance: ReturnType<typeof mount>;
 	};
-	type CopyRequest = { id: ChatRequestId; button: Element };
+	type CopiedCode = { button: Element };
 	type TooltipHandle = ReturnType<typeof tooltip>;
 
-	let copyRequest = $state<CopyRequest | null>(null);
-	const copyOutcome = $derived(chatRequestQuery.data(copyRequest?.id ?? null));
+	let copied = $state<CopiedCode | null>(null);
 	const actionTooltips = new Map<Element, TooltipHandle>();
 	const contexts = getAllContexts();
 
 	$effect(() => {
-		const request = copyRequest;
-		if (!request || copyOutcome?.status !== 'accepted') return;
+		const request = copied;
+		if (!request) return;
 		showCopied(request.button, true);
 		const reset = setTimeout(() => {
-			copyRequest = null;
+			copied = null;
 		}, COPIED_MS);
 		return () => {
 			clearTimeout(reset);
@@ -824,10 +843,17 @@
 		if (!button) return false;
 		const code = button.closest(CODE_BLOCK_ROOT_SELECTOR)?.querySelector('code');
 		if (!code) return false;
-		const id = newChatRequestId();
-		copyRequest = { id, button };
-		copyTextCommand({ requestId: id, text: code.textContent ?? '' });
+		void copyCodeText(button, code.textContent ?? '');
 		return true;
+	}
+
+	async function copyCodeText(button: Element, text: string): Promise<void> {
+		try {
+			await clipboardService.write(text);
+		} catch {
+			return;
+		}
+		copied = { button };
 	}
 
 	function runCode(target: Element, container: Element): boolean {
@@ -859,12 +885,12 @@
 			}
 			runs?.forEach((run, index) => {
 				const block = blocks[index];
-				if (!block || outputs.has(block)) return;
+				if (!block || !coderuncard || outputs.has(block)) return;
 				const host = document.createElement('div');
 				host.setAttribute(RUN_OUTPUT_ATTRIBUTE, '');
 				block.append(host);
 				const props = $state({ run });
-				const instance = mount(ShellRunCard, { target: host, props, context: contexts });
+				const instance = mount(coderuncard, { target: host, props, context: contexts });
 				outputs.set(block, { host, props, instance });
 			});
 		};
@@ -884,6 +910,7 @@
 			container: node,
 			copyButton: codeCopyButtonMarkup().button,
 			runButton: onruncommand ? codeRunButtonMarkup() : '',
+			wikiLinks: onopenwikilink !== undefined,
 		});
 		const outputs = codeRunOutputs(node);
 		const render = ({
@@ -916,6 +943,11 @@
 		const anchor = event.target.closest('a');
 		if (!(anchor instanceof HTMLAnchorElement)) return;
 		event.preventDefault();
+		const wikiTarget = readWikiLinkTarget(anchor);
+		if (wikiTarget !== null) {
+			onopenwikilink?.(wikiTarget);
+			return;
+		}
 		const fileTarget = readFileMentionTarget(anchor);
 		if (fileTarget) {
 			onopenfile?.(fileTarget, anchor);
@@ -923,7 +955,7 @@
 		}
 		const url = safeExternalUrl(anchor.getAttribute('href'));
 		if (!url) return;
-		openExternalUrlCommand(url);
+		void externalUrlService.open(url).catch(() => undefined);
 	}
 
 	function onLinkKeydown(event: KeyboardEvent): void {

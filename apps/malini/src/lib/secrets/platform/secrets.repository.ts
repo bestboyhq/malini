@@ -57,3 +57,7 @@ export function sealedSecretsReaching(
 		EVERYWHERE,
 	);
 }
+
+export function allSealedSecrets(db: MaliniDatabase): Uint8Array[] {
+	return all<{ sealed: Uint8Array }>(db, 'SELECT sealed FROM secrets').map(({ sealed }) => sealed);
+}

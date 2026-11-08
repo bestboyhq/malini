@@ -67,6 +67,10 @@
 		--native-traffic-light-clearance: calc(80px / var(--native-zoom, 1));
 	}
 
+	html[data-native-shell='true'][data-native-full-screen] {
+		--native-traffic-light-clearance: calc(12px / var(--native-zoom, 1));
+	}
+
 	.native-page-drag-strip {
 		display: none;
 	}

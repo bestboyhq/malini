@@ -14,6 +14,7 @@ import {
 	DEFAULT_AUTOMATION_BOUNDARY,
 	NEW_AUTOMATION_BOUNDARY,
 	isAgentlessAutomationBuiltin,
+	isBrainAutomationBuiltin,
 	type AutomationBoundary,
 	type AutomationBuiltin,
 	type AutomationDefinitionChangedEvent,
@@ -164,7 +165,7 @@ export function seedBuiltinAutomations(db: MaliniDatabase): void {
 			thenAutomationId: null,
 			skills: [],
 			builtin,
-			boundary: DEFAULT_AUTOMATION_BOUNDARY,
+			boundary: builtinBoundary(builtin),
 			createdAt: now,
 			updatedAt: now,
 		};
@@ -182,6 +183,7 @@ export function defineAutomationCommands(
 	runner: AutomationRunner,
 	experiments: AutomationExperiments,
 	reconciler: Reconciler,
+	brainWorkstream: () => Promise<string | null>,
 ): void {
 	const { db, commands, events } = context;
 
@@ -305,9 +307,10 @@ export function defineAutomationCommands(
 		return saveChanged(definition, {
 			...definition,
 			...builtinFields(builtin),
+			...(isBrainAutomationBuiltin(builtin) ? { trigger: definition.trigger } : {}),
 			thenAutomationId: defaultThen(db, builtin),
 			skills: [],
-			boundary: DEFAULT_AUTOMATION_BOUNDARY,
+			boundary: builtinBoundary(builtin),
 			updatedAt: nowIso8601(),
 		});
 	});
@@ -353,7 +356,9 @@ export function defineAutomationCommands(
 		const chatAfterRunId = chatSessionId === null ? null : optionalString(args, 'chatAfterRunId');
 		const causeEventId = optionalEventId(args);
 		if (parentRunId !== null) requireNoLoop(db, definition, parentRunId);
-		const target = await runTarget(db, definition, origin, { workstreamId, repositoryId, scope });
+		const target = isBrainAutomationBuiltin(definition.builtin)
+			? await brainTarget(brainWorkstream)
+			: await runTarget(db, definition, origin, { workstreamId, repositoryId, scope });
 		const folded =
 			chatSessionId === null && origin !== 'merge-queue' && origin !== 'schedule'
 				? foldIntoPending(definition, target, automationContext, origin === 'manual')
@@ -577,6 +582,10 @@ function builtinFields(builtin: AutomationBuiltin): BuiltinFields {
 		trigger = null,
 	} = BUILTIN_AUTOMATIONS[builtin];
 	return { name, instructions, provider: DEFAULT_PROVIDER_ID, model, effort, runsIn, trigger };
+}
+
+function builtinBoundary(builtin: AutomationBuiltin): AutomationBoundary {
+	return BUILTIN_AUTOMATIONS[builtin].boundary ?? DEFAULT_AUTOMATION_BOUNDARY;
 }
 
 function defaultThen(db: MaliniDatabase, builtin: AutomationBuiltin): string | null {
@@ -840,6 +849,14 @@ async function requireRepository(db: MaliniDatabase, repositoryId: string | null
 }
 
 type RunTarget = Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>;
+
+async function brainTarget(brainWorkstream: () => Promise<string | null>): Promise<RunTarget> {
+	const workstreamId = await brainWorkstream();
+	if (workstreamId === null) {
+		throw new AutomationError('not-found', 'Set up the brain first in Settings, Brain.');
+	}
+	return { workstreamId, repositoryId: null, scope: null };
+}
 
 async function runTarget(
 	db: MaliniDatabase,

@@ -5,7 +5,7 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { goto } from '$shared/router/navigation';
-	import { PROFILE_SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import { BRAIN_HREF, SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import { RepositoryAvatar, githubAuthQuery } from '$shared/repositories/repositories.api';
 	import { weekPace } from '$lib/stats/domain/pace';
 	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
@@ -50,44 +50,57 @@
 		if (next) loadActivityCommand();
 	}
 
+	function openBrain(): void {
+		void goto(BRAIN_HREF);
+	}
+
 	function openSettings(): void {
-		void goto(PROFILE_SETTINGS_HREF);
+		void goto(SETTINGS_HREF);
 	}
 </script>
 
-{#if account}
-	<Dropdown
-		bind:open
-		side="top"
-		align="start"
-		sideOffset={6}
-		role={null}
-		panelClass="w-64"
-		testId="profile-layer"
-		{onOpenChange}
-	>
-		{#snippet trigger()}
-			<Button
-				variant="ghost"
-				size="auto"
-				class="min-w-0 pr-2 pl-0.5 text-[13px]"
-				ariaLabel={identity ? `${identity}, your profile` : 'Your profile'}
-				ariaHasPopup="menu"
-				ariaExpanded={open}
-				active={open}
-				data-testid="sidebar-open-profile"
-			>
-				<span class="block size-5 shrink-0 overflow-hidden rounded-full">
+<Dropdown
+	bind:open
+	side="top"
+	align="start"
+	sideOffset={6}
+	role={null}
+	panelClass="w-64"
+	testId="profile-layer"
+	{onOpenChange}
+>
+	{#snippet trigger()}
+		<Button
+			variant="ghost"
+			size="auto"
+			radius="full"
+			class={['min-w-0 p-0.5 text-[13px]', identity && 'pr-2.5']}
+			ariaLabel={identity ? `${identity}, your profile` : 'Your profile'}
+			ariaHasPopup="menu"
+			ariaExpanded={open}
+			active={open}
+			data-testid="sidebar-open-profile"
+		>
+			<span class="block size-5 shrink-0 overflow-hidden rounded-full">
+				{#if avatarName}
 					{#key avatarName}
 						<RepositoryAvatar fullName={avatarName} size={20} />
 					{/key}
-				</span>
+				{:else}
+					<span class="bg-surface-150 text-fg-secondary grid size-full place-items-center">
+						<Icon name="user" size={13} />
+					</span>
+				{/if}
+			</span>
+			{#if identity}
 				<span class="max-w-40 min-w-0 truncate">{identity}</span>
-			</Button>
-		{/snippet}
+			{/if}
+		</Button>
+	{/snippet}
 
-		{#snippet content()}
-			<div role="menu" aria-label="Your profile">
+	{#snippet content()}
+		<div role="menu" aria-label="Your profile">
+			{#if account}
 				<div class="flex items-center gap-2.5 px-2 py-1.5 text-[13px] leading-[18px]">
 					<span class="block size-7 shrink-0 overflow-hidden rounded-full">
 						<RepositoryAvatar fullName={avatarName} size={28} />
@@ -113,41 +126,46 @@
 				</div>
 
 				{@render separator()}
-
-				{#if profileUrl}
-					<DropdownItem
-						role="menuitem"
-						class="gap-2.5"
-						onSelect={() => openProfilePageCommand(profileUrl)}
-					>
-						<Icon name="external-link" size={15} class="shrink-0" />
-						<span class="min-w-0 flex-1 truncate text-left">Open profile</span>
-					</DropdownItem>
+			{/if}
+			{#if profileUrl}
+				<DropdownItem
+					role="menuitem"
+					class="gap-2.5"
+					onSelect={() => openProfilePageCommand(profileUrl)}
+				>
+					<Icon name="external-link" size={15} class="shrink-0" />
+					<span class="min-w-0 flex-1 truncate text-left">Open profile</span>
+				</DropdownItem>
+			{/if}
+			<DropdownItem role="menuitem" class="gap-2.5" onSelect={onopenstats}>
+				<Icon name="signal" size={15} class="shrink-0" />
+				<span class="min-w-0 flex-1 truncate text-left">Stats</span>
+				{#if runsThisWeek}
+					<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
+						{runsThisWeek}
+					</span>
 				{/if}
-				<DropdownItem role="menuitem" class="gap-2.5" onSelect={onopenstats}>
-					<Icon name="signal" size={15} class="shrink-0" />
-					<span class="min-w-0 flex-1 truncate text-left">Stats</span>
-					{#if runsThisWeek}
-						<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
-							{runsThisWeek}
-						</span>
-					{/if}
-				</DropdownItem>
-				<DropdownItem role="menuitem" class="gap-2.5" onSelect={openSettings}>
-					<Icon name="settings" size={15} class="shrink-0" />
-					<span class="min-w-0 flex-1 truncate text-left">Profile settings</span>
-				</DropdownItem>
+			</DropdownItem>
+			<DropdownItem role="menuitem" class="gap-2.5" onSelect={openBrain}>
+				<Icon name="note" size={15} class="shrink-0" />
+				<span class="min-w-0 flex-1 truncate text-left">Brain</span>
+			</DropdownItem>
+			<DropdownItem role="menuitem" class="gap-2.5" onSelect={openSettings}>
+				<Icon name="settings" size={15} class="shrink-0" />
+				<span class="min-w-0 flex-1 truncate text-left">Settings</span>
+			</DropdownItem>
 
+			{#if account}
 				{@render separator()}
 
 				<DropdownItem role="menuitem" class="gap-2.5" onSelect={signOutOfBestboyCommand}>
 					<Icon name="sign-out" size={15} class="shrink-0" />
 					<span class="min-w-0 flex-1 truncate text-left">Sign out</span>
 				</DropdownItem>
-			</div>
-		{/snippet}
-	</Dropdown>
-{/if}
+			{/if}
+		</div>
+	{/snippet}
+</Dropdown>
 
 {#snippet separator()}
 	<div class="border-border-subtle mx-1 my-1 border-t-[0.5px]" role="separator"></div>

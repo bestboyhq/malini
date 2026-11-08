@@ -36,6 +36,7 @@ export interface AutomationsOptions {
 	readonly resume?: (event: DispatchedEvent) => Promise<void>;
 	readonly deliveries?: (event: DispatchedEvent) => Promise<void>;
 	readonly deliver?: DeliverWake;
+	readonly brainWorkstream?: () => Promise<string | null>;
 }
 
 const NO_RULE = (): Promise<void> => Promise.resolve();
@@ -44,6 +45,7 @@ const NO_SHIPPING: ShippingRule = {
 	hear: () => Promise.resolve([]),
 	decide: () => Promise.resolve(null),
 	merging: () => false,
+	triggered: () => Promise.resolve(false),
 };
 
 export function registerAutomations(
@@ -69,7 +71,8 @@ export function registerAutomations(
 	);
 	seedBuiltinAutomations(context.db);
 	settleInterruptedAgentActions(context.db, nowIso8601());
-	const triggers = startAutomationTriggers(context, log);
+	const shipping = options.shipping ?? NO_SHIPPING;
+	const triggers = startAutomationTriggers(context, log, shipping);
 	const schedules = createAutomationSchedules(context, log);
 	const reconciler = new Reconciler(
 		context,
@@ -78,7 +81,7 @@ export function registerAutomations(
 		{
 			triggers: (event) => triggers.handle(event),
 			thens: (event) => runner.startThen(event),
-			shipping: options.shipping ?? NO_SHIPPING,
+			shipping,
 			resume: options.resume ?? NO_RULE,
 			deliveries: options.deliveries ?? NO_RULE,
 			schedules: (event) => schedules.handle(event),
@@ -87,7 +90,13 @@ export function registerAutomations(
 		options.deliver ??
 			(() => Promise.reject(new Error('Delivering prompts is not available in this Malini.'))),
 	);
-	defineAutomationCommands(context, runner, experiments, reconciler);
+	defineAutomationCommands(
+		context,
+		runner,
+		experiments,
+		reconciler,
+		options.brainWorkstream ?? (() => Promise.resolve(null)),
+	);
 	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event));
 	const stopSuggesting = suggestAutomationsAfterMerges(context, answer, log);
 	const stopClosing = context.events.subscribe(

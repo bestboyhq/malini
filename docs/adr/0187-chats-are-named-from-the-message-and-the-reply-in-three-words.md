@@ -1,4 +1,4 @@
-# 0179 - Chats are named from the message and the reply, in three words
+# 0187 - Chats are named from the message and the reply, in three words
 
 Status: accepted
 

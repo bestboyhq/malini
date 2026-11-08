@@ -1,5 +1,9 @@
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import {
+	mergeFailedComposerSubmissions,
+	type ComposerSubmissionRecoverySnapshot,
+} from '$lib/chat/domain/composer-submission-recovery';
+import {
 	sanitizeAgentElementReferences,
 	type AgentElementReference,
 } from '$lib/chat/domain/element-reference';
@@ -241,6 +245,25 @@ export class AgentDrafts {
 			attachments: current.attachments,
 			transcriptReferences: current.transcriptReferences,
 			elementReferences: sanitizeAgentElementReferences(elementReferences),
+		});
+	}
+
+	restore(scopeKey: string, snapshots: readonly ComposerSubmissionRecoverySnapshot[]): void {
+		if (!scopeKey) return;
+		const current = this.draftFor(scopeKey);
+		const restored = mergeFailedComposerSubmissions(snapshots, {
+			prompt: current.text,
+			contextFiles: current.contextFiles,
+			attachments: current.attachments,
+			transcriptReferences: current.transcriptReferences,
+			elementReferences: current.elementReferences,
+		});
+		this.#commit(scopeKey, {
+			text: restored.prompt,
+			contextFiles: sanitizeContextFiles([...restored.contextFiles]),
+			attachments: sanitizeAttachments([...restored.attachments]),
+			transcriptReferences: sanitizeAgentTranscriptReferences(restored.transcriptReferences ?? []),
+			elementReferences: sanitizeAgentElementReferences(restored.elementReferences ?? []),
 		});
 	}
 

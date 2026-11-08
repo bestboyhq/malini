@@ -94,7 +94,7 @@ Whatever closes that run later, stopping it, quitting, a crash, merging main int
 ## Limits and outages
 
 Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
-When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat says **Paused until** a time, with the reason.
+When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat shows the reason with a **Paused until** strip under it that says the time.
 
 - A usage limit on your Claude plan waits until the limit resets.
 - A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
@@ -103,7 +103,8 @@ When a turn still stops on a limit or an outage, Malini pauses it instead of fai
 The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue, which the chat shows as a divider, such as **Claude is back. Well rested**.
 **Resume now** goes on at once, and a prompt you send replaces the pause.
 An automation whose turn pauses keeps running, so a merge that waits on it loses no attempt.
-A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+A turn that only you can fix fails, and the chat shows the error with a **Run failed** strip under it: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+When the agent process stops answering mid-run, an **Agent process died** strip above the composer restarts it, and a chat whose agent session cannot start shows its error with an **Agent session unavailable** strip and **Retry session**.
 An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
 
 ## Run a command from the chat
@@ -155,8 +156,9 @@ A new chat starts with the model, effort, plan mode and report you picked last, 
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
 Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
 An automation's chat shows the model, effort and plan mode its automation ran with, so a reply you send there runs the same way unless you change it.
-Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
-Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
+Send with a model that is not connected and the prompt still lands in the chat, with a strip under it that asks for what it needs: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
+Connecting runs the prompt, and **Cancel** or Escape puts it back in the composer.
+It waits under its strip while you switch chats or restart Malini, the sidebar marks its workstream **Needs you**, and an edited prompt rewinds its checkpoint, then waits the same way.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
@@ -198,7 +200,8 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 
 Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
-When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+When the agent asks, the chat shows what it wants to do, with a **Permission request** strip under it: deny it, or approve once, or always for the chat, the workstream, or everywhere.
+The request stays in the chat, and its strip then says what you picked.
 Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens a draft or merges.
 See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.

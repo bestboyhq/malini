@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent } from '../types.js';
 import { recordedMessages, type RecordedScenario } from './fixtures/fake-claude.js';
@@ -173,6 +173,8 @@ describe('ClaudeTranscript', () => {
 	it.each(RECORDED_SCENARIOS.filter((scenario) => scenario !== 'steRewrite'))(
 		'keeps every reply of %s, in order, when it holds replies for the reply check',
 		(scenario) => {
+			vi.useFakeTimers({ toFake: ['Date'] });
+			onTestFinished(() => void vi.useRealTimers());
 			const held = replay(recordedMessages(scenario), true).events;
 
 			expect(held).toEqual(replayRecorded(scenario).events);

@@ -1,7 +1,8 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_BASE_OVERLAPPED_CHANNEL,
 	type WorkstreamBaseOverlappedPayload,
 } from '$contract/events';
@@ -9,25 +10,89 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus, type EventBus } from '$main/events';
 import { initRealRepo, realGit, removeDir, tempDir } from '$main/git/fixtures.test-support';
-import { BaseOverlapWatch } from './base-overlap.service';
+import { fastForwardCheckout } from '$main/git/remote';
+import { BaseOverlapWatch, type BaseOverlapWatchDeps } from './base-overlap.service';
 import { upsertProject } from './projects.repository';
 import { recordMergedPullRequest, upsertWorkstream } from './workstreams.repository';
 
+const NOW = Date.parse('2026-11-01T00:00:00.000Z');
+const DAY_MS = 24 * 60 * 60_000;
+
 let root: string;
 let origin: string;
+let base: string;
 let worktree: string;
 let db: MaliniDatabase;
 let events: EventBus;
-let working: boolean;
+let busy: boolean;
 let merging: boolean;
 let ended: boolean;
+let now: number;
+let fetches: number;
 let overlaps: WorkstreamBaseOverlappedPayload[];
+let checkouts: Map<string, string>;
 let watch: BaseOverlapWatch;
+
+function watching(overrides: Partial<BaseOverlapWatchDeps> = {}): BaseOverlapWatch {
+	return new BaseOverlapWatch({
+		db,
+		events,
+		checkouts: {
+			resolveCheckout: async (workstreamId) => checkouts.get(workstreamId) ?? worktree,
+			resolveRepositoryRoot: async () => base,
+		},
+		fetchBase: async (repoPath, baseBranch) => {
+			fetches += 1;
+			await realGit(repoPath, ['fetch', '-q', 'origin', baseBranch]);
+			return `refs/remotes/origin/${baseBranch}`;
+		},
+		busy: async () => busy,
+		merging: async () => merging,
+		pullRequestEnded: async () => ended,
+		fastForward: (_workstreamId, checkout, baseRef) => fastForwardCheckout(checkout, baseRef),
+		quietMs: 0,
+		now: () => now,
+		log: (line) => {
+			throw new Error(line);
+		},
+		...overrides,
+	});
+}
+
+async function workstreamAt(id: string, start: string): Promise<string> {
+	const path = join(root, id);
+	await realGit(base, ['worktree', 'add', '-q', '-b', `malini/${id}`, path, start]);
+	upsertWorkstream(db, {
+		id,
+		projectId: 'p1',
+		name: id,
+		path,
+		branch: `malini/${id}`,
+		baseBranch: 'main',
+		status: 'active',
+		createdAt: '2026-10-31T00:00:00.000Z',
+		scope: null,
+		startedBy: null,
+	});
+	checkouts.set(id, path);
+	return path;
+}
+
+function workedIn(workstreamId: string, at: number): void {
+	db.prepare(
+		`INSERT INTO agent_sessions (id, workstream_id, model, status, started_at, display_name)
+		 VALUES (?, ?, 'opus', 'completed', ?, 'Chat')`,
+	).run(`session-${workstreamId}-${at}`, workstreamId, new Date(at).toISOString());
+}
+
+async function headOf(repo: string): Promise<string> {
+	return (await realGit(repo, ['rev-parse', 'HEAD'])).trim();
+}
 
 beforeEach(async () => {
 	root = await tempDir('malini-base-overlap-');
 	origin = join(root, 'origin');
-	const base = join(root, 'base');
+	base = join(root, 'base');
 	worktree = join(root, 'ws');
 	await initRealRepo(origin);
 	await realGit(origin, ['branch', '-M', 'main']);
@@ -61,30 +126,17 @@ beforeEach(async () => {
 	events.subscribe(REPOSITORIES_WORKSTREAM_BASE_OVERLAPPED_CHANNEL, (payload) => {
 		overlaps.push(payload);
 	});
-	working = false;
+	busy = false;
 	merging = false;
 	ended = false;
-	watch = new BaseOverlapWatch({
-		db,
-		events,
-		checkouts: {
-			resolveCheckout: async () => worktree,
-			resolveRepositoryRoot: async () => base,
-		},
-		fetchBase: async (repoPath, baseBranch) => {
-			await realGit(repoPath, ['fetch', '-q', 'origin', baseBranch]);
-			return `refs/remotes/origin/${baseBranch}`;
-		},
-		agentWorking: async () => working,
-		merging: async () => merging,
-		pullRequestEnded: async () => ended,
-		log: (line) => {
-			throw new Error(line);
-		},
-	});
+	now = NOW;
+	fetches = 0;
+	checkouts = new Map([['ws', worktree]]);
+	watch = watching();
 });
 
 afterEach(async () => {
+	vi.useRealTimers();
 	watch.dispose();
 	db.close();
 	await removeDir(root);
@@ -114,6 +166,7 @@ describe('BaseOverlapWatch', () => {
 				head,
 				baseHead,
 				behind: 1,
+				overlapping: true,
 				conflicts: true,
 				conflictedPaths: ['shared.txt'],
 				overlappingPaths: ['shared.txt'],
@@ -124,26 +177,16 @@ describe('BaseOverlapWatch', () => {
 	it('drops a compare still running when the app quits, as the database closes under it', async () => {
 		await commit(worktree, { 'shared.txt': 'workstream\n' });
 		await commit(origin, { 'shared.txt': 'main\n' });
-		working = true;
+		busy = true;
 		await watch.fetchAndCompare();
-		const quitting: BaseOverlapWatch = new BaseOverlapWatch({
-			db,
-			events,
-			checkouts: {
-				resolveCheckout: async () => worktree,
-				resolveRepositoryRoot: async () => worktree,
-			},
+		const quitting: BaseOverlapWatch = watching({
 			fetchBase: async () => 'refs/remotes/origin/main',
-			agentWorking: async () => {
+			busy: async () => {
 				quitting.dispose();
 				return false;
 			},
 			merging: async () => {
 				throw new Error('statement has been finalized');
-			},
-			pullRequestEnded: async () => false,
-			log: (line) => {
-				throw new Error(line);
 			},
 		});
 
@@ -153,21 +196,85 @@ describe('BaseOverlapWatch', () => {
 		expect(overlaps).toEqual([]);
 	});
 
-	it('reports nothing when main changed only files the workstream left alone', async () => {
+	it('reports main moving past files the workstream left alone, with overlapping false', async () => {
+		const head = await commit(worktree, { 'shared.txt': 'workstream\n' });
+		const baseHead = await commit(origin, { 'other.txt': 'main\n' });
+
+		await watch.fetchAndCompare();
+		await watch.fetchAndCompare();
+
+		expect(overlaps).toEqual([
+			{
+				workstreamId: 'ws',
+				baseBranch: 'main',
+				head,
+				baseHead,
+				behind: 1,
+				overlapping: false,
+				conflicts: false,
+				conflictedPaths: [],
+				overlappingPaths: [],
+			},
+		]);
+	});
+
+	it('reports overlapping false only for a workstream worked in this week, then once it is again', async () => {
 		await commit(worktree, { 'shared.txt': 'workstream\n' });
 		await commit(origin, { 'other.txt': 'main\n' });
+		now = NOW + 8 * DAY_MS;
+		workedIn('ws', NOW - DAY_MS);
+
+		await watch.fetchAndCompare();
+		await watch.compare('ws');
+		expect(overlaps).toEqual([]);
+
+		workedIn('ws', now - DAY_MS);
+		await watch.compare('ws');
+		await watch.compare('ws');
+		expect(overlaps).toMatchObject([{ workstreamId: 'ws', overlapping: false }]);
+	});
+
+	it('reports a stale workstream once main touches its files', async () => {
+		await commit(worktree, { 'shared.txt': 'workstream\n' });
+		await commit(origin, { 'shared.txt': 'main\n' });
+		now = NOW + 30 * DAY_MS;
 
 		await watch.fetchAndCompare();
 
+		expect(overlaps).toMatchObject([{ workstreamId: 'ws', overlapping: true }]);
+	});
+
+	it('fast-forwards a workstream with no commits of its own and reports nothing', async () => {
+		const baseHead = await commit(origin, { 'shared.txt': 'main\n' });
+		now = NOW + 30 * DAY_MS;
+
+		await watch.fetchAndCompare();
+		await watch.compare('ws');
+
+		expect(await headOf(worktree)).toBe(baseHead);
+		expect(await realGit(worktree, ['rev-list', '--merges', '--count', 'HEAD'])).toBe('0\n');
 		expect(overlaps).toEqual([]);
 	});
 
-	it('waits while an agent works or changes are uncommitted, then reports on the next look', async () => {
+	it('leaves a workstream started from a release where it started', async () => {
+		const release = await headOf(origin);
+		await commit(origin, { 'other.txt': 'after the release\n' });
+		await realGit(base, ['fetch', '-q', 'origin', 'main']);
+		const pinned = await workstreamAt('pinned', release);
+		await commit(origin, { 'shared.txt': 'main\n' });
+
+		await watch.fetchAndCompare();
+
+		expect(await headOf(pinned)).toBe(release);
+		expect(overlaps.filter(({ workstreamId }) => workstreamId === 'pinned')).toEqual([]);
+	});
+
+	it('waits while an agent works, a service runs or changes are uncommitted, then reports on the next look', async () => {
 		await commit(worktree, { 'shared.txt': 'workstream\n' });
 		await commit(origin, { 'shared.txt': 'main\n' });
-		working = true;
+		busy = true;
 		await watch.fetchAndCompare();
-		working = false;
+		busy = false;
 		await writeFile(join(worktree, 'draft.txt'), 'not committed yet\n');
 		await watch.compare('ws');
 		expect(overlaps).toEqual([]);
@@ -209,5 +316,44 @@ describe('BaseOverlapWatch', () => {
 		await watch.fetchAndCompare();
 
 		expect(overlaps).toEqual([]);
+	});
+
+	it('fetches the base right after the merge queue lands a pull request into it', async () => {
+		watch.start();
+		await vi.waitFor(() => expect(fetches).toBe(1));
+		await commit(worktree, { 'shared.txt': 'workstream\n' });
+		const baseHead = await commit(origin, { 'shared.txt': 'main\n' });
+
+		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+			workstreamId: 'ws',
+			state: null,
+			merged: { pullRequestNumber: 7, pullRequestUrl: null },
+		});
+
+		await vi.waitFor(() => expect(overlaps).toMatchObject([{ workstreamId: 'ws', baseHead }]));
+		expect(fetches).toBe(2);
+	});
+
+	it('waits for main to stay put for the quiet window, then reports its last move once', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		watch = watching({ quietMs: 30_000 });
+		await commit(worktree, { 'shared.txt': 'workstream\n' });
+		await watch.fetchAndCompare();
+		await commit(origin, { 'shared.txt': 'main\n' });
+		await watch.fetchAndCompare();
+		now += 20_000;
+		await vi.advanceTimersByTimeAsync(20_000);
+		const last = await commit(origin, { 'shared.txt': 'main again\n' });
+		await watch.fetchAndCompare();
+
+		now += 29_000;
+		await vi.advanceTimersByTimeAsync(29_000);
+		expect(overlaps).toEqual([]);
+		now += 1_000;
+		await vi.advanceTimersByTimeAsync(1_000);
+
+		await vi.waitFor(() => expect(overlaps).toMatchObject([{ baseHead: last }]));
+		await watch.compare('ws');
+		expect(overlaps).toHaveLength(1);
 	});
 });
