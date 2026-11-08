@@ -170,6 +170,13 @@ async function openSidebar(app) {
 	page.on('console', (message) => {
 		if (message.type() === 'error') throw new Error(`console error: ${message.text()}`);
 	});
+	await page.evaluate(
+		(path) =>
+			globalThis.malini.invoke('repositories.connect', {
+				source: { kind: 'local-folder', path },
+			}),
+		sourceRepo,
+	);
 	await page.evaluate(() =>
 		globalThis.malini.invoke('app.set-setting', {
 			key: 'onboarding.finished-at',
@@ -200,6 +207,16 @@ async function shot(app, name) {
 
 rmSync(dir, { recursive: true, force: true });
 mkdirSync(dir, { recursive: true });
+const sourceRepo = join(dir, 'source');
+mkdirSync(sourceRepo, { recursive: true });
+for (const args of [
+	['init', '-b', 'main'],
+	['config', 'user.email', 'update-e2e@malini.dev'],
+	['config', 'user.name', 'Malini Update Test'],
+	['commit', '--allow-empty', '-m', 'seed'],
+]) {
+	execFileSync('git', args, { cwd: sourceRepo, stdio: 'ignore' });
+}
 build('0.0.1', OLD_NAME);
 build('0.0.2', NAME);
 build('0.0.3', NAME);

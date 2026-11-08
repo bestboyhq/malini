@@ -99,10 +99,28 @@ jobs:
   proof:
     name: remember the tree e2e passed on
     needs: app
-    if: github.event_name == 'pull_request'
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v7
+      - name: Refuse to remember a tree whose e2e did not all pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          counts=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name | startswith("e2e on macOS"))] | [(map(select(.conclusion != "success")) | length), length] | @tsv')
+          read -r failed total <<< "$counts"
+          if [ "$total" -eq 0 ]; then
+            echo "::error::this run has no e2e job to remember"
+            exit 1
+          fi
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::$failed of $total e2e job(s) of this run did not succeed"
+            exit 1
+          fi
       - run: |
           echo "TREE=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_ENV"
           echo "$GITHUB_SHA" > "$RUNNER_TEMP/commit"
@@ -191,11 +209,22 @@ jobs:
   publish:
     name: publish the release
     needs: [checks, unit, app, version, release, update]
-    if: ${{ !cancelled() && needs.release.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
     steps:
+      - name: Refuse to publish while any job of this run did not succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          failed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name != "publish the release") | select(.conclusion != "success" and .conclusion != "skipped")] | length')
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::$failed job(s) of this run did not succeed"
+            exit 1
+          fi
       - uses: actions/download-artifact@v8
         with:
           name: release
