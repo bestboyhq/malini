@@ -1,25 +1,19 @@
 <script lang="ts">
-	import { cubicOut } from 'svelte/easing';
-	import type { TransitionConfig } from 'svelte/transition';
+	import { wheels } from './odometer';
 
-	let { value }: { value: number } = $props();
+	let { from, rate, elapsed }: { from: number; rate: number; elapsed: number } = $props();
 
-	const chars = $derived([...value.toLocaleString('en-US')]);
-	const roll = (_node: Element, y: number): TransitionConfig => ({
-		duration: 220,
-		easing: cubicOut,
-		css: (_t, u) => `translate: 0 ${u * y}%; opacity: ${1 - u * 0.8};`,
-	});
+	const FACES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+	const positions = $derived(wheels(from, rate, elapsed));
 </script>
 
 <span class="number">
-	{#each chars as char, index (chars.length - index)}
-		<span class="slot">
-			{#key char}
-				<span class="char" in:roll={100} out:roll={-100}>
-					{char}
-				</span>
-			{/key}
+	{#each positions as position, index (positions.length - index)}
+		{#if index > 0 && (positions.length - index) % 3 === 0}<span>,</span>{/if}
+		<span class="wheel">
+			<span class="faces" style:translate="0 {-position}lh">
+				{#each FACES as face, slot (slot)}<span>{face}</span>{/each}
+			</span>
 		</span>
 	{/each}
 </span>
@@ -30,13 +24,14 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.slot {
-		display: inline-grid;
-		overflow: hidden;
+	.wheel {
 		height: 1lh;
+		overflow: hidden;
+		mask: linear-gradient(#0000, #000 20% 80%, #0000);
 	}
 
-	.char {
-		grid-area: 1 / 1;
+	.faces {
+		display: flex;
+		flex-direction: column;
 	}
 </style>
