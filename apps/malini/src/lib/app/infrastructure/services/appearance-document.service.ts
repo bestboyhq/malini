@@ -25,6 +25,7 @@ class AppearanceDocumentService {
 		if (!media) return () => undefined;
 		const listener = (event: MediaQueryListEvent): void => onchange(event.matches);
 		media.addEventListener('change', listener);
+		onchange(media.matches);
 		return () => media.removeEventListener('change', listener);
 	}
 
