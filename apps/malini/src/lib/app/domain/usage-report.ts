@@ -62,7 +62,7 @@ function median(values: readonly number[]): number | null {
 	return lower === undefined || upper === undefined ? null : Math.round((lower + upper) / 2);
 }
 
-function reportAge(ms: number): UsageReportAge {
+export function reportAge(ms: number): UsageReportAge {
 	const days = Math.round(ms / DAY_MS);
 	if (days < 1) return 'day_1';
 	if (days < 7) return 'week_1';

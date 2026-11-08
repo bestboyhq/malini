@@ -11,7 +11,7 @@ Its Chats card tours that renderer with a camera, a scripted cursor and a demo b
 A docs section can lead with that renderer on `?play=docs` from a `<!-- demo <workstream> <height>` directive in its markdown, its text folded below it (ADR 0175).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
 The app makes seven outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166).
-Usage counts, yesterday's loop counted on the Mac, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156).
+Usage counts, yesterday's loop counted on the Mac, each install's first setup and first-use steps, the days and months it runs, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156, ADR 0194); first-use markers belong only to installs first opened after ADR 0194, and every marker is stored in `settings` as sent only once it is delivered.
 Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old.
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.

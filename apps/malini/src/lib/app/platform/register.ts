@@ -25,6 +25,7 @@ import { currentEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
 import type { UsageAccount } from '$lib/stats/stats.platform';
 import type { AppPlatform } from '../app.platform';
+import { ONBOARDING_FINISHED_SETTING } from '../domain/onboarding';
 import {
 	ConfirmedShutdown,
 	openAgentRunCount,
@@ -41,7 +42,7 @@ import { getSetting, listSettings, setSetting } from './settings.repository';
 import { createElectronShellHost, type ShellHost } from './shell-host';
 import { StreamingDetector } from './streaming';
 import { startUpdates } from './updates';
-import { startUsageData } from './usage-data';
+import { startUsageData, type UsageData } from './usage-data';
 import { readUsageReport } from './usage-report';
 import { createWindowCommands, type WindowCommands } from './window';
 import { lidTools, startLidHold } from './lid-hold';
@@ -55,16 +56,17 @@ export interface AppDeps {
 	readonly cancelAgentRuns?: () => Promise<number> | number;
 	readonly containerCount?: () => number;
 	readonly usageAccount?: () => Promise<UsageAccount>;
+	readonly freshInstall?: boolean;
 }
 
 export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	const host = deps.host ?? createElectronShellHost();
 	const window = defineShellCommands(context, deps, host);
-	defineSettingsCommands(context);
-	const usageData = startUsageData(
-		context,
-		deps.usageAccount ? { account: deps.usageAccount } : {},
-	);
+	const usageData = startUsageData(context, {
+		...(deps.usageAccount ? { account: deps.usageAccount } : {}),
+		...(deps.freshInstall === undefined ? {} : { freshInstall: deps.freshInstall }),
+	});
+	defineSettingsCommands(context, usageData);
 	context.commands.define('app.share-usage-data', (args: unknown): void =>
 		usageData.share(requireBoolean(args, 'shared')),
 	);
@@ -213,7 +215,7 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	return window;
 }
 
-function defineSettingsCommands(context: MainContext): void {
+function defineSettingsCommands(context: MainContext, usageData: UsageData): void {
 	const { db, commands } = context;
 
 	commands.define('app.list-settings', (): Record<string, string> => listSettings(db));
@@ -224,7 +226,9 @@ function defineSettingsCommands(context: MainContext): void {
 	}));
 
 	commands.define('app.set-setting', (args: unknown): void => {
-		setSetting(db, requireString(args, 'key'), requireString(args, 'value'));
+		const key = requireString(args, 'key');
+		setSetting(db, key, requireString(args, 'value'));
+		if (key === ONBOARDING_FINISHED_SETTING) usageData.journey('setup_finished');
 	});
 }
 

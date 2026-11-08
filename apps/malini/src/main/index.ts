@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { app, BrowserWindow, dialog } from 'electron';
@@ -85,8 +86,10 @@ async function boot(): Promise<void> {
 	if (claimsUrlScheme(app.isPackaged, process.env)) app.setAsDefaultProtocolClient(URL_SCHEME);
 	void removeStaleTemporaryIndexes();
 	const appDataRoot = app.getPath('userData');
+	const databasePath = join(appDataRoot, 'malini.sqlite');
+	const freshInstall = !existsSync(databasePath);
 	try {
-		db = openMigratedDatabase(join(appDataRoot, 'malini.sqlite'));
+		db = openMigratedDatabase(databasePath);
 	} catch (error) {
 		const detail = error instanceof DbInvariantError ? error.detail : String(error);
 		console.error(`Malini could not open its database: ${detail}`);
@@ -114,6 +117,7 @@ async function boot(): Promise<void> {
 	const bridgeScriptPath = testBridgeScript();
 	modules = await registerModules(context, {
 		getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
+		freshInstall,
 		...(bridgeScriptPath ? { overrides: { bridgeScriptPath } } : {}),
 	});
 	serveWorkstreamImages(modules.repositories.media);

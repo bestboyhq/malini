@@ -35,6 +35,7 @@ import { registerStats } from '$lib/stats/platform/register';
 
 export interface ModuleOptions {
 	getMainWindow(): BrowserWindow | null;
+	freshInstall?: boolean;
 	overrides?: ModuleOverrides;
 }
 
@@ -184,6 +185,7 @@ export async function registerModules(
 		cancelAgentRuns: () => chat.closeOpenRunsForExit(),
 		containerCount: () => repositories.containerCount(),
 		usageAccount: () => stats.usageAccount(),
+		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
 	});
 
 	const automations = registerAutomations(context, {

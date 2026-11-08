@@ -3,27 +3,56 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
 import type { UsageReport } from '$contract/system';
 import type { MainContext } from '$main/context';
+import type { MaliniDatabase } from '$main/db/driver';
 import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { currentEnvironment } from '$main/process/environment';
-import type { UsageAccount } from '$lib/stats/stats.platform';
+import { localDate, shiftDate, type UsageAccount } from '$lib/stats/stats.platform';
+import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
+import { ONBOARDING_FINISHED_SETTING } from '../domain/onboarding';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
-import { reportDay } from '../domain/usage-report';
+import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
-import { readUsageReport } from './usage-report';
+import { hasPromptRun, readUsageReport } from './usage-report';
 
-export type UsageActivity = 'app_active' | 'run_finished' | 'profile_published' | 'stats_off';
+export type UsageJourney =
+	| 'first_open'
+	| 'setup_finished'
+	| 'first_repository'
+	| 'first_workstream'
+	| 'first_prompt'
+	| 'first_merge'
+	| 'first_profile_published'
+	| 'returned_week_1'
+	| 'returned_month_1';
+
+export type UsageJourneyMarker = Exclude<
+	UsageJourney,
+	'first_open' | 'returned_week_1' | 'returned_month_1'
+>;
+
+export type UsageActivity =
+	| UsageJourney
+	| 'app_active'
+	| 'run_finished'
+	| 'profile_published'
+	| 'stats_off'
+	| 'day'
+	| 'month';
 
 export interface UsageSink {
 	activity(
 		name: UsageActivity,
-		props: Readonly<Record<string, string>>,
+		props: Readonly<Record<string, string | number>>,
 		userId: string | null,
 	): void;
 	report(report: UsageReport, userId: string | null): void;
@@ -33,6 +62,7 @@ export interface UsageSink {
 
 export interface UsageData {
 	share(shared: boolean): void;
+	journey(marker: UsageJourneyMarker): void;
 	shutdown(): Promise<void>;
 }
 
@@ -45,6 +75,7 @@ export interface UsageDataDeps {
 	) => void;
 	readonly system?: string;
 	readonly now?: () => Date;
+	readonly freshInstall?: boolean;
 }
 
 type ErrorShape = Readonly<{ name: string; code: string | null; kind: string | null }>;
@@ -53,18 +84,35 @@ const LOGDASH_API = 'https://api.logdash.io';
 const LOGDASH_ORIGIN = 'https://app.malini';
 const SHUTDOWN_FLUSH_MS = 2000;
 const REPORTED_DAY_SETTING = 'usage-data.reported-day';
+const FIRST_OPEN_SETTING = 'usage-data.first-open';
+const JOURNEY_SETTING = 'usage-data.journey';
+const LAST_ACTIVE_DAY_SETTING = 'usage-data.last-active-day';
+const ACTIVE_DAYS_SETTING = 'usage-data.active-days';
+const REPORTED_MONTH_SETTING = 'usage-data.reported-month';
 const REPORT_CHECK_MS = 60 * 60_000;
+const DAY_MS = 86_400_000;
 const ANONYMOUS: UsageAccount = { state: 'anonymous' };
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
+	const now = deps.now ?? ((): Date => new Date());
 	const sink = deps.sink === undefined ? logdashSink(context.appVersion) : deps.sink;
 	const shared = (): boolean => usageDataShared(getSetting(context.db, USAGE_DATA_SETTING));
-	const share = (next: boolean): void => {
-		const was = shared();
+	const setShare = (next: boolean): void => {
 		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
-		if (sink && was && !next) sink.activity('stats_off', {}, null);
 	};
-	if (!sink) return { share, shutdown: () => Promise.resolve() };
+	if (!sink)
+		return { share: setShare, journey: () => undefined, shutdown: () => Promise.resolve() };
+	const storedFirstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
+	if (storedFirstOpen === null && deps.freshInstall === true)
+		setSetting(context.db, FIRST_OPEN_SETTING, localDate(now()));
+	const firstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
+	const rememberActiveDay = (): void => {
+		const today = localDate(now());
+		const days = stringList(getSetting(context.db, ACTIVE_DAYS_SETTING));
+		if (days.includes(today)) return;
+		setSetting(context.db, ACTIVE_DAYS_SETTING, JSON.stringify([...days, today].sort()));
+	};
+	rememberActiveDay();
 	const account = deps.account ?? ((): Promise<UsageAccount> => Promise.resolve(ANONYMOUS));
 	const send = async (deliver: (userId: string | null) => void): Promise<void> => {
 		if (!shared()) return;
@@ -75,6 +123,98 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const count = (name: UsageActivity): void => {
 		const props = heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING)));
 		void send((userId) => sink.activity(name, props, userId));
+	};
+	const journeySent = (): string[] => stringList(getSetting(context.db, JOURNEY_SETTING));
+	const sendJourney = (
+		marker: UsageJourney,
+		extra: Readonly<Record<string, string | number>> = {},
+	): void => {
+		const cohort = firstOpen;
+		if (cohort === null || journeySent().includes(marker)) return;
+		void send((userId) => {
+			const sent = journeySent();
+			if (sent.includes(marker)) return;
+			setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...sent, marker]));
+			sink.activity(
+				marker,
+				{ cohort, days: daysBetween(cohort, localDate(now())), ...extra },
+				userId,
+			);
+		});
+	};
+	const sendMonth = (): void => {
+		const today = localDate(now());
+		const current = monthOf(today);
+		const earlier = stringList(getSetting(context.db, ACTIVE_DAYS_SETTING)).filter(
+			(day) => monthOf(day) < current,
+		);
+		const last = earlier.sort().at(-1);
+		if (last === undefined) return;
+		const month = monthOf(last);
+		if (getSetting(context.db, REPORTED_MONTH_SETTING) === month) return;
+		const activeDays = new Set(earlier.filter((day) => monthOf(day) === month)).size;
+		void send((userId) => {
+			if (getSetting(context.db, REPORTED_MONTH_SETTING) === month) return;
+			setSetting(context.db, REPORTED_MONTH_SETTING, month);
+			setSetting(
+				context.db,
+				ACTIVE_DAYS_SETTING,
+				JSON.stringify(
+					stringList(getSetting(context.db, ACTIVE_DAYS_SETTING)).filter(
+						(day) => monthOf(day) >= current,
+					),
+				),
+			);
+			sink.activity('month', { month, active_days: activeDays }, userId);
+		});
+	};
+	const sendDay = (): void => {
+		const today = localDate(now());
+		if (getSetting(context.db, LAST_ACTIVE_DAY_SETTING) === today) return;
+		const previous =
+			stringList(getSetting(context.db, ACTIVE_DAYS_SETTING))
+				.filter((day) => day < today)
+				.sort()
+				.at(-1) ?? null;
+		const base = firstOpen ?? earliestActivity(context.db);
+		const props = {
+			week_first: previous === null || weekStart(previous) !== weekStart(today) ? 'yes' : 'no',
+			month_first: previous === null || monthOf(previous) !== monthOf(today) ? 'yes' : 'no',
+			age: base === null ? 'later' : reportAge(Date.parse(today) - Date.parse(base)),
+		};
+		void send((userId) => {
+			if (getSetting(context.db, LAST_ACTIVE_DAY_SETTING) === today) return;
+			setSetting(context.db, LAST_ACTIVE_DAY_SETTING, today);
+			sink.activity('day', props, userId);
+		});
+	};
+	const launch = (): void => {
+		if (firstOpen !== null) {
+			sendJourney('first_open');
+			const days = daysBetween(firstOpen, localDate(now()));
+			if (days >= 1 && days <= 7) sendJourney('returned_week_1');
+			if (days >= 8 && days <= 30) sendJourney('returned_month_1');
+		}
+		if (getSetting(context.db, ONBOARDING_FINISHED_SETTING) !== null) sendJourney('setup_finished');
+		sendMonth();
+		sendDay();
+		void firstRepository();
+		if (hasPromptRun(context.db, now())) sendJourney('first_prompt');
+	};
+	const share = (next: boolean): void => {
+		const was = shared();
+		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
+		if (next && !was) launch();
+		if (was && !next) sink.activity('stats_off', {}, null);
+	};
+	const firstRepository = async (): Promise<void> => {
+		if (firstOpen === null || journeySent().includes('first_repository')) return;
+		try {
+			const repositories = await listRepositoryCatalog(context.db);
+			if (repositories.length > 0) sendJourney('first_repository');
+		} catch {
+			return;
+		}
 	};
 	const system =
 		deps.system ??
@@ -104,16 +244,30 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 
 	const stopRuns = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => {
 		const type = envelope.event.type;
-		if (!envelope.ephemeral && (type === 'run.completed' || type === 'run.failed'))
-			count('run_finished');
+		if (envelope.ephemeral || (type !== 'run.completed' && type !== 'run.failed')) return;
+		count('run_finished');
+		if (hasPromptRun(context.db, now())) sendJourney('first_prompt');
 	});
-	const stopPublished = context.events.subscribe(STATS_PROFILE_PUBLISHED_CHANNEL, () =>
-		count('profile_published'),
+	const stopPublished = context.events.subscribe(STATS_PROFILE_PUBLISHED_CHANNEL, () => {
+		count('profile_published');
+		sendJourney('first_profile_published');
+	});
+	const stopRepositories = context.events.subscribe(REPOSITORIES_CHANGED_CHANNEL, () => {
+		void firstRepository();
+	});
+	const stopWorkstreams = context.events.subscribe(
+		REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
+		(payload) => {
+			if (payload.workstream.scope === null) sendJourney('first_workstream');
+		},
 	);
+	const stopShips = context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (changed) => {
+		if (changed.merged) sendJourney('first_merge');
+	});
 
 	count('app_active');
+	launch();
 
-	const now = deps.now ?? ((): Date => new Date());
 	const reportYesterday = (): void => {
 		const at = now();
 		const day = reportDay(at);
@@ -128,6 +282,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 
 	return {
 		share,
+		journey: (marker) => sendJourney(marker),
 		shutdown: async () => {
 			clearInterval(reportTimer);
 			stopStarted();
@@ -136,9 +291,44 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopRejections();
 			stopRuns();
 			stopPublished();
+			stopRepositories();
+			stopWorkstreams();
+			stopShips();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};
+}
+
+function stringList(raw: string | null): string[] {
+	if (raw === null) return [];
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return Array.isArray(parsed)
+			? parsed.filter((item): item is string => typeof item === 'string')
+			: [];
+	} catch {
+		return [];
+	}
+}
+
+function monthOf(date: string): string {
+	return date.slice(0, 7);
+}
+
+function weekStart(date: string): string {
+	const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+	return shiftDate(date, -((weekday + 6) % 7));
+}
+
+function daysBetween(from: string, to: string): number {
+	return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
+}
+
+function earliestActivity(db: MaliniDatabase): string | null {
+	const days = listProjects(db)
+		.map((project) => localDate(new Date(project.createdAt)))
+		.sort();
+	return days[0] ?? null;
 }
 
 function described(error: ErrorShape): string {
