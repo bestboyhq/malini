@@ -1,12 +1,12 @@
 export type AgentApprovalDecision = 'allow' | 'deny';
 
-export type AgentApprovalScope = 'once' | 'session' | 'workstream' | 'everywhere';
+export type AgentApprovalScope = 'once' | 'session' | 'workstream' | 'repository' | 'everywhere';
 
 export type AgentPermissionCapability =
-	'read' | 'write' | 'execute' | 'network' | 'external-service';
+	'read' | 'write' | 'execute' | 'network' | 'external-service' | 'sandbox';
 
 export type AgentPermissionResourceKind =
-	'path' | 'command' | 'url' | 'project' | 'service' | 'tool' | 'action';
+	'path' | 'socket' | 'command' | 'url' | 'project' | 'service' | 'tool' | 'action';
 
 export type AgentPermissionBoundary =
 	'workstream' | 'git-admin' | 'external' | 'sensitive' | 'unknown';

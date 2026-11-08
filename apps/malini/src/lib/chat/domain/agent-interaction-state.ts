@@ -38,6 +38,7 @@ export function canPersistAgentApproval(
 	if (!permission) return false;
 	const [only] = permission.resources;
 	if (only?.kind === 'action') return permission.resources.length === 1;
+	if (permission.capability === 'sandbox') return permission.resources.length > 0;
 	return (
 		permission.capability === 'read' &&
 		permission.resources.length > 0 &&

@@ -245,7 +245,13 @@ export interface AgentElementReference {
 
 export type AgentApprovalDecision = 'allow' | 'deny';
 
-export const AGENT_APPROVAL_SCOPES = ['once', 'session', 'workstream', 'everywhere'] as const;
+export const AGENT_APPROVAL_SCOPES = [
+	'once',
+	'session',
+	'workstream',
+	'repository',
+	'everywhere',
+] as const;
 
 export type AgentApprovalScope = (typeof AGENT_APPROVAL_SCOPES)[number];
 

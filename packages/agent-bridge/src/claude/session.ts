@@ -1,4 +1,4 @@
-import { randomUUID, type UUID } from 'node:crypto';
+import { randomBytes, randomUUID, type UUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
 	query as sdkQuery,
@@ -67,6 +67,9 @@ import {
 	leavesTheSandbox,
 	steerToMalini,
 	permissionDescriptor,
+	SANDBOX_BLOCKED,
+	sandboxBlockedContext,
+	sandboxPermission,
 	permissionModeFor,
 	rememberedPermissions,
 	retryKey,
@@ -83,7 +86,17 @@ import {
 	claudeUserDirectory,
 	userSettingsFile,
 } from './user-settings.js';
-import { canSandbox, sandboxProfile } from '../sandbox.js';
+import {
+	canSandbox,
+	OUTSIDE_THE_SANDBOX,
+	SANDBOX_TAG_PREFIX,
+	sandboxGrant,
+	sandboxProfile,
+	type SandboxDenial,
+	type SandboxGrant,
+	type SandboxPlaces,
+} from '../sandbox.js';
+import { sandboxDenials, type SandboxDenialSource } from '../sandbox-denials.js';
 import { isRecord } from '../type-guards.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
@@ -91,10 +104,16 @@ const BACKGROUND_OUTPUT_POLL_MS = 2_000;
 const IDLE_PROCESS_MS = 10 * 60_000;
 const MCP_SETTLE_MS = 5_000;
 const MCP_SETTLE_POLL_MS = 250;
+const SANDBOX_REPORT_SETTLE_MS = 200;
+const BLOCKED_FOR_MS = 10 * 60_000;
+const MAX_BLOCKED = 50;
+const MAX_COMMANDS = 200;
 const BLOCKED_CALL_DECISION_TIMEOUT_S = 24 * 60 * 60;
 const RETRY_BLOCKED_CALL = {
 	hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true },
 } as const;
+const RUN_IT_INSIDE_FIRST =
+	'Malini has not seen this command run in its sandbox in this chat. Run it again without dangerouslyDisableSandbox: the sandbox may allow what it needs now, and when it blocks something, Malini asks the user to open just that.';
 const KEPT_BLOCKED_MESSAGE =
 	'The user kept this call blocked. Carry on with the rest of the task without it.';
 const PLAN_HANDOFF_MESSAGE =
@@ -144,7 +163,14 @@ export interface ClaudeSessionOptions {
 	readonly outage?: AutoModeOutage;
 	readonly secrets: SessionSecrets;
 	readonly sandbox?: boolean;
+	readonly denials?: SandboxDenialSource;
 	readonly checkReply?: ReplyChecker;
+}
+
+interface Blocked {
+	readonly denial: SandboxDenial;
+	readonly grant: SandboxGrant | null;
+	readonly at: number;
 }
 
 interface RunSettings {
@@ -207,6 +233,14 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #sandbox: boolean;
 	readonly #checkReply: ReplyChecker;
 	readonly #blockedCallRules = new Map<string, string>();
+	readonly #denials: SandboxDenialSource;
+	readonly #tag = `${SANDBOX_TAG_PREFIX}${randomBytes(8).toString('hex')}`;
+	readonly #blocked = new Map<string, Blocked>();
+	readonly #needs = new Map<string, readonly SandboxGrant[]>();
+	readonly #commands = new Map<string, { started: number; release: () => void }>();
+	#places: SandboxPlaces | null = null;
+	#grants: readonly SandboxGrant[] = [];
+	#unwatch: (() => void) | null = null;
 	#outsideAllowed = false;
 	#claudeSessionId: string | undefined;
 	#seedHistory: readonly ConversationHistoryMessage[] | undefined;
@@ -225,6 +259,7 @@ export class ClaudeSession implements ProviderHandle {
 		this.#outage = options.outage ?? new AutoModeOutage();
 		this.#secrets = options.secrets;
 		this.#sandbox = options.sandbox ?? canSandbox();
+		this.#denials = options.denials ?? sandboxDenials;
 		this.#checkReply =
 			options.checkReply ??
 			(options.executable
@@ -254,7 +289,10 @@ export class ClaudeSession implements ProviderHandle {
 		compactWindow?: number,
 		boundary?: AgentBoundary,
 		steReplies = false,
+		sandboxGrants: readonly SandboxGrant[] = [],
 	): Promise<void> {
+		this.#grants = sandboxGrants;
+		if (this.#places) this.#confine();
 		const run: RunSettings = {
 			profile,
 			skills,
@@ -338,6 +376,7 @@ export class ClaudeSession implements ProviderHandle {
 			prompt: turns.messages,
 			options: this.#options(executable, run, resumeAt, abort),
 		});
+		if (this.#places) this.#unwatch ??= this.#denials.watch(this.#tag, (d) => this.#record(d));
 		void query
 			.setMcpPermissionModeOverride(MALINI_MCP_SERVER, 'default')
 			.catch((error: unknown) =>
@@ -519,7 +558,56 @@ export class ClaudeSession implements ProviderHandle {
 		active.pending = null;
 		active.query.close();
 		if (this.#active === active) this.#active = null;
+		if (!this.#active) this.#stopWatching();
 		active.end();
+	}
+
+	#stopWatching(): void {
+		this.#unwatch?.();
+		this.#unwatch = null;
+		for (const { release } of this.#commands.values()) release();
+		this.#commands.clear();
+	}
+
+	#confine(): void {
+		const places = this.#places;
+		this.#secrets.confine(places ? this.#profile(places, this.#grants) : null);
+	}
+
+	#profile(places: SandboxPlaces, grants: readonly SandboxGrant[]): string {
+		return sandboxProfile({ ...places, tag: this.#tag, grants });
+	}
+
+	#record(denial: SandboxDenial): void {
+		const places = this.#places;
+		if (!places) return;
+		const grant = sandboxGrant(denial, places);
+		keepLatest(
+			this.#blocked,
+			`${denial.operation} ${denial.target}`,
+			{ denial, grant, at: Date.now() },
+			MAX_BLOCKED,
+		);
+	}
+
+	#grantable(command: string): SandboxGrant[] {
+		const since = Date.now() - BLOCKED_FOR_MS;
+		const granted = new Set(this.#grants.map(grantKey));
+		const fresh = [...this.#blocked.values()].flatMap(({ grant, at }) =>
+			grant && at >= since ? [grant] : [],
+		);
+		const grants = new Map<string, SandboxGrant>();
+		for (const grant of [...(this.#needs.get(command) ?? []), ...fresh]) {
+			if (!granted.has(grantKey(grant))) grants.set(grantKey(grant), grant);
+		}
+		return [...grants.values()];
+	}
+
+	#forget(grants: readonly SandboxGrant[]): void {
+		const forgotten = new Set(grants.map(grantKey));
+		for (const [key, { grant }] of this.#blocked) {
+			if (grant && forgotten.has(grantKey(grant))) this.#blocked.delete(key);
+		}
 	}
 
 	async #handOff(
@@ -686,15 +774,10 @@ export class ClaudeSession implements ProviderHandle {
 	): Options {
 		const directories = lineageDirectories(lineage);
 		const hidden = boundary ? hiddenPaths(boundary, claudeUserDirectory()) : [];
-		this.#secrets.confine(
-			this.#sandbox
-				? sandboxProfile({
-						checkout: this.#context.cwd,
-						hidden,
-						internet: boundary?.internet ?? true,
-					})
-				: null,
-		);
+		this.#places = this.#sandbox
+			? { checkout: this.#context.cwd, hidden, internet: boundary?.internet ?? true }
+			: null;
+		this.#confine();
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
@@ -744,8 +827,15 @@ export class ClaudeSession implements ProviderHandle {
 							: [steerToMalini],
 					},
 					{ hooks: [this.#allowApprovedRetry()] },
+					...(this.#sandbox ? [{ matcher: 'Bash', hooks: [this.#noteCommandStart()] }] : []),
 				],
-				PostToolUse: [{ hooks: [this.#maskSecrets()] }],
+				PostToolUse: [
+					{ hooks: [this.#maskSecrets()] },
+					...(this.#sandbox ? [{ matcher: 'Bash', hooks: [this.#reportBlocked()] }] : []),
+				],
+				...(this.#sandbox
+					? { PostToolUseFailure: [{ matcher: 'Bash', hooks: [this.#reportBlocked()] }] }
+					: {}),
 				PermissionDenied: [
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
@@ -799,18 +889,33 @@ export class ClaudeSession implements ProviderHandle {
 				return { behavior: 'deny', message: PLAN_HANDOFF_MESSAGE };
 			}
 			const unchecked = Boolean(this.#active?.fallback) && !isMaliniTool(toolName);
+			const leaving = leavesTheSandbox(toolName, input);
+			const command = String(input['command']);
+			const blocked = leaving ? this.#grantable(command) : [];
+			if (leaving && blocked.length === 0 && this.#places && !this.#needs.has(command)) {
+				keepLatest(this.#needs, command, [], MAX_COMMANDS);
+				return { behavior: 'deny', message: RUN_IT_INSIDE_FIRST };
+			}
 			const resolution = await this.#interactions.requestApproval({
 				runId,
 				approvalId: `approval-${toolCallId}`,
-				reason: unchecked
-					? UNCHECKED_CALL_REASON
-					: (options.title ?? options.decisionReason ?? `Claude wants to use ${toolName}`),
+				reason:
+					blocked.length > 0
+						? SANDBOX_BLOCKED
+						: unchecked
+							? UNCHECKED_CALL_REASON
+							: (options.title ?? options.decisionReason ?? `Claude wants to use ${toolName}`),
 				toolName,
 				input,
-				permission: permissionDescriptor(toolName, input, this.#context.cwd, options.blockedPath),
+				permission:
+					blocked.length > 0
+						? sandboxPermission(blocked)
+						: permissionDescriptor(toolName, input, this.#context.cwd, options.blockedPath),
 				...(unchecked ? { autoModeUnavailable: true } : {}),
 				signal: options.signal,
 			});
+			this.#forget(blocked);
+			if (blocked.length > 0) keepLatest(this.#needs, command, blocked, MAX_COMMANDS);
 			if (resolution.decision === 'deny') {
 				if (resolution.reason) return { behavior: 'deny', message: resolution.reason };
 				if (unchecked) {
@@ -825,6 +930,27 @@ export class ClaudeSession implements ProviderHandle {
 				return { behavior: 'deny', message: 'The user denied this action.', interrupt: true };
 			}
 			const approved = approvedInput(toolName, input, resolution.updatedInput);
+			const places = this.#places;
+			if (blocked.length > 0 && places && leavesTheSandbox(toolName, approved)) {
+				const command = String(approved['command']);
+				if (resolution.scope !== 'once') {
+					this.#grants = [...this.#grants, ...blocked];
+					this.#confine();
+				}
+				return {
+					behavior: 'allow',
+					updatedInput: {
+						...approved,
+						command:
+							resolution.scope === 'once'
+								? this.#secrets.passInside(
+										command,
+										this.#profile(places, [...this.#grants, ...blocked]),
+									)
+								: command,
+					},
+				};
+			}
 			if (leavesTheSandbox(toolName, approved)) {
 				if (resolution.scope === 'session') this.#outsideAllowed = true;
 				return {
@@ -948,6 +1074,46 @@ export class ClaudeSession implements ProviderHandle {
 			return masked === input.tool_response
 				? {}
 				: { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: masked } };
+		};
+	}
+
+	#noteCommandStart(): HookCallback {
+		return async (input) => {
+			if (input.hook_event_name !== 'PreToolUse') return {};
+			const started = Date.now();
+			const release = await this.#denials.hold();
+			this.#commands.get(input.tool_use_id)?.release();
+			this.#commands.set(input.tool_use_id, { started, release });
+			return {};
+		};
+	}
+
+	#reportBlocked(): HookCallback {
+		return async (input) => {
+			const event = input.hook_event_name;
+			if (event !== 'PostToolUse' && event !== 'PostToolUseFailure') return {};
+			const running = this.#commands.get(input.tool_use_id);
+			this.#commands.delete(input.tool_use_id);
+			running?.release();
+			const toolInput = isRecord(input.tool_input) ? input.tool_input : {};
+			const command = toolInput['command'];
+			const ranInside =
+				typeof command === 'string' && !leavesTheSandbox(input.tool_name, toolInput);
+			if (ranInside && !this.#needs.has(command))
+				keepLatest(this.#needs, command, [], MAX_COMMANDS);
+			if (running === undefined || String(command).includes(OUTSIDE_THE_SANDBOX)) return {};
+			const { started } = running;
+			if (event === 'PostToolUseFailure') await delay(SANDBOX_REPORT_SETTLE_MS);
+			const additionalContext = sandboxBlockedContext(
+				[...this.#blocked.values()].filter(({ at }) => at >= started).map(({ denial }) => denial),
+			);
+			if (!additionalContext) return {};
+			return {
+				hookSpecificOutput:
+					event === 'PostToolUse'
+						? { hookEventName: event, additionalContext }
+						: { hookEventName: event, additionalContext },
+			};
 		};
 	}
 
@@ -1114,6 +1280,7 @@ export class ClaudeSession implements ProviderHandle {
 		const active = this.#active;
 		if (active?.idleTimeout) this.#retire(active);
 		else if (active) await this.cancel(active.runId);
+		this.#stopWatching();
 		await this.#secrets.remove();
 	}
 }
@@ -1191,6 +1358,10 @@ function canContinue(
 	);
 }
 
+function grantKey({ kind, path }: SandboxGrant): string {
+	return `${kind} ${path}`;
+}
+
 function rewinds(idle: ActiveRun, resumeAt: string | undefined): boolean {
 	return resumeAt !== undefined && resumeAt !== idle.transcript.cursor;
 }
@@ -1248,4 +1419,13 @@ export function claudeEnvironment(
 
 function describe(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+function keepLatest<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
+	map.delete(key);
+	map.set(key, value);
+	for (const oldest of map.keys()) {
+		if (map.size <= max) break;
+		map.delete(oldest);
+	}
 }

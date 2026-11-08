@@ -5,13 +5,14 @@ export type MaliniEditReview = Readonly<{
 	current: AutomationDefinitionRecord;
 }>;
 
-export type PermissionGrantScope = 'session' | 'workstream' | 'everywhere';
+export type PermissionGrantScope = 'session' | 'workstream' | 'repository' | 'everywhere';
 
 export type PermissionGrantRecord = Readonly<{
 	id: string;
 	scope: PermissionGrantScope;
 	what: string;
 	workstreamName: string | null;
+	repositoryName: string | null;
 	createdAt: string;
 	lastUsedAt: string | null;
 }>;

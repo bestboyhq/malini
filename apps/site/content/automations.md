@@ -185,8 +185,9 @@ What it reaches:
 - **The internet**: off for every automation you make until you turn it on, and on for the built-in automations. Off, [the sandbox](/malini/docs/chat.md#the-sandbox) lets the automation's commands reach no site but localhost, Claude Code drops its web tools and every MCP server but Malini's, and Malini refuses its own tools that would reach out for the automation: the browser, cloning a repository, starting or messaging a workstream, and running an automation whose internet is on.
 
 An automation runs its commands in [the sandbox](/malini/docs/chat.md#the-sandbox), as every chat does, and the sandbox also hides what the automation may not see from its commands; Claude Code hides it from its Read tool.
-Electron, Playwright with its Chromium, agent-browser, file watchers and terminals run inside it, so an automation that runs `pnpm test:e2e` never asks.
-A command that must run outside the sandbox asks you first, every time.
+Electron, Playwright with its Chromium, file watchers and terminals run inside it, so an automation that runs `pnpm test:e2e` never asks.
+What you opened in the sandbox for its repository or everywhere is open for it too.
+A command that needs anything else from outside the sandbox asks you first, every time.
 
 An automation that sees your words, through a chat, an attachment, a whole event, or the report of an automation before it that sees them, and reaches outside your Mac, through the internet or a Then that publishes, **can leak**.
 The Automations page marks it **Can leak**, and its page says how, with **Stop it seeing your words** and **Turn off the internet** one click away.

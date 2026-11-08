@@ -325,6 +325,20 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses an approval for the repository and rejects a scope it does not know', () => {
+			const approve = (scope: string) =>
+				parseCommandLine(
+					`{"cmd":"approve","id":"a","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"allow","scope":"${scope}"}`,
+				);
+
+			expect(approve('repository')).toMatchObject({ ok: true, command: { scope: 'repository' } });
+			expect(approve('organization')).toMatchObject({
+				ok: false,
+				message:
+					'approve: scope must be "once", "session", "workstream", "repository", or "everywhere"',
+			});
+		});
+
 		it('parses an approval for everywhere that carries the input the user reviewed', () => {
 			const r = parseCommandLine(
 				JSON.stringify({
@@ -698,6 +712,27 @@ describe('protocol: parseCommandLine', () => {
 				extensions(51),
 			]) {
 				expect(withPlugins(broken)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
+		it('parses what the sandbox opens for a prompt and rejects a grant that is not a plain absolute path', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const withGrants = (grants: unknown) =>
+				parseCommandLine(`{${prompt},"sandboxGrants":${JSON.stringify(grants)}}`);
+			const sandboxGrants = [
+				{ kind: 'path', path: '/Users/someone/.agent-browser' },
+				{ kind: 'socket', path: '/Users/someone/.docker/run/docker.sock' },
+			];
+
+			expect(withGrants(sandboxGrants)).toMatchObject({ ok: true, command: { sandboxGrants } });
+			for (const broken of [
+				[{ kind: 'mach', path: '/x' }],
+				[{ kind: 'path', path: 'relative' }],
+				[{ kind: 'path', path: '/x', extra: true }],
+				[{ kind: 'path', path: `/${'x'.repeat(4_096)}` }],
+				{ kind: 'path', path: '/x' },
+			]) {
+				expect(withGrants(broken)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
 			}
 		});
 

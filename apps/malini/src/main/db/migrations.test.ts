@@ -78,6 +78,7 @@ const ALL_INDEXES = [
 	'idx_agent_events_session_seq',
 	'idx_agent_interactions_pending',
 	'idx_agent_permission_rules_active_everywhere',
+	'idx_agent_permission_rules_active_repository',
 	'idx_agent_permission_rules_active_session',
 	'idx_agent_permission_rules_active_workstream',
 	'idx_agent_permission_rules_effective',
