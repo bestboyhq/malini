@@ -27,33 +27,47 @@ import {
 	type DispatchedEvent,
 	type ShippingDecision,
 	type ShippingRule,
+	type ShippingTrigger,
 } from '$lib/automations/automations.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
 	addressedChangeRequests,
+	automationStep,
 	clampedFixAttempts,
 	isUpdateAutomation,
 	automationIsActive,
 	nextShippingMove,
 	pullRequestFacts,
+	reviewToStart,
+	type PullRequestFacts,
 	type ShippingSnapshot,
 } from '../domain/shipping';
 import { shipAllClicked } from './ship-intents';
 import {
 	actOnShipMove,
 	retitlePullRequest,
+	reviewContext,
 	settledAutomation,
 	shipFailed,
 	shipMetadata,
 	type Idleness,
 	type ShipState,
 } from './ship-moves';
-import { getShip, listShips, requestShip, type ShipRequest, type ShipRow } from './ship.repository';
+import {
+	getShip,
+	listShips,
+	requestShip,
+	settleShipRequest,
+	type ShipRequest,
+	type ShipRow,
+} from './ship.repository';
 import {
 	dropShip,
+	NO_SHIP_FAILURE,
 	saveShip,
 	shipping,
 	shippingBuiltin,
+	startingAlone,
 	trackShip,
 	type ShipDeps,
 } from './ship-store';
@@ -69,6 +83,7 @@ export function createShippingRule(deps: ShipDeps): ShippingRule {
 			const phase = getShip(deps.context.db, workstreamId)?.phase;
 			return phase === 'queued' || phase === 'needs-you';
 		},
+		triggered: (trigger) => triggered(deps, trigger),
 	};
 }
 
@@ -151,10 +166,16 @@ async function pullRequestChanged(
 	const facts = pullRequestFacts(payload);
 	if (facts === null) return [];
 	const open = facts.state === 'open' || facts.state === 'draft';
-	if (open && facts.reviewDecision === 'changes_requested') {
+	if (open && facts.reviewDecision === 'changes_requested' && reviewsOnItsOwn(deps)) {
 		await request(deps, workstreamId, 'review');
 	}
 	return getShip(deps.context.db, workstreamId) ? [workstreamId] : [];
+}
+
+function reviewsOnItsOwn(deps: ShipDeps): boolean {
+	return automationDefinitions(deps.context.db).some(
+		(definition) => definition.builtin === 'address-review' && definition.trigger?.mode === 'auto',
+	);
 }
 
 async function workEnded(deps: ShipDeps, workstreamId: string): Promise<readonly string[]> {
@@ -171,6 +192,7 @@ async function runFinished(deps: ShipDeps, payload: unknown): Promise<readonly s
 	const runId = isRecord(payload) ? stringField(payload['run'], 'id') : null;
 	const run = runId === null ? null : automationRun(db, runId);
 	if (!run || run.workstreamId === null) return [];
+	await deps.starting.get(run.workstreamId);
 	const row = getShip(db, run.workstreamId);
 	if (row) await settleOtherAutomation(deps, row, run);
 	if (row?.activeAutomationRunId === run.id || run.origin === 'merge-queue')
@@ -179,6 +201,52 @@ async function runFinished(deps: ShipDeps, payload: unknown): Promise<readonly s
 		return workEnded(deps, run.workstreamId);
 	}
 	return row ? [run.workstreamId] : [];
+}
+
+async function triggered(
+	deps: ShipDeps,
+	{ builtin, event, start }: ShippingTrigger,
+): Promise<boolean> {
+	const facts = builtin === 'address-review' ? pullRequestFacts(event.payload) : null;
+	if (facts === null || !deps.running()) return false;
+	await startingAlone(deps, facts.workstreamId, () => startReview(deps, facts, start));
+	return true;
+}
+
+async function startReview(
+	deps: ShipDeps,
+	pullRequest: PullRequestFacts,
+	start: ShippingTrigger['start'],
+): Promise<void> {
+	const { db, commands } = deps.context;
+	const { workstreamId } = pullRequest;
+	const row = await trackShip(deps, workstreamId);
+	if (!row || row.activeAutomationRunId !== null || row.settledAutomationRunId !== null) return;
+	if (activeShippingAutomationRun(db, workstreamId) !== null) return;
+	const working = row.phase === 'local' || row.phase === 'draft';
+	const limit = working ? DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS : await fixAttemptLimit(deps);
+	const review = reviewToStart(pullRequest, row, limit);
+	if (review === null || !(await readIdleness(deps, workstreamId)).idle) return;
+	const worktree = await commands.call('repositories.workstream-status', { workstreamId });
+	if (worktree.dirtyPaths.length > 0 || worktree.operationInProgress !== null) return;
+	const target = await shipTarget(db, workstreamId);
+	const run = await start(
+		await reviewContext(
+			deps,
+			target,
+			pullRequest.pullRequestNumber,
+			pullRequest,
+			row.addressedReviews,
+		),
+	);
+	saveShip(deps, workstreamId, {
+		activeAutomationRunId: run.id,
+		attempts: review.attempt,
+		failureSignature: review.signature,
+		step: automationStep('address-review'),
+		...NO_SHIP_FAILURE,
+	});
+	settleShipRequest(db, workstreamId, 'review', row.requests.review);
 }
 
 async function request(deps: ShipDeps, workstreamId: string, kind: ShipRequest): Promise<void> {

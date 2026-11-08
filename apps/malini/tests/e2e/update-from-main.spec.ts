@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
@@ -31,6 +32,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const TEN_LINES = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n';
+const WATCH_MAIN = { MALINI_BASE_FETCH_MS: '1000', MALINI_BASE_QUIET_MS: '0' };
 const AUTHOR = ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e'];
 
 test('with Update from main off, a workstream that conflicts with main stays as it is until you merge it, then the merge updates it from main, Resolve conflicts takes the conflicts on its trigger without waking the chat there, and it pushes a two-parent merge', async () => {
@@ -107,7 +109,7 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 
 test('a draft that main starts to conflict with gets main merged in, the conflict resolved and the merge pushed, before anyone merges, without waking its chat', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	const app = await launchMalini({ env: WATCH_MAIN });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-overlap', null);
 		await openWorkstream(page, 'e2e-overlap');
@@ -160,6 +162,7 @@ test('a draft that main starts to conflict with gets main merged in, the conflic
 				head: branchHead,
 				baseHead: mainHead,
 				behind: 1,
+				overlapping: true,
 				conflicts: true,
 				conflictedPaths: ['conflict.txt'],
 				overlappingPaths: ['conflict.txt'],
@@ -177,7 +180,7 @@ test('a draft that main starts to conflict with gets main merged in, the conflic
 
 test('main changing only files a draft left alone leaves it as it is, and main changing a file it changed merges main in without an agent and keeps the merge local until the draft pushes next', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	const app = await launchMalini({ env: WATCH_MAIN });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
 			app,
@@ -199,9 +202,10 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 		});
 		const branchHead = await output(worktree, ['rev-parse', 'HEAD']);
 		expect(github.pushedHead()).toBe(branchHead);
+		const firstMain = await output(github.remote, ['rev-parse', 'main']);
 		await expect
 			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
-			.toBe(await output(github.remote, ['rev-parse', 'main']));
+			.toBe(firstMain);
 		await page.waitForTimeout(3_000);
 		expect(await automationRuns(page)).toEqual([]);
 		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
@@ -256,8 +260,20 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 				workstreamId: 'e2e-overlap-clean',
 				baseBranch: 'main',
 				head: branchHead,
+				baseHead: firstMain,
+				behind: 1,
+				overlapping: false,
+				conflicts: false,
+				conflictedPaths: [],
+				overlappingPaths: [],
+			},
+			{
+				workstreamId: 'e2e-overlap-clean',
+				baseBranch: 'main',
+				head: branchHead,
 				baseHead: mainHead,
 				behind: 2,
+				overlapping: true,
 				conflicts: false,
 				conflictedPaths: [],
 				overlappingPaths: ['lines.txt'],
@@ -271,7 +287,7 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 
 test('main reaching the files of a workstream while it merges leaves it to its merge, which lands it without a second pull request', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	const app = await launchMalini({ env: WATCH_MAIN });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
 			app,
@@ -321,7 +337,7 @@ test('main reaching the files of a workstream while it merges leaves it to its m
 
 test('a workstream whose pull request merged outside Malini is left alone when main moves through its files, with nothing merged in and no conflicts resolved', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	const app = await launchMalini({ env: WATCH_MAIN });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
 			app,
@@ -349,9 +365,111 @@ test('a workstream whose pull request merged outside Malini is left alone when m
 	}
 });
 
+test('a workstream with no commits of its own fast-forwards as main moves, with no merge commit, no automation and nothing pushed', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: WATCH_MAIN });
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-pristine', null);
+		await openWorkstream(page, 'e2e-pristine');
+		const pushed = github.pushedHead();
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(pushed);
+
+		const mainHead = await commitToMain(app, github.remote, 'main.txt', 'main line\n');
+
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'HEAD']), { timeout: 30_000 })
+			.toBe(mainHead);
+		expect(await output(worktree, ['rev-list', '--merges', '--count', 'HEAD'])).toBe('0');
+		expect(await output(worktree, ['status', '--porcelain'])).toBe('');
+		await page.waitForTimeout(3_000);
+		expect(await automationRuns(page)).toEqual([]);
+		expect(await baseOverlaps(page)).toEqual([]);
+		expect(github.pushedHead()).toBe(pushed);
+		await captureFlow(app, 'update-from-main-fast-forward');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('with Update from main on Always, main moving merges into a workstream worked in this week once its service stops, and leaves one idle for over a week alone', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini({ env: WATCH_MAIN });
+	try {
+		let stale = '';
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-always-busy',
+			null,
+			async ({ basePath, projectId, worktree }: SeededWorkstream) => {
+				await commitFile(worktree, 'busy.txt', 'busy line\n', 'busy change');
+				stale = await invoke<string>(app.page, 'repositories.create-workstream', {
+					projectRepoPath: basePath,
+					workstreamId: 'e2e-always-stale',
+					baseBranch: 'main',
+					projectId,
+					name: 'Stale workstream',
+				});
+				await commitFile(stale, 'stale.txt', 'stale line\n', 'stale change');
+			},
+		);
+		await updateFromMainOnEveryMove(page);
+		idleSince(app, 'e2e-always-stale', 10);
+		await openWorkstream(page, 'e2e-always-busy');
+		await sendPrompt(page, 'BACKGROUND_COMMAND');
+		const strip = page.getByRole('region', { name: '1 background command running' });
+		await expect(strip).toContainText('Run the e2e suite', { timeout: 20_000 });
+		const busyHead = await output(worktree, ['rev-parse', 'HEAD']);
+		const staleHead = await output(stale, ['rev-parse', 'HEAD']);
+		const pushed = github.pushedHead();
+
+		const mainHead = await commitToMain(app, github.remote, 'main.txt', 'main line\n');
+		await expect
+			.poll(() => output(worktree, ['rev-parse', 'origin/main']), { timeout: 30_000 })
+			.toBe(mainHead);
+		await page.waitForTimeout(4_000);
+		expect(await automationRuns(page)).toEqual([]);
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(busyHead);
+		await captureFlow(app, 'update-from-main-always-waits-for-service');
+
+		await strip.getByRole('button', { name: 'Stop Run the e2e suite' }).click();
+
+		await expect
+			.poll(
+				async () =>
+					(await automationRuns(page)).map(({ title, status, origin, workstreamId }) => [
+						title,
+						status,
+						origin,
+						workstreamId,
+					]),
+				{ timeout: 60_000 },
+			)
+			.toEqual([['Update from main', 'succeeded', 'trigger', 'e2e-always-busy']]);
+		expect(
+			(await output(worktree, ['rev-list', '--parents', '-n', '1', 'HEAD'])).split(' ').slice(1),
+		).toEqual([busyHead, mainHead]);
+		await page.waitForTimeout(3_000);
+		expect(await output(stale, ['rev-parse', 'HEAD'])).toBe(staleHead);
+		expect(await automationRuns(page)).toHaveLength(1);
+		expect(await baseOverlaps(page)).toEqual([
+			expect.objectContaining({
+				workstreamId: 'e2e-always-busy',
+				head: busyHead,
+				baseHead: mainHead,
+				overlapping: false,
+			}),
+		]);
+		expect(github.pushedHead()).toBe(pushed);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Resolve conflicts you cancel stays cancelled, and Shipping does not start it again', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({ env: { MALINI_BASE_FETCH_MS: '1000' } });
+	const app = await launchMalini({ env: WATCH_MAIN });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
 			app,
@@ -508,6 +626,43 @@ async function automationOff(page: Page, builtin: AutomationBuiltin): Promise<vo
 	});
 }
 
+async function updateFromMainOnEveryMove(page: Page): Promise<void> {
+	const definitions = await invoke<AutomationDefinitionRecord[]>(
+		page,
+		'automations.list-definitions',
+		undefined,
+	);
+	const automation = definitions.find((definition) => definition.builtin === 'update-from-main');
+	if (!automation) throw new Error('Update from main is missing');
+	await invoke(page, 'automations.save-definition', {
+		...automation,
+		trigger: { when: 'on repositories:workstream-base-overlapped', mode: 'auto' },
+	});
+}
+
+function idleSince(app: LaunchedApp, workstreamId: string, days: number): void {
+	const at = new Date(Date.now() - days * 24 * 60 * 60 * 1_000).toISOString();
+	const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+	try {
+		db.prepare('UPDATE workstreams SET created_at = ? WHERE id = ?').run(at, workstreamId);
+		db.prepare('UPDATE agent_sessions SET started_at = ? WHERE workstream_id = ?').run(
+			at,
+			workstreamId,
+		);
+	} finally {
+		db.close();
+	}
+}
+
+async function baseOverlaps(page: Page): Promise<unknown[]> {
+	const timeline = await invoke<TimelineRecord>(page, 'automations.list-timeline', {
+		since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
+	});
+	return timeline.events
+		.filter((event) => event.channel === 'repositories:workstream-base-overlapped')
+		.map((event) => event.payload);
+}
+
 async function commitToMain(
 	app: LaunchedApp,
 	remote: string,
@@ -538,6 +693,7 @@ function automationRuns(page: Page): Promise<
 		status: string;
 		origin: string;
 		id: string;
+		workstreamId: string | null;
 		parentRunId: string | null;
 		detail: string | null;
 	}[]

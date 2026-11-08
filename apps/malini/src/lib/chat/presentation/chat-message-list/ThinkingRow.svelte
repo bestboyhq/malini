@@ -7,7 +7,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { arrivalMotion, motionMs } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
-	import MarkdownText from '../MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import UnfoldText from '../UnfoldText.svelte';
 	import { transcriptContext } from './transcript-context';
 	import {

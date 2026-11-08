@@ -7,7 +7,7 @@
 	import { connectAgentEventsHook } from '$lib/chat/application/hooks/connect-agent-events.hook';
 	import { drivePromptQueueHook } from '$lib/chat/application/hooks/drive-prompt-queue.hook';
 	import { openNotifiedChatsHook } from '$lib/chat/application/hooks/open-notified-chats.hook';
-	import { releaseReopenedPromptQueuesHook } from '$lib/chat/application/hooks/release-reopened-prompt-queues.hook.svelte';
+	import { releaseWaitingPromptQueuesHook } from '$lib/chat/application/hooks/release-waiting-prompt-queues.hook.svelte';
 	import {
 		activeWorkstreamsQuery,
 		followWorkstreamSetupHook,
@@ -36,7 +36,7 @@
 
 	const releaseAgentEvents = connectAgentEventsHook();
 	const releasePromptQueue = drivePromptQueueHook();
-	const stopReleasingReopenedQueues = releaseReopenedPromptQueuesHook();
+	const stopReleasingWaitingQueues = releaseWaitingPromptQueuesHook();
 	const stopFollowingWorkstreamSetup = followWorkstreamSetupHook(settleWorkstreamSetupQueueCommand);
 	const stopOpeningNotifiedChats = openNotifiedChatsHook(
 		(workstreamId) => !workstreamsLoaded || workstreams.some(({ id }) => id === workstreamId),
@@ -47,7 +47,7 @@
 	onDestroy(() => {
 		stopOpeningNotifiedChats();
 		stopFollowingWorkstreamSetup();
-		stopReleasingReopenedQueues();
+		stopReleasingWaitingQueues();
 		releasePromptQueue();
 		releaseAgentEvents();
 		stopChatLifecycleCommand();

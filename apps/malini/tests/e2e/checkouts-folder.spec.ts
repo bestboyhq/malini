@@ -10,10 +10,11 @@ import {
 	launchMalini,
 	seedWorkstream,
 	type WorkstreamRow,
+	openSettingsFromMenu,
 } from './harness';
 
 async function openStorageSettings(page: Page) {
-	await page.getByTestId('global-topbar-open-settings').click();
+	await openSettingsFromMenu(page);
 	await page
 		.getByRole('navigation', { name: 'Settings' })
 		.getByRole('link', { name: 'Storage' })

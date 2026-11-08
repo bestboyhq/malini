@@ -14,6 +14,7 @@ import {
 	recordBrowser,
 	seedWorkstream,
 	sendPrompt,
+	openSettingsFromMenu,
 	type LaunchedApp,
 } from './harness';
 import { fakeBestboy, openUrl, signInUrl, type FakeBestboy } from './fake-bestboy';
@@ -309,7 +310,7 @@ test('the Stats panel nudges to publish, copies the heatmap and readout cards on
 	}
 });
 
-test('signed in to Bestboy, the sidebar shows your picture, and its popover cheers your week and opens Profile settings', async () => {
+test('the profile menu opens Stats, the brain and Settings with or without Bestboy, and signed in it shows your picture and cheers your week', async () => {
 	test.setTimeout(240_000);
 	const platform = await fakeBestboy();
 	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 7);
@@ -317,8 +318,14 @@ test('signed in to Bestboy, the sidebar shows your picture, and its popover chee
 		const { page } = app;
 		await recordBrowser(app);
 		const badge = page.getByRole('button', { name: 'Your profile' });
-		await expect(page.getByTestId('global-topbar-open-settings')).toBeVisible({ timeout: 20_000 });
-		await expect(badge).toHaveCount(0);
+		const profile = page.getByRole('menu', { name: 'Your profile' });
+		const items = profile.getByRole('menuitem');
+		await expect(badge).toContainText('@e2e-user', { timeout: 20_000 });
+		await badge.click();
+		await expect(items).toHaveCount(3);
+		await expect(items).toContainText(['Stats', 'Brain', 'Settings']);
+		await page.keyboard.press('Escape');
+		await expect(profile).toHaveCount(0);
 
 		await openProfileSettings(page);
 		const settings = page.getByRole('dialog', { name: 'Settings' });
@@ -331,7 +338,6 @@ test('signed in to Bestboy, the sidebar shows your picture, and its popover chee
 
 		await expect(badge).toContainText('@e2e-user');
 		await badge.click();
-		const profile = page.getByRole('menu', { name: 'Your profile' });
 		await expect(profile.getByText('E2E Person')).toBeVisible();
 		await expect(profile).toContainText(
 			/Crushing it as always|Your agents can barely keep up|Shipping like it's a sport/u,
@@ -349,17 +355,59 @@ test('signed in to Bestboy, the sidebar shows your picture, and its popover chee
 		await expect(stats).toHaveCount(0);
 
 		await badge.click();
+		await profile.getByRole('menuitem', { name: 'Brain' }).click();
+		await expect(page).toHaveTitle('Malini · Brain');
+		await expect(page.getByRole('heading', { name: 'No brain yet', level: 1 })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(page.getByRole('button', { name: 'Set up the brain' })).toBeVisible();
+		await captureFlow(app, 'brain-page-not-set-up');
+
+		await badge.click();
 		await expect(profile).toBeVisible();
-		await profile.getByRole('menuitem', { name: 'Profile settings' }).click();
+		await expect(items).toHaveCount(4);
+		await expect(items).toContainText(['Stats', 'Brain', 'Settings', 'Sign out']);
+		await profile.getByRole('menuitem', { name: 'Settings' }).click();
 		await expect(profile).toHaveCount(0);
+		await expect(settings).toBeVisible();
+		await settings
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Profile' })
+			.click();
 		await settings.getByRole('button', { name: 'Sign out' }).click();
 		await expect(settings.getByText('Not signed in to Bestboy')).toBeVisible();
 		await page.keyboard.press('Escape');
-		await expect(badge).toHaveCount(0);
+		await expect(badge).toContainText('@e2e-user');
+		await badge.click();
+		await expect(items).toHaveCount(3);
+		await expect(items).toContainText(['Stats', 'Brain', 'Settings']);
+		await expect(profile.getByText('E2E Person')).toHaveCount(0);
+		await page.keyboard.press('Escape');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 		platform.close();
+	}
+});
+
+test('signed out of GitHub and Bestboy, the profile menu still opens Settings', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root, 'web');
+		await seedWorkstream(page, source, 'e2e-profile-signed-out', 'Signed out');
+		await openWorkstream(page, 'e2e-profile-signed-out');
+		const badge = page.getByRole('button', { name: 'Your profile', exact: true });
+		await expect(badge).toBeVisible();
+		await expect(badge).toHaveText('');
+		await captureFlow(app, 'profile-menu-signed-out');
+
+		await openSettingsFromMenu(page);
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
 	}
 });
 

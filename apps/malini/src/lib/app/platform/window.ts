@@ -5,6 +5,7 @@ import {
 	APP_CLOSE_REQUESTED_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
 	APP_MENU_COMMAND_CHOSEN_CHANNEL,
+	APP_FULL_SCREEN_CHANGED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
 	type MenuCommand,
 	type MenuCommandChosen,
@@ -102,6 +103,7 @@ export type ShellWindow = Pick<
 	| 'getContentSize'
 	| 'getBounds'
 	| 'setBounds'
+	| 'isFullScreen'
 	| 'on'
 > & {
 	readonly webContents: Pick<
@@ -130,6 +132,7 @@ export interface WindowCommands {
 	focusMainWindow(): void;
 	setInterfaceScale(args: { scale: number }): void;
 	logicalViewport(): { width: number; height: number };
+	isFullScreen(): boolean;
 	setCloseGuard(args: { armed: boolean }): void;
 	destroy(): void;
 	notify(args: { options: { title: string; body: string; opens?: NotificationTarget } }): void;
@@ -206,6 +209,13 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		window.webContents.on('did-navigate-in-page', keepZoom);
 		window.on('resize', persist);
 		window.on('move', persist);
+		const announceFullScreen = (fullScreen: boolean) => () => {
+			if (deps.getMainWindow() === window) {
+				events.emit(APP_FULL_SCREEN_CHANGED_CHANNEL, { fullScreen });
+			}
+		};
+		window.on('enter-full-screen', announceFullScreen(true));
+		window.on('leave-full-screen', announceFullScreen(false));
 		window.on('close', (event) => {
 			persist();
 			if (!armed || quitting || deps.getMainWindow() !== window) return;
@@ -263,6 +273,10 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		logicalViewport() {
 			const [width = 0, height = 0] = requireWindow().getContentSize();
 			return { width, height };
+		},
+		isFullScreen() {
+			const window = deps.getMainWindow();
+			return window !== null && !window.isDestroyed() && window.isFullScreen();
 		},
 		setCloseGuard(args) {
 			if (typeof args?.armed !== 'boolean') throw new Error('armed must be a boolean');

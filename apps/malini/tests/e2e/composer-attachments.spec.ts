@@ -172,13 +172,13 @@ test('closing a chat releases the files its draft still held', async () => {
 	try {
 		const { page } = app;
 		const worktree = await openSeededWorkstream(app, 'e2e-chip-close-ws');
-		await sendPrompt(page, 'Explain the login flow');
+		await sendPrompt(page, 'Explain login flow');
 		await expectAssistantReply(page);
 		const { staged } = await pasteNotes(page, worktree);
 
-		await page.getByRole('tab', { name: /Explain the login flow/u }).hover();
-		await page.getByRole('button', { name: 'Close Explain the login flow' }).click();
-		await expect(page.getByRole('tab', { name: /Explain the login flow/u })).toHaveCount(0, {
+		await page.getByRole('tab', { name: /Explain login flow/u }).hover();
+		await page.getByRole('button', { name: 'Close Explain login flow' }).click();
+		await expect(page.getByRole('tab', { name: /Explain login flow/u })).toHaveCount(0, {
 			timeout: 20_000,
 		});
 

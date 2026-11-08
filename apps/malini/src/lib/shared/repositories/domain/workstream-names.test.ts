@@ -2,15 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { Workstream } from '$shared/repositories/domain/workstream';
 import {
 	displayWorkstreamName,
-	generatedWorkstreamName,
-	isGeneratedWorkstreamName,
+	isPlaceholderWorkstreamName,
 	takenWorkstreamNames,
 	uniqueWorkstreamName,
 } from '$shared/repositories/domain/workstream-names';
-
-const EVERY_GENERATED_NAME = Array.from({ length: 5_000 }, (_, index) =>
-	generatedWorkstreamName(`seed-${index}`),
-);
 
 function workstreamNamed(name: string, status: Workstream['status']): Workstream {
 	return {
@@ -32,43 +27,33 @@ function workstreamNamed(name: string, status: Workstream['status']): Workstream
 }
 
 describe('workstream names', () => {
-	it('generates stable non-branch names from ids', () => {
-		const first = generatedWorkstreamName('workstream-1');
-		expect(first).toBe(generatedWorkstreamName('workstream-1'));
-		expect(first).not.toBe('main');
-	});
-
 	it('does not display base branch names as workstream names', () => {
 		expect(
 			displayWorkstreamName({
-				id: 'workstream-main',
 				name: 'main',
 				baseBranch: 'main',
 			}),
-		).toBe(generatedWorkstreamName('workstream-main'));
+		).toBe('New workstream');
 		expect(
 			displayWorkstreamName({
-				id: 'workstream-empty-base',
 				name: 'develop',
 				baseBranch: '',
 			}),
-		).toBe(generatedWorkstreamName('workstream-empty-base'));
+		).toBe('New workstream');
 		expect(
 			displayWorkstreamName(
 				{
-					id: 'workstream-prefixed-main',
 					name: 'bookstore / main',
 					baseBranch: 'master',
 				},
 				'szymeo/bookstore',
 			),
-		).toBe(generatedWorkstreamName('workstream-prefixed-main'));
+		).toBe('New workstream');
 	});
 
 	it('keeps intentional custom names', () => {
 		expect(
 			displayWorkstreamName({
-				id: 'workstream-custom',
 				name: 'Checkout billing fix',
 				baseBranch: 'main',
 			}),
@@ -76,10 +61,8 @@ describe('workstream names', () => {
 	});
 
 	it('calls a lead chat New chat until it is named', () => {
-		const lead = { id: 'lead', baseBranch: 'main', scope: 'home' };
-		expect(displayWorkstreamName({ ...lead, name: generatedWorkstreamName('lead') })).toBe(
-			'New chat',
-		);
+		const lead = { baseBranch: 'main', scope: 'home' };
+		expect(displayWorkstreamName({ ...lead, name: 'New workstream 2' })).toBe('New chat');
 		expect(displayWorkstreamName({ ...lead, name: 'Move apps to Logdash' })).toBe(
 			'Move apps to Logdash',
 		);
@@ -89,7 +72,6 @@ describe('workstream names', () => {
 		expect(
 			displayWorkstreamName(
 				{
-					id: 'workstream-prefixed',
 					name: 'blog.dev / Fix nav',
 					baseBranch: 'main',
 				},
@@ -99,7 +81,6 @@ describe('workstream names', () => {
 		expect(
 			displayWorkstreamName(
 				{
-					id: 'workstream-full-prefixed',
 					name: 'szymeo/blog.dev: Tune layout',
 					baseBranch: 'main',
 				},
@@ -108,24 +89,11 @@ describe('workstream names', () => {
 		).toBe('Tune layout');
 	});
 
-	it('gives a new workstream the name its id picks when no other workstream has it', () => {
-		expect(uniqueWorkstreamName('workstream-1', ['Some Other'])).toBe(
-			generatedWorkstreamName('workstream-1'),
+	it('calls a new workstream New workstream, numbered when another workstream holds that name', () => {
+		expect(uniqueWorkstreamName(['Login bug'])).toBe('New workstream');
+		expect(uniqueWorkstreamName(['  NEW WORKSTREAM ', 'New workstream 2'])).toBe(
+			'New workstream 3',
 		);
-	});
-
-	it('never gives a new workstream the name of a workstream that already has it', () => {
-		const wanted = generatedWorkstreamName('workstream-1');
-		const name = uniqueWorkstreamName('workstream-1', [`  ${wanted.toUpperCase()} `]);
-		expect(name.toLowerCase()).not.toBe(wanted.toLowerCase());
-		expect(EVERY_GENERATED_NAME).toContain(name);
-	});
-
-	it('numbers the name once every generated name is taken', () => {
-		const everyName = [...new Set(EVERY_GENERATED_NAME)];
-		const wanted = generatedWorkstreamName('workstream-1');
-		expect(uniqueWorkstreamName('workstream-1', everyName)).toBe(`${wanted} 2`);
-		expect(uniqueWorkstreamName('workstream-1', [...everyName, `${wanted} 2`])).toBe(`${wanted} 3`);
 	});
 
 	it('frees the names of archived workstreams', () => {
@@ -138,15 +106,16 @@ describe('workstream names', () => {
 	});
 });
 
-describe('isGeneratedWorkstreamName', () => {
-	it('recognizes every generated name, with or without a suffix, and nothing a person or Claude chose', () => {
-		expect(EVERY_GENERATED_NAME.every(isGeneratedWorkstreamName)).toBe(true);
-		expect(isGeneratedWorkstreamName(uniqueWorkstreamName('seed', EVERY_GENERATED_NAME))).toBe(
-			true,
-		);
+describe('isPlaceholderWorkstreamName', () => {
+	it('recognizes the placeholder, with or without a number, and nothing the namer chose', () => {
 		expect(
-			['Feature flags', 'Bright', 'Bright Arc launch', 'bright arc'].some(
-				isGeneratedWorkstreamName,
+			['New workstream', 'New workstream 2', ' New workstream 12 '].every(
+				isPlaceholderWorkstreamName,
+			),
+		).toBe(true);
+		expect(
+			['Feature flags', 'New workstream flow', 'new workstream', 'Bright Arc'].some(
+				isPlaceholderWorkstreamName,
 			),
 		).toBe(false);
 	});

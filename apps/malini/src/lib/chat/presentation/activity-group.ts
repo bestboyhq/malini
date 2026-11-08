@@ -1,8 +1,5 @@
-import {
-	canonicalChangedPath,
-	type RunTimelineItem,
-	type SubagentTimelineItem,
-} from './run-timeline';
+import { canonicalChangedPath } from '$shared/markdown/workstream-path';
+import type { RunTimelineItem, SubagentTimelineItem } from './run-timeline';
 import {
 	isBackgroundAgent,
 	isCompaction,

@@ -110,6 +110,7 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		).toBeVisible({
 			timeout: 20_000,
 		});
+		await expect(started).toContainText('Fetch command');
 		await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 		await captureFlow(app, 'agent-workstream-setting-up');
 

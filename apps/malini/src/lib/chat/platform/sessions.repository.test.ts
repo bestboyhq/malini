@@ -15,8 +15,8 @@ import {
 	latestSessionForWorkstream,
 	listSessionSummaries,
 	nameSession,
+	namedChatName,
 	repairSessionStatusesWithoutOpenRuns,
-	sessionAwaitsTitle,
 	sessionContextIdentity,
 	setProviderSessionId,
 	setSessionModel,
@@ -83,30 +83,24 @@ describe('conciseSessionTitle', () => {
 });
 
 describe('sessions', () => {
-	it('names are distinct, Chat N stands in for a missing title, and a user run marks the first prompt', () => {
+	it('names are distinct, and a chat a person started tells its name to the namer', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, 'workstream-names');
 		insertSession(db, session('session-one', 'workstream-names'));
 		insertSession(db, session('session-two', 'workstream-names'));
-		insertSession(db, session('session-three', 'workstream-names'));
+		insertSession(db, session('session-automation', 'workstream-names'), {
+			origin: 'automation',
+			displayName: 'Fix checks',
+		});
 		expect(getSession(db, 'session-one')?.displayName).toBe('New chat');
 		expect(getSession(db, 'session-two')?.displayName).toBe('New chat 2');
 
 		expect(nameSession(db, 'session-one', 'workstream-names', 'Login flow')).toBe('Login flow');
 		expect(nameSession(db, 'session-two', 'workstream-names', 'Login flow')).toBe('Login flow 2');
-		expect(nameSession(db, 'session-three', 'workstream-names', null)).toBe('Chat 3');
-		expect(sessionAwaitsTitle(db, 'session-one')).toBe(true);
-
-		insertRun(db, {
-			id: 'run-one',
-			sessionId: 'session-one',
-			prompt: 'Please fix the login flow',
-			startedAt: '2026-07-10T00:00:00Z',
-			completedAt: null,
-			summary: null,
-			error: null,
-		});
-		expect(sessionAwaitsTitle(db, 'session-one')).toBe(false);
+		expect(namedChatName(db, 'session-one')).toBe('Login flow');
+		expect(namedChatName(db, 'session-automation')).toBeNull();
+		archiveSession(db, 'session-two', '2026-07-10T00:00:00Z');
+		expect(namedChatName(db, 'session-two')).toBeNull();
 		db.close();
 	});
 
@@ -174,13 +168,11 @@ describe('sessions', () => {
 				automated,
 			});
 		prompt('run-fix', 'Fix the current pull request from inside this workstream.', true);
-		expect(sessionAwaitsTitle(db, 'session-automated')).toBe(true);
 
 		prompt('run-user', 'Rename the tabs', false);
 		run(db, "UPDATE agent_sessions SET display_name = '' WHERE id = 'session-automated'");
 		ensureSessionDisplayNames(db, 'workstream-automated');
 		expect(getSession(db, 'session-automated')?.displayName).toBe('Rename the tabs');
-		expect(sessionAwaitsTitle(db, 'session-automated')).toBe(false);
 		db.close();
 	});
 
@@ -300,8 +292,9 @@ describe('sessions', () => {
 		expect(getSession(db, 'session-automation-2')?.displayName).toBe('New chat');
 		expect(getSession(db, 'session-unnamed-automation')?.displayName).toBe('Automation');
 		expect(getSession(db, 'session-named')?.displayName).toBe('Release notes');
-		expect(nameSession(db, 'session-named', 'workstream-automations', null)).toBe('Chat 2');
-		expect(sessionAwaitsTitle(db, 'session-automation')).toBe(false);
+		expect(nameSession(db, 'session-named', 'workstream-automations', 'Automation')).toBe(
+			'Automation',
+		);
 		expect(
 			listSessionSummaries(db, 'workstream-automations').map(({ id, origin }) => [id, origin]),
 		).toEqual([

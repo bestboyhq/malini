@@ -54,37 +54,30 @@ import {
 } from '../runs.repository';
 import {
 	archiveSession,
-	conciseSessionTitle,
 	discardUnregisteredSession,
 	ensureSessionDisplayNames,
 	insertSession,
 	latestSessionForWorkstream,
 	listSessionSummaries,
-	nameSession,
-	promptPlainText,
 	repairSessionStatusesWithoutOpenRuns,
-	sessionAwaitsTitle,
 	sessionContextIdentity,
 	userSessionWorkstreamId,
 	type AgentSessionSummary,
 	type SessionIdentity,
 } from '../sessions.repository';
-import {
-	getWorkstream,
-	renameWorkstream,
-	workstreamAwaitsName,
-	workstreamLineage,
-} from '$shared/repositories/repositories.platform';
+import { getWorkstream, workstreamLineage } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import {
 	activeAutomationRunForSession,
 	clearAlarm,
 	automationBoundaryForSession,
-	runOneShotAutomation,
 } from '$lib/automations/automations.platform';
 import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
-import { DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
+import {
+	DEFAULT_PROVIDER_ID,
+	ProviderNotConnectedError,
+} from '$shared/providers/providers.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { leavesTheSandbox } from '$lib/chat/domain/approval-request';
 import { userPromptText } from '../fork-transcript';
@@ -125,11 +118,13 @@ import type { BridgeRuntime } from './runtime';
 import {
 	repairPersistedModel,
 	conversationRecord,
+	sessionOpening,
 	startSessionCommand,
 	validateAgentModel,
 	worktreeExists,
 	worktreePath,
 	type ResolveProviderEnvironment,
+	type SessionOpening,
 } from './sessions';
 import { waitUntil, type BridgeSupervisor } from './supervisor';
 import type { IdSequence } from '../id-sequence';
@@ -203,8 +198,7 @@ export interface SendPromptHooks {
 			attachmentIds: readonly string[];
 		}>,
 	) => Promise<{ prompt: string; attachmentIds: string[] }>;
-	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
-	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
+	readonly promptSent?: (sessionId: string, workstreamId: string, prompt: string) => void;
 	readonly theme?: () => AgentTheme;
 	readonly turnSettings?: () => Promise<TurnSettings>;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
@@ -215,7 +209,6 @@ export interface SendPromptHooks {
 		automation: AutomationBoundary,
 		lineage: AgentLineage | null,
 	) => AgentBoundary | null;
-	readonly providerEnvironment?: ResolveProviderEnvironment;
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -468,9 +461,22 @@ function bridgeUnavailable(error: unknown): LifecycleError {
 	return new LifecycleError('bridge_unavailable', describe(error));
 }
 
+function readyEnvironment(
+	resolveProviderEnvironment: ResolveProviderEnvironment,
+	provider: string,
+	model: string | null,
+	session: SessionOpening,
+): Promise<Readonly<Record<string, string>> | null> {
+	if (model === null) return Promise.resolve({});
+	return resolveProviderEnvironment(provider, model, session).catch((error: unknown) => {
+		if (error instanceof ProviderNotConnectedError) return null;
+		throw error;
+	});
+}
+
 export async function startAgentSession(
 	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
+	runtime: BridgeRuntime,
 	checkoutsRoot: string,
 	workstreamId: string,
 	provider: string,
@@ -484,6 +490,7 @@ export async function startAgentSession(
 	} catch (error) {
 		throw new LifecycleError('invalid_agent_model', describe(error));
 	}
+	const supervisor = await runtime.ensureReady();
 	ensureBridgeReady(supervisor);
 	if (!worktreeExists(checkoutsRoot, workstreamId)) throw new LifecycleError('workstream_missing');
 	let worktree: string;
@@ -492,22 +499,8 @@ export async function startAgentSession(
 	} catch (error) {
 		throw bridgeUnavailable(error);
 	}
-	let environment: Readonly<Record<string, string>>;
-	try {
-		environment = model === null ? {} : await resolveProviderEnvironment(provider, model);
-	} catch (error) {
-		throw new LifecycleError('provider_not_ready', describe(error));
-	}
+	const environment = await readyEnvironment(resolveProviderEnvironment, provider, model, 'new');
 	const sessionId = ids.next('sess');
-	const command = startSessionCommand({
-		commandId: supervisor.nextCommandId(),
-		sessionId,
-		workstreamId,
-		model,
-		providerSessionId: null,
-		worktreePath: worktree,
-		environment,
-	});
 	insertSession(
 		db,
 		{
@@ -521,6 +514,16 @@ export async function startAgentSession(
 		},
 		identity,
 	);
+	if (environment === null) return sessionId;
+	const command = startSessionCommand({
+		commandId: supervisor.nextCommandId(),
+		sessionId,
+		workstreamId,
+		model,
+		providerSessionId: null,
+		worktreePath: worktree,
+		environment,
+	});
 	try {
 		await supervisor.sendCommand(command);
 	} catch (error) {
@@ -535,12 +538,13 @@ export async function startAgentSession(
 		}
 		throw new LifecycleError('bridge_unavailable', registrationError);
 	}
+	runtime.markSessionRegistered(sessionId, supervisor);
 	return sessionId;
 }
 
 export async function getOrCreateAgentSession(
 	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
+	runtime: BridgeRuntime,
 	checkoutsRoot: string,
 	workstreamId: string,
 	provider: string,
@@ -553,21 +557,26 @@ export async function getOrCreateAgentSession(
 	} catch (error) {
 		throw new LifecycleError('invalid_agent_model', describe(error));
 	}
-	ensureBridgeReady(supervisor);
-	if (!worktreeExists(checkoutsRoot, workstreamId)) throw new LifecycleError('workstream_missing');
-	let worktree: string;
-	try {
-		worktree = worktreePath(checkoutsRoot, workstreamId);
-	} catch (error) {
-		throw bridgeUnavailable(error);
-	}
 	const existing = latestSessionForWorkstream(db, workstreamId);
 	if (existing) {
+		const supervisor = await runtime.ensureReady();
+		ensureBridgeReady(supervisor);
+		if (!worktreeExists(checkoutsRoot, workstreamId))
+			throw new LifecycleError('workstream_missing');
+		let worktree: string;
+		try {
+			worktree = worktreePath(checkoutsRoot, workstreamId);
+		} catch (error) {
+			throw bridgeUnavailable(error);
+		}
 		const existingModel = repairPersistedModel(db, existing.id, existing.model);
-		const environment =
-			existingModel === null
-				? {}
-				: await resolveProviderEnvironment(existing.provider, existingModel, 'reopened');
+		const environment = await readyEnvironment(
+			resolveProviderEnvironment,
+			existing.provider,
+			existingModel,
+			sessionOpening(existing.providerSessionId),
+		);
+		if (environment === null) return existing.id;
 		const command = startSessionCommand({
 			commandId: supervisor.nextCommandId(),
 			sessionId: existing.id,
@@ -583,11 +592,12 @@ export async function getOrCreateAgentSession(
 		} catch (error) {
 			throw bridgeUnavailable(error);
 		}
+		runtime.markSessionRegistered(existing.id, supervisor);
 		return existing.id;
 	}
 	return startAgentSession(
 		db,
-		supervisor,
+		runtime,
 		checkoutsRoot,
 		workstreamId,
 		provider,
@@ -618,8 +628,13 @@ export async function activateAgentSession(
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
 	if (!worktreeExists(checkoutsRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
-	const environment =
-		model === null ? {} : await resolveProviderEnvironment(row.provider, model, 'reopened');
+	const environment = await readyEnvironment(
+		resolveProviderEnvironment,
+		row.provider,
+		model,
+		sessionOpening(row.provider_session_id),
+	);
+	if (environment === null) return;
 	const worktree = worktreePath(checkoutsRoot, row.workstream_id);
 	const supervisor = await runtime.ensureReady();
 	const command = startSessionCommand({
@@ -737,7 +752,7 @@ async function sendAgentPromptLeased(
 		...(input.chainId ? { chainId: input.chainId } : {}),
 		...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
 	};
-	if (input.automated !== true) nameFromFirstUserPrompt(db, supervisor, input, hooks, log);
+	if (input.automated !== true) hooks.promptSent?.(sessionId, workstreamId, prompt);
 	const verifiedAttachments = insertRunAndBindAttachments(db, {
 		workstreamId,
 		run: agentRun,
@@ -923,62 +938,6 @@ async function lineageForRun(
 	} catch (error) {
 		log(`agent: could not tell \`${workstreamId}\` about its lineage: ${describe(error)}`);
 		return null;
-	}
-}
-
-function nameFromFirstUserPrompt(
-	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
-	input: SendPromptInput,
-	hooks: SendPromptHooks,
-	log: (line: string) => void,
-): void {
-	if (!sessionAwaitsTitle(db, input.sessionId)) return;
-	const namesWorkstream = workstreamAwaitsName(db, input.workstreamId);
-	void nameChat(db, supervisor, input, namesWorkstream, hooks, log);
-}
-
-async function nameChat(
-	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
-	{ sessionId, workstreamId, prompt }: SendPromptInput,
-	namesWorkstream: boolean,
-	hooks: SendPromptHooks,
-	log: (line: string) => void,
-): Promise<void> {
-	const title = await suggestedTitle(db, supervisor, prompt, hooks, log);
-	try {
-		hooks.notifySessionRenamed?.(
-			workstreamId,
-			sessionId,
-			nameSession(db, sessionId, workstreamId, title),
-		);
-		if (!namesWorkstream || title === null) return;
-		const workstreamName = renameWorkstream(db, workstreamId, title);
-		if (workstreamName !== null) hooks.notifyWorkstreamRenamed?.(workstreamId, workstreamName);
-	} catch (error) {
-		log(`agent: could not name chat \`${sessionId}\`: ${describe(error)}`);
-	}
-}
-
-async function suggestedTitle(
-	db: MaliniDatabase,
-	supervisor: BridgeSupervisor,
-	prompt: string,
-	hooks: SendPromptHooks,
-	log: (line: string) => void,
-): Promise<string | null> {
-	const task = promptPlainText(prompt).trim();
-	if (task.length === 0) return null;
-	try {
-		return await runOneShotAutomation(db, 'name-chats', task, async (named, automation) => {
-			const environment =
-				(await hooks.providerEnvironment?.(automation.provider, automation.model)) ?? {};
-			return supervisor.suggestTitle(named, automation, environment);
-		});
-	} catch (error) {
-		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
-		return conciseSessionTitle(prompt);
 	}
 }
 
@@ -1672,10 +1631,9 @@ export function defineBridgeCommands(
 		const provider = optionalString(args, 'provider') ?? DEFAULT_PROVIDER_ID;
 		const model = optionalString(args, 'model');
 		const identity = parseSessionIdentity(args);
-		const supervisor = await runtime.ensureReady();
-		const sessionId = await startAgentSession(
+		return startAgentSession(
 			db,
-			supervisor,
+			runtime,
 			checkoutsRoot,
 			workstreamId,
 			provider,
@@ -1684,18 +1642,15 @@ export function defineBridgeCommands(
 			deps.providerEnvironment,
 			identity,
 		);
-		runtime.markSessionRegistered(sessionId, supervisor);
-		return sessionId;
 	});
 
 	commands.define('chat.get-or-create-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
 		const provider = optionalString(args, 'provider') ?? DEFAULT_PROVIDER_ID;
 		const model = optionalString(args, 'model');
-		const supervisor = await runtime.ensureReady();
-		const sessionId = await getOrCreateAgentSession(
+		return getOrCreateAgentSession(
 			db,
-			supervisor,
+			runtime,
 			checkoutsRoot,
 			workstreamId,
 			provider,
@@ -1703,8 +1658,6 @@ export function defineBridgeCommands(
 			ids,
 			deps.providerEnvironment,
 		);
-		runtime.markSessionRegistered(sessionId, supervisor);
-		return sessionId;
 	});
 
 	commands.define('chat.list-sessions', (args: unknown) =>

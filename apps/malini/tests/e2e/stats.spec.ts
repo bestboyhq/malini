@@ -72,9 +72,9 @@ test('the sidebar reads out what malini uses and opens stats on its runs, tabs a
 		await readout.click();
 		await expect(stats).toBeVisible();
 
-		await page.getByRole('link', { name: 'Open settings' }).click({ force: true });
+		await page.getByTestId('global-topbar-automations').click({ force: true });
 		await expect(page.getByTestId('stats-panel-layer')).toBeHidden();
-		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+		await expect(page.getByRole('navigation', { name: 'Automations' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

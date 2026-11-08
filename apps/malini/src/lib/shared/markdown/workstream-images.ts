@@ -1,4 +1,4 @@
-import { mediaKind, workstreamImagePath } from '$lib/chat/domain/turn-report';
+import { mediaKind, workstreamImagePath } from '$contract/workstream-images';
 
 export const WORKSTREAM_IMAGE_ATTRIBUTE = 'data-workstream-image';
 

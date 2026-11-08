@@ -17,6 +17,7 @@ import {
 	reviewFeedbackToAddress,
 	reviewSignature,
 	reviewToAddress,
+	reviewToStart,
 	shipBackoffMs,
 	signatureChecks,
 	type PullRequestFacts,
@@ -907,6 +908,25 @@ describe('shipping helpers', () => {
 		expect(addressedChangeRequests('checks:["lint"]')).toEqual([]);
 		expect(addressedChangeRequests('review:["PRRT_bot"]')).toEqual([]);
 		expect(addressedChangeRequests(null)).toEqual([]);
+	});
+
+	it('starts a review fix only for open change requests not yet addressed, within the attempts', () => {
+		const requested = facts(
+			pullRequest({ reviewDecision: 'changes_requested' }),
+			feedback([], [{ id: 'PRR_1', login: 'alice', bot: false }]),
+		);
+		const fresh = { addressedReviews: [], failureSignature: null, attempts: 0 };
+		const signature = reviewSignature(reviewToAddress(requested, []));
+		expect(reviewToStart(requested, fresh, 3)).toEqual({ signature, attempt: 1 });
+		expect(
+			reviewToStart(requested, { ...fresh, failureSignature: signature, attempts: 2 }, 3),
+		).toEqual({ signature, attempt: 3 });
+		expect(
+			reviewToStart(requested, { ...fresh, failureSignature: signature, attempts: 3 }, 3),
+		).toBeNull();
+		expect(reviewToStart(requested, { ...fresh, addressedReviews: ['PRR_1'] }, 3)).toBeNull();
+		expect(reviewToStart({ ...requested, state: 'merged' }, fresh, 3)).toBeNull();
+		expect(reviewToStart(facts(pullRequest()), fresh, 3)).toBeNull();
 	});
 });
 

@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RunGroup, RenderItem } from './render-state';
-import {
-	canonicalChangedPath,
-	changedPathsMatch,
-	linearizeRunTimeline,
-	mutationRepresentedByTool,
-} from './run-timeline';
+import { canonicalChangedPath } from '$shared/markdown/workstream-path';
+import { changedPathsMatch, linearizeRunTimeline, mutationRepresentedByTool } from './run-timeline';
 
 function toolItem(
 	name: string,

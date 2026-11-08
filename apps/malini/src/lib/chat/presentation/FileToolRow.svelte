@@ -9,7 +9,7 @@
 	import type { EditDiffstat } from './edit-diffstat';
 	import ExpandMark from './ExpandMark.svelte';
 	import { CHIP_CLASS } from './inline-prompt-chips';
-	import { relativizeWorkstreamPath } from './workstream-path';
+	import { relativizeWorkstreamPath } from '$shared/markdown/workstream-path';
 
 	interface Props {
 		verb: string;

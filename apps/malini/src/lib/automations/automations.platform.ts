@@ -2,6 +2,7 @@ import {
 	DEFAULT_AUTOMATION_BOUNDARY,
 	isShippingAutomationBuiltin,
 	type AutomationBoundary,
+	type AutomationBuiltin,
 	type AutomationDefinitionRecord,
 	type AutomationRunRecord,
 } from '$contract/automations';
@@ -48,10 +49,17 @@ export type ShippingDecision = Readonly<{
 	act(event: DispatchedEvent): Promise<void>;
 }>;
 
+export type ShippingTrigger = Readonly<{
+	builtin: AutomationBuiltin | null;
+	event: DispatchedEvent;
+	start(context: string): Promise<AutomationRunRecord>;
+}>;
+
 export type ShippingRule = Readonly<{
 	hear(event: DispatchedEvent): Promise<readonly string[]>;
 	decide(workstreamId: string): Promise<ShippingDecision | null>;
 	merging(workstreamId: string): boolean;
+	triggered(trigger: ShippingTrigger): Promise<boolean>;
 }>;
 
 export function automationDefinitions(db: MaliniDatabase): AutomationDefinitionRecord[] {

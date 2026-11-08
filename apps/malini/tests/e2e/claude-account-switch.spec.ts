@@ -1,13 +1,4 @@
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
@@ -20,6 +11,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	temporaryRoot,
 } from './harness';
 
 const PRIVATE_ACCOUNT = 'me@private.example';
@@ -29,7 +21,7 @@ const PLAN_ALERT = /5-hour limit 93% used/u;
 
 test('a Claude account added from the context card signs in through the browser once, then the card and Settings switch to it in one click', async () => {
 	test.setTimeout(180_000);
-	const claude = mkdtempSync(join(tmpdir(), 'malini-e2e-claude-'));
+	const claude = temporaryRoot('malini-e2e-claude-');
 	const accountFile = join(claude, 'account');
 	const argsFile = join(claude, 'args');
 	const browserDone = join(claude, 'browser-done');

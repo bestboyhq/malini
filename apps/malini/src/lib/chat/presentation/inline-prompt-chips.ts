@@ -17,7 +17,7 @@ import {
 	type PromptChipKind,
 	type PromptChipRef,
 } from '$lib/chat/domain/prompt-chip';
-import { galleryImageLabel } from './workstream-images';
+import { galleryImageLabel } from '$shared/markdown/workstream-images';
 
 export type InlinePromptReferences = {
 	attachments?: readonly StagedAgentAttachment[];

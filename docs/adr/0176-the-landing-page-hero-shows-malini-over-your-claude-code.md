@@ -1,6 +1,6 @@
 # 0176 - The landing page hero shows Malini over your Claude Code
 
-Status: superseded by 0179
+Status: superseded by 0188
 
 ## Context
 

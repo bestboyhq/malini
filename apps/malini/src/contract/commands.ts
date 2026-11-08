@@ -96,6 +96,15 @@ import type {
 } from './marketplace';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
+	BrainCapture,
+	BrainDocument,
+	BrainEntry,
+	BrainStatus,
+	ReadBrainArgs,
+	SetBrainSyncArgs,
+	SetUpBrainArgs,
+} from './brain';
+import type {
 	DeleteSecretArgs,
 	DismissSecretRequestArgs,
 	ListSecretRequestsArgs,
@@ -647,6 +656,12 @@ export interface ContractCommands {
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
 	'scratchpad.save': { args: SaveScratchpadArgs; result: void };
+	'brain.status': { args: undefined; result: BrainStatus };
+	'brain.set-up': { args: SetUpBrainArgs; result: BrainStatus };
+	'brain.set-sync': { args: SetBrainSyncArgs; result: BrainStatus };
+	'brain.list': { args: undefined; result: BrainEntry[] };
+	'brain.read': { args: ReadBrainArgs; result: BrainDocument };
+	'brain.capture': { args: undefined; result: BrainCapture };
 	'secrets.list-requests': { args: ListSecretRequestsArgs; result: SecretRequest[] };
 	'secrets.save': { args: SaveSecretsArgs; result: void };
 	'secrets.dismiss-request': { args: DismissSecretRequestArgs; result: void };
@@ -799,6 +814,7 @@ export interface ContractCommands {
 	'app.close-guard': { args: CloseGuardArgs; result: void };
 	'app.destroy-window': { args: undefined; result: void };
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
+	'app.full-screen': { args: undefined; result: boolean };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
@@ -961,6 +977,12 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'skills.switch',
 	'scratchpad.load',
 	'scratchpad.save',
+	'brain.status',
+	'brain.set-up',
+	'brain.set-sync',
+	'brain.list',
+	'brain.read',
+	'brain.capture',
 	'secrets.list-requests',
 	'secrets.save',
 	'secrets.dismiss-request',
@@ -1059,6 +1081,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.close-guard',
 	'app.destroy-window',
 	'app.logical-viewport',
+	'app.full-screen',
 	'app.interface-scale',
 	'app.theme-mode',
 	'app.runtime-info',

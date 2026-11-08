@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createSourceRepo, expectCleanConsole, launchMalini, seedWorkstream } from './harness';
+import {
+	captureFlow,
+	createSourceRepo,
+	expectCleanConsole,
+	launchMalini,
+	seedWorkstream,
+} from './harness';
 
 function sidebarRow(page: Page, workstreamId: string) {
 	return page
@@ -53,6 +59,39 @@ test('the top bar walks the history and toggles the sidebar', async () => {
 		await page.evaluate(() => (globalThis.location.hash = '#/'));
 		await expect(page).toHaveTitle('Malini · Repositories');
 		await expect(back).toBeEnabled();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('in full screen the top bar stops saving room for the traffic lights, also after a reload', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		await seedWorkstream(page, await createSourceRepo(app.root), 'e2e-topbar-full', 'Full work');
+		await page.reload();
+		await expect(sidebarRow(page, 'e2e-topbar-full')).toBeVisible({ timeout: 20_000 });
+		const root = page.locator('html');
+		const fullScreen = (entered: boolean): Promise<void> =>
+			electronApp.evaluate(({ BrowserWindow }, entered) => {
+				const window = BrowserWindow.getAllWindows()[0];
+				if (!window) return;
+				window.isFullScreen = () => entered;
+				window.emit(entered ? 'enter-full-screen' : 'leave-full-screen');
+			}, entered);
+		await expect(root).not.toHaveAttribute('data-native-full-screen');
+
+		await fullScreen(true);
+		await expect(root).toHaveAttribute('data-native-full-screen');
+		await captureFlow(app, 'top-bar-full-screen');
+		await page.reload();
+		await expect(sidebarRow(page, 'e2e-topbar-full')).toBeVisible({ timeout: 20_000 });
+		await expect(root).toHaveAttribute('data-native-full-screen');
+
+		await fullScreen(false);
+		await expect(root).not.toHaveAttribute('data-native-full-screen');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

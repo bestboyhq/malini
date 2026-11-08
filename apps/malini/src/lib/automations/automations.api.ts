@@ -6,3 +6,4 @@ export { default as AutomationsNav } from './presentation/automations/Automation
 export { default as WorkstreamAutomationRuns } from './presentation/WorkstreamAutomationRuns.svelte';
 export { automationName } from './presentation/automation-name';
 export { liveAutomationsStatus } from './presentation/live-automations-status';
+export { runModeLabel } from './presentation/automations/triggers';

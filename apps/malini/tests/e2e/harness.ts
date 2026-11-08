@@ -200,13 +200,25 @@ function stringEnv(base: NodeJS.ProcessEnv): Record<string, string> {
 	return out;
 }
 
+const KEEP_ROOTS = process.env['MALINI_E2E_KEEP'] === '1';
+const temporaryRoots = new Set<string>();
+process.once('exit', () => {
+	for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
+});
+
+export function temporaryRoot(prefix = 'malini-e2e-'): string {
+	const root = mkdtempSync(join(tmpdir(), prefix));
+	if (!KEEP_ROOTS) temporaryRoots.add(root);
+	return root;
+}
+
 function userColorScheme(): 'light' | 'dark' | null {
 	const theme = process.env['MALINI_THEME'];
 	return theme === 'light' || theme === 'dark' ? theme : null;
 }
 
 export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
-	const root = options.profile ?? mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = options.profile ?? temporaryRoot();
 	const home = join(root, 'home');
 	const bin = join(root, 'bin');
 	const userDataDir = join(root, 'user-data');
@@ -318,7 +330,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			try {
 				await handle.quit();
 			} finally {
-				if (process.env['MALINI_E2E_KEEP'] === '1') {
+				if (KEEP_ROOTS) {
 					console.error(`malini-e2e kept profile at ${root}`);
 				} else {
 					rmSync(root, { recursive: true, force: true });
@@ -611,6 +623,14 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
+export async function openSettingsFromMenu(page: Page): Promise<void> {
+	await page.getByTestId('sidebar-open-profile').click();
+	await page
+		.getByRole('menu', { name: 'Your profile' })
+		.getByRole('menuitem', { name: 'Settings' })
+		.click();
+}
+
 export async function openAutomations(page: Page, hash = '#/automations'): Promise<void> {
 	await page.evaluate((next) => {
 		globalThis.location.hash = next;
@@ -662,11 +682,25 @@ export async function openOverview(page: Page): Promise<void> {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 }
 
+export async function passDefaults(page: Page): Promise<void> {
+	const setup = page.getByTestId('onboarding');
+	await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
+	await setup.getByRole('radio', { name: /^Customize/u }).click();
+	await setup.getByRole('checkbox', { name: /^Keep a second brain/u }).uncheck();
+	const proceed = setup.getByRole('button', { name: 'Continue' });
+	await expect(proceed).toBeEnabled();
+	await proceed.click();
+}
+
 export async function passSetup(page: Page): Promise<void> {
 	const setup = page.getByTestId('onboarding');
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 	await setup.getByRole('button', { name: 'Continue' }).click();
+	await passDefaults(page);
+	await expect(
+		setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+	).toBeVisible();
 	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 	await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
 }

@@ -16,7 +16,7 @@
 	import { toolInputBlocks, toolOutputBlock } from './tool-payload';
 	import { editDiffstat, editHunks } from './edit-diffstat';
 	import { formatToolDuration } from './render-state';
-	import { relativizeWorkstreamPath } from './workstream-path';
+	import { relativizeWorkstreamPath } from '$shared/markdown/workstream-path';
 	import {
 		backgroundAgentSummary,
 		blockedLabel,

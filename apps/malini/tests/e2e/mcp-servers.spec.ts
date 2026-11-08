@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator } from '@playwright/test';
 import {
@@ -7,11 +6,13 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	type LaunchedApp,
 	launchMalini,
+	openSettingsFromMenu,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	type LaunchedApp,
+	temporaryRoot,
 } from './harness';
 
 const SERVERS = [
@@ -24,7 +25,7 @@ const SERVERS = [
 ];
 
 function claudeHome(): { root: string; settingsFile: string } {
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	const settingsFile = join(root, 'home', '.claude', 'settings.json');
 	mkdirSync(join(root, 'home', '.claude'), { recursive: true });
 	writeFileSync(settingsFile, JSON.stringify({ theme: 'dark' }, null, 2));
@@ -71,7 +72,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function openMcpSettings(page: LaunchedApp['page']): Promise<Locator> {
-	await page.getByTestId('global-topbar-open-settings').click();
+	await openSettingsFromMenu(page);
 	await page
 		.getByRole('navigation', { name: 'Settings' })
 		.getByRole('link', { name: 'MCP servers' })
@@ -163,7 +164,7 @@ test('Settings lists MCP servers by where they come from, signs in, and turns on
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-mcp-settings', 'MCP');
 		await openWorkstream(page, workstreamId);
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'MCP servers' })
@@ -191,7 +192,7 @@ test('Settings lists MCP servers by where they come from, signs in, and turns on
 		await expect(settings.getByRole('heading', { level: 4 })).toHaveText(['Datadog']);
 
 		await page.getByRole('button', { name: 'Close settings' }).click();
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'MCP servers' })

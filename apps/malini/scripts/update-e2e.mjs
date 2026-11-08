@@ -177,7 +177,7 @@ async function openSidebar(app) {
 		}),
 	);
 	await page.reload();
-	await page.getByTestId('global-topbar-open-settings').waitFor();
+	await page.getByTestId('sidebar-open-profile').waitFor();
 	return page;
 }
 

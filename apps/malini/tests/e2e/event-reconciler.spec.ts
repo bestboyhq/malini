@@ -19,7 +19,7 @@ import {
 	type LaunchedApp,
 } from './harness';
 
-const LEAD = 'Move apps to Logdash';
+const LEAD = 'Logdash migration';
 const CHILD = 'Api analytics';
 const CHILD_PROMPT = `TITLE="${CHILD}" TURN_OUTCOME="The analytics endpoint answers" TURN_NEEDS="Pick the Logdash project"`;
 const AUTOMATION = 'Run the tests';

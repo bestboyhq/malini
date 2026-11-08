@@ -57,6 +57,9 @@ export class WorkstreamsAggregate {
 
 	rename(workstreamId: string, name: string): void {
 		this.named.add(workstreamId);
+		if (this.loading || !this.workstreams.some((entry) => entry.id === workstreamId)) {
+			void this.refresh();
+		}
 		this.mutate((workstreams) =>
 			workstreams.map((entry) => (entry.id === workstreamId ? { ...entry, name } : entry)),
 		);

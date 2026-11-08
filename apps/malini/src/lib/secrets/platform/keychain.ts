@@ -2,6 +2,7 @@ import type { SavedSecret } from '$contract/secrets';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import {
+	allSealedSecrets,
 	deleteSecret,
 	listSecrets,
 	sealedSecretsReaching,
@@ -58,6 +59,11 @@ export class Keychain {
 			if (value !== null) values[name] = value;
 		}
 		return values;
+	}
+
+	allValues(): string[] {
+		if (!this.#sealer.isEncryptionAvailable()) return [];
+		return allSealedSecrets(this.#db).flatMap((sealed) => this.#opened(sealed) ?? []);
 	}
 
 	#opened(sealed: Uint8Array): string | null {

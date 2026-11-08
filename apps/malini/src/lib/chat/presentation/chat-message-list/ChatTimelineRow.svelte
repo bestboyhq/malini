@@ -7,7 +7,7 @@
 	import EditDiffPreview from '../EditDiffPreview.svelte';
 	import FileToolRow from '../FileToolRow.svelte';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
-	import MarkdownText from '../MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
@@ -207,7 +207,7 @@
 	</div>
 {:else if item.kind === 'approval'}
 	<div class="relative w-full" use:stageEnter={timelineKey(run, item.key)}>
-		<AgentInteractionCard {item} />
+		<AgentInteractionCard {item} class="-mx-3" />
 	</div>
 {:else if item.kind === 'question'}
 	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>

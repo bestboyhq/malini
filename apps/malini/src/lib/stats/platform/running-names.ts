@@ -11,6 +11,8 @@ const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
 const RUNNERS = new Set(['npx', 'pnpm', 'npm', 'bun', 'bunx', 'yarn']);
 const RUNNER_VERBS = new Set(['run', 'exec', 'x', 'dlx']);
 const PREFIXES = new Set(['exec', 'env']);
+const SERVICE_NAME_WORDS = 5;
+const SERVICE_NAME_CHARACTERS = 40;
 
 export function namingTask(
 	description: string,
@@ -26,6 +28,12 @@ export function namingTask(
 
 export function parseServiceName(reply: string): ServiceName | null {
 	const line = reply.trim().toLowerCase();
+	if (
+		line.split(/\s+/u).length > SERVICE_NAME_WORDS ||
+		[...line].length > SERVICE_NAME_CHARACTERS
+	) {
+		return null;
+	}
 	const kind: RunningItemKind = TASK_REPLY.test(line) ? 'task' : 'service';
 	const name = line.replace(TASK_REPLY, '').trim();
 	return name === '' ? null : { name, kind };

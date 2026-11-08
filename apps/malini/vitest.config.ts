@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vitest/config';
@@ -7,6 +10,8 @@ const libSrc = fileURLToPath(new URL('./src/lib', import.meta.url));
 const sharedSrc = fileURLToPath(new URL('./src/lib/shared', import.meta.url));
 const contractSrc = fileURLToPath(new URL('./src/contract', import.meta.url));
 const hyperUi = fileURLToPath(new URL('../../packages/hyper-ui/src', import.meta.url));
+const TEMP = mkdtempSync(join(tmpdir(), 'malini-unit-tests-'));
+process.once('exit', () => rmSync(TEMP, { recursive: true, force: true }));
 
 /**
  * The aliases the renderer compiles against, restated for vitest because it
@@ -46,7 +51,7 @@ export default defineConfig({
 					environment: 'node',
 					testTimeout: 30_000,
 					unstubEnvs: true,
-					env: { ELECTRON_OVERRIDE_DIST_PATH: '/unit-tests-never-launch-electron' },
+					env: { ELECTRON_OVERRIDE_DIST_PATH: '/unit-tests-never-launch-electron', TMPDIR: TEMP },
 				},
 			},
 			{
@@ -63,6 +68,7 @@ export default defineConfig({
 					environment: 'node',
 					pool: 'threads',
 					maxWorkers: 1,
+					env: { TMPDIR: TEMP },
 				},
 			},
 			'../../packages/hyper-ui/vitest.config.ts',

@@ -183,6 +183,47 @@ describe('private snapshots', () => {
 		).toContain('+other');
 	});
 
+	it('composes two runs around an outside edit they never touched', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const repo = join(dir, 'repo');
+		await initRealRepo(repo);
+		const letters = join(repo, 'letters.txt');
+		await writeFile(letters, 'a\nb\nc\nd\ne\nf\ng\nh\ni\nj\n');
+		const r1Before = await createCheckpointSnapshot(repo, 'refs/malini/checkpoints/cp-1', 'cp-1');
+		await writeFile(letters, 'A\nb\nc\nd\ne\nf\ng\nh\ni\nj\n');
+		const r1After = await createRunChangeSnapshot(repo, 'refs/malini/run-changes/r-1', 'r-1');
+		await writeFile(letters, 'A\nb\nc\nd\ne\nf\ng\nh\ni\nJ\n');
+		const r2Before = await createCheckpointSnapshot(repo, 'refs/malini/checkpoints/cp-2', 'cp-2');
+		await writeFile(letters, 'A\nb\nc\nd\nE\nf\ng\nh\ni\nJ\n');
+		const r2After = await createRunChangeSnapshot(repo, 'refs/malini/run-changes/r-2', 'r-2');
+
+		const composed = await composeSessionRunSnapshots(repo, [
+			{
+				runId: 'r-1',
+				beforeCommit: r1Before,
+				afterCommit: r1After,
+				files: (await diffWorktreeSnapshots(repo, r1Before, r1After)).files,
+			},
+			{
+				runId: 'r-2',
+				beforeCommit: r2Before,
+				afterCommit: r2After,
+				files: (await diffWorktreeSnapshots(repo, r2Before, r2After)).files,
+			},
+		]);
+		expect(composed.stackedPaths.size).toBe(0);
+		const patch = await diffComposedSessionSnapshotPatch(
+			repo,
+			composed.beforeTree,
+			composed.afterTree,
+			'letters.txt',
+		);
+		expect(patch).toContain('+A');
+		expect(patch).toContain('+E');
+		expect(patch).not.toContain('+J');
+	});
+
 	it(
 		'composes thousands of files a run re-adds after they vanished between runs',
 		{ timeout: 90_000 },

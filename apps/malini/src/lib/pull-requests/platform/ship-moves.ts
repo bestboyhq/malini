@@ -12,6 +12,7 @@ import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from '$main/errors';
 import { commitLine, workstreamAgentCount, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
+	activeShippingAutomationRun,
 	heardBack,
 	automationDefinitions,
 	automationRun,
@@ -35,6 +36,7 @@ import {
 	reviewFeedbackToAddress,
 	reviewToAddress,
 	shipBackoffMs,
+	type PullRequestFacts,
 	type ShippingMove,
 	type ShippingSnapshot,
 } from '../domain/shipping';
@@ -52,6 +54,7 @@ import {
 	setShipAlarm,
 	settleShipRequests,
 	shippingBuiltin,
+	startingAlone,
 	type ShipDeps,
 } from './ship-store';
 import type { ShipTarget } from './ship-target';
@@ -390,6 +393,20 @@ async function runAutomation(
 	move: Extract<ShippingMove, { kind: 'run-automation' }>,
 	event: DispatchedEvent,
 ): Promise<void> {
+	const workstreamId = state.row.workstreamId;
+	await startingAlone(deps, workstreamId, async () => {
+		if (activeShippingAutomationRun(deps.context.db, workstreamId) === null) {
+			await startAutomation(deps, state, move, event);
+		}
+	});
+}
+
+async function startAutomation(
+	deps: ShipDeps,
+	state: ShipState,
+	move: Extract<ShippingMove, { kind: 'run-automation' }>,
+	event: DispatchedEvent,
+): Promise<void> {
 	const { db, commands } = deps.context;
 	const workstreamId = state.row.workstreamId;
 	const definition = automationDefinitions(db).find(
@@ -508,23 +525,35 @@ async function shippingAutomationContext(
 					pullRequestNumber,
 				}),
 			});
-		case 'address-review': {
-			const feedback = await deps.ops.reviewFeedback({
-				repoId: target.repoId,
-				workstreamId: row.workstreamId,
+		case 'address-review':
+			return reviewContext(
+				deps,
+				target,
 				pullRequestNumber,
-			});
-			return reviewFixAutomationContext({
-				pullRequestNumber,
-				reviewFeedback: snapshot.pullRequest
-					? reviewFeedbackToAddress(
-							feedback,
-							reviewToAddress(snapshot.pullRequest, snapshot.addressedReviews),
-						)
-					: feedback,
-			});
-		}
+				snapshot.pullRequest,
+				snapshot.addressedReviews,
+			);
 	}
+}
+
+export async function reviewContext(
+	deps: ShipDeps,
+	target: ShipTarget,
+	pullRequestNumber: number,
+	pullRequest: PullRequestFacts | null,
+	addressedReviews: readonly string[],
+): Promise<string> {
+	const feedback = await deps.ops.reviewFeedback({
+		repoId: target.repoId,
+		workstreamId: target.workstream.id,
+		pullRequestNumber,
+	});
+	return reviewFixAutomationContext({
+		pullRequestNumber,
+		reviewFeedback: pullRequest
+			? reviewFeedbackToAddress(feedback, reviewToAddress(pullRequest, addressedReviews))
+			: feedback,
+	});
 }
 
 async function land(deps: ShipDeps, state: ShipState): Promise<void> {

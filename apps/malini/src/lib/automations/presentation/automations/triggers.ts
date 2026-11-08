@@ -7,6 +7,7 @@ import {
 	type SchedulePlace,
 } from '$contract/automation-trigger';
 import {
+	isBrainAutomationBuiltin,
 	isOneShotAutomationBuiltin,
 	type AutomationBuiltin,
 	type AutomationDefinitionRecord,
@@ -67,6 +68,14 @@ export const TRIGGERS: readonly Trigger[] = [
 		icon: 'pr-merged',
 	},
 	{
+		id: 'review-changes-requested',
+		when: 'on pull-requests:pull-request-changed where reviewDecision is changes_requested',
+		group: 'Shipping',
+		label: 'A review asks for changes',
+		detail: 'A reviewer requests changes on a pull request',
+		icon: 'pr-open',
+	},
+	{
 		id: 'ship-needs-you',
 		when: 'on pull-requests:ship-changed where state.phase is needs-you',
 		group: 'Shipping',
@@ -107,8 +116,16 @@ export const TRIGGERS: readonly Trigger[] = [
 		icon: 'swap',
 	},
 	{
-		id: 'base-overlapped',
+		id: 'base-moved',
 		when: 'on repositories:workstream-base-overlapped',
+		group: 'Workstreams',
+		label: 'Main moves ahead of a workstream',
+		detail: 'A workstream active this week falls behind main',
+		icon: 'branch',
+	},
+	{
+		id: 'base-overlapped',
+		when: 'on repositories:workstream-base-overlapped where overlapping is true',
 		group: 'Workstreams',
 		label: 'Main changes a file a workstream changed',
 		detail: 'Merging main would conflict, or both sides changed the same file',
@@ -168,7 +185,6 @@ const BUILTIN_TRIGGER_ICONS: Readonly<Partial<Record<AutomationBuiltin, IconName
 	'name-chats': 'chat',
 	'name-services': 'terminal',
 	'fix-checks': 'pr-failed',
-	'address-review': 'pr-open',
 	'check-compatibility': 'sparkles',
 	reconcile: 'route',
 };
@@ -326,11 +342,14 @@ export function automationSentence(
 	const { trigger } = automation;
 	const schedule = scheduleOf(trigger?.when);
 	const when = whenClause(automationTriggerLook(automation));
+	const suffix = trigger === null ? '' : MODE_SUFFIX[trigger.mode];
+	if (isBrainAutomationBuiltin(automation.builtin)) {
+		return `${when}, ${automation.name} runs in the brain.${suffix}`;
+	}
 	const runsIn = schedule
 		? scheduleRunsIn(schedule.place)
 		: (trigger === null ? MANUAL_RUNS_IN_PHRASE : RUNS_IN_PHRASE)[automation.runsIn];
 	const then = thenName === null ? '' : ` and then runs ${thenName}`;
-	const suffix = trigger === null ? '' : MODE_SUFFIX[trigger.mode];
 	return `${when}, ${automation.name} runs ${runsIn}${then}.${suffix}`;
 }
 

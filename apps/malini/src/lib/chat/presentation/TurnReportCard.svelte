@@ -8,8 +8,8 @@
 		type TurnVariant,
 	} from '$lib/chat/domain/turn-report';
 	import type { VariantPick } from '$lib/chat/domain/variant-pick';
-	import type { FileMentionTarget } from './file-mention-links';
-	import MarkdownText from './MarkdownText.svelte';
+	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import NextSteps from './NextSteps.svelte';
 	import PickStep from './PickStep.svelte';
 	import ReportNotes from './ReportNotes.svelte';

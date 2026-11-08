@@ -36,7 +36,6 @@ test('Name chats keeps every name, scores it against its rules, and an experimen
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		await nameAChat(page, source, 'e2e-improve-a', 'we merged the site but it never deployed');
-		await nameAChat(page, source, 'e2e-improve-b', 'the deploy failed again after the merge');
 
 		await openAutomations(page);
 		await page.getByRole('link', { name: 'Name chats', exact: true }).click();

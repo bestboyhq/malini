@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import {
+	isVideoPath,
+	mediaKind,
+	mediaPath,
+	workstreamImagePath,
+} from '$contract/workstream-images';
 import type { EventEnvelope } from './events';
 import {
 	hasTurnReport,
-	isVideoPath,
-	mediaKind,
 	mediaMarker,
-	mediaPath,
 	offeredVariants,
 	parseTurnReport,
 	turnStatus,
 	withoutReportFooter,
-	workstreamImagePath,
 } from './turn-report';
 
 describe('turn report', () => {

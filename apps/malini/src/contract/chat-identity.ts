@@ -28,7 +28,7 @@ const LEADING_FILLER = [
 	'hi ',
 	'also ',
 ] as const;
-const DANGLING_WORDS = new Set([
+export const DANGLING_WORDS: ReadonlySet<string> = new Set([
 	'a',
 	'about',
 	'an',

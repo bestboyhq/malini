@@ -1,5 +1,4 @@
 import { submitPromptCommand } from '$lib/chat/application/commands/submit-prompt.command';
-import { mergeFailedComposerSubmissions } from '$lib/chat/domain/composer-submission-recovery';
 import type { ComposerSubmission } from '$lib/chat/domain/composer-submission';
 import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
@@ -44,19 +43,7 @@ function submitComposerPromptCommand(submission: ComposerSubmission): void {
 
 function restoreFailedDrafts(): void {
 	for (const [draftScope, failures] of composerSubmissionsStore.takeFailures()) {
-		const current = agentDrafts.draftFor(draftScope);
-		const restored = mergeFailedComposerSubmissions(failures, {
-			prompt: current.text,
-			contextFiles: current.contextFiles,
-			attachments: current.attachments,
-			transcriptReferences: current.transcriptReferences,
-			elementReferences: current.elementReferences,
-		});
-		agentDrafts.setText(draftScope, restored.prompt);
-		agentDrafts.setContextFiles(draftScope, restored.contextFiles);
-		agentDrafts.setAttachments(draftScope, restored.attachments);
-		agentDrafts.setTranscriptReferences(draftScope, restored.transcriptReferences ?? []);
-		agentDrafts.setElementReferences(draftScope, restored.elementReferences ?? []);
-		composerSubmissionsStore.markRestored(draftScope);
+		agentDrafts.restore(draftScope, failures);
+		composerSubmissionsStore.markRestored(draftScope, 'failed');
 	}
 }

@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -11,9 +10,11 @@ import {
 	launchMalini,
 	openAutomation,
 	openAutomations,
+	openSettingsFromMenu,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	temporaryRoot,
 } from './harness';
 
 test('setup goes from accounts straight to sounds, with no skills to sort', async () => {
@@ -23,7 +24,7 @@ test('setup goes from accounts straight to sounds, with no skills to sort', asyn
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
 		await expect(setup.getByRole('heading', { name: 'Connect Claude Code' })).toBeVisible();
-		await expect(setup.getByText('Step 1 of 3')).toBeVisible();
+		await expect(setup.getByText('Step 1 of 4')).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await expect(setup.getByRole('link', { name: /^Suggest skill presets/u })).toHaveCount(0);
@@ -35,7 +36,7 @@ test('setup goes from accounts straight to sounds, with no skills to sort', asyn
 
 test('Settings ranks skills by use and turns a skill and a plugin off in Claude Code settings', async () => {
 	test.setTimeout(120_000);
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	const home = join(root, 'home');
 	const settingsFile = join(home, '.claude', 'settings.json');
 	mkdirSync(join(home, '.claude'), { recursive: true });
@@ -64,7 +65,7 @@ test('Settings ranks skills by use and turns a skill and a plugin off in Claude 
 		await sendPrompt(page, 'WHICH_SKILLS');
 		await expect(page.getByText('Skills: all')).toBeVisible({ timeout: 30_000 });
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Skills' })
