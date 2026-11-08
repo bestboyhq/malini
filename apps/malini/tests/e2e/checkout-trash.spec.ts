@@ -1,15 +1,20 @@
-import { copyFileSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { captureFlow, expectCleanConsole, fileExists, launchMalini } from './harness';
+import {
+	captureFlow,
+	expectCleanConsole,
+	fileExists,
+	launchMalini,
+	temporaryRoot,
+} from './harness';
 
 const electronBinary = createRequire(__filename)('electron') as string;
 const asarArchive = join(dirname(electronBinary), '..', 'Resources', 'default_app.asar');
 
 test('boot empties a trashed checkout whose node_modules holds an asar archive', async () => {
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	const trashed = join(
 		root,
 		'user-data',

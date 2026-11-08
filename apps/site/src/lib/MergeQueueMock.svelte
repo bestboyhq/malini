@@ -3,7 +3,7 @@
 	import { BusyIcon, Icon } from '@malini/hyper-ui/icons';
 	import type { Attachment } from 'svelte/attachments';
 	import { cubicOut, quartOut } from 'svelte/easing';
-	import { fade, type TransitionConfig } from 'svelte/transition';
+	import type { TransitionConfig } from 'svelte/transition';
 	import { Loop } from './loop.svelte';
 	import './app-ui/app-ui.api';
 
@@ -97,6 +97,8 @@
 		duration,
 		css: (t) => `opacity: ${t};`,
 	});
+
+	const frameFade = (_node: Element): TransitionConfig => fadeOnly(400);
 
 	function textIn(_node: Element): TransitionConfig {
 		if (reducedMotion()) return fadeOnly(160);
@@ -258,7 +260,7 @@
 >
 	{#each [layer] as current (current.cycle)}
 		{@const frame = current.frame}
-		<div class="frame" inert transition:fade={{ duration: 400 }}>
+		<div class="frame" inert transition:frameFade>
 			{#if !frame.archived}
 				<div class="dock">
 					<div class="topbar-git" data-zone={frame.zone}>

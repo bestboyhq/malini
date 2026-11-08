@@ -136,6 +136,13 @@ const handle = (command) => {
           permission: { capability: 'sandbox', resources: [{ kind: 'socket', value: env.FAKE_BRIDGE_SANDBOX_SOCKET, boundary: 'external' }] } });
         return;
       }
+      if (prompt.includes('SANDBOX_EXIT')) {
+        pendingRuns.set(runId, sessionId);
+        event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'Claude wants to use Bash', toolName: 'Bash',
+          input: { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true },
+          permission: { capability: 'execute', resources: [{ kind: 'command', value: 'pnpm test:e2e', boundary: 'unknown' }] } });
+        return;
+      }
       if (prompt.includes('APPROVAL')) {
         pendingRuns.set(runId, sessionId);
         event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'read outside', toolName: 'read_file',
@@ -194,8 +201,11 @@ const handle = (command) => {
       return ack(command.id);
     }
     case 'suggest_title': {
-      if (!env.FAKE_BRIDGE_TITLE) return ack(command.id, 'TITLE_FAILED: no title');
-      write({ type: 'bridge.title', protocolVersion: version, id: command.id, title: env.FAKE_BRIDGE_TITLE });
+      const asked = /TITLE="([^"]+)"/.exec(command.prompt);
+      const replied = command.prompt.includes('<reply>') ? env.FAKE_BRIDGE_REPLY_TITLE : undefined;
+      const title = asked ? asked[1] : replied || env.FAKE_BRIDGE_TITLE;
+      if (!title) return ack(command.id, 'TITLE_FAILED: no title');
+      write({ type: 'bridge.title', protocolVersion: version, id: command.id, title });
       return ack(command.id);
     }
     case 'choose': {
@@ -344,7 +354,7 @@ export function seedWorkstream(
 		'INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
 		workstreamId,
 		projectId,
-		'Bright Arc',
+		'New workstream',
 		checkout,
 		`malini/${workstreamId}`,
 		'main',

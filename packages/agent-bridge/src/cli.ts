@@ -609,6 +609,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				cmd.boundary,
 				cmd.steReplies,
 				cmd.sandboxGrants,
+				cmd.outsideAllowed,
 			);
 		} catch (err) {
 			emitRunFailure(cmd.runId, cmd.sessionId, 'SEND_PROMPT_FAILED', errorMessage(err));

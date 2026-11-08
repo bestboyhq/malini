@@ -15,7 +15,7 @@ import {
 	revokePermissionRulesFor,
 	type ActivePermissionRule,
 } from '../permissions.repository';
-import { maliniActionFingerprint, rememberedResources } from '../permissions.service';
+import { maliniActionFingerprint, rememberedResources, RUNS_OUTSIDE } from '../permissions.service';
 
 export function installPermissionGrants(context: MainContext): () => void {
 	const { commands, db, events } = context;
@@ -54,6 +54,7 @@ function grantRecord(db: MaliniDatabase, rule: ActivePermissionRule): Permission
 }
 
 function grantWhat(db: MaliniDatabase, permissionJson: string): string {
+	if (permissionJson === RUNS_OUTSIDE.canonicalJson) return 'Run commands outside the sandbox';
 	const resources = rememberedResources(permissionJson);
 	const action = resources.find((resource) => resource.kind === 'action');
 	if (action) return maliniActionLabel(db, action.value);

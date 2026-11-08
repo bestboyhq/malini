@@ -251,7 +251,7 @@ Malini never offers your credentials, its own data, the workstream or a folder e
 An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
 
 When Malini sees nothing it can open, the chat asks to run the command outside instead.
-**Allow for this chat** runs every later one in that chat outside without asking, and a new chat, or the same chat after Malini restarts, asks again.
+**Allow for this chat** runs every later one in that chat outside without asking, after a restart too, until you revoke it in Settings, Agent access, and a new chat asks again.
 **Full access** runs it outside without asking.
 An approval lets out that one call: a command inside the sandbox cannot let itself out.
 

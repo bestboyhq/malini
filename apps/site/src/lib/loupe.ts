@@ -18,31 +18,29 @@ type Col = {
 	feed: HTMLElement;
 	pool: readonly string[];
 	speed: number;
+	crawl: number;
 	at: number;
-	queue: Queued[];
 	y: number;
-	boost: number;
-	wait: number;
-	owed: number;
-	mark: number;
+	rise: Rise | null;
 };
 
-type Queued = readonly [text: string, hot: string | null, shift: number];
+type Rise = { at: number; by: number; done: number };
 
 type Box = Readonly<{ x: number; w: number; pad: number; fade: boolean; rule: boolean }>;
 
-type Focus = Readonly<{ col: Col; line: Element; count: number; to: number }>;
-
 type Look = Readonly<{ color: string; spacing: string }>;
+
+type Run = Readonly<{ text: string; color: string; spacing: string; x: number }>;
 
 const ROW = 16;
 const SOFT = 14;
 const EVERY = 4_800;
-const SEEK = 1_200;
+const GLIDE = 1_800;
+const RISE = 1_600;
+const RESUME = 1_200;
 const SPEED = [9, 7, 11];
 const STIFF = 40;
 const DAMP = 2 * Math.sqrt(STIFF);
-const LEAD = (DAMP / STIFF) * 1_000;
 const WALL = 0.6;
 
 const TOKEN =
@@ -170,7 +168,7 @@ void main() {
 
 const heat = new WeakMap<Element, { color: string; born: number; shift: number }>();
 
-function line(text: string, hot: string | null, shift: number): HTMLElement {
+function line(text: string, hot: string | null, shift: number, born = 0): HTMLElement {
 	const element = document.createElement('div');
 	element.className = 'line';
 	let at = 0;
@@ -187,7 +185,7 @@ function line(text: string, hot: string | null, shift: number): HTMLElement {
 		element.classList.add('hot');
 		element.style.setProperty('--hot', hot);
 		element.style.marginLeft = `${shift}px`;
-		heat.set(element, { color: hot, born: performance.now(), shift });
+		heat.set(element, { color: hot, born: performance.now() + born, shift });
 	}
 	return element;
 }
@@ -238,17 +236,13 @@ export function playLoupe(parts: LoupeParts): () => void {
 			feed,
 			pool: parts.pools[index] ?? [],
 			speed: SPEED[index % SPEED.length] ?? 9,
+			crawl: SPEED[index % SPEED.length] ?? 9,
 			at: index * 3,
-			queue: [],
 			y: 0,
-			boost: 0,
-			wait: -1,
-			owed: 0,
-			mark: 0,
+			rise: null,
 		};
 	});
-	const next = (col: Col): Queued =>
-		col.queue.shift() ?? [col.pool[col.at++ % col.pool.length] ?? '', null, 0];
+	const next = (col: Col): HTMLElement => line(col.pool[col.at++ % col.pool.length] ?? '', null, 0);
 	for (const col of cols) col.feed.replaceChildren();
 
 	let R = 160;
@@ -258,8 +252,8 @@ export function playLoupe(parts: LoupeParts): () => void {
 	let dpr = 1;
 	let boxes: Box[] = [];
 	let current = -1;
-	let focus: Focus | null = null;
-	let held: Point | null = null;
+	let focused: Col | null = null;
+	let held: Point = { x: 0, y: 0 };
 
 	const tex = document.createElement('canvas');
 	const ctx = tex.getContext('2d');
@@ -282,9 +276,11 @@ export function playLoupe(parts: LoupeParts): () => void {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 		stage.dataset.webgl = '';
+		glass.style.maskImage = 'none';
 		const lost = (): void => {
 			gl = null;
 			delete stage.dataset.webgl;
+			paint();
 		};
 		canvas.addEventListener('webglcontextlost', lost);
 		cleanup.push(() => canvas.removeEventListener('webglcontextlost', lost));
@@ -302,7 +298,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 		tex.width = tex.height = Math.ceil(2.5 * R * dpr * MAG);
 		const rows = Math.ceil(h / ROW) + 2;
 		for (const col of cols) {
-			while (col.feed.children.length < rows) col.feed.append(line(...next(col)));
+			while (col.feed.children.length < rows) col.feed.append(next(col));
 			while (col.feed.children.length > rows) col.feed.lastElementChild?.remove();
 		}
 		const left = stage.getBoundingClientRect().left;
@@ -317,6 +313,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 				rule: style.boxShadow !== 'none',
 			};
 		});
+		restyle();
 	};
 
 	const looks = new Map<string, Look>();
@@ -333,18 +330,44 @@ export function playLoupe(parts: LoupeParts): () => void {
 		return style;
 	};
 
+	let runs = new WeakMap<Element, readonly Run[]>();
+	const runsOf = (pen: CanvasRenderingContext2D, element: Element): readonly Run[] => {
+		let list = runs.get(element);
+		if (!list) {
+			let x = 0;
+			list = [...element.childNodes].map((node) => {
+				const text = node.textContent ?? '';
+				const { color, spacing } = look(node instanceof Element ? node : element);
+				pen.letterSpacing = spacing;
+				const run = { text, color, spacing, x };
+				x += pen.measureText(text).width;
+				return run;
+			});
+			runs.set(element, list);
+		}
+		return list;
+	};
+
+	let base = 0;
+	let ground = '';
+	const restyle = (): void => {
+		looks.clear();
+		runs = new WeakMap();
+		ground = getComputedStyle(stage).backgroundColor;
+		if (!ctx) return;
+		ctx.font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
+		const metrics = ctx.measureText('M');
+		base =
+			(ROW - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2 +
+			metrics.fontBoundingBoxAscent;
+	};
+
 	const paintMess = (ox: number, oy: number, size: number, scale: number): void => {
 		if (!ctx) return;
 		const now = performance.now();
-		const font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.clearRect(0, 0, tex.width, tex.height);
 		ctx.setTransform(scale, 0, 0, scale, -ox * scale, -oy * scale);
-		ctx.font = font;
-		const metrics = ctx.measureText('M');
-		const base =
-			(ROW - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2 +
-			metrics.fontBoundingBoxAscent;
 		cols.forEach((col, index) => {
 			const box = boxes[index];
 			if (!box || box.w === 0 || box.x > ox + size || box.x + box.w < ox) return;
@@ -365,7 +388,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 				if (!element || y + ROW < oy || y > oy + size) continue;
 				const hot = heat.get(element);
 				if (hot) {
-					const t = Math.min((now - hot.born) / 2_400, 1);
+					const t = Math.min(Math.max((now - hot.born) / 2_400, 0), 1);
 					ctx.globalAlpha = still ? 0.6 : 0.42 + 0.58 * (1 - t) ** 2;
 					const glow = ctx.createLinearGradient(box.x, 0, box.x + box.w, 0);
 					glow.addColorStop(0, `${hot.color}99`);
@@ -377,14 +400,11 @@ export function playLoupe(parts: LoupeParts): () => void {
 					ctx.fillRect(box.x, y, 2, ROW);
 					ctx.globalAlpha = 1;
 				}
-				let x = box.x + box.pad + (hot?.shift ?? 0);
-				for (const node of element.childNodes) {
-					const text = node.textContent ?? '';
-					const style = look(node instanceof Element ? node : element);
-					ctx.fillStyle = style.color;
-					ctx.letterSpacing = style.spacing;
-					ctx.fillText(text, x, y + base);
-					x += ctx.measureText(text).width;
+				const x = box.x + box.pad + (hot?.shift ?? 0);
+				for (const run of runsOf(ctx, element)) {
+					ctx.fillStyle = run.color;
+					ctx.letterSpacing = run.spacing;
+					ctx.fillText(run.text, x + run.x, y + base);
 				}
 			}
 			if (box.fade) {
@@ -398,7 +418,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 			ctx.restore();
 		});
 		ctx.globalCompositeOperation = 'destination-over';
-		ctx.fillStyle = getComputedStyle(stage).backgroundColor;
+		ctx.fillStyle = ground;
 		ctx.fillRect(ox, oy, size, size);
 		ctx.globalCompositeOperation = 'source-over';
 	};
@@ -425,14 +445,14 @@ export function playLoupe(parts: LoupeParts): () => void {
 	let clock = 0;
 
 	const paint = (): void => {
+		if (gl) return drawLoupe(still ? 1 : pop(clock / 1_000));
 		glass.style.maskImage = hole(pos.x, pos.y, R);
 		lens.style.translate = `${(pos.x - R).toFixed(1)}px ${(pos.y - R).toFixed(1)}px`;
-		drawLoupe(still ? 1 : pop(clock / 1_000));
+		for (const col of cols) col.feed.style.translate = `0 ${(-col.y).toFixed(2)}px`;
 	};
 
 	const span = (use: Use): number => {
 		if (!ctx) return 0;
-		ctx.font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
 		return Math.max(...use.lines.map((text) => ctx.measureText(text).width));
 	};
 
@@ -451,46 +471,55 @@ export function playLoupe(parts: LoupeParts): () => void {
 		y: Math.min(Math.max(at, R), h - R),
 	});
 
-	const drift = (t: number): Point => ({
-		x: w * (0.5 + 0.3 * Math.sin(t / 5_600 - 1.1)),
-		y: h * (0.5 + 0.24 * Math.sin(t / 4_100 + 0.5)),
-	});
-
-	const target = (): Point => {
-		if (focus?.line.isConnected) {
-			const index = Array.prototype.indexOf.call(focus.col.feed.children, focus.line);
-			const middle = index * ROW - focus.col.y + (focus.count * ROW) / 2;
-			held = spot(focus.col, Math.min(middle, focus.to));
-		}
-		return held ?? drift(clock + LEAD);
+	const light = (col: Col, use: Use, top: number, born: number): number => {
+		const first = Math.ceil((top + col.y) / ROW);
+		const shift = shiftOf(col, use);
+		while (col.feed.children.length < first + use.lines.length) col.feed.append(next(col));
+		use.lines.forEach((text, offset) =>
+			col.feed.children[first + offset]?.replaceWith(line(text, use.color, shift, born)),
+		);
+		return first * ROW - col.y + (use.lines.length * ROW) / 2;
 	};
+
+	let from: (Point & { at: number }) | null = null;
 
 	const show = (index: number): void => {
 		const use = uses[index];
 		const col = use ? cols[use.col] : undefined;
-		if (!use || !col) return;
+		const box = use ? boxes[use.col] : undefined;
+		if (!use || !col || !box) return;
 		current = index;
-		const shift = shiftOf(col, use);
-		col.queue.unshift(...use.lines.map((text): Queued => [text, use.color, shift]));
-		col.mark = use.lines.length;
-		col.wait = 0;
-		col.owed = Math.max(
-			0,
-			col.feed.children.length * ROW - col.y - h * use.at + (use.lines.length * ROW) / 2,
-		);
-		focus = null;
+		focused = col;
+		col.crawl = 0;
+		held = spot(col, h * use.at);
+		const half = (use.lines.length * ROW) / 2;
+		const over = pos.x + R > box.x && pos.x - R < box.x + box.w && pos.y - R < held.y + half;
+		const middle = light(col, use, Math.max(held.y - half, over ? pos.y + R : 0), GLIDE);
+		col.rise = { at: clock, by: middle - held.y, done: 0 };
+		from = { at: clock, x: pos.x, y: pos.y };
 	};
 
 	const refit = (): void => {
 		fit();
+		if (focused) held = spot(focused, held.y);
 		paint();
 	};
 	const observer = new ResizeObserver(refit);
 	observer.observe(stage);
 	document.fonts.addEventListener('loadingdone', refit);
+	const rethemed = (): void => {
+		restyle();
+		paint();
+	};
+	const themed = new MutationObserver(rethemed);
+	themed.observe(document.documentElement, { attributeFilter: ['data-theme'] });
+	const scheme = matchMedia('(prefers-color-scheme: dark)');
+	scheme.addEventListener('change', rethemed);
 	cleanup.push(() => {
 		observer.disconnect();
 		document.fonts.removeEventListener('loadingdone', refit);
+		themed.disconnect();
+		scheme.removeEventListener('change', rethemed);
 	});
 	fit();
 
@@ -498,13 +527,8 @@ export function playLoupe(parts: LoupeParts): () => void {
 	const restCol = rest ? cols[rest.col] : undefined;
 	if (still || !rest || !restCol) {
 		if (rest && restCol) {
-			const rows = restCol.feed.children;
-			const at = Math.round((h * rest.at) / ROW);
-			const shift = shiftOf(restCol, rest);
-			rest.lines.forEach((text, offset) =>
-				rows[at + offset]?.replaceWith(line(text, rest.color, shift)),
-			);
-			pos = spot(restCol, (at + rest.lines.length / 2) * ROW);
+			const top = spot(restCol, h * rest.at).y - (rest.lines.length * ROW) / 2;
+			pos = spot(restCol, light(restCol, rest, top, 0));
 		} else pos = { x: w / 2, y: h / 2 };
 		paint();
 		const follow = (event: PointerEvent): void => {
@@ -519,30 +543,15 @@ export function playLoupe(parts: LoupeParts): () => void {
 	}
 
 	let pointer: Point | null = null;
-	let seen: Point | null = null;
-	let flick: Point = { x: 0, y: 0 };
 	let caught = false;
-	let left: (Point & { at: number }) | null = null;
 	const vel: Point = { x: 0, y: 0 };
-	pos = drift(0);
 
 	const follow = (dt: number): void => {
-		let aim: Point;
-		if (pointer) {
-			if (seen) {
-				const k = 1 - Math.exp(-dt / 40);
-				flick.x += ((pointer.x - seen.x) / dt - flick.x) * k;
-				flick.y += ((pointer.y - seen.y) / dt - flick.y) * k;
-			}
-			seen = pointer;
-			aim = { x: pointer.x + flick.x * LEAD, y: pointer.y + flick.y * LEAD };
-		} else {
-			seen = null;
-			flick = { x: 0, y: 0 };
-			const path = target();
-			const k = left ? smooth((clock - left.at) / 1_800) : 1;
-			aim = left ? { x: left.x + (path.x - left.x) * k, y: left.y + (path.y - left.y) * k } : path;
-		}
+		const k = from ? smooth((clock - from.at) / GLIDE) : 1;
+		const aim = pointer ?? {
+			x: from ? from.x + (held.x - from.x) * k : held.x,
+			y: from ? from.y + (held.y - from.y) * k : held.y,
+		};
 		for (let remaining = dt / 1_000; remaining > 0; remaining -= 1 / 240) {
 			const step = Math.min(remaining, 1 / 240);
 			vel.x += (STIFF * (aim.x - pos.x) - DAMP * vel.x) * step;
@@ -565,12 +574,11 @@ export function playLoupe(parts: LoupeParts): () => void {
 	listen('pointermove', (event) => {
 		const box = stage.getBoundingClientRect();
 		pointer = { x: event.clientX - box.left, y: event.clientY - box.top };
-		left = null;
 	});
 	listen('pointerleave', () => {
 		pointer = null;
 		caught = false;
-		left = { at: clock, x: pos.x, y: pos.y };
+		from = { at: clock, x: pos.x, y: pos.y };
 	});
 
 	let switchAt = EVERY;
@@ -591,32 +599,20 @@ export function playLoupe(parts: LoupeParts): () => void {
 			show((current + 1) % uses.length);
 		}
 
-		const use = uses[current];
 		for (const col of cols) {
-			if (col.wait >= 0) {
-				col.wait -= dt;
-				if (col.wait < 0) col.boost += col.owed / (SEEK / 1_000);
+			if (col !== focused) col.crawl += (col.speed - col.crawl) * (1 - Math.exp(-dt / RESUME));
+			col.y += (col.crawl * dt) / 1_000;
+			if (col.rise) {
+				const k = smooth((clock - col.rise.at) / RISE);
+				col.y += col.rise.by * (k - col.rise.done);
+				col.rise.done = k;
+				if (k === 1) col.rise = null;
 			}
-			col.boost *= Math.exp(-dt / SEEK);
-			col.y += ((col.speed + col.boost) * dt) / 1_000;
 			while (col.y >= ROW) {
 				col.y -= ROW;
 				col.feed.firstElementChild?.remove();
-				const added = line(...next(col));
-				col.feed.append(added);
-				if (col.mark > 0 && heat.has(added)) {
-					if (use && col.mark === use.lines.length && cols[use.col] === col) {
-						focus = {
-							col,
-							line: added,
-							count: col.mark,
-							to: h * use.at + (use.lines.length * ROW) / 2,
-						};
-					}
-					col.mark--;
-				}
+				col.feed.append(next(col));
 			}
-			col.feed.style.translate = `0 ${(-col.y).toFixed(2)}px`;
 		}
 
 		follow(dt);
@@ -625,6 +621,8 @@ export function playLoupe(parts: LoupeParts): () => void {
 	};
 
 	show(0);
+	pos = { ...held };
+	from = null;
 	paint();
 	const watch = new IntersectionObserver(([entry]) => {
 		if (entry?.isIntersecting && !frame) {

@@ -11,6 +11,7 @@
 
 	const inDocs = $derived(page.url.pathname.startsWith(docHref('/docs')));
 	const product = $derived(page.route.id !== '/(site)/404');
+	const landing = $derived(page.route.id === '/(site)');
 
 	function trackDownload(event: MouseEvent) {
 		if (!(event.target instanceof Element)) return;
@@ -37,7 +38,7 @@
 	{/if}
 </svelte:head>
 
-<div class="site">
+<div class={['site', { landing }]}>
 	<a class="skip" href="#main">Skip to content</a>
 	<Bar {inDocs} />
 	<main id="main">

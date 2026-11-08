@@ -442,24 +442,26 @@ export function registerRepositories(
 		const baseBranch = requireString(args, 'baseBranch');
 		const githubToken = optionalString(args, 'githubToken');
 		const worktree = await checkout(args);
-		const head = await pullWorkstreamBaseBranch(
-			worktree,
-			recordedBranch(workstreamId),
-			baseBranch,
-			githubToken,
-			credentials,
-			(move) => guardBranchUpdate(workstreamId, move),
-		);
-		await watchers.refresh(workstreamId);
-		const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
-		const mergeHead =
-			operationInProgress === 'merge' && conflictedPaths.length > 0
-				? await readMergeHead(worktree)
-				: null;
-		if (mergeHead !== null) {
-			watchers.reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead });
-		}
-		return head;
+		return watchers.whilePulling(workstreamId, async () => {
+			const head = await pullWorkstreamBaseBranch(
+				worktree,
+				recordedBranch(workstreamId),
+				baseBranch,
+				githubToken,
+				credentials,
+				(move) => guardBranchUpdate(workstreamId, move),
+			);
+			await watchers.refresh(workstreamId);
+			const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
+			const mergeHead =
+				operationInProgress === 'merge' && conflictedPaths.length > 0
+					? await readMergeHead(worktree)
+					: null;
+			if (mergeHead !== null) {
+				watchers.reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead });
+			}
+			return head;
+		});
 	});
 
 	commands.define('repositories.count-behind-base', async (args: unknown) => {

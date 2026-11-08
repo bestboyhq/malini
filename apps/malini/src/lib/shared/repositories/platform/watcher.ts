@@ -46,6 +46,7 @@ export interface WorkstreamWatchers {
 	isWatching(workstreamId: string): boolean;
 	refresh(workstreamId: string): Promise<void>;
 	reportMergeConflict(conflict: MergeConflict): void;
+	whilePulling<T>(workstreamId: string, pull: () => Promise<T>): Promise<T>;
 	dispose(): void;
 }
 
@@ -154,6 +155,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 	const sets = new Map<string, WatcherSet>();
 	const unsubscribes: Array<() => void> = [];
 	const reportedConflicts = new Map<string, string>();
+	const pulls = new Map<string, number>();
 
 	const reportMergeConflict = ({ mergeHead, ...conflict }: MergeConflict): void => {
 		if (reportedConflicts.get(conflict.workstreamId) === mergeHead) return;
@@ -194,11 +196,22 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			}
 			return;
 		}
-		if (reportedConflicts.get(workstreamId) === next.mergeHead) return;
+		if (pulls.has(workstreamId) || reportedConflicts.get(workstreamId) === next.mergeHead) return;
 		const conflictedPaths = await unmergedPaths(worktreePath);
 		const baseBranch = getWorkstream(deps.db, workstreamId)?.baseBranch;
 		if (set.closing || conflictedPaths.length === 0 || baseBranch === undefined) return;
 		reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead: next.mergeHead });
+	};
+
+	const whilePulling = async <T>(workstreamId: string, pull: () => Promise<T>): Promise<T> => {
+		pulls.set(workstreamId, (pulls.get(workstreamId) ?? 0) + 1);
+		try {
+			return await pull();
+		} finally {
+			const left = (pulls.get(workstreamId) ?? 1) - 1;
+			if (left === 0) pulls.delete(workstreamId);
+			else pulls.set(workstreamId, left);
+		}
 	};
 
 	const refreshAfter = async (set: WatcherSet, previous: Promise<void>): Promise<void> => {
@@ -396,6 +409,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		},
 		refresh,
 		reportMergeConflict,
+		whilePulling,
 		dispose() {
 			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
 			for (const set of [...sets.values()]) close(set);

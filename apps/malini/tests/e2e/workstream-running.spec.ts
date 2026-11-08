@@ -1,6 +1,5 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -12,6 +11,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	temporaryRoot,
 } from './harness';
 
 const ORDERS = 'e2e-running-orders-ws';
@@ -74,7 +74,7 @@ test('a workstream names what keeps running under it, opens its ports and stops 
 	if (address === null || typeof address === 'string')
 		throw new Error('the page server has no port');
 	const { port } = address;
-	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const root = temporaryRoot();
 	seedContainers(root, port);
 	const app = await launchMalini({ profile: root });
 	try {

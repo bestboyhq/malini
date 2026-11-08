@@ -715,6 +715,16 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses whether a chat runs its exits outside the sandbox', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const withOutside = (outsideAllowed: unknown) =>
+				parseCommandLine(`{${prompt},"outsideAllowed":${JSON.stringify(outsideAllowed)}}`);
+
+			expect(withOutside(true)).toMatchObject({ ok: true, command: { outsideAllowed: true } });
+			expect(withOutside(false)).toMatchObject({ ok: true, command: {} });
+			expect(withOutside('yes')).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+		});
+
 		it('parses what the sandbox opens for a prompt and rejects a grant that is not a plain absolute path', () => {
 			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
 			const withGrants = (grants: unknown) =>

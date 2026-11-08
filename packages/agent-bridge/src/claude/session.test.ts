@@ -1482,30 +1482,53 @@ describe('ClaudeSession', () => {
 						leaves('toolu_third'),
 						...recordedScript('readAndBash'),
 					],
-					[leaves('toolu_next_run'), ...recordedScript('readAndBash')],
 				],
 				{ onEvent: allowing('session') },
 			);
 
 			await session.sendPrompt('Run the e2e suite', 'run-1', profile('agent', 'auto'));
-			await session.sendPrompt(
-				'Run it again',
-				'run-2',
-				profile('agent', 'auto'),
-				READ_AND_BASH_CURSOR,
-			);
 
-			const later = [
-				...exits(claude.runs[0]?.hookOutputs).slice(1),
-				...exits(claude.runs[1]?.hookOutputs),
-			];
+			const later = exits(claude.runs[0]?.hookOutputs).slice(1);
 			expect(exits(claude.runs[0]?.hookOutputs)[0]).toEqual({
 				decision: 'ask',
 				command: undefined,
 			});
-			expect(later.map(({ decision }) => decision)).toEqual(['allow', 'allow', 'allow']);
+			expect(later.map(({ decision }) => decision)).toEqual(['allow', 'allow']);
 			expect(later.every(({ command }) => PASSED.test(String(command)))).toBe(true);
-			expect(new Set(later.map(({ command }) => command)).size).toBe(3);
+			expect(new Set(later.map(({ command }) => command)).size).toBe(2);
+		});
+
+		it('runs exits outside from the first prompt Malini sends for an allowed chat, until it stops', async () => {
+			const { session, claude } = harness([
+				[leaves('toolu_restored'), ...recordedScript('readAndBash')],
+				[leaves('toolu_revoked'), ...recordedScript('readAndBash')],
+			]);
+			const prompt = (text: string, runId: string, outsideAllowed: boolean, resumeAt?: string) =>
+				session.sendPrompt(
+					text,
+					runId,
+					profile('agent', 'auto'),
+					resumeAt,
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					[],
+					undefined,
+					undefined,
+					false,
+					[],
+					outsideAllowed,
+				);
+
+			await prompt('Run the e2e suite', 'run-1', true);
+			await prompt('Run it again', 'run-2', false, READ_AND_BASH_CURSOR);
+
+			const [restored] = exits(claude.runs[0]?.hookOutputs);
+			expect(restored?.decision).toBe('allow');
+			expect(PASSED.test(String(restored?.command))).toBe(true);
+			expect(exits(claude.runs[1]?.hookOutputs)).toEqual([{ decision: 'ask', command: undefined }]);
 		});
 
 		it('asks again for the next exit after an allow once', async () => {

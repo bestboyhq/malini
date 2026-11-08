@@ -27,7 +27,7 @@
 	<meta property="og:image:height" content="630" />
 	<meta
 		property="og:image:alt"
-		content="Malini's page: Missing abstraction layer for building with agents, over the Malini window with a Home chat and the workstreams it started in its sidebar, a chat beside a browser tab, and Draft and Merge above 1 changed file."
+		content="Malini's page: Missing abstraction layer for building with agents, over the Malini window with a loupe on its sidebar that magnifies the CLAUDE.md lines underneath, a chat that adds Duplicate to a tab's menu, and Draft and Merge above 2 changed files."
 	/>
 	<meta name="twitter:card" content="summary_large_image" />
 	<link rel="alternate" type="text/plain" title="llms.txt" href="{SITE_URL}/llms.txt" />

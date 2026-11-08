@@ -1946,8 +1946,19 @@ const handle = (command) => {
 			const titlesByModel = env.FAKE_BRIDGE_TITLES_BY_MODEL
 				? JSON.parse(env.FAKE_BRIDGE_TITLES_BY_MODEL)
 				: {};
-			const named = /TITLE="([^"]+)"/.exec(command.prompt ?? '');
-			const title = named?.[1] ?? titlesByModel[command.model] ?? env.FAKE_BRIDGE_TITLE;
+			const task = command.prompt ?? '';
+			const replied = task.includes('<reply>') ? /REPLY_TITLE="([^"]+)"/.exec(task) : null;
+			const named = /(?<!REPLY_)TITLE="([^"]+)"/.exec(task);
+			const message = /<message>\s*([^\n]*)/
+				.exec(task)?.[1]
+				?.replace(/\[[^\]]*\]\s*/g, '')
+				.trim();
+			const title =
+				replied?.[1] ??
+				named?.[1] ??
+				titlesByModel[command.model] ??
+				env.FAKE_BRIDGE_TITLE ??
+				message;
 			if (!title) return ack(command.id, 'TITLE_FAILED: no title');
 			write({
 				type: 'bridge.title',

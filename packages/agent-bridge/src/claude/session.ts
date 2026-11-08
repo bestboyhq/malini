@@ -290,8 +290,10 @@ export class ClaudeSession implements ProviderHandle {
 		boundary?: AgentBoundary,
 		steReplies = false,
 		sandboxGrants: readonly SandboxGrant[] = [],
+		outsideAllowed = false,
 	): Promise<void> {
 		this.#grants = sandboxGrants;
+		this.#outsideAllowed = outsideAllowed;
 		if (this.#places) this.#confine();
 		const run: RunSettings = {
 			profile,

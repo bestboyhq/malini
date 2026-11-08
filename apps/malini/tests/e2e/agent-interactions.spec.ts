@@ -79,7 +79,7 @@ test('a permission request waits for the user, hands the agent their decision, a
 	}
 });
 
-test('a command that asks to leave the sandbox can be allowed for the rest of the chat', async () => {
+test('a command that asks to leave the sandbox can be allowed for the rest of the chat, listed in Settings until revoked', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -109,6 +109,19 @@ test('a command that asks to leave the sandbox can be allowed for the rest of th
 			page.getByRole('status').filter({ hasText: 'Allowed for this chat' }),
 		).toBeVisible();
 		await captureFlow(app, 'sandbox-exit-allowed-for-this-chat');
+
+		await openSettingsFromMenu(page);
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Agent access', exact: true })
+			.click();
+		const grant = page.getByRole('list', { name: 'Always allowed' }).getByRole('listitem');
+		await expect(grant).toHaveCount(1);
+		await expect(grant).toContainText('Run commands outside the sandbox');
+		await expect(grant).toContainText('One chat in Sandbox exit workstream');
+		await captureFlow(app, 'sandbox-exit-in-settings');
+		await grant.getByRole('button', { name: 'Revoke' }).click();
+		await expect(grant).toHaveCount(0);
 
 		expectCleanConsole(app);
 	} finally {

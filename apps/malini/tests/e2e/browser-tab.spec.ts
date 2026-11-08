@@ -1,7 +1,6 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { createServer as createViteServer } from 'vite';
@@ -15,6 +14,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	settleAnimations,
+	temporaryRoot,
 } from './harness';
 
 type PageInput =
@@ -462,7 +462,7 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 
 test('a thread pin stays on its element when a Vite dev server hot-updates the page, changes its classes, or reloads it', async () => {
 	test.setTimeout(180_000);
-	const site = realpathSync(mkdtempSync(join(tmpdir(), 'malini-hmr-site-')));
+	const site = realpathSync(temporaryRoot('malini-hmr-site-'));
 	const writeIndex = (title: string): void =>
 		writeFileSync(
 			join(site, 'index.html'),

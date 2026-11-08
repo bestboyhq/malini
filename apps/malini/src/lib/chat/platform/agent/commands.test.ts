@@ -342,7 +342,6 @@ describe('prompt round trips', () => {
 			profile: { effort: 'high', mode: 'agent' },
 		});
 		expect(runId).toBe('run-req-1');
-		await waitFor(() => getSession(test.db, sessionId)?.displayName === 'Fix the login bug');
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
 		await service.runtime.settlePump();
 
@@ -975,148 +974,164 @@ describe('prompt round trips', () => {
 		);
 	});
 
-	it('renames the workstream on the first prompt and emits repositories:workstream-renamed, then skips both on a second prompt', async () => {
-		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
-		await boot();
-		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		const runId1 = await invokeString('chat.send-prompt', {
-			sessionId,
-			prompt: 'Fix the login bug',
-			clientRequestId: 'req-rename-1',
-		});
-		await waitFor(() => getRun(test.db, runId1)?.completedAt !== null);
-		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug');
-		const renamedFrames = test.events.frames.filter(
-			(f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
-		);
-		expect(renamedFrames).toHaveLength(1);
-		expect(renamedFrames[0]?.payload).toEqual({ workstreamId: 'ws-1', name: 'Fix the login bug' });
+	async function finishTurn(runId: string): Promise<void> {
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		await service.runtime.settlePump();
+		await service.namer.settled();
+	}
 
-		const runId2 = await invokeString('chat.send-prompt', {
+	function renames(channel: string): unknown[] {
+		return test.events.frames.filter((f) => f.channel === channel).map((f) => f.payload);
+	}
+
+	it('names the chat and the workstream from the message, again from the reply, and leaves both on a second prompt', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({ FAKE_BRIDGE_TITLE: 'Login bug', FAKE_BRIDGE_REPLY_TITLE: 'Blank login page' });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const first = await invokeString('chat.send-prompt', {
 			sessionId,
-			prompt: 'Something else entirely',
-			clientRequestId: 'req-rename-2',
+			prompt: 'hey so every time i log in the page goes blank',
+			clientRequestId: 'req-named-1',
 		});
-		await waitFor(() => getRun(test.db, runId2)?.completedAt !== null);
-		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Fix the login bug');
-		expect(
-			test.events.frames.filter((f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL),
-		).toHaveLength(1);
+		await finishTurn(first);
+		expect(getSession(test.db, sessionId)?.displayName).toBe('Blank login page');
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Blank login page');
+		expect(renames(CHAT_SESSION_RENAMED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', sessionId, name: 'Login bug' },
+			{ workstreamId: 'ws-1', sessionId, name: 'Blank login page' },
+		]);
+		expect(renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', name: 'Login bug' },
+			{ workstreamId: 'ws-1', name: 'Blank login page' },
+		]);
+
+		const second = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'Something else entirely TITLE="Something else"',
+			clientRequestId: 'req-named-2',
+		});
+		await finishTurn(second);
+		expect(getSession(test.db, sessionId)?.displayName).toBe('Blank login page');
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Blank login page');
+		expect(renames(CHAT_SESSION_RENAMED_CHANNEL)).toHaveLength(2);
+		expect(renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)).toHaveLength(2);
 	});
 
-	it('names the chat but keeps a workstream name that was not generated, like a pull request name', async () => {
+	it('keeps New chat and New workstream while a turn has no task, and names both from a later turn', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({ FAKE_BRIDGE_REPLY_TITLE: 'none' });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId,
+				prompt: 'hi',
+				clientRequestId: 'req-untitled',
+			}),
+		);
+		expect(getSession(test.db, sessionId)?.displayName).toBe('New chat');
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('New workstream');
+		expect(renames(CHAT_SESSION_RENAMED_CHANNEL)).toEqual([]);
+		expect(renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)).toEqual([]);
+
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId,
+				prompt: 'every time i log in the page goes blank TITLE="Login bug"',
+				clientRequestId: 'req-titled',
+			}),
+		);
+		expect(getSession(test.db, sessionId)?.displayName).toBe('Login bug');
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Login bug');
+	});
+
+	it('names the chat but keeps a workstream name that was not a placeholder, like a pull request name', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		run(test.db, "UPDATE workstreams SET name = 'Feature flags' WHERE id = 'ws-1'");
 		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		await invokeString('chat.send-prompt', {
-			sessionId,
-			prompt: 'hey so every time i log in the page goes blank',
-			clientRequestId: 'req-kept-name',
-		});
-		await waitFor(() => getSession(test.db, sessionId)?.displayName === 'Login bug');
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId,
+				prompt: 'hey so every time i log in the page goes blank',
+				clientRequestId: 'req-kept-name',
+			}),
+		);
+		expect(getSession(test.db, sessionId)?.displayName).toBe('Login bug');
 		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Feature flags');
-		expect(
-			test.events.frames.filter((f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL),
-		).toEqual([]);
+		expect(renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)).toEqual([]);
 	});
 
 	it('names nothing after a prompt malini wrote, then names the workstream and the chat from the first prompt the user writes', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
-		await boot();
-		const before = getWorkstream(test.db, 'ws-1')?.name;
+		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		const chatBefore = getSession(test.db, sessionId)?.displayName;
-		const automated = await invokeString('chat.send-prompt', {
-			sessionId,
-			prompt: 'Resolve the merge conflicts in this workstream.',
-			clientRequestId: 'req-automated',
-			automated: true,
-		});
-		await waitFor(() => getRun(test.db, automated)?.completedAt !== null);
-		expect(getWorkstream(test.db, 'ws-1')?.name).toBe(before);
-		expect(getSession(test.db, sessionId)?.displayName).toBe(chatBefore);
-		expect(
-			test.events.frames.filter((f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL),
-		).toHaveLength(0);
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId,
+				prompt: 'Resolve the merge conflicts in this workstream.',
+				clientRequestId: 'req-automated',
+				automated: true,
+			}),
+		);
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('New workstream');
+		expect(getSession(test.db, sessionId)?.displayName).toBe('New chat');
+		expect(renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)).toEqual([]);
 
-		const written = await invokeString('chat.send-prompt', {
-			sessionId,
-			prompt: 'Fix the login bug',
-			clientRequestId: 'req-written',
-		});
-		await waitFor(() => getRun(test.db, written)?.completedAt !== null);
-		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug');
-		expect(getSession(test.db, sessionId)?.displayName).toBe('Fix the login bug');
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId,
+				prompt: 'Fix the login bug',
+				clientRequestId: 'req-written',
+			}),
+		);
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Login bug');
+		expect(getSession(test.db, sessionId)?.displayName).toBe('Login bug');
 	});
 
 	it('never renames an automation transcript or its workstream, whether the automation or the user prompts it', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
-		const before = getWorkstream(test.db, 'ws-1')?.name;
 		const automationId = await invokeString('chat.start-session', {
 			workstreamId: 'ws-1',
 			origin: 'automation',
 			displayName: 'Fix checks',
 		});
-		const automated = await invokeString('chat.send-prompt', {
-			sessionId: automationId,
-			prompt: 'Fix the failing checks',
-			clientRequestId: 'req-automation',
-			automated: true,
-		});
-		await waitFor(() => getRun(test.db, automated)?.completedAt !== null);
-		const steered = await invokeString('chat.send-prompt', {
-			sessionId: automationId,
-			prompt: 'hey so every time i log in the page goes blank',
-			clientRequestId: 'req-steer',
-		});
-		await waitFor(() => getRun(test.db, steered)?.completedAt !== null);
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId: automationId,
+				prompt: 'Fix the failing checks',
+				clientRequestId: 'req-automation',
+				automated: true,
+			}),
+		);
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId: automationId,
+				prompt: 'hey so every time i log in the page goes blank',
+				clientRequestId: 'req-steer',
+			}),
+		);
 
 		expect(getSession(test.db, automationId)?.displayName).toBe('Fix checks');
-		expect(getWorkstream(test.db, 'ws-1')?.name).toBe(before);
-		expect(
-			test.events.frames.filter(
-				(f) =>
-					f.channel === CHAT_SESSION_RENAMED_CHANNEL ||
-					f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
-			),
-		).toEqual([]);
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('New workstream');
+		expect([
+			...renames(CHAT_SESSION_RENAMED_CHANNEL),
+			...renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL),
+		]).toEqual([]);
 
 		const chatId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		await invokeString('chat.send-prompt', {
-			sessionId: chatId,
-			prompt: 'hey so every time i log in the page goes blank',
-			clientRequestId: 'req-chat',
-		});
-		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Login bug');
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId: chatId,
+				prompt: 'hey so every time i log in the page goes blank',
+				clientRequestId: 'req-chat',
+			}),
+		);
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Login bug');
 		expect(getSession(test.db, chatId)?.displayName).toBe('Login bug');
 	});
 
-	it('names the chat and the workstream with the title Claude suggests and announces both', async () => {
-		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
-		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
-		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		await invokeString('chat.send-prompt', {
-			sessionId,
-			prompt: 'hey so every time i log in the page goes blank',
-			clientRequestId: 'req-titled',
-		});
-		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Login bug');
-		expect(getSession(test.db, sessionId)?.displayName).toBe('Login bug');
-		expect(
-			test.events.frames
-				.filter((f) => f.channel === CHAT_SESSION_RENAMED_CHANNEL)
-				.map((f) => f.payload),
-		).toEqual([{ workstreamId: 'ws-1', sessionId, name: 'Login bug' }]);
-		expect(
-			test.events.frames
-				.filter((f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)
-				.map((f) => f.payload),
-		).toEqual([{ workstreamId: 'ws-1', name: 'Login bug' }]);
-	});
-
-	it('appends " 2" when another workstream of the same repository already holds the derived name', async () => {
+	it('appends " 2" when another workstream of the same repository already holds the name', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		run(
 			test.db,
@@ -1124,30 +1139,26 @@ describe('prompt round trips', () => {
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			'ws-sibling',
 			'project-ws-1',
-			'Fix the login bug',
+			'Login bug',
 			`${test.appDataRoot}/workstreams/ws-sibling`,
 			'malini/ws-sibling',
 			'main',
 			'active',
 			new Date().toISOString(),
 		);
-		await boot();
+		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		const runId = await invokeString('chat.send-prompt', {
-			sessionId,
-			prompt: 'Fix the login bug',
-			clientRequestId: 'req-suffix',
-		});
-		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
-		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug 2');
-		const renamedFrames = test.events.frames.filter(
-			(f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
+		await finishTurn(
+			await invokeString('chat.send-prompt', {
+				sessionId,
+				prompt: 'Fix the login bug',
+				clientRequestId: 'req-suffix',
+			}),
 		);
-		expect(renamedFrames).toHaveLength(1);
-		expect(renamedFrames[0]?.payload).toEqual({
-			workstreamId: 'ws-1',
-			name: 'Fix the login bug 2',
-		});
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Login bug 2');
+		expect(renames(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', name: 'Login bug 2' },
+		]);
 	});
 
 	it('validates prompt context with the Rust messages', () => {
@@ -1420,6 +1431,62 @@ describe('interactions', () => {
 			undefined,
 			[{ kind: 'socket', path: socket }],
 		]);
+	});
+
+	it('keeps a chat let out of the sandbox out for its next prompts, until the allow is revoked', async () => {
+		const permission = {
+			capability: 'execute',
+			resources: [{ kind: 'command', value: 'pnpm test:e2e', boundary: 'unknown' }],
+		};
+		const sent: Array<Record<string, unknown>> = [];
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({}, { processFactory: recordingBridge(sent) });
+		onTestFinished(installPermissionGrants(test.context));
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'SANDBOX_EXIT' });
+		await waitFor(
+			() => getInteraction(test.db, 'approval', sessionId, runId, 'approval-1') !== null,
+		);
+		await service.runtime.settlePump();
+		const decided = await invokeRecord('chat.decide-approval', {
+			sessionId,
+			runId,
+			approvalId: 'approval-1',
+			decision: 'allow',
+			scope: 'session',
+			permission,
+		});
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		const prompt = async (id: string) => {
+			const run = await invokeString('chat.send-prompt', { sessionId: id, prompt: 'hello' });
+			await waitFor(() => getRun(test.db, run)?.completedAt !== null);
+		};
+
+		await prompt(sessionId);
+		const askedAgain = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'SANDBOX_EXIT',
+		});
+		await waitFor(
+			() => getInteraction(test.db, 'approval', sessionId, askedAgain, 'approval-1') !== null,
+		);
+		await service.runtime.settlePump();
+		const stillAsks = getInteraction(test.db, 'approval', sessionId, askedAgain, 'approval-1');
+		await invoke('chat.cancel-run', { sessionId });
+		await waitFor(() => getRun(test.db, askedAgain)?.completedAt !== null);
+		await prompt(await invokeString('chat.start-session', { workstreamId: 'ws-1' }));
+		const grants = await invokeRecords('chat.list-permission-grants');
+		await invoke('chat.revoke-permission-grant', { grantId: grants[0]?.['id'] });
+		await prompt(sessionId);
+
+		expect(decided).toMatchObject({ decision: 'allow', scope: 'session', remembered: true });
+		expect(stillAsks).toMatchObject({ state: 'pending', decision: null });
+		expect(grants).toMatchObject([{ scope: 'session', what: 'Run commands outside the sandbox' }]);
+		expect(
+			sent
+				.filter((command) => command['cmd'] === 'send_prompt')
+				.map((command) => command['outsideAllowed']),
+		).toEqual([undefined, true, true, undefined, undefined]);
 	});
 
 	it('hands Claude an always-allow only for a call auto mode blocked', async () => {

@@ -83,6 +83,8 @@
 		'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, SFMono-Regular, Menlo, monospace;
 	--ease: cubic-bezier(0.22, 1, 0.36, 1);
 	--enter-ease: cubic-bezier(0.33, 1, 0.68, 1);
+	--unblur-ease: cubic-bezier(0.328, 0.719, 0.669, 0.935);
+	--painted-invisible: 0.001;
 	--pace: 1.4;
 
 	--gutter: 40px;
@@ -200,16 +202,20 @@
 	overflow-x: clip;
 }
 
-.site::before {
+.site::before,
+.site::after {
 	content: '';
 	position: absolute;
 	z-index: 1;
 	inset: 0 auto;
-	left: 50%;
-	width: var(--col);
-	margin-left: calc(var(--col) / -2);
-	border-inline: 1px solid var(--frame);
+	left: calc(50% - var(--col) / 2);
+	width: 1px;
+	background: var(--frame);
 	pointer-events: none;
+}
+
+.site::after {
+	left: calc(50% + var(--col) / 2 - 1px);
 }
 
 .site > main {
@@ -266,19 +272,8 @@
 	}
 }
 
-@property --rail-l {
-	syntax: '<number>';
-	inherits: false;
-	initial-value: 1;
-}
-
-@property --rail-r {
-	syntax: '<number>';
-	inherits: false;
-	initial-value: 1;
-}
-
-.site:has(.hero)::before {
+.site.landing::before,
+.site.landing::after {
 	position: fixed;
 }
 
@@ -287,8 +282,11 @@
 	--blur: 10px;
 	--duration: 1300ms;
 	--delay: 450ms;
-	animation: blur-in calc(var(--duration) * var(--pace)) var(--enter-ease)
-		calc(var(--delay) * var(--pace)) backwards;
+	animation:
+		blur-in calc(var(--duration) * var(--pace)) var(--enter-ease) calc(var(--delay) * var(--pace))
+			backwards,
+		unblur calc(var(--duration) * var(--pace) * 0.705) var(--unblur-ease)
+			calc(var(--delay) * var(--pace)) backwards;
 }
 
 .rise[data-reveal='wait'] {
@@ -303,23 +301,31 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-	.site:has(.hero)::before,
-	.site:has(.hero) .topbar .row::before {
-		mask:
-			linear-gradient(#000 0 0) 0 0 / 50% calc(var(--rail-l) * 100vh) no-repeat,
-			linear-gradient(#000 0 0) 100% 0 / 50% calc(var(--rail-r) * 100vh) no-repeat;
-		animation:
-			rail-l calc(1200ms * var(--pace)) var(--enter-ease) backwards,
-			rail-r calc(1200ms * var(--pace)) var(--enter-ease) calc(600ms * var(--pace)) backwards;
+	.site.landing::before,
+	.site.landing::after,
+	.site.landing .topbar .row::before,
+	.site.landing .topbar .row::after {
+		transform-origin: top;
+		animation: rail calc(1200ms * var(--pace)) var(--enter-ease) backwards;
 	}
 
-	.site:has(.hero) .topbar::after {
+	.site.landing .topbar .row::before,
+	.site.landing .topbar .row::after {
+		animation-duration: calc(1200ms * var(--pace) / 16);
+	}
+
+	.site.landing::after,
+	.site.landing .topbar .row::after {
+		animation-delay: calc(600ms * var(--pace));
+	}
+
+	.site.landing .topbar::after {
 		animation: draw-in calc(900ms * var(--pace)) var(--enter-ease) backwards;
 	}
 
 	.beat::before,
 	.feature::after,
-	.site:has(.hero) .sitemap::before {
+	.site.landing .sitemap::before {
 		animation: draw-in calc(900ms * var(--pace)) var(--enter-ease)
 			calc(var(--delay, 600ms) * var(--pace)) backwards;
 	}
@@ -339,9 +345,8 @@
 
 @keyframes blur-in {
 	from {
-		opacity: 0;
+		opacity: var(--painted-invisible);
 		translate: 0 var(--rise);
-		filter: blur(var(--blur));
 	}
 
 	50% {
@@ -349,9 +354,19 @@
 	}
 }
 
+@keyframes unblur {
+	from {
+		filter: blur(var(--blur));
+	}
+
+	to {
+		filter: blur(calc(var(--blur) * 0.027));
+	}
+}
+
 @keyframes fade-in {
 	from {
-		opacity: 0;
+		opacity: var(--painted-invisible);
 	}
 }
 
@@ -365,15 +380,9 @@
 	}
 }
 
-@keyframes rail-l {
+@keyframes rail {
 	from {
-		--rail-l: 0;
-	}
-}
-
-@keyframes rail-r {
-	from {
-		--rail-r: 0;
+		scale: 1 0;
 	}
 }
 
@@ -585,7 +594,8 @@
 }
 
 @media (max-width: 1023px) {
-	.site::before {
+	.site::before,
+	.site::after {
 		display: none;
 	}
 

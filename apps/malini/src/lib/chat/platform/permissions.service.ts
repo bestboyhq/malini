@@ -6,6 +6,7 @@ import { errorCode } from '$main/errors';
 import type { MaliniDatabase } from '$main/db/driver';
 import { grantProblem, type SandboxGrant } from '@malini/agent-bridge/sandbox';
 import { activePermissionsForSession, listPermissionRules } from './permissions.repository';
+import { leavesTheSandbox } from '../domain/approval-request';
 
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
@@ -72,6 +73,21 @@ export function rememberedResources(permissionJson: string): RememberedResource[
 		const value = resource['value'] ?? resource['canonicalValue'];
 		return typeof value === 'string' ? [{ kind: resource['kind'], value }] : [];
 	});
+}
+
+export const RUNS_OUTSIDE = finishNormalization(
+	JSON.stringify({ capability: 'outside', resources: [] }),
+);
+
+export function normalizeRequestedPermission(
+	permission: unknown,
+	workstreamPath: string,
+	toolName: string | undefined,
+	input: unknown,
+): NormalizedPermission {
+	const opensTheSandbox = isPlainObject(permission) && permission['capability'] === 'sandbox';
+	if (!opensTheSandbox && leavesTheSandbox(toolName, input)) return RUNS_OUTSIDE;
+	return normalizeRememberablePermission(permission, workstreamPath, toolName);
 }
 
 export function normalizeRememberablePermission(
@@ -258,6 +274,16 @@ export function sandboxGrantsFor(
 		}
 	}
 	return [...grants.values()];
+}
+
+export function outsideAllowedFor(
+	db: MaliniDatabase,
+	workstreamId: string,
+	sessionId: string,
+): boolean {
+	return activePermissionsForSession(db, workstreamId, sessionId).includes(
+		RUNS_OUTSIDE.canonicalJson,
+	);
 }
 
 function finishNormalization(canonicalJson: string): NormalizedPermission {

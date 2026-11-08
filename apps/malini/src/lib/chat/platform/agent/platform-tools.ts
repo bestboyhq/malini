@@ -26,6 +26,7 @@ import { DEFAULT_AGENT_MODEL, DEFAULT_PROVIDER_ID } from '$shared/providers/prov
 import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
+	getWorkstream,
 	listArchivedWorkstreams,
 	listRepositoryCatalog,
 	listWorkstreams,
@@ -66,6 +67,7 @@ export type PlatformRequestDeps = Pick<
 		sending: PromptsInFlight;
 		deliveries: ChatDeliveries;
 		secrets?: SecretsPlatform;
+		nameWorkstream?: (workstreamId: string, prompt: string) => Promise<void>;
 		log: (line: string) => void;
 	}>;
 
@@ -311,6 +313,9 @@ async function createWorkstream(
 	}
 	await createPlannedWorkstream(commands, plan, projectRepoPath, base, source.workstreamId);
 	const { workstreamId } = plan;
+	const naming = deps.nameWorkstream?.(workstreamId, prompt).catch((error: unknown) => {
+		log(`agent: could not name \`${workstreamId}\`: ${describeError(error)}`);
+	});
 	const settingUp = prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
 	let chat: string;
 	try {
@@ -344,9 +349,10 @@ async function createWorkstream(
 			log(`agent: could not send the first prompt in \`${workstreamId}\`: ${describeError(error)}`);
 		}
 	});
+	await naming;
 	return {
 		id: workstreamId,
-		name: plan.name,
+		name: getWorkstream(db, workstreamId)?.name ?? plan.name,
 		repository: repository.fullName,
 		branch: plan.branch,
 		baseBranch: plan.baseBranch,
