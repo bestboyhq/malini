@@ -1,6 +1,13 @@
 <script module lang="ts">
 	export type Box = readonly [x: number, y: number, width: number, height: number];
 
+	export const within = ([x, y, w, h]: Box, [ox, oy, ow, oh]: Box): Box => [
+		ox + x * ow,
+		oy + y * oh,
+		w * ow,
+		h * oh,
+	];
+
 	export type Layer = Readonly<{
 		box: Box;
 		color?: string;
@@ -72,9 +79,17 @@ void main() {
 		soft?: number;
 		grain?: number;
 		weighted?: boolean;
+		lit?: boolean;
 	};
 
-	let { layers, opacity, soft = 0.1, grain = 7.6, weighted = false }: Props = $props();
+	let {
+		layers,
+		opacity,
+		soft = 0.1,
+		grain = 7.6,
+		weighted = false,
+		lit = $bindable(false),
+	}: Props = $props();
 
 	function program(gl: WebGLRenderingContext): WebGLProgram | null {
 		const linked = gl.createProgram();
@@ -92,7 +107,24 @@ void main() {
 		return gl.getProgramParameter(linked, gl.LINK_STATUS) ? linked : null;
 	}
 
-	function draw(canvas: HTMLCanvasElement): (() => void) | undefined {
+	function draw(canvas: HTMLCanvasElement): () => void {
+		let stop: (() => void) | undefined;
+		const near = new IntersectionObserver(
+			([entry]) => {
+				if (!entry?.isIntersecting) return;
+				near.disconnect();
+				stop = light(canvas);
+			},
+			{ rootMargin: '100% 0px' },
+		);
+		near.observe(canvas);
+		return () => {
+			near.disconnect();
+			stop?.();
+		};
+	}
+
+	function light(canvas: HTMLCanvasElement): (() => void) | undefined {
 		const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false });
 		if (!gl) return undefined;
 		const linked = program(gl);
@@ -149,8 +181,13 @@ void main() {
 			gl.uniform1f(uniform('weighted'), weighted ? 1 : 0);
 			gl.uniform1f(uniform('grow'), grow);
 			gl.drawArrays(gl.TRIANGLES, 0, 3);
+			lit = true;
 			return grow;
 		};
+		const lost = (): void => {
+			lit = false;
+		};
+		canvas.addEventListener('webglcontextlost', lost);
 
 		let frame = 0;
 		const play = (): void => {
@@ -168,6 +205,7 @@ void main() {
 			resized.disconnect();
 			themed.disconnect();
 			scheme.removeEventListener('change', render);
+			canvas.removeEventListener('webglcontextlost', lost);
 			gl.getExtension('WEBGL_lose_context')?.loseContext();
 		};
 	}

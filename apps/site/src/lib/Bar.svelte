@@ -414,12 +414,19 @@
 		border-inline: 1px solid transparent;
 	}
 
-	.row::before {
+	.row::before,
+	.row::after {
 		content: '';
 		position: absolute;
-		inset: 0 -1px;
-		border-inline: 1px solid var(--frame);
+		inset: 0 auto 0 -1px;
+		width: 1px;
+		background: var(--frame);
 		pointer-events: none;
+	}
+
+	.row::after {
+		left: auto;
+		right: -1px;
 	}
 
 	.brand {
@@ -903,7 +910,8 @@
 			border-inline: 0;
 		}
 
-		.row::before {
+		.row::before,
+		.row::after {
 			content: none;
 		}
 	}

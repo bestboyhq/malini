@@ -12,14 +12,14 @@
 	const POOLS: readonly (readonly string[])[] = [
 		[
 			'~/.claude/CLAUDE.md',
-			'## Done means done',
-			'Checked in the app.',
-			'## Act. Don’t ask.',
-			'Reversible and cheap? Do it.',
-			'## A question is a question',
-			'Answer it. Do not implement it.',
-			'## One big pull request',
-			'Never stack pull requests.',
+			'## Before you call it done',
+			'Check it in the app.',
+			'## Tests',
+			'Run them. All of them.',
+			'## Pull requests',
+			'Small. One change each.',
+			'## Ask first',
+			'Before you delete anything.',
 			'',
 			'.claude/skills/',
 			'  adr/SKILL.md',
@@ -32,35 +32,35 @@
 			'  CLAUDE.md',
 			'  settings.json',
 			'  hooks/',
-			'    block-email.sh',
-			'    guard-secrets.sh',
+			'    format.sh',
+			'    protect-main.sh',
 			'  skills/',
-			'    animate/  humanizer/  prototype/',
+			'    changelog/  release/  review/',
 			'  plugins/',
 			'    svelte@svelte',
-			'    code-simplifier  context7  figma',
+			'    pr-review  docs-search',
 			'~/.claude.json',
 			'  mcpServers',
-			'    codebase-memory-mcp',
+			'    github',
 			'',
 		],
 		[
 			'~/.claude/settings.json',
 			'{',
 			'  "permissions": {',
-			'    "allow": ["Bash(pnpm check:*)", "Bash(gh pr view:*)"]',
+			'    "allow": ["Bash(pnpm check:*)", "Bash(git status)"]',
 			'  },',
 			'  "hooks": {',
 			'    "PreToolUse": [',
-			'      { "matcher": "Bash", "command": "rtk hook claude" },',
-			'      { "matcher": "*", "command": "block-email.sh" },',
-			'      { "matcher": "Bash|Read|Edit", "command": "guard-secrets.sh" }',
+			'      { "matcher": "Bash", "command": "protect-main.sh" }',
+			'    ],',
+			'    "PostToolUse": [',
+			'      { "matcher": "Edit|Write", "command": "format.sh" }',
 			'    ]',
 			'  },',
 			'  "enabledPlugins": {',
 			'    "svelte@svelte": true,',
-			'    "code-simplifier@claude-plugins-official": true,',
-			'    "context7@claude-plugins-official": true',
+			'    "pr-review@team-plugins": true',
 			'  }',
 			'}',
 			'',
@@ -84,7 +84,7 @@
 			col: 2,
 			color: '#82aef7',
 			at: 0.7,
-			lines: ['"PreToolUse": [', '  "guard-secrets.sh"'],
+			lines: ['"PreToolUse": [', '  "protect-main.sh"'],
 		},
 		{
 			col: 2,
@@ -96,7 +96,7 @@
 			col: 0,
 			color: '#e8b86f',
 			at: 0.2,
-			lines: ['~/.claude/CLAUDE.md', '## Done means done', 'Checked in the app.'],
+			lines: ['~/.claude/CLAUDE.md', '## Before you call it done', 'Check it in the app.'],
 		},
 		{
 			col: 0,
@@ -205,6 +205,7 @@
 		position: relative;
 		aspect-ratio: 1280 / 860;
 		overflow: hidden;
+		content-visibility: auto;
 		border-radius: calc(100cqi * 46 / 2560);
 		background: light-dark(#f4f1ee, #0f0e0d);
 		box-shadow:
@@ -350,6 +351,10 @@
 	.stage:not([data-webgl]) .gl,
 	.stage:global([data-webgl]) .lens {
 		display: none;
+	}
+
+	.stage:global([data-webgl]) .mess {
+		visibility: hidden;
 	}
 
 	.legend {

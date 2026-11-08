@@ -3,6 +3,7 @@ import '../src/app.css';
 import { demoBridge } from './demo-bridge';
 import { demoHandlers } from './demo-handlers';
 import { playOf } from './demo-attract';
+import { restVideosOffscreen } from './demo-offscreen';
 import { passScrollToTheSite } from './demo-scroll';
 import DemoReport from './DemoReport.svelte';
 
@@ -19,3 +20,4 @@ mount(DemoReport, {
 		play: playOf(new URLSearchParams(window.location.search).get('play')),
 	},
 });
+restVideosOffscreen(target);

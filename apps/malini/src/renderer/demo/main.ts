@@ -1,6 +1,7 @@
 import { demoBridge } from './demo-bridge';
 import { DOCS_DRAFTS, DOCS_WORKSTREAMS } from './demo-docs';
 import { demoHandlers } from './demo-handlers';
+import { restVideosOffscreen } from './demo-offscreen';
 import { passScrollToTheSite } from './demo-scroll';
 import { DEMO_PLAY } from './demo-play';
 import { reportRows } from './demo-setup';
@@ -35,6 +36,7 @@ window.malini = demoBridge(demoHandlers);
 passScrollToTheSite();
 
 await import('../src/main');
+restVideosOffscreen(document.body);
 
 if (DEMO_PLAY === 'tour') void playTour();
 if (DEMO_PLAY === 'setup') reportRows();

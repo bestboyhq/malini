@@ -30,6 +30,8 @@ type Box = Readonly<{ x: number; w: number; pad: number; fade: boolean; rule: bo
 
 type Look = Readonly<{ color: string; spacing: string }>;
 
+type Run = Readonly<{ text: string; color: string; spacing: string; x: number }>;
+
 const ROW = 16;
 const SOFT = 14;
 const EVERY = 4_800;
@@ -274,9 +276,11 @@ export function playLoupe(parts: LoupeParts): () => void {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 		stage.dataset.webgl = '';
+		glass.style.maskImage = 'none';
 		const lost = (): void => {
 			gl = null;
 			delete stage.dataset.webgl;
+			paint();
 		};
 		canvas.addEventListener('webglcontextlost', lost);
 		cleanup.push(() => canvas.removeEventListener('webglcontextlost', lost));
@@ -309,6 +313,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 				rule: style.boxShadow !== 'none',
 			};
 		});
+		restyle();
 	};
 
 	const looks = new Map<string, Look>();
@@ -325,18 +330,44 @@ export function playLoupe(parts: LoupeParts): () => void {
 		return style;
 	};
 
+	let runs = new WeakMap<Element, readonly Run[]>();
+	const runsOf = (pen: CanvasRenderingContext2D, element: Element): readonly Run[] => {
+		let list = runs.get(element);
+		if (!list) {
+			let x = 0;
+			list = [...element.childNodes].map((node) => {
+				const text = node.textContent ?? '';
+				const { color, spacing } = look(node instanceof Element ? node : element);
+				pen.letterSpacing = spacing;
+				const run = { text, color, spacing, x };
+				x += pen.measureText(text).width;
+				return run;
+			});
+			runs.set(element, list);
+		}
+		return list;
+	};
+
+	let base = 0;
+	let ground = '';
+	const restyle = (): void => {
+		looks.clear();
+		runs = new WeakMap();
+		ground = getComputedStyle(stage).backgroundColor;
+		if (!ctx) return;
+		ctx.font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
+		const metrics = ctx.measureText('M');
+		base =
+			(ROW - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2 +
+			metrics.fontBoundingBoxAscent;
+	};
+
 	const paintMess = (ox: number, oy: number, size: number, scale: number): void => {
 		if (!ctx) return;
 		const now = performance.now();
-		const font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.clearRect(0, 0, tex.width, tex.height);
 		ctx.setTransform(scale, 0, 0, scale, -ox * scale, -oy * scale);
-		ctx.font = font;
-		const metrics = ctx.measureText('M');
-		const base =
-			(ROW - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2 +
-			metrics.fontBoundingBoxAscent;
 		cols.forEach((col, index) => {
 			const box = boxes[index];
 			if (!box || box.w === 0 || box.x > ox + size || box.x + box.w < ox) return;
@@ -369,14 +400,11 @@ export function playLoupe(parts: LoupeParts): () => void {
 					ctx.fillRect(box.x, y, 2, ROW);
 					ctx.globalAlpha = 1;
 				}
-				let x = box.x + box.pad + (hot?.shift ?? 0);
-				for (const node of element.childNodes) {
-					const text = node.textContent ?? '';
-					const style = look(node instanceof Element ? node : element);
-					ctx.fillStyle = style.color;
-					ctx.letterSpacing = style.spacing;
-					ctx.fillText(text, x, y + base);
-					x += ctx.measureText(text).width;
+				const x = box.x + box.pad + (hot?.shift ?? 0);
+				for (const run of runsOf(ctx, element)) {
+					ctx.fillStyle = run.color;
+					ctx.letterSpacing = run.spacing;
+					ctx.fillText(run.text, x + run.x, y + base);
 				}
 			}
 			if (box.fade) {
@@ -390,7 +418,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 			ctx.restore();
 		});
 		ctx.globalCompositeOperation = 'destination-over';
-		ctx.fillStyle = getComputedStyle(stage).backgroundColor;
+		ctx.fillStyle = ground;
 		ctx.fillRect(ox, oy, size, size);
 		ctx.globalCompositeOperation = 'source-over';
 	};
@@ -417,14 +445,14 @@ export function playLoupe(parts: LoupeParts): () => void {
 	let clock = 0;
 
 	const paint = (): void => {
+		if (gl) return drawLoupe(still ? 1 : pop(clock / 1_000));
 		glass.style.maskImage = hole(pos.x, pos.y, R);
 		lens.style.translate = `${(pos.x - R).toFixed(1)}px ${(pos.y - R).toFixed(1)}px`;
-		drawLoupe(still ? 1 : pop(clock / 1_000));
+		for (const col of cols) col.feed.style.translate = `0 ${(-col.y).toFixed(2)}px`;
 	};
 
 	const span = (use: Use): number => {
 		if (!ctx) return 0;
-		ctx.font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
 		return Math.max(...use.lines.map((text) => ctx.measureText(text).width));
 	};
 
@@ -479,9 +507,19 @@ export function playLoupe(parts: LoupeParts): () => void {
 	const observer = new ResizeObserver(refit);
 	observer.observe(stage);
 	document.fonts.addEventListener('loadingdone', refit);
+	const rethemed = (): void => {
+		restyle();
+		paint();
+	};
+	const themed = new MutationObserver(rethemed);
+	themed.observe(document.documentElement, { attributeFilter: ['data-theme'] });
+	const scheme = matchMedia('(prefers-color-scheme: dark)');
+	scheme.addEventListener('change', rethemed);
 	cleanup.push(() => {
 		observer.disconnect();
 		document.fonts.removeEventListener('loadingdone', refit);
+		themed.disconnect();
+		scheme.removeEventListener('change', rethemed);
 	});
 	fit();
 
@@ -575,7 +613,6 @@ export function playLoupe(parts: LoupeParts): () => void {
 				col.feed.firstElementChild?.remove();
 				col.feed.append(next(col));
 			}
-			col.feed.style.translate = `0 ${(-col.y).toFixed(2)}px`;
 		}
 
 		follow(dt);

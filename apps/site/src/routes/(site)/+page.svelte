@@ -14,6 +14,7 @@
 	import DemoCard from '$lib/DemoCard.svelte';
 	import DemoTour from '$lib/DemoTour.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
+	import Glow, { within, type Box, type Layer } from '$lib/Glow.svelte';
 	import HarnessStack from '$lib/HarnessStack.svelte';
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
@@ -50,6 +51,14 @@
 	});
 
 	const pad = (value: number): string => String(value).padStart(2, '0');
+
+	const GLOW: Box = [1 / 7, 1 / 7, 5 / 7, 5 / 7];
+	const CLOSING: readonly Layer[] = [
+		{ box: within([0, 0.06, 0.55, 0.8], GLOW), color: '#1957fa', peak: [1, 1] },
+		{ box: within([0.25, 0.18, 0.5, 0.7], GLOW), color: '#d94f46', peak: [1, 1] },
+		{ box: within([0.55, 0.12, 0.45, 0.7], GLOW), color: '#fb8600', peak: [1, 1] },
+	];
+	let lit = $state(false);
 
 	$effect(() => {
 		const io = new IntersectionObserver(
@@ -445,7 +454,12 @@
 <section id="start" class="beat closing" aria-labelledby="start-title" data-place="closing">
 	<div class="wrap">
 		<div class="close">
-			<div class="glow" aria-hidden="true"></div>
+			{#if !lit}
+				<div class="glow" aria-hidden="true"></div>
+			{/if}
+			<div class="gl" aria-hidden="true">
+				<Glow layers={CLOSING} opacity={0.14} soft={0.25} weighted bind:lit />
+			</div>
 			<BeatLabel {...beat('start')} />
 			<div class="end">
 				<div class="rise">
@@ -865,6 +879,14 @@
 			radial-gradient(closest-side, #fb8600, transparent) 100% 40% / 45% 70% no-repeat;
 		filter: blur(48px);
 		opacity: 0.14;
+		pointer-events: none;
+	}
+
+	.gl {
+		position: absolute;
+		z-index: -1;
+		inset: -8% 6% -18% -4%;
+		color: var(--surface-root);
 		pointer-events: none;
 	}
 
