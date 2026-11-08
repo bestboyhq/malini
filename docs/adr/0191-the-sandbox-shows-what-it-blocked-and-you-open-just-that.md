@@ -1,11 +1,11 @@
-# 0190 - The sandbox shows what it blocked, and you open just that
+# 0191 - The sandbox shows what it blocked, and you open just that
 
 Status: accepted
 
 ## Context
 
 0167 and 0172 gave a command that needs what the sandbox blocks one way out: run it outside, where it reads and changes anything on the Mac.
-After 0189, Docker, agent-browser's `~/.agent-browser` and wrangler's logs still sent commands out, and each fix by name only covered the user's own tools; the user asked for "a system that will support various cases".
+After 0190, Docker, agent-browser's `~/.agent-browser` and wrangler's logs still sent commands out, and each fix by name only covered the user's own tools; the user asked for "a system that will support various cases".
 The kernel already reports every denial: a deny-default rule `(with message "<tag>")` adds the tag to the report, and `log stream` shows it to a process outside the sandbox.
 The user picked the variant that opens the blocked item inside the sandbox, and asked for **Allow once** in place of "Run once outside".
 A Claude Code process stays warm across turns, so a grant must reach a running session, and Malini's database already keeps remembered approvals by scope.
@@ -26,7 +26,7 @@ A Claude Code process stays warm across turns, so a grant must reach a running s
   In the first native run, the agent asked to leave for `docker ps` again right after **Allow once**, and after **Always allow** an agent that left before would ask to leave for a command that now runs inside.
 - A granted folder is writable, its sockets reachable, and its git hooks, git config, `.claude/settings.json` and `.mcp.json` stay denied.
 - Main keeps the grants as `agent_permission_rules` with `capability: 'sandbox'`, a new `repository` scope on `project_id`, validates them again in `normalizeSandboxGrants`, and sends the ones for the chat as `sandboxGrants` with every `send_prompt` (protocol 49), which replaces the session's list; Settings, Agent access lists and revokes them.
-- `TOOL_HOMES` and `AGENT_BROWSER_ARGS` from 0189's first draft are gone.
+- `TOOL_HOMES` and `AGENT_BROWSER_ARGS` from 0190's first draft are gone.
 
 ## Consequences
 

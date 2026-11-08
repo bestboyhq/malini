@@ -29,8 +29,8 @@
 
 	const BEATS = [
 		'problem',
-		'plans',
 		'harness',
+		'plans',
 		'opus',
 		'report',
 		'compare',
@@ -200,10 +200,8 @@
 </script>
 
 {#snippet money()}
-	Sponsors, not you. We plan to grow the biggest community of builders out there, and sponsors pay
-	to be part of it. It beats the usual endings: pulling the rug on users, or <SoldCard
-		word="selling"
-	/>.
+	We don’t, yet. We have an idea, and until then we bootstrap, which suits us fine. It beats the
+	usual endings: pulling the rug on users, or <SoldCard word="selling" />.
 {/snippet}
 
 <Head title="Malini: agentic development environment" description={SITE_DESCRIPTION} path="" />
@@ -226,6 +224,19 @@
 </Hero>
 
 <Problem beat={beat('problem', 'Problem')} />
+
+<SectionHeading
+	id="harness"
+	beat={beat('harness', 'Harness')}
+	split
+	title="New model."
+	quiet="Same muscle memory."
+	description="A model at the bottom, Malini on top, and five layers of Claude Code, sandbox and plumbing in between. Swap the model. Nothing above it moves."
+>
+	{#snippet after()}
+		<HarnessStack />
+	{/snippet}
+</SectionHeading>
 
 <SectionHeading
 	id="plans"
@@ -255,19 +266,6 @@
 				</li>
 			{/each}
 		</ul>
-	{/snippet}
-</SectionHeading>
-
-<SectionHeading
-	id="harness"
-	beat={beat('harness', 'Harness')}
-	split
-	title="New model."
-	quiet="Same muscle memory."
-	description="A model at the bottom, Malini on top, and five layers of Claude Code, sandbox and plumbing in between. Swap the model. Nothing above it moves."
->
-	{#snippet after()}
-		<HarnessStack />
 	{/snippet}
 </SectionHeading>
 

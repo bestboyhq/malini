@@ -40,8 +40,8 @@
 	id="problem"
 	{beat}
 	split
-	title="You weren’t meant to read"
-	quiet="walls of text all day."
+	title="What if you weren’t meant to read"
+	quiet="walls of text all day?"
 	description="Yet here we all are. Agents write the code, and we scroll their terminals like it’s the morning news."
 >
 	{#snippet after()}
@@ -58,7 +58,8 @@
 			<div class="asked rise">
 				<p class="kicker">So we asked one question</p>
 				<h3>
-					What would an agent tool look like <span class="quiet">if it put you first?</span>
+					<span class="quiet">What would an agent tool look like</span>
+					if it put you first?
 				</h3>
 			</div>
 			<div class="ballot rise">
@@ -203,7 +204,6 @@
 		align-items: center;
 		gap: 14px;
 		padding: 12px 0;
-		border-bottom: 1px solid var(--frame);
 		font-size: 20px;
 		font-weight: 500;
 		line-height: 28px;
@@ -225,14 +225,14 @@
 		place-items: center;
 		width: 20px;
 		height: 20px;
-		border-radius: 6px;
+		border-radius: 50%;
 		box-shadow: inset 0 0 0 1.5px var(--border-strong);
 	}
 
 	.yes .mark {
-		background: var(--success);
+		background: var(--brand);
 		box-shadow: none;
-		color: var(--surface-root);
+		color: #fff;
 	}
 
 	.hidden {

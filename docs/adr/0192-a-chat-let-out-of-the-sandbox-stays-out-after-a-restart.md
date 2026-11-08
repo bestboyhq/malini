@@ -1,4 +1,4 @@
-# 0191 - A chat let out of the sandbox stays out after a restart
+# 0192 - A chat let out of the sandbox stays out after a restart
 
 Status: accepted
 
@@ -7,7 +7,7 @@ Status: accepted
 0172 kept **Allow for this chat** on the `ClaudeSession` in memory, so the same chat asked again after Malini restarted.
 `pnpm dogfood` restarts Malini on every merge to main, so a chat the user let out asked again many times a day.
 The user asked to "keep the exit card's Allow for this chat after a Malini restart".
-Malini's database already keeps remembered approvals by scope, Settings, Agent access already lists and revokes them, and 0190 already sends a chat's grants with every `send_prompt`.
+Malini's database already keeps remembered approvals by scope, Settings, Agent access already lists and revokes them, and 0191 already sends a chat's grants with every `send_prompt`.
 The rest of 0172 stands.
 
 ## Decision

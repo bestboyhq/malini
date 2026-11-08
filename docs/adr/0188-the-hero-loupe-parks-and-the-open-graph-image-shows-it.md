@@ -1,6 +1,6 @@
 # 0188 - The hero loupe parks, and the Open Graph image shows it
 
-Status: accepted
+Status: superseded by 0189
 
 ## Context
 

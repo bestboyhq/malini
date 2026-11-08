@@ -1,4 +1,4 @@
-# 0189 - Every Chromium and the macOS log run inside the sandbox
+# 0190 - Every Chromium and the macOS log run inside the sandbox
 
 Status: accepted
 
@@ -9,14 +9,14 @@ Their transcripts since 0167 name what the sandbox blocked: Playwright's Chromiu
 0167 let only Electron register its `MachPortRendezvousServer`, so the headless shell died on `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer.<pid>: Permission denied (1100)` and Chrome for Testing on `com.google.chrome.for.testing`.
 Two chats left 11 times to read the macOS log, since `/usr/bin/log` stops with "Cannot run while sandboxed", which also keeps 0167's own advice, `log stream --predicate 'sender == "Sandbox"'`, from running inside.
 Once one command in a chat went out, the agent kept leaving for every capture, and the chat asked again after each restart, which `pnpm dogfood` does on every merge.
-A first fix also opened agent-browser's and wrangler's folders by name; the user answered "I don't want to solve my personal edge cases", so those went to 0190 instead.
+A first fix also opened agent-browser's and wrangler's folders by name; the user answered "I don't want to solve my personal edge cases", so those went to 0191 instead.
 
 ## Decision
 
 - `packages/agent-bridge/src/sandbox.ts` allows `mach-lookup` and `mach-register` on `(global-name-regex "\.MachPortRendezvousServer\.[0-9]+$")`, every Chromium's rendezvous name, in place of Electron's prefix alone.
 - `/usr/bin/log` runs `(with no-sandbox)` beside `/bin/ps` and `/usr/bin/top`, since it only reads, and the user's own data in it stays `<private>` unless a profile turns that off.
 - Malini's instructions say Playwright with its Chromium runs inside, and that a Chrome an agent or a tool launches needs `--no-sandbox`, since Chrome's own sandbox cannot nest in ours, as Electron's cannot.
-- The sandbox names no tool's folder; what one tool needs, the user opens through 0190.
+- The sandbox names no tool's folder; what one tool needs, the user opens through 0191.
 
 ## Consequences
 
