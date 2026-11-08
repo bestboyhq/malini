@@ -18,9 +18,9 @@ Each denial already names the process that caused it, and 0191 already widens a 
 - `toolStateGrant(denial, places, home)` accepts a `file-write` denial as a directory only when `grantProblem` accepts it and it lies under a tool-state root: `Library/Logs/<leaf>`, `.local/state/<leaf>`, `Library/Caches`, `.cache`, `.npm`, `Library/pnpm/store`, the temporary folders, or a dot-directory at the top of home.
   `Library/Application Support/<leaf>` is tool state only when `<leaf>` equals the denied process name, ignoring case, so `rtk` opens `rtk` and not `Slack`.
   A socket is never tool state.
-- `ClaudeSession#record` adds an accepted tool-state grant to its grants at once, calls `#confine()`, and emits `bridge.sandbox_granted` with the process and the grant.
+- `ClaudeSession#record` adds an accepted tool-state grant to its grants at once, calls `#confine()`, and emits the `sandbox.granted` event with the process and the grant.
   No approval request is made, and the blocked context still tells the agent what failed, so its retry runs inside.
-- Main stores each `bridge.sandbox_granted` as an `agent_permission_rules` row with `capability: 'sandbox'` and the `everywhere` scope, validates it again in `normalizeSandboxGrants`, and sends it with every `send_prompt` (protocol 51).
+- Main stores each `sandbox.granted` as an `agent_permission_rules` row with `capability: 'sandbox'` and the `everywhere` scope, validates it again in `normalizeSandboxGrants`, and sends it with every `send_prompt` (protocol 51).
   Settings, Agent access lists each one and revokes it, and a revoked grant leaves the next profile.
 - Everything outside those roots stays a card, as in 0191: `/private/var/run`, the syslog socket and `~/.docker/run/docker.sock` included, and every card keeps its chat, repository and everywhere scopes.
   A command that needs a user-data folder runs outside through 0172's card, and no remembered grant opens user data.

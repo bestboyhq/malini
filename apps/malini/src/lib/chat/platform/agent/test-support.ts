@@ -136,6 +136,10 @@ const handle = (command) => {
           permission: { capability: 'sandbox', resources: [{ kind: 'socket', value: env.FAKE_BRIDGE_SANDBOX_SOCKET, boundary: 'external' }] } });
         return;
       }
+      if (prompt.includes('TOOL_STATE')) {
+        event({ type: 'sandbox.granted', sessionId, runId, process: 'rtk', grant: { kind: 'path', path: env.FAKE_BRIDGE_TOOL_STATE } });
+        return completeRun(sessionId, runId, 'tool state');
+      }
       if (prompt.includes('SANDBOX_EXIT')) {
         pendingRuns.set(runId, sessionId);
         event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'Claude wants to use Bash', toolName: 'Bash',

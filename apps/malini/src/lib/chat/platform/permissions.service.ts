@@ -259,6 +259,16 @@ function normalizeSandboxGrants(
 	);
 }
 
+export function normalizeToolStateGrant(
+	grant: SandboxGrant,
+	workstreamPath: string,
+): NormalizedPermission {
+	return normalizeSandboxGrants(
+		[{ kind: grant.kind, value: grant.path, boundary: 'external' }],
+		workstreamPath,
+	);
+}
+
 export function sandboxGrantsFor(
 	db: MaliniDatabase,
 	workstreamId: string,

@@ -1226,6 +1226,19 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('TOOL_STATE')) {
+		event({
+			type: 'sandbox.granted',
+			sessionId,
+			runId,
+			process: 'rtk',
+			grant: {
+				kind: 'path',
+				path: nodePath.join(fs.realpathSync(require('node:os').homedir()), 'Library/Logs/rtk'),
+			},
+		});
+		return completeRun(sessionId, runId, 'tool state');
+	}
 	if (prompt.includes('SANDBOX_EXIT')) {
 		const input = { command: 'pnpm test:e2e', dangerouslyDisableSandbox: true };
 		pendingRuns.set(runId, sessionId);

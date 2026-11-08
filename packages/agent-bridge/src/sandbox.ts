@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, normalize, resolve } from 'node:path';
 
@@ -38,6 +38,25 @@ const CREDENTIALS = [
 	'Library/Application Support/Arc',
 	'Library/Application Support/BraveSoftware',
 	'Library/Application Support/Microsoft Edge',
+];
+
+export const USER_DATA = [
+	'Documents',
+	'Desktop',
+	'Downloads',
+	'Pictures',
+	'Movies',
+	'Music',
+	'Library/Mail',
+	'Library/Messages',
+	'Library/Mobile Documents',
+	'Library/Photos',
+	'Library/Safari',
+	'Library/Calendars',
+	'Library/Reminders',
+	'Library/Application Support/AddressBook',
+	'Library/Containers',
+	'Library/Group Containers',
 ];
 
 const RUN_OUTSIDE_LATER = [
@@ -212,6 +231,7 @@ export function sandboxProfile(
 		...[DNS_SOCKET, ...grantedSockets].map(literal),
 	];
 	const secret = [...CREDENTIALS.map((entry) => join(home, entry)), ...hidden];
+	const userData = USER_DATA.map((entry) => join(home, entry));
 	return [
 		'(version 1)',
 		tag ? `(deny default (with message ${quoted(tag)}))` : '(deny default)',
@@ -224,7 +244,7 @@ export function sandboxProfile(
 		'(allow file-read* file-ioctl file-map-executable)',
 		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), pnpmLinkProbes, ...DEVICES].join(' ')})`,
 		`(deny file-write* ${ranOutside(root, git, grantedPaths.map(canonicalPath)).join(' ')})`,
-		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
+		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), ...userData.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
 		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}))`,
 		`(allow mach-register (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
 		'(allow ipc-posix-shm ipc-posix-sem)',
@@ -264,6 +284,46 @@ export function sandboxGrant(
 	return grant && grantProblem(grant, places, home) === null ? grant : null;
 }
 
+export function toolStateGrant(
+	denial: SandboxDenial,
+	places: GrantPlaces,
+	home: string = homedir(),
+): SandboxGrant | null {
+	const grant = denial.operation.startsWith('file-write')
+		? sandboxGrant(denial, places, home)
+		: null;
+	return grant?.kind === 'path' && isToolState(grant.path, denial.target, denial.process, home)
+		? grant
+		: null;
+}
+
+function isToolState(path: string, target: string, process: string, home: string): boolean {
+	if (path === target && !isDirectory(path)) return false;
+	const canonical = canonicalPath(path);
+	const folder = canonicalPath(home);
+	if (!isWithin(folder, canonical)) {
+		return TEMP_FOLDERS.some((temp) => isWithin(canonicalPath(temp), canonical));
+	}
+	const leaf = canonical.slice(folder.length + 1);
+	if (!leaf.includes('/')) return leaf.startsWith('.');
+	if (leaf.startsWith('Library/Application Support/')) {
+		const app = leaf.slice('Library/Application Support/'.length);
+		return !app.includes('/') && app.toLowerCase() === process.toLowerCase();
+	}
+	if (CACHES.some((cache) => isWithin(canonicalPath(join(home, cache)), canonical))) return true;
+	if (leaf.startsWith('Library/Logs/')) return !leaf.slice('Library/Logs/'.length).includes('/');
+	if (leaf.startsWith('.local/state/')) return !leaf.slice('.local/state/'.length).includes('/');
+	return false;
+}
+
+function isDirectory(path: string): boolean {
+	try {
+		return statSync(path).isDirectory();
+	} catch {
+		return false;
+	}
+}
+
 export function grantProblem(
 	grant: SandboxGrant,
 	places: GrantPlaces,
@@ -277,6 +337,7 @@ interface ClosedPlaces {
 	readonly checkout: readonly string[];
 	readonly malini: readonly string[];
 	readonly secret: readonly string[];
+	readonly userData: readonly string[];
 	readonly runOutsideLater: readonly string[];
 	readonly keyAgents: readonly string[];
 }
@@ -293,6 +354,7 @@ function closedPlaces({ checkout, hidden }: GrantPlaces, home: string): ClosedPl
 		checkout: [root, ...gitFolders(root)],
 		malini: appData && isAbsolute(appData) ? [canonicalPath(appData)] : [],
 		secret: [...inHome(CREDENTIALS), ...hiddenPaths],
+		userData: inHome(USER_DATA),
 		runOutsideLater: inHome(RUN_OUTSIDE_LATER),
 		keyAgents: [
 			...inHome(KEY_AGENTS),
@@ -322,6 +384,7 @@ function refusal({ kind, path }: SandboxGrant, closed: ClosedPlaces): string | n
 		return "holds Malini's own data";
 	}
 	if (within(closed.secret)) return 'holds credentials';
+	if (within(closed.userData)) return 'holds your files';
 	if (within(closed.runOutsideLater)) return 'runs outside the sandbox later';
 	return null;
 }

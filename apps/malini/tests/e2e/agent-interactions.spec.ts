@@ -194,6 +194,45 @@ test('what the sandbox blocked can be allowed for the repository, stays listed i
 	}
 });
 
+test('a tool-state folder the sandbox opens by itself needs no card and is listed in Settings until revoked', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-tool-state-ws',
+			'Tool state workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+
+		await sendPrompt(page, 'TOOL_STATE');
+		await expectAssistantReply(page);
+		await expect(decision).toHaveCount(0);
+
+		await openSettingsFromMenu(page);
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Agent access', exact: true })
+			.click();
+		const grant = page.getByRole('list', { name: 'Always allowed' }).getByRole('listitem');
+		await expect(grant).toHaveCount(1);
+		await expect(grant).toContainText('Sandbox: write');
+		await expect(grant).toContainText('Library/Logs/rtk');
+		await expect(grant.getByText('Everywhere', { exact: true })).toBeVisible();
+		await captureFlow(app, 'tool-state-grant-in-settings');
+		await grant.getByRole('button', { name: 'Revoke' }).click();
+		await expect(grant).toHaveCount(0);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a call auto mode blocks asks the user, and Always allow hands Claude the rule to keep', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

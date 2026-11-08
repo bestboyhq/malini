@@ -807,7 +807,8 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 			case 'turn.restored':
 			case 'run.obsoleted':
 			case 'run.restored':
-			case 'session.branched': {
+			case 'session.branched':
+			case 'sandbox.granted': {
 				break;
 			}
 			case 'unknown': {

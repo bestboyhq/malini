@@ -26,6 +26,7 @@ import {
 	isSensitivePathForHome,
 	maliniActionFingerprint,
 	normalizeRememberablePermission,
+	normalizeToolStateGrant,
 	rememberedRuleIdForResolvedApproval,
 	resolveHomeDirectory,
 	sandboxGrantsFor,
@@ -518,6 +519,38 @@ describe('agent_permission_rules repository', () => {
 
 		revokePermissionRuleById(db, 'rule-repository', '2026-09-18T11:00:00.000Z');
 		expect(sandboxGrantsFor(db, 'ws-3', 'sess-3')).toEqual([]);
+		db.close();
+	});
+
+	it('turns a tool-state grant into an everywhere rule that every chat keeps until revoked', () => {
+		const db = setup();
+		const root = tempDir();
+		const home = canonicalDir(root, 'home');
+		vi.stubEnv('HOME', home);
+		const workstream = canonicalDir(root, 'workstream');
+		const state = canonicalDir(home, 'Library/Application Support/rtk');
+		const normalized = normalizeToolStateGrant({ kind: 'path', path: state }, workstream);
+
+		expect(JSON.parse(normalized.canonicalJson)).toEqual({
+			capability: 'sandbox',
+			resources: [{ kind: 'path', value: state, boundary: 'external' }],
+		});
+		rememberPermissionRule(db, {
+			id: 'rule-tool-state',
+			scope: 'everywhere',
+			workstreamId: 'ws-1',
+			sessionId: 'sess-1',
+			permissionFingerprint: normalized.fingerprint,
+			permissionJson: normalized.canonicalJson,
+			createdRunId: null,
+			createdRequestId: 'req-1',
+			createdAt: '2026-09-18T10:00:00.000Z',
+		});
+
+		expect(sandboxGrantsFor(db, 'ws-2', 'sess-other')).toEqual([{ kind: 'path', path: state }]);
+
+		revokePermissionRuleById(db, 'rule-tool-state', '2026-09-18T11:00:00.000Z');
+		expect(sandboxGrantsFor(db, 'ws-2', 'sess-other')).toEqual([]);
 		db.close();
 	});
 

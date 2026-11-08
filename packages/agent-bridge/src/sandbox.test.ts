@@ -13,6 +13,7 @@ import {
 	sandboxedCommand,
 	sandboxGrant,
 	sandboxProfile,
+	toolStateGrant,
 	type SandboxDenial,
 	type SandboxPlaces,
 } from './sandbox.js';
@@ -24,6 +25,7 @@ const IN_HOME = join(homedir(), `.malini-sandbox-test-${process.pid}`);
 const PNPM_HOME = join(homedir(), 'Library/pnpm');
 const IN_PNPM_HOME = join(PNPM_HOME, `malini-sandbox-test-${process.pid}`);
 const GRANTED = join(homedir(), `.malini-sandbox-test-${process.pid}-granted`);
+const FAKE_HOME = join(homedir(), `.malini-sandbox-test-home-${process.pid}`);
 const SOCKET = join(homedir(), `.malini-sandbox-test-${process.pid}.sock`);
 const PLAYWRIGHT_BROWSERS = join(homedir(), 'Library/Caches/ms-playwright');
 const HEADLESS_CHROMIUM = globSync('chromium_headless_shell-*/*/chrome-headless-shell', {
@@ -33,6 +35,13 @@ const HEADLESS_CHROMIUM = globSync('chromium_headless_shell-*/*/chrome-headless-
 	.at(-1);
 
 mkdirSync(CHECKOUT);
+if (canSandbox()) {
+	mkdirSync(join(FAKE_HOME, 'Documents'), { recursive: true });
+	mkdirSync(join(FAKE_HOME, 'Library/LaunchAgents'), { recursive: true });
+	mkdirSync(join(FAKE_HOME, '.ssh'), { recursive: true });
+	writeFileSync(join(FAKE_HOME, 'Documents/private.txt'), 'private');
+	writeFileSync(join(FAKE_HOME, '.ssh/id_ed25519'), 'key');
+}
 execFileSync('git', ['init', '--quiet'], { cwd: CHECKOUT });
 
 afterAll(async () => {
@@ -40,11 +49,20 @@ afterAll(async () => {
 	await rm(IN_HOME, { force: true });
 	await rm(IN_PNPM_HOME, { force: true });
 	await rm(GRANTED, { recursive: true, force: true });
+	await rm(FAKE_HOME, { recursive: true, force: true });
 });
 
 function inside(command: string, places: Partial<SandboxPlaces> = {}): Promise<number> {
+	return runInside(command, homedir(), places);
+}
+
+function runInside(
+	command: string,
+	home: string,
+	places: Partial<SandboxPlaces> = {},
+): Promise<number> {
 	const [file, args] = sandboxedCommand(
-		sandboxProfile({ checkout: CHECKOUT, hidden: [], internet: false, ...places }),
+		sandboxProfile({ checkout: CHECKOUT, hidden: [], internet: false, ...places }, home),
 		'/bin/bash',
 		['-c', command],
 	);
@@ -118,6 +136,39 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		expect(await inside(`touch ${GRANTED}/state`)).not.toBe(0);
 		expect(await inside(`touch ${GRANTED}/state`, { grants })).toBe(0);
 		expect(await inside(`touch ${GRANTED}/repo/.git/hooks/pre-commit`, { grants })).not.toBe(0);
+	});
+
+	it('keeps user data and keys closed to reads and writes', async () => {
+		expect(
+			await runInside(`cat '${join(FAKE_HOME, 'Documents/private.txt')}'`, FAKE_HOME),
+		).not.toBe(0);
+		expect(await runInside(`touch '${join(FAKE_HOME, 'Documents/new.txt')}'`, FAKE_HOME)).not.toBe(
+			0,
+		);
+		expect(await runInside(`cat '${join(FAKE_HOME, '.ssh/id_ed25519')}'`, FAKE_HOME)).not.toBe(0);
+	});
+
+	it('stops a planted package that reads a key, reads a document, or writes a way to run later', async () => {
+		const attempts = [
+			`cat '${join(FAKE_HOME, '.ssh/id_ed25519')}'`,
+			`cat '${join(FAKE_HOME, 'Documents/private.txt')}'`,
+			`touch '${join(FAKE_HOME, 'Library/LaunchAgents/planted.plist')}'`,
+			`touch '${join(FAKE_HOME, '.zshrc')}'`,
+		];
+
+		for (const attempt of attempts) expect(await runInside(attempt, FAKE_HOME)).not.toBe(0);
+	});
+
+	it('opens a tool-state folder only when the grant names it', async () => {
+		const logs = join(FAKE_HOME, 'Library/Logs/node');
+		mkdirSync(logs, { recursive: true });
+
+		expect(await runInside(`touch '${logs}/today.log'`, FAKE_HOME)).not.toBe(0);
+		expect(
+			await runInside(`touch '${logs}/today.log'`, FAKE_HOME, {
+				grants: [{ kind: 'path', path: logs }],
+			}),
+		).toBe(0);
 	});
 
 	it('lets a command reach a socket the user allowed', async () => {
@@ -227,6 +278,56 @@ describe('sandbox grants', () => {
 		['a macOS service', denial('mach-lookup', 'com.apple.pasteboard.1')],
 	])('offers nothing for %s', (_place, blocked) => {
 		expect(sandboxGrant(blocked, places, home)).toBeNull();
+	});
+
+	it.each([
+		[`${home}/Library/Logs/node/today.log`, 'node', `${home}/Library/Logs/node`],
+		[`${home}/.local/state/claude/session.json`, 'claude', `${home}/.local/state/claude`],
+		[`${home}/.npm/_logs/2026.log`, 'npm', `${home}/.npm`],
+		[`${home}/.rtk/history.db`, 'rtk', `${home}/.rtk`],
+		[
+			`${home}/Library/Caches/ms-playwright/chromium`,
+			'node',
+			`${home}/Library/Caches/ms-playwright`,
+		],
+		[
+			`${home}/Library/Application Support/rtk/history.db`,
+			'rtk',
+			`${home}/Library/Application Support/rtk`,
+		],
+		['/private/tmp/some-tool/state', 'node', '/private/tmp'],
+	])('opens tool state at %s without asking', (target, process, path) => {
+		expect(
+			toolStateGrant({ ...denial('file-write-create', target), process }, places, home),
+		).toEqual({ kind: 'path', path });
+	});
+
+	it.each([
+		['a socket', { ...denial('network-outbound', `${home}/.docker/run/docker.sock`) }],
+		[
+			'a folder named after another program',
+			{ ...denial('file-write-create', `${home}/Library/Application Support/Slack/state`) },
+		],
+		['a file outside tool state', { ...denial('file-write-create', `${home}/notes.txt`) }],
+		['your documents', { ...denial('file-write-create', `${home}/Documents/notes.txt`) }],
+		['credentials', { ...denial('file-write-create', `${home}/.ssh/id_ed25519`), process: 'ssh' }],
+		[
+			'a launch agent',
+			{ ...denial('file-write-create', `${home}/Library/LaunchAgents/x.plist`), process: 'x' },
+		],
+	])('opens nothing automatic for %s', (_place, blocked) => {
+		expect(toolStateGrant(blocked, places, home)).toBeNull();
+	});
+
+	it('refuses a grant into user data', () => {
+		expect(
+			grantProblem(
+				{ kind: 'path', path: `${home}/Library/Application Support/AddressBook` },
+				places,
+				home,
+			),
+		).toBe('holds your files');
+		expect(grantProblem({ kind: 'path', path: `${home}/Documents` }, places, home)).not.toBeNull();
 	});
 
 	it("refuses a grant into Malini's own data", () => {
