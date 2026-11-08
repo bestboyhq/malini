@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -1430,6 +1430,33 @@ describe('interactions', () => {
 		expect(prompts.map((command) => command['sandboxGrants'])).toEqual([
 			undefined,
 			[{ kind: 'socket', path: socket }],
+		]);
+	});
+
+	it('records a tool-state grant the sandbox opened by itself and hands it to every chat', async () => {
+		const folder = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-tool-state-')));
+		onTestFinished(() => rmSync(folder, { recursive: true, force: true }));
+		const state = join(folder, 'logs', 'rtk');
+		mkdirSync(state, { recursive: true });
+		const sent: Array<Record<string, unknown>> = [];
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedWorkstream(test.db, test.appDataRoot, 'ws-2');
+		await boot({ FAKE_BRIDGE_TOOL_STATE: state }, { processFactory: recordingBridge(sent) });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'TOOL_STATE' });
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+
+		expect(get<{ scope: string }>(test.db, 'SELECT scope FROM agent_permission_rules')).toEqual({
+			scope: 'everywhere',
+		});
+
+		const next = await invokeString('chat.start-session', { workstreamId: 'ws-2' });
+		const nextRun = await invokeString('chat.send-prompt', { sessionId: next, prompt: 'hello' });
+		await waitFor(() => getRun(test.db, nextRun)?.completedAt !== null);
+		const prompts = sent.filter((command) => command['cmd'] === 'send_prompt');
+		expect(prompts.map((command) => command['sandboxGrants'])).toEqual([
+			undefined,
+			[{ kind: 'path', path: state }],
 		]);
 	});
 

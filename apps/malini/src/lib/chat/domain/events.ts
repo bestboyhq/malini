@@ -184,6 +184,13 @@ export type AgentEvent =
 			restoreSeq: number;
 			at: string;
 	  }
+	| {
+			type: 'sandbox.granted';
+			sessionId: string;
+			runId: string;
+			process: string;
+			grant: { kind: 'path' | 'socket'; path: string };
+	  }
 	| { type: 'run.obsoleted'; runId: string; restoreSeq: number; at: string }
 	| { type: 'run.restored'; runId: string; restoreSeq: number; at: string }
 	| {

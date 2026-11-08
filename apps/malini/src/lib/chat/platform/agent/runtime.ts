@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { isCancellationError, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import {
 	CHAT_AGENT_EVENT_CHANNEL,
@@ -26,7 +27,7 @@ import {
 	recordPendingInteraction,
 	type InteractionRecordOutcome,
 } from '../interactions.repository';
-import { matchPermissionRule } from '../permissions.repository';
+import { matchPermissionRule, rememberPermissionRule } from '../permissions.repository';
 import {
 	activeRunWorkstreamIdentity,
 	automaticRetriesBefore,
@@ -41,6 +42,7 @@ import { setProviderSessionId, setSessionStatus, type SessionStatus } from '../s
 import { get, nowIso8601 } from '$main/db/rows';
 import {
 	normalizeRequestedPermission,
+	normalizeToolStateGrant,
 	RUNS_OUTSIDE,
 	type NormalizedPermission,
 } from '../permissions.service';
@@ -884,6 +886,7 @@ export class BridgeRuntime {
 	): Promise<void> {
 		if (this.eventGeneration !== generation) return;
 		const event = withMaliniApproval(this.db, bridgeEvent);
+		this.recordSandboxGrant(event);
 		const interactionSessionId = eventSessionId(event);
 		const handled = await tryAutoApprove(
 			this.db,
@@ -924,6 +927,31 @@ export class BridgeRuntime {
 			})();
 			this.terminalCaptures.add(captured);
 			void captured.finally(() => this.terminalCaptures.delete(captured));
+		}
+	}
+
+	private recordSandboxGrant(event: BridgeEvent): void {
+		if (event.type !== 'sandbox.granted') return;
+		const identity = activeRunWorkstreamIdentity(this.db, event.sessionId, event.runId);
+		if (!identity) {
+			this.log(`agent: dropped a sandbox grant from closed run \`${event.runId}\``);
+			return;
+		}
+		try {
+			const normalized = normalizeToolStateGrant(event.grant, identity.path);
+			rememberPermissionRule(this.db, {
+				id: `rule-${randomUUID()}`,
+				scope: 'everywhere',
+				workstreamId: identity.workstreamId,
+				sessionId: event.sessionId,
+				permissionFingerprint: normalized.fingerprint,
+				permissionJson: normalized.canonicalJson,
+				createdRunId: event.runId,
+				createdRequestId: event.runId,
+				createdAt: nowIso8601(),
+			});
+		} catch (error) {
+			this.log(`agent: dropped sandbox grant \`${event.grant.path}\`: ${describe(error)}`);
 		}
 	}
 

@@ -233,6 +233,7 @@ A package that turns out to be malicious gets the sandbox, not your Mac.
 In the sandbox, a command:
 
 - writes only to the workstream, its git folders, temporary folders, package caches, and the folders you open for it;
+- cannot read or write your files in Documents, Desktop, Downloads, Pictures, Movies, Music, Mail, Messages, iCloud Drive, Photos, Safari, Calendars, Reminders, Contacts and other apps' containers;
 - never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
@@ -242,12 +243,14 @@ Electron, Playwright with its Chromium, file watchers and terminals run inside i
 Electron and Chrome keep their own sandbox off there, since the two cannot nest.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 
-When a command needs what the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
+Tools keep state of their own outside your files, and the sandbox opens general tool state by folder without a card: `~/Library/Logs/<tool>`, `~/.local/state/<tool>`, the caches, the temporary folders, a dot folder at the top of your home, and `~/Library/Application Support/<tool>` when the folder matches the program's name.
+Malini records each one in Settings, Agent access, and every later command keeps it.
+When a command needs anything else the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
 The card lists each blocked folder or socket, such as Docker's, and what opening it lets a command do.
 **Allow once** opens it for that command, and the same card comes back the next time it asks.
 **Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.
 The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json` and `.mcp.json` closed.
-Malini never offers your credentials, its own data, the workstream or a folder every app shares.
+Malini never offers your files in those folders, your credentials, its own data, the workstream or a folder every app shares.
 An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
 
 When Malini sees nothing it can open, the chat asks to run the command outside instead.

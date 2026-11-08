@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type {
 	HookJSONOutput,
@@ -1374,6 +1374,32 @@ describe('ClaudeSession', () => {
 			expect(approvedCommand(claude)).toBe('pnpm test');
 			expect(kept).toContain(socket);
 			expect(await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8')).not.toContain(socket);
+		});
+
+		it('opens a folder a tool keeps its state in without a card', async () => {
+			const state = join(homedir(), 'Library/Application Support/docker');
+			const feed = denialFeed();
+			const { session, claude, events } = harness([[...recordedScript('readAndBash')]], {
+				denials: feed,
+				onEvent: (event) => {
+					if (event.type === 'tool.started')
+						feed.block('file-write-create', join(state, 'state.json'));
+				},
+			});
+
+			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
+
+			const folder = dirname(claude.runs[0]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? '');
+			expect(ofType(events, 'approval.requested')).toEqual([]);
+			expect(ofType(events, 'sandbox.granted')).toMatchObject([
+				{
+					sessionId: CONTEXT.sessionId,
+					runId: 'run-1',
+					process: 'docker',
+					grant: { kind: 'path', path: state },
+				},
+			]);
+			expect(await readFile(join(folder, 'sandbox.sb'), 'utf8')).toContain(state);
 		});
 
 		it('tells the agent what the sandbox blocked while a command ran', async () => {
