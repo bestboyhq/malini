@@ -691,7 +691,7 @@ describe('platform requests from the agent', () => {
 		expect(await answer('p-3')).toEqual([
 			{
 				id: 'ws-1',
-				name: 'Bright Arc',
+				name: 'New workstream',
 				repository: 'project-ws-1',
 				branch: 'malini/ws-1',
 				baseBranch: 'main',
@@ -707,14 +707,14 @@ describe('platform requests from the agent', () => {
 		expect(await answer('p-4')).toBe(
 			'This chat runs in that workstream, so you cannot archive it. The user archives it from the sidebar.',
 		);
-		bridge.send(platformRequest('p-5', 'workstreams_archive', { workstream: 'bright arc' }));
+		bridge.send(platformRequest('p-5', 'workstreams_archive', { workstream: 'new workstream' }));
 		expect(await answer('p-5')).toBe(
-			'Several workstreams are named “bright arc”. Pass the id from workstreams_list instead.',
+			'Several workstreams are named “new workstream”. Pass the id from workstreams_list instead.',
 		);
 		bridge.send(platformRequest('p-6', 'workstreams_archive', { workstream: 'ws-2' }));
 		expect(await answer('p-6')).toEqual({
 			id: 'ws-2',
-			name: 'Bright Arc',
+			name: 'New workstream',
 			archived: true,
 			savedWork: null,
 		});

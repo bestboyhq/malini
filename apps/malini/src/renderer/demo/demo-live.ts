@@ -11,12 +11,11 @@ import { DEMO_PLAY } from './demo-play';
 import {
 	closingEvents,
 	envelopesOf,
-	HERO_ID,
-	HERO_THOUGHT,
 	OWNER,
 	openingEvents,
 	PROJECTS,
 	sessionId,
+	SETUP_WORKSTREAM,
 	toolEvents,
 	workstreamDto,
 	WORKSTREAMS,
@@ -47,19 +46,11 @@ type LeadScript = Readonly<{
 
 const LEAD_SCRIPTS: readonly LeadScript[] = [TOUR_LEAD];
 
-const HERO_WORK_MS = 8_000;
-
 const REPLIES: ReadonlyMap<string, string> = new Map([[TOUR_FEEDBACK, TOUR_THREAD_REPORT]]);
 
-const HERO = WORKSTREAMS.find((workstream) => workstream.id === HERO_ID);
-const heroPlays = DEMO_PLAY === 'hero' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 const listed: DemoWorkstream[] = [
-	...WORKSTREAMS.map((workstream) =>
-		heroPlays && workstream === HERO
-			? { ...workstream, name: '', files: [], runs: [] }
-			: workstream,
-	),
+	...(DEMO_PLAY === 'setup' ? [SETUP_WORKSTREAM] : []),
+	...WORKSTREAMS,
 	...(DEMO_PLAY === 'docs' ? DOCS_WORKSTREAMS : []),
 ];
 const threads = new Map<string, Readonly<{ workstreamId: string; model: string; name: string }>>();
@@ -375,23 +366,6 @@ function work(
 	];
 }
 
-function heroSteps(emit: DemoEmit, hero: DemoWorkstream, run: DemoRun): Step[] {
-	return [
-		[600, () => rename(emit, hero.id, hero.name)],
-		...work(emit, hero.id, run, HERO_THOUGHT, HERO_WORK_MS),
-		[
-			HERO_WORK_MS / 6,
-			() => {
-				listed[listed.findIndex((workstream) => workstream.id === hero.id)] = {
-					...hero,
-					runs: [run],
-				};
-				for (const event of closingEvents(run)) append(emit, sessionId(hero.id), run.id, event);
-			},
-		],
-	];
-}
-
 function leadSteps(
 	emit: DemoEmit,
 	leadId: string,
@@ -472,58 +446,52 @@ export function sendPrompt(
 		lead && transcript(id).length === 0
 			? LEAD_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
 			: undefined;
-	const heroRun =
-		heroPlays && HERO && id === sessionId(HERO.id) && transcript(id).length === 0
-			? HERO.runs.find((run) => run.prompt === prompt.trim())
-			: undefined;
 	const answer = REPLIES.get(prompt.trim());
 	const steps =
-		HERO && heroRun
-			? heroSteps(emit, HERO, { ...heroRun, id: runId })
-			: lead && script
-				? leadSteps(emit, lead.id, id, runId, script)
-				: scene && docsReply
+		lead && script
+			? leadSteps(emit, lead.id, id, runId, script)
+			: scene && docsReply
+				? [
+						...work(emit, scene.id, { ...docsReply, id: runId }, null, docsReply.workMs),
+						...reply(emit, id, runId, docsReply.report, true),
+					]
+				: answer
 					? [
-							...work(emit, scene.id, { ...docsReply, id: runId }, null, docsReply.workMs),
-							...reply(emit, id, runId, docsReply.report, true),
+							...tool(
+								emit,
+								id,
+								runId,
+								`${runId}-read`,
+								'Read',
+								{ file_path: 'site/src/lib/Footer.svelte' },
+								'ok',
+								700,
+							),
+							...tool(
+								emit,
+								id,
+								runId,
+								`${runId}-edit`,
+								'Edit',
+								{ file_path: 'site/src/lib/Footer.svelte' },
+								'ok',
+								1_100,
+							),
+							...reply(emit, id, runId, answer, true),
 						]
-					: answer
-						? [
-								...tool(
-									emit,
-									id,
-									runId,
-									`${runId}-read`,
-									'Read',
-									{ file_path: 'site/src/lib/Footer.svelte' },
-									'ok',
-									700,
-								),
-								...tool(
-									emit,
-									id,
-									runId,
-									`${runId}-edit`,
-									'Edit',
-									{ file_path: 'site/src/lib/Footer.svelte' },
-									'ok',
-									1_100,
-								),
-								...reply(emit, id, runId, answer, true),
-							]
-						: [
-								...tool(
-									emit,
-									id,
-									runId,
-									`${runId}-read`,
-									'Read',
-									{ file_path: 'AGENTS.md' },
-									'ok',
-									900,
-								),
-								...reply(emit, id, runId, DEMO_REPLY, true),
-							];
+					: [
+							...tool(
+								emit,
+								id,
+								runId,
+								`${runId}-read`,
+								'Read',
+								{ file_path: 'AGENTS.md' },
+								'ok',
+								900,
+							),
+							...reply(emit, id, runId, DEMO_REPLY, true),
+						];
 	running.set(id, runId);
 	play(
 		[...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...steps],

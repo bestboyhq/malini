@@ -1,6 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { isAbsolute, join, normalize } from 'node:path';
+import { isAbsolute, normalize } from 'node:path';
 import {
 	parseSnapshotNumstat,
 	retryingVanishedFileRace,
@@ -411,15 +409,12 @@ async function diffComposedTrees(
 
 async function rebaseIntervalOnto(
 	worktree: string,
-	patchDir: string,
 	path: string,
 	current: TreeEntry,
 	run: SessionRunSnapshot,
 ): Promise<TreeEntry | null | undefined> {
 	try {
 		const patch = await snapshotBinaryPatch(worktree, run.beforeCommit, run.afterCommit, path);
-		const patchPath = join(patchDir, 'interval.patch');
-		await writeFile(patchPath, patch);
 		return await withTemporaryIndex(async (index) => {
 			const env = index.env();
 			await runGitWithInput(
@@ -427,8 +422,9 @@ async function rebaseIntervalOnto(
 				indexInfo([[path, current]]),
 				env,
 			);
-			await runGit(
-				['-C', worktree, 'apply', '--cached', '--3way', '--whitespace=nowarn', patchPath],
+			await runGitWithInput(
+				['-C', worktree, 'apply', '--cached', '--3way', '--whitespace=nowarn'],
+				patch,
 				env,
 			);
 			const listed = await runGit(
@@ -454,43 +450,38 @@ export async function composeSessionRunSnapshots(
 	runs: readonly SessionRunSnapshot[],
 ): Promise<ComposedSessionSnapshot> {
 	const paths = new Map<string, PathComposition>();
-	const patchDir = await mkdtemp(join(tmpdir(), 'malini-run-patch-'));
-	try {
-		for (const run of runs) {
-			if (run.files.length === 0) continue;
-			const intervals = await runIntervals(worktreePath, run.beforeCommit, run.afterCommit);
-			for (const file of run.files) {
-				const { path } = file;
-				const interval = intervals.get(path);
-				const known = paths.get(path);
-				if (!known) {
-					paths.set(path, {
-						before: interval?.before ?? null,
-						current: interval?.after ?? null,
-						runIds: [run.runId],
-						stacked: interval === undefined,
-						recorded: file,
-					});
-					continue;
-				}
-				known.runIds.push(run.runId);
-				if (known.stacked) continue;
-				if (interval === undefined) {
-					known.stacked = true;
-				} else if (sameEntry(known.current, interval.before)) {
-					known.current = interval.after;
-				} else if (!sameEntry(known.current, interval.after)) {
-					const rebased =
-						known.current === null
-							? undefined
-							: await rebaseIntervalOnto(worktreePath, patchDir, path, known.current, run);
-					if (rebased === undefined) known.stacked = true;
-					else known.current = rebased;
-				}
+	for (const run of runs) {
+		if (run.files.length === 0) continue;
+		const intervals = await runIntervals(worktreePath, run.beforeCommit, run.afterCommit);
+		for (const file of run.files) {
+			const { path } = file;
+			const interval = intervals.get(path);
+			const known = paths.get(path);
+			if (!known) {
+				paths.set(path, {
+					before: interval?.before ?? null,
+					current: interval?.after ?? null,
+					runIds: [run.runId],
+					stacked: interval === undefined,
+					recorded: file,
+				});
+				continue;
+			}
+			known.runIds.push(run.runId);
+			if (known.stacked) continue;
+			if (interval === undefined) {
+				known.stacked = true;
+			} else if (sameEntry(known.current, interval.before)) {
+				known.current = interval.after;
+			} else if (!sameEntry(known.current, interval.after)) {
+				const rebased =
+					known.current === null
+						? undefined
+						: await rebaseIntervalOnto(worktreePath, path, known.current, run);
+				if (rebased === undefined) known.stacked = true;
+				else known.current = rebased;
 			}
 		}
-	} finally {
-		await rm(patchDir, { recursive: true, force: true });
 	}
 	const composed = [...paths].filter(([, state]) => !state.stacked);
 	const trees = await writeComposedTrees(worktreePath, composed);

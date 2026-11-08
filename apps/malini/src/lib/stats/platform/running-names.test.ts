@@ -41,6 +41,7 @@ describe('running names', () => {
 		});
 		expect(parseServiceName('  ')).toBeNull();
 		expect(parseServiceName('Task:')).toBeNull();
+		expect(parseServiceName('the dev server for the marketing site')).toBeNull();
 	});
 
 	it('shows the command without its leading cd, and resolves where it runs', () => {

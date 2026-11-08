@@ -1,6 +1,6 @@
 import type { RenderItem, RunGroup, ToolAggregate } from './render-state';
 import { isAgentTool } from './tool-display-name';
-import { relativizeWorkstreamPath } from './workstream-path';
+import { canonicalChangedPath } from '$shared/markdown/workstream-path';
 
 export type RunTimelineThought = {
 	contentId: string;
@@ -106,14 +106,6 @@ const MUTATION_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'NotebookEdit',
 	'Write',
 ]);
-
-export function canonicalChangedPath(value: string): string {
-	const normalized = relativizeWorkstreamPath(value.trim().replaceAll('\\', '/'));
-	return normalized
-		.replace(/^(?:\.\/)+/u, '')
-		.replace(/^\/+/u, '')
-		.replace(/\/+$/u, '');
-}
 
 export function changedPathsMatch(left: string, right: string): boolean {
 	if (!left || !right) return false;

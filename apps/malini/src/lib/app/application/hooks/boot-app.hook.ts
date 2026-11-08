@@ -6,6 +6,7 @@ import { syncNativeThemeCommand } from '$lib/app/application/commands/sync-nativ
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
 import { menuCommandsService } from '$lib/app/infrastructure/services/menu-commands.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
+import { watchNativeFullScreen } from '$lib/app/infrastructure/services/native-full-screen.service';
 import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
 import { updatesService } from '$lib/app/infrastructure/services/updates.service';
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
@@ -15,6 +16,7 @@ import { watchFramesHook } from '$lib/stats/application/hooks/watch-frames.hook'
 
 export function bootAppHook(): () => void {
 	const stopWatchingZoom = watchNativeChromeZoom();
+	const stopWatchingFullScreen = watchNativeFullScreen();
 	const stopFollowingSystemTheme =
 		appearanceDocumentService.watchSystemTheme(followSystemThemeCommand);
 	syncNativeThemeCommand();
@@ -27,6 +29,7 @@ export function bootAppHook(): () => void {
 			stopWatchingUpdates();
 			stopWatchingStreaming();
 			stopFollowingSystemTheme();
+			stopWatchingFullScreen();
 			stopWatchingZoom();
 		};
 	}
@@ -57,6 +60,7 @@ export function bootAppHook(): () => void {
 		stopWatchingUpdates();
 		stopWatchingStreaming();
 		stopFollowingSystemTheme();
+		stopWatchingFullScreen();
 		stopWatchingZoom();
 	};
 }

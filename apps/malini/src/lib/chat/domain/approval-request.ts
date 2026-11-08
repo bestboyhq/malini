@@ -13,6 +13,11 @@ export function approvalHeadline(
 	const files = resources.filter((resource) => resource.kind === 'path').length > 1;
 	const fileNoun = files ? 'files' : 'a file';
 	const tool = toolName ?? 'a tool';
+	if (permission?.capability === 'sandbox') {
+		return resources.length === 1
+			? 'The sandbox blocked one thing this command needs'
+			: `The sandbox blocked ${resources.length} things this command needs`;
+	}
 	if (permission?.capability === 'read') return `Claude wants to read ${fileNoun}`;
 	if (permission?.capability === 'write') return `Claude wants to edit ${fileNoun}`;
 	if (permission?.capability === 'network') {
@@ -42,7 +47,12 @@ export function leavesTheSandbox(toolName: string | undefined, input: unknown): 
 
 export function approvalTargets(
 	permission: AgentPermissionDescriptor | undefined,
+	input?: unknown,
 ): readonly ApprovalTarget[] {
+	if (permission?.capability === 'sandbox') {
+		const command = typeof input === 'object' && input !== null && Reflect.get(input, 'command');
+		return typeof command === 'string' ? [{ kind: 'command', value: command }] : [];
+	}
 	return (permission?.resources ?? [])
 		.filter((resource) => TARGET_KINDS.has(resource.kind) && resource.value.trim())
 		.map((resource) => ({ kind: resource.kind, value: resource.canonicalValue ?? resource.value }));
@@ -52,12 +62,54 @@ export function approvalShortTarget(
 	toolName: string | undefined,
 	permission: AgentPermissionDescriptor | undefined,
 ): string {
+	if (permission?.capability === 'sandbox') {
+		return sandboxGrantRows(permission)
+			.map((row) => row.path)
+			.join(', ');
+	}
 	const resource = (permission?.resources ?? []).find(
 		(candidate) => TARGET_KINDS.has(candidate.kind) && candidate.value.trim(),
 	);
 	if (!resource) return toolName ?? 'tool';
 	if (resource.kind !== 'path') return resource.value;
 	return resource.value.split('/').filter(Boolean).at(-1) ?? resource.value;
+}
+
+export type SandboxGrantRow = Readonly<{
+	kind: 'folder' | 'socket' | 'docker';
+	name: string;
+	path: string;
+	risk: string;
+}>;
+
+export function sandboxGrantRows(
+	permission: AgentPermissionDescriptor | undefined,
+): readonly SandboxGrantRow[] {
+	if (permission?.capability !== 'sandbox') return [];
+	return permission.resources.flatMap(({ kind, value }): SandboxGrantRow[] => {
+		const path = value.replace(/^\/Users\/[^/]+(?=\/|$)/u, '~');
+		if (kind === 'path') {
+			return [{ kind: 'folder', name: 'Write', path, risk: 'Commands can change anything in it.' }];
+		}
+		if (kind !== 'socket') return [];
+		return value.endsWith('/docker.sock')
+			? [
+					{
+						kind: 'docker',
+						name: 'Docker',
+						path,
+						risk: 'A container can read every folder Docker shares, your home included.',
+					},
+				]
+			: [
+					{
+						kind: 'socket',
+						name: 'Connect',
+						path,
+						risk: 'Commands can talk to what listens on it.',
+					},
+				];
+	});
 }
 
 export function approvalReason(reason: string): string | null {

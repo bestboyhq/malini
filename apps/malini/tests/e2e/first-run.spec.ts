@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import type { BrainStatus } from '../../src/contract/brain';
+import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
 import {
 	CREATED_GITHUB_REPOSITORY_FIXTURE,
 	GITHUB_REPOSITORIES_FIXTURE,
@@ -11,6 +13,7 @@ import {
 	invoke,
 	launchMalini,
 	openWorkstream,
+	passDefaults,
 	passSetup,
 	seedWorkstream,
 	sendPrompt,
@@ -28,7 +31,7 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toBeVisible();
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(3);
+		).toHaveCount(4);
 		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
 		await expect(
@@ -80,9 +83,9 @@ test('a signed-out Claude Code passes setup, and only a Claude send asks to sign
 		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
 		await expect(page.getByTestId('chat-model-runners')).toHaveCount(0);
 		await sendPrompt(page, 'SEARCH the fixture repo');
-		const connect = page.getByTestId('provider-connect-card');
+		const connect = page.getByTestId('provider-connect-strip');
 		await expect(connect).toHaveAttribute('data-access', 'claude-signed-out');
-		await expect(connect).toContainText('Sign in to Claude Code to run this message.');
+		await expect(connect).toContainText('Sign in to Claude Code to run this');
 		await expect(connect.getByRole('button', { name: 'Sign in with Claude' })).toBeVisible();
 		await expect(page.getByTestId('chat-prompt-pick')).toHaveCount(0);
 		await captureFlow(app, 'composer-sign-in-claude');
@@ -155,12 +158,12 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 		expect(continueOnCopies.before).toBeGreaterThan(0);
 		expect(continueOnCopies.after).toBe(0);
 
-		const heardAbout = setup.getByRole('heading', { name: 'Where did you hear about Malini?' });
-		await expect(heardAbout).toBeVisible();
+		const defaultsStep = setup.getByRole('heading', { name: 'Pick your defaults' });
+		await expect(defaultsStep).toBeVisible();
 		const copiedBefore = (await rehearsalCopies()).length;
 		await expect.poll(async () => (await rehearsalCopies()).length).toBeGreaterThan(copiedBefore);
 		await expect.poll(copiesOnStage, { timeout: 20_000 }).toBe(0);
-		await expect(heardAbout).toHaveCount(1);
+		await expect(defaultsStep).toHaveCount(1);
 		await expect(page.locator('#onboarding-heading')).toHaveCount(1);
 
 		const copies = await rehearsalCopies();
@@ -179,9 +182,9 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 		const setup = page.getByTestId('onboarding');
 		const next = setup.getByRole('button', { name: 'Continue' });
 		await next.click();
-		const sounds = setup.getByRole('heading', { name: 'Hear your afternoon' });
-		await expect(sounds).toBeVisible();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await next.click();
+		await passDefaults(page);
 		await expect(
 			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
 		).toBeVisible();
@@ -201,7 +204,7 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 		await where.fill('@syntaxfm podcast');
 		await captureFlow(app, 'setup-heard-about-somewhere-else');
 		await setup.getByRole('button', { name: 'Back' }).click();
-		await expect(sounds).toBeVisible();
+		await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
 		await next.click();
 		await expect(where).toHaveValue('@syntaxfm podcast');
 
@@ -210,6 +213,118 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 		await expect
 			.poll(async () => (await storedSettings(page))['heard-about'])
 			.toBe('syntaxfm podcast');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Recommended defaults turn on every default automation and set up a private brain on GitHub', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await brainOnGithub(app, 'missing');
+		const setup = page.getByTestId('onboarding');
+		const next = setup.getByRole('button', { name: 'Continue' });
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
+		await expect(setup.getByText('Step 3 of 4')).toBeVisible();
+		const recommended = setup.getByRole('radio', { name: /^Recommended/u });
+		await expect(recommended).toHaveAttribute('aria-checked', 'true');
+		await expect(
+			setup.getByRole('list', { name: 'Recommended defaults' }).getByRole('listitem'),
+		).toHaveText([
+			/Resolve merge conflicts/u,
+			/Address review comments/u,
+			/Keep a second brain/u,
+			/Update from main when it touches your files/u,
+		]);
+		await expect(next).toBeEnabled();
+		await captureFlow(app, 'setup-defaults');
+
+		await setup.getByRole('radio', { name: /^Customize/u }).click();
+		await expect(setup.getByRole('checkbox', { name: /^Keep a second brain/u })).toBeChecked();
+		await expect(
+			setup.getByRole('group', { name: 'Update from main' }).getByRole('button', {
+				name: 'Touches my files',
+			}),
+		).toHaveAttribute('aria-pressed', 'true');
+		await captureFlow(app, 'setup-defaults-customize');
+		await recommended.click();
+		await next.click();
+		await expect(
+			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+		).toBeVisible();
+
+		await expect
+			.poll(async () => triggers(page), { timeout: 60_000 })
+			.toEqual({
+				'resolve-conflicts': 'auto',
+				'address-review': 'auto',
+				'update-from-main':
+					'auto on repositories:workstream-base-overlapped where overlapping is true',
+				'capture-brain': 'auto',
+				'write-brain-notes': 'auto',
+			});
+		expect(await invoke<BrainStatus>(page, 'brain.status', undefined)).toMatchObject({
+			set: true,
+			repository: FAKE_BRAIN,
+			sync: true,
+		});
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Customize with Address review unchecked turns it off, and it stays off across a reload', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const setup = page.getByTestId('onboarding');
+		const next = setup.getByRole('button', { name: 'Continue' });
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await next.click();
+		await setup.getByRole('radio', { name: /^Customize/u }).click();
+		await setup.getByRole('checkbox', { name: /^Address review comments/u }).uncheck();
+		await setup.getByRole('checkbox', { name: /^Keep a second brain/u }).uncheck();
+		await expect(setup.getByText(/^The log holds/u)).toHaveCount(0);
+		await next.click();
+		await expect(
+			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+		).toBeVisible();
+		await expect
+			.poll(async () => triggers(page))
+			.toMatchObject({ 'resolve-conflicts': 'auto', 'address-review': 'off' });
+
+		await page.reload();
+		await expect
+			.poll(async () => triggers(page), { timeout: 20_000 })
+			.toEqual({
+				'resolve-conflicts': 'auto',
+				'address-review': 'off',
+				'update-from-main':
+					'auto on repositories:workstream-base-overlapped where overlapping is true',
+				'capture-brain': 'off',
+				'write-brain-notes': 'off',
+			});
+		await page.evaluate(() => {
+			location.hash = '#/settings/automations';
+		});
+		await page.reload();
+		await expect(page.getByRole('switch', { name: 'Address review comments' })).toHaveAttribute(
+			'aria-checked',
+			'false',
+			{ timeout: 20_000 },
+		);
+		await expect(
+			page.getByRole('group', { name: 'Defaults' }).getByRole('button', { name: 'Custom' }),
+		).toHaveAttribute('aria-pressed', 'true');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -249,6 +364,7 @@ test('setup ends on a picker of your GitHub repositories with no chat, across a 
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await expect(center).toHaveCount(0);
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await passDefaults(page);
 		await setup
 			.getByRole('group', { name: 'Where you heard about Malini' })
 			.getByRole('button', { name: 'Hacker News' })
@@ -434,6 +550,30 @@ function slowClone(binFolder: string): void {
 
 async function workstreams(page: Page): Promise<WorkstreamRow[]> {
 	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);
+}
+
+async function triggers(page: Page): Promise<Record<string, string>> {
+	const definitions = await invoke<
+		{ builtin: string | null; trigger: { when: string; mode: string } | null }[]
+	>(page, 'automations.list-definitions', undefined);
+	return Object.fromEntries(
+		definitions
+			.filter(({ builtin }) =>
+				[
+					'resolve-conflicts',
+					'address-review',
+					'update-from-main',
+					'capture-brain',
+					'write-brain-notes',
+				].includes(builtin ?? ''),
+			)
+			.map(({ builtin, trigger }) => [
+				builtin,
+				builtin === 'update-from-main' && trigger
+					? `${trigger.mode} ${trigger.when}`
+					: (trigger?.mode ?? 'off'),
+			]),
+	);
 }
 
 async function storedSettings(page: Page): Promise<Record<string, string>> {

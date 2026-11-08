@@ -28,7 +28,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import { asset } from '$app/paths';
 	import { cubicOut, quartOut } from 'svelte/easing';
-	import { fly, type TransitionConfig } from 'svelte/transition';
+	import type { TransitionConfig } from 'svelte/transition';
 	import { BrowserTab } from '@malini/hyper-ui/components/browser-tab';
 	import { IconButton } from '@malini/hyper-ui/components/icon-button';
 	import { ShimmerText } from '@malini/hyper-ui/components/shimmer-text';
@@ -187,6 +187,14 @@
 			duration: 140,
 			easing: cubicOut,
 			css: (t, u) => `opacity: ${t}; translate: 0 ${u * -5}px; filter: blur(${u * 2}px);`,
+		};
+	}
+
+	function previewIn(_node: Element): TransitionConfig {
+		return {
+			duration: 260,
+			easing: cubicOut,
+			css: (t, u) => `opacity: ${t}; translate: 0 ${u * 10}px;`,
 		};
 	}
 
@@ -684,10 +692,7 @@
 			{/if}
 			<span class="grid min-w-0 flex-1 overflow-hidden">
 				{#key live}
-					<span
-						class="text-fg-tertiary/75 truncate [grid-area:1/1]"
-						in:fly={{ y: 10, duration: 260, easing: cubicOut }}
-					>
+					<span class="text-fg-tertiary/75 truncate [grid-area:1/1]" in:previewIn>
 						{live ? preview : outcome}
 					</span>
 				{/key}

@@ -9,12 +9,17 @@ describe('cleanTitle', () => {
 		expect(cleanTitle('ADR lookup for agent commits')).toBe('ADR lookup for agent commits');
 		expect(cleanTitle('Sidebar label: Assistant reply naming')).toBe('Assistant reply naming');
 		expect(cleanTitle('**Title:** dark mode tokens')).toBe('Dark mode tokens');
+		expect(cleanTitle('Default window size and onboarding clipping')).toBe(
+			'Default window size and onboarding clipping',
+		);
 	});
 
 	it('rejects a reply that is not a name', () => {
 		expect(cleanTitle('')).toBeNull();
 		expect(cleanTitle('I need more context to name this task.')).toBeNull();
 		expect(cleanTitle('Sidebar flicker\n\nThis names the bug.')).toBeNull();
-		expect(cleanTitle('Supercalifragilisticexpialidocious configuration overhaul')).toBeNull();
+		expect(
+			cleanTitle('Supercalifragilisticexpialidocious antidisestablishmentarianism configuration'),
+		).toBeNull();
 	});
 });

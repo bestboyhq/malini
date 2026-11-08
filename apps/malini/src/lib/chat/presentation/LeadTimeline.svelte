@@ -8,6 +8,7 @@
 		viewLeadDecisionCommand,
 	} from '$lib/chat/application/commands/focus-lead-decision.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
+	import { heldPromptQuery } from '$lib/chat/application/queries/held-prompt.query.svelte';
 	import { agentInteractionStateQuery } from '$lib/chat/application/queries/agent-interaction-state.query.svelte';
 	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
 	import { workstreamImageSourceHook } from '$lib/chat/application/hooks/workstream-image-source.hook.svelte';
@@ -16,8 +17,9 @@
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import AgentInteractionCard from './AgentInteractionCard.svelte';
-	import MarkdownText from './MarkdownText.svelte';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import MediaViewer, { type ViewerItem } from './MediaViewer.svelte';
+	import ProviderConnectStrip from './ProviderConnectStrip.svelte';
 	import TimelineActor from './TimelineActor.svelte';
 	import WorkstreamMedia from './WorkstreamMedia.svelte';
 	import { sessionProjectorCache } from './chat-message-list/session-projectors';
@@ -72,8 +74,9 @@
 	const leadThinking = $derived(running && runningWork === null);
 	const firstEntryKey = $derived(rows.find((row) => row.kind === 'entry')?.key ?? null);
 	const firstRowKey = $derived(rows[0]?.key ?? null);
+	const heldPrompt = $derived(heldPromptQuery.data(workstreamId, sessionId));
 	const lastEntryKey = $derived(
-		leadThinking || working.length > 0 ? null : (rows.at(-1)?.key ?? null),
+		leadThinking || working.length > 0 || heldPrompt ? null : (rows.at(-1)?.key ?? null),
 	);
 	const lastNowId = $derived(working.at(-1) ?? null);
 
@@ -88,6 +91,7 @@
 
 	$effect(() => {
 		void rows.length;
+		void heldPrompt;
 		void working.length;
 		void leadThinking;
 		void follow();
@@ -472,6 +476,31 @@
 				</li>
 			{/if}
 		{/each}
+		{#if heldPrompt}
+			<li
+				class={[
+					'row grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] items-start py-2.5',
+					rows.length === 0 && 'rail-start',
+					!leadThinking && working.length === 0 && 'rail-end',
+				]}
+				data-timeline-entry="prompt"
+			>
+				<time class="text-fg-tertiary text-xs leading-[22px] tabular-nums">
+					{timeOf(new Date(heldPrompt.createdAt).toISOString())}
+				</time>
+				<span class="node mt-2 justify-self-center" aria-hidden="true"></span>
+				<div class="min-w-0 pl-2.5 text-sm leading-[22px]">
+					<div class="text-fg-default font-medium">You</div>
+					<div
+						class="bg-surface-50 border-surface-50-border text-fg-agent-message-strong mt-1.5 rounded-xl border-[0.5px] px-3.5 py-2.5"
+						data-testid="chat-message-bubble-user"
+					>
+						<div class="prompt-text whitespace-pre-wrap">{heldPrompt.prompt}</div>
+					</div>
+					<ProviderConnectStrip {workstreamId} held={heldPrompt} />
+				</div>
+			</li>
+		{/if}
 		{#if leadThinking}
 			<li
 				class={[

@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, keep working with the lid closed, plan mode, agent access, model and effort per prompt, model presets, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -94,7 +94,7 @@ Whatever closes that run later, stopping it, quitting, a crash, merging main int
 ## Limits and outages
 
 Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
-When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat says **Paused until** a time, with the reason.
+When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat shows the reason with a **Paused until** strip under it that says the time.
 
 - A usage limit on your Claude plan waits until the limit resets.
 - A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
@@ -103,7 +103,8 @@ When a turn still stops on a limit or an outage, Malini pauses it instead of fai
 The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue, which the chat shows as a divider, such as **Claude is back. Well rested**.
 **Resume now** goes on at once, and a prompt you send replaces the pause.
 An automation whose turn pauses keeps running, so a merge that waits on it loses no attempt.
-A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+A turn that only you can fix fails, and the chat shows the error with a **Run failed** strip under it: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+When the agent process stops answering mid-run, an **Agent process died** strip above the composer restarts it, and a chat whose agent session cannot start shows its error with an **Agent session unavailable** strip and **Retry session**.
 An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
 
 ## Run a command from the chat
@@ -130,6 +131,7 @@ Type **/** and pick **/compact** to have the chat's Claude Code summarize the co
 Type instructions after **/compact** to say what the summary should keep.
 Right after any compaction, Malini puts every message of the chat back into the agent's context, word for word: each prompt you wrote and each reply the agent gave, without the turns you undid, the newest 256 KB of them.
 The summary still covers tool calls and their output, which the agent can read again.
+On 16 long chats, the 280K window with every message put back cost about 76% of Claude Code's own window, and a compaction kept 86% of what mattered instead of 70%.
 **Settings → Models → Optimize context** does both, and stays on until you turn it off.
 Turned off, Malini sets no window and puts nothing back: Claude Code compacts at its own window, or the one you pick with `/autocompact` or in your Claude Code settings, and the agent keeps only the summary.
 A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
@@ -154,8 +156,9 @@ A new chat starts with the model, effort, plan mode and report you picked last, 
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
 Turning plan mode on or off picks the planning or implementation model from **Settings → Models**, and **Implement plan** starts with the implementation model.
 An automation's chat shows the model, effort and plan mode its automation ran with, so a reply you send there runs the same way unless you change it.
-Send with a model that is not connected and Malini asks for what it needs right there: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
-Connecting sends the prompt, and the same card covers an edited prompt before its checkpoint rewinds.
+Send with a model that is not connected and the prompt still lands in the chat, with a strip under it that asks for what it needs: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
+Connecting runs the prompt, and **Cancel** or Escape puts it back in the composer.
+It waits under its strip while you switch chats or restart Malini, the sidebar marks its workstream **Needs you**, and an edited prompt rewinds its checkpoint, then waits the same way.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
@@ -197,7 +200,8 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 
 Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
-When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+When the agent asks, the chat shows what it wants to do, with a **Permission request** strip under it: deny it, or approve once, or always for the chat, the workstream, or everywhere.
+The request stays in the chat, and its strip then says what you picked.
 Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens a draft or merges.
 See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
@@ -228,18 +232,26 @@ A package that turns out to be malicious gets the sandbox, not your Mac.
 
 In the sandbox, a command:
 
-- writes only to the workstream, its git folders, temporary folders and package caches;
+- writes only to the workstream, its git folders, temporary folders, package caches, and the folders you open for it;
 - never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
-- reaches localhost and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
+- reaches localhost, the sockets you open for it and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
-Electron, Playwright, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
-Electron's own sandbox stays off there, since the two cannot nest.
+Electron, Playwright with its Chromium, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
+Electron and Chrome keep their own sandbox off there, since the two cannot nest.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 
-When a command needs what the sandbox blocks, the agent asks to run it outside, and the chat asks you first.
-**Allow for this chat** runs every later one in that chat outside without asking, and a new chat, or the same chat after Malini restarts, asks again.
+When a command needs what the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
+The card lists each blocked folder or socket, such as Docker's, and what opening it lets a command do.
+**Allow once** opens it for that command, and the same card comes back the next time it asks.
+**Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.
+The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json` and `.mcp.json` closed.
+Malini never offers your credentials, its own data, the workstream or a folder every app shares.
+An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
+
+When Malini sees nothing it can open, the chat asks to run the command outside instead.
+**Allow for this chat** runs every later one in that chat outside without asking, after a restart too, until you revoke it in Settings, Agent access, and a new chat asks again.
 **Full access** runs it outside without asking.
 An approval lets out that one call: a command inside the sandbox cannot let itself out.
 
@@ -292,6 +304,33 @@ Every pick stays in the chat as a step, with what lost and why; click any varian
 The pull request description lists which variant won over which, never your reason: what you type stays in the chat.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
+
+### Plain replies
+
+**Settings → Models → Plain replies** has every agent write its replies in ASD-STE100 Simplified Technical English, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
+At the low and medium report resolutions, a reply also stays under 135 words, code, paths and the footer not counted.
+Before you see a reply, the provider's small model, Haiku on a Claude plan, reads it beside your prompt.
+A reply that breaks a rule goes back to the agent once, with what to fix, and you see only the rewrite.
+Ask for another style or length in a prompt, such as "in detail" or "reply casually", and that reply keeps it.
+A reply that passes waits a few seconds for the check; one that goes back costs a rewrite.
+It is off until you turn it on, and the next prompt of every chat follows it.
+
+## The lid closed
+
+**Settings → Power → Keep working with the lid closed** keeps your Mac awake with its lid closed while an agent works, so a turn goes on in your bag.
+It is off until you turn it on.
+Turning it on asks for your password once: Malini adds `/etc/sudoers.d/malini`, which lets your account run `pmset -a disablesleep 1` and `pmset -a disablesleep 0` as root without a password, and nothing else.
+If `/etc/sudoers.d/close-my-lid` already allows those two commands, Malini asks for nothing.
+It also adds a background item, `app.malini.desktop.lid.<id>.plist` in `~/Library/LaunchAgents`, and macOS tells you so once.
+Every 30 seconds it checks that the Malini that turned sleep off still runs, and turns sleep back on when it doesn't.
+
+- While any turn runs, Malini turns sleep off with `pmset -a disablesleep 1`, and turns it back on once no turn runs, when you turn the switch off, and when Malini quits.
+- On battery at 5% or less, Malini lets the Mac sleep even while a turn runs.
+- If Malini crashes or is force-quit while it holds the lid, the background item turns sleep back on within 30 seconds; if the Mac lost power, once you log in.
+- When something else already turned sleep off, such as Close My Lid, Malini leaves it alone.
+
+Turning the switch off removes the background item, and `sudo rm /etc/sudoers.d/malini` removes the rule.
+It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12).
 
 ## Sounds
 

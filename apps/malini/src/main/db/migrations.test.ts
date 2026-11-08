@@ -39,6 +39,7 @@ const ALL_TABLES = [
 	'automation_runs',
 	'automation_setups',
 	'automation_suggestions',
+	'brain_captures',
 	'chatgpt_account',
 	'connected_repositories',
 	'custom_sounds',
@@ -77,6 +78,7 @@ const ALL_INDEXES = [
 	'idx_agent_events_session_seq',
 	'idx_agent_interactions_pending',
 	'idx_agent_permission_rules_active_everywhere',
+	'idx_agent_permission_rules_active_repository',
 	'idx_agent_permission_rules_active_session',
 	'idx_agent_permission_rules_active_workstream',
 	'idx_agent_permission_rules_effective',
@@ -648,7 +650,7 @@ describe('migrate', () => {
 			{ id: 'fix', trigger_when: null, trigger_mode: null },
 			{
 				id: 'main',
-				trigger_when: 'on repositories:workstream-base-overlapped',
+				trigger_when: 'on repositories:workstream-base-overlapped where overlapping is true',
 				trigger_mode: 'auto',
 			},
 		]);
@@ -659,6 +661,43 @@ describe('migrate', () => {
 		]);
 		db.close();
 		other.close();
+	});
+
+	it('keeps Update from main on files you touch once the event fires for every workstream behind', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const overlapping = MIGRATIONS.findIndex((migration) =>
+			migration.includes("'on repositories:workstream-base-overlapped where overlapping is true'"),
+		);
+		for (const migration of MIGRATIONS.slice(0, overlapping)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + overlapping};`);
+		const at = '2026-11-01T00:00:00Z';
+		db.exec(`
+			INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at) VALUES
+			  ('main', 'Update from main', 'Merge.', 'opus', 'low', 'workstream', 'update-from-main', 'on repositories:workstream-base-overlapped', 'off', '${at}', '${at}'),
+			  ('mine', 'Rebase', 'Rebase.', 'opus', 'low', 'workstream', NULL, 'on repositories:workstream-base-overlapped', 'auto', '${at}', '${at}');
+		`);
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				"SELECT id, trigger_when, trigger_mode FROM automation_definitions WHERE id IN ('main', 'mine') ORDER BY id",
+			),
+		).toEqual([
+			{
+				id: 'main',
+				trigger_when: 'on repositories:workstream-base-overlapped where overlapping is true',
+				trigger_mode: 'off',
+			},
+			{
+				id: 'mine',
+				trigger_when: 'on repositories:workstream-base-overlapped',
+				trigger_mode: 'auto',
+			},
+		]);
+		db.close();
 	});
 
 	it('lets a chat be a thread from a page, keeping every chat and what hangs off it', () => {
@@ -1083,5 +1122,60 @@ describe('migrate', () => {
 			{ id: 'silent', input_tokens: 0, output_tokens: 0 },
 		]);
 		db.close();
+	});
+
+	it('renames the word-pair names to New workstream and updates Name chats unless you edited it', () => {
+		const index = MIGRATIONS.findIndex((migration) => migration.includes("'New workstream'"));
+		const sql = MIGRATIONS[index] ?? '';
+		const quoted = (pattern: RegExp): string =>
+			(pattern.exec(sql)?.[1] ?? '').replaceAll("''", "'");
+		const before = quoted(/AND instructions = '((?:[^']|'')*)';/u);
+		const after = quoted(/SET instructions = '((?:[^']|'')*)'/u);
+		const migrated = (instructions: string): Database => {
+			const db = openDatabase(':memory:');
+			db.exec(SCHEMA);
+			for (const migration of MIGRATIONS.slice(0, index)) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + index};`);
+			seedWorkstream(db);
+			db.prepare(
+				`INSERT INTO automation_definitions
+				 (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at)
+				 VALUES ('d', 'Name chats', ?, 'haiku', 'low', 'workstream', 'name-chats', '2026-07-19', '2026-07-19')`,
+			).run(instructions);
+			return db;
+		};
+
+		const db = migrated(before);
+		db.exec(`
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('q', 'q', '/tmp/q', 'main', '2026-07-19T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES
+			  ('a', 'p', 'Electric Arc', '/tmp/a', 'malini/a', 'main', 'active', '2026-07-19T00:00:00Z'),
+			  ('b', 'p', 'Swift Beacon 2', '/tmp/b', 'malini/b', 'main', 'active', '2026-07-19T00:00:00Z'),
+			  ('c', 'p', 'Lunar Relay', '/tmp/c', 'malini/c', 'main', 'archived', '2026-07-19T00:00:00Z'),
+			  ('d', 'p', 'Login bug', '/tmp/d', 'malini/d', 'main', 'active', '2026-07-19T00:00:00Z'),
+			  ('e', 'q', 'Neon Pulse', '/tmp/e', 'malini/e', 'main', 'active', '2026-07-19T00:00:00Z');
+		`);
+		migrate(db);
+		expect(all(db, 'SELECT id, name FROM workstreams ORDER BY id')).toEqual([
+			{ id: 'a', name: 'New workstream' },
+			{ id: 'b', name: 'New workstream 2' },
+			{ id: 'c', name: 'New workstream' },
+			{ id: 'd', name: 'Login bug' },
+			{ id: 'e', name: 'New workstream' },
+			{ id: 'w', name: 'w' },
+		]);
+		expect(get(db, "SELECT instructions FROM automation_definitions WHERE id = 'd'")).toEqual({
+			instructions: after,
+		});
+		expect(after).toMatch(/^You name the work in a coding agent's chat/u);
+		expect(before).toMatch(/^You name the tasks people give a coding agent/u);
+		db.close();
+
+		const edited = migrated('Name it after a fruit.');
+		migrate(edited);
+		expect(get(edited, "SELECT instructions FROM automation_definitions WHERE id = 'd'")).toEqual({
+			instructions: 'Name it after a fruit.',
+		});
+		edited.close();
 	});
 });

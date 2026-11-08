@@ -28,27 +28,9 @@
 	const allowing = $derived(signIn.kind !== 'idle' && signIn.flow === 'workflow-access');
 </script>
 
-<section
-	{@attach avoidedByToasts}
-	class="flex items-start gap-2.5 py-2.5 pr-2 pl-3 text-xs"
-	aria-label={failure.title}
-	data-testid="ship-failure"
->
-	<span
-		class="text-warning-content mt-0.5 grid size-4 shrink-0 place-items-center"
-		aria-hidden="true"
-	>
-		<Icon name="alert" size={13} />
-	</span>
-	<div class="min-w-0 flex-1">
-		<p class="leading-5">
-			<span class="text-fg-default font-medium">{failure.title}</span>
-			<span class="text-fg-tertiary tabular-nums">· {failure.since}</span>
-		</p>
-		<p
-			class="text-fg-secondary leading-5 break-words select-text"
-			data-testid="ship-failure-reason"
-		>
+<section {@attach avoidedByToasts} aria-label={failure.title} data-testid="ship-failure">
+	<div class="px-3 py-2.5 text-xs">
+		<p class="text-fg-default leading-5 break-words select-text" data-testid="ship-failure-reason">
 			{#each reason as span, index (index)}{#if span.code}<code class="ship-failure-code">
 						{span.text}
 					</code>{:else}{span.text}{/if}{/each}
@@ -56,34 +38,42 @@
 		<p class="text-2xs text-fg-tertiary mt-1 tabular-nums">
 			{failureTries(failure)} so far · {failureNextTry(failure)} · your agent reads this note too
 		</p>
-		<div class="mt-2 flex items-center gap-1.5">
-			{#if failure.waitsFor === 'workflow-scope'}
-				<Button
-					variant="secondary"
-					size="sm"
-					disabled={busy || allowing}
-					loading={allowing}
-					ariaBusy={allowing}
-					onclick={allowGithubWorkflowChangesCommand}
+		{#if failure.githubSaid}
+			<Button
+				variant="ghost"
+				size="auto"
+				class="text-2xs text-fg-tertiary hover:text-fg-secondary mt-1 -ml-1 h-5 gap-1 px-1"
+				ariaExpanded={githubSaidOpen}
+				onclick={() => (githubSaidOpen = !githubSaidOpen)}
+			>
+				What GitHub said
+				<Icon
+					name="chevron-down"
+					size={10}
+					class={['transition-transform', githubSaidOpen && 'rotate-180']}
+				/>
+			</Button>
+			{#if githubSaidOpen}
+				<p
+					class="text-2xs text-fg-tertiary mt-1 font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
+					data-testid="ship-failure-github-said"
 				>
-					Allow workflow changes
-				</Button>
+					{failure.githubSaid}
+				</p>
 			{/if}
-			{#if allowing}
-				{#if signIn.kind !== 'confirming'}
-					<Button variant="ghost" size="sm" onclick={cancelGithubSignInCommand}>Cancel</Button>
-				{/if}
-			{:else}
-				<Button
-					variant={failure.waitsFor === 'workflow-scope' ? 'ghost' : 'secondary'}
-					size="sm"
-					disabled={busy}
-					ariaBusy={busy}
-					onclick={() => sendShipIntentCommand('retry-now', workstreamId)}
-				>
-					Retry now
-				</Button>
-			{/if}
+		{/if}
+		{#if allowing && signIn.kind === 'waiting'}
+			<GitHubDeviceCode userCode={signIn.userCode} />
+		{/if}
+	</div>
+	<div
+		class="border-surface-50-border flex h-9 items-center gap-2 border-t-[0.5px] pr-1.5 pl-3 text-xs"
+	>
+		<span class="text-warning-content flex min-w-0 items-center gap-1.5">
+			<Icon name="alert" size={12} class="shrink-0" />
+			<span class="truncate">{failure.label}</span>
+		</span>
+		<div class="ml-auto flex shrink-0 items-center gap-1">
 			{#if failure.stage === 'draft' && !allowing}
 				<Button
 					variant="ghost"
@@ -94,36 +84,34 @@
 					Cancel draft
 				</Button>
 			{/if}
-			{#if failure.githubSaid}
+			{#if allowing}
+				{#if signIn.kind !== 'confirming'}
+					<Button variant="ghost" size="sm" onclick={cancelGithubSignInCommand}>Cancel</Button>
+				{/if}
+			{:else}
 				<Button
-					variant="ghost"
+					variant={failure.waitsFor === 'workflow-scope' ? 'ghost' : 'primary'}
 					size="sm"
-					class="ml-auto"
-					ariaExpanded={githubSaidOpen}
-					onclick={() => (githubSaidOpen = !githubSaidOpen)}
+					disabled={busy}
+					ariaBusy={busy}
+					onclick={() => sendShipIntentCommand('retry-now', workstreamId)}
 				>
-					What GitHub said
-					{#snippet trailing()}
-						<Icon
-							name="chevron-down"
-							size={12}
-							class={['transition-transform', githubSaidOpen && 'rotate-180']}
-						/>
-					{/snippet}
+					Retry now
+				</Button>
+			{/if}
+			{#if failure.waitsFor === 'workflow-scope'}
+				<Button
+					variant="primary"
+					size="sm"
+					disabled={busy || allowing}
+					loading={allowing}
+					ariaBusy={allowing}
+					onclick={allowGithubWorkflowChangesCommand}
+				>
+					Allow workflow changes
 				</Button>
 			{/if}
 		</div>
-		{#if allowing && signIn.kind === 'waiting'}
-			<GitHubDeviceCode userCode={signIn.userCode} />
-		{/if}
-		{#if failure.githubSaid && githubSaidOpen}
-			<p
-				class="text-2xs text-fg-tertiary mt-1.5 font-mono leading-relaxed break-words whitespace-pre-wrap select-text"
-				data-testid="ship-failure-github-said"
-			>
-				{failure.githubSaid}
-			</p>
-		{/if}
 	</div>
 </section>
 

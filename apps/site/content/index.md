@@ -7,6 +7,8 @@ Malini is agentic development environment for builders moving fast, as a Mac app
 Each task you start is a **workstream**: its own git worktree, its own branch, and its own agent chats.
 Agents write the code, and Malini owns git: it commits, opens the pull request, fixes red checks, answers reviews, and merges.
 It runs on Claude Code today.
+Agents run on a plan you already pay for: Claude Pro or Max, ChatGPT Go, Plus or Pro, OpenCode Go or Console, or a DeepSeek key, picked [per prompt](/malini/docs/chat.md#model-and-effort-per-prompt).
+Malini compacts a long chat at 280K tokens instead of near Claude Code's 1M and puts every message back, so a long Opus chat uses about a quarter less of your plan and remembers more ([how](/malini/docs/chat.md#compact-the-conversation)).
 
 Malini is free and open source under AGPL-3.0.
 Malini needs no account and no subscription, and there is no Malini server.
@@ -28,6 +30,7 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 - [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, which Malini takes from Draft to merged.
 - [Chat](/malini/docs/chat.md): chats at Home or for an organization that start workstreams across repositories, queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
 - [Automations](/malini/docs/automations.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
+- [Second brain](/malini/docs/brain.md): what you typed in your chats, logged in a private repository and turned into notes every week.
 - [Agent tools](/malini/docs/agent-tools.md): the browser, automations, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): Malini's own marketplace of MCP servers and skills for every agent, which anyone with a Bestboy handle publishes to, and the inspector they sit beside.
 - [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your automations working.

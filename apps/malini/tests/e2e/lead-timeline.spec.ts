@@ -546,3 +546,49 @@ test('a lead relays a picture a workstream it started took, and its alt keeps th
 		await app.close();
 	}
 });
+
+test('a chat at Home on a provider you have not connected holds your message in its timeline until you connect', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-timeline-deepseek', 'Api work');
+		await page.reload();
+		const lead = await startLead(page, 'DeepSeek plan');
+		await page.getByTestId('chat-composer-model').click();
+		await page
+			.locator(
+				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
+			)
+			.click();
+		await expect(page.getByRole('button', { name: 'Model: DeepSeek V4 Pro' })).toBeVisible();
+
+		await sendPrompt(page, 'Plan it on DeepSeek');
+		const strip = timeline(page).getByTestId('provider-connect-strip');
+		const key = page.getByRole('textbox', { name: 'DeepSeek API key' });
+		await expect(strip).toHaveAttribute('data-access', 'needs-key');
+		await expect(timeline(page).locator('[data-timeline-entry="prompt"]').last()).toContainText(
+			'Plan it on DeepSeek',
+		);
+		await expect(key).toBeFocused();
+		await expect(page.locator('[data-queued-prompt-id]')).toHaveCount(0);
+		await captureFlow(app, 'lead-timeline-connect-strip');
+
+		await key.fill('sk-e2e-deepseek');
+		await page.getByTestId('provider-connect-submit').click();
+		await expect(strip).toHaveCount(0);
+		await expect
+			.poll(async () => {
+				const sessions = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
+					workstreamId: lead.id,
+				});
+				const sent = await Promise.all(sessions.map(({ id }) => prompts(page, id)));
+				return JSON.stringify(sent);
+			})
+			.toContain('Plan it on DeepSeek');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

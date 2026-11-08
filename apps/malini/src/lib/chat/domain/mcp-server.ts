@@ -103,11 +103,12 @@ export function mcpServer(report: McpServerReport): McpServer {
 	};
 }
 
+export function withoutPluginPrefix(serverId: string): string {
+	return serverId.trim().replace(/^plugin(?::[^:]+:|_[^_]+_)/iu, '');
+}
+
 export function mcpServerDisplayName(serverId: string): string {
-	const trimmed = serverId
-		.trim()
-		.replace(/^plugin(?::[^:]+:|_[^_]+_)/iu, '')
-		.replace(/^claude\.ai\s+/iu, '');
+	const trimmed = withoutPluginPrefix(serverId).replace(/^claude\.ai\s+/iu, '');
 	const known = MCP_SERVER_DISPLAY_NAMES[trimmed.toLowerCase()];
 	if (known) return known;
 	const normalized = trimmed

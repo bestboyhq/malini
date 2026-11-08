@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
-import { CONTEXT_WINDOW_SETTING } from '../../src/contract/agent';
+import { CONTEXT_WINDOW_SETTING, STE_REPLIES_SETTING } from '../../src/contract/agent';
 import { AUTOMATIONS_MAX_CONCURRENT_SETTING } from '../../src/contract/automations';
 import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
@@ -13,7 +13,9 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	openSettingsFromMenu,
 } from './harness';
+import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
 
 function settingsSection(page: Page, name: string) {
 	return page
@@ -26,6 +28,15 @@ async function openSettings(page: Page, hash: string): Promise<void> {
 		location.hash = next;
 	}, hash);
 	await page.reload();
+}
+
+async function builtinMode(page: Page, builtin: string): Promise<string | null> {
+	const definitions = await invoke<{ builtin: string | null; trigger: { mode: string } | null }[]>(
+		page,
+		'automations.list-definitions',
+		undefined,
+	);
+	return definitions.find((definition) => definition.builtin === builtin)?.trigger?.mode ?? null;
 }
 
 async function storedSettings(page: Page): Promise<Record<string, string>> {
@@ -44,7 +55,7 @@ test('Settings open over the current page, take focus, and close on Escape', asy
 			timeout: 20_000,
 		});
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		const dialog = page.getByRole('dialog', { name: 'Settings' });
 		await expect(dialog).toBeVisible();
 		await expect(settingsSection(page, 'Accounts')).toHaveAttribute('aria-current', 'page');
@@ -222,6 +233,73 @@ test('Settings → Automations shows the defaults, clamps a value out of range, 
 	}
 });
 
+test('Settings → Automations reads Recommended or Custom from the live automations, and Recommended puts every default back', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await brainOnGithub(app, 'missing');
+		await openSettings(page, '#/settings/automations');
+		const choice = page.getByRole('group', { name: 'Defaults' });
+		const recommended = choice.getByRole('button', { name: 'Recommended' });
+		const custom = choice.getByRole('button', { name: 'Custom' });
+		const review = page.getByRole('switch', { name: 'Address review comments' });
+		const brain = page.getByRole('switch', { name: 'Keep a second brain' });
+		const updates = page.getByRole('group', { name: 'Update from main' });
+		await expect(custom).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+		await expect(brain).toHaveAttribute('aria-checked', 'false');
+		await expect(review).toHaveAttribute('aria-checked', 'true');
+
+		await recommended.click();
+		await expect(brain).toHaveAttribute('aria-checked', 'true');
+		await expect(recommended).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
+		await expect(brain).toBeEnabled();
+		await captureFlow(app, 'settings-automations-defaults');
+
+		await review.click();
+		await expect(review).toHaveAttribute('aria-checked', 'false');
+		await expect(custom).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(async () => await builtinMode(page, 'address-review')).toBe('off');
+		await updates.getByRole('button', { name: 'Always' }).click();
+		await expect(updates.getByRole('button', { name: 'Always' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(
+			page.getByText('Merges main into every workstream you worked in this week. Never pushes.'),
+		).toBeVisible();
+
+		await recommended.click();
+		await expect(review).toHaveAttribute('aria-checked', 'true');
+		await expect(updates.getByRole('button', { name: 'Touches my files' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(recommended).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(async () => await builtinMode(page, 'address-review')).toBe('auto');
+
+		await openSettings(page, '#/settings/brain');
+		await expect(settingsSection(page, 'Brain')).toHaveAttribute('aria-current', 'page', {
+			timeout: 20_000,
+		});
+		await expect(page.getByRole('switch', { name: 'Second brain' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await expect(page.getByRole('switch', { name: 'Sync with GitHub' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await expect(page.getByText(`Pushes to main in ${FAKE_BRAIN}`)).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Edit Write the notes' })).toBeVisible();
+		await expect(page.getByText('Sunday at 18:00. Reads the log')).toBeVisible();
+		await captureFlow(app, 'settings-brain');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Settings → Models picks the model new chats start with for each mode, and keeps it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -254,6 +332,41 @@ test('Settings → Models picks the model new chats start with for each mode, an
 	}
 });
 
+test('Settings → Models turns on plain replies for the next prompt of every chat', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-ste-replies-ws',
+			'STE replies',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'WHICH_STYLE');
+		await expect(page.getByText('Replies as they come')).toBeVisible({ timeout: 30_000 });
+
+		await openSettingsFromMenu(page);
+		await settingsSection(page, 'Models').click();
+		const ste = page.getByRole('switch', { name: 'Plain replies' });
+		await expect(ste).not.toBeChecked();
+		await ste.click();
+		await expect(ste).toBeChecked();
+		await expect.poll(async () => (await storedSettings(page))[STE_REPLIES_SETTING]).toBe('on');
+		await captureFlow(app, 'settings-ste-replies');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+		await sendPrompt(page, 'WHICH_STYLE');
+		await expect(page.getByText('Replies in STE')).toBeVisible({ timeout: 30_000 });
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Settings → Models sets the window every chat compacts at, 280K until the user moves it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -270,7 +383,7 @@ test('Settings → Models sets the window every chat compacts at, 280K until the
 		await sendPrompt(page, 'WHICH_WINDOW');
 		await expect(page.getByText('Compacts at 280000')).toBeVisible({ timeout: 30_000 });
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await settingsSection(page, 'Models').click();
 		const slider = page.getByRole('slider', { name: 'Context window' });
 		await expect(slider).toHaveValue('280000');

@@ -11,6 +11,11 @@ const reverse = Number(env.FAKE_BRIDGE_REVERSE_ACKS || 0);
 const approvalPath =
 	env.FAKE_BRIDGE_APPROVAL_PATH ||
 	nodePath.join(fs.realpathSync(require('node:os').tmpdir()), 'outside.txt');
+const dockerSocket = nodePath.join(
+	fs.realpathSync(require('node:os').tmpdir()),
+	'malini-e2e-docker',
+	'docker.sock',
+);
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\n');
 const signedInEmail = () => {
 	if (!env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE) return null;
@@ -880,6 +885,7 @@ const skillsOfRun = new Map();
 const maliniCalls = new Map();
 const themeOfRun = new Map();
 const windowOfRun = new Map();
+const steRuns = new Set();
 
 const lineageOfRun = new Map();
 const briefOfRun = new Map();
@@ -961,6 +967,17 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			contentId: 'c1',
 			text: 'Compacts at ' + (windowOfRun.get(runId) ?? 'none'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('WHICH_STYLE')) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: steRuns.has(runId) ? 'Replies in STE' : 'Replies as they come',
 		});
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
@@ -1188,6 +1205,23 @@ const respond = async (sessionId, runId, prompt) => {
 			permission: {
 				capability: 'write',
 				resources: [{ kind: 'tool', value: call.tool, boundary: 'workstream' }],
+			},
+		});
+		return;
+	}
+	if (prompt.includes('SANDBOX_GRANT')) {
+		pendingRuns.set(runId, sessionId);
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-grant-' + runId,
+			reason: 'Everything else stays in the sandbox.',
+			toolName: 'Bash',
+			input: { command: 'pnpm test test/mcp/mcp.spec.ts', dangerouslyDisableSandbox: true },
+			permission: {
+				capability: 'sandbox',
+				resources: [{ kind: 'socket', value: dockerSocket, boundary: 'external' }],
 			},
 		});
 		return;
@@ -1650,6 +1684,7 @@ const handle = (command) => {
 			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (command.theme) themeOfRun.set(runId, command.theme);
 			if (command.compactWindow) windowOfRun.set(runId, command.compactWindow);
+			if (command.steReplies) steRuns.add(runId);
 			if (command.lineage) lineageOfRun.set(runId, command.lineage);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
@@ -1911,8 +1946,19 @@ const handle = (command) => {
 			const titlesByModel = env.FAKE_BRIDGE_TITLES_BY_MODEL
 				? JSON.parse(env.FAKE_BRIDGE_TITLES_BY_MODEL)
 				: {};
-			const named = /TITLE="([^"]+)"/.exec(command.prompt ?? '');
-			const title = named?.[1] ?? titlesByModel[command.model] ?? env.FAKE_BRIDGE_TITLE;
+			const task = command.prompt ?? '';
+			const replied = task.includes('<reply>') ? /REPLY_TITLE="([^"]+)"/.exec(task) : null;
+			const named = /(?<!REPLY_)TITLE="([^"]+)"/.exec(task);
+			const message = /<message>\s*([^\n]*)/
+				.exec(task)?.[1]
+				?.replace(/\[[^\]]*\]\s*/g, '')
+				.trim();
+			const title =
+				replied?.[1] ??
+				named?.[1] ??
+				titlesByModel[command.model] ??
+				env.FAKE_BRIDGE_TITLE ??
+				message;
 			if (!title) return ack(command.id, 'TITLE_FAILED: no title');
 			write({
 				type: 'bridge.title',

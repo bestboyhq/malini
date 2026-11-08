@@ -16,6 +16,12 @@ export function optimizesContext(setting: string | null | undefined): boolean {
 	return setting !== 'off';
 }
 
+export const STE_REPLIES_SETTING = 'chat.ste-replies';
+
+export function writesSte(setting: string | null | undefined): boolean {
+	return setting === 'on';
+}
+
 export const CONTEXT_WINDOW_SETTING = 'chat.context-window';
 
 export const DEFAULT_CONTEXT_WINDOW = 280_000;
@@ -239,7 +245,13 @@ export interface AgentElementReference {
 
 export type AgentApprovalDecision = 'allow' | 'deny';
 
-export const AGENT_APPROVAL_SCOPES = ['once', 'session', 'workstream', 'everywhere'] as const;
+export const AGENT_APPROVAL_SCOPES = [
+	'once',
+	'session',
+	'workstream',
+	'repository',
+	'everywhere',
+] as const;
 
 export type AgentApprovalScope = (typeof AGENT_APPROVAL_SCOPES)[number];
 

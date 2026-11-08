@@ -10,26 +10,37 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('the first prompt names the chat and the workstream with the title Claude suggests', async () => {
+test('a chat and its workstream keep their placeholders until a turn has a task, then take the name from the reply', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Login flow' } });
+	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'none' } });
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
-		const { workstreamId } = await seedWorkstream(page, source, 'e2e-chat-names-ws', 'Bright Arc');
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-chat-names-ws',
+			'New workstream',
+		);
 		await openWorkstream(page, workstreamId);
-
-		await sendPrompt(page, 'hey so every time i log in the page goes blank');
-		await expectAssistantReply(page);
-
-		const namedTab = page.getByTestId('chat-agent-tabs').getByRole('tab', { name: /Login flow/u });
-		await expect(namedTab).toBeVisible({ timeout: 20_000 });
-		await expect(namedTab).toHaveAccessibleName('Login flow');
+		const tabs = page.getByTestId('chat-agent-tabs');
 		const row = page.locator(
 			`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`,
 		);
-		await expect(row).toContainText('Login flow');
-		await expect(row).not.toHaveAccessibleName(/Bright Arc/u);
+
+		await sendPrompt(page, 'hi');
+		await expectAssistantReply(page);
+		await expect(tabs.getByRole('tab', { name: 'New chat' })).toBeVisible();
+		await expect(row).toContainText('New workstream');
+
+		await sendPrompt(
+			page,
+			'every time i log in the page goes blank TITLE="Login flow" REPLY_TITLE="Blank login page"',
+		);
+		const namedTab = tabs.getByRole('tab', { name: 'Blank login page' });
+		await expect(namedTab).toBeVisible({ timeout: 20_000 });
+		await expect(row).toContainText('Blank login page');
+		await expect(row).not.toContainText('New workstream');
 
 		await captureFlow(app, 'chat-names');
 		expectCleanConsole(app);

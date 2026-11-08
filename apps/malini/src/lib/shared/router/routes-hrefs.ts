@@ -12,6 +12,8 @@ export const AUTOMATIONS_RECIPES_HREF = '/automations/recipes';
 
 export const AUTOMATIONS_EXPLORER_HREF = '/automations/explorer';
 
+export const BRAIN_HREF = '/brain';
+
 export const SETTINGS_HREF = '/settings';
 
 export const ACCOUNT_SETTINGS_HREF = '/settings/accounts';
@@ -27,6 +29,12 @@ export const MCP_SETTINGS_HREF = '/settings/mcp-servers';
 export const EXTENSION_SETTINGS_HREF = '/settings/extensions';
 
 export const PROFILE_SETTINGS_HREF = '/settings/profile';
+
+export const BRAIN_SETTINGS_HREF = '/settings/brain';
+
+export function brainHref(path: string): string {
+	return `${BRAIN_HREF}/${encodeURIComponent(path)}`;
+}
 
 export function automationHref(definitionId: string): string {
 	return `/automations/${encodeURIComponent(definitionId)}`;

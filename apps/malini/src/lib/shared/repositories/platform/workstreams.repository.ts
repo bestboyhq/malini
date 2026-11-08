@@ -1,9 +1,9 @@
 import type { MaliniDatabase } from '$main/db/driver';
 import { upsertProject, type Project } from './projects.repository';
 import { invariant } from '$main/errors';
-import { all, column, get, run, scalar } from '$main/db/rows';
+import { all, column, get, run } from '$main/db/rows';
 import type { MergedPullRequest, Workstream, WorkstreamStatus } from '$contract/repositories';
-import { isGeneratedWorkstreamName } from '$shared/repositories/domain/workstream-names';
+import { isPlaceholderWorkstreamName } from '$shared/repositories/domain/workstream-names';
 
 export type { Workstream, WorkstreamStatus };
 
@@ -173,16 +173,7 @@ export function isWorkstreamClosed(db: MaliniDatabase, workstreamId: string): bo
 
 export function workstreamAwaitsName(db: MaliniDatabase, workstreamId: string): boolean {
 	const workstream = getWorkstream(db, workstreamId);
-	if (workstream === null || !isGeneratedWorkstreamName(workstream.name)) return false;
-	return (
-		scalar(
-			db,
-			`SELECT COUNT(*) FROM agent_runs r
-			 JOIN agent_sessions s ON s.id = r.session_id
-			 WHERE s.workstream_id = ? AND s.origin = 'user' AND r.automated = 0`,
-			workstreamId,
-		) === 0
-	);
+	return workstream !== null && isPlaceholderWorkstreamName(workstream.name);
 }
 
 export function renameWorkstream(

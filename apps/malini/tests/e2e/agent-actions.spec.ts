@@ -15,6 +15,7 @@ import {
 	sendPrompt,
 	startFreshChat,
 	type LaunchedApp,
+	openSettingsFromMenu,
 } from './harness';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 
@@ -49,6 +50,8 @@ test('an agent runs the Open draft automation once the user allows it, and the d
 		await decision(page).getByRole('button', { name: 'Allow once' }).click();
 
 		await expect(settled(page, 'Allowed once')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Run automation ‘Open draft’' })).toBeVisible();
+		await captureFlow(app, 'agent-open-draft-allowed');
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
 			timeout: 30_000,
 		});
@@ -104,7 +107,7 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 		});
 		await expect(decision(page)).toHaveCount(0);
 
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		await page
 			.getByRole('navigation', { name: 'Settings' })
 			.getByRole('link', { name: 'Agent access', exact: true })

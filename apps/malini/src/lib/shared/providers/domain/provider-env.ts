@@ -9,11 +9,15 @@ export interface ProviderEnvironmentInput {
 	readonly subagentModel: string | null;
 }
 
+export class ProviderNotConnectedError extends Error {}
+
 export function providerEnvironment(input: ProviderEnvironmentInput): Record<string, string> {
 	if (input.kind === 'claude') return {};
 	if (input.baseUrl === null) throw new Error(`${input.name} has no base URL`);
 	if (input.apiKey === null || input.apiKey.length === 0) {
-		throw new Error(`${input.name} needs an API key. Add it in Settings, then try again.`);
+		throw new ProviderNotConnectedError(
+			`${input.name} needs an API key. Add it in Settings, then try again.`,
+		);
 	}
 	const subagentModel = input.subagentModel ?? input.model;
 	return {

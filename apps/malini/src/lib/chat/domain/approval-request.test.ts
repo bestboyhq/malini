@@ -6,6 +6,7 @@ import {
 	approvalShortTarget,
 	approvalTargets,
 	maliniToolApproval,
+	sandboxGrantRows,
 } from './approval-request';
 
 const externalRead: AgentPermissionDescriptor = {
@@ -67,6 +68,35 @@ describe('approval request', () => {
 		expect(approvalShortTarget('Read', externalRead)).toBe('README.md');
 		expect(approvalShortTarget('Bash', command)).toBe('touch /opt/probe');
 		expect(approvalShortTarget('Task', undefined)).toBe('Task');
+	});
+
+	it('names each thing the sandbox blocked with what allowing it lets a command do', () => {
+		const blocked: AgentPermissionDescriptor = {
+			capability: 'sandbox',
+			resources: [
+				{ kind: 'socket', value: '/Users/me/.docker/run/docker.sock', boundary: 'external' },
+				{ kind: 'path', value: '/Users/me/.cache/tool', boundary: 'external' },
+				{ kind: 'socket', value: '/tmp/agent.sock', boundary: 'external' },
+			],
+		};
+		expect(approvalHeadline('Bash', blocked)).toBe(
+			'The sandbox blocked 3 things this command needs',
+		);
+		expect(approvalHeadline('Bash', { ...blocked, resources: blocked.resources.slice(0, 1) })).toBe(
+			'The sandbox blocked one thing this command needs',
+		);
+		expect(sandboxGrantRows(blocked).map(({ kind, name, path }) => [kind, name, path])).toEqual([
+			['docker', 'Docker', '~/.docker/run/docker.sock'],
+			['folder', 'Write', '~/.cache/tool'],
+			['socket', 'Connect', '/tmp/agent.sock'],
+		]);
+		expect(
+			approvalTargets(blocked, { command: 'pnpm test', dangerouslyDisableSandbox: true }),
+		).toEqual([{ kind: 'command', value: 'pnpm test' }]);
+		expect(approvalShortTarget('Bash', blocked)).toBe(
+			'~/.docker/run/docker.sock, ~/.cache/tool, /tmp/agent.sock',
+		);
+		expect(sandboxGrantRows(externalRead)).toEqual([]);
 	});
 
 	it('keeps the reason only when it says why rather than repeating the prompt', () => {

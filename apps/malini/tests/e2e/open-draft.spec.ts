@@ -11,6 +11,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	sendPrompt,
+	openSettingsFromMenu,
 } from './harness';
 import {
 	headOf,
@@ -86,7 +87,7 @@ test('With Sign contributions off in Settings, Open draft pushes commits without
 			null,
 		);
 		await openWorkstream(page, 'e2e-draft-unsigned');
-		await page.getByTestId('global-topbar-open-settings').click();
+		await openSettingsFromMenu(page);
 		const settings = page.getByRole('dialog', { name: 'Settings' });
 		await settings
 			.getByRole('navigation', { name: 'Settings' })

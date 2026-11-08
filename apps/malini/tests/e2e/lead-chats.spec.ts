@@ -121,10 +121,8 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${site}` });
 		await page.reload();
 
-		await startChat(page, 'home', 'Move apps to Logdash');
-		const lead = sidebar(page)
-			.getByTestId('sidebar-chat')
-			.filter({ hasText: 'Move apps to Logdash' });
+		await startChat(page, 'home', 'Logdash migration');
+		const lead = sidebar(page).getByTestId('sidebar-chat').filter({ hasText: 'Logdash migration' });
 		await expect(lead).toHaveAttribute('aria-current', 'page');
 		await expect(lead).toHaveAttribute('data-chat-scope', 'home');
 		await sendPrompt(page, 'WHICH_LINEAGE');
@@ -144,7 +142,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		});
 		await expect(startedIn('solo/site')).toHaveCount(1);
 		await expect(startedIn('acme/api')).toHaveCount(2);
-		const nested = sidebar(page).getByRole('list', { name: 'Started by Move apps to Logdash' });
+		const nested = sidebar(page).getByRole('list', { name: 'Started by Logdash migration' });
 		await expect(nested.getByTestId('sidebar-workstream')).toHaveCount(2);
 		await expect(
 			nested
@@ -175,27 +173,27 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		await captureFlow(app, 'lead-chat-home-sidebar');
 
 		await sidebar(page)
-			.getByRole('button', { name: 'Fold the workstreams of Move apps to Logdash' })
+			.getByRole('button', { name: 'Fold the workstreams of Logdash migration' })
 			.click();
 		await expect(nested).toBeHidden();
 		await page.reload();
 		await expect(lead).toBeVisible({ timeout: 20_000 });
 		await expect(nested).toBeHidden();
 		await sidebar(page)
-			.getByRole('button', { name: 'Show the workstreams of Move apps to Logdash' })
+			.getByRole('button', { name: 'Show the workstreams of Logdash migration' })
 			.click();
 		await expect(nested.getByTestId('sidebar-workstream')).toHaveCount(2);
 
 		await workstreams.getByRole('link', { name: /^solo\/site, / }).click();
 		await expect(workstreams).toHaveCount(0);
 		await expect(startedIn('solo/site')).toHaveAttribute('aria-current', 'page');
-		await lastReply(page, 'Started by: Move apps to Logdash');
+		await lastReply(page, 'Started by: Logdash migration');
 		await lastReply(page, 'Siblings: acme/api');
 		const lineage = page.getByTestId('workstream-lineage');
-		await expect(lineage).toContainText('Started by Move apps to Logdash');
+		await expect(lineage).toContainText('Started by Logdash migration');
 		await expect(lineage.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(transcript(page).getByTestId('chat-prompt-from')).toHaveText(
-			'Prompt from Move apps to Logdash',
+			'Prompt from Logdash migration',
 		);
 		await expect(inspector(page).getByRole('tab', { name: 'Files' })).toBeVisible({
 			timeout: 20_000,
@@ -226,7 +224,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		await expect(progress).toBeVisible();
 		const started = page
 			.getByTestId('sidebar-started-card')
-			.getByRole('list', { name: 'Started by Move apps to Logdash' });
+			.getByRole('list', { name: 'Started by Logdash migration' });
 		await expect(started.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(started.getByRole('group', { name: /^solo\/site, .*, Archived, / })).toBeVisible();
 		await captureFlow(app, 'lead-chat-started-card');
@@ -236,7 +234,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		);
 		await startedApi.click();
 		await expect(startedApi).toHaveAttribute('aria-current', 'page');
-		await lineage.getByRole('button', { name: 'Disconnect from Move apps to Logdash' }).click();
+		await lineage.getByRole('button', { name: 'Disconnect from Logdash migration' }).click();
 		await expect(lineage).toHaveCount(0);
 		await expect(startedApi).toHaveCount(0);
 		await expect(startedIn('acme/api')).toHaveCount(2);

@@ -13,7 +13,7 @@
 	import { revealFade } from './arrival-motion';
 	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from './inline-prompt-chips';
 	import type { ToolImageRead } from './tool-image-read';
-	import { galleryImageLabel } from './workstream-images';
+	import { galleryImageLabel } from '$shared/markdown/workstream-images';
 
 	interface Props {
 		workstreamId: string | null;

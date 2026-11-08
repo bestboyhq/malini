@@ -52,6 +52,7 @@ const IDLE_STATE = Object.freeze({ status: 'idle' }) satisfies AgentInteractionS
 const SCOPE_MESSAGES = {
 	session: 'Allowed for this chat',
 	workstream: 'Allowed for this workstream',
+	repository: 'Allowed for this repository',
 	everywhere: 'Allowed everywhere',
 } as const;
 const STALE_MESSAGE = 'No longer active';
@@ -295,7 +296,9 @@ export class AgentInteractionCommands {
 		const request = this.#requests.get(key);
 		if (
 			(input.decision !== 'allow' && input.decision !== 'deny') ||
-			!(['once', 'session', 'workstream', 'everywhere'] as const).includes(input.scope)
+			!(['once', 'session', 'workstream', 'repository', 'everywhere'] as const).includes(
+				input.scope,
+			)
 		) {
 			this.#fail(key, 'Choose a valid approval decision.');
 			return false;

@@ -4,12 +4,8 @@ import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
 import type { SessionStatus } from '$contract/agent-state-machine';
 import type { WorkstreamTurn } from '$contract/stats';
-import {
-	hasTurnReport,
-	markdownImages,
-	parseTurnReport,
-	workstreamImagePath,
-} from '../domain/turn-report';
+import { workstreamImagePath } from '$contract/workstream-images';
+import { hasTurnReport, markdownImages, parseTurnReport } from '../domain/turn-report';
 import {
 	countPackedToolCalls,
 	packedEvents,

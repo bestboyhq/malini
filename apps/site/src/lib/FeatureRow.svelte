@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
 	import Arrow from './Arrow.svelte';
 	import BeatLabel, { type Beat } from './BeatLabel.svelte';
 	import { StageLight } from './stage/stage.api';
@@ -13,6 +14,7 @@
 		linkLabel: string;
 		checks: string[];
 		mirrored?: boolean;
+		tall?: boolean;
 		header?: Snippet;
 		panel: Snippet;
 	};
@@ -26,12 +28,23 @@
 		linkLabel,
 		checks,
 		mirrored = false,
+		tall = false,
 		header,
 		panel,
 	}: Props = $props();
 
 	let panelElement = $state<HTMLElement>();
 	let lit = $state(false);
+	let near = $state(false);
+
+	const watchNear: Attachment<HTMLElement> = (panel) => {
+		const observer = new IntersectionObserver(
+			([entry]) => (near = entry?.isIntersecting ?? false),
+			{ rootMargin: '100% 0px 300% 0px' },
+		);
+		observer.observe(panel);
+		return () => observer.disconnect();
+	};
 </script>
 
 <section {id} class="beat feature" aria-labelledby="{id}-title">
@@ -61,7 +74,11 @@
 				caster={panelElement}
 				bind:lit
 			/>
-			<div class={['panel', 'rise', { lit }]} bind:this={panelElement}>
+			<div
+				class={['panel', 'rise', { lit, tall, near }]}
+				bind:this={panelElement}
+				{@attach watchNear}
+			>
 				{#if header}
 					<div class="panel-header">{@render header()}</div>
 				{/if}
@@ -129,6 +146,7 @@
 		font-family: var(--mono);
 		font-size: 13px;
 		line-height: 20px;
+		text-wrap: pretty;
 	}
 
 	.tick {
@@ -166,12 +184,22 @@
 		max-width: 620px;
 		height: 480px;
 		overflow: hidden;
+		content-visibility: auto;
 		border-radius: 14px;
 		background: var(--app-panel);
 		box-shadow:
 			var(--app-shadow),
 			0 0 0 1px var(--app-line);
 		color: var(--app-fg);
+	}
+
+	.panel.near {
+		content-visibility: visible;
+	}
+
+	.panel.tall {
+		height: auto;
+		aspect-ratio: 1;
 	}
 
 	.panel.lit {

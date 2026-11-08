@@ -9,6 +9,7 @@
 	} from '$shared/providers/providers.api';
 	import ContextWindowSettings from './ContextWindowSettings.svelte';
 	import SettingsSection from './SettingsSection.svelte';
+	import SteRepliesSettings from './SteRepliesSettings.svelte';
 
 	onMount(loadModelDefaultsCommand);
 </script>
@@ -20,5 +21,6 @@
 	<Well title="Models" headed={false}>
 		<ModelDefaultsSettings models={modelDefaultsQuery.data} onchange={saveModelDefaultsCommand} />
 		<ContextWindowSettings />
+		<SteRepliesSettings />
 	</Well>
 </SettingsSection>

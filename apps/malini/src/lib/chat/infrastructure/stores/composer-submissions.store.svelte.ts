@@ -1,4 +1,7 @@
-import type { ComposerSubmissionRecoverySnapshot } from '$lib/chat/domain/composer-submission-recovery';
+import type {
+	ComposerSubmissionRecoverySnapshot,
+	DraftRestoration,
+} from '$lib/chat/domain/composer-submission-recovery';
 import { SerialSubmissionQueue } from '$lib/chat/domain/serial-submission-queue';
 import { FreshSubmissionIntentLatch } from '$lib/chat/domain/submission-session-target';
 
@@ -9,7 +12,7 @@ type ComposerDelivery = Readonly<{
 
 class ComposerSubmissionsStore {
 	pending: number = $state(0);
-	restorations: Record<string, number> = $state({});
+	restorations: Record<string, DraftRestoration> = $state({});
 	#failures = new Map<string, ComposerSubmissionRecoverySnapshot[]>();
 	#freshIntent = new FreshSubmissionIntentLatch();
 	#idleListener: (() => void) | null = null;
@@ -44,10 +47,10 @@ class ComposerSubmissionsStore {
 		return failures;
 	}
 
-	markRestored(draftScope: string): void {
+	markRestored(draftScope: string, cause: DraftRestoration['cause']): void {
 		this.restorations = {
 			...this.restorations,
-			[draftScope]: (this.restorations[draftScope] ?? 0) + 1,
+			[draftScope]: { revision: (this.restorations[draftScope]?.revision ?? 0) + 1, cause },
 		};
 	}
 

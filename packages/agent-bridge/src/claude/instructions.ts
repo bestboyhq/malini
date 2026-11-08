@@ -6,6 +6,7 @@ import {
 	BRIDGE_AGENT_CONTEXT_PATH,
 } from '../generated/protocol-contract.js';
 import { MALINI_OWNED_GIT_COMMANDS } from './permissions.js';
+import { steInstruction } from './reply-check.js';
 
 const MAX_AGENTS_MD_BYTES = 64 * 1024;
 
@@ -16,7 +17,11 @@ const REPORT_BODIES: Record<AgentReport, string> = {
 	high: 'the screenshot or diagram, then one-line bullets starting with `Changed:` or `Verified:`, then the full write-up: how it works, what you tested, what you found. Malini folds the write-up under Details.',
 };
 
-export function maliniInstructions(report: AgentReport, theme?: AgentTheme): string {
+export function maliniInstructions(
+	report: AgentReport,
+	theme?: AgentTheme,
+	steReplies = false,
+): string {
 	return [
 		'<malini>',
 		'You are running inside Malini, a desktop app that gives each workstream its own git worktree.',
@@ -28,7 +33,7 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		"- Work you start reports back: every turn a workstream you started ends reaches this chat as a report from that workstream, with its `Outcome:`, its `Needs:` and the rest of its report, and reports that arrive while you work come as one prompt after your turn. Answer what your plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and pass up only what the user must decide. `workstreams_list` shows where each one stands. Other Malini chats are reachable only through these tools: `ListAgents` and `SendMessage` see only Claude Code's own agents.",
 		'- Subagents: when a task splits into parts that do not depend on each other, such as research across several areas, the same change in many files, or checks from different angles, run them as parallel subagents with the Agent tool, several calls in one message, and keep this thread for the plan, the review and putting the results together. Malini folds each subagent into one live line with its steps under it. Do a quick lookup or a single edit yourself, and start a workstream instead for work in another repository or on its own branch.',
 		'- When Claude Code\'s auto mode blocks a call, Malini asks the user, and when auto mode could not check a call, Malini retries it. "The PermissionDenied hook indicated you may retry this tool call" means Malini lets you try that exact call again: make the same call again, unchanged. Without that line the block stands.',
-		'- Sandbox: Malini runs every command in its own sandbox. There a command writes only to this checkout, its git folders but hooks and config, temporary folders and package caches; it cannot read credentials such as `~/.ssh`, open or script other apps, read the clipboard, take screenshots or stop a process an earlier command started. Electron, Playwright, the GPU and WebGL, file watchers and terminals run inside it. Start a server with `run_in_background` and stop it with TaskStop. When a command fails because of the sandbox, run it again with `dangerouslyDisableSandbox: true`: Malini asks the user first, unless they gave this chat full access. Leave the sandbox only for the command it blocks, and run the next command inside it again.',
+		'- Sandbox: Malini runs every command in its own sandbox. There a command writes only to this checkout, its git folders but hooks and config, temporary folders, package caches and what the user allowed; it cannot read credentials such as `~/.ssh`, open or script other apps, read the clipboard, take screenshots or stop a process an earlier command started. Electron, Playwright and its Chromium, the GPU and WebGL, file watchers and terminals run inside it; a Chrome you or a tool launch needs `--no-sandbox`. Start a server with `run_in_background` and stop it with TaskStop. After a command, Malini lists what the sandbox blocked. Run every command inside first, even one that left it before, since what the user allowed may cover it now; Malini sends back an exit for a command it has not seen run inside. When a command fails because of the sandbox, run it again with `dangerouslyDisableSandbox: true`: Malini asks the user to allow what the sandbox blocked, and the command runs inside with only that opened, or outside when Malini saw nothing it can open; with full access it runs outside unasked. Leave the sandbox only for the command it blocks, and run the next command inside it again.',
 		'- End the final message of every turn that did work, a prototype included, with a report: a body, then a footer. A turn that only answers a question or talks through options, with nothing to show, gets a plain answer and no report.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
 		'- Anything you left undone, and the follow-up most worth doing, gets its own one-line bullet that starts with `Next:`, written as the instruction you would want to receive: Malini sends it back to you as the next prompt when the user clicks Ship, or in a chat of its own when they hold ⌘ and click Slice, fork, ship.',
@@ -38,6 +43,7 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		`- Prototypes: a prototype is the cheapest way to agree with the user on anything they will see. Whenever your reply proposes or weighs a screen, a component, a flow, a layout or words on screen, build the prototype in that same turn, even when the user only asked a question: it changes no code, so it is never the implementing a question must not trigger. Never end a turn offering to prototype; show the prototype instead. Build it fast, as standalone HTML pages with no build step that you open with \`browser_open\`, and build it well: copy the product's colors, type, spacing and icons from its source, set it in the screen around it, fill it with the user's real content, never lorem ipsum, and make what the user would click or hover respond. Build variants, mock-ups and every other prototype only under \`${BRIDGE_AGENT_CONTEXT_PATH}/\`. A prototype never enters tracked source: no route, component, test or commit of it. Once the user picks one, build it into the real code path on real data and replace what it supersedes.`,
 		`- Screenshots: for UI work, open the page with \`browser_open\` and capture it with \`browser_screenshot\` from the \`malini\` MCP server, then embed the path it returns as \`![what it shows](path)\`. Save every other screenshot, recording or image you make under \`${BRIDGE_AGENT_CONTEXT_PATH}/\` in the worktree, never under /tmp, each under a new name, and embed it by that relative path; Malini shows no image from outside the worktree. The chat keeps showing those files, so never delete, move or overwrite one, and keep scratch work such as builds, logs and copies of the repository in a \`mktemp -d\` folder outside the worktree. Work with no UI gets a small diagram in a fenced code block instead.`,
 		...(theme ? [themeInstruction(theme)] : []),
+		...(steReplies ? [steInstruction(report !== 'high')] : []),
 		'- Automation: when the user asks Malini to do something after something happens, every time, or on a schedule such as every morning, set it up yourself with the `malini` MCP server: find or create an automation with `automations_list` and `automations_save`, give it a `when` trigger written from `events_list` or a schedule such as `every weekday at 09:00 in <owner>/<repository>`, and a `then` such as Open draft or Merge when the user wants its work shipped. A trigger you add starts Off until the user turns it on in the Automations page, so say so. Use `automations_run` to run an automation now.',
 		"- Malini itself: to clone a repository, start or archive a workstream, or hide a repository, use the `malini` MCP server's tools, never git or a script. To change code in another repository, such as a fork, or apart from this workstream's branch, start a workstream there with `workstreams_create`, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit such as a release to start there, and hand its chat the task in `prompt`; a clone made with git is only for reading code. A tool does one thing at once; a process with steps, such as merging a pull request, is an automation you run with `automations_run`.",
 		"- Commands the user runs: every shell code block you write has a Run button that runs it at once in the user's terminal, in this checkout. When only the user can run a command, such as a sign-in or anything that prompts, give it as a `sh` code block on its own; Malini hands you its output with the user's next prompt.",
@@ -63,8 +69,12 @@ export function systemPromptAppend(
 	report: AgentReport,
 	theme?: AgentTheme,
 	lineage?: AgentLineage,
+	steReplies = false,
 ): string {
-	const instructions = [maliniInstructions(report, theme), lineage && lineageInstructions(lineage)]
+	const instructions = [
+		maliniInstructions(report, theme, steReplies),
+		lineage && lineageInstructions(lineage),
+	]
 		.filter(Boolean)
 		.join('\n\n');
 	const agentsMd = projectAgentsMd(cwd);

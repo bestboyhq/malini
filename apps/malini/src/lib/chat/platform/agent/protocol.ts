@@ -118,6 +118,7 @@ export type BridgeCommand =
 			plugins?: readonly string[];
 			compactWindow?: number;
 			boundary?: AgentBoundary;
+			steReplies?: true;
 	  }
 	| { cmd: 'set_secrets'; id: string; sessionId: string; secrets: Readonly<Record<string, string>> }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }

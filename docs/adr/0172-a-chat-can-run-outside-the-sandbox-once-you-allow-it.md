@@ -1,6 +1,6 @@
 # 0172 - A chat can run outside the sandbox once you allow it
 
-Status: accepted
+Status: superseded by 0192
 
 ## Context
 

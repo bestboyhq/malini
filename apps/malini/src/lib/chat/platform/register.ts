@@ -44,6 +44,7 @@ import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
 import { installShellRuns } from './shell-runs/commands';
+import { chatName, namerTask } from '../domain/chat-names';
 import { savedSecretsPrompt } from '../domain/saved-secrets';
 
 export interface ChatDeps {
@@ -188,7 +189,15 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			]);
 		},
 		nameService: (task) => runOneShotAutomation(context.db, 'name-services', task, suggestTitle),
-		nameWorkstream: (task) => runOneShotAutomation(context.db, 'name-chats', task, suggestTitle),
+		nameWorkstream: async (title) =>
+			chatName(
+				await runOneShotAutomation(
+					context.db,
+					'name-chats',
+					namerTask(title, null) ?? title,
+					suggestTitle,
+				),
+			) ?? '',
 		suggestTitle,
 		choose: async (task, automation, choices) => {
 			const environment = await deps.providerEnvironment(automation.provider, automation.model);

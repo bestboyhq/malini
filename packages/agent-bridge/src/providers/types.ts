@@ -1,5 +1,6 @@
 import type { AgentEvent, McpServerReport } from '../types.js';
 import type { AgentBoundary, AgentLineage, AgentRunProfile, AgentTheme } from '../agent-profile.js';
+import type { SandboxGrant } from '../sandbox.js';
 import type {
 	BrowserRequest,
 	BrowserResult,
@@ -44,6 +45,9 @@ export interface ProviderHandle {
 		plugins?: readonly string[],
 		compactWindow?: number,
 		boundary?: AgentBoundary,
+		steReplies?: boolean,
+		sandboxGrants?: readonly SandboxGrant[],
+		outsideAllowed?: boolean,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

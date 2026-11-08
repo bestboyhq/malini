@@ -19,6 +19,7 @@ import {
 	type AgentTheme,
 } from './agent-profile.js';
 import type { AgentQuestionAnswer, ApprovalDecision, ApprovalScope } from './interaction-types.js';
+import type { SandboxGrant } from './sandbox.js';
 import { isOneOf, isRecord } from './type-guards.js';
 import type { McpServerListing, McpServerReport } from './types.js';
 
@@ -82,6 +83,9 @@ export interface SendPromptCommand {
 	readonly plugins?: readonly string[];
 	readonly compactWindow?: number;
 	readonly boundary?: AgentBoundary;
+	readonly steReplies?: boolean;
+	readonly sandboxGrants?: readonly SandboxGrant[];
+	readonly outsideAllowed?: boolean;
 }
 
 export type Secrets = Readonly<Record<string, string>>;
@@ -102,6 +106,8 @@ const MAX_SKILL_NAME_CHARACTERS = 200;
 const COMPACT_WINDOW_RANGE = Object.freeze({ min: 100_000, max: 1_000_000 });
 
 const MAX_PLUGINS = 50;
+const MAX_SANDBOX_GRANTS = 500;
+const MAX_SANDBOX_GRANT_PATH_BYTES = 4_096;
 const MAX_PLUGIN_PATH_CHARACTERS = 1_024;
 
 export interface CancelRunCommand {
@@ -888,6 +894,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const plugins = obj.plugins;
 	const compactWindow = obj.compactWindow;
 	const boundary = obj.boundary;
+	const steReplies = obj.steReplies;
+	const sandboxGrants = obj.sandboxGrants;
+	const outsideAllowed = obj.outsideAllowed;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -912,6 +921,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	}
 	if (steer !== undefined && typeof steer !== 'boolean') {
 		return err('INVALID_PAYLOAD', 'send_prompt: steer must be a boolean', obj);
+	}
+	if (steReplies !== undefined && typeof steReplies !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'send_prompt: steReplies must be a boolean', obj);
 	}
 	if (theme !== undefined && !isAgentTheme(theme)) {
 		return err('INVALID_PAYLOAD', 'send_prompt: theme, when present, must be light or dark', obj);
@@ -950,6 +962,12 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			obj,
 		);
 	}
+	if (sandboxGrants !== undefined && !isSandboxGrantList(sandboxGrants)) {
+		return err('INVALID_PAYLOAD', `send_prompt: ${SANDBOX_GRANTS_SHAPE}`, obj);
+	}
+	if (outsideAllowed !== undefined && typeof outsideAllowed !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'send_prompt: outsideAllowed must be a boolean', obj);
+	}
 	return {
 		ok: true,
 		command: {
@@ -969,8 +987,29 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(plugins !== undefined ? { plugins } : {}),
 			...(compactWindow !== undefined ? { compactWindow } : {}),
 			...(boundary !== undefined ? { boundary } : {}),
+			...(steReplies === true ? { steReplies } : {}),
+			...(sandboxGrants !== undefined ? { sandboxGrants } : {}),
+			...(outsideAllowed === true ? { outsideAllowed } : {}),
 		},
 	};
+}
+
+const SANDBOX_GRANTS_SHAPE = `sandboxGrants, when present, must be at most ${MAX_SANDBOX_GRANTS} grants of kind path or socket on an absolute path`;
+
+function isSandboxGrantList(value: unknown): value is SandboxGrant[] {
+	return (
+		Array.isArray(value) &&
+		value.length <= MAX_SANDBOX_GRANTS &&
+		value.every(
+			(grant) =>
+				isRecord(grant) &&
+				Object.keys(grant).length === 2 &&
+				(grant['kind'] === 'path' || grant['kind'] === 'socket') &&
+				typeof grant['path'] === 'string' &&
+				isAbsolute(grant['path']) &&
+				Buffer.byteLength(grant['path']) <= MAX_SANDBOX_GRANT_PATH_BYTES,
+		)
+	);
 }
 
 const PLUGINS_SHAPE = `plugins, when present, must be at most ${MAX_PLUGINS} absolute folder paths of at most ${MAX_PLUGIN_PATH_CHARACTERS} characters`;
@@ -1078,7 +1117,7 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 	if (!isApprovalScope(scope)) {
 		return err(
 			'INVALID_PAYLOAD',
-			'approve: scope must be "once", "session", "workstream", or "everywhere"',
+			'approve: scope must be "once", "session", "workstream", "repository", or "everywhere"',
 			obj,
 		);
 	}
@@ -1107,7 +1146,8 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 
 function isApprovalScope(value: unknown): value is ApprovalScope {
 	return (
-		typeof value === 'string' && isOneOf(['once', 'session', 'workstream', 'everywhere'], value)
+		typeof value === 'string' &&
+		isOneOf(['once', 'session', 'workstream', 'repository', 'everywhere'], value)
 	);
 }
 

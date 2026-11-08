@@ -1,10 +1,12 @@
 export type ApprovalDecision = 'allow' | 'deny';
 
-export type ApprovalScope = 'once' | 'session' | 'workstream' | 'everywhere';
+export type ApprovalScope = 'once' | 'session' | 'workstream' | 'repository' | 'everywhere';
 
-export type PermissionCapability = 'read' | 'write' | 'execute' | 'network' | 'external-service';
+export type PermissionCapability =
+	'read' | 'write' | 'execute' | 'network' | 'external-service' | 'sandbox';
 
-export type PermissionResourceKind = 'path' | 'command' | 'url' | 'project' | 'service' | 'tool';
+export type PermissionResourceKind =
+	'path' | 'socket' | 'command' | 'url' | 'project' | 'service' | 'tool';
 
 export type PermissionBoundary = 'workstream' | 'git-admin' | 'external' | 'sensitive' | 'unknown';
 

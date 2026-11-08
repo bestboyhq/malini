@@ -44,6 +44,7 @@ import { startUpdates } from './updates';
 import { startUsageData } from './usage-data';
 import { readUsageReport } from './usage-report';
 import { createWindowCommands, type WindowCommands } from './window';
+import { lidTools, startLidHold } from './lid-hold';
 
 export interface AppDeps {
 	getMainWindow(): BrowserWindow | null;
@@ -67,6 +68,12 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	context.commands.define('app.share-usage-data', (args: unknown): void =>
 		usageData.share(requireBoolean(args, 'shared')),
 	);
+	const lid = startLidHold(
+		context,
+		deps.runner ?? createNodeProcessRunner(),
+		lidTools(!context.isDev, process.env),
+	);
+	context.commands.define('app.hold-lid', (args: unknown) => lid.hold(requireBoolean(args, 'on')));
 	const showMenu = (update: MenuItemConstructorOptions | null): void =>
 		host.showApplicationMenu(
 			applicationMenu(host.productName, update, (command) => window.chooseMenuCommand(command)),
@@ -76,6 +83,7 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	return {
 		...defineShutdownCommands(context, deps),
 		shutdownUsageData: () => usageData.shutdown(),
+		stopLidHold: () => lid.stop(),
 		windowStateSaved: () => window.windowStateSaved(),
 		exit: () => updates.exit(),
 		announceUpdate: () => announceUpdate(context, CONTRACT_REFERENCE),
@@ -183,6 +191,7 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		window.setInterfaceScale(args),
 	);
 	commands.define('app.logical-viewport', () => window.logicalViewport());
+	commands.define('app.full-screen', () => window.isFullScreen());
 	commands.define('app.close-guard', (args: CloseGuardArgs) => window.setCloseGuard(args));
 	commands.define('app.destroy-window', () => window.destroy());
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));

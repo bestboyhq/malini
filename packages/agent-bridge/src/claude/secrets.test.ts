@@ -10,10 +10,10 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { canSandbox, sandboxProfile } from '../sandbox.js';
 import {
 	bridgeSecretsFolder,
@@ -161,6 +161,27 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		expect(await run(secrets, outside)).toMatchObject({ status: 0, stdout: 'hidden-token' });
 		expect((await run(secrets, outside)).status).not.toBe(0);
 		expect((await run(secrets, `: malini-outside-${'0'.repeat(32)}; ${read}`)).status).not.toBe(0);
+	});
+
+	it('runs a command once in a sandbox that also opens what the user allowed', async () => {
+		const { secrets } = confined();
+		const granted = mkdtempSync(join(homedir(), '.malini-grant-test-'));
+		onTestFinished(() => rm(granted, { recursive: true, force: true }));
+		const write = `touch ${join(granted, 'state')}`;
+		const once = secrets.passInside(
+			write,
+			sandboxProfile({
+				checkout: ROOT,
+				hidden: [],
+				internet: false,
+				grants: [{ kind: 'path', path: granted }],
+			}),
+		);
+
+		expect((await run(secrets, write)).status).not.toBe(0);
+		expect((await run(secrets, `: malini-inside-${'0'.repeat(32)}; ${write}`)).status).not.toBe(0);
+		expect((await run(secrets, once)).status).toBe(0);
+		expect((await run(secrets, once)).status).not.toBe(0);
 	});
 
 	it('leaves commands alone once the sandbox is lifted', async () => {

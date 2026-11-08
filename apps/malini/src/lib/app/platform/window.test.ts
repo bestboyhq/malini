@@ -7,6 +7,7 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }));
 
 import {
 	APP_CLOSE_REQUESTED_CHANNEL,
+	APP_FULL_SCREEN_CHANGED_CHANNEL,
 	APP_MENU_COMMAND_CHOSEN_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
@@ -101,6 +102,28 @@ describe('window commands', () => {
 		const { host, received } = setup();
 		for (const listener of host.displayMetricsChanged) listener();
 		expect(received).toEqual(['scale-changed']);
+	});
+
+	it('announces full screen for the main window only and reports it', () => {
+		const { commands, events, main, created } = setup();
+		if (!main) throw new Error('unreachable');
+		const other = createFakeWindow();
+		created(main);
+		created(other);
+		const announced: boolean[] = [];
+		events.subscribe(APP_FULL_SCREEN_CHANGED_CHANNEL, ({ fullScreen }) =>
+			announced.push(fullScreen),
+		);
+
+		expect(commands.isFullScreen()).toBe(false);
+		main.fullScreen = true;
+		main.emit('enter-full-screen');
+		other.emit('enter-full-screen');
+		expect(commands.isFullScreen()).toBe(true);
+		main.fullScreen = false;
+		main.emit('leave-full-screen');
+		expect(announced).toEqual([true, false]);
+		expect(setup(null).commands.isFullScreen()).toBe(false);
 	});
 });
 

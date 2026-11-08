@@ -33,7 +33,12 @@ import { queueDrainStore } from '$lib/chat/infrastructure/stores/queue-drain.sto
 import { queueErrorsStore } from '$lib/chat/infrastructure/stores/queue-errors.store.svelte';
 import { queueInterruptRecoveryStore } from '$lib/chat/infrastructure/stores/queue-interrupt-recovery.store';
 import { queueSendingStore } from '$lib/chat/infrastructure/stores/queue-sending.store.svelte';
-import { roleForAgentMode, sameModelSelection } from '$shared/providers/providers.api';
+import {
+	isModelAccessReady,
+	modelAccessQuery,
+	roleForAgentMode,
+	sameModelSelection,
+} from '$shared/providers/providers.api';
 import { workstreamReadyForPromptsQuery } from '$shared/repositories/repositories.api';
 
 const QUEUE_INTERRUPT_RETRY_INTERVAL_MS = 100;
@@ -235,6 +240,10 @@ class PromptDeliveryService {
 				targetSessionId,
 				forceFreshSession: false,
 			});
+			if (waitsForAccess(next)) {
+				this.scheduleDrain(workstreamId);
+				return 'skipped';
+			}
 			await this.dispatch({
 				workstreamId,
 				sessionId: targetSessionId,
@@ -379,9 +388,14 @@ function nextDeliverable(
 		if (waitingChats.has(entry.targetSessionId)) continue;
 		waitingChats.add(entry.targetSessionId);
 		const target = chatOccupancy.queuedTurnTarget(workstreamId, entry);
-		if (!target.targetIsBusy) return { next: entry, target };
+		const seated = entry.targetSessionId !== null && !entry.forceFreshSession;
+		if (!target.targetIsBusy && !(seated && waitsForAccess(entry))) return { next: entry, target };
 	}
 	return null;
+}
+
+function waitsForAccess(entry: QueuedPrompt): boolean {
+	return !isModelAccessReady(modelAccessQuery.data(entry));
 }
 
 function queuedPromptById(workstreamId: string, id: string): QueuedPrompt | null {

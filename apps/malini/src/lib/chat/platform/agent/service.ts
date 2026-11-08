@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { APP_DATA_ROOT } from '@malini/agent-bridge/sandbox';
 import {
 	CHAT_SESSION_RENAMED_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
 	type SessionRenamedPayload,
 	type WorkstreamRenamedPayload,
@@ -9,8 +11,10 @@ import {
 import {
 	CONTEXT_WINDOW_SETTING,
 	OPTIMIZE_CONTEXT_SETTING,
+	STE_REPLIES_SETTING,
 	contextWindowOf,
 	optimizesContext,
+	writesSte,
 } from '$contract/agent';
 import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
@@ -37,6 +41,7 @@ import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
 import { recordDeniedMaliniCall } from './malini-approvals.service';
 import { ChatDeliveries } from '../deliveries.service';
+import { ChatNamer } from './naming';
 import { answerPlatformRequest } from './platform-tools';
 import {
 	browserResultCommand,
@@ -205,6 +210,7 @@ function describePage(page: BrowserPageInfo): string {
 
 export interface AgentService {
 	readonly runtime: BridgeRuntime;
+	readonly namer: ChatNamer;
 	readonly bridgeScriptPath: string;
 	readonly started: boolean;
 	health(): BridgeHealth;
@@ -282,6 +288,7 @@ export async function startAgentService(
 					...deps.spawnEnvironment(),
 					AGENT_BRIDGE_LOG: join(context.appDataRoot, 'agent-bridge.log'),
 					MALINI_AGENT_BRIDGE_PRIVATE_RUNTIME_ROOT: privateRuntimeRoot,
+					[APP_DATA_ROOT]: context.appDataRoot,
 				},
 			},
 			...(deps.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: deps.readyTimeoutMs }),
@@ -292,6 +299,29 @@ export async function startAgentService(
 			onAgentRequest: (request, supervisor) => void answerOn(supervisor, request),
 		},
 		log,
+	});
+
+	const namer = new ChatNamer(
+		db,
+		async (task, automation) => {
+			const environment =
+				(await deps.providerEnvironment?.(automation.provider, automation.model)) ?? {};
+			return (await runtime.ensureReady()).suggestTitle(task, automation, environment);
+		},
+		{
+			chat(workstreamId, sessionId, name) {
+				const payload: SessionRenamedPayload = { workstreamId, sessionId, name };
+				context.events.emit(CHAT_SESSION_RENAMED_CHANNEL, payload);
+			},
+			workstream(workstreamId, name) {
+				const payload: WorkstreamRenamedPayload = { workstreamId, name };
+				context.events.emit(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL, payload);
+			},
+		},
+		log,
+	);
+	const stopNamingTurns = context.events.subscribe(CHAT_TURN_FINISHED_CHANNEL, (turn) => {
+		namer.turnFinished(turn);
 	});
 
 	async function answerOn(
@@ -322,6 +352,7 @@ export async function startAgentService(
 						sending,
 						deliveries,
 						...(deps.secrets ? { secrets: deps.secrets } : {}),
+						nameWorkstream: (workstreamId, prompt) => namer.nameWorkstream(workstreamId, prompt),
 						log,
 					}),
 				);
@@ -390,23 +421,20 @@ export async function startAgentService(
 					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),
 					starterPlan: lineage?.startedBy?.plan ?? null,
 				}),
-			providerEnvironment: deps.providerEnvironment ?? (async () => ({})),
-			async compactWindow() {
+			async turnSettings() {
 				const settings = await savedSettings();
-				return optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
-					? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
-					: null;
+				return {
+					compactWindow: optimizesContext(settings[OPTIMIZE_CONTEXT_SETTING])
+						? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
+						: null,
+					steReplies: writesSte(settings[STE_REPLIES_SETTING]),
+				};
 			},
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,
-			notifySessionRenamed(workstreamId, sessionId, name) {
-				const payload: SessionRenamedPayload = { workstreamId, sessionId, name };
-				context.events.emit(CHAT_SESSION_RENAMED_CHANNEL, payload);
-			},
-			notifyWorkstreamRenamed(workstreamId, name) {
-				const payload: WorkstreamRenamedPayload = { workstreamId, name };
-				context.events.emit(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL, payload);
+			promptSent: (sessionId, workstreamId, prompt) => {
+				namer.promptSent(sessionId, workstreamId, prompt);
 			},
 		},
 		log,
@@ -418,6 +446,7 @@ export async function startAgentService(
 
 	return {
 		runtime,
+		namer,
 		bridgeScriptPath,
 		started,
 		health() {
@@ -458,6 +487,7 @@ export async function startAgentService(
 		},
 		async stop() {
 			stopRecordingDenials();
+			stopNamingTurns();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);
 			await runtime.stop();
 			await closeOpenRunsForExit();

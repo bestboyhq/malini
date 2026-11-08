@@ -18,6 +18,7 @@ import {
 	matchPermissionRule,
 	rememberPermissionRule,
 	revokePermissionRule,
+	revokePermissionRuleById,
 	revokePermissionRulesFor,
 } from './permissions.repository';
 import {
@@ -27,8 +28,10 @@ import {
 	normalizeRememberablePermission,
 	rememberedRuleIdForResolvedApproval,
 	resolveHomeDirectory,
+	sandboxGrantsFor,
 	validateApprovalDecision,
 } from './permissions.service';
+import { run } from '$main/db/rows';
 import { openChatTestDatabase, seedChatSession, seedChatWorkstream } from './test-support';
 
 const tempDirs: string[] = [];
@@ -178,6 +181,56 @@ describe('normalizeRememberablePermission', () => {
 		expect(first).toEqual(reordered);
 	});
 
+	it('remembers what the sandbox blocked as one sorted set of grants', () => {
+		const root = canonicalDir(tempDir());
+		const workstream = canonicalDir(root, 'workstream');
+		const cache = canonicalDir(root, 'tool-cache');
+		const socket = join(canonicalDir(root, 'run'), 'docker.sock');
+		const grant = (...resources: Array<[string, string]>): unknown => ({
+			capability: 'sandbox',
+			resources: resources.map(([kind, value]) => ({ kind, value, boundary: 'external' })),
+		});
+
+		const normalized = normalizeRememberablePermission(
+			grant(['socket', socket], ['path', cache], ['socket', socket]),
+			workstream,
+		);
+		expect(normalized.canonicalJson).toBe(
+			`{"capability":"sandbox","resources":[{"kind":"path","value":"${cache}","boundary":"external"},{"kind":"socket","value":"${socket}","boundary":"external"}]}`,
+		);
+		expect(
+			normalizeRememberablePermission(grant(['path', cache], ['socket', socket]), workstream),
+		).toEqual(normalized);
+
+		expect(() =>
+			normalizeRememberablePermission(grant(['path', join(workstream, 'dist')]), workstream),
+		).toThrow('overlaps the active workstream');
+		expect(() => normalizeRememberablePermission(grant(['path', root]), workstream)).toThrow(
+			'overlaps the active workstream',
+		);
+		const keys = canonicalDir(process.env['HOME'] ?? root, '.ssh');
+		expect(() => normalizeRememberablePermission(grant(['path', keys]), workstream)).toThrow(
+			`sandbox grant \`${keys}\` holds credentials`,
+		);
+		const alias = join(root, 'cache-alias');
+		symlinkSync(cache, alias);
+		expect(() => normalizeRememberablePermission(grant(['path', alias]), workstream)).toThrow(
+			'is not host-canonical',
+		);
+		expect(() =>
+			normalizeRememberablePermission(grant(['url', 'https://example.com']), workstream),
+		).toThrow('a sandbox grant opens only external paths and sockets');
+		expect(() =>
+			normalizeRememberablePermission(
+				{
+					capability: 'sandbox',
+					resources: [{ kind: 'path', value: cache, canonicalValue: cache, boundary: 'external' }],
+				},
+				workstream,
+			),
+		).toThrow('a sandbox grant opens only external paths and sockets');
+	});
+
 	it('refuses to remember anything but external reads', () => {
 		const workstream = canonicalDir(tempDir(), 'workstream');
 		expect(() =>
@@ -239,7 +292,7 @@ describe('approval decisions', () => {
 			'approval decision must be `allow` or `deny`',
 		);
 		expect(() => validateApprovalDecision('allow', 'forever')).toThrow(
-			'approval scope must be `once`, `session`, `workstream`, or `everywhere`',
+			'approval scope must be `once`, `session`, `workstream`, `repository`, or `everywhere`',
 		);
 		expect(() => validateApprovalDecision('deny', 'workstream')).not.toThrow();
 	});
@@ -362,6 +415,7 @@ describe('agent_permission_rules repository', () => {
 			id: 'rule-session',
 			scope: 'session',
 			workstreamId: 'ws-1',
+			repositoryId: null,
 			sessionId: 'sess-1',
 			permissionFingerprint: fingerprint,
 			permissionJson: '{}',
@@ -419,6 +473,51 @@ describe('agent_permission_rules repository', () => {
 		expect(revokePermissionRulesFor(db, fingerprint, '2026-09-18T11:00:00.000Z')).toBe(2);
 		expect(hasActivePermissionRule(db, fingerprint)).toBe(false);
 		expect(matchPermissionRule(db, 'ws-2', 'sess-other', fingerprint)).toBeNull();
+		db.close();
+	});
+
+	it('matches a repository rule in every workstream of that repository and nowhere else', () => {
+		const db = setup();
+		run(
+			db,
+			"INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES ('ws-3', 'proj-ws-1', 'ws-3', '/tmp/ws-3', 'malini/ws-3', 'main', 'active', '2026-09-18T09:00:00.000Z')",
+		);
+		seedChatSession(db, 'sess-3', 'ws-3');
+		const docker = {
+			capability: 'sandbox',
+			resources: [
+				{ kind: 'socket', value: '/Users/me/.docker/run/docker.sock', boundary: 'external' },
+			],
+		};
+		rememberPermissionRule(db, {
+			id: 'rule-repository',
+			scope: 'repository',
+			workstreamId: 'ws-1',
+			sessionId: 'sess-1',
+			permissionFingerprint: fingerprint,
+			permissionJson: JSON.stringify(docker),
+			createdRunId: null,
+			createdRequestId: 'req-1',
+			createdAt: '2026-09-18T10:00:00.000Z',
+		});
+
+		expect(matchPermissionRule(db, 'ws-3', 'sess-3', fingerprint)).toMatchObject({
+			id: 'rule-repository',
+			scope: 'repository',
+			workstreamId: null,
+			repositoryId: 'proj-ws-1',
+		});
+		expect(matchPermissionRule(db, 'ws-2', 'sess-other', fingerprint)).toBeNull();
+		expect(listActivePermissionRules(db)).toMatchObject([
+			{ id: 'rule-repository', repositoryId: 'proj-ws-1', workstreamName: null },
+		]);
+		expect(sandboxGrantsFor(db, 'ws-3', 'sess-3')).toEqual([
+			{ kind: 'socket', path: '/Users/me/.docker/run/docker.sock' },
+		]);
+		expect(sandboxGrantsFor(db, 'ws-2', 'sess-other')).toEqual([]);
+
+		revokePermissionRuleById(db, 'rule-repository', '2026-09-18T11:00:00.000Z');
+		expect(sandboxGrantsFor(db, 'ws-3', 'sess-3')).toEqual([]);
 		db.close();
 	});
 
