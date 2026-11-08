@@ -222,7 +222,8 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 			'heartbeat is stale',
 		);
 		expect(supervisor.health()).toEqual({ state: 'crashed', lastExit: 0 });
-	});
+		await expect(supervisor.awaitFreshHeartbeat()).resolves.toBe(false);
+	}, 15_000);
 
 	it('kills the process group and reports killed', async () => {
 		const supervisor = await spawn();

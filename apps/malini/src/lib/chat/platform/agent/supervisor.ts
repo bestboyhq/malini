@@ -935,6 +935,15 @@ export class BridgeSupervisor {
 		return this.childIsAlive() && heartbeatFresh;
 	}
 
+	async awaitFreshHeartbeat(): Promise<boolean> {
+		for (let awakeMs = 0; awakeMs < BRIDGE_HEARTBEAT_TIMEOUT_MS; awakeMs += READY_POLL_MS) {
+			if (this.isHealthy()) return true;
+			if (this.shuttingDown || !this.ready || !this.childIsAlive()) return false;
+			await sleep(READY_POLL_MS);
+		}
+		return this.isHealthy();
+	}
+
 	health(): BridgeHealth {
 		if (this.shuttingDown) return { state: 'killed' };
 		if (!this.isHealthy()) return { state: 'crashed', lastExit: this.restartAttempt };

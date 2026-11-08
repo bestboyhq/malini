@@ -11,6 +11,7 @@ import { normalizeRememberablePermission } from '../permissions.service';
 import { BRIDGE_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeEvent } from './protocol';
+import type { BridgeSupervisorConfig } from './supervisor';
 import { BridgeRuntime, pumpStep, SessionCorrelator, type RunFinishedInput } from './runtime';
 import {
 	createTestContext,
@@ -49,12 +50,13 @@ afterEach(async () => {
 function runtimeWith(
 	env: Record<string, string> = {},
 	hooks: { onRunFinished?: (input: RunFinishedInput) => Promise<void> } = {},
+	supervisor: Partial<BridgeSupervisorConfig> = {},
 ) {
 	const runtime = new BridgeRuntime({
 		db: test.db,
 		events: test.events,
 		checkoutsRoot: test.appDataRoot,
-		supervisorConfig: fake.supervisorConfig(env),
+		supervisorConfig: fake.supervisorConfig(env, supervisor),
 		leases: new AgentRunLeases(),
 		hooks,
 		log: () => {},
@@ -403,6 +405,21 @@ describe('BridgeRuntime with the fake bridge', () => {
 			)?.n,
 		).toBeGreaterThanOrEqual(2);
 	}, 15_000);
+
+	it('keeps a live bridge and its open run when the Mac wakes from sleep', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		let clock = Date.now();
+		const runtime = runtimeWith({}, {}, { now: () => clock });
+		await runtime.start();
+		const first = await runtime.ensureSessionReady('sess-1');
+		seedOpenRun(test.db, 'run-1', 'sess-1');
+
+		clock += 60 * 60 * 1000;
+
+		expect(await runtime.ensureSessionReady('sess-1')).toBe(first);
+		expect(getRun(test.db, 'run-1')).toMatchObject({ completedAt: null, error: null });
+	});
 
 	it('remembers a registration failure per session and refuses that session until re-activated', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
