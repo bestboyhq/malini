@@ -71,7 +71,9 @@ test('a Claude account added from the context card signs in through the browser 
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
 		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
 
-		const account = page.getByRole('region', { name: 'Claude account' });
+		const account = page
+			.getByRole('dialog', { name: 'Context and plan usage' })
+			.getByRole('region', { name: 'Claude', exact: true });
 		const accounts = account.getByRole('list', { name: 'Claude accounts' });
 		const current = accounts.locator('[aria-current="true"]');
 		const progress = account.getByRole('status');
@@ -90,6 +92,9 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(usage).not.toHaveAccessibleName(PLAN_ALERT);
 		const switchToPrivate = accounts.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` });
 		await expect(switchToPrivate).toBeVisible();
+		await expect(accounts.getByRole('listitem').filter({ hasText: PRIVATE_ACCOUNT })).toContainText(
+			'5-hour · 93%',
+		);
 		await expect(account).toContainText(
 			`This chat last ran on ${PRIVATE_ACCOUNT}. Its next prompt uses the checked account.`,
 		);
@@ -109,10 +114,7 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(progress).toHaveCount(0);
 		await expect(current).toContainText(PRIVATE_ACCOUNT);
 
-		await page
-			.getByRole('region', { name: 'Connected providers' })
-			.getByRole('button', { name: 'Manage providers' })
-			.click();
+		await account.getByRole('button', { name: 'Manage providers' }).click();
 		const settings = page.getByRole('dialog', { name: 'Settings' });
 		await expect(
 			settings
@@ -146,6 +148,34 @@ test('a Claude account added from the context card signs in through the browser 
 			.toBe(`auth login with refresh-${WORK_ACCOUNT}\n`);
 		await settingsCurrent.getByRole('button', { name: 'Reveal email address' }).click();
 		await expect(settingsCurrent).toContainText(WORK_ACCOUNT, { timeout: 20_000 });
+
+		const fresh = await seedWorkstream(page, source, 'e2e-claude-accounts-fresh', 'Fresh chat');
+		await page.reload();
+		await openWorkstream(page, fresh.workstreamId);
+		await usage.hover();
+		await expect(
+			accounts
+				.getByRole('listitem')
+				.filter({ has: page.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }) }),
+		).toContainText('5-hour · 93%');
+
+		await page.getByTestId('chat-composer-model').click();
+		await page
+			.locator(
+				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
+			)
+			.click();
+		await usage.hover();
+		const claudeLines = page
+			.getByRole('dialog', { name: 'Context and plan usage' })
+			.getByRole('list', { name: 'Other providers' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Claude' });
+		await expect(claudeLines).toHaveCount(2);
+		await expect(claudeLines.first()).toHaveAttribute('aria-current', 'true');
+		await expect(claudeLines.first()).not.toContainText('93%');
+		await expect(claudeLines.last()).not.toHaveAttribute('aria-current');
+		await expect(claudeLines.last()).toContainText('5-hour · 93%');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

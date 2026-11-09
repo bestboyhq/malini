@@ -18,7 +18,7 @@
 
 	.sidebar-row:not(.sidebar-row-active):hover,
 	.thread-link:not(.sidebar-row-active):hover {
-		@apply bg-surface-50-hover text-500;
+		@apply bg-surface-root-hover text-500;
 	}
 
 	.sidebar-row-text,
@@ -27,6 +27,6 @@
 	}
 
 	.sidebar-row-active {
-		@apply bg-surface-50-selected text-500;
+		@apply bg-surface-root-selected text-500;
 	}
 }

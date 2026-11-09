@@ -14,9 +14,10 @@
 	interface Props {
 		class?: ClassValue;
 		current?: Snippet;
+		other?: Snippet<[string]>;
 	}
 
-	let { class: className, current }: Props = $props();
+	let { class: className, current, other }: Props = $props();
 
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
@@ -52,6 +53,7 @@
 				<span class="text-fg-secondary min-w-0 flex-1 truncate">
 					<SensitiveText text={email} />
 				</span>
+				{@render other?.(email)}
 				<Button
 					variant="secondary"
 					size="xs"

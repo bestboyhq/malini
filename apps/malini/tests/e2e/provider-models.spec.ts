@@ -100,16 +100,51 @@ async function serveModelsDev(catalog: unknown): Promise<CatalogServer> {
 interface ProbeServer {
 	readonly origin: string;
 	answer(inference: number): void;
+	report(usage: { percent: number } | null): void;
 	close(): Promise<void>;
 }
 
-async function serveOpenCodeProbe(inference: number): Promise<ProbeServer> {
+async function serveOpenCodeProbe(
+	inference: number,
+	usage: { percent: number } | null = null,
+): Promise<ProbeServer> {
 	let answer = inference;
+	let reported = usage;
 	const server = createServer((request, response) => {
 		response.setHeader('content-type', 'application/json');
 		if (request.url?.endsWith('/inference/go/anthropic/v1/messages')) {
 			response.writeHead(answer);
 			response.end('{}');
+			return;
+		}
+		if (request.url?.endsWith('/zen/go/v1/usage')) {
+			if (!reported) {
+				response.writeHead(403);
+				response.end('{}');
+				return;
+			}
+			response.writeHead(200);
+			response.end(
+				JSON.stringify({
+					usage: {
+						rolling: {
+							percent: reported.percent,
+							status: 'ok',
+							resetsAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+						},
+						weekly: {
+							percent: 12,
+							status: 'ok',
+							resetsAt: new Date(Date.now() + 72 * 3_600_000).toISOString(),
+						},
+						monthly: {
+							percent: 34,
+							status: 'ok',
+							resetsAt: new Date(Date.now() + 720 * 3_600_000).toISOString(),
+						},
+					},
+				}),
+			);
 			return;
 		}
 		response.writeHead(200);
@@ -122,6 +157,9 @@ async function serveOpenCodeProbe(inference: number): Promise<ProbeServer> {
 		origin: `http://localhost:${port}`,
 		answer: (next) => {
 			answer = next;
+		},
+		report: (next) => {
+			reported = next;
 		},
 		close: () => new Promise((resolve) => server.close(() => resolve())),
 	};
@@ -155,12 +193,13 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			timeout: 20_000,
 		});
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
-		const providers = page.getByRole('region', { name: 'Connected providers' });
+		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		const others = panel.getByRole('list', { name: 'Other providers' });
 		await usage.hover();
-		await expect(providers.getByRole('region', { name: 'Claude account' })).toBeVisible();
-		await expect(providers.getByRole('group', { name: 'DeepSeek' })).toHaveCount(0);
+		await expect(panel.getByRole('region', { name: 'Claude', exact: true })).toBeVisible();
+		await expect(others).toHaveCount(0);
 		await page.mouse.move(0, 0);
-		await expect(providers).toHaveCount(0);
+		await expect(panel).toHaveCount(0);
 		await page.getByTestId('chat-composer-model').click();
 		const models = page.getByRole('listbox', { name: 'Models' });
 		await expect(models.getByRole('option', { name: /^Opus 5\.5/u })).toHaveCount(1);
@@ -214,10 +253,12 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			});
 		await expectAssistantReply(page);
 		await usage.hover();
-		await expect(providers.getByRole('group', { name: 'DeepSeek' })).toContainText('API key');
+		await expect(panel.getByRole('region', { name: 'DeepSeek' })).toContainText('API key');
+		await expect(panel.getByRole('region', { name: 'Claude', exact: true })).toHaveCount(0);
+		await expect(others.getByRole('listitem')).toHaveText(['Claude Claude Max']);
 		await captureFlow(app, 'provider-models-connected-providers');
 		await page.mouse.move(0, 0);
-		await expect(providers).toHaveCount(0);
+		await expect(panel).toHaveCount(0);
 		await captureFlow(app, 'provider-models-deepseek-run');
 
 		await page.reload();
@@ -346,6 +387,7 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 				CLAUDE_CODE_SUBAGENT_MODEL: 'glm-6',
 			});
 		await expectAssistantReply(page);
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveCount(0);
 
 		await page.evaluate(() => {
 			location.hash = '#/settings/providers';
@@ -427,6 +469,43 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 				CLAUDE_CODE_SUBAGENT_MODEL: 'glm-6',
 			});
 		await expectAssistantReply(page);
+
+		const trigger = page.getByRole('button', { name: /^View context and plan usage/u });
+		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		await trigger.hover();
+		await expect(panel.getByRole('region', { name: 'OpenCode' })).toContainText(
+			'Limits on the way. Probably',
+		);
+		await page.mouse.move(10, 10);
+		await expect(panel).toBeHidden();
+
+		probe.report({ percent: 96 });
+		await trigger.hover();
+		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveText('96% used');
+		await expect(panel.getByTestId('session-opencode-usage')).toBeVisible();
+		await expect(panel).not.toContainText('Limits on the way. Probably');
+		await expect(panel.getByRole('progressbar', { name: '5-hour limit used' })).toHaveAttribute(
+			'aria-valuenow',
+			'96',
+		);
+		await page.mouse.move(10, 10);
+		await expect(panel).toBeHidden();
+		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
+
+		await chooseModel(page, 'claude', 'opus');
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveCount(0);
+		await trigger.hover();
+		await expect(panel.getByTestId('session-opencode-usage')).toHaveCount(0);
+		await expect(
+			panel
+				.getByRole('list', { name: 'Other providers' })
+				.getByRole('listitem')
+				.filter({ hasText: 'OpenCode' }),
+		).toContainText('5-hour · 96%');
+		await captureFlow(app, 'provider-models-opencode-go-other-providers');
+		await page.mouse.move(10, 10);
+		await expect(panel).toBeHidden();
 
 		await page.getByTestId('chat-composer-model').click();
 		await expect(modelOptions(page, 'opencode')).toHaveText([/^Hy4/u, /^GLM-6/u]);

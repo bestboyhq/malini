@@ -72,7 +72,7 @@
 
 <div
 	bind:this={strip}
-	class="bg-surface-root mx-2 mb-1.5 flex items-center gap-0.5 rounded-[11px] p-[3px]"
+	class="bg-surface-50 mx-2 mb-1.5 flex items-center gap-0.5 rounded-[11px] p-[3px]"
 	role="group"
 	aria-label="Focus"
 	data-testid="sidebar-focus"

@@ -8,8 +8,12 @@ class PlanUsageQuery {
 	public readonly data: PlanUsage | null = $derived.by(() => {
 		const status = claudeCodeStatusQuery.data;
 		if (status.kind !== 'ready') return null;
-		return planUsageFor(planUsageStore.byAccount, status.account?.email ?? null);
+		return this.of(status.account?.email ?? null);
 	});
+
+	of(account: string | null): PlanUsage | null {
+		return planUsageFor(planUsageStore.byAccount, account);
+	}
 }
 
 const planUsageQuery = new PlanUsageQuery();

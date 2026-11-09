@@ -1,4 +1,4 @@
-# 0195 - Malini keeps your Claude Code current
+# 0197 - Malini keeps your Claude Code current
 
 Status: accepted
 

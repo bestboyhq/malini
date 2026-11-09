@@ -86,7 +86,7 @@
 	<aside
 		{@attach dismissOnOutside(closeSidebarOverlayCommand, '[data-sidebar-toggle]')}
 		class={[
-			'sidebar-overlay bg-surface-50 border-surface-50-border shadow-popup flex min-w-0 flex-col overflow-hidden rounded-2xl border-[0.5px]',
+			'sidebar-overlay bg-surface-root border-border-default shadow-popup flex min-w-0 flex-col overflow-hidden rounded-2xl border-[0.5px]',
 			className,
 		]}
 		style:width={`${width}px`}
@@ -104,7 +104,10 @@
 	</aside>
 {:else if !collapsed}
 	<aside
-		class={['bg-surface-50 flex h-full min-w-0 shrink-0 flex-col overflow-hidden', className]}
+		class={[
+			'bg-surface-root border-border-default flex h-full min-w-0 shrink-0 flex-col overflow-hidden border-r-[0.5px]',
+			className,
+		]}
 		style:width={`${width}px`}
 		data-testid={testId}
 		{...rest}
