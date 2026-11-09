@@ -26,18 +26,27 @@ export interface CompletedCommand {
 	readonly ok: true;
 	readonly command: string;
 	readonly args: unknown;
+	readonly result: unknown;
 	readonly durationMs: number;
+}
+
+export interface StartedCommand {
+	readonly command: string;
+	readonly args: unknown;
 }
 
 export type CommandOutcome = CompletedCommand | FailedCommand;
 
 export type CommandObserver = (outcome: CommandOutcome) => void;
 
+export type CommandStartObserver = (started: StartedCommand) => void;
+
 export type CommandFailureObserver = (failed: FailedCommand) => void;
 
 export class CommandRegistry {
 	private readonly handlers = new Map<CommandName, CommandHandler>();
 	private readonly observers = new Set<CommandObserver>();
+	private readonly startObservers = new Set<CommandStartObserver>();
 	private readonly running = new Set<Promise<InvokeReply>>();
 	private closed = false;
 
@@ -73,6 +82,13 @@ export class CommandRegistry {
 		};
 	}
 
+	observeStarts(observer: CommandStartObserver): () => void {
+		this.startObservers.add(observer);
+		return () => {
+			this.startObservers.delete(observer);
+		};
+	}
+
 	observeFailures(observer: CommandFailureObserver): () => void {
 		return this.observe((outcome) => {
 			if (!outcome.ok) observer(outcome);
@@ -105,17 +121,19 @@ export class CommandRegistry {
 		try {
 			const handler = this.lookup(request.command);
 			if (!handler) throw new Error(`unknown command "${request.command}"`);
+			notify(this.startObservers, { command: request.command, args: request.args });
 			const value = await handler(request.args);
-			this.report({
+			notify(this.observers, {
 				ok: true,
 				command: request.command,
 				args: request.args,
+				result: value,
 				durationMs: Math.round(performance.now() - startedAt),
 			});
 			return { ok: true, value: value ?? null };
 		} catch (error) {
 			const failure = toCommandFailure(error, request.command);
-			this.report({
+			notify(this.observers, {
 				ok: false,
 				command: request.command,
 				args: request.args,
@@ -131,18 +149,18 @@ export class CommandRegistry {
 		ipcMain.handle(INVOKE_CHANNEL, (_event, request: InvokeRequest) => this.handle(request));
 	}
 
-	private report(outcome: CommandOutcome): void {
-		for (const observer of [...this.observers]) {
-			try {
-				observer(outcome);
-			} catch {
-				continue;
-			}
-		}
-	}
-
 	private lookup(name: string): CommandHandler | undefined {
 		const handlers: ReadonlyMap<string, CommandHandler> = this.handlers;
 		return handlers.get(name);
+	}
+}
+
+function notify<Event>(observers: ReadonlySet<(event: Event) => void>, event: Event): void {
+	for (const observer of [...observers]) {
+		try {
+			observer(event);
+		} catch {
+			continue;
+		}
 	}
 }

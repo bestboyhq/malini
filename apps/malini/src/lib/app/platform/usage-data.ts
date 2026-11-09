@@ -23,6 +23,7 @@ import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain
 import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
 import { hasPromptRun, readUsageReport } from './usage-report';
+import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-tools';
 
 export type UsageJourney =
 	| 'first_open'
@@ -51,7 +52,8 @@ export type UsageActivity =
 	| 'profile_published'
 	| 'stats_off'
 	| 'day'
-	| 'month';
+	| 'month'
+	| ToolActivity;
 
 export interface UsageSink {
 	activity(
@@ -104,6 +106,7 @@ const JOURNEY_SETTING = 'usage-data.journey';
 const LAST_ACTIVE_DAY_SETTING = 'usage-data.last-active-day';
 const ACTIVE_DAYS_SETTING = 'usage-data.active-days';
 const REPORTED_MONTH_SETTING = 'usage-data.reported-month';
+const SETUP_STARTED_SETTING = 'usage-data.setup-started';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
 const ANONYMOUS: UsageAccount = { state: 'anonymous' };
@@ -135,9 +138,27 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		if (counted.state === 'old-terms' || !shared()) return;
 		deliver(counted.state === 'accepted' ? counted.userId : null);
 	};
-	const count = (name: UsageActivity): void => {
-		const props = heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING)));
+	const count = (
+		name: UsageActivity,
+		extra: Readonly<Record<string, string | number>> = {},
+	): void => {
+		const props = {
+			...heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING))),
+			...extra,
+		};
 		void send((userId) => sink.activity(name, props, userId));
+	};
+	const setupSeconds = (marker: UsageJourney): Readonly<Record<string, number>> => {
+		if (!marker.startsWith('setup_')) return {};
+		if (marker === 'setup_tools' && getSetting(context.db, SETUP_STARTED_SETTING) === null)
+			setSetting(context.db, SETUP_STARTED_SETTING, now().toISOString());
+		const started = Date.parse(getSetting(context.db, SETUP_STARTED_SETTING) ?? '');
+		const finished =
+			marker === 'setup_finished' ? getSetting(context.db, ONBOARDING_FINISHED_SETTING) : null;
+		const end = finished === null ? now().getTime() : Date.parse(finished);
+		return Number.isNaN(started) || Number.isNaN(end)
+			? {}
+			: { setup_seconds: Math.max(0, Math.round((end - started) / 1000)) };
 	};
 	const journeySent = (): string[] => stringList(getSetting(context.db, JOURNEY_SETTING));
 	const sendJourney = (
@@ -146,13 +167,14 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	): void => {
 		const cohort = firstOpen;
 		if (cohort === null || journeySent().includes(marker)) return;
+		const timing = setupSeconds(marker);
 		void send((userId) => {
 			const sent = journeySent();
 			if (sent.includes(marker)) return;
 			setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...sent, marker]));
 			sink.activity(
 				marker,
-				{ cohort, days: daysBetween(cohort, localDate(now())), ...extra },
+				{ cohort, days: daysBetween(cohort, localDate(now())), ...timing, ...extra },
 				userId,
 			);
 		});
@@ -279,6 +301,16 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopShips = context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (changed) => {
 		if (changed.merged) sendJourney('first_merge');
 	});
+	const tools = createToolTracker();
+	const countTool = (event: ToolEvent | null): void => {
+		if (event === null) return;
+		const phase = getSetting(context.db, ONBOARDING_FINISHED_SETTING) === null ? 'setup' : 'later';
+		count(event.name, { ...event.props, phase });
+	};
+	const stopToolStarts = context.commands.observeStarts((started) =>
+		countTool(tools.begin(started)),
+	);
+	const stopTools = context.commands.observe((outcome) => countTool(tools.end(outcome)));
 
 	count('app_active');
 	launch();
@@ -309,6 +341,8 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopRepositories();
 			stopWorkstreams();
 			stopShips();
+			stopToolStarts();
+			stopTools();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};

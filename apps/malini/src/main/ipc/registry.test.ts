@@ -123,6 +123,38 @@ describe('CommandRegistry', () => {
 		expect(failed[0]?.durationMs).toBeGreaterThanOrEqual(15);
 	});
 
+	it('tells start and outcome observers when a command begins and what it returned', async () => {
+		const registry = new CommandRegistry();
+		const seen: string[] = [];
+		registry.define('chat.reset-workstream-runs', () => {
+			seen.push('handler');
+			return 42;
+		});
+		const stopStarts = registry.observeStarts(({ command, args }) =>
+			seen.push(`start ${command} ${JSON.stringify(args)}`),
+		);
+		registry.observeStarts(() => {
+			throw new Error('a broken observer');
+		});
+		registry.observe((outcome) =>
+			seen.push(outcome.ok ? `result ${String(outcome.result)}` : 'failed'),
+		);
+
+		await registry.invoke({ command: 'chat.reset-workstream-runs', args: { a: 1 } });
+		await registry.invoke({ command: 'unknown.command', args: {} });
+		stopStarts();
+		await registry.invoke({ command: 'chat.reset-workstream-runs', args: {} });
+
+		expect(seen).toEqual([
+			'start chat.reset-workstream-runs {"a":1}',
+			'handler',
+			'result 42',
+			'failed',
+			'handler',
+			'result 42',
+		]);
+	});
+
 	it('closes once every command in flight has replied, and leaves later commands unanswered', async () => {
 		const registry = new CommandRegistry();
 		const handled: string[] = [];
