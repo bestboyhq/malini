@@ -100,6 +100,7 @@ async function serveModelsDev(catalog: unknown): Promise<CatalogServer> {
 interface ProbeServer {
 	readonly origin: string;
 	answer(inference: number): void;
+	report(usage: { percent: number } | null): void;
 	close(): Promise<void>;
 }
 
@@ -108,6 +109,7 @@ async function serveOpenCodeProbe(
 	usage: { percent: number } | null = null,
 ): Promise<ProbeServer> {
 	let answer = inference;
+	let reported = usage;
 	const server = createServer((request, response) => {
 		response.setHeader('content-type', 'application/json');
 		if (request.url?.endsWith('/inference/go/anthropic/v1/messages')) {
@@ -116,7 +118,7 @@ async function serveOpenCodeProbe(
 			return;
 		}
 		if (request.url?.endsWith('/zen/go/v1/usage')) {
-			if (!usage) {
+			if (!reported) {
 				response.writeHead(403);
 				response.end('{}');
 				return;
@@ -126,7 +128,7 @@ async function serveOpenCodeProbe(
 				JSON.stringify({
 					usage: {
 						rolling: {
-							percent: usage.percent,
+							percent: reported.percent,
 							status: 'ok',
 							resetsAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
 						},
@@ -155,6 +157,9 @@ async function serveOpenCodeProbe(
 		origin: `http://localhost:${port}`,
 		answer: (next) => {
 			answer = next;
+		},
+		report: (next) => {
+			reported = next;
 		},
 		close: () => new Promise((resolve) => server.close(() => resolve())),
 	};
@@ -423,7 +428,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 			},
 		},
 	});
-	const probe = await serveOpenCodeProbe(200, { percent: 96 });
+	const probe = await serveOpenCodeProbe(200);
 	const app = await launchMalini({
 		env: { MALINI_MODELS_DEV_URL: catalog.url, MALINI_OPENCODE_PROBE_URL: probe.origin },
 	});
@@ -466,12 +471,20 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await expectAssistantReply(page);
 
 		const trigger = page.getByRole('button', { name: /^View context and plan usage/u });
+		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		await trigger.hover();
+		await expect(panel.getByRole('region', { name: 'OpenCode' })).toContainText(
+			'Usage limits show once OpenCode reports them.',
+		);
+		await page.mouse.move(10, 10);
+		await expect(panel).toBeHidden();
+
+		probe.report({ percent: 96 });
+		await trigger.hover();
 		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
 		await expect(page.getByTestId('session-plan-limit-alert')).toHaveText('96% used');
-		await trigger.hover();
-		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
-		await expect(panel).toBeVisible();
 		await expect(panel.getByTestId('session-opencode-usage')).toBeVisible();
+		await expect(panel).not.toContainText('Usage limits show once OpenCode reports them.');
 		await expect(panel.getByRole('progressbar', { name: '5-hour limit used' })).toHaveAttribute(
 			'aria-valuenow',
 			'96',

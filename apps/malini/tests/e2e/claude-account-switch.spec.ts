@@ -158,6 +158,24 @@ test('a Claude account added from the context card signs in through the browser 
 				.getByRole('listitem')
 				.filter({ has: page.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }) }),
 		).toContainText('5-hour · 93%');
+
+		await page.getByTestId('chat-composer-model').click();
+		await page
+			.locator(
+				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
+			)
+			.click();
+		await usage.hover();
+		const claudeLines = page
+			.getByRole('dialog', { name: 'Context and plan usage' })
+			.getByRole('list', { name: 'Other providers' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Claude' });
+		await expect(claudeLines).toHaveCount(2);
+		await expect(claudeLines.first()).toHaveAttribute('aria-current', 'true');
+		await expect(claudeLines.first()).not.toContainText('93%');
+		await expect(claudeLines.last()).not.toHaveAttribute('aria-current');
+		await expect(claudeLines.last()).toContainText('5-hour · 93%');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -68,6 +68,7 @@
 		providerId: string;
 		name: string;
 		account: string | null;
+		current: boolean;
 		limit: PlanLimit | null;
 		note: string | null;
 		warn: boolean;
@@ -128,6 +129,7 @@
 			providerId: CLAUDE_PROVIDER_ID,
 			name: 'Claude',
 			account: accounts.length > 1 ? email : null,
+			current: accounts.length > 1 && index === 0,
 			limit: highestPlanLimit(currentPlanLimits(planUsageQuery.of(email), nowMs)),
 			note: index === 0 ? (claudeAccount?.plan ?? null) : null,
 			warn: false,
@@ -139,6 +141,7 @@
 				providerId: group.id,
 				name: group.name,
 				account: null,
+				current: false,
 				limit: group.id === OPENCODE_PROVIDER_ID ? highestPlanLimit(opencodeLimits) : null,
 				note: group.kind === 'chatgpt' ? chatGptNote(group) : keyNote(group),
 				warn: Boolean(group.account?.usageLimitReachedAt),
@@ -365,7 +368,7 @@
 		onopenchange={onContextOpenChange}
 		testId="session-context-hovercard"
 		owner="chat-composer"
-		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
+		panelClass="w-84 rounded-[18px] border-[0.5px] border-surface-elevated-border bg-surface-root p-1.5"
 	>
 		{#snippet trigger({ open })}
 			{#if planAlert}
@@ -409,8 +412,9 @@
 				tabindex="-1"
 				aria-label="Context and plan usage"
 				data-testid="session-context-usage-panel"
+				class="flex flex-col gap-1.5"
 			>
-				<div class="p-1.5">
+				<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-2.5">
 					<div class="flex items-baseline justify-between gap-3">
 						<h3 class="text-fg-default text-sm font-medium">Context</h3>
 						{#if metadata.context}
@@ -447,7 +451,7 @@
 							{/if}
 							{#if breakdown.length > 0}
 								<dl
-									class="border-border-subtle mt-3 space-y-1 border-t pt-3 text-xs"
+									class="border-surface-50-border mt-3 space-y-1 border-t-[0.5px] pt-3 text-xs"
 									aria-label="Context window breakdown"
 									data-testid="session-context-breakdown"
 								>
@@ -485,7 +489,7 @@
 
 					{#if runUsage}
 						<section
-							class="border-border-subtle mt-3 flex items-baseline justify-between gap-3 border-t pt-3 text-xs"
+							class="border-surface-50-border mt-3 flex items-baseline justify-between gap-3 border-t-[0.5px] pt-3 text-xs"
 							aria-label="Last run"
 							data-testid="session-run-usage"
 						>
@@ -495,100 +499,118 @@
 							</span>
 						</section>
 					{/if}
-
-					{#if lead && leadReady}
-						<section class="border-border-subtle mt-3 border-t pt-3" aria-label={lead.name}>
-							<div class="flex items-center gap-2">
-								<ProviderIcon providerId={lead.id} size={14} class="text-fg-secondary shrink-0" />
-								<h3 class="text-fg-default text-sm font-medium">{lead.name}</h3>
-								<span class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate">
-									{lead.kind === 'anthropic' ? keyNote(lead) : ''}
-								</span>
-								<IconButton
-									variant="ghost"
-									size="xs"
-									ariaLabel="Manage providers"
-									class="text-fg-tertiary"
-									onclick={() => void goto(PROVIDER_SETTINGS_HREF)}
-								>
-									<Icon name="settings" size={14} />
-								</IconButton>
-							</div>
-							{#if lead.kind === 'claude'}
-								{#if ranOnOtherAccount && chatAccount}
-									<p class="text-2xs text-fg-tertiary mt-1 leading-4">
-										This chat last ran on <SensitiveText text={chatAccount} />. Its next prompt uses
-										the checked account.
-									</p>
-								{/if}
-								<ClaudeAccountList class="-mx-1.5 mt-1 -mb-1.5">
-									{#snippet current()}
-										{@render planUsageRows()}
-									{/snippet}
-									{#snippet other(email)}
-										{@render otherAccountUsage(email)}
-									{/snippet}
-								</ClaudeAccountList>
-							{:else if lead.kind === 'chatgpt'}
-								<div class="mt-1 py-1 text-xs">
-									<div class="flex min-h-6 min-w-0 items-center gap-2">
-										<Icon name="check" size={14} class="text-success-content shrink-0" />
-										<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
-											{#if lead.account?.email}
-												<SensitiveText text={lead.account.email} />
-											{:else}
-												Signed in
-											{/if}
-										</span>
-										<a
-											href={CHATGPT_USAGE_URL}
-											target="_blank"
-											rel="noreferrer"
-											class="text-2xs text-fg-tertiary hover:text-fg-secondary shrink-0 underline-offset-2 hover:underline"
-										>
-											Manage usage
-										</a>
-									</div>
-									<p
-										class={[
-											'text-2xs pl-5.5 leading-4',
-											lead.account?.usageLimitReachedAt
-												? 'text-warning-content'
-												: 'text-fg-tertiary',
-										]}
-									>
-										{lead.account?.usageLimitReachedAt
-											? 'You hit your ChatGPT usage limit.'
-											: 'Using ChatGPT plan'}
-									</p>
-								</div>
-							{:else if lead.id === OPENCODE_PROVIDER_ID && opencodeLimits.length > 0}
-								<ul aria-label={`${lead.name} usage`} data-testid="session-opencode-usage">
-									{#each opencodeLimits as limit (limit.label)}
-										{@render limitRow(limit)}
-									{/each}
-								</ul>
-							{/if}
-						</section>
-					{/if}
 				</div>
+
+				{#if lead && leadReady}
+					<section
+						class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-2.5"
+						aria-label={lead.name}
+					>
+						<div class="flex items-center gap-2">
+							<ProviderIcon providerId={lead.id} size={14} class="text-fg-secondary shrink-0" />
+							<h3 class="text-fg-default text-sm font-medium">{lead.name}</h3>
+							<span class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate">
+								{lead.kind === 'anthropic' ? keyNote(lead) : ''}
+							</span>
+							<IconButton
+								variant="ghost"
+								size="xs"
+								ariaLabel="Manage providers"
+								class="text-fg-tertiary"
+								onclick={() => void goto(PROVIDER_SETTINGS_HREF)}
+							>
+								<Icon name="settings" size={14} />
+							</IconButton>
+						</div>
+						{#if lead.kind === 'claude'}
+							{#if ranOnOtherAccount && chatAccount}
+								<p class="text-2xs text-fg-tertiary mt-1 leading-4">
+									This chat last ran on <SensitiveText text={chatAccount} />. Its next prompt uses
+									the checked account.
+								</p>
+							{/if}
+							<ClaudeAccountList class="-mx-1.5 mt-1 -mb-1.5">
+								{#snippet current()}
+									{@render planUsageRows()}
+								{/snippet}
+								{#snippet other(email)}
+									{@render otherAccountUsage(email)}
+								{/snippet}
+							</ClaudeAccountList>
+						{:else if lead.kind === 'chatgpt'}
+							<div class="mt-1 py-1 text-xs">
+								<div class="flex min-h-6 min-w-0 items-center gap-2">
+									<Icon name="check" size={14} class="text-success-content shrink-0" />
+									<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
+										{#if lead.account?.email}
+											<SensitiveText text={lead.account.email} />
+										{:else}
+											Signed in
+										{/if}
+									</span>
+									<a
+										href={CHATGPT_USAGE_URL}
+										target="_blank"
+										rel="noreferrer"
+										class="text-2xs text-fg-tertiary hover:text-fg-secondary shrink-0 underline-offset-2 hover:underline"
+									>
+										Manage usage
+									</a>
+								</div>
+								<p
+									class={[
+										'text-2xs pl-5.5 leading-4',
+										lead.account?.usageLimitReachedAt ? 'text-warning-content' : 'text-fg-tertiary',
+									]}
+								>
+									{lead.account?.usageLimitReachedAt
+										? 'You hit your ChatGPT usage limit.'
+										: 'Using ChatGPT plan'}
+								</p>
+							</div>
+						{:else if lead.id === OPENCODE_PROVIDER_ID && opencodeLimits.length > 0}
+							<ul aria-label={`${lead.name} usage`} data-testid="session-opencode-usage">
+								{#each opencodeLimits as limit (limit.label)}
+									{@render limitRow(limit)}
+								{/each}
+							</ul>
+						{:else if lead.plan === 'go'}
+							<p class="text-2xs text-fg-tertiary mt-1 leading-4">
+								Usage limits show once OpenCode reports them.
+							</p>
+						{/if}
+					</section>
+				{/if}
 
 				{#if otherRows.length > 0}
 					<ul
-						class="border-surface-50-border bg-surface-50 rounded-md border-[0.5px] px-1.5 py-1"
+						class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-1.5"
 						aria-label="Other providers"
 					>
 						{#each otherRows as row (row.key)}
-							<li class="text-2xs flex h-6 min-w-0 items-center gap-2">
+							<li
+								class="text-2xs flex h-6 min-w-0 items-center gap-2"
+								aria-current={row.current ? 'true' : undefined}
+							>
 								<ProviderIcon
 									providerId={row.providerId}
 									size={12}
 									class="text-fg-tertiary shrink-0"
 								/>
 								<span class="text-fg-secondary shrink-0">{row.name}</span>
-								<span class="text-fg-tertiary min-w-0 flex-1 truncate">
+								<span
+									class={[
+										'flex min-w-0 flex-1 items-center gap-1',
+										row.current ? 'text-fg-secondary' : 'text-fg-tertiary',
+									]}
+								>
+									{#if row.current}
+										<Icon name="check" size={12} class="text-success-content shrink-0" />
+									{:else if row.account}
+										<span class="w-3 shrink-0" aria-hidden="true"></span>
+									{/if}
 									{#if row.account}
-										<SensitiveText text={row.account} />
+										<span class="min-w-0 truncate"><SensitiveText text={row.account} /></span>
 									{/if}
 								</span>
 								{#if row.limit}

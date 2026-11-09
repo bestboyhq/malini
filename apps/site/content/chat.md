@@ -185,7 +185,7 @@ The thinking you see is OpenAI's summary of the model's reasoning.
 
 Point at the gauge in the composer for the usage of the provider your model runs on, with **Manage providers** next to its name.
 For Claude, that is the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac, each with its highest usage next to **Switch**.
-Every other provider you connected sits on one line below, with its highest usage, such as "Weekly · 99%", or its plan: Claude when Claude Code is signed in, each account on its own line, ChatGPT once you sign in to it, and DeepSeek or OpenCode once its key is saved.
+Every other provider you connected sits on one line below, with its highest usage, such as "Weekly · 99%", or its plan: Claude when Claude Code is signed in, each account on its own line and the one in use checked, ChatGPT once you sign in to it, and DeepSeek or OpenCode once its key is saved.
 Usage comes from the account's runs, so a fresh account shows it after its next run.
 OpenCode's usage, five-hour, weekly, and monthly, shows once the key is on the Go plan with Usage: Read allowed, read from OpenCode while its model is picked or when you point at the gauge, at most once a minute.
 With an OpenCode Go model picked, the composer shows that same reading as the "X% used" chip.
