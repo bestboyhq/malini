@@ -18,7 +18,10 @@ This replaces 0195's panel layout and its read trigger; its endpoint, parsing, p
   - ChatGPT: the account, **Manage usage** and the plan or limit line, as before.
   - A keyed provider: "Go plan" or "API key" next to its name, and OpenCode's windows when a reading is in.
 - Every other ready provider is one line in a gutter at the bottom of the panel, `<ul aria-label="Other providers">` on `bg-surface-50`: its icon, its name, and its highest current window as "5-hour · 96%" (`highestPlanLimit` in `chat/domain/plan-usage.ts`), or "Claude Max", "ChatGPT plan", "Usage limit hit", "Go plan" or "API key" when it has none.
+- The gutter is a container nested in the panel: the panel keeps 6px of padding around it, and its corners are `rounded-md` inside the panel's `rounded-xl`, so they sit concentric, as `Well` and its cards do in Settings.
 - Each Claude account is its own line in that gutter, named by its email once more than one is known, so a second account's weekly limit stays in sight.
+- Each Claude account's newest reading is kept in `claude_plan_usage`: a migration fills it from the `usage.updated` events already stored, and the trigger `agent_events_track_claude_plan_usage` keeps it current, newest `observedAt` winning.
+  `chat.list-claude-plan-usage` returns it, and the panel loads it when it mounts and each time it opens, so another account's usage shows in every chat, not only in a chat that ran on it.
 - A limit row is one line, its label, "Resets in …" and "N% used", over a 4px bar (`h-1`); the context bar is 4px too.
 - The OpenCode reading loads while an OpenCode model is picked, as in 0195, and each time the panel opens with an OpenCode key saved; the main process keeps its sixty-second cache and its Go plan gate, so a Console key still costs no call.
 - The composer chip follows only the lead: `planLimitAlert` of Claude's windows for a Claude model, of OpenCode's for an OpenCode model, and none for the rest.
@@ -27,6 +30,7 @@ This replaces 0195's panel layout and its read trigger; its endpoint, parsing, p
 
 - The panel answers for the model in the chat first, and every other plan is a glance below it, red from 90%.
 - Two Claude accounts both stay visible: the checked one in full and the other with its highest window beside **Switch**, or one line each in the gutter under another provider.
+- An account at its limit shows red right after launch; before, its usage stayed blank until a chat that ran on it was opened.
 - opencode.ai sees one more read when the panel opens under a model from another provider, still at most once a minute.
 - A provider that is not connected never shows in the panel; for a picked one, the connect strip under the prompt (0186) speaks.
-- Enforced by `plan-usage.test.ts` (`highestPlanLimit`), `tests/e2e/context-and-plan-usage.spec.ts` (Claude's 93% moves to the gutter once DeepSeek is picked), `tests/e2e/provider-models.spec.ts` (DeepSeek leads with "API key" over a Claude line, and OpenCode's "5-hour · 96%" sits in the gutter once Opus is picked), `tests/e2e/claude-account-switch.spec.ts` (the other account's "5-hour · 93%" beside **Switch**) and `tests/e2e/chatgpt-provider.spec.ts` (ChatGPT leads).
+- Enforced by `plan-usage.test.ts` (`highestPlanLimit`), `main/db/migrations.test.ts` (each account keeps its newest reading, from old events and new ones), `tests/e2e/context-and-plan-usage.spec.ts` (Claude's 93% moves to the gutter once DeepSeek is picked), `tests/e2e/provider-models.spec.ts` (DeepSeek leads with "API key" over a Claude line, and OpenCode's "5-hour · 96%" sits in the gutter once Opus is picked), `tests/e2e/claude-account-switch.spec.ts` (the other account's "5-hour · 93%" beside **Switch**, also in a fresh chat after a reload) and `tests/e2e/chatgpt-provider.spec.ts` (ChatGPT leads).

@@ -15,7 +15,10 @@ export const PLAN_LIMIT_ALERT_PERCENT = 90;
 
 export function planUsageOf(event: AgentEvent): PlanUsage | null {
 	if (event.type !== 'usage.updated') return null;
-	const anthropic = event.providerMetrics?.['anthropic'];
+	return planUsageFromReading(event.providerMetrics?.['anthropic']);
+}
+
+export function planUsageFromReading(anthropic: unknown): PlanUsage | null {
 	if (!isRecord(anthropic)) return null;
 	const { observedAt, rateLimits, account } = anthropic;
 	if (typeof observedAt !== 'string' || !Array.isArray(rateLimits)) return null;

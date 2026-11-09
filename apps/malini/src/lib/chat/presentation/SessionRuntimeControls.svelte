@@ -12,6 +12,7 @@
 	import { planUsageQuery } from '$lib/chat/application/queries/plan-usage.query.svelte';
 	import { refreshSessionStatusCommand } from '$lib/chat/application/commands/refresh-session-status.command';
 	import { loadTurnedOffMcpServersCommand } from '$lib/chat/application/commands/load-turned-off-mcp-servers.command';
+	import { loadPlanUsageCommand } from '$lib/chat/application/commands/load-plan-usage.command';
 	import { turnedOffMcpServersQuery } from '$lib/chat/application/queries/turned-off-mcp-servers.query.svelte';
 	import { groupMcpServers, needsYouCount } from '$lib/chat/domain/mcp-server';
 	import { onMount } from 'svelte';
@@ -171,7 +172,10 @@
 		needsYouCount(groupMcpServers(metadata.mcpServers ?? [], turnedOffMcpServers)),
 	);
 
-	onMount(loadTurnedOffMcpServersCommand);
+	onMount(() => {
+		loadTurnedOffMcpServersCommand();
+		loadPlanUsageCommand();
+	});
 
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), 60_000);
@@ -188,6 +192,7 @@
 		mcpOpen = false;
 		nowMs = Date.now();
 		reloadModelProvidersCommand();
+		loadPlanUsageCommand();
 		if (opencodeReady) void opencodeUsageQuery.load();
 		if (sessionId) refreshSessionStatusCommand(sessionId);
 	}
@@ -360,7 +365,7 @@
 		onopenchange={onContextOpenChange}
 		testId="session-context-hovercard"
 		owner="chat-composer"
-		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated"
+		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
 	>
 		{#snippet trigger({ open })}
 			{#if planAlert}
@@ -405,7 +410,7 @@
 				aria-label="Context and plan usage"
 				data-testid="session-context-usage-panel"
 			>
-				<div class="p-3">
+				<div class="p-1.5">
 					<div class="flex items-baseline justify-between gap-3">
 						<h3 class="text-fg-default text-sm font-medium">Context</h3>
 						{#if metadata.context}
@@ -570,7 +575,7 @@
 
 				{#if otherRows.length > 0}
 					<ul
-						class="border-surface-50-border bg-surface-50 rounded-b-xl border-t-[0.5px] px-3 py-1"
+						class="border-surface-50-border bg-surface-50 rounded-md border-[0.5px] px-1.5 py-1"
 						aria-label="Other providers"
 					>
 						{#each otherRows as row (row.key)}

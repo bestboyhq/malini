@@ -148,6 +148,16 @@ test('a Claude account added from the context card signs in through the browser 
 			.toBe(`auth login with refresh-${WORK_ACCOUNT}\n`);
 		await settingsCurrent.getByRole('button', { name: 'Reveal email address' }).click();
 		await expect(settingsCurrent).toContainText(WORK_ACCOUNT, { timeout: 20_000 });
+
+		const fresh = await seedWorkstream(page, source, 'e2e-claude-accounts-fresh', 'Fresh chat');
+		await page.reload();
+		await openWorkstream(page, fresh.workstreamId);
+		await usage.hover();
+		await expect(
+			accounts
+				.getByRole('listitem')
+				.filter({ has: page.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }) }),
+		).toContainText('5-hour · 93%');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

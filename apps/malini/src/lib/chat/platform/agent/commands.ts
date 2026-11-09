@@ -23,6 +23,7 @@ import {
 	appendEvent,
 	envelopeJson,
 	eventJsonFromKindPayload,
+	latestClaudePlanReadings,
 	listEventRowPage,
 	listEventRowsForSession,
 	providerResumePoint,
@@ -1566,6 +1567,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.decide-approval',
 	'chat.get-or-create-session',
 	'chat.list-events',
+	'chat.list-claude-plan-usage',
 	'chat.list-event-page',
 	'chat.list-sessions',
 	'chat.refresh-session-status',
@@ -1848,6 +1850,8 @@ export function defineBridgeCommands(
 	commands.define('chat.list-events', (args: unknown) =>
 		listAgentEvents(db, requireString(args, 'sessionId'), requireNumber(args, 'afterSeq')),
 	);
+
+	commands.define('chat.list-claude-plan-usage', () => latestClaudePlanReadings(db));
 
 	commands.define('chat.list-event-page', (args: unknown) =>
 		listAgentEventPage(
