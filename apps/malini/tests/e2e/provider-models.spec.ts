@@ -103,13 +103,46 @@ interface ProbeServer {
 	close(): Promise<void>;
 }
 
-async function serveOpenCodeProbe(inference: number): Promise<ProbeServer> {
+async function serveOpenCodeProbe(
+	inference: number,
+	usage: { percent: number } | null = null,
+): Promise<ProbeServer> {
 	let answer = inference;
 	const server = createServer((request, response) => {
 		response.setHeader('content-type', 'application/json');
 		if (request.url?.endsWith('/inference/go/anthropic/v1/messages')) {
 			response.writeHead(answer);
 			response.end('{}');
+			return;
+		}
+		if (request.url?.endsWith('/zen/go/v1/usage')) {
+			if (!usage) {
+				response.writeHead(403);
+				response.end('{}');
+				return;
+			}
+			response.writeHead(200);
+			response.end(
+				JSON.stringify({
+					usage: {
+						rolling: {
+							percent: usage.percent,
+							status: 'ok',
+							resetsAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+						},
+						weekly: {
+							percent: 12,
+							status: 'ok',
+							resetsAt: new Date(Date.now() + 72 * 3_600_000).toISOString(),
+						},
+						monthly: {
+							percent: 34,
+							status: 'ok',
+							resetsAt: new Date(Date.now() + 720 * 3_600_000).toISOString(),
+						},
+					},
+				}),
+			);
 			return;
 		}
 		response.writeHead(200);
@@ -346,6 +379,7 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 				CLAUDE_CODE_SUBAGENT_MODEL: 'glm-6',
 			});
 		await expectAssistantReply(page);
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveCount(0);
 
 		await page.evaluate(() => {
 			location.hash = '#/settings/providers';
@@ -386,7 +420,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 			},
 		},
 	});
-	const probe = await serveOpenCodeProbe(200);
+	const probe = await serveOpenCodeProbe(200, { percent: 96 });
 	const app = await launchMalini({
 		env: { MALINI_MODELS_DEV_URL: catalog.url, MALINI_OPENCODE_PROBE_URL: probe.origin },
 	});
@@ -427,6 +461,21 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 				CLAUDE_CODE_SUBAGENT_MODEL: 'glm-6',
 			});
 		await expectAssistantReply(page);
+
+		const trigger = page.getByRole('button', { name: /^View context and plan usage/u });
+		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveText('96% used');
+		await trigger.hover();
+		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		await expect(panel).toBeVisible();
+		await expect(panel.getByTestId('session-opencode-usage')).toBeVisible();
+		await expect(panel.getByRole('progressbar', { name: '5-hour limit used' })).toHaveAttribute(
+			'aria-valuenow',
+			'96',
+		);
+		await page.mouse.move(10, 10);
+		await expect(panel).toBeHidden();
+		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
 
 		await page.getByTestId('chat-composer-model').click();
 		await expect(modelOptions(page, 'opencode')).toHaveText([/^Hy4/u, /^GLM-6/u]);

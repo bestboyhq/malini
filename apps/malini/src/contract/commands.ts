@@ -15,6 +15,7 @@ import type {
 	AgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
+	AgentPlanUsage,
 	ClaudeAccountSwitchOutcome,
 	ChatGptSignInOutcome,
 	ClaudeSignInOutcome,
@@ -494,6 +495,7 @@ export interface ContractCommands {
 	'providers.refresh-models': { args: undefined; result: ModelProviderRecord[] };
 	'providers.save-key': { args: ProviderKeyArgs; result: void };
 	'providers.check-plan': { args: ProviderIdArgs; result: void };
+	'providers.load-opencode-usage': { args: undefined; result: AgentPlanUsage | null };
 	'providers.delete-key': { args: ProviderIdArgs; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
@@ -884,6 +886,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.refresh-models',
 	'providers.save-key',
 	'providers.check-plan',
+	'providers.load-opencode-usage',
 	'providers.delete-key',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',

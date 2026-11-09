@@ -1,10 +1,7 @@
+import type { AgentPlanLimit } from '$contract/agent';
 import type { AgentEvent, EventEnvelope } from './events';
 
-export type PlanLimit = {
-	readonly label: string;
-	readonly usedPercent: number;
-	readonly resetsAt: string | null;
-};
+export type PlanLimit = AgentPlanLimit;
 
 export type PlanUsage = {
 	readonly observedAt: string;
@@ -54,7 +51,10 @@ export function lastRunAccount(envelopes: readonly EventEnvelope[]): string | nu
 	);
 }
 
-export function currentPlanLimits(usage: PlanUsage | null, nowMs: number): readonly PlanLimit[] {
+export function currentPlanLimits(
+	usage: { readonly limits: readonly PlanLimit[] } | null,
+	nowMs: number,
+): readonly PlanLimit[] {
 	return (usage?.limits ?? []).filter(
 		(limit) => limit.resetsAt === null || Date.parse(limit.resetsAt) > nowMs,
 	);

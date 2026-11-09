@@ -1,7 +1,12 @@
 <script lang="ts">
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
-	import { currentPlanLimits, lastRunAccount, planLimitAlert } from '$lib/chat/domain/plan-usage';
+	import {
+		currentPlanLimits,
+		lastRunAccount,
+		planLimitAlert,
+		type PlanLimit,
+	} from '$lib/chat/domain/plan-usage';
 	import { liveContextUsageQuery } from '$lib/chat/application/queries/live-context-usage.query.svelte';
 	import { planUsageQuery } from '$lib/chat/application/queries/plan-usage.query.svelte';
 	import { refreshSessionStatusCommand } from '$lib/chat/application/commands/refresh-session-status.command';
@@ -18,9 +23,12 @@
 		CHATGPT_PROVIDER_ID,
 		CHATGPT_USAGE_URL,
 		CLAUDE_PROVIDER_ID,
+		OPENCODE_PROVIDER_ID,
 		ClaudeAccountList,
 		claudeCodeStatusQuery,
 		ProviderIcon,
+		opencodeUsageQuery,
+		providerGroupFor,
 		providerGroupsQuery,
 		reloadModelProvidersCommand,
 		subscriptionBillingQuery,
@@ -77,7 +85,17 @@
 	);
 	const breakdown = $derived(metadata.context ? contextBreakdown(metadata.context) : []);
 	const planLimits = $derived(currentPlanLimits(planUsage, nowMs));
-	const planAlert = $derived(provider === CLAUDE_PROVIDER_ID ? planLimitAlert(planLimits) : null);
+	const opencodeGroup = $derived(
+		provider === OPENCODE_PROVIDER_ID
+			? providerGroupFor(providerGroupsQuery.data, OPENCODE_PROVIDER_ID)
+			: null,
+	);
+	const opencodeLimits = $derived(
+		opencodeGroup ? currentPlanLimits(opencodeUsageQuery.data, nowMs) : [],
+	);
+	const planAlert = $derived(
+		provider === CLAUDE_PROVIDER_ID ? planLimitAlert(planLimits) : planLimitAlert(opencodeLimits),
+	);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const signedIn = $derived(claudeStatus.kind === 'ready');
 	const keyedProviders = $derived(
@@ -118,6 +136,10 @@
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), 60_000);
 		return () => clearInterval(clock);
+	});
+
+	$effect(() => {
+		if (opencodeGroup) void opencodeUsageQuery.load();
 	});
 
 	function onContextOpenChange(next: boolean): void {
@@ -191,19 +213,7 @@
 	{#if planLimits.length > 0}
 		<ul class="pb-1" aria-label="Plan usage" data-testid="session-plan-usage">
 			{#each planLimits as limit (limit.label)}
-				{@const level = usagePressure(limit.usedPercent)}
-				<li class="mt-1.5" data-testid="session-rate-limit-row">
-					<div class="flex items-baseline justify-between gap-3 text-xs">
-						<span class="text-fg-secondary">{limit.label}</span>
-						<span class={['tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}>
-							{Math.round(limit.usedPercent)}% used
-						</span>
-					</div>
-					{@render meter(`${limit.label} used`, limit.usedPercent, level)}
-					{#if limit.resetsAt}
-						<p class="text-2xs text-fg-tertiary mt-1">{resetLabel(limit.resetsAt, nowMs)}</p>
-					{/if}
-				</li>
+				{@render limitRow(limit)}
 			{/each}
 		</ul>
 	{:else if claudeStatus.kind === 'ready' && claudeStatus.account?.plan}
@@ -211,6 +221,22 @@
 			Usage limits show after this account's next run.
 		</p>
 	{/if}
+{/snippet}
+
+{#snippet limitRow(limit: PlanLimit)}
+	{@const level = usagePressure(limit.usedPercent)}
+	<li class="mt-1.5" data-testid="session-rate-limit-row">
+		<div class="flex items-baseline justify-between gap-3 text-xs">
+			<span class="text-fg-secondary">{limit.label}</span>
+			<span class={['tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}>
+				{Math.round(limit.usedPercent)}% used
+			</span>
+		</div>
+		{@render meter(`${limit.label} used`, limit.usedPercent, level)}
+		{#if limit.resetsAt}
+			<p class="text-2xs text-fg-tertiary mt-1">{resetLabel(limit.resetsAt, nowMs)}</p>
+		{/if}
+	</li>
 {/snippet}
 
 {#snippet gauge()}
@@ -467,16 +493,27 @@
 						{/if}
 						{#if keyedProviders.length > 0}
 							<div class={signedIn || chatGpt ? 'mt-2.5' : 'mt-1'}>
-								{#each keyedProviders as provider (provider.id)}
+								{#each keyedProviders as keyed (keyed.id)}
 									<div
 										class="text-fg-secondary flex items-center gap-2 py-1 text-xs"
-										aria-label={provider.name}
+										aria-label={keyed.name}
 										role="group"
 									>
-										<ProviderIcon providerId={provider.id} size={13} class="shrink-0" />
-										<span class="min-w-0 flex-1 truncate">{provider.name}</span>
+										<ProviderIcon providerId={keyed.id} size={13} class="shrink-0" />
+										<span class="min-w-0 flex-1 truncate">{keyed.name}</span>
 										<span class="text-2xs text-fg-tertiary shrink-0">API key</span>
 									</div>
+									{#if keyed.id === OPENCODE_PROVIDER_ID && opencodeLimits.length > 0}
+										<ul
+											class="pb-1"
+											aria-label={`${keyed.name} usage`}
+											data-testid="session-opencode-usage"
+										>
+											{#each opencodeLimits as limit (limit.label)}
+												{@render limitRow(limit)}
+											{/each}
+										</ul>
+									{/if}
 								{/each}
 							</div>
 						{/if}
