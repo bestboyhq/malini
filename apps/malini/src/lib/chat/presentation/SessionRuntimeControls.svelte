@@ -575,9 +575,7 @@
 								{/each}
 							</ul>
 						{:else if lead.plan === 'go'}
-							<p class="text-2xs text-fg-tertiary mt-1 leading-4">
-								Usage limits show once OpenCode reports them.
-							</p>
+							<p class="text-2xs text-fg-tertiary mt-1 leading-4">Limits on the way. Probably</p>
 						{/if}
 					</section>
 				{/if}

@@ -474,7 +474,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
 		await trigger.hover();
 		await expect(panel.getByRole('region', { name: 'OpenCode' })).toContainText(
-			'Usage limits show once OpenCode reports them.',
+			'Limits on the way. Probably',
 		);
 		await page.mouse.move(10, 10);
 		await expect(panel).toBeHidden();
@@ -484,7 +484,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
 		await expect(page.getByTestId('session-plan-limit-alert')).toHaveText('96% used');
 		await expect(panel.getByTestId('session-opencode-usage')).toBeVisible();
-		await expect(panel).not.toContainText('Usage limits show once OpenCode reports them.');
+		await expect(panel).not.toContainText('Limits on the way. Probably');
 		await expect(panel.getByRole('progressbar', { name: '5-hour limit used' })).toHaveAttribute(
 			'aria-valuenow',
 			'96',
