@@ -10,6 +10,7 @@ The first step is about tools, not accounts: Malini needs the `gh` CLI signed in
 A Mac without one of them could not leave the first step, and a `gh auth status` that never returned kept it on **Checking** for good.
 The GitHub CLI ships inside the app (0014), but when it cannot run the only way back was to download all of Malini again.
 A missing Claude Code only opened Terminal on the `install.sh` command, and Malini had no view of that install.
+The step showed one tool at a time, in an accordion kept from when it only signed in to accounts, so a second tool waited behind a closed row.
 Malini cannot do its work without either tool, so letting setup move on without one only moves the dead end to the first prompt or the first clone.
 0194 states that a new marker needs a new release and a new record.
 
@@ -41,10 +42,13 @@ Malini cannot do its work without either tool, so letting setup move on without 
   Off macOS the command still asks for the Terminal install.
 - Both downloads go through `saveDownload` in `src/main/fs/download.ts`.
   It streams to disk, hashes as it goes, and gives up after 30 seconds without data, `DOWNLOAD_STALL_MS`.
-  It reports progress on `repositories:github-cli-install-progress` and `providers:claude-code-install-progress`, about a hundred times a download, and the row shows a bar with the megabytes received in place of its action.
+  It reports progress on `repositories:github-cli-install-progress` and `providers:claude-code-install-progress`, about a hundred times a download, and the row shows a bar with the megabytes received under its status.
   Main runs one install of each tool at a time, so a second press joins the first.
 - `withBundledGh` appends the bundled folder, then `<appData>/vendor/gh/bin`, to `PATH` at boot, so a `gh` the user installed still comes first.
 - `gh auth status` and `gh api user` stop after `GITHUB_AUTH_CHECK_TIMEOUT_MS`, 15 seconds, with `GhError` kind `unreachable`, and the row shows **Check again**.
+- The tools step shows every tool at once.
+  Each row has its number, its name and status, its action on the right and its download bar below, so both installs and the GitHub sign-in run side by side.
+  A ready tool folds to one line with its detail.
 - The tools step has no **Skip**.
   **Continue** opens once both tools are ready, with Claude Code signed out counted as ready.
   A check that failed, `unknown`, also lets **Continue** through, so a broken check never holds setup; a tool known to be missing or GitHub known to be signed out never does.
@@ -61,4 +65,4 @@ Malini cannot do its work without either tool, so letting setup move on without 
   A new `gh` version changes `GH_VERSION` and `GH_SHA256` together; Claude Code always installs its latest release, checked against the checksum Anthropic publishes with it.
 - An install shows how much of the download has arrived; the Claude Code binary is about 320 MB.
 - A Mac with no network cannot finish setup, since neither tool can arrive without one.
-- Enforced by `src/lib/app/platform/usage-data.test.ts` (each step once, both states on the first, nothing twice), `src/lib/app/platform/register.test.ts` (valid steps, settled states only), `src/main/process/gh-install.test.ts` (checksum, progress, one install, each failure stage leaves nothing), `src/lib/shared/providers/platform/claude-install.test.ts` (the `install.sh` steps, progress, each failure stage leaves nothing), `src/main/fs/download.test.ts` (progress, sha256, the stall limit), `src/main/process/gh.test.ts` (`PATH` order, the time limit), `tests/e2e/first-run.spec.ts` (no way past a missing Claude Code, Install and its failure) and `tests/e2e/github-sign-in.spec.ts` (no way past a missing `gh`, Install and its failure).
+- Enforced by `src/lib/app/platform/usage-data.test.ts` (each step once, both states on the first, nothing twice), `src/lib/app/platform/register.test.ts` (valid steps, settled states only), `src/main/process/gh-install.test.ts` (checksum, progress, one install, each failure stage leaves nothing), `src/lib/shared/providers/platform/claude-install.test.ts` (the `install.sh` steps, progress, each failure stage leaves nothing), `src/main/fs/download.test.ts` (progress, sha256, the stall limit), `src/main/process/gh.test.ts` (`PATH` order, the time limit), `tests/e2e/first-run.spec.ts` (no way past a missing Claude Code, Install and its failure) and `tests/e2e/github-sign-in.spec.ts` (no way past a missing `gh`, every tool shown at once, both installs side by side and their failures).

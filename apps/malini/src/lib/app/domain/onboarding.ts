@@ -35,15 +35,3 @@ export function onboardingToolsSettled(statuses: OnboardingToolStatuses): boolea
 export function claudeCodeOnboardingStatus(status: ClaudeCodeStatus['kind']): OnboardingToolStatus {
 	return status === 'signed-out' ? 'ready' : status;
 }
-
-export function openOnboardingTool(
-	statuses: OnboardingToolStatuses,
-	chosen: OnboardingTool | null,
-): OnboardingTool | null {
-	if (chosen !== null && statuses[chosen] !== 'ready') return chosen;
-	for (const tool of ONBOARDING_TOOLS) {
-		if (statuses[tool] === 'checking') return null;
-		if (statuses[tool] !== 'ready') return tool;
-	}
-	return null;
-}

@@ -28,10 +28,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 		await expect(setup.getByRole('heading', { name: /^Claude Code Signed in as / })).toBeVisible({
 			timeout: 20_000,
 		});
-		await expect(setup.getByRole('button', { name: 'GitHub', exact: true })).toHaveAttribute(
-			'aria-expanded',
-			'true',
-		);
+		await expect(github.getByRole('button', { name: 'Connect GitHub' })).toBeVisible();
 		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
 		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
 		await captureFlow(app, 'github-sign-in-signed-out');
@@ -46,7 +43,6 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 
 		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
 
-		await expect(github).toHaveAttribute('data-github-status', 'ready');
 		await expect(
 			setup.getByRole('heading', { name: 'GitHub Signed in as e2e-user' }),
 		).toBeVisible();
@@ -59,16 +55,23 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 	}
 });
 
-test('setup offers to install a missing GitHub CLI, says why an install failed, and never lets the user past it', async () => {
+test('setup installs a missing GitHub CLI and Claude Code side by side, says why each install failed, and never lets the user past them', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
-		env: { MALINI_GH_PATH: '/usr/bin:/bin' },
-		allowedDiagnostics: [/repositories\.install-github-cli GhInstallError/u],
+		env: { MALINI_GH_PATH: '/usr/bin:/bin', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
+		allowedDiagnostics: [
+			/repositories\.install-github-cli GhInstallError/u,
+			/providers\.install-claude-code ClaudeInstallError/u,
+		],
 	});
 	try {
 		const setup = app.page.getByTestId('onboarding');
 		const github = setup.getByTestId('github-setup');
+		const claude = setup.getByTestId('claude-code-setup');
 		await expect(github).toHaveAttribute('data-github-status', 'missing', { timeout: 20_000 });
+		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', {
+			timeout: 20_000,
+		});
 		await expect(github.getByRole('status')).toHaveText('The GitHub CLI is not on this Mac.');
 		const proceed = setup.getByRole('button', { name: 'Continue' });
 		const skip = setup.getByRole('button', { name: 'Skip', exact: true });
@@ -76,11 +79,17 @@ test('setup offers to install a missing GitHub CLI, says why an install failed, 
 		await expect(skip).toHaveCount(0);
 		await captureFlow(app, 'setup-github-cli-missing');
 
+		await claude.getByRole('button', { name: 'Install Claude Code' }).click();
 		await github.getByRole('button', { name: 'Install the GitHub CLI' }).click();
 
-		const retry = github.getByRole('button', { name: 'Try installing the GitHub CLI again' });
-		await expect(retry).toBeVisible({ timeout: 20_000 });
+		await expect(
+			github.getByRole('button', { name: 'Try installing the GitHub CLI again' }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(
+			claude.getByRole('button', { name: 'Try installing Claude Code again' }),
+		).toBeVisible({ timeout: 20_000 });
 		await expect(github.getByRole('status')).toContainText('Could not download the GitHub CLI');
+		await expect(claude.getByRole('status')).toContainText('Could not download Claude Code');
 		await expect(github).toHaveAttribute('data-github-status', 'missing');
 		await expect(proceed).toBeDisabled();
 		await expect(skip).toHaveCount(0);
@@ -91,28 +100,32 @@ test('setup offers to install a missing GitHub CLI, says why an install failed, 
 	}
 });
 
-test('setup shows one tool at a time, and the user can pick which one to connect first', async () => {
+test('setup shows every tool at once, so the user can start each one without waiting for the other', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { E2E_GITHUB_SIGNED_OUT: '1', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
+		allowedDiagnostics: [/providers\.install-claude-code ClaudeInstallError/u],
 	});
 	try {
+		await recordBrowserAndClipboard(app);
 		const setup = app.page.getByTestId('onboarding');
-		const install = setup.getByRole('button', { name: 'Install Claude Code' });
-		const connect = setup.getByRole('button', { name: 'Connect GitHub' });
+		const tools = setup.getByRole('list', { name: 'Tools' });
+		const install = tools.getByRole('button', { name: 'Install Claude Code' });
+		const connect = tools.getByRole('button', { name: 'Connect GitHub' });
 		await expect(install).toBeVisible({ timeout: 20_000 });
-		await expect(connect).toBeHidden();
-		await captureFlow(app, 'setup-tools-claude-first');
+		await expect(connect).toBeVisible({ timeout: 20_000 });
+		await expect(tools.getByRole('heading', { name: 'Claude Code', exact: true })).toBeVisible();
+		await expect(tools.getByRole('heading', { name: 'GitHub', exact: true })).toBeVisible();
+		await captureFlow(app, 'setup-tools-all-open');
 
-		await setup.getByRole('button', { name: 'GitHub', exact: true }).click();
+		await install.click();
+		await connect.click();
 
-		await expect(connect).toBeVisible();
-		await expect(install).toBeHidden();
-		await expect(setup.getByRole('button', { name: 'Claude Code', exact: true })).toHaveAttribute(
-			'aria-expanded',
-			'false',
-		);
-		await captureFlow(app, 'setup-tools-github-picked');
+		await expect(tools.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
+		await expect(
+			tools.getByRole('button', { name: 'Try installing Claude Code again' }),
+		).toBeVisible({ timeout: 20_000 });
+		await captureFlow(app, 'setup-tools-side-by-side');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

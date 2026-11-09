@@ -1,40 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-	claudeCodeOnboardingStatus,
-	onboardingToolsSettled,
-	openOnboardingTool,
-} from './onboarding';
+import { claudeCodeOnboardingStatus, onboardingToolsSettled } from './onboarding';
 
 describe('onboarding tools', () => {
-	it('opens the first tool that still needs the user', () => {
-		expect(openOnboardingTool({ 'claude-code': 'missing', github: 'signed-out' }, null)).toBe(
-			'claude-code',
-		);
-		expect(openOnboardingTool({ 'claude-code': 'ready', github: 'signed-out' }, null)).toBe(
-			'github',
-		);
-	});
-
-	it('opens the tool the user picked until it is ready', () => {
-		expect(openOnboardingTool({ 'claude-code': 'missing', github: 'signed-out' }, 'github')).toBe(
-			'github',
-		);
-		expect(openOnboardingTool({ 'claude-code': 'missing', github: 'ready' }, 'github')).toBe(
-			'claude-code',
-		);
-	});
-
-	it('opens nothing while an earlier tool is still being checked', () => {
-		expect(openOnboardingTool({ 'claude-code': 'checking', github: 'signed-out' }, null)).toBe(
-			null,
-		);
-		expect(openOnboardingTool({ 'claude-code': 'ready', github: 'checking' }, null)).toBe(null);
-	});
-
-	it('opens nothing and settles once every tool is ready', () => {
-		const statuses = { 'claude-code': 'ready', github: 'ready' } as const;
-		expect(openOnboardingTool(statuses, null)).toBe(null);
-		expect(onboardingToolsSettled(statuses)).toBe(true);
+	it('settles once every tool is ready', () => {
+		expect(onboardingToolsSettled({ 'claude-code': 'ready', github: 'ready' })).toBe(true);
 		expect(onboardingToolsSettled({ 'claude-code': 'ready', github: 'signed-out' })).toBe(false);
 		expect(onboardingToolsSettled({ 'claude-code': 'checking', github: 'ready' })).toBe(false);
 	});

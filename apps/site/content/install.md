@@ -19,7 +19,7 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 
 ## First launch
 
-- **Claude Code and GitHub, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
+- **Claude Code and GitHub, side by side.** Setup lists Claude Code and GitHub together, so both install and connect at the same time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
   **Install** downloads the latest Claude Code from Anthropic, checks it against the checksum Anthropic publishes, and sets it up in `~/.local/bin`, the same place `install.sh` puts it.
   A bar shows the download as it arrives, and a failed install says why and offers **Try again**, plus the `install.sh` command to run in Terminal instead.
   Setup never asks you to sign in to Claude: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
+	import type { ClassValue } from 'svelte/elements';
 	import { Button } from '$hyper-ui/components/button';
 	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
@@ -19,9 +20,10 @@
 	interface Props {
 		step?: boolean;
 		nested?: boolean;
+		marker?: Snippet;
 	}
 
-	let { step = false, nested = false }: Props = $props();
+	let { step = false, nested = false, marker }: Props = $props();
 
 	const auth = $derived(githubAuthQuery.data);
 	const authError = $derived(githubAuthErrorQuery.data);
@@ -30,6 +32,9 @@
 	const status = $derived(githubSetupStatus(auth, authError));
 	const download = $derived(
 		status === 'missing' && install.kind === 'installing' ? install.progress : null,
+	);
+	const downloaded = $derived(
+		download !== null && download.total !== null && download.received >= download.total,
 	);
 	const actionSize = $derived(step ? 'md' : 'sm');
 	const actionRadius = $derived(step ? 'full' : 'md');
@@ -61,9 +66,7 @@
 	function missingDetail(): string {
 		switch (install.kind) {
 			case 'installing':
-				return download && download.total !== null && download.received >= download.total
-					? 'Setting up the GitHub CLI…'
-					: 'Downloading the GitHub CLI…';
+				return downloaded ? 'Setting up the GitHub CLI…' : 'Downloading the GitHub CLI…';
 			case 'failed':
 				return install.message;
 			case 'idle':
@@ -111,7 +114,9 @@
 			Connect
 		</Button>
 	{:else if status === 'missing' && install.kind === 'installing'}
-		<BusyIcon size={16} />
+		{#if !download || downloaded}
+			<BusyIcon size={16} />
+		{/if}
 	{:else if status === 'missing' && install.kind === 'failed'}
 		<Button
 			variant="secondary"
@@ -154,7 +159,7 @@
 	{/if}
 {/snippet}
 
-{#snippet downloadBar(className: string)}
+{#snippet downloadBar(className: ClassValue)}
 	{#if download}
 		<DownloadProgress
 			class={className}
@@ -165,7 +170,7 @@
 	{/if}
 {/snippet}
 
-{#snippet statusLine(className: string)}
+{#snippet statusLine(className: ClassValue)}
 	<p class={className} role="status" data-testid="github-detail">
 		<SensitiveText text={detail} />
 	</p>
@@ -181,36 +186,32 @@
 	data-testid="github-setup"
 	data-github-status={status}
 >
-	{#if step}
-		{@render statusLine('text-fg-tertiary text-sm leading-6')}
-	{:else}
-		<div class="flex items-center gap-3">
+	<div class="flex items-center gap-3">
+		{#if marker}
+			{@render marker()}
+		{:else}
 			<div
 				class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
 				aria-hidden="true"
 			>
 				<GitHubIcon size={17} />
 			</div>
-			<div class="min-w-0 flex-1">
-				<h3 class="text-fg-default text-sm font-medium">GitHub</h3>
-				{@render statusLine('text-fg-tertiary text-xs leading-5')}
-			</div>
-			{@render action()}
+		{/if}
+		<div class="min-w-0 flex-1">
+			<svelte:element
+				this={step ? 'h2' : 'h3'}
+				class={['text-fg-default font-medium', step ? 'text-[15px]' : 'text-sm']}
+			>
+				GitHub
+			</svelte:element>
+			{@render statusLine(['text-fg-tertiary leading-5', step ? 'text-[13px]' : 'text-xs'])}
 		</div>
+		{@render action()}
+	</div>
+	<div class={step ? 'pl-10' : undefined}>
 		{@render downloadBar('mt-3')}
-	{/if}
-
-	{#if signIn.kind === 'waiting'}
-		<GitHubDeviceCode userCode={signIn.userCode} />
-	{/if}
-
-	{#if step}
-		<div class="mt-4 flex min-h-7 items-center justify-end gap-3">
-			{#if download}
-				{@render downloadBar('flex-1')}
-			{:else}
-				{@render action()}
-			{/if}
-		</div>
-	{/if}
+		{#if signIn.kind === 'waiting'}
+			<GitHubDeviceCode userCode={signIn.userCode} />
+		{/if}
+	</div>
 </div>

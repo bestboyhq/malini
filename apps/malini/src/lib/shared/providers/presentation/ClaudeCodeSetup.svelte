@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
+	import type { ClassValue } from 'svelte/elements';
 	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
@@ -24,9 +25,10 @@
 	interface Props {
 		step?: boolean;
 		nested?: boolean;
+		marker?: Snippet;
 	}
 
-	let { step = false, nested = false }: Props = $props();
+	let { step = false, nested = false, marker }: Props = $props();
 	let copied = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -36,6 +38,9 @@
 	const install = $derived(claudeCodeInstallQuery.data);
 	const download = $derived(
 		setupStep === 'install' && install.kind === 'installing' ? install.progress : null,
+	);
+	const downloaded = $derived(
+		download !== null && download.total !== null && download.received >= download.total,
 	);
 	const listsAccounts = $derived(!step && status.kind === 'ready');
 	const detail = $derived(
@@ -76,9 +81,7 @@
 	function missingDetail(): string {
 		switch (install.kind) {
 			case 'installing':
-				return download && download.total !== null && download.received >= download.total
-					? 'Setting up Claude Code…'
-					: 'Downloading Claude Code…';
+				return downloaded ? 'Setting up Claude Code…' : 'Downloading Claude Code…';
 			case 'failed':
 				return install.message;
 			case 'idle':
@@ -125,7 +128,9 @@
 			Ready
 		</span>
 	{:else if setupStep === 'install' && install.kind === 'installing'}
-		<BusyIcon size={16} />
+		{#if !download || downloaded}
+			<BusyIcon size={16} />
+		{/if}
 	{:else if setupStep === 'install' && install.kind === 'failed'}
 		<Button
 			variant="secondary"
@@ -182,7 +187,7 @@
 	{/if}
 {/snippet}
 
-{#snippet downloadBar(className: string)}
+{#snippet downloadBar(className: ClassValue)}
 	{#if download}
 		<DownloadProgress
 			class={className}
@@ -193,7 +198,7 @@
 	{/if}
 {/snippet}
 
-{#snippet statusLine(className: string)}
+{#snippet statusLine(className: ClassValue)}
 	<p class={className} role="status" data-testid="claude-code-detail">
 		<SensitiveText text={detail} />
 	</p>
@@ -209,70 +214,67 @@
 	data-testid="claude-code-setup"
 	data-claude-code-status={status.kind}
 >
-	{#if step}
-		{@render statusLine('text-fg-tertiary text-sm leading-6')}
-	{:else}
-		<div class="flex items-center gap-3">
+	<div class="flex items-center gap-3">
+		{#if marker}
+			{@render marker()}
+		{:else}
 			<div
 				class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
 				aria-hidden="true"
 			>
 				<ClaudeIcon size={16} />
 			</div>
-			<div class="min-w-0 flex-1">
-				<h3 class="text-fg-default text-sm font-medium">Claude Code</h3>
-				{@render statusLine('text-fg-tertiary text-xs leading-5')}
-			</div>
-			{#if !listsAccounts}
-				{@render action()}
-			{/if}
+		{/if}
+		<div class="min-w-0 flex-1">
+			<svelte:element
+				this={step ? 'h2' : 'h3'}
+				class={['text-fg-default font-medium', step ? 'text-[15px]' : 'text-sm']}
+			>
+				Claude Code
+			</svelte:element>
+			{@render statusLine(['text-fg-tertiary leading-5', step ? 'text-[13px]' : 'text-xs'])}
 		</div>
+		{#if !listsAccounts}
+			{@render action()}
+		{/if}
+	</div>
+	<div class={step ? 'pl-10' : undefined}>
 		{@render downloadBar('mt-3')}
 		{#if listsAccounts}
 			<ClaudeAccountList class="border-surface-150-border mt-3 -mb-1.5 border-t-[0.5px] pt-1.5" />
 		{/if}
-	{/if}
 
-	{#if setupStep === 'install' && install.kind === 'failed'}
-		<div
-			class="border-surface-150-border bg-surface-150 mt-3 flex items-center gap-2 rounded-lg border-[0.5px] py-1 pr-1 pl-3"
-		>
-			<code class="text-fg-secondary min-w-0 flex-1 truncate font-mono text-xs">
-				<span class="text-fg-tertiary select-none">$</span>
-				<CodeTokens code={CLAUDE_INSTALL_COMMAND} language="shell" />
-			</code>
-			<Tooltip content={copied ? 'Copied' : 'Copy command'} placement="top">
-				<IconButton
-					variant="ghost"
-					size="sm"
-					ariaLabel="Copy command"
-					class="text-fg-tertiary"
-					onclick={onCopy}
-				>
-					{#if copied}
-						<Icon name="check" size={14} />
-					{:else}
-						<Icon name="copy" size={14} />
-					{/if}
-				</IconButton>
-			</Tooltip>
-		</div>
-		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			Or run this in Terminal. Malini notices when it’s done.
-		</p>
-	{:else if setupStep === 'sign-in' && signIn === 'idle'}
-		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			Sign in opens your browser. Malini notices when it finishes.
-		</p>
-	{/if}
-
-	{#if step}
-		<div class="mt-4 flex min-h-7 items-center justify-end gap-3">
-			{#if download}
-				{@render downloadBar('flex-1')}
-			{:else}
-				{@render action()}
-			{/if}
-		</div>
-	{/if}
+		{#if setupStep === 'install' && install.kind === 'failed'}
+			<div
+				class="border-surface-150-border bg-surface-150 mt-3 flex items-center gap-2 rounded-lg border-[0.5px] py-1 pr-1 pl-3"
+			>
+				<code class="text-fg-secondary min-w-0 flex-1 truncate font-mono text-xs">
+					<span class="text-fg-tertiary select-none">$</span>
+					<CodeTokens code={CLAUDE_INSTALL_COMMAND} language="shell" />
+				</code>
+				<Tooltip content={copied ? 'Copied' : 'Copy command'} placement="top">
+					<IconButton
+						variant="ghost"
+						size="sm"
+						ariaLabel="Copy command"
+						class="text-fg-tertiary"
+						onclick={onCopy}
+					>
+						{#if copied}
+							<Icon name="check" size={14} />
+						{:else}
+							<Icon name="copy" size={14} />
+						{/if}
+					</IconButton>
+				</Tooltip>
+			</div>
+			<p class="text-fg-tertiary mt-2 text-xs leading-5">
+				Or run this in Terminal. Malini notices when it’s done.
+			</p>
+		{:else if setupStep === 'sign-in' && signIn === 'idle'}
+			<p class="text-fg-tertiary mt-2 text-xs leading-5">
+				Sign in opens your browser. Malini notices when it finishes.
+			</p>
+		{/if}
+	</div>
 </div>

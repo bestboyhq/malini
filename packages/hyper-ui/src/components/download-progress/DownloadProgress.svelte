@@ -33,5 +33,5 @@
 			style:width={`${percent}%`}
 		></div>
 	</div>
-	<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">{sizes}</span>
+	<span class="text-fg-tertiary min-w-24 shrink-0 text-right text-xs tabular-nums">{sizes}</span>
 </div>
