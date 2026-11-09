@@ -47,6 +47,7 @@ export class BaseOverlapWatch {
 	readonly #bases = new Map<string, Readonly<{ baseHead: string; movedAt: number }>>();
 	readonly #quiet = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #failingFetches = new Set<string>();
+	readonly #fetching = new Set<Promise<void>>();
 	readonly #unsubscribes: Array<() => void> = [];
 	#timer: ReturnType<typeof setInterval> | null = null;
 	#disposed = false;
@@ -80,13 +81,14 @@ export class BaseOverlapWatch {
 		void this.fetchAndCompare();
 	}
 
-	dispose(): void {
+	async dispose(): Promise<void> {
 		this.#disposed = true;
 		for (const unsubscribe of this.#unsubscribes.splice(0)) unsubscribe();
 		if (this.#timer !== null) clearInterval(this.#timer);
 		this.#timer = null;
 		for (const timer of this.#quiet.values()) clearTimeout(timer);
 		this.#quiet.clear();
+		await Promise.all([...this.#fetching, ...this.#comparing.values()]);
 	}
 
 	async fetchAndCompare(
@@ -102,7 +104,7 @@ export class BaseOverlapWatch {
 		await Promise.all(
 			[...byBase].map(async ([key, workstreams]) => {
 				const [first] = workstreams;
-				if (first) await this.#fetch(key, first);
+				if (first) await this.#tracked(this.#fetch(key, first));
 				await Promise.all(workstreams.map((workstream) => this.compare(workstream.id)));
 			}),
 		);
@@ -206,6 +208,15 @@ export class BaseOverlapWatch {
 			workstream.baseBranch.length > 0 &&
 			mergedPullRequestOf(this.#deps.db, workstream.id) === null
 		);
+	}
+
+	async #tracked(fetching: Promise<void>): Promise<void> {
+		this.#fetching.add(fetching);
+		try {
+			await fetching;
+		} finally {
+			this.#fetching.delete(fetching);
+		}
 	}
 
 	async #fetch(key: string, workstream: Workstream): Promise<void> {

@@ -1,10 +1,7 @@
+import type { AgentPlanLimit } from '$contract/agent';
 import type { AgentEvent, EventEnvelope } from './events';
 
-export type PlanLimit = {
-	readonly label: string;
-	readonly usedPercent: number;
-	readonly resetsAt: string | null;
-};
+export type PlanLimit = AgentPlanLimit;
 
 export type PlanUsage = {
 	readonly observedAt: string;
@@ -18,7 +15,10 @@ export const PLAN_LIMIT_ALERT_PERCENT = 90;
 
 export function planUsageOf(event: AgentEvent): PlanUsage | null {
 	if (event.type !== 'usage.updated') return null;
-	const anthropic = event.providerMetrics?.['anthropic'];
+	return planUsageFromReading(event.providerMetrics?.['anthropic']);
+}
+
+export function planUsageFromReading(anthropic: unknown): PlanUsage | null {
 	if (!isRecord(anthropic)) return null;
 	const { observedAt, rateLimits, account } = anthropic;
 	if (typeof observedAt !== 'string' || !Array.isArray(rateLimits)) return null;
@@ -54,21 +54,25 @@ export function lastRunAccount(envelopes: readonly EventEnvelope[]): string | nu
 	);
 }
 
-export function currentPlanLimits(usage: PlanUsage | null, nowMs: number): readonly PlanLimit[] {
+export function currentPlanLimits(
+	usage: { readonly limits: readonly PlanLimit[] } | null,
+	nowMs: number,
+): readonly PlanLimit[] {
 	return (usage?.limits ?? []).filter(
 		(limit) => limit.resetsAt === null || Date.parse(limit.resetsAt) > nowMs,
 	);
 }
 
-export function planLimitAlert(limits: readonly PlanLimit[]): PlanLimit | null {
+export function highestPlanLimit(limits: readonly PlanLimit[]): PlanLimit | null {
 	return limits.reduce<PlanLimit | null>(
-		(highest, limit) =>
-			limit.usedPercent >= PLAN_LIMIT_ALERT_PERCENT &&
-			(!highest || limit.usedPercent > highest.usedPercent)
-				? limit
-				: highest,
+		(highest, limit) => (!highest || limit.usedPercent > highest.usedPercent ? limit : highest),
 		null,
 	);
+}
+
+export function planLimitAlert(limits: readonly PlanLimit[]): PlanLimit | null {
+	const highest = highestPlanLimit(limits);
+	return highest && highest.usedPercent >= PLAN_LIMIT_ALERT_PERCENT ? highest : null;
 }
 
 function planLimitOf(value: unknown): PlanLimit[] {

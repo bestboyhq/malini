@@ -114,7 +114,7 @@
 		data-testid="sidebar-archived"
 	>
 		<div
-			class="focus-visible:bg-surface-50-selected absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize outline-none"
+			class="focus-visible:bg-surface-root-selected absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize outline-none"
 			role="slider"
 			tabindex="0"
 			aria-orientation="vertical"
@@ -147,7 +147,7 @@
 
 		<div
 			class={[showAll && 'max-h-[50vh]']}
-			style:--scrollable-fade-color="var(--color-surface-50)"
+			style:--scrollable-fade-color="var(--color-surface-root)"
 			style:max-height={showAll ? undefined : `${height}px`}
 			bind:clientHeight={renderedHeight}
 		>
@@ -158,7 +158,7 @@
 						{@const restoring = busyActionFor(workstream.id) === 'restore'}
 						{@const merged = workstream.mergedPullRequest}
 						<li
-							class="group/archived hover:bg-surface-50-hover flex items-center rounded-lg"
+							class="group/archived hover:bg-surface-root-hover flex items-center rounded-lg"
 							data-testid="sidebar-archived-workstream"
 							data-workstream-id={workstream.id}
 						>

@@ -147,8 +147,8 @@ test('a GPT model runs on a ChatGPT plan that offers it after one sign-in, throu
 
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
 		const account = page
-			.getByRole('region', { name: 'Connected providers' })
-			.getByRole('region', { name: 'ChatGPT account' });
+			.getByRole('dialog', { name: 'Context and plan usage' })
+			.getByRole('region', { name: 'ChatGPT', exact: true });
 		await usage.hover();
 		await expect(account).toContainText(CHATGPT_EMAIL);
 		await expect(account).toContainText('Using ChatGPT plan');

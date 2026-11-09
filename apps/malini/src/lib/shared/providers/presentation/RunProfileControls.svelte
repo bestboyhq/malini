@@ -144,7 +144,7 @@
 				variant="ghost"
 				size="auto"
 				active={effortOpen}
-				class="text-fg-tertiary hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
+				class="text-fg-tertiary hover:bg-surface-50 h-6 gap-1.5 rounded-md px-2 text-xs font-normal"
 				disabled={disabled || !effortSupported}
 				ariaLabel="Reasoning effort"
 				ariaHasPopup="listbox"
@@ -195,7 +195,7 @@
 			<Button
 				variant="primary-soft"
 				size="auto"
-				class="h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
+				class="h-6 gap-1.5 rounded-md px-2 text-xs font-normal"
 				{disabled}
 				ariaLabel="Plan mode"
 				ariaPressed={true}
@@ -219,7 +219,7 @@
 				size="auto"
 				active={optionsOpenFrom(accessChip)}
 				class={[
-					'hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal',
+					'hover:bg-surface-50 h-6 gap-1.5 rounded-md px-2 text-xs font-normal',
 					profile.access === 'full' ? 'text-warning-content' : 'text-fg-tertiary',
 				]}
 				{disabled}
@@ -245,7 +245,7 @@
 				variant="ghost"
 				size="auto"
 				active={optionsOpenFrom(reportChip)}
-				class="text-fg-tertiary hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
+				class="text-fg-tertiary hover:bg-surface-50 h-6 gap-1.5 rounded-md px-2 text-xs font-normal"
 				{disabled}
 				ariaLabel={`Report: ${AGENT_REPORT_DETAILS[profile.report].label}`}
 				ariaHasPopup="menu"
@@ -268,7 +268,7 @@
 		<IconButton
 			bind:element={optionsTrigger}
 			variant="ghost"
-			size="md"
+			size="sm"
 			ariaLabel="Run options"
 			ariaHasPopup="menu"
 			ariaExpanded={optionsOpenFrom(optionsTrigger)}
