@@ -362,24 +362,19 @@ describe('usage journeys', () => {
 		expect(activity).toEqual(['app_active', 'day']);
 	});
 
-	it('records each setup step once, with both account states on the first', async () => {
+	it('records each setup step once, with both tool states on the first', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		const launched = harness(context, undefined, { freshInstall: true });
 		await settled();
-		launched.journey('setup_accounts', { claude_code: 'missing', github: 'ready' });
-		launched.journey('setup_accounts', { claude_code: 'ready', github: 'ready' });
+		launched.journey('setup_tools', { claude_code: 'missing', github: 'ready' });
+		launched.journey('setup_tools', { claude_code: 'ready', github: 'ready' });
 		launched.journey('setup_sounds');
 		launched.journey('setup_defaults');
 		launched.journey('setup_heard_about');
 		await settled();
 		const steps = launched.activity.filter((name) => name.startsWith('setup_'));
-		expect(steps).toEqual([
-			'setup_accounts',
-			'setup_sounds',
-			'setup_defaults',
-			'setup_heard_about',
-		]);
-		expect(launched.tags[launched.activity.indexOf('setup_accounts')]).toEqual({
+		expect(steps).toEqual(['setup_tools', 'setup_sounds', 'setup_defaults', 'setup_heard_about']);
+		expect(launched.tags[launched.activity.indexOf('setup_tools')]).toEqual({
 			cohort: '2026-10-15',
 			days: 0,
 			claude_code: 'missing',

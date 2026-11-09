@@ -400,18 +400,18 @@ export type SetSettingArgs = Readonly<{ key: string; value: string }>;
 
 export type ShareUsageDataArgs = Readonly<{ shared: boolean }>;
 
-export const SETUP_STEPS = ['accounts', 'sounds', 'defaults', 'heard-about'] as const;
+export const SETUP_STEPS = ['tools', 'sounds', 'defaults', 'heard-about'] as const;
 
 export type SetupStep = (typeof SETUP_STEPS)[number];
 
-export const SETUP_ACCOUNT_STATES = ['missing', 'signed-out', 'ready', 'unknown'] as const;
+export const SETUP_TOOL_STATES = ['missing', 'signed-out', 'ready', 'unknown'] as const;
 
-export type SetupAccountState = (typeof SETUP_ACCOUNT_STATES)[number];
+export type SetupToolState = (typeof SETUP_TOOL_STATES)[number];
 
 export type ReportSetupStepArgs = Readonly<{
 	step: SetupStep;
-	claudeCode?: SetupAccountState;
-	github?: SetupAccountState;
+	claudeCode?: SetupToolState;
+	github?: SetupToolState;
 }>;
 
 export type HoldLidArgs = Readonly<{ on: boolean }>;
@@ -575,6 +575,7 @@ export interface ContractCommands {
 	};
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
+	'repositories.install-github-cli': { args: undefined; result: void };
 	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.start-github-workflow-access': { args: undefined; result: GitHubDeviceCodeDto };
@@ -939,6 +940,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-snapshot',
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
+	'repositories.install-github-cli',
 	'repositories.github-reach',
 	'repositories.start-github-sign-in',
 	'repositories.start-github-workflow-access',

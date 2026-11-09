@@ -17,6 +17,11 @@ export function githubSetupStatus(
 	return auth.authenticated ? 'ready' : 'signed-out';
 }
 
+export type GitHubCliInstall =
+	| Readonly<{ kind: 'idle' }>
+	| Readonly<{ kind: 'installing' }>
+	| Readonly<{ kind: 'failed'; message: string }>;
+
 export type GitHubDeviceCode = Readonly<{ userCode: string; verificationUri: string }>;
 
 export type GitHubSignInOutcome = 'signed-in' | 'cancelled';

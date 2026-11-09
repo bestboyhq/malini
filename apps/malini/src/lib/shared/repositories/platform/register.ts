@@ -22,6 +22,8 @@ import {
 import { describeError, failureOutput } from '$main/errors';
 import { noPromptCredentialEnv, type GitCredentialEnv } from '$main/git/credentials';
 import { validateBaseBranch, validateWorkstreamId, workstreamBranchName } from '$main/git/paths';
+import { ghVendor } from '$main/process/gh';
+import { installGh, type GhDownload } from '$main/process/gh-install';
 import {
 	diffAll,
 	listWorkstreamFiles,
@@ -122,6 +124,7 @@ export interface RepositoriesDeps {
 	readonly credentials?: GitCredentialEnv;
 	readonly shell?: CheckoutShell;
 	readonly ghRunner?: GhRunner;
+	readonly downloadGh?: GhDownload;
 	readonly isOnline?: () => boolean;
 	readonly githubSignIn?: GitHubSignIn;
 	readonly folderPicker?: FolderPicker;
@@ -518,6 +521,9 @@ export function registerRepositories(
 	);
 
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
+	commands.define('repositories.install-github-cli', () =>
+		installGh(ghVendor(appDataRoot), deps.downloadGh ?? ((url) => net.fetch(url))),
+	);
 	commands.define('repositories.github-reach', () => githubReach.reach);
 
 	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());

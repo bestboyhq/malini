@@ -1,28 +1,22 @@
+import { SETUP_STEPS, type SetupStep } from '$contract/commands';
 import type { ClaudeCodeStatus } from '$shared/providers/domain/claude-code-status';
 import type { GitHubSetupStatus } from '$shared/repositories/domain/github-auth';
 
 export const ONBOARDING_FINISHED_SETTING = 'onboarding.finished-at';
 
-export type OnboardingStep = 'accounts' | 'sounds' | 'defaults' | 'heard-about';
+export type OnboardingStep = SetupStep;
 
-export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
-	'accounts',
-	'sounds',
-	'defaults',
-	'heard-about',
-];
+export const ONBOARDING_STEPS: readonly OnboardingStep[] = SETUP_STEPS;
 
 export type OnboardingScreen = 'setup' | 'picker';
 
-export type OnboardingAccount = 'claude-code' | 'github';
+export type OnboardingTool = 'claude-code' | 'github';
 
-export type OnboardingAccountStatus = ClaudeCodeStatus['kind'] | GitHubSetupStatus;
+export type OnboardingToolStatus = ClaudeCodeStatus['kind'] | GitHubSetupStatus;
 
-export type OnboardingAccountStatuses = Readonly<
-	Record<OnboardingAccount, OnboardingAccountStatus>
->;
+export type OnboardingToolStatuses = Readonly<Record<OnboardingTool, OnboardingToolStatus>>;
 
-export const ONBOARDING_ACCOUNTS: readonly OnboardingAccount[] = ['claude-code', 'github'];
+export const ONBOARDING_TOOLS: readonly OnboardingTool[] = ['claude-code', 'github'];
 
 export function onboardingFinished(setting: string | null | undefined): boolean {
 	return typeof setting === 'string' && setting.length > 0;
@@ -32,26 +26,30 @@ export function clampOnboardingStep(index: number): number {
 	return Math.min(Math.max(index, 0), ONBOARDING_STEPS.length - 1);
 }
 
-const SETTLED_STATUSES: readonly OnboardingAccountStatus[] = ['ready', 'unknown'];
+const SETTLED_STATUSES: readonly OnboardingToolStatus[] = ['ready', 'unknown'];
 
-export function onboardingAccountsSettled(statuses: OnboardingAccountStatuses): boolean {
-	return ONBOARDING_ACCOUNTS.every((account) => SETTLED_STATUSES.includes(statuses[account]));
+const SKIPPABLE_STATUSES: readonly OnboardingToolStatus[] = ['missing', 'signed-out'];
+
+export function onboardingToolsSettled(statuses: OnboardingToolStatuses): boolean {
+	return ONBOARDING_TOOLS.every((tool) => SETTLED_STATUSES.includes(statuses[tool]));
 }
 
-export function claudeCodeOnboardingStatus(
-	status: ClaudeCodeStatus['kind'],
-): OnboardingAccountStatus {
+export function onboardingToolsSkippable(statuses: OnboardingToolStatuses): boolean {
+	return ONBOARDING_TOOLS.some((tool) => SKIPPABLE_STATUSES.includes(statuses[tool]));
+}
+
+export function claudeCodeOnboardingStatus(status: ClaudeCodeStatus['kind']): OnboardingToolStatus {
 	return status === 'signed-out' ? 'ready' : status;
 }
 
-export function openOnboardingAccount(
-	statuses: OnboardingAccountStatuses,
-	chosen: OnboardingAccount | null,
-): OnboardingAccount | null {
+export function openOnboardingTool(
+	statuses: OnboardingToolStatuses,
+	chosen: OnboardingTool | null,
+): OnboardingTool | null {
 	if (chosen !== null && statuses[chosen] !== 'ready') return chosen;
-	for (const account of ONBOARDING_ACCOUNTS) {
-		if (statuses[account] === 'checking') return null;
-		if (statuses[account] !== 'ready') return account;
+	for (const tool of ONBOARDING_TOOLS) {
+		if (statuses[tool] === 'checking') return null;
+		if (statuses[tool] !== 'ready') return tool;
 	}
 	return null;
 }

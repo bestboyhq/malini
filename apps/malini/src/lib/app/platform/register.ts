@@ -14,7 +14,7 @@ import type {
 	SetThemeModeArgs,
 	ThemeMode,
 } from '$contract/commands';
-import { SETUP_ACCOUNT_STATES } from '$contract/commands';
+import { SETUP_TOOL_STATES } from '$contract/commands';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import { APP_STARTED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -253,17 +253,17 @@ function setupStepDetails(
 	args: unknown,
 	step: OnboardingStep,
 ): Readonly<Record<string, string>> | undefined {
-	if (step !== 'accounts') return undefined;
+	if (step !== 'tools') return undefined;
 	return {
-		claude_code: requireSetupAccountState(args, 'claudeCode'),
-		github: requireSetupAccountState(args, 'github'),
+		claude_code: requireSetupToolState(args, 'claudeCode'),
+		github: requireSetupToolState(args, 'github'),
 	};
 }
 
-function requireSetupAccountState(args: unknown, key: string): string {
+function requireSetupToolState(args: unknown, key: string): string {
 	const value = requireString(args, key);
-	const state = SETUP_ACCOUNT_STATES.find((candidate) => candidate === value);
-	if (!state) throw new Error(`invalid args: \`${key}\` must be an account state`);
+	const state = SETUP_TOOL_STATES.find((candidate) => candidate === value);
+	if (!state) throw new Error(`invalid args: \`${key}\` must be a tool state`);
 	return state;
 }
 

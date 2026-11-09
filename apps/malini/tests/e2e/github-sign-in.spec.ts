@@ -32,8 +32,8 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 			'aria-expanded',
 			'true',
 		);
-		await expect(setup.getByRole('button', { name: 'Skip setup' })).toHaveCount(0);
 		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
+		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toBeVisible();
 		await captureFlow(app, 'github-sign-in-signed-out');
 
 		await github.getByRole('button', { name: 'Connect GitHub' }).click();
@@ -52,6 +52,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 		).toBeVisible();
 		await expect(setup.getByRole('button', { name: 'Connect GitHub' })).toBeHidden();
 		await expect(setup.getByRole('button', { name: 'Continue' })).toBeEnabled();
+		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toBeHidden();
 		await captureFlow(app, 'github-sign-in-ready');
 		expectCleanConsole(app);
 	} finally {
@@ -59,7 +60,39 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 	}
 });
 
-test('setup shows one account at a time, and the user can pick which one to connect first', async () => {
+test('setup offers to install a missing GitHub CLI, says why an install failed, and lets the user skip', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({
+		env: { MALINI_GH_PATH: '/usr/bin:/bin' },
+		allowedDiagnostics: [/repositories\.install-github-cli GhInstallError/u],
+	});
+	try {
+		const setup = app.page.getByTestId('onboarding');
+		const github = setup.getByTestId('github-setup');
+		await expect(github).toHaveAttribute('data-github-status', 'missing', { timeout: 20_000 });
+		await expect(github.getByRole('status')).toHaveText('The GitHub CLI is not on this Mac.');
+		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
+		const skip = setup.getByRole('button', { name: 'Skip', exact: true });
+		await expect(skip).toBeVisible();
+		await captureFlow(app, 'setup-github-cli-missing');
+
+		await github.getByRole('button', { name: 'Install the GitHub CLI' }).click();
+
+		const retry = github.getByRole('button', { name: 'Try installing the GitHub CLI again' });
+		await expect(retry).toBeVisible({ timeout: 20_000 });
+		await expect(github.getByRole('status')).toContainText('Could not download the GitHub CLI');
+		await expect(github).toHaveAttribute('data-github-status', 'missing');
+		await captureFlow(app, 'setup-github-cli-install-failed');
+
+		await skip.click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('setup shows one tool at a time, and the user can pick which one to connect first', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { E2E_GITHUB_SIGNED_OUT: '1', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
@@ -70,7 +103,7 @@ test('setup shows one account at a time, and the user can pick which one to conn
 		const connect = setup.getByRole('button', { name: 'Connect GitHub' });
 		await expect(install).toBeVisible({ timeout: 20_000 });
 		await expect(connect).toBeHidden();
-		await captureFlow(app, 'setup-accounts-claude-first');
+		await captureFlow(app, 'setup-tools-claude-first');
 
 		await setup.getByRole('button', { name: 'GitHub', exact: true }).click();
 
@@ -80,7 +113,7 @@ test('setup shows one account at a time, and the user can pick which one to conn
 			'aria-expanded',
 			'false',
 		);
-		await captureFlow(app, 'setup-accounts-github-picked');
+		await captureFlow(app, 'setup-tools-github-picked');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

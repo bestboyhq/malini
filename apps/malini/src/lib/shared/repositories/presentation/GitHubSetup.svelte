@@ -4,18 +4,16 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { BusyIcon, GitHubIcon, Icon } from '$hyper-ui/icons';
 	import { cancelGithubSignInCommand } from '$shared/repositories/application/commands/cancel-github-sign-in.command';
+	import { installGithubCliCommand } from '$shared/repositories/application/commands/install-github-cli.command';
 	import { loadGithubAuthCommand } from '$shared/repositories/application/commands/load-github-auth.command';
 	import { signInToGithubCommand } from '$shared/repositories/application/commands/sign-in-to-github.command';
 	import { watchGithubAuthHook } from '$shared/repositories/application/hooks/watch-github-auth.hook';
 	import { githubAuthErrorQuery } from '$shared/repositories/application/queries/github-auth-error.query.svelte';
 	import { githubAuthQuery } from '$shared/repositories/application/queries/github-auth.query.svelte';
+	import { githubCliInstallQuery } from '$shared/repositories/application/queries/github-cli-install.query.svelte';
 	import { githubSignInQuery } from '$shared/repositories/application/queries/github-sign-in.query.svelte';
 	import { githubSetupStatus } from '$shared/repositories/domain/github-auth';
-	import { externalUrlService } from '$shared/system/external-url.service';
 	import GitHubDeviceCode from './GitHubDeviceCode.svelte';
-
-	const MALINI_DOWNLOAD_URL =
-		'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
 
 	interface Props {
 		step?: boolean;
@@ -27,6 +25,7 @@
 	const auth = $derived(githubAuthQuery.data);
 	const authError = $derived(githubAuthErrorQuery.data);
 	const signIn = $derived(githubSignInQuery.data);
+	const install = $derived(githubCliInstallQuery.data);
 	const status = $derived(githubSetupStatus(auth, authError));
 	const actionSize = $derived(step ? 'md' : 'sm');
 	const actionRadius = $derived(step ? 'full' : 'md');
@@ -45,7 +44,7 @@
 			case 'checking':
 				return 'Checking your GitHub sign-in…';
 			case 'missing':
-				return 'Part of Malini is missing. Reinstall Malini.';
+				return missingDetail();
 			case 'unknown':
 				return `Could not check GitHub. ${authError ?? ''}`.trim();
 			case 'signed-out':
@@ -54,6 +53,17 @@
 				return auth?.login ? `Signed in as ${auth.login}` : 'Signed in';
 		}
 	});
+
+	function missingDetail(): string {
+		switch (install.kind) {
+			case 'installing':
+				return 'Installing the GitHub CLI…';
+			case 'failed':
+				return install.message;
+			case 'idle':
+				return 'The GitHub CLI is not on this Mac.';
+		}
+	}
 
 	onMount(() => watchGithubAuthHook());
 </script>
@@ -94,17 +104,32 @@
 		>
 			Connect
 		</Button>
+	{:else if status === 'missing' && install.kind === 'installing'}
+		<BusyIcon size={16} />
+	{:else if status === 'missing' && install.kind === 'failed'}
+		<Button
+			variant="secondary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Try installing the GitHub CLI again"
+			onclick={installGithubCliCommand}
+		>
+			{#snippet leading()}
+				<Icon name="refresh" size={14} />
+			{/snippet}
+			Try again
+		</Button>
 	{:else if status === 'missing'}
 		<Button
 			variant="primary"
 			size={actionSize}
 			radius={actionRadius}
 			class="shrink-0"
-			ariaLabel="Download Malini"
-			data-testid="github-setup-download"
-			onclick={() => void externalUrlService.open(MALINI_DOWNLOAD_URL).catch(() => undefined)}
+			ariaLabel="Install the GitHub CLI"
+			onclick={installGithubCliCommand}
 		>
-			Download Malini
+			Install
 		</Button>
 	{:else}
 		<Button

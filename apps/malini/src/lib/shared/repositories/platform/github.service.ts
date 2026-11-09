@@ -29,7 +29,12 @@ import {
 	type RepositoryIdentity,
 } from './repository.service';
 
-export type GhRunner = (args: readonly string[], options?: { cwd?: string }) => Promise<GhResult>;
+export type GhRunner = (
+	args: readonly string[],
+	options?: { cwd?: string; timeoutMs?: number },
+) => Promise<GhResult>;
+
+export const GITHUB_AUTH_CHECK_TIMEOUT_MS = 15_000;
 
 export const defaultGhRunner: GhRunner = (args, options) => runGh(args, options);
 
@@ -44,7 +49,7 @@ export interface GitHubAuthStatusDto {
 export async function githubAuthStatus(run: GhRunner): Promise<GitHubAuthStatusDto> {
 	let result: GhResult;
 	try {
-		result = await run(['auth', 'status']);
+		result = await run(['auth', 'status'], { timeoutMs: GITHUB_AUTH_CHECK_TIMEOUT_MS });
 	} catch (error) {
 		if (isGhError(error, 'not-installed')) {
 			return {
@@ -68,7 +73,9 @@ export async function githubAuthStatus(run: GhRunner): Promise<GitHubAuthStatusD
 	}
 	let login: string | null = null;
 	try {
-		const user = await run(['api', 'user', '--jq', '.login']);
+		const user = await run(['api', 'user', '--jq', '.login'], {
+			timeoutMs: GITHUB_AUTH_CHECK_TIMEOUT_MS,
+		});
 		const trimmed = user.stdout.trim();
 		if (user.code === 0 && trimmed.length > 0) login = trimmed;
 	} catch {}

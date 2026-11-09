@@ -10,7 +10,7 @@ Its landing page embeds the real renderer, built from `apps/malini/src/renderer/
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 A docs section can lead with that renderer on `?play=docs` from a `<!-- demo <workstream> <height>` directive in its markdown, its text folded below it (ADR 0175).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes seven outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166).
+The app makes eight outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166, ADR 0195).
 Usage counts, yesterday's loop counted on the Mac, each install's first setup and first-use steps, the days and months it runs, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156, ADR 0194); first-use markers belong only to installs first opened after ADR 0194, and every marker is stored in `settings` as sent only once it is delivered.
 Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old.
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
@@ -20,6 +20,7 @@ The extension marketplace is read from bestboy.dev, from `src/lib/extensions/pla
 Provider model lists come from models.dev, from `src/lib/shared/providers/platform/models-dev.service.ts`, at launch and at most hourly as the model picker or Settings, Providers opens; `MALINI_MODELS_DEV_URL` points an unpackaged build at a local catalog (ADR 0157).
 Saving an OpenCode key sends one-token messages to opencode.ai's Go endpoint, from `src/lib/shared/providers/platform/opencode-plan.ts`, to learn whether the key runs Go or Console, and stores that plan so the picker lists only its models; `MALINI_OPENCODE_PROBE_URL` points an unpackaged build at another origin (ADR 0165).
 A ChatGPT plan reaches `auth.openai.com` and `api.openai.com`, from `src/lib/shared/providers/platform/chatgpt/`, only after you press **Continue with ChatGPT**, and the token never leaves the main process, whose proxy on `127.0.0.1` Claude Code calls; `MALINI_CHATGPT_ISSUER` and `MALINI_CHATGPT_RESOURCE` point an unpackaged build at a fake (ADR 0166).
+**Install** on a missing GitHub CLI downloads the pinned `gh` release zip from `github.com/cli/cli`, from `src/main/process/gh-install.ts`, checks its sha256 and puts it in `<appData>/vendor/gh`, only after you press it (ADR 0195).
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.

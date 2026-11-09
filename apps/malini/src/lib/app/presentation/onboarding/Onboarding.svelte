@@ -8,8 +8,9 @@
 	import {
 		ONBOARDING_STEPS,
 		claudeCodeOnboardingStatus,
-		onboardingAccountsSettled,
-		type OnboardingAccountStatuses,
+		onboardingToolsSettled,
+		onboardingToolsSkippable,
+		type OnboardingToolStatuses,
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
 	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
@@ -30,7 +31,7 @@
 		githubAuthQuery,
 		githubSetupStatus,
 	} from '$shared/repositories/repositories.api';
-	import OnboardingAccountsStep from './OnboardingAccountsStep.svelte';
+	import OnboardingToolsStep from './OnboardingToolsStep.svelte';
 	import OnboardingDefaultsStep from './OnboardingDefaultsStep.svelte';
 	import OnboardingHeardAboutStep from './OnboardingHeardAboutStep.svelte';
 	import { rehearseStepTransition, type Rehearsal } from './rehearse-step-transition';
@@ -38,7 +39,7 @@
 	const STEP_COPY: Readonly<
 		Record<OnboardingStep, Readonly<{ title: string; description: string | null }>>
 	> = {
-		accounts: {
+		tools: {
 			title: 'Connect Claude Code and GitHub',
 			description:
 				'Malini runs Claude Code with your Claude plan or another provider, and works in your GitHub repositories.',
@@ -61,19 +62,22 @@
 	const onboarding = $derived(onboardingQuery.data);
 	const last = $derived(onboarding.index === ONBOARDING_STEPS.length - 1);
 	const copy = $derived(STEP_COPY[onboarding.step]);
-	const accounts: OnboardingAccountStatuses = $derived({
+	const tools: OnboardingToolStatuses = $derived({
 		'claude-code': claudeCodeOnboardingStatus(claudeCodeStatusQuery.data.kind),
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
-	const rawAccounts: OnboardingAccountStatuses = $derived({
+	const rawTools: OnboardingToolStatuses = $derived({
 		'claude-code': claudeCodeStatusQuery.data.kind,
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
 	const asksDefaults = $derived(onboarding.step === 'defaults');
-	const skippable = $derived(asksHeardAbout || asksDefaults);
+	const asksTools = $derived(onboarding.step === 'tools');
+	const skippable = $derived(
+		asksHeardAbout || asksDefaults || (asksTools && onboardingToolsSkippable(tools)),
+	);
 	const continueWaits = $derived(
-		(onboarding.step === 'accounts' && !onboardingAccountsSettled(accounts)) ||
+		(asksTools && !onboardingToolsSettled(tools)) ||
 			(asksDefaults && automationsLoadQuery.data.state !== 'ready') ||
 			(asksHeardAbout && onboarding.heardAbout === null),
 	);
@@ -106,14 +110,14 @@
 
 	$effect(() => {
 		const step = onboarding.step;
-		if (step !== 'accounts') {
+		if (step !== 'tools') {
 			reportSetupStepCommand(step);
 			return;
 		}
-		const claudeCode = rawAccounts['claude-code'];
-		const github = rawAccounts.github;
+		const claudeCode = rawTools['claude-code'];
+		const github = rawTools.github;
 		if (claudeCode === 'checking' || github === 'checking') return;
-		reportSetupStepCommand('accounts', { claudeCode, github });
+		reportSetupStepCommand('tools', { claudeCode, github });
 	});
 
 	$effect(() => {
@@ -247,15 +251,15 @@
 					{#if copy.description}
 						<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6 text-pretty">
 							{copy.description}
-							{#if onboarding.step === 'accounts' && usageDataQuery.data.shared !== false}
+							{#if asksTools && usageDataQuery.data.shared !== false}
 								It shares usage stats, never your code or chats. Turn it off in Settings.
 							{/if}
 						</p>
 					{/if}
 
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
-						{#if onboarding.step === 'accounts'}
-							<OnboardingAccountsStep statuses={accounts} />
+						{#if asksTools}
+							<OnboardingToolsStep statuses={tools} />
 						{:else if asksDefaults}
 							<OnboardingDefaultsStep />
 						{:else if onboarding.step === 'heard-about'}

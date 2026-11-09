@@ -26,7 +26,7 @@ import { hasPromptRun, readUsageReport } from './usage-report';
 
 export type UsageJourney =
 	| 'first_open'
-	| 'setup_accounts'
+	| 'setup_tools'
 	| 'setup_sounds'
 	| 'setup_defaults'
 	| 'setup_heard_about'
@@ -71,7 +71,7 @@ export interface UsageData {
 }
 
 const SETUP_STEP_MARKERS: Readonly<Record<OnboardingStep, UsageJourneyMarker>> = {
-	accounts: 'setup_accounts',
+	tools: 'setup_tools',
 	sounds: 'setup_sounds',
 	defaults: 'setup_defaults',
 	'heard-about': 'setup_heard_about',

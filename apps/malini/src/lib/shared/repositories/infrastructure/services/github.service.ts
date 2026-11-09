@@ -34,6 +34,10 @@ class GithubService {
 		);
 	}
 
+	installCli(): Promise<void> {
+		return invoke('repositories.install-github-cli', undefined);
+	}
+
 	startSignIn(flow: GitHubDeviceFlow): Promise<GitHubDeviceCode> {
 		return flow === 'sign-in'
 			? invoke('repositories.start-github-sign-in', undefined)

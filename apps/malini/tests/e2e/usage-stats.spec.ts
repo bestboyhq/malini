@@ -99,13 +99,13 @@ test('setup reports each step it reaches, with both account states on the first'
 		});
 		const steps = reported.map((args) => args['step']);
 		expect(steps.filter((step, index) => steps.indexOf(step) === index)).toEqual([
-			'accounts',
+			'tools',
 			'sounds',
 			'defaults',
 			'heard-about',
 		]);
-		expect(reported.find((args) => args['step'] === 'accounts')).toEqual({
-			step: 'accounts',
+		expect(reported.find((args) => args['step'] === 'tools')).toEqual({
+			step: 'tools',
 			claudeCode: 'ready',
 			github: 'ready',
 		});

@@ -188,7 +188,7 @@ describe('registerApp', () => {
 		expect(await invoke('app.open-external-url', {})).toMatchObject({ ok: false });
 	});
 
-	it('accepts a setup step, and both account states only when they settled', async () => {
+	it('accepts a setup step, and both tool states only when they settled', async () => {
 		boot(context);
 		expect(await invoke('app.report-setup-step', { step: 'sounds' })).toEqual({
 			ok: true,
@@ -196,7 +196,7 @@ describe('registerApp', () => {
 		});
 		expect(
 			await invoke('app.report-setup-step', {
-				step: 'accounts',
+				step: 'tools',
 				claudeCode: 'missing',
 				github: 'ready',
 			}),
@@ -205,17 +205,17 @@ describe('registerApp', () => {
 			ok: false,
 			error: 'invalid args: `step` must be a setup step',
 		});
-		expect(await invoke('app.report-setup-step', { step: 'accounts' })).toMatchObject({
+		expect(await invoke('app.report-setup-step', { step: 'tools' })).toMatchObject({
 			ok: false,
 			error: 'invalid args: `claudeCode` must be a string',
 		});
 		expect(
 			await invoke('app.report-setup-step', {
-				step: 'accounts',
+				step: 'tools',
 				claudeCode: 'checking',
 				github: 'ready',
 			}),
-		).toMatchObject({ ok: false, error: 'invalid args: `claudeCode` must be an account state' });
+		).toMatchObject({ ok: false, error: 'invalid args: `claudeCode` must be a tool state' });
 	});
 
 	it('hands the theme mode the user picks to the host and refuses an unknown one', async () => {
