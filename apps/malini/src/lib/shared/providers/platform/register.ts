@@ -16,6 +16,7 @@ import {
 	type SecretCipher,
 } from './claude-accounts.service';
 import { ChatGptAccount } from './chatgpt/account.service';
+import { ClaudeCodeUpdates } from './claude-code-updates.service';
 import { ChatGptProxy } from './chatgpt/proxy';
 import {
 	CHATGPT_ISSUER,
@@ -38,6 +39,7 @@ export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directo
 
 export interface ProvidersPlatform {
 	readonly keys: ProviderKeys;
+	readonly updates: ClaudeCodeUpdates;
 	stop(): void;
 }
 
@@ -47,13 +49,17 @@ export function registerProviders(
 ): ProvidersPlatform {
 	const platform = deps.platform ?? process.platform;
 	const openPath = deps.openPath ?? openWithElectron;
+	const executable = deps.executable ?? claudeExecutable;
+	const environment = deps.environment ?? (() => withoutProviderVariables(buildSpawnEnvironment()));
 	const accounts = new ClaudeAccounts({
 		directory: join(context.appDataRoot, 'claude-accounts'),
-		executable: deps.executable ?? claudeExecutable,
-		environment: deps.environment ?? (() => withoutProviderVariables(buildSpawnEnvironment())),
+		executable,
+		environment,
 		security: deps.security ?? (() => (platform === 'darwin' ? resolveToolPath('security') : null)),
 		cipher: deps.cipher ?? electronCipher,
 	});
+
+	const claudeUpdates = new ClaudeCodeUpdates({ executable, environment });
 
 	context.commands.define('providers.install-claude-code', async () => {
 		if (platform !== 'darwin') {
@@ -144,7 +150,9 @@ export function registerProviders(
 
 	return {
 		keys,
+		updates: claudeUpdates,
 		stop: () => {
+			claudeUpdates.stop();
 			accounts.cancelSignIn();
 			chatgpt.cancelSignIn();
 			proxy.stop();

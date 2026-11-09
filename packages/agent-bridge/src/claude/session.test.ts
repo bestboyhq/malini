@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type {
@@ -940,6 +940,28 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[1]?.options).toMatchObject({ resume: READ_AND_BASH_SESSION });
 		await expect(claude.runs[1]?.prompt).resolves.toBe('And again');
 		await rm(cwd, { recursive: true, force: true });
+	});
+
+	it('restarts Claude Code for a prompt sent after claude was updated', async () => {
+		const bin = await mkdtemp(join(tmpdir(), 'malini-claude-bin-'));
+		const executable = join(bin, 'claude');
+		await writeFile(join(bin, '2.1.293'), 'old build');
+		await symlink(join(bin, '2.1.293'), executable);
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([[...script, 'wait-for-prompt', ...script], script], {
+			executable,
+		});
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await writeFile(join(bin, '2.1.321'), 'a newer build');
+		await rm(executable);
+		await symlink(join(bin, '2.1.321'), executable);
+		await session.sendPrompt('And again', 'run-2', profile(), READ_AND_BASH_CURSOR);
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.closed).toBe(true);
+		expect(claude.runs[1]?.options).toMatchObject({ resume: READ_AND_BASH_SESSION });
+		await rm(bin, { recursive: true, force: true });
 	});
 
 	it('turns an MCP server off in the Claude Code a chat keeps running and keeps it warm', async () => {

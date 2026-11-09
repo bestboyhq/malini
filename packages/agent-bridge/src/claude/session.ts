@@ -713,10 +713,10 @@ export class ClaudeSession implements ProviderHandle {
 		const usage = await active.query.getContextUsage({ detail: 'summary' }).catch(() => null);
 		if (!usage) return;
 		transcript.recordContextWindow(usage.rawMaxTokens);
-		active.config ??= configSnapshot(
-			this.#context.cwd,
-			usage.memoryFiles.map(({ path }) => path),
-		);
+		active.config ??= configSnapshot(this.#context.cwd, [
+			...usage.memoryFiles.map(({ path }) => path),
+			...(this.#executable ? [this.#executable] : []),
+		]);
 	}
 
 	#finish(active: ActiveRun, handedOff = false): void {

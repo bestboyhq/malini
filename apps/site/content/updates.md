@@ -14,6 +14,15 @@ Once an update is ready, **Restart to update** there installs the newest release
 Malini must run from an Applications folder to update itself; started anywhere else, it offers to move itself there.
 Every merged `feat`, `fix`, or `perf` change ships as a release, so updates are small and frequent.
 
+## Claude Code
+
+Malini keeps Claude Code current too.
+On launch and every six hours, it runs `claude update`, whatever your `autoUpdates` setting says.
+The model picker lists a new model the next time you open it.
+A chat keeps the Claude Code it started with until its next prompt, then restarts on the new version and resumes the same conversation.
+A failed update shows nothing, and Malini tries again six hours later.
+To stop it, start Malini with `MALINI_CLAUDE_UPDATES=off`.
+
 ## Compatibility
 
 An [automation's When](/malini/docs/automations.md#when-an-automation-runs) triggers on Malini's events, and its instructions can rely on them.
