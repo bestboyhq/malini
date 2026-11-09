@@ -1876,6 +1876,50 @@ CREATE UNIQUE INDEX idx_agent_permission_rules_active_everywhere
 CREATE INDEX idx_agent_permission_rules_effective
   ON agent_permission_rules(workstream_id, session_id, permission_fingerprint, revoked_at);
 `,
+	`
+CREATE TABLE claude_plan_usage (
+  account TEXT PRIMARY KEY NOT NULL,
+  observed_at TEXT NOT NULL,
+  reading TEXT NOT NULL
+);
+INSERT INTO claude_plan_usage (account, observed_at, reading)
+SELECT account, observed_at, reading FROM (
+  SELECT
+    json_extract(substr(event, 15), '$.providerMetrics.anthropic.account') AS account,
+    json_extract(substr(event, 15), '$.providerMetrics.anthropic.observedAt') AS observed_at,
+    json_extract(substr(event, 15), '$.providerMetrics.anthropic') AS reading,
+    ROW_NUMBER() OVER (
+      PARTITION BY json_extract(substr(event, 15), '$.providerMetrics.anthropic.account')
+      ORDER BY json_extract(substr(event, 15), '$.providerMetrics.anthropic.observedAt') DESC
+    ) AS latest
+  FROM agent_events
+  WHERE event LIKE 'usage.updated' || char(10) || '%'
+    AND json_valid(substr(event, 15))
+    AND json_type(substr(event, 15), '$.providerMetrics.anthropic.account') = 'text'
+    AND json_type(substr(event, 15), '$.providerMetrics.anthropic.observedAt') = 'text'
+    AND json_type(substr(event, 15), '$.providerMetrics.anthropic.rateLimits') = 'array'
+)
+WHERE latest = 1 AND account != '';
+CREATE TRIGGER agent_events_track_claude_plan_usage AFTER INSERT ON agent_events
+  WHEN NEW.event LIKE 'usage.updated' || char(10) || '%'
+    AND json_valid(substr(NEW.event, 15))
+    AND json_type(substr(NEW.event, 15), '$.providerMetrics.anthropic.account') = 'text'
+    AND json_extract(substr(NEW.event, 15), '$.providerMetrics.anthropic.account') != ''
+    AND json_type(substr(NEW.event, 15), '$.providerMetrics.anthropic.observedAt') = 'text'
+    AND json_type(substr(NEW.event, 15), '$.providerMetrics.anthropic.rateLimits') = 'array'
+BEGIN
+  INSERT INTO claude_plan_usage (account, observed_at, reading)
+  VALUES (
+    json_extract(substr(NEW.event, 15), '$.providerMetrics.anthropic.account'),
+    json_extract(substr(NEW.event, 15), '$.providerMetrics.anthropic.observedAt'),
+    json_extract(substr(NEW.event, 15), '$.providerMetrics.anthropic')
+  )
+  ON CONFLICT (account) DO UPDATE SET
+    observed_at = excluded.observed_at,
+    reading = excluded.reading
+  WHERE excluded.observed_at > claude_plan_usage.observed_at;
+END;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

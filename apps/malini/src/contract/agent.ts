@@ -125,6 +125,17 @@ export interface ProviderAccount {
 
 export type ProviderPlan = 'console' | 'go';
 
+export interface AgentPlanLimit {
+	label: string;
+	usedPercent: number;
+	resetsAt: string | null;
+}
+
+export interface AgentPlanUsage {
+	observedAt: string;
+	limits: readonly AgentPlanLimit[];
+}
+
 export interface ModelProviderRecord {
 	id: string;
 	name: string;

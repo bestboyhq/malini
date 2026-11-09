@@ -41,6 +41,7 @@ const ALL_TABLES = [
 	'automation_suggestions',
 	'brain_captures',
 	'chatgpt_account',
+	'claude_plan_usage',
 	'connected_repositories',
 	'custom_sounds',
 	'docker_containers',
@@ -1120,6 +1121,54 @@ describe('migrate', () => {
 			{ id: 'earlier', input_tokens: 250, output_tokens: 9 },
 			{ id: 'later', input_tokens: 40, output_tokens: 0 },
 			{ id: 'silent', input_tokens: 0, output_tokens: 0 },
+		]);
+		db.close();
+	});
+
+	it("keeps each Claude account's newest plan reading, from the events before it and as new ones are written", () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		const usage = (account: string | null, observedAt: string, used: number): string =>
+			`'usage.updated' || char(10) || '${JSON.stringify({
+				inputTokens: 1,
+				providerMetrics: {
+					anthropic: {
+						account,
+						observedAt,
+						rateLimits: [{ label: 'Weekly limit', utilization: used, resetsAt: null }],
+					},
+				},
+			})}'`;
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES ('s', 'w', 'idle', '2026-07-19T00:00:00Z');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES ('r', 's', 'go', '2026-07-19T00:00:01Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'r', ${usage('work', '2026-07-19T02:00:00Z', 40)}, '2026-07-19T02:00:00Z'),
+			  ('s', 'r', ${usage('work', '2026-07-19T01:00:00Z', 30)}, '2026-07-19T02:00:01Z'),
+			  ('s', 'r', ${usage('private', '2026-07-19T01:00:00Z', 100)}, '2026-07-19T02:00:02Z'),
+			  ('s', 'r', ${usage(null, '2026-07-19T03:00:00Z', 10)}, '2026-07-19T02:00:03Z'),
+			  ('s', 'r', 'usage.updated' || char(10) || 'not json', '2026-07-19T02:00:04Z');
+		`);
+
+		migrate(db);
+		db.exec(`
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'r', ${usage('work', '2026-07-19T04:00:00Z', 55)}, '2026-07-19T04:00:00Z'),
+			  ('s', 'r', ${usage('private', '2026-07-19T00:30:00Z', 5)}, '2026-07-19T04:00:01Z'),
+			  ('s', 'r', ${usage('team', '2026-07-19T04:00:00Z', 12)}, '2026-07-19T04:00:02Z'),
+			  ('s', 'r', ${usage('', '2026-07-19T04:00:00Z', 12)}, '2026-07-19T04:00:03Z');
+		`);
+		expect(
+			all(
+				db,
+				"SELECT account, observed_at, json_extract(reading, '$.rateLimits[0].utilization') AS used FROM claude_plan_usage ORDER BY account",
+			),
+		).toEqual([
+			{ account: 'private', observed_at: '2026-07-19T01:00:00Z', used: 100 },
+			{ account: 'team', observed_at: '2026-07-19T04:00:00Z', used: 12 },
+			{ account: 'work', observed_at: '2026-07-19T04:00:00Z', used: 55 },
 		]);
 		db.close();
 	});

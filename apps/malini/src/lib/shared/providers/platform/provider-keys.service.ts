@@ -1,4 +1,9 @@
-import type { ModelProviderRecord, ProviderAccount, ProviderPlan } from '$contract/agent';
+import type {
+	AgentPlanUsage,
+	ModelProviderRecord,
+	ProviderAccount,
+	ProviderPlan,
+} from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
 	CLAUDE_PROVIDER,
@@ -111,6 +116,20 @@ export class ProviderKeys {
 		const provider = getStoredProvider(this.#db, OPENCODE_PROVIDER_ID);
 		if (!provider || provider.sealedKey === null || provider.plan !== null) return;
 		await this.#adoptPlan(provider).catch(() => undefined);
+	}
+
+	async opencodeUsage(
+		load: (apiKey: string) => Promise<AgentPlanUsage | null>,
+	): Promise<AgentPlanUsage | null> {
+		const provider = getStoredProvider(this.#db, OPENCODE_PROVIDER_ID);
+		if (!provider || provider.plan !== 'go' || provider.sealedKey === null) return null;
+		try {
+			const apiKey = await this.#decryptedKey(provider);
+			if (apiKey === null) return null;
+			return await load(apiKey);
+		} catch {
+			return null;
+		}
 	}
 
 	async environment(

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
+import { CLAUDE_INSTALL_COMMAND, type AgentPlanUsage } from '$contract/agent';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import {
@@ -25,9 +25,11 @@ import {
 } from './chatgpt/sign-in';
 import { ModelsDevCatalog, modelsDevUrl, type CatalogFetch } from './models-dev.service';
 import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
+import { loadOpencodeUsage } from './opencode-usage';
 import { ProviderKeys } from './provider-keys.service';
 
 const MAX_EMAIL_LENGTH = 320;
+const USAGE_CACHE_MS = 60_000;
 
 export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directory'>> {
 	readonly platform?: NodeJS.Platform;
@@ -107,6 +109,8 @@ export function registerProviders(
 			endpoint: () => proxy.address(),
 		},
 	);
+	// ponytail: successful reads cached a minute; misses read again
+	let opencodeUsage: { at: number; reading: AgentPlanUsage } | null = null;
 	const catalog = new ModelsDevCatalog({
 		db: context.db,
 		fetch,
@@ -137,6 +141,16 @@ export function registerProviders(
 	context.commands.define('providers.check-plan', (args: unknown) =>
 		keys.checkPlan(providerIdArg(args)),
 	);
+
+	context.commands.define('providers.load-opencode-usage', async () => {
+		if (opencodeUsage && Date.now() - opencodeUsage.at < USAGE_CACHE_MS)
+			return opencodeUsage.reading;
+		const reading = await keys.opencodeUsage((apiKey) =>
+			loadOpencodeUsage({ apiKey, origin: probeOrigin, fetch }),
+		);
+		if (reading !== null) opencodeUsage = { at: Date.now(), reading };
+		return reading;
+	});
 
 	context.commands.define('providers.delete-key', (args: unknown) =>
 		keys.delete(providerIdArg(args)),

@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { BrowserWindow } from 'electron';
 import { consolePlatformLog, platformLineSink } from '$main/diagnostics/platform-log';
 import { describeError } from '$main/errors';
@@ -32,6 +33,8 @@ import { registerSecrets } from '$lib/secrets/platform/register';
 import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
 import { registerSkills } from '$lib/skills/platform/register';
 import { registerStats } from '$lib/stats/platform/register';
+
+const OVERLAPS_SETTLE_BUDGET_MS = 5_000;
 
 export interface ModuleOptions {
 	getMainWindow(): BrowserWindow | null;
@@ -226,10 +229,11 @@ export async function registerModules(
 			automations.dispose();
 			brain.dispose();
 			repositories.watchers.dispose();
-			repositories.overlaps.dispose();
+			const overlapsSettled = repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();
 			providers.stop();
 			await chat.stop();
+			await Promise.race([overlapsSettled, delay(OVERLAPS_SETTLE_BUDGET_MS)]);
 			await app.stopLidHold();
 			try {
 				const outcome = await app.shutdownGracefully();
