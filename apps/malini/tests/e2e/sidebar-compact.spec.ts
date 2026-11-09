@@ -120,9 +120,13 @@ test('every repository sits under its owner, which folds, and every workstream h
 		await search.fill('');
 		await expect(section).toHaveAttribute('aria-expanded', 'false');
 
-		const compact = await sidebarDensity(page, 'Compact');
-		await compact.click();
-		await expect(compact).toHaveAttribute('aria-pressed', 'true');
+		const comfortable = await sidebarDensity(page, 'Comfortable');
+		await expect(page.getByRole('button', { name: 'Compact', exact: true })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await comfortable.click();
+		await expect(comfortable).toHaveAttribute('aria-pressed', 'true');
 		await page.keyboard.press('Escape');
 		expectCleanConsole(first);
 		await first.quit();
@@ -144,8 +148,8 @@ test('every repository sits under its owner, which folds, and every workstream h
 		await expect(repositoryRow(page, 'acme/web')).toBeVisible();
 		await captureFlow(app, 'sidebar-compact-folder');
 
-		const compact = await sidebarDensity(page, 'Compact');
-		await expect(compact).toHaveAttribute('aria-pressed', 'true');
+		const comfortable = await sidebarDensity(page, 'Comfortable');
+		await expect(comfortable).toHaveAttribute('aria-pressed', 'true');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
