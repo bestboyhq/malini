@@ -1,7 +1,10 @@
-import type {
-	AutomationRunOrigin,
-	AutomationRunRecord,
-	AutomationRunStatus,
+import {
+	ACTIVE_AUTOMATION_RUN_STATUSES,
+	PENDING_AUTOMATION_RUN_STATUSES,
+	UNFINISHED_AUTOMATION_RUN_STATUSES,
+	type AutomationRunOrigin,
+	type AutomationRunRecord,
+	type AutomationRunStatus,
 } from '$contract/automations';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, column, get, run, scalar } from '$main/db/rows';
@@ -17,6 +20,7 @@ interface AutomationRunRow {
 	agent_run_id: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
+	interrupted: number;
 	detail: string | null;
 	parent_run_id: string | null;
 	chat_session_id: string | null;
@@ -29,11 +33,21 @@ interface AutomationRunRow {
 }
 
 const COLUMNS =
-	'id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin, status, detail, parent_run_id, chat_session_id, chat_after_run_id, chain_id, requests, created_at, started_at, finished_at';
+	'id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin, status, interrupted, detail, parent_run_id, chat_session_id, chat_after_run_id, chain_id, requests, created_at, started_at, finished_at';
 
-const UNFINISHED = "status IN ('waiting', 'queued', 'running', 'needs-you')";
+function statusIn(statuses: readonly AutomationRunStatus[]): string {
+	return `status IN (${statuses.map((status) => `'${status}'`).join(', ')})`;
+}
 
-const STARTED_OR_QUEUED = "status IN ('queued', 'running', 'needs-you')";
+const UNFINISHED = statusIn(UNFINISHED_AUTOMATION_RUN_STATUSES);
+
+const ACTIVE = statusIn(ACTIVE_AUTOMATION_RUN_STATUSES);
+
+const PENDING = statusIn(PENDING_AUTOMATION_RUN_STATUSES);
+
+const STARTED_OR_QUEUED = statusIn(
+	UNFINISHED_AUTOMATION_RUN_STATUSES.filter((status) => status !== 'waiting'),
+);
 
 function fromRow(row: AutomationRunRow): AutomationRunRecord {
 	return {
@@ -47,6 +61,7 @@ function fromRow(row: AutomationRunRow): AutomationRunRecord {
 		agentRunId: row.agent_run_id,
 		origin: row.origin,
 		status: row.status,
+		interrupted: row.interrupted === 1,
 		detail: row.detail,
 		parentRunId: row.parent_run_id,
 		chatSessionId: row.chat_session_id,
@@ -67,7 +82,7 @@ export function insertAutomationRun(
 	run(
 		db,
 		`INSERT INTO automation_runs (${COLUMNS}, context)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		automationRun.id,
 		automationRun.definitionId,
 		automationRun.title,
@@ -78,6 +93,7 @@ export function insertAutomationRun(
 		automationRun.agentRunId,
 		automationRun.origin,
 		automationRun.status,
+		automationRun.interrupted === true ? 1 : 0,
 		automationRun.detail,
 		automationRun.parentRunId,
 		automationRun.chatSessionId,
@@ -107,13 +123,14 @@ export function saveAutomationRun(db: MaliniDatabase, automationRun: AutomationR
 	run(
 		db,
 		`UPDATE automation_runs
-		 SET workstream_id = ?, session_id = ?, agent_run_id = ?, status = ?, detail = ?,
-		     requests = ?, started_at = ?, finished_at = ?
+		 SET workstream_id = ?, session_id = ?, agent_run_id = ?, status = ?, interrupted = ?,
+		     detail = ?, requests = ?, started_at = ?, finished_at = ?
 		 WHERE id = ?`,
 		automationRun.workstreamId,
 		automationRun.sessionId,
 		automationRun.agentRunId,
 		automationRun.status,
+		automationRun.interrupted === true ? 1 : 0,
 		automationRun.detail,
 		automationRun.requests,
 		automationRun.startedAt,
@@ -134,7 +151,7 @@ export function findPendingAutomationRun(
 	const row = get<AutomationRunRow>(
 		db,
 		`SELECT ${COLUMNS} FROM automation_runs
-		 WHERE definition_id = ? AND status IN ('waiting', 'queued')
+		 WHERE definition_id = ? AND ${PENDING}
 		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?
 		   AND chat_session_id IS NULL AND origin NOT IN ('merge-queue', 'schedule')
 		 ORDER BY created_at, rowid LIMIT 1`,
@@ -184,9 +201,9 @@ export function workAutomationRunInWorkstream(
 		db,
 		`SELECT ${COLUMNS} FROM automation_runs
 		 WHERE workstream_id = ?
-		   AND (status IN ('running', 'needs-you') OR (finished_at IS NOT NULL AND finished_at >= ?
+		   AND (${ACTIVE} OR (finished_at IS NOT NULL AND finished_at >= ?
 		     AND started_at IS NOT NULL))
-		 ORDER BY status IN ('running', 'needs-you') DESC, COALESCE(finished_at, started_at) DESC
+		 ORDER BY ${ACTIVE} DESC, COALESCE(finished_at, started_at) DESC
 		 LIMIT 1`,
 		workstreamId,
 		finishedSince,
@@ -246,7 +263,7 @@ export function findActiveAutomationRunForSession(
 	const row = get<AutomationRunRow>(
 		db,
 		`SELECT ${COLUMNS} FROM automation_runs
-		 WHERE session_id = ? AND status IN ('running', 'needs-you')
+		 WHERE session_id = ? AND ${ACTIVE}
 		 ORDER BY created_at DESC LIMIT 1`,
 		sessionId,
 	);
@@ -301,7 +318,7 @@ export function activeWorkstreamAutomationRun(
 	const row = get<AutomationRunRow>(
 		db,
 		`SELECT ${COLUMNS} FROM automation_runs
-		 WHERE workstream_id = ? AND status IN ('waiting', 'queued', 'running', 'needs-you')
+		 WHERE workstream_id = ? AND ${UNFINISHED}
 		   AND definition_id IN (SELECT value FROM json_each(?))
 		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
 		workstreamId,
@@ -338,12 +355,16 @@ export function latestScheduledWorkstreamId(
 	);
 }
 
-export function countUnfinishedAutomationRuns(db: MaliniDatabase, definitionId: string): number {
-	return scalar(
+export function listUnfinishedRunsOfAutomation(
+	db: MaliniDatabase,
+	definitionId: string,
+): AutomationRunRecord[] {
+	return all<AutomationRunRow>(
 		db,
-		`SELECT COUNT(*) FROM automation_runs WHERE definition_id = ? AND ${UNFINISHED}`,
+		`SELECT ${COLUMNS} FROM automation_runs WHERE definition_id = ? AND ${UNFINISHED}
+		 ORDER BY created_at, rowid`,
 		definitionId,
-	);
+	).map(fromRow);
 }
 
 export function listWaitingAutomationRuns(

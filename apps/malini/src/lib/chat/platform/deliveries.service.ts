@@ -112,7 +112,10 @@ export class ChatDeliveries {
 			this.#settle(ids, { status: 'failed', detail: 'That chat is gone.' });
 			return;
 		}
-		if (sessionHasWorkingRun(db, sessionId)) return;
+		if (sessionHasWorkingRun(db, sessionId)) {
+			this.#retries.delete(sessionId);
+			return;
+		}
 		const batch = deliveryBatch(waiting);
 		const profile =
 			firstProfile(waiting.map((delivery) => delivery.profile)) ??
@@ -132,7 +135,7 @@ export class ChatDeliveries {
 			});
 		} catch (error) {
 			if (isAlreadyActiveError(describeError(error))) {
-				this.#retryLater(sessionId);
+				this.#retryLater(sessionId, ids);
 				return;
 			}
 			this.#settle(ids, {
@@ -160,7 +163,7 @@ export class ChatDeliveries {
 		const report = workstreamReport({
 			workstreamId: workstream.id,
 			runId: turn.runId,
-			status: turn.status,
+			status: turn.status === 'succeeded' ? 'succeeded' : 'failed',
 			outcome: turn.outcome,
 			needs: turn.needs,
 			summary,
@@ -185,11 +188,14 @@ export class ChatDeliveries {
 		});
 	}
 
-	#retryLater(sessionId: string): void {
+	#retryLater(sessionId: string, ids: readonly string[]): void {
 		const tries = (this.#retries.get(sessionId) ?? 0) + 1;
 		if (tries > BUSY_RETRIES) {
 			this.#retries.delete(sessionId);
-			this.#log(`agent: deliveries for \`${sessionId}\` wait for that chat's next turn to end`);
+			this.#settle(ids, {
+				status: 'failed',
+				detail: 'That chat stayed busy, so Malini did not deliver it.',
+			});
 			return;
 		}
 		this.#retries.set(sessionId, tries);

@@ -2,9 +2,11 @@ import type { AgentEventEnvelope } from '$contract/agent';
 import {
 	PAUSED_FOR_EXIT_ERROR,
 	foldSessionStatus,
-	isCancellationError,
 	isPausedRunEvent,
+	isWaitingForUser,
+	runEnding,
 	type LifecycleEnvelope,
+	type RunEnding,
 	type SessionStatus,
 } from '$contract/agent-state-machine';
 import {
@@ -41,7 +43,9 @@ import {
 import {
 	agentRunWasAlreadyGone,
 	foldedAutomationContext,
+	isActiveAutomationRunStatus,
 	isFinishedAutomationRunStatus,
+	isPendingAutomationRunStatus,
 	automationPrompt,
 	automationsMaxConcurrent,
 	truncateAutomationContext,
@@ -65,11 +69,13 @@ import {
 	saveAutomationRun,
 } from './automation-runs.repository';
 import {
+	getSession,
 	hasTurnReport,
 	resumesTurn,
 	turnEndedOverBackgroundCommands,
 } from '$lib/chat/chat.platform';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
+import { BackgroundWork } from './background-work';
 
 const SAFETY_INTERVAL_MS = 15_000;
 
@@ -103,19 +109,23 @@ type SessionState = Readonly<{
 export class AutomationRunner {
 	readonly #context: MainContext;
 	readonly #log: (line: string) => void;
-	readonly #pendingRequests = new Map<string, Set<string>>();
 	readonly #waitingRuns = new Map<string, string>();
 	readonly #retryAt = new Map<string, number>();
 	readonly #timers = new Set<ReturnType<typeof setTimeout>>();
 	readonly #unsubscribes: Array<() => void> = [];
 	#safety: ReturnType<typeof setTimeout> | null = null;
 	#pass: Promise<void> | null = null;
+	#markRecovered = (): void => {};
+	readonly #recovered = new Promise<void>((resolve) => (this.#markRecovered = resolve));
 	#again = false;
 	#stopped = false;
 
-	constructor(context: MainContext, log: (line: string) => void) {
+	readonly #work: BackgroundWork;
+
+	constructor(context: MainContext, log: (line: string) => void, work = new BackgroundWork(log)) {
 		this.#context = context;
 		this.#log = log;
+		this.#work = work;
 	}
 
 	start(): void {
@@ -124,7 +134,11 @@ export class AutomationRunner {
 			events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => this.#onAgentEvent(envelope)),
 			commands.observe((outcome) => this.#onCommand(outcome)),
 		);
-		this.#background(this.#recover());
+		this.#background(this.#recover().finally(() => this.#markRecovered()));
+	}
+
+	recovered(): Promise<void> {
+		return this.#recovered;
 	}
 
 	dispose(): void {
@@ -150,7 +164,7 @@ export class AutomationRunner {
 	): AutomationRunRecord | null {
 		const { db } = this.#context;
 		const folded = this.#update(automationRun.id, (current) =>
-			current.status === 'waiting' || current.status === 'queued'
+			isPendingAutomationRunStatus(current.status)
 				? {
 						...current,
 						requests: current.requests + 1,
@@ -181,7 +195,7 @@ export class AutomationRunner {
 		automationRun: AutomationRunRecord,
 		detail: string | null = null,
 	): Promise<AutomationRunRecord> {
-		if (isActive(automationRun.status) && automationRun.sessionId !== null) {
+		if (isActiveAutomationRunStatus(automationRun.status) && automationRun.sessionId !== null) {
 			await this.#stopAgentRun(automationRun.id, automationRun.sessionId, automationRun.agentRunId);
 		}
 		return (
@@ -211,6 +225,7 @@ export class AutomationRunner {
 				this.#pass = null;
 				if (this.#again) this.kick();
 			});
+		this.#work.add(this.#pass);
 	}
 
 	async #schedule(): Promise<void> {
@@ -227,7 +242,7 @@ export class AutomationRunner {
 		let running = unfinished.filter((automationRun) => automationRun.status === 'running').length;
 		const blocked = new Set(
 			unfinished.flatMap((automationRun) =>
-				isActive(automationRun.status) && automationRun.workstreamId !== null
+				isActiveAutomationRunStatus(automationRun.status) && automationRun.workstreamId !== null
 					? [automationRun.workstreamId]
 					: [],
 			),
@@ -309,7 +324,7 @@ export class AutomationRunner {
 					origin: 'automation',
 					displayName: automationRun.title,
 				}));
-			if (definition.skills.length > 0) chooseSessionSkills(db, sessionId, definition.skills);
+			chooseSessionSkills(db, sessionId, definition.skills);
 			const withSession = this.#update(automationRun.id, (current) =>
 				current.status === 'running' && !this.#stopped ? { ...current, sessionId } : null,
 			);
@@ -325,7 +340,7 @@ export class AutomationRunner {
 				chainId: automationRun.chainId,
 			});
 			this.#update(automationRun.id, (current) =>
-				isActive(current.status) && current.agentRunId !== agentRunId
+				isActiveAutomationRunStatus(current.status) && current.agentRunId !== agentRunId
 					? { ...current, agentRunId }
 					: null,
 			);
@@ -525,8 +540,8 @@ export class AutomationRunner {
 			const type = envelope.event['type'];
 			if (typeof type === 'string' && resumesTurn({ type })) this.#wentOn(envelope.runId);
 			if (type === 'run.started') this.#resumed(envelope.sessionId, envelope.runId);
-			else if (type === 'approval.requested') this.#waiting(envelope, 'approvalId');
-			else if (type === 'question.requested') this.#waiting(envelope, 'questionId');
+			else if (type === 'approval.requested' || type === 'question.requested')
+				this.#waiting(envelope.sessionId);
 			else if (type === 'run.completed' || type === 'run.failed') {
 				this.#waitingRuns.delete(envelope.runId);
 				this.#ended(envelope);
@@ -543,7 +558,6 @@ export class AutomationRunner {
 	#resumed(sessionId: string, agentRunId: string): void {
 		const automationRun = findActiveAutomationRunForSession(this.#context.db, sessionId);
 		if (!automationRun) return;
-		this.#pendingRequests.delete(sessionId);
 		this.#update(automationRun.id, (current) =>
 			current.status === 'needs-you' || current.agentRunId !== agentRunId
 				? { ...current, status: 'running', agentRunId }
@@ -551,15 +565,9 @@ export class AutomationRunner {
 		);
 	}
 
-	#waiting(envelope: AgentEventEnvelope, requestKey: 'approvalId' | 'questionId'): void {
-		const automationRun = findActiveAutomationRunForSession(this.#context.db, envelope.sessionId);
+	#waiting(sessionId: string): void {
+		const automationRun = findActiveAutomationRunForSession(this.#context.db, sessionId);
 		if (!automationRun) return;
-		const requestId = text(envelope.event[requestKey]);
-		if (requestId !== null) {
-			const pending = this.#pendingRequests.get(envelope.sessionId) ?? new Set<string>();
-			pending.add(requestId);
-			this.#pendingRequests.set(envelope.sessionId, pending);
-		}
 		this.#update(automationRun.id, (current) =>
 			current.status === 'running' ? { ...current, status: 'needs-you' } : null,
 		);
@@ -569,15 +577,13 @@ export class AutomationRunner {
 		const automationRun = findActiveAutomationRunForSession(this.#context.db, envelope.sessionId);
 		if (!automationRun) return;
 		if (envelope.event['type'] === 'run.completed') {
-			this.#pendingRequests.delete(envelope.sessionId);
 			this.#succeed(automationRun.id, text(envelope.event['summary']));
 			return;
 		}
 		const error = text(envelope.event['error']) ?? 'The agent run failed.';
 		if (error === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(envelope.event)) return;
-		this.#pendingRequests.delete(envelope.sessionId);
-		if (isCancellationError(error)) this.#finish(automationRun.id, 'cancelled', null);
-		else this.#finish(automationRun.id, 'failed', error);
+		const ending = runEnding(error);
+		this.#finish(automationRun.id, ending, ending === 'cancelled' ? null : error);
 	}
 
 	#endedOverBackgroundCommands(envelope: AgentEventEnvelope): void {
@@ -585,7 +591,6 @@ export class AutomationRunner {
 		if (summary === null) return;
 		const automationRun = findActiveAutomationRunForSession(this.#context.db, envelope.sessionId);
 		if (!automationRun) return;
-		this.#pendingRequests.delete(envelope.sessionId);
 		this.#waitingRuns.set(envelope.runId, automationRun.id);
 		this.#succeed(automationRun.id, summary);
 	}
@@ -601,9 +606,10 @@ export class AutomationRunner {
 		);
 	}
 
-	#awaitsItsAutomation({ parentRunId }: AutomationRunRecord): boolean {
+	#awaitsItsAutomation({ parentRunId, origin }: AutomationRunRecord): boolean {
 		const automation =
 			parentRunId === null ? null : getAutomationRun(this.#context.db, parentRunId);
+		if (origin === 'then' && automation && automation.status !== 'succeeded') return true;
 		if (!automation?.agentRunId || this.#waitingRuns.get(automation.agentRunId) !== automation.id)
 			return false;
 		return !hasTurnReport(automation.detail ?? '');
@@ -611,19 +617,11 @@ export class AutomationRunner {
 
 	#onCommand(outcome: CommandOutcome): void {
 		if (!outcome.ok) return;
-		const requestKey =
-			outcome.command === 'chat.decide-approval'
-				? 'approvalId'
-				: outcome.command === 'chat.answer-question'
-					? 'questionId'
-					: null;
-		const sessionId = requestKey === null ? null : stringField(outcome.args, 'sessionId');
-		if (requestKey === null || sessionId === null) return;
-		const pending = this.#pendingRequests.get(sessionId);
-		const requestId = stringField(outcome.args, requestKey);
-		if (pending && requestId !== null) pending.delete(requestId);
-		if (pending && pending.size > 0) return;
-		this.#pendingRequests.delete(sessionId);
+		if (outcome.command !== 'chat.decide-approval' && outcome.command !== 'chat.answer-question')
+			return;
+		const sessionId = stringField(outcome.args, 'sessionId');
+		if (sessionId === null) return;
+		if (isWaitingForUser(getSession(this.#context.db, sessionId)?.status)) return;
 		const automationRun = findActiveAutomationRunForSession(this.#context.db, sessionId);
 		if (!automationRun) return;
 		this.#update(automationRun.id, (current) =>
@@ -672,7 +670,7 @@ export class AutomationRunner {
 	}
 
 	#followAgain(then: AutomationRunRecord, automation: AutomationRunRecord): void {
-		if (then.status !== 'waiting' && then.status !== 'queued') return;
+		if (!isPendingAutomationRunStatus(then.status)) return;
 		if (automation.status === 'succeeded') {
 			const report = thenContext(
 				automation,
@@ -690,7 +688,7 @@ export class AutomationRunner {
 			if (this.#stopped) return;
 			const closed =
 				automationRun.workstreamId !== null && isWorkstreamClosed(db, automationRun.workstreamId);
-			if (!closed && !isActive(automationRun.status)) continue;
+			if (!closed && !isActiveAutomationRunStatus(automationRun.status)) continue;
 			try {
 				if (closed) await this.cancel(automationRun, WORKSTREAM_CLOSED);
 				else await this.#recoverRun(automationRun);
@@ -708,7 +706,7 @@ export class AutomationRunner {
 			automationRun.sessionId === null ? null : await this.#sessionState(automationRun.sessionId);
 		if (session?.paused) return;
 		if (session === null || session.status === 'idle' || session.status === 'failed') {
-			this.#finish(automationRun.id, 'failed', AUTOMATION_INTERRUPTED_DETAIL);
+			this.#finish(automationRun.id, 'interrupted', AUTOMATION_INTERRUPTED_DETAIL);
 			return;
 		}
 		if (session.status === 'completed') {
@@ -747,13 +745,15 @@ export class AutomationRunner {
 
 	#finish(
 		automationRunId: string,
-		status: Extract<AutomationRunStatus, 'succeeded' | 'failed' | 'cancelled'>,
+		ending: RunEnding,
 		detail: string | null,
 	): AutomationRunRecord | null {
+		const status = ending === 'interrupted' ? 'failed' : ending;
+		const interrupted = ending === 'interrupted' || (ending === 'failed' && this.#stopped);
 		const finished = this.#update(automationRunId, (current) =>
 			isFinishedAutomationRunStatus(current.status)
 				? null
-				: { ...current, status, detail, finishedAt: nowIso8601() },
+				: { ...current, status, interrupted, detail, finishedAt: nowIso8601() },
 		);
 		if (finished) this.#retryAt.delete(automationRunId);
 		return finished;
@@ -811,7 +811,7 @@ export class AutomationRunner {
 	}
 
 	#background(work: Promise<void>): void {
-		void work.catch((error: unknown) => this.#log(`automations: ${describeError(error)}`));
+		this.#work.add(work);
 	}
 }
 
@@ -838,10 +838,6 @@ function updateBlocker(status: WorktreeStatus): string | null {
 	return null;
 }
 
-function isActive(status: AutomationRunStatus): boolean {
-	return status === 'running' || status === 'needs-you';
-}
-
 function text(value: unknown): string | null {
 	return typeof value === 'string' && value.length > 0 ? value : null;
 }
@@ -850,16 +846,9 @@ function stringField(value: unknown, key: string): string | null {
 	return isRecord(value) ? text(value[key]) : null;
 }
 
-function lifecycleEnvelope(envelope: AgentEventEnvelope): LifecycleEnvelope[] {
-	const type = envelope.event['type'] === 'user.message' ? 'run.started' : envelope.event['type'];
-	return typeof type === 'string'
-		? [
-				{
-					runId: envelope.runId,
-					event: { type, error: envelope.event['error'], resumeAt: envelope.event['resumeAt'] },
-				},
-			]
-		: [];
+function lifecycleEnvelope({ runId, event }: AgentEventEnvelope): LifecycleEnvelope[] {
+	const type = event['type'] === 'user.message' ? 'run.started' : event['type'];
+	return typeof type === 'string' ? [{ runId, event: { ...event, type } }] : [];
 }
 
 function counted(count: number, noun: string): string {

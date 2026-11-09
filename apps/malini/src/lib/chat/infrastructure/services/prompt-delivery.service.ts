@@ -347,9 +347,10 @@ class PromptDeliveryService {
 		if (recovery.attempts >= QUEUE_INTERRUPT_MAX_ATTEMPTS) {
 			const entryId = recovery.entryId;
 			this.disarmInterruptRecovery(workstreamId);
-			const message =
-				'The interrupted response never finished. Send this prompt again once the chat is idle.';
-			queueErrorsStore.set(entryId, message);
+			queueErrorsStore.set(
+				entryId,
+				'The interrupted reply is still running. This prompt waits for it to end.',
+			);
 			return;
 		}
 		recovery.attempts += 1;

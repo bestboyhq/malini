@@ -127,18 +127,22 @@ describe('real docker', () => {
 	const FIXTURE_COMPOSE =
 		"services:\n  svc:\n    image: alpine:3.20\n    command: ['sleep', '600']\n";
 
-	function daemonAvailable(): boolean {
+	function composeAvailable(): boolean {
 		const docker = binary('docker');
 		if (!docker) return false;
-		return spawnSync(docker, ['version', '--format', '{{.Server.Version}}']).status === 0;
+		return (
+			spawnSync(docker, ['version', '--format', '{{.Server.Version}}']).status === 0 &&
+			spawnSync(docker, ['compose', 'version']).status === 0
+		);
 	}
 
 	it('enumerates and reclaims exactly the containers this app started, or skips without a daemon', async (context) => {
-		if (!daemonAvailable()) {
-			expect(process.env['MALINI_DOCKER_E2E'], 'MALINI_DOCKER_E2E=1 but no Docker daemon').not.toBe(
-				'1',
-			);
-			context.skip('no Docker daemon');
+		if (!composeAvailable()) {
+			expect(
+				process.env['MALINI_DOCKER_E2E'],
+				'MALINI_DOCKER_E2E=1 but no Docker daemon with compose',
+			).not.toBe('1');
+			context.skip('no Docker daemon with compose');
 			return;
 		}
 		const docker = binary('docker')!;

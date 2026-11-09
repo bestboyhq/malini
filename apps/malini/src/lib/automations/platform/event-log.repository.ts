@@ -119,6 +119,23 @@ export function heardBack(
 	);
 }
 
+export function loggedSince(
+	db: MaliniDatabase,
+	channel: EventChannel,
+	payload: unknown,
+	since: string,
+): boolean {
+	return (
+		get(
+			db,
+			'SELECT 1 FROM event_log WHERE emitted_at >= ? AND channel = ? AND payload = ? LIMIT 1',
+			since,
+			channel,
+			JSON.stringify(payload),
+		) !== null
+	);
+}
+
 export function getLoggedEvent(db: MaliniDatabase, id: number): LoggedEventRecord | null {
 	const row = get<LoggedEventRow>(db, `SELECT ${COLUMNS} FROM event_log WHERE id = ?`, id);
 	return row ? fromRow(row, Number.POSITIVE_INFINITY) : null;

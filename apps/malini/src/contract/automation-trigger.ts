@@ -1,3 +1,4 @@
+import { eventFactValues } from './event-catalog';
 import { EVENT_CHANNELS, isEventChannel, type EventChannel } from './events';
 
 export type AutomationEventCondition = Readonly<{ path: string; equals: string | null }>;
@@ -65,6 +66,8 @@ const MERGED_IN_REPOSITORY =
 	'on pull-requests:ship-changed where merged is set and repositoryId is ';
 
 const EVENT_PHRASE = /^on\s+(\S+:\S+)(?:\s+where\s+(.+))?$/iu;
+
+const ONE_OF = new Intl.ListFormat('en', { type: 'disjunction' });
 
 const EVENT_CONDITION = /^([\w-]+(?:\.[\w-]+)*)\s+is\s+(.+)$/u;
 
@@ -171,6 +174,14 @@ function twoDigits(value: number): string {
 function parseEventTrigger(channel: string, conditions: string | undefined): ParsedTrigger {
 	if (!isEventChannel(channel)) throw new Error(unknownChannelMessage(channel));
 	const where = (conditions?.split(/\s+and\s+/iu) ?? []).map(parseEventCondition);
+	for (const { path, equals } of where) {
+		const known = eventFactValues(channel, path);
+		if (equals !== null && known && !known.includes(equals)) {
+			throw new Error(
+				`${channel} never reports ${path} ${equals}. It reports ${ONE_OF.format(known)}.`,
+			);
+		}
+	}
 	const clauses = where.map(({ path, equals }) =>
 		equals === null ? `${path} is set` : `${path} is ${equals}`,
 	);

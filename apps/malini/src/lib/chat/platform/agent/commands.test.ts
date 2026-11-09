@@ -966,7 +966,7 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, 'run-req-x')).toMatchObject({
 			error: 'agent bridge send failed: bridge protocol error: NO_SESSION: no active session',
 		});
-		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(getSession(test.db, sessionId)?.status).toBe('failed');
 		const kinds = listEventRowsForSession(test.db, sessionId, 0).map((row) => row.kind);
 		expect(kinds).toEqual(['session.state', 'user.message', 'run.failed']);
 		expect(await invokeBoolean('chat.workstream-has-open-run', { workstreamId: 'ws-1' })).toBe(
@@ -1875,7 +1875,7 @@ describe('lead chats', () => {
 		);
 		expect(turn?.completed_at).not.toBeNull();
 		expect(turn?.error).toContain('no such table: lead_decisions');
-		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(getSession(test.db, sessionId)?.status).toBe('failed');
 		expect(prompts(sent)).toEqual([]);
 	});
 

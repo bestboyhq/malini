@@ -33,6 +33,7 @@
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
+	import { hasOpenRun, isLifecycleKind } from '$contract/agent-state-machine';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 	import { Button } from '$hyper-ui/components/button';
@@ -501,12 +502,7 @@
 
 	const locallyVisibleRunInFlight = $derived(
 		isLatestRunOpen ||
-			workstreamChatsQuery
-				.data(workstreamId)
-				.some(
-					(candidate) =>
-						candidate.status === 'running' || candidate.status === 'waiting_for_approval',
-				),
+			workstreamChatsQuery.data(workstreamId).some((candidate) => hasOpenRun(candidate.status)),
 	);
 
 	const nativeOpenRun = createOpenRunGuard({
@@ -647,12 +643,7 @@
 	});
 
 	function isInteractionLifecycleEnvelope(envelope: EventEnvelope): boolean {
-		return (
-			envelope.event.type === 'approval.requested' ||
-			envelope.event.type === 'question.requested' ||
-			envelope.event.type === 'run.completed' ||
-			envelope.event.type === 'run.failed'
-		);
+		return isLifecycleKind(envelope.event.type);
 	}
 
 	let syncedInteractionSessionId: string | null = null;

@@ -1,4 +1,5 @@
 import type { LiveEventEnvelope } from './agent';
+import type { RunEnding } from './agent-state-machine';
 import type {
 	BrowserResizeRequest,
 	BrowserState,
@@ -71,7 +72,7 @@ export interface WorkstreamFilesChangedPayload {
 	paths: string[] | null;
 }
 
-export type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';
+export type ChatTurnFinishedStatus = RunEnding;
 
 export interface ChatTurnFinishedPayload {
 	workstreamId: string;

@@ -478,14 +478,21 @@ describe('the confirmed shutdown', () => {
 		});
 	}
 
-	it('reclaims, closes runs, and runs the destructive half once', async () => {
+	it('reclaims, closes runs, joins a shutdown in flight, and reclaims what started since', async () => {
 		const db = openDb();
 		recordStartedContainers(db, [record('mine', process.pid, INSTANCE)]);
-		const runner = new ScriptedRunner().onCommand('docker', ['ps'], {
-			kind: 'exit',
-			code: 0,
-			stdout: `mine\tmalini-mine-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\nforeign\tpostgres\trunning\t\n`,
-		});
+		let reopened = false;
+		const runner = new ScriptedRunner()
+			.on((file, args) => reopened && /(^|\/)docker$/.test(file) && args[0] === 'ps', {
+				kind: 'exit',
+				code: 0,
+				stdout: `later\tmalini-later-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\n`,
+			})
+			.onCommand('docker', ['ps'], {
+				kind: 'exit',
+				code: 0,
+				stdout: `mine\tmalini-mine-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\nforeign\tpostgres\trunning\t\n`,
+			});
 		const reaper = new RecordingReaper();
 		const kids = children();
 		const shutdown = new ConfirmedShutdown({
@@ -495,7 +502,7 @@ describe('the confirmed shutdown', () => {
 			children: kids,
 			ownerIsAlive: alwaysAlive,
 		});
-		const outcome = await shutdown.run(5_000);
+		const [outcome, joined] = await Promise.all([shutdown.run(5_000), shutdown.run(5_000)]);
 		expect(outcome).toMatchObject({
 			containersRemoved: ['mine'],
 			containersUnfinished: [],
@@ -511,12 +518,15 @@ describe('the confirmed shutdown', () => {
 		expect(durableContainerRecords(db, BUNDLE)).toEqual([]);
 		expect(lastTeardownRecord(db)).toContain('"phase":"quit"');
 
-		const again = await shutdown.run(5_000);
-		expect(again.alreadyReclaimed).toBe(true);
-		expect(again.containersRemoved).toEqual([]);
-		expect(reaper.removed).toEqual(['mine']);
+		expect(joined).toMatchObject({ containersRemoved: ['mine'], alreadyReclaimed: true });
 		expect(runner.spawns).toHaveLength(1);
-		expect(kids.calls).toEqual(['agent-runs']);
+
+		reopened = true;
+		recordStartedContainers(db, [record('later', process.pid, INSTANCE)]);
+		const again = await shutdown.run(5_000);
+		expect(again).toMatchObject({ containersRemoved: ['later'], alreadyReclaimed: false });
+		expect(reaper.removed).toEqual(['mine', 'later']);
+		expect(kids.calls).toEqual(['agent-runs', 'agent-runs']);
 	});
 
 	it('never runs docker at quit when this run started no containers', async () => {

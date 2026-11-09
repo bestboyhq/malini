@@ -228,6 +228,18 @@ describe('turning skills off', () => {
 		).rejects.toThrow(/not in your Claude Code settings/u);
 	});
 
+	it('keeps the version constraints of a plugin that is already on when it turns it on', async () => {
+		writeSettings({ enabledPlugins: { 'ponytail@ponytail': ['^1.2.0'] } });
+
+		const on = await context.commands.call('skills.switch', {
+			kind: 'plugin',
+			name: 'ponytail@ponytail',
+			on: true,
+		});
+		expect(on.plugins).toEqual([{ id: 'ponytail@ponytail', name: 'ponytail', on: true }]);
+		expect(settings()).toEqual({ enabledPlugins: { 'ponytail@ponytail': ['^1.2.0'] } });
+	});
+
 	it('writes through a symlinked settings file and leaves the link in place', async () => {
 		const dotfiles = folder();
 		const target = join(dotfiles, 'settings.json');

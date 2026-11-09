@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { diagnosticsRecordedDuring } from '../diagnostics/test-support';
 import { openMigratedDatabase } from './open';
 import { openDatabase } from './driver';
 import {
@@ -265,11 +266,16 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('leaves a database from a newer release alone', () => {
+	it('opens a database from a newer release untouched, and records the downgrade as an error', () => {
 		const db = openDatabase(':memory:');
 		db.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 			PRAGMA user_version = ${TARGET_USER_VERSION + 1};`);
-		expect(() => migrate(db)).not.toThrow();
+		expect(diagnosticsRecordedDuring(() => migrate(db))).toEqual([
+			expect.objectContaining({
+				level: 'error',
+				message: `malini: database schema ${TARGET_USER_VERSION + 1} is newer than this build's ${TARGET_USER_VERSION}`,
+			}),
+		]);
 		expect(userVersion(db)).toBe(TARGET_USER_VERSION + 1);
 		expect(appTables(db)).toEqual(['settings']);
 		db.close();
@@ -453,6 +459,36 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('marks a run that failed with an interruption as interrupted, and no other run', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const boundary = MIGRATIONS.findIndex((migration) => migration.includes('interrupted INTEGER'));
+		for (const migration of MIGRATIONS.slice(0, boundary)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + boundary};`);
+		const at = '2026-11-01T00:00:00Z';
+		const ended = (id: string, status: string, detail: string) =>
+			`INSERT INTO automation_runs (id, definition_id, title, origin, status, detail, chain_id, created_at)
+			 VALUES ('${id}', 'job', 'Triage', 'manual', '${status}', '${detail}', '${id}', '${at}');`;
+		db.exec(`
+			INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at)
+			  VALUES ('job', 'Triage', 'Triage.', 'opus', 'low', 'workstream', NULL, '${at}', '${at}');
+			${ended('closed', 'failed', 'Interrupted when Malini closed')}
+			${ended('bridge', 'failed', 'interrupted: agent bridge restarted')}
+			${ended('broken', 'failed', 'tests fail')}
+			${ended('done', 'succeeded', 'Interrupted when Malini closed')}
+		`);
+
+		migrate(db);
+
+		expect(all(db, 'SELECT id, interrupted FROM automation_runs ORDER BY id')).toEqual([
+			{ id: 'bridge', interrupted: 1 },
+			{ id: 'broken', interrupted: 0 },
+			{ id: 'closed', interrupted: 1 },
+			{ id: 'done', interrupted: 0 },
+		]);
+		db.close();
+	});
+
 	it('turns the internet off for every job you made, and keeps it on for the built-in ones', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
@@ -502,7 +538,9 @@ describe('migrate', () => {
 
 		migrate(db);
 
-		expect(all(db, 'SELECT * FROM automation_runs ORDER BY id')).toEqual(runs);
+		expect(all(db, 'SELECT * FROM automation_runs ORDER BY id')).toEqual(
+			runs.map((row) => ({ ...row, interrupted: 0 })),
+		);
 		expect(
 			all(db, 'SELECT automation_run_id, event_id FROM automation_run_events ORDER BY event_id'),
 		).toEqual([
@@ -612,6 +650,35 @@ describe('migrate', () => {
 		expect(all(db, "SELECT key FROM settings WHERE key LIKE 'merge-queue.%'")).toEqual([
 			{ key: 'merge-queue.fix-attempts' },
 		]);
+		db.close();
+	});
+
+	it('keeps the fix attempts a merge spent on its current failure in one count per failure', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const counted = MIGRATIONS.findIndex((migration) =>
+			migration.includes('ADD COLUMN fix_attempts'),
+		);
+		for (const migration of MIGRATIONS.slice(0, counted)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + counted};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO workstream_ship (workstream_id, phase, failure_signature, attempts, checks_rerun_at, checks_rerun_head_sha, updated_at)
+			  VALUES ('w', 'queued', 'checks:["test"]', 2, '2026-11-01T00:00:00Z', 'abc', '2026-11-01T00:00:00Z');
+		`);
+
+		migrate(db);
+
+		expect(
+			get(db, 'SELECT fix_attempts, checks_rerun_at, checks_rerun_head_sha FROM workstream_ship'),
+		).toEqual({
+			fix_attempts: JSON.stringify({ 'checks:["test"]': 2 }),
+			checks_rerun_at: null,
+			checks_rerun_head_sha: null,
+		});
+		expect(
+			all(db, "SELECT name FROM pragma_table_info('workstream_ship') WHERE name = 'attempts'"),
+		).toEqual([]);
 		db.close();
 	});
 

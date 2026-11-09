@@ -269,22 +269,43 @@ describe('ChatDeliveries', () => {
 		expect(status(delivery.id)).toBe('delivered');
 	});
 
-	it("stops trying after twenty busy answers and leaves it for the chat's next turn", async () => {
+	it('fails the delivery with the reason after twenty busy answers', async () => {
 		vi.useFakeTimers();
 		busy = 100;
 		const delivery = await deliveries.deliver(prompt('api-chat', 'Retry me.'));
 
 		await vi.advanceTimersByTimeAsync(20 * 3_000);
 		expect(attempts).toBe(21);
-		expect(logs).toEqual([
-			"agent: deliveries for `api-chat` wait for that chat's next turn to end",
-		]);
-		await vi.advanceTimersByTimeAsync(30_000);
-		expect(attempts).toBe(21);
-		expect(status(delivery.id)).toBe('waiting');
+		expect(getDelivery(db, delivery.id)).toMatchObject({
+			status: 'failed',
+			runId: null,
+			detail: 'That chat stayed busy, so Malini did not deliver it.',
+		});
+		expect(changed.map(({ status: state }) => state)).toEqual(['waiting', 'failed']);
 
 		busy = 0;
+		await vi.advanceTimersByTimeAsync(30_000);
 		await deliveries.flush('api-chat');
+		expect(attempts).toBe(21);
+		expect(status(delivery.id)).toBe('failed');
+	});
+
+	it('counts busy answers again once a turn of that chat ran in between', async () => {
+		vi.useFakeTimers();
+		busy = 19;
+		const delivery = await deliveries.deliver(prompt('api-chat', 'Retry me.'));
+		await vi.advanceTimersByTimeAsync(18 * 3_000);
+		expect(attempts).toBe(19);
+
+		turn('api-working', 'api-chat', { completedAt: null });
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(attempts).toBe(19);
+		finishRuns();
+		busy = 19;
+		await deliveries.flush('api-chat');
+		await vi.advanceTimersByTimeAsync(19 * 3_000);
+
+		expect(attempts).toBe(39);
 		expect(status(delivery.id)).toBe('delivered');
 	});
 

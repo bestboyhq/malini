@@ -69,6 +69,7 @@ A triggered run gets the event channel and the payload [it may see](#what-an-aut
 Every event counts, even when its payload repeats an earlier one: open the same workstream twice, and an automation on `pull-requests:workstream-opened` runs for each opening.
 The same event starts an automation once, even across a restart: each event Malini logs has its own id, Malini keeps every event for a week, and hands the ones it had not finished with to the triggers again when it starts.
 An unknown channel or a malformed condition is refused when you save the automation, with the channels Malini knows.
+So is a value a field never takes, such as `run.status is succeded`, with the values it does take.
 
 ### On a schedule
 
@@ -105,7 +106,8 @@ When the time comes, Malini's clock logs a **Time reached** event, and the [Reco
 The same time starts the automation once, even across a restart.
 When your Mac sleeps or Malini is quit at the time, the automation runs once when they are back, however many times it missed.
 A schedule you set runs from the next time on, never for a time that already passed.
-While the automation's last run waits for you, is queued, or still runs, it skips its time, so two runs never overlap.
+While the automation's last run is queued or still runs, it skips its time, so two runs never overlap.
+While its last run still waits for your yes, the new time takes its place and asks again.
 
 A scheduled run tells you with a notification when it waits for your yes, when it needs you, when it fails, and when it finishes, with its result.
 A run that needs your approval waits for it, so always allow a command it needs, and later runs go on without asking.

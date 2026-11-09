@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { BRIDGE_INTERRUPTED_ERROR, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import { FinishedTurns } from './finished-turns';
+import { finalizeRunLifecycle, insertRun, listChatTurns } from './runs.repository';
 import { insertSession } from './sessions.repository';
 
 const NOW = '2026-10-26T09:00:00.000Z';
@@ -184,5 +185,46 @@ describe('FinishedTurns', () => {
 			runId: 'run-5',
 			status: 'succeeded',
 		});
+	});
+
+	it('tells how a turn ended in the words the turn list uses for it', () => {
+		const endings = [
+			{ runId: 'run-done', error: null },
+			{ runId: 'run-broke', error: 'model overloaded' },
+			{ runId: 'run-stopped', error: 'cancelled' },
+			{ runId: 'run-cut', error: BRIDGE_INTERRUPTED_ERROR },
+			{ runId: 'run-reset', error: 'reset by user' },
+		];
+		for (const { runId, error } of endings) {
+			insertRun(db, {
+				id: runId,
+				sessionId: 'chat',
+				prompt: 'p',
+				startedAt: NOW,
+				completedAt: null,
+				summary: null,
+				error: null,
+			});
+			finalizeRunLifecycle(
+				db,
+				'chat',
+				runId,
+				error === null ? 'completed' : 'failed',
+				error === null ? REPORT : null,
+				error,
+				NOW,
+			);
+		}
+		const listed = new Map(
+			listChatTurns(db, [], endings.length).map((turn) => [turn.runId, turn.status]),
+		);
+		for (const { runId, error } of endings) {
+			const told = after(
+				'chat',
+				runId,
+				error === null ? { type: 'run.completed', summary: REPORT } : { type: 'run.failed', error },
+			);
+			expect([runId, told?.status]).toEqual([runId, listed.get(runId)]);
+		}
 	});
 });

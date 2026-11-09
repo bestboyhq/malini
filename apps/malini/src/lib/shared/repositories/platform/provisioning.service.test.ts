@@ -352,6 +352,25 @@ describe('installing', () => {
 		expect(runner.groupSignals.at(-1)?.signal).toBe('SIGKILL');
 	});
 
+	it('installs again after an install that did not finish, even on the lockfile it last finished', async () => {
+		const dir = checkout([
+			['package.json', '{}'],
+			['pnpm-lock.yaml', 'lockfileVersion: 9'],
+			['node_modules/.modules.yaml', ''],
+		]);
+		recordCompletion(dir, planned(dir));
+		writeFileSync(join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.1');
+		const runner = new ScriptedRunner().onCommand('pnpm', ['install'], { kind: 'exit', code: 1 });
+		const { deps } = harness(runner);
+
+		expect(await installDependencies(deps, 'ws-cut', dir)).toMatchObject({ status: 'failed' });
+		writeFileSync(join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9');
+
+		expect(detectInstallPlan(dir)).toEqual(
+			run(['pnpm', 'install', '--frozen-lockfile', '--ignore-scripts']),
+		);
+	});
+
 	it('reports the exit code and the stderr tail of a failure', async () => {
 		const dir = checkout([]);
 		const runner = new ScriptedRunner().onCommand('sh', [], {

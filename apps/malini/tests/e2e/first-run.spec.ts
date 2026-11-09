@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import type { BrainStatus } from '../../src/contract/brain';
 import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
@@ -39,6 +40,79 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toBeVisible();
 		await expect(claude.getByText('curl -fsSL https://claude.ai/install.sh | bash')).toBeVisible();
 		await captureFlow(app, 'first-run-install-claude');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a Claude Code check that keeps failing stays on the Repositories page while Malini checks again', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({
+		env: { FAKE_BRIDGE_STDERR_EXIT: 'claude probe broke' },
+		allowedDiagnostics: [/claude probe broke|bridge/iu],
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		await seedWorkstream(page, source, 'e2e-probe-ws', 'Probe');
+		await page.evaluate(() => {
+			location.hash = '#/';
+		});
+		const setup = page.getByTestId('claude-code-setup');
+		await expect(setup).toHaveAttribute('data-claude-code-status', 'unknown', { timeout: 20_000 });
+		await page.locator('body').evaluate((body) => {
+			const view = body.ownerDocument.defaultView;
+			if (!view) return;
+			const shown: string[] = [];
+			Reflect.set(body, 'claudeSetupShown', shown);
+			new view.MutationObserver(() => {
+				const panel = body.querySelector('[data-testid="claude-code-setup"]');
+				shown.push(panel?.getAttribute('data-claude-code-status') ?? 'hidden');
+			}).observe(body, { subtree: true, childList: true, attributes: true });
+		});
+
+		await page.waitForTimeout(7_000);
+
+		const shown = await page
+			.locator('body')
+			.evaluate((body): unknown => Reflect.get(body, 'claudeSetupShown'));
+		expect(shown).not.toContain('hidden');
+		expect(shown).not.toContain('checking');
+		await expect(setup).toContainText('Could not check Claude Code.');
+		await captureFlow(app, 'repositories-claude-check-failing');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Check again shows Malini is checking Claude Code until the check answers', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({
+		env: { FAKE_BRIDGE_STDERR_EXIT: 'claude probe broke' },
+		allowedDiagnostics: [/claude probe broke|bridge/iu],
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		await seedWorkstream(page, source, 'e2e-check-again-ws', 'Check again');
+		await page.evaluate(() => {
+			location.hash = '#/';
+		});
+		const setup = page.getByTestId('claude-code-setup');
+		await expect(setup).toHaveAttribute('data-claude-code-status', 'unknown', { timeout: 20_000 });
+		const checkAgain = setup.getByRole('button', { name: 'Check Claude Code again' });
+		await expect(checkAgain).toBeEnabled();
+
+		await checkAgain.click();
+		await expect(checkAgain).toHaveAttribute('aria-busy', 'true');
+		await expect(checkAgain).toBeDisabled();
+		await captureFlow(app, 'claude-check-again-after');
+
+		await expect(checkAgain).toBeEnabled({ timeout: 20_000 });
+		await expect(checkAgain).not.toHaveAttribute('aria-busy', 'true');
+		await expect(setup).toContainText('Could not check Claude Code.');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -532,6 +606,37 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 		await expect(page).toHaveURL(/#\/$/u);
 		await expect(page.getByTestId('repository-row').filter({ hasText: 'hutch' })).toBeVisible();
 		expect(await workstreams(page)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a finished setup that cannot be read opens the repository picker, not the setup again', async () => {
+	test.setTimeout(120_000);
+	const unreadable = /no such table: settings/u;
+	const app = await launchMalini({ allowedDiagnostics: [unreadable] });
+	try {
+		const { page } = app;
+		await passSetup(page);
+		const settingsTable = (statement: string): void => {
+			const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+			try {
+				db.exec(statement);
+			} finally {
+				db.close();
+			}
+		};
+		settingsTable('ALTER TABLE settings RENAME TO settings_unreadable');
+		try {
+			await page.reload();
+			await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
+			await expect(page.getByTestId('onboarding')).toHaveCount(0);
+		} finally {
+			settingsTable('ALTER TABLE settings_unreadable RENAME TO settings');
+		}
+		const unexpected = app.consoleErrors.filter((line) => !unreadable.test(line));
+		app.consoleErrors.splice(0, app.consoleErrors.length, ...unexpected);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

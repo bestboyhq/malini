@@ -20,6 +20,11 @@ export const CHECKPOINT_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}checkpoints/`;
 export const RUN_CHANGE_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}run-changes/`;
 export const USER_BASELINE_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}user-baselines/`;
 export const SALVAGE_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}salvage/`;
+const WORKSTREAM_SNAPSHOT_NAMESPACES = [
+	CHECKPOINT_REF_NAMESPACE,
+	RUN_CHANGE_REF_NAMESPACE,
+	USER_BASELINE_REF_NAMESPACE,
+];
 
 function validatePrivateSnapshotRef(refName: string, namespace: string): void {
 	if (!refName.startsWith(namespace) || refName.includes('..') || /\s/.test(refName)) {
@@ -645,4 +650,33 @@ export async function deleteRunChangeRef(worktreePath: string, refName: string):
 
 export async function deleteUserBaselineRef(worktreePath: string, refName: string): Promise<void> {
 	return deletePrivateRef(worktreePath, refName, USER_BASELINE_REF_NAMESPACE);
+}
+
+export async function snapshotRefsByWorkstream(repository: string): Promise<Map<string, string[]>> {
+	const listed = await runGit([
+		'-C',
+		repository,
+		'for-each-ref',
+		'--format=%(refname)',
+		...WORKSTREAM_SNAPSHOT_NAMESPACES,
+	]);
+	const byWorkstream = new Map<string, string[]>();
+	for (const ref of listed.split('\n')) {
+		const namespace = WORKSTREAM_SNAPSHOT_NAMESPACES.find((prefix) => ref.startsWith(prefix));
+		const workstreamId = namespace ? ref.slice(namespace.length).split('/')[0] : undefined;
+		if (workstreamId)
+			byWorkstream.set(workstreamId, [...(byWorkstream.get(workstreamId) ?? []), ref]);
+	}
+	return byWorkstream;
+}
+
+export async function dropSnapshotRefs(repository: string, refs: readonly string[]): Promise<void> {
+	for (const ref of refs) {
+		const namespace = WORKSTREAM_SNAPSHOT_NAMESPACES.find((prefix) => ref.startsWith(prefix));
+		validatePrivateSnapshotRef(ref, namespace ?? CHECKPOINT_REF_NAMESPACE);
+	}
+	await runGitWithInput(
+		['-C', repository, 'update-ref', '--stdin'],
+		refs.map((ref) => `delete ${ref}\n`).join(''),
+	);
 }

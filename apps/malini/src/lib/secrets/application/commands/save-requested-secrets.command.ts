@@ -2,6 +2,7 @@ import type { SecretRequest } from '$contract/secrets';
 import { secretRequestsAggregate } from '$lib/secrets/infrastructure/aggregates/secret-requests.aggregate.svelte';
 import { secretsService } from '$lib/secrets/infrastructure/services/secrets.service';
 import { secretSavesStore } from '$lib/secrets/infrastructure/stores/secret-saves.store.svelte';
+import { showSecretRequestFailure } from './dismiss-secret-request.command';
 
 export { saveRequestedSecretsCommand };
 
@@ -17,10 +18,7 @@ function saveRequestedSecretsCommand(
 			secretSavesStore.clear(request.id);
 			secretRequestsAggregate.close(request.sessionId, request.id);
 		} catch (error) {
-			secretSavesStore.set(request.id, {
-				status: 'failed',
-				error: error instanceof Error ? error.message : String(error),
-			});
+			await showSecretRequestFailure(request, error);
 		}
 	})();
 }

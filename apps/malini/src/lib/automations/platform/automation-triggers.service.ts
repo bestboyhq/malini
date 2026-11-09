@@ -57,7 +57,7 @@ export function startAutomationTriggers(
 	const sync = (): void => {
 		armed = listAutomationDefinitions(db).flatMap((definition) => {
 			const mode = definition.trigger?.mode ?? 'off';
-			const trigger = mode === 'off' ? null : eventTriggerOf(definition.trigger?.when ?? '');
+			const trigger = mode === 'off' ? null : eventTriggerOf(definition, log);
 			return mode !== 'off' && trigger ? [{ definition, mode, trigger }] : [];
 		});
 	};
@@ -138,11 +138,15 @@ function seenPayload(
 	return { ...eventFacts(channel, payload), ...(repositoryId === null ? {} : { repositoryId }) };
 }
 
-function eventTriggerOf(when: string): EventTrigger | null {
+function eventTriggerOf(
+	{ name, trigger }: AutomationDefinitionRecord,
+	log: (line: string) => void,
+): EventTrigger | null {
 	try {
-		const trigger = parseAutomationTrigger(when);
-		return trigger.kind === 'event' ? trigger : null;
-	} catch {
+		const parsed = parseAutomationTrigger(trigger?.when ?? '');
+		return parsed.kind === 'event' ? parsed : null;
+	} catch (error) {
+		log(`automations: ${name} does not start on its own: ${describeError(error)}`);
 		return null;
 	}
 }

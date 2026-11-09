@@ -1,5 +1,6 @@
 import { copyFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import type { CustomSound } from '../../src/contract/sounds';
 import {
@@ -188,6 +189,113 @@ test('recording a sound asks for the microphone first, and points you to System 
 		await expect(page.getByText('Malini can’t use your microphone.')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
+		await app.close();
+	}
+});
+
+async function grantMicrophone(app: LaunchedApp): Promise<void> {
+	await app.electronApp.evaluate(({ systemPreferences }) => {
+		systemPreferences.getMediaAccessStatus = () => 'granted';
+	});
+}
+
+const HOLD_MICROPHONE = `(() => {
+	const devices = navigator.mediaDevices;
+	const real = devices.getUserMedia.bind(devices);
+	const streams = [];
+	let release = () => undefined;
+	const held = new Promise((resolve) => {
+		release = resolve;
+	});
+	globalThis.e2eMicrophone = {
+		release: () => release(),
+		live: () =>
+			streams
+				.flatMap((stream) => stream.getTracks())
+				.filter(({ readyState }) => readyState === 'live').length,
+		opened: () => streams.length,
+	};
+	devices.getUserMedia = async (constraints) => {
+		await held;
+		const stream = await real(constraints);
+		streams.push(stream);
+		return stream;
+	};
+})()`;
+
+async function holdMicrophone(page: Page): Promise<void> {
+	await page.evaluate(HOLD_MICROPHONE);
+}
+
+async function microphone(page: Page, call: 'release' | 'live' | 'opened'): Promise<number> {
+	return Number(await page.evaluate(`globalThis.e2eMicrophone.${call}()`)) || 0;
+}
+
+test('a recording cancelled while the microphone starts turns the microphone off and records nothing', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await grantMicrophone(app);
+		await openSoundSettings(app);
+		await holdMicrophone(page);
+
+		await page.getByRole('button', { name: /^Needs you sound:/u }).click();
+		await page.getByRole('menuitem', { name: 'Record a sound…' }).click();
+		const start = page.getByRole('button', { name: 'Start recording' });
+		await start.click();
+		await start.click({ force: true });
+		await page.getByRole('button', { name: /^Finished sound:/u }).click();
+		await page.getByRole('menuitem', { name: 'Record a sound…' }).click();
+		await expect(start).toBeEnabled();
+		await microphone(page, 'release');
+
+		await expect.poll(() => microphone(page, 'opened')).toBeGreaterThan(0);
+		await expect.poll(() => microphone(page, 'live')).toBe(0);
+		await expect(page.getByRole('button', { name: 'Stop recording' })).toHaveCount(0);
+		await expect(start).toBeEnabled();
+		await page.getByRole('button', { name: 'Cancel recording' }).click();
+		expect(await invoke<CustomSound[]>(page, 'sounds.list', undefined)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a recording that could not be saved waits in a toast, and Try again keeps it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ allowedDiagnostics: [/the disk is full/u] });
+	const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+	try {
+		const { page } = app;
+		await grantMicrophone(app);
+		await openSoundSettings(app);
+		db.exec(`CREATE TRIGGER e2e_full_disk BEFORE INSERT ON custom_sounds
+			BEGIN SELECT RAISE(ABORT, 'the disk is full'); END;`);
+
+		await page.getByRole('button', { name: /^Needs you sound:/u }).click();
+		await page.getByRole('menuitem', { name: 'Record a sound…' }).click();
+		await page.getByRole('button', { name: 'Start recording' }).click();
+		await page.getByRole('button', { name: 'Stop recording' }).click();
+		const tryAgain = page.getByRole('button', { name: 'Try again' });
+		await expect(page.getByText(/Could not keep your recording/u)).toBeVisible();
+		await expect(tryAgain).toBeVisible();
+		await captureFlow(app, 'sounds-recording-try-again');
+		expect(await invoke<CustomSound[]>(page, 'sounds.list', undefined)).toEqual([]);
+
+		db.exec('DROP TRIGGER e2e_full_disk');
+		await tryAgain.click();
+		await expect
+			.poll(async () =>
+				(await invoke<CustomSound[]>(page, 'sounds.list', undefined)).map(({ label }) => label),
+			)
+			.toEqual(['Recording 1']);
+		await expect(page.getByRole('button', { name: /^Needs you sound:/u })).toHaveAccessibleName(
+			'Needs you sound: Recording 1',
+		);
+		expectCleanConsole(app);
+	} finally {
+		db.close();
 		await app.close();
 	}
 });

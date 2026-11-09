@@ -1,3 +1,4 @@
+import { hasOpenRun } from '$contract/agent-state-machine';
 import {
 	checkpointEditTargetIsCurrent,
 	type CheckpointEditTarget,
@@ -78,10 +79,8 @@ class CheckpointService {
 	#runIsOpen(): boolean {
 		const sessionId = chatSessionStore.sessionId;
 		if (!sessionId) return false;
-		const status = sessionsAggregate.getSession(sessionId)?.status ?? 'idle';
 		return (
-			status === 'running' ||
-			status === 'waiting_for_approval' ||
+			hasOpenRun(sessionsAggregate.getSession(sessionId)?.status) ||
 			chatSessionStore.isDispatchPending(sessionId)
 		);
 	}

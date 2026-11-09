@@ -18,7 +18,6 @@ class ExtensionRuntimeStore {
 	settingsRevision = $state(0);
 	workstreamRevision = $state(0);
 	activationRetryRevision = $state(0);
-	requestedPanelId = $state<string | null>(null);
 	activationGeneration = $state(0);
 	activeWorkstream = $state.raw<ExtensionWorkstream | null>(null);
 	requestedWorkstreamFingerprint: string | null = null;
@@ -93,7 +92,6 @@ class ExtensionRuntimeStore {
 		this.service = null;
 		this.ready = false;
 		this.error = null;
-		this.requestedPanelId = null;
 		this.requestedWorkstreamFingerprint = null;
 		this.requestedInBackground = false;
 		this.activationGeneration += 1;

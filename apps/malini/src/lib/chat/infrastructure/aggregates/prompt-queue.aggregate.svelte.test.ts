@@ -346,4 +346,25 @@ describe('AgentPromptQueue', () => {
 			'kept with chat B',
 		]);
 	});
+
+	it('lets go of a handed-off prompt once it leaves the queue', () => {
+		const queue = new AgentPromptQueue({ storage: memoryStorage(), createId: () => 'q-1' });
+		const queueOne = (prompt: string, targetSessionId = 'sess-a'): string =>
+			queue.enqueue({ workstreamId: 'blog-a', targetSessionId, prompt, model: 'sonnet' }).id;
+
+		queue.handOff(queueOne('cleared while it was sent'));
+		queue.clear('blog-a');
+		queueOne('queued after the clear');
+		expect(queue.waitingCountFor('blog-a')).toBe(1);
+
+		queue.handOff('q-1');
+		queue.removeForSession('blog-a', 'sess-a');
+		queueOne('queued after its chat closed');
+		expect(queue.waitingCountFor('blog-a')).toBe(1);
+
+		queue.remove('blog-a', 'q-1');
+		queue.handOff('q-1');
+		queueOne('queued after a late hand-off');
+		expect(queue.waitingCountFor('blog-a')).toBe(1);
+	});
 });

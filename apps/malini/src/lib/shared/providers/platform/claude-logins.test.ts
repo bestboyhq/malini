@@ -18,6 +18,35 @@ describe('Claude Code sign-in storage', () => {
 		expect(claudeLoginStorage({ USER: 'me@corp' }, '/Users/me').account).toBe('claude-code-user');
 	});
 
+	it('reads an empty config folder the way Claude Code does: no suffix, the file in the cwd', () => {
+		expect(claudeLoginStorage({ USER: 'me', CLAUDE_CONFIG_DIR: '' }, '/Users/me')).toEqual({
+			service: 'Claude Code-credentials',
+			account: 'me',
+			file: '.credentials.json',
+		});
+	});
+
+	it('looks for the sign-in where CLAUDE_SECURESTORAGE_CONFIG_DIR keeps it, over the config folder', () => {
+		const env = { USER: 'me', CLAUDE_CONFIG_DIR: '/Users/me/.claude-work' };
+		expect(
+			claudeLoginStorage(
+				{ ...env, CLAUDE_SECURESTORAGE_CONFIG_DIR: '/Users/me/.claude-vault' },
+				'/Users/me',
+			),
+		).toEqual({
+			service: 'Claude Code-credentials-e8c1b464',
+			account: 'me',
+			file: '/Users/me/.claude-vault/.credentials.json',
+		});
+		expect(
+			claudeLoginStorage({ ...env, CLAUDE_SECURESTORAGE_CONFIG_DIR: '' }, '/Users/me'),
+		).toEqual({
+			service: 'Claude Code-credentials',
+			account: 'me',
+			file: '/Users/me/.claude/.credentials.json',
+		});
+	});
+
 	it('reads the refresh token and scopes, from JSON or the hex the keychain prints', () => {
 		const stored = JSON.stringify({
 			claudeAiOauth: { accessToken: 'at', refreshToken: 'rt', scopes: ['user:inference', 7] },

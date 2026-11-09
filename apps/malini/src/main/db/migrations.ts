@@ -1876,6 +1876,24 @@ CREATE UNIQUE INDEX idx_agent_permission_rules_active_everywhere
 CREATE INDEX idx_agent_permission_rules_effective
   ON agent_permission_rules(workstream_id, session_id, permission_fingerprint, revoked_at);
 `,
+	`
+ALTER TABLE workstream_ship ADD COLUMN fix_attempts TEXT NOT NULL DEFAULT '{}';
+UPDATE workstream_ship SET fix_attempts = json_object(failure_signature, attempts),
+  checks_rerun_at = NULL, checks_rerun_head_sha = NULL
+  WHERE failure_signature IS NOT NULL AND attempts > 0;
+ALTER TABLE workstream_ship DROP COLUMN attempts;
+`,
+	`
+ALTER TABLE automation_runs ADD COLUMN interrupted INTEGER NOT NULL DEFAULT 0 CHECK (interrupted IN (0, 1));
+UPDATE automation_runs SET interrupted = 1
+  WHERE status = 'failed' AND detail IN (
+    'Interrupted when Malini closed',
+    'paused: malini closed mid-run',
+    'interrupted: app closed mid-run',
+    'interrupted: agent bridge restarted',
+    'reset by user'
+  );
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
@@ -1893,7 +1911,13 @@ export function tableNames(db: MaliniDatabase): string[] {
 
 export function migrate(db: MaliniDatabase): void {
 	const existing = userVersion(db);
-	if (existing >= TARGET_USER_VERSION) return;
+	if (existing === TARGET_USER_VERSION) return;
+	if (existing > TARGET_USER_VERSION) {
+		console.error(
+			`malini: database schema ${existing} is newer than this build's ${TARGET_USER_VERSION}`,
+		);
+		return;
+	}
 	if (existing !== 0 && existing < BASELINE_USER_VERSION) {
 		throw invariant(
 			`schema version ${existing} predates the first release; open this database once with Malini 0.33.0 to upgrade it`,

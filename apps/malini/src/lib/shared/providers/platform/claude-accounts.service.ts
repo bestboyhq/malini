@@ -63,12 +63,15 @@ export class ClaudeAccounts {
 	}
 
 	switchTo(email: string): Promise<ClaudeAccountSwitchOutcome> {
+		const switchTo = ++this.#signIns;
 		return this.#serialized(async () => {
 			const saved = (await this.#savedLogins()).find((entry) => entry.email === email);
 			if (!saved) return 'sign-in-needed';
 			const outgoing = await this.#signedIn();
+			if (this.#cancelledSignIns >= switchTo) return 'cancelled';
 			const environment = refreshTokenEnvironment(this.#deps.environment(), saved.login);
 			const outcome = await this.#signIn.run(null, environment).catch(() => null);
+			if (outcome === 'cancelled') return 'cancelled';
 			const switched = outcome === 'signed-in';
 			await this.#park(switched ? outgoing : null, email);
 			return switched ? 'switched' : 'sign-in-needed';

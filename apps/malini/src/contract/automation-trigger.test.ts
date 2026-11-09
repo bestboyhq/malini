@@ -45,6 +45,22 @@ describe('parseAutomationTrigger event phrases', () => {
 		);
 	});
 
+	it('refuses a state the event never reports and names the states it does', () => {
+		expect(() =>
+			parseAutomationTrigger('on automations:run-finished where run.status is succeded'),
+		).toThrow(
+			'automations:run-finished never reports run.status succeded. It reports succeeded, failed, or cancelled.',
+		);
+		expect(() =>
+			parseAutomationTrigger('on automations:decision-changed where decision.status is asked'),
+		).toThrow(/never reports decision\.status asked/u);
+		expect(
+			parseAutomationTrigger(
+				'on automations:run-finished where run.status is succeeded and run.definitionId is 01X',
+			).kind,
+		).toBe('event');
+	});
+
 	it('keeps the plain-text phrases and mentions the event form in its error', () => {
 		expect(parseAutomationTrigger('on demand').kind).toBe('manual');
 		expect(parseAutomationTrigger('when a new workstream is created').kind).toBe(

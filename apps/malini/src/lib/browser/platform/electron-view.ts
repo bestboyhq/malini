@@ -49,9 +49,9 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 	});
 	contents.on('page-title-updated', () => events.changed());
 	contents.on('did-start-navigation', (details) => {
-		if (details.isMainFrame && !details.isSameDocument) events.navigating();
+		if (details.isMainFrame && !details.isSameDocument) events.navigating(details.url);
 	});
-	contents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
+	contents.on('did-fail-provisional-load', (_event, code, description, _url, isMainFrame) => {
 		if (isMainFrame && code !== ERR_ABORTED) events.failed(description);
 	});
 	contents.on('dom-ready', () => {

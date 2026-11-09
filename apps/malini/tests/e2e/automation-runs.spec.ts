@@ -359,3 +359,39 @@ test('an automation asked for twice before it starts runs once, and its row says
 		await app.close();
 	}
 });
+
+test('a run that needs you stays on Activity and its row cancels it', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-needs-you',
+			'Needs you workstream',
+		);
+		const automation = await saveAutomation(page, {
+			name: 'Read outside',
+			instructions: 'APPROVAL',
+		});
+		await invoke(page, 'automations.run', { definitionId: automation.id, workstreamId });
+		await expect
+			.poll(async () => (await runsOf(page, 'Read outside'))[0]?.status, { timeout: 60_000 })
+			.toBe('needs-you');
+
+		await openAutomations(page, '#/automations/activity');
+		const row = page.getByTestId('automation-run-row').filter({ hasText: 'Read outside' });
+		await expect(row).toHaveCount(1);
+		await row.getByRole('button', { name: 'Cancel Read outside' }).click();
+		await row.getByRole('button', { name: 'Confirm cancelling Read outside' }).click();
+
+		await expect
+			.poll(async () => (await runsOf(page, 'Read outside'))[0]?.status, { timeout: 30_000 })
+			.toBe('cancelled');
+		await captureFlow(app, 'automation-needs-you-cancelled');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

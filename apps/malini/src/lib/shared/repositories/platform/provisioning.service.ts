@@ -262,6 +262,12 @@ export class InstallRegistry {
 		}
 	}
 
+	async abortAll(): Promise<void> {
+		await Promise.all(
+			[...this.inFlight.keys()].map((workstreamId) => this.abortAndWait(workstreamId)),
+		);
+	}
+
 	private waitForChange(timeoutMs: number): Promise<boolean> {
 		return new Promise((resolve) => {
 			let timer: NodeJS.Timeout | null = null;
@@ -339,6 +345,7 @@ export async function installDependencies(
 			emit(deps.events, workstreamId, 'skipped', { reason: skipped });
 			return { status: 'skipped', reason: skipped };
 		}
+		await rm(join(worktree, INSTALL_COMPLETION_PATH), { force: true });
 		const started = Date.now();
 		if (await sharedNodeModules(worktree, plan.argv, deps.siblings?.(workstreamId) ?? [])) {
 			recordCompletion(worktree, plan.argv);

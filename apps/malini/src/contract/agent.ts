@@ -158,7 +158,7 @@ export type ClaudeSignInOutcome = 'signed-in' | 'cancelled';
 
 export type ChatGptSignInOutcome = 'signed-in' | 'cancelled';
 
-export type ClaudeAccountSwitchOutcome = 'switched' | 'sign-in-needed';
+export type ClaudeAccountSwitchOutcome = 'switched' | 'sign-in-needed' | 'cancelled';
 
 export const AGENT_BACKGROUND_TASK_KINDS = ['command', 'agent', 'task'] as const;
 

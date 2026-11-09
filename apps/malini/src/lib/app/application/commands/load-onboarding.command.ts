@@ -6,7 +6,7 @@ export function loadOnboardingCommand(): void {
 		try {
 			onboardingStore.finished = await onboardingService.finished();
 		} catch (error) {
-			onboardingStore.finished = false;
+			onboardingStore.finished ??= true;
 			console.error('[malini app] could not read whether setup is finished', error);
 		}
 	})();

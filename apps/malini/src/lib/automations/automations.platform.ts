@@ -42,6 +42,7 @@ export {
 export interface AutomationsPlatform {
 	start(): void;
 	dispose(): void;
+	settled(): Promise<void>;
 }
 
 export type ShippingDecision = Readonly<{

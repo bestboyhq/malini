@@ -3,20 +3,25 @@ import { secretRequestsAggregate } from '$lib/secrets/infrastructure/aggregates/
 import { secretsService } from '$lib/secrets/infrastructure/services/secrets.service';
 import { secretSavesStore } from '$lib/secrets/infrastructure/stores/secret-saves.store.svelte';
 
-export { dismissSecretRequestCommand };
+export { dismissSecretRequestCommand, showSecretRequestFailure };
 
 function dismissSecretRequestCommand(request: SecretRequest): void {
 	secretRequestsAggregate.close(request.sessionId, request.id);
 	secretSavesStore.clear(request.id);
-	void (async () => {
-		try {
-			await secretsService.dismiss(request.id);
-		} catch (error) {
-			secretRequestsAggregate.open(request);
-			secretSavesStore.set(request.id, {
-				status: 'failed',
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
-	})();
+	void secretsService
+		.dismiss(request.id)
+		.catch((error: unknown) => showSecretRequestFailure(request, error));
+}
+
+async function showSecretRequestFailure(request: SecretRequest, error: unknown): Promise<void> {
+	const open = await secretsService.listRequests(request.sessionId).catch(() => [request]);
+	secretRequestsAggregate.replace(request.sessionId, open);
+	if (!open.some(({ id }) => id === request.id)) {
+		secretSavesStore.clear(request.id);
+		return;
+	}
+	secretSavesStore.set(request.id, {
+		status: 'failed',
+		error: error instanceof Error ? error.message : String(error),
+	});
 }

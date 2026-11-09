@@ -1,4 +1,5 @@
 import type { AgentTheme } from '$contract/agent';
+import { isRunEnding } from '$contract/agent-state-machine';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
@@ -243,7 +244,7 @@ function finishedTurn(event: DispatchedEvent): ChatTurnFinishedPayload | null {
 		typeof workstreamId !== 'string' ||
 		typeof sessionId !== 'string' ||
 		typeof runId !== 'string' ||
-		(status !== 'succeeded' && status !== 'failed' && status !== 'cancelled')
+		!isRunEnding(status)
 	) {
 		return null;
 	}

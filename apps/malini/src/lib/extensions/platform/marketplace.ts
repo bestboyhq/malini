@@ -15,8 +15,10 @@ import { EXTENSIONS_CHANGED_CHANNEL, EXTENSIONS_PUBLISHED_CHANNEL } from '$contr
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import type { EventBus } from '$main/events';
+import { describeError } from '$main/errors';
 import { runGit } from '$main/git/run';
 import { BestboyError, type BestboyAccess } from '$lib/stats/stats.platform';
+import { isExtensionOn } from '../domain/extension-entry';
 import {
 	LICENSE_FILE,
 	MANIFEST_FILE,
@@ -53,6 +55,7 @@ export type MarketplaceDeps = Readonly<{
 	client: MarketplaceClient;
 	bestboy: () => BestboyAccess;
 	sources: () => Promise<readonly PublishSource[]>;
+	log?: (line: string) => void;
 }>;
 
 const ENABLED_MAX = 50;
@@ -63,18 +66,17 @@ export class Marketplace {
 	#index: MarketplaceIndex | null = null;
 	#queue: Promise<unknown> = Promise.resolve();
 	#following: Promise<unknown> = Promise.resolve();
-	#unreachable: string | null = null;
 
 	constructor(deps: MarketplaceDeps) {
 		this.#deps = deps;
 	}
 
 	async listings(): Promise<MarketplaceListings> {
-		const fresh = await this.#freshIndex();
-		const index = fresh ?? this.#index ?? (await this.#savedIndex());
+		const fresh = await this.#fetchIndex();
+		const index = 'index' in fresh ? fresh.index : (this.#index ?? (await this.#savedIndex()));
 		return {
 			listings: (index?.listings ?? []).map(withoutPackage),
-			unreachable: fresh ? null : this.#unreachable,
+			unreachable: 'unreachable' in fresh ? fresh.unreachable : null,
 		};
 	}
 
@@ -118,7 +120,7 @@ export class Marketplace {
 
 	pluginFolders(): string[] {
 		return listInstalledExtensions(this.#deps.db)
-			.filter((extension) => extension.enabled && !extension.withdrawn)
+			.filter(isExtensionOn)
 			.map((extension) => this.#folder(extension.name, extension.version))
 			.filter((folder) => existsSync(folder));
 	}
@@ -213,9 +215,9 @@ export class Marketplace {
 			mcpServers: extension.manifest.mcpServers,
 			skills: extension.skills,
 			sha256: listing.package.sha256,
-			enabled: current?.enabled ?? true,
+			enabled: current ? current.enabled && (!current.withdrawn || this.#hasRoom(name)) : true,
 			withdrawn: false,
-			installedAt: nowIso8601(),
+			installedAt: current?.installedAt ?? nowIso8601(),
 		};
 		saveInstalledExtension(db, record);
 		this.#changed(record, current ? 'updated' : 'installed');
@@ -258,12 +260,16 @@ export class Marketplace {
 	}
 
 	#requireRoom(name: string): void {
-		const enabled = listInstalledExtensions(this.#deps.db).filter(
-			(extension) => extension.enabled && !extension.withdrawn && extension.name !== name,
-		);
-		if (enabled.length >= ENABLED_MAX) {
+		if (!this.#hasRoom(name)) {
 			throw new Error(`An agent gets at most ${ENABLED_MAX} extensions. Turn one off first.`);
 		}
+	}
+
+	#hasRoom(name: string): boolean {
+		const enabled = listInstalledExtensions(this.#deps.db).filter(
+			(extension) => isExtensionOn(extension) && extension.name !== name,
+		);
+		return enabled.length < ENABLED_MAX;
 	}
 
 	async #listing(publisher: string, name: string): Promise<MarketplaceListing> {
@@ -275,17 +281,23 @@ export class Marketplace {
 	}
 
 	async #freshIndex(): Promise<MarketplaceIndex | null> {
+		const fresh = await this.#fetchIndex();
+		return 'index' in fresh ? fresh.index : null;
+	}
+
+	async #fetchIndex(): Promise<{ index: MarketplaceIndex } | { unreachable: string }> {
 		let index: MarketplaceIndex;
 		try {
 			index = await this.#deps.client.index();
 		} catch (error) {
-			this.#unreachable = error instanceof Error ? error.message : String(error);
-			return null;
+			return { unreachable: error instanceof Error ? error.message : String(error) };
 		}
 		this.#index = index;
 		await this.#saveIndex(index);
-		this.#following = this.#serial(() => this.#followIndex(index)).catch(() => undefined);
-		return index;
+		this.#following = this.#serial(() => this.#followIndex(index)).catch((error: unknown) =>
+			this.#log(`malini: could not follow the marketplace: ${describeError(error)}`),
+		);
+		return { index };
 	}
 
 	async #followIndex(index: MarketplaceIndex): Promise<void> {
@@ -307,7 +319,9 @@ export class Marketplace {
 			);
 			if (!latest || !isNewerVersion(latest.version, installed.version)) continue;
 			if (widens(installed, latest)) continue;
-			await this.#install(latest).catch(() => null);
+			await this.#install(latest).catch((error: unknown) =>
+				this.#log(`malini: could not update ${installed.name}: ${describeError(error)}`),
+			);
 		}
 	}
 
@@ -351,6 +365,10 @@ export class Marketplace {
 			version: extension.version,
 			change,
 		});
+	}
+
+	#log(line: string): void {
+		(this.#deps.log ?? console.error)(line);
 	}
 
 	#folder(name: string, version: string): string {

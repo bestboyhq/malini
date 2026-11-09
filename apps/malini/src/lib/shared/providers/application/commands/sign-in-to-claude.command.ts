@@ -9,9 +9,13 @@ async function signInToClaudeCommand(email: string | null = null): Promise<boole
 	claudeAccountsStore.remember(signedInEmail());
 	claudeAccountsStore.signIn = email ? 'switching' : 'waiting-for-browser';
 	try {
-		const switched =
-			email !== null && (await claudeSetupService.switchAccount(email)) === 'switched';
-		if (!switched) {
+		const outcome =
+			email === null ? 'sign-in-needed' : await claudeSetupService.switchAccount(email);
+		if (outcome === 'cancelled') {
+			claudeAccountsStore.signIn = 'idle';
+			return false;
+		}
+		if (outcome === 'sign-in-needed') {
 			claudeAccountsStore.signIn = 'waiting-for-browser';
 			if ((await claudeSetupService.signIn(email)) === 'cancelled') {
 				claudeAccountsStore.signIn = 'idle';

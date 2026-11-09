@@ -56,11 +56,13 @@ export class ChatGptProxy {
 	}
 
 	address(): Promise<ProxyAddress> {
-		this.#address ??= this.#listen().catch((error: unknown) => {
-			this.#address = null;
+		if (this.#address) return this.#address;
+		const address = this.#listen().catch((error: unknown) => {
+			if (this.#address === address) this.#address = null;
 			throw error;
 		});
-		return this.#address;
+		this.#address = address;
+		return address;
 	}
 
 	stop(): void {
@@ -77,9 +79,11 @@ export class ChatGptProxy {
 			});
 		});
 		server.requestTimeout = RESPONSE_TIMEOUT_MS;
+		this.#server = server;
 		let port = 0;
 		await new Promise<void>((resolve, reject) => {
 			server.once('error', reject);
+			server.once('close', () => reject(new Error('The ChatGPT proxy stopped.')));
 			server.listen({ port: 0, host: '127.0.0.1' }, () => {
 				server.removeListener('error', reject);
 				const address = server.address();
@@ -87,7 +91,6 @@ export class ChatGptProxy {
 				resolve();
 			});
 		});
-		this.#server = server;
 		return { baseUrl: `http://127.0.0.1:${port}`, token: this.#secret.toString() };
 	}
 
@@ -160,6 +163,7 @@ export class ChatGptProxy {
 		};
 		try {
 			const upstream = await this.#send(translated.body, sessionId, controller.signal);
+			this.#deps.onUsageLimit(false);
 			for await (const data of serverSentData(upstream)) {
 				const event = parseUpstreamEvent(data);
 				if (event) emit(stream.next(event));
@@ -170,13 +174,12 @@ export class ChatGptProxy {
 			}
 		} catch (error) {
 			const failure = errorOf(error);
-			this.#deps.onUsageLimit(isUsageLimit(failure));
+			if (isUsageLimit(failure)) this.#deps.onUsageLimit(true);
 			if (!response.headersSent) throw failure;
 			const { type, message } = anthropicErrorOf(failure);
 			response.end(`event: error\ndata: ${JSON.stringify(anthropicError(type, message))}\n\n`);
 			return;
 		}
-		this.#deps.onUsageLimit(false);
 		if (translated.stream) response.end();
 		else sendJson(response, 200, accumulator.message());
 	}

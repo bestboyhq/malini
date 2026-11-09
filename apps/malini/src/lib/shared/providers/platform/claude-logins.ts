@@ -30,10 +30,15 @@ export function claudeLoginStorage(
 	env: SpawnEnvironment,
 	home: string = homedir(),
 ): ClaudeLoginStorage {
+	const fallback = join(home, '.claude');
 	const configured = env['CLAUDE_CONFIG_DIR'];
-	const directory = (configured ?? join(home, '.claude')).normalize('NFC');
-	const suffix = configured
-		? `-${createHash('sha256').update(directory).digest('hex').slice(0, 8)}`
+	const secure = env['CLAUDE_SECURESTORAGE_CONFIG_DIR'];
+	const directory = (
+		secure === undefined ? (configured ?? fallback) : secure || fallback
+	).normalize('NFC');
+	const named = secure ?? configured;
+	const suffix = named
+		? `-${createHash('sha256').update(named.normalize('NFC')).digest('hex').slice(0, 8)}`
 		: '';
 	return {
 		service: `${KEYCHAIN_SERVICE}${suffix}`,

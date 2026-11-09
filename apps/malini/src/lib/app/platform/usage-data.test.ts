@@ -35,6 +35,8 @@ const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1' };
 interface HarnessOptions {
 	readonly now?: () => Date;
 	readonly freshInstall?: boolean;
+	readonly delivered?: (name: UsageActivity | 'loop') => boolean;
+	readonly published?: () => boolean;
 }
 
 function harness(
@@ -49,6 +51,7 @@ function harness(
 	const errors: string[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
 	let goneProcess: (process: string, reason: string, exitCode: number) => void = () => undefined;
+	const delivered = options.delivered ?? (() => true);
 	const usageData = startUsageData(context, {
 		account: () => Promise.resolve(account()),
 		sink: {
@@ -56,12 +59,17 @@ function harness(
 				activity.push(name);
 				tags.push(props);
 				accounts.push(carried);
+				return Promise.resolve(delivered(name));
 			},
 			report: (report, carried) => {
 				reports.push(report);
 				accounts.push(carried);
+				return Promise.resolve(delivered('loop'));
 			},
-			error: (message) => errors.push(message),
+			error: (message) => {
+				errors.push(message);
+				return Promise.resolve(true);
+			},
 			shutdown: () => Promise.resolve(),
 		},
 		hooks: {
@@ -77,6 +85,7 @@ function harness(
 		system: 'malini 1.0.0',
 		now: options.now ?? (() => NOW),
 		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
+		...(options.published ? { published: options.published } : {}),
 	});
 	return {
 		context,
@@ -229,6 +238,7 @@ describe('usage data', () => {
 		const first = harness(context);
 		first.start();
 		first.start();
+		await settled();
 		const second = harness(context);
 		second.start();
 		await settled();
@@ -245,6 +255,25 @@ describe('usage data', () => {
 			},
 		]);
 		expect(second.reports).toEqual([]);
+	});
+
+	it("keeps yesterday's loop when its post fails, and reports it on the next check", async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		seedLoop(context.db);
+		const down = harness(context, undefined, { delivered: (name) => name !== 'loop' });
+		down.start();
+		await settled();
+		expect(down.reports).toHaveLength(1);
+
+		const back = harness(context);
+		back.start();
+		await settled();
+		expect(back.reports.map(({ day }) => day)).toEqual(['2026-10-14']);
+
+		const again = harness(context);
+		again.start();
+		await settled();
+		expect(again.reports).toEqual([]);
 	});
 
 	it('reports nothing for a day nothing happened', async () => {
@@ -441,6 +470,41 @@ describe('usage journeys', () => {
 		expect(launched.activity.filter((name) => name === 'profile_published')).toHaveLength(2);
 	});
 
+	it('counts a workstream, a merge and a published profile made while sharing was off', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		setSetting(context.db, USAGE_DATA_SETTING, 'off');
+		const launched = harness(context, undefined, { freshInstall: true, published: () => true });
+		await settled();
+		seedProject(context.db);
+		seedWorkstream(context.db, 'ws-lead', { createdAt: at(15, 9), scope: 'home' });
+		seedWorkstream(context.db, 'ws-a', {
+			createdAt: at(15, 9),
+			archivedAt: at(15, 10),
+			merged: true,
+		});
+		publishProfile(context);
+		launched.share(true);
+		await vi.waitFor(() => expect(launched.activity).toContain('first_repository'));
+		expect(launched.activity).toEqual(
+			expect.arrayContaining(['first_workstream', 'first_merge', 'first_profile_published']),
+		);
+	});
+
+	it('keeps a marker a failed post did not deliver, and sends it on the next launch', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const down = harness(context, undefined, { freshInstall: true, delivered: () => false });
+		await settled();
+		expect(down.activity).toEqual(['app_active', 'first_open', 'day']);
+
+		const back = harness(context);
+		await settled();
+		expect(back.activity).toEqual(['app_active', 'first_open', 'day']);
+
+		const again = harness(context);
+		await settled();
+		expect(again.activity).toEqual(['app_active']);
+	});
+
 	it('records the first return on day 7 and on day 30, each once', async () => {
 		const week = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		let clock = NOW;
@@ -573,6 +637,60 @@ describe('usage days and months', () => {
 		});
 	});
 
+	it('starts each week and month on the last day that went, across months and years', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launch = (
+			day: Date,
+			delivered: (name: UsageActivity | 'loop') => boolean = () => true,
+		): ReturnType<typeof harness> =>
+			harness(context, undefined, { now: () => day, delivered, freshInstall: true });
+		const dayTags = async (launched: ReturnType<typeof harness>) => {
+			await settled();
+			const { week_first, month_first } = launched.tags[launched.activity.indexOf('day')] ?? {};
+			return { week_first, month_first };
+		};
+
+		await dayTags(launch(new Date(2026, 9, 15, 9)));
+		await dayTags(launch(new Date(2026, 9, 19, 9), (name) => name !== 'day'));
+		expect(await dayTags(launch(new Date(2026, 9, 20, 9)))).toEqual({
+			week_first: 'yes',
+			month_first: 'no',
+		});
+
+		await dayTags(launch(new Date(2026, 9, 29, 9)));
+		const november = launch(new Date(2026, 10, 1, 9), (name) => name !== 'day');
+		await settled();
+		expect(november.activity).toContain('month');
+		expect(await dayTags(launch(new Date(2026, 10, 1, 10)))).toEqual({
+			week_first: 'no',
+			month_first: 'yes',
+		});
+
+		await dayTags(launch(new Date(2026, 11, 31, 9)));
+		expect(await dayTags(launch(new Date(2027, 0, 1, 9)))).toEqual({
+			week_first: 'no',
+			month_first: 'yes',
+		});
+	});
+
+	it('keeps a month a failed post did not deliver, with its days', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let clock = NOW;
+		harness(context, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+
+		clock = new Date(2026, 10, 1, 9);
+		harness(context, undefined, { now: () => clock, delivered: (name) => name !== 'month' });
+		await settled();
+		expect(getSetting(context.db, 'usage-data.active-days')).toBe('["2026-10-15","2026-11-01"]');
+
+		clock = new Date(2026, 10, 2, 9);
+		const back = harness(context, undefined, { now: () => clock });
+		await settled();
+		expect(back.tags[back.activity.indexOf('month')]).toEqual({ month: '2026-10', active_days: 1 });
+		expect(getSetting(context.db, 'usage-data.active-days')).toBe('["2026-11-01","2026-11-02"]');
+	});
+
 	it('ages an existing install from its earliest project', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		seedProject(context.db);
@@ -678,6 +796,41 @@ describe('the Logdash sink', () => {
 			userId: logdashUserId('malini-site', 'u1'),
 		});
 		expect(posted[2]?.body.events[0]?.['props']).toEqual(FIRST_DAY);
+		context.db.close();
+	});
+
+	it('posts a marker again on the next launch when Logdash does not take it', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		fetchMock.mockClear();
+		fetchMock.mockImplementation(() => Promise.resolve(new Response('{}', { status: 503 })));
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launch = async () => {
+			const usageData = startUsageData(context, {
+				hooks: noHooks,
+				processGone: () => undefined,
+				now: () => NOW,
+				system: 'malini 1.0.0',
+				freshInstall: true,
+			});
+			await settled();
+			await usageData.shutdown();
+			await settled();
+		};
+		const names = () =>
+			fetchMock.mock.calls.map(
+				([, init]) =>
+					(JSON.parse(String(init.body)) as { events: Array<{ name: string }> }).events[0]?.name,
+			);
+		await launch();
+		fetchMock.mockImplementation(() => Promise.resolve(new Response('{}')));
+		await launch();
+		await launch();
+		expect(names().filter((name) => name !== 'malini_desktop_app_active')).toEqual([
+			'malini_desktop_first_open',
+			'malini_desktop_day',
+			'malini_desktop_first_open',
+			'malini_desktop_day',
+		]);
 		context.db.close();
 	});
 

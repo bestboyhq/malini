@@ -71,6 +71,7 @@ export class ChatGptAccount {
 	#signIn: AbortController | null = null;
 	#refreshing: Promise<string> | null = null;
 	#modelsCheckedAt = Number.NEGATIVE_INFINITY;
+	#listing: Promise<void> | null = null;
 	#usageLimitReachedAt: string | null = null;
 
 	constructor(deps: ChatGptAccountDeps) {
@@ -118,6 +119,7 @@ export class ChatGptAccount {
 	async signOut(): Promise<void> {
 		this.cancelSignIn();
 		const stored = await this.#stored().catch(() => null);
+		const revoked = stored === null || (await this.#deps.auth.revoke(stored.connection));
 		run(
 			this.#deps.db,
 			`UPDATE chatgpt_account SET client_id = NULL, subject = NULL, email = NULL, name = NULL,
@@ -125,7 +127,7 @@ export class ChatGptAccount {
 			nowIso8601(),
 		);
 		this.#usageLimitReachedAt = null;
-		if (stored && !(await this.#deps.auth.revoke(stored.connection))) {
+		if (!revoked) {
 			throw new Error(
 				'Malini forgot your ChatGPT sign-in, but ChatGPT did not confirm it. Remove Malini in ChatGPT, Settings, Apps.',
 			);
@@ -145,16 +147,24 @@ export class ChatGptAccount {
 			: null;
 	}
 
-	async refreshModels(): Promise<void> {
+	refreshModels(): Promise<void> {
+		this.#listing ??= this.#listModels().finally(() => {
+			this.#listing = null;
+		});
+		return this.#listing;
+	}
+
+	async #listModels(): Promise<void> {
 		if (!this.#row()?.credentials) return;
 		if (this.#now() - this.#modelsCheckedAt < MODELS_INTERVAL_MS) return;
-		this.#modelsCheckedAt = this.#now();
 		const response = await this.#deps.fetch(`${this.#deps.endpoints.resource}/models`, {
 			headers: { authorization: `Bearer ${await this.accessToken()}`, accept: 'application/json' },
 			redirect: 'error',
 			signal: AbortSignal.timeout(30_000),
 		});
-		const models = chatGptModels(response.ok ? await response.json() : null);
+		if (!response.ok) return;
+		const models = chatGptModels(await response.json());
+		this.#modelsCheckedAt = this.#now();
 		if (models.length > 0) setProviderModels(this.#deps.db, CHATGPT_PROVIDER_ID, models);
 	}
 

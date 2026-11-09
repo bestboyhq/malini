@@ -4,6 +4,7 @@ import {
 	lstatSync,
 	mkdirSync,
 	realpathSync,
+	renameSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
@@ -232,6 +233,43 @@ describe('moveCheckoutsHome', () => {
 		}
 		await realGit(at(malini, base), ['worktree', 'prune']);
 		expect(await worktreePaths(at(malini, base))).toEqual([at(malini, base), at(malini)]);
+	});
+
+	it('finishes a move that a quit cut short after it renamed the folders', async () => {
+		const { base, checkout } = await workstreamFixture(appData, 'ws-1');
+		seed('ws-1', 'proj', base, checkout);
+		const malini = join(home, 'malini');
+		const chosen = join(root, 'chosen');
+		mkdirSync(chosen);
+		const move = () =>
+			moveCheckoutsHome({ db, appDataRoot: appData, defaultRoot: malini, claudeDirectory: claude });
+		const at = (folder: string, path = checkout) => join(folder, path.slice(appData.length + 1));
+		await move();
+		mkdirSync(join(at(malini), INSTALL_COMPLETION_PATH, '..'), { recursive: true });
+		writeFileSync(join(at(malini), INSTALL_COMPLETION_PATH), 'fingerprint');
+		await chooseCheckoutsFolder(db, appData, malini, chosen);
+		db.prepare("UPDATE settings SET value = ? WHERE key = 'checkouts.folder'").run(
+			JSON.stringify({ appData, folder: chosen, started: true }),
+		);
+		db.prepare("UPDATE settings SET value = '' WHERE key = 'checkouts.reinstall'").run();
+		for (const name of ['repositories', 'workstreams']) {
+			renameSync(join(malini, name), join(chosen, name));
+		}
+		seed('ws-1', 'proj', at(chosen, base), at(chosen));
+
+		expect(await move()).toBe(chosen);
+
+		expect(checkoutsFolder(db, appData, chosen)).toMatchObject({ next: null, problem: null });
+		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(chosen));
+		expect(pendingReinstalls(db)).toEqual(['ws-1']);
+		expect(existsSync(join(at(chosen), INSTALL_COMPLETION_PATH))).toBe(false);
+		for (const name of ['repositories', 'workstreams']) {
+			expect(realpathSync(join(malini, name))).toBe(join(chosen, name));
+			rmSync(join(malini, name));
+			rmSync(join(appData, name));
+		}
+		await realGit(at(chosen, base), ['worktree', 'prune']);
+		expect(await worktreePaths(at(chosen, base))).toEqual([at(chosen, base), at(chosen)]);
 	});
 
 	it('refuses a folder it cannot move checkouts into, and keeps the one you chose', async () => {

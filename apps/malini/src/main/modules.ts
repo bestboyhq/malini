@@ -185,6 +185,7 @@ export async function registerModules(
 		cancelAgentRuns: () => chat.closeOpenRunsForExit(),
 		containerCount: () => repositories.containerCount(),
 		usageAccount: () => stats.usageAccount(),
+		profilePublished: () => stats.published(),
 		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
 	});
 
@@ -228,8 +229,10 @@ export async function registerModules(
 			repositories.watchers.dispose();
 			repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();
+			await repositories.installs.abortAll();
 			providers.stop();
 			await chat.stop();
+			await automations.settled();
 			await app.stopLidHold();
 			try {
 				const outcome = await app.shutdownGracefully();

@@ -12,7 +12,7 @@
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
 	import { copyClaudeInstallCommandCommand } from '$shared/providers/application/commands/copy-claude-install-command.command';
 	import { installClaudeCodeCommand } from '$shared/providers/application/commands/install-claude-code.command';
-	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
+	import { checkClaudeCodeAgainCommand } from '$shared/providers/application/commands/check-claude-code-again.command';
 	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
@@ -26,6 +26,7 @@
 
 	let { step = false, nested = false }: Props = $props();
 	let copied = $state(false);
+	let checkingAgain = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const status = $derived(claudeCodeStatusQuery.data);
@@ -72,6 +73,11 @@
 		copied = true;
 		clearTimeout(copiedTimer);
 		copiedTimer = setTimeout(() => (copied = false), 1_500);
+	}
+
+	function checkAgain(): void {
+		checkingAgain = true;
+		void checkClaudeCodeAgainCommand().finally(() => (checkingAgain = false));
 	}
 
 	onMount(() => {
@@ -136,10 +142,11 @@
 			radius={actionRadius}
 			class="shrink-0"
 			ariaLabel="Check Claude Code again"
-			onclick={() => loadProviderCapabilitiesCommand('force')}
+			loading={checkingAgain}
+			onclick={checkAgain}
 		>
 			{#snippet leading()}
-				<Icon name="refresh" size={14} />
+				<Icon name="refresh" size={step ? 14 : 12} />
 			{/snippet}
 			Check again
 		</Button>

@@ -97,7 +97,7 @@ class FakeContents implements PageContents {
 		this.url = url;
 		this.title = `Title of ${url}`;
 		const failure = this.loadFailures.shift();
-		return failure
+		return failure !== undefined
 			? Promise.reject(Object.assign(new Error(failure), { code: failure }))
 			: Promise.resolve();
 	}
@@ -542,14 +542,14 @@ describe('BrowserViews', () => {
 		roots.push(worktree);
 		const { browser, states, viewAt } = setup();
 		await browser.open(TAB, 'localhost:5173');
-		viewAt(0).events.navigating();
+		viewAt(0).events.navigating('http://localhost:5173/');
 		viewAt(0).events.failed('ERR_CONNECTION_REFUSED');
 
 		const failed = 'http://localhost:5173/ did not load (ERR_CONNECTION_REFUSED).';
 		expect(states.at(-1)).toMatchObject({ failure: 'ERR_CONNECTION_REFUSED' });
 		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(failed);
 		await expect(browser.click(TAB, 'a')).rejects.toThrow(failed);
-		viewAt(0).events.navigating();
+		viewAt(0).events.navigating('http://localhost:5173/');
 		expect(browser.state(TAB)).toMatchObject({ failure: 'ERR_CONNECTION_REFUSED' });
 		viewAt(0).events.committed();
 		expect(browser.state(TAB)).toMatchObject({ failure: null });
@@ -740,23 +740,149 @@ describe('BrowserViews', () => {
 		await expect(browser.click(TAB, '[')).rejects.toThrow('`[` is not a valid CSS selector.');
 	});
 
-	it('keeps one pick per view: a new pick or a cancel ends the open one', async () => {
-		const { browser, viewAt, window } = setup();
+	it('keeps one pick per view: a new pick takes over the open one without handing focus or pins back in between, and a cancel ends it', async () => {
+		const { browser, threads, viewAt, window } = setup();
 		await expect(browser.pick(PICK)).rejects.toThrow('Open a page before picking an element.');
+		threads.push({ ...PAGE_PIN, url: 'https://example.com/' });
 		await browser.open(TAB, 'https://example.com');
+
+		const scripts = (kind: string) =>
+			viewAt(0).contents.scripts.filter((code) => code.includes(`"kind":"${kind}"`));
+		const first = browser.pick(PICK);
+		await expect.poll(() => scripts('select')).toHaveLength(1);
+		const second = browser.pick(PICK);
+		await expect(first).resolves.toBeNull();
+		await expect.poll(() => scripts('select')).toHaveLength(2);
+		expect(window().focusCount).toBe(0);
+		expect(scripts('show')).toEqual([]);
+
+		browser.cancelPick(TAB);
+		await expect(second).resolves.toBeNull();
+		expect(scripts('end')).toHaveLength(2);
+		expect(window().focusCount).toBe(1);
+		expect(scripts('show')).toHaveLength(1);
+	});
+
+	it('ends an open pick when the malini page reloads, since nothing is left to answer it', async () => {
+		const { browser, viewAt, window, resetRenderer } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const scripts = (kind: string) =>
+			viewAt(0).contents.scripts.filter((code) => code.includes(`"kind":"${kind}"`));
+		let ended = false;
+		void (async () => {
+			await browser.pick(PICK);
+			ended = true;
+		})();
+		await expect.poll(() => scripts('select')).toHaveLength(1);
+
+		resetRenderer(window());
+
+		await expect.poll(() => ended).toBe(true);
+		expect(scripts('end')).toHaveLength(1);
+	});
+
+	it('counts a blank page as a page, for the agent and for a pick alike', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-blank-'));
+		roots.push(worktree);
+		const { browser, opened, viewAt } = setup();
+		await browser.open(TAB, 'about:blank');
+		await browser.open(TAB, 'about:blank');
+		expect(opened).toEqual([TAB]);
+		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({ url: 'about:blank' });
 
 		const selects = () =>
 			viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"select"'));
-		const first = browser.pick(PICK);
+		const picking = browser.pick(PICK);
 		await expect.poll(selects).toHaveLength(1);
-		const second = browser.pick(PICK);
-		await expect(first).resolves.toBeNull();
 		browser.cancelPick(TAB);
-		await expect(second).resolves.toBeNull();
+		await expect(picking).resolves.toBeNull();
+	});
 
-		const ends = viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"end"'));
-		expect(ends).toHaveLength(2);
-		expect(window().focusCount).toBe(2);
+	it('takes a failure with no reason for a page that did not load, as the panel does', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-reasonless-'));
+		roots.push(worktree);
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		viewAt(0).events.failed('');
+
+		expect(browser.state(TAB)).toMatchObject({ failure: '' });
+		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow('did not load');
+	});
+
+	it('opens a page that shows and then breaks off as a page that loaded', async () => {
+		const { browser, viewAt } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+		viewAt(0).contents.loadFailures.push('');
+
+		await expect(browser.open(TAB, 'https://example.com/partial')).resolves.toMatchObject({
+			url: 'https://example.com/partial',
+		});
+	});
+
+	it('reports the page a tab is heading to while it loads, and the page it still shows once that load stops', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com/');
+		const { contents, events } = viewAt(0);
+		events.failed('ERR_CONNECTION_RESET');
+
+		contents.loading = true;
+		events.navigating('https://example.com/back');
+		expect(browser.state(TAB)).toMatchObject({
+			url: 'https://example.com/back',
+			loading: true,
+			failure: null,
+		});
+		contents.loading = false;
+		events.changed();
+		expect(browser.state(TAB)).toMatchObject({
+			url: 'https://example.com/',
+			loading: false,
+			failure: 'ERR_CONNECTION_RESET',
+		});
+
+		contents.loading = true;
+		events.navigating('https://example.com/');
+		expect(browser.state(TAB)).toMatchObject({ failure: 'ERR_CONNECTION_RESET' });
+		contents.loading = false;
+		events.changed();
+
+		contents.nextLoad = new Promise(() => undefined);
+		browser.navigate(TAB, 'example.com/typed');
+		contents.loading = true;
+		expect(browser.state(TAB)).toMatchObject({ url: 'https://example.com/typed', failure: null });
+	});
+
+	it('gives up on a page that never answers a click, so the next call on the tab still runs', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			await browser.open(TAB, 'https://example.com');
+			viewAt(0).contents.actionOutcome = new Promise(() => undefined);
+			let clicked: unknown = null;
+			browser.click(TAB, 'button').catch((error: unknown) => {
+				clicked = error;
+			});
+			const next = browser.open(TAB, 'https://example.com/next');
+
+			await vi.advanceTimersByTimeAsync(10_000);
+
+			expect(clicked).toMatchObject({
+				message:
+					'The page did not answer within 10s. Call browser_screenshot to see what it shows.',
+			});
+			await expect(next).resolves.toMatchObject({ url: 'https://example.com/next' });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('lets go of a tab once its last call is done', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		viewAt(0).contents.actionOutcome = 'invalid';
+		await expect(browser.click(TAB, '[')).rejects.toThrow('is not a valid CSS selector');
+
+		await expect.poll(() => Reflect.get(browser, 'turns')).toEqual(new Map());
 	});
 
 	it('picks without focusing anything while its window is in the background, since focusing activates the app', async () => {
@@ -817,7 +943,7 @@ describe('BrowserViews', () => {
 		expect(shown[0]).not.toContain('session-2');
 		await expect.poll(() => actions).toEqual([['tab-1', { kind: 'open', sessionId: 'session-1' }]]);
 
-		viewAt(0).events.navigating();
+		viewAt(0).events.navigating('https://example.com/next');
 		threads.splice(0);
 		browser.showThreads('ws-1');
 		expect(contents.scripts.filter((code) => code.includes('"kind":"show"'))).toHaveLength(1);

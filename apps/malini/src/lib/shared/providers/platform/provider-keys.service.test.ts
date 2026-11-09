@@ -178,6 +178,59 @@ describe('ProviderKeys', () => {
 		expect(openCodePlan(providers)).toBe('console');
 	});
 
+	it('keeps the plan of a key saved while an older key was still being checked', async () => {
+		const db = openMigratedDatabase(':memory:');
+		const plans: Record<string, ProviderPlan> = { oc_sk_old: 'console', oc_sk_new: 'go' };
+		let release = (): void => undefined;
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let holdOld = false;
+		const providers = new ProviderKeys(
+			db,
+			async () => cipher(),
+			async (key) => {
+				if (key === 'oc_sk_old' && holdOld) await held;
+				return plans[key] ?? null;
+			},
+		);
+		await providers.save('opencode', 'oc_sk_old');
+		holdOld = true;
+		const checking = providers.checkPlan('opencode');
+		await providers.save('opencode', 'oc_sk_new');
+		release();
+		await checking;
+		expect(openCodePlan(providers)).toBe('go');
+	});
+
+	it('asks OpenCode about a key it would not place at most once an hour', async () => {
+		const db = openMigratedDatabase(':memory:');
+		let clock = 0;
+		let probes = 0;
+		const providers = new ProviderKeys(
+			db,
+			async () => cipher(),
+			async () => {
+				probes += 1;
+				return null;
+			},
+			undefined,
+			() => clock,
+		);
+		await providers.save('opencode', 'oc_sk_test');
+		await providers.detectMissingPlan();
+		await providers.detectMissingPlan();
+		expect(probes).toBe(1);
+
+		clock += 60 * 60 * 1000;
+		await providers.detectMissingPlan();
+		await providers.detectMissingPlan();
+		expect(probes).toBe(2);
+
+		await providers.checkPlan('opencode');
+		expect(probes).toBe(3);
+	});
+
 	it('keeps the old key when OpenCode refuses a new one', async () => {
 		const providers = keys(async () => {
 			throw new Error('OpenCode did not accept this key.');

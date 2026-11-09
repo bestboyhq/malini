@@ -59,6 +59,7 @@ import {
 	insertSession,
 	latestSessionForWorkstream,
 	listSessionSummaries,
+	moveSessionStatus,
 	repairSessionStatusesWithoutOpenRuns,
 	sessionContextIdentity,
 	userSessionWorkstreamId,
@@ -129,7 +130,7 @@ import {
 	type ResolveProviderEnvironment,
 	type SessionOpening,
 } from './sessions';
-import { waitUntil, type BridgeSupervisor } from './supervisor';
+import { SupervisorError, waitUntil, type BridgeSupervisor } from './supervisor';
 import type { IdSequence } from '../id-sequence';
 
 const CANCELLED_BEFORE_START = 'cancelled';
@@ -773,7 +774,7 @@ async function sendAgentPromptLeased(
 		hooks.shellRuns?.(sessionId) ?? [],
 	);
 
-	run(db, "UPDATE agent_sessions SET status = 'running' WHERE id = ?", sessionId);
+	moveSessionStatus(db, sessionId, 'run.started');
 
 	const userMessagePayload: Record<string, unknown> = { text: prompt };
 	const decorate = (payload: Record<string, unknown>): void => {
@@ -967,7 +968,7 @@ export function handleSendPromptHandoffFailure(
 		).changes;
 		if (changes === 0) return false;
 		closeTerminalInteractions(db, sessionId, runId, completedAt);
-		run(db, "UPDATE agent_sessions SET status = 'idle' WHERE id = ?", sessionId);
+		moveSessionStatus(db, sessionId, 'run.failed', { error: errorMessage });
 		releaseRunAttachmentsForRetry(db, runId, retryExpiresAt);
 		return true;
 	});
@@ -1250,6 +1251,9 @@ export async function decideAgentApproval(
 		);
 	}
 
+	if (!activeRunWorkstreamIdentity(db, sessionId, runId)) {
+		throw new LifecycleError('run_ended', approvalId);
+	}
 	let remembered: {
 		id: string;
 		scope: PermissionRuleScope;
@@ -1325,8 +1329,7 @@ export async function decideAgentApproval(
 			...(alwaysAllow ? { alwaysAllow } : {}),
 		});
 	} catch (error) {
-		abortInteractionDispatch(db, 'approval', sessionId, runId, approvalId, response);
-		throw new Error(describe(error));
+		throw interactionNotSent(db, 'approval', sessionId, runId, approvalId, response, error);
 	}
 	const ruleId = finalizeInteractionResponse(db, {
 		kind: 'approval',
@@ -1371,6 +1374,24 @@ export async function decideAgentApproval(
 	return approvalDecisionResult(decision, scope, ruleId);
 }
 
+const RUN_GONE = /^(?:INTERACTION_RUN_NOT_ACTIVE|NO_SESSION):/u;
+
+function interactionNotSent(
+	db: MaliniDatabase,
+	kind: 'approval' | 'question',
+	sessionId: string,
+	runId: string,
+	requestId: string,
+	response: unknown,
+	error: unknown,
+): Error {
+	abortInteractionDispatch(db, kind, sessionId, runId, requestId, response);
+	const runGone =
+		(error instanceof SupervisorError && RUN_GONE.test(error.detail)) ||
+		!activeRunWorkstreamIdentity(db, sessionId, runId);
+	return runGone ? new LifecycleError('run_ended', requestId) : new Error(describe(error));
+}
+
 function blockedByAutoMode(record: { readonly requestPayload: unknown }): boolean {
 	return (
 		isRecord(record.requestPayload) && typeof record.requestPayload['autoModeRule'] === 'string'
@@ -1384,6 +1405,7 @@ export async function answerAgentQuestion(
 	questionId: string,
 	answers: readonly AgentQuestionAnswer[],
 	resolveSupervisor: () => Promise<BridgeSupervisor>,
+	emit: EmitEnvelope,
 ): Promise<void> {
 	const response = { answers };
 	const record = getInteraction(db, 'question', sessionId, runId, questionId);
@@ -1393,6 +1415,9 @@ export async function answerAgentQuestion(
 		);
 	}
 	if (interactionResponseMatches(record, response)) return;
+	if (!activeRunWorkstreamIdentity(db, sessionId, runId)) {
+		throw new LifecycleError('run_ended', questionId);
+	}
 	validateQuestionAnswers(record, answers);
 	const supervisor = await resolveSupervisor();
 	const outcome = prepareInteractionResponse(db, {
@@ -1417,8 +1442,7 @@ export async function answerAgentQuestion(
 			})),
 		});
 	} catch (error) {
-		abortInteractionDispatch(db, 'question', sessionId, runId, questionId, response);
-		throw new Error(describe(error));
+		throw interactionNotSent(db, 'question', sessionId, runId, questionId, response, error);
 	}
 	finalizeInteractionResponse(db, {
 		kind: 'question',
@@ -1431,6 +1455,13 @@ export async function answerAgentQuestion(
 		source: 'manual',
 		decidedAt: nowIso8601(),
 	});
+	try {
+		emitPersisted(
+			db,
+			{ sessionId, runId, seq: 0, eventKind: 'question.answered', eventPayload: { questionId } },
+			emit,
+		);
+	} catch {}
 }
 
 export async function resetAgentWorkstreamRuns(
@@ -1820,6 +1851,7 @@ export function defineBridgeCommands(
 			requireString(args, 'questionId'),
 			optionalArray(args, 'answers').map(parseAnswer),
 			() => runtime.ensureSessionReady(sessionId),
+			emit,
 		);
 	});
 

@@ -89,6 +89,47 @@ test('Settings opened while the app still loads its first page stay open', async
 	}
 });
 
+test('Settings opened while a workstream still loads open over that workstream', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-settings-while-loading',
+			'Settings while loading',
+		);
+		await page.reload();
+		await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await page.getByTestId('sidebar-open-profile').click();
+		await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
+
+		await page.locator('body').evaluate((body, href) => {
+			const doc = body.ownerDocument;
+			const workstream = doc.querySelector(`a[href="${href}"]`);
+			const settings = [...doc.querySelectorAll('[role="menuitem"]')].find(
+				(item) => item.textContent?.trim() === 'Settings',
+			);
+			if (!workstream || !settings) throw new Error('the link or the Settings item is missing');
+			workstream.click();
+			settings.click();
+		}, `/workstreams/${workstreamId}`);
+
+		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
+		const dialog = page.getByRole('dialog', { name: 'Settings' });
+		await expect(dialog).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+		await expect(page.getByTestId('transcript-pane')).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Settings → Privacy shows the numbers usage data sends about yesterday, and hides them once sharing is off', async () => {
 	test.setTimeout(120_000);
 	const first = await launchMalini();

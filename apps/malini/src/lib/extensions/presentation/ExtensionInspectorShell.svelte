@@ -243,12 +243,14 @@
 	});
 
 	$effect(() => {
-		const request = inspectorPanelCommands.requestFor(workstreamId);
-		if (!request || !inspectorInteractive) return;
-		if (!panels.some((panel) => panel.id === request.panelId)) return;
-		if (request.reveal) revealPanel(request.panelId);
-		else openPanel(request.panelId);
-		inspectorPanelCommands.consume(workstreamId, request.revision);
+		const requests = inspectorPanelCommands.requestsFor(workstreamId);
+		if (!inspectorInteractive) return;
+		for (const request of requests) {
+			if (!panels.some((panel) => panel.id === request.panelId)) continue;
+			if (request.reveal) revealPanel(request.panelId);
+			else openPanel(request.panelId);
+			inspectorPanelCommands.consume(workstreamId, request.revision);
+		}
 	});
 
 	$effect(() => {

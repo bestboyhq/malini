@@ -222,8 +222,10 @@ export class ChatGptAuth {
 	}
 
 	async revoke(connection: ChatGptConnection): Promise<boolean> {
-		const provider = await this.#discover().catch(() => null);
-		const endpoint = provider?.revocation_endpoint;
+		const provider = await this.#discover().catch((error: unknown) => {
+			throw unreachable(error);
+		});
+		const endpoint = provider.revocation_endpoint;
 		if (!endpoint) return false;
 		for (let attempt = 0; attempt < 2; attempt += 1) {
 			const response = await this.#fetch(endpoint, {
@@ -240,7 +242,7 @@ export class ChatGptAuth {
 			if (status === 200) return true;
 			if (status !== 0 && status < 500) return false;
 		}
-		return false;
+		throw unreachable();
 	}
 
 	#discover(): Promise<Discovery> {
@@ -356,7 +358,7 @@ export class ChatGptAuth {
 	async #signingKey(kid: string | undefined): Promise<z.infer<typeof rsaKey>> {
 		const find = (keys: readonly z.infer<typeof rsaKey>[]) =>
 			keys.find((key) => kid === undefined || key.kid === kid);
-		const cached = this.#keys ? find(await this.#keys) : undefined;
+		const cached = this.#keys ? find(await this.#keys.catch(() => [])) : undefined;
 		if (cached) return cached;
 		this.#keys = this.#loadKeys();
 		const fresh = find(await this.#keys);
@@ -371,7 +373,6 @@ export class ChatGptAuth {
 		});
 		const parsed = keySet.safeParse(await jsonBody(response));
 		if (!response.ok || !parsed.success) {
-			this.#keys = null;
 			throw new ChatGptError('keys_unavailable', 'ChatGPT sign-in is not reachable right now.');
 		}
 		return parsed.data.keys.flatMap((key) => {
@@ -390,11 +391,7 @@ export class ChatGptAuth {
 			});
 		} catch (error) {
 			if (init.signal?.aborted) throw cancelled();
-			throw new ChatGptError(
-				'network_error',
-				'Malini could not reach ChatGPT. Check your connection, then try again.',
-				error,
-			);
+			throw unreachable(error);
 		}
 	}
 }
@@ -549,6 +546,14 @@ function safeCode(value: string): string | null {
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function unreachable(cause?: unknown): ChatGptError {
+	return new ChatGptError(
+		'network_error',
+		'Malini could not reach ChatGPT. Check your connection, then try again.',
+		cause,
+	);
 }
 
 async function jsonBody(response: Response): Promise<unknown> {

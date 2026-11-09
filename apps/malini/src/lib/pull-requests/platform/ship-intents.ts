@@ -3,6 +3,7 @@ import {
 	SHIP_ALL_BUTTONS,
 	type ShipAllClicked,
 	type ShipButton,
+	type ShipPhase,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
 import { clearAlarm } from '$lib/automations/automations.platform';
@@ -16,6 +17,7 @@ import {
 	shipRecord,
 	updateShip,
 	type ShipPatch,
+	type ShipPhaseMove,
 	type ShipRow,
 } from './ship.repository';
 import { emitClicked, NO_SHIP_FAILURE, saveShip, shipAlarmKey, type ShipDeps } from './ship-store';
@@ -51,13 +53,16 @@ export async function openDraft(
 	const row = getShip(db, workstreamId);
 	if (row && row.phase !== 'draft' && row.phase !== 'local') return unchanged(deps, row, click);
 	if (row?.pullRequestNumber == null) await refuseNothingToShip(deps, target);
-	insertShip(db, workstreamId, 'draft');
-	requestShip(db, workstreamId, 'push');
-	return upsert(deps, workstreamId, click, {
-		phase: 'draft',
-		step: row?.pullRequestNumber == null ? 'opening-draft' : 'pushing',
-		...NO_SHIP_FAILURE,
-	});
+	insertShip(db, workstreamId);
+	const state = upsert(
+		deps,
+		workstreamId,
+		click,
+		{ step: row?.pullRequestNumber == null ? 'opening-draft' : 'pushing', ...NO_SHIP_FAILURE },
+		{ from: row?.phase ?? 'local', to: 'draft' },
+	);
+	if (state.phase === 'draft') requestShip(db, workstreamId, 'push');
+	return state;
 }
 
 export async function queueMerge(
@@ -70,17 +75,23 @@ export async function queueMerge(
 	const row = getShip(db, workstreamId);
 	if (row?.phase === 'queued') return unchanged(deps, row, click);
 	if (row?.pullRequestNumber == null) await refuseNothingToShip(deps, target);
-	insertShip(db, workstreamId, 'queued');
-	return upsert(deps, workstreamId, click, {
-		phase: 'queued',
-		step: null,
-		keep: false,
-		queuedAt: new Date(deps.now()).toISOString(),
-		attempts: 0,
-		failureSignature: null,
-		needsYou: null,
-		...NO_SHIP_FAILURE,
-	});
+	insertShip(db, workstreamId);
+	return upsert(
+		deps,
+		workstreamId,
+		click,
+		{
+			step: null,
+			keep: false,
+			queuedAt: new Date(deps.now()).toISOString(),
+			...(row?.activeAutomationRunId == null
+				? { fixAttempts: new Map(), failureSignature: null }
+				: {}),
+			needsYou: null,
+			...NO_SHIP_FAILURE,
+		},
+		{ from: row?.phase ?? 'local', to: 'queued' },
+	);
 }
 
 function retry(deps: ShipDeps, workstreamId: string): ShipStateRecord {
@@ -92,15 +103,14 @@ function retry(deps: ShipDeps, workstreamId: string): ShipStateRecord {
 		deps,
 		workstreamId,
 		{
-			phase: 'queued',
 			step: null,
 			needsYou: null,
 			queuedAt: row.queuedAt ?? new Date(deps.now()).toISOString(),
-			attempts: 0,
+			fixAttempts: new Map(),
 			failureSignature: null,
 			...NO_SHIP_FAILURE,
 		},
-		undefined,
+		{ from: 'needs-you', to: 'queued' },
 		'retry',
 	);
 	if (!saved) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
@@ -116,7 +126,7 @@ function retryNow(deps: ShipDeps, row: ShipRow): ShipStateRecord {
 		row.phase,
 		'retry',
 	);
-	return shipRecord(saved ?? row);
+	return current(deps, row, saved);
 }
 
 function keepWorkstream(deps: ShipDeps, workstreamId: string): ShipStateRecord {
@@ -125,7 +135,7 @@ function keepWorkstream(deps: ShipDeps, workstreamId: string): ShipStateRecord {
 		throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
 	}
 	if (row.keep) return unchanged(deps, row, 'keep');
-	return upsert(deps, workstreamId, 'keep', { keep: true });
+	return upsert(deps, workstreamId, 'keep', { keep: true }, row.phase);
 }
 
 async function cancel(deps: ShipDeps, workstreamId: string): Promise<ShipStateRecord | null> {
@@ -141,17 +151,16 @@ async function cancel(deps: ShipDeps, workstreamId: string): Promise<ShipStateRe
 		deps,
 		workstreamId,
 		{
-			phase: row.pullRequestNumber === null ? 'local' : 'draft',
 			step: null,
 			keep: false,
 			needsYou: null,
 			queuedAt: null,
-			attempts: 0,
+			fixAttempts: new Map(),
 			failureSignature: null,
 			activeAutomationRunId: null,
 			...NO_SHIP_FAILURE,
 		},
-		undefined,
+		{ from: row.phase, to: cancelledPhase(row) },
 		'cancel',
 	);
 	stopTrying(deps, workstreamId);
@@ -168,16 +177,20 @@ function cancelDraft(deps: ShipDeps, row: ShipRow): ShipStateRecord {
 	const saved = saveShip(
 		deps,
 		row.workstreamId,
-		{
-			...(row.pullRequestNumber === null ? { phase: 'local' } : {}),
-			step: null,
-			...NO_SHIP_FAILURE,
-		},
-		'draft',
+		{ step: null, ...NO_SHIP_FAILURE },
+		{ from: 'draft', to: cancelledPhase(row) },
 		'cancel',
 	);
 	stopTrying(deps, row.workstreamId);
-	return shipRecord(saved ?? row);
+	return current(deps, row, saved);
+}
+
+function cancelledPhase(row: ShipRow): ShipPhase {
+	return row.pullRequestNumber === null ? 'local' : 'draft';
+}
+
+function current(deps: ShipDeps, row: ShipRow, saved: ShipRow | null): ShipStateRecord {
+	return shipRecord(saved ?? getShip(deps.context.db, row.workstreamId) ?? row);
 }
 
 function stopTrying(deps: ShipDeps, workstreamId: string): void {
@@ -208,9 +221,14 @@ function upsert(
 	workstreamId: string,
 	click: ShipButton | null,
 	patch: ShipPatch,
+	phase: ShipPhase | ShipPhaseMove,
 ): ShipStateRecord {
-	const saved = updateShip(deps.context.db, workstreamId, patch);
-	if (!saved) throw new ShipError('unknown-workstream', `Unknown workstream: ${workstreamId}`);
+	const saved = updateShip(deps.context.db, workstreamId, patch, phase);
+	if (!saved) {
+		const row = getShip(deps.context.db, workstreamId);
+		if (!row) throw new ShipError('unknown-workstream', `Unknown workstream: ${workstreamId}`);
+		return unchanged(deps, row, click);
+	}
 	const state = shipRecord(saved);
 	if (click === null) {
 		deps.context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId, state });

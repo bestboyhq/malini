@@ -1,3 +1,4 @@
+import { isWaitingForUser } from '$contract/agent-state-machine';
 import type { AutomationRunRecord } from '$contract/automations';
 import type { EventEnvelope } from './events';
 import type { SessionRecord } from './session-record';
@@ -12,6 +13,7 @@ const REQUEST_EVENT_TYPES: ReadonlySet<string> = new Set([
 	'approval.requested',
 	'approval.decided',
 	'question.requested',
+	'question.answered',
 	'tool.completed',
 	'run.completed',
 	'run.failed',
@@ -32,7 +34,7 @@ export function askingChildren(
 		});
 	}
 	for (const session of childSessions) {
-		if (session.status !== 'waiting_for_approval' || asking.has(session.id)) continue;
+		if (!isWaitingForUser(session.status) || asking.has(session.id)) continue;
 		asking.set(session.id, askingSession(session));
 	}
 	if (shownSessionId !== null) asking.delete(shownSessionId);
@@ -46,7 +48,7 @@ export function waitingElsewhere(
 ): AskingChild[] {
 	const skipped = new Set([shownSessionId, ...children.map(({ sessionId }) => sessionId)]);
 	return sessions
-		.filter((session) => session.status === 'waiting_for_approval' && !skipped.has(session.id))
+		.filter((session) => isWaitingForUser(session.status) && !skipped.has(session.id))
 		.map(askingSession);
 }
 

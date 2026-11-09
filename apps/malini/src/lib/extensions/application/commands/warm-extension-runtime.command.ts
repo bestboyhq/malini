@@ -22,7 +22,7 @@ export function warmExtensionRuntimeCommand(workstream: ExtensionWorkstream): vo
 		void (async () => {
 			let failed: boolean;
 			try {
-				failed = (await coordinator.activate(workstream)).failed.length > 0;
+				failed = (await coordinator.activate(workstream, { background: true })).failed.length > 0;
 			} catch {
 				failed = true;
 			}

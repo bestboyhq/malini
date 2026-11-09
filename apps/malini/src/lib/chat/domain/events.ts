@@ -12,7 +12,7 @@ import type {
 	AgentQuestion,
 } from './agent-interaction';
 
-export type SessionStatus = 'idle' | 'running' | 'waiting_for_approval' | 'completed' | 'failed';
+export type { SessionStatus } from '$contract/agent-state-machine';
 
 export type AgentEvent =
 	| { type: 'run.started'; runId: string; sessionId: string }
@@ -107,6 +107,7 @@ export type AgentEvent =
 			toolName?: string;
 			toolCallId?: string;
 	  }
+	| { type: 'question.answered'; runId: string; questionId: string }
 	| {
 			type: 'usage.updated';
 			runId: string;

@@ -814,6 +814,31 @@ describe('a question on its automation', () => {
 			reason: 'Stopped on conflicts in 1 file: b.ts.',
 		});
 	});
+
+	it('about conflicts an automation ran into gives way to a newer question about conflicts there', async () => {
+		await switchResolveConflicts('off');
+		updateFromMain();
+		picks.push(4, 3);
+		const conflict = () =>
+			context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+				workstreamId: 'api',
+				baseBranch: 'main',
+				conflictedPaths: ['src/shared.ts'],
+			});
+
+		conflict();
+		const [first] = await decided(1);
+		run(db, `UPDATE automation_runs SET status = 'succeeded' WHERE id = 'update'`);
+		conflict();
+		await decided(2);
+
+		const listed = await decisions();
+		expect(listed.map(({ status, detail }) => [status, detail])).toEqual([
+			['asking', null],
+			['dismissed', 'Malini asked again.'],
+		]);
+		expect(listed[1]?.id).toBe(first?.id);
+	});
 });
 
 describe('the automations of a closed workstream', () => {

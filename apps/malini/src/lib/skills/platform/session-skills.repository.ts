@@ -17,6 +17,10 @@ export function chooseSessionSkills(
 	sessionId: string,
 	skills: readonly string[],
 ): void {
+	if (skills.length === 0) {
+		run(db, "DELETE FROM skill_choices WHERE scope = 'session' AND owner_id = ?", sessionId);
+		return;
+	}
 	run(
 		db,
 		`INSERT INTO skill_choices (scope, owner_id, choice, updated_at) VALUES ('session', ?, ?, ?)

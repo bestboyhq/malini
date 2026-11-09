@@ -1,16 +1,13 @@
 import type { AgentRunProfile, RunFailureKind } from '$contract/agent';
 import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/automations';
 import {
-	isCancellationError,
-	isInterruptionError,
-	nextSessionStatus,
 	ORPHAN_INTERRUPTED_ERROR,
 	PAUSED_FOR_EXIT_ERROR,
-	type SessionStatus,
+	runEnding,
 } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { closeTerminalInteractions } from './interactions.repository';
-import { promptPlainText } from './sessions.repository';
+import { moveSessionStatus, promptPlainText } from './sessions.repository';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
 
@@ -224,31 +221,22 @@ export function finalizeRunLifecycle(
 			}
 		}
 		const closedInteractions = closeTerminalInteractions(db, sessionId, runId, completedAt);
-		if (changes === 1) {
-			const current = get<{ status: SessionStatus }>(
+		const otherRunOpen =
+			scalar(
 				db,
-				'SELECT status FROM agent_sessions WHERE id = ?',
+				'SELECT COUNT(*) FROM agent_runs WHERE session_id = ? AND completed_at IS NULL',
 				sessionId,
+			) > 0;
+		if (changes === 1 && !otherRunOpen) {
+			const moved = moveSessionStatus(
+				db,
+				sessionId,
+				status === 'completed' ? 'run.completed' : 'run.failed',
+				{ error, paused: Boolean(failure?.resumeAt) },
 			);
-			if (!current) {
+			if (moved === null) {
 				throw invariant(`cannot finalize run \`${runId}\` for missing session \`${sessionId}\``);
 			}
-			const kind = status === 'completed' ? 'run.completed' : 'run.failed';
-			const next = nextSessionStatus(current.status, kind, error, Boolean(failure?.resumeAt));
-			if (next === 'invalid') {
-				throw invariant(
-					`session \`${sessionId}\` cannot move from \`${current.status}\` on \`${kind}\``,
-				);
-			}
-			run(
-				db,
-				`UPDATE agent_sessions SET status = ? WHERE id = ?
-				 AND NOT EXISTS (SELECT 1 FROM agent_runs
-				   WHERE session_id = ? AND completed_at IS NULL)`,
-				next,
-				sessionId,
-				sessionId,
-			);
 		}
 		return closedInteractions;
 	});
@@ -332,11 +320,7 @@ export function continuableRun(db: MaliniDatabase, sessionId: string): Continuab
 	if (!row || row.completed_at === null || row.obsoleted_at !== null || row.error === null) {
 		return null;
 	}
-	const stopped =
-		row.resume_at !== null ||
-		row.error === PAUSED_FOR_EXIT_ERROR ||
-		!isCancellationError(row.error);
-	if (!stopped) return null;
+	if (runEnding(row.error, row.resume_at !== null) === 'cancelled') return null;
 	return {
 		runId: row.id,
 		sessionId: row.session_id,
@@ -589,10 +573,7 @@ function chatTurnStatus(
 	error: string | null,
 	resumeAt: string | null,
 ): ChatTurnStatus {
-	if (completedAt === null) return 'running';
-	if (error === null) return 'succeeded';
-	if (resumeAt !== null || isInterruptionError(error)) return 'interrupted';
-	return isCancellationError(error) ? 'cancelled' : 'failed';
+	return completedAt === null ? 'running' : runEnding(error, resumeAt !== null);
 }
 
 export type ChatTurnWork = Readonly<{ runId: string; sessionId: string; chainId: string }>;

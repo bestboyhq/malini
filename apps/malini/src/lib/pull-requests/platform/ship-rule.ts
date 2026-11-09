@@ -11,11 +11,8 @@ import {
 	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
-import { AUTOMATION_INTERRUPTED_DETAIL, type AutomationRunRecord } from '$contract/automations';
-import {
-	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
-	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
-} from '$contract/pull-requests';
+import { automationRunInterrupted, type AutomationRunRecord } from '$contract/automations';
+import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '$contract/pull-requests';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
 import { latestRunEndedAt, workstreamShipContext } from '$lib/chat/chat.platform';
@@ -39,6 +36,7 @@ import {
 	nextShippingMove,
 	pullRequestFacts,
 	reviewToStart,
+	type FixAttempts,
 	type PullRequestFacts,
 	type ShippingSnapshot,
 } from '../domain/shipping';
@@ -63,6 +61,7 @@ import {
 } from './ship.repository';
 import {
 	dropShip,
+	fixAttemptSpent,
 	NO_SHIP_FAILURE,
 	saveShip,
 	shipping,
@@ -223,9 +222,7 @@ async function startReview(
 	const row = await trackShip(deps, workstreamId);
 	if (!row || row.activeAutomationRunId !== null || row.settledAutomationRunId !== null) return;
 	if (activeShippingAutomationRun(db, workstreamId) !== null) return;
-	const working = row.phase === 'local' || row.phase === 'draft';
-	const limit = working ? DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS : await fixAttemptLimit(deps);
-	const review = reviewToStart(pullRequest, row, limit);
+	const review = reviewToStart(pullRequest, row, await fixAttemptLimit(deps));
 	if (review === null || !(await readIdleness(deps, workstreamId)).idle) return;
 	const worktree = await commands.call('repositories.workstream-status', { workstreamId });
 	if (worktree.dirtyPaths.length > 0 || worktree.operationInProgress !== null) return;
@@ -241,8 +238,7 @@ async function startReview(
 	);
 	saveShip(deps, workstreamId, {
 		activeAutomationRunId: run.id,
-		attempts: review.attempt,
-		failureSignature: review.signature,
+		...fixAttemptSpent(getShip(db, workstreamId) ?? row, review.signature, review.attempt),
 		step: automationStep('address-review'),
 		...NO_SHIP_FAILURE,
 	});
@@ -318,8 +314,8 @@ async function decideFromState(
 			lastAutomation?.status === 'succeeded' && lastAutomation.finishedAt !== null
 				? Date.parse(lastAutomation.finishedAt)
 				: null,
-		attempts: row.attempts,
-		fixAttemptLimit: working ? DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS : await fixAttemptLimit(deps),
+		fixAttempts: row.fixAttempts,
+		fixAttemptLimit: await fixAttemptLimit(deps),
 		backoffUntil: row.nextAttemptAt === null ? null : Date.parse(row.nextAttemptAt),
 		waitsForYou: row.waitsFor !== null,
 		now: deps.now(),
@@ -378,8 +374,7 @@ async function settleActiveAutomation(deps: ShipDeps, row: ShipRow): Promise<Shi
 			? addressedChangeRequests(row.failureSignature)
 			: [];
 	if (automation?.status === 'succeeded') await automationSucceeded(deps, row);
-	const interrupted =
-		automation?.status === 'failed' && automation.detail === AUTOMATION_INTERRUPTED_DETAIL;
+	const interrupted = automation !== null && automationRunInterrupted(automation);
 	const updateFailed =
 		isUpdateAutomation(builtin) && automation?.status === 'failed' && row.phase !== 'queued';
 	return (
@@ -390,10 +385,17 @@ async function settleActiveAutomation(deps: ShipDeps, row: ShipRow): Promise<Shi
 			...(addressed.length > 0
 				? { addressedReviews: [...new Set([...row.addressedReviews, ...addressed])] }
 				: {}),
-			...(interrupted ? { attempts: Math.max(0, row.attempts - 1) } : {}),
+			...(interrupted ? { fixAttempts: refundedFixAttempt(row) } : {}),
 			...(updateFailed ? { lastError: automation.detail } : {}),
 		}) ?? row
 	);
+}
+
+function refundedFixAttempt(row: ShipRow): FixAttempts {
+	const signature = row.failureSignature;
+	const spent = signature === null ? 0 : (row.fixAttempts.get(signature) ?? 0);
+	if (signature === null || spent === 0) return row.fixAttempts;
+	return new Map([...row.fixAttempts, [signature, spent - 1]]);
 }
 
 async function settleOtherAutomation(
@@ -465,10 +467,7 @@ async function fixAttemptLimit(deps: ShipDeps): Promise<number> {
 	const settings = await deps.context.commands
 		.call('app.list-settings', undefined)
 		.catch((): Record<string, string> => ({}));
-	return clampedFixAttempts(
-		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING],
-		DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
-	);
+	return clampedFixAttempts(settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]);
 }
 
 function stringField(payload: unknown, key: string): string | null {

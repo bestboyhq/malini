@@ -1,4 +1,4 @@
-import { isCancellationError } from '$contract/agent-state-machine';
+import { runEnding } from '$contract/agent-state-machine';
 import type { AgentEvent } from './events';
 import { parseTurnReport } from './turn-report';
 import type { SoundSignal } from '$shared/sounds/domain/sounds';
@@ -73,10 +73,6 @@ function contextSuffix(input: AgentAttentionInput): string {
 	return [repository, branch].filter(Boolean).join(' · ');
 }
 
-function isExpectedCancellation(error: string): boolean {
-	return isCancellationError(error) || /interrupted: app closed mid-run/iu.test(error);
-}
-
 export function agentAttentionDecision(input: AgentAttentionInput): AgentAttentionDecision | null {
 	const updatedAt = input.now ?? Date.now();
 	const context = contextSuffix(input);
@@ -129,8 +125,8 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 	}
 
 	if (input.event.type === 'run.failed') {
-		if (input.queueCount > 0 || input.event.resumeAt !== undefined) return null;
-		if (isExpectedCancellation(input.event.error)) return null;
+		if (input.queueCount > 0) return null;
+		if (runEnding(input.event.error, input.event.resumeAt !== undefined) !== 'failed') return null;
 		return {
 			kind: 'failed',
 			runId: input.runId,
