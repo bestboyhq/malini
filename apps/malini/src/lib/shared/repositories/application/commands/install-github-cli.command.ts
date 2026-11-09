@@ -6,7 +6,10 @@ export { installGithubCliCommand };
 
 function installGithubCliCommand(): void {
 	if (githubCliInstallStore.state.kind === 'installing') return;
-	githubCliInstallStore.state = { kind: 'installing' };
+	githubCliInstallStore.state = { kind: 'installing', progress: null };
+	const stopProgress = githubService.onInstallCliProgress((progress) => {
+		githubCliInstallStore.state = { kind: 'installing', progress };
+	});
 	void (async () => {
 		try {
 			await githubService.installCli();
@@ -15,6 +18,8 @@ function installGithubCliCommand(): void {
 		} catch (error: unknown) {
 			const message = error instanceof Error ? error.message : String(error);
 			githubCliInstallStore.state = { kind: 'failed', message };
+		} finally {
+			stopProgress();
 		}
 	})();
 }

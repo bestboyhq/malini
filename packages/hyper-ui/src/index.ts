@@ -6,6 +6,7 @@ export * from './components/button';
 export * from './components/checkbox';
 export * from './components/color-picker';
 export * from './components/composer-shell';
+export * from './components/download-progress';
 export * from './components/dropdown';
 export * from './components/dropdown-layer';
 export * from './components/empty-state';

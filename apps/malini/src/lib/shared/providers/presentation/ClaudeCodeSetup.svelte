@@ -4,6 +4,7 @@
 	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
+	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, ClaudeIcon, Icon } from '$hyper-ui/icons';
@@ -15,6 +16,7 @@
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
 	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
+	import { claudeCodeInstallQuery } from '$shared/providers/application/queries/claude-code-install.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
 	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
 	import ClaudeAccountList from './ClaudeAccountList.svelte';
@@ -31,6 +33,10 @@
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
 	const setupStep = $derived(setupStepFor(status));
+	const install = $derived(claudeCodeInstallQuery.data);
+	const download = $derived(
+		setupStep === 'install' && install.kind === 'installing' ? install.progress : null,
+	);
 	const listsAccounts = $derived(!step && status.kind === 'ready');
 	const detail = $derived(
 		listsAccounts
@@ -51,7 +57,7 @@
 			case 'checking':
 				return 'Looking for Claude Code…';
 			case 'missing':
-				return 'Not installed on this Mac yet.';
+				return missingDetail();
 			case 'signed-out':
 				return 'Installed. Sign in with your Claude account.';
 			case 'ready':
@@ -64,6 +70,19 @@
 					.join(' · ');
 			case 'unknown':
 				return `Could not check Claude Code. ${current.message}`;
+		}
+	}
+
+	function missingDetail(): string {
+		switch (install.kind) {
+			case 'installing':
+				return download && download.total !== null && download.received >= download.total
+					? 'Setting up Claude Code…'
+					: 'Downloading Claude Code…';
+			case 'failed':
+				return install.message;
+			case 'idle':
+				return 'Not installed on this Mac yet.';
 		}
 	}
 
@@ -105,13 +124,30 @@
 			<Icon name="check" size={14} />
 			Ready
 		</span>
+	{:else if setupStep === 'install' && install.kind === 'installing'}
+		<BusyIcon size={16} />
+	{:else if setupStep === 'install' && install.kind === 'failed'}
+		<Button
+			variant="secondary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Try installing Claude Code again"
+			data-testid="claude-code-setup-action"
+			onclick={installClaudeCodeCommand}
+		>
+			{#snippet leading()}
+				<Icon name="refresh" size={14} />
+			{/snippet}
+			Try again
+		</Button>
 	{:else if setupStep === 'install'}
 		<Button
 			variant="primary"
 			size={actionSize}
 			radius={actionRadius}
 			class="shrink-0"
-			ariaLabel="Install Claude Code in Terminal"
+			ariaLabel="Install Claude Code"
 			data-testid="claude-code-setup-action"
 			onclick={installClaudeCodeCommand}
 		>
@@ -143,6 +179,17 @@
 			{/snippet}
 			Check again
 		</Button>
+	{/if}
+{/snippet}
+
+{#snippet downloadBar(className: string)}
+	{#if download}
+		<DownloadProgress
+			class={className}
+			received={download.received}
+			total={download.total}
+			ariaLabel="Claude Code download"
+		/>
 	{/if}
 {/snippet}
 
@@ -180,12 +227,13 @@
 				{@render action()}
 			{/if}
 		</div>
+		{@render downloadBar('mt-3')}
 		{#if listsAccounts}
 			<ClaudeAccountList class="border-surface-150-border mt-3 -mb-1.5 border-t-[0.5px] pt-1.5" />
 		{/if}
 	{/if}
 
-	{#if setupStep === 'install' && signIn === 'idle'}
+	{#if setupStep === 'install' && install.kind === 'failed'}
 		<div
 			class="border-surface-150-border bg-surface-150 mt-3 flex items-center gap-2 rounded-lg border-[0.5px] py-1 pr-1 pl-3"
 		>
@@ -210,7 +258,7 @@
 			</Tooltip>
 		</div>
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			Install runs this in Terminal. Malini notices when it’s done.
+			Or run this in Terminal. Malini notices when it’s done.
 		</p>
 	{:else if setupStep === 'sign-in' && signIn === 'idle'}
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
@@ -219,8 +267,12 @@
 	{/if}
 
 	{#if step}
-		<div class="mt-4 flex items-center justify-end gap-3">
-			{@render action()}
+		<div class="mt-4 flex min-h-7 items-center justify-end gap-3">
+			{#if download}
+				{@render downloadBar('flex-1')}
+			{:else}
+				{@render action()}
+			{/if}
 		</div>
 	{/if}
 </div>

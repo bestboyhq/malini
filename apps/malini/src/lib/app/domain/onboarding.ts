@@ -28,14 +28,8 @@ export function clampOnboardingStep(index: number): number {
 
 const SETTLED_STATUSES: readonly OnboardingToolStatus[] = ['ready', 'unknown'];
 
-const SKIPPABLE_STATUSES: readonly OnboardingToolStatus[] = ['missing', 'signed-out'];
-
 export function onboardingToolsSettled(statuses: OnboardingToolStatuses): boolean {
 	return ONBOARDING_TOOLS.every((tool) => SETTLED_STATUSES.includes(statuses[tool]));
-}
-
-export function onboardingToolsSkippable(statuses: OnboardingToolStatuses): boolean {
-	return ONBOARDING_TOOLS.some((tool) => SKIPPABLE_STATUSES.includes(statuses[tool]));
 }
 
 export function claudeCodeOnboardingStatus(status: ClaudeCodeStatus['kind']): OnboardingToolStatus {

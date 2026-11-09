@@ -179,6 +179,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		logged: false,
 		facts: ['repo_id', 'stage', 'fraction'],
 	},
+	'repositories:github-cli-install-progress': {
+		description:
+			'Fires repeatedly while Malini downloads the GitHub CLI after you press Install, with the bytes received and the size when known, and once more when the download ends. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['received', 'total'],
+	},
 	'repositories:changed': {
 		description:
 			'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
@@ -188,6 +194,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		description:
 			"Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.",
 		facts: ['reach'],
+	},
+	'providers:claude-code-install-progress': {
+		description:
+			'Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['received', 'total'],
 	},
 	'pull-requests:local-base-synced': {
 		description:

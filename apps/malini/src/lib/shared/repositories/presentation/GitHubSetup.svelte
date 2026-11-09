@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
+	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { BusyIcon, GitHubIcon, Icon } from '$hyper-ui/icons';
 	import { cancelGithubSignInCommand } from '$shared/repositories/application/commands/cancel-github-sign-in.command';
@@ -27,6 +28,9 @@
 	const signIn = $derived(githubSignInQuery.data);
 	const install = $derived(githubCliInstallQuery.data);
 	const status = $derived(githubSetupStatus(auth, authError));
+	const download = $derived(
+		status === 'missing' && install.kind === 'installing' ? install.progress : null,
+	);
 	const actionSize = $derived(step ? 'md' : 'sm');
 	const actionRadius = $derived(step ? 'full' : 'md');
 	const detail = $derived.by(() => {
@@ -57,7 +61,9 @@
 	function missingDetail(): string {
 		switch (install.kind) {
 			case 'installing':
-				return 'Installing the GitHub CLI…';
+				return download && download.total !== null && download.received >= download.total
+					? 'Setting up the GitHub CLI…'
+					: 'Downloading the GitHub CLI…';
 			case 'failed':
 				return install.message;
 			case 'idle':
@@ -148,6 +154,17 @@
 	{/if}
 {/snippet}
 
+{#snippet downloadBar(className: string)}
+	{#if download}
+		<DownloadProgress
+			class={className}
+			received={download.received}
+			total={download.total}
+			ariaLabel="GitHub CLI download"
+		/>
+	{/if}
+{/snippet}
+
 {#snippet statusLine(className: string)}
 	<p class={className} role="status" data-testid="github-detail">
 		<SensitiveText text={detail} />
@@ -180,6 +197,7 @@
 			</div>
 			{@render action()}
 		</div>
+		{@render downloadBar('mt-3')}
 	{/if}
 
 	{#if signIn.kind === 'waiting'}
@@ -187,8 +205,12 @@
 	{/if}
 
 	{#if step}
-		<div class="mt-4 flex items-center justify-end gap-3">
-			{@render action()}
+		<div class="mt-4 flex min-h-7 items-center justify-end gap-3">
+			{#if download}
+				{@render downloadBar('flex-1')}
+			{:else}
+				{@render action()}
+			{/if}
 		</div>
 	{/if}
 </div>

@@ -449,6 +449,21 @@ interface CloneProgressPayload {
 }
 ```
 
+## `repositories:github-cli-install-progress`
+
+Fires repeatedly while Malini downloads the GitHub CLI after you press Install, with the bytes received and the size when known, and once more when the download ends. Malini does not keep it in its event log.
+
+An automation sees: `received`, `total`
+
+Payload: `InstallProgressPayload`
+
+```ts
+interface InstallProgressPayload {
+	received: number;
+	total: number | null;
+}
+```
+
 ## `repositories:changed`
 
 Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.
@@ -475,6 +490,21 @@ type GithubFailure = 'unreachable' | 'down' | 'rate-limited';
 type GithubReach = 'ok' | GithubFailure;
 
 type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
+```
+
+## `providers:claude-code-install-progress`
+
+Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.
+
+An automation sees: `received`, `total`
+
+Payload: `InstallProgressPayload`
+
+```ts
+interface InstallProgressPayload {
+	received: number;
+	total: number | null;
+}
 ```
 
 ## `pull-requests:local-base-synced`

@@ -9,7 +9,6 @@
 		ONBOARDING_STEPS,
 		claudeCodeOnboardingStatus,
 		onboardingToolsSettled,
-		onboardingToolsSkippable,
 		type OnboardingToolStatuses,
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
@@ -73,9 +72,7 @@
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
 	const asksDefaults = $derived(onboarding.step === 'defaults');
 	const asksTools = $derived(onboarding.step === 'tools');
-	const skippable = $derived(
-		asksHeardAbout || asksDefaults || (asksTools && onboardingToolsSkippable(tools)),
-	);
+	const skippable = $derived(asksHeardAbout || asksDefaults);
 	const continueWaits = $derived(
 		(asksTools && !onboardingToolsSettled(tools)) ||
 			(asksDefaults && automationsLoadQuery.data.state !== 'ready') ||

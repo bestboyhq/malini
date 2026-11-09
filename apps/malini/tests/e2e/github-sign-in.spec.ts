@@ -33,7 +33,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 			'true',
 		);
 		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
-		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toBeVisible();
+		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
 		await captureFlow(app, 'github-sign-in-signed-out');
 
 		await github.getByRole('button', { name: 'Connect GitHub' }).click();
@@ -52,7 +52,6 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 		).toBeVisible();
 		await expect(setup.getByRole('button', { name: 'Connect GitHub' })).toBeHidden();
 		await expect(setup.getByRole('button', { name: 'Continue' })).toBeEnabled();
-		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toBeHidden();
 		await captureFlow(app, 'github-sign-in-ready');
 		expectCleanConsole(app);
 	} finally {
@@ -60,7 +59,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 	}
 });
 
-test('setup offers to install a missing GitHub CLI, says why an install failed, and lets the user skip', async () => {
+test('setup offers to install a missing GitHub CLI, says why an install failed, and never lets the user past it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { MALINI_GH_PATH: '/usr/bin:/bin' },
@@ -71,9 +70,10 @@ test('setup offers to install a missing GitHub CLI, says why an install failed, 
 		const github = setup.getByTestId('github-setup');
 		await expect(github).toHaveAttribute('data-github-status', 'missing', { timeout: 20_000 });
 		await expect(github.getByRole('status')).toHaveText('The GitHub CLI is not on this Mac.');
-		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
+		const proceed = setup.getByRole('button', { name: 'Continue' });
 		const skip = setup.getByRole('button', { name: 'Skip', exact: true });
-		await expect(skip).toBeVisible();
+		await expect(proceed).toBeDisabled();
+		await expect(skip).toHaveCount(0);
 		await captureFlow(app, 'setup-github-cli-missing');
 
 		await github.getByRole('button', { name: 'Install the GitHub CLI' }).click();
@@ -82,10 +82,9 @@ test('setup offers to install a missing GitHub CLI, says why an install failed, 
 		await expect(retry).toBeVisible({ timeout: 20_000 });
 		await expect(github.getByRole('status')).toContainText('Could not download the GitHub CLI');
 		await expect(github).toHaveAttribute('data-github-status', 'missing');
+		await expect(proceed).toBeDisabled();
+		await expect(skip).toHaveCount(0);
 		await captureFlow(app, 'setup-github-cli-install-failed');
-
-		await skip.click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -99,7 +98,7 @@ test('setup shows one tool at a time, and the user can pick which one to connect
 	});
 	try {
 		const setup = app.page.getByTestId('onboarding');
-		const install = setup.getByRole('button', { name: 'Install Claude Code in Terminal' });
+		const install = setup.getByRole('button', { name: 'Install Claude Code' });
 		const connect = setup.getByRole('button', { name: 'Connect GitHub' });
 		await expect(install).toBeVisible({ timeout: 20_000 });
 		await expect(connect).toBeHidden();

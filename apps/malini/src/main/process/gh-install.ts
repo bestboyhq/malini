@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import {
 	access,
@@ -14,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { saveDownload, type Fetch, type SaveDownloadOptions } from '../fs/download.ts';
 
 export const GH_VERSION = '2.102.0';
 export const GH_SHA256 = 'da922c20d1792e5b2cbf375593d7a658acf034c12c84e007e71c76ef959c337e';
@@ -24,7 +24,7 @@ export const GH_DOWNLOAD_URL = `https://github.com/cli/cli/releases/download/v${
 
 export type GhInstallStage = 'download' | 'checksum' | 'unpack';
 
-export type GhDownload = (url: string) => Promise<Response>;
+export type GhInstallOptions = Partial<SaveDownloadOptions> & Readonly<{ sha256?: string }>;
 
 export class GhInstallError extends Error {
 	readonly kind: GhInstallStage;
@@ -38,27 +38,23 @@ export class GhInstallError extends Error {
 
 const execFileAsync = promisify(execFile);
 
-export function verifySha256(bytes: Uint8Array, expected: string): void {
-	const actual = createHash('sha256').update(bytes).digest('hex');
-	if (actual !== expected) {
-		throw new GhInstallError(
-			'checksum',
-			`The GitHub CLI download has sha256 ${actual}, expected ${expected}`,
-		);
-	}
-}
-
 export async function installGh(
 	vendor: string,
-	download: GhDownload,
-	expectedSha256: string = GH_SHA256,
+	fetch: Fetch,
+	{ onProgress = () => {}, sha256 = GH_SHA256, ...download }: GhInstallOptions = {},
 ): Promise<void> {
 	if (await installed(vendor)) return;
-	const zip = await downloaded(download);
-	verifySha256(zip, expectedSha256);
 	await mkdir(dirname(vendor), { recursive: true });
 	const scratch = await mkdtemp(join(dirname(vendor), '.gh-'));
 	try {
+		const zip = join(scratch, 'gh.zip');
+		const actual = await downloaded(fetch, zip, { ...download, onProgress });
+		if (actual !== sha256) {
+			throw new GhInstallError(
+				'checksum',
+				`The GitHub CLI download has sha256 ${actual}, expected ${sha256}`,
+			);
+		}
 		const staged = join(scratch, 'gh');
 		await unpack(zip, scratch, staged);
 		await rm(vendor, { recursive: true, force: true });
@@ -77,32 +73,35 @@ async function installed(vendor: string): Promise<boolean> {
 	}
 }
 
-async function downloaded(download: GhDownload): Promise<Uint8Array> {
+async function downloaded(
+	fetch: Fetch,
+	zip: string,
+	options: SaveDownloadOptions,
+): Promise<string> {
 	try {
-		const response = await download(GH_DOWNLOAD_URL);
-		if (!response.ok) throw new Error(`HTTP ${response.status}`);
-		return new Uint8Array(await response.arrayBuffer());
+		return await saveDownload(fetch, GH_DOWNLOAD_URL, zip, options);
 	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		throw new GhInstallError('download', `Could not download the GitHub CLI: ${reason}`, {
+		throw new GhInstallError('download', `Could not download the GitHub CLI: ${reason(error)}`, {
 			cause: error,
 		});
 	}
 }
 
-async function unpack(zip: Uint8Array, scratch: string, staged: string): Promise<void> {
+async function unpack(zip: string, scratch: string, staged: string): Promise<void> {
 	try {
-		await writeFile(join(scratch, 'gh.zip'), zip);
-		await execFileAsync('ditto', ['-x', '-k', join(scratch, 'gh.zip'), scratch]);
+		await execFileAsync('ditto', ['-x', '-k', zip, scratch]);
 		await mkdir(join(staged, 'bin'), { recursive: true });
 		await copyFile(join(scratch, ASSET, 'bin', 'gh'), join(staged, 'bin', 'gh'));
 		await chmod(join(staged, 'bin', 'gh'), 0o755);
 		await copyFile(join(scratch, ASSET, 'LICENSE'), join(staged, 'LICENSE'));
 		await writeFile(join(staged, 'VERSION'), `${GH_VERSION}\n`);
 	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		throw new GhInstallError('unpack', `Could not unpack the GitHub CLI: ${reason}`, {
+		throw new GhInstallError('unpack', `Could not unpack the GitHub CLI: ${reason(error)}`, {
 			cause: error,
 		});
 	}
+}
+
+function reason(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

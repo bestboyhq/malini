@@ -1,4 +1,8 @@
-import { REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL } from '$contract/events';
+import {
+	REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL,
+	REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL,
+	type InstallProgressPayload,
+} from '$contract/events';
 import type { GithubReach } from '$contract/github-failure';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
@@ -36,6 +40,10 @@ class GithubService {
 
 	installCli(): Promise<void> {
 		return invoke('repositories.install-github-cli', undefined);
+	}
+
+	onInstallCliProgress(listener: (progress: InstallProgressPayload) => void): () => void {
+		return onPlatformEvent(REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL, listener);
 	}
 
 	startSignIn(flow: GitHubDeviceFlow): Promise<GitHubDeviceCode> {

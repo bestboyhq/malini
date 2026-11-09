@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	claudeCodeOnboardingStatus,
 	onboardingToolsSettled,
-	onboardingToolsSkippable,
 	openOnboardingTool,
 } from './onboarding';
 
@@ -42,16 +41,6 @@ describe('onboarding tools', () => {
 
 	it('settles when a tool cannot be checked, so a failed check never traps the user', () => {
 		expect(onboardingToolsSettled({ 'claude-code': 'ready', github: 'unknown' })).toBe(true);
-	});
-
-	it('lets the user skip past a tool that is missing or signed out, never past a check', () => {
-		expect(onboardingToolsSkippable({ 'claude-code': 'missing', github: 'ready' })).toBe(true);
-		expect(onboardingToolsSkippable({ 'claude-code': 'ready', github: 'missing' })).toBe(true);
-		expect(onboardingToolsSkippable({ 'claude-code': 'checking', github: 'signed-out' })).toBe(
-			true,
-		);
-		expect(onboardingToolsSkippable({ 'claude-code': 'checking', github: 'ready' })).toBe(false);
-		expect(onboardingToolsSkippable({ 'claude-code': 'ready', github: 'unknown' })).toBe(false);
 	});
 
 	it('takes an installed Claude Code as done, signed in or not, but never a missing one', () => {
