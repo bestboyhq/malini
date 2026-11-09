@@ -24,7 +24,7 @@ test('setup goes from accounts straight to sounds, with no skills to sort', asyn
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
 		await expect(setup.getByRole('heading', { name: 'Connect Claude Code' })).toBeVisible();
-		await expect(setup.getByText('Step 1 of 4')).toBeVisible();
+		await expect(setup.getByText('Step 1 of 5')).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await expect(setup.getByRole('link', { name: /^Suggest skill presets/u })).toHaveCount(0);

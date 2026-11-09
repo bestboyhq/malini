@@ -71,7 +71,12 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   **Ordering** picks **Manual**, the order you drag, **Last active**, **Created**, newest first, or **Name**.
   A repository or an owner sorts by the newest work in it.
   Rows drag only in Manual order, grouped by organization or repository.
-  **Reset** goes back to Organization and Manual.
+  **Show** picks **Everything** or **Attention**.
+  **Attention** groups by Status and lists only **Needs you** and **In review**, with **Nothing needs you.** when both are empty and an **N hidden** row at the bottom whose **Show all** lists everything again.
+  **Reset** goes back to Organization, Manual and Everything.
+- Setup's **Set up your sidebar** step asks **Where do you work?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make.
+  **Many repositories** keeps Organization grouping, **One project** lists your work flat by Status, **Only what needs me** is **Show** set to **Attention**, and **Compact** or **Comfortable** is the density below.
+  **Skip** keeps Organization grouping, Everything and Compact.
 - **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.
   The **+** on an owner's row starts one for that organization.
   Grouped by Status or Day with a pin open, **New chat** stays on top: on an organization's pin it starts a chat for that organization, and on a repository's pin a workstream in that repository.

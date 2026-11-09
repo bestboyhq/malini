@@ -692,11 +692,18 @@ export async function passDefaults(page: Page): Promise<void> {
 	await proceed.click();
 }
 
+export async function passSidebar(page: Page): Promise<void> {
+	const setup = page.getByTestId('onboarding');
+	await expect(setup.getByRole('heading', { name: 'Set up your sidebar' })).toBeVisible();
+	await setup.getByRole('button', { name: 'Continue' }).click();
+}
+
 export async function passSetup(page: Page): Promise<void> {
 	const setup = page.getByTestId('onboarding');
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 	await setup.getByRole('button', { name: 'Continue' }).click();
+	await passSidebar(page);
 	await passDefaults(page);
 	await expect(
 		setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),

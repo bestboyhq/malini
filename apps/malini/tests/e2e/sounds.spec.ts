@@ -11,6 +11,7 @@ import {
 	launchMalini,
 	openedUrls,
 	passDefaults,
+	passSidebar,
 	recordBrowser,
 	seedWorkstream,
 	type LaunchedApp,
@@ -50,7 +51,7 @@ test('setup asks which sound plays when an agent finishes and when it needs you,
 		const setup = page.getByTestId('onboarding');
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await expect(setup.getByText('Step 2 of 4')).toBeVisible();
+		await expect(setup.getByText('Step 2 of 5')).toBeVisible();
 
 		const finished = setup.getByRole('button', { name: /^Finished sound:/u });
 		const needsYou = setup.getByRole('button', { name: /^Needs you sound:/u });
@@ -93,6 +94,7 @@ test('setup asks which sound plays when an agent finishes and when it needs you,
 		await expect(tryIt).toHaveAttribute('aria-pressed', 'false');
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await passSidebar(page);
 		await passDefaults(page);
 		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 		await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });

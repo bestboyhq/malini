@@ -363,6 +363,27 @@ describe('sidebarTree', () => {
 		]);
 	});
 
+	it('keeps only the sections that need you and counts what it hides', () => {
+		const attention = arranged({ grouping: 'status', subgrouping: 'none', show: 'attention' });
+		const sidebar = tree(ALL_FOCUS, [], attention);
+		expect(outline(sidebar)).toEqual([
+			'section Needs you',
+			'  chat home-lead',
+			'    web-from-home',
+			'    web-follow-up',
+			'  api-work',
+		]);
+		expect(sidebar.hidden).toBe(
+			sidebarWorkstreamIds(tree(ALL_FOCUS, [], arranged({ grouping: 'status' }))).length -
+				sidebarWorkstreamIds(sidebar).length,
+		);
+		expect(sidebar.hidden).toBeGreaterThan(0);
+	});
+
+	it('hides nothing when it shows everything', () => {
+		expect(tree(ALL_FOCUS, [], arranged({ grouping: 'status' })).hidden).toBe(0);
+	});
+
 	it('sub-groups a section by repository, with its chats on top', () => {
 		const sidebar = tree(
 			ALL_FOCUS,
@@ -392,7 +413,7 @@ describe('sidebarTree', () => {
 			leads: [stream('chat', 'lead', null, 'home', at(9))],
 			hiddenRepositoryIds: new Set(),
 			focus: ALL_FOCUS,
-			arrangement: { grouping: 'day', subgrouping: 'none', ordering: 'active' },
+			arrangement: arranged({ grouping: 'day', subgrouping: 'none', ordering: 'active' }),
 			workstreamOrder: [],
 			activeAt,
 			sectionOf: (workstream) => (workstream.id === 'old-api' ? 'yesterday' : 'today'),

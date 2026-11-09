@@ -27,6 +27,7 @@
 	import {
 		DEFAULT_SIDEBAR_ARRANGEMENT,
 		sectionedGrouping,
+		showsAttentionOnly,
 	} from '$lib/app/domain/sidebar-arrangement';
 	import { arrangeSidebarCommand } from '$lib/app/application/commands/arrange-sidebar.command';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
@@ -267,8 +268,9 @@
 	const listedRepositoryIds = $derived(sidebarRepositoryIds(tree));
 	const listedWorkstreamIds = $derived(sidebarWorkstreamIds(tree));
 	const hasRows = $derived(
-		tree.chats.length > 0 || tree.blocks.length > 0 || tree.sections.length > 0,
+		tree.chats.length > 0 || tree.blocks.length > 0 || tree.sections.length > 0 || tree.hidden > 0,
 	);
+	const nothingNeedsYou = $derived(showsAttentionOnly(arrangement) && tree.sections.length === 0);
 	const avatarSize = $derived(compact ? 16 : 20);
 	const pendingWorkstreamId = $derived(optimisticDestination?.workstreamId ?? null);
 	const visuallyActiveWorkstreamId = $derived(pendingWorkstreamId ?? activeWorkstreamId);
@@ -2031,6 +2033,35 @@
 					{#each tree.sections as section (section.key)}
 						{@render sectionBlock(section)}
 					{/each}
+					{#if nothingNeedsYou}
+						<li
+							class={[
+								'text-fg-tertiary flex items-center pr-2 pl-9',
+								compact ? 'h-7 text-xs' : 'h-8 text-sm',
+							]}
+							data-testid="sidebar-nothing-needs-you"
+						>
+							Nothing needs you.
+						</li>
+					{/if}
+					{#if tree.hidden > 0}
+						<li class="w-full min-w-0">
+							<Button
+								bare
+								class={[
+									'text-fg-tertiary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-9 outline-none',
+									compact ? 'h-7 text-xs' : 'h-8 text-sm',
+								]}
+								data-testid="sidebar-show-hidden"
+								onclick={() => arrangeSidebarCommand({ show: 'everything' })}
+							>
+								<span class="min-w-0 flex-1 truncate text-left leading-relaxed">
+									{tree.hidden} hidden
+								</span>
+								<span class="text-fg-secondary shrink-0">Show all</span>
+							</Button>
+						</li>
+					{/if}
 				</ul>
 				{#if !hasRows && focus.kind === 'all' && !scopeFailure}
 					<StateBlock

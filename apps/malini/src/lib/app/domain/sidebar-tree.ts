@@ -6,12 +6,13 @@ import { displayWorkstreamName } from '$shared/repositories/domain/workstream-na
 import { ownerGroupId } from './repository-groups';
 import {
 	sectionedGrouping,
+	showsAttentionOnly,
 	type SidebarArrangement,
 	type SidebarOrdering,
 	type SidebarSubgrouping,
 } from './sidebar-arrangement';
 import type { SidebarFocus } from './sidebar-focus';
-import { SIDEBAR_SECTIONS, type SidebarSectionKey } from './sidebar-sections';
+import { ATTENTION_SECTIONS, SIDEBAR_SECTIONS, type SidebarSectionKey } from './sidebar-sections';
 
 export type SidebarOwner = Readonly<{
 	kind: 'owner';
@@ -37,7 +38,8 @@ export type SidebarBranch = Readonly<{
 
 export type SidebarSection = SidebarBranch & Readonly<{ key: SidebarSectionKey; label: string }>;
 
-export type SidebarTree = SidebarBranch & Readonly<{ sections: readonly SidebarSection[] }>;
+export type SidebarTree = SidebarBranch &
+	Readonly<{ sections: readonly SidebarSection[]; hidden: number }>;
 
 export type SidebarTreeInput = Readonly<{
 	contexts: readonly ConnectedRepositoryContext[];
@@ -99,10 +101,11 @@ export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 			...branch(contexts, topLeads, focus, ordering, folders, keys),
 			started,
 			sections: [],
+			hidden: 0,
 		};
 	}
 	const subgrouping = sectionSubgrouping(arrangement.subgrouping, focus);
-	const sections = SIDEBAR_SECTIONS[grouping].flatMap(({ key, label }): SidebarSection[] => {
+	const listed = SIDEBAR_SECTIONS[grouping].flatMap(({ key, label }): SidebarSection[] => {
 		const inSection = (workstream: Workstream): boolean => input.sectionOf(workstream) === key;
 		const nested = nestStarted(
 			{
@@ -124,7 +127,14 @@ export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 			? [{ key, label, ...section, started: nested.started }]
 			: [];
 	});
-	return { chats: [], blocks: [], started: new Map(), sections };
+	const attentionOnly = showsAttentionOnly(arrangement);
+	const sections = attentionOnly
+		? listed.filter(({ key }) => ATTENTION_SECTIONS.includes(key))
+		: listed;
+	const hidden = listed
+		.filter((section) => !sections.includes(section))
+		.reduce((count, section) => count + branchWorkstreamIds(section).length, 0);
+	return { chats: [], blocks: [], started: new Map(), sections, hidden };
 }
 
 function nestStarted(
