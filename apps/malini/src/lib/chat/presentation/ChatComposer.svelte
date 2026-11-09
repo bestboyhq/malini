@@ -1237,7 +1237,7 @@
 		{/snippet}
 	</ComposerShell>
 
-	<div class="@container/composer px-5">
+	<div class="@container/composer px-3">
 		<div
 			class="border-surface-50-border bg-surface-50 flex h-7 flex-nowrap items-center justify-between gap-3 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-2.5"
 			data-testid="chat-composer-toolbar"
