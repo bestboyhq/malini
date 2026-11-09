@@ -323,8 +323,8 @@
 
 {#snippet gauge()}
 	<svg
-		width="16"
-		height="16"
+		width="14"
+		height="14"
 		viewBox="0 0 16 16"
 		aria-hidden="true"
 		class={['shrink-0 -rotate-90', toneClass(pressure)]}
@@ -374,10 +374,10 @@
 			{#if planAlert}
 				<Button
 					variant="danger-ghost"
-					size="md"
+					size="auto"
 					pressable={false}
 					{disabled}
-					class="gap-1.5 rounded-md text-xs font-normal"
+					class="h-6 gap-1.5 rounded-md px-2 text-xs font-normal"
 					ariaLabel={triggerLabel}
 					ariaExpanded={open}
 					ariaControls="session-context-usage-panel"
@@ -391,7 +391,7 @@
 			{:else}
 				<IconButton
 					variant="ghost"
-					size="md"
+					size="sm"
 					pressable={false}
 					{disabled}
 					ariaLabel={triggerLabel}
@@ -643,7 +643,7 @@
 		{#snippet trigger({ open })}
 			<IconButton
 				variant="ghost"
-				size="md"
+				size="sm"
 				pressable={false}
 				{disabled}
 				ariaLabel="View MCP server status"
@@ -655,7 +655,7 @@
 				<Icon name="plug" size={15} />
 				{#if unhealthyMcpCount > 0}
 					<span
-						class="bg-error-content absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+						class="bg-error-content absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full"
 						aria-hidden="true"
 					></span>
 				{/if}

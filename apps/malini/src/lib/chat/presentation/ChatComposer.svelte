@@ -1239,7 +1239,7 @@
 
 	<div class="@container/composer px-5">
 		<div
-			class="border-surface-50-border bg-surface-50 flex h-9 flex-nowrap items-center justify-between gap-3 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-2.5"
+			class="border-surface-50-border bg-surface-50 flex h-7 flex-nowrap items-center justify-between gap-3 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-2.5"
 			data-testid="chat-composer-toolbar"
 		>
 			<div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
@@ -1251,7 +1251,7 @@
 					<IconButton
 						bind:element={contextTriggerEl}
 						variant="ghost"
-						size="md"
+						size="sm"
 						{disabled}
 						ariaLabel="Add to prompt"
 						active={addMenuOpen}
@@ -1259,7 +1259,7 @@
 						data-testid="chat-context-open"
 						onclick={toggleAddMenu}
 					>
-						<Icon name="plus" size={16} />
+						<Icon name="plus" size={15} />
 					</IconButton>
 				</Tooltip>
 				<ModelProfilePicker
