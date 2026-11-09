@@ -24,7 +24,9 @@ They wanted a setup step with clear names, and picked **Two questions**, "where 
   `arranged` in `sidebar-arrangement.ts` keeps `show` and `grouping` consistent: picking `attention` groups by Status, and leaving Status shows everything again.
   `sidebarTree` counts what the filter hides, the sidebar lists it as **N hidden** with **Show all**, and says **Nothing needs you.** when no section is left.
   The panel's **Show** row and the setup step set the same value, and `readSidebarArrangement` reads a value saved without it as `everything`.
-- The preview is the real `sidebarTree` over sample repositories in `src/lib/app/domain/onboarding-sidebar-preview.ts`, so it cannot drift from the sidebar it previews.
+- The preview is the real `sidebarTree` in `src/lib/app/domain/onboarding-sidebar-preview.ts`, so it cannot drift from the sidebar it previews.
+  It lists your four most recent GitHub repositories, with their owners' avatars, read through `gh` as the first-repository picker reads them, and shows sample work in them.
+  It shows skeleton rows while the list loads, and sample repositories when `gh` is signed out, fails or lists none.
 - This changes 0179's `ONBOARDING_STEPS` line only in the new step; the rest of it stands.
 
 ## Consequences

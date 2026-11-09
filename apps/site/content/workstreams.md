@@ -74,7 +74,8 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   **Show** picks **Everything** or **Attention**.
   **Attention** groups by Status and lists only **Needs you** and **In review**, with **Nothing needs you.** when both are empty and an **N hidden** row at the bottom whose **Show all** lists everything again.
   **Reset** goes back to Organization, Manual and Everything.
-- Setup's **Set up your sidebar** step asks **Where do you work?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make.
+- Setup's **Set up your sidebar** step asks **Where do you work?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make, built from your most recent GitHub repositories and their avatars.
+  Without GitHub, the preview uses sample repositories.
   **Many repositories** keeps Organization grouping, **One project** lists your work flat by Status, **Only what needs me** is **Show** set to **Attention**, and **Compact** or **Comfortable** is the density below.
   **Skip** keeps Organization grouping, Everything and Compact.
 - **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.

@@ -1,9 +1,15 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { chooseOnboardingSidebarCommand } from '$lib/app/application/commands/choose-onboarding-sidebar.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { onboardingSidebarArrangement, type OnboardingWhere } from '$lib/app/domain/onboarding';
 	import type { SidebarShow } from '$lib/app/domain/sidebar-arrangement';
 	import type { SidebarDensity } from '$lib/app/domain/sidebar-density';
+	import {
+		githubRepositoriesQuery,
+		loadGithubRepositoriesCommand,
+		reloadGithubRepositoriesOnSignInHook,
+	} from '$shared/repositories/repositories.api';
 	import ChoiceSwitch from '../settings/ChoiceSwitch.svelte';
 	import SidebarPreview from './SidebarPreview.svelte';
 
@@ -36,6 +42,20 @@
 	};
 
 	const choice = $derived(onboardingQuery.data.sidebar);
+	const listing = $derived(githubRepositoriesQuery.data);
+	const recent = $derived(
+		listing.kind === 'loaded' ? listing.repositories.map((repository) => repository.fullName) : [],
+	);
+	const caption = $derived(
+		recent.length > 0
+			? 'Your recent repositories, with sample work.'
+			: 'Sample repositories and work.',
+	);
+
+	onMount(() => {
+		loadGithubRepositoriesCommand();
+		return reloadGithubRepositoriesOnSignInHook();
+	});
 </script>
 
 <div class="flex gap-6">
@@ -74,11 +94,16 @@
 			<p class="text-fg-tertiary text-[13px] leading-[18px]">{DENSITY_HINTS[choice.density]}</p>
 		</section>
 	</div>
-	<div class="flex w-52 shrink-0 flex-col gap-2">
+	<div class="flex w-56 shrink-0 flex-col gap-2">
 		<h2 class="text-fg-default text-[15px] font-medium">Your sidebar</h2>
 		<SidebarPreview
 			arrangement={onboardingSidebarArrangement(choice)}
 			compact={choice.density === 'compact'}
+			{recent}
+			loading={listing.kind === 'loading'}
 		/>
+		<p class="text-fg-tertiary text-[13px] leading-[18px]" data-testid="onboarding-sidebar-caption">
+			{caption}
+		</p>
 	</div>
 </div>

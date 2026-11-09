@@ -1,13 +1,23 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
+	GITHUB_REPOSITORIES_FIXTURE,
 	launchMalini,
 	passDefaults,
 	seedWorkstream,
 } from './harness';
+
+const RECENT_REPOSITORIES = [
+	'e2e-farm/barn',
+	'e2e-farm/silo',
+	'e2e-meadow/pond',
+	'e2e-meadow/creek',
+];
 
 function sidebar(page: Page) {
 	return page.getByRole('navigation', { name: 'Connected repositories' });
@@ -27,6 +37,18 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 	const app = await launchMalini();
 	try {
 		const { page } = app;
+		writeFileSync(
+			join(app.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify(
+				RECENT_REPOSITORIES.map((full_name, index) => ({
+					full_name,
+					clone_url: `https://github.com/${full_name}.git`,
+					description: null,
+					private: false,
+					pushed_at: new Date(Date.now() - (index + 1) * 60 * 60_000).toISOString(),
+				})),
+			),
+		);
 		const setup = await reachSidebarStep(page);
 		await expect(setup.getByText('Step 3 of 5')).toBeVisible();
 
@@ -47,7 +69,12 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 			'true',
 		);
 		await expect(preview).not.toContainText('hidden');
-		await captureFlow(app, 'setup-sidebar-default');
+		await expect(preview).toContainText('e2e-farm');
+		await expect(preview).toContainText('e2e-meadow');
+		await expect(setup.getByTestId('onboarding-sidebar-caption')).toHaveText(
+			'Your recent repositories, with sample work.',
+		);
+		await captureFlow(app, 'setup-sidebar-recent-default');
 
 		await where.getByRole('button', { name: 'One project' }).click();
 		await shows.getByRole('button', { name: 'Only what needs me' }).click();
@@ -58,7 +85,8 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		);
 		await expect(preview).toContainText('Needs you');
 		await expect(preview).toContainText('hidden');
-		await captureFlow(app, 'setup-sidebar-needs-me');
+		await expect(preview).toContainText('silo');
+		await captureFlow(app, 'setup-sidebar-recent-needs-me');
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await passDefaults(page);
@@ -73,7 +101,7 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		const quiet = sidebar(page).getByTestId('sidebar-workstream').filter({ hasText: 'Quiet work' });
 		await expect(sidebar(page).getByText('Nothing needs you.')).toBeVisible({ timeout: 20_000 });
 		await expect(quiet).toHaveCount(0);
-		await captureFlow(app, 'sidebar-needs-me-empty');
+		await captureFlow(app, 'sidebar-recent-needs-me-empty');
 
 		await sidebar(page)
 			.getByRole('button', { name: /Show all$/u })
@@ -85,7 +113,7 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		const panel = page.getByRole('group', { name: 'Group and sort' });
 		await expect(panel.getByRole('button', { name: 'Show: Everything' })).toBeVisible();
 		await expect(panel.getByRole('button', { name: 'Grouping: Status' })).toBeVisible();
-		await captureFlow(app, 'sidebar-arrange-show');
+		await captureFlow(app, 'sidebar-recent-arrange-show');
 		await panel.getByRole('button', { name: 'Show: Everything' }).click();
 		await page
 			.getByRole('menu', { name: 'Show' })
@@ -105,6 +133,9 @@ test('skipping the sidebar step keeps the default sidebar', async () => {
 	try {
 		const { page } = app;
 		const setup = await reachSidebarStep(page);
+		await expect(setup.getByTestId('onboarding-sidebar-caption')).toHaveText(
+			'Sample repositories and work.',
+		);
 		await setup
 			.getByRole('group', { name: 'What it shows' })
 			.getByRole('button', { name: 'Only what needs me' })
