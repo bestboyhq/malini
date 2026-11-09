@@ -11,7 +11,11 @@
 	import { githubAuthQuery } from '$shared/repositories/application/queries/github-auth.query.svelte';
 	import { githubSignInQuery } from '$shared/repositories/application/queries/github-sign-in.query.svelte';
 	import { githubSetupStatus } from '$shared/repositories/domain/github-auth';
+	import { externalUrlService } from '$shared/system/external-url.service';
 	import GitHubDeviceCode from './GitHubDeviceCode.svelte';
+
+	const MALINI_DOWNLOAD_URL =
+		'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
 
 	interface Props {
 		step?: boolean;
@@ -89,6 +93,18 @@
 			onclick={() => signInToGithubCommand()}
 		>
 			Connect
+		</Button>
+	{:else if status === 'missing'}
+		<Button
+			variant="primary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Download Malini"
+			data-testid="github-setup-download"
+			onclick={() => void externalUrlService.open(MALINI_DOWNLOAD_URL).catch(() => undefined)}
+		>
+			Download Malini
 		</Button>
 	{:else}
 		<Button

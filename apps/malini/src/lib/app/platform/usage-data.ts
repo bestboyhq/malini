@@ -18,7 +18,7 @@ import { currentEnvironment } from '$main/process/environment';
 import { localDate, shiftDate, type UsageAccount } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
-import { ONBOARDING_FINISHED_SETTING } from '../domain/onboarding';
+import { ONBOARDING_FINISHED_SETTING, type OnboardingStep } from '../domain/onboarding';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
@@ -26,6 +26,10 @@ import { hasPromptRun, readUsageReport } from './usage-report';
 
 export type UsageJourney =
 	| 'first_open'
+	| 'setup_accounts'
+	| 'setup_sounds'
+	| 'setup_defaults'
+	| 'setup_heard_about'
 	| 'setup_finished'
 	| 'first_repository'
 	| 'first_workstream'
@@ -62,8 +66,19 @@ export interface UsageSink {
 
 export interface UsageData {
 	share(shared: boolean): void;
-	journey(marker: UsageJourneyMarker): void;
+	journey(marker: UsageJourneyMarker, details?: Readonly<Record<string, string | number>>): void;
 	shutdown(): Promise<void>;
+}
+
+const SETUP_STEP_MARKERS: Readonly<Record<OnboardingStep, UsageJourneyMarker>> = {
+	accounts: 'setup_accounts',
+	sounds: 'setup_sounds',
+	defaults: 'setup_defaults',
+	'heard-about': 'setup_heard_about',
+};
+
+export function setupStepMarker(step: OnboardingStep): UsageJourneyMarker {
+	return SETUP_STEP_MARKERS[step];
 }
 
 export interface UsageDataDeps {
@@ -282,7 +297,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 
 	return {
 		share,
-		journey: (marker) => sendJourney(marker),
+		journey: (marker, details) => sendJourney(marker, details),
 		shutdown: async () => {
 			clearInterval(reportTimer);
 			stopStarted();

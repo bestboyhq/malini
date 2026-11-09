@@ -1,3 +1,4 @@
+import type { SetupAccountState, SetupStep } from '$contract/commands';
 import { invoke } from '$shared/port/invoke';
 import {
 	HEARD_ABOUT_SETTING,
@@ -23,6 +24,16 @@ class OnboardingService {
 		return invoke('app.set-setting', {
 			key: HEARD_ABOUT_SETTING,
 			value: heardAboutSetting(answer),
+		});
+	}
+
+	reportSetupStep(
+		step: SetupStep,
+		accounts?: Readonly<{ claudeCode: SetupAccountState; github: SetupAccountState }>,
+	): Promise<void> {
+		return invoke('app.report-setup-step', {
+			step,
+			...(accounts ? { claudeCode: accounts.claudeCode, github: accounts.github } : {}),
 		});
 	}
 }

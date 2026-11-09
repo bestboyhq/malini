@@ -17,6 +17,7 @@
 	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
+	import { reportSetupStepCommand } from '$lib/app/application/commands/report-setup-step.command';
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
@@ -64,6 +65,10 @@
 		'claude-code': claudeCodeOnboardingStatus(claudeCodeStatusQuery.data.kind),
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
+	const rawAccounts: OnboardingAccountStatuses = $derived({
+		'claude-code': claudeCodeStatusQuery.data.kind,
+		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
+	});
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
 	const asksDefaults = $derived(onboarding.step === 'defaults');
 	const skippable = $derived(asksHeardAbout || asksDefaults);
@@ -98,6 +103,18 @@
 	onMount(loadUsageDataCommand);
 
 	onMount(() => rehearsal.interrupt);
+
+	$effect(() => {
+		const step = onboarding.step;
+		if (step !== 'accounts') {
+			reportSetupStepCommand(step);
+			return;
+		}
+		const claudeCode = rawAccounts['claude-code'];
+		const github = rawAccounts.github;
+		if (claudeCode === 'checking' || github === 'checking') return;
+		reportSetupStepCommand('accounts', { claudeCode, github });
+	});
 
 	$effect(() => {
 		const key = `${onboarding.step}:${continueWaits ? 'shown' : 'settled'}`;

@@ -8,6 +8,9 @@ import {
 	seedWorkstream,
 } from './harness';
 
+type SetupRequest = Readonly<{ command: string; args: Readonly<Record<string, unknown>> }>;
+type InvokeHandler = (event: unknown, request: SetupRequest) => unknown;
+
 const RUNS_CLAUDE_CODE =
 	'Malini runs Claude Code with your Claude plan or another provider, and works in your GitHub repositories.';
 const SHARES_USAGE_STATS = `${RUNS_CLAUDE_CODE} It shares usage stats, never your code or chats. Turn it off in Settings.`;
@@ -50,6 +53,62 @@ test('the first setup step says in its description that Malini shares usage stat
 			0,
 		);
 		await expect(app.page.getByRole('heading', { name: /usage/iu })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('setup reports each step it reaches, with both account states on the first', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		await app.electronApp.evaluate(({ ipcMain }) => {
+			const handlers: Map<string, InvokeHandler> = Reflect.get(ipcMain, '_invokeHandlers');
+			const original = handlers.get('malini:invoke');
+			if (!original) throw new Error('malini:invoke has no handler');
+			Reflect.set(globalThis, '__setupRequests', []);
+			handlers.set('malini:invoke', (event, request) => {
+				const requests: SetupRequest[] | undefined = Reflect.get(globalThis, '__setupRequests');
+				requests?.push(request);
+				return original(event, request);
+			});
+		});
+		await app.page.reload();
+		const setup = app.page.getByTestId('onboarding');
+		await expect(
+			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
+		).toBeVisible({ timeout: 20_000 });
+		const next = setup.getByRole('button', { name: 'Continue' });
+		await expect(next).toBeEnabled({ timeout: 20_000 });
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await next.click();
+		await passDefaults(app.page);
+		await expect(
+			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+		).toBeVisible();
+		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
+		await expect(app.page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
+
+		const reported = await app.electronApp.evaluate(() => {
+			const requests: SetupRequest[] | undefined = Reflect.get(globalThis, '__setupRequests');
+			return (requests ?? [])
+				.filter((request) => request.command === 'app.report-setup-step')
+				.map((request) => request.args);
+		});
+		const steps = reported.map((args) => args['step']);
+		expect(steps.filter((step, index) => steps.indexOf(step) === index)).toEqual([
+			'accounts',
+			'sounds',
+			'defaults',
+			'heard-about',
+		]);
+		expect(reported.find((args) => args['step'] === 'accounts')).toEqual({
+			step: 'accounts',
+			claudeCode: 'ready',
+			github: 'ready',
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
