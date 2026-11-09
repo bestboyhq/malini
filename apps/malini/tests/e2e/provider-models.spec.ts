@@ -188,12 +188,13 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			timeout: 20_000,
 		});
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
-		const providers = page.getByRole('region', { name: 'Connected providers' });
+		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		const others = panel.getByRole('list', { name: 'Other providers' });
 		await usage.hover();
-		await expect(providers.getByRole('region', { name: 'Claude account' })).toBeVisible();
-		await expect(providers.getByRole('group', { name: 'DeepSeek' })).toHaveCount(0);
+		await expect(panel.getByRole('region', { name: 'Claude', exact: true })).toBeVisible();
+		await expect(others).toHaveCount(0);
 		await page.mouse.move(0, 0);
-		await expect(providers).toHaveCount(0);
+		await expect(panel).toHaveCount(0);
 		await page.getByTestId('chat-composer-model').click();
 		const models = page.getByRole('listbox', { name: 'Models' });
 		await expect(models.getByRole('option', { name: /^Opus 5\.5/u })).toHaveCount(1);
@@ -247,10 +248,12 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 			});
 		await expectAssistantReply(page);
 		await usage.hover();
-		await expect(providers.getByRole('group', { name: 'DeepSeek' })).toContainText('API key');
+		await expect(panel.getByRole('region', { name: 'DeepSeek' })).toContainText('API key');
+		await expect(panel.getByRole('region', { name: 'Claude', exact: true })).toHaveCount(0);
+		await expect(others.getByRole('listitem')).toHaveText(['Claude Claude Max']);
 		await captureFlow(app, 'provider-models-connected-providers');
 		await page.mouse.move(0, 0);
-		await expect(providers).toHaveCount(0);
+		await expect(panel).toHaveCount(0);
 		await captureFlow(app, 'provider-models-deepseek-run');
 
 		await page.reload();
@@ -476,6 +479,20 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await page.mouse.move(10, 10);
 		await expect(panel).toBeHidden();
 		await expect(trigger).toHaveAccessibleName(/5-hour limit 96% used/u);
+
+		await chooseModel(page, 'claude', 'opus');
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveCount(0);
+		await trigger.hover();
+		await expect(panel.getByTestId('session-opencode-usage')).toHaveCount(0);
+		await expect(
+			panel
+				.getByRole('list', { name: 'Other providers' })
+				.getByRole('listitem')
+				.filter({ hasText: 'OpenCode' }),
+		).toContainText('5-hour · 96%');
+		await captureFlow(app, 'provider-models-opencode-go-other-providers');
+		await page.mouse.move(10, 10);
+		await expect(panel).toBeHidden();
 
 		await page.getByTestId('chat-composer-model').click();
 		await expect(modelOptions(page, 'opencode')).toHaveText([/^Hy4/u, /^GLM-6/u]);

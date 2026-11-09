@@ -1,6 +1,6 @@
 # 0195 - An OpenCode Go key answers its usage
 
-Status: accepted
+Status: superseded by 0196
 
 ## Context
 

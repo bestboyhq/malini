@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	currentPlanLimits,
+	highestPlanLimit,
 	lastRunAccount,
 	planLimitAlert,
 	planUsageFor,
@@ -98,5 +99,9 @@ describe('plan usage', () => {
 		]);
 		expect(planLimitAlert(limits)?.label).toBe('Weekly limit');
 		expect(planLimitAlert(limits.filter((limit) => limit.usedPercent < 90))).toBeNull();
+		expect(highestPlanLimit(limits.filter((limit) => limit.usedPercent < 90))?.label).toBe(
+			'Weekly Opus limit',
+		);
+		expect(highestPlanLimit([])).toBeNull();
 	});
 });

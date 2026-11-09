@@ -71,7 +71,9 @@ test('a Claude account added from the context card signs in through the browser 
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
 		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
 
-		const account = page.getByRole('region', { name: 'Claude account' });
+		const account = page
+			.getByRole('dialog', { name: 'Context and plan usage' })
+			.getByRole('region', { name: 'Claude', exact: true });
 		const accounts = account.getByRole('list', { name: 'Claude accounts' });
 		const current = accounts.locator('[aria-current="true"]');
 		const progress = account.getByRole('status');
@@ -90,6 +92,9 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(usage).not.toHaveAccessibleName(PLAN_ALERT);
 		const switchToPrivate = accounts.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` });
 		await expect(switchToPrivate).toBeVisible();
+		await expect(accounts.getByRole('listitem').filter({ hasText: PRIVATE_ACCOUNT })).toContainText(
+			'5-hour · 93%',
+		);
 		await expect(account).toContainText(
 			`This chat last ran on ${PRIVATE_ACCOUNT}. Its next prompt uses the checked account.`,
 		);
@@ -109,10 +114,7 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(progress).toHaveCount(0);
 		await expect(current).toContainText(PRIVATE_ACCOUNT);
 
-		await page
-			.getByRole('region', { name: 'Connected providers' })
-			.getByRole('button', { name: 'Manage providers' })
-			.click();
+		await account.getByRole('button', { name: 'Manage providers' }).click();
 		const settings = page.getByRole('dialog', { name: 'Settings' });
 		await expect(
 			settings

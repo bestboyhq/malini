@@ -143,7 +143,8 @@ export function registerProviders(
 	);
 
 	context.commands.define('providers.load-opencode-usage', async () => {
-		if (opencodeUsage && Date.now() - opencodeUsage.at < USAGE_CACHE_MS) return opencodeUsage.reading;
+		if (opencodeUsage && Date.now() - opencodeUsage.at < USAGE_CACHE_MS)
+			return opencodeUsage.reading;
 		const reading = await keys.opencodeUsage((apiKey) =>
 			loadOpencodeUsage({ apiKey, origin: probeOrigin, fetch }),
 		);

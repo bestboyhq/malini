@@ -103,6 +103,7 @@ export { modelAccessQuery } from './application/queries/model-access.query.svelt
 export { modelCatalogQuery } from './application/queries/model-catalog.query.svelte';
 export { modelDefaultsQuery } from './application/queries/model-defaults.query.svelte';
 export { opencodeUsageQuery } from './application/queries/opencode-usage.query.svelte';
+export { otherClaudeAccountsQuery } from './application/queries/other-claude-accounts.query.svelte';
 export { providerGroupsQuery } from './application/queries/provider-groups.query.svelte';
 export { subscriptionBillingQuery } from './application/queries/subscription-billing.query.svelte';
 

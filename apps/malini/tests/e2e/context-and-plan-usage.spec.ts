@@ -108,6 +108,14 @@ test('a plan limit past 90% shows in the composer and the panel breaks down the 
 			)
 			.click();
 		await expect(page.getByTestId('session-plan-limit-alert')).toHaveCount(0);
+		await trigger.hover();
+		await expect(panel.getByRole('progressbar', { name: '5-hour limit used' })).toHaveCount(0);
+		await expect(
+			panel
+				.getByRole('list', { name: 'Other providers' })
+				.getByRole('listitem')
+				.filter({ hasText: 'Claude' }),
+		).toContainText('5-hour · 93%');
 
 		expectCleanConsole(app);
 	} finally {

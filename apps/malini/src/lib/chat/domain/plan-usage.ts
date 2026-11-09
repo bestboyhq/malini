@@ -60,15 +60,16 @@ export function currentPlanLimits(
 	);
 }
 
-export function planLimitAlert(limits: readonly PlanLimit[]): PlanLimit | null {
+export function highestPlanLimit(limits: readonly PlanLimit[]): PlanLimit | null {
 	return limits.reduce<PlanLimit | null>(
-		(highest, limit) =>
-			limit.usedPercent >= PLAN_LIMIT_ALERT_PERCENT &&
-			(!highest || limit.usedPercent > highest.usedPercent)
-				? limit
-				: highest,
+		(highest, limit) => (!highest || limit.usedPercent > highest.usedPercent ? limit : highest),
 		null,
 	);
+}
+
+export function planLimitAlert(limits: readonly PlanLimit[]): PlanLimit | null {
+	const highest = highestPlanLimit(limits);
+	return highest && highest.usedPercent >= PLAN_LIMIT_ALERT_PERCENT ? highest : null;
 }
 
 function planLimitOf(value: unknown): PlanLimit[] {

@@ -3,6 +3,7 @@
 	import type { SessionId } from '$lib/chat/domain/session';
 	import {
 		currentPlanLimits,
+		highestPlanLimit,
 		lastRunAccount,
 		planLimitAlert,
 		type PlanLimit,
@@ -18,7 +19,7 @@
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
+	import { Icon } from '$hyper-ui/icons';
 	import {
 		CHATGPT_PROVIDER_ID,
 		CHATGPT_USAGE_URL,
@@ -28,10 +29,12 @@
 		claudeCodeStatusQuery,
 		ProviderIcon,
 		opencodeUsageQuery,
+		otherClaudeAccountsQuery,
 		providerGroupFor,
 		providerGroupsQuery,
 		reloadModelProvidersCommand,
 		subscriptionBillingQuery,
+		type ProviderGroup,
 	} from '$shared/providers/providers.api';
 	import { goto } from '$shared/router/navigation';
 	import { PROVIDER_SETTINGS_HREF } from '$shared/router/routes-hrefs';
@@ -57,6 +60,16 @@
 		workstreamId?: string | null;
 		provider?: string | null;
 		disabled?: boolean;
+	}
+
+	interface UsageRow {
+		key: string;
+		providerId: string;
+		name: string;
+		account: string | null;
+		limit: PlanLimit | null;
+		note: string | null;
+		warn: boolean;
 	}
 
 	let {
@@ -85,25 +98,52 @@
 	);
 	const breakdown = $derived(metadata.context ? contextBreakdown(metadata.context) : []);
 	const planLimits = $derived(currentPlanLimits(planUsage, nowMs));
-	const opencodeGroup = $derived(
-		provider === OPENCODE_PROVIDER_ID
-			? providerGroupFor(providerGroupsQuery.data, OPENCODE_PROVIDER_ID)
-			: null,
-	);
-	const opencodeLimits = $derived(
-		opencodeGroup ? currentPlanLimits(opencodeUsageQuery.data, nowMs) : [],
-	);
-	const planAlert = $derived(
-		provider === CLAUDE_PROVIDER_ID ? planLimitAlert(planLimits) : planLimitAlert(opencodeLimits),
-	);
+	const groups = $derived(providerGroupsQuery.data);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const signedIn = $derived(claudeStatus.kind === 'ready');
-	const keyedProviders = $derived(
-		providerGroupsQuery.data.filter((group) => group.kind === 'anthropic' && group.ready),
+	const claudeAccount = $derived(claudeStatus.kind === 'ready' ? claudeStatus.account : null);
+	const leadId = $derived(provider ?? CLAUDE_PROVIDER_ID);
+	const lead = $derived(providerGroupFor(groups, leadId));
+	const leadReady = $derived(leadId === CLAUDE_PROVIDER_ID ? signedIn : lead?.ready === true);
+	const opencodeReady = $derived(providerGroupFor(groups, OPENCODE_PROVIDER_ID)?.ready === true);
+	const opencodeLimits = $derived(
+		opencodeReady ? currentPlanLimits(opencodeUsageQuery.data, nowMs) : [],
 	);
-	const chatGpt = $derived(
-		providerGroupsQuery.data.find((group) => group.kind === 'chatgpt' && group.ready) ?? null,
+	const leadLimits = $derived(
+		leadId === CLAUDE_PROVIDER_ID
+			? planLimits
+			: leadId === OPENCODE_PROVIDER_ID
+				? opencodeLimits
+				: [],
 	);
+	const planAlert = $derived(planLimitAlert(leadLimits));
+	const otherRows = $derived.by((): readonly UsageRow[] => {
+		const accounts =
+			signedIn && leadId !== CLAUDE_PROVIDER_ID
+				? [claudeAccount?.email ?? null, ...otherClaudeAccountsQuery.data]
+				: [];
+		const claudeRows = accounts.map((email, index): UsageRow => ({
+			key: `claude:${email ?? ''}`,
+			providerId: CLAUDE_PROVIDER_ID,
+			name: 'Claude',
+			account: accounts.length > 1 ? email : null,
+			limit: highestPlanLimit(currentPlanLimits(planUsageQuery.of(email), nowMs)),
+			note: index === 0 ? (claudeAccount?.plan ?? null) : null,
+			warn: false,
+		}));
+		const providerRows = groups
+			.filter((group) => group.kind !== 'claude' && group.id !== leadId && group.ready)
+			.map((group): UsageRow => ({
+				key: group.id,
+				providerId: group.id,
+				name: group.name,
+				account: null,
+				limit: group.id === OPENCODE_PROVIDER_ID ? highestPlanLimit(opencodeLimits) : null,
+				note: group.kind === 'chatgpt' ? chatGptNote(group) : keyNote(group),
+				warn: Boolean(group.account?.usageLimitReachedAt),
+			}));
+		return [...claudeRows, ...providerRows];
+	});
 	const showsRunCost = $derived(provider !== CHATGPT_PROVIDER_ID && !subscriptionBillingQuery.data);
 	const chatAccount = $derived(lastRunAccount(envelopes));
 	const ranOnOtherAccount = $derived(
@@ -139,7 +179,7 @@
 	});
 
 	$effect(() => {
-		if (opencodeGroup) void opencodeUsageQuery.load();
+		if (leadId === OPENCODE_PROVIDER_ID && opencodeReady) void opencodeUsageQuery.load();
 	});
 
 	function onContextOpenChange(next: boolean): void {
@@ -148,7 +188,20 @@
 		mcpOpen = false;
 		nowMs = Date.now();
 		reloadModelProvidersCommand();
+		if (opencodeReady) void opencodeUsageQuery.load();
 		if (sessionId) refreshSessionStatusCommand(sessionId);
+	}
+
+	function chatGptNote(group: ProviderGroup): string {
+		return group.account?.usageLimitReachedAt ? 'Usage limit hit' : 'ChatGPT plan';
+	}
+
+	function keyNote(group: ProviderGroup): string {
+		return group.plan === 'go' ? 'Go plan' : 'API key';
+	}
+
+	function shortLimitLabel(limit: PlanLimit): string {
+		return limit.label.replace(/ limit$/u, '');
 	}
 
 	function onMcpOpenChange(next: boolean): void {
@@ -196,9 +249,9 @@
 	}
 </script>
 
-{#snippet meter(label: string, percent: number, level: ContextPressure)}
+{#snippet meter(label: string, percent: number, level: ContextPressure, spacing = 'mt-2')}
 	<div
-		class="bg-surface-elevated-selected mt-2 h-1.5 overflow-hidden rounded-full"
+		class={['bg-surface-elevated-selected h-1 overflow-hidden rounded-full', spacing]}
 		role="progressbar"
 		aria-label={label}
 		aria-valuemin="0"
@@ -225,18 +278,39 @@
 
 {#snippet limitRow(limit: PlanLimit)}
 	{@const level = usagePressure(limit.usedPercent)}
-	<li class="mt-1.5" data-testid="session-rate-limit-row">
-		<div class="flex items-baseline justify-between gap-3 text-xs">
-			<span class="text-fg-secondary">{limit.label}</span>
-			<span class={['tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}>
+	<li class="mt-2.5 first:mt-2" data-testid="session-rate-limit-row">
+		<div class="flex items-baseline gap-2 text-xs">
+			<span class="text-fg-secondary shrink-0">{limit.label}</span>
+			<span class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate">
+				{limit.resetsAt ? resetLabel(limit.resetsAt, nowMs) : ''}
+			</span>
+			<span
+				class={['shrink-0 tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}
+			>
 				{Math.round(limit.usedPercent)}% used
 			</span>
 		</div>
-		{@render meter(`${limit.label} used`, limit.usedPercent, level)}
-		{#if limit.resetsAt}
-			<p class="text-2xs text-fg-tertiary mt-1">{resetLabel(limit.resetsAt, nowMs)}</p>
-		{/if}
+		{@render meter(`${limit.label} used`, limit.usedPercent, level, 'mt-1.5')}
 	</li>
+{/snippet}
+
+{#snippet limitSummary(limit: PlanLimit)}
+	{@const level = usagePressure(limit.usedPercent)}
+	<span
+		class={[
+			'text-2xs shrink-0 tabular-nums',
+			level === 'ok' ? 'text-fg-secondary' : toneClass(level),
+		]}
+	>
+		{shortLimitLabel(limit)} · {Math.round(limit.usedPercent)}%
+	</span>
+{/snippet}
+
+{#snippet otherAccountUsage(email: string)}
+	{@const limit = highestPlanLimit(currentPlanLimits(planUsageQuery.of(email), nowMs))}
+	{#if limit}
+		{@render limitSummary(limit)}
+	{/if}
 {/snippet}
 
 {#snippet gauge()}
@@ -286,7 +360,7 @@
 		onopenchange={onContextOpenChange}
 		testId="session-context-hovercard"
 		owner="chat-composer"
-		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
+		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated"
 	>
 		{#snippet trigger({ open })}
 			{#if planAlert}
@@ -331,138 +405,132 @@
 				aria-label="Context and plan usage"
 				data-testid="session-context-usage-panel"
 			>
-				<div class="flex items-baseline justify-between gap-3">
-					<h3 class="text-fg-default text-sm font-medium">Context</h3>
-					{#if metadata.context}
-						<span
-							class="text-fg-tertiary text-xs tabular-nums"
-							data-testid="session-context-usage-count"
-						>
-							{formatTokens(metadata.context.usedTokens)}
-							{metadata.context.maxTokens
-								? ` / ${formatTokens(metadata.context.maxTokens)}`
-								: ' used'}
-						</span>
-					{/if}
-				</div>
-
-				{#if metadata.context}
-					{#if contextPercent !== null}
-						{@render meter('Context window used', contextPercent, pressure)}
-						<div class="text-fg-tertiary mt-1.5 flex justify-between text-xs">
-							<span class="tabular-nums">{contextPercent.toFixed(1)}% used</span>
-							{#if remainingTokens !== null}
-								<span class="tabular-nums" data-testid="session-context-usage-remaining">
-									{formatTokens(remainingTokens)} left
-								</span>
-							{/if}
-						</div>
-						{#if advice}
-							<p
-								class={['mt-2 text-xs leading-5', toneClass(pressure)]}
-								data-testid="session-context-usage-advice"
+				<div class="p-3">
+					<div class="flex items-baseline justify-between gap-3">
+						<h3 class="text-fg-default text-sm font-medium">Context</h3>
+						{#if metadata.context}
+							<span
+								class="text-fg-tertiary text-xs tabular-nums"
+								data-testid="session-context-usage-count"
 							>
-								{advice}
-							</p>
+								{formatTokens(metadata.context.usedTokens)}
+								{metadata.context.maxTokens
+									? ` / ${formatTokens(metadata.context.maxTokens)}`
+									: ' used'}
+							</span>
 						{/if}
-						{#if breakdown.length > 0}
-							<dl
-								class="border-border-subtle mt-3 space-y-1 border-t pt-3 text-xs"
-								aria-label="Context window breakdown"
-								data-testid="session-context-breakdown"
-							>
-								{#each breakdown as row (row.name)}
-									<div
-										class="flex items-baseline gap-3"
-										data-testid="session-context-breakdown-row"
-									>
-										<dt
-											class={[
-												'min-w-0 flex-1 truncate',
-												row.kind === 'used' ? 'text-fg-secondary' : 'text-fg-tertiary',
-											]}
+					</div>
+
+					{#if metadata.context}
+						{#if contextPercent !== null}
+							{@render meter('Context window used', contextPercent, pressure)}
+							<div class="text-fg-tertiary mt-1.5 flex justify-between text-xs">
+								<span class="tabular-nums">{contextPercent.toFixed(1)}% used</span>
+								{#if remainingTokens !== null}
+									<span class="tabular-nums" data-testid="session-context-usage-remaining">
+										{formatTokens(remainingTokens)} left
+									</span>
+								{/if}
+							</div>
+							{#if advice}
+								<p
+									class={['mt-2 text-xs leading-5', toneClass(pressure)]}
+									data-testid="session-context-usage-advice"
+								>
+									{advice}
+								</p>
+							{/if}
+							{#if breakdown.length > 0}
+								<dl
+									class="border-border-subtle mt-3 space-y-1 border-t pt-3 text-xs"
+									aria-label="Context window breakdown"
+									data-testid="session-context-breakdown"
+								>
+									{#each breakdown as row (row.name)}
+										<div
+											class="flex items-baseline gap-3"
+											data-testid="session-context-breakdown-row"
 										>
-											{row.name}
-										</dt>
-										<dd class="text-fg-tertiary tabular-nums">{formatTokens(row.tokens)}</dd>
-										<dd class="text-fg-secondary w-12 text-right tabular-nums">
-											{formatShare(row.percent)}
-										</dd>
-									</div>
-								{/each}
-							</dl>
+											<dt
+												class={[
+													'min-w-0 flex-1 truncate',
+													row.kind === 'used' ? 'text-fg-secondary' : 'text-fg-tertiary',
+												]}
+											>
+												{row.name}
+											</dt>
+											<dd class="text-fg-tertiary tabular-nums">{formatTokens(row.tokens)}</dd>
+											<dd class="text-fg-secondary w-12 text-right tabular-nums">
+												{formatShare(row.percent)}
+											</dd>
+										</div>
+									{/each}
+								</dl>
+							{/if}
+						{:else}
+							<p class="text-fg-tertiary mt-2 text-xs leading-5">
+								{contextWindowUnknownMessage()}
+							</p>
 						{/if}
 					{:else}
 						<p class="text-fg-tertiary mt-2 text-xs leading-5">
-							{contextWindowUnknownMessage()}
+							{contextUnavailableMessage()}
 						</p>
 					{/if}
-				{:else}
-					<p class="text-fg-tertiary mt-2 text-xs leading-5">
-						{contextUnavailableMessage()}
-					</p>
-				{/if}
 
-				{#if runUsage}
-					<section
-						class="border-border-subtle mt-3 flex items-baseline justify-between gap-3 border-t pt-3 text-xs"
-						aria-label="Last run"
-						data-testid="session-run-usage"
-					>
-						<h3 class="text-fg-default text-sm font-medium">Last run</h3>
-						<span class="text-fg-tertiary tabular-nums">
-							{formatRunUsage(runUsage, showsRunCost)}
-						</span>
-					</section>
-				{/if}
+					{#if runUsage}
+						<section
+							class="border-border-subtle mt-3 flex items-baseline justify-between gap-3 border-t pt-3 text-xs"
+							aria-label="Last run"
+							data-testid="session-run-usage"
+						>
+							<h3 class="text-fg-default text-sm font-medium">Last run</h3>
+							<span class="text-fg-tertiary tabular-nums">
+								{formatRunUsage(runUsage, showsRunCost)}
+							</span>
+						</section>
+					{/if}
 
-				{#if signedIn || chatGpt || keyedProviders.length > 0}
-					<section class="border-border-subtle mt-3 border-t pt-3" aria-label="Connected providers">
-						<div class="flex items-center justify-between gap-3">
-							<h3 class="text-fg-default text-sm font-medium">Providers</h3>
-							<IconButton
-								variant="ghost"
-								size="xs"
-								ariaLabel="Manage providers"
-								class="text-fg-tertiary"
-								onclick={() => void goto(PROVIDER_SETTINGS_HREF)}
-							>
-								<Icon name="settings" size={14} />
-							</IconButton>
-						</div>
-						{#if signedIn}
-							<section class="mt-1" aria-label="Claude account">
-								<h4 class="text-fg-secondary flex items-center gap-2 py-1 text-xs">
-									<ClaudeIcon size={13} class="shrink-0" />
-									Claude
-								</h4>
+					{#if lead && leadReady}
+						<section class="border-border-subtle mt-3 border-t pt-3" aria-label={lead.name}>
+							<div class="flex items-center gap-2">
+								<ProviderIcon providerId={lead.id} size={14} class="text-fg-secondary shrink-0" />
+								<h3 class="text-fg-default text-sm font-medium">{lead.name}</h3>
+								<span class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate">
+									{lead.kind === 'anthropic' ? keyNote(lead) : ''}
+								</span>
+								<IconButton
+									variant="ghost"
+									size="xs"
+									ariaLabel="Manage providers"
+									class="text-fg-tertiary"
+									onclick={() => void goto(PROVIDER_SETTINGS_HREF)}
+								>
+									<Icon name="settings" size={14} />
+								</IconButton>
+							</div>
+							{#if lead.kind === 'claude'}
 								{#if ranOnOtherAccount && chatAccount}
 									<p class="text-2xs text-fg-tertiary mt-1 leading-4">
 										This chat last ran on <SensitiveText text={chatAccount} />. Its next prompt uses
 										the checked account.
 									</p>
 								{/if}
-								<ClaudeAccountList
-									class={['-mx-1.5 mt-0.5', !chatGpt && keyedProviders.length === 0 && '-mb-1.5']}
-								>
+								<ClaudeAccountList class="-mx-1.5 mt-1 -mb-1.5">
 									{#snippet current()}
 										{@render planUsageRows()}
 									{/snippet}
+									{#snippet other(email)}
+										{@render otherAccountUsage(email)}
+									{/snippet}
 								</ClaudeAccountList>
-							</section>
-						{/if}
-						{#if chatGpt}
-							<section class={signedIn ? 'mt-2.5' : 'mt-1'} aria-label="ChatGPT account">
-								<h4 class="text-fg-secondary flex items-center gap-2 py-1 text-xs">
-									<ProviderIcon providerId={chatGpt.id} size={13} class="shrink-0" />
-									{chatGpt.name}
-								</h4>
-								<div class="mt-0.5 py-1 text-xs">
+							{:else if lead.kind === 'chatgpt'}
+								<div class="mt-1 py-1 text-xs">
 									<div class="flex min-h-6 min-w-0 items-center gap-2">
 										<Icon name="check" size={14} class="text-success-content shrink-0" />
 										<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
-											{#if chatGpt.account?.email}
-												<SensitiveText text={chatGpt.account.email} />
+											{#if lead.account?.email}
+												<SensitiveText text={lead.account.email} />
 											{:else}
 												Signed in
 											{/if}
@@ -479,45 +547,57 @@
 									<p
 										class={[
 											'text-2xs pl-5.5 leading-4',
-											chatGpt.account?.usageLimitReachedAt
+											lead.account?.usageLimitReachedAt
 												? 'text-warning-content'
 												: 'text-fg-tertiary',
 										]}
 									>
-										{chatGpt.account?.usageLimitReachedAt
+										{lead.account?.usageLimitReachedAt
 											? 'You hit your ChatGPT usage limit.'
 											: 'Using ChatGPT plan'}
 									</p>
 								</div>
-							</section>
-						{/if}
-						{#if keyedProviders.length > 0}
-							<div class={signedIn || chatGpt ? 'mt-2.5' : 'mt-1'}>
-								{#each keyedProviders as keyed (keyed.id)}
-									<div
-										class="text-fg-secondary flex items-center gap-2 py-1 text-xs"
-										aria-label={keyed.name}
-										role="group"
-									>
-										<ProviderIcon providerId={keyed.id} size={13} class="shrink-0" />
-										<span class="min-w-0 flex-1 truncate">{keyed.name}</span>
-										<span class="text-2xs text-fg-tertiary shrink-0">API key</span>
-									</div>
-									{#if keyed.id === OPENCODE_PROVIDER_ID && opencodeLimits.length > 0}
-										<ul
-											class="pb-1"
-											aria-label={`${keyed.name} usage`}
-											data-testid="session-opencode-usage"
-										>
-											{#each opencodeLimits as limit (limit.label)}
-												{@render limitRow(limit)}
-											{/each}
-										</ul>
+							{:else if lead.id === OPENCODE_PROVIDER_ID && opencodeLimits.length > 0}
+								<ul aria-label={`${lead.name} usage`} data-testid="session-opencode-usage">
+									{#each opencodeLimits as limit (limit.label)}
+										{@render limitRow(limit)}
+									{/each}
+								</ul>
+							{/if}
+						</section>
+					{/if}
+				</div>
+
+				{#if otherRows.length > 0}
+					<ul
+						class="border-surface-50-border bg-surface-50 rounded-b-xl border-t-[0.5px] px-3 py-1"
+						aria-label="Other providers"
+					>
+						{#each otherRows as row (row.key)}
+							<li class="text-2xs flex h-6 min-w-0 items-center gap-2">
+								<ProviderIcon
+									providerId={row.providerId}
+									size={12}
+									class="text-fg-tertiary shrink-0"
+								/>
+								<span class="text-fg-secondary shrink-0">{row.name}</span>
+								<span class="text-fg-tertiary min-w-0 flex-1 truncate">
+									{#if row.account}
+										<SensitiveText text={row.account} />
 									{/if}
-								{/each}
-							</div>
-						{/if}
-					</section>
+								</span>
+								{#if row.limit}
+									{@render limitSummary(row.limit)}
+								{:else if row.note}
+									<span
+										class={['shrink-0', row.warn ? 'text-warning-content' : 'text-fg-tertiary']}
+									>
+										{row.note}
+									</span>
+								{/if}
+							</li>
+						{/each}
+					</ul>
 				{/if}
 			</div>
 		{/snippet}

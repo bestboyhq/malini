@@ -174,7 +174,7 @@ Go, Plus and Pro plans can sign in; on a Free plan, OpenAI's page offers **Upgra
 **Settings → Providers** signs in and out too, and lists the models your plan runs, which Malini reads from OpenAI after you sign in and at most once an hour.
 A plan does not run every GPT model: send with one it lacks and Malini keeps your prompt and says "Your ChatGPT plan does not include this model." until you pick another.
 Malini keeps your ChatGPT sign-in encrypted on your Mac, and it never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server talks to OpenAI.
-The context card shows your ChatGPT account with "Using ChatGPT plan" and **Manage usage**, which opens your usage on chatgpt.com, since ChatGPT does not tell apps how much of the plan is left.
+With a GPT model picked, the context card shows your ChatGPT account with "Using ChatGPT plan" and **Manage usage**, which opens your usage on chatgpt.com, since ChatGPT does not tell apps how much of the plan is left.
 When you hit the limit, the turn [pauses](#limits-and-outages) the way a rate limit does, since ChatGPT does not say when the limit resets, and the context card says "You hit your ChatGPT usage limit." until a run goes through again.
 Each run counts against your ChatGPT plan, not an API bill, so the context card shows no cost for it.
 An automation on a GPT model runs on your plan too, once you pick ChatGPT for it and turn on its trigger.
@@ -183,10 +183,11 @@ The thinking you see is OpenAI's summary of the model's reasoning.
 
 ## Claude accounts
 
-Point at the gauge in the composer for **Providers**: only the providers you connected, Claude when Claude Code is signed in, ChatGPT once you sign in to it, and DeepSeek or OpenCode once its key is saved.
-Under Claude sits the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac.
+Point at the gauge in the composer for the usage of the provider your model runs on, with **Manage providers** next to its name.
+For Claude, that is the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac, each with its highest usage next to **Switch**.
+Every other provider you connected sits on one line below, with its highest usage, such as "Weekly · 99%", or its plan: Claude when Claude Code is signed in, each account on its own line, ChatGPT once you sign in to it, and DeepSeek or OpenCode once its key is saved.
 Usage comes from the account's runs, so a fresh account shows it after its next run.
-Under OpenCode sits the usage of its key, five-hour, weekly, and monthly, once the key is on the Go plan with Usage: Read allowed, read from OpenCode when a chat is open.
+OpenCode's usage, five-hour, weekly, and monthly, shows once the key is on the Go plan with Usage: Read allowed, read from OpenCode while its model is picked or when you point at the gauge, at most once a minute.
 With an OpenCode Go model picked, the composer shows that same reading as the "X% used" chip.
 A key without Go, or without Usage: Read, shows nothing.
 The same accounts sit in **Settings → Providers**, and **Accounts…** in Malini's menu bar icon opens it.
@@ -373,7 +374,7 @@ Old turns fold. Subagents get a line each. Files show their diff
   Malini asks the agent to run the independent parts of a task as parallel subagents.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, the providers you connected with the Claude account in use and its five-hour and weekly usage, OpenCode's Go usage or nothing when its model is picked, and the status of your MCP servers, read live from the chat's Claude Code.
+- Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, the usage of the provider your model runs on, with one line for each other provider you connected, and the status of your MCP servers, read live from the chat's Claude Code.
 
 ## Undo, edit, slice and fork
 
