@@ -17,6 +17,7 @@
 	import {
 		CHATGPT_PROVIDER_ID,
 		CHATGPT_USAGE_URL,
+		CLAUDE_PROVIDER_ID,
 		ClaudeAccountList,
 		claudeCodeStatusQuery,
 		ProviderIcon,
@@ -47,9 +48,16 @@
 		sessionId?: SessionId | null;
 		workstreamId?: string | null;
 		provider?: string | null;
+		disabled?: boolean;
 	}
 
-	let { envelopes, sessionId = null, workstreamId = null, provider = null }: Props = $props();
+	let {
+		envelopes,
+		sessionId = null,
+		workstreamId = null,
+		provider = null,
+		disabled = false,
+	}: Props = $props();
 	let contextOpen = $state(false);
 	let mcpOpen = $state(false);
 	let nowMs = $state(Date.now());
@@ -69,7 +77,7 @@
 	);
 	const breakdown = $derived(metadata.context ? contextBreakdown(metadata.context) : []);
 	const planLimits = $derived(currentPlanLimits(planUsage, nowMs));
-	const planAlert = $derived(planLimitAlert(planLimits));
+	const planAlert = $derived(provider === CLAUDE_PROVIDER_ID ? planLimitAlert(planLimits) : null);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const signedIn = $derived(claudeStatus.kind === 'ready');
 	const keyedProviders = $derived(
@@ -260,6 +268,7 @@
 					variant="danger-ghost"
 					size="md"
 					pressable={false}
+					{disabled}
 					class="gap-1.5 rounded-md text-xs font-normal"
 					ariaLabel={triggerLabel}
 					ariaExpanded={open}
@@ -268,7 +277,6 @@
 				>
 					{@render gauge()}
 					<span class="tabular-nums" data-testid="session-plan-limit-alert">
-						<span class="@max-2xl/composer:hidden">{planAlert.label} ·</span>
 						{Math.round(planAlert.usedPercent)}% used
 					</span>
 				</Button>
@@ -277,6 +285,7 @@
 					variant="ghost"
 					size="md"
 					pressable={false}
+					{disabled}
 					ariaLabel={triggerLabel}
 					ariaExpanded={open}
 					ariaControls="session-context-usage-panel"
@@ -494,6 +503,7 @@
 				variant="ghost"
 				size="md"
 				pressable={false}
+				{disabled}
 				ariaLabel="View MCP server status"
 				ariaExpanded={open}
 				ariaControls="session-mcp-status-panel"

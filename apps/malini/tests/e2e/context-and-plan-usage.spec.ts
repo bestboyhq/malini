@@ -64,6 +64,10 @@ test('a plan limit past 90% shows in the composer and the panel breaks down the 
 		await expect(trigger).toHaveAccessibleName(
 			'View context and plan usage, 20% of the context window used, 5-hour limit 93% used',
 		);
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveText('93% used');
+		await expect(
+			page.getByTestId('chat-composer-shell').getByTestId('chat-composer-toolbar'),
+		).toHaveCount(0);
 
 		await trigger.hover();
 		const panel = page.getByRole('dialog', { name: 'Context and plan usage' });
@@ -96,6 +100,14 @@ test('a plan limit past 90% shows in the composer and the panel breaks down the 
 			'aria-valuenow',
 			'40',
 		);
+
+		await page.getByTestId('chat-composer-model').click();
+		await page
+			.locator(
+				'[data-testid="chat-model-option"][data-provider="deepseek"][data-model="deepseek-v4-pro"]',
+			)
+			.click();
+		await expect(page.getByTestId('session-plan-limit-alert')).toHaveCount(0);
 
 		expectCleanConsole(app);
 	} finally {

@@ -1168,7 +1168,6 @@
 		accent={profile.mode === 'plan'}
 		{disabled}
 		testId="chat-composer-shell"
-		footerTestId="chat-composer-toolbar"
 		mode={profile.mode}
 	>
 		<div bind:this={outgoingBandEl} class="relative overflow-hidden" data-dropdown-anchor>
@@ -1212,8 +1211,37 @@
 				<span class="min-w-0">{sanitizeFailureDetail(submissionError)}</span>
 			</p>
 		{/if}
-
 		{#snippet footer()}
+			<div class="ml-auto flex shrink-0 items-center gap-1 pr-0.5">
+				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
+					<IconButton
+						variant={stopsRun ? 'secondary' : 'primary'}
+						size="md"
+						type={stopsRun ? 'button' : 'submit'}
+						disabled={stopsRun ? disabled : !canSend}
+						class={['active:scale-95', stopsRun && 'bg-surface-50 hover:bg-error/10']}
+						ariaBusy={submitting}
+						ariaLabel={submitTitle}
+						{...queuesOnSend ? { ariaKeyshortcuts: 'Enter Meta+Enter' } : {}}
+						data-testid="chat-composer-submit"
+						onclick={stopsRun ? onCancelClick : () => undefined}
+					>
+						{#if stopsRun}
+							<Icon name="stop" size={12} class="text-error-content" />
+						{:else}
+							<Icon name="arrow-up" size={16} />
+						{/if}
+					</IconButton>
+				</Tooltip>
+			</div>
+		{/snippet}
+	</ComposerShell>
+
+	<div class="@container/composer px-5">
+		<div
+			class="border-surface-50-border bg-surface-50 flex h-9 flex-nowrap items-center justify-between gap-3 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-2.5"
+			data-testid="chat-composer-toolbar"
+		>
 			<div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
 				<Tooltip
 					content="Add files, context, or run an automation"
@@ -1224,6 +1252,7 @@
 						bind:element={contextTriggerEl}
 						variant="ghost"
 						size="md"
+						{disabled}
 						ariaLabel="Add to prompt"
 						active={addMenuOpen}
 						class="text-fg-tertiary hover:bg-surface-50 rounded-lg"
@@ -1252,31 +1281,12 @@
 					{envelopes}
 					{sessionId}
 					{workstreamId}
+					{disabled}
 					provider={selection.provider}
 				/>
-				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
-					<IconButton
-						variant={stopsRun ? 'secondary' : 'primary'}
-						size="md"
-						type={stopsRun ? 'button' : 'submit'}
-						disabled={stopsRun ? disabled : !canSend}
-						class={['active:scale-95', stopsRun && 'bg-surface-50 hover:bg-error/10']}
-						ariaBusy={submitting}
-						ariaLabel={submitTitle}
-						{...queuesOnSend ? { ariaKeyshortcuts: 'Enter Meta+Enter' } : {}}
-						data-testid="chat-composer-submit"
-						onclick={stopsRun ? onCancelClick : () => undefined}
-					>
-						{#if stopsRun}
-							<Icon name="stop" size={12} class="text-error-content" />
-						{:else}
-							<Icon name="arrow-up" size={16} />
-						{/if}
-					</IconButton>
-				</Tooltip>
 			</div>
-		{/snippet}
-	</ComposerShell>
+		</div>
+	</div>
 
 	{#snippet queueOrSteerHelp()}
 		<span class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-left">
