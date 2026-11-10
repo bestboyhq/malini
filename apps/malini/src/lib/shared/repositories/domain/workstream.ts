@@ -1,4 +1,3 @@
-import type { LeadScope } from './lead-scope';
 import type { WorkstreamCreationContext } from './workstream-creation-context';
 
 export type WorkstreamId = string;
@@ -27,7 +26,6 @@ export type Workstream = {
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;
 	resolvedPath: string | null;
-	scope: LeadScope | null;
 	startedBy: WorkstreamId | null;
 };
 
@@ -44,7 +42,6 @@ export type ArchivedWorkstream = Readonly<{
 	mergedPullRequest: MergedPullRequest | null;
 	savedForLater: boolean;
 	clearedFromStarter: boolean;
-	scope: LeadScope | null;
 	startedBy: WorkstreamId | null;
 }>;
 
@@ -77,7 +74,6 @@ export function workstreamFromCreated(created: CreatedWorkstream): Workstream {
 		createdAt: created.createdAt,
 		activeAt: created.createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
-		scope: null,
 		startedBy: null,
 	};
 }

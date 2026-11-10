@@ -69,9 +69,7 @@ export {
 } from './domain/repository-context';
 
 export { displayWorkstreamName, isPlaceholderWorkstreamName } from './domain/workstream-names';
-export { workstreamLeads } from './domain/workstream-leads';
-
-export { leadScopeKey, leadScopeOwns, parseLeadScope, type LeadScope } from './domain/lead-scope';
+export { workstreamRoots } from './domain/workstream-roots';
 
 export {
 	inSidebarOrder,
@@ -241,7 +239,6 @@ export { githubRepositoriesQuery } from './application/queries/github-repositori
 export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
 export { repositoryFolderRequestedQuery } from './application/queries/repository-folder-requested.query.svelte';
 export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';
-export { startLeadChatCommand } from './application/commands/start-lead-chat.command';
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
 export { workstreamBusyActionQuery } from './application/queries/workstream-busy-action.query.svelte';
 export { workstreamByIdQuery } from './application/queries/workstream-by-id.query.svelte';

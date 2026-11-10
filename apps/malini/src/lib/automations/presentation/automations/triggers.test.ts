@@ -7,7 +7,10 @@ import {
 import {
 	automationSentence,
 	automationTriggerLook,
+	defaultSchedulePlace,
 	runModeLabel,
+	schedulePlaces,
+	scheduleRunsIn,
 	thenChoices,
 	triggerFor,
 	TRIGGERS,
@@ -145,5 +148,30 @@ describe('runModeLabel', () => {
 			'Ask me first',
 			'On its own',
 		]);
+	});
+});
+
+describe('the place a schedule runs in', () => {
+	it('lists the connected repositories by name, and no organization', () => {
+		expect(schedulePlaces(['bestboyhq/malini', 'acme/app', 'acme/api', 'local'])).toEqual([
+			{ kind: 'repository', repository: 'acme/api' },
+			{ kind: 'repository', repository: 'acme/app' },
+			{ kind: 'repository', repository: 'bestboyhq/malini' },
+		]);
+	});
+
+	it('defaults to the first repository, or to none when none is connected', () => {
+		expect(defaultSchedulePlace(['bestboyhq/malini', 'acme/app'])).toEqual({
+			kind: 'repository',
+			repository: 'acme/app',
+		});
+		expect(defaultSchedulePlace([])).toEqual({ kind: 'none' });
+	});
+
+	it('says where a scheduled run happens', () => {
+		expect(scheduleRunsIn({ kind: 'repository', repository: 'acme/app' })).toBe(
+			'in its own workstream of acme/app',
+		);
+		expect(scheduleRunsIn({ kind: 'none' })).toBe('in the brain');
 	});
 });

@@ -49,4 +49,4 @@ export const RECOMMENDED_UPDATE_FROM_MAIN = {
 };
 
 export const BRAIN_FINE_PRINT =
-	'The log holds what you typed in archived chats and organization chats, with secrets taken out. Notes are written from it. Both go to your private repository, and nowhere else.';
+	'The log holds what you typed in archived chats, with secrets taken out. Notes are written from it. Both go to your private repository, and nowhere else.';

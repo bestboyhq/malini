@@ -124,7 +124,7 @@ The [README](../README.md) has the short version.
 - **An automation is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
   Run it in this workstream or a new one.
 - **When: what starts it.** You run it, or one event trigger runs it, like `on pull-requests:ship-changed where merged is set`, on any event Malini emits.
-  Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a chat of its own in an organization, or a workstream of its own in a repository.
+  Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a workstream of its own in that repository.
   A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits in its chat with **Run it** and **Skip**.
 - **Then: what runs next.** One automation runs after this one succeeds, in the same workstream, with its result.
   **Open draft** and **Merge** are automations, so "open a draft PR" is a Then.

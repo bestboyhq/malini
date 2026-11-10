@@ -10,7 +10,6 @@ export type NewDelivery = Readonly<{
 	fromSessionId?: string | null;
 	fromWorkstreamId?: string | null;
 	report?: WorkstreamReport | null;
-	decisionId?: string | null;
 	profile?: unknown;
 	chainId?: string | null;
 	causeEventId?: number | null;
@@ -35,7 +34,6 @@ interface WaitingRow {
 	prompt: string;
 	from_workstream_id: string | null;
 	report: string | null;
-	decision_id: string | null;
 	profile: string | null;
 	chain_id: string | null;
 	cause_event_id: number | null;
@@ -65,9 +63,9 @@ export function insertDelivery(
 	run(
 		db,
 		`INSERT INTO agent_deliveries
-		 (id, session_id, kind, prompt, from_session_id, from_workstream_id, report, decision_id,
+		 (id, session_id, kind, prompt, from_session_id, from_workstream_id, report,
 		  profile, chain_id, cause_event_id, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
 		id,
 		delivery.sessionId,
 		delivery.kind,
@@ -75,7 +73,6 @@ export function insertDelivery(
 		delivery.fromSessionId ?? null,
 		delivery.fromWorkstreamId ?? null,
 		delivery.report ? JSON.stringify(delivery.report) : null,
-		delivery.decisionId ?? null,
 		delivery.profile === undefined || delivery.profile === null
 			? null
 			: JSON.stringify(delivery.profile),
@@ -94,8 +91,7 @@ export function getDelivery(db: MaliniDatabase, id: string): ChatDelivery | null
 export function waitingDeliveries(db: MaliniDatabase, sessionId: string): WaitingDelivery[] {
 	return all<WaitingRow>(
 		db,
-		`SELECT id, kind, prompt, from_workstream_id, report, decision_id, profile, chain_id,
-		   cause_event_id
+		`SELECT id, kind, prompt, from_workstream_id, report, profile, chain_id, cause_event_id
 		 FROM agent_deliveries WHERE session_id = ? AND status = 'waiting'
 		 ORDER BY created_at, rowid`,
 		sessionId,
@@ -105,7 +101,6 @@ export function waitingDeliveries(db: MaliniDatabase, sessionId: string): Waitin
 		prompt: row.prompt,
 		fromWorkstreamId: row.from_workstream_id,
 		report: parsedReport(row.report),
-		decisionId: row.decision_id,
 		profile: row.profile === null ? null : parsedJson(row.profile),
 		chainId: row.chain_id,
 		causeEventId: row.cause_event_id,
@@ -143,14 +138,6 @@ export function settleDeliveries(
 			return settled ? [settled] : [];
 		}),
 	);
-}
-
-export function deliveriesFrom(db: MaliniDatabase, fromSessionId: string): ChatDelivery[] {
-	return all<DeliveryRow>(
-		db,
-		`SELECT ${COLUMNS} FROM agent_deliveries WHERE from_session_id = ? ORDER BY created_at, rowid`,
-		fromSessionId,
-	).map(fromRow);
 }
 
 export function promptsSentInChain(

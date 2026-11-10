@@ -71,6 +71,13 @@ export async function playTour(): Promise<void> {
 		await wait(700);
 		await click(newChat);
 
+		const picker = await find('[role="dialog"][aria-label="Command center"]');
+		aim(around([picker], 40));
+		await wait(900);
+		const from = location.pathname;
+		await click(await find('[role="listbox"] [role="option"]'));
+		while (location.pathname === from) await wait(100);
+
 		const editor = await find('[data-testid="chat-composer-input"]');
 		aim({ x: 0, y: 0, width: editor.getBoundingClientRect().right + 24, height: innerHeight });
 		await wait(500);

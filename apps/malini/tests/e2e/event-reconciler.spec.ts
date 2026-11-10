@@ -13,14 +13,14 @@ import {
 	launchMalini,
 	listEvents,
 	openAutomations,
-	openChatIn,
 	openWorkstream,
+	reportsHeardBy,
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
 } from './harness';
 
-const LEAD = 'Logdash migration';
+const STARTER = 'Logdash migration';
 const CHILD = 'Api analytics';
 const CHILD_PROMPT = `TITLE="${CHILD}" TURN_OUTCOME="The analytics endpoint answers" TURN_NEEDS="Pick the Logdash project"`;
 const AUTOMATION = 'Run the tests';
@@ -36,7 +36,7 @@ const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8'
 
 type Decision = Readonly<{ id: string; status: string; decidedBy: string; channel: string }>;
 
-type LeadCall = Readonly<{ tool: string; input: Record<string, unknown> }>;
+type ToolCall = Readonly<{ tool: string; input: Record<string, unknown> }>;
 
 function sidebar(page: Page) {
 	return page.getByRole('navigation', { name: 'Connected repositories' });
@@ -46,7 +46,7 @@ function transcript(page: Page) {
 	return page.getByTestId('transcript-pane');
 }
 
-function agentCalls(app: LaunchedApp, call: LeadCall) {
+function agentCalls(app: LaunchedApp, call: ToolCall) {
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
 }
 
@@ -81,34 +81,35 @@ function askedChoices(app: LaunchedApp): Array<Readonly<{ prompt: string; pick: 
 		.map((line) => JSON.parse(line));
 }
 
-async function leadCalls(app: LaunchedApp, calls: readonly LeadCall[]): Promise<void> {
+async function toolCalls(app: LaunchedApp, calls: readonly ToolCall[]): Promise<void> {
 	const { page } = app;
 	const reply = `${calls.map(({ tool }) => tool).join(' and ')} done`;
-	writeFileSync(join(app.home, 'lead-calls.json'), JSON.stringify({ calls, reply }));
+	writeFileSync(join(app.home, 'tool-calls.json'), JSON.stringify({ calls, reply }));
 	await expect(page.getByTestId('chat-composer-submit')).not.toHaveAccessibleName(
 		'Stop current run',
 		{ timeout: 30_000 },
 	);
-	await sendPrompt(page, 'LEAD_CALLS');
+	await sendPrompt(page, 'TOOL_CALLS');
 	await expect(transcript(page).getByText(reply, { exact: true })).toBeVisible({
 		timeout: 30_000,
 	});
 	await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 }
 
-async function leadStartsChild(app: LaunchedApp): Promise<void> {
+async function starterStartsChild(app: LaunchedApp): Promise<string> {
 	const { page } = app;
 	const api = await createSourceRepo(app.root, 'acme/api');
-	await seedWorkstream(page, `file://${api}`, 'e2e-reconcile-api', 'Api work');
-	await page.reload();
-	const before = page.url();
-	await openChatIn(page, 'acme');
-	await expect.poll(() => page.url()).not.toBe(before);
-	await sendPrompt(page, `Plan it TITLE="${LEAD}"`);
-	await expect(leadRow(page)).toBeVisible({ timeout: 20_000 });
-	await leadCalls(app, [
+	const { workstreamId } = await seedWorkstream(
+		page,
+		`file://${api}`,
+		'e2e-reconcile-starter',
+		STARTER,
+	);
+	await openWorkstream(page, workstreamId);
+	await toolCalls(app, [
 		{ tool: 'workstreams_create', input: { repository: 'acme/api', prompt: CHILD_PROMPT } },
 	]);
+	return workstreamId;
 }
 
 async function chatRunsFailingAutomation(app: LaunchedApp): Promise<string> {
@@ -133,10 +134,6 @@ async function chatRunsFailingAutomation(app: LaunchedApp): Promise<string> {
 	return workstreamId;
 }
 
-function leadRow(page: Page) {
-	return sidebar(page).getByTestId('sidebar-chat').filter({ hasText: LEAD });
-}
-
 function childRow(page: Page) {
 	return sidebar(page).getByTestId('sidebar-workstream').filter({ hasText: CHILD });
 }
@@ -151,19 +148,27 @@ function wokenBy(page: Page, from: string) {
 		.filter({ hasText: `Prompt from ${from}` });
 }
 
-test('a lead chat hears every turn a workstream it started ends, and the Explorer says Deliveries woke it', async () => {
+test('a chat hears every turn a workstream it started ends, and the Explorer says Deliveries woke it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await leadStartsChild(app);
+		const starterId = await starterStartsChild(app);
 
-		const report = transcript(page).getByTestId('timeline-report');
-		await expect(report).toContainText('The analytics endpoint answers', { timeout: 60_000 });
-		await expect(report).toContainText('asks the lead: Pick the Logdash project');
+		await expect
+			.poll(
+				async () =>
+					(await reportsHeardBy(page, starterId)).map((report) => [
+						report['outcome'],
+						report['needs'],
+					]),
+				{ timeout: 60_000 },
+			)
+			.toEqual([['The analytics endpoint answers', 'Pick the Logdash project']]);
+		await expect(wokenBy(page, CHILD)).toHaveCount(1);
 		expect(askedChoices(app)).toEqual([]);
 		expect(await decisions(page)).toEqual([]);
-		await captureFlow(app, 'deliveries-report-to-lead');
+		await captureFlow(app, 'deliveries-report-to-starter');
 
 		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
@@ -275,34 +280,29 @@ test('a question on an automation goes away with its workstream', async () => {
 	}
 });
 
-test('a lead answers what its workstream needs with workstreams_send, into that chat, without asking', async () => {
+test('a chat answers what its workstream needs with workstreams_send, into that chat, without asking', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await leadStartsChild(app);
-		await expect(transcript(page).getByTestId('timeline-report')).toContainText(
-			'The analytics endpoint answers',
-			{ timeout: 60_000 },
-		);
+		const starterId = await starterStartsChild(app);
+		await expect
+			.poll(async () => (await reportsHeardBy(page, starterId)).length, { timeout: 60_000 })
+			.toBe(1);
 
-		await leadCalls(app, [
+		await toolCalls(app, [
 			{
 				tool: 'workstreams_send',
 				input: { workstream: CHILD, prompt: 'Report to the acme Logdash project.' },
 			},
 		]);
-		await expect(transcript(page).locator('[data-timeline-entry="sent"]')).toContainText(
-			'delivered',
-			{ timeout: 30_000 },
-		);
 
 		await childRow(page).click();
 		await expect(
 			transcript(page).getByText('Report to the acme Logdash project.', { exact: true }),
 		).toBeVisible({ timeout: 30_000 });
-		await expect(wokenBy(page, LEAD)).toHaveCount(2);
-		await captureFlow(app, 'reconciler-lead-replies');
+		await expect(wokenBy(page, STARTER)).toHaveCount(2);
+		await captureFlow(app, 'reconciler-starter-replies');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

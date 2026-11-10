@@ -82,7 +82,6 @@ export function createAttachmentsTestContext(): AttachmentsTestContext {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt: STAGED_AT,
-				scope: null,
 				startedBy: null,
 			});
 			insertSession(db, {

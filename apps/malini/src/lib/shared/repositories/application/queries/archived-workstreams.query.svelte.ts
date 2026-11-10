@@ -3,7 +3,7 @@ import {
 	mergeRepositories,
 	workstreamRepositories,
 } from '$shared/repositories/domain/repository-context';
-import { isRetiredHomeChat } from '$shared/repositories/domain/lead-scope';
+import { isRetiredChat } from '$shared/repositories/domain/retired-chats';
 import type { ArchivedWorkstream } from '$shared/repositories/domain/workstream';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
@@ -23,7 +23,7 @@ class ArchivedWorkstreamsQuery {
 			workstreams: workstreamsAggregate.archived,
 		});
 		return workstreamsAggregate.archived
-			.filter((workstream) => !isRetiredHomeChat(workstream))
+			.filter((workstream) => !isRetiredChat(workstream))
 			.map((workstream) => {
 				const repository = repositories.get(workstream.id);
 				return {

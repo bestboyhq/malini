@@ -1,4 +1,3 @@
-import { LEAD_SPACE_BRANCH, LEAD_SPACE_PROJECT_ID, type LeadScope } from './lead-scope';
 import {
 	nextWorkstreamId,
 	projectIdentityCandidatesForRepoUrl,
@@ -19,26 +18,17 @@ export const WORKSTREAM_PROVISIONING_PHASES = [
 
 export type WorkstreamProvisioningPhase = (typeof WORKSTREAM_PROVISIONING_PHASES)[number];
 
-type PlannedCheckout = Readonly<{
+export type WorkstreamProvisioningPlan = Readonly<{
 	workstreamId: WorkstreamId;
 	projectId: string;
 	name: string;
 	branch: string;
 	baseBranch: string;
+	projectRepoPath: string | null;
+	cloneProgressId: string;
+	repoUrl: string;
+	repositoryFullName: string;
 }>;
-
-export type RepositoryWorkstreamPlan = PlannedCheckout &
-	Readonly<{
-		scope: null;
-		projectRepoPath: string | null;
-		cloneProgressId: string;
-		repoUrl: string;
-		repositoryFullName: string;
-	}>;
-
-export type LeadChatPlan = PlannedCheckout & Readonly<{ scope: LeadScope }>;
-
-export type WorkstreamProvisioningPlan = RepositoryWorkstreamPlan | LeadChatPlan;
 
 export type WorkstreamSetupOutcome = Readonly<{
 	workstreamId: string;
@@ -113,7 +103,7 @@ const PROVISIONING_STEP_LABELS: Readonly<
 	Record<WorkstreamProvisioningPhase, (plan: WorkstreamProvisioningPlan) => string>
 > = {
 	preparing: () => 'Preparing workstream',
-	cloning: (plan) => (plan.scope === null ? `Cloning ${plan.repositoryFullName}` : 'Cloning'),
+	cloning: (plan) => `Cloning ${plan.repositoryFullName}`,
 	worktree: () => 'Creating worktree',
 	syncing: (plan) => `Updating ${plan.baseBranch} from origin`,
 };
@@ -127,7 +117,7 @@ export function planWorkstreamProvisioning(input: {
 	projects: readonly Project[];
 	workstreamId?: WorkstreamId;
 	takenNames?: readonly string[];
-}): RepositoryWorkstreamPlan {
+}): WorkstreamProvisioningPlan {
 	const repoUrl = repositoryCloneSource(input.repo);
 	const identity = projectIdentityForRepoUrl(repoUrl);
 	const candidateIds = new Set(
@@ -145,22 +135,6 @@ export function planWorkstreamProvisioning(input: {
 		name: uniqueWorkstreamName(input.takenNames ?? []),
 		branch: workstreamBranch(workstreamId),
 		baseBranch: input.repo.defaultBranch,
-		scope: null,
-	};
-}
-
-export function planLeadChatProvisioning(
-	scope: LeadScope,
-	takenNames: readonly string[],
-	workstreamId: WorkstreamId = nextWorkstreamId(),
-): LeadChatPlan {
-	return {
-		workstreamId,
-		projectId: LEAD_SPACE_PROJECT_ID,
-		name: uniqueWorkstreamName(takenNames),
-		branch: workstreamBranch(workstreamId),
-		baseBranch: LEAD_SPACE_BRANCH,
-		scope,
 	};
 }
 
@@ -179,7 +153,6 @@ export function provisioningWorkstreamRow(
 		createdAt,
 		activeAt: createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
-		scope: plan.scope,
 		startedBy: null,
 	};
 }

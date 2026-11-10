@@ -6,7 +6,7 @@ import { pullRequestShipService } from '$lib/pull-requests/infrastructure/servic
 
 export function watchShipStatesHook(
 	workstreamName: (workstreamId: string) => string | null,
-	leadOf: (workstreamId: string) => string | null,
+	rootOf: (workstreamId: string) => string | null,
 ): () => void {
 	const names = new Map<string, string>();
 	const nameOf = (workstreamId: string): string => {
@@ -16,11 +16,11 @@ export function watchShipStatesHook(
 	};
 
 	const stop = pullRequestShipService.onChanged((change) => {
-		const leadId = leadOf(change.workstreamId);
+		const rootId = rootOf(change.workstreamId);
 		acceptShipChangeCommand(
 			change,
 			nameOf(change.workstreamId),
-			leadId === null ? null : { workstreamId: leadId, name: nameOf(leadId) },
+			rootId === null ? null : { workstreamId: rootId, name: nameOf(rootId) },
 		);
 	});
 	pullRequestShipAggregate.beginLoad();

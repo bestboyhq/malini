@@ -54,7 +54,6 @@ function seed(id: string, projectId: string, repoPath: string, path: string): vo
 		baseBranch: 'main',
 		status: 'active',
 		createdAt,
-		scope: null,
 		startedBy: null,
 	});
 }

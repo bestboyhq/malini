@@ -35,10 +35,10 @@ beforeEach(() => {
 		defaultBranch: 'main',
 		createdAt: NOW,
 	});
-	workstream('lead', 'Home', null, 'owner:acme');
-	workstream('api', 'Api analytics', 'lead');
+	workstream('starter', 'Ship analytics', null);
+	workstream('api', 'Api analytics', 'starter');
 	workstream('other', 'Other work', null);
-	for (const id of ['lead', 'api', 'other']) {
+	for (const id of ['starter', 'api', 'other']) {
 		insertSession(db, {
 			id: `${id}-chat`,
 			workstreamId: id,
@@ -49,7 +49,7 @@ beforeEach(() => {
 			startedAt: NOW,
 		});
 	}
-	userTurn('lead-run');
+	userTurn('starter-run');
 	deps = {
 		db,
 		commands,
@@ -66,7 +66,7 @@ afterEach(async () => {
 	db.close();
 });
 
-function workstream(id: string, name: string, startedBy: string | null, scope?: string): void {
+function workstream(id: string, name: string, startedBy: string | null): void {
 	upsertWorkstream(db, {
 		id,
 		projectId: 'project',
@@ -76,7 +76,6 @@ function workstream(id: string, name: string, startedBy: string | null, scope?: 
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
-		scope: scope ?? null,
 		startedBy,
 	});
 }
@@ -84,7 +83,7 @@ function workstream(id: string, name: string, startedBy: string | null, scope?: 
 function userTurn(id: string): void {
 	insertRun(db, {
 		id,
-		sessionId: 'lead-chat',
+		sessionId: 'starter-chat',
 		prompt: 'Ship analytics',
 		startedAt: NOW,
 		completedAt: null,
@@ -97,13 +96,13 @@ function output(answer: PlatformAnswer): unknown {
 	return JSON.parse(answer.text ?? 'null');
 }
 
-function send(workstream: string, prompt: string, runId = 'lead-run'): Promise<PlatformAnswer> {
+function send(workstream: string, prompt: string, runId = 'starter-run'): Promise<PlatformAnswer> {
 	return answerPlatformRequest(
 		{
 			type: 'bridge.platform_request',
 			protocolVersion: 43,
 			requestId: `platform-${runId}`,
-			sessionId: 'lead-chat',
+			sessionId: 'starter-chat',
 			runId,
 			tool: 'workstreams_send',
 			input: { workstream, prompt },
@@ -126,8 +125,8 @@ describe('workstreams_send', () => {
 			expect.objectContaining({
 				sessionId: 'api-chat',
 				prompt: 'Use the acme Logdash project.',
-				from: 'lead',
-				chainId: 'lead-run',
+				from: 'starter',
+				chainId: 'starter-run',
 			}),
 		]);
 	});
@@ -152,8 +151,8 @@ describe('workstreams_send', () => {
 		);
 		expect(sent).toHaveLength(SENDS_PER_CHAIN);
 
-		userTurn('lead-run-2');
-		expect((await send('Api analytics', 'Go on', 'lead-run-2')).ok).toBe(true);
+		userTurn('starter-run-2');
+		expect((await send('Api analytics', 'Go on', 'starter-run-2')).ok).toBe(true);
 		expect(sent).toHaveLength(SENDS_PER_CHAIN + 1);
 	});
 });

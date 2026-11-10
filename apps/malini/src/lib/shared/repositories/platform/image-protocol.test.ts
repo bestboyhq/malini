@@ -65,7 +65,6 @@ function chatInWorktree() {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
-		scope: null,
 		startedBy: null,
 	});
 	run(
@@ -130,13 +129,13 @@ describe('workstreamMedia', () => {
 	});
 });
 
-describe('a lead', () => {
+describe('a starter', () => {
 	it('shows what a workstream it started shows, by its absolute path', async () => {
 		const db = openMigratedDatabase(':memory:');
-		const lead = join(root, 'lead');
+		const starter = join(root, 'starter');
 		const started = join(root, 'started');
 		mkdirSync(join(started, '.context'), { recursive: true });
-		mkdirSync(lead, { recursive: true });
+		mkdirSync(starter, { recursive: true });
 		const shot = join(started, '.context', 'variant-a.png');
 		writeFileSync(shot, PNG);
 		writeFileSync(join(root, 'elsewhere.png'), PNG);
@@ -157,49 +156,48 @@ describe('a lead', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt: NOW,
-				scope: startedBy === null ? 'owner:acme' : null,
 				startedBy,
 			});
-		workstream('ws-lead', lead, null);
-		workstream('ws-started', started, 'ws-lead');
+		workstream('ws-starter', starter, null);
+		workstream('ws-started', started, 'ws-starter');
 		run(
 			db,
 			'INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES (?, ?, ?, ?)',
-			'sess-lead',
-			'ws-lead',
+			'sess-starter',
+			'ws-starter',
 			'running',
 			NOW,
 		);
 		run(
 			db,
 			'INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES (?, ?, ?, ?)',
-			'run-lead',
-			'sess-lead',
+			'run-starter',
+			'sess-starter',
 			'relay it',
 			NOW,
 		);
 		const events = createEventBus({ forwardToWindows: false });
 		const resolve = workstreamMedia(
 			{ db, events, appDataRoot },
-			{ resolveCheckout: (id) => Promise.resolve(id === 'ws-lead' ? lead : started) },
+			{ resolveCheckout: (id) => Promise.resolve(id === 'ws-starter' ? starter : started) },
 		);
 
-		expect(await resolve('ws-lead', shot)).toBe(shot);
-		await expect(resolve('ws-lead', join(root, 'elsewhere.png'))).rejects.toThrow(
+		expect(await resolve('ws-starter', shot)).toBe(shot);
+		await expect(resolve('ws-starter', join(root, 'elsewhere.png'))).rejects.toThrow(
 			'escapes the workstream',
 		);
 
 		events.emit('chat:agent-event', {
-			sessionId: 'sess-lead',
-			runId: 'run-lead',
+			sessionId: 'sess-starter',
+			runId: 'run-starter',
 			seq: 1,
-			event: { runId: 'run-lead', type: 'assistant.message', text: `![A](${shot})` },
+			event: { runId: 'run-starter', type: 'assistant.message', text: `![A](${shot})` },
 		});
 		await vi.waitFor(async () => {
 			expect(await shownFile(appDataRoot, 'ws-started', '.context/variant-a.png')).not.toBeNull();
 		});
 		rmSync(join(started, '.context'), { recursive: true });
-		const kept = await resolve('ws-lead', shot);
+		const kept = await resolve('ws-starter', shot);
 		expect(kept && readFileSync(kept)).toEqual(PNG);
 	});
 });

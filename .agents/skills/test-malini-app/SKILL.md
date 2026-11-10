@@ -40,7 +40,7 @@ The app looks for workstream checkouts in `$P/checkouts`, so the snapshot alone 
 Copy the checkouts in too and repoint their git metadata at the copies.
 Skip each workstream's `.context` and `node_modules`: the sandbox needs neither, and copying them once grew a profile to 1.5 million files.
 Clone `workstreams/.kept` as it is: an archived workstream keeps its `.context` and the files its chats showed there, and without it a restored chat's screenshots answer 404.
-Copy the lead space too: organization chats are worktrees of it, and their links would otherwise point at the live one.
+Copy the retired lead space too: the chats Malini archives at boot (Home and organization chats, ADR 0198) are worktrees of it, and the sweep would otherwise run in the live one.
 A workstream of a repository opened from a folder keeps its link to that folder, so the loop never writes into the user's own repository.
 The loop drops each copied worktree entry that still names a folder outside the profile, such as a worktree Claude Code made elsewhere: the move at launch runs `git worktree repair`, which would otherwise write into that real worktree.
 
@@ -61,6 +61,7 @@ find "$C/repositories" "$P/lead-space" -maxdepth 6 -path '*/.git/worktrees/*/git
 		else rm -rf "${admin%/gitdir}"; fi
 	done
 sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$C');
+	update projects set repo_path = replace(repo_path, '$A', '$P');
 	update workstreams set path = replace(path, '$L', '$C');
 	update connected_repositories set local_path = null where local_path not like '$C%';
 	update automation_definitions set trigger_mode = 'off' where trigger_mode != 'off';

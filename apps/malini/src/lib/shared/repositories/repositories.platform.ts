@@ -24,7 +24,7 @@ export interface RepositoriesPlatform {
 	cancelGitHubSignIn(): void;
 	readonly gh: GhRunner;
 	listLiveWorkstreamIds(): string[];
-	archiveHomeChats(): Promise<void>;
+	archiveRetiredChats(): Promise<void>;
 	reclaimAbandonedContainers(budgetMs?: number): Promise<ContainerReclaim>;
 }
 
@@ -92,7 +92,7 @@ export {
 	workstreamRepositoryName,
 	type CatalogRepository,
 } from './platform/repository-catalog';
-export { leadPlanPath, workstreamLineage } from './platform/lineage.service';
+export { workstreamLineage } from './platform/lineage.service';
 export {
 	clonePlannedRepository,
 	createPlannedWorkstream,
@@ -100,14 +100,9 @@ export {
 	prepareStartedWorkstream,
 } from './platform/workstream-start.service';
 export { displayWorkstreamName, isPlaceholderWorkstreamName } from './domain/workstream-names';
-export { workstreamLeads } from './domain/workstream-leads';
+export { workstreamRoots } from './domain/workstream-roots';
+export { isRetiredChat } from './domain/retired-chats';
 export { nextWorkstreamId } from './domain/project-identity';
-export {
-	RETIRED_HOME_SCOPE_KEY,
-	leadScopeKey,
-	parseLeadScope,
-	type LeadScope,
-} from './domain/lead-scope';
 export {
 	projectFullName,
 	projectIdentityIdsForRepository,

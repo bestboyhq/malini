@@ -38,7 +38,7 @@
 | "Fixed the layout." Sure.                                                  | A visible change comes with before and after. Every changed area gets a number, including the ones nobody meant to change. |
 | You asked for a design and got one guess.                                  | An open question comes back as two to four variants. You pick, the agent builds the winner.                                |
 | The pull request sits red overnight.                                       | Press **Merge**. Malini fixes checks, merges main in, answers review, and merges exactly the commit that passed.           |
-| One change spans three repositories.                                       | A chat for your organization plans it and starts one workstream per repository. It asks you only what only you can decide. |
+| One change spans three repositories.                                       | A chat in one repository starts a workstream in each of the others, and hears their reports.                               |
 | You type the same prompt every Monday.                                     | Make it an automation. Give it a trigger, like a merged pull request, and a Then, like **Open draft**.                     |
 | The agent wants your API key in the chat.                                  | It asks for the key by name. Your keychain keeps it, and every output shows `[secret]`.                                    |
 | One bad turn wrecks the branch.                                            | Every turn has Undo. Or fork the chat and try again.                                                                       |
@@ -56,7 +56,7 @@ Everything else Malini does is in [`docs/features.md`](docs/features.md) and the
 ## How it works
 
 1. **Start a task.**
-   Press **+** on a repository, or tell a chat for your organization what you want and it starts the workstreams.
+   Press **+** on a repository, or ask a chat to start workstreams in the other repositories a change touches.
    Each one gets a fresh worktree, its own branch, and dependencies installed from the lockfile.
 2. **Keep it moving.**
    Queue prompts, plan first, and pick the model and effort for every prompt.

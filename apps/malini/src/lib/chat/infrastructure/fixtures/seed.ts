@@ -47,7 +47,6 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
-		scope: null,
 		startedBy: null,
 	},
 	{
@@ -63,7 +62,6 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
-		scope: null,
 		startedBy: null,
 	},
 	{
@@ -79,7 +77,6 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
-		scope: null,
 		startedBy: null,
 	},
 	{
@@ -95,7 +92,6 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
-		scope: null,
 		startedBy: null,
 	},
 	{
@@ -111,7 +107,6 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
-		scope: null,
 		startedBy: null,
 	},
 	{
@@ -127,7 +122,6 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
-		scope: null,
 		startedBy: null,
 	},
 ];

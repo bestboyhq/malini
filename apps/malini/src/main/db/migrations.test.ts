@@ -48,7 +48,6 @@ const ALL_TABLES = [
 	'event_log',
 	'hidden_repositories',
 	'installed_extensions',
-	'lead_decisions',
 	'mcp_server_folder_offs',
 	'mcp_server_listings',
 	'model_providers',
@@ -110,7 +109,6 @@ const ALL_INDEXES = [
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
 	'idx_event_log_workstream_channel',
-	'idx_lead_decisions_session',
 	'idx_reconciler_decisions_chain',
 	'idx_reconciler_decisions_created',
 	'idx_reconciler_decisions_event',
@@ -1228,12 +1226,12 @@ describe('migrate', () => {
 		edited.close();
 	});
 
-	it('clears the schedule of an automation that ran at Home, and keeps the rest', () => {
+	it('clears a schedule that names no repository and a trigger on a removed event, and keeps the rest', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
-		const home = MIGRATIONS.length - 1;
-		for (const migration of MIGRATIONS.slice(0, home)) db.exec(migration);
-		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + home};`);
+		const before = MIGRATIONS.length - 2;
+		for (const migration of MIGRATIONS.slice(0, before)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + before};`);
 		const at = '2026-11-09T00:00:00Z';
 		const automation = (id: string, builtin: string | null, when: string | null) =>
 			`INSERT INTO automation_definitions
@@ -1246,6 +1244,7 @@ describe('migrate', () => {
 		db.exec(automation('onevent', null, 'on pull-requests:ship-changed where merged is set'));
 		db.exec(automation('manual', null, null));
 		db.exec(automation('notes', 'write-brain-notes', 'every sunday at 18:00'));
+		db.exec(automation('ondecision', null, 'on chat:lead-decision-changed'));
 
 		migrate(db);
 
@@ -1256,12 +1255,7 @@ describe('migrate', () => {
 			),
 		).toEqual([
 			{ id: 'athome', instructions: 'Do athome.', trigger_when: null, trigger_mode: null },
-			{
-				id: 'inorg',
-				instructions: 'Do inorg.',
-				trigger_when: 'every weekday at 09:00 in acme',
-				trigger_mode: 'auto',
-			},
+			{ id: 'inorg', instructions: 'Do inorg.', trigger_when: null, trigger_mode: null },
 			{
 				id: 'inrepo',
 				instructions: 'Do inrepo.',
@@ -1275,6 +1269,7 @@ describe('migrate', () => {
 				trigger_when: 'every sunday at 18:00',
 				trigger_mode: 'auto',
 			},
+			{ id: 'ondecision', instructions: 'Do ondecision.', trigger_when: null, trigger_mode: null },
 			{
 				id: 'onevent',
 				instructions: 'Do onevent.',
@@ -1282,6 +1277,24 @@ describe('migrate', () => {
 				trigger_mode: 'auto',
 			},
 		]);
+		db.close();
+	});
+
+	it('drops lead decisions with the rows that point at them', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const before = MIGRATIONS.length - 1;
+		for (const migration of MIGRATIONS.slice(0, before)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + before};`);
+		const at = '2026-11-09T00:00:00Z';
+		db.exec(`INSERT INTO event_log (channel, payload, chain_id, emitted_at) VALUES
+			('chat:lead-decision-changed', '{}', 'c1', '${at}'),
+			('chat:turn-finished', '{}', 'c2', '${at}')`);
+
+		migrate(db);
+
+		expect(tableNames(db)).not.toContain('lead_decisions');
+		expect(all(db, 'SELECT channel FROM event_log')).toEqual([{ channel: 'chat:turn-finished' }]);
 		db.close();
 	});
 });

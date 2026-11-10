@@ -1,5 +1,5 @@
 import type { PullRequestPhase } from '$lib/pull-requests/domain/pull-request-state';
-import type { ProgressDot } from './lead-progress';
+import type { ProgressDot } from './started-progress';
 
 export type StatusSectionKey =
 	'needs-you' | 'in-progress' | 'in-review' | 'idle' | 'stale' | 'merged';

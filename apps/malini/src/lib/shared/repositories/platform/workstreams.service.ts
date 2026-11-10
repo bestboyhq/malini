@@ -45,13 +45,7 @@ import {
 	type ConnectedRepositoryContext,
 } from '$shared/repositories/domain/repository-context';
 import type { Repository } from '$shared/repositories/domain/repository';
-import {
-	LEAD_SPACE_BRANCH,
-	LEAD_SPACE_PROJECT_ID,
-	RETIRED_HOME_SCOPE_KEY,
-	isRetiredHomeChat,
-	parseLeadScope,
-} from '$shared/repositories/domain/lead-scope';
+import { isRetiredChat } from '$shared/repositories/domain/retired-chats';
 import { UNOBSERVED_WORKSTREAM_CHECKOUT } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import type { WorkstreamBaseSync } from './base-sync.service';
@@ -117,7 +111,6 @@ export interface CreateWorkstreamInput {
 	readonly githubToken: string | null;
 	readonly startRef?: string;
 	readonly branch?: string;
-	readonly scope?: string | null;
 	readonly startedBy?: string | null;
 }
 
@@ -214,7 +207,6 @@ export async function createWorkstream(
 		baseBranch,
 		status: 'active',
 		createdAt: now,
-		scope: input.scope ?? null,
 		startedBy: input.startedBy ?? null,
 	};
 	try {
@@ -272,13 +264,12 @@ export async function archiveWorkstream(
 	return retireWorkstream(deps, workstreamId, shelf);
 }
 
-export async function archiveHomeChats(deps: WorkstreamsDeps): Promise<void> {
-	const homeChats = listWorkstreams(deps.db).filter(
-		({ scope }) => scope === RETIRED_HOME_SCOPE_KEY,
-	);
-	for (const { id } of homeChats) {
+export async function archiveRetiredChats(deps: WorkstreamsDeps): Promise<void> {
+	for (const { id } of listWorkstreams(deps.db).filter(isRetiredChat)) {
 		await archiveWorkstream(deps, id, 'archived').catch((error: unknown) =>
-			console.error(`malini: could not archive the Home chat \`${id}\`: ${describeError(error)}`),
+			console.error(
+				`malini: could not archive the retired chat \`${id}\`: ${describeError(error)}`,
+			),
 		);
 	}
 }
@@ -290,9 +281,7 @@ export async function restoreWorkstream(
 	const { db, events, checkoutsRoot, baseSync } = deps;
 	const archived = getArchivedWorkstream(db, workstreamId);
 	if (archived === null) throw new Error(`Not an archived workstream: ${workstreamId}`);
-	if (isRetiredHomeChat({ projectId: archived.projectId, scope: parseLeadScope(archived.scope) })) {
-		throw new Error('Home chats are gone, so this one stays archived');
-	}
+	if (isRetiredChat(archived)) throw new Error('This chat is gone, so it stays archived');
 	const project = getProject(db, archived.projectId);
 	const repository = recordedBaseRepository(db, checkoutsRoot, workstreamId);
 	if (project === null || repository === null) {
@@ -312,10 +301,7 @@ export async function restoreWorkstream(
 			checkout,
 			branch,
 			savedRef: archived.archivedRef,
-			baseStart: async () =>
-				archived.projectId === LEAD_SPACE_PROJECT_ID
-					? LEAD_SPACE_BRANCH
-					: (await baseSync.startRef(repository, archived.baseBranch, null)).ref,
+			baseStart: async () => (await baseSync.startRef(repository, archived.baseBranch, null)).ref,
 		});
 		restoreWorkstreamRecord(db, workstreamId, checkout, branch);
 	} catch (error) {
@@ -373,7 +359,6 @@ export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 			mergedPullRequest,
 			savedForLater,
 			clearedFromStarter,
-			scope,
 			startedBy,
 		}) => ({
 			id,
@@ -384,7 +369,6 @@ export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 			mergedPullRequest,
 			savedForLater,
 			clearedFromStarter,
-			scope,
 			startedBy,
 		}),
 	);
@@ -426,7 +410,6 @@ function repositoryWorkstreams(
 		...row,
 		activeAt: row.createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
-		scope: parseLeadScope(row.scope),
 	}));
 	return (
 		connectedRepositoryContexts({ repositories, workstreams }).find(

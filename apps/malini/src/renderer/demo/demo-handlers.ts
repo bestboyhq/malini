@@ -5,6 +5,7 @@ import type {
 } from '$contract/agent';
 import type { ExtensionListing, InstalledExtension } from '$contract/marketplace';
 import type {
+	GithubRepositoryDto,
 	OwnerAvatar,
 	PullRequestStatusDto,
 	WorkstreamImageRead,
@@ -16,7 +17,7 @@ import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
 import {
 	cancelRun,
 	clickShipButton,
-	createLead,
+	createWorkstream,
 	mergedPullRequest,
 	playDocsScenes,
 	pullRequestUrl,
@@ -86,6 +87,14 @@ async function ownerAvatar(): Promise<OwnerAvatar | null> {
 	const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
 	return { mediaType: 'image/webp', base64: btoa(String.fromCharCode(...bytes)) };
 }
+
+const GITHUB_REPOSITORIES: GithubRepositoryDto[] = PROJECTS.map((project) => ({
+	fullName: `${OWNER}/${project.name}`,
+	description: null,
+	cloneUrl: project.remoteUrl ?? '',
+	private: false,
+	pushedAt: null,
+}));
 
 const EFFORTS: AgentReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
@@ -205,7 +214,11 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	}),
 	'repositories.list-repositories': () => PROJECTS,
 	'repositories.list-workstreams': () => workstreams(),
-	'repositories.create-lead': (args) => createLead(args),
+	'repositories.list-github-repositories': () => GITHUB_REPOSITORIES,
+	'repositories.list-github-owners': () => [OWNER],
+	'repositories.create-workstream': (args) => createWorkstream(args),
+	'repositories.sync-workstream-base': () => 'current',
+	'repositories.provision-dependencies': () => ({ status: 'succeeded' }),
 	'repositories.list-archived-workstreams': () => [],
 	'repositories.list-hidden': () => [],
 	'repositories.list-clones': () => [],

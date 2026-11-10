@@ -74,7 +74,6 @@ export function onboardingSidebarPreview(
 			resolvedPath: null,
 			createdAt: CREATED_AT,
 			activeAt: CREATED_AT,
-			scope: null,
 			startedBy: null,
 		};
 		return { workstream, repositoryName: repositoryName(fullName) };
@@ -84,11 +83,9 @@ export function onboardingSidebarPreview(
 			repositories,
 			workstreams: rows.map((row) => row.workstream),
 		}),
-		leads: [],
 		hiddenRepositoryIds: new Set(),
 		focus: ALL_FOCUS,
 		arrangement,
-		workstreamOrder: [],
 		activeAt: () => 0,
 		sectionOf: onboardingPreviewStatus,
 	});

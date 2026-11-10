@@ -10,7 +10,7 @@ import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
 	deliveryBatch,
 	reportedTurnEnd,
-	reportForLead,
+	reportForStarter,
 	workstreamReport,
 } from '../domain/deliveries';
 import { isAlreadyActiveError } from '../domain/prompt-dispatch-failure';
@@ -128,7 +128,6 @@ export class ChatDeliveries {
 				...(batch.causeEventId === null ? {} : { causeEventId: batch.causeEventId }),
 				...(profile === null ? {} : { profile }),
 				...(batch.reports.length === 0 ? {} : { reports: batch.reports }),
-				...(batch.decisions.length === 0 ? {} : { decisions: batch.decisions }),
 			});
 		} catch (error) {
 			if (isAlreadyActiveError(describeError(error))) {
@@ -168,7 +167,7 @@ export class ChatDeliveries {
 		});
 		const body =
 			summary && summary.trim().length > 0
-				? reportForLead(summary.trim(), workstream.path)
+				? reportForStarter(summary.trim(), workstream.path)
 				: [`Outcome: ${turn.outcome ?? 'none'}`, `Needs: ${turn.needs ?? 'nothing'}`].join('\n');
 		await this.deliver({
 			sessionId: starter.id,

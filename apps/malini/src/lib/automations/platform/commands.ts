@@ -43,8 +43,6 @@ import {
 import {
 	getWorkstream,
 	listRepositoryCatalog,
-	parseLeadScope,
-	repositoryOwner,
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
@@ -347,7 +345,6 @@ export function defineAutomationCommands(
 		}
 		const workstreamId = optionalString(args, 'workstreamId');
 		const repositoryId = optionalString(args, 'repositoryId');
-		const scope = optionalScope(args);
 		const automationContext = optionalContext(args);
 		const origin = optionalOrigin(args);
 		const parentRunId = optionalString(args, 'parentRunId');
@@ -358,7 +355,7 @@ export function defineAutomationCommands(
 		if (parentRunId !== null) requireNoLoop(db, definition, parentRunId);
 		const target = isBrainAutomationBuiltin(definition.builtin)
 			? await brainTarget(brainWorkstream)
-			: await runTarget(db, definition, origin, { workstreamId, repositoryId, scope });
+			: await runTarget(db, definition, origin, { workstreamId, repositoryId });
 		const folded =
 			chatSessionId === null && origin !== 'merge-queue' && origin !== 'schedule'
 				? foldIntoPending(definition, target, automationContext, origin === 'manual')
@@ -377,7 +374,7 @@ export function defineAutomationCommands(
 
 	const foldIntoPending = (
 		definition: AutomationDefinitionRecord,
-		target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+		target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId'>,
 		automationContext: string | null,
 		promote: boolean,
 	): AutomationRunRecord | null => {
@@ -387,7 +384,7 @@ export function defineAutomationCommands(
 
 	const newRun = (
 		definition: AutomationDefinitionRecord,
-		target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+		target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId'>,
 		origin: AutomationRunOrigin,
 		automationContext: string | null,
 		waitForYou: boolean,
@@ -562,8 +559,7 @@ async function timelineWorkstreams(
 		found.push({
 			id: workstream.id,
 			name: workstream.name,
-			repository:
-				workstream.scope === null ? (repositories.get(workstream.projectId) ?? null) : null,
+			repository: repositories.get(workstream.projectId) ?? null,
 			startedBy: workstream.startedBy,
 		});
 		if (workstream.startedBy !== null) visit(workstream.startedBy);
@@ -697,27 +693,17 @@ async function knownPlace(
 	if (place.kind === 'none') {
 		if (unplacedAllowed) return place;
 		throw invalid(
-			'a schedule must say where it runs: add `in <owner>` or `in <owner>/<repository>` after the time',
+			'a schedule must say where it runs: add `in <owner>/<repository>` after the time',
 		);
 	}
-	const names = (await listRepositoryCatalog(db)).map((repository) => repository.fullName);
-	if (place.kind === 'repository') {
-		const wanted = place.repository.toLocaleLowerCase();
-		const repository = names.find((name) => name.toLocaleLowerCase() === wanted);
-		if (repository) return { kind: 'repository', repository };
-		throw new AutomationError(
-			'not-found',
-			`No repository in Malini is \`${place.repository}\`. Add it first, or schedule the automation in its organization.`,
-		);
-	}
-	const wanted = place.owner.toLocaleLowerCase();
-	const owner = names
-		.map(repositoryOwner)
-		.find((candidate) => candidate?.toLocaleLowerCase() === wanted);
-	if (owner) return { kind: 'owner', owner };
+	const wanted = place.repository.toLocaleLowerCase();
+	const repository = (await listRepositoryCatalog(db))
+		.map((candidate) => candidate.fullName)
+		.find((name) => name.toLocaleLowerCase() === wanted);
+	if (repository) return { kind: 'repository', repository };
 	throw new AutomationError(
 		'not-found',
-		`No repository in Malini belongs to \`${place.owner}\`. Add one of its repositories first.`,
+		`No repository in Malini is \`${place.repository}\`. Add it first.`,
 	);
 }
 
@@ -865,38 +851,28 @@ async function requireRepository(db: MaliniDatabase, repositoryId: string | null
 	return repositoryId;
 }
 
-type RunTarget = Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>;
+type RunTarget = Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId'>;
 
 async function brainTarget(brainWorkstream: () => Promise<string | null>): Promise<RunTarget> {
 	const workstreamId = await brainWorkstream();
 	if (workstreamId === null) {
 		throw new AutomationError('not-found', 'Set up the brain first in Settings, Brain.');
 	}
-	return { workstreamId, repositoryId: null, scope: null };
+	return { workstreamId, repositoryId: null };
 }
 
 async function runTarget(
 	db: MaliniDatabase,
 	definition: AutomationDefinitionRecord,
 	origin: AutomationRunOrigin,
-	{ workstreamId, repositoryId, scope }: RunTarget,
+	{ workstreamId, repositoryId }: RunTarget,
 ): Promise<RunTarget> {
 	const scheduled = origin === 'schedule' && !isAgentlessAutomationBuiltin(definition.builtin);
-	if (scheduled && workstreamId === null && scope !== null) {
-		return { workstreamId: null, repositoryId: null, scope };
-	}
 	if (scheduled && workstreamId === null) {
-		return {
-			workstreamId: null,
-			repositoryId: await requireRepository(db, repositoryId),
-			scope: null,
-		};
-	}
-	if (scheduled) {
-		return { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null, scope };
+		return { workstreamId: null, repositoryId: await requireRepository(db, repositoryId) };
 	}
 	if (definition.runsIn === 'workstream' || origin === 'then' || origin === 'schedule') {
-		return { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null, scope: null };
+		return { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null };
 	}
 	return {
 		workstreamId: null,
@@ -904,16 +880,7 @@ async function runTarget(
 			db,
 			repositoryId ?? repositoryOfWorkstream(db, workstreamId),
 		),
-		scope: null,
 	};
-}
-
-function optionalScope(args: unknown): string | null {
-	const scope = optionalString(args, 'scope');
-	if (scope !== null && parseLeadScope(scope) === null) {
-		throw invalid('`scope` must be owner:<owner>');
-	}
-	return scope;
 }
 
 function optionalContext(args: unknown): string | null {

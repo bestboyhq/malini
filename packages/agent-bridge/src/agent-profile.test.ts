@@ -1,21 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { isAgentLineage } from './agent-profile.js';
+import { isAgentLineage, lineageDirectories } from './agent-profile.js';
+
+const sibling = { repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' };
 
 describe('isAgentLineage', () => {
-	const lead = { owner: 'acme', repositories: [], workstreams: [], plan: '/plans/p.md' };
-	const lineage = (override: Record<string, unknown>) => ({
-		lead: { ...lead, ...override },
-		startedBy: null,
-		siblings: [],
+	it('accepts a chat that started this workstream and its siblings', () => {
+		expect(isAgentLineage({ startedBy: { name: 'Unify footers' }, siblings: [sibling] })).toBe(
+			true,
+		);
+		expect(isAgentLineage({ startedBy: null, siblings: [] })).toBe(true);
 	});
 
-	it('accepts a lead chat of an organization', () => {
-		expect(isAgentLineage(lineage({}))).toBe(true);
+	it('rejects a starter without a name and a malformed sibling', () => {
+		expect(isAgentLineage({ startedBy: { name: '' }, siblings: [] })).toBe(false);
+		expect(isAgentLineage({ startedBy: {}, siblings: [] })).toBe(false);
+		expect(isAgentLineage({ startedBy: null, siblings: [{ repository: 'acme/web' }] })).toBe(false);
 	});
+});
 
-	it('rejects a lead chat with a null, empty or missing owner', () => {
-		expect(isAgentLineage(lineage({ owner: null }))).toBe(false);
-		expect(isAgentLineage(lineage({ owner: '' }))).toBe(false);
-		expect(isAgentLineage(lineage({ owner: undefined }))).toBe(false);
+describe('lineageDirectories', () => {
+	it('lists each sibling checkout once', () => {
+		expect(
+			lineageDirectories({ startedBy: { name: 'Unify footers' }, siblings: [sibling, sibling] }),
+		).toEqual(['/workstreams/w2']);
+		expect(lineageDirectories(undefined)).toEqual([]);
 	});
 });

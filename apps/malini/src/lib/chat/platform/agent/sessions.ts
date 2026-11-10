@@ -1,5 +1,5 @@
 import type { MaliniDatabase } from '$main/db/driver';
-import { listTimelineEventRows } from '../events.repository';
+import { listConversationEventRows } from '../events.repository';
 import { userPromptText } from '../fork-transcript';
 import { setSessionModel } from '../sessions.repository';
 import { all, get, isRecord } from '$main/db/rows';
@@ -82,7 +82,7 @@ export function conversationRecord(
 	sessionId: string,
 ): AgentConversationMessage[] | null {
 	const messages: Array<AgentConversationMessage & { runId: string }> = [];
-	for (const row of listTimelineEventRows(db, sessionId)) {
+	for (const row of listConversationEventRows(db, sessionId)) {
 		if (row.kind !== 'user.message' && row.kind !== 'assistant.message') continue;
 		const role = row.kind === 'user.message' ? 'user' : 'assistant';
 		const content = role === 'user' ? userPromptText(row.payload) : persistedEventText(row.payload);

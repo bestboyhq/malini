@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	leadHeadline,
 	progressDot,
 	progressLabel,
 	shipTargets,
@@ -8,7 +7,7 @@ import {
 	standingLabel,
 	type ProgressInput,
 	type ShipCandidate,
-} from './lead-progress';
+} from './started-progress';
 
 const idle: ProgressInput = {
 	merged: false,
@@ -19,7 +18,7 @@ const idle: ProgressInput = {
 	broken: false,
 };
 
-describe('lead progress', () => {
+describe('started progress', () => {
 	it('shows each workstream as its most pressing state', () => {
 		const inputs: ProgressInput[] = [
 			{ ...idle, merged: true, needsYou: true },
@@ -55,39 +54,6 @@ describe('lead progress', () => {
 			'3 workstreams: 1 merged, 1 working, 1 archived',
 		);
 		expect(progressLabel([])).toBe('0 workstreams');
-	});
-
-	it('heads a lead chat with what merged, and calls only a stuck merge or a failure a problem', () => {
-		expect(leadHeadline([])).toEqual({
-			tone: 'idle',
-			busy: false,
-			label: 'No workstreams yet',
-			detail: null,
-		});
-		expect(leadHeadline([], 3)).toEqual({
-			tone: 'merged',
-			busy: false,
-			label: 'All merged',
-			detail: null,
-		});
-		expect(leadHeadline(['merged', 'needs', 'running'])).toEqual({
-			tone: 'asks',
-			busy: true,
-			label: '1 of 3 merged',
-			detail: '1 needs you · 1 working',
-		});
-		expect(leadHeadline(['blocked', 'needs'])).toMatchObject({
-			tone: 'needs-you',
-			detail: '2 need you',
-		});
-		expect(leadHeadline(['needs', 'failed'])).toMatchObject({ tone: 'needs-you' });
-		expect(leadHeadline(['merged', 'merged'])).toMatchObject({ tone: 'merged', detail: null });
-		expect(leadHeadline(['idle', 'running'])).toMatchObject({ tone: 'idle', busy: true });
-		expect(leadHeadline(['merged', 'archived'])).toMatchObject({
-			tone: 'idle',
-			label: '1 of 2 merged',
-			detail: null,
-		});
 	});
 
 	it('names where each workstream stands', () => {

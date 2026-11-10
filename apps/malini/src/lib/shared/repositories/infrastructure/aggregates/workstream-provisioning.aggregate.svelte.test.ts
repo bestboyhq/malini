@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	provisioningClonePercent,
-	type RepositoryWorkstreamPlan,
+	type WorkstreamProvisioningPlan,
 } from '$shared/repositories/domain/provisioning';
 import { WorkstreamProvisioningAggregate } from './workstream-provisioning.aggregate.svelte';
 
-function plan(overrides: Partial<RepositoryWorkstreamPlan> = {}): RepositoryWorkstreamPlan {
+function plan(overrides: Partial<WorkstreamProvisioningPlan> = {}): WorkstreamProvisioningPlan {
 	return {
-		scope: null,
 		workstreamId: '01JWORKSTREAMA',
 		projectId: 'local__rabbits__hutch',
 		projectRepoPath: null,

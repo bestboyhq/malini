@@ -19,17 +19,13 @@ let checkout: string;
 let scope: CaptureScope;
 let runs = 0;
 
-function workstream(
-	id: string,
-	place: 'archived' | 'active' | 'organization' | 'retired-home',
-): void {
+function workstream(id: string, status: 'active' | 'archived', scope: string | null = null): void {
 	seedWorkstream(db, id);
-	if (place === 'archived') run(db, "UPDATE workstreams SET status = 'archived' WHERE id = ?", id);
-	if (place === 'organization')
-		run(db, "UPDATE workstreams SET scope = 'owner:acme' WHERE id = ?", id);
-	if (place === 'retired-home') {
-		run(db, "UPDATE workstreams SET scope = 'home', status = 'archived' WHERE id = ?", id);
-	}
+	run(db, 'UPDATE workstreams SET status = ?, scope = ? WHERE id = ?', status, scope, id);
+}
+
+function retiredOrganizationChat(id: string): void {
+	workstream(id, 'archived', 'owner:acme');
 }
 
 function chat(sessionId: string, workstreamId: string, name: string, origin = 'user'): void {
@@ -107,10 +103,10 @@ afterEach(async () => {
 });
 
 describe('capturing typed chats into the brain log', () => {
-	it('appends what you typed in archived chats and organization chats with each Outcome, never the assistant', async () => {
+	it('appends what you typed in archived chats with each Outcome, never the assistant', async () => {
 		workstream('ws-archived', 'archived');
 		workstream('ws-active', 'active');
-		workstream('ws-org', 'organization');
+		retiredOrganizationChat('ws-org');
 		chat('chat-archived', 'ws-archived', 'Fix the login loop');
 		chat('chat-active', 'ws-active', 'Still going');
 		chat('chat-org', 'ws-org', 'Plan the week');
@@ -133,15 +129,31 @@ describe('capturing typed chats into the brain log', () => {
 	});
 
 	it('still names a retired Home chat Home when it is captured for the last time', async () => {
-		workstream('ws-retired', 'retired-home');
+		workstream('ws-retired', 'archived', 'home');
 		chat('chat-retired', 'ws-retired', 'Plan the week');
 		turn('chat-retired', 'What ships Friday');
 
 		expect(await capture()).toContain('## Plan the week - Home\n\n> What ships Friday');
 	});
 
+	it('still names a retired organization chat after its owner', async () => {
+		retiredOrganizationChat('ws-retired');
+		chat('chat-retired', 'ws-retired', 'Plan the week');
+		turn('chat-retired', 'What ships Friday');
+
+		expect(await capture()).toContain('## Plan the week - acme\n\n> What ships Friday');
+	});
+
+	it('leaves a chat that is not archived alone, whatever its scope says', async () => {
+		workstream('ws-scoped', 'active', 'owner:acme');
+		chat('chat-scoped', 'ws-scoped', 'Plan the week');
+		turn('chat-scoped', 'What ships Friday');
+
+		expect(await captureTypedChats(db, scope)).toEqual({ chats: 0, turns: 0, logPath: null });
+	});
+
 	it('adds nothing on a second capture, then only the turns that came after', async () => {
-		workstream('ws-org', 'organization');
+		retiredOrganizationChat('ws-org');
 		chat('chat-org', 'ws-org', 'Plan the week');
 		turn('chat-org', 'First question');
 		const first = await capture();
@@ -169,14 +181,14 @@ describe('capturing typed chats into the brain log', () => {
 
 	it('skips the brain, automations, prompts other chats sent and turns from before the brain', async () => {
 		workstream('ws-brain', 'archived');
-		workstream('ws-org', 'organization');
+		retiredOrganizationChat('ws-org');
 		chat('chat-brain', 'ws-brain', 'Inside the brain');
 		chat('chat-org', 'ws-org', 'Plan the week');
 		chat('chat-automation', 'ws-org', 'An automation', 'automation');
 		turn('chat-brain', 'About the brain itself');
 		turn('chat-org', 'Before the brain existed');
 		const sinceSeq = 4;
-		turn('chat-org', 'Sent by the lead', { payload: { from: 'lead' } });
+		turn('chat-org', 'Sent by the starter', { payload: { from: 'starter' } });
 		turn('chat-org', 'Started by an automation', { automated: true });
 		turn('chat-automation', 'Automation chat');
 		turn('chat-org', 'Typed after');
@@ -202,7 +214,7 @@ describe('capturing typed chats into the brain log', () => {
 	});
 
 	it('waits for a turn still running and captures it once it finishes', async () => {
-		workstream('ws-org', 'organization');
+		retiredOrganizationChat('ws-org');
 		chat('chat-org', 'ws-org', 'Plan the week');
 		turn('chat-org', 'Done turn');
 		const running = turn('chat-org', 'Running turn', { finished: false });

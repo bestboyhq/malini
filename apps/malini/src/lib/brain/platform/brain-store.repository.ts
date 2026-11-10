@@ -89,7 +89,7 @@ export function uncapturedPrompts(
 		 JOIN agent_runs r ON r.id = e.run_id
 		 LEFT JOIN brain_captures c ON c.session_id = s.id
 		 WHERE s.origin = 'user'
-		   AND (w.status = 'archived' OR w.scope IS NOT NULL)
+		   AND w.status = 'archived'
 		   AND w.project_id IS NOT ?
 		   AND e.seq > MAX(COALESCE(c.last_seq, 0), ?)
 		   AND e.event LIKE 'user.message' || char(10) || '%'

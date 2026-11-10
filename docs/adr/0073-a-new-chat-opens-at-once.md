@@ -1,6 +1,6 @@
 # 0073 - A new chat opens at once and sets up its lead checkout behind it
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

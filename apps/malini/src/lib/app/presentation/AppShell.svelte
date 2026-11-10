@@ -44,8 +44,8 @@
 		const stopWatchingShips = watchShipStatesHook(
 			(workstreamId) => workstreamNameQuery.data(workstreamId),
 			(workstreamId) => {
-				const lead = attentionTreeQuery.leadOf(workstreamId);
-				return lead === workstreamId ? null : lead;
+				const root = attentionTreeQuery.rootOf(workstreamId);
+				return root === workstreamId ? null : root;
 			},
 		);
 		const stopRevealingBrowsers = revealOpenedBrowserHook();

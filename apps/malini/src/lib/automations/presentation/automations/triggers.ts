@@ -259,18 +259,10 @@ export function triggerFor(when: string | null): Trigger {
 }
 
 export function schedulePlaces(fullNames: readonly string[]): readonly SchedulePlace[] {
-	const repositories = fullNames
+	return fullNames
 		.filter((name) => githubOwnerFromFullName(name) !== null)
-		.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
-	const owners = [...new Set(repositories.map((name) => githubOwnerFromFullName(name) ?? ''))];
-	return [
-		...owners.flatMap((owner): SchedulePlace[] => [
-			{ kind: 'owner', owner },
-			...repositories
-				.filter((name) => githubOwnerFromFullName(name) === owner)
-				.map((repository): SchedulePlace => ({ kind: 'repository', repository })),
-		]),
-	];
+		.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }))
+		.map((repository): SchedulePlace => ({ kind: 'repository', repository }));
 }
 
 export function defaultSchedulePlace(fullNames: readonly string[]): SchedulePlace {
@@ -283,9 +275,7 @@ export function schedulePlaceValue(place: SchedulePlace): string {
 
 export function scheduleRunsIn(place: SchedulePlace): string {
 	if (place.kind === 'none') return 'in the brain';
-	return place.kind === 'owner'
-		? `in its own chat in ${place.owner}`
-		: `in its own workstream of ${place.repository}`;
+	return `in its own workstream of ${place.repository}`;
 }
 
 export function builtinTrigger(

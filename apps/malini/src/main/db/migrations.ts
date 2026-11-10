@@ -1928,6 +1928,21 @@ WHERE trigger_when IS NOT NULL
   AND lower(trigger_when) NOT LIKE '% in %'
   AND (builtin IS NULL OR builtin != 'write-brain-notes');
 `,
+	`
+DELETE FROM agent_deliveries WHERE kind = 'decision';
+DROP INDEX idx_lead_decisions_session;
+DROP TABLE lead_decisions;
+DELETE FROM event_log WHERE channel = 'chat:lead-decision-changed';
+DELETE FROM reconciler_decisions WHERE channel = 'chat:lead-decision-changed';
+UPDATE automation_definitions
+SET trigger_when = NULL, trigger_mode = NULL
+WHERE trigger_when IS NOT NULL
+  AND (
+    (lower(trim(trigger_when)) LIKE 'every %' AND lower(trigger_when) NOT LIKE '% in %/%')
+    OR lower(trigger_when) LIKE '%chat:lead-decision-changed%'
+  )
+  AND (builtin IS NULL OR builtin != 'write-brain-notes');
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

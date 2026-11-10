@@ -1,4 +1,4 @@
-import type { ProgressDot } from '$lib/app/domain/lead-progress';
+import type { ProgressDot } from '$lib/app/domain/started-progress';
 
 export const PROGRESS_DOT_CLASS: Readonly<Record<ProgressDot, string>> = {
 	merged: 'bg-merged-content',

@@ -70,10 +70,10 @@ describe('parseAutomationTrigger schedules', () => {
 		});
 	});
 
-	it('reads an organization or a repository as the place it runs in', () => {
-		expect(parseAutomationTrigger('every day at 07:00 in bestboyhq')).toMatchObject({
-			place: { kind: 'owner', owner: 'bestboyhq' },
-		});
+	it('reads a repository as the place it runs in and refuses an organization', () => {
+		expect(() => parseAutomationTrigger('every day at 07:00 in bestboyhq')).toThrow(
+			/Unsupported schedule/u,
+		);
 		expect(parseAutomationTrigger('every day at 07:00 in bestboyhq/malini')).toMatchObject({
 			place: { kind: 'repository', repository: 'bestboyhq/malini' },
 		});

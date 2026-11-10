@@ -1,4 +1,4 @@
-import { treeDot } from '$lib/app/domain/lead-progress';
+import { treeDot } from '$lib/app/domain/started-progress';
 import type { SidebarGrouping } from '$lib/app/domain/sidebar-arrangement';
 import {
 	daySection,
@@ -9,7 +9,7 @@ import { workstreamActivityQuery } from '$lib/chat/application/queries/workstrea
 import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 import type { Workstream } from '$shared/repositories/repositories.api';
 import { attentionTreeQuery } from './attention-tree.query.svelte';
-import { leadProgressQuery } from './lead-progress.query.svelte';
+import { startedProgressQuery } from './started-progress.query.svelte';
 
 class SidebarSectionsQuery {
 	public readonly activeAt: (workstream: Workstream) => number = $derived(
@@ -25,13 +25,13 @@ class SidebarSectionsQuery {
 		now: number,
 	) => (workstream: Workstream) => SidebarSectionKey = $derived(
 		(grouping: SidebarGrouping, now: number) => (workstream: Workstream) => {
-			const { lead, started } = attentionTreeQuery.treeOf(workstream);
-			const activeAt = Math.max(...[lead, ...started].map(this.activeAt));
+			const { root, started } = attentionTreeQuery.treeOf(workstream);
+			const activeAt = Math.max(...[root, ...started].map(this.activeAt));
 			return grouping === 'day'
 				? daySection(activeAt, now)
 				: statusSection({
-						dot: treeDot(leadProgressQuery.dot(lead), started.map(leadProgressQuery.dot)),
-						pullRequest: pullRequestBadgesQuery.data(lead.id).phase,
+						dot: treeDot(startedProgressQuery.dot(root), started.map(startedProgressQuery.dot)),
+						pullRequest: pullRequestBadgesQuery.data(root.id).phase,
 						activeAt,
 						now,
 					});

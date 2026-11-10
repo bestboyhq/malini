@@ -500,6 +500,27 @@ export async function listEvents(page: Page, sessionId: string): Promise<MaliniE
 	});
 }
 
+export async function promptsOf(page: Page, sessionId: string): Promise<Record<string, unknown>[]> {
+	const events = await listEvents(page, sessionId);
+	return events.flatMap(({ event }) => (event['type'] === 'user.message' ? [event] : []));
+}
+
+export async function reportsHeardBy(
+	page: Page,
+	workstreamId: string,
+): Promise<Record<string, unknown>[]> {
+	const sessions = await listSessions(page, workstreamId);
+	const heard = await Promise.all(sessions.map(({ id }) => promptsOf(page, id)));
+	return heard.flat().flatMap((prompt) => {
+		const reports: unknown = prompt['reports'];
+		return Array.isArray(reports) ? reports.filter(isRecord) : [];
+	});
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
 export async function createSourceRepo(root: string, name = 'source'): Promise<string> {
 	const repo = join(root, name);
 	mkdirSync(repo, { recursive: true });
@@ -725,14 +746,6 @@ export async function openRepositoriesPage(page: Page): Promise<void> {
 
 function composer(page: Page) {
 	return page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
-}
-
-export async function openChatIn(page: Page, owner: string): Promise<void> {
-	const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
-	await clickRevealedOnHover(
-		sidebar.getByTestId('sidebar-owner-folder').filter({ hasText: owner }),
-		sidebar.getByRole('button', { name: `New chat in ${owner}` }),
-	);
 }
 
 export async function sendPrompt(page: Page, text: string): Promise<void> {

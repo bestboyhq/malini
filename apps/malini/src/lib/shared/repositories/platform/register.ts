@@ -51,7 +51,6 @@ import {
 	requireString,
 	requireStringArray,
 } from './args';
-import { parseLeadScope } from '../domain/lead-scope';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
 import { BASE_FETCH_EVERY_MS, BASE_QUIET_MS, BaseOverlapWatch } from './base-overlap.service';
@@ -60,7 +59,6 @@ import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolve
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
-import { createLeadSpace } from './lead-space.service';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
@@ -104,7 +102,7 @@ import {
 } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
-	archiveHomeChats,
+	archiveRetiredChats,
 	archiveWorkstream,
 	createRepository,
 	createWorkstream,
@@ -284,18 +282,6 @@ export function registerRepositories(
 				? {}
 				: { startRef: await fetchRemoteStart(projectRepoPath, baseRef, githubToken, credentials) }),
 		});
-	});
-
-	const createLead = createLeadSpace(workstreams);
-	commands.define('repositories.create-lead', async (args: unknown) => {
-		const scope = parseLeadScope(requireString(args, 'scope'));
-		if (scope === null) throw new Error('invalid args: `scope` must be `owner:<owner>`');
-		const lead = await createLead({
-			scope,
-			workstreamId: checkedWorkstreamId(args),
-			name: requireNonEmptyString(args, 'name'),
-		});
-		return workstreamDto(checkoutsRoot, lead, lead.createdAt);
 	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>
@@ -666,7 +652,7 @@ export function registerRepositories(
 		abortInstall: (workstreamId) => installs.abortAndWait(workstreamId),
 		cancelGitHubSignIn: () => githubSignIn.cancel(),
 		gh,
-		archiveHomeChats: () => archiveHomeChats(workstreams),
+		archiveRetiredChats: () => archiveRetiredChats(workstreams),
 		listLiveWorkstreamIds: () =>
 			listWorkstreams(db)
 				.filter((row) => row.status === 'active')

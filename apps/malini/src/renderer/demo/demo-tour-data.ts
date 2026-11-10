@@ -98,7 +98,7 @@ export const TOUR_REPORT = [
 	'Needs: nothing',
 ].join('\n');
 
-export const TOUR_LEAD = {
+export const TOUR_STARTER = {
 	prompt: TOUR_PROMPT,
 	name: 'Changelog in every footer',
 	plan: 'A changelog link in every footer we ship. First, what is already in flight.',

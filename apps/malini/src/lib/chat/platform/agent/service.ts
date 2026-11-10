@@ -413,13 +413,12 @@ export async function startAgentService(
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			...(deps.secrets ? { secrets: secretsReaching(db, deps.secrets) } : {}),
 			...(deps.plugins ? { plugins: deps.plugins } : {}),
-			boundary: (automation, lineage) =>
+			boundary: (automation) =>
 				agentBoundary(automation, {
 					appDataRoot: context.appDataRoot,
 					appDataEntries: appDataEntries(context.appDataRoot),
 					checkoutsRoot: context.checkoutsRoot,
-					checkouts: listWorkstreams(db).map(({ path, scope }) => ({ path, lead: scope !== null })),
-					starterPlan: lineage?.startedBy?.plan ?? null,
+					checkouts: listWorkstreams(db),
 				}),
 			async turnSettings() {
 				const settings = await savedSettings();

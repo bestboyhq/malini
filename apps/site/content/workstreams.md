@@ -62,7 +62,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   A dot on a pin means something in it needs you.
 - The sliders button beside it groups and sorts the sidebar, and Malini remembers.
   Its panel opens beside the sidebar, so the rows stay in view while you change them.
-  **Grouping** picks **Organization**, an owner row above its repositories, **Repository**, every repository on its own with every chat above them, **Status** or **Day**.
+  **Grouping** picks **Organization**, an owner row above its repositories, **Repository**, every repository on its own, **Status** or **Day**.
   **Status** splits your work into **Needs you**, **In progress**, **In review**, **Idle**, **Stale** and **Merged**.
   Stale work has had no agent run for a week.
   **Day** splits it into **Today**, **Yesterday** and **Older**, by when an agent last ran in it or you started a chat there.
@@ -80,28 +80,23 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   **Skip** keeps Organization grouping, Everything and Compact.
 - **New chat** opens the command center on your repositories, connected ones first, and a pick starts a workstream in that repository.
   Nothing starts without a repository.
-  The **+** on an owner's row starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) for that organization.
-  Grouped by Status or Day with a pin open, **New chat** stays on top: on an organization's pin it starts a chat for that organization, and on a repository's pin a workstream in that repository.
-- By organization, every repository sits under a row named for its owner, below that owner's chats.
+  Grouped by Status or Day with a repository's pin open, **New chat** stays on top and starts a workstream in that repository.
+- By organization, every repository sits under a row named for its owner.
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.
   A search opens every owner it matches.
 - Every repository you connect shows, with or without workstreams, until you hide it.
   A clock and a count on its row say how many wait saved for later.
-- A workstream a chat in an organization started sits under that chat's row, with the name of its repository, and so does every workstream those workstreams start, one level deep: a workstream never holds another.
-  A workstream started from a workstream of a repository, with no such chat above it, sits under its repository.
-  The chevron on the chat's row folds them, and Malini remembers.
-  Under a pin that leaves the chat out, or in a Status or Day section the chat is not in, the workstream sits under its repository.
 - A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting, then a dot for each archived one, filled when it merged and hollow when it did not.
   A needs-you dot is blue when the workstream asks you something, and amber when its merge stopped on a problem.
   Hover the row to list them with where each stands.
-  On that chat's or workstream's page, **Started here** at the top right lists them by name and repository, with how many merged, above **Files** and any browser tab.
+  On that workstream's page, **Started here** at the top right lists them by name and repository, with how many merged, above **Files** and any browser tab.
   Hover a merged one and click **×**, or hover the heading and click **Clear merged**, to take merged work off that list and the row's dots for good; it stays in **Recently archived** and in your stats, and comes back only if you restore it.
   The row's own lines added and removed stay beside its dots.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
   A row's icon turns blue when its agent waits on an answer or an approval, and red when its run failed.
   Amber means a problem, such as a pull request Malini could not merge.
-  A workstream a chat started stays calm: its turns report to the chat, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up only for an approval or a question of its that waits there.
+  A workstream a chat started stays calm: its turns report to the chat, and [the chat's row](/malini/docs/chat.md#work-a-chat-starts) lights up only for an approval or a question of its that waits there.
 - **Settings → Appearance → Sidebar density** picks **Compact** rows, the default, or **Comfortable** ones.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.
@@ -113,7 +108,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   Archiving stops everything still running from its folder: the commands its agents left in the background, what those commands started and let go, and its Docker Compose containers.
   A command you run in your own terminal keeps running.
   When Malini starts, it stops whatever is still running from the folder of a workstream that is no longer live.
-- Chats at Home no longer exist.
+- Chats at Home and in an organization no longer exist.
   Malini archives the ones you had on its next launch, and they neither show in **Recently archived** nor come back.
 - The clock beside a workstream's archive button saves it for later.
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.

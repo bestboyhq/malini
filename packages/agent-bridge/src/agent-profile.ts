@@ -1,4 +1,4 @@
-import { dirname, isAbsolute } from 'node:path';
+import { isAbsolute } from 'node:path';
 import { isOneOf, isRecord } from './type-guards.js';
 
 export const AGENT_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -44,21 +44,11 @@ export interface AgentCheckout {
 	readonly path: string;
 }
 
-export interface AgentLead {
-	readonly owner: string;
-	readonly repositories: readonly AgentCheckout[];
-	readonly workstreams: readonly AgentCheckout[];
-	readonly plan: string;
-}
-
 export interface AgentStarter {
 	readonly name: string;
-	readonly lead: boolean;
-	readonly plan: string | null;
 }
 
 export interface AgentLineage {
-	readonly lead: AgentLead | null;
 	readonly startedBy: AgentStarter | null;
 	readonly siblings: readonly AgentCheckout[];
 }
@@ -87,29 +77,16 @@ export function isAgentBoundary(value: unknown): value is AgentBoundary {
 
 export function isAgentLineage(value: unknown): value is AgentLineage {
 	if (!isRecord(value)) return false;
-	const { lead, startedBy, siblings } = value;
+	const { startedBy, siblings } = value;
 	return (
-		(lead === null ||
-			(isRecord(lead) &&
-				isText(lead.owner) &&
-				isCheckoutList(lead.repositories) &&
-				isCheckoutList(lead.workstreams) &&
-				isText(lead.plan))) &&
-		(startedBy === null ||
-			(isRecord(startedBy) &&
-				isText(startedBy.name) &&
-				typeof startedBy.lead === 'boolean' &&
-				(startedBy.plan === null || isText(startedBy.plan)))) &&
+		(startedBy === null || (isRecord(startedBy) && isText(startedBy.name))) &&
 		isCheckoutList(siblings)
 	);
 }
 
 export function lineageDirectories(lineage: AgentLineage | undefined): string[] {
 	if (!lineage) return [];
-	const { lead, startedBy, siblings } = lineage;
-	const checkouts = [...(lead?.repositories ?? []), ...(lead?.workstreams ?? []), ...siblings];
-	const plans = startedBy?.plan ? [dirname(startedBy.plan)] : [];
-	return [...new Set([...checkouts.map(({ path }) => path), ...plans])];
+	return [...new Set(lineage.siblings.map(({ path }) => path))];
 }
 
 function isCheckoutList(value: unknown): value is AgentCheckout[] {

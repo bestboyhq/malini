@@ -73,7 +73,7 @@
 						</span>
 					</div>
 					<ul class={['flex w-full flex-col', compact ? 'gap-0.5' : 'gap-1.5']}>
-						{#each section.chats as workstream (workstream.id)}
+						{#each section.flat as workstream (workstream.id)}
 							{@render workstreamRow(
 								workstream,
 								0,

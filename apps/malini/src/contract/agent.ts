@@ -80,21 +80,11 @@ export interface AgentCheckout {
 	path: string;
 }
 
-export interface AgentLead {
-	owner: string;
-	repositories: AgentCheckout[];
-	workstreams: AgentCheckout[];
-	plan: string;
-}
-
 export interface AgentStarter {
 	name: string;
-	lead: boolean;
-	plan: string | null;
 }
 
 export interface AgentLineage {
-	lead: AgentLead | null;
 	startedBy: AgentStarter | null;
 	siblings: AgentCheckout[];
 }

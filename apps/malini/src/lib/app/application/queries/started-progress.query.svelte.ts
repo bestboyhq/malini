@@ -3,7 +3,7 @@ import {
 	shipTargets,
 	type ProgressDot,
 	type ShipTargets,
-} from '$lib/app/domain/lead-progress';
+} from '$lib/app/domain/started-progress';
 import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
 import { shippingAutomationRunsQuery } from '$lib/automations/application/queries/shipping-automation-runs.query.svelte';
 import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
@@ -18,7 +18,7 @@ import {
 	type Workstream,
 } from '$shared/repositories/repositories.api';
 
-class LeadProgressQuery {
+class StartedProgressQuery {
 	public readonly dot: (workstream: Workstream) => ProgressDot = $derived(
 		(workstream: Workstream) => {
 			const chat = workstreamChatSummaryQuery.data(workstream.id);
@@ -59,13 +59,6 @@ class LeadProgressQuery {
 		),
 	);
 
-	public readonly cleared: (parentId: string) => number = $derived(
-		(parentId: string) =>
-			archivedWorkstreamsQuery.data.filter(
-				(workstream) => startedBy(parentId)(workstream) && workstream.clearedFromStarter,
-			).length,
-	);
-
 	public readonly startedIds: (parentId: string) => string[] = $derived((parentId: string) =>
 		[...activeWorkstreamsQuery.data, ...listedArchived()]
 			.filter(startedBy(parentId))
@@ -79,8 +72,8 @@ function listedArchived(): ArchivedWorkstreamListing[] {
 
 function startedBy(
 	parentId: string,
-): (workstream: Readonly<{ startedBy: string | null; scope: unknown }>) => boolean {
-	return (workstream) => workstream.startedBy === parentId && workstream.scope === null;
+): (workstream: Readonly<{ startedBy: string | null }>) => boolean {
+	return (workstream) => workstream.startedBy === parentId;
 }
 
-export const leadProgressQuery = new LeadProgressQuery();
+export const startedProgressQuery = new StartedProgressQuery();

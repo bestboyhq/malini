@@ -13,8 +13,6 @@ export type ChatDelivery = Readonly<{
 
 export type ChatDeliveryChangedEvent = Readonly<{ delivery: ChatDelivery }>;
 
-export type ListChatDeliveriesArgs = Readonly<{ fromSessionId: string }>;
-
 export type WorkstreamReportMedia = Readonly<{ src: string; label: string }>;
 
 export type WorkstreamReport = Readonly<{
