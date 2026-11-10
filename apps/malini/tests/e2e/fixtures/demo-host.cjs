@@ -2,7 +2,7 @@ const { app, BrowserWindow } = require('electron');
 
 app.dock?.hide();
 let host;
-void app.whenReady().then(() => {
+app.once('ready', () => {
 	host = new BrowserWindow({
 		width: 1280,
 		height: 860,
