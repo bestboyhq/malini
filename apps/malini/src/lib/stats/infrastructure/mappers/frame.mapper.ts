@@ -1,6 +1,6 @@
 import type { FrameScript, RendererFrame } from '$contract/stats';
 
-type RawFrameContext = Readonly<{ timeOrigin: number; focused: boolean; route: string }>;
+type RawFrameContext = Readonly<{ wallClockOrigin: number; focused: boolean; route: string }>;
 
 const MAX_SCRIPTS = 5;
 
@@ -14,7 +14,7 @@ export class FrameMapper {
 		const scripts = field(raw, 'scripts');
 		return {
 			kind: 'long-frame',
-			startedAt: context.timeOrigin + raw.startTime,
+			startedAt: context.wallClockOrigin + raw.startTime,
 			durationMs: raw.duration,
 			focused: context.focused,
 			route: context.route,
@@ -27,7 +27,7 @@ export class FrameMapper {
 	static fromGap(startedAt: number, durationMs: number, context: RawFrameContext): RendererFrame {
 		return {
 			kind: 'frame-gap',
-			startedAt: context.timeOrigin + startedAt,
+			startedAt: context.wallClockOrigin + startedAt,
 			durationMs,
 			focused: context.focused,
 			route: context.route,
