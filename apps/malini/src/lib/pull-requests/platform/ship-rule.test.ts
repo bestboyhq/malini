@@ -1989,15 +1989,20 @@ describe('shipping a queued merge', () => {
 
 	it('backs off on transient GitHub errors and recovers', async () => {
 		await queueWithDraft();
-		github.outage = 3;
+		github.outage = Number.POSITIVE_INFINITY;
 
 		await click('ws-1', 'merge');
 
-		await until(() => expect(ship('ws-1')?.lastError).toMatch(/GitHub is not responding/u));
+		await until(() => expect(ship('ws-1')?.failures).toBeGreaterThanOrEqual(2));
+		expect(ship('ws-1')?.lastError).toMatch(/GitHub is not responding/u);
 		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
+		github.outage = 0;
 		await until(() => expect(archived).toEqual(['ws-1']));
 		const errors = shipEvents.flatMap((event) => (event.state?.lastError ? [event.state] : []));
-		const delays = errors.map(
+		const failures = errors.filter(
+			(state, index) => state.failures !== errors[index - 1]?.failures,
+		);
+		const delays = failures.map(
 			(state) => Date.parse(state.nextAttemptAt ?? '') - Date.parse(state.updatedAt),
 		);
 		expect(delays.length).toBeGreaterThanOrEqual(2);
