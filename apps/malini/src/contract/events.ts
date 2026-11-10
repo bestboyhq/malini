@@ -6,7 +6,6 @@ import type {
 	BrowserThreadOpened,
 } from './browser';
 import type { BrainChangedEvent } from './brain';
-import type { LeadDecisionChangedEvent } from './leads';
 import type { ChatDeliveryChangedEvent } from './deliveries';
 import type { GithubReach } from './github-failure';
 import type {
@@ -211,7 +210,6 @@ export interface ContractEvents {
 	'chat:checkpoint-restored': CheckpointRestoredPayload;
 	'chat:session-renamed': SessionRenamedPayload;
 	'chat:turn-finished': ChatTurnFinishedPayload;
-	'chat:lead-decision-changed': LeadDecisionChangedEvent;
 	'chat:delivery-changed': ChatDeliveryChangedEvent;
 	'chat:mcp-server-changed': McpServerReport;
 	'chat:mcp-servers-listed': McpServerListing;
@@ -280,7 +278,6 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'chat:checkpoint-restored': null,
 	'chat:session-renamed': null,
 	'chat:turn-finished': null,
-	'chat:lead-decision-changed': null,
 	'chat:delivery-changed': null,
 	'chat:mcp-server-changed': null,
 	'chat:mcp-servers-listed': null,
@@ -357,9 +354,6 @@ export const CHAT_CHECKPOINT_RESTORED_CHANNEL = 'chat:checkpoint-restored' satis
 export const CHAT_SESSION_RENAMED_CHANNEL = 'chat:session-renamed' satisfies EventChannel;
 
 export const CHAT_TURN_FINISHED_CHANNEL = 'chat:turn-finished' satisfies EventChannel;
-
-export const CHAT_LEAD_DECISION_CHANGED_CHANNEL =
-	'chat:lead-decision-changed' satisfies EventChannel;
 
 export const CHAT_DELIVERY_CHANGED_CHANNEL = 'chat:delivery-changed' satisfies EventChannel;
 

@@ -20,9 +20,6 @@ export const PRE_APPROVED_PLATFORM_TOOLS = [
 	'workstreams_list',
 	'workstreams_create',
 	'workstreams_send',
-	'decisions_ask',
-	'decisions_answer',
-	'plan_write',
 	'files_open',
 	'secrets_request',
 ] as const satisfies readonly PlatformTool[];
@@ -33,7 +30,7 @@ const SHIP_ONLY_WHEN_ASKED =
 const ASKS = 'The user approves it in the chat unless they always allow it.';
 
 const AUTOMATION_TRIGGER_GRAMMAR =
-	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>` for an organization or `in <owner>/<repository>` for a repository, or nothing for Home, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own chat at Home or in the organization, or its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
+	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>/<repository>` for a repository, and every schedule names one, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
 export function platformTools(request: PlatformToolRequester) {
 	const call = (tool: PlatformTool, input: Record<string, unknown>): Promise<ToolResult> =>
@@ -234,97 +231,6 @@ export function platformTools(request: PlatformToolRequester) {
 					.describe('Id or exact name of the workstream, from workstreams_list'),
 			},
 			(input) => call('workstreams_archive', input),
-		),
-		tool(
-			'decisions_ask',
-			"Ask the user a decision only they can make, from a chat at Home or in an organization. It shows as a card at the bottom of this chat, one decision at a time, with a picture for each option, and returns at once with the decision's id: keep the work going while the user decides, have the workstreams build the option you recommend meanwhile, and say so in `meanwhile`. The answer reaches you as a prompt when the user picks an option on the card, or inside their message, where you record it with decisions_answer. Ask one decision per call, and only what your plan cannot settle. Set `decided` to record a call you made yourself instead: the user sees it decided and can change it. Returns the decision as JSON.",
-			{
-				topic: z
-					.string()
-					.min(1)
-					.max(40)
-					.describe('A few words naming the decision, for example "Agent hours"'),
-				question: z
-					.string()
-					.min(1)
-					.max(200)
-					.describe('The question in one sentence, for example "Keep agent hours on your cards?"'),
-				why: z
-					.string()
-					.min(1)
-					.max(300)
-					.optional()
-					.describe('One sentence on why it matters to the user'),
-				options: z
-					.array(
-						z.object({
-							label: z.string().min(1).max(60).describe('The option in a few words'),
-							note: z
-								.string()
-								.min(1)
-								.max(120)
-								.optional()
-								.describe('One line on what choosing it means'),
-							picture: z
-								.string()
-								.min(1)
-								.optional()
-								.describe(
-									'Absolute path to a screenshot, a recording (.mp4, .webm) or an HTML page of this option inside the checkout of a workstream this chat started, such as one its report embeds. Leave it out when there is nothing to show.',
-								),
-						}),
-					)
-					.min(2)
-					.max(4)
-					.describe('Two to four options, the one you recommend among them'),
-				recommended: z
-					.number()
-					.int()
-					.min(1)
-					.max(4)
-					.describe('The number of the option you recommend, counting from 1'),
-				meanwhile: z
-					.string()
-					.min(1)
-					.max(120)
-					.optional()
-					.describe(
-						'What the workstreams build while the user decides, for example "Building without agent hours meanwhile"',
-					),
-				decided: z
-					.boolean()
-					.optional()
-					.describe(
-						'true to record a decision you already took yourself: Malini shows it decided on your recommendation, and the user can change it',
-					),
-			},
-			(input) => call('decisions_ask', input),
-		),
-		tool(
-			'decisions_answer',
-			"Record the user's answer to a decision you asked with decisions_ask, when they answered it in a message rather than on its card. Malini shows it decided in this chat, with their reason. Record each decision their message covers, and leave the rest open. Returns the decision as JSON.",
-			{
-				decision: z.string().min(1).describe('Id of the decision, from decisions_ask'),
-				option: z
-					.number()
-					.int()
-					.min(1)
-					.max(4)
-					.describe('The number of the option the user chose, counting from 1'),
-				reason: z
-					.string()
-					.min(1)
-					.max(300)
-					.optional()
-					.describe('Their reason, in their words, when they gave one'),
-			},
-			(input) => call('decisions_answer', input),
-		),
-		tool(
-			'plan_write',
-			"Write the plan of a chat at Home or in an organization: what each workstream builds, the contract between them and the decisions so far. Malini keeps it in one file, gives its path to every workstream this chat starts, and shows it in this chat. Each call replaces the whole plan, so pass all of it, and tell the workstreams that build against it with workstreams_send when it changes. Returns the plan's path.",
-			{ text: z.string().min(1).describe('The whole plan, in Markdown') },
-			(input) => call('plan_write', input),
 		),
 		tool(
 			'files_open',

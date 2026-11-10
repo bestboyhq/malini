@@ -1,6 +1,6 @@
 # 0088 - Only a chat folds workstreams under it, one level deep
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

@@ -47,7 +47,6 @@
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
 	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
-	const hasInspector = $derived(!workstream?.scope || hostsBrowser);
 	const split = $derived(
 		hostsBrowser
 			? { storageKey: WORKSTREAM_BROWSER_RATIO_KEY, defaultRatio: 0.38, minSize: 400 }
@@ -91,14 +90,13 @@
 
 <WorkstreamTitle {workstreamId} />
 
-<InspectorSplit {workstreamId} {...split} {hasInspector}>
+<InspectorSplit {workstreamId} {...split}>
 	{#snippet primary()}
 		<ChatSurface
 			{workstreamId}
 			{pullRequestShipped}
 			{automationRuns}
 			automations={automations.length > 0 ? automationsInProgress : undefined}
-			timeline={Boolean(workstream?.scope)}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)

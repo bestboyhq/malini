@@ -40,11 +40,6 @@ import { latestWorkstreamTurn, workstreamHasWorkingRun } from '../events.reposit
 import type { ChatDeliveries } from '../deliveries.service';
 import { promptsSentInChain } from '../deliveries.repository';
 import { answeredApprovalsInRun } from '../interactions.repository';
-import {
-	askLeadDecision,
-	recordLeadDecisionAnswer,
-	writeLeadPlan,
-} from '../lead-decisions.service';
 import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { chatTurnChainId, storedRunProfile } from '../runs.repository';
 import { latestSessionForWorkstream } from '../sessions.repository';
@@ -202,8 +197,7 @@ async function runPlatformTool(
 			const reference = text(input, 'repository');
 			const only = reference === undefined ? null : findRepository(catalog, reference);
 			const listed = (workstream: Workstream): boolean =>
-				workstream.scope === null &&
-				(only === null || only.projectIds.includes(workstream.projectId));
+				only === null || only.projectIds.includes(workstream.projectId);
 			const open = listWorkstreams(db)
 				.filter(listed)
 				.map((workstream) => ({
@@ -239,12 +233,6 @@ async function runPlatformTool(
 			});
 			return { id: workstream.id, name: workstream.name, archived: true, savedWork };
 		}
-		case 'decisions_ask':
-			return askLeadDecision(deps, request.sessionId, input);
-		case 'decisions_answer':
-			return recordLeadDecisionAnswer(deps, request.sessionId, input);
-		case 'plan_write':
-			return writeLeadPlan(deps, request.sessionId, input);
 		case 'files_open': {
 			const { workstreamId } = requestSession(db, request);
 			return openFileForUser(deps, {
@@ -382,7 +370,7 @@ async function sendToWorkstream(
 		promptsSentInChain(db, request.sessionId, chat.id, chainId) >= SENDS_PER_CHAIN
 	) {
 		throw new Error(
-			`You already sent “${workstream.name}” ${SENDS_PER_CHAIN} prompts since the user last wrote, so Malini did not send this one. Ask the user with decisions_ask whether to keep going, or put it in your Needs line.`,
+			`You already sent “${workstream.name}” ${SENDS_PER_CHAIN} prompts since the user last wrote, so Malini did not send this one. Put it in your Needs line to ask the user whether to keep going.`,
 		);
 	}
 	const delivery = await deliveries.deliver({

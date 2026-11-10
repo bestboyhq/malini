@@ -22,11 +22,11 @@ import {
 	type ReconcilerQuestion,
 } from './reconciler';
 
-const LEAD: ReconcilerChat = {
-	sessionId: 'lead-chat',
-	workstreamId: 'lead',
+const STARTER: ReconcilerChat = {
+	sessionId: 'starter-chat',
+	workstreamId: 'starter',
 	chatName: 'Move apps to Logdash',
-	workstreamName: 'Home',
+	workstreamName: 'Move apps to Logdash',
 	working: false,
 	lastOutcome: 'Started two workstreams',
 	lastNeeds: null,
@@ -42,7 +42,7 @@ const API: ReconcilerChat = {
 	lastNeeds: null,
 };
 
-const TELL_LEAD = 'Tell “Move apps to Logdash” that Publish docs failed';
+const TELL_STARTER = 'Tell “Move apps to Logdash” that Publish docs failed';
 
 function automationRun(overrides: Partial<AutomationRunSituation> = {}): AutomationRunSituation {
 	return {
@@ -52,7 +52,7 @@ function automationRun(overrides: Partial<AutomationRunSituation> = {}): Automat
 		detail: 'The docs host timed out',
 		workstreamId: 'api',
 		workstreamName: 'Api analytics',
-		chat: LEAD,
+		chat: STARTER,
 		handledBy: null,
 		retry: { definitionId: 'publish-docs', workstreamId: 'api', context: 'Version 2.1' },
 		runsInChain: 1,
@@ -116,8 +116,8 @@ describe('reconcilerQuestion', () => {
 			{
 				kind: 'wake-chat',
 				label: 'Tell “Move apps to Logdash” that Publish docs finished',
-				sessionId: 'lead-chat',
-				workstreamId: 'lead',
+				sessionId: 'starter-chat',
+				workstreamId: 'starter',
 				from: 'api',
 				report:
 					'Publish docs, the automation you ran in “Api analytics”, finished.\n\nPublished 12 pages',
@@ -137,7 +137,7 @@ describe('reconcilerQuestion', () => {
 	it('offers to run a failed automation again and to ask you, and leaves a finished automation nobody waits on alone', () => {
 		expect(question(automationRun()).candidates).toEqual([
 			{ kind: 'nothing', label: 'Do nothing' },
-			expect.objectContaining({ kind: 'wake-chat', label: TELL_LEAD }),
+			expect.objectContaining({ kind: 'wake-chat', label: TELL_STARTER }),
 			{
 				kind: 'run-automation',
 				label: 'Run Publish docs again',
@@ -171,7 +171,7 @@ describe('reconcilerQuestion', () => {
 		expect(homeless.candidates.slice(1)).toEqual([
 			expect.objectContaining({
 				kind: 'wake-chat',
-				from: 'lead',
+				from: 'starter',
 				report: 'Publish docs, the automation you ran, failed.',
 			}),
 			{ kind: 'ask-you', label: 'Ask you', reason: 'Failed.' },
@@ -297,8 +297,8 @@ describe('handledSituation', () => {
 			handledBy: 'Merge takes Resolve conflicts from here.',
 		});
 		expect(handledSituation(failed)?.reason).toBe('Merge takes Resolve conflicts from here.');
-		expect(handledSituation({ ...failed, chat: LEAD })).toBeNull();
-		expect(question({ ...failed, chat: LEAD }).candidates.map(({ kind }) => kind)).toEqual([
+		expect(handledSituation({ ...failed, chat: STARTER })).toBeNull();
+		expect(question({ ...failed, chat: STARTER }).candidates.map(({ kind }) => kind)).toEqual([
 			'nothing',
 			'wake-chat',
 		]);
@@ -309,11 +309,13 @@ describe('the state of the chat a wake would reach', () => {
 	it('quotes the report of its last turn only when that turn stated one', () => {
 		const facts = (chat: ReconcilerChat) => question(automationRun({ chat })).facts;
 
-		expect(facts({ ...LEAD, lastOutcome: null })).toContain('“Move apps to Logdash” is idle.');
-		expect(facts({ ...LEAD, lastNeeds: 'Which   Logdash\nproject?' })).toContain(
+		expect(facts({ ...STARTER, lastOutcome: null })).toContain('“Move apps to Logdash” is idle.');
+		expect(facts({ ...STARTER, lastNeeds: 'Which   Logdash\nproject?' })).toContain(
 			'“Move apps to Logdash” is idle; its last turn ended with Outcome: Started two workstreams, Needs: Which Logdash project?.',
 		);
-		expect(facts({ ...LEAD, working: true })).toContain('“Move apps to Logdash” is working now.');
+		expect(facts({ ...STARTER, working: true })).toContain(
+			'“Move apps to Logdash” is working now.',
+		);
 	});
 });
 
@@ -329,7 +331,7 @@ describe('the prompt and the pick', () => {
 				'',
 				'Candidates:',
 				'1. Do nothing',
-				`2. ${TELL_LEAD}`,
+				`2. ${TELL_STARTER}`,
 				'3. Run Publish docs again',
 				'4. Ask you',
 			].join('\n'),
@@ -389,7 +391,7 @@ describe('validatePick', () => {
 			candidates,
 			chosen: 3,
 			decidedBy: 'rules',
-			detail: overBudget(TELL_LEAD),
+			detail: overBudget(TELL_STARTER),
 		});
 		expect(validatePick(candidates, null, () => RECONCILER_WAKE_LIMIT)).toMatchObject({
 			chosen: 3,
@@ -416,9 +418,9 @@ describe('wakesInChain', () => {
 			decision(candidates, 2, 'api'),
 		];
 
-		expect(wakesInChain(decisions, 'lead-chat', 'api')).toBe(2);
-		expect(wakesInChain(decisions, 'lead-chat', 'site')).toBe(1);
-		expect(wakesInChain(decisions, 'lead-chat', null)).toBe(1);
+		expect(wakesInChain(decisions, 'starter-chat', 'api')).toBe(2);
+		expect(wakesInChain(decisions, 'starter-chat', 'site')).toBe(1);
+		expect(wakesInChain(decisions, 'starter-chat', null)).toBe(1);
 		expect(wakesInChain(decisions, 'api-chat', 'api')).toBe(0);
 	});
 });

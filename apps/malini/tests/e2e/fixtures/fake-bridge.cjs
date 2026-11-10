@@ -816,9 +816,6 @@ const PRE_APPROVED_TOOLS = new Set([
 	'workstreams_list',
 	'workstreams_create',
 	'workstreams_send',
-	'decisions_ask',
-	'decisions_answer',
-	'plan_write',
 	'files_open',
 	'secrets_request',
 ]);
@@ -888,20 +885,17 @@ const windowOfRun = new Map();
 const steRuns = new Set();
 
 const lineageOfRun = new Map();
-const briefOfRun = new Map();
-const freshRuns = new Set();
-const leadCalls = new Map();
-const BRIEF = /^<malini_timeline>\n[\s\S]*?\n<\/malini_timeline>\n\n/u;
-const callLeadTool = (sessionId, runId) => {
-	const lead = leadCalls.get(runId);
-	const call = lead?.calls[lead.next];
-	if (!lead || !call) return;
+const toolCalls = new Map();
+const callNextTool = (sessionId, runId) => {
+	const planned = toolCalls.get(runId);
+	const call = planned?.calls[planned.next];
+	if (!planned || !call) return;
 	event({
 		type: 'tool.started',
 		runId,
 		name: 'mcp__malini__' + call.tool,
 		input: call.input,
-		toolCallId: 'lead-call-' + runId + '-' + lead.next,
+		toolCallId: 'tool-call-' + runId + '-' + planned.next,
 		ts: Date.now(),
 	});
 	write({
@@ -983,44 +977,17 @@ const respond = async (sessionId, runId, prompt) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 		return;
 	}
-	if (prompt.includes('WHICH_BRIEF')) {
-		const brief = briefOfRun.get(runId);
-		const lines = brief
-			? brief
-					.split('\n')
-					.filter((line) => line.startsWith('['))
-					.map((line) => line.replace(/^\[[^\]]+\] /u, ''))
-			: ['Brief: none'];
-		event({
-			type: 'assistant.message',
-			runId,
-			contentId: 'c1',
-			text: ['Fresh: ' + (freshRuns.has(runId) ? 'yes' : 'no'), ...lines].join('\n\n'),
-		});
-		event({ type: 'run.completed', runId, summary: 'done' });
-		event({ type: 'session.state', sessionId, status: 'completed' });
-		return;
-	}
-	if (prompt.includes('LEAD_CALLS')) {
-		const planned = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'lead-calls.json'), 'utf8'));
+	if (prompt.includes('TOOL_CALLS')) {
+		const planned = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'tool-calls.json'), 'utf8'));
 		pendingRuns.set(runId, sessionId);
-		leadCalls.set(runId, { sessionId, calls: planned.calls, reply: planned.reply, next: 0 });
-		return callLeadTool(sessionId, runId);
+		toolCalls.set(runId, { sessionId, calls: planned.calls, reply: planned.reply, next: 0 });
+		return callNextTool(sessionId, runId);
 	}
 	if (prompt.includes('WHICH_LINEAGE')) {
 		const lineage = lineageOfRun.get(runId);
 		const lines = !lineage
 			? ['Lineage: none']
 			: [
-					'Lead: ' +
-						(lineage.lead ? (lineage.lead.owner ?? 'Home') : 'no') +
-						(lineage.lead
-							? ' reads ' +
-								lineage.lead.repositories
-									.map((r) => r.repository)
-									.sort()
-									.join(', ')
-							: ''),
 					'Started by: ' + (lineage.startedBy ? lineage.startedBy.name : 'nobody'),
 					'Siblings: ' +
 						(lineage.siblings
@@ -1688,10 +1655,7 @@ const handle = (command) => {
 			if (command.secrets)
 				recordSecrets({ cmd: 'send_prompt', sessionId, runId, secrets: command.secrets });
 			recordPlugins({ sessionId, runId, plugins: command.plugins ?? [] });
-			const brief = BRIEF.exec(command.prompt)?.[0] ?? null;
-			const prompt = brief === null ? command.prompt : command.prompt.slice(brief.length);
-			if (brief !== null) briefOfRun.set(runId, brief);
-			if (command.freshConversation) freshRuns.add(runId);
+			const { prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
@@ -2015,24 +1979,24 @@ const handle = (command) => {
 		case 'platform_result': {
 			ack(command.id);
 			const runId = command.requestId.replace(/^platform-/, '');
-			const lead = leadCalls.get(runId);
-			if (lead) {
-				const call = lead.calls[lead.next];
+			const planned = toolCalls.get(runId);
+			if (planned) {
+				const call = planned.calls[planned.next];
 				event({
 					type: 'tool.completed',
 					runId,
 					name: 'mcp__malini__' + (call?.tool ?? 'unknown'),
 					output: command.ok ? command.text : command.error,
-					toolCallId: 'lead-call-' + runId + '-' + lead.next,
+					toolCallId: 'tool-call-' + runId + '-' + planned.next,
 					ts: Date.now(),
 				});
-				lead.next += 1;
-				if (lead.next < lead.calls.length) return callLeadTool(lead.sessionId, runId);
-				leadCalls.delete(runId);
+				planned.next += 1;
+				if (planned.next < planned.calls.length) return callNextTool(planned.sessionId, runId);
+				toolCalls.delete(runId);
 				pendingRuns.delete(runId);
-				event({ type: 'assistant.message', runId, contentId: 'c1', text: lead.reply });
-				event({ type: 'run.completed', runId, summary: lead.reply });
-				event({ type: 'session.state', sessionId: lead.sessionId, status: 'completed' });
+				event({ type: 'assistant.message', runId, contentId: 'c1', text: planned.reply });
+				event({ type: 'run.completed', runId, summary: planned.reply });
+				event({ type: 'session.state', sessionId: planned.sessionId, status: 'completed' });
 				return;
 			}
 			const malini = maliniCalls.get(runId);

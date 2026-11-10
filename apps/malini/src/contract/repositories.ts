@@ -34,7 +34,6 @@ export interface Workstream {
 	baseBranch: string;
 	status: WorkstreamStatus;
 	createdAt: string;
-	scope: string | null;
 	startedBy: string | null;
 }
 
@@ -60,7 +59,6 @@ export interface ArchivedWorkstreamDto {
 	mergedPullRequest: MergedPullRequest | null;
 	savedForLater: boolean;
 	clearedFromStarter: boolean;
-	scope: string | null;
 	startedBy: string | null;
 }
 
@@ -88,7 +86,6 @@ export interface GitWorkstreamRecord {
 	baseBranch: string;
 	status: string;
 	createdAt: string;
-	scope: string | null;
 	startedBy: string | null;
 }
 

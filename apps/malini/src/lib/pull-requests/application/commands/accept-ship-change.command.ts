@@ -12,12 +12,12 @@ import { pullRequestStateAggregate } from '$lib/pull-requests/infrastructure/agg
 
 export { acceptShipChangeCommand };
 
-type Lead = Readonly<{ workstreamId: string; name: string }>;
+type Root = Readonly<{ workstreamId: string; name: string }>;
 
 function acceptShipChangeCommand(
 	change: PullRequestShipChange,
 	workstreamName: string,
-	lead: Lead | null,
+	root: Root | null,
 ): void {
 	const { workstreamId } = change;
 	const previous = pullRequestShipAggregate.shipFor(workstreamId);
@@ -29,9 +29,9 @@ function acceptShipChangeCommand(
 
 	const announcement = pullRequestNeedsYouAnnouncement(previous, change, workstreamName);
 	if (!announcement) return;
-	const opens = lead?.workstreamId ?? workstreamId;
+	const opens = root?.workstreamId ?? workstreamId;
 	toast.warning(
-		lead ? `${lead.name} · ${announcement}` : announcement,
+		root ? `${root.name} · ${announcement}` : announcement,
 		aboutWorkstream(workstreamId, {
 			action: { label: 'Open', onclick: () => void goto(workstreamHref(opens)) },
 		}),

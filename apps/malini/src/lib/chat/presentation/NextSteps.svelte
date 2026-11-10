@@ -3,7 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
-	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
+	import NextStepText from './NextStepText.svelte';
 
 	interface Props {
 		steps: readonly string[];
@@ -32,7 +32,6 @@
 
 	const forking = $derived(commandHeld && onfork !== undefined);
 	const labelWidth = $derived(forking ? forkWidth : shipWidth);
-	const reservedWidth = $derived(onfork && labelWidth > 0 ? forkWidth - labelWidth : 0);
 
 	function mark(index: number, outcome: string): void {
 		handled = { ...handled, [index]: outcome };
@@ -60,10 +59,7 @@
 	onblur={() => (commandHeld = false)}
 />
 
-<section
-	class="border-surface-150-border -mx-3 flex flex-col gap-1.5 border-t-[0.5px] px-3 pt-2.5"
-	aria-label="Next steps"
->
+<section class="flex flex-col gap-1.5 py-2 pr-2 pl-[15px]" aria-label="Next steps">
 	{#each steps as step, index (index)}
 		<div class="flex min-h-6 items-center gap-2 text-xs leading-5">
 			<Tooltip
@@ -73,23 +69,14 @@
 			>
 				<Icon name="chevrons-right" size={14} ariaLabel="Next step" />
 			</Tooltip>
-			<MarkdownText
-				text={step}
-				mode="prose"
-				class="text-fg-default line-clamp-2 min-w-0 flex-1 select-text"
-				{onopenfile}
-				{canopenfile}
-			/>
+			<NextStepText text={step} {onopenfile} {canopenfile} />
 			{#if handled[index]}
 				<span class="text-2xs text-fg-tertiary flex h-6 shrink-0 items-center gap-1">
 					<Icon name="check" size={12} />
 					{handled[index]}
 				</span>
 			{:else}
-				<span
-					class="actions flex shrink-0 items-center gap-1"
-					style:padding-inline-start={`${reservedWidth}px`}
-				>
+				<span class="flex shrink-0 items-center gap-1">
 					{#if onscratchpad}
 						<Button
 							variant="ghost"
@@ -168,14 +155,9 @@
 		transition: width 240ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
-	.actions {
-		transition: padding-inline-start 240ms cubic-bezier(0.16, 1, 0.3, 1);
-	}
-
 	@media (prefers-reduced-motion: reduce) {
 		.swap > .face,
-		.swap-label,
-		.actions {
+		.swap-label {
 			transition: none;
 		}
 	}

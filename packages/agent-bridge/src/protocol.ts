@@ -931,7 +931,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (lineage !== undefined && !isAgentLineage(lineage)) {
 		return err(
 			'INVALID_PAYLOAD',
-			'send_prompt: lineage, when present, must hold lead, startedBy and siblings',
+			'send_prompt: lineage, when present, must hold startedBy and siblings',
 			obj,
 		);
 	}

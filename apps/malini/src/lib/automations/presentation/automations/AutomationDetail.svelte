@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import {
 		isAgentlessAutomationBuiltin,
+		isBrainAutomationBuiltin,
 		isOneShotAutomationBuiltin,
 		type AutomationDefinitionRecord,
 	} from '$contract/automations';
@@ -269,7 +270,7 @@
 					/>
 				{/if}
 			</SettingRow>
-			{#if schedule && automation.trigger}
+			{#if schedule && automation.trigger && !isBrainAutomationBuiltin(automation.builtin)}
 				{@const trigger = automation.trigger}
 				<SettingRow title="Runs in" description={SCHEDULE_RUNS_IN_HINT}>
 					<SchedulePlaceMenu

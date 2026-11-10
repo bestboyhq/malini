@@ -86,7 +86,6 @@ export type RenderItem =
 			elementReferences?: AgentElementReference[];
 			from?: string;
 			reports?: WorkstreamReport[];
-			decisions?: string[];
 			at?: number;
 	  }
 	| { kind: 'plan'; key: string; seq: number; text: string }
@@ -584,7 +583,6 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 					...(event.reports?.length
 						? { reports: event.reports.map((report) => ({ ...report })) }
 						: {}),
-					...(event.decisions?.length ? { decisions: [...event.decisions] } : {}),
 					...(env.at === undefined ? {} : { at: env.at }),
 				});
 				break;

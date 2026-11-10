@@ -126,7 +126,6 @@ export type AutomationRunRecord = Readonly<{
 	title: string;
 	workstreamId: string | null;
 	repositoryId: string | null;
-	scope: string | null;
 	sessionId: string | null;
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
@@ -162,7 +161,6 @@ export type RunAutomationArgs = Readonly<{
 	definitionId: string;
 	workstreamId?: string;
 	repositoryId?: string;
-	scope?: string;
 	context?: string;
 	origin?: AutomationRunOrigin;
 	parentRunId?: string;

@@ -426,7 +426,6 @@ describe('platform requests from the agent', () => {
 				title: 'Update docs',
 				workstreamId: 'ws-1',
 				repositoryId: null,
-				scope: null,
 				sessionId: null,
 				agentRunId: null,
 				origin: 'manual',

@@ -2,15 +2,15 @@ import { treeChatSummary, type TreeChatSummary } from '$lib/app/domain/attention
 import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
 import {
 	activeWorkstreamsQuery,
-	workstreamLeads,
+	workstreamRoots,
 	type Workstream,
 } from '$shared/repositories/repositories.api';
 
-export type WorkstreamTree = Readonly<{ lead: Workstream; started: readonly Workstream[] }>;
+export type WorkstreamTree = Readonly<{ root: Workstream; started: readonly Workstream[] }>;
 
 class AttentionTreeQuery {
-	readonly #leads: ReadonlyMap<string, string> = $derived(
-		workstreamLeads(activeWorkstreamsQuery.data),
+	readonly #roots: ReadonlyMap<string, string> = $derived(
+		workstreamRoots(activeWorkstreamsQuery.data),
 	);
 
 	readonly #trees: ReadonlyMap<string, WorkstreamTree> = $derived.by(() => {
@@ -19,24 +19,24 @@ class AttentionTreeQuery {
 		);
 		const trees = new Map<string, WorkstreamTree>();
 		for (const workstream of activeWorkstreamsQuery.data) {
-			const lead = byId.get(this.#leads.get(workstream.id) ?? workstream.id) ?? workstream;
-			const tree = trees.get(lead.id) ?? { lead, started: [] };
+			const root = byId.get(this.#roots.get(workstream.id) ?? workstream.id) ?? workstream;
+			const tree = trees.get(root.id) ?? { root, started: [] };
 			trees.set(
-				lead.id,
-				lead === workstream ? tree : { lead, started: [...tree.started, workstream] },
+				root.id,
+				root === workstream ? tree : { root, started: [...tree.started, workstream] },
 			);
 		}
 		return trees;
 	});
 
-	public readonly leadOf: (workstreamId: string) => string = $derived(
-		(workstreamId: string) => this.#leads.get(workstreamId) ?? workstreamId,
+	public readonly rootOf: (workstreamId: string) => string = $derived(
+		(workstreamId: string) => this.#roots.get(workstreamId) ?? workstreamId,
 	);
 
 	public readonly treeOf: (workstream: Workstream) => WorkstreamTree = $derived(
 		(workstream: Workstream) =>
-			this.#trees.get(this.leadOf(workstream.id)) ?? {
-				lead: workstream,
+			this.#trees.get(this.rootOf(workstream.id)) ?? {
+				root: workstream,
 				started: [],
 			},
 	);
@@ -48,7 +48,7 @@ class AttentionTreeQuery {
 				(this.#trees.get(workstreamId)?.started ?? []).map(({ id }) =>
 					workstreamChatSummaryQuery.data(id),
 				),
-				this.leadOf(workstreamId) !== workstreamId,
+				this.rootOf(workstreamId) !== workstreamId,
 			),
 	);
 }

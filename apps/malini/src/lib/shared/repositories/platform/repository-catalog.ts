@@ -32,7 +32,7 @@ export async function workstreamRepositoryName(
 	workstreamId: string,
 ): Promise<string | null> {
 	const workstream = getWorkstream(db, workstreamId);
-	const project = workstream?.scope === null ? getProject(db, workstream.projectId) : null;
+	const project = workstream ? getProject(db, workstream.projectId) : null;
 	if (!project) return null;
 	const projects = [await projectDto(project)];
 	return (

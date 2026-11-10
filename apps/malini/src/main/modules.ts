@@ -219,6 +219,7 @@ export async function registerModules(
 	extensions.start();
 	if (process.env['MALINI_CLAUDE_UPDATES'] !== 'off') providers.updates.start();
 	app.streaming.start();
+	void repositories.archiveRetiredChats();
 
 	let shuttingDown: Promise<void> | null = null;
 	const shutdown = (): Promise<void> => {

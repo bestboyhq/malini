@@ -90,7 +90,6 @@
 		forceFreshSession?: boolean;
 		disabled?: boolean;
 		backendSelectionDisabled?: boolean;
-		placeholder?: string | undefined;
 		transcriptReferences?: AgentTranscriptReference[];
 		elementReferences?: AgentElementReference[];
 		oncancel?: () => void;
@@ -108,7 +107,6 @@
 		forceFreshSession = false,
 		disabled = false,
 		backendSelectionDisabled = disabled,
-		placeholder,
 		oncancel,
 		onbackendchange,
 		onprofilechange,
@@ -185,7 +183,6 @@
 	const submitting = $derived(pendingSubmissionCount > 0);
 
 	const canSend = $derived(prompt.trim() !== '' && !disabled && !todoContextResolving);
-	const resolvedPlaceholder = $derived(placeholder ?? 'Ask Malini to make a change…');
 	const transcriptFactsProjector = new TranscriptFactsProjector();
 	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
 
@@ -1175,7 +1172,7 @@
 				bind:this={promptEditor}
 				value={prompt}
 				chips={composerChips}
-				placeholder={resolvedPlaceholder}
+				placeholder="Ask Malini to make a change…"
 				placeholderHidden={outgoingPrompts > 0}
 				disabled={disabled || todoContextResolving}
 				resolvePreview={resolveChipPreview}
@@ -1237,7 +1234,7 @@
 		{/snippet}
 	</ComposerShell>
 
-	<div class="@container/composer px-5">
+	<div class="@container/composer px-3">
 		<div
 			class="border-surface-50-border bg-surface-50 flex h-7 flex-nowrap items-center justify-between gap-3 rounded-b-xl border-x-[0.5px] border-b-[0.5px] pr-1.5 pl-2.5"
 			data-testid="chat-composer-toolbar"

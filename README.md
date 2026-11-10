@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: a Home chat, Changelog in every footer, with the three workstreams it started in malini, grip and tony nested under it, above more workstreams in the sidebar. The tony one is open: its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
+  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: the sidebar lists the repositories malini, grip and tony. The malini chat Changelog in every footer started three workstreams, one in each, all named Changelog link in the footer. The tony one is open: a card says Changelog in every footer started it, its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
 </p>
 
 ---
@@ -38,7 +38,7 @@
 | "Fixed the layout." Sure.                                                  | A visible change comes with before and after. Every changed area gets a number, including the ones nobody meant to change. |
 | You asked for a design and got one guess.                                  | An open question comes back as two to four variants. You pick, the agent builds the winner.                                |
 | The pull request sits red overnight.                                       | Press **Merge**. Malini fixes checks, merges main in, answers review, and merges exactly the commit that passed.           |
-| One change spans three repositories.                                       | A chat at Home plans it and starts one workstream per repository. It asks you only what only you can decide.               |
+| One change spans three repositories.                                       | A chat in one repository starts a workstream in each of the others, and hears their reports.                               |
 | You type the same prompt every Monday.                                     | Make it an automation. Give it a trigger, like a merged pull request, and a Then, like **Open draft**.                     |
 | The agent wants your API key in the chat.                                  | It asks for the key by name. Your keychain keeps it, and every output shows `[secret]`.                                    |
 | One bad turn wrecks the branch.                                            | Every turn has Undo. Or fork the chat and try again.                                                                       |
@@ -56,7 +56,7 @@ Everything else Malini does is in [`docs/features.md`](docs/features.md) and the
 ## How it works
 
 1. **Start a task.**
-   Press **+** on a repository, or tell a chat at Home what you want and it starts the workstreams.
+   Press **+** on a repository, or ask a chat to start workstreams in the other repositories a change touches.
    Each one gets a fresh worktree, its own branch, and dependencies installed from the lockfile.
 2. **Keep it moving.**
    Queue prompts, plan first, and pick the model and effort for every prompt.
@@ -68,7 +68,7 @@ Everything else Malini does is in [`docs/features.md`](docs/features.md) and the
 ## Automations
 
 An automation is work you reuse by name: instructions, a model, an effort, and only the skills it needs.
-You run it, an event runs it, or a schedule does, like `every weekday at 09:00`.
+You run it, an event runs it, or a schedule does, like `every weekday at 09:00 in bestboyhq/malini`.
 A Then runs next, so "update the changelog, then open a draft" is one automation.
 Ten come built in, among them **Fix checks**, **Update from main**, **Resolve conflicts** and **Address review**, and they are yours to edit.
 Type the same prompt often enough and Malini offers to make it an automation.
@@ -107,8 +107,8 @@ Malini ranks them by how often your agents use them, so you turn off the ones no
 1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
 2. Open it.
    Setup installs Claude Code if this Mac lacks it, and signs you in to GitHub with a one-time code in your browser.
-3. Setup ends in a chat at Home.
-   Pick a repository there, or say what you're working on.
+3. Setup ends on your five latest GitHub repositories, under **What are we working on?**
+   Pick one and Malini clones it and starts a workstream in it.
 
 You need macOS 13 or later on Apple silicon, and git.
 Malini ships the GitHub CLI.

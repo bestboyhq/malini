@@ -30,13 +30,10 @@ function comparableName(name: string): string {
 }
 
 export function displayWorkstreamName(
-	workstream: Pick<Workstream, 'name' | 'baseBranch'> & Readonly<{ scope?: unknown }>,
+	workstream: Pick<Workstream, 'name' | 'baseBranch'>,
 	repositoryFullName?: string | null,
 ): string {
 	const name = stripRepositoryPrefix(workstream.name.trim(), repositoryFullName);
-	if (workstream.scope !== undefined && workstream.scope !== null) {
-		return name.length === 0 || isPlaceholderWorkstreamName(name) ? 'New chat' : name;
-	}
 	const baseBranch = workstream.baseBranch.trim();
 	if (name.length > 0 && !isBaseBranchName(name, baseBranch)) {
 		return name;

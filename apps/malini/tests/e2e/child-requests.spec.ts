@@ -55,7 +55,12 @@ test('an automation a chat runs in another workstream asks for permission in tha
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
-		const { workstreamId } = await seedWorkstream(page, source, 'e2e-child-lead', 'Release lead');
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-child-starter',
+			'Release chat',
+		);
 		const child = await seedWorkstream(
 			page,
 			source,
@@ -111,12 +116,12 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 		const { workstreamId } = await seedWorkstream(
 			page,
 			`file://${api}`,
-			'e2e-child-question-lead',
-			'Api lead',
+			'e2e-child-question-starter',
+			'Api chat',
 		);
 		await openWorkstream(page, workstreamId);
 		writeFileSync(
-			join(app.home, 'lead-calls.json'),
+			join(app.home, 'tool-calls.json'),
 			JSON.stringify({
 				calls: [
 					{
@@ -131,7 +136,7 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 			tool: 'workstreams_create',
 			input: { repository: 'acme/api', prompt: 'QUESTION TITLE="Api grandchild"' },
 		});
-		await sendPrompt(page, 'LEAD_CALLS');
+		await sendPrompt(page, 'TOOL_CALLS');
 
 		const asking = page.getByRole('region', { name: /needs you$/u });
 		const choices = asking.getByRole('radiogroup', { name: 'Which?' });
@@ -179,7 +184,12 @@ test('requests from several children queue in the composer slot one at a time, o
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
-		const { workstreamId } = await seedWorkstream(page, source, 'e2e-queue-lead', 'Release lead');
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-queue-starter',
+			'Release chat',
+		);
 		const children = [
 			await seedWorkstream(page, source, 'e2e-queue-switch', 'Release automation switch'),
 			await seedWorkstream(page, source, 'e2e-queue-notes', 'Release notes'),

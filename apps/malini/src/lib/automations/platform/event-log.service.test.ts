@@ -68,7 +68,6 @@ beforeEach(() => {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: new Date().toISOString(),
-		scope: null,
 		startedBy: null,
 	});
 	automations = null;
@@ -119,7 +118,6 @@ function automationRun(
 		title: 'Fix checks',
 		workstreamId: 'ws-1',
 		repositoryId: null,
-		scope: null,
 		sessionId: null,
 		agentRunId: null,
 		origin: 'manual',

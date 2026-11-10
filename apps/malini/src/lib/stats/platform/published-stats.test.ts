@@ -17,7 +17,7 @@ describe('readPublishedStats', () => {
 		seedProject(db, 'local__nowhere');
 		seedWorkstream(db, 'ws-local', 'local__nowhere');
 		seedProject(db, 'malini-lead-space');
-		seedWorkstream(db, 'ws-lead', 'malini-lead-space', { scope: 'home' });
+		seedWorkstream(db, 'ws-retired', 'malini-lead-space');
 		seedWorkstream(db, 'ws-merged', 'local__bestboyhq__malini', { mergedAt: at(12, 18) });
 		seedWorkstream(db, 'ws-merged-today', 'local__bestboyhq__malini', { mergedAt: at(15, 9) });
 		seedWorkstream(db, 'ws-new', 'local__bestboyhq__malini', { createdAt: at(15, 9, 30) });
@@ -26,14 +26,14 @@ describe('readPublishedStats', () => {
 		seedSession(db, 'automation', 'ws-malini', 'automation', 'claude-sonnet-4-5');
 		seedSession(db, 'grip', 'ws-grip', 'user', 'fable');
 		seedSession(db, 'secret', 'ws-secret', 'user', null);
-		seedSession(db, 'lead', 'ws-lead', 'user', 'opus');
+		seedSession(db, 'retired', 'ws-retired', 'user', 'opus');
 
 		seedRun(db, 'r0', 'local', at(11, 8), at(11, 8, 10));
 		seedRun(db, 'r1', 'chat', at(13, 10), at(13, 12));
 		seedRun(db, 'r2', 'automation', at(13, 11), at(13, 11, 30));
 		seedRun(db, 'r6', 'grip', at(13, 15), at(13, 15, 5));
 		seedRun(db, 'r3', 'secret', at(14, 23), at(15, 1));
-		seedRun(db, 'r4', 'lead', at(14, 22, 30), at(16, 9), ORPHAN_INTERRUPTED_ERROR);
+		seedRun(db, 'r4', 'retired', at(14, 22, 30), at(16, 9), ORPHAN_INTERRUPTED_ERROR);
 		seedRun(db, 'r5', 'chat', at(15, 9), at(15, 9, 30));
 		run(db, "UPDATE agent_runs SET automated = 1 WHERE id = 'r6'");
 
@@ -59,9 +59,9 @@ describe('readPublishedStats', () => {
 		]);
 		seedToolCalls(db, 'automation', 'r2', at(13, 11, 5), ['Read', 'Read']);
 		seedToolCalls(db, 'secret', 'r3', at(14, 23, 5), ['Bash', 'Bash', 'Bash', 'Bash', 'Bash']);
-		seedToolCalls(db, 'lead', 'r4', at(14, 23, 20), ['Edit']);
-		seedEvent(db, 'lead', 'r4', 'assistant.message', at(14, 23, 30));
-		seedEvent(db, 'lead', 'r4', 'run.failed', at(16, 9));
+		seedToolCalls(db, 'retired', 'r4', at(14, 23, 20), ['Edit']);
+		seedEvent(db, 'retired', 'r4', 'assistant.message', at(14, 23, 30));
+		seedEvent(db, 'retired', 'r4', 'run.failed', at(16, 9));
 		seedToolCalls(db, 'chat', 'r5', at(15, 9, 5), ['Write']);
 
 		seedChange(db, 'ws-malini', 'chat', 'r1', at(13, 12), [
@@ -191,20 +191,19 @@ function seedWorkstream(
 	db: MaliniDatabase,
 	workstreamId: string,
 	projectId: string,
-	options: Readonly<{ createdAt?: string; scope?: string; mergedAt?: string }> = {},
+	options: Readonly<{ createdAt?: string; mergedAt?: string }> = {},
 ): void {
 	run(
 		db,
 		`INSERT INTO workstreams
-		   (id, project_id, name, path, branch, base_branch, status, created_at, scope,
+		   (id, project_id, name, path, branch, base_branch, status, created_at,
 		    archived_at, merged_pull_request_number, merged_pull_request_url)
-		 VALUES (?, ?, ?, '/tmp/ws', 'malini/ws', 'main', ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, '/tmp/ws', 'malini/ws', 'main', ?, ?, ?, ?, ?)`,
 		workstreamId,
 		projectId,
 		workstreamId,
 		options.mergedAt ? 'archived' : 'active',
 		options.createdAt ?? at(1, 9),
-		options.scope ?? null,
 		options.mergedAt ?? null,
 		options.mergedAt ? 7 : null,
 		options.mergedAt ? 'https://github.com/bestboyhq/malini/pull/7' : null,

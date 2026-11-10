@@ -2,8 +2,8 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { ChatTileIcon, Icon } from '$hyper-ui/icons';
-	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
+	import { Icon } from '$hyper-ui/icons';
+	import { startedProgressQuery } from '$lib/app/application/queries/started-progress.query.svelte';
 	import {
 		activeWorkstreamsQuery,
 		detachFromStarterCommand,
@@ -23,16 +23,13 @@
 	const SIBLINGS_SHOWN = 4;
 
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
-	const starterId = $derived(workstream?.scope === null ? workstream.startedBy : null);
+	const starterId = $derived(workstream?.startedBy ?? null);
 	const starter = $derived(starterId === null ? null : workstreamByIdQuery.data(starterId));
 	const siblings = $derived(
 		starterId === null
 			? []
 			: activeWorkstreamsQuery.data.filter(
-					(candidate) =>
-						candidate.startedBy === starterId &&
-						candidate.id !== workstreamId &&
-						candidate.scope === null,
+					(candidate) => candidate.startedBy === starterId && candidate.id !== workstreamId,
 				),
 	);
 </script>
@@ -46,11 +43,7 @@
 		data-testid="workstream-lineage"
 	>
 		{#snippet starterLabel()}
-			{#if starter?.scope}
-				<ChatTileIcon size={14} />
-			{:else}
-				<Icon name="branch" size={13} />
-			{/if}
+			<Icon name="branch" size={13} />
 			Started by
 			<span class="text-fg-default font-medium">{starterName}</span>
 		{/snippet}
@@ -82,7 +75,7 @@
 					<span
 						class={[
 							'h-1.5 w-1.5 shrink-0 rounded-full',
-							PROGRESS_DOT_CLASS[leadProgressQuery.dot(sibling)],
+							PROGRESS_DOT_CLASS[startedProgressQuery.dot(sibling)],
 						]}
 						aria-hidden="true"
 					></span>

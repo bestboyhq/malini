@@ -6,7 +6,7 @@ import {
 	parseWorkstreamReport,
 	REPORTS_PREAMBLE,
 	reportedTurnEnd,
-	reportForLead,
+	reportForStarter,
 	reportMedia,
 	workstreamReport,
 	type DeliveryItem,
@@ -34,7 +34,6 @@ function item(
 		prompt,
 		fromWorkstreamId: null,
 		report: null,
-		decisionId: null,
 		chainId: null,
 		causeEventId: null,
 		...fields,
@@ -42,16 +41,15 @@ function item(
 }
 
 describe('deliveryBatch', () => {
-	it('puts the reports first under the preamble, then the decision answers, then the prompts', () => {
+	it('puts the reports first under the preamble, then the prompts', () => {
 		const batch = deliveryBatch([
-			item('decision', 'Decided “Stack”: Svelte.', { decisionId: 'decision-1' }),
-			item('prompt', 'Also add tests.', { fromWorkstreamId: 'lead', chainId: 'lead-turn' }),
+			item('prompt', 'Also add tests.', { fromWorkstreamId: 'starter', chainId: 'starter-turn' }),
 			item('report', 'Api report', {
 				fromWorkstreamId: 'api',
 				report: report('api'),
 				causeEventId: 7,
 			}),
-			item('prompt', 'Then ship it.', { fromWorkstreamId: 'lead' }),
+			item('prompt', 'Then ship it.', { fromWorkstreamId: 'starter' }),
 			item('report', 'Site report', { fromWorkstreamId: 'site', report: report('site') }),
 		]);
 
@@ -60,16 +58,14 @@ describe('deliveryBatch', () => {
 				REPORTS_PREAMBLE,
 				'Api report',
 				'Site report',
-				'Decided “Stack”: Svelte.',
 				'Also add tests.',
 				'Then ship it.',
 			].join('\n\n'),
 			automated: false,
-			from: 'lead',
-			chainId: null,
+			from: 'starter',
+			chainId: 'starter-turn',
 			causeEventId: 7,
 			reports: [report('api'), report('site')],
-			decisions: ['decision-1'],
 		});
 	});
 
@@ -80,23 +76,22 @@ describe('deliveryBatch', () => {
 				item('report', 'Site report', {
 					fromWorkstreamId: 'site',
 					report: report('site'),
-					chainId: 'lead-turn',
+					chainId: 'starter-turn',
 					causeEventId: 9,
 				}),
 			]),
-		).toMatchObject({ automated: true, from: 'api', chainId: 'lead-turn', causeEventId: 9 });
+		).toMatchObject({ automated: true, from: 'api', chainId: 'starter-turn', causeEventId: 9 });
 
-		expect(deliveryBatch([item('prompt', 'Use the EU region.', { chainId: 'lead-turn' })])).toEqual(
-			{
-				prompt: 'Use the EU region.',
-				automated: false,
-				from: null,
-				chainId: 'lead-turn',
-				causeEventId: null,
-				reports: [],
-				decisions: [],
-			},
-		);
+		expect(
+			deliveryBatch([item('prompt', 'Use the EU region.', { chainId: 'starter-turn' })]),
+		).toEqual({
+			prompt: 'Use the EU region.',
+			automated: false,
+			from: null,
+			chainId: 'starter-turn',
+			causeEventId: null,
+			reports: [],
+		});
 	});
 
 	it('says work you asked for moved on when no report comes from a workstream you started', () => {
@@ -112,13 +107,12 @@ describe('deliveryBatch', () => {
 		).toBe(REPORTS_PREAMBLE);
 	});
 
-	it('collects only the reports and decision ids the items carry', () => {
+	it('collects only the reports the items carry', () => {
 		const batch = deliveryBatch([
 			item('report', 'A report without its record'),
-			item('decision', 'An answer without its decision'),
+			item('prompt', 'A prompt'),
 		]);
 		expect(batch.reports).toEqual([]);
-		expect(batch.decisions).toEqual([]);
 		expect(batch.automated).toBe(false);
 	});
 });
@@ -249,21 +243,21 @@ describe('parseWorkstreamReport', () => {
 	});
 });
 
-describe('reportForLead', () => {
+describe('reportForStarter', () => {
 	it('points each relative picture at the checkout and leaves the rest as written', () => {
 		const summary =
 			'See ![shot](shots/a.png), ![wrapped](<shots/b.png>), ![abs](/tmp/c.png), ![web](https://x.dev/d.png) and [docs](docs/e.md).';
-		expect(reportForLead(summary, '/work/site')).toBe(
+		expect(reportForStarter(summary, '/work/site')).toBe(
 			'See ![shot](/work/site/shots/a.png), ![wrapped](</work/site/shots/b.png>), ![abs](/tmp/c.png), ![web](https://x.dev/d.png) and [docs](docs/e.md).',
 		);
 	});
 
 	it('keeps a short report whole and cuts a long one to its head and its footer', () => {
 		const short = 'Built it.\n\nOutcome: Built it';
-		expect(reportForLead(short, '/work/site')).toBe(short);
+		expect(reportForStarter(short, '/work/site')).toBe(short);
 
 		const long = `Head line\n${'x'.repeat(10_000)}\nOutcome: Built it\nNeeds: nothing`;
-		const cut = reportForLead(long, '/work/site');
+		const cut = reportForStarter(long, '/work/site');
 		expect(cut.startsWith('Head line\nxxx')).toBe(true);
 		expect(cut).toContain('\n[…]\n');
 		expect(cut.endsWith('\nOutcome: Built it\nNeeds: nothing')).toBe(true);

@@ -19,7 +19,7 @@ function attention(kind: AgentAttention['kind'], sessionId: string): AgentAttent
 }
 
 describe('attention tree', () => {
-	it('quiets a workstream another chat leads', () => {
+	it('quiets a workstream another workstream started', () => {
 		expect(treeChatSummary(summary(attention('input', 'child')), [], true)).toMatchObject({
 			attention: null,
 			needsYou: false,
@@ -27,21 +27,21 @@ describe('attention tree', () => {
 		});
 	});
 
-	it('raises what the work a chat started needs over what the chat itself says', () => {
-		const lead = summary(attention('completed', 'lead'));
+	it('raises what the work a workstream started needs over what the workstream itself says', () => {
+		const root = summary(attention('completed', 'root'));
 		const raised = treeChatSummary(
-			lead,
+			root,
 			[summary(attention('approval', 'child')), summary(null)],
 			false,
 		);
 		expect(raised).toMatchObject({
-			sessionId: 'lead',
+			sessionId: 'root',
 			attention: { kind: 'approval', sessionId: 'child' },
 			needsYou: true,
 			attentionFromStarted: true,
 		});
-		expect(treeChatSummary(lead, [summary(null)], false)).toMatchObject({
-			attention: { kind: 'completed', sessionId: 'lead' },
+		expect(treeChatSummary(root, [summary(null)], false)).toMatchObject({
+			attention: { kind: 'completed', sessionId: 'root' },
 			needsYou: false,
 			attentionFromStarted: false,
 		});

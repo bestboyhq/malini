@@ -24,7 +24,6 @@ export function seedWorkstream(
 		baseBranch: 'main',
 		status: 'active',
 		createdAt,
-		scope: null,
 		startedBy: null,
 	});
 }

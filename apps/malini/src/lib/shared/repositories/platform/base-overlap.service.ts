@@ -204,7 +204,6 @@ export class BaseOverlapWatch {
 	#watched(workstream: Workstream): boolean {
 		return (
 			workstream.status === 'active' &&
-			workstream.scope === null &&
 			workstream.baseBranch.length > 0 &&
 			mergedPullRequestOf(this.#deps.db, workstream.id) === null
 		);
