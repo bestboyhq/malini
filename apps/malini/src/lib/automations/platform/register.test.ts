@@ -10,6 +10,7 @@ import {
 	AUTOMATIONS_RUN_FINISHED_CHANNEL,
 	AUTOMATIONS_RUN_STARTED_CHANNEL,
 	AUTOMATIONS_SUGGESTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 } from '$contract/events';
 import type { CommandFailure } from '$contract/ipc';
 import {
@@ -34,7 +35,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { all, get } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import { insertRun } from '$lib/chat/platform/runs.repository';
+import { finalizeRunLifecycle, insertRun } from '$lib/chat/platform/runs.repository';
 import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { addressedReviewThreadIds } from '$lib/pull-requests/domain/pull-request-fix-prompt';
 import {
@@ -44,6 +45,7 @@ import {
 } from '$shared/repositories/repositories.platform';
 import type { AutomationsPlatform } from '../automations.platform';
 import { BUILTIN_AUTOMATIONS } from '../domain/builtin-automations';
+import { promptCandidates } from '../domain/reconciler';
 import { updateFromMainAutomationContext } from '../domain/update-from-main-context';
 import { insertLoggedEvent, automationRunEventIds } from './event-log.repository';
 import { getBuiltinAutomationDefinition } from './automation-definitions.repository';
@@ -64,6 +66,7 @@ let automations: AutomationsPlatform;
 let settings: Record<string, string>;
 let openRuns: Set<string>;
 let sessionEvents: Map<string, AgentEventEnvelope[]>;
+let eventsRead: Promise<void>;
 let definitionEvents: unknown[];
 let suggested: AutomationSuggestionRecord[];
 let answers: ReturnType<typeof vi.fn<(task: string) => Promise<Record<string, unknown>>>>;
@@ -103,9 +106,10 @@ function harness(database: MaliniDatabase): MainContext {
 	commands.define('chat.start-session', fakes.startSession);
 	commands.define('chat.send-prompt', fakes.sendPrompt);
 	commands.define('chat.cancel-run', fakes.cancelRun);
-	commands.define('chat.list-events', (args: unknown) => [
-		...(sessionEvents.get(String(Reflect.get(Object(args), 'sessionId'))) ?? []),
-	]);
+	commands.define('chat.list-events', async (args: unknown) => {
+		await eventsRead;
+		return [...(sessionEvents.get(String(Reflect.get(Object(args), 'sessionId'))) ?? [])];
+	});
 	commands.define('chat.decide-approval', () => ({
 		decision: 'allow',
 		scope: 'once',
@@ -137,6 +141,7 @@ beforeEach(() => {
 	settings = {};
 	openRuns = new Set();
 	sessionEvents = new Map();
+	eventsRead = Promise.resolve();
 	definitionEvents = [];
 	suggested = [];
 	for (const workstreamId of ['ws-a', 'ws-b', 'ws-c', 'ws-d']) seedWorkstream(workstreamId);
@@ -1331,6 +1336,7 @@ describe('restart', () => {
 				agentRunId: sessionId === null ? null : `${id}-first-run`,
 				origin: 'merge-queue',
 				status,
+				interrupted: false,
 				detail: null,
 				parentRunId: null,
 				chatSessionId: null,
@@ -1417,6 +1423,7 @@ describe('restart', () => {
 				agentRunId: 'r1',
 				origin: 'merge-queue',
 				status: 'needs-you',
+				interrupted: false,
 				detail: null,
 				parentRunId: null,
 				chatSessionId: null,
@@ -1467,6 +1474,72 @@ describe('restart', () => {
 		db.exec("UPDATE agent_sessions SET status = 'running' WHERE id = 's-asks'");
 		await decide('a3');
 		await until('asks', 'running');
+	});
+
+	it('settles the runs it left behind before a rule reads them', async () => {
+		const resolver = await builtin('resolve-conflicts');
+		if (!resolver.trigger) throw new Error('Resolve conflicts has no trigger');
+		await context.commands.call('automations.save-definition', {
+			...resolver,
+			trigger: { ...resolver.trigger, mode: 'off' },
+		});
+		automations.dispose();
+		insertAutomationRun(
+			db,
+			{
+				id: 'left',
+				definitionId: resolver.id,
+				title: resolver.name,
+				workstreamId: 'ws-a',
+				repositoryId: null,
+				scope: null,
+				sessionId: 's-left',
+				agentRunId: 'r1',
+				origin: 'trigger',
+				status: 'running',
+				interrupted: false,
+				detail: null,
+				parentRunId: null,
+				chatSessionId: null,
+				chatAfterRunId: null,
+				chainId: 'left',
+				requests: 1,
+				createdAt: NOW,
+				startedAt: NOW,
+				finishedAt: null,
+			},
+			null,
+		);
+		let readEvents = (): void => {};
+		eventsRead = new Promise((resolve) => (readEvents = resolve));
+		context = harness(db);
+		fakes.workstreamStatus.mockImplementation(() => conflictedMerge());
+		automations = registerAutomations(context, {
+			log: () => {},
+			choose: async (task) =>
+				Math.max(1, promptCandidates(task).indexOf('Run Resolve conflicts') + 1),
+		});
+		automations.start();
+
+		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+			workstreamId: 'ws-a',
+			baseBranch: 'main',
+			conflictedPaths: ['src/shared.ts'],
+		});
+		await settle();
+		expect(await context.commands.call('automations.list-decisions', undefined)).toEqual([]);
+		readEvents();
+
+		expect(await until('left', 'failed')).toMatchObject({ interrupted: true });
+		await vi.waitFor(() => expect(fakes.startSession).toHaveBeenCalledTimes(1));
+		const runs = await context.commands.call('automations.list-runs', undefined);
+		expect(runs.filter(({ id }) => id !== 'left')).toEqual([
+			expect.objectContaining({
+				definitionId: resolver.id,
+				origin: 'reconciler',
+				status: 'running',
+			}),
+		]);
 	});
 });
 
@@ -1726,6 +1799,39 @@ describe('an automation whose turn ends over background commands', () => {
 		});
 	}
 
+	function opened(automationSession: string): void {
+		insertSession(db, {
+			id: automationSession,
+			workstreamId: 'ws-a',
+			provider: 'claude',
+			model: null,
+			providerSessionId: null,
+			status: 'running',
+			startedAt: NOW,
+		});
+		insertRun(db, {
+			id: 'agent-run-1',
+			sessionId: automationSession,
+			prompt: 'Warm up.',
+			startedAt: NOW,
+			completedAt: null,
+			summary: null,
+			error: null,
+		});
+	}
+
+	function completed(automationSession: string, summary: string): void {
+		finalizeRunLifecycle(db, automationSession, 'agent-run-1', 'completed', summary, null, NOW);
+		complete(automationSession, summary);
+	}
+
+	function restart(): void {
+		automations.dispose();
+		context = harness(db);
+		automations = registerAutomations(context, { log: () => {} });
+		automations.start();
+	}
+
 	async function runsOf(definitionId: string): Promise<AutomationRunRecord[]> {
 		const runs = await context.commands.call('automations.list-runs', undefined);
 		return runs.filter((run) => run.definitionId === definitionId);
@@ -1743,7 +1849,9 @@ describe('an automation whose turn ends over background commands', () => {
 		const next = await saveDefinition({ name: 'Note after', instructions: 'Append then.' });
 		const first = await saveDefinition({ name: 'Warm-up note', thenAutomationId: next.id });
 		const automation = await runOf(first);
-		return { next, automation, automationSession: await session(automation.id) };
+		const automationSession = await session(automation.id);
+		opened(automationSession);
+		return { next, automation, automationSession };
 	}
 
 	it('finishes at once, runs again when its agent goes on, and finishes with the end of that run', async () => {
@@ -1775,7 +1883,7 @@ describe('an automation whose turn ends over background commands', () => {
 		expect((await automationRun(then.id)).status).toBe('queued');
 		goOn(automationSession);
 		await until(automation.id, 'running');
-		complete(automationSession, REPORT);
+		completed(automationSession, REPORT);
 		await until(automation.id, 'succeeded');
 
 		await session(then.id);
@@ -1795,7 +1903,7 @@ describe('an automation whose turn ends over background commands', () => {
 		await until(then.id, 'succeeded');
 		goOn(automationSession);
 		await until(automation.id, 'running');
-		complete(automationSession, REPORT);
+		completed(automationSession, REPORT);
 		await until(automation.id, 'succeeded');
 		await settle();
 
@@ -1809,7 +1917,7 @@ describe('an automation whose turn ends over background commands', () => {
 		const then = await thenOf(next.id);
 		await settle();
 		expect((await automationRun(then.id)).status).toBe('queued');
-		complete(automationSession, 'Waiting for the warm-up.');
+		completed(automationSession, 'Waiting for the warm-up.');
 
 		await session(then.id);
 		expect(fakes.sendPrompt.mock.calls[1]?.[0]).toMatchObject({
@@ -1824,6 +1932,7 @@ describe('an automation whose turn ends over background commands', () => {
 		waitOver(automationSession, 'Waiting for the warm-up.');
 		const then = await thenOf(next.id);
 		goOn(automationSession);
+		finalizeRunLifecycle(db, automationSession, 'agent-run-1', 'failed', null, 'tests fail', NOW);
 		agentEvent(automationSession, 'agent-run-1', { type: 'run.failed', error: 'tests fail' });
 		await until(automation.id, 'failed');
 
@@ -1831,6 +1940,48 @@ describe('an automation whose turn ends over background commands', () => {
 			detail: 'Warm-up note went on and did not succeed.',
 		});
 		expect(fakes.startSession).toHaveBeenCalledTimes(1);
+	});
+
+	it('runs again after a restart once you answer its agent and it goes on, and finishes with that end', async () => {
+		const automation = await runOf(await saveDefinition());
+		const automationSession = await session(automation.id);
+		opened(automationSession);
+		waitOver(automationSession, 'Waiting for the warm-up.');
+		await until(automation.id, 'succeeded');
+		agentEvent(automationSession, 'agent-run-1', { type: 'approval.requested', approvalId: 'a1' });
+
+		restart();
+		await automations.settled();
+		await context.commands.call('chat.decide-approval', {
+			sessionId: automationSession,
+			runId: 'agent-run-1',
+			approvalId: 'a1',
+			decision: 'allow',
+			scope: 'once',
+		});
+		goOn(automationSession);
+
+		expect(await until(automation.id, 'running')).toMatchObject({ detail: null, finishedAt: null });
+		completed(automationSession, REPORT);
+		expect(await until(automation.id, 'succeeded')).toMatchObject({ detail: REPORT });
+	});
+
+	it('holds its Then across a restart while its agent may still go on', async () => {
+		const { next, automation, automationSession } = await chained();
+		waitOver(automationSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+
+		restart();
+		await automations.settled();
+		expect((await automationRun(then.id)).status).toBe('queued');
+		goOn(automationSession);
+		await until(automation.id, 'running');
+		completed(automationSession, REPORT);
+
+		await vi.waitFor(() => expect(fakes.sendPrompt).toHaveBeenCalledTimes(1));
+		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
+			prompt: `Append then.\n\nThis automation runs after “Warm-up note”, which finished with:\n\n${REPORT}`,
+		});
 	});
 });
 
@@ -1855,6 +2006,7 @@ describe('closing Malini', () => {
 		})();
 		release();
 		await closed;
+		await new Promise<void>((resolve) => setImmediate(resolve));
 		db = openMigratedDatabase(':memory:');
 
 		expect(logged).toEqual([]);

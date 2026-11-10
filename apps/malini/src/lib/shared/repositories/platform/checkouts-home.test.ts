@@ -272,6 +272,44 @@ describe('moveCheckoutsHome', () => {
 		expect(await worktreePaths(at(chosen, base))).toEqual([at(chosen, base), at(chosen)]);
 	});
 
+	it('links what a cut move already moved when it fails again, and finishes it later', async () => {
+		const { base, checkout } = await workstreamFixture(appData, 'ws-1');
+		seed('ws-1', 'proj', base, checkout);
+		const malini = join(home, 'malini');
+		const chosen = join(root, 'chosen');
+		mkdirSync(chosen);
+		const move = () =>
+			moveCheckoutsHome({ db, appDataRoot: appData, defaultRoot: malini, claudeDirectory: claude });
+		const at = (folder: string, path = checkout) => join(folder, path.slice(appData.length + 1));
+		await move();
+		await chooseCheckoutsFolder(db, appData, malini, chosen);
+		db.prepare("UPDATE settings SET value = ? WHERE key = 'checkouts.folder'").run(
+			JSON.stringify({ appData, folder: chosen, started: true }),
+		);
+		renameSync(join(malini, 'repositories'), join(chosen, 'repositories'));
+		lock(join(malini, 'workstreams'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		expect(await move()).toBe(malini);
+
+		expect(realpathSync(at(malini, base))).toBe(at(chosen, base));
+		expect((await realGit(at(malini), ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe(
+			workstreamBranchName('ws-1'),
+		);
+		expect(checkoutsFolder(db, appData, malini)).toMatchObject({
+			next: chosen,
+			problem: { folder: chosen, reason: 'move-failed' },
+		});
+		chmodSync(join(malini, 'workstreams'), 0o755);
+
+		expect(await move()).toBe(chosen);
+
+		expect(checkoutsFolder(db, appData, chosen)).toMatchObject({ next: null, problem: null });
+		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(chosen));
+		expect(getProject(db, 'proj')?.repoPath).toBe(at(chosen, base));
+		expect(await worktreePaths(at(chosen, base))).toEqual([at(chosen, base), at(chosen)]);
+	});
+
 	it('refuses a folder it cannot move checkouts into, and keeps the one you chose', async () => {
 		const current = join(home, 'malini');
 		const empty = join(root, 'empty');

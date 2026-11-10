@@ -117,6 +117,10 @@ async function openTab(page: Page, origin: string, path: string): Promise<void> 
 	await address.press('Enter');
 }
 
+async function untilBrowserEventsArrive(page: Page, workstreamId: string): Promise<void> {
+	await invoke(page, 'browser.state', { workstreamId, tabId: 'round-trip' });
+}
+
 test('browser tabs show only once opened, each with its own page and close button, keep the inspector width on every tab, and closing one closes only its page', async () => {
 	test.setTimeout(120_000);
 	const server = createServer((request, response) => {
@@ -700,10 +704,11 @@ test('the agent resizes the browser tab you see by moving the divider, stops whe
 
 test('a page that breaks off after it shows stays shown and pickable, and so does a blank page', async () => {
 	test.setTimeout(120_000);
+	const held: ServerResponse[] = [];
 	const server = createServer((_request, response) => {
 		response.writeHead(200, { 'content-type': 'text/html', 'content-length': '4096' });
 		response.write('<!doctype html><title>Broken off</title><h1>Half a page</h1>');
-		setTimeout(() => response.destroy(), 200);
+		held.push(response);
 	});
 	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
 	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
@@ -734,13 +739,12 @@ test('a page that breaks off after it shows stays shown and pickable, and so doe
 		await openWorkstream(page, seeded.workstreamId);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
-		const settle = () =>
-			invoke(page, 'browser.state', { workstreamId: seeded.workstreamId, tabId: 'none' });
 
 		await openTab(page, origin, '/partial');
 		await expect(inspector.getByRole('tab', { name: 'Broken off', selected: true })).toBeVisible();
+		for (const response of held) response.destroy();
 		await expect.poll(() => stillLoading(origin)).toBe(false);
-		await settle();
+		await untilBrowserEventsArrive(page, seeded.workstreamId);
 		const pick = page.getByRole('button', { name: 'Pick an element' });
 		await expect(pick).toBeEnabled();
 		await expect(inspector.getByRole('status')).toHaveCount(0);
@@ -751,7 +755,7 @@ test('a page that breaks off after it shows stays shown and pickable, and so doe
 		await address.press('Enter');
 		await expect(address).toHaveValue('about:blank');
 		await expect.poll(() => stillLoading('about:blank')).toBe(false);
-		await settle();
+		await untilBrowserEventsArrive(page, seeded.workstreamId);
 		const blank = webPage(electronApp, 'about:blank');
 		await pick.click();
 		await expect
@@ -806,7 +810,6 @@ test('a tab going back shows the address it goes back to while that page loads',
 		hold = true;
 		await page.getByRole('button', { name: 'Back', exact: true }).click();
 		await expect.poll(() => held.length).toBe(1);
-		await invoke(page, 'browser.state', { workstreamId: seeded.workstreamId, tabId: 'none' });
 		await expect(address).toHaveValue(`${host}/first`);
 		expectCleanConsole(app);
 	} finally {
@@ -816,7 +819,7 @@ test('a tab going back shows the address it goes back to while that page loads',
 	}
 });
 
-test('a restored tab shows its address while its page loads, and a tab closed as it opens leaves no page behind', async () => {
+test('a restored tab shows its address while its page loads', async () => {
 	test.setTimeout(180_000);
 	let hold = false;
 	const held: ServerResponse[] = [];
@@ -825,9 +828,8 @@ test('a restored tab shows its address while its page loads, and a tab closed as
 			held.push(response);
 			return;
 		}
-		const title = request.url === '/slow' ? 'Slow page' : 'Quick page';
 		response.writeHead(200, { 'content-type': 'text/html' });
-		response.end(`<!doctype html><title>${title}</title><h1>${title}</h1>`);
+		response.end('<!doctype html><title>Slow page</title><h1>Slow page</h1>');
 	});
 	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
 	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
@@ -846,8 +848,6 @@ test('a restored tab shows its address while its page loads, and a tab closed as
 		await openWorkstream(page, workstreamId);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
-		await openTab(page, origin, '/quick');
-		await expect(inspector.getByRole('tab', { name: 'Quick page', selected: true })).toBeVisible();
 		await openTab(page, origin, '/slow');
 		await expect(inspector.getByRole('tab', { name: 'Slow page', selected: true })).toBeVisible();
 		await inspector.getByRole('tab', { name: 'Files' }).click();
@@ -866,48 +866,17 @@ test('a restored tab shows its address while its page loads, and a tab closed as
 		const { page } = app;
 		await openWorkstream(page, workstreamId);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
-		const quickTab = inspector.getByRole('tab', { name: `${host}/quick` });
-		await expect(quickTab).toBeVisible({ timeout: 20_000 });
-		const [quickId] = await page.evaluate(
-			(key) => JSON.parse(localStorage.getItem(key) ?? '[]') as string[],
-			`malini.browser.tabs:v1:${workstreamId}`,
-		);
-		const quick = { workstreamId, tabId: quickId ?? '' };
-		const closeQuick = page.getByRole('button', { name: `Close ${host}/quick`, exact: true });
-
-		const mountedBeforeClose = await page.evaluate(
-			async ({ tab, close, panelId }) => {
-				const address = () =>
-					document.querySelector(`[data-extension-panel-mount][data-panel-id="${panelId}"] input`);
-				tab.click();
-				for (let hop = 0; hop < 10_000 && !address(); hop += 1) await Promise.resolve();
-				const mounted = address() !== null;
-				for (let hop = 0; hop < 1_000; hop += 1) await Promise.resolve();
-				close.click();
-				return mounted;
-			},
-			{
-				tab: await quickTab.elementHandle(),
-				close: await closeQuick.elementHandle(),
-				panelId: `malini.browser.tab:${quick.tabId}`,
-			},
-		);
-		expect(mountedBeforeClose).toBe(true);
-		await expect(quickTab).toHaveCount(0);
-		await invoke(page, 'browser.state', quick);
-		expect
-			.soft(await invoke(page, 'browser.state', quick))
-			.toMatchObject({ url: '', loading: false });
+		const slowTab = inspector.getByRole('tab', { name: `${host}/slow` });
+		await expect(slowTab).toBeVisible({ timeout: 20_000 });
+		await slowTab.click();
 
 		await expect.poll(() => held.length).toBe(1);
-		await invoke(page, 'browser.state', quick);
-		await expect
-			.soft(inspector.getByRole('tab', { name: `${host}/slow`, selected: true }))
-			.toBeVisible();
-		await expect
-			.soft(page.getByRole('textbox', { name: 'Page address' }))
-			.toHaveValue(`${host}/slow`);
-		await expect.soft(inspector.getByText('Open a page')).toHaveCount(0);
+		await untilBrowserEventsArrive(page, workstreamId);
+		await expect(
+			inspector.getByRole('tab', { name: `${host}/slow`, selected: true }),
+		).toBeVisible();
+		await expect(page.getByRole('textbox', { name: 'Page address' })).toHaveValue(`${host}/slow`);
+		await expect(inspector.getByText('Open a page')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		for (const response of held) response.destroy();

@@ -35,6 +35,7 @@ const FIRST_RETRY_MS = 60_000;
 const LAST_RETRY_MS = 60 * 60_000;
 const ACCOUNT_FRESH_MS = 60_000;
 const USAGE_ACCOUNT_FRESH_MS = 60 * 60_000;
+const ACCOUNT_RETRY_MS = 5 * 60_000;
 const MAX_PICKS = 10;
 const REPOSITORY_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/u;
 
@@ -51,6 +52,7 @@ export class StatsProfile {
 	#signInProblem: string | null = null;
 	#login: string | null = null;
 	#accountCheckedAt = 0;
+	#accountFailedAt = 0;
 	#accountCheck: Promise<void> | null = null;
 	#queue: Promise<unknown> = Promise.resolve();
 	#retryMs = FIRST_RETRY_MS;
@@ -214,6 +216,7 @@ export class StatsProfile {
 				this.#deps.published(profile);
 				if (terms) {
 					this.#accountCheckedAt = 0;
+					this.#accountFailedAt = 0;
 					void this.#refresh();
 				}
 			} catch (error) {
@@ -332,6 +335,7 @@ export class StatsProfile {
 	async #checkAccount(freshMs: number): Promise<boolean> {
 		const { token } = this.#saved;
 		if (token === '' || Date.now() - this.#accountCheckedAt <= freshMs) return false;
+		if (Date.now() - this.#accountFailedAt <= Math.min(freshMs, ACCOUNT_RETRY_MS)) return false;
 		const check = (this.#accountCheck ??= this.#readAccount(token).finally(() => {
 			if (this.#accountCheck === check) this.#accountCheck = null;
 		}));
@@ -346,6 +350,7 @@ export class StatsProfile {
 			this.#accountCheckedAt = Date.now();
 			await this.#save({ ...this.#saved, ...me });
 		} catch (error) {
+			this.#accountFailedAt = Date.now();
 			if (error instanceof BestboyError && error.signedOut && this.#saved.token === token) {
 				await this.#forgetToken();
 			}

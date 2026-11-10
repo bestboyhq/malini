@@ -10,6 +10,7 @@ export class ProviderCapabilitiesStore {
 	loadState = $state<ProviderCapabilityLoadState>('idle');
 	error = $state<string | null>(null);
 	lastVerifiedAt = $state<number | null>(null);
+	checkingAgain = $state<boolean>(false);
 
 	readonly #load: (refresh: boolean) => Promise<ProviderCapability[]>;
 	#inflight: Promise<void> | null = null;

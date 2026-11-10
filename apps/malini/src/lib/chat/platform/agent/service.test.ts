@@ -431,6 +431,7 @@ describe('platform requests from the agent', () => {
 				agentRunId: null,
 				origin: 'manual',
 				status: 'queued',
+				interrupted: false,
 				detail: null,
 				parentRunId: 'automation-run-0',
 				chatSessionId: 'sess-1',

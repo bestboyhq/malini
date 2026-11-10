@@ -742,7 +742,7 @@
 
 	function reorderClass(id: string): string | undefined {
 		if (!reorder?.siblingIds.includes(id)) return undefined;
-		if (reorder.item.id === id) return 'bg-surface-50 z-10 rounded-xl shadow-md';
+		if (reorder.item.id === id) return 'bg-surface-root z-10 rounded-xl shadow-md';
 		return 'transition-transform duration-150 ease-out motion-reduce:transition-none';
 	}
 
@@ -1093,7 +1093,7 @@
 		<Button
 			bare
 			class={[
-				'text-fg-tertiary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 font-medium outline-none',
+				'text-fg-tertiary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 font-medium outline-none',
 				compact ? 'text-2xs h-6' : 'h-7 text-xs',
 			]}
 			ariaLabel={`${section.label}, ${workstreamCountLabel(count)}`}
@@ -1174,7 +1174,7 @@
 				<Button
 					bare
 					class={[
-						'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
+						'text-fg-secondary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
 						compact ? 'h-7 text-xs' : 'h-8 text-sm',
 					]}
 					ariaLabel={`${block.owner}, ${ownerCountLabel(block)}`}
@@ -1273,8 +1273,8 @@
 						levelPadding(level),
 						compact ? 'h-7' : 'h-8',
 						row.repo.id === openRepositoryId
-							? 'bg-surface-50-selected'
-							: 'hover:bg-surface-50-hover has-focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+							? 'bg-surface-root-selected'
+							: 'hover:bg-surface-root-hover has-focus-visible:bg-surface-root-hover data-[active=true]:bg-surface-root-hover',
 					]}
 					data-active={row.repo.id === repositoryMenu?.repository.id}
 					data-testid="sidebar-connected-repository"
@@ -1306,7 +1306,7 @@
 								ariaLabel={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
 								ariaExpanded={!collapsed}
 								ariaControls={`repository-workstreams-${collapseId}`}
-								class="text-fg-tertiary hover:bg-surface-50-hover hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+								class="text-fg-tertiary hover:bg-surface-root-hover hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
 								data-testid="sidebar-repository-disclosure"
 							>
 								<Icon
@@ -1433,7 +1433,7 @@
 								: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
 							view.selected
 								? 'sidebar-row-active'
-								: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+								: 'group-hover/row:bg-surface-root-hover focus-visible:bg-surface-root-hover data-[active=true]:bg-surface-root-hover',
 						]}
 						data-active={workstream.id === contextMenu?.workstreamId}
 						{...workstreamLinkData(workstream, row.repositoryFullName, view)}
@@ -1646,7 +1646,7 @@
 	<Button
 		bare
 		class={[
-			'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
+			'text-fg-secondary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
 			compact ? 'h-7 text-xs' : 'h-8 text-sm',
 		]}
 		ariaLabel={name}

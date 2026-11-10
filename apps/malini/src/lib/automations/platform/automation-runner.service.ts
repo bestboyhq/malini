@@ -62,6 +62,7 @@ import {
 	appendAutomationRunContext,
 	childAutomationRun,
 	findActiveAutomationRunForSession,
+	findAutomationRunOfAgentRun,
 	getAutomationRun,
 	getAutomationRunContext,
 	insertAutomationRun,
@@ -70,6 +71,7 @@ import {
 } from './automation-runs.repository';
 import {
 	getSession,
+	getWorkstreamRun,
 	hasTurnReport,
 	resumesTurn,
 	turnEndedOverBackgroundCommands,
@@ -109,7 +111,6 @@ type SessionState = Readonly<{
 export class AutomationRunner {
 	readonly #context: MainContext;
 	readonly #log: (line: string) => void;
-	readonly #waitingRuns = new Map<string, string>();
 	readonly #retryAt = new Map<string, number>();
 	readonly #timers = new Set<ReturnType<typeof setTimeout>>();
 	readonly #unsubscribes: Array<() => void> = [];
@@ -538,12 +539,11 @@ export class AutomationRunner {
 	#onAgentEvent(envelope: AgentEventEnvelope): void {
 		try {
 			const type = envelope.event['type'];
-			if (typeof type === 'string' && resumesTurn({ type })) this.#wentOn(envelope.runId);
+			if (typeof type === 'string' && resumesTurn({ type })) this.#wentOn(envelope);
 			if (type === 'run.started') this.#resumed(envelope.sessionId, envelope.runId);
 			else if (type === 'approval.requested' || type === 'question.requested')
 				this.#waiting(envelope.sessionId);
 			else if (type === 'run.completed' || type === 'run.failed') {
-				this.#waitingRuns.delete(envelope.runId);
 				this.#ended(envelope);
 				this.kick();
 			} else if (turnEndedOverBackgroundCommands(envelope.event)) {
@@ -591,16 +591,14 @@ export class AutomationRunner {
 		if (summary === null) return;
 		const automationRun = findActiveAutomationRunForSession(this.#context.db, envelope.sessionId);
 		if (!automationRun) return;
-		this.#waitingRuns.set(envelope.runId, automationRun.id);
 		this.#succeed(automationRun.id, summary);
 	}
 
-	#wentOn(agentRunId: string): void {
-		const automationRunId = this.#waitingRuns.get(agentRunId);
-		if (automationRunId === undefined) return;
-		this.#waitingRuns.delete(agentRunId);
-		this.#update(automationRunId, (current) =>
-			current.status === 'succeeded' && current.agentRunId === agentRunId
+	#wentOn({ sessionId, runId }: AgentEventEnvelope): void {
+		const automationRun = findAutomationRunOfAgentRun(this.#context.db, sessionId, runId);
+		if (automationRun?.status !== 'succeeded') return;
+		this.#update(automationRun.id, (current) =>
+			current.status === 'succeeded' && current.agentRunId === runId
 				? { ...current, status: 'running', detail: null, finishedAt: null }
 				: null,
 		);
@@ -609,10 +607,14 @@ export class AutomationRunner {
 	#awaitsItsAutomation({ parentRunId, origin }: AutomationRunRecord): boolean {
 		const automation =
 			parentRunId === null ? null : getAutomationRun(this.#context.db, parentRunId);
-		if (origin === 'then' && automation && automation.status !== 'succeeded') return true;
-		if (!automation?.agentRunId || this.#waitingRuns.get(automation.agentRunId) !== automation.id)
-			return false;
-		return !hasTurnReport(automation.detail ?? '');
+		if (!automation) return false;
+		if (origin === 'then' && automation.status !== 'succeeded') return true;
+		return this.#mayGoOn(automation) && !hasTurnReport(automation.detail ?? '');
+	}
+
+	#mayGoOn({ status, workstreamId, agentRunId }: AutomationRunRecord): boolean {
+		if (status !== 'succeeded' || workstreamId === null || agentRunId === null) return false;
+		return getWorkstreamRun(this.#context.db, workstreamId, agentRunId)?.completedAt === null;
 	}
 
 	#onCommand(outcome: CommandOutcome): void {
@@ -642,11 +644,7 @@ export class AutomationRunner {
 		const thenAutomationId =
 			getAutomationDefinition(db, automationRun.definitionId)?.thenAutomationId ?? null;
 		if (thenAutomationId === null || triggeredBefore(db, thenAutomationId, event.id)) return;
-		const started = childAutomationRun(db, automationRun.id, thenAutomationId);
-		if (started) {
-			this.#followAgain(started, automationRun);
-			return;
-		}
+		if (childAutomationRun(db, automationRun.id, thenAutomationId)) return;
 		if (automationRun.status !== 'succeeded') return;
 		try {
 			await commands.call('automations.run', {
@@ -669,14 +667,16 @@ export class AutomationRunner {
 		}
 	}
 
-	#followAgain(then: AutomationRunRecord, automation: AutomationRunRecord): void {
-		if (!isPendingAutomationRunStatus(then.status)) return;
+	#followAgain(automation: AutomationRunRecord): void {
+		const { db } = this.#context;
+		const thenAutomationId =
+			getAutomationDefinition(db, automation.definitionId)?.thenAutomationId ?? null;
+		const then =
+			thenAutomationId === null ? null : childAutomationRun(db, automation.id, thenAutomationId);
+		if (!then || !isPendingAutomationRunStatus(then.status)) return;
 		if (automation.status === 'succeeded') {
-			const report = thenContext(
-				automation,
-				getAutomationDefinition(this.#context.db, then.definitionId),
-			);
-			appendAutomationRunContext(this.#context.db, then.id, truncateAutomationContext(report));
+			const report = thenContext(automation, getAutomationDefinition(db, then.definitionId));
+			appendAutomationRunContext(db, then.id, truncateAutomationContext(report));
 		} else {
 			this.#finish(then.id, 'cancelled', `${automation.title} went on and did not succeed.`);
 		}
@@ -755,7 +755,10 @@ export class AutomationRunner {
 				? null
 				: { ...current, status, interrupted, detail, finishedAt: nowIso8601() },
 		);
-		if (finished) this.#retryAt.delete(automationRunId);
+		if (finished) {
+			this.#retryAt.delete(automationRunId);
+			this.#followAgain(finished);
+		}
 		return finished;
 	}
 

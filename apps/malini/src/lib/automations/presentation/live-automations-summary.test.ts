@@ -39,6 +39,7 @@ function entry(status: AutomationRunStatus, channel: string | null = null) {
 			agentRunId: null,
 			origin: 'manual' as const,
 			status,
+			interrupted: false,
 			detail: null,
 			parentRunId: null,
 			chatSessionId: null,

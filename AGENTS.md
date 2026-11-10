@@ -10,15 +10,16 @@ Its landing page embeds the real renderer, built from `apps/malini/src/renderer/
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 A docs section can lead with that renderer on `?play=docs` from a `<!-- demo <workstream> <height>` directive in its markdown, its text folded below it (ADR 0175).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes seven outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166).
-Usage counts, yesterday's loop counted on the Mac, each install's first setup and first-use steps, the days and months it runs, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156, ADR 0194); first-use markers belong only to installs first opened after ADR 0194, and every marker is stored in `settings` as sent only once it is delivered.
-Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old.
+The app makes eight outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166, ADR 0195).
+Usage counts, yesterday's loop counted on the Mac, each install's first setup and first-use steps, the days and months it runs, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156, ADR 0194, ADR 0211); first-use markers belong only to installs first opened after ADR 0194, and every marker is stored in `settings` as sent only once it is delivered.
+Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old, or five minutes after a failed one (ADR 0207).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
 Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 The extension marketplace is read from bestboy.dev, from `src/lib/extensions/platform/marketplace.ts`, only while Settings, Extensions or Profile is open or something is installed, and a package goes up with your Bestboy token only when you press **Publish** (ADR 0142, ADR 0146).
 Provider model lists come from models.dev, from `src/lib/shared/providers/platform/models-dev.service.ts`, at launch and at most hourly as the model picker or Settings, Providers opens; `MALINI_MODELS_DEV_URL` points an unpackaged build at a local catalog (ADR 0157).
 Saving an OpenCode key sends one-token messages to opencode.ai's Go endpoint, from `src/lib/shared/providers/platform/opencode-plan.ts`, to learn whether the key runs Go or Console, and stores that plan so the picker lists only its models; `MALINI_OPENCODE_PROBE_URL` points an unpackaged build at another origin (ADR 0165).
+That Go key's usage is read from `https://opencode.ai/zen/go/v1/usage`, from `src/lib/shared/providers/platform/opencode-usage.ts`, when a chat opens with an OpenCode model picked or its usage panel opens, at most once a minute, and only on the Go plan; the same `MALINI_OPENCODE_PROBE_URL` covers it (ADR 0195, ADR 0196).
 A ChatGPT plan reaches `auth.openai.com` and `api.openai.com`, from `src/lib/shared/providers/platform/chatgpt/`, only after you press **Continue with ChatGPT**, and the token never leaves the main process, whose proxy on `127.0.0.1` Claude Code calls; `MALINI_CHATGPT_ISSUER` and `MALINI_CHATGPT_RESOURCE` point an unpackaged build at a fake (ADR 0166).
 Everything else on GitHub is reached through the `gh` CLI.
 
@@ -97,6 +98,7 @@ apps/malini/src/main/
 Command names are `<domain>.<verb-kebab>` (`chat.send-prompt`), event channels `<domain>:<event-kebab>` (`chat:agent-event`).
 Both are declared once in `$contract` and checked on both sides by `pnpm check`.
 Every event channel has one description and the `facts` an automation sees of it in `$contract/event-catalog.ts`; `pnpm --filter malini generate:contract-reference` turns them into `$contract/contract-reference.generated.ts` and `apps/site/content/reference/events.md`, and `pnpm check` fails when either is stale.
+A channel's catalog entry also lists the `values` its state fields can hold, and a new trigger on any other value is refused (ADR 0199).
 
 `.agents/rules/frontend/layout.mdc` has the full tree and `.agents/rules/frontend/cross-domain-imports.mdc` the import rules.
 `@malini/desktop/domain-boundaries` enforces both at `error`.

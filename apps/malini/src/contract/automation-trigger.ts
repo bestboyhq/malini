@@ -171,17 +171,20 @@ function twoDigits(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
+export function unknownTriggerValueMessage(trigger: ParsedTrigger): string | null {
+	if (trigger.kind !== 'event') return null;
+	for (const { path, equals } of trigger.where) {
+		const known = eventFactValues(trigger.channel, path);
+		if (equals !== null && known && !known.includes(equals)) {
+			return `${trigger.channel} never reports ${path} ${equals}. It reports ${ONE_OF.format(known)}.`;
+		}
+	}
+	return null;
+}
+
 function parseEventTrigger(channel: string, conditions: string | undefined): ParsedTrigger {
 	if (!isEventChannel(channel)) throw new Error(unknownChannelMessage(channel));
 	const where = (conditions?.split(/\s+and\s+/iu) ?? []).map(parseEventCondition);
-	for (const { path, equals } of where) {
-		const known = eventFactValues(channel, path);
-		if (equals !== null && known && !known.includes(equals)) {
-			throw new Error(
-				`${channel} never reports ${path} ${equals}. It reports ${ONE_OF.format(known)}.`,
-			);
-		}
-	}
 	const clauses = where.map(({ path, equals }) =>
 		equals === null ? `${path} is set` : `${path} is ${equals}`,
 	);

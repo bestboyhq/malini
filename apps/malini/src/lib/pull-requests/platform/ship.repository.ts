@@ -33,7 +33,6 @@ export type ShipRow = ShipStateRecord &
 
 export type ShipPatch = Partial<
 	Readonly<{
-		phase: ShipPhase;
 		step: ShipStep | null;
 		keep: boolean;
 		pullRequestNumber: number | null;

@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
 	invoke,
@@ -390,6 +391,67 @@ test('a run that needs you stays on Activity and its row cancels it', async () =
 			.poll(async () => (await runsOf(page, 'Read outside'))[0]?.status, { timeout: 30_000 })
 			.toBe('cancelled');
 		await captureFlow(app, 'automation-needs-you-cancelled');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a Malini call you deny for an automation is kept as denied, and its run ends the way its agent run ended', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-denied-call',
+			'Denied call',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Plan the cleanup');
+		await expectAssistantReply(page);
+		const chat = currentSessionId(page);
+		if (!chat) throw new Error('the chat did not commit a session id');
+		writeFileSync(
+			join(app.home, 'malini-tool.json'),
+			JSON.stringify({ tool: 'repositories_hide', input: { repository: 'acme/api' } }),
+		);
+		const automation = await saveAutomation(page, {
+			name: 'Tidy repositories',
+			instructions: 'MALINI_TOOL',
+		});
+		await invoke(page, 'automations.run', {
+			definitionId: automation.id,
+			workstreamId,
+			chatSessionId: chat,
+		});
+		await expect
+			.poll(async () => (await runsOf(page, 'Tidy repositories'))[0]?.status, { timeout: 30_000 })
+			.toBe('needs-you');
+
+		const asking = page.getByRole('region', {
+			name: 'Tidy repositories automation in Denied call needs you',
+		});
+		await asking
+			.getByRole('group', { name: 'Permission decision' })
+			.getByRole('button', { name: 'Deny' })
+			.click();
+		await expect(asking).toHaveCount(0, { timeout: 20_000 });
+
+		await expect
+			.poll(async () => (await runsOf(page, 'Tidy repositories'))[0]?.status, { timeout: 30_000 })
+			.toBe('succeeded');
+		expect(
+			await invoke<Readonly<{ tool: string; status: string; approval: string }>[]>(
+				page,
+				'automations.list-agent-actions',
+				undefined,
+			),
+		).toEqual([
+			expect.objectContaining({ tool: 'repositories_hide', status: 'denied', approval: 'denied' }),
+		]);
+		await captureFlow(app, 'automation-denied-call');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

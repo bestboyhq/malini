@@ -14,6 +14,7 @@ function run(id: string, patch: Partial<AutomationRunRecord>): AutomationRunReco
 		agentRunId: null,
 		origin: 'manual',
 		status: 'queued',
+		interrupted: false,
 		detail: null,
 		parentRunId: null,
 		chatSessionId: null,

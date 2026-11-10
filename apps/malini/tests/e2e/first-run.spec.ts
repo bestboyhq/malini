@@ -19,6 +19,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	type WorkstreamRow,
+	withoutConsoleErrors,
 } from './harness';
 
 test('a new Mac without Claude Code is walked to install it, with the command it will run', async () => {
@@ -635,8 +636,7 @@ test('a finished setup that cannot be read opens the repository picker, not the 
 		} finally {
 			settingsTable('ALTER TABLE settings_unreadable RENAME TO settings');
 		}
-		const unexpected = app.consoleErrors.filter((line) => !unreadable.test(line));
-		app.consoleErrors.splice(0, app.consoleErrors.length, ...unexpected);
+		withoutConsoleErrors(app, unreadable);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

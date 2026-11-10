@@ -72,10 +72,12 @@ export async function queueMerge(
 ): Promise<ShipStateRecord> {
 	const { db } = deps.context;
 	const target = await shipTarget(db, workstreamId);
+	const before = getShip(db, workstreamId);
+	if (before?.phase === 'queued') return unchanged(deps, before, click);
+	if (before?.pullRequestNumber == null) await refuseNothingToShip(deps, target);
+	insertShip(db, workstreamId);
 	const row = getShip(db, workstreamId);
 	if (row?.phase === 'queued') return unchanged(deps, row, click);
-	if (row?.pullRequestNumber == null) await refuseNothingToShip(deps, target);
-	insertShip(db, workstreamId);
 	return upsert(
 		deps,
 		workstreamId,

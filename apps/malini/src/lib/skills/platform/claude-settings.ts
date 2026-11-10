@@ -86,15 +86,7 @@ export function withPluginSwitched(settings: JsonObject, id: string, on: boolean
 	if (!isRecord(plugins) || !(id in plugins)) {
 		throw new Error(`The plugin \`${id}\` is not in your Claude Code settings.`);
 	}
-	const value = plugins[id];
-	return {
-		...settings,
-		enabledPlugins: { ...plugins, [id]: on && (isPluginOn(value) ? value : true) },
-	};
-}
-
-function isPluginOn(value: unknown): boolean {
-	return value === true || Array.isArray(value);
+	return { ...settings, enabledPlugins: { ...plugins, [id]: on } };
 }
 
 function skillUses(usage: unknown): SkillUse[] {
@@ -124,7 +116,7 @@ function claudePlugins(settings: JsonObject): ClaudePlugin[] {
 	return Object.entries(plugins).flatMap(([id, value]) => {
 		const at = id.lastIndexOf('@');
 		if (at <= 0) return [];
-		return [{ id, name: id.slice(0, at), on: isPluginOn(value) }];
+		return [{ id, name: id.slice(0, at), on: value !== false }];
 	});
 }
 

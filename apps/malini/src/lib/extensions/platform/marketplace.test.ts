@@ -203,7 +203,7 @@ describe('following the marketplace', () => {
 		);
 	});
 
-	it('turns a withdrawn version back on once its publisher ships a fix', async () => {
+	it('installs the fix of a withdrawn version off, until you turn it on', async () => {
 		platform.publish(svelte('1.0.4'));
 		await marketplace.install('szymeo', 'svelte');
 		platform.yank('szymeo', 'svelte', '1.0.4');
@@ -212,31 +212,16 @@ describe('following the marketplace', () => {
 
 		await settledIndex(build());
 
-		expect(marketplace.installed()[0]).toMatchObject({ version: '1.0.5', withdrawn: false });
+		expect(marketplace.installed()[0]).toMatchObject({
+			version: '1.0.5',
+			enabled: false,
+			withdrawn: false,
+		});
+		expect(marketplace.pluginFolders()).toEqual([]);
+		await marketplace.switch('svelte', true);
 		expect(marketplace.pluginFolders()).toEqual([
 			join(root, 'extensions', 'installed', 'svelte@1.0.5'),
 		]);
-	});
-
-	it('brings a fixed version back off when the agent already has 50 extensions', async () => {
-		for (let index = 0; index < 51; index += 1) {
-			platform.publish(svelte('1.0.0', 'szymeo', undefined, `tools-${index}`));
-		}
-		for (let index = 0; index < 50; index += 1)
-			await marketplace.install('szymeo', `tools-${index}`);
-		platform.yank('szymeo', 'tools-0', '1.0.0');
-		await settledIndex(build());
-		await marketplace.install('szymeo', 'tools-50');
-		platform.publish(svelte('1.0.1', 'szymeo', undefined, 'tools-0'));
-
-		await settledIndex(build());
-
-		expect(marketplace.installed().find(({ name }) => name === 'tools-0')).toMatchObject({
-			version: '1.0.1',
-			withdrawn: false,
-			enabled: false,
-		});
-		expect(marketplace.pluginFolders()).toHaveLength(50);
 	});
 
 	it('keeps when you installed an extension across its updates', async () => {

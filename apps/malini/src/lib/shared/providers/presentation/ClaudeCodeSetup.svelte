@@ -15,6 +15,7 @@
 	import { checkClaudeCodeAgainCommand } from '$shared/providers/application/commands/check-claude-code-again.command';
 	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
+	import { checkingClaudeCodeAgainQuery } from '$shared/providers/application/queries/checking-claude-code-again.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
 	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
 	import ClaudeAccountList from './ClaudeAccountList.svelte';
@@ -26,11 +27,11 @@
 
 	let { step = false, nested = false }: Props = $props();
 	let copied = $state(false);
-	let checkingAgain = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
+	const checkingAgain = $derived(checkingClaudeCodeAgainQuery.data);
 	const setupStep = $derived(setupStepFor(status));
 	const listsAccounts = $derived(!step && status.kind === 'ready');
 	const detail = $derived(
@@ -73,11 +74,6 @@
 		copied = true;
 		clearTimeout(copiedTimer);
 		copiedTimer = setTimeout(() => (copied = false), 1_500);
-	}
-
-	function checkAgain(): void {
-		checkingAgain = true;
-		void checkClaudeCodeAgainCommand().finally(() => (checkingAgain = false));
 	}
 
 	onMount(() => {
@@ -143,7 +139,7 @@
 			class="shrink-0"
 			ariaLabel="Check Claude Code again"
 			loading={checkingAgain}
-			onclick={checkAgain}
+			onclick={checkClaudeCodeAgainCommand}
 		>
 			{#snippet leading()}
 				<Icon name="refresh" size={step ? 14 : 12} />

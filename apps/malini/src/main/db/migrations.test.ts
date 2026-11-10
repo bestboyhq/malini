@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { AUTOMATION_RUN_STATUSES } from '$contract/automations';
 import { diagnosticsRecordedDuring } from '../diagnostics/test-support';
 import { openMigratedDatabase } from './open';
 import { openDatabase } from './driver';
@@ -42,6 +43,7 @@ const ALL_TABLES = [
 	'automation_suggestions',
 	'brain_captures',
 	'chatgpt_account',
+	'claude_plan_usage',
 	'connected_repositories',
 	'custom_sounds',
 	'docker_containers',
@@ -653,7 +655,7 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('keeps the fix attempts a merge spent on its current failure in one count per failure', () => {
+	it('counts the fix attempts a merge spent per failure and keeps the old count for older builds', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
 		const counted = MIGRATIONS.findIndex((migration) =>
@@ -670,15 +672,16 @@ describe('migrate', () => {
 		migrate(db);
 
 		expect(
-			get(db, 'SELECT fix_attempts, checks_rerun_at, checks_rerun_head_sha FROM workstream_ship'),
+			get(
+				db,
+				'SELECT attempts, fix_attempts, checks_rerun_at, checks_rerun_head_sha FROM workstream_ship',
+			),
 		).toEqual({
+			attempts: 2,
 			fix_attempts: JSON.stringify({ 'checks:["test"]': 2 }),
 			checks_rerun_at: null,
 			checks_rerun_head_sha: null,
 		});
-		expect(
-			all(db, "SELECT name FROM pragma_table_info('workstream_ship') WHERE name = 'attempts'"),
-		).toEqual([]);
 		db.close();
 	});
 
@@ -1191,6 +1194,54 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it("keeps each Claude account's newest plan reading, from the events before it and as new ones are written", () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		const usage = (account: string | null, observedAt: string, used: number): string =>
+			`'usage.updated' || char(10) || '${JSON.stringify({
+				inputTokens: 1,
+				providerMetrics: {
+					anthropic: {
+						account,
+						observedAt,
+						rateLimits: [{ label: 'Weekly limit', utilization: used, resetsAt: null }],
+					},
+				},
+			})}'`;
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES ('s', 'w', 'idle', '2026-07-19T00:00:00Z');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES ('r', 's', 'go', '2026-07-19T00:00:01Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'r', ${usage('work', '2026-07-19T02:00:00Z', 40)}, '2026-07-19T02:00:00Z'),
+			  ('s', 'r', ${usage('work', '2026-07-19T01:00:00Z', 30)}, '2026-07-19T02:00:01Z'),
+			  ('s', 'r', ${usage('private', '2026-07-19T01:00:00Z', 100)}, '2026-07-19T02:00:02Z'),
+			  ('s', 'r', ${usage(null, '2026-07-19T03:00:00Z', 10)}, '2026-07-19T02:00:03Z'),
+			  ('s', 'r', 'usage.updated' || char(10) || 'not json', '2026-07-19T02:00:04Z');
+		`);
+
+		migrate(db);
+		db.exec(`
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'r', ${usage('work', '2026-07-19T04:00:00Z', 55)}, '2026-07-19T04:00:00Z'),
+			  ('s', 'r', ${usage('private', '2026-07-19T00:30:00Z', 5)}, '2026-07-19T04:00:01Z'),
+			  ('s', 'r', ${usage('team', '2026-07-19T04:00:00Z', 12)}, '2026-07-19T04:00:02Z'),
+			  ('s', 'r', ${usage('', '2026-07-19T04:00:00Z', 12)}, '2026-07-19T04:00:03Z');
+		`);
+		expect(
+			all(
+				db,
+				"SELECT account, observed_at, json_extract(reading, '$.rateLimits[0].utilization') AS used FROM claude_plan_usage ORDER BY account",
+			),
+		).toEqual([
+			{ account: 'private', observed_at: '2026-07-19T01:00:00Z', used: 100 },
+			{ account: 'team', observed_at: '2026-07-19T04:00:00Z', used: 12 },
+			{ account: 'work', observed_at: '2026-07-19T04:00:00Z', used: 55 },
+		]);
+		db.close();
+	});
+
 	it('renames the word-pair names to New workstream and updates Name chats unless you edited it', () => {
 		const index = MIGRATIONS.findIndex((migration) => migration.includes("'New workstream'"));
 		const sql = MIGRATIONS[index] ?? '';
@@ -1244,5 +1295,30 @@ describe('migrate', () => {
 			instructions: 'Name it after a fruit.',
 		});
 		edited.close();
+	});
+});
+
+describe('automation_runs', () => {
+	it('takes every status an automation run can have, and refuses any other', () => {
+		const db = openMigratedDatabase(':memory:');
+		const at = '2026-11-09T00:00:00Z';
+		db.exec(`
+			INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at)
+			  VALUES ('job', 'Triage', 'Triage.', 'opus', 'low', 'workstream', NULL, '${at}', '${at}');
+		`);
+		const insert = (id: string, status: string): void => {
+			db.prepare(
+				`INSERT INTO automation_runs (id, definition_id, title, origin, status, chain_id, created_at)
+				 VALUES (?, 'job', 'Triage', 'manual', ?, ?, ?)`,
+			).run(id, status, id, at);
+		};
+
+		for (const status of AUTOMATION_RUN_STATUSES) insert(status, status);
+
+		expect(all(db, 'SELECT status FROM automation_runs ORDER BY rowid')).toEqual(
+			AUTOMATION_RUN_STATUSES.map((status) => ({ status })),
+		);
+		expect(() => insert('paused', 'paused')).toThrow(/CHECK constraint failed/u);
+		db.close();
 	});
 });

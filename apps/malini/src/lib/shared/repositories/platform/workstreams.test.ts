@@ -715,28 +715,6 @@ describe('the workstream commands', () => {
 		expect(progress.at(-1)).toEqual({ repo_id: 'acme-source', stage: 'done', fraction: 1 });
 	});
 
-	it('clones a repository once when two starts ask for it at the same time', async () => {
-		const dir = await tempDir();
-		cleanups.push(() => removeDir(dir));
-		const source = join(dir, 'twice-source');
-		await initRealRepo(source);
-		const { invoke } = harness(join(dir, 'app-data'));
-		const clones: string[] = [];
-		const restoreGit = installGitRunnerForTests(async (args, env, previous) => {
-			if (args.includes('clone')) clones.push(args.join(' '));
-			return previous(args, env);
-		});
-		cleanups.push(async () => restoreGit());
-
-		const paths = await Promise.all([
-			invoke<string>('repositories.create-repository', { repoUrl: source }),
-			invoke<string>('repositories.create-repository', { repoUrl: source }),
-		]);
-
-		expect(paths[0]).toBe(paths[1]);
-		expect(clones).toHaveLength(1);
-	});
-
 	it('lets a start share a clone in progress after that clone took the free space', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

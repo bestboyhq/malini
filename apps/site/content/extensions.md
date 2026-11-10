@@ -23,6 +23,7 @@ Malini checks the marketplace each time Settings, Extensions opens, and at start
 A newer version that connects to no new host installs itself.
 One that connects to a new host waits: the extension names that host and asks you to **Allow** it.
 If a publisher withdraws the version you have, Malini turns it off within the hour and says so under the extension.
+A fix the publisher ships after that installs the same way and stays off until you switch it on.
 
 ## Publish an extension
 

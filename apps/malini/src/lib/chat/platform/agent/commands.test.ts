@@ -342,7 +342,7 @@ describe('prompt round trips', () => {
 			profile: { effort: 'high', mode: 'agent' },
 		});
 		expect(runId).toBe('run-req-1');
-		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		await waitFor(() => turnLanded(runId));
 		await service.runtime.settlePump();
 
 		const rows = listEventRowsForSession(test.db, sessionId, 0);
@@ -974,8 +974,14 @@ describe('prompt round trips', () => {
 		);
 	});
 
+	function turnLanded(runId: string): boolean {
+		const turn = getRun(test.db, runId);
+		if (turn === null || turn.completedAt === null) return false;
+		return listEventRowsForSession(test.db, turn.sessionId, 0).at(-1)?.kind === 'session.state';
+	}
+
 	async function finishTurn(runId: string): Promise<void> {
-		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		await waitFor(() => turnLanded(runId));
 		await service.runtime.settlePump();
 		await service.namer.settled();
 	}

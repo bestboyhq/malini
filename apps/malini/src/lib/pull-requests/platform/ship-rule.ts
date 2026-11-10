@@ -64,6 +64,7 @@ import {
 	fixAttemptSpent,
 	NO_SHIP_FAILURE,
 	saveShip,
+	setShipAlarm,
 	shipping,
 	shippingBuiltin,
 	startingAlone,
@@ -325,7 +326,11 @@ async function decideFromState(
 	if (movedOn(deps, row)) return null;
 	if (recheck) {
 		const read = await deps.reader.read(workstreamId, FRESH_READ_MS);
-		if (!read.read) return null;
+		if (!read.read) {
+			return decision(deps, workstreamId, 'read-pull-request', () =>
+				setShipAlarm(deps, workstreamId, 'retry', deps.now() + deps.delays.githubPollMs),
+			);
+		}
 		snapshot = { ...snapshot, read: true, pullRequest: read.pullRequest };
 	}
 	let move = nextShippingMove(snapshot);

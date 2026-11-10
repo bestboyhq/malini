@@ -94,10 +94,7 @@ export function registerAutomations(
 			shipping,
 			resume: options.resume ?? NO_RULE,
 			deliveries: options.deliveries ?? NO_RULE,
-			schedules: async (event) => {
-				await runner.recovered();
-				await schedules.handle(event);
-			},
+			schedules: (event) => schedules.handle(event),
 			compatibility: (event) => checkCompatibility(context, event, log),
 		},
 		options.deliver ??
@@ -111,7 +108,15 @@ export function registerAutomations(
 		reconciler,
 		options.brainWorkstream ?? (() => Promise.resolve(null)),
 	);
-	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event), work);
+	const eventLog = startEventLog(
+		context,
+		log,
+		async (event) => {
+			await runner.recovered();
+			await reconciler.handle(event);
+		},
+		work,
+	);
 	const stopSuggesting = suggestAutomationsAfterMerges(context, answer, log, work);
 	const stopClosing = context.events.subscribe(
 		REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,

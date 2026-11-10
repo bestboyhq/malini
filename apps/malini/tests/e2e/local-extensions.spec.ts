@@ -22,6 +22,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	temporaryRoot,
+	withoutConsoleErrors,
 } from './harness';
 
 const HEALTHY = 'community.healthy';
@@ -354,8 +355,3 @@ test('the inspector says it did not start when the warm-up ahead of it hangs', a
 		await app.close();
 	}
 });
-
-function withoutConsoleErrors(app: LaunchedApp, expected: RegExp): void {
-	const unexpected = app.consoleErrors.filter((line) => !expected.test(line));
-	app.consoleErrors.splice(0, app.consoleErrors.length, ...unexpected);
-}

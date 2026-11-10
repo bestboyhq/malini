@@ -135,7 +135,7 @@ export class ChatDeliveries {
 			});
 		} catch (error) {
 			if (isAlreadyActiveError(describeError(error))) {
-				this.#retryLater(sessionId, ids);
+				this.#retryLater(sessionId);
 				return;
 			}
 			this.#settle(ids, {
@@ -188,14 +188,11 @@ export class ChatDeliveries {
 		});
 	}
 
-	#retryLater(sessionId: string, ids: readonly string[]): void {
+	#retryLater(sessionId: string): void {
 		const tries = (this.#retries.get(sessionId) ?? 0) + 1;
 		if (tries > BUSY_RETRIES) {
 			this.#retries.delete(sessionId);
-			this.#settle(ids, {
-				status: 'failed',
-				detail: 'That chat stayed busy, so Malini did not deliver it.',
-			});
+			this.#log(`agent: deliveries for \`${sessionId}\` wait for that chat's next turn to end`);
 			return;
 		}
 		this.#retries.set(sessionId, tries);

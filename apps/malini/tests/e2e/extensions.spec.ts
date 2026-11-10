@@ -208,7 +208,7 @@ test('Settings, Extensions undoes only the switch that failed', async () => {
 	}
 });
 
-test('Settings, Extensions lets you allow the fix of a withdrawn extension that reaches a new host', async () => {
+test('Settings, Extensions lets you allow the fix of a withdrawn extension that reaches a new host, then turn it on', async () => {
 	test.setTimeout(180_000);
 	const platform = await fakeBestboy();
 	platform.listExtension(svelteExtension('1.0.0'));
@@ -254,12 +254,20 @@ test('Settings, Extensions lets you allow the fix of a withdrawn extension that 
 		await captureFlow(app, 'extensions-withdrawn-fix-failed');
 		await allow.click();
 
-		await expect(onOff).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
-		await expect(onOff).toBeEnabled();
+		await expect(allow).toHaveCount(0, { timeout: 20_000 });
 		await expect(mine).not.toContainText('Its publisher withdrew');
-		await expect(allow).toHaveCount(0);
+		await expect(mine.getByRole('alert')).toHaveCount(0);
+		await expect(onOff).toBeEnabled();
+		await expect(onOff).toHaveAttribute('aria-checked', 'false');
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'extensions-withdrawn-fix-allowed');
+
+		await onOff.click();
+		await expect(onOff).toHaveAttribute('aria-checked', 'true');
+		await expect(onOff).toBeEnabled();
+		await expect(mine.getByRole('alert')).toHaveCount(0);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'extensions-withdrawn-fix-on');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

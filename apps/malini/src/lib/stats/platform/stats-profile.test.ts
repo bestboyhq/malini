@@ -122,13 +122,21 @@ describe('StatsProfile', () => {
 		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(3);
 	});
 
-	it('asks Bestboy again after an account check that failed', async () => {
+	it('asks Bestboy again five minutes after an account check that failed', async () => {
 		vi.useFakeTimers({ toFake: ['Date'] });
 		vi.setSystemTime(NOW);
 		const { profile, platform } = await signedInProfile();
+		const later = (minutes: number): void => {
+			vi.setSystemTime(Date.now() + minutes * 60_000);
+		};
 		platform.fail('/api/me', 503);
 
 		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		later(4);
+		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(1);
+
+		later(2);
 		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
 		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(2);
 	});

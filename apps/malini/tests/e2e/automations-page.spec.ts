@@ -236,6 +236,14 @@ test("an automation's When, run mode and Then are fields of the automation, and 
 		await detail.getByRole('button', { name: /^When Changelog on merge runs: /u }).click();
 		const picker = page.getByRole('dialog', { name: 'When should it run' });
 		await picker.getByRole('button', { name: 'Any Malini event…' }).click();
+		const onlyWhen = picker.getByRole('textbox', { name: 'Only when' });
+		await picker.getByRole('combobox', { name: 'Event' }).selectOption('automations:run-finished');
+		await onlyWhen.fill('run.status is succeded');
+		await expect(picker.getByRole('alert')).toHaveText(
+			'automations:run-finished never reports run.status succeded. It reports succeeded, failed, or cancelled.',
+		);
+		await captureFlow(app, 'automations-trigger-value');
+		await onlyWhen.fill('');
 		await picker.getByRole('combobox', { name: 'Event' }).selectOption('chat:session-renamed');
 		await picker.getByRole('button', { name: 'Use this event' }).click();
 		await expect(picker).toHaveCount(0);

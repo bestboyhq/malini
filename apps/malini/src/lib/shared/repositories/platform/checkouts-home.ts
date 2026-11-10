@@ -83,9 +83,9 @@ export async function moveCheckoutsHome({
 	const from = home ?? appDataRoot;
 	const to = chosen ?? home ?? defaultRoot;
 	if (from === to) return from;
-	const problem =
-		chosen && !moveStarted(db) ? await folderProblem(to, from) : await otherDisk(to, from);
-	if (problem) return keepCheckouts(db, from, to, problem);
+	const resumed = chosen !== null && moveStarted(db);
+	const problem = chosen && !resumed ? await folderProblem(to, from) : await otherDisk(to, from);
+	if (problem) return keepCheckouts(db, from, to, problem, resumed);
 	writeSetting(
 		db,
 		CHOSEN_FOLDER_SETTING,
@@ -100,18 +100,15 @@ export async function moveCheckoutsHome({
 	} catch (error) {
 		console.error(`malini: checkouts stay in ${from}: ${describeError(error)}`);
 		for (const step of undo.reverse()) await settle('put a checkout back', step);
-		return keepCheckouts(db, from, to, 'move-failed');
+		await linkMovedFolders(from, to);
+		return keepCheckouts(db, from, to, 'move-failed', resumed);
 	}
 	await settle('repair the moved worktrees', () => repairWorktrees(from, to));
 	await settle('record the moved checkout paths', async () => rewriteRecordedPaths(db, from, to));
 	await settle("move Claude Code's chat records", () =>
 		moveChatRecords(join(claudeDirectory, 'projects'), from, to),
 	);
-	for (const name of MOVED_FOLDERS) {
-		await settle(`link the old ${name} folder`, () =>
-			linkMovedFolder(join(from, name), join(to, name)),
-		);
-	}
+	await linkMovedFolders(from, to);
 	await forgetInstalls(db, join(to, WORKSTREAMS_DIR_NAME) + sep);
 	db.transaction(() => {
 		writeFolder(db, CHECKOUTS_HOME_SETTING, appDataRoot, to);
@@ -168,9 +165,10 @@ function keepCheckouts(
 	from: string,
 	to: string,
 	reason: CheckoutsFolderProblem,
+	resumed: boolean,
 ): string {
 	db.transaction(() => {
-		deleteSetting(db, CHOSEN_FOLDER_SETTING);
+		if (!resumed) deleteSetting(db, CHOSEN_FOLDER_SETTING);
 		writeSetting(db, MOVE_FAILURE_SETTING, JSON.stringify({ folder: to, reason }));
 	});
 	return from;
@@ -343,8 +341,15 @@ async function moveFolder(from: string, to: string, undo: Undo[] = []): Promise<
 	undo.push(() => rename(to, from));
 }
 
-async function linkMovedFolder(old: string, moved: string): Promise<void> {
-	if (!(await lstat(old).catch(() => null)) && (await isFolder(moved))) await symlink(moved, old);
+async function linkMovedFolders(from: string, to: string): Promise<void> {
+	for (const name of MOVED_FOLDERS) {
+		const [old, moved] = [join(from, name), join(to, name)];
+		await settle(`link the old ${name} folder`, async () => {
+			if (!(await lstat(old).catch(() => null)) && (await isFolder(moved))) {
+				await symlink(moved, old);
+			}
+		});
+	}
 }
 
 async function mergeFolder(from: string, to: string, undo: Undo[]): Promise<void> {

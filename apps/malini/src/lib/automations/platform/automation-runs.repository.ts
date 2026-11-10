@@ -270,6 +270,22 @@ export function findActiveAutomationRunForSession(
 	return row ? fromRow(row) : null;
 }
 
+export function findAutomationRunOfAgentRun(
+	db: MaliniDatabase,
+	sessionId: string,
+	agentRunId: string,
+): AutomationRunRecord | null {
+	const row = get<AutomationRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM automation_runs
+		 WHERE session_id = ? AND agent_run_id = ?
+		 ORDER BY created_at DESC LIMIT 1`,
+		sessionId,
+		agentRunId,
+	);
+	return row ? fromRow(row) : null;
+}
+
 export function countStartedOrQueuedAutomationRuns(
 	db: MaliniDatabase,
 	definitionId: string,

@@ -124,28 +124,31 @@ describe.runIf(canSandbox())('a sandboxed install', () => {
 });
 
 describe('real docker', () => {
-	const FIXTURE_COMPOSE =
-		"services:\n  svc:\n    image: alpine:3.20\n    command: ['sleep', '600']\n";
+	const FIXTURE_IMAGE = 'alpine:3.20';
+	const FIXTURE_COMPOSE = `services:\n  svc:\n    image: ${FIXTURE_IMAGE}\n    command: ['sleep', '600']\n`;
 
-	function composeAvailable(): boolean {
+	function composeReady(): string | null {
 		const docker = binary('docker');
-		if (!docker) return false;
-		return (
-			spawnSync(docker, ['version', '--format', '{{.Server.Version}}']).status === 0 &&
-			spawnSync(docker, ['compose', 'version']).status === 0
-		);
+		const ready =
+			docker !== null &&
+			[
+				['version', '--format', '{{.Server.Version}}'],
+				['compose', 'version'],
+				['image', 'inspect', FIXTURE_IMAGE],
+			].every((args) => spawnSync(docker, args).status === 0);
+		return ready ? docker : null;
 	}
 
 	it('enumerates and reclaims exactly the containers this app started, or skips without a daemon', async (context) => {
-		if (!composeAvailable()) {
+		const docker = composeReady();
+		if (!docker) {
 			expect(
 				process.env['MALINI_DOCKER_E2E'],
-				'MALINI_DOCKER_E2E=1 but no Docker daemon with compose',
+				`MALINI_DOCKER_E2E=1 but no Docker daemon with compose and ${FIXTURE_IMAGE}`,
 			).not.toBe('1');
-			context.skip('no Docker daemon with compose');
+			context.skip(`no Docker daemon with compose and ${FIXTURE_IMAGE}`);
 			return;
 		}
-		const docker = binary('docker')!;
 		const runner = createNodeProcessRunner();
 		const suffix = `${process.pid.toString(16)}${Date.now().toString(36)}`;
 		const bundleIdentifier = `app.malini.desktop.e2e.${suffix}`;

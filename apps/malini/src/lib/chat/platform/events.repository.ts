@@ -28,6 +28,12 @@ export interface AgentEventRow extends AgentEvent {
 	at?: string;
 }
 
+export function latestClaudePlanReadings(db: MaliniDatabase): Record<string, unknown>[] {
+	return column(db, 'SELECT reading FROM claude_plan_usage ORDER BY account')
+		.map((reading): unknown => JSON.parse(reading))
+		.filter(isRecord);
+}
+
 export function encodeEvent(kind: string, payloadJson: string): string {
 	return `${kind}\n${payloadJson}`;
 }

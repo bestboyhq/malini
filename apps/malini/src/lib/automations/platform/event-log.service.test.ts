@@ -125,6 +125,7 @@ function automationRun(
 		agentRunId: null,
 		origin: 'manual',
 		status,
+		interrupted: false,
 		detail: null,
 		parentRunId: null,
 		chatSessionId: null,
@@ -447,7 +448,7 @@ describe('the event log', () => {
 		automations.start();
 
 		await vi.waitFor(() => expect(heard).toHaveLength(2));
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await automations.settled();
 		expect(heard).toHaveLength(2);
 		expect(alarms()).toEqual([]);
 		expect(
@@ -568,10 +569,11 @@ describe('the event log', () => {
 
 		clickMerge();
 		await heard;
-		automations.dispose();
+		const stopped = automations;
+		stopped.dispose();
 		automations = null;
 		release();
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await stopped.settled();
 
 		expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toHaveLength(1);
 		expect(lines).toEqual([]);
@@ -596,7 +598,7 @@ describe('the event log', () => {
 
 		clickMerge();
 		await vi.waitFor(() => expect(heard).toEqual([PULL_REQUESTS_BUTTON_CLICKED_CHANNEL]));
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await automations.settled();
 		expect(unhandled()).toHaveLength(1);
 
 		automations.dispose();

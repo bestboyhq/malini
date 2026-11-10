@@ -15,6 +15,7 @@ function run(sessionId: string | null, status: AutomationRunStatus): AutomationR
 		agentRunId: null,
 		origin: 'manual',
 		status,
+		interrupted: false,
 		detail: null,
 		parentRunId: null,
 		chatSessionId: 'lead-chat',

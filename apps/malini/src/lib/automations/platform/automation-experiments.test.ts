@@ -52,6 +52,7 @@ beforeEach(() => {
 		appVersion: '0.0.0-test',
 	};
 	automations = registerAutomations(context, { log: () => {}, suggestTitle: name });
+	automations.start();
 });
 
 afterEach(() => {
@@ -177,7 +178,7 @@ describe('automation outputs and experiments', () => {
 		await vi.waitFor(() => expect(slowCalls()).toBe(3));
 		await context.commands.call('automations.use-experiment', { experimentId: winner.id });
 		release();
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await automations.settled();
 
 		expect(slowCalls()).toBe(3);
 	});

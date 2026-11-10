@@ -46,6 +46,7 @@ const waitingRun: AutomationRunRecord = {
 	agentRunId: null,
 	origin: 'schedule',
 	status: 'waiting',
+	interrupted: false,
 	detail: null,
 	parentRunId: null,
 	chatSessionId: null,

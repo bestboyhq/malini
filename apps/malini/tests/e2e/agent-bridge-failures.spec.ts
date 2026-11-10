@@ -55,6 +55,9 @@ test('an agent process that stops responding mid-run is announced, and restartin
 		rmSync(join(app.home, 'chat-stalled-bridge'));
 		await banner.getByRole('button', { name: 'Restart agent process' }).click();
 		await expect(banner).toHaveCount(0, { timeout: 20_000 });
+		await expect(page.getByRole('region', { name: 'Run interrupted' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Run failed' })).toHaveCount(0);
+		await captureFlow(app, 'agent-bridge-restarted');
 
 		await sendPrompt(page, 'EDIT:a.txt');
 		await expectAssistantReply(page);
@@ -120,7 +123,7 @@ test('a chat that cannot open keeps its error and its model to itself when you p
 		const deepseekChat = currentSessionId(page) ?? '';
 		expect(deepseekChat).not.toBe(claudeChat);
 
-		const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+		const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'), { timeout: 5_000 });
 		try {
 			db.exec("UPDATE model_providers SET api_key = x'00' WHERE id = 'deepseek'");
 		} finally {

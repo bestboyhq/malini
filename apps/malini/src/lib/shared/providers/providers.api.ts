@@ -46,6 +46,7 @@ export {
 	isModelAccessReady,
 	isValidProviderId,
 	modelAccess,
+	OPENCODE_PROVIDER_ID,
 	providerForModel,
 	providerGroupFor,
 	providerGroups,
@@ -101,6 +102,8 @@ export { claudeSignInQuery } from './application/queries/claude-sign-in.query.sv
 export { modelAccessQuery } from './application/queries/model-access.query.svelte';
 export { modelCatalogQuery } from './application/queries/model-catalog.query.svelte';
 export { modelDefaultsQuery } from './application/queries/model-defaults.query.svelte';
+export { opencodeUsageQuery } from './application/queries/opencode-usage.query.svelte';
+export { otherClaudeAccountsQuery } from './application/queries/other-claude-accounts.query.svelte';
 export { providerGroupsQuery } from './application/queries/provider-groups.query.svelte';
 export { subscriptionBillingQuery } from './application/queries/subscription-billing.query.svelte';
 

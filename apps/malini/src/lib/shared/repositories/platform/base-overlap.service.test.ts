@@ -137,7 +137,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	vi.useRealTimers();
-	watch.dispose();
+	await watch.dispose();
 	db.close();
 	await removeDir(root);
 });
@@ -182,7 +182,7 @@ describe('BaseOverlapWatch', () => {
 		const quitting: BaseOverlapWatch = watching({
 			fetchBase: async () => 'refs/remotes/origin/main',
 			busy: async () => {
-				quitting.dispose();
+				void quitting.dispose();
 				return false;
 			},
 			merging: async () => {
@@ -194,6 +194,31 @@ describe('BaseOverlapWatch', () => {
 		await quitting.compare('ws');
 
 		expect(overlaps).toEqual([]);
+	});
+
+	it('quits only once a fetch still running has finished, so no git outlives the app', async () => {
+		let finishFetch = (): void => {};
+		const fetching = new Promise<void>((resolve) => {
+			finishFetch = resolve;
+		});
+		const quitting = watching({
+			fetchBase: async () => {
+				await fetching;
+				return 'refs/remotes/origin/main';
+			},
+		});
+		const pass = quitting.fetchAndCompare();
+		let quit = false;
+		const disposed = (async () => {
+			await quitting.dispose();
+			quit = true;
+		})();
+
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(quit).toBe(false);
+		finishFetch();
+		await Promise.all([pass, disposed]);
+		expect(quit).toBe(true);
 	});
 
 	it('reports main moving past files the workstream left alone, with overlapping false', async () => {

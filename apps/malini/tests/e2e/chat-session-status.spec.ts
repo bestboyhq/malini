@@ -97,9 +97,7 @@ test('a chat you stopped does not show as failed from another workstream', async
 			)
 			.toEqual(['idle']);
 		await expect(sidebarStatus(page, workstreamId)).toBeVisible();
-		await expect(sidebarStatus(page, workstreamId)).not.toHaveAccessibleName(
-			'Workstream status: Failed',
-		);
+		await expect(sidebarStatus(page, workstreamId)).not.toHaveAccessibleName(/Failed/u);
 
 		expectCleanConsole(app);
 	} finally {

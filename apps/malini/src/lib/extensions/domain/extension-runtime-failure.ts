@@ -15,6 +15,11 @@ export type ExtensionRuntimeFailureDiagnostic = Readonly<{
 	rollbackErrors: readonly ExtensionRuntimeErrorDetail[];
 }>;
 
+export type WorkstreamActivationFailures = Readonly<{
+	workstreamId: string;
+	failed: readonly Readonly<{ id: string; error: Error }>[];
+}>;
+
 export type ExtensionWorkstreamPostCommitEffect = 'workstreamChanged' | 'repositoryRefresh';
 
 export type ExtensionWorkstreamPostCommitFailure = Readonly<{
@@ -70,6 +75,19 @@ export function extensionWorkstreamPostCommitFailureDiagnostic(input: {
 			error: errorDetail(error),
 		})),
 	};
+}
+
+export function unseenWarmFailures(
+	warm: WorkstreamActivationFailures,
+	opened: WorkstreamActivationFailures,
+	extension: Readonly<{ active(id: string): boolean; bundled(id: string): boolean }>,
+): WorkstreamActivationFailures['failed'] {
+	return warm.failed.filter(
+		({ id }) =>
+			(warm.workstreamId === opened.workstreamId || !extension.bundled(id)) &&
+			!extension.active(id) &&
+			!opened.failed.some((failure) => failure.id === id),
+	);
 }
 
 export function failedOnRetiredWorkstream(error: unknown): boolean {

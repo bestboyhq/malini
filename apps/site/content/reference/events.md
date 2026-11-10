@@ -757,7 +757,7 @@ type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
-	interrupted?: boolean;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -816,7 +816,7 @@ type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
-	interrupted?: boolean;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -875,7 +875,7 @@ type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
-	interrupted?: boolean;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -1158,7 +1158,7 @@ type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRec
 
 ## `automations:time-reached`
 
-Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation's last run is queued or still runs; a last run that still waits for your yes gives way to the new one. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
+Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation has a run that has not finished; a run its schedule started that waits for your yes gives way to the new one. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
 
 An automation sees: `definitionId`, `name`, `when`, `due`
 

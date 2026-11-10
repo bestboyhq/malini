@@ -10,6 +10,8 @@ import { extensionBindings } from '$shared/extensions/bindings';
 import {
 	extensionRuntimeFailureDiagnostic,
 	failedOnRetiredWorkstream,
+	unseenWarmFailures,
+	type WorkstreamActivationFailures,
 } from '../../domain/extension-runtime-failure';
 import type { WorkstreamCreatedAutomationContext } from '../../domain/workstream-created-automation-context';
 import { InspectorPanelRegistry } from '../stores/inspector-panel-registry.store.svelte';
@@ -49,7 +51,7 @@ export class ExtensionRuntimeCoordinator {
 		workstream: ExtensionWorkstream;
 		report: ExtensionActivationReport;
 	} | null = null;
-	#unseenFailures: ExtensionActivationReport['failed'] = [];
+	#unseenFailures: WorkstreamActivationFailures | null = null;
 	#warming = 0;
 	readonly #creationAnnouncements = new Map<string, Promise<void>>();
 	#transition: Promise<void>;
@@ -123,8 +125,8 @@ export class ExtensionRuntimeCoordinator {
 					this.#enqueue(async () => {
 						options.onStarted?.();
 						const report = await this.#activate(workstream, options);
-						if (!options.background) return this.#withUnseenFailures(report);
-						this.#unseenFailures = report.failed;
+						if (!options.background) return this.#withUnseenFailures(workstream, report);
+						this.#unseenFailures = { workstreamId: workstream.id, failed: report.failed };
 						return report;
 					}),
 			)
@@ -181,7 +183,7 @@ export class ExtensionRuntimeCoordinator {
 				this.#workstreamSnapshots?.clear();
 				this.#service = null;
 				this.#pendingActivationFailures = null;
-				this.#unseenFailures = [];
+				this.#unseenFailures = null;
 				this.#creationAnnouncements.clear();
 			}
 		});
@@ -201,15 +203,22 @@ export class ExtensionRuntimeCoordinator {
 		return this.#retryPendingActivationFailures(service, workstream);
 	}
 
-	#withUnseenFailures(report: ExtensionActivationReport): ExtensionActivationReport {
+	#withUnseenFailures(
+		workstream: ExtensionWorkstream,
+		report: ExtensionActivationReport,
+	): ExtensionActivationReport {
 		const service = this.#service;
-		const unseen = this.#unseenFailures.filter(
-			({ id }) =>
-				service !== null &&
-				!isActive(service, id) &&
-				!report.failed.some((failure) => failure.id === id),
+		const warm = this.#unseenFailures;
+		this.#unseenFailures = null;
+		if (!service || !warm) return report;
+		const unseen = unseenWarmFailures(
+			warm,
+			{ workstreamId: workstream.id, failed: report.failed },
+			{
+				active: (id) => isActive(service, id),
+				bundled: (id) => service.runtime.registry.get(id) !== null,
+			},
 		);
-		this.#unseenFailures = [];
 		return unseen.length === 0 ? report : { ...report, failed: [...unseen, ...report.failed] };
 	}
 

@@ -530,18 +530,14 @@ describe('ChatGPT sign-in', () => {
 		expect(listings()).toHaveLength(3);
 	});
 
-	it('keeps the sign-in when ChatGPT cannot be reached to sign out, and forgets one ChatGPT refuses', async () => {
+	it('forgets the sign-in even when ChatGPT cannot be reached to sign out', async () => {
 		const h = await harness();
 		await h.signIn();
 
-		h.openai.down.set('POST /oauth/revoke', 503);
-		await expect(h.account.signOut()).rejects.toMatchObject({ code: 'network_error' });
-		expect(h.account.account()).not.toBeNull();
-		expect(await h.account.accessToken()).toBe('at-1');
-
-		h.openai.down.set('POST /oauth/revoke', 400);
+		h.openai.down.set('POST /oauth/revoke', 0);
 		await expect(h.account.signOut()).rejects.toThrow('ChatGPT did not confirm it');
 		expect(h.account.account()).toBeNull();
+		await expect(h.account.accessToken()).rejects.toMatchObject({ code: 'signed_out' });
 	});
 
 	it('loads the signing keys again after ChatGPT could not be reached for them', async () => {

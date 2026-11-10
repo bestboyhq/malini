@@ -36,6 +36,7 @@ import {
 	listAutomationDefinitions,
 } from './automation-definitions.repository';
 import {
+	getAutomationRun,
 	latestScheduledAutomationRun,
 	latestScheduledWorkstreamId,
 	listUnfinishedRunsOfAutomation,
@@ -91,10 +92,10 @@ export function createAutomationSchedules(
 				if (reached && !loggedSince(db, AUTOMATIONS_TIME_REACHED_CHANNEL, reached, dueAt)) {
 					events.emit(AUTOMATIONS_TIME_REACHED_CHANNEL, reached);
 				}
+				takeAlarm(db, alarm);
 			} catch (error) {
 				log(`automations: could not ring \`${alarm.key}\`: ${describeError(error)}`);
 			}
-			takeAlarm(db, alarm);
 		}
 	};
 
@@ -167,6 +168,7 @@ export function createAutomationSchedules(
 				...target,
 			});
 			for (const run of askedBefore) {
+				if (getAutomationRun(db, run.id)?.status !== 'waiting') continue;
 				await commands.call('automations.cancel-run', { automationRunId: run.id });
 			}
 		} catch (error) {

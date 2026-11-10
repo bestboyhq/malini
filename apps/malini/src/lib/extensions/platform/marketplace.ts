@@ -215,7 +215,7 @@ export class Marketplace {
 			mcpServers: extension.manifest.mcpServers,
 			skills: extension.skills,
 			sha256: listing.package.sha256,
-			enabled: current ? current.enabled && (!current.withdrawn || this.#hasRoom(name)) : true,
+			enabled: current ? isExtensionOn(current) : true,
 			withdrawn: false,
 			installedAt: current?.installedAt ?? nowIso8601(),
 		};
@@ -260,16 +260,12 @@ export class Marketplace {
 	}
 
 	#requireRoom(name: string): void {
-		if (!this.#hasRoom(name)) {
-			throw new Error(`An agent gets at most ${ENABLED_MAX} extensions. Turn one off first.`);
-		}
-	}
-
-	#hasRoom(name: string): boolean {
 		const enabled = listInstalledExtensions(this.#deps.db).filter(
 			(extension) => isExtensionOn(extension) && extension.name !== name,
 		);
-		return enabled.length < ENABLED_MAX;
+		if (enabled.length >= ENABLED_MAX) {
+			throw new Error(`An agent gets at most ${ENABLED_MAX} extensions. Turn one off first.`);
+		}
 	}
 
 	async #listing(publisher: string, name: string): Promise<MarketplaceListing> {

@@ -193,10 +193,21 @@ test('two ideas moved while the first still sets up each start a workstream', as
 		).toHaveCount(2);
 
 		rmSync(held);
-		await workstreams.filter({ hasNotText: 'Alpha work' }).first().click();
-		await expectAssistantReply(page);
-		await workstreams.filter({ hasNotText: 'Alpha work' }).last().click();
-		await expectAssistantReply(page);
+		const started = await workstreams
+			.filter({ hasNotText: 'Alpha work' })
+			.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-workstream-id') ?? ''));
+		expect(started).toHaveLength(2);
+		for (const workstreamId of started) {
+			await sidebar
+				.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`)
+				.click();
+			await expect(page.getByTestId('transcript-pane')).toHaveAttribute(
+				'data-presented-workstream-id',
+				workstreamId,
+				{ timeout: 20_000 },
+			);
+			await expectAssistantReply(page);
+		}
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

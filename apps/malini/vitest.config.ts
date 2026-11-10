@@ -68,7 +68,6 @@ export default defineConfig({
 						'src/lib/**/*.platform.test.ts',
 					],
 					environment: 'node',
-					setupFiles: ['./vitest.setup.ts'],
 					pool: 'threads',
 					maxWorkers: 1,
 					env: { TMPDIR: TEMP },

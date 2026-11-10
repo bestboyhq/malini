@@ -167,7 +167,7 @@ export type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
-	interrupted?: boolean;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -527,7 +527,7 @@ export const AUTOMATION_INTERRUPTED_DETAIL = 'Interrupted when Malini closed';
 export function automationRunInterrupted(
 	run: Pick<AutomationRunRecord, 'status' | 'interrupted'>,
 ): boolean {
-	return run.status === 'failed' && run.interrupted === true;
+	return run.status === 'failed' && run.interrupted;
 }
 
 export const AUTOMATIONS_MAX_CONCURRENT_SETTING = 'automations.max-concurrent';

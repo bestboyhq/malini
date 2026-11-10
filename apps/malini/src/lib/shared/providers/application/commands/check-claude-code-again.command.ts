@@ -2,6 +2,9 @@ import { providerCapabilitiesStore } from '$shared/providers/infrastructure/stor
 
 export { checkClaudeCodeAgainCommand };
 
-function checkClaudeCodeAgainCommand(): Promise<void> {
-	return providerCapabilitiesStore.refresh();
+function checkClaudeCodeAgainCommand(): void {
+	providerCapabilitiesStore.checkingAgain = true;
+	void providerCapabilitiesStore.refresh().finally(() => {
+		providerCapabilitiesStore.checkingAgain = false;
+	});
 }

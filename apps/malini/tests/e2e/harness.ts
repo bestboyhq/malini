@@ -1009,3 +1009,8 @@ export function expectCleanConsole(handle: LaunchedApp): void {
 	expect(handle.pageErrors, `page errors: ${handle.pageErrors.join('\n')}`).toEqual([]);
 	expect(handle.consoleErrors, `console errors: ${handle.consoleErrors.join('\n')}`).toEqual([]);
 }
+
+export function withoutConsoleErrors(handle: LaunchedApp, expected: RegExp): void {
+	const unexpected = handle.consoleErrors.filter((line) => !expected.test(line));
+	handle.consoleErrors.splice(0, handle.consoleErrors.length, ...unexpected);
+}

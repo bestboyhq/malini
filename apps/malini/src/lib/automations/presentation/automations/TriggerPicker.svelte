@@ -5,6 +5,7 @@
 		parseAutomationTrigger,
 		scheduleTime,
 		scheduleWhen,
+		unknownTriggerValueMessage,
 		type ScheduleCadence,
 	} from '$contract/automation-trigger';
 	import { EVENT_CATALOG } from '$contract/event-catalog';
@@ -15,6 +16,7 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
 	import { scheduleOf } from '$lib/automations/domain/schedule';
+	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import {
 		SCHEDULE_CADENCE_OPTIONS,
 		SCHEDULE_ENTRY,
@@ -63,8 +65,7 @@
 	const phrase = $derived(where.trim() ? `on ${channel} where ${where.trim()}` : `on ${channel}`);
 	const validation = $derived.by(() => {
 		try {
-			parseAutomationTrigger(phrase);
-			return null;
+			return unknownTriggerValueMessage(parseAutomationTrigger(phrase));
 		} catch (error) {
 			return error instanceof Error ? error.message : String(error);
 		}
@@ -152,7 +153,9 @@
 					label="Event"
 					options={channels.map((value) => ({ value, label: value }))}
 				/>
-				<p class="text-fg-tertiary -mt-1 text-xs leading-5">{channelDescription}</p>
+				<p class="text-fg-tertiary -mt-1 text-xs leading-5">
+					<MarkdownText text={channelDescription} mode="inline" />
+				</p>
 				<TextInput
 					bind:value={where}
 					label="Only when"

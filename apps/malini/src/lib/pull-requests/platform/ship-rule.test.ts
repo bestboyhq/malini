@@ -23,7 +23,6 @@ import {
 	type ShipChangedEvent,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
-import { BRIDGE_INTERRUPTED_ERROR, ORPHAN_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -639,6 +638,7 @@ function defineFakes(): void {
 			agentRunId,
 			origin: args.origin ?? 'manual',
 			status: 'running',
+			interrupted: false,
 			detail: null,
 			parentRunId: args.parentRunId ?? null,
 			chatSessionId: args.chatSessionId ?? null,
@@ -957,6 +957,39 @@ describe('opening a draft', () => {
 
 		expect(drafted?.phase).toBe('queued');
 		expect(getShip(db, 'ws-1')?.phase).toBe('queued');
+	});
+
+	it('queues a merge it asked GitHub about while a Draft click opened the draft', async () => {
+		seedWorkstream('ws-1', { hasUpstream: true });
+		github.pulls.push({
+			number: 12,
+			state: 'OPEN',
+			isDraft: true,
+			title: 'Mine',
+			body: '',
+			headRefName: 'malini/ws-1',
+			headRefOid: heads.get('malini/ws-1') ?? '',
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			reviewDecision: null,
+			checks: [],
+			threads: [],
+			changeRequests: [],
+		});
+		openRuns.add('ws-1');
+		start();
+		let answer = (): void => {};
+		github.branchListHeld = new Promise((resolve) => (answer = resolve));
+		const merging = invoke<ShipStateRecord>('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await until(() => expect(github.branchListHeld).toBeNull());
+
+		await click('ws-1', 'draft');
+		answer();
+		const queued = await merging;
+
+		expect(queued.phase).toBe('queued');
+		expect(getShip(db, 'ws-1')?.phase).toBe('queued');
+		expect(ship('ws-1')?.phase).toBe('queued');
 	});
 
 	it('refuses to move a ship that never queued straight to needs you', () => {
@@ -1610,6 +1643,7 @@ describe('shipping a queued merge', () => {
 			agentRunId: null,
 			origin: 'then',
 			status: 'succeeded',
+			interrupted: false,
 			detail: 'Queued to merge: https://github.com/acme/app/pull/40',
 			parentRunId: null,
 			chatSessionId: null,
@@ -1945,6 +1979,48 @@ describe('shipping a queued merge', () => {
 		expect(github.count(['pr', 'merge'])).toBe(0);
 	});
 
+	it('checks a stopped merge again after a restart found GitHub behind the push', async () => {
+		await queueWithDraft();
+		const pull = github.only();
+		pull.threads = [{ id: 'PRRT_question', bot: false, resolved: false }];
+		pull.mergeStateStatus = 'BLOCKED';
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')?.needsYou?.reason).toBe('reply-to-reviewer'));
+		await until(() =>
+			expect(get(db, 'SELECT key FROM alarms WHERE key = ?', 'shipping:ws-1')).toBeNull(),
+		);
+		stop();
+		const checkout = workstreamPath(context.appDataRoot, 'ws-1');
+		const git = (...args: string[]): string =>
+			execFileSync('git', ['-C', checkout, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args])
+				.toString()
+				.trim();
+		git('init', '-q', '-b', 'malini/ws-1');
+		git('commit', '-q', '--allow-empty', '-m', 'reviewed');
+		pull.headRefOid = git('rev-parse', 'HEAD');
+		git('commit', '-q', '--allow-empty', '-m', 'pushed');
+		const pushed = git('rev-parse', 'HEAD');
+		git('update-ref', 'refs/remotes/origin/malini/ws-1', pushed);
+		const views = github.count(['pr', 'view']);
+		context = {
+			...context,
+			commands: new CommandRegistry(),
+			events: createEventBus({ forwardToWindows: false }),
+		};
+		recordShipEvents();
+		defineFakes();
+		start();
+		await until(() => expect(github.count(['pr', 'view'])).toBeGreaterThan(views));
+
+		Object.assign(pull, {
+			headRefOid: pushed,
+			mergeStateStatus: 'CLEAN',
+			threads: [{ id: 'PRRT_question', bot: false, resolved: true }],
+		});
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+	});
+
 	it('gives up after the configured attempts on the same failure', async () => {
 		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '2';
 		await queueWithDraft();
@@ -2088,18 +2164,17 @@ describe('shipping a queued merge', () => {
 		expect(automationRuns.size).toBe(1);
 	});
 
-	it.each([
-		['malini closing', AUTOMATION_INTERRUPTED_DETAIL],
-		['an agent bridge restart', BRIDGE_INTERRUPTED_ERROR],
-		['an app that closed mid-run', ORPHAN_INTERRUPTED_ERROR],
-	])('spends no fix attempt on an automation that %s interrupted', async (_cause, detail) => {
+	it('spends no fix attempt on an automation Malini interrupted when it closed', async () => {
 		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '1';
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
 
-		finishAutomation(activeAutomation().id, 'failed', { summary: detail, interrupted: true });
+		finishAutomation(activeAutomation().id, 'failed', {
+			summary: AUTOMATION_INTERRUPTED_DETAIL,
+			interrupted: true,
+		});
 
 		await until(() => expect(automationRuns.size).toBe(2));
 		await until(() =>

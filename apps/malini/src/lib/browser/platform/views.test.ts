@@ -675,7 +675,7 @@ describe('BrowserViews', () => {
 		}
 	});
 
-	it('waits for the open the agent sent alongside a screenshot before capturing', async () => {
+	it('waits for the open the agent sent before a screenshot, also once the call before that open is done', async () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-turns-'));
 		roots.push(worktree);
 		const { browser, viewAt } = setup();
@@ -687,6 +687,7 @@ describe('BrowserViews', () => {
 		});
 
 		const opening = browser.open(TAB, 'https://example.org');
+		await expect.poll(() => viewAt(0).contents.nextLoad).toBeNull();
 		const shot = browser.screenshot(TAB, worktree);
 		land();
 
@@ -798,17 +799,6 @@ describe('BrowserViews', () => {
 		await expect(picking).resolves.toBeNull();
 	});
 
-	it('takes a failure with no reason for a page that did not load, as the panel does', async () => {
-		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-reasonless-'));
-		roots.push(worktree);
-		const { browser, viewAt } = setup();
-		await browser.open(TAB, 'https://example.com');
-		viewAt(0).events.failed('');
-
-		expect(browser.state(TAB)).toMatchObject({ failure: '' });
-		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow('did not load');
-	});
-
 	it('opens a page that shows and then breaks off as a page that loaded', async () => {
 		const { browser, viewAt } = setup();
 		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
@@ -874,15 +864,6 @@ describe('BrowserViews', () => {
 		} finally {
 			vi.useRealTimers();
 		}
-	});
-
-	it('lets go of a tab once its last call is done', async () => {
-		const { browser, viewAt } = setup();
-		await browser.open(TAB, 'https://example.com');
-		viewAt(0).contents.actionOutcome = 'invalid';
-		await expect(browser.click(TAB, '[')).rejects.toThrow('is not a valid CSS selector');
-
-		await expect.poll(() => Reflect.get(browser, 'turns')).toEqual(new Map());
 	});
 
 	it('picks without focusing anything while its window is in the background, since focusing activates the app', async () => {

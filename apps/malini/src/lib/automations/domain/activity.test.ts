@@ -49,6 +49,7 @@ const merge: AutomationRunRecord = {
 	agentRunId: null,
 	origin: 'manual',
 	status: 'succeeded',
+	interrupted: false,
 	detail: null,
 	parentRunId: null,
 	chatSessionId: 'chat-session',

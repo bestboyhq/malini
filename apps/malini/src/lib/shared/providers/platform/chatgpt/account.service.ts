@@ -119,7 +119,6 @@ export class ChatGptAccount {
 	async signOut(): Promise<void> {
 		this.cancelSignIn();
 		const stored = await this.#stored().catch(() => null);
-		const revoked = stored === null || (await this.#deps.auth.revoke(stored.connection));
 		run(
 			this.#deps.db,
 			`UPDATE chatgpt_account SET client_id = NULL, subject = NULL, email = NULL, name = NULL,
@@ -127,7 +126,7 @@ export class ChatGptAccount {
 			nowIso8601(),
 		);
 		this.#usageLimitReachedAt = null;
-		if (!revoked) {
+		if (stored && !(await this.#deps.auth.revoke(stored.connection))) {
 			throw new Error(
 				'Malini forgot your ChatGPT sign-in, but ChatGPT did not confirm it. Remove Malini in ChatGPT, Settings, Apps.',
 			);

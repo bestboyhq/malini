@@ -12,8 +12,6 @@ import type {
 	AgentQuestion,
 } from './agent-interaction';
 
-export type { SessionStatus } from '$contract/agent-state-machine';
-
 export type AgentEvent =
 	| { type: 'run.started'; runId: string; sessionId: string }
 	| {
