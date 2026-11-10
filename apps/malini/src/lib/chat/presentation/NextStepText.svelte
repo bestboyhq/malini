@@ -22,7 +22,7 @@
 	});
 </script>
 
-<Tooltip content={`…${rest}`} placement="top" suppressed={rest === ''} class="min-w-0 flex-1">
+<Tooltip content={`…${rest}`} placement="bottom" suppressed={rest === ''} class="min-w-0 flex-1">
 	<span
 		class="text-fg-default block min-w-0 flex-1 truncate select-text"
 		bind:this={line}
