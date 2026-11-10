@@ -60,10 +60,7 @@
 	onblur={() => (commandHeld = false)}
 />
 
-<section
-	class="border-surface-150-border -mx-3 flex flex-col gap-1.5 border-t-[0.5px] px-3 pt-2.5"
-	aria-label="Next steps"
->
+<section class="flex flex-col gap-1.5 py-2 pr-2 pl-[15px]" aria-label="Next steps">
 	{#each steps as step, index (index)}
 		<div class="flex min-h-6 items-center gap-2 text-xs leading-5">
 			<Tooltip

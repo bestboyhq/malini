@@ -95,119 +95,123 @@
 {/snippet}
 
 <article
-	class={[
-		'bg-surface-50 relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
-		status.rail,
-	]}
+	class="bg-surface-50 border-surface-50-border w-full overflow-hidden rounded-xl border-[0.5px]"
 	aria-label="Turn result"
 	data-testid="turn-report-card"
 >
-	<div class="flex flex-col">
-		{#if history.length > 0}
-			<ol class="-mt-[5px] flex flex-col pb-[5px]" aria-label="Earlier turns">
-				{#each history as turn (turn.runId)}
-					{@const earlierPick = pickOf?.(turn.runId) ?? null}
-					<li class="turn-step relative">
-						<details class="group/turn">
-							<summary
-								class="text-fg-tertiary hover:text-fg-secondary flex cursor-pointer list-none items-start gap-2 py-[5px] text-xs leading-5 transition-[color]"
-							>
-								{@render statusGlyph(STATUS[turnStatus(turn.report, false)], true)}
-								<span class="turn-outcome group-open/turn:text-fg-default min-w-0">
-									<MarkdownText text={turn.report.outcome ?? ''} mode="prose" class="inline" />
-									{#if turn.report.notes.length > 0}
-										<span class="note-count ml-1 inline-block group-open/turn:hidden">
-											+{turn.report.notes.length}
-										</span>
-									{/if}
-								</span>
-							</summary>
-							<ul class="flex flex-col gap-1 pb-1.5 pl-[22px] text-xs leading-5">
-								{#each turn.report.notes as note, index (index)}
-									{@const icon = NOTE_ICONS[note.kind]}
-									<li class="text-fg-secondary flex items-start gap-1.5">
-										{#if icon}
-											<span class="text-fg-tertiary grid h-5 shrink-0 place-items-center">
-												<Icon name={icon} size={12} />
+	<div
+		class={[
+			'lifted bg-surface-50 relative flex flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
+			status.rail,
+		]}
+	>
+		<div class="flex flex-col">
+			{#if history.length > 0}
+				<ol class="-mt-[5px] flex flex-col pb-[5px]" aria-label="Earlier turns">
+					{#each history as turn (turn.runId)}
+						{@const earlierPick = pickOf?.(turn.runId) ?? null}
+						<li class="turn-step relative">
+							<details class="group/turn">
+								<summary
+									class="text-fg-tertiary hover:text-fg-secondary flex cursor-pointer list-none items-start gap-2 py-[5px] text-xs leading-5 transition-[color]"
+								>
+									{@render statusGlyph(STATUS[turnStatus(turn.report, false)], true)}
+									<span class="turn-outcome group-open/turn:text-fg-default min-w-0">
+										<MarkdownText text={turn.report.outcome ?? ''} mode="prose" class="inline" />
+										{#if turn.report.notes.length > 0}
+											<span class="note-count ml-1 inline-block group-open/turn:hidden">
+												+{turn.report.notes.length}
 											</span>
 										{/if}
-										<MarkdownText text={note.text} mode="prose" class="min-w-0 select-text" />
-									</li>
-								{/each}
-							</ul>
-						</details>
-					</li>
-					{#if earlierPick}
-						<PickStep pick={earlierPick} {workstreamId} {imagesrc} {onopenimage} />
-					{/if}
-				{/each}
-			</ol>
-		{/if}
-		<div class="flex items-start gap-2">
-			{@render statusGlyph(status, false)}
-			<div
-				class="text-fg-agent-message-strong min-w-0 text-base leading-5 font-medium select-text"
-				data-testid="turn-report-outcome"
-			>
-				<MarkdownText text={report.outcome ?? ''} mode="prose" {onopenfile} {canopenfile} />
+									</span>
+								</summary>
+								<ul class="flex flex-col gap-1 pb-1.5 pl-[22px] text-xs leading-5">
+									{#each turn.report.notes as note, index (index)}
+										{@const icon = NOTE_ICONS[note.kind]}
+										<li class="text-fg-secondary flex items-start gap-1.5">
+											{#if icon}
+												<span class="text-fg-tertiary grid h-5 shrink-0 place-items-center">
+													<Icon name={icon} size={12} />
+												</span>
+											{/if}
+											<MarkdownText text={note.text} mode="prose" class="min-w-0 select-text" />
+										</li>
+									{/each}
+								</ul>
+							</details>
+						</li>
+						{#if earlierPick}
+							<PickStep pick={earlierPick} {workstreamId} {imagesrc} {onopenimage} />
+						{/if}
+					{/each}
+				</ol>
+			{/if}
+			<div class="flex items-start gap-2">
+				{@render statusGlyph(status, false)}
+				<div
+					class="text-fg-agent-message-strong min-w-0 text-base leading-5 font-medium select-text"
+					data-testid="turn-report-outcome"
+				>
+					<MarkdownText text={report.outcome ?? ''} mode="prose" {onopenfile} {canopenfile} />
+				</div>
 			</div>
 		</div>
-	</div>
 
-	{#if report.diagrams.length > 0}
-		<MarkdownText text={report.diagrams.join('\n\n')} mode="prose" class="select-text" />
-	{/if}
+		{#if report.diagrams.length > 0}
+			<MarkdownText text={report.diagrams.join('\n\n')} mode="prose" class="select-text" />
+		{/if}
 
-	<ReportStage {report} {pick} bind:chosenId {workstreamId} {imagesrc} {onopenimage} />
+		<ReportStage {report} {pick} bind:chosenId {workstreamId} {imagesrc} {onopenimage} />
 
-	{#if picking && chosen}
-		<VariantPickForm
-			{chosen}
-			needs={report.needs}
-			{onpick}
-			{onnonefit}
-			{onopenfile}
-			{canopenfile}
-		/>
-	{:else if report.needs.length > 0}
-		<section
-			class={[
-				'rounded-md border-[0.5px] px-2.5 py-2',
-				needsOpen ? 'bg-brand/10 border-transparent' : 'border-surface-150-border',
-			]}
-			aria-labelledby={needsHeadingId}
-		>
-			<h3
-				id={needsHeadingId}
-				class={['text-xs font-medium', needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary']}
-			>
-				{needsOpen ? 'Your turn' : 'You were asked'}
-			</h3>
-			<ul
+		{#if picking && chosen}
+			<VariantPickForm
+				{chosen}
+				needs={report.needs}
+				{onpick}
+				{onnonefit}
+				{onopenfile}
+				{canopenfile}
+			/>
+		{:else if report.needs.length > 0}
+			<section
 				class={[
-					'mt-1.5 flex flex-col gap-1 text-sm leading-relaxed select-text',
-					needsOpen ? 'text-fg-default' : 'text-fg-tertiary',
+					'rounded-md border-[0.5px] px-2.5 py-2',
+					needsOpen ? 'bg-brand/10 border-transparent' : 'border-surface-150-border',
 				]}
+				aria-labelledby={needsHeadingId}
 			>
-				{#each report.needs as need, index (index)}
-					<li class="flex items-start gap-2">
-						<span
-							class={[
-								'grid h-[1lh] shrink-0 place-items-center',
-								needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary',
-							]}
-							aria-hidden="true"
-						>
-							<Icon name="circle" size={12} />
-						</span>
-						<MarkdownText text={need} mode="prose" class="min-w-0" {onopenfile} {canopenfile} />
-					</li>
-				{/each}
-			</ul>
-		</section>
-	{/if}
+				<h3
+					id={needsHeadingId}
+					class={['text-xs font-medium', needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary']}
+				>
+					{needsOpen ? 'Your turn' : 'You were asked'}
+				</h3>
+				<ul
+					class={[
+						'mt-1.5 flex flex-col gap-1 text-sm leading-relaxed select-text',
+						needsOpen ? 'text-fg-default' : 'text-fg-tertiary',
+					]}
+				>
+					{#each report.needs as need, index (index)}
+						<li class="flex items-start gap-2">
+							<span
+								class={[
+									'grid h-[1lh] shrink-0 place-items-center',
+									needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary',
+								]}
+								aria-hidden="true"
+							>
+								<Icon name="circle" size={12} />
+							</span>
+							<MarkdownText text={need} mode="prose" class="min-w-0" {onopenfile} {canopenfile} />
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
 
-	<ReportNotes notes={report.notes} {onopenfile} {canopenfile} {imagesrc} {onopenimage} />
+		<ReportNotes notes={report.notes} {onopenfile} {canopenfile} {imagesrc} {onopenimage} />
+	</div>
 
 	{#if nextSteps.length > 0}
 		<NextSteps
@@ -223,6 +227,14 @@
 </article>
 
 <style>
+	.lifted {
+		--color-surface-50: var(--themed-color-surface-100);
+		--color-surface-50-hover: var(--themed-color-surface-100-hover);
+		--color-surface-100: var(--themed-color-surface-150);
+		--color-surface-100-hover: var(--themed-color-surface-150-hover);
+		--color-surface-100-border: var(--themed-color-surface-150-border);
+	}
+
 	.note-count {
 		flex-shrink: 0;
 		margin-top: 1.5px;
