@@ -40,7 +40,7 @@ The app looks for workstream checkouts in `$P/checkouts`, so the snapshot alone 
 Copy the checkouts in too and repoint their git metadata at the copies.
 Skip each workstream's `.context` and `node_modules`: the sandbox needs neither, and copying them once grew a profile to 1.5 million files.
 Clone `workstreams/.kept` as it is: an archived workstream keeps its `.context` and the files its chats showed there, and without it a restored chat's screenshots answer 404.
-Copy the lead space too: the workstreams of Home chats are worktrees of it, and their links would otherwise point at the live one.
+Copy the lead space too: organization chats are worktrees of it, and their links would otherwise point at the live one.
 A workstream of a repository opened from a folder keeps its link to that folder, so the loop never writes into the user's own repository.
 The loop drops each copied worktree entry that still names a folder outside the profile, such as a worktree Claude Code made elsewhere: the move at launch runs `git worktree repair`, which would otherwise write into that real worktree.
 

@@ -78,8 +78,9 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   Without GitHub, the preview uses sample repositories.
   **Many repositories** keeps Organization grouping, **One project** lists your work flat by Status, **Only what needs me** is **Show** set to **Attention**, and **Compact** or **Comfortable** is the density below.
   **Skip** keeps Organization grouping, Everything and Compact.
-- **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.
-  The **+** on an owner's row starts one for that organization.
+- **New chat** opens the command center on your repositories, connected ones first, and a pick starts a workstream in that repository.
+  Nothing starts without a repository.
+  The **+** on an owner's row starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) for that organization.
   Grouped by Status or Day with a pin open, **New chat** stays on top: on an organization's pin it starts a chat for that organization, and on a repository's pin a workstream in that repository.
 - By organization, every repository sits under a row named for its owner, below that owner's chats.
   Click the owner to fold or unfold it, and Malini remembers.
@@ -87,7 +88,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   A search opens every owner it matches.
 - Every repository you connect shows, with or without workstreams, until you hide it.
   A clock and a count on its row say how many wait saved for later.
-- A workstream a chat at Home or in an organization started sits under that chat's row, with the name of its repository, and so does every workstream those workstreams start, one level deep: a workstream never holds another.
+- A workstream a chat in an organization started sits under that chat's row, with the name of its repository, and so does every workstream those workstreams start, one level deep: a workstream never holds another.
   A workstream started from a workstream of a repository, with no such chat above it, sits under its repository.
   The chevron on the chat's row folds them, and Malini remembers.
   Under a pin that leaves the chat out, or in a Status or Day section the chat is not in, the workstream sits under its repository.
@@ -112,6 +113,8 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   Archiving stops everything still running from its folder: the commands its agents left in the background, what those commands started and let go, and its Docker Compose containers.
   A command you run in your own terminal keeps running.
   When Malini starts, it stops whatever is still running from the folder of a workstream that is no longer live.
+- Chats at Home no longer exist.
+  Malini archives the ones you had on its next launch, and they neither show in **Recently archived** nor come back.
 - The clock beside a workstream's archive button saves it for later.
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
   It waits in its repository's scratchpad instead of **Recently archived**.

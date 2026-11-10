@@ -113,3 +113,52 @@ async function expectScratchpadOf(page: Page, repository: string): Promise<void>
 		page.getByRole('textbox', { name: new RegExp(`^Scratchpad for .*${repository}$`, 'u') }),
 	).toBeVisible({ timeout: 30_000 });
 }
+
+test('New chat asks for a repository, lists the connected ones first, and starts a workstream in the pick', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const hutch = await createSourceRepo(app.root, 'hutch');
+		writeFileSync(
+			join(app.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify([
+				{ full_name: 'e2e/hutch', clone_url: `file://${hutch}`, description: 'Rabbits live here.' },
+			]),
+		);
+		await passSetup(page);
+		await connectFolder(app, 'pasture');
+
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		await sidebar.getByRole('button', { name: 'New chat', exact: true }).click();
+		const center = page.getByRole('dialog', { name: 'Command center' });
+		const search = center.getByRole('combobox', { name: 'Repository' });
+		const options = center.getByRole('listbox', { name: 'Your repositories' }).getByRole('option');
+		await expect(search).toBeFocused();
+		await expect(options).toHaveText([/pasture/u, /e2e\/hutch/u]);
+		await expect(center.getByRole('option', { name: /New repository/u })).toHaveCount(0);
+		await captureFlow(app, 'new-chat-picker');
+
+		await search.fill('rabbits');
+		await expect(options).toHaveCount(1);
+		await page.keyboard.press('Enter');
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
+		await expect(center).toHaveCount(0);
+		await expect(sidebar.getByTestId('sidebar-workstream')).toHaveAttribute('aria-current', 'page');
+		await expect(
+			sidebar.getByTestId('sidebar-connected-repository').filter({ hasText: 'hutch' }),
+		).toBeVisible();
+		await expect(
+			page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]'),
+		).toBeVisible({ timeout: 30_000 });
+		await captureFlow(app, 'new-chat-picked');
+
+		await sidebar.getByRole('button', { name: 'New chat', exact: true }).click();
+		await expect(search).toBeFocused();
+		await page.keyboard.press('Escape');
+		await expect(center).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

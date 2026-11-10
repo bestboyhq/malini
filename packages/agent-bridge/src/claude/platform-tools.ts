@@ -33,7 +33,7 @@ const SHIP_ONLY_WHEN_ASKED =
 const ASKS = 'The user approves it in the chat unless they always allow it.';
 
 const AUTOMATION_TRIGGER_GRAMMAR =
-	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>` for an organization or `in <owner>/<repository>` for a repository, or nothing for Home, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own chat at Home or in the organization, or its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
+	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>` for an organization or `in <owner>/<repository>` for a repository, and every schedule names one of the two, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own chat in the organization, or its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
 export function platformTools(request: PlatformToolRequester) {
 	const call = (tool: PlatformTool, input: Record<string, unknown>): Promise<ToolResult> =>
@@ -237,7 +237,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'decisions_ask',
-			"Ask the user a decision only they can make, from a chat at Home or in an organization. It shows as a card at the bottom of this chat, one decision at a time, with a picture for each option, and returns at once with the decision's id: keep the work going while the user decides, have the workstreams build the option you recommend meanwhile, and say so in `meanwhile`. The answer reaches you as a prompt when the user picks an option on the card, or inside their message, where you record it with decisions_answer. Ask one decision per call, and only what your plan cannot settle. Set `decided` to record a call you made yourself instead: the user sees it decided and can change it. Returns the decision as JSON.",
+			"Ask the user a decision only they can make, from a chat in an organization. It shows as a card at the bottom of this chat, one decision at a time, with a picture for each option, and returns at once with the decision's id: keep the work going while the user decides, have the workstreams build the option you recommend meanwhile, and say so in `meanwhile`. The answer reaches you as a prompt when the user picks an option on the card, or inside their message, where you record it with decisions_answer. Ask one decision per call, and only what your plan cannot settle. Set `decided` to record a call you made yourself instead: the user sees it decided and can change it. Returns the decision as JSON.",
 			{
 				topic: z
 					.string()
@@ -322,7 +322,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'plan_write',
-			"Write the plan of a chat at Home or in an organization: what each workstream builds, the contract between them and the decisions so far. Malini keeps it in one file, gives its path to every workstream this chat starts, and shows it in this chat. Each call replaces the whole plan, so pass all of it, and tell the workstreams that build against it with workstreams_send when it changes. Returns the plan's path.",
+			"Write the plan of a chat in an organization: what each workstream builds, the contract between them and the decisions so far. Malini keeps it in one file, gives its path to every workstream this chat starts, and shows it in this chat. Each call replaces the whole plan, so pass all of it, and tell the workstreams that build against it with workstreams_send when it changes. Returns the plan's path.",
 			{ text: z.string().min(1).describe('The whole plan, in Markdown') },
 			(input) => call('plan_write', input),
 		),

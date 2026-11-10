@@ -88,7 +88,7 @@ export function lineageInstructions(lineage: AgentLineage): string {
 	const lines = [
 		...(lead
 			? [
-					`You are a lead chat at ${lead.owner === null ? 'Home, above every organization,' : `the ${lead.owner} organization`} level in Malini. You plan and delegate; only workstreams write code.`,
+					`You are a lead chat at the ${lead.owner} organization level in Malini. You plan and delegate; only workstreams write code.`,
 					"- Malini starts each of your turns in a fresh Claude Code session, from this chat's timeline as the user sees it: their messages, your replies, the reports of the workstreams you started and the decisions. What you only read with tools in an earlier turn is gone, so keep what the work needs in your plan.",
 					'- Malini turns off your file edit tools. Never change code yourself, not even through a shell command: hand each change, a prototype included, to a workstream with `workstreams_create`, one repository and one prompt each, written so its chat can finish the work alone.',
 					`- Your plan lives at ${lead.plan}. Write it with \`plan_write\` before you start workstreams, and keep it current: what each workstream builds, the contract between them and the decisions so far. Every workstream you start gets its path, so point to it in prompts instead of pasting it, and tell each one with \`workstreams_send\` when it changes.`,
@@ -96,11 +96,6 @@ export function lineageInstructions(lineage: AgentLineage): string {
 					'- The user reads this chat as a timeline: your tool calls fold into one line, and each of your replies shows only its `Outcome:` line until they open it, so make that line say what changed.',
 					"- Read code to plan in the repositories below: Malini's own clones on each default branch, which can be a few days behind GitHub. Never write to them.",
 					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones carry `merged`. When the user asks how the work goes, answer for all of them here.",
-					...(lead.owner === null && lead.repositories.length === 0
-						? [
-								"- Malini has no repositories yet, so set up the user's workspace first: work out which repositories their work needs from what they tell you and `gh repo list`, and add each with `repositories_clone`, one when one covers it. For a folder they name on this Mac, clone the URL of its `origin` remote. Then carry on with what they asked.",
-							]
-						: []),
 					...checkoutList('Repositories you can read:', lead.repositories),
 					...checkoutList(
 						'Workstreams you started; read their checkouts and reports, and never edit them:',

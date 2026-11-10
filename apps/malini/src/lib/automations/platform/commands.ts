@@ -213,7 +213,7 @@ export function defineAutomationCommands(
 
 	const createDefinition = async (args: unknown): Promise<AutomationDefinitionRecord> => {
 		const fields = definitionFields(args);
-		const trigger = await triggerField(db, args);
+		const trigger = await triggerField(db, args, false);
 		const now = nowIso8601();
 		const created: AutomationDefinitionRecord = {
 			id: randomUUID(),
@@ -235,9 +235,9 @@ export function defineAutomationCommands(
 		const id = optionalString(args, 'id');
 		if (id === null) return createDefinition(args);
 		const fields = definitionFields(args);
-		const trigger = await triggerField(db, args);
-		const now = nowIso8601();
 		const existing = requireDefinition(db, id);
+		const trigger = await triggerField(db, args, isBrainAutomationBuiltin(existing.builtin));
+		const now = nowIso8601();
 		const thenAutomationId = thenAutomationField(db, args, existing.id);
 		if (!isTriggerableAutomation(existing) && (trigger || thenAutomationId)) {
 			throw new AutomationError(
@@ -656,23 +656,31 @@ function experimentSetup(args: unknown): OneShotAutomation {
 async function triggerField(
 	db: MaliniDatabase,
 	args: unknown,
+	unplacedAllowed: boolean,
 ): Promise<AutomationTrigger | null | undefined> {
 	const value = field(args, 'trigger');
 	if (value === undefined || value === null) return value;
 	if (!isRecord(value)) throw invalid('`trigger` must be { when, mode } or null');
 	const mode = value['mode'];
 	if (!isAutomationRunMode(mode)) throw invalid('`trigger.mode` must be off, ask or auto');
-	return { when: await triggerWhen(db, value['when']), mode };
+	return { when: await triggerWhen(db, value['when'], unplacedAllowed), mode };
 }
 
-async function triggerWhen(db: MaliniDatabase, value: unknown): Promise<string> {
+async function triggerWhen(
+	db: MaliniDatabase,
+	value: unknown,
+	unplacedAllowed: boolean,
+): Promise<string> {
 	const when = typeof value === 'string' ? value.trim() : '';
 	let reason = '';
 	try {
 		const trigger = parseAutomationTrigger(when);
 		if (trigger.kind === 'event') return when;
 		if (trigger.kind === 'schedule') {
-			return scheduleWhen({ ...trigger, place: await knownPlace(db, trigger.place) });
+			return scheduleWhen({
+				...trigger,
+				place: await knownPlace(db, trigger.place, unplacedAllowed),
+			});
 		}
 	} catch (error) {
 		if (error instanceof AutomationError) throw error;
@@ -681,8 +689,17 @@ async function triggerWhen(db: MaliniDatabase, value: unknown): Promise<string> 
 	throw invalid(`\`trigger.when\` must read ${TRIGGER_GRAMMAR}${reason}`);
 }
 
-async function knownPlace(db: MaliniDatabase, place: SchedulePlace): Promise<SchedulePlace> {
-	if (place.kind === 'home') return place;
+async function knownPlace(
+	db: MaliniDatabase,
+	place: SchedulePlace,
+	unplacedAllowed: boolean,
+): Promise<SchedulePlace> {
+	if (place.kind === 'none') {
+		if (unplacedAllowed) return place;
+		throw invalid(
+			'a schedule must say where it runs: add `in <owner>` or `in <owner>/<repository>` after the time',
+		);
+	}
 	const names = (await listRepositoryCatalog(db)).map((repository) => repository.fullName);
 	if (place.kind === 'repository') {
 		const wanted = place.repository.toLocaleLowerCase();
@@ -690,7 +707,7 @@ async function knownPlace(db: MaliniDatabase, place: SchedulePlace): Promise<Sch
 		if (repository) return { kind: 'repository', repository };
 		throw new AutomationError(
 			'not-found',
-			`No repository in Malini is \`${place.repository}\`. Add it first, or schedule the automation in its organization or at Home.`,
+			`No repository in Malini is \`${place.repository}\`. Add it first, or schedule the automation in its organization.`,
 		);
 	}
 	const wanted = place.owner.toLocaleLowerCase();
@@ -700,7 +717,7 @@ async function knownPlace(db: MaliniDatabase, place: SchedulePlace): Promise<Sch
 	if (owner) return { kind: 'owner', owner };
 	throw new AutomationError(
 		'not-found',
-		`No repository in Malini belongs to \`${place.owner}\`. Add one of its repositories first, or schedule the automation at Home.`,
+		`No repository in Malini belongs to \`${place.owner}\`. Add one of its repositories first.`,
 	);
 }
 
@@ -894,7 +911,7 @@ async function runTarget(
 function optionalScope(args: unknown): string | null {
 	const scope = optionalString(args, 'scope');
 	if (scope !== null && parseLeadScope(scope) === null) {
-		throw invalid('`scope` must be home or owner:<owner>');
+		throw invalid('`scope` must be owner:<owner>');
 	}
 	return scope;
 }

@@ -67,7 +67,7 @@ function seed(): void {
 		defaultBranch: 'main',
 		createdAt: NOW,
 	});
-	workstream('lead', null, 'home');
+	workstream('lead', null, 'owner:acme');
 	workstream('api', 'lead');
 	workstream('grand', 'api');
 	workstream('other', null);
@@ -200,9 +200,9 @@ describe('askLeadDecision', () => {
 		});
 
 		expect(ask('api-chat', {})).toThrow(
-			'Only a chat at Home or in an organization keeps decisions and a plan.',
+			'Only a chat in an organization keeps decisions and a plan.',
 		);
-		expect(ask('missing-chat', {})).toThrow('Only a chat at Home or in an organization');
+		expect(ask('missing-chat', {})).toThrow('Only a chat in an organization');
 		expect(ask('lead-chat', { options: [{ label: 'Svelte' }] })).toThrow(
 			'`options` must hold two to four options.',
 		);
@@ -290,7 +290,7 @@ describe('writeLeadPlan', () => {
 
 	it('refuses a chat that is no lead and an empty plan', async () => {
 		await expect(writeLeadPlan(context(), 'api-chat', { text: '# Plan' })).rejects.toThrow(
-			'Only a chat at Home or in an organization keeps decisions and a plan.',
+			'Only a chat in an organization keeps decisions and a plan.',
 		);
 		await expect(writeLeadPlan(context(), 'lead-chat', { text: ' ' })).rejects.toThrow(
 			'`text` is required.',

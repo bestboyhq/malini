@@ -14,7 +14,7 @@ export type ScheduleCadence =
 	| 'sunday';
 
 export type SchedulePlace =
-	| Readonly<{ kind: 'home' }>
+	| Readonly<{ kind: 'none' }>
 	| Readonly<{ kind: 'owner'; owner: string }>
 	| Readonly<{ kind: 'repository'; repository: string }>;
 
@@ -59,7 +59,7 @@ export const SCHEDULE_CADENCES: readonly ScheduleCadence[] = [
 ];
 
 export const SCHEDULE_GRAMMAR =
-	'every day, every weekday or every <day of the week> at <HH:MM>, optionally followed by in <owner> or in <owner>/<repository>';
+	'every day, every weekday or every <day of the week> at <HH:MM>, followed by in <owner> or in <owner>/<repository>';
 
 const MERGED_IN_REPOSITORY =
 	'on pull-requests:ship-changed where merged is set and repositoryId is ';
@@ -111,7 +111,7 @@ export function parseAutomationTrigger(when: string): ParsedTrigger {
 		};
 	}
 	throw new Error(
-		`Unsupported extension automation trigger ${JSON.stringify(when)}. Try “${MANUAL_AUTOMATION_PHRASE}”, “when a new workstream is created”, “when a frontend resource becomes ready”, “when a frontend Docker container becomes ready”, “on <channel>” for any platform event, like “on pull-requests:ship-changed where merged is set”, or a schedule, like “every weekday at 09:00”.`,
+		`Unsupported extension automation trigger ${JSON.stringify(when)}. Try “${MANUAL_AUTOMATION_PHRASE}”, “when a new workstream is created”, “when a frontend resource becomes ready”, “when a frontend Docker container becomes ready”, “on <channel>” for any platform event, like “on pull-requests:ship-changed where merged is set”, or a schedule, like “every weekday at 09:00 in bestboyhq”.`,
 	);
 }
 
@@ -124,7 +124,7 @@ export function mergedInRepository(when: string | null | undefined): string | nu
 }
 
 export function scheduleWhen({ cadence, hour, minute, place }: Schedule): string {
-	const where = place.kind === 'home' ? '' : ` in ${schedulePlaceName(place)}`;
+	const where = place.kind === 'none' ? '' : ` in ${schedulePlaceName(place)}`;
 	return `every ${cadence} at ${scheduleTime({ hour, minute })}${where}`;
 }
 
@@ -138,7 +138,7 @@ export function scheduleCadenceLabel(cadence: ScheduleCadence): string {
 }
 
 export function schedulePlaceName(place: SchedulePlace): string {
-	if (place.kind === 'home') return 'Home';
+	if (place.kind === 'none') return '';
 	return place.kind === 'owner' ? place.owner : place.repository;
 }
 
@@ -158,7 +158,7 @@ function parseScheduleTrigger(when: string): ScheduleTrigger {
 }
 
 function schedulePlace(name: string | undefined): SchedulePlace {
-	if (name === undefined) return { kind: 'home' };
+	if (name === undefined) return { kind: 'none' };
 	return name.includes('/')
 		? { kind: 'repository', repository: name }
 		: { kind: 'owner', owner: name };

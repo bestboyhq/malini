@@ -48,7 +48,7 @@
 	function detail(builtin: AutomationBuiltin, when: string | undefined): [string, string, string] {
 		if (builtin === 'capture-brain') {
 			return [
-				'When a chat is archived, and daily for Home chats. Writes',
+				'When a chat is archived, and daily for organization chats. Writes',
 				'log/',
 				'and never rewrites it.',
 			];

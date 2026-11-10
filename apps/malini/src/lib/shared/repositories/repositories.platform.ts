@@ -24,6 +24,7 @@ export interface RepositoriesPlatform {
 	cancelGitHubSignIn(): void;
 	readonly gh: GhRunner;
 	listLiveWorkstreamIds(): string[];
+	archiveHomeChats(): Promise<void>;
 	reclaimAbandonedContainers(budgetMs?: number): Promise<ContainerReclaim>;
 }
 
@@ -101,7 +102,12 @@ export {
 export { displayWorkstreamName, isPlaceholderWorkstreamName } from './domain/workstream-names';
 export { workstreamLeads } from './domain/workstream-leads';
 export { nextWorkstreamId } from './domain/project-identity';
-export { leadScopeKey, parseLeadScope, type LeadScope } from './domain/lead-scope';
+export {
+	RETIRED_HOME_SCOPE_KEY,
+	leadScopeKey,
+	parseLeadScope,
+	type LeadScope,
+} from './domain/lead-scope';
 export {
 	projectFullName,
 	projectIdentityIdsForRepository,

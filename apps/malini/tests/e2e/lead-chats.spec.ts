@@ -10,6 +10,7 @@ import {
 	expectCleanConsole,
 	invoke,
 	launchMalini,
+	openChatIn,
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
@@ -48,17 +49,9 @@ async function startUnasked(
 	await expect(app.page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 }
 
-async function startChat(page: Page, scope: 'home' | string, title: string): Promise<void> {
+async function startChat(page: Page, owner: string, title: string): Promise<void> {
 	const before = page.url();
-	if (scope === 'home') {
-		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
-	} else {
-		const owner = sidebar(page).getByTestId('sidebar-owner-folder').filter({ hasText: scope });
-		await owner.hover();
-		await sidebar(page)
-			.getByRole('button', { name: `New chat in ${scope}` })
-			.click();
-	}
+	await openChatIn(page, owner);
 	await expect.poll(() => page.url()).not.toBe(before);
 	await expect(transcript(page)).toBeVisible({ timeout: 20_000 });
 	await sendPrompt(page, `Plan it TITLE="${title}"`);
@@ -110,27 +103,27 @@ function gateLeadCheckouts(app: LaunchedApp): Readonly<{ held: string; failing: 
 	return { held, failing };
 }
 
-test('a Home chat starts workstreams in two organizations, which fold under it, list beside the chat and disconnect from it', async () => {
+test('an organization chat starts workstreams in two repositories, which fold under it, list beside the chat and disconnect from it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const api = await createSourceRepo(app.root, 'acme/api');
-		const site = await createSourceRepo(app.root, 'solo/site');
+		const web = await createSourceRepo(app.root, 'acme/web');
 		await seedWorkstream(page, `file://${api}`, 'e2e-lead-api-work', 'Api work');
-		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${site}` });
+		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${web}` });
 		await page.reload();
 
-		await startChat(page, 'home', 'Logdash migration');
+		await startChat(page, 'acme', 'Logdash migration');
 		const lead = sidebar(page).getByTestId('sidebar-chat').filter({ hasText: 'Logdash migration' });
 		await expect(lead).toHaveAttribute('aria-current', 'page');
-		await expect(lead).toHaveAttribute('data-chat-scope', 'home');
+		await expect(lead).toHaveAttribute('data-chat-scope', 'owner');
 		await sendPrompt(page, 'WHICH_LINEAGE');
-		await lastReply(page, 'Lead: Home reads acme/api, solo/site');
+		await lastReply(page, 'Lead: acme reads acme/api, acme/web');
 
 		await startUnasked(app, [
 			{ repository: 'acme/api', prompt: 'WHICH_LINEAGE TITLE="Api analytics"' },
-			{ repository: 'solo/site', prompt: 'WHICH_LINEAGE TITLE="Site analytics"' },
+			{ repository: 'acme/web', prompt: 'WHICH_LINEAGE TITLE="Web analytics"' },
 		]);
 
 		const startedIn = (repository: string) =>
@@ -140,37 +133,37 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		await expect(sidebar(page).getByTestId('sidebar-workstream')).toHaveCount(3, {
 			timeout: 30_000,
 		});
-		await expect(startedIn('solo/site')).toHaveCount(1);
+		await expect(startedIn('acme/web')).toHaveCount(1);
 		await expect(startedIn('acme/api')).toHaveCount(2);
 		const nested = sidebar(page).getByRole('list', { name: 'Started by Logdash migration' });
 		await expect(nested.getByTestId('sidebar-workstream')).toHaveCount(2);
 		await expect(
 			nested
-				.locator('[data-repository-full-name="solo/site"]')
+				.locator('[data-repository-full-name="acme/web"]')
 				.getByTestId('sidebar-row-repository'),
-		).toHaveText('site');
+		).toHaveText('web');
 		await expect(
 			nested
 				.locator('[data-repository-full-name="acme/api"]')
 				.getByTestId('sidebar-row-repository'),
 		).toHaveText('api');
-		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toBeVisible();
+		await expect(sidebar(page).getByRole('link', { name: 'Open acme/web' })).toBeVisible();
 		await expect(sidebar(page).getByRole('link', { name: 'Open acme/api' })).toBeVisible();
 		await expect(lead.getByTestId('sidebar-progress')).toHaveAccessibleName(/^2 workstreams/u);
 		const startedLine = transcript(page).locator('[data-timeline-entry="started"]');
 		await expect(startedLine).toContainText('Lead started');
 		await expect(startedLine.getByRole('link', { name: /^api, / })).toBeVisible();
-		await expect(startedLine.getByRole('link', { name: /^site, / })).toBeVisible();
+		await expect(startedLine.getByRole('link', { name: /^web, / })).toBeVisible();
 		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
 			/^0 of 2 merged/u,
 			{ timeout: 20_000 },
 		);
 		const workstreams = page.getByRole('list', { name: 'Workstreams' });
 		await expect(workstreams.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
-		await expect(workstreams.getByRole('link', { name: /^solo\/site, / })).toBeVisible();
-		await expect(page).toHaveTitle('Malini · Home');
+		await expect(workstreams.getByRole('link', { name: /^acme\/web, / })).toBeVisible();
+		await expect(page).toHaveTitle('Malini · acme');
 		await expect(inspector(page)).toHaveCount(0);
-		await captureFlow(app, 'lead-chat-home-sidebar');
+		await captureFlow(app, 'lead-chat-owner-sidebar');
 
 		await sidebar(page)
 			.getByRole('button', { name: 'Fold the workstreams of Logdash migration' })
@@ -184,9 +177,9 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 			.click();
 		await expect(nested.getByTestId('sidebar-workstream')).toHaveCount(2);
 
-		await workstreams.getByRole('link', { name: /^solo\/site, / }).click();
+		await workstreams.getByRole('link', { name: /^acme\/web, / }).click();
 		await expect(workstreams).toHaveCount(0);
-		await expect(startedIn('solo/site')).toHaveAttribute('aria-current', 'page');
+		await expect(startedIn('acme/web')).toHaveAttribute('aria-current', 'page');
 		await lastReply(page, 'Started by: Logdash migration');
 		await lastReply(page, 'Siblings: acme/api');
 		const lineage = page.getByTestId('workstream-lineage');
@@ -206,7 +199,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 		await expect(progress).toBeVisible();
 
 		await invoke(page, 'repositories.archive-workstream', {
-			workstreamId: await startedIn('solo/site').getAttribute('data-workstream-id'),
+			workstreamId: await startedIn('acme/web').getAttribute('data-workstream-id'),
 		});
 		await expect(progress).toHaveAccessibleName(/^2 workstreams: .*1 archived$/u, {
 			timeout: 20_000,
@@ -226,7 +219,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it, 
 			.getByTestId('sidebar-started-card')
 			.getByRole('list', { name: 'Started by Logdash migration' });
 		await expect(started.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
-		await expect(started.getByRole('group', { name: /^solo\/site, .*, Archived, / })).toBeVisible();
+		await expect(started.getByRole('group', { name: /^acme\/web, .*, Archived, / })).toBeVisible();
 		await captureFlow(app, 'lead-chat-started-card');
 
 		const startedApi = nested.locator(
@@ -257,7 +250,7 @@ test('a workstream a chat started stays quiet, its needs reach that chat, and th
 		const api = await createSourceRepo(app.root, 'acme/api');
 		await seedWorkstream(page, `file://${api}`, 'e2e-quiet-api', 'Api work');
 		await page.reload();
-		await startChat(page, 'home', 'Ship analytics');
+		await startChat(page, 'acme', 'Ship analytics');
 		await startUnasked(app, [
 			{
 				repository: 'acme/api',
@@ -308,7 +301,7 @@ test('a workstream a chat started stays quiet, its needs reach that chat, and th
 			'repositories.list-workstreams',
 			undefined,
 		);
-		const leadId = workstreams.find((workstream) => workstream.scope === 'home')?.id;
+		const leadId = workstreams.find((workstream) => workstream.scope === 'owner:acme')?.id;
 		const [leadChat] = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
 			workstreamId: leadId,
 		});
@@ -456,7 +449,7 @@ test('a lead chat has no inspector until its agent opens a page, holds only brow
 		);
 		await page.reload();
 
-		await startChat(page, 'home', 'Compare usage');
+		await startChat(page, 'acme', 'Compare usage');
 		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
 			'No workstreams yet',
 		);
@@ -511,10 +504,10 @@ test('a new chat opens before its checkout exists, and a prompt sent meanwhile g
 		writeFileSync(gate.held, '');
 
 		const before = page.url();
-		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+		await openChatIn(page, 'acme');
 		await expect.poll(() => page.url()).not.toBe(before);
 		const chat = sidebar(page).locator('[data-testid="sidebar-chat"][aria-current="page"]');
-		await expect(chat).toHaveAttribute('data-chat-scope', 'home');
+		await expect(chat).toHaveAttribute('data-chat-scope', 'owner');
 		await expect(chat.getByRole('status')).toHaveAccessibleName('Chat status: Creating');
 		await page.getByRole('button', { name: 'Start a fresh chat' }).click();
 		await sendPrompt(page, 'WHICH_LINEAGE');
@@ -524,7 +517,7 @@ test('a new chat opens before its checkout exists, and a prompt sent meanwhile g
 		await captureFlow(app, 'lead-chat-before-checkout');
 
 		rmSync(gate.held);
-		await lastReply(page, 'Lead: Home reads acme/api');
+		await lastReply(page, 'Lead: acme reads acme/api');
 		await expect(queue).toHaveCount(0);
 		await expect(chat.getByRole('status')).not.toHaveAccessibleName('Chat status: Creating');
 		expectCleanConsole(app);
@@ -548,7 +541,7 @@ test('a new chat whose checkout fails says why, retries in place with its prompt
 		const gate = gateLeadCheckouts(app);
 		writeFileSync(gate.failing, '');
 
-		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+		await openChatIn(page, 'acme');
 		const failure = page.getByRole('alert').filter({ hasText: 'New chat has no worktree yet' });
 		await expect(failure).toContainText('e2e lead checkout failure', { timeout: 20_000 });
 		const chats = sidebar(page).getByTestId('sidebar-chat');
@@ -560,12 +553,12 @@ test('a new chat whose checkout fails says why, retries in place with its prompt
 
 		rmSync(gate.failing);
 		await failure.getByRole('button', { name: 'Retry setting up New chat' }).click();
-		await lastReply(page, 'Lead: Home reads acme/api');
+		await lastReply(page, 'Lead: acme reads acme/api');
 		await expect(failure).toHaveCount(0);
 		await expect(chats).toHaveCount(1);
 
 		writeFileSync(gate.failing, '');
-		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+		await openChatIn(page, 'acme');
 		await expect(failure).toBeVisible({ timeout: 20_000 });
 		await expect(chats).toHaveCount(2);
 		await failure.getByRole('button', { name: 'Remove New chat' }).click();

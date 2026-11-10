@@ -30,8 +30,8 @@ The [README](../README.md) has the short version.
   The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
   Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
 - **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you.
-- **Then a chat at Home.** It asks what you're working on, with your latest repositories under it to pick, and **New repository** to make one on GitHub.
-  Or name them in your first message, and the lead clones them once you allow it.
+- **Then your repositories.** Setup ends on your five latest GitHub repositories under **What are we working on?**, and a pick clones the repository and starts a workstream in it.
+  **New repository** makes one on GitHub.
 
 ## Workstreams, side by side
 
@@ -124,7 +124,7 @@ The [README](../README.md) has the short version.
 - **An automation is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
   Run it in this workstream or a new one.
 - **When: what starts it.** You run it, or one event trigger runs it, like `on pull-requests:ship-changed where merged is set`, on any event Malini emits.
-  Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a chat or workstream of its own, at Home, in an organization or in a repository.
+  Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a chat of its own in an organization, or a workstream of its own in a repository.
   A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits in its chat with **Run it** and **Skip**.
 - **Then: what runs next.** One automation runs after this one succeeds, in the same workstream, with its result.
   **Open draft** and **Merge** are automations, so "open a draft PR" is a Then.

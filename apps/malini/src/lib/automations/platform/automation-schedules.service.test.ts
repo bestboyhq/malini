@@ -201,20 +201,24 @@ function finish(run: AutomationRunRecord | undefined): void {
 }
 
 describe('automation schedules', () => {
-	it('starts an automation at its time in its own chat at Home, once for each time it comes', async () => {
-		await schedule('every weekday at 09:00');
+	it('starts an automation at its time in its own chat in its organization, once for each time it comes', async () => {
+		await schedule('every weekday at 09:00 in acme');
 		await passTo(at(MONDAY, 8, 59));
 		expect(await runs()).toEqual([]);
 
 		await passTo(at(MONDAY, 9));
 		await vi.waitFor(async () =>
 			expect(await runs()).toEqual([
-				expect.objectContaining({ origin: 'schedule', scope: 'home', workstreamId: 'lead-1' }),
+				expect.objectContaining({
+					origin: 'schedule',
+					scope: 'owner:acme',
+					workstreamId: 'lead-1',
+				}),
 			]),
 		);
-		expect(getWorkstream(db, 'lead-1')?.scope).toBe('home');
+		expect(getWorkstream(db, 'lead-1')?.scope).toBe('owner:acme');
 		expect(prompts[0]).toBe(
-			'Triage what came in.\n\nMalini started this run on its schedule, every weekday at 09:00, due Monday, October 26 at 09:00.',
+			'Triage what came in.\n\nMalini started this run on its schedule, every weekday at 09:00 in acme, due Monday, October 26 at 09:00.',
 		);
 
 		await passTo(at(MONDAY, 12));
@@ -222,7 +226,7 @@ describe('automation schedules', () => {
 	});
 
 	it('starts a run on the Time reached it logs, names it as the cause, and never again when it hears that time after a restart', async () => {
-		const automation = await schedule('every weekday at 09:00');
+		const automation = await schedule('every weekday at 09:00 in acme');
 		await passTo(at(MONDAY, 9));
 		await vi.waitFor(async () => expect(await runs()).toHaveLength(1));
 		const [reached] = all<{ id: number; payload: string }>(
@@ -233,7 +237,7 @@ describe('automation schedules', () => {
 		expect(JSON.parse(reached?.payload ?? 'null')).toEqual({
 			definitionId: automation.id,
 			name: 'Triage',
-			when: 'every weekday at 09:00',
+			when: 'every weekday at 09:00 in acme',
 			due: at(MONDAY, 9).toISOString(),
 		});
 		const [run] = await runs();
@@ -376,8 +380,20 @@ describe('automation schedules', () => {
 		await expect(
 			context.commands.call('automations.save-definition', {
 				...merge,
-				trigger: { when: 'every day at 09:00', mode: 'auto' },
+				trigger: { when: 'every day at 09:00 in acme', mode: 'auto' },
 			}),
 		).rejects.toThrow(/never on a schedule/u);
+		await expect(schedule('every day at 09:00')).rejects.toThrow(/must say where it runs/u);
+	});
+
+	it('lets the brain notes keep a schedule with no place, and no other automation', async () => {
+		const definitions = await context.commands.call('automations.list-definitions', undefined);
+		const notes = definitions.find((definition) => definition.builtin === 'write-brain-notes');
+		if (!notes?.trigger) throw new Error('the built-in brain notes automation is missing');
+		const saved = await context.commands.call('automations.save-definition', {
+			...notes,
+			trigger: { when: notes.trigger.when, mode: 'ask' },
+		});
+		expect(saved.trigger).toEqual({ when: 'every sunday at 18:00', mode: 'ask' });
 	});
 });

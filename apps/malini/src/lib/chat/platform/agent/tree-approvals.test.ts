@@ -37,7 +37,7 @@ beforeEach(() => {
 	seedWorkstream(test.db, test.appDataRoot, 'lead');
 	seedWorkstream(test.db, test.appDataRoot, 'api');
 	seedWorkstream(test.db, test.appDataRoot, 'other');
-	run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'home' WHERE id = 'lead'`);
+	run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'owner:acme' WHERE id = 'lead'`);
 	run(
 		test.db,
 		`UPDATE workstreams SET name = 'Api analytics', started_by = 'lead' WHERE id = 'api'`,

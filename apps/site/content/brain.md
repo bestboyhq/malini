@@ -39,10 +39,10 @@ Turning it off turns them off and keeps the brain.
 ## Capture to the log
 
 **Capture to the log** runs without an agent, the way **Open draft** and **Merge** do.
-Its trigger runs it when you archive a workstream, `on repositories:workstream-removed where archived is set`, and Malini runs it once a day for chats you never archive, such as Home chats.
+Its trigger runs it when you archive a workstream, `on repositories:workstream-removed where archived is set`, and Malini runs it once a day for chats you never archive, such as an organization's chat.
 Deleting a workstream captures nothing.
 
-It appends what you typed in each chat and each turn's `Outcome:` line, under the chat's name and its repository, or Home.
+It appends what you typed in each chat and each turn's `Outcome:` line, under the chat's name and its repository, or its organization.
 It never copies what the agent wrote, tool results or code.
 Before anything is written, it takes out secrets: the values you saved in Settings, Secrets, and anything shaped like a token, a password in a URL, an email address or a home folder path.
 A saved secret shorter than four characters stays, since it would mask ordinary words.

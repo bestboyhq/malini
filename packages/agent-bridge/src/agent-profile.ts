@@ -45,7 +45,7 @@ export interface AgentCheckout {
 }
 
 export interface AgentLead {
-	readonly owner: string | null;
+	readonly owner: string;
 	readonly repositories: readonly AgentCheckout[];
 	readonly workstreams: readonly AgentCheckout[];
 	readonly plan: string;
@@ -91,7 +91,7 @@ export function isAgentLineage(value: unknown): value is AgentLineage {
 	return (
 		(lead === null ||
 			(isRecord(lead) &&
-				(lead.owner === null || isText(lead.owner)) &&
+				isText(lead.owner) &&
 				isCheckoutList(lead.repositories) &&
 				isCheckoutList(lead.workstreams) &&
 				isText(lead.plan))) &&

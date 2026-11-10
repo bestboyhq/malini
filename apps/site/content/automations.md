@@ -42,7 +42,7 @@ Click an automation to open its own page: what it sees and reaches, its When and
 
 An automation runs when you run it.
 Give it a **When**, and it also runs when something happens: a pull request merges, a merge stops on conflicts, main changes a file a workstream changed, a workstream is created, an automation fails, or any Malini event.
-Or it runs [on a schedule](#on-a-schedule), such as every weekday at 9:00.
+Or it runs [on a schedule](#on-a-schedule), such as every weekday at 9:00 in a repository.
 
 A When is one event trigger, or one schedule:
 
@@ -75,13 +75,13 @@ An unknown channel or a malformed condition is refused when you save the automat
 A schedule runs an automation at a time of day, by your Mac's clock:
 
 ```text
-every <day | weekday | monday … sunday> at <HH:MM> [in <owner> | in <owner>/<repository>]
+every <day | weekday | monday … sunday> at <HH:MM> in <owner | owner/repository>
 ```
 
 - `every day`, `every weekday` (Monday to Friday), or one day of the week, such as `every monday`.
 - `at` takes a 24-hour time, such as `09:00` or `17:30`.
-- `in` picks where it runs: an organization or a user, such as `in bestboyhq`, or a repository, such as `in bestboyhq/malini`.
-  Without `in`, it runs at Home, above every repository.
+- `in` picks where it runs, and a schedule needs it: an organization or a user, such as `in bestboyhq`, or a repository, such as `in bestboyhq/malini`.
+  A schedule with no `in` no longer exists: one saved without it keeps its instructions and loses its schedule, so it runs only when you ask until you pick a place.
 
 ```text
 every weekday at 09:00 in bestboyhq/malini
@@ -91,7 +91,7 @@ On the Automations page, **On a schedule** in the When picker sets the day and t
 
 A scheduled automation keeps a place of its own, named after the automation:
 
-- At Home or in an organization, its own [chat that leads work across repositories](/malini/docs/chat.md#chats-above-repositories), which starts workstreams for the work it finds.
+- In an organization, its own [chat that leads work across repositories](/malini/docs/chat.md#chats-above-repositories), which starts workstreams for the work it finds.
 - In a repository, its own workstream.
   Before each run, the Schedules rule runs **Update from main** in it when it is behind its base branch, so the automation starts from fresh code.
   When that merge stops on conflicts, **Resolve conflicts** finishes it before the automation starts.
@@ -213,7 +213,7 @@ A workstream an agent just started counts as busy until the turn of its first pr
 An automation shows where it runs.
 Above the composer, a chat lists its workstream's live automations, one line each: first the ones that need you, then the running ones, then the queue, oldest first.
 A finished automation leaves the list.
-An automation with no workstream, such as a schedule at Home, shows under **In progress** on the Automations page.
+An automation with no workstream, such as a schedule in an organization, shows under **In progress** on the Automations page.
 The **Automations** icon at the top, beside the sidebar icon, opens that page.
 Its dot shows that something needs you or runs, and its tooltip counts them.
 
@@ -226,7 +226,7 @@ Its answers are buttons under it:
 - **Run again**, **Tell its chat**, and **Dismiss** for what [Choose a reaction](#reconciler) asks you, such as "Failed: The docs host timed out."
 
 A run whose agent asks you something opens its transcript, where you answer in the composer.
-A run that asks you first before it has a chat, such as the first run of a schedule at Home, opens its automation's page, which shows the same question under **Needs you**.
+A run that asks you first before it has a chat, such as the first run of a schedule in an organization, opens its automation's page, which shows the same question under **Needs you**.
 
 A question never goes stale: it goes away with its workstream, and a newer question about the same automation, or a newer run of that automation that finishes, replaces it.
 Archiving a workstream also cancels its automations that have not finished.
@@ -323,7 +323,7 @@ Blue also marks what moves and what you picked.
 | **Open draft**          | Commits the workstream's changes, pushes its branch, and opens a draft pull request, without an agent. With a pull request already open, it pushes to it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Merge**               | Queues the workstream's pull request to merge, without an agent, the same way **Merge** in the top bar does.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Suggest automations** | Reads the first thing you type after a pull request merges, and suggests an automation when it matches what you asked after an earlier merge. See [Suggested automations](#suggested-automations).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **Capture to the log**  | Appends what you typed in a chat, and each turn's `Outcome:` line, to the [second brain](/malini/docs/brain.md)'s log, without an agent, with your secrets taken out. Its trigger runs it when you archive a workstream, and Malini runs it once a day for Home chats.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Capture to the log**  | Appends what you typed in a chat, and each turn's `Outcome:` line, to the [second brain](/malini/docs/brain.md)'s log, without an agent, with your secrets taken out. Its trigger runs it when you archive a workstream, and Malini runs it once a day for chats you never archive.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Write the notes**     | Rewrites the second brain's notes from its log, every Sunday at 18:00, in the Brain workstream, seeing no chat and reaching no internet. Rewrite its instructions to change what the notes are about.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | **Choose a reaction**   | Picks what Malini does about an event no trigger handles, among choices Malini lists. See [Reconciler](#reconciler).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 

@@ -367,13 +367,12 @@ test('an automation sees and reaches only what you set on its page, and says whe
 	}
 });
 
-test('an automation runs on a schedule, in its own chat at Home or in the repository you pick', async () => {
+test('an automation runs on a schedule, in its own chat in an organization or in the repository you pick', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const api = await createSourceRepo(app.root, 'acme/api');
-		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${api}` });
 		await openAutomations(page);
 		await page
 			.getByRole('textbox', { name: 'What should happen, and when?' })
@@ -384,30 +383,31 @@ test('an automation runs on a schedule, in its own chat at Home or in the reposi
 		await expect(
 			draft.getByRole('button', { name: /runs: Every weekday at 9:00$/u }),
 		).toBeVisible();
-		await expect(draft.getByRole('button', { name: 'Runs in: Home' })).toBeVisible();
+		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${api}` });
+		await expect(draft.getByRole('button', { name: 'Runs in: acme' })).toBeVisible();
 		await draft.getByRole('button', { name: 'Save automation' }).click();
 		await expect
 			.poll(() => automationNamed(page, 'Triage new issues'))
-			.toMatchObject({ trigger: { when: 'every weekday at 09:00', mode: 'ask' } });
+			.toMatchObject({ trigger: { when: 'every weekday at 09:00 in acme', mode: 'ask' } });
 
 		const detail = await openAutomation(page, 'Triage new issues');
 		await expect(detail).toContainText(
-			'Every weekday at 9:00, Triage new issues runs in its own chat at Home. It asks you first.',
+			'Every weekday at 9:00, Triage new issues runs in its own chat in acme. It asks you first.',
 		);
 		await detail.getByRole('button', { name: /^When Triage new issues runs: /u }).click();
 		const picker = page.getByRole('dialog', { name: 'When should it run' });
 		await picker.getByRole('option', { name: /^Every weekday at 9:00/u }).click();
 		await picker.getByRole('combobox', { name: 'Repeat' }).selectOption('monday');
 		await picker.getByLabel('At', { exact: true }).fill('07:30');
-		await expect(picker.getByText('every monday at 07:30', { exact: true })).toBeVisible();
+		await expect(picker.getByText('every monday at 07:30 in acme', { exact: true })).toBeVisible();
 		await captureFlow(app, 'automations-schedule');
 		await picker.getByRole('button', { name: 'Use this schedule' }).click();
 		await expect(picker).toHaveCount(0);
 		await expect
 			.poll(async () => (await automationNamed(page, 'Triage new issues'))?.trigger?.when)
-			.toBe('every monday at 07:30');
+			.toBe('every monday at 07:30 in acme');
 
-		await detail.getByRole('button', { name: 'Runs in: Home' }).click();
+		await detail.getByRole('button', { name: 'Runs in: acme' }).click();
 		await page.getByRole('menuitemradio', { name: 'acme/api' }).click();
 		await expect
 			.poll(async () => (await automationNamed(page, 'Triage new issues'))?.trigger?.when)

@@ -1227,4 +1227,61 @@ describe('migrate', () => {
 		});
 		edited.close();
 	});
+
+	it('clears the schedule of an automation that ran at Home, and keeps the rest', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const home = MIGRATIONS.length - 1;
+		for (const migration of MIGRATIONS.slice(0, home)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + home};`);
+		const at = '2026-11-09T00:00:00Z';
+		const automation = (id: string, builtin: string | null, when: string | null) =>
+			`INSERT INTO automation_definitions
+			   (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at)
+			 VALUES ('${id}', '${id}', 'Do ${id}.', 'opus', 'low', 'workstream', ${builtin === null ? 'NULL' : `'${builtin}'`},
+			   ${when === null ? 'NULL' : `'${when}'`}, ${when === null ? 'NULL' : "'auto'"}, '${at}', '${at}')`;
+		db.exec(automation('athome', null, 'every weekday at 09:00'));
+		db.exec(automation('inorg', null, 'every weekday at 09:00 in acme'));
+		db.exec(automation('inrepo', null, 'every Monday at 07:30 in acme/api'));
+		db.exec(automation('onevent', null, 'on pull-requests:ship-changed where merged is set'));
+		db.exec(automation('manual', null, null));
+		db.exec(automation('notes', 'write-brain-notes', 'every sunday at 18:00'));
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				"SELECT id, instructions, trigger_when, trigger_mode FROM automation_definitions WHERE instructions LIKE 'Do %' ORDER BY id",
+			),
+		).toEqual([
+			{ id: 'athome', instructions: 'Do athome.', trigger_when: null, trigger_mode: null },
+			{
+				id: 'inorg',
+				instructions: 'Do inorg.',
+				trigger_when: 'every weekday at 09:00 in acme',
+				trigger_mode: 'auto',
+			},
+			{
+				id: 'inrepo',
+				instructions: 'Do inrepo.',
+				trigger_when: 'every Monday at 07:30 in acme/api',
+				trigger_mode: 'auto',
+			},
+			{ id: 'manual', instructions: 'Do manual.', trigger_when: null, trigger_mode: null },
+			{
+				id: 'notes',
+				instructions: 'Do notes.',
+				trigger_when: 'every sunday at 18:00',
+				trigger_mode: 'auto',
+			},
+			{
+				id: 'onevent',
+				instructions: 'Do onevent.',
+				trigger_when: 'on pull-requests:ship-changed where merged is set',
+				trigger_mode: 'auto',
+			},
+		]);
+		db.close();
+	});
 });

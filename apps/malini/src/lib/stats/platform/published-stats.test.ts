@@ -17,7 +17,7 @@ describe('readPublishedStats', () => {
 		seedProject(db, 'local__nowhere');
 		seedWorkstream(db, 'ws-local', 'local__nowhere');
 		seedProject(db, 'malini-lead-space');
-		seedWorkstream(db, 'ws-lead', 'malini-lead-space', { scope: 'home' });
+		seedWorkstream(db, 'ws-lead', 'malini-lead-space', { scope: 'owner:acme' });
 		seedWorkstream(db, 'ws-merged', 'local__bestboyhq__malini', { mergedAt: at(12, 18) });
 		seedWorkstream(db, 'ws-merged-today', 'local__bestboyhq__malini', { mergedAt: at(15, 9) });
 		seedWorkstream(db, 'ws-new', 'local__bestboyhq__malini', { createdAt: at(15, 9, 30) });

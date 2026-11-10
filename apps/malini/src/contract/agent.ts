@@ -81,7 +81,7 @@ export interface AgentCheckout {
 }
 
 export interface AgentLead {
-	owner: string | null;
+	owner: string;
 	repositories: AgentCheckout[];
 	workstreams: AgentCheckout[];
 	plan: string;

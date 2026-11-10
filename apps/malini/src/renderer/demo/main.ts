@@ -1,5 +1,6 @@
 import { demoBridge } from './demo-bridge';
 import { DOCS_DRAFTS, DOCS_WORKSTREAMS } from './demo-docs';
+import { OWNER } from './demo-data';
 import { demoHandlers } from './demo-handlers';
 import { restVideosOffscreen } from './demo-offscreen';
 import { passScrollToTheSite } from './demo-scroll';
@@ -30,6 +31,14 @@ function freshScenes(): void {
 if (DEMO_PLAY === 'docs') {
 	document.documentElement.dataset['demo'] = 'docs';
 	freshScenes();
+}
+
+if (DEMO_PLAY === 'tour') {
+	const owner = { kind: 'owner', owner: OWNER };
+	localStorage.setItem(
+		'malini.app.sidebar-focus:v1',
+		JSON.stringify({ pinned: [owner], active: owner }),
+	);
 }
 
 window.malini = demoBridge(demoHandlers);

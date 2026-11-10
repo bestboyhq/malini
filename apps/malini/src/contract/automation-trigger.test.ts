@@ -55,13 +55,13 @@ describe('parseAutomationTrigger event phrases', () => {
 });
 
 describe('parseAutomationTrigger schedules', () => {
-	it('reads a day, the weekdays or one day of the week at a time, at Home without a place', () => {
+	it('reads a day, the weekdays or one day of the week at a time, with no place when none is named', () => {
 		expect(parseAutomationTrigger('every weekday at 9:05')).toEqual({
 			kind: 'schedule',
 			cadence: 'weekday',
 			hour: 9,
 			minute: 5,
-			place: { kind: 'home' },
+			place: { kind: 'none' },
 			description: 'Every weekday at 9:05',
 		});
 		expect(parseAutomationTrigger('Every Monday at 17:30')).toMatchObject({

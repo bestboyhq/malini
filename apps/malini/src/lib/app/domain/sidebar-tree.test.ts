@@ -55,7 +55,7 @@ const REPOSITORIES = [
 ].map(repo);
 
 const LEADS = [
-	stream('home-lead', 'lead', null, 'home'),
+	stream('solo-lead', 'lead', null, 'owner:solo'),
 	stream('acme-lead', 'lead', null, 'owner:acme'),
 ];
 
@@ -63,20 +63,20 @@ const WORKSTREAMS = [
 	stream('api-work', 'acme/api'),
 	stream('api-follow-up', 'acme/api', 'api-work'),
 	stream('api-follow-up-check', 'acme/api', 'api-follow-up'),
-	stream('web-from-home', 'acme/web', 'home-lead'),
-	stream('web-follow-up', 'acme/web', 'web-from-home'),
-	stream('site-from-home', 'solo/site', 'home-lead'),
+	stream('web-from-solo', 'acme/web', 'solo-lead'),
+	stream('web-follow-up', 'acme/web', 'web-from-solo'),
+	stream('site-from-solo', 'solo/site', 'solo-lead'),
 	stream('api-from-acme', 'acme/api', 'acme-lead'),
 	stream('folder-work', 'folder'),
 	stream('sdk-from-api', 'logdash/sdk', 'api-work'),
 ];
 
 const SECTIONS: Readonly<Record<string, SidebarSectionKey>> = {
-	'home-lead': 'needs-you',
+	'solo-lead': 'needs-you',
 	'api-work': 'needs-you',
-	'web-from-home': 'needs-you',
+	'web-from-solo': 'needs-you',
 	'web-follow-up': 'needs-you',
-	'site-from-home': 'in-progress',
+	'site-from-solo': 'in-progress',
 	'api-follow-up': 'in-progress',
 };
 
@@ -144,12 +144,8 @@ function branchOutline(sidebar: SidebarBranch): string[] {
 }
 
 describe('sidebarTree', () => {
-	it('puts Home chats first, then one block per owner, with all the work a chat started one level under it', () => {
+	it('lists one block per owner, with all the work a chat started one level under it', () => {
 		expect(outline(tree())).toEqual([
-			'chat home-lead',
-			'  web-from-home',
-			'  web-follow-up',
-			'  site-from-home',
 			'owner acme',
 			'  chat acme-lead',
 			'    api-from-acme',
@@ -160,6 +156,10 @@ describe('sidebarTree', () => {
 			'  repository acme/web',
 			'  repository acme/idle',
 			'owner solo',
+			'  chat solo-lead',
+			'    web-from-solo',
+			'    web-follow-up',
+			'    site-from-solo',
 			'  repository solo/site',
 			'repository folder',
 			'  folder-work',
@@ -179,17 +179,22 @@ describe('sidebarTree', () => {
 			'    api-follow-up',
 			'    api-follow-up-check',
 			'  repository acme/web',
-			'    web-from-home',
+			'    web-from-solo',
 			'    web-follow-up',
 			'  repository acme/idle',
 		]);
 	});
 
 	it('orders the workstreams a chat started by the saved order, across repositories', () => {
-		const order = ['site-from-home', 'web-follow-up', 'web-from-home'];
-		expect(
-			outline(tree(ALL_FOCUS, [], DEFAULT_SIDEBAR_ARRANGEMENT, WORKSTREAMS, order)).slice(0, 4),
-		).toEqual(['chat home-lead', '  site-from-home', '  web-follow-up', '  web-from-home']);
+		const order = ['site-from-solo', 'web-follow-up', 'web-from-solo'];
+		const lines = outline(tree(ALL_FOCUS, [], DEFAULT_SIDEBAR_ARRANGEMENT, WORKSTREAMS, order));
+		const lead = lines.indexOf('  chat solo-lead');
+		expect(lines.slice(lead, lead + 4)).toEqual([
+			'  chat solo-lead',
+			'    site-from-solo',
+			'    web-follow-up',
+			'    web-from-solo',
+		]);
 	});
 
 	it('lists every workstream of a startedBy cycle at the top of its repository', () => {
@@ -199,7 +204,6 @@ describe('sidebarTree', () => {
 			stream('pong-check', 'acme/api', 'pong'),
 		];
 		expect(outline(tree(ALL_FOCUS, [], DEFAULT_SIDEBAR_ARRANGEMENT, cycle)).slice(0, 8)).toEqual([
-			'chat home-lead',
 			'owner acme',
 			'  chat acme-lead',
 			'  repository acme/api',
@@ -207,6 +211,7 @@ describe('sidebarTree', () => {
 			'    pong',
 			'    pong-check',
 			'  repository acme/web',
+			'  repository acme/idle',
 		]);
 	});
 
@@ -222,16 +227,16 @@ describe('sidebarTree', () => {
 		expect(outline(tree(ALL_FOCUS, ['acme/idle', 'acme/web']))).not.toContain(
 			'  repository acme/idle',
 		);
-		expect(sidebarWorkstreamIds(tree(ALL_FOCUS, ['acme/web']))).not.toContain('web-from-home');
+		expect(sidebarWorkstreamIds(tree(ALL_FOCUS, ['acme/web']))).not.toContain('web-from-solo');
 	});
 
 	it('groups by repository: no owner folders, and every chat above the repositories', () => {
 		const byRepository = arranged({ grouping: 'repository' });
 		expect(outline(tree(ALL_FOCUS, [], byRepository))).toEqual([
-			'chat home-lead',
-			'  web-from-home',
+			'chat solo-lead',
+			'  web-from-solo',
 			'  web-follow-up',
-			'  site-from-home',
+			'  site-from-solo',
 			'chat acme-lead',
 			'  api-from-acme',
 			'repository acme/api',
@@ -256,16 +261,12 @@ describe('sidebarTree', () => {
 			name: id.replace(/^[a-z]+-/u, ''),
 		});
 		const workstreams = [
-			named('api-zeta', 'acme/api', 'home-lead'),
+			named('api-zeta', 'acme/api', 'solo-lead'),
 			named('api-alpha', 'acme/api'),
 			named('sdk-aaa', 'logdash/sdk', 'api-zeta'),
 			named('api-beta', 'acme/api', 'api-zeta'),
 		];
 		expect(outline(tree(ALL_FOCUS, [], arranged({ ordering: 'name' }), workstreams))).toEqual([
-			'chat home-lead',
-			'  sdk-aaa',
-			'  api-beta',
-			'  api-zeta',
 			'owner acme',
 			'  chat acme-lead',
 			'  repository acme/api',
@@ -276,6 +277,10 @@ describe('sidebarTree', () => {
 			'owner logdash',
 			'  repository logdash/sdk',
 			'owner solo',
+			'  chat solo-lead',
+			'    sdk-aaa',
+			'    api-beta',
+			'    api-zeta',
 			'  repository solo/site',
 		]);
 	});
@@ -292,8 +297,8 @@ describe('sidebarTree', () => {
 				],
 			}),
 			leads: [
-				stream('old-chat', 'lead', null, 'home', at(7)),
-				stream('new-chat', 'lead', null, 'home', at(11)),
+				stream('old-chat', 'lead', null, 'owner:solo', at(7)),
+				stream('new-chat', 'lead', null, 'owner:solo', at(11)),
 			],
 			hiddenRepositoryIds: new Set(),
 			focus: ALL_FOCUS,
@@ -303,9 +308,9 @@ describe('sidebarTree', () => {
 			sectionOf,
 		});
 		expect(outline(sidebar)).toEqual([
-			'chat new-chat',
-			'chat old-chat',
 			'owner solo',
+			'  chat new-chat',
+			'  chat old-chat',
 			'  repository solo/site',
 			'    new-site',
 			'owner acme',
@@ -318,15 +323,15 @@ describe('sidebarTree', () => {
 
 	it('lists every listed workstream once, in order', () => {
 		expect(sidebarWorkstreamIds(tree())).toEqual([
-			'home-lead',
-			'web-from-home',
-			'web-follow-up',
-			'site-from-home',
 			'acme-lead',
 			'api-from-acme',
 			'api-work',
 			'api-follow-up',
 			'api-follow-up-check',
+			'solo-lead',
+			'web-from-solo',
+			'web-follow-up',
+			'site-from-solo',
 			'folder-work',
 			'sdk-from-api',
 		]);
@@ -336,19 +341,20 @@ describe('sidebarTree', () => {
 		const byStatus = arranged({ grouping: 'status', subgrouping: 'owner' });
 		expect(outline(tree(ALL_FOCUS, [], byStatus))).toEqual([
 			'section Needs you',
-			'  chat home-lead',
-			'    web-from-home',
-			'    web-follow-up',
 			'  owner acme',
 			'    repository acme/api',
 			'      api-work',
+			'  owner solo',
+			'    chat solo-lead',
+			'      web-from-solo',
+			'      web-follow-up',
 			'section In progress',
 			'  owner acme',
 			'    repository acme/api',
 			'      api-follow-up',
 			'  owner solo',
 			'    repository solo/site',
-			'      site-from-home',
+			'      site-from-solo',
 			'section Idle',
 			'  owner acme',
 			'    chat acme-lead',
@@ -368,8 +374,8 @@ describe('sidebarTree', () => {
 		const sidebar = tree(ALL_FOCUS, [], attention);
 		expect(outline(sidebar)).toEqual([
 			'section Needs you',
-			'  chat home-lead',
-			'    web-from-home',
+			'  chat solo-lead',
+			'    web-from-solo',
 			'    web-follow-up',
 			'  api-work',
 		]);
@@ -392,8 +398,8 @@ describe('sidebarTree', () => {
 		);
 		expect(outline(sidebar).slice(0, 6)).toEqual([
 			'section Needs you',
-			'  chat home-lead',
-			'    web-from-home',
+			'  chat solo-lead',
+			'    web-from-solo',
 			'    web-follow-up',
 			'  repository acme/api',
 			'    api-work',
@@ -410,7 +416,7 @@ describe('sidebarTree', () => {
 					stream('new-site', 'solo/site', null, null, at(10)),
 				],
 			}),
-			leads: [stream('chat', 'lead', null, 'home', at(9))],
+			leads: [stream('chat', 'lead', null, 'owner:solo', at(9))],
 			hiddenRepositoryIds: new Set(),
 			focus: ALL_FOCUS,
 			arrangement: arranged({ grouping: 'day', subgrouping: 'none', ordering: 'active' }),

@@ -264,7 +264,6 @@ export function schedulePlaces(fullNames: readonly string[]): readonly ScheduleP
 		.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
 	const owners = [...new Set(repositories.map((name) => githubOwnerFromFullName(name) ?? ''))];
 	return [
-		{ kind: 'home' },
 		...owners.flatMap((owner): SchedulePlace[] => [
 			{ kind: 'owner', owner },
 			...repositories
@@ -274,12 +273,16 @@ export function schedulePlaces(fullNames: readonly string[]): readonly ScheduleP
 	];
 }
 
+export function defaultSchedulePlace(fullNames: readonly string[]): SchedulePlace {
+	return schedulePlaces(fullNames)[0] ?? { kind: 'none' };
+}
+
 export function schedulePlaceValue(place: SchedulePlace): string {
-	return place.kind === 'home' ? '' : schedulePlaceName(place);
+	return schedulePlaceName(place);
 }
 
 export function scheduleRunsIn(place: SchedulePlace): string {
-	if (place.kind === 'home') return 'in its own chat at Home';
+	if (place.kind === 'none') return 'in the brain';
 	return place.kind === 'owner'
 		? `in its own chat in ${place.owner}`
 		: `in its own workstream of ${place.repository}`;

@@ -179,7 +179,7 @@ test('a merged workstream a chat started opens its pull request from the number 
 	const app = await launchMalini();
 	try {
 		await invoke(app.page, 'repositories.create-lead', {
-			scope: 'home',
+			scope: 'owner:acme',
 			workstreamId: 'e2e-lead-ships',
 			name: 'Ship hutch',
 		});
@@ -252,7 +252,7 @@ test('Draft all and Merge all on a chat ship the workstreams it started once the
 	const app = await launchMalini();
 	try {
 		await invoke(app.page, 'repositories.create-lead', {
-			scope: 'home',
+			scope: 'owner:acme',
 			workstreamId: 'e2e-lead-merges-all',
 			name: 'Ship hutch',
 		});

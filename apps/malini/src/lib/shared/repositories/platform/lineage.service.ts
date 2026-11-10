@@ -50,7 +50,7 @@ export async function workstreamLineage(
 			scope === null
 				? null
 				: {
-						owner: scope.kind === 'home' ? null : scope.owner,
+						owner: scope.owner,
 						repositories: catalog
 							.filter((repository) => leadScopeOwns(scope, repositoryOwner(repository.fullName)))
 							.flatMap(repositoryCheckouts),

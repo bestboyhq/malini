@@ -104,6 +104,7 @@ import {
 } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
+	archiveHomeChats,
 	archiveWorkstream,
 	createRepository,
 	createWorkstream,
@@ -288,7 +289,7 @@ export function registerRepositories(
 	const createLead = createLeadSpace(workstreams);
 	commands.define('repositories.create-lead', async (args: unknown) => {
 		const scope = parseLeadScope(requireString(args, 'scope'));
-		if (scope === null) throw new Error('invalid args: `scope` must be `home` or `owner:<owner>`');
+		if (scope === null) throw new Error('invalid args: `scope` must be `owner:<owner>`');
 		const lead = await createLead({
 			scope,
 			workstreamId: checkedWorkstreamId(args),
@@ -665,6 +666,7 @@ export function registerRepositories(
 		abortInstall: (workstreamId) => installs.abortAndWait(workstreamId),
 		cancelGitHubSignIn: () => githubSignIn.cancel(),
 		gh,
+		archiveHomeChats: () => archiveHomeChats(workstreams),
 		listLiveWorkstreamIds: () =>
 			listWorkstreams(db)
 				.filter((row) => row.status === 'active')

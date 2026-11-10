@@ -727,6 +727,14 @@ function composer(page: Page) {
 	return page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 }
 
+export async function openChatIn(page: Page, owner: string): Promise<void> {
+	const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+	await clickRevealedOnHover(
+		sidebar.getByTestId('sidebar-owner-folder').filter({ hasText: owner }),
+		sidebar.getByRole('button', { name: `New chat in ${owner}` }),
+	);
+}
+
 export async function sendPrompt(page: Page, text: string): Promise<void> {
 	const input = composer(page);
 	await expect(input).toBeVisible({ timeout: 20_000 });

@@ -109,7 +109,7 @@ function seed(): void {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: NOW,
-			scope: id === 'lead' ? 'home' : null,
+			scope: id === 'lead' ? 'owner:acme' : null,
 			startedBy,
 		});
 	workstream('lead', null);

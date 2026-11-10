@@ -236,7 +236,8 @@ async function placeTarget(
 ): Promise<Pick<RunAutomationArgs, 'workstreamId' | 'repositoryId' | 'scope'>> {
 	const previousId = latestScheduledWorkstreamId(db, definitionId);
 	const previous = listWorkstreams(db).find((workstream) => workstream.id === previousId);
-	if (place.kind !== 'repository') {
+	if (place.kind === 'none') return {};
+	if (place.kind === 'owner') {
 		const scope = leadScopeKey(place);
 		return previous?.scope === scope ? { workstreamId: previous.id, scope } : { scope };
 	}

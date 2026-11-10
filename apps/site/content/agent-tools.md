@@ -57,7 +57,7 @@ It never sees the value, and you never deal with a file or a path.
   Paste a value and **Save**.
   Paste `NAME=value` lines, from a `.env` file for example, anywhere in the chat, and they fill every field they name instead of landing in the composer.
   A value of several lines, such as a private key, keeps its line breaks.
-- Malini seals the value with your Mac's keychain, for the chat's repository, or for every repository when the chat is at Home or in an organization.
+- Malini seals the value with your Mac's keychain, for the chat's repository, or for every repository when the chat is in an organization.
   From then on `$NAME` is set in every command the agent runs there, including workstreams you start later and after you archive this one.
 - Malini tells the agent what you saved, and which names you left empty, which wakes it when it waits.
 - Every output the agent sees, a failing or background command's included, shows the value as `[secret]`, and so does the transcript.
@@ -108,7 +108,7 @@ Once it is set up, Malini sends the agent's prompt as that chat's first message,
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
 Malini remembers which chat started each workstream.
-The sidebar lists the workstream under the chat at Home or in an organization that started it, directly or through other workstreams, or else under its repository, and the row of the chat that started it shows a dot for it; its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
+The sidebar lists the workstream under the chat in an organization that started it, directly or through other workstreams, or else under its repository, and the row of the chat that started it shows a dot for it; its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
 A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) works through these tools alone: it reads the repositories in its scope and starts a workstream for each change.
 
 ### Work it started reports back
@@ -142,7 +142,7 @@ A [chat above your repositories](/malini/docs/chat.md#decisions) asks you its de
 
 A picture is a file in the checkout of a workstream the chat started, such as a variant its report embeds.
 The agent records a decision it made itself with `decided`, and the timeline shows it as **Lead decided**.
-Only a chat at Home or in an organization keeps decisions and a plan; any other chat says what you must decide in its `Needs:` line.
+Only a chat in an organization keeps decisions and a plan; any other chat says what you must decide in its `Needs:` line.
 
 ## Automations and events
 

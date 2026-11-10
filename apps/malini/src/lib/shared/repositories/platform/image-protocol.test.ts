@@ -157,7 +157,7 @@ describe('a lead', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt: NOW,
-				scope: startedBy === null ? 'home' : null,
+				scope: startedBy === null ? 'owner:acme' : null,
 				startedBy,
 			});
 		workstream('ws-lead', lead, null);

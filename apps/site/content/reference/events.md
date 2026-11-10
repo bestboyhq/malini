@@ -101,7 +101,7 @@ interface ChatTurnFinishedPayload {
 
 ## `chat:lead-decision-changed`
 
-Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.
+Fires when a chat in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.
 
 An automation sees: `decision.id`, `decision.sessionId`, `decision.workstreamId`, `decision.recommended`, `decision.askedAt`
 
@@ -239,7 +239,7 @@ type ShellRun = Readonly<{
 
 ## `repositories:workstream-created`
 
-Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `home` or `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.
+Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.
 
 An automation sees: `workstreamId`, `project.id`, `project.name`, `project.defaultBranch`, `workstream.id`, `workstream.projectId`, `workstream.path`, `workstream.branch`, `workstream.baseBranch`, `workstream.status`, `workstream.createdAt`, `workstream.scope`, `workstream.startedBy`
 

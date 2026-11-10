@@ -739,7 +739,7 @@ function seedLoop(db: MaliniDatabase): void {
 	seedWorkstream(db, 'ws-a', { createdAt: at(14, 9), archivedAt: at(14, 10), merged: true });
 	seedWorkstream(db, 'ws-b', { createdAt: at(13, 9), archivedAt: at(14, 12), merged: true });
 	seedWorkstream(db, 'ws-c', { createdAt: at(14, 13), archivedAt: at(14, 14) });
-	seedWorkstream(db, 'ws-lead', { createdAt: at(14, 9), scope: 'home' });
+	seedWorkstream(db, 'ws-lead', { createdAt: at(14, 9), scope: 'owner:acme' });
 	seedWorkstream(db, 'ws-today', { createdAt: at(15, 9) });
 	seedRun(db, 'r1', 'ws-a', at(14, 9, 5));
 	seedRun(db, 'r2', 'ws-a', at(14, 9, 30));

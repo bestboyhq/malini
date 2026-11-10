@@ -35,7 +35,7 @@ beforeEach(() => {
 		defaultBranch: 'main',
 		createdAt: NOW,
 	});
-	workstream('lead', 'Home', null, 'home');
+	workstream('lead', 'Home', null, 'owner:acme');
 	workstream('api', 'Api analytics', 'lead');
 	workstream('other', 'Other work', null);
 	for (const id of ['lead', 'api', 'other']) {

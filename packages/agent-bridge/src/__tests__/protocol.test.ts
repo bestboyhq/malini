@@ -761,7 +761,12 @@ describe('protocol: parseCommandLine', () => {
 			const withLineage = (lineage: unknown) =>
 				parseCommandLine(`{${prompt},"lineage":${JSON.stringify(lineage)}}`);
 			const checkout = { repository: 'a/b', branch: 'main', path: '/c' };
-			const lead = { owner: null, repositories: [checkout], workstreams: [], plan: '/plans/p.md' };
+			const lead = {
+				owner: 'acme',
+				repositories: [checkout],
+				workstreams: [],
+				plan: '/plans/p.md',
+			};
 			const startedBy = { name: 'Unify footers', lead: true, plan: '/plans/p.md' };
 			const lineage = { lead, startedBy, siblings: [checkout] };
 
@@ -771,6 +776,9 @@ describe('protocol: parseCommandLine', () => {
 			).toBe(true);
 			for (const broken of [
 				{ ...lineage, siblings: [{ ...checkout, branch: '' }] },
+				{ ...lineage, lead: { ...lead, owner: null } },
+				{ ...lineage, lead: { ...lead, owner: '' } },
+				{ ...lineage, lead: { ...lead, owner: undefined } },
 				{ ...lineage, lead: { ...lead, workstreams: undefined } },
 				{ ...lineage, lead: { ...lead, workstreams: [{ ...checkout, path: '' }] } },
 				{ ...lineage, lead: { ...lead, workstreams: Array.from({ length: 501 }, () => checkout) } },

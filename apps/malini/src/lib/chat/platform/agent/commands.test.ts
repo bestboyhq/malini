@@ -1813,7 +1813,7 @@ describe('bridge commands', () => {
 describe('lead chats', () => {
 	function seedLead(): void {
 		seedWorkstream(test.db, test.appDataRoot, 'lead');
-		run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'home' WHERE id = 'lead'`);
+		run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'owner:acme' WHERE id = 'lead'`);
 	}
 
 	async function bootRecording(): Promise<Array<Record<string, unknown>>> {

@@ -1,7 +1,7 @@
 import type { GithubRepository, Repository } from '$shared/repositories/domain/repository';
 import { isCloneUrl } from '$shared/repositories/domain/repository-connection';
 
-export type CommandCenterMode = 'commands' | 'find' | 'new-repository';
+export type CommandCenterMode = 'commands' | 'find' | 'new-repository' | 'start';
 
 export type CommandCenterCommand = Readonly<{
 	id: 'find' | 'new-repository' | 'open-folder' | 'new-chat' | 'settings';
@@ -35,6 +35,12 @@ export const COMMAND_CENTER_COMMANDS: readonly CommandCenterCommand[] = [
 	{ id: 'settings', label: 'Settings', keys: ['⌘', ','] },
 ];
 
+export const START_CHAT_CHIP: CommandCenterCommand = {
+	id: 'new-chat',
+	label: 'New chat',
+	keys: [],
+};
+
 const REPOSITORIES_BESIDE_COMMANDS = 5;
 
 export function commandCenterGroups(search: CommandCenterSearch): readonly CommandCenterGroup[] {
@@ -46,12 +52,17 @@ export function commandCenterGroups(search: CommandCenterSearch): readonly Comma
 		const text = `${repository.fullName} ${repository.description ?? ''}`.toLowerCase();
 		return terms.every((term) => text.includes(term));
 	});
-	if (search.mode === 'find') {
+	if (search.mode === 'find' || search.mode === 'start') {
 		if (search.repositories === null) return [];
-		if (found.length === 0) return [{ heading: null, entries: [{ kind: 'create', name: typed }] }];
+		if (found.length === 0) {
+			return search.mode === 'find'
+				? [{ heading: null, entries: [{ kind: 'create', name: typed }] }]
+				: [];
+		}
+		const listed = search.mode === 'find' ? 'Newest push first' : 'Connected first';
 		return [
 			{
-				heading: terms.length > 0 ? `${found.length} found` : 'Newest push first',
+				heading: terms.length > 0 ? `${found.length} found` : listed,
 				entries: found.map(repositoryEntry),
 			},
 		];
@@ -93,6 +104,17 @@ export function findableRepositories(
 			pushedAt: null,
 		}));
 	return [...github, ...elsewhere];
+}
+
+export function startableRepositories(
+	github: readonly GithubRepository[] | null,
+	connected: readonly Repository[],
+): readonly GithubRepository[] {
+	const known = findableRepositories(github ?? [], connected) ?? [];
+	const connectedNames = new Set(connected.map(({ fullName }) => fullName.toLowerCase()));
+	const isConnected = ({ fullName }: GithubRepository): boolean =>
+		connectedNames.has(fullName.toLowerCase());
+	return [...known.filter(isConnected), ...known.filter((repository) => !isConnected(repository))];
 }
 
 function repositoryEntry(repository: GithubRepository): CommandCenterEntry {

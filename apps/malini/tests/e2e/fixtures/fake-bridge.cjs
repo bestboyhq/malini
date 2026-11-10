@@ -1013,7 +1013,7 @@ const respond = async (sessionId, runId, prompt) => {
 			? ['Lineage: none']
 			: [
 					'Lead: ' +
-						(lineage.lead ? (lineage.lead.owner ?? 'Home') : 'no') +
+						(lineage.lead ? lineage.lead.owner : 'no') +
 						(lineage.lead
 							? ' reads ' +
 								lineage.lead.repositories

@@ -9,8 +9,7 @@ It restarts after 10 idle minutes, when you change the access, mode, report, ski
 
 ## Chats above repositories
 
-**New chat**, at the top of the sidebar, starts a chat at Home, above every repository.
-The **+** on an owner's row starts one for that organization.
+The **+** on an owner's row starts a chat for that organization, above every repository it owns.
 Such a chat plans and delegates: it reads Malini's clones of the repositories in its scope, and it never edits code.
 It starts a [workstream](/malini/docs/workstreams.md) for each change, with one repository and one prompt, so every decision it makes is a workstream you can see and checks gate every merge.
 

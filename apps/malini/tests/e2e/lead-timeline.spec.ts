@@ -9,6 +9,7 @@ import {
 	invoke,
 	launchMalini,
 	listEvents,
+	openChatIn,
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
@@ -41,14 +42,14 @@ function leadCalls(app: LaunchedApp, calls: readonly LeadCall[], reply: string):
 
 async function startLead(page: Page, title: string): Promise<Workstream> {
 	const before = page.url();
-	await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+	await openChatIn(page, 'acme');
 	await expect.poll(() => page.url()).not.toBe(before);
 	await sendPrompt(page, `Plan it TITLE="${title}"`);
 	await expect(sidebar(page).getByTestId('sidebar-chat').filter({ hasText: title })).toBeVisible({
 		timeout: 20_000,
 	});
 	await expect(timeline(page)).toBeVisible({ timeout: 20_000 });
-	const lead = (await workstreams(page)).find((workstream) => workstream.scope === 'home');
+	const lead = (await workstreams(page)).find((workstream) => workstream.scope === 'owner:acme');
 	if (!lead) throw new Error('the lead chat has no workstream');
 	return lead;
 }

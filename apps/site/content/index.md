@@ -28,7 +28,7 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 ## What is in the box
 
 - [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, which Malini takes from Draft to merged.
-- [Chat](/malini/docs/chat.md): chats at Home or for an organization that start workstreams across repositories, queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
+- [Chat](/malini/docs/chat.md): chats for an organization that start workstreams across its repositories, queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
 - [Automations](/malini/docs/automations.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
 - [Second brain](/malini/docs/brain.md): what you typed in your chats, logged in a private repository and turned into notes every week.
 - [Agent tools](/malini/docs/agent-tools.md): the browser, automations, and events, as tools the agent can call.

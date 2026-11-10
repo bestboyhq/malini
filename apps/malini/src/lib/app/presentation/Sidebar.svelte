@@ -7,11 +7,9 @@
 	import { slide, type SlideParams } from 'svelte/transition';
 	import { BusyIcon, ChatTileIcon, Icon } from '$hyper-ui/icons';
 	import {
-		HOME_SCOPE,
 		connectedRepositoryContexts,
 		hiddenRepositoriesQuery,
 		inSidebarOrder,
-		leadScopeLabel,
 		moveInSidebarCommand,
 		sidebarOrderQuery,
 		startLeadChatCommand,
@@ -1663,11 +1661,11 @@
 {/snippet}
 
 {#snippet newChatButton(scope: LeadScope)}
-	<Tooltip content={`New chat in ${leadScopeLabel(scope)}`} placement="top" class="relative">
+	<Tooltip content={`New chat in ${scope.owner}`} placement="top" class="relative">
 		<IconButton
 			variant="ghost"
 			size="sm"
-			ariaLabel={`New chat in ${leadScopeLabel(scope)}`}
+			ariaLabel={`New chat in ${scope.owner}`}
 			data-testid="sidebar-new-chat"
 			onclick={(event) => {
 				event.stopPropagation();
@@ -2003,7 +2001,7 @@
 						<li class="relative w-full min-w-0">
 							<ul class="flex w-full flex-col" aria-label="Chats">
 								<li class="w-full min-w-0">
-									{@render newChatRow('New chat', () => startLeadChatCommand(HOME_SCOPE))}
+									{@render newChatRow('New chat', () => openCommandCenterCommand('start'))}
 								</li>
 								{#each tree.chats as chat (chat.id)}
 									{@render workstreamItem(leadRow(chat), 0, chatIds)}

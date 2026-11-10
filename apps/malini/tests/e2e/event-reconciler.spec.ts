@@ -13,6 +13,7 @@ import {
 	launchMalini,
 	listEvents,
 	openAutomations,
+	openChatIn,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -101,7 +102,7 @@ async function leadStartsChild(app: LaunchedApp): Promise<void> {
 	await seedWorkstream(page, `file://${api}`, 'e2e-reconcile-api', 'Api work');
 	await page.reload();
 	const before = page.url();
-	await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+	await openChatIn(page, 'acme');
 	await expect.poll(() => page.url()).not.toBe(before);
 	await sendPrompt(page, `Plan it TITLE="${LEAD}"`);
 	await expect(leadRow(page)).toBeVisible({ timeout: 20_000 });

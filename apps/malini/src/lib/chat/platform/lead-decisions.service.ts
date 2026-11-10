@@ -136,7 +136,7 @@ function leadOf({ db }: LeadContext, sessionId: string): Workstream {
 	const workstream = session === null ? null : getWorkstream(db, session.workstreamId);
 	if (!workstream || workstream.scope === null) {
 		throw new Error(
-			'Only a chat at Home or in an organization keeps decisions and a plan. Say what the user must decide in your Needs line instead.',
+			'Only a chat in an organization keeps decisions and a plan. Say what the user must decide in your Needs line instead.',
 		);
 	}
 	return workstream;

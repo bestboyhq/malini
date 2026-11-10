@@ -1,4 +1,4 @@
-import { scheduleWhen } from '$contract/automation-trigger';
+import { scheduleWhen, type SchedulePlace } from '$contract/automation-trigger';
 import type { AutomationBuiltin } from '$contract/automations';
 import { scheduleOf } from '$lib/automations/domain/schedule';
 import { MANUAL_TRIGGER, TRIGGERS, triggerById } from './triggers';
@@ -111,10 +111,14 @@ export function guessTriggerId(text: string): string {
 
 const LEAD = /^(when|whenever|after|once|if|every)\b[^,]*,?\s*/iu;
 
-export function guessWhen(text: string): string | null {
+export function guessWhen(text: string, place: SchedulePlace): string | null {
 	const lead = LEAD.exec(text.trim())?.[0]?.trim().replace(/,$/u, '') ?? '';
 	const schedule = scheduleOf(lead);
-	return schedule ? scheduleWhen(schedule) : triggerById(guessTriggerId(text)).when;
+	if (!schedule) return triggerById(guessTriggerId(text)).when;
+	return scheduleWhen({
+		...schedule,
+		place: schedule.place.kind === 'none' ? place : schedule.place,
+	});
 }
 
 const THEN_STEPS: readonly Readonly<{ pattern: RegExp; then: AutomationBuiltin }>[] = [

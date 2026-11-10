@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_REPORTS, type AgentCheckout, type AgentReport } from '../agent-profile.js';
+import { AGENT_REPORTS, type AgentReport } from '../agent-profile.js';
 import { lineageInstructions, systemPromptAppend } from './instructions.js';
 
 const BODY_RULES: Record<AgentReport, string> = {
@@ -109,7 +109,7 @@ describe('systemPromptAppend', () => {
 	it('tells a lead chat to plan, delegate and bring the user decisions, in this order', () => {
 		const lead = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
 			lead: {
-				owner: null,
+				owner: 'acme',
 				repositories: [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }],
 				workstreams: [{ repository: 'acme/web', branch: 'malini/w1', path: '/workstreams/w1' }],
 				plan: '/plans/lead-1/plan.md',
@@ -135,7 +135,7 @@ describe('systemPromptAppend', () => {
 			'- acme/web on malini/w1:',
 			'</malini_lineage>',
 		]);
-		expect(lineage).toContain('You are a lead chat at Home, above every organization, level');
+		expect(lineage).toContain('You are a lead chat at the acme organization level in Malini.');
 		expect(lineage).toContain(
 			"- Malini starts each of your turns in a fresh Claude Code session, from this chat's timeline as the user sees it: their messages, your replies, the reports of the workstreams you started and the decisions. What you only read with tools in an earlier turn is gone, so keep what the work needs in your plan.",
 		);
@@ -155,21 +155,16 @@ describe('systemPromptAppend', () => {
 		);
 	});
 
-	it('has a Home lead set up the workspace first while Malini has no repositories', () => {
-		const setup =
-			"- Malini has no repositories yet, so set up the user's workspace first: work out which repositories their work needs from what they tell you and `gh repo list`, and add each with `repositories_clone`, one when one covers it. For a folder they name on this Mac, clone the URL of its `origin` remote. Then carry on with what they asked.";
-		const lead = (owner: string | null, repositories: AgentCheckout[]): string =>
-			lineageInstructions({
-				lead: { owner, repositories, workstreams: [], plan: '/plans/lead-1/plan.md' },
-				startedBy: null,
-				siblings: [],
-			});
+	it('names the organization a lead chat works for and sets up no workspace when it has no repositories', () => {
+		const lineage = lineageInstructions({
+			lead: { owner: 'acme', repositories: [], workstreams: [], plan: '/plans/lead-1/plan.md' },
+			startedBy: null,
+			siblings: [],
+		});
 
-		expect(lead(null, [])).toContain(setup);
-		expect(
-			lead(null, [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }]),
-		).not.toContain('no repositories yet');
-		expect(lead('acme', [])).not.toContain('no repositories yet');
+		expect(lineage).toContain('You are a lead chat at the acme organization level in Malini.');
+		expect(lineage).not.toContain('Home');
+		expect(lineage).not.toContain('no repositories yet');
 	});
 
 	it('hands a workstream a lead started its plan and siblings, and names no plan when it has none', () => {

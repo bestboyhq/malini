@@ -3,6 +3,7 @@ import type { GithubRepository, Repository } from '$shared/repositories/domain/r
 import {
 	commandCenterGroups,
 	findableRepositories,
+	startableRepositories,
 	type CommandCenterSearch,
 } from './command-center';
 
@@ -114,5 +115,45 @@ describe('the command center', () => {
 			'local/alpha',
 		]);
 		expect(findableRepositories(null, connected)).toBeNull();
+	});
+
+	it('starts a chat from the repositories you have first, then the rest of GitHub', () => {
+		const connected: Repository[] = [
+			{
+				id: 'gh:szymeo/dotfiles',
+				fullName: 'szymeo/dotfiles',
+				defaultBranch: 'main',
+				localPath: null,
+				remoteUrl: 'https://github.com/szymeo/dotfiles.git',
+				createdAt: '',
+			},
+			{
+				id: 'local:local__alpha',
+				fullName: 'local/alpha',
+				defaultBranch: 'main',
+				localPath: '/Users/ada/alpha',
+				remoteUrl: null,
+				createdAt: '',
+			},
+		];
+		const startable = startableRepositories(REPOSITORIES, connected);
+		expect(startable.map(({ fullName }) => fullName)).toEqual([
+			'szymeo/dotfiles',
+			'local/alpha',
+			'bestboyhq/malini',
+			'bestboyhq/grip',
+		]);
+		expect(startableRepositories(null, connected).map(({ fullName }) => fullName)).toEqual([
+			'szymeo/dotfiles',
+			'local/alpha',
+		]);
+		const groups = commandCenterGroups(
+			search({ mode: 'start', repositories: startable, query: 'grip' }),
+		);
+		expect(names(groups)).toEqual([['bestboyhq/grip']]);
+		expect(
+			commandCenterGroups(search({ mode: 'start', repositories: startable }))[0]?.heading,
+		).toBe('Connected first');
+		expect(commandCenterGroups(search({ mode: 'start', query: 'rabbit den' }))).toEqual([]);
 	});
 });

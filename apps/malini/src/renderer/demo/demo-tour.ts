@@ -63,13 +63,13 @@ export async function playTour(): Promise<void> {
 	if (!cursor) return;
 	const { click, find, wait } = cursor;
 	try {
-		const newChat = await find('[data-testid="sidebar-new-chat-row"]');
+		const newChat = await find('[data-testid="sidebar-new-chat"]');
 		const side = newChat.getBoundingClientRect();
 		const sidebar: CameraShot = { x: 0, y: 0, width: side.right + 16, height: innerHeight };
 		aim({ x: 0, y: 0, width: side.right + 40, height: (side.right + 40) * 0.78 });
 		await cue();
 		await wait(700);
-		await click(newChat, 0.3);
+		await click(newChat);
 
 		const editor = await find('[data-testid="chat-composer-input"]');
 		aim({ x: 0, y: 0, width: editor.getBoundingClientRect().right + 24, height: innerHeight });

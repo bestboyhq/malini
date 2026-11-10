@@ -1,6 +1,5 @@
 import type { AutomationRunRecord } from '$contract/automations';
 import {
-	leadScopeLabel,
 	parseLeadScope,
 	projectFullName,
 	projectsQuery,
@@ -14,7 +13,7 @@ export function automationPlace(
 	const leadScope = parseLeadScope(run?.scope ?? null);
 	const project = projectsQuery.data.find(({ id }) => id === run?.repositoryId);
 	return (
-		(leadScope && leadScopeLabel(leadScope)) ??
+		leadScope?.owner ??
 		workstreamNameQuery.data(workstreamId ?? '') ??
 		(project && projectFullName(project)) ??
 		null

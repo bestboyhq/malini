@@ -71,7 +71,7 @@ function seed(): void {
 		defaultBranch: 'main',
 		createdAt: NOW,
 	});
-	workstream('lead', 'Home', null, 'home');
+	workstream('lead', 'Home', null, 'owner:acme');
 	workstream('api', 'Api analytics', 'lead');
 	workstream('site', 'Site analytics', 'lead');
 	chat('lead-chat', 'lead');

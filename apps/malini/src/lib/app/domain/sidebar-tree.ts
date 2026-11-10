@@ -208,7 +208,7 @@ function branch(
 		keys.repository,
 	);
 	return {
-		chats: listedLeads.filter((workstream) => workstream.scope?.kind === 'home' || !folders),
+		chats: folders ? [] : listedLeads,
 		blocks: sorted(sidebarBlocks(repositories, listedLeads, focus, folders), ordering, keys.block),
 	};
 }
@@ -311,9 +311,7 @@ function treeKeys(
 function leadIsListed(lead: Workstream, focus: SidebarFocus): boolean {
 	if (lead.scope === null) return false;
 	if (focus.kind === 'all') return true;
-	return (
-		focus.kind === 'owner' && lead.scope.kind === 'owner' && leadScopeOwns(lead.scope, focus.owner)
-	);
+	return focus.kind === 'owner' && leadScopeOwns(lead.scope, focus.owner);
 }
 
 function repositoryInFocus(repository: ConnectedRepositoryContext, focus: SidebarFocus): boolean {

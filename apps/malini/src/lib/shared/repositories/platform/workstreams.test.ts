@@ -122,7 +122,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		if (!response.ok) throw new Error(response.error);
 		return response.value;
 	}
-	return { commands, events, invoke, db: context.db };
+	return { commands, events, invoke, db: context.db, context };
 }
 
 function seed(db: MainContext['db'], workstreamId: string, repoPath: string, path: string): void {
@@ -168,9 +168,9 @@ describe('lead chats', () => {
 		await mkdir(appDataRoot);
 		const { invoke, db } = harness(appDataRoot);
 
-		const home = await invoke<WorkstreamDto>('repositories.create-lead', {
-			scope: 'home',
-			workstreamId: 'lead-home',
+		const beta = await invoke<WorkstreamDto>('repositories.create-lead', {
+			scope: 'owner:beta',
+			workstreamId: 'lead-beta',
 			name: 'Golden Harbor',
 		});
 		const acme = await invoke<WorkstreamDto>('repositories.create-lead', {
@@ -178,13 +178,13 @@ describe('lead chats', () => {
 			workstreamId: 'lead-acme',
 			name: 'Swift Summit',
 		});
-		expect([home.scope, acme.scope]).toEqual(['home', 'owner:acme']);
-		expect([home.id, home.name, home.branch]).toEqual([
-			'lead-home',
+		expect([beta.scope, acme.scope]).toEqual(['owner:beta', 'owner:acme']);
+		expect([beta.id, beta.name, beta.branch]).toEqual([
+			'lead-beta',
 			'Golden Harbor',
-			'malini/lead-home',
+			'malini/lead-beta',
 		]);
-		expect([home.projectId, home.checkoutState, home.startedBy]).toEqual([
+		expect([beta.projectId, beta.checkoutState, beta.startedBy]).toEqual([
 			LEAD_SPACE_PROJECT_ID,
 			'healthy',
 			null,
@@ -192,14 +192,21 @@ describe('lead chats', () => {
 		expect(
 			(await realGit(join(appDataRoot, 'lead-space'), ['config', 'core.hooksPath'])).trim(),
 		).toBe('/dev/null');
-		await invoke('repositories.archive-workstream', { workstreamId: 'lead-home' });
-		await invoke('repositories.restore-workstream', { workstreamId: 'lead-home' });
-		expect(getWorkstream(db, 'lead-home')?.status).toBe('active');
+		await invoke('repositories.archive-workstream', { workstreamId: 'lead-beta' });
+		await invoke('repositories.restore-workstream', { workstreamId: 'lead-beta' });
+		expect(getWorkstream(db, 'lead-beta')?.status).toBe('active');
 		await expect(
 			invoke('repositories.create-lead', { scope: 'owner:', workstreamId: 'lead-x', name: 'X' }),
-		).rejects.toThrow('`scope` must be `home` or `owner:<owner>`');
+		).rejects.toThrow('`scope` must be `owner:<owner>`');
 		await expect(
-			invoke('repositories.create-lead', { scope: 'home', workstreamId: '../x', name: 'X' }),
+			invoke('repositories.create-lead', { scope: 'home', workstreamId: 'lead-x', name: 'X' }),
+		).rejects.toThrow('`scope` must be `owner:<owner>`');
+		await expect(
+			invoke('repositories.create-lead', {
+				scope: 'owner:acme',
+				workstreamId: '../x',
+				name: 'X',
+			}),
 		).rejects.toThrow('unsafe path');
 
 		const source = join(dir, 'acme', 'api');
@@ -247,8 +254,45 @@ describe('lead chats', () => {
 		await mkdir(dirname(plan), { recursive: true });
 		await writeFile(plan, '# Plan\n');
 		expect((await workstreamLineage(db, 'child-1'))?.startedBy?.plan).toBe(plan);
-		expect((await workstreamLineage(db, home.id))?.lead?.repositories).toHaveLength(1);
+		expect((await workstreamLineage(db, beta.id))?.lead?.repositories).toEqual([]);
 		expect(await workstreamLineage(db, 'solo')).toBeNull();
+	});
+});
+
+describe('Home chats', () => {
+	it('are archived by the boot sweep, cannot come back, and leave organization chats alone', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const appDataRoot = join(dir, 'app');
+		await mkdir(appDataRoot);
+		const { invoke, db, context } = harness(appDataRoot);
+		for (const workstreamId of ['lead-home', 'lead-acme']) {
+			await invoke('repositories.create-lead', {
+				scope: 'owner:acme',
+				workstreamId,
+				name: workstreamId,
+			});
+		}
+		db.prepare("UPDATE workstreams SET scope = 'home' WHERE id = ?").run('lead-home');
+		const homePath = getWorkstream(db, 'lead-home')?.path ?? '';
+		expect(existsSync(homePath)).toBe(true);
+
+		const restarted = registerRepositories(
+			{ ...context, commands: new CommandRegistry() },
+			{ shell: silentShell, startupReclaim: false },
+		);
+		cleanups.push(async () => restarted.watchers.dispose());
+		await restarted.archiveHomeChats();
+		expect(listArchivedWorkstreams(db).map(({ id }) => id)).toEqual(['lead-home']);
+		expect(getWorkstream(db, 'lead-home')?.status).toBe('archived');
+		expect(getWorkstream(db, 'lead-acme')?.status).toBe('active');
+
+		await archivedLeftoversCleared();
+		expect(existsSync(homePath)).toBe(false);
+		await expect(
+			invoke('repositories.restore-workstream', { workstreamId: 'lead-home' }),
+		).rejects.toThrow('Home chats are gone');
+		expect(listArchivedWorkstreams(db).map(({ id }) => id)).toEqual(['lead-home']);
 	});
 });
 

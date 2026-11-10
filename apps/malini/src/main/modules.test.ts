@@ -36,7 +36,10 @@ import {
 	archivedLeftoversCleared,
 	checkoutTrashRoot,
 } from '$shared/repositories/platform/teardown.service';
-import { upsertWorkstream } from '$shared/repositories/platform/workstreams.repository';
+import {
+	getWorkstream,
+	upsertWorkstream,
+} from '$shared/repositories/platform/workstreams.repository';
 import { createFakeHost } from '$lib/app/platform/test-support';
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -70,7 +73,11 @@ async function bootModules(
 	return { modules, names: harness.context.commands.names() };
 }
 
-async function strandedCheckout(harness: TestContext, workstreamId: string): Promise<string> {
+async function seededWorkstream(
+	harness: TestContext,
+	workstreamId: string,
+	scope: string | null,
+): Promise<string> {
 	const { base, checkout } = await workstreamFixture(harness.appDataRoot, workstreamId);
 	const createdAt = '2026-10-01T00:00:00.000Z';
 	upsertProject(harness.db, {
@@ -89,9 +96,14 @@ async function strandedCheckout(harness: TestContext, workstreamId: string): Pro
 		baseBranch: 'main',
 		status: 'active',
 		createdAt,
-		scope: null,
+		scope,
 		startedBy: null,
 	});
+	return checkout;
+}
+
+async function strandedCheckout(harness: TestContext, workstreamId: string): Promise<string> {
+	const checkout = await seededWorkstream(harness, workstreamId, null);
 	await mkdir(checkoutTrashRoot(harness.appDataRoot), { recursive: true });
 	await rename(
 		checkout,
@@ -135,5 +147,16 @@ describe('the main module graph', () => {
 			},
 			{ timeout: 10_000, interval: 500 },
 		);
+	});
+
+	it('archives a Home chat once boot has registered the modules teardown needs', async () => {
+		const harness = testContext();
+		await seededWorkstream(harness, 'ws-home', 'home');
+
+		await bootModules(harness);
+
+		await vi.waitFor(() => expect(getWorkstream(harness.db, 'ws-home')?.status).toBe('archived'), {
+			timeout: 10_000,
+		});
 	});
 });

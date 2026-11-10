@@ -71,14 +71,7 @@ export {
 export { displayWorkstreamName, isPlaceholderWorkstreamName } from './domain/workstream-names';
 export { workstreamLeads } from './domain/workstream-leads';
 
-export {
-	HOME_SCOPE,
-	leadScopeKey,
-	leadScopeLabel,
-	leadScopeOwns,
-	parseLeadScope,
-	type LeadScope,
-} from './domain/lead-scope';
+export { leadScopeKey, leadScopeOwns, parseLeadScope, type LeadScope } from './domain/lead-scope';
 
 export {
 	inSidebarOrder,

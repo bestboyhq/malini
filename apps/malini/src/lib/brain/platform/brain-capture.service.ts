@@ -4,6 +4,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
 import { parseTurnReport, userPromptText } from '$lib/chat/chat.platform';
 import {
+	RETIRED_HOME_SCOPE_KEY,
 	parseLeadScope,
 	workstreamRepositoryName,
 } from '$shared/repositories/repositories.platform';
@@ -79,7 +80,7 @@ function typedText(event: string): string | null {
 
 async function placeOf(db: MaliniDatabase, row: TypedPromptRow): Promise<string> {
 	const scope = parseLeadScope(row.scope);
-	if (scope?.kind === 'home') return 'Home';
-	if (scope?.kind === 'owner') return scope.owner;
+	if (scope) return scope.owner;
+	if (row.scope === RETIRED_HOME_SCOPE_KEY) return 'Home';
 	return (await workstreamRepositoryName(db, row.workstreamId)) ?? 'a removed repository';
 }

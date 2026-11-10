@@ -1920,6 +1920,14 @@ BEGIN
   WHERE excluded.observed_at > claude_plan_usage.observed_at;
 END;
 `,
+	`
+UPDATE automation_definitions
+SET trigger_when = NULL, trigger_mode = NULL
+WHERE trigger_when IS NOT NULL
+  AND lower(trim(trigger_when)) LIKE 'every %'
+  AND lower(trigger_when) NOT LIKE '% in %'
+  AND (builtin IS NULL OR builtin != 'write-brain-notes');
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
