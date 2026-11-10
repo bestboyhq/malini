@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: a chat, Changelog in every footer, with the three workstreams it started in malini, grip and tony nested under it, above more workstreams in the sidebar. The tony one is open: its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
+  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: the sidebar lists the repositories malini, grip and tony. The malini chat Changelog in every footer started three workstreams, one in each, all named Changelog link in the footer. The tony one is open: a card says Changelog in every footer started it, its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
 </p>
 
 ---

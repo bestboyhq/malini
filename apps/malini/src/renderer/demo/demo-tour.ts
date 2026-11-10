@@ -63,7 +63,7 @@ export async function playTour(): Promise<void> {
 	if (!cursor) return;
 	const { click, find, wait } = cursor;
 	try {
-		const newChat = await find('[data-testid="sidebar-new-chat"]');
+		const newChat = await find('[data-testid="sidebar-new-chat-row"]');
 		const side = newChat.getBoundingClientRect();
 		const sidebar: CameraShot = { x: 0, y: 0, width: side.right + 16, height: innerHeight };
 		aim({ x: 0, y: 0, width: side.right + 40, height: (side.right + 40) * 0.78 });
@@ -74,9 +74,9 @@ export async function playTour(): Promise<void> {
 		const picker = await find('[role="dialog"][aria-label="Command center"]');
 		aim(around([picker], 40));
 		await wait(900);
-		const from = location.pathname;
+		const from = location.hash;
 		await click(await find('[role="listbox"] [role="option"]'));
-		while (location.pathname === from) await wait(100);
+		while (location.hash === from) await wait(100);
 
 		const editor = await find('[data-testid="chat-composer-input"]');
 		aim({ x: 0, y: 0, width: editor.getBoundingClientRect().right + 24, height: innerHeight });

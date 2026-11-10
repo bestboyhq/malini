@@ -42,6 +42,7 @@ import {
 import { runGit } from '$main/git/run';
 import { statusCollector } from '$main/git/status';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
+import { isRetiredChat } from '../domain/retired-chats';
 import type { RepositoriesPlatform } from '../repositories.platform';
 import {
 	field,
@@ -237,9 +238,9 @@ export function registerRepositories(
 
 	commands.define('repositories.list-workstreams', () => {
 		const activeAt = workstreamActiveTimes(db);
-		return listWorkstreams(db).map((row) =>
-			workstreamDto(checkoutsRoot, row, activeAt.get(row.id) ?? row.createdAt),
-		);
+		return listWorkstreams(db)
+			.filter((row) => !isRetiredChat(row))
+			.map((row) => workstreamDto(checkoutsRoot, row, activeAt.get(row.id) ?? row.createdAt));
 	});
 
 	commands.define('repositories.list-archived-workstreams', () => listArchived(workstreams));
