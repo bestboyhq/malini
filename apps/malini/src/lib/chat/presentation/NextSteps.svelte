@@ -70,13 +70,18 @@
 			>
 				<Icon name="chevrons-right" size={14} ariaLabel="Next step" />
 			</Tooltip>
-			<MarkdownText
-				text={step}
-				mode="prose"
-				class="text-fg-default line-clamp-2 min-w-0 flex-1 select-text"
-				{onopenfile}
-				{canopenfile}
-			/>
+			{#snippet fullStep()}
+				<MarkdownText text={step} mode="inline" />
+			{/snippet}
+			<Tooltip content={fullStep} placement="top" onlyWhenTruncated class="min-w-0 flex-1">
+				<MarkdownText
+					text={step}
+					mode="inline"
+					class="text-fg-default block min-w-0 flex-1 truncate select-text"
+					{onopenfile}
+					{canopenfile}
+				/>
+			</Tooltip>
 			{#if handled[index]}
 				<span class="text-2xs text-fg-tertiary flex h-6 shrink-0 items-center gap-1">
 					<Icon name="check" size={12} />
