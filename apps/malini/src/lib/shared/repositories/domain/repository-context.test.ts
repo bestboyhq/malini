@@ -38,7 +38,6 @@ const stream = (overrides: Partial<Workstream> = {}): Workstream => ({
 	checkoutState: 'healthy',
 	checkoutIssue: null,
 	resolvedPath: null,
-	scope: null,
 	startedBy: null,
 	...overrides,
 });

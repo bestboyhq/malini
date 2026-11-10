@@ -448,7 +448,6 @@ export interface RunFact {
 	readonly outputTokens: number;
 	readonly workstreamId: string;
 	readonly projectId: string;
-	readonly lead: boolean;
 }
 
 export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
@@ -463,7 +462,6 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		output_tokens: number;
 		workstream_id: string;
 		project_id: string;
-		lead: number;
 	}>(
 		db,
 		`SELECT r.id, r.started_at, r.completed_at,
@@ -480,8 +478,7 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		          FROM agent_events e
 		          WHERE e.run_id = r.id AND e.event LIKE 'user.message' || char(10) || '%'
 		          ORDER BY e.seq LIMIT 1) IS NOT NULL) AS automated,
-		        r.input_tokens, r.output_tokens, s.workstream_id, w.project_id,
-		        w.scope IS NOT NULL AS lead
+		        r.input_tokens, r.output_tokens, s.workstream_id, w.project_id
 		 FROM agent_runs r
 		 JOIN agent_sessions s ON s.id = r.session_id
 		 JOIN workstreams w ON w.id = s.workstream_id
@@ -500,7 +497,6 @@ export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
 		outputTokens: row.output_tokens,
 		workstreamId: row.workstream_id,
 		projectId: row.project_id,
-		lead: row.lead === 1,
 	}));
 }
 
@@ -672,7 +668,7 @@ export function typedRun(db: MaliniDatabase, runId: string): TypedRun | null {
 		 FROM agent_runs r
 		 JOIN agent_sessions s ON s.id = r.session_id
 		 JOIN workstreams w ON w.id = s.workstream_id
-		 WHERE r.id = ? AND r.automated = 0 AND s.origin = 'user' AND w.scope IS NULL
+		 WHERE r.id = ? AND r.automated = 0 AND s.origin = 'user'
 		   AND NOT EXISTS (SELECT 1 FROM agent_deliveries d WHERE d.run_id = r.id)`,
 		runId,
 	);

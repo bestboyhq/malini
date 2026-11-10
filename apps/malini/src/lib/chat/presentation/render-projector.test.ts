@@ -27,7 +27,7 @@ describe('IncrementalRenderProjector', () => {
 				type: 'user.message',
 				runId: 'run-1',
 				text: 'Inspect and edit',
-				from: 'lead-1',
+				from: 'starter-1',
 			}),
 			envelope(2, {
 				type: 'tool.started',
@@ -69,7 +69,7 @@ describe('IncrementalRenderProjector', () => {
 		}
 		expect(firstRun(projector.project(envelopes)).items[0]).toMatchObject({
 			kind: 'user',
-			from: 'lead-1',
+			from: 'starter-1',
 		});
 	});
 

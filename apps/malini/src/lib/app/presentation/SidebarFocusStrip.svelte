@@ -18,6 +18,7 @@
 		DEFAULT_SIDEBAR_ARRANGEMENT,
 		SIDEBAR_GROUPINGS,
 		SIDEBAR_ORDERINGS,
+		SIDEBAR_SHOWS,
 		SIDEBAR_SUBGROUPINGS,
 		isDefaultArrangement,
 		sectionedGrouping,
@@ -26,7 +27,12 @@
 	import { ALL_FOCUS, focusKey, sameFocus } from '$lib/app/domain/sidebar-focus';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import ArrangeChoice from './ArrangeChoice.svelte';
-	import { GROUPING_ICONS, ORDERING_ICONS, SUBGROUPING_ICONS } from './sidebar-arrangement-icons';
+	import {
+		GROUPING_ICONS,
+		ORDERING_ICONS,
+		SHOW_ICONS,
+		SUBGROUPING_ICONS,
+	} from './sidebar-arrangement-icons';
 
 	interface Props {
 		active: SidebarFocus;
@@ -128,6 +134,14 @@
 						onchoose={(subgrouping) => onarrange({ subgrouping })}
 					/>
 				{/if}
+				<ArrangeChoice
+					icon="eye"
+					label="Show"
+					value={arrangement.show}
+					choices={SIDEBAR_SHOWS}
+					icons={SHOW_ICONS}
+					onchoose={(show) => onarrange({ show })}
+				/>
 				<ArrangeChoice
 					icon="arrow-up-down"
 					label="Ordering"

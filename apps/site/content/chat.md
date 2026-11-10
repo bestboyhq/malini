@@ -7,68 +7,28 @@ Every chat runs your own Claude Code, through the Claude Agent SDK, inside the c
 It keeps running between prompts, so your MCP servers stay connected.
 It restarts after 10 idle minutes, when you change the access, mode, report, skills or context window or switch Claude accounts, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
 
-## Chats above repositories
+## Work a chat starts
 
-**New chat**, at the top of the sidebar, starts a chat at Home, above every repository.
-The **+** on an owner's row starts one for that organization.
-Such a chat plans and delegates: it reads Malini's clones of the repositories in its scope, and it never edits code.
-It starts a [workstream](/malini/docs/workstreams.md) for each change, with one repository and one prompt, so every decision it makes is a workstream you can see and checks gate every merge.
+A chat starts workstreams with [`workstreams_create`](/malini/docs/agent-tools.md#work-it-started-reports-back), in its own repository or in another one Malini has.
+Each is a [workstream](/malini/docs/workstreams.md) with one repository and one prompt, so everything a chat delegates is work you can see and checks gate every merge.
 
-- It opens at once and sets itself up behind the chat.
-  A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
-- The top bar counts how many of the workstreams it started merged and which need you.
-  A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
-  Under that count, **Started here** lists every workstream the chat started by name and repository: lines added and removed while it is open, and when it merged once it lands.
-  **×** on a merged one, or **Clear merged** on the heading, clears merged work from the list, the dots and the count for good; once everything the chat started is merged and cleared, the top bar says **All merged**.
-  It stays above the browser tabs once the chat's agent opens a page.
+- **Started here**, at the top of the chat's inspector above **Files** and the browser tabs, lists every workstream the chat started by name and repository: lines added and removed while it is open, and when it merged once it lands.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
-  **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
-- **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/automations.md#reconciler) runs the **Open draft** or **Merge** [automation](/malini/docs/automations.md#run-an-automation) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
+  **×** on a merged one, or **Clear merged** on the heading, clears merged work from the list and the dots for good.
+- The chat's row in the sidebar shows a dot for each workstream it started, archived ones last.
+  Hover the row for a card that counts how many merged and which need you, and lists them.
+- **Draft all** and **Merge all**, in that card, log a **Button clicked**, and the [Shipping rule](/malini/docs/automations.md#reconciler) runs the **Open draft** or **Merge** [automation](/malini/docs/automations.md#run-an-automation) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
   Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
   A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
   Those workstreams keep their rows calm, with no unread mark and no blue, amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
   An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
   The chat's row lights up for the chat's own turns and for a request of theirs that waits in it, never for a turn they end, so it shows only what you have to do.
-  Grouped by Status it sits where the most pressing of the chat and its workstreams belongs, with its workstreams under it.
+  Grouped by Status it sits where the most pressing of the chat and its workstreams belongs.
   A pull request of theirs that needs you says so in a toast that names the chat and opens it.
-- It has no repository, so it shows no **Files**.
-  Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
-- A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
-  Hover the chat's row to list them.
-  It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
-  The × beside **Started by** disconnects it from that chat: its turns stop reporting there, the chat can no longer send it prompts, and it leaves the chat's row in the sidebar.
-- The agent in that workstream knows which chat started it, reads the chat's [plan](#one-plan), and reads the checkouts of the other workstreams that chat started.
-
-### The timeline
-
-The chat reads as a timeline: one line for each thing that happened, with its time, on one rail.
-Your messages, the reports of the workstreams it started, what the lead started, sent, archived or ran, and the decisions all sit on it, and **Now** marks what is going on at the moment.
-Past turns fade; point at a line to read it.
-Everything the lead read or ran between two messages folds into one line, such as **Lead worked · 4 steps**, and **Show work** lists the steps.
-The lead's latest message shows in full, and each earlier one folds to its Outcome line until you open it.
-A report shows the pictures its workstream embedded; click one to see it full size and flip through the rest.
-An approval the lead waits on, such as running **Merge**, shows as a card on the timeline.
-
-Every turn of the lead starts a fresh Claude Code session from what the timeline shows, with the model, effort and access you picked.
-So a chat that runs for days never fills its context, and the lead keeps what the work needs in its plan.
-
-### Decisions
-
-The lead brings you what only you can decide, one decision at a time, in a card above the composer.
-Each option shows its picture, or its name when it has none, and the lead marks the one it recommends and says what it builds meanwhile.
-Click an option to pick it, or open an option full size to flip between them with the arrow keys and pick one with an optional reason, which the lead hears.
-An option can be a whole page, which opens live.
-**‹ 1 of 3 ›** moves between open decisions, and **Later**, or Escape, folds them into a **decisions wait for you** row above the composer.
-The composer stays under the card: write to the lead in your own words, and it records the decisions your message answers.
-A decision sits on the timeline once made, with **Change** to pick again, and the lead hears every pick and every change.
-The lead names open decisions in its `Needs:` line, so its row says it needs you and Malini plays the sound and sends the notification.
-
-### One plan
-
-The lead keeps one plan, `.context/plan.md` in its own folder: what each workstream builds, the contract between them and the decisions so far.
-It writes the plan before it starts workstreams, and every workstream it starts gets the plan's path and reads it before it begins.
-When the plan changes, the lead tells the workstreams it affects.
+- A workstream the chat starts shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
+  The × beside **Started by** disconnects it from that chat: its turns stop reporting there and the chat can no longer send it prompts.
+- The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
 
 ## Queue or steer
 
@@ -276,7 +236,7 @@ What changed and what was verified read as one line each, with an icon for each,
 Reports run from a screenshot and one line to the full write-up.
 Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
-A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, or which chat, for [the workstreams a chat started](#chats-above-repositories).
+A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, or which chat, for [the workstreams a chat started](#work-a-chat-starts).
 
 ### Next steps
 

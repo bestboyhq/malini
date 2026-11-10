@@ -118,7 +118,7 @@ function addRepository(context: MainContext): void {
 	context.events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
 }
 
-function addWorkstream(context: MainContext, scope: string | null = null): void {
+function addWorkstream(context: MainContext): void {
 	context.events.emit(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, {
 		workstreamId: 'ws-a',
 		project: {
@@ -137,7 +137,6 @@ function addWorkstream(context: MainContext, scope: string | null = null): void 
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: at(15, 9),
-			scope,
 			startedBy: null,
 		},
 	});
@@ -410,15 +409,6 @@ describe('usage journeys', () => {
 		]);
 		const marker = launched.tags[launched.activity.indexOf('first_workstream')];
 		expect(marker).toEqual({ cohort: '2026-10-15', days: 0 });
-	});
-
-	it('counts no workstream created for the lead space', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		const launched = harness(context, undefined, { freshInstall: true });
-		await settled();
-		addWorkstream(context, 'home');
-		await settled();
-		expect(launched.activity).not.toContain('first_workstream');
 	});
 
 	it('sends no merge marker when a ship changes without a merge', async () => {
@@ -724,22 +714,28 @@ function at(day: number, hour: number, minute = 0): string {
 	return new Date(2026, 9, day, hour, minute).toISOString();
 }
 
-function seedProject(db: MaliniDatabase): void {
+function seedProject(db: MaliniDatabase, id = 'p'): void {
 	run(
 		db,
 		`INSERT INTO projects (id, name, repo_path, default_branch, created_at)
-		 VALUES ('p', 'p', '/tmp/repo', 'main', ?)`,
+		 VALUES (?, ?, '/tmp/repo', 'main', ?)`,
+		id,
+		id,
 		at(1, 9),
 	);
 }
 
 function seedLoop(db: MaliniDatabase): void {
 	seedProject(db);
+	seedProject(db, 'malini-lead-space');
 	seedWorkstream(db, 'ws-old', { createdAt: at(1, 9) });
 	seedWorkstream(db, 'ws-a', { createdAt: at(14, 9), archivedAt: at(14, 10), merged: true });
 	seedWorkstream(db, 'ws-b', { createdAt: at(13, 9), archivedAt: at(14, 12), merged: true });
 	seedWorkstream(db, 'ws-c', { createdAt: at(14, 13), archivedAt: at(14, 14) });
-	seedWorkstream(db, 'ws-lead', { createdAt: at(14, 9), scope: 'home' });
+	seedWorkstream(db, 'ws-retired', {
+		createdAt: at(14, 9),
+		projectId: 'malini-lead-space',
+	});
 	seedWorkstream(db, 'ws-today', { createdAt: at(15, 9) });
 	seedRun(db, 'r1', 'ws-a', at(14, 9, 5));
 	seedRun(db, 'r2', 'ws-a', at(14, 9, 30));
@@ -748,7 +744,7 @@ function seedLoop(db: MaliniDatabase): void {
 	seedRun(db, 'r5', 'ws-b', at(13, 10));
 	seedRun(db, 'r6', 'ws-b', at(14, 11));
 	seedRun(db, 'r7', 'ws-b', at(14, 11, 30));
-	seedRun(db, 'r8', 'ws-lead', at(14, 9, 10));
+	seedRun(db, 'r8', 'ws-retired', at(14, 9, 10));
 	seedRun(db, 'r9', 'ws-today', at(15, 9, 5));
 	run(db, "UPDATE agent_runs SET automated = 1 WHERE id = 'r7'");
 }
@@ -756,19 +752,24 @@ function seedLoop(db: MaliniDatabase): void {
 function seedWorkstream(
 	db: MaliniDatabase,
 	id: string,
-	options: Readonly<{ createdAt: string; archivedAt?: string; merged?: boolean; scope?: string }>,
+	options: Readonly<{
+		createdAt: string;
+		archivedAt?: string;
+		merged?: boolean;
+		projectId?: string;
+	}>,
 ): void {
 	run(
 		db,
 		`INSERT INTO workstreams
-		   (id, project_id, name, path, branch, base_branch, status, created_at, scope,
+		   (id, project_id, name, path, branch, base_branch, status, created_at,
 		    archived_at, merged_pull_request_number)
-		 VALUES (?, 'p', ?, '/tmp/ws', 'malini/ws', 'main', ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, '/tmp/ws', 'malini/ws', 'main', ?, ?, ?, ?)`,
 		id,
+		options.projectId ?? 'p',
 		id,
 		options.archivedAt ? 'archived' : 'active',
 		options.createdAt,
-		options.scope ?? null,
 		options.archivedAt ?? null,
 		options.merged ? 7 : null,
 	);

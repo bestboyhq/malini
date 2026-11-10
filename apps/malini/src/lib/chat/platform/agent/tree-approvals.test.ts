@@ -34,16 +34,16 @@ beforeEach(() => {
 	test = createTestContext();
 	fake = writeFakeBridge();
 	runtime = null;
-	seedWorkstream(test.db, test.appDataRoot, 'lead');
+	seedWorkstream(test.db, test.appDataRoot, 'root');
 	seedWorkstream(test.db, test.appDataRoot, 'api');
 	seedWorkstream(test.db, test.appDataRoot, 'other');
-	run(test.db, `UPDATE workstreams SET name = 'Home', scope = 'home' WHERE id = 'lead'`);
+	run(test.db, `UPDATE workstreams SET name = 'Ship analytics' WHERE id = 'root'`);
 	run(
 		test.db,
-		`UPDATE workstreams SET name = 'Api analytics', started_by = 'lead' WHERE id = 'api'`,
+		`UPDATE workstreams SET name = 'Api analytics', started_by = 'root' WHERE id = 'api'`,
 	);
 	run(test.db, `UPDATE workstreams SET name = 'Other work' WHERE id = 'other'`);
-	seedSession(test.db, 'lead-chat', 'lead');
+	seedSession(test.db, 'root-chat', 'root');
 	run(
 		test.db,
 		`INSERT INTO automation_definitions
@@ -70,12 +70,12 @@ async function call(tool: string, input: object): Promise<void> {
 		log: () => {},
 	});
 	await runtime.start();
-	const supervisor = await runtime.ensureSessionReady('lead-chat');
-	seedOpenRun(test.db, 'run-1', 'lead-chat');
+	const supervisor = await runtime.ensureSessionReady('root-chat');
+	seedOpenRun(test.db, 'run-1', 'root-chat');
 	await supervisor.sendCommand({
 		cmd: 'send_prompt',
 		id: 'p',
-		sessionId: 'lead-chat',
+		sessionId: 'root-chat',
 		runId: 'run-1',
 		prompt: `MALINI_APPROVAL:${tool}:${JSON.stringify(input)}`,
 	});
@@ -87,7 +87,7 @@ async function answered(): Promise<void> {
 }
 
 function approval() {
-	return getInteraction(test.db, 'approval', 'lead-chat', 'run-1', 'approval-1');
+	return getInteraction(test.db, 'approval', 'root-chat', 'run-1', 'approval-1');
 }
 
 function asked(): boolean {
@@ -148,8 +148,8 @@ describe('Malini calls inside the chat’s own tree', () => {
 		rememberPermissionRule(test.db, {
 			id: 'rule-archive',
 			scope: 'workstream',
-			workstreamId: 'lead',
-			sessionId: 'lead-chat',
+			workstreamId: 'root',
+			sessionId: 'root-chat',
 			permissionFingerprint: maliniActionFingerprint('workstreams.archive'),
 			permissionJson: JSON.stringify(maliniActionPermission('workstreams.archive')),
 			createdRunId: null,

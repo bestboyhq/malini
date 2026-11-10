@@ -55,13 +55,13 @@ describe('parseAutomationTrigger event phrases', () => {
 });
 
 describe('parseAutomationTrigger schedules', () => {
-	it('reads a day, the weekdays or one day of the week at a time, at Home without a place', () => {
+	it('reads a day, the weekdays or one day of the week at a time, with no place when none is named', () => {
 		expect(parseAutomationTrigger('every weekday at 9:05')).toEqual({
 			kind: 'schedule',
 			cadence: 'weekday',
 			hour: 9,
 			minute: 5,
-			place: { kind: 'home' },
+			place: { kind: 'none' },
 			description: 'Every weekday at 9:05',
 		});
 		expect(parseAutomationTrigger('Every Monday at 17:30')).toMatchObject({
@@ -70,10 +70,10 @@ describe('parseAutomationTrigger schedules', () => {
 		});
 	});
 
-	it('reads an organization or a repository as the place it runs in', () => {
-		expect(parseAutomationTrigger('every day at 07:00 in bestboyhq')).toMatchObject({
-			place: { kind: 'owner', owner: 'bestboyhq' },
-		});
+	it('reads a repository as the place it runs in and refuses an organization', () => {
+		expect(() => parseAutomationTrigger('every day at 07:00 in bestboyhq')).toThrow(
+			/Unsupported schedule/u,
+		);
 		expect(parseAutomationTrigger('every day at 07:00 in bestboyhq/malini')).toMatchObject({
 			place: { kind: 'repository', repository: 'bestboyhq/malini' },
 		});

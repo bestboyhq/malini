@@ -1,13 +1,7 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { AgentCheckout, AgentLineage } from '$contract/agent';
-import { LEAD_PLAN_PATH } from '$contract/leads';
 import type { Workstream } from '$contract/repositories';
 import type { MaliniDatabase } from '$main/db/driver';
-import { leadScopeOwns, parseLeadScope } from '../domain/lead-scope';
-import { repositoryOwner } from '../domain/repository-context';
-import { listProjects } from './projects.repository';
-import { listRepositoryCatalog, type CatalogRepository } from './repository-catalog';
+import { listRepositoryCatalog } from './repository-catalog';
 import { getWorkstream, listWorkstreams } from './workstreams.repository';
 
 export async function workstreamLineage(
@@ -16,24 +10,9 @@ export async function workstreamLineage(
 ): Promise<AgentLineage | null> {
 	const workstream = getWorkstream(db, workstreamId);
 	if (workstream === null) return null;
-	const scope = parseLeadScope(workstream.scope);
 	const parent = workstream.startedBy === null ? null : getWorkstream(db, workstream.startedBy);
-	if (scope === null && parent === null) return null;
+	if (parent === null) return null;
 	const catalog = await listRepositoryCatalog(db);
-	const projects = new Map(listProjects(db).map((project) => [project.id, project]));
-	const repositoryCheckouts = (repository: CatalogRepository): AgentCheckout[] =>
-		repository.projectIds.flatMap((projectId) => {
-			const project = projects.get(projectId);
-			return project
-				? [
-						{
-							repository: repository.fullName,
-							branch: project.defaultBranch,
-							path: project.repoPath,
-						},
-					]
-				: [];
-		});
 	const workstreamCheckout = (sibling: Workstream): AgentCheckout => ({
 		repository:
 			catalog.find((repository) => repository.projectIds.includes(sibling.projectId))?.fullName ??
@@ -41,39 +20,10 @@ export async function workstreamLineage(
 		branch: sibling.branch,
 		path: sibling.path,
 	});
-	const open = listWorkstreams(db);
-	const startedBy = (starterId: string): Workstream[] =>
-		open.filter((other) => other.startedBy === starterId && other.scope === null);
-	const parentPlan = parent === null ? null : leadPlanPath(parent.path);
 	return {
-		lead:
-			scope === null
-				? null
-				: {
-						owner: scope.kind === 'home' ? null : scope.owner,
-						repositories: catalog
-							.filter((repository) => leadScopeOwns(scope, repositoryOwner(repository.fullName)))
-							.flatMap(repositoryCheckouts),
-						workstreams: startedBy(workstream.id).map(workstreamCheckout),
-						plan: leadPlanPath(workstream.path),
-					},
-		startedBy:
-			parent === null
-				? null
-				: {
-						name: parent.name,
-						lead: parent.scope !== null,
-						plan: parentPlan !== null && existsSync(parentPlan) ? parentPlan : null,
-					},
-		siblings:
-			parent === null
-				? []
-				: startedBy(parent.id)
-						.filter((sibling) => sibling.id !== workstream.id)
-						.map(workstreamCheckout),
+		startedBy: { name: parent.name },
+		siblings: listWorkstreams(db)
+			.filter((other) => other.startedBy === parent.id && other.id !== workstream.id)
+			.map(workstreamCheckout),
 	};
-}
-
-export function leadPlanPath(worktree: string): string {
-	return join(worktree, LEAD_PLAN_PATH);
 }

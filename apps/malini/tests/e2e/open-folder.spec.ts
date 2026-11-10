@@ -17,8 +17,6 @@ import {
 
 const OPEN_FOLDER = 'Open a local repository folder';
 
-const LEAD_SPACE_PROJECT_ID = 'malini-lead-space';
-
 declare global {
 	var openFolderBusyLabels: string[];
 }
@@ -177,7 +175,5 @@ async function expectScratchpadOf(page: Page, repository: string): Promise<void>
 }
 
 async function repositoryIds(page: Page): Promise<string[]> {
-	return (await listProjects(page))
-		.map((project) => project.id)
-		.filter((id) => id !== LEAD_SPACE_PROJECT_ID);
+	return (await listProjects(page)).map((project) => project.id);
 }

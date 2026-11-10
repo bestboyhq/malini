@@ -10,6 +10,7 @@
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
+	import { connectedRepositoriesQuery } from '$shared/repositories/repositories.api';
 	import { AUTOMATIONS_RECIPES_HREF } from '$shared/router/routes-hrefs';
 	import { createAutomationCommand } from '$lib/automations/application/commands/create-automation.command';
 	import { automationRunsForDefinitionQuery } from '$lib/automations/application/queries/automation-runs-for-definition.query.svelte';
@@ -25,7 +26,7 @@
 	import AutomationSuggestionCard from './AutomationSuggestionCard.svelte';
 	import RecipeCard from './RecipeCard.svelte';
 	import { draftFromWords, guessWhen, RECIPES } from './recipes';
-	import { triggerFor } from './triggers';
+	import { defaultSchedulePlace, triggerFor } from './triggers';
 
 	interface Props {
 		automations: readonly AutomationDefinitionRecord[];
@@ -47,8 +48,13 @@
 	const reading = $derived(
 		automationsState.text.trim() ? draftFromWords(automationsState.text) : null,
 	);
+	const defaultPlace = $derived(
+		defaultSchedulePlace(connectedRepositoriesQuery.data.map(({ fullName }) => fullName)),
+	);
 	const readingTrigger = $derived(
-		automationsState.text.trim() ? triggerFor(guessWhen(automationsState.text)) : null,
+		automationsState.text.trim()
+			? triggerFor(guessWhen(automationsState.text, defaultPlace))
+			: null,
 	);
 
 	$effect(() => {

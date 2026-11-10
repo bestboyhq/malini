@@ -26,8 +26,8 @@ export function progressDot(input: ProgressInput): ProgressDot {
 
 const PRESSING_DOTS: readonly ProgressDot[] = ['blocked', 'needs', 'failed', 'running'];
 
-export function treeDot(lead: ProgressDot, started: readonly ProgressDot[]): ProgressDot {
-	return PRESSING_DOTS.find((dot) => dot === lead || started.includes(dot)) ?? lead;
+export function treeDot(parent: ProgressDot, started: readonly ProgressDot[]): ProgressDot {
+	return PRESSING_DOTS.find((dot) => dot === parent || started.includes(dot)) ?? parent;
 }
 
 export function progressOf(dots: readonly ProgressDot[]): Progress {
@@ -55,33 +55,6 @@ export function progressLabel(dots: readonly ProgressDot[]): string {
 	].filter((part): part is string => part !== null);
 	const total = `${dots.length} ${dots.length === 1 ? 'workstream' : 'workstreams'}`;
 	return parts.length > 0 ? `${total}: ${parts.join(', ')}` : total;
-}
-
-export type LeadHeadline = Readonly<{
-	tone: 'idle' | 'asks' | 'needs-you' | 'merged';
-	busy: boolean;
-	label: string;
-	detail: string | null;
-}>;
-
-export function leadHeadline(dots: readonly ProgressDot[], cleared = 0): LeadHeadline {
-	if (dots.length === 0) {
-		return cleared > 0
-			? { tone: 'merged', busy: false, label: 'All merged', detail: null }
-			: { tone: 'idle', busy: false, label: 'No workstreams yet', detail: null };
-	}
-	const progress = progressOf(dots);
-	const detail = [
-		progress.blocked + progress.needs > 0 ? needYou(progress.blocked + progress.needs) : null,
-		progress.failed > 0 ? `${progress.failed} failed` : null,
-		progress.running > 0 ? `${progress.running} working` : null,
-	].filter((part): part is string => part !== null);
-	return {
-		tone: headlineTone(progress, dots.length),
-		busy: progress.running > 0,
-		label: `${progress.merged} of ${dots.length} merged`,
-		detail: detail.length > 0 ? detail.join(' · ') : null,
-	};
 }
 
 export type ShipCandidate = Readonly<{
@@ -116,12 +89,6 @@ export function standingLabel(dot: ProgressDot, pullRequest: PullRequestPhase): 
 	if (dot === 'running') return pullRequest === 'queued' ? 'Merging' : 'Working';
 	if (pullRequest === 'open') return 'In review';
 	return pullRequest === 'draft' ? 'Draft' : 'Waiting';
-}
-
-function headlineTone(progress: Progress, total: number): LeadHeadline['tone'] {
-	if (progress.blocked + progress.failed > 0) return 'needs-you';
-	if (progress.needs > 0) return 'asks';
-	return progress.merged === total ? 'merged' : 'idle';
 }
 
 function needYou(count: number): string {

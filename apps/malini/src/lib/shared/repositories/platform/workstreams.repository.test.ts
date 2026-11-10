@@ -37,7 +37,6 @@ describe('projects and workstreams', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt,
-				scope: null,
 				startedBy: null,
 			});
 		}
@@ -59,7 +58,6 @@ describe('projects and workstreams', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: '2026-07-03T00:00:01Z',
-			scope: null,
 			startedBy: null,
 		});
 		expect(getWorkstream(db, 'w-9')).toBeNull();
@@ -99,7 +97,6 @@ describe('projects and workstreams', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt: '2026-07-03T00:00:02Z',
-				scope: null,
 				startedBy: null,
 			},
 		);
@@ -127,7 +124,6 @@ describe('projects and workstreams', () => {
 					baseBranch: 'main',
 					status: 'not-a-status' as 'active',
 					createdAt: '2026-07-03T00:00:03Z',
-					scope: null,
 					startedBy: null,
 				},
 			),

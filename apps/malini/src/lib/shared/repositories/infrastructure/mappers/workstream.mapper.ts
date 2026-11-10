@@ -1,4 +1,3 @@
-import { parseLeadScope } from '$shared/repositories/domain/lead-scope';
 import type {
 	ArchivedWorkstream,
 	MergedPullRequest,
@@ -35,7 +34,6 @@ type RawWorkstream = {
 	checkoutState?: string;
 	checkoutIssue?: string | null;
 	resolvedPath?: string | null;
-	scope?: unknown;
 	startedBy?: unknown;
 };
 
@@ -60,7 +58,6 @@ export class WorkstreamMapper {
 			checkoutState: toCheckoutState(raw.checkoutState),
 			checkoutIssue: raw.checkoutIssue ?? null,
 			resolvedPath: raw.resolvedPath ?? null,
-			scope: toScope(raw.scope),
 			startedBy: toStartedBy(raw.startedBy),
 		};
 	}
@@ -81,7 +78,6 @@ export class ArchivedWorkstreamMapper {
 					mergedPullRequest,
 					savedForLater,
 					clearedFromStarter,
-					scope,
 					startedBy,
 				}) => ({
 					id,
@@ -92,15 +88,10 @@ export class ArchivedWorkstreamMapper {
 					mergedPullRequest: toMergedPullRequest(mergedPullRequest),
 					savedForLater: savedForLater === true,
 					clearedFromStarter: clearedFromStarter === true,
-					scope: toScope(scope),
 					startedBy: toStartedBy(startedBy),
 				}),
 			);
 	}
-}
-
-function toScope(value: unknown): ArchivedWorkstream['scope'] {
-	return typeof value === 'string' ? parseLeadScope(value) : null;
 }
 
 function toStartedBy(value: unknown): string | null {
@@ -114,12 +105,11 @@ function toMergedPullRequest(value: unknown): MergedPullRequest | null {
 
 function isRawArchivedWorkstream(value: unknown): value is Omit<
 	ArchivedWorkstream,
-	'mergedPullRequest' | 'savedForLater' | 'clearedFromStarter' | 'scope' | 'startedBy'
+	'mergedPullRequest' | 'savedForLater' | 'clearedFromStarter' | 'startedBy'
 > & {
 	mergedPullRequest?: unknown;
 	savedForLater?: unknown;
 	clearedFromStarter?: unknown;
-	scope?: unknown;
 	startedBy?: unknown;
 } {
 	return (

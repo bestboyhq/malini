@@ -59,7 +59,6 @@ export type DemoWorkstream = Readonly<{
 	tree: readonly string[];
 	runs: readonly DemoRun[];
 	ship: Pick<ShipStateRecord, 'phase' | 'step' | 'pullRequestNumber'> | null;
-	scope?: string;
 	startedBy?: string;
 }>;
 
@@ -109,6 +108,8 @@ const TREES: Readonly<Record<string, readonly string[]>> = {
 		'site/tests/og.test.ts',
 	],
 };
+
+export const treeOf = (projectId: string): readonly string[] => TREES[projectId] ?? [];
 
 export const WORKSTREAMS: readonly DemoWorkstream[] = [
 	{
@@ -431,19 +432,18 @@ export const SETUP_WORKSTREAM: DemoWorkstream = {
 export type StartedWorkstream = DemoWorkstream &
 	Readonly<{ workMs: number; thought: string; opens?: string }>;
 
-const LEAD_WORKSTREAM: DemoWorkstream = {
+const OG_DIRECTIONS: DemoWorkstream = {
 	id: 'ws-og-lead',
-	projectId: 'malini-lead-space',
+	projectId: 'malini',
 	name: 'OG image directions',
-	branch: 'main',
+	branch: 'malini/og-image-directions',
 	activeAt: at('10:44'),
 	files: [],
 	tree: [],
 	ship: null,
-	scope: `owner:${OWNER}`,
 	runs: [
 		{
-			id: 'run-og-lead-1',
+			id: 'run-og-directions-1',
 			prompt:
 				'I don’t like our OG images. Show me directions we could take them, across all our sites.',
 			startedAt: at('10:12'),
@@ -462,7 +462,7 @@ const LEAD_WORKSTREAM: DemoWorkstream = {
 			usage: { inputTokens: 21_900, outputTokens: 1_640 },
 		},
 		{
-			id: 'run-og-lead-2',
+			id: 'run-og-directions-2',
 			prompt:
 				'None of these variants fit; make new ones.\nWhy: They look like every other dev tool',
 			startedAt: at('10:20'),
@@ -481,7 +481,7 @@ const LEAD_WORKSTREAM: DemoWorkstream = {
 			usage: { inputTokens: 24_310, outputTokens: 1_720 },
 		},
 		{
-			id: 'run-og-lead-3',
+			id: 'run-og-directions-3',
 			prompt: 'Go with variant B (Product).\nWhy: Show the app, not a logo',
 			startedAt: at('10:31'),
 			tools: [],
@@ -495,7 +495,7 @@ const LEAD_WORKSTREAM: DemoWorkstream = {
 			usage: { inputTokens: 26_050, outputTokens: 1_190 },
 		},
 		{
-			id: 'run-og-lead-4',
+			id: 'run-og-directions-4',
 			prompt: 'Show me the winner on malini, before and after.',
 			startedAt: at('10:44'),
 			tools: [],
@@ -528,7 +528,6 @@ export function workstreamDto(workstream: DemoWorkstream): WorkstreamDto {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: workstream.runs[0]?.startedAt ?? workstream.activeAt,
-		scope: workstream.scope ?? null,
 		startedBy: workstream.startedBy ?? null,
 		activeAt: workstream.activeAt,
 		checkoutState: 'healthy',
@@ -540,7 +539,7 @@ export function workstreamDto(workstream: DemoWorkstream): WorkstreamDto {
 export const sessionId = (workstreamId: string): string => `session-${workstreamId}`;
 
 export function reportedWorkstream(id: string): DemoWorkstream | undefined {
-	return [...WORKSTREAMS, LEAD_WORKSTREAM, SETUP_WORKSTREAM].find(
+	return [...WORKSTREAMS, OG_DIRECTIONS, SETUP_WORKSTREAM].find(
 		(workstream) => workstream.id === id,
 	);
 }

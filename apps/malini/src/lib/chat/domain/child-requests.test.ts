@@ -10,14 +10,13 @@ function run(sessionId: string | null, status: AutomationRunStatus): AutomationR
 		title: 'Address review',
 		workstreamId: 'switch',
 		repositoryId: null,
-		scope: null,
 		sessionId,
 		agentRunId: null,
 		origin: 'manual',
 		status,
 		detail: null,
 		parentRunId: null,
-		chatSessionId: 'lead-chat',
+		chatSessionId: 'root-chat',
 		chatAfterRunId: null,
 		chainId: `run-${sessionId}`,
 		requests: 1,
@@ -51,7 +50,7 @@ describe('askingChildren', () => {
 	it('brings up automations that need you and child chats waiting on you, once each, never the shown chat', () => {
 		expect(
 			askingChildren(
-				'lead-chat',
+				'root-chat',
 				[
 					run('automation-chat', 'needs-you'),
 					run('busy-automation', 'running'),
@@ -62,7 +61,7 @@ describe('askingChildren', () => {
 					session('docs-chat', 'waiting_for_approval'),
 					session('fix-chat', 'waiting_for_approval', 'automation'),
 					session('idle-chat', 'completed'),
-					session('lead-chat', 'waiting_for_approval'),
+					session('root-chat', 'waiting_for_approval'),
 				],
 			),
 		).toEqual([
@@ -74,9 +73,9 @@ describe('askingChildren', () => {
 
 	it('reaches every workstream started down the tree, and stops at a loop', () => {
 		expect(
-			descendantWorkstreamIds('lead', [
-				{ id: 'lead', startedBy: 'grandchild' },
-				{ id: 'child', startedBy: 'lead' },
+			descendantWorkstreamIds('root', [
+				{ id: 'root', startedBy: 'grandchild' },
+				{ id: 'child', startedBy: 'root' },
 				{ id: 'grandchild', startedBy: 'child' },
 				{ id: 'great-grandchild', startedBy: 'grandchild' },
 				{ id: 'sibling', startedBy: null },

@@ -1,6 +1,6 @@
 # 0113 - A lead keeps one plan that every workstream it starts reads
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

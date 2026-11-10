@@ -472,7 +472,6 @@ export class IncrementalRenderProjector {
 					...(event.reports?.length
 						? { reports: event.reports.map((report) => ({ ...report })) }
 						: {}),
-					...(event.decisions?.length ? { decisions: [...event.decisions] } : {}),
 					...(envelope.at === undefined ? {} : { at: envelope.at }),
 				});
 				return;

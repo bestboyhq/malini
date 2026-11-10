@@ -99,49 +99,6 @@ interface ChatTurnFinishedPayload {
 }
 ```
 
-## `chat:lead-decision-changed`
-
-Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.
-
-An automation sees: `decision.id`, `decision.sessionId`, `decision.workstreamId`, `decision.recommended`, `decision.askedAt`
-
-Payload: `LeadDecisionChangedEvent`
-
-```ts
-type LeadDecisionPicture = Readonly<{ workstreamId: string; path: string }>;
-
-type LeadDecisionOption = Readonly<{
-	label: string;
-	note: string | null;
-	picture: LeadDecisionPicture | null;
-}>;
-
-type LeadDecisionDecider = 'you' | 'lead';
-
-type LeadDecisionAnswer = Readonly<{
-	option: number;
-	by: LeadDecisionDecider;
-	reason: string | null;
-	at: string;
-}>;
-
-type LeadDecision = Readonly<{
-	id: string;
-	sessionId: string;
-	workstreamId: string;
-	topic: string;
-	question: string;
-	why: string | null;
-	options: readonly LeadDecisionOption[];
-	recommended: number;
-	meanwhile: string | null;
-	askedAt: string;
-	answer: LeadDecisionAnswer | null;
-}>;
-
-type LeadDecisionChangedEvent = Readonly<{ decision: LeadDecision }>;
-```
-
 ## `chat:delivery-changed`
 
 Fires when Malini holds a prompt for a chat that is on a turn, delivers it once that turn ends, or cannot deliver it, such as a prompt one chat sends the chat of a workstream it started. Malini does not keep it in its event log.
@@ -239,9 +196,9 @@ type ShellRun = Readonly<{
 
 ## `repositories:workstream-created`
 
-Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `home` or `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.
+Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.startedBy` is the id of the workstream whose chat started it.
 
-An automation sees: `workstreamId`, `project.id`, `project.name`, `project.defaultBranch`, `workstream.id`, `workstream.projectId`, `workstream.path`, `workstream.branch`, `workstream.baseBranch`, `workstream.status`, `workstream.createdAt`, `workstream.scope`, `workstream.startedBy`
+An automation sees: `workstreamId`, `project.id`, `project.name`, `project.defaultBranch`, `workstream.id`, `workstream.projectId`, `workstream.path`, `workstream.branch`, `workstream.baseBranch`, `workstream.status`, `workstream.createdAt`, `workstream.startedBy`
 
 Payload: `WorktreeAddedPayload`
 
@@ -263,7 +220,6 @@ interface GitWorkstreamRecord {
 	baseBranch: string;
 	status: string;
 	createdAt: string;
-	scope: string | null;
 	startedBy: string | null;
 }
 
@@ -715,7 +671,7 @@ type WorkstreamOpenedEvent = Readonly<{ workstreamId: string }>;
 
 Fires whenever an automation run waits for you, is queued, starts, needs you, finishes as succeeded, failed or cancelled, or runs again because its agent went on after the background commands its turn ended over. Malini does not keep it in its event log: it keeps `automations:run-started` and `automations:run-finished`.
 
-An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repositoryId`, `run.scope`, `run.sessionId`, `run.agentRunId`, `run.origin`, `run.status`, `run.parentRunId`, `run.chatSessionId`, `run.chatAfterRunId`, `run.chainId`, `run.createdAt`, `run.startedAt`, `run.finishedAt`
+An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repositoryId`, `run.sessionId`, `run.agentRunId`, `run.origin`, `run.status`, `run.parentRunId`, `run.chatSessionId`, `run.chatAfterRunId`, `run.chainId`, `run.createdAt`, `run.startedAt`, `run.finishedAt`
 
 Payload: `AutomationRunChangedEvent`
 
@@ -732,7 +688,6 @@ type AutomationRunRecord = Readonly<{
 	title: string;
 	workstreamId: string | null;
 	repositoryId: string | null;
-	scope: string | null;
 	sessionId: string | null;
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
@@ -755,7 +710,7 @@ type AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;
 
 Fires when an automation run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.
 
-An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repositoryId`, `run.scope`, `run.sessionId`, `run.agentRunId`, `run.origin`, `run.status`, `run.parentRunId`, `run.chatSessionId`, `run.chatAfterRunId`, `run.chainId`, `run.createdAt`, `run.startedAt`, `run.finishedAt`
+An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repositoryId`, `run.sessionId`, `run.agentRunId`, `run.origin`, `run.status`, `run.parentRunId`, `run.chatSessionId`, `run.chatAfterRunId`, `run.chainId`, `run.createdAt`, `run.startedAt`, `run.finishedAt`
 
 Payload: `AutomationRunChangedEvent`
 
@@ -772,7 +727,6 @@ type AutomationRunRecord = Readonly<{
 	title: string;
 	workstreamId: string | null;
 	repositoryId: string | null;
-	scope: string | null;
 	sessionId: string | null;
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
@@ -795,7 +749,7 @@ type AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;
 
 Fires when an automation run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. An automation runs after another on it, such as `on automations:run-finished where run.status is failed`. A run whose turn ended while only background commands run finishes at once, and when its agent goes on once they end, it runs again and fires this again at its next end.
 
-An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repositoryId`, `run.scope`, `run.sessionId`, `run.agentRunId`, `run.origin`, `run.status`, `run.parentRunId`, `run.chatSessionId`, `run.chatAfterRunId`, `run.chainId`, `run.createdAt`, `run.startedAt`, `run.finishedAt`
+An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repositoryId`, `run.sessionId`, `run.agentRunId`, `run.origin`, `run.status`, `run.parentRunId`, `run.chatSessionId`, `run.chatAfterRunId`, `run.chainId`, `run.createdAt`, `run.startedAt`, `run.finishedAt`
 
 Payload: `AutomationRunChangedEvent`
 
@@ -812,7 +766,6 @@ type AutomationRunRecord = Readonly<{
 	title: string;
 	workstreamId: string | null;
 	repositoryId: string | null;
-	scope: string | null;
 	sessionId: string | null;
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;

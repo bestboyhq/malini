@@ -221,7 +221,6 @@ function seedWorkstream(workstreamId: string): void {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
-		scope: null,
 		startedBy: null,
 	});
 }
@@ -433,7 +432,6 @@ describe('automation definitions', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: '2026-10-12T00:00:00.000Z',
-			scope: null,
 			startedBy: null,
 		});
 		const changes = {
@@ -1011,7 +1009,6 @@ describe('scheduling', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: NOW,
-			scope: null,
 			startedBy: null,
 		});
 		const definition = await saveDefinition({ runsIn: 'new-workstream' });
@@ -1291,7 +1288,6 @@ describe('restart', () => {
 				title: definition.name,
 				workstreamId,
 				repositoryId: null,
-				scope: null,
 				sessionId,
 				agentRunId: sessionId === null ? null : `${id}-first-run`,
 				origin: 'merge-queue',
@@ -2050,10 +2046,14 @@ describe('repeat runs', () => {
 	it('holds the fourth run of an automation in one workstream from one chain of events until you confirm it', async () => {
 		openRuns.add('ws-a');
 		openRuns.add('ws-b');
-		chatTurn('lead-chat', 'lead-turn', 'ws-c');
+		chatTurn('starter-chat', 'starter-turn', 'ws-c');
 		const definition = await saveDefinition();
 		const fromTurn = (workstreamId: string) =>
-			runOf(definition, { workstreamId, chatSessionId: 'lead-chat', chatAfterRunId: 'lead-turn' });
+			runOf(definition, {
+				workstreamId,
+				chatSessionId: 'starter-chat',
+				chatAfterRunId: 'starter-turn',
+			});
 
 		const runs = [
 			await fromTurn('ws-a'),
@@ -2064,15 +2064,15 @@ describe('repeat runs', () => {
 		const other = await fromTurn('ws-b');
 
 		expect(runs.map((run) => [run.status, run.chainId])).toEqual([
-			['queued', 'lead-turn'],
-			['queued', 'lead-turn'],
-			['queued', 'lead-turn'],
-			['waiting', 'lead-turn'],
+			['queued', 'starter-turn'],
+			['queued', 'starter-turn'],
+			['queued', 'starter-turn'],
+			['waiting', 'starter-turn'],
 		]);
 		expect(runs[3]?.detail).toBe(
 			'It already ran 3 times in one chain of events, so Malini asks before it runs again.',
 		);
-		expect(other).toMatchObject({ status: 'queued', chainId: 'lead-turn' });
+		expect(other).toMatchObject({ status: 'queued', chainId: 'starter-turn' });
 	});
 
 	it('runs shipping automations in the chain of the read that caused it, outside the budget of that chain', async () => {

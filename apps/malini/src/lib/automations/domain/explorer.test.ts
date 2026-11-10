@@ -92,7 +92,6 @@ function run(
 		title: id,
 		workstreamId: 'api',
 		repositoryId: null,
-		scope: null,
 		sessionId: null,
 		agentRunId: null,
 		origin: 'manual',
@@ -122,9 +121,9 @@ const wake: ReconcilerDecisionRecord = {
 		{ kind: 'nothing', label: 'Do nothing' },
 		{
 			kind: 'wake-chat',
-			label: 'Tell “Lead” that asked finished',
-			sessionId: 'lead-chat',
-			workstreamId: 'lead',
+			label: 'Tell “Starter” that asked finished',
+			sessionId: 'starter-chat',
+			workstreamId: 'starter',
 			from: 'api',
 			report: 'asked, the automation you ran in “Api analytics”, finished.',
 		},
@@ -165,22 +164,22 @@ const RECORD: TimelineRecord = {
 		run('fix', 20, { origin: 'merge-queue', createdAt: at(15) }),
 		run('announce', 22, { origin: 'trigger', eventIds: [2] }),
 		run('notes', 23, { origin: 'then', parentRunId: 'fix', eventIds: [2] }),
-		run('asked', 25, { chatAfterRunId: 'lead-wake' }),
+		run('asked', 25, { chatAfterRunId: 'starter-wake' }),
 		run('orphan', 40, { origin: 'then', parentRunId: 'gone', chainId: 'other' }),
 		run('nightly', 45, { origin: 'schedule', chainId: 'nightly' }),
 	],
 	turns: [
-		turn('lead-turn', 'lead', 5),
-		turn('api-turn', 'api', 10, { from: 'lead' }),
-		turn('lead-wake', 'lead', 14, { from: 'api' }),
-		turn('lead-told', 'lead', 28, { causeEventId: 12, from: 'api' }),
+		turn('starter-turn', 'starter', 5),
+		turn('api-turn', 'api', 10, { from: 'starter' }),
+		turn('starter-wake', 'starter', 14, { from: 'api' }),
+		turn('starter-told', 'starter', 28, { causeEventId: 12, from: 'api' }),
 		turn('resumed', 'site', 50, { resumed: true, chainId: 'other', finishedAt: null }),
 	],
 	decisions: [wake],
 	workstreams: [
 		{ id: 'site', name: 'Site analytics', repository: 'solo/site', startedBy: null },
-		{ id: 'api', name: 'Api analytics', repository: 'acme/api', startedBy: 'lead' },
-		{ id: 'lead', name: 'Move apps to Logdash', repository: null, startedBy: null },
+		{ id: 'api', name: 'Api analytics', repository: 'acme/api', startedBy: 'starter' },
+		{ id: 'starter', name: 'Move apps to Logdash', repository: null, startedBy: null },
 	],
 };
 
@@ -189,15 +188,15 @@ describe('explorer', () => {
 		const map = explorer(RECORD);
 		const cause = (id: string): string | null | undefined => map.byId.get(id)?.cause;
 
-		expect(cause('turn:api-turn')).toBe('turn:lead-turn');
+		expect(cause('turn:api-turn')).toBe('turn:starter-turn');
 		expect(cause('event:1')).toBe('turn:api-turn');
-		expect(cause('turn:lead-wake')).toBe('turn:api-turn');
+		expect(cause('turn:starter-wake')).toBe('turn:api-turn');
 		expect(cause('event:12')).toBe('run:asked');
 		expect(cause('decision:wake')).toBe('event:12');
-		expect(cause('turn:lead-told')).toBe('decision:wake');
+		expect(cause('turn:starter-told')).toBe('decision:wake');
 		expect(cause('run:announce')).toBe('event:2');
 		expect(cause('run:notes')).toBe('run:fix');
-		expect(cause('run:asked')).toBe('turn:lead-wake');
+		expect(cause('run:asked')).toBe('turn:starter-wake');
 		expect(cause('run:orphan')).toBeNull();
 		expect(map.items.map((item) => item.at)).toEqual(
 			[...map.items.map((item) => item.at)].sort((left, right) => left - right),
@@ -209,16 +208,16 @@ describe('explorer', () => {
 		const hops = (id: string): readonly (readonly [string, string])[] | undefined =>
 			map.byId.get(id)?.hops;
 
-		expect(hops('turn:lead-turn')).toEqual([['you', 'chats']]);
+		expect(hops('turn:starter-turn')).toEqual([['you', 'chats']]);
 		expect(hops('turn:api-turn')).toEqual([['chats', 'chats']]);
 		expect(hops('event:1')).toEqual([['event:turn-finished', 'reconciler']]);
 		expect(hops('event:2')).toEqual([['event:automation-finished', 'reconciler']]);
 		expect(hops('event:3')).toEqual([['event:files-changed', 'reconciler']]);
 		expect(hops('event:4')).toEqual([['event:other', 'reconciler']]);
 		expect(hops('event:12')).toEqual([['event:automation-finished', 'reconciler']]);
-		expect(hops('turn:lead-wake')).toEqual([['chats', 'chats']]);
+		expect(hops('turn:starter-wake')).toEqual([['chats', 'chats']]);
 		expect(hops('decision:wake')).toEqual([['reconciler', 'rule:model']]);
-		expect(hops('turn:lead-told')).toEqual([['rule:model', 'chats']]);
+		expect(hops('turn:starter-told')).toEqual([['rule:model', 'chats']]);
 		expect(hops('run:announce')).toEqual([
 			['reconciler', 'rule:triggers'],
 			['rule:triggers', 'automations'],
@@ -247,10 +246,13 @@ describe('explorer', () => {
 	it('routes a turn a report woke through Deliveries, from the Turn finished it reported', () => {
 		const map = explorer({
 			...RECORD,
-			turns: [...RECORD.turns, turn('lead-reported', 'lead', 16, { causeEventId: 1, from: 'api' })],
+			turns: [
+				...RECORD.turns,
+				turn('starter-reported', 'starter', 16, { causeEventId: 1, from: 'api' }),
+			],
 		});
 
-		expect(map.byId.get('turn:lead-reported')).toMatchObject({
+		expect(map.byId.get('turn:starter-reported')).toMatchObject({
 			cause: 'event:1',
 			hops: [
 				['reconciler', 'rule:deliveries'],
@@ -425,7 +427,7 @@ describe('explorer', () => {
 		expect(ids(listed(map, false))).toContain('event:4');
 		expect(ids(listed(map, true))).toHaveLength(map.items.length);
 		expect(ids(chainItems(map, 'other'))).toEqual(['event:4', 'run:orphan', 'turn:resumed']);
-		expect(ids(through(map, 'rule:model'))).toEqual(['decision:wake', 'turn:lead-told']);
+		expect(ids(through(map, 'rule:model'))).toEqual(['decision:wake', 'turn:starter-told']);
 		expect(ids(through(map, 'reconciler'))).toEqual([
 			'event:3',
 			'event:1',

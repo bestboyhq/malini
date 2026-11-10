@@ -658,7 +658,7 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			  ('chat', 'w', 'idle', '2026-10-23T00:00:00Z', 'Ship it', 'user');
 			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id) VALUES
 			  ('old', 'chat', 'Earlier', '2026-10-22T10:00:00Z', '2026-10-22T10:01:00Z', ''),
-			  ('woken', 'chat', 'Malini woke you', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', 'lead-turn');
+			  ('woken', 'chat', 'Malini woke you', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', 'root-turn');
 		`);
 		run(
 			db,
@@ -680,7 +680,7 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 				resumed,
 			]),
 		).toEqual([
-			['woken', 'lead-turn', 'child', false],
+			['woken', 'root-turn', 'child', false],
 			['typed', 'typed', null, false],
 			['resumed', 'resumed', null, true],
 			['copied', 'copied', null, false],
