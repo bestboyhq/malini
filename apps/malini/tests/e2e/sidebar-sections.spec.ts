@@ -112,13 +112,83 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 		await page.getByRole('menuitemcheckbox', { name: 'api', exact: true }).click();
 		await page.keyboard.press('Escape');
 		await focus.getByRole('button', { name: 'acme', exact: true }).click();
-		await expect(sidebar(page).getByRole('button', { name: 'New chat in acme' })).toBeVisible();
+		await expect(
+			sidebar(page).getByRole('button', { name: 'New chat', exact: true }),
+		).toBeVisible();
 		await focus.getByRole('button', { name: 'api', exact: true }).click();
 		await expect(sidebar(page).getByRole('button', { name: 'Today, 2 workstreams' })).toBeVisible();
 		await sidebar(page).getByRole('button', { name: 'New chat in api' }).click();
 		await expect(sidebar(page).getByRole('button', { name: 'Today, 3 workstreams' })).toBeVisible({
 			timeout: 20_000,
 		});
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('focus narrows the sidebar to one organization, and a flat list orders repositories by name', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		const web = await createSourceRepo(app.root, 'acme/web');
+		const site = await createSourceRepo(app.root, 'solo/site');
+		await seedWorkstream(page, `file://${api}`, 'e2e-focus-api', 'Api work');
+		await seedWorkstream(page, `file://${web}`, 'e2e-focus-web', 'Web work');
+		await seedWorkstream(page, `file://${site}`, 'e2e-focus-site', 'Site work');
+		await page.reload();
+
+		await expect(
+			sidebar(page).getByRole('button', { name: 'acme, 2 repositories' }),
+		).toHaveAttribute('aria-expanded', 'true', { timeout: 20_000 });
+		await expect(sidebar(page).getByRole('button', { name: 'solo, 1 repository' })).toBeVisible();
+
+		const focus = page.getByRole('group', { name: 'Focus' });
+		await focus.getByRole('button', { name: 'Pin an organization or repository' }).click();
+		await page.getByRole('menuitemcheckbox', { name: 'acme', exact: true }).click();
+		await expect(page.getByRole('menuitemcheckbox', { name: 'acme', exact: true })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await page.keyboard.press('Escape');
+		const acme = focus.getByRole('button', { name: 'acme', exact: true });
+		await acme.click();
+		await expect(acme).toHaveAttribute('aria-pressed', 'true');
+		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toHaveCount(0);
+		await expect(sidebar(page).getByRole('link', { name: 'Open acme/web' })).toBeVisible();
+		await captureFlow(app, 'sidebar-focus-owner');
+
+		await page.reload();
+		await expect(acme).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+		await focus.getByRole('button', { name: 'All', exact: true }).click();
+		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toBeVisible();
+
+		const repositoryOrder = () =>
+			sidebar(page)
+				.getByTestId('sidebar-connected-repository')
+				.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-full-name')));
+		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await choose(page, 'Grouping', 'Repository');
+		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
+		await choose(page, 'Ordering', 'Name');
+		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
+		await expect(page.getByRole('group', { name: 'Group and sort' })).toContainText(
+			'Order manually to drag rows.',
+		);
+		await captureFlow(app, 'sidebar-group-and-sort');
+
+		await page.reload();
+		await expect(sidebar(page).getByRole('link', { name: 'Open acme/web' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
+		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
+		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await choose(page, 'Grouping', 'Organization');
+		await choose(page, 'Ordering', 'Manual');
+		await expect(sidebar(page).getByRole('button', { name: 'acme, 2 repositories' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

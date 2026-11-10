@@ -2,7 +2,6 @@ import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import {
 	provisioningFailureMessage,
-	type RepositoryWorkstreamPlan,
 	type WorkstreamProvisioningPlan,
 } from '$shared/repositories/domain/provisioning';
 import { workstreamFromCreated } from '$shared/repositories/domain/workstream';
@@ -37,7 +36,7 @@ function provisionWorkstreamCommand(
 			if (baseSync !== 'fresh') reportBaseSync(plan, baseSync);
 			workstreamProvisioning.settle(plan.workstreamId);
 			workstreamSetupEvents.announce({ workstreamId: plan.workstreamId, status: 'ready' });
-			if (plan.scope === null) seedWorkstreamDependenciesCommand(plan.workstreamId);
+			seedWorkstreamDependenciesCommand(plan.workstreamId);
 		} catch (cause) {
 			workstreamProvisioning.fail(plan.workstreamId, provisioningFailureMessage(cause));
 		} finally {
@@ -47,11 +46,6 @@ function provisionWorkstreamCommand(
 }
 
 async function createCheckout(plan: WorkstreamProvisioningPlan): Promise<boolean> {
-	if (plan.scope !== null) {
-		workstreamProvisioning.advance(plan.workstreamId, 'worktree');
-		workstreamsAggregate.settlePendingWorkstream(await workstreamsService.createLead(plan));
-		return true;
-	}
 	const cloned = plan.projectRepoPath === null;
 	const projectRepoPath = plan.projectRepoPath ?? (await cloneRepository(plan));
 	workstreamProvisioning.advance(plan.workstreamId, 'worktree');
@@ -66,7 +60,7 @@ async function createCheckout(plan: WorkstreamProvisioningPlan): Promise<boolean
 	return cloned;
 }
 
-async function cloneRepository(plan: RepositoryWorkstreamPlan): Promise<string> {
+async function cloneRepository(plan: WorkstreamProvisioningPlan): Promise<string> {
 	workstreamProvisioning.advance(plan.workstreamId, 'cloning');
 	const stopCloneProgress = workstreamEventsService.onCloneProgress(
 		plan.cloneProgressId,

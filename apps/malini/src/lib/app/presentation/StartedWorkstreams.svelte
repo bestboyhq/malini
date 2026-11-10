@@ -4,8 +4,8 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
-	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
-	import { standingLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
+	import { startedProgressQuery } from '$lib/app/application/queries/started-progress.query.svelte';
+	import { standingLabel, type ProgressDot } from '$lib/app/domain/started-progress';
 	import {
 		pullRequestBadgesQuery,
 		type PullRequestPhase,
@@ -91,7 +91,7 @@
 		const name = workstreamNameQuery.data(id) ?? '';
 		const active = workstreamByIdQuery.data(id);
 		if (active) {
-			const dot = leadProgressQuery.dot(active);
+			const dot = startedProgressQuery.dot(active);
 			const pullRequest = pullRequestBadgesQuery.data(id).phase;
 			const totals = changeTotalsQuery.data[id];
 			return [

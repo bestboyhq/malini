@@ -787,7 +787,6 @@ describe('restoring an archived workstream', () => {
 				mergedPullRequest: null,
 				savedForLater: false,
 				clearedFromStarter: false,
-				scope: null,
 				startedBy: null,
 			},
 		]);

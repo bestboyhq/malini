@@ -41,7 +41,6 @@ const waitingRun: AutomationRunRecord = {
 	title: 'Capture to the log',
 	workstreamId: 'brain',
 	repositoryId: null,
-	scope: null,
 	sessionId: null,
 	agentRunId: null,
 	origin: 'schedule',

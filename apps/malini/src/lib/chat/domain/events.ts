@@ -29,7 +29,6 @@ export type AgentEvent =
 			elementReferences?: AgentElementReference[];
 			from?: string;
 			reports?: WorkstreamReport[];
-			decisions?: string[];
 	  }
 	| { type: 'assistant.message'; runId: string; text: string; contentId?: string }
 	| { type: 'thinking.message'; runId: string; contentId: string; text: string }

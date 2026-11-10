@@ -35,7 +35,6 @@ import {
 	createPlannedWorkstream,
 	getWorkstream,
 	isWorkstreamClosed,
-	nextWorkstreamId,
 	planRepositoryWorkstream,
 	prepareStartedWorkstream,
 	resolveConnectedRepository,
@@ -482,15 +481,6 @@ export class AutomationRunner {
 
 	async #createWorkstream(automationRun: AutomationRunRecord): Promise<string> {
 		const { db, commands } = this.#context;
-		if (automationRun.scope !== null) {
-			const lead = await commands.call('repositories.create-lead', {
-				scope: automationRun.scope,
-				workstreamId: nextWorkstreamId(),
-				name: automationRun.title,
-			});
-			this.#update(automationRun.id, (current) => ({ ...current, workstreamId: lead.id }));
-			return lead.id;
-		}
 		const planned =
 			automationRun.repositoryId === null
 				? null

@@ -1,5 +1,5 @@
 import type { PullRequestPhase } from '$lib/pull-requests/domain/pull-request-state';
-import type { ProgressDot } from './lead-progress';
+import type { ProgressDot } from './started-progress';
 
 export type StatusSectionKey =
 	'needs-you' | 'in-progress' | 'in-review' | 'idle' | 'stale' | 'merged';
@@ -25,6 +25,8 @@ export const SIDEBAR_SECTIONS: Readonly<Record<'status' | 'day', readonly Sectio
 		{ key: 'older', label: 'Older' },
 	],
 };
+
+export const ATTENTION_SECTIONS: readonly SidebarSectionKey[] = ['needs-you', 'in-review'];
 
 export const STALE_AFTER_DAYS = 7;
 

@@ -9,7 +9,6 @@ function run(id: string, patch: Partial<AutomationRunRecord>): AutomationRunReco
 		title: id,
 		workstreamId: 'ws-1',
 		repositoryId: null,
-		scope: null,
 		sessionId: null,
 		agentRunId: null,
 		origin: 'manual',

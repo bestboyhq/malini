@@ -756,29 +756,22 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine(`{${prompt},"steer":"yes"}`).ok).toBe(false);
 		});
 
-		it('parses the lineage a prompt runs with and rejects one with a malformed checkout or plan', () => {
+		it('parses the lineage a prompt runs with and rejects one with a malformed starter or checkout', () => {
 			const prompt = '"cmd":"send_prompt","id":"c1","sessionId":"s1","runId":"r1","prompt":"hi"';
 			const withLineage = (lineage: unknown) =>
 				parseCommandLine(`{${prompt},"lineage":${JSON.stringify(lineage)}}`);
 			const checkout = { repository: 'a/b', branch: 'main', path: '/c' };
-			const lead = { owner: null, repositories: [checkout], workstreams: [], plan: '/plans/p.md' };
-			const startedBy = { name: 'Unify footers', lead: true, plan: '/plans/p.md' };
-			const lineage = { lead, startedBy, siblings: [checkout] };
+			const lineage = { startedBy: { name: 'Unify footers' }, siblings: [checkout] };
 
 			expect(withLineage(lineage)).toMatchObject({ ok: true, command: { lineage } });
-			expect(
-				withLineage({ lead: null, startedBy: { ...startedBy, plan: null }, siblings: [] }).ok,
-			).toBe(true);
+			expect(withLineage({ startedBy: null, siblings: [] }).ok).toBe(true);
 			for (const broken of [
 				{ ...lineage, siblings: [{ ...checkout, branch: '' }] },
-				{ ...lineage, lead: { ...lead, workstreams: undefined } },
-				{ ...lineage, lead: { ...lead, workstreams: [{ ...checkout, path: '' }] } },
-				{ ...lineage, lead: { ...lead, workstreams: Array.from({ length: 501 }, () => checkout) } },
-				{ ...lineage, lead: { ...lead, plan: undefined } },
-				{ ...lineage, lead: { ...lead, plan: '' } },
-				{ ...lineage, startedBy: { ...startedBy, plan: undefined } },
-				{ ...lineage, startedBy: { ...startedBy, plan: '' } },
-				{ ...lineage, startedBy: { ...startedBy, plan: '/plans/p\nq.md' } },
+				{ ...lineage, siblings: Array.from({ length: 501 }, () => checkout) },
+				{ ...lineage, siblings: undefined },
+				{ ...lineage, startedBy: { name: '' } },
+				{ ...lineage, startedBy: { name: undefined } },
+				{ ...lineage, startedBy: { name: 'Unify\nfooters' } },
 			]) {
 				expect(withLineage(broken).ok).toBe(false);
 			}
@@ -886,9 +879,6 @@ describe('protocol: parseCommandLine', () => {
 				'workstreams_send',
 				'workstreams_archive',
 				'files_open',
-				'decisions_ask',
-				'decisions_answer',
-				'plan_write',
 				'secrets_request',
 			]);
 		});

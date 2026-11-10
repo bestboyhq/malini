@@ -15,6 +15,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	passDefaults,
+	passSidebar,
 	passSetup,
 	seedWorkstream,
 	sendPrompt,
@@ -33,7 +34,7 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toBeVisible();
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(4);
+		).toHaveCount(5);
 		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
 		await expect(
@@ -233,12 +234,12 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 		expect(continueOnCopies.before).toBeGreaterThan(0);
 		expect(continueOnCopies.after).toBe(0);
 
-		const defaultsStep = setup.getByRole('heading', { name: 'Pick your defaults' });
-		await expect(defaultsStep).toBeVisible();
+		const sidebarStep = setup.getByRole('heading', { name: 'Set up your sidebar' });
+		await expect(sidebarStep).toBeVisible();
 		const copiedBefore = (await rehearsalCopies()).length;
 		await expect.poll(async () => (await rehearsalCopies()).length).toBeGreaterThan(copiedBefore);
 		await expect.poll(copiesOnStage, { timeout: 20_000 }).toBe(0);
-		await expect(defaultsStep).toHaveCount(1);
+		await expect(sidebarStep).toHaveCount(1);
 		await expect(page.locator('#onboarding-heading')).toHaveCount(1);
 
 		const copies = await rehearsalCopies();
@@ -259,6 +260,7 @@ test('setup asks where you heard about Malini last, keeps your answer while you 
 		await next.click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await next.click();
+		await passSidebar(page);
 		await passDefaults(page);
 		await expect(
 			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
@@ -305,8 +307,9 @@ test('Recommended defaults turn on every default automation and set up a private
 		await next.click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await next.click();
+		await passSidebar(page);
 		await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
-		await expect(setup.getByText('Step 3 of 4')).toBeVisible();
+		await expect(setup.getByText('Step 4 of 5')).toBeVisible();
 		const recommended = setup.getByRole('radio', { name: /^Recommended/u });
 		await expect(recommended).toHaveAttribute('aria-checked', 'true');
 		await expect(
@@ -365,6 +368,7 @@ test('Customize with Address review unchecked turns it off, and it stays off acr
 		await next.click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await next.click();
+		await passSidebar(page);
 		await setup.getByRole('radio', { name: /^Customize/u }).click();
 		await setup.getByRole('checkbox', { name: /^Address review comments/u }).uncheck();
 		await setup.getByRole('checkbox', { name: /^Keep a second brain/u }).uncheck();
@@ -439,6 +443,7 @@ test('setup ends on a picker of your GitHub repositories with no chat, across a 
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await expect(center).toHaveCount(0);
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await passSidebar(page);
 		await passDefaults(page);
 		await setup
 			.getByRole('group', { name: 'Where you heard about Malini' })

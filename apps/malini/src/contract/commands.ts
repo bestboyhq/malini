@@ -26,8 +26,7 @@ import type {
 	StagedAgentAttachmentBytes,
 } from './agent';
 import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
-import type { AnswerLeadDecisionArgs, LeadDecision, ListLeadDecisionsArgs } from './leads';
-import type { ChatDelivery, ListChatDeliveriesArgs, WorkstreamReport } from './deliveries';
+import type { WorkstreamReport } from './deliveries';
 import type {
 	BrowserNavigateArgs,
 	BrowserPickArgs,
@@ -235,7 +234,6 @@ export type SendAgentPromptArgs = Readonly<{
 	chainId?: string;
 	causeEventId?: number;
 	reports?: readonly WorkstreamReport[];
-	decisions?: readonly string[];
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{
@@ -310,8 +308,6 @@ export type CreateWorkstreamArgs = Readonly<{
 	baseRef?: string | null;
 	startedBy?: string | null;
 }>;
-
-export type CreateLeadArgs = Readonly<{ scope: string; workstreamId: string; name: string }>;
 
 export type WorkstreamDiffArgs = Readonly<{
 	workstreamId: string;
@@ -527,7 +523,6 @@ export interface ContractCommands {
 	'repositories.commit-workstream': { args: CommitWorkstreamArgs; result: string };
 	'repositories.create-repository': { args: CreateProjectArgs; result: string };
 	'repositories.create-workstream': { args: CreateWorkstreamArgs; result: string };
-	'repositories.create-lead': { args: CreateLeadArgs; result: WorkstreamDto };
 	'chat.decide-approval': {
 		args: DecideAgentApprovalArgs;
 		result: AgentApprovalDecisionResult;
@@ -683,9 +678,6 @@ export interface ContractCommands {
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
 	'chat.list-event-page': { args: ListAgentEventPageArgs; result: AgentEventPage };
 	'chat.list-claude-plan-usage': { args: undefined; result: Record<string, unknown>[] };
-	'chat.list-lead-decisions': { args: ListLeadDecisionsArgs; result: LeadDecision[] };
-	'chat.answer-lead-decision': { args: AnswerLeadDecisionArgs; result: LeadDecision };
-	'chat.list-deliveries': { args: ListChatDeliveriesArgs; result: ChatDelivery[] };
 	'chat.tool-output': { args: ToolOutputArgs; result: string | null };
 	'chat.list-sessions': { args: WorkstreamIdArgs; result: AgentSessionSummary[] };
 	'extensions.list-sources': { args: undefined; result: ExtensionSourceSnapshot[] };
@@ -907,7 +899,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.commit-workstream',
 	'repositories.create-repository',
 	'repositories.create-workstream',
-	'repositories.create-lead',
 	'chat.decide-approval',
 	'chat.list-permission-grants',
 	'chat.revoke-permission-grant',
@@ -1006,9 +997,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.list-events',
 	'chat.list-event-page',
 	'chat.list-claude-plan-usage',
-	'chat.list-lead-decisions',
-	'chat.answer-lead-decision',
-	'chat.list-deliveries',
 	'chat.tool-output',
 	'chat.list-sessions',
 	'extensions.list-sources',

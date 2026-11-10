@@ -30,14 +30,20 @@ import {
 	writeFakeBridge,
 	type TestContext,
 } from '$lib/chat/platform/agent/test-support';
-import { workstreamFixture } from '$main/git/fixtures.test-support';
+import { run } from '$main/db/rows';
+import { realGit, workstreamFixture } from '$main/git/fixtures.test-support';
+import { workstreamBranchName } from '$main/git/paths';
 import { registerModules, type Modules } from './modules';
+import { RETIRED_CHATS_PROJECT_ID } from '$shared/repositories/domain/retired-chats';
 import { upsertProject } from '$shared/repositories/platform/projects.repository';
 import {
 	archivedLeftoversCleared,
 	checkoutTrashRoot,
 } from '$shared/repositories/platform/teardown.service';
-import { upsertWorkstream } from '$shared/repositories/platform/workstreams.repository';
+import {
+	getWorkstream,
+	upsertWorkstream,
+} from '$shared/repositories/platform/workstreams.repository';
 import { createFakeHost } from '$lib/app/platform/test-support';
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -71,28 +77,65 @@ async function bootModules(
 	return { modules, names: harness.context.commands.names() };
 }
 
-async function strandedCheckout(harness: TestContext, workstreamId: string): Promise<string> {
-	const { base, checkout } = await workstreamFixture(harness.appDataRoot, workstreamId);
+function seedRow(
+	harness: TestContext,
+	workstreamId: string,
+	projectId: string,
+	base: string,
+	checkout: string,
+): void {
 	const createdAt = '2026-10-01T00:00:00.000Z';
 	upsertProject(harness.db, {
-		id: 'proj',
-		name: 'proj',
+		id: projectId,
+		name: projectId,
 		repoPath: base,
 		defaultBranch: 'main',
 		createdAt,
 	});
 	upsertWorkstream(harness.db, {
 		id: workstreamId,
-		projectId: 'proj',
+		projectId,
 		name: workstreamId,
 		path: checkout,
 		branch: `malini/${workstreamId}`,
 		baseBranch: 'main',
 		status: 'active',
 		createdAt,
-		scope: null,
 		startedBy: null,
 	});
+}
+
+async function seededWorkstream(
+	harness: TestContext,
+	workstreamId: string,
+	projectId = 'proj',
+): Promise<{ base: string; checkout: string }> {
+	const fixture = await workstreamFixture(harness.appDataRoot, workstreamId);
+	seedRow(harness, workstreamId, projectId, fixture.base, fixture.checkout);
+	return fixture;
+}
+
+async function seededWorktree(
+	harness: TestContext,
+	base: string,
+	workstreamId: string,
+	projectId: string,
+): Promise<void> {
+	const checkout = join(harness.appDataRoot, 'workstreams', workstreamId);
+	await realGit(base, [
+		'worktree',
+		'add',
+		'-q',
+		checkout,
+		'-b',
+		workstreamBranchName(workstreamId),
+		'origin/main',
+	]);
+	seedRow(harness, workstreamId, projectId, base, checkout);
+}
+
+async function strandedCheckout(harness: TestContext, workstreamId: string): Promise<string> {
+	const { checkout } = await seededWorkstream(harness, workstreamId);
 	await mkdir(checkoutTrashRoot(harness.appDataRoot), { recursive: true });
 	await rename(
 		checkout,
@@ -151,5 +194,26 @@ describe('the main module graph', () => {
 		await modules.shutdown();
 
 		expect(install.signalCode).toBe('SIGTERM');
+	});
+
+	it('archives retired chats once boot has registered the modules teardown needs', async () => {
+		const harness = testContext();
+		const { base } = await seededWorkstream(harness, 'ws-org', RETIRED_CHATS_PROJECT_ID);
+		await seededWorktree(harness, base, 'ws-home', RETIRED_CHATS_PROJECT_ID);
+		await seededWorktree(harness, base, 'ws-live', 'proj');
+		run(harness.db, "UPDATE workstreams SET scope = 'owner:acme' WHERE id = 'ws-org'");
+		run(harness.db, "UPDATE workstreams SET scope = 'home' WHERE id = 'ws-home'");
+
+		await bootModules(harness);
+
+		await vi.waitFor(
+			() =>
+				expect(['ws-org', 'ws-home'].map((id) => getWorkstream(harness.db, id)?.status)).toEqual([
+					'archived',
+					'archived',
+				]),
+			{ timeout: 10_000 },
+		);
+		expect(getWorkstream(harness.db, 'ws-live')?.status).toBe('active');
 	});
 });

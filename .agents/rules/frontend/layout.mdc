@@ -19,7 +19,7 @@ apps/malini/src/
   contract/    commands.ts, events.ts, ipc.ts, wire types, protocol-contract.generated.ts  alias $contract
   lib/                                                                              alias $lib
     app/               the consumer domain: shell, sidebar, layouts, pages, routes.ts, boot
-    chat/              transcript and lead timeline, composer, prompt queue, sessions and runs, approvals, checkpoints, deliveries, lead decisions
+    chat/              transcript, composer, prompt queue, sessions and runs, approvals, checkpoints, deliveries
     pull-requests/     pull request state, actions, top-bar status, merge
     automations/              automations, their triggers and Thens, automation runs and their runner, suggestions after merges
     skills/            skill usage, turning skills off in Claude settings, the skills an automation loads

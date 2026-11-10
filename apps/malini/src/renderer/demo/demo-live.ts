@@ -1,5 +1,5 @@
 import type { AgentEventEnvelope, AgentSessionSummary } from '$contract/agent';
-import type { CreateLeadArgs } from '$contract/commands';
+import type { CreateWorkstreamArgs } from '$contract/commands';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { ShipButton, ShipStateRecord } from '$contract/pull-requests';
 import type { WorkstreamDto } from '$contract/repositories';
@@ -17,13 +17,14 @@ import {
 	sessionId,
 	SETUP_WORKSTREAM,
 	toolEvents,
+	treeOf,
 	workstreamDto,
 	WORKSTREAMS,
 	type DemoRun,
 	type DemoWorkstream,
 	type StartedWorkstream,
 } from './demo-data';
-import { TOUR_FEEDBACK, TOUR_LEAD, TOUR_THREAD_REPORT } from './demo-tour-data';
+import { TOUR_FEEDBACK, TOUR_STARTER, TOUR_THREAD_REPORT } from './demo-tour-data';
 
 const DEMO_REPLY = [
 	'- Changed: nothing, this chat runs in your browser on demo data',
@@ -33,7 +34,7 @@ const DEMO_REPLY = [
 	'Needs: nothing',
 ].join('\n');
 
-type LeadScript = Readonly<{
+type StarterScript = Readonly<{
 	prompt: string;
 	name: string;
 	plan: string;
@@ -44,7 +45,7 @@ type LeadScript = Readonly<{
 	report: string;
 }>;
 
-const LEAD_SCRIPTS: readonly LeadScript[] = [TOUR_LEAD];
+const STARTER_SCRIPTS: readonly StarterScript[] = [TOUR_STARTER];
 
 const REPLIES: ReadonlyMap<string, string> = new Map([[TOUR_FEEDBACK, TOUR_THREAD_REPORT]]);
 
@@ -256,21 +257,20 @@ function tool(
 	];
 }
 
-export function createLead(args: CreateLeadArgs): WorkstreamDto {
-	const lead: DemoWorkstream = {
+export function createWorkstream(args: CreateWorkstreamArgs): string {
+	const workstream: DemoWorkstream = {
 		id: args.workstreamId,
-		projectId: 'malini-lead-space',
+		projectId: args.projectId,
 		name: args.name,
-		branch: 'main',
+		branch: `malini/${args.workstreamId}`,
 		activeAt: new Date().toISOString(),
 		files: [],
-		tree: [],
+		tree: treeOf(args.projectId),
 		runs: [],
 		ship: null,
-		scope: args.scope,
 	};
-	listed.unshift(lead);
-	return workstreamDto(lead);
+	listed.push(workstream);
+	return workstreamDto(workstream).path;
 }
 
 function rename(emit: DemoEmit, workstreamId: string, name: string): void {
@@ -281,12 +281,17 @@ function rename(emit: DemoEmit, workstreamId: string, name: string): void {
 	emit('repositories:workstream-renamed', { workstreamId, name });
 }
 
-function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done: () => void): void {
+function start(
+	emit: DemoEmit,
+	starterId: string,
+	started: StartedWorkstream,
+	done: () => void,
+): void {
 	const workstream: DemoWorkstream = {
 		...started,
-		startedBy: leadId,
+		startedBy: starterId,
 		activeAt: new Date().toISOString(),
-		runs: started.runs.map((run) => ({ ...run, from: leadId })),
+		runs: started.runs.map((run) => ({ ...run, from: starterId })),
 	};
 	const id = sessionId(workstream.id);
 	const run = workstream.runs[0];
@@ -328,8 +333,7 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 			baseBranch: dto.baseBranch,
 			status: dto.status,
 			createdAt: dto.createdAt,
-			scope: null,
-			startedBy: leadId,
+			startedBy: starterId,
 		},
 	});
 	setTimeout(() => {
@@ -366,12 +370,12 @@ function work(
 	];
 }
 
-function leadSteps(
+function starterSteps(
 	emit: DemoEmit,
-	leadId: string,
+	starterId: string,
 	id: string,
 	runId: string,
-	script: LeadScript,
+	script: StarterScript,
 ): Step[] {
 	let waiting = script.started.length;
 	const done = (): void => {
@@ -385,14 +389,14 @@ function leadSteps(
 	};
 	return [
 		...think(emit, id, runId, `${runId}-plan`, script.plan),
-		[100, () => rename(emit, leadId, script.name)],
+		[100, () => rename(emit, starterId, script.name)],
 		...tool(
 			emit,
 			id,
 			runId,
 			`${runId}-list`,
 			'mcp__malini__workstreams_list',
-			{ repository: OWNER },
+			{ repository: `${OWNER}/malini` },
 			script.inFlight,
 			600,
 		),
@@ -419,7 +423,7 @@ function leadSteps(
 				[
 					350,
 					() => {
-						start(emit, leadId, started, done);
+						start(emit, starterId, started, done);
 						append(emit, id, runId, { type: 'tool.completed', runId, name, toolCallId, output });
 					},
 				],
@@ -439,17 +443,16 @@ export function sendPrompt(
 ): string {
 	if (steer) cancelRun(emit, id);
 	const runId = runIdForPromptRequest(clientRequestId) ?? `run-demo-${++runs}`;
-	const lead = listed.find((workstream) => sessionId(workstream.id) === id && workstream.scope);
 	const scene = listed.find((workstream) => sessionId(workstream.id) === id);
 	const docsReply = DOCS_REPLIES.get(prompt.trim());
 	const script =
-		lead && transcript(id).length === 0
-			? LEAD_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
+		scene && transcript(id).length === 0
+			? STARTER_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
 			: undefined;
 	const answer = REPLIES.get(prompt.trim());
 	const steps =
-		lead && script
-			? leadSteps(emit, lead.id, id, runId, script)
+		scene && script
+			? starterSteps(emit, scene.id, id, runId, script)
 			: scene && docsReply
 				? [
 						...work(emit, scene.id, { ...docsReply, id: runId }, null, docsReply.workMs),

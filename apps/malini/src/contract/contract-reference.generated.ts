@@ -49,21 +49,6 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type RunEnding = 'succeeded' | 'failed' | 'cancelled' | 'interrupted';\n\ntype ChatTurnFinishedStatus = RunEnding;\n\ninterface ChatTurnFinishedPayload {\n\tworkstreamId: string;\n\tsessionId: string;\n\trunId: string;\n\tstatus: ChatTurnFinishedStatus;\n\toutcome: string | null;\n\tneeds: string | null;\n\tbackgroundCommands: readonly string[] | null;\n}",
 		},
 		{
-			channel: 'chat:lead-decision-changed',
-			description:
-				'Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.',
-			facts: [
-				'decision.id',
-				'decision.sessionId',
-				'decision.workstreamId',
-				'decision.recommended',
-				'decision.askedAt',
-			],
-			payloadType: 'LeadDecisionChangedEvent',
-			payload:
-				"type LeadDecisionPicture = Readonly<{ workstreamId: string; path: string }>;\n\ntype LeadDecisionOption = Readonly<{\n\tlabel: string;\n\tnote: string | null;\n\tpicture: LeadDecisionPicture | null;\n}>;\n\ntype LeadDecisionDecider = 'you' | 'lead';\n\ntype LeadDecisionAnswer = Readonly<{\n\toption: number;\n\tby: LeadDecisionDecider;\n\treason: string | null;\n\tat: string;\n}>;\n\ntype LeadDecision = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tworkstreamId: string;\n\ttopic: string;\n\tquestion: string;\n\twhy: string | null;\n\toptions: readonly LeadDecisionOption[];\n\trecommended: number;\n\tmeanwhile: string | null;\n\taskedAt: string;\n\tanswer: LeadDecisionAnswer | null;\n}>;\n\ntype LeadDecisionChangedEvent = Readonly<{ decision: LeadDecision }>;",
-		},
-		{
 			channel: 'chat:delivery-changed',
 			description:
 				'Fires when Malini holds a prompt for a chat that is on a turn, delivers it once that turn ends, or cannot deliver it, such as a prompt one chat sends the chat of a workstream it started. Malini does not keep it in its event log.',
@@ -120,7 +105,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'repositories:workstream-created',
 			description:
-				'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `home` or `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.',
+				'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.startedBy` is the id of the workstream whose chat started it.',
 			facts: [
 				'workstreamId',
 				'project.id',
@@ -133,12 +118,11 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'workstream.baseBranch',
 				'workstream.status',
 				'workstream.createdAt',
-				'workstream.scope',
 				'workstream.startedBy',
 			],
 			payloadType: 'WorktreeAddedPayload',
 			payload:
-				'interface GitProjectRecord {\n\tid: string;\n\tname: string;\n\trepoPath: string;\n\tdefaultBranch: string;\n\tcreatedAt: string;\n}\n\ninterface GitWorkstreamRecord {\n\tid: string;\n\tprojectId: string;\n\tname: string;\n\tpath: string;\n\tbranch: string;\n\tbaseBranch: string;\n\tstatus: string;\n\tcreatedAt: string;\n\tscope: string | null;\n\tstartedBy: string | null;\n}\n\ninterface WorktreeAddedPayload {\n\tworkstreamId: string;\n\tproject: GitProjectRecord;\n\tworkstream: GitWorkstreamRecord;\n}',
+				'interface GitProjectRecord {\n\tid: string;\n\tname: string;\n\trepoPath: string;\n\tdefaultBranch: string;\n\tcreatedAt: string;\n}\n\ninterface GitWorkstreamRecord {\n\tid: string;\n\tprojectId: string;\n\tname: string;\n\tpath: string;\n\tbranch: string;\n\tbaseBranch: string;\n\tstatus: string;\n\tcreatedAt: string;\n\tstartedBy: string | null;\n}\n\ninterface WorktreeAddedPayload {\n\tworkstreamId: string;\n\tproject: GitProjectRecord;\n\tworkstream: GitWorkstreamRecord;\n}',
 		},
 		{
 			channel: 'repositories:workstream-removed',
@@ -345,7 +329,6 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'run.definitionId',
 				'run.workstreamId',
 				'run.repositoryId',
-				'run.scope',
 				'run.sessionId',
 				'run.agentRunId',
 				'run.origin',
@@ -360,7 +343,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			],
 			payloadType: 'AutomationRunChangedEvent',
 			payload:
-				"const AUTOMATION_RUN_ORIGINS = [\n\t'merge-queue',\n\t'manual',\n\t'trigger',\n\t'then',\n\t'schedule',\n\t'reconciler',\n\t'compatibility',\n] as const;\n\ntype AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];\n\nconst AUTOMATION_RUN_STATUSES = [\n\t'waiting',\n\t'queued',\n\t'running',\n\t'needs-you',\n\t'succeeded',\n\t'failed',\n\t'cancelled',\n] as const;\n\ntype AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tinterrupted: boolean;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
+				"const AUTOMATION_RUN_ORIGINS = [\n\t'merge-queue',\n\t'manual',\n\t'trigger',\n\t'then',\n\t'schedule',\n\t'reconciler',\n\t'compatibility',\n] as const;\n\ntype AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];\n\nconst AUTOMATION_RUN_STATUSES = [\n\t'waiting',\n\t'queued',\n\t'running',\n\t'needs-you',\n\t'succeeded',\n\t'failed',\n\t'cancelled',\n] as const;\n\ntype AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tinterrupted: boolean;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
 		},
 		{
 			channel: 'automations:run-started',
@@ -371,7 +354,6 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'run.definitionId',
 				'run.workstreamId',
 				'run.repositoryId',
-				'run.scope',
 				'run.sessionId',
 				'run.agentRunId',
 				'run.origin',
@@ -386,7 +368,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			],
 			payloadType: 'AutomationRunChangedEvent',
 			payload:
-				"const AUTOMATION_RUN_ORIGINS = [\n\t'merge-queue',\n\t'manual',\n\t'trigger',\n\t'then',\n\t'schedule',\n\t'reconciler',\n\t'compatibility',\n] as const;\n\ntype AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];\n\nconst AUTOMATION_RUN_STATUSES = [\n\t'waiting',\n\t'queued',\n\t'running',\n\t'needs-you',\n\t'succeeded',\n\t'failed',\n\t'cancelled',\n] as const;\n\ntype AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tinterrupted: boolean;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
+				"const AUTOMATION_RUN_ORIGINS = [\n\t'merge-queue',\n\t'manual',\n\t'trigger',\n\t'then',\n\t'schedule',\n\t'reconciler',\n\t'compatibility',\n] as const;\n\ntype AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];\n\nconst AUTOMATION_RUN_STATUSES = [\n\t'waiting',\n\t'queued',\n\t'running',\n\t'needs-you',\n\t'succeeded',\n\t'failed',\n\t'cancelled',\n] as const;\n\ntype AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tinterrupted: boolean;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
 		},
 		{
 			channel: 'automations:run-finished',
@@ -397,7 +379,6 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'run.definitionId',
 				'run.workstreamId',
 				'run.repositoryId',
-				'run.scope',
 				'run.sessionId',
 				'run.agentRunId',
 				'run.origin',
@@ -412,7 +393,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			],
 			payloadType: 'AutomationRunChangedEvent',
 			payload:
-				"const AUTOMATION_RUN_ORIGINS = [\n\t'merge-queue',\n\t'manual',\n\t'trigger',\n\t'then',\n\t'schedule',\n\t'reconciler',\n\t'compatibility',\n] as const;\n\ntype AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];\n\nconst AUTOMATION_RUN_STATUSES = [\n\t'waiting',\n\t'queued',\n\t'running',\n\t'needs-you',\n\t'succeeded',\n\t'failed',\n\t'cancelled',\n] as const;\n\ntype AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tscope: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tinterrupted: boolean;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
+				"const AUTOMATION_RUN_ORIGINS = [\n\t'merge-queue',\n\t'manual',\n\t'trigger',\n\t'then',\n\t'schedule',\n\t'reconciler',\n\t'compatibility',\n] as const;\n\ntype AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];\n\nconst AUTOMATION_RUN_STATUSES = [\n\t'waiting',\n\t'queued',\n\t'running',\n\t'needs-you',\n\t'succeeded',\n\t'failed',\n\t'cancelled',\n] as const;\n\ntype AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];\n\ntype AutomationRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: AutomationRunOrigin;\n\tstatus: AutomationRunStatus;\n\tinterrupted: boolean;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tchainId: string;\n\trequests: number;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype AutomationRunChangedEvent = Readonly<{ run: AutomationRunRecord }>;",
 		},
 		{
 			channel: 'automations:definition-changed',

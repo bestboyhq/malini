@@ -351,11 +351,11 @@
 	beat={beat('chats', 'Chats')}
 	mirrored
 	title="Chat at any resolution."
-	body="Start a chat above everything you own, and it plans across every organization and private repository, one workstream per change. Open any of them to work on one branch, or pick an element in its browser and talk about just that."
-	href={doc('chat#chats-above-repositories')}
-	linkLabel="Where you can chat"
+	body="Start a chat in one repository, and it starts a workstream in each repository a change touches. Open any of them to work on one branch, or pick an element in its browser and talk about just that."
+	href={doc('chat#work-a-chat-starts')}
+	linkLabel="What a chat starts"
 	checks={[
-		'A chat above repositories starts the workstreams',
+		'A chat starts workstreams in other repositories',
 		'Pick an element, chat about just that',
 	]}
 	panel={chatsPanel}
@@ -519,7 +519,7 @@
 {#snippet chatsPanel()}
 	<DemoTour
 		workstream="ws-tony-hero"
-		title="Malini on demo data: a chat at Home starts three workstreams, then you pick an element in one of them and give it feedback"
+		title="Malini on demo data: a chat starts three workstreams, then you pick an element in one of them and give it feedback"
 	/>
 {/snippet}
 

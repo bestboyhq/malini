@@ -2,6 +2,7 @@ import type { UsageReport } from '$contract/system';
 import type { MaliniDatabase } from '$main/db/driver';
 import { listRunFacts, type RunFact } from '$lib/chat/chat.platform';
 import {
+	isRetiredChat,
 	listArchivedWorkstreams,
 	listWorkstreams,
 	mergedPullRequestOf,
@@ -9,7 +10,7 @@ import {
 import { usageReport, type ReportedWorkstream } from '../domain/usage-report';
 
 export function isPromptRun(run: RunFact): boolean {
-	return !run.automation && !run.automated && !run.lead;
+	return !run.automation && !run.automated && !isRetiredChat(run);
 }
 
 export function hasPromptRun(db: MaliniDatabase, now: Date): boolean {
@@ -27,7 +28,7 @@ export function userWorkstreams(db: MaliniDatabase): ReportedWorkstream[] {
 			...workstream,
 			merged: workstream.mergedPullRequest !== null,
 		})),
-	].filter((workstream) => workstream.scope === null);
+	].filter((workstream) => !isRetiredChat(workstream));
 }
 
 export function readUsageReport(db: MaliniDatabase, now: Date): UsageReport | null {

@@ -15,12 +15,14 @@
 	import { Select } from '$hyper-ui/components/select';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
+	import { connectedRepositoriesQuery } from '$shared/repositories/repositories.api';
 	import { scheduleOf } from '$lib/automations/domain/schedule';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import {
 		SCHEDULE_CADENCE_OPTIONS,
 		SCHEDULE_ENTRY,
 		scheduleRunsIn,
+		defaultSchedulePlace,
 		TRIGGER_GROUPS,
 		TRIGGERS,
 	} from './triggers';
@@ -62,6 +64,9 @@
 					.includes(term),
 			),
 	);
+	const defaultPlace = $derived(
+		defaultSchedulePlace(connectedRepositoriesQuery.data.map(({ fullName }) => fullName)),
+	);
 	const phrase = $derived(where.trim() ? `on ${channel} where ${where.trim()}` : `on ${channel}`);
 	const validation = $derived.by(() => {
 		try {
@@ -82,7 +87,7 @@
 					cadence,
 					hour: Number(clock[1]),
 					minute: Number(clock[2]),
-					place: current?.place ?? { kind: 'home' },
+					place: current?.place ?? defaultPlace,
 				})
 			: null,
 	);

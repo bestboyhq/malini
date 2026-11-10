@@ -1,6 +1,6 @@
 # 0112 - A lead asks one decision at a time, and builds meanwhile
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

@@ -111,7 +111,6 @@ import type { AgentBoundary, AgentLineage } from '$contract/agent';
 import type { AutomationBoundary } from '$contract/automations';
 import type { WorkstreamReport } from '$contract/deliveries';
 import { parseWorkstreamReport } from '../../domain/deliveries';
-import { leadBriefFor } from '../lead-brief.service';
 import type {
 	AgentQuestionAnswer,
 	AgentRunProfile,
@@ -210,10 +209,7 @@ export interface SendPromptHooks {
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
 	readonly plugins?: () => readonly string[];
-	readonly boundary: (
-		automation: AutomationBoundary,
-		lineage: AgentLineage | null,
-	) => AgentBoundary | null;
+	readonly boundary: (automation: AutomationBoundary) => AgentBoundary | null;
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -682,7 +678,6 @@ export interface SendPromptInput {
 	readonly chainId?: string | null;
 	readonly causeEventId?: number | null;
 	readonly reports?: readonly WorkstreamReport[];
-	readonly decisions?: readonly string[];
 	readonly worktree: string;
 }
 
@@ -786,7 +781,6 @@ async function sendAgentPromptLeased(
 		if (withElements.references.length > 0) payload['elementReferences'] = withElements.references;
 		if (input.from) payload['from'] = input.from;
 		if (input.reports && input.reports.length > 0) payload['reports'] = input.reports;
-		if (input.decisions && input.decisions.length > 0) payload['decisions'] = input.decisions;
 	};
 	decorate(userMessagePayload);
 	userMessagePayload['checkpointId'] = checkpointId;
@@ -816,7 +810,7 @@ async function sendAgentPromptLeased(
 
 	let turn: PreparedTurn;
 	try {
-		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, hooks, log);
+		turn = await preparedTurn(db, input, lease.handsOff, hooks, log);
 	} catch (error) {
 		const errorMessage = `could not prepare the turn: ${describe(error)}`;
 		handleSendPromptHandoffFailure(db, sessionId, runId, errorMessage, emit);
@@ -836,7 +830,7 @@ async function sendAgentPromptLeased(
 		id: supervisor.nextCommandId(),
 		sessionId,
 		runId,
-		prompt: turn.prompt,
+		prompt: bridgePrompt,
 		...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
 		...turn.resumePoint,
 		...(turn.skills === null ? {} : { skills: turn.skills }),
@@ -885,27 +879,18 @@ type PreparedTurn = Awaited<ReturnType<typeof preparedTurn>>;
 async function preparedTurn(
 	db: MaliniDatabase,
 	{ sessionId, workstreamId }: SendPromptInput,
-	runId: string,
 	handsOff: boolean,
-	prompt: string,
 	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ) {
-	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
-	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
 	const automation = automationBoundaryForSession(db, sessionId);
 	const lineage = automation?.chats === 'none' ? null : await lineageForRun(db, workstreamId, log);
 	return {
-		prompt: brief === null ? prompt : `${brief}\n\n${prompt}`,
-		resumePoint: handsOff
-			? {}
-			: fresh
-				? { freshConversation: true as const }
-				: providerResumePoint(db, sessionId),
+		resumePoint: handsOff ? {} : providerResumePoint(db, sessionId),
 		skills: skillsForRun(db, sessionId),
 		plugins: automation?.internet === false ? [] : (hooks.plugins?.() ?? null),
 		lineage,
-		boundary: automation === null ? null : hooks.boundary(automation, lineage),
+		boundary: automation === null ? null : hooks.boundary(automation),
 	};
 }
 
@@ -1804,7 +1789,6 @@ export function defineBridgeCommands(
 				chainId: optionalString(args, 'chainId'),
 				causeEventId: optionalCauseEventId(args),
 				reports: optionalArray(args, 'reports').map(requireReport),
-				decisions: optionalStringArray(args, 'decisions'),
 				worktree,
 			},
 			deps.hooks,

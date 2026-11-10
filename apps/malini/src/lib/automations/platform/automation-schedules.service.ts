@@ -16,7 +16,6 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { describeError } from '$main/errors';
 import {
 	getWorkstream,
-	leadScopeKey,
 	listRepositoryCatalog,
 	listWorkstreams,
 	resolveConnectedRepository,
@@ -235,7 +234,7 @@ async function updateFirst(
 ): Promise<string | null> {
 	const { db, commands } = context;
 	const workstream = workstreamId === null ? null : getWorkstream(db, workstreamId);
-	if (workstreamId === null || !workstream || workstream.scope !== null) return null;
+	if (workstreamId === null || !workstream) return null;
 	const baseBranch =
 		workstream.baseBranch ||
 		(await resolveConnectedRepository(db, workstream.projectId))?.defaultBranch;
@@ -267,16 +266,13 @@ async function placeTarget(
 	db: MaliniDatabase,
 	definitionId: string,
 	place: SchedulePlace,
-): Promise<Pick<RunAutomationArgs, 'workstreamId' | 'repositoryId' | 'scope'>> {
+): Promise<Pick<RunAutomationArgs, 'workstreamId' | 'repositoryId'>> {
 	const previousId = latestScheduledWorkstreamId(db, definitionId);
 	const previous = listWorkstreams(db).find((workstream) => workstream.id === previousId);
-	if (place.kind !== 'repository') {
-		const scope = leadScopeKey(place);
-		return previous?.scope === scope ? { workstreamId: previous.id, scope } : { scope };
-	}
+	if (place.kind === 'none') return {};
 	const repository = await catalogRepository(db, place.repository);
 	if (!repository) throw new Error(`${place.repository} is no longer in Malini.`);
-	return previous && previous.scope === null && repository.projectIds.includes(previous.projectId)
+	return previous && repository.projectIds.includes(previous.projectId)
 		? { workstreamId: previous.id }
 		: { repositoryId: repository.id };
 }

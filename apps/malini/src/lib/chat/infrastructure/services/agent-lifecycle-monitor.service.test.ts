@@ -84,7 +84,7 @@ function context(owner: string, workstreamId: string): AgentWorkstreamContext {
 		label: `${workstreamId} label`,
 		repositoryFullName: `${owner}/repo`,
 		branch: `malini/${workstreamId}`,
-		lead: null,
+		root: null,
 	};
 }
 
@@ -263,12 +263,12 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.notifications).toEqual([]);
 	});
 
-	it('leaves the turns of a started workstream to the chat that leads it, which asks for its approvals', () => {
+	it('leaves the turns of a started workstream to the chat at the root of its tree, which asks for its approvals', () => {
 		const harness = monitorHarness();
 		harness.sessions.set('session-child', { workstreamId: 'stream-child', status: 'running' });
 		harness.contexts.set('stream-child', {
 			...context('acme', 'stream-child'),
-			lead: { workstreamId: 'home', label: 'Ship hutch' },
+			root: { workstreamId: 'root', label: 'Ship hutch' },
 		});
 		harness.monitor.setShown('stream-b', null);
 		harness.monitor.start();
@@ -308,12 +308,12 @@ describe('AgentLifecycleMonitor', () => {
 			{
 				title: 'Ship hutch',
 				body: 'stream-child label is waiting: Run the tests',
-				workstreamId: 'home',
-				sessionId: 'home-chat',
+				workstreamId: 'root',
+				sessionId: 'root-chat',
 			},
 		]);
 
-		harness.monitor.setShown('home', 'home-chat');
+		harness.monitor.setShown('root', 'root-chat');
 		harness.emit(envelope('session-child', 'run-3', 5, { type: 'run.started', runId: 'run-3' }));
 		harness.emit(
 			envelope('session-child', 'run-3', 6, {

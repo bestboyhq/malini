@@ -50,7 +50,6 @@ const ALL_TABLES = [
 	'event_log',
 	'hidden_repositories',
 	'installed_extensions',
-	'lead_decisions',
 	'mcp_server_folder_offs',
 	'mcp_server_listings',
 	'model_providers',
@@ -112,7 +111,6 @@ const ALL_INDEXES = [
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
 	'idx_event_log_workstream_channel',
-	'idx_lead_decisions_session',
 	'idx_reconciler_decisions_chain',
 	'idx_reconciler_decisions_created',
 	'idx_reconciler_decisions_event',
@@ -1295,6 +1293,82 @@ describe('migrate', () => {
 			instructions: 'Name it after a fruit.',
 		});
 		edited.close();
+	});
+
+	it('clears a schedule that names no repository and a trigger on a removed event, and keeps the rest', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const before = MIGRATIONS.findIndex((migration) =>
+			migration.includes("lower(trigger_when) NOT LIKE '% in %'\n"),
+		);
+		for (const migration of MIGRATIONS.slice(0, before)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + before};`);
+		const at = '2026-11-09T00:00:00Z';
+		const automation = (id: string, builtin: string | null, when: string | null) =>
+			`INSERT INTO automation_definitions
+			   (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at)
+			 VALUES ('${id}', '${id}', 'Do ${id}.', 'opus', 'low', 'workstream', ${builtin === null ? 'NULL' : `'${builtin}'`},
+			   ${when === null ? 'NULL' : `'${when}'`}, ${when === null ? 'NULL' : "'auto'"}, '${at}', '${at}')`;
+		db.exec(automation('athome', null, 'every weekday at 09:00'));
+		db.exec(automation('inorg', null, 'every weekday at 09:00 in acme'));
+		db.exec(automation('inrepo', null, 'every Monday at 07:30 in acme/api'));
+		db.exec(automation('onevent', null, 'on pull-requests:ship-changed where merged is set'));
+		db.exec(automation('manual', null, null));
+		db.exec(automation('notes', 'write-brain-notes', 'every sunday at 18:00'));
+		db.exec(automation('ondecision', null, 'on chat:lead-decision-changed'));
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				"SELECT id, instructions, trigger_when, trigger_mode FROM automation_definitions WHERE instructions LIKE 'Do %' ORDER BY id",
+			),
+		).toEqual([
+			{ id: 'athome', instructions: 'Do athome.', trigger_when: null, trigger_mode: null },
+			{ id: 'inorg', instructions: 'Do inorg.', trigger_when: null, trigger_mode: null },
+			{
+				id: 'inrepo',
+				instructions: 'Do inrepo.',
+				trigger_when: 'every Monday at 07:30 in acme/api',
+				trigger_mode: 'auto',
+			},
+			{ id: 'manual', instructions: 'Do manual.', trigger_when: null, trigger_mode: null },
+			{
+				id: 'notes',
+				instructions: 'Do notes.',
+				trigger_when: 'every sunday at 18:00',
+				trigger_mode: 'auto',
+			},
+			{ id: 'ondecision', instructions: 'Do ondecision.', trigger_when: null, trigger_mode: null },
+			{
+				id: 'onevent',
+				instructions: 'Do onevent.',
+				trigger_when: 'on pull-requests:ship-changed where merged is set',
+				trigger_mode: 'auto',
+			},
+		]);
+		db.close();
+	});
+
+	it('drops lead decisions with the rows that point at them', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const before = MIGRATIONS.findIndex((migration) =>
+			migration.includes('DROP TABLE lead_decisions'),
+		);
+		for (const migration of MIGRATIONS.slice(0, before)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + before};`);
+		const at = '2026-11-09T00:00:00Z';
+		db.exec(`INSERT INTO event_log (channel, payload, chain_id, emitted_at) VALUES
+			('chat:lead-decision-changed', '{}', 'c1', '${at}'),
+			('chat:turn-finished', '{}', 'c2', '${at}')`);
+
+		migrate(db);
+
+		expect(tableNames(db)).not.toContain('lead_decisions');
+		expect(all(db, 'SELECT channel FROM event_log')).toEqual([{ channel: 'chat:turn-finished' }]);
+		db.close();
 	});
 });
 

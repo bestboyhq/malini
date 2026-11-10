@@ -71,20 +71,15 @@ function seed(): void {
 		defaultBranch: 'main',
 		createdAt: NOW,
 	});
-	workstream('lead', 'Home', null, 'home');
-	workstream('api', 'Api analytics', 'lead');
-	workstream('site', 'Site analytics', 'lead');
-	chat('lead-chat', 'lead');
+	workstream('starter', 'Ship the dashboard', null);
+	workstream('api', 'Api analytics', 'starter');
+	workstream('site', 'Site analytics', 'starter');
+	chat('starter-chat', 'starter');
 	chat('api-chat', 'api');
 	chat('site-chat', 'site');
 }
 
-function workstream(
-	id: string,
-	name: string,
-	startedBy: string | null,
-	scope: string | null = null,
-): void {
+function workstream(id: string, name: string, startedBy: string | null): void {
 	upsertWorkstream(db, {
 		id,
 		projectId: 'project',
@@ -94,7 +89,6 @@ function workstream(
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
-		scope,
 		startedBy,
 	});
 }
@@ -149,8 +143,8 @@ function prompt(sessionId: string, text: string): Parameters<ChatDeliveries['del
 		sessionId,
 		kind: 'prompt',
 		prompt: text,
-		fromSessionId: 'lead-chat',
-		fromWorkstreamId: 'lead',
+		fromSessionId: 'starter-chat',
+		fromWorkstreamId: 'starter',
 	};
 }
 
@@ -162,7 +156,7 @@ describe('ChatDeliveries', () => {
 	it('sends a prompt to an idle chat at once, with its sender, chain, cause and profile', async () => {
 		const delivery = await deliveries.deliver({
 			...prompt('api-chat', 'Use the EU region.'),
-			chainId: 'lead-turn',
+			chainId: 'starter-turn',
 			causeEventId: 4,
 			profile: { effort: 'high', mode: 'agent' },
 		});
@@ -172,8 +166,8 @@ describe('ChatDeliveries', () => {
 				sessionId: 'api-chat',
 				prompt: 'Use the EU region.',
 				automated: false,
-				from: 'lead',
-				chainId: 'lead-turn',
+				from: 'starter',
+				chainId: 'starter-turn',
 				causeEventId: 4,
 				profile: { effort: 'high', mode: 'agent', access: 'auto' },
 			},
@@ -181,7 +175,7 @@ describe('ChatDeliveries', () => {
 		expect(delivery).toEqual({
 			id: expect.any(String),
 			sessionId: 'api-chat',
-			fromSessionId: 'lead-chat',
+			fromSessionId: 'starter-chat',
 			status: 'delivered',
 			runId: 'delivered-run-1',
 			detail: null,
@@ -206,7 +200,7 @@ describe('ChatDeliveries', () => {
 		await deliveries.flush('api-chat');
 
 		expect(sent).toEqual([
-			{ sessionId: 'api-chat', prompt: 'First.\n\nSecond.', automated: false, from: 'lead' },
+			{ sessionId: 'api-chat', prompt: 'First.\n\nSecond.', automated: false, from: 'starter' },
 		]);
 		expect([getDelivery(db, first.id), getDelivery(db, second.id)]).toEqual([
 			expect.objectContaining({ status: 'delivered', runId: 'delivered-run-1' }),
@@ -247,7 +241,7 @@ describe('ChatDeliveries', () => {
 				sessionId: 'api-chat',
 				profile: { effort: 'low', mode: 'plan', access: 'full' },
 			}),
-			{ sessionId: 'site-chat', prompt: 'Start.', automated: false, from: 'lead' },
+			{ sessionId: 'site-chat', prompt: 'Start.', automated: false, from: 'starter' },
 		]);
 	});
 
@@ -372,9 +366,9 @@ describe('ChatDeliveries', () => {
 	});
 
 	it('reports a finished turn to the chat that started the workstream', async () => {
-		turn('lead-turn', 'lead-chat');
+		turn('starter-turn', 'starter-chat');
 		turn('api-turn', 'api-chat', {
-			chainId: 'lead-turn',
+			chainId: 'starter-turn',
 			summary:
 				'Added the endpoint.\n\n![Chart](shots/chart.png)\n\nOutcome: Added the analytics endpoint\nNeeds: nothing',
 		});
@@ -383,7 +377,7 @@ describe('ChatDeliveries', () => {
 
 		expect(sent).toEqual([
 			{
-				sessionId: 'lead-chat',
+				sessionId: 'starter-chat',
 				prompt: [
 					REPORTS_PREAMBLE,
 					[
@@ -399,7 +393,7 @@ describe('ChatDeliveries', () => {
 				].join('\n\n'),
 				automated: true,
 				from: 'api',
-				chainId: 'lead-turn',
+				chainId: 'starter-turn',
 				causeEventId: 41,
 				reports: [
 					{
@@ -416,10 +410,10 @@ describe('ChatDeliveries', () => {
 	});
 
 	it('reports a turn that waits on a background command, then the turn that goes on, and hands the chat what waited', async () => {
-		turn('lead-turn', 'lead-chat');
+		turn('starter-turn', 'starter-chat');
 		turn('api-turn', 'api-chat', {
 			completedAt: null,
-			chainId: 'lead-turn',
+			chainId: 'starter-turn',
 			summary: 'Waiting for the merge from main to land.',
 		});
 
@@ -438,8 +432,8 @@ describe('ChatDeliveries', () => {
 		);
 		await deliveries.turnFinished(finished('api-turn', { outcome: 'The merge landed' }), 42);
 
-		const toLead = sent.filter((args) => args['sessionId'] === 'lead-chat');
-		expect(toLead.map((args) => args['prompt'])).toEqual([
+		const toStarter = sent.filter((args) => args['sessionId'] === 'starter-chat');
+		expect(toStarter.map((args) => args['prompt'])).toEqual([
 			[
 				REPORTS_PREAMBLE,
 				'“Api analytics” (`api`), a workstream you started, is waiting on its background command “Wait for the merge”, and reports again if it continues.\nIts checkout: /tmp/api\nWaiting for the merge from main to land.',
@@ -449,7 +443,7 @@ describe('ChatDeliveries', () => {
 				'“Api analytics” (`api`), a workstream you started, finished a turn.\nIts checkout: /tmp/api\nMerged it.\n\nOutcome: The merge landed\nNeeds: nothing',
 			].join('\n\n'),
 		]);
-		expect(toLead.map((args) => args['reports'])).toEqual([
+		expect(toStarter.map((args) => args['reports'])).toEqual([
 			[
 				{
 					workstreamId: 'api',
@@ -473,7 +467,7 @@ describe('ChatDeliveries', () => {
 			],
 		]);
 		expect(sent.filter((args) => args['sessionId'] === 'api-chat')).toEqual([
-			expect.objectContaining({ prompt: 'Also add the line second.', from: 'lead' }),
+			expect.objectContaining({ prompt: 'Also add the line second.', from: 'starter' }),
 		]);
 		expect(status(followUp.id)).toBe('delivered');
 	});
@@ -506,17 +500,17 @@ describe('ChatDeliveries', () => {
 	});
 
 	it("reports to the chat whose workstreams_create started it, else to the starter's latest chat", async () => {
-		chat('lead-other', 'lead');
+		chat('starter-other', 'starter');
 		turn('api-turn', 'api-chat');
 		await deliveries.turnFinished(finished('api-turn'), 7);
-		expect(sent.map((args) => args['sessionId'])).toEqual(['lead-other']);
+		expect(sent.map((args) => args['sessionId'])).toEqual(['starter-other']);
 
 		recordAgentAction(
 			{ db, events },
 			{
-				sessionId: 'lead-chat',
-				runId: 'lead-turn',
-				workstreamId: 'lead',
+				sessionId: 'starter-chat',
+				runId: 'starter-turn',
+				workstreamId: 'starter',
 				tool: 'workstreams_create',
 				input: { repository: 'acme/api', prompt: 'Add analytics' },
 				status: 'succeeded',
@@ -527,23 +521,23 @@ describe('ChatDeliveries', () => {
 		turn('api-turn-2', 'api-chat');
 		await deliveries.turnFinished(finished('api-turn-2'), 8);
 
-		expect(sent.map((args) => args['sessionId'])).toEqual(['lead-other', 'lead-chat']);
+		expect(sent.map((args) => args['sessionId'])).toEqual(['starter-other', 'starter-chat']);
 	});
 
 	it('reports nothing for a stopped turn, a workstream nobody started, or a starter that is gone', async () => {
 		turn('api-turn', 'api-chat');
 		await deliveries.turnFinished(finished('api-turn', { status: 'cancelled' }), 9);
-		turn('lead-turn', 'lead-chat');
+		turn('starter-turn', 'starter-chat');
 		await deliveries.turnFinished(
-			finished('lead-turn', { workstreamId: 'lead', sessionId: 'lead-chat' }),
+			finished('starter-turn', { workstreamId: 'starter', sessionId: 'starter-chat' }),
 			10,
 		);
 		recordAgentAction(
 			{ db, events },
 			{
-				sessionId: 'lead-chat',
-				runId: 'lead-turn',
-				workstreamId: 'lead',
+				sessionId: 'starter-chat',
+				runId: 'starter-turn',
+				workstreamId: 'starter',
 				tool: 'workstreams_create',
 				input: {},
 				status: 'succeeded',
@@ -551,8 +545,8 @@ describe('ChatDeliveries', () => {
 				output: JSON.stringify({ id: 'api' }),
 			},
 		);
-		chat('lead-other', 'lead');
-		archiveSession(db, 'lead-chat', NOW);
+		chat('starter-other', 'starter');
+		archiveSession(db, 'starter-chat', NOW);
 		await deliveries.turnFinished(finished('api-turn'), 11);
 
 		expect(attempts).toBe(0);
@@ -572,7 +566,7 @@ describe('ChatDeliveries', () => {
 			expect.arrayContaining([
 				expect.objectContaining({ sessionId: 'api-chat', prompt: 'Next step.' }),
 				expect.objectContaining({
-					sessionId: 'lead-chat',
+					sessionId: 'starter-chat',
 					prompt: expect.stringContaining('a workstream you started, finished a turn.'),
 					causeEventId: 12,
 				}),

@@ -4,14 +4,13 @@ import { workstreamImagePath } from '$contract/workstream-images';
 import { parseTurnReport, type TurnReport } from './turn-report';
 import { variantLabel } from './variant-pick';
 
-export type DeliveryKind = 'prompt' | 'report' | 'decision';
+export type DeliveryKind = 'prompt' | 'report';
 
 export type DeliveryItem = Readonly<{
 	kind: DeliveryKind;
 	prompt: string;
 	fromWorkstreamId: string | null;
 	report: WorkstreamReport | null;
-	decisionId: string | null;
 	chainId: string | null;
 	causeEventId: number | null;
 }>;
@@ -23,11 +22,10 @@ export type DeliveryBatch = Readonly<{
 	chainId: string | null;
 	causeEventId: number | null;
 	reports: readonly WorkstreamReport[];
-	decisions: readonly string[];
 }>;
 
 export const REPORTS_PREAMBLE =
-	'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and bring the user only what they must decide.';
+	'Malini woke you: work you started moved on. Answer what you can with workstreams_send, and bring the user only what they must decide.';
 
 export const ASKED_PREAMBLE =
 	'Malini woke you: work you asked for moved on. Bring the user only what they must decide.';
@@ -38,21 +36,18 @@ const REPORT_MEDIA_LIMIT = 6;
 
 export function deliveryBatch(items: readonly DeliveryItem[]): DeliveryBatch {
 	const reports = items.filter((item) => item.kind === 'report');
-	const decisions = items.filter((item) => item.kind === 'decision');
 	const prompts = items.filter((item) => item.kind === 'prompt');
 	const sections = [
 		...(reports.length > 0 ? [preamble(reports), ...reports.map((item) => item.prompt)] : []),
-		...decisions.map((item) => item.prompt),
 		...prompts.map((item) => item.prompt),
 	];
 	return {
 		prompt: sections.join('\n\n'),
 		automated: reports.length === items.length,
 		from: items.find((item) => item.fromWorkstreamId !== null)?.fromWorkstreamId ?? null,
-		chainId: decisions.length > 0 ? null : (items.find((item) => item.chainId)?.chainId ?? null),
+		chainId: items.find((item) => item.chainId)?.chainId ?? null,
 		causeEventId: items.find((item) => item.causeEventId !== null)?.causeEventId ?? null,
 		reports: reports.flatMap((item) => (item.report ? [item.report] : [])),
-		decisions: decisions.flatMap((item) => (item.decisionId ? [item.decisionId] : [])),
 	};
 }
 
@@ -140,7 +135,7 @@ function isFields(value: unknown): value is Readonly<Record<string, unknown>> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function reportForLead(summary: string, checkout: string): string {
+export function reportForStarter(summary: string, checkout: string): string {
 	const absolute = summary.replace(
 		/(!\[[^\]\n]*\]\(\s*<?)([^)\s>]+)/gu,
 		(whole, opening: string, src: string) => {

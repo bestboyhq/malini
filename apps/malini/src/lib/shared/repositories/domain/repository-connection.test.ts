@@ -32,7 +32,6 @@ function workstream(id: string, projectId: string): Workstream {
 		createdAt: '2026-10-24T00:00:00.000Z',
 		activeAt: '2026-10-24T00:00:00.000Z',
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
-		scope: null,
 		startedBy: null,
 	};
 }

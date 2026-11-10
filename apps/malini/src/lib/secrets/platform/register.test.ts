@@ -162,14 +162,14 @@ describe('secrets', () => {
 			requestId: String(ask(['STRIPE_KEY'])['id']),
 			values: { STRIPE_KEY: 'sk-shop-1' },
 		});
-		const lead = secrets.request({
+		const everywhere = secrets.request({
 			sessionId: 'chat-1',
 			repository: null,
 			names: ['GITHUB_TOKEN'],
 			why: 'To open the pull request.',
 		});
 		await context.commands.call('secrets.save', {
-			requestId: String(lead['id']),
+			requestId: String(everywhere['id']),
 			values: { GITHUB_TOKEN: 'ghp-1' },
 		});
 

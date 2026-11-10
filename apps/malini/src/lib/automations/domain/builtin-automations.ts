@@ -255,7 +255,7 @@ export const BUILTIN_AUTOMATIONS: Readonly<Record<AutomationBuiltin, BuiltinAuto
 		effort: 'low',
 		trigger: { when: 'on repositories:workstream-removed where archived is set', mode: 'off' },
 		instructions:
-			"Append what you typed in each archived chat, and each turn's Outcome line, to log/ in the brain, with secrets taken out. Home chats are captured once a day.",
+			"Append what you typed in each archived chat, and each turn's Outcome line, to log/ in the brain, with secrets taken out. Once a day, Malini catches up on archived chats it has not captured yet.",
 	},
 	'write-brain-notes': {
 		name: 'Write the notes',

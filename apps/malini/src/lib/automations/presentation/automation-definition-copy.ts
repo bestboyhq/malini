@@ -55,7 +55,7 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<AutomationBuiltin, string>> = {
 	'suggest-automations':
 		'Runs on its own when the first thing you type after a pull request merges may match what you typed after an earlier merge in that repository. When it does, a suggested automation shows under the reply. Nothing runs until you save it.',
 	'capture-brain':
-		'Its trigger runs it when a workstream is archived, and Malini catches up on Home chats once a day. It appends what you typed and each Outcome line to log/ in the brain, with secrets taken out, and never rewrites it. No model runs. Deleting a workstream captures nothing.',
+		'Its trigger runs it when a workstream is archived, and Malini catches up once a day on archived chats it has not captured yet. It appends what you typed and each Outcome line to log/ in the brain, with secrets taken out, and never rewrites it. No model runs. Deleting a workstream captures nothing.',
 	'write-brain-notes':
 		'Its trigger runs it in the brain every Sunday at 18:00. It reads the log, rewrites notes/, and sees only the brain: no chats, no attachments, no internet. Malini commits and pushes what it writes. Run it yourself from any chat with /.',
 };

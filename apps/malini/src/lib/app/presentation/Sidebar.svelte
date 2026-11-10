@@ -5,17 +5,12 @@
 	import { quartOut } from 'svelte/easing';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { slide, type SlideParams } from 'svelte/transition';
-	import { BusyIcon, ChatTileIcon, Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import {
-		HOME_SCOPE,
 		connectedRepositoryContexts,
 		hiddenRepositoriesQuery,
-		inSidebarOrder,
-		leadScopeLabel,
 		moveInSidebarCommand,
 		sidebarOrderQuery,
-		startLeadChatCommand,
-		type LeadScope,
 		type SidebarMove,
 	} from '$shared/repositories/repositories.api';
 	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
@@ -27,6 +22,7 @@
 	import {
 		DEFAULT_SIDEBAR_ARRANGEMENT,
 		sectionedGrouping,
+		showsAttentionOnly,
 	} from '$lib/app/domain/sidebar-arrangement';
 	import { arrangeSidebarCommand } from '$lib/app/application/commands/arrange-sidebar.command';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
@@ -34,8 +30,8 @@
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
 	import { attentionTreeQuery } from '$lib/app/application/queries/attention-tree.query.svelte';
-	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
-	import { leadHeadline, progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
+	import { startedProgressQuery } from '$lib/app/application/queries/started-progress.query.svelte';
+	import { progressLabel, type ProgressDot } from '$lib/app/domain/started-progress';
 	import { ALL_FOCUS, focusStillExists, type SidebarFocus } from '$lib/app/domain/sidebar-focus';
 	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import { SECTION_ICONS } from './sidebar-arrangement-icons';
@@ -169,12 +165,6 @@
 
 	const hiddenRepositoryIds = $derived(hiddenRepositoriesQuery.data);
 	const openRepositoryId = $derived(page.params.repositoryId ?? null);
-	const leads = $derived(
-		inSidebarOrder(
-			workstreams.filter((workstream) => workstream.scope !== null),
-			sidebarOrder.workstreamIds,
-		),
-	);
 	const savedForLaterCounts = $derived(
 		archivedWorkstreamsQuery.data.reduce((counts, workstream) => {
 			if (!workstream.savedForLater || workstream.repositoryId === null) return counts;
@@ -185,7 +175,7 @@
 	const contexts = $derived(
 		connectedRepositoryContexts({
 			repositories,
-			workstreams: workstreams.filter((workstream) => workstream.scope === null),
+			workstreams,
 			activeWorkstreamId,
 			order: sidebarOrder,
 			savedRepositoryIds,
@@ -193,7 +183,7 @@
 	);
 	const unhiddenRows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
 	const everyRepositoryHidden = $derived(contexts.length > 0 && unhiddenRows.length === 0);
-	const ownerChoices = $derived(focusOwners(unhiddenRows, leads));
+	const ownerChoices = $derived(focusOwners(unhiddenRows));
 	const repositoryChoices = $derived(
 		unhiddenRows.map((row): FocusChoice => ({
 			focus: { kind: 'repository', repositoryId: row.repo.id },
@@ -225,18 +215,14 @@
 	const tree = $derived(
 		sidebarTree({
 			contexts,
-			leads,
 			hiddenRepositoryIds,
 			focus,
 			arrangement,
-			workstreamOrder: sidebarOrder.workstreamIds,
 			activeAt: sidebarSectionsQuery.activeAt,
 			sectionOf,
 		}),
 	);
-	const started = $derived(
-		new Map([tree, ...tree.sections].flatMap((branch) => [...branch.started])),
-	);
+
 	const flatSections = $derived(
 		sectioned &&
 			focus.kind !== 'repository' &&
@@ -253,7 +239,6 @@
 		new Map(contexts.map((context) => [context.repo.id, context])),
 	);
 	const blockIds = $derived(tree.blocks.map((block) => block.id));
-	const chatIds = $derived(tree.chats.map((chat) => chat.id));
 	const repositoryIdsByEntry = $derived(
 		new Map(
 			tree.blocks.map((block) => [
@@ -266,9 +251,8 @@
 	);
 	const listedRepositoryIds = $derived(sidebarRepositoryIds(tree));
 	const listedWorkstreamIds = $derived(sidebarWorkstreamIds(tree));
-	const hasRows = $derived(
-		tree.chats.length > 0 || tree.blocks.length > 0 || tree.sections.length > 0,
-	);
+	const hasRows = $derived(tree.blocks.length > 0 || tree.sections.length > 0 || tree.hidden > 0);
+	const nothingNeedsYou = $derived(showsAttentionOnly(arrangement) && tree.sections.length === 0);
 	const avatarSize = $derived(compact ? 16 : 20);
 	const pendingWorkstreamId = $derived(optimisticDestination?.workstreamId ?? null);
 	const visuallyActiveWorkstreamId = $derived(pendingWorkstreamId ?? activeWorkstreamId);
@@ -533,12 +517,7 @@
 		onSaveWorkstreamForLater?.(workstream);
 	}
 
-	function rowEndPadding(hasChildren: boolean, saveable: boolean): string {
-		if (hasChildren) {
-			return saveable
-				? 'pr-8 group-hover/row:pr-20 group-has-focus-visible/row:pr-20'
-				: 'pr-8 group-hover/row:pr-14 group-has-focus-visible/row:pr-14';
-		}
+	function rowEndPadding(saveable: boolean): string {
 		return saveable
 			? 'pr-3 group-hover/row:pr-14 group-has-focus-visible/row:pr-14'
 			: 'pr-3 group-hover/row:pr-8 group-has-focus-visible/row:pr-8';
@@ -957,13 +936,12 @@
 		view: WorkstreamView,
 	): Record<`data-${string}`, string | undefined> {
 		return {
-			'data-testid': workstream.scope === null ? 'sidebar-workstream' : 'sidebar-chat',
+			'data-testid': 'sidebar-workstream',
 			'data-workstream-id': workstream.id,
 			'data-navigation-workstream-id': workstream.id,
 			'data-navigation-pending': workstream.id === pendingWorkstreamId ? 'true' : undefined,
 			'data-navigation-feedback-only': 'true',
 			'data-repository-full-name': repositoryFullName ?? undefined,
-			'data-chat-scope': workstream.scope?.kind,
 			'data-workstream-state': view.state.tone,
 			'data-workstream-checkout': workstream.checkoutState,
 			'data-workstream-draft': view.chat.hasDraft ? 'true' : undefined,
@@ -988,15 +966,6 @@
 		label: string;
 	}>;
 
-	function leadRow(workstream: Workstream): SidebarRow {
-		return {
-			workstream,
-			repositoryFullName: null,
-			repositoryName: null,
-			label: displayWorkstreamName(workstream),
-		};
-	}
-
 	function repositoryRow(workstream: Workstream, repositoryFullName: string): SidebarRow {
 		return {
 			workstream,
@@ -1006,12 +975,14 @@
 		};
 	}
 
-	function placedRow(workstream: Workstream, nested = false): SidebarRow {
+	function placedRow(workstream: Workstream): SidebarRow {
 		const repository = repositoryOfWorkstream.get(workstream.id);
-		if (workstream.scope !== null || !repository) return leadRow(workstream);
+		const repositoryFullName = repository?.repo.fullName ?? null;
 		return {
-			...repositoryRow(workstream, repository.repo.fullName),
-			repositoryName: nested || flatSections ? repository.name : null,
+			workstream,
+			repositoryFullName,
+			repositoryName: repository && flatSections ? repository.name : null,
+			label: displayWorkstreamName(workstream, repositoryFullName),
 		};
 	}
 
@@ -1019,23 +990,16 @@
 		return scope ? `${scope}/${id}` : id;
 	}
 
-	function focusOwners(
-		rows: readonly ConnectedRepositoryContext[],
-		scopedLeads: readonly Workstream[],
-	): FocusChoice[] {
+	function focusOwners(rows: readonly ConnectedRepositoryContext[]): FocusChoice[] {
 		const owners = new Map<string, FocusChoice>();
-		const add = (owner: string): void => {
-			const key = owner.toLowerCase();
-			if (!owners.has(key)) {
-				owners.set(key, {
-					focus: { kind: 'owner', owner },
-					label: owner,
-					avatarFullName: `${owner}/${owner}`,
-				});
-			}
-		};
-		for (const row of rows) if (row.owner !== null) add(row.owner);
-		for (const lead of scopedLeads) if (lead.scope?.kind === 'owner') add(lead.scope.owner);
+		for (const { owner } of rows) {
+			if (owner === null || owners.has(owner.toLowerCase())) continue;
+			owners.set(owner.toLowerCase(), {
+				focus: { kind: 'owner', owner },
+				label: owner,
+				avatarFullName: `${owner}/${owner}`,
+			});
+		}
 		return [...owners.values()];
 	}
 
@@ -1048,29 +1012,15 @@
 	function focusNeedsYou(target: SidebarFocus): boolean {
 		const focused = sidebarTree({
 			contexts,
-			leads,
 			hiddenRepositoryIds,
 			focus: target,
 			arrangement: DEFAULT_SIDEBAR_ARRANGEMENT,
-			workstreamOrder: sidebarOrder.workstreamIds,
 			activeAt: sidebarSectionsQuery.activeAt,
 			sectionOf,
 		});
 		return sidebarWorkstreamIds(focused).some(
 			(workstreamId) => attentionTreeQuery.summary(workstreamId).needsYou,
 		);
-	}
-
-	function ownerCountLabel(block: SidebarOwner): string {
-		const chats = block.leads.length;
-		const repositories = repositoryCountLabel(block.repositories.length);
-		if (chats === 0) return repositories;
-		const chatLabel = `${chats} ${chats === 1 ? 'chat' : 'chats'}`;
-		return block.repositories.length === 0 ? chatLabel : `${chatLabel}, ${repositories}`;
-	}
-
-	function scopeOf(block: SidebarOwner): LeadScope {
-		return { kind: 'owner', owner: block.owner };
 	}
 </script>
 
@@ -1087,7 +1037,7 @@
 	{@const collapsed = collapsedGroupIds.has(collapseId)}
 	{@const icon = SECTION_ICONS[section.key]}
 	{@const count = branchWorkstreamIds(section).length}
-	{@const chatIds = section.chats.map((chat) => chat.id)}
+	{@const flatIds = section.flat.map((workstream) => workstream.id)}
 	{@const blockIds = section.blocks.map((block) => block.id)}
 	<li class="relative w-full min-w-0" data-testid="sidebar-section" data-section={section.key}>
 		<Button
@@ -1120,10 +1070,10 @@
 			id={`section-rows-${section.key}`}
 			class={['flex w-full flex-col', compact ? 'gap-0.5' : 'gap-1.5', collapsed && 'hidden']}
 		>
-			{#if section.chats.length > 0}
+			{#if section.flat.length > 0}
 				<ul class="flex w-full flex-col" aria-label={section.label}>
-					{#each section.chats as chat (chat.id)}
-						{@render workstreamItem(placedRow(chat), 0, chatIds)}
+					{#each section.flat as workstream (workstream.id)}
+						{@render workstreamItem(placedRow(workstream), 0, flatIds)}
 					{/each}
 				</ul>
 			{/if}
@@ -1145,7 +1095,6 @@
 {#snippet ownerBlock(block: SidebarOwner, focused: boolean, scope: string)}
 	{@const collapseId = scoped(scope, block.id)}
 	{@const collapsed = !focused && collapsedGroupIds.has(collapseId)}
-	{@const leadIds = block.leads.map((lead) => lead.id)}
 	{@const repositoryIds = block.repositories.map(({ repo }) => repo.id)}
 	<li
 		class={['relative w-full min-w-0', reorderClass(block.id)]}
@@ -1155,85 +1104,62 @@
 			if (!focused) armReorder(event, { kind: 'repository', id: block.id });
 		}}
 	>
-		<div class="group/owner relative">
-			{#if focused}
-				<div
-					class={[
-						'text-fg-default flex w-full items-center gap-2 rounded-xl pr-9 pl-2',
-						compact ? 'h-7 text-xs' : 'h-8 text-sm',
-					]}
-					data-testid="sidebar-owner-folder"
-					data-owner={block.owner}
-				>
-					<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-						<RepositoryAvatar fullName={`${block.owner}/${block.owner}`} size={avatarSize} />
-					</span>
-					<h2 class="min-w-0 flex-1 truncate leading-relaxed font-medium">{block.owner}</h2>
-				</div>
-			{:else}
-				<Button
-					bare
-					class={[
-						'text-fg-secondary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
-						compact ? 'h-7 text-xs' : 'h-8 text-sm',
-					]}
-					ariaLabel={`${block.owner}, ${ownerCountLabel(block)}`}
-					ariaExpanded={!collapsed}
-					ariaControls={`owner-repositories-${collapseId}`}
-					{...dragEnabled ? { ariaKeyshortcuts: moveShortcuts() } : {}}
-					data-sidebar-grip=""
-					data-testid="sidebar-owner-folder"
-					data-owner={block.owner}
-					onclick={() => toggleGroupCollapsedCommand(collapseId)}
-					onkeydown={(event) => void onMoveKey(event, 'repository', block.id, blockIds)}
-				>
-					<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-						<RepositoryAvatar fullName={`${block.owner}/${block.owner}`} size={avatarSize} />
-					</span>
-					<span class="min-w-0 flex-1 truncate text-left leading-relaxed font-medium">
-						{block.owner}
-					</span>
-					<span
-						class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/owner:invisible group-has-focus-visible/owner:invisible"
-					>
-						{block.leads.length + block.repositories.length}
-					</span>
-					<Icon
-						name="chevron-down"
-						class={`text-fg-tertiary shrink-0 transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
-						size={13}
-					/>
-				</Button>
-			{/if}
-			<span
+		{#if focused}
+			<div
 				class={[
-					'absolute top-1/2 -translate-y-1/2',
-					focused
-						? 'right-1'
-						: 'pointer-events-none right-6 opacity-0 group-hover/owner:pointer-events-auto group-hover/owner:opacity-100 group-has-focus-visible/owner:pointer-events-auto group-has-focus-visible/owner:opacity-100',
+					'text-fg-default flex w-full items-center gap-2 rounded-xl pr-2 pl-2',
+					compact ? 'h-7 text-xs' : 'h-8 text-sm',
 				]}
+				data-testid="sidebar-owner-folder"
+				data-owner={block.owner}
 			>
-				{@render newChatButton(scopeOf(block))}
-			</span>
-		</div>
+				<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+					<RepositoryAvatar fullName={`${block.owner}/${block.owner}`} size={avatarSize} />
+				</span>
+				<h2 class="min-w-0 flex-1 truncate leading-relaxed font-medium">{block.owner}</h2>
+			</div>
+		{:else}
+			<Button
+				bare
+				class={[
+					'text-fg-secondary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
+					compact ? 'h-7 text-xs' : 'h-8 text-sm',
+				]}
+				ariaLabel={`${block.owner}, ${repositoryCountLabel(block.repositories.length)}`}
+				ariaExpanded={!collapsed}
+				ariaControls={`owner-repositories-${collapseId}`}
+				{...dragEnabled ? { ariaKeyshortcuts: moveShortcuts() } : {}}
+				data-sidebar-grip=""
+				data-testid="sidebar-owner-folder"
+				data-owner={block.owner}
+				onclick={() => toggleGroupCollapsedCommand(collapseId)}
+				onkeydown={(event) => void onMoveKey(event, 'repository', block.id, blockIds)}
+			>
+				<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+					<RepositoryAvatar fullName={`${block.owner}/${block.owner}`} size={avatarSize} />
+				</span>
+				<span class="min-w-0 flex-1 truncate text-left leading-relaxed font-medium">
+					{block.owner}
+				</span>
+				<span class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums">
+					{block.repositories.length}
+				</span>
+				<Icon
+					name="chevron-down"
+					class={`text-fg-tertiary shrink-0 transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
+					size={13}
+				/>
+			</Button>
+		{/if}
 		<div
 			id={`owner-repositories-${collapseId}`}
 			class={['flex w-full flex-col gap-0.5', collapsed && 'hidden']}
 		>
-			{#if block.leads.length > 0}
-				<ul class="flex w-full flex-col" aria-label={`Chats in ${block.owner}`}>
-					{#each block.leads as lead (lead.id)}
-						{@render workstreamItem(leadRow(lead), 1, leadIds)}
-					{/each}
-				</ul>
-			{/if}
-			{#if block.repositories.length > 0}
-				<ul class="flex w-full flex-col gap-0.5">
-					{#each block.repositories as repository (repository.repo.id)}
-						{@render repositoryGroup(repository, 1, repositoryIds, scope)}
-					{/each}
-				</ul>
-			{/if}
+			<ul class="flex w-full flex-col gap-0.5">
+				{#each block.repositories as repository (repository.repo.id)}
+					{@render repositoryGroup(repository, 1, repositoryIds, scope)}
+				{/each}
+			</ul>
 		</div>
 	</li>
 {/snippet}
@@ -1389,15 +1315,11 @@
 
 {#snippet workstreamItem(row: SidebarRow, level: number, siblingIds: readonly string[])}
 	{@const workstream = row.workstream}
-	{@const isLead = workstream.scope !== null}
-	{@const dots = leadProgressQuery.dots(workstream.id)}
-	{@const children = started.get(workstream.id) ?? []}
-	{@const hasChildren = children.length > 0}
-	{@const folded = collapsedGroupIds.has(workstream.id)}
-	{@const childIds = children.map((child) => child.id)}
+
+	{@const dots = startedProgressQuery.dots(workstream.id)}
+
 	{@const view = workstreamView(workstream, row.label, attentionTreeQuery.summary(workstream.id))}
-	{@const saveable =
-		!isLead && view.lifecycle.kind === 'archive' && onSaveWorkstreamForLater !== undefined}
+	{@const saveable = view.lifecycle.kind === 'archive' && onSaveWorkstreamForLater !== undefined}
 	<li
 		class={['relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
 		style:transform={reorderTransform(workstream.id)}
@@ -1425,7 +1347,7 @@
 						aria-busy={workstream.id === pendingWorkstreamId || undefined}
 						class={[
 							'sidebar-row relative w-full flex-col items-stretch outline-none',
-							rowEndPadding(hasChildren, saveable),
+							rowEndPadding(saveable),
 							levelPadding(level),
 							compact && 'py-1 text-xs',
 							view.chat.attention !== null
@@ -1472,11 +1394,7 @@
 						oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
 					>
 						<span class="relative flex items-center gap-2">
-							{#if isLead}
-								{@render chatGlyph(view, level)}
-							{:else}
-								{@render statusIndicator(view, level)}
-							{/if}
+							{@render statusIndicator(view, level)}
 							<span class="sidebar-row-text gap-1.5">
 								{@render workstreamName(workstream, view)}
 								{#if row.repositoryName}
@@ -1499,16 +1417,14 @@
 							</span>
 						{/if}
 					</a>
-					{#if hasChildren}
-						{@render foldButton(row, folded)}
-					{/if}
+
 					{#if saveable}
 						{@render saveForLaterButton(
 							workstream,
 							view,
 							[
 								'absolute h-lh items-center leading-relaxed',
-								hasChildren ? 'right-13' : 'right-7',
+								'right-7',
 								compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 							].join(' '),
 						)}
@@ -1518,7 +1434,7 @@
 						view,
 						[
 							'absolute h-lh items-center leading-relaxed',
-							hasChildren ? 'right-7' : 'right-1',
+							'right-1',
 							compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 						].join(' '),
 					)}
@@ -1546,78 +1462,7 @@
 				{@render rowLink()}
 			{/if}
 		</div>
-		{#if hasChildren}
-			<ul
-				id={`workstream-children-${workstream.id}`}
-				class={['flex w-full flex-col', folded && 'hidden']}
-				aria-label={`Started by ${row.label}`}
-			>
-				{#each children as child (child.id)}
-					{@render workstreamItem(placedRow(child, true), level + 1, childIds)}
-				{/each}
-			</ul>
-		{/if}
 	</li>
-{/snippet}
-
-{#snippet foldButton(row: SidebarRow, folded: boolean)}
-	<Tooltip
-		content={folded ? 'Show its workstreams' : 'Fold its workstreams'}
-		placement="right"
-		class={[
-			'absolute right-1 h-lh items-center leading-relaxed',
-			compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
-		]}
-	>
-		<IconButton
-			variant="ghost"
-			size="sm"
-			ariaLabel={`${folded ? 'Show' : 'Fold'} the workstreams of ${row.label}`}
-			ariaExpanded={!folded}
-			ariaControls={`workstream-children-${row.workstream.id}`}
-			data-testid="sidebar-fold"
-			onclick={(event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				toggleGroupCollapsedCommand(row.workstream.id);
-			}}
-		>
-			<Icon
-				name="chevron-down"
-				class={`text-fg-tertiary transition-transform duration-100 ${folded ? '-rotate-90' : ''}`}
-				size={12}
-			/>
-		</IconButton>
-	</Tooltip>
-{/snippet}
-
-{#snippet chatGlyph(view: WorkstreamView, level: number)}
-	<Tooltip
-		content={visualStateTooltip(view.state, view.chat, view.pullRequest)}
-		placement="right"
-		suppressed={view.running !== null}
-		class="relative z-10 shrink-0"
-	>
-		<span
-			class={[
-				'grid shrink-0 place-items-center',
-				level === 0 ? 'h-5 w-5' : 'h-4 w-4',
-				attentionColor(view.chat),
-			]}
-			role="status"
-			aria-label={`Chat status: ${visualStateTooltip(view.state, view.chat, view.pullRequest)}`}
-			style:--chat-tile-color={attentionColor(view.chat) ? 'currentColor' : undefined}
-			data-testid="sidebar-chat-status"
-			data-workstream-icon-state={view.state.tone}
-			data-attention-kind={view.chat.needsYou ? view.chat.attention?.kind : undefined}
-		>
-			{#if view.busy}
-				<BusyIcon size={14} background={view.state.tone === 'background'} />
-			{:else}
-				<ChatTileIcon size={16} />
-			{/if}
-		</span>
-	</Tooltip>
 {/snippet}
 
 {#snippet progress(dots: readonly ProgressDot[])}
@@ -1658,23 +1503,6 @@
 		</span>
 		<span class="min-w-0 flex-1 truncate text-left leading-relaxed">New chat</span>
 	</Button>
-{/snippet}
-
-{#snippet newChatButton(scope: LeadScope)}
-	<Tooltip content={`New chat in ${leadScopeLabel(scope)}`} placement="top" class="relative">
-		<IconButton
-			variant="ghost"
-			size="sm"
-			ariaLabel={`New chat in ${leadScopeLabel(scope)}`}
-			data-testid="sidebar-new-chat"
-			onclick={(event) => {
-				event.stopPropagation();
-				startLeadChatCommand(scope);
-			}}
-		>
-			<Icon name="plus" size={14} />
-		</IconButton>
-	</Tooltip>
 {/snippet}
 
 {#snippet statusIndicator(view: WorkstreamView, level: number)}
@@ -1869,8 +1697,7 @@
 {/snippet}
 
 {#snippet startedCard(workstream: Workstream, view: WorkstreamView, dots: readonly ProgressDot[])}
-	{@const headline = leadHeadline(dots)}
-	{@const targets = leadProgressQuery.shipTargets(workstream.id)}
+	{@const targets = startedProgressQuery.shipTargets(workstream.id)}
 	{@const chatSessionId = () => workstreamChatSummaryQuery.data(workstream.id).sessionId}
 	{@const shipActions = [
 		startedShipAction('draft-all', workstream.id, targets.draft, chatSessionId),
@@ -1885,10 +1712,7 @@
 		<div class="flex min-w-0 items-center gap-2 px-2 pt-1">
 			<div class="flex min-w-0 flex-1 flex-col gap-0.5">
 				<span class="text-fg-default truncate text-sm font-medium">{view.label}</span>
-				<span class="text-fg-tertiary text-xs">
-					{headline.label}{#if headline.detail}
-						· {headline.detail}{/if}
-				</span>
+				<span class="text-fg-tertiary text-xs">{progressLabel(dots)}</span>
 			</div>
 			{#each shipActions as action (action.label)}
 				<Button
@@ -1903,7 +1727,7 @@
 		</div>
 		<div class="max-h-96 overflow-y-auto">
 			<StartedWorkstreams
-				workstreamIds={leadProgressQuery.startedIds(workstream.id)}
+				workstreamIds={startedProgressQuery.startedIds(workstream.id)}
 				framed={false}
 				label={`Started by ${view.label}`}
 			/>
@@ -1997,22 +1821,9 @@
 						reorder && 'pointer-events-none',
 					]}
 				>
-					{#if focus.kind === 'all'}
-						<li class="relative w-full min-w-0">
-							<ul class="flex w-full flex-col" aria-label="Chats">
-								<li class="w-full min-w-0">
-									{@render newChatRow('New chat', () => startLeadChatCommand(HOME_SCOPE))}
-								</li>
-								{#each tree.chats as chat (chat.id)}
-									{@render workstreamItem(leadRow(chat), 0, chatIds)}
-								{/each}
-							</ul>
-						</li>
-					{:else if sectioned && focus.kind === 'owner'}
+					{#if focus.kind === 'all' || (sectioned && focus.kind === 'owner')}
 						<li class="w-full min-w-0">
-							{@render newChatRow(`New chat in ${focus.owner}`, () =>
-								startLeadChatCommand({ kind: 'owner', owner: focus.owner }),
-							)}
+							{@render newChatRow('New chat', () => openCommandCenterCommand('start'))}
 						</li>
 					{:else if sectioned && focusedRepository}
 						<li class="w-full min-w-0">
@@ -2031,6 +1842,35 @@
 					{#each tree.sections as section (section.key)}
 						{@render sectionBlock(section)}
 					{/each}
+					{#if nothingNeedsYou}
+						<li
+							class={[
+								'text-fg-tertiary flex items-center pr-2 pl-9',
+								compact ? 'h-7 text-xs' : 'h-8 text-sm',
+							]}
+							data-testid="sidebar-nothing-needs-you"
+						>
+							Nothing needs you.
+						</li>
+					{/if}
+					{#if tree.hidden > 0}
+						<li class="w-full min-w-0">
+							<Button
+								bare
+								class={[
+									'text-fg-tertiary hover:bg-surface-root-hover hover:text-fg-default focus-visible:bg-surface-root-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-9 outline-none',
+									compact ? 'h-7 text-xs' : 'h-8 text-sm',
+								]}
+								data-testid="sidebar-show-hidden"
+								onclick={() => arrangeSidebarCommand({ show: 'everything' })}
+							>
+								<span class="min-w-0 flex-1 truncate text-left leading-relaxed">
+									{tree.hidden} hidden
+								</span>
+								<span class="text-fg-secondary shrink-0">Show all</span>
+							</Button>
+						</li>
+					{/if}
 				</ul>
 				{#if !hasRows && focus.kind === 'all' && !scopeFailure}
 					<StateBlock

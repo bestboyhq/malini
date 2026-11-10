@@ -1,6 +1,6 @@
 # 0114 - A lead chat reads as a timeline
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

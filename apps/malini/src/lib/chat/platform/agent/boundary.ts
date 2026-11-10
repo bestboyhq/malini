@@ -2,7 +2,6 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentBoundary } from '$contract/agent';
 import type { AutomationBoundary } from '$contract/automations';
-import { LEAD_PLAN_PATH } from '$contract/leads';
 import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '$contract/protocol-contract.generated';
 import {
 	CHECKOUT_TRASH_DIR_NAME,
@@ -18,14 +17,11 @@ const READABLE_APP_DATA = new Set([
 	'extensions',
 ]);
 
-export type BoundaryCheckout = Readonly<{ path: string; lead: boolean }>;
-
 export type BoundaryPlaces = Readonly<{
 	appDataRoot: string;
 	appDataEntries: readonly string[];
 	checkoutsRoot: string;
-	checkouts: readonly BoundaryCheckout[];
-	starterPlan: string | null;
+	checkouts: readonly Readonly<{ path: string }>[];
 }>;
 
 export function agentBoundary(
@@ -34,21 +30,15 @@ export function agentBoundary(
 ): AgentBoundary | null {
 	const chatRecords = automation.chats === 'all';
 	if (chatRecords && automation.attachments && automation.internet) return null;
-	const { appDataRoot, appDataEntries, checkoutsRoot, checkouts, starterPlan } = places;
+	const { appDataRoot, appDataEntries, checkoutsRoot, checkouts } = places;
 	const attachments = automation.attachments
 		? []
 		: checkouts.map(({ path }) => join(path, BRIDGE_AGENT_ATTACHMENTS_PATH));
 	const records = chatRecords
 		? []
-		: [
-				...appDataEntries
-					.filter((entry) => !READABLE_APP_DATA.has(entry))
-					.map((entry) => join(appDataRoot, entry)),
-				...checkouts
-					.filter(({ lead }) => lead)
-					.map(({ path }) => join(path, LEAD_PLAN_PATH))
-					.filter((plan) => plan !== starterPlan),
-			];
+		: appDataEntries
+				.filter((entry) => !READABLE_APP_DATA.has(entry))
+				.map((entry) => join(appDataRoot, entry));
 	const archived =
 		chatRecords && automation.attachments
 			? []

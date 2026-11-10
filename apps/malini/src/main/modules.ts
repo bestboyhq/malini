@@ -219,6 +219,7 @@ export async function registerModules(
 	stats.start();
 	extensions.start();
 	app.streaming.start();
+	void repositories.archiveRetiredChats();
 
 	let shuttingDown: Promise<void> | null = null;
 	const shutdown = (): Promise<void> => {

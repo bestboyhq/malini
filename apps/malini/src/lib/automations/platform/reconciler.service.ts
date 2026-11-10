@@ -30,7 +30,7 @@ import {
 	getWorkstream,
 	isWorkstreamClosed,
 	listWorkstreams,
-	workstreamLeads,
+	workstreamRoots,
 } from '$shared/repositories/repositories.platform';
 import type { ShippingRule } from '../automations.platform';
 import { isRunnableAutomation } from '../domain/builtin-automations';
@@ -642,7 +642,7 @@ export class Reconciler {
 			const workstreamId =
 				decision.workstreamId === null
 					? null
-					: (workstreamLeads(listWorkstreams(db)).get(decision.workstreamId) ??
+					: (workstreamRoots(listWorkstreams(db)).get(decision.workstreamId) ??
 						decision.workstreamId);
 			const session = workstreamId === null ? null : latestSessionForWorkstream(db, workstreamId);
 			const subject =
@@ -724,6 +724,6 @@ function requesterSessionId(db: MaliniDatabase, cause: EventCause | null): strin
 
 function retryTarget(
 	run: AutomationRunRecord,
-): Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'> {
-	return { workstreamId: run.workstreamId, repositoryId: run.repositoryId, scope: run.scope };
+): Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId'> {
+	return { workstreamId: run.workstreamId, repositoryId: run.repositoryId };
 }

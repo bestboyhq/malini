@@ -1,5 +1,5 @@
 import type { RepositoryImportSource } from './github-auth';
-import { LEAD_SPACE_PROJECT_ID } from './lead-scope';
+import { RETIRED_CHATS_PROJECT_ID } from './retired-chats';
 import { projectIdentityCandidatesForRepoUrl } from './project-identity';
 import type { Project, Repository } from './repository';
 import { DEFAULT_SIDEBAR_ORDER, inSidebarOrder, type SidebarOrder } from './sidebar-order';
@@ -180,7 +180,7 @@ export function repositoryProjectIds(
 }
 
 function repositoryProjects(projects: readonly Project[]): readonly Project[] {
-	return projects.filter((project) => project.id !== LEAD_SPACE_PROJECT_ID);
+	return projects.filter((project) => project.id !== RETIRED_CHATS_PROJECT_ID);
 }
 
 export function projectFullName(project: Project): string | null {

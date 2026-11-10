@@ -40,7 +40,6 @@ import {
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
 import { ChatDeliveries } from './deliveries.service';
-import { installLeadDecisions } from './lead-decisions.service';
 import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
@@ -95,7 +94,6 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 	});
 	const stopGrants = installPermissionGrants(context);
 	const deliveries = new ChatDeliveries(context, deps.log ?? ((line) => console.error(line)));
-	installLeadDecisions(context, deliveries);
 	const shellRuns = installShellRuns(context, {
 		checkout: deps.resolveWorkstreamCheckout,
 		environment: deps.spawnEnvironment,

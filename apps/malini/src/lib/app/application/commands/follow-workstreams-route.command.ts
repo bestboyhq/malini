@@ -4,7 +4,7 @@ import {
 	displayWorkstreamName,
 	repositoryContextForWorkstream,
 	trackWorkstreamChangeTotalsCommand,
-	workstreamLeads,
+	workstreamRoots,
 	type Repository,
 	type Workstream,
 } from '$shared/repositories/repositories.api';
@@ -17,12 +17,11 @@ function followWorkstreamsRouteCommand(
 	repositories: readonly Repository[],
 	loaded: boolean,
 ): void {
-	const repositoryWork = checkedOutWorkstreams.filter((workstream) => workstream.scope === null);
 	trackWorkstreamChangeTotalsCommand(
-		repositoryWork.map(({ id, baseBranch }) => ({ id, baseBranch })),
+		checkedOutWorkstreams.map(({ id, baseBranch }) => ({ id, baseBranch })),
 	);
 	loadPullRequestStatesCommand(
-		repositoryWork.map(({ id, projectId, branch, baseBranch }) => ({
+		checkedOutWorkstreams.map(({ id, projectId, branch, baseBranch }) => ({
 			workstreamId: id,
 			repoId: projectId,
 			head: branch,
@@ -44,16 +43,16 @@ function followWorkstreamsRouteCommand(
 		};
 	});
 	const labels = new Map(contexts.map(({ workstreamId, label }) => [workstreamId, label]));
-	const leads = workstreamLeads(workstreams);
+	const roots = workstreamRoots(workstreams);
 	registerAttentionScopeCommand(
 		contexts.map((context) => {
-			const leadId = leads.get(context.workstreamId) ?? context.workstreamId;
+			const rootId = roots.get(context.workstreamId) ?? context.workstreamId;
 			return {
 				...context,
-				lead:
-					leadId === context.workstreamId
+				root:
+					rootId === context.workstreamId
 						? null
-						: { workstreamId: leadId, label: labels.get(leadId) ?? '' },
+						: { workstreamId: rootId, label: labels.get(rootId) ?? '' },
 			};
 		}),
 	);

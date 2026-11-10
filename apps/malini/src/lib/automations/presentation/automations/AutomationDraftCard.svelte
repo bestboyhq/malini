@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { scheduleWhen } from '$contract/automation-trigger';
 	import type {
 		AutomationDefinitionRecord,
 		AutomationRunMode,
@@ -16,6 +17,7 @@
 		DEFAULT_AGENT_RUN_PROFILE,
 		DEFAULT_PROVIDER_ID,
 	} from '$shared/providers/providers.api';
+	import { connectedRepositoriesQuery } from '$shared/repositories/repositories.api';
 	import { scheduleOf } from '$lib/automations/domain/schedule';
 	import { AUTOMATION_RUNS_IN_OPTIONS } from '../automation-definition-copy';
 	import ChoiceMenu from './ChoiceMenu.svelte';
@@ -25,6 +27,7 @@
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
 	import {
+		defaultSchedulePlace,
 		EVENT_RUNS_IN_OPTIONS,
 		RUN_MODES,
 		runModeHint,
@@ -46,6 +49,9 @@
 
 	const NOTHING = '';
 
+	const defaultPlace = $derived(
+		defaultSchedulePlace(connectedRepositoriesQuery.data.map(({ fullName }) => fullName)),
+	);
 	const parsed = untrack(() => draftFromWords(text));
 	const quote = untrack(() => [
 		{ text: '“', strong: false },
@@ -54,7 +60,7 @@
 	]);
 	let name = $state(untrack(() => title) ?? parsed.name);
 	let steps = $state<string[]>([...parsed.steps]);
-	let when = $state<string | null>(untrack(() => guessWhen(text)));
+	let when = $state<string | null>(untrack(() => guessWhen(text, defaultPlace)));
 	let mode = $state<AutomationRunMode>('ask');
 	let runsIn = $state<AutomationRunsIn>('workstream');
 	let thenAutomationId = $state<string>(
@@ -67,6 +73,12 @@
 
 	const filled = $derived(steps.map((step) => step.trim()).filter(Boolean));
 	const schedule = $derived(scheduleOf(when));
+
+	$effect(() => {
+		if (schedule?.place.kind === 'none' && defaultPlace.kind !== 'none') {
+			when = scheduleWhen({ ...schedule, place: defaultPlace });
+		}
+	});
 	const thenOptions = $derived([
 		{ value: NOTHING, label: 'Nothing' },
 		...thenChoices(automations, null),

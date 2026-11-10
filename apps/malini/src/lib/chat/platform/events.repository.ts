@@ -706,55 +706,26 @@ export function seqInSupersededRange(seq: number, ranges: readonly SupersededRan
 	return ranges.some((range) => seq >= range.fromSeq && seq <= range.toSeq);
 }
 
-export type TimelineEventRow = AgentEventRow & Readonly<{ at: string }>;
-
-const TIMELINE_KINDS = [
+const CONVERSATION_KINDS = [
 	'user.message',
 	'assistant.message',
-	'tool.started',
-	'tool.completed',
-	'run.completed',
-	'run.failed',
 	'turn.superseded',
 	'turn.restored',
 ] as const;
 
-const TIMELINE_KINDS_WITH_PAYLOAD = [
-	'user.message',
-	'assistant.message',
-	'run.completed',
-	'run.failed',
-	'turn.superseded',
-	'turn.restored',
-] as const;
-
-export function listTimelineEventRows(
-	db: MaliniDatabase,
-	sessionId: string,
-	exceptRunId = '',
-): TimelineEventRow[] {
-	const marks = (list: readonly string[]): string => list.map(() => '?').join(', ');
-	const rows = all<{ seq: number; run_id: string; kind: string; event: string | null; at: string }>(
+export function listConversationEventRows(db: MaliniDatabase, sessionId: string): AgentEventRow[] {
+	const rows = all<{ seq: number; run_id: string; event: string }>(
 		db,
-		`SELECT e.seq, e.run_id, e.kind, e.emitted_at AS at,
-		   CASE WHEN e.kind IN (${marks(TIMELINE_KINDS_WITH_PAYLOAD)})
-		     OR instr(e.event, '"name":"mcp__malini__') > 0 THEN e.event END AS event
-		 FROM (SELECT seq, run_id, emitted_at, event,
+		`SELECT e.seq, e.run_id, e.event
+		 FROM (SELECT seq, run_id, event,
 		         substr(event, 1, instr(event, char(10)) - 1) AS kind
-		       FROM agent_events WHERE session_id = ? AND run_id != ?) e
+		       FROM agent_events WHERE session_id = ?) e
 		 JOIN agent_runs r ON r.id = e.run_id AND r.obsoleted_at IS NULL
-		 WHERE e.kind IN (${marks(TIMELINE_KINDS)})
+		 WHERE e.kind IN (${CONVERSATION_KINDS.map(() => '?').join(', ')})
 		 ORDER BY e.seq`,
-		...TIMELINE_KINDS_WITH_PAYLOAD,
 		sessionId,
-		exceptRunId,
-		...TIMELINE_KINDS,
-	).map((row) => ({
-		seq: row.seq,
-		runId: row.run_id,
-		at: row.at,
-		...(row.event === null ? { kind: row.kind, payload: null } : eventFromBlob(row.event)),
-	}));
+		...CONVERSATION_KINDS,
+	).map((row) => ({ seq: row.seq, runId: row.run_id, ...eventFromBlob(row.event) }));
 	const superseded = supersededRanges(rows);
 	return rows.filter(
 		(row) => !isHistoryEventKind(row.kind) && !seqInSupersededRange(row.seq, superseded),

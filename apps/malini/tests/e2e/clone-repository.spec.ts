@@ -144,10 +144,8 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 	}
 });
 
-async function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
-	return (await invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined)).filter(
-		(workstream) => workstream.projectId !== 'malini-lead-space',
-	);
+function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
+	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);
 }
 
 async function expectScratchpadOf(page: Page, repository: string): Promise<void> {

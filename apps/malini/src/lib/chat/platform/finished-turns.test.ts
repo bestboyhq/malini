@@ -34,7 +34,6 @@ beforeEach(() => {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
-		scope: null,
 		startedBy: null,
 	});
 	for (const [id, origin] of [

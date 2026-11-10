@@ -1,10 +1,8 @@
 import type { InstallOutcomeResult } from '$contract/system';
 import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import { invoke } from '$shared/port/invoke';
-import { leadScopeKey } from '$shared/repositories/domain/lead-scope';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
 import type { OwnPullRequest } from '$shared/repositories/domain/own-pull-requests';
-import type { LeadChatPlan } from '$shared/repositories/domain/provisioning';
 import type { Project } from '$shared/repositories/domain/repository';
 import type {
 	ArchivedWorkstream,
@@ -58,18 +56,6 @@ class WorkstreamsService {
 			createdAt: new Date().toISOString(),
 			worktreePath,
 		};
-	}
-
-	async createLead(plan: LeadChatPlan): Promise<Workstream> {
-		const [lead] = WorkstreamMapper.fromRawList([
-			await invoke('repositories.create-lead', {
-				scope: leadScopeKey(plan.scope),
-				workstreamId: plan.workstreamId,
-				name: plan.name,
-			}),
-		]);
-		if (!lead) throw new Error('Malini started the chat but could not read it back.');
-		return lead;
 	}
 
 	syncBase(workstreamId: WorkstreamId): Promise<WorkstreamBaseSyncOutcome> {

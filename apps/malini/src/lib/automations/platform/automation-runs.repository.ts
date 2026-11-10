@@ -15,7 +15,6 @@ interface AutomationRunRow {
 	title: string;
 	workstream_id: string | null;
 	repository_id: string | null;
-	scope: string | null;
 	session_id: string | null;
 	agent_run_id: string | null;
 	origin: AutomationRunOrigin;
@@ -33,7 +32,7 @@ interface AutomationRunRow {
 }
 
 const COLUMNS =
-	'id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin, status, interrupted, detail, parent_run_id, chat_session_id, chat_after_run_id, chain_id, requests, created_at, started_at, finished_at';
+	'id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin, status, interrupted, detail, parent_run_id, chat_session_id, chat_after_run_id, chain_id, requests, created_at, started_at, finished_at';
 
 function statusIn(statuses: readonly AutomationRunStatus[]): string {
 	return `status IN (${statuses.map((status) => `'${status}'`).join(', ')})`;
@@ -56,7 +55,6 @@ function fromRow(row: AutomationRunRow): AutomationRunRecord {
 		title: row.title,
 		workstreamId: row.workstream_id,
 		repositoryId: row.repository_id,
-		scope: row.scope,
 		sessionId: row.session_id,
 		agentRunId: row.agent_run_id,
 		origin: row.origin,
@@ -82,13 +80,12 @@ export function insertAutomationRun(
 	run(
 		db,
 		`INSERT INTO automation_runs (${COLUMNS}, context)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		automationRun.id,
 		automationRun.definitionId,
 		automationRun.title,
 		automationRun.workstreamId,
 		automationRun.repositoryId,
-		automationRun.scope,
 		automationRun.sessionId,
 		automationRun.agentRunId,
 		automationRun.origin,
@@ -146,19 +143,18 @@ export function appendAutomationRunContext(db: MaliniDatabase, id: string, conte
 export function findPendingAutomationRun(
 	db: MaliniDatabase,
 	definitionId: string,
-	target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+	target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId'>,
 ): AutomationRunRecord | null {
 	const row = get<AutomationRunRow>(
 		db,
 		`SELECT ${COLUMNS} FROM automation_runs
 		 WHERE definition_id = ? AND ${PENDING}
-		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?
+		   AND workstream_id IS ? AND repository_id IS ?
 		   AND chat_session_id IS NULL AND origin NOT IN ('merge-queue', 'schedule')
 		 ORDER BY created_at, rowid LIMIT 1`,
 		definitionId,
 		target.workstreamId,
 		target.repositoryId,
-		target.scope,
 	);
 	return row ? fromRow(row) : null;
 }
@@ -167,7 +163,7 @@ export function countChainAutomationRuns(
 	db: MaliniDatabase,
 	chainId: string,
 	definitionId: string,
-	target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+	target: Pick<AutomationRunRecord, 'workstreamId' | 'repositoryId'>,
 	origin: AutomationRunOrigin,
 ): number {
 	return scalar(
@@ -175,13 +171,12 @@ export function countChainAutomationRuns(
 		`SELECT COUNT(*) FROM automation_runs
 		 WHERE chain_id = ? AND definition_id = ? AND status != 'cancelled'
 		   AND (origin = 'merge-queue') = ?
-		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?`,
+		   AND workstream_id IS ? AND repository_id IS ?`,
 		chainId,
 		definitionId,
 		origin === 'merge-queue' ? 1 : 0,
 		target.workstreamId,
 		target.repositoryId,
-		target.scope,
 	);
 }
 

@@ -11,7 +11,6 @@ function run(patch: Partial<AutomationRunRecord>): AutomationRunRecord {
 		title: 'Fix checks',
 		workstreamId: 'ws-1',
 		repositoryId: null,
-		scope: null,
 		sessionId: null,
 		agentRunId: null,
 		origin: 'manual',

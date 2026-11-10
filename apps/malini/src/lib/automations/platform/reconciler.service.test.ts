@@ -103,22 +103,26 @@ function seed(): void {
 		upsertWorkstream(db, {
 			id,
 			projectId: 'project',
-			name: id === 'lead' ? 'Home' : id === 'api' ? 'Api analytics' : 'Site analytics',
+			name:
+				id === 'starter'
+					? 'Move apps to Logdash'
+					: id === 'api'
+						? 'Api analytics'
+						: 'Site analytics',
 			path: `/tmp/${id}`,
 			branch: `malini/${id}`,
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: NOW,
-			scope: id === 'lead' ? 'home' : null,
 			startedBy,
 		});
-	workstream('lead', null);
-	workstream('api', 'lead');
-	workstream('site', 'lead');
-	chat('lead-chat', 'lead', 'Move apps to Logdash');
+	workstream('starter', null);
+	workstream('api', 'starter');
+	workstream('site', 'starter');
+	chat('starter-chat', 'starter', 'Move apps to Logdash');
 	chat('api-chat', 'api', 'Api analytics');
 	chat('site-chat', 'site', 'Site analytics');
-	turn('lead-turn', 'lead-chat', null, NOW);
+	turn('starter-turn', 'starter-chat', null, NOW);
 }
 
 function chat(id: string, workstreamId: string, displayName: string): void {
@@ -168,7 +172,7 @@ function finish(sessionId: string, runId: string): void {
 }
 
 function childTurn(id: string): string {
-	turn(id, 'api-chat', 'lead-turn', NOW);
+	turn(id, 'api-chat', 'starter-turn', NOW);
 	return id;
 }
 
@@ -195,7 +199,6 @@ function finishAutomation(
 		title: 'Publish docs',
 		workstreamId: 'api',
 		repositoryId: null,
-		scope: null,
 		sessionId: null,
 		agentRunId: null,
 		origin: 'manual',
@@ -203,9 +206,9 @@ function finishAutomation(
 		interrupted: false,
 		detail: 'The docs host timed out',
 		parentRunId: null,
-		chatSessionId: 'lead-chat',
-		chatAfterRunId: 'lead-turn',
-		chainId: 'lead-turn',
+		chatSessionId: 'starter-chat',
+		chatAfterRunId: 'starter-turn',
+		chainId: 'starter-turn',
 		requests: 1,
 		createdAt: NOW,
 		startedAt: NOW,
@@ -242,7 +245,6 @@ function updateFromMain(): void {
 			title: 'Update from main',
 			workstreamId: 'api',
 			repositoryId: null,
-			scope: null,
 			sessionId: null,
 			agentRunId: null,
 			origin: 'manual',
@@ -250,9 +252,9 @@ function updateFromMain(): void {
 			interrupted: false,
 			detail: null,
 			parentRunId: null,
-			chatSessionId: 'lead-chat',
+			chatSessionId: 'starter-chat',
 			chatAfterRunId: null,
-			chainId: 'lead-turn',
+			chainId: 'starter-turn',
 			requests: 1,
 			createdAt: NOW,
 			startedAt: NOW,
@@ -283,7 +285,7 @@ describe('the event reconciler', () => {
 		);
 		expect(decision).toMatchObject({
 			channel: AUTOMATIONS_RUN_FINISHED_CHANNEL,
-			chainId: 'lead-turn',
+			chainId: 'starter-turn',
 			workstreamId: 'api',
 			pick: 1,
 			chosen: 1,
@@ -292,10 +294,10 @@ describe('the event reconciler', () => {
 		});
 		expect(delivered).toEqual([
 			{
-				sessionId: 'lead-chat',
+				sessionId: 'starter-chat',
 				prompt: REPORT,
 				fromWorkstreamId: 'api',
-				chainId: 'lead-turn',
+				chainId: 'starter-turn',
 				causeEventId: decision?.eventId,
 			},
 		]);
@@ -317,7 +319,7 @@ describe('the event reconciler', () => {
 					options: {
 						title: 'Publish docs · Api analytics',
 						body: 'Failed: The docs host timed out.',
-						opens: { workstreamId: 'lead', sessionId: 'lead-chat' },
+						opens: { workstreamId: 'starter', sessionId: 'starter-chat' },
 					},
 				},
 			]),
@@ -332,10 +334,10 @@ describe('the event reconciler', () => {
 		expect(done).toMatchObject({ status: 'done', decidedBy: 'you', chosen: 1 });
 		expect(delivered).toEqual([
 			{
-				sessionId: 'lead-chat',
+				sessionId: 'starter-chat',
 				prompt: REPORT,
 				fromWorkstreamId: 'api',
-				chainId: 'lead-turn',
+				chainId: 'starter-turn',
 				causeEventId: asking?.eventId,
 			},
 		]);
@@ -393,10 +395,10 @@ describe('the event reconciler', () => {
 		);
 		expect(delivered).toEqual([
 			{
-				sessionId: 'lead-chat',
+				sessionId: 'starter-chat',
 				prompt: REPORT,
 				fromWorkstreamId: 'api',
-				chainId: 'lead-turn',
+				chainId: 'starter-turn',
 				causeEventId: wake?.eventId,
 			},
 		]);
@@ -425,7 +427,7 @@ describe('the event reconciler', () => {
 		finishAutomation(definitionId, 'publish-site', { workstreamId: 'site' });
 
 		await vi.waitFor(() => expect(delivered).toHaveLength(4));
-		expect(delivered.at(-1)).toMatchObject({ sessionId: 'lead-chat', fromWorkstreamId: 'site' });
+		expect(delivered.at(-1)).toMatchObject({ sessionId: 'starter-chat', fromWorkstreamId: 'site' });
 	});
 
 	it('wakes the chat that ran an automation by its own rules when it cannot ask the model', async () => {
@@ -441,7 +443,7 @@ describe('the event reconciler', () => {
 			detail: 'Malini could not ask the model: Claude Code is not installed',
 		});
 		expect(delivered).toEqual([
-			expect.objectContaining({ sessionId: 'lead-chat', prompt: REPORT }),
+			expect.objectContaining({ sessionId: 'starter-chat', prompt: REPORT }),
 		]);
 	});
 
@@ -491,7 +493,7 @@ describe('the event reconciler', () => {
 			button: 'merge',
 			state: null,
 		});
-		finish('lead-chat', 'lead-turn');
+		finish('starter-chat', 'starter-turn');
 
 		await vi.waitFor(() => expect(heard).toHaveLength(5));
 		await settle();
@@ -545,7 +547,7 @@ describe('the event reconciler', () => {
 			workstreamId: 'api',
 			origin: 'reconciler',
 			status: 'waiting',
-			chainId: 'lead-turn',
+			chainId: 'starter-turn',
 		});
 	});
 
@@ -563,7 +565,7 @@ describe('the event reconciler', () => {
 			});
 		picks.push(1);
 		shipped('Fix checks', fixChecks.id, null);
-		shipped('Merge', merge.id, 'lead-chat');
+		shipped('Merge', merge.id, 'starter-chat');
 
 		const listed = await decided(2);
 		const merged = listed.find((decision) => decision.candidates.length > 1);
@@ -678,7 +680,7 @@ describe('the event reconciler', () => {
 		expect(decision).toMatchObject({ chosen: 2, status: 'done' });
 		expect(delivered).toEqual([
 			{
-				sessionId: 'lead-chat',
+				sessionId: 'starter-chat',
 				prompt:
 					'A merge in “Api analytics”, in work you asked for, stopped on conflicts in 1 file: src/shared.ts.',
 				fromWorkstreamId: 'api',
@@ -703,20 +705,20 @@ describe('the event reconciler', () => {
 				channel: AUTOMATIONS_RUN_FINISHED_CHANNEL,
 				workstreamId: 'api',
 				cause: { kind: 'automation-run', id: 'publish-1' },
-				chainId: 'lead-turn',
+				chainId: 'starter-turn',
 			}),
 		);
 		expect(timeline.decisions).toHaveLength(1);
 		expect(timeline.turns.map((entry) => [entry.runId, entry.chainId])).toEqual(
 			expect.arrayContaining([
-				['lead-turn', 'lead-turn'],
-				['api-turn', 'lead-turn'],
+				['starter-turn', 'starter-turn'],
+				['api-turn', 'starter-turn'],
 			]),
 		);
 		expect(timeline.workstreams).toEqual(
 			expect.arrayContaining([
-				{ id: 'api', name: 'Api analytics', repository: 'project', startedBy: 'lead' },
-				{ id: 'lead', name: 'Home', repository: null, startedBy: null },
+				{ id: 'api', name: 'Api analytics', repository: 'project', startedBy: 'starter' },
+				{ id: 'starter', name: 'Move apps to Logdash', repository: 'project', startedBy: null },
 			]),
 		);
 	});

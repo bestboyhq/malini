@@ -9,11 +9,7 @@ vi.mock('electron', () => ({
 }));
 
 import type { WorktreeAddedPayload } from '$contract/events';
-import type {
-	ArchivedWorkstreamDto,
-	RepositoryConnectionDto,
-	WorkstreamDto,
-} from '$contract/repositories';
+import type { ArchivedWorkstreamDto, RepositoryConnectionDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { currentLogPath, diagnosticsDirectory } from '$main/diagnostics/diagnostics-files';
@@ -34,7 +30,7 @@ import type { InvokeResponse } from '$contract/ipc';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { CheckoutShell } from './checkout-shell.service';
 import { listConnectedRepositories } from './connected-repositories.repository';
-import { LEAD_SPACE_PROJECT_ID } from '../domain/lead-scope';
+import { RETIRED_CHATS_PROJECT_ID } from '../domain/retired-chats';
 import { workstreamLineage } from './lineage.service';
 import { getProject, upsertProject } from './projects.repository';
 import { registerRepositories, type RepositoriesDeps } from './register';
@@ -124,7 +120,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		if (!response.ok) throw new Error(response.error);
 		return response.value;
 	}
-	return { commands, events, invoke, db: context.db };
+	return { commands, events, invoke, db: context.db, context };
 }
 
 function seed(db: MainContext['db'], workstreamId: string, repoPath: string, path: string): void {
@@ -144,7 +140,6 @@ function seed(db: MainContext['db'], workstreamId: string, repoPath: string, pat
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-09-18T00:00:00.000Z',
-		scope: null,
 		startedBy: null,
 	});
 }
@@ -162,95 +157,111 @@ function isWorktreeAddedPayload(value: unknown): value is WorktreeAddedPayload {
 	);
 }
 
-describe('lead chats', () => {
-	it('start in their own lead space and tell the workstreams they start about each other', async () => {
+type Invoke = ReturnType<typeof harness>['invoke'];
+
+async function cloneAcmeApi(dir: string, invoke: Invoke): Promise<string> {
+	const source = join(dir, 'acme', 'api');
+	await initRealRepo(source);
+	await realGit(source, ['branch', '-M', 'main']);
+	return invoke<string>('repositories.create-repository', {
+		repoUrl: `file://${source}`,
+		defaultBranch: 'main',
+	});
+}
+
+function startWorkstream(
+	invoke: Invoke,
+	projectRepoPath: string,
+	workstreamId: string,
+	options: { projectId?: string; startedBy?: string | null } = {},
+): Promise<string> {
+	return invoke<string>('repositories.create-workstream', {
+		projectRepoPath,
+		workstreamId,
+		baseBranch: 'main',
+		projectId: options.projectId ?? 'local__acme__api',
+		name: workstreamId,
+		startedBy: options.startedBy ?? null,
+	});
+}
+
+describe('started workstreams', () => {
+	it('learn who started them and which workstreams were started beside them', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const appDataRoot = join(dir, 'app');
 		await mkdir(appDataRoot);
 		const { invoke, db } = harness(appDataRoot);
+		const projectRepoPath = await cloneAcmeApi(dir, invoke);
+		await startWorkstream(invoke, projectRepoPath, 'starter');
+		await startWorkstream(invoke, projectRepoPath, 'child-1', { startedBy: 'starter' });
+		await startWorkstream(invoke, projectRepoPath, 'child-2', { startedBy: 'starter' });
+		await startWorkstream(invoke, projectRepoPath, 'solo');
 
-		const home = await invoke<WorkstreamDto>('repositories.create-lead', {
-			scope: 'home',
-			workstreamId: 'lead-home',
-			name: 'Golden Harbor',
-		});
-		const acme = await invoke<WorkstreamDto>('repositories.create-lead', {
-			scope: 'owner:acme',
-			workstreamId: 'lead-acme',
-			name: 'Swift Summit',
-		});
-		expect([home.scope, acme.scope]).toEqual(['home', 'owner:acme']);
-		expect([home.id, home.name, home.branch]).toEqual([
-			'lead-home',
-			'Golden Harbor',
-			'malini/lead-home',
-		]);
-		expect([home.projectId, home.checkoutState, home.startedBy]).toEqual([
-			LEAD_SPACE_PROJECT_ID,
-			'healthy',
-			null,
-		]);
-		expect(
-			(await realGit(join(appDataRoot, 'lead-space'), ['config', 'core.hooksPath'])).trim(),
-		).toBe('/dev/null');
-		await invoke('repositories.archive-workstream', { workstreamId: 'lead-home' });
-		await invoke('repositories.restore-workstream', { workstreamId: 'lead-home' });
-		expect(getWorkstream(db, 'lead-home')?.status).toBe('active');
-		await expect(
-			invoke('repositories.create-lead', { scope: 'owner:', workstreamId: 'lead-x', name: 'X' }),
-		).rejects.toThrow('`scope` must be `home` or `owner:<owner>`');
-		await expect(
-			invoke('repositories.create-lead', { scope: 'home', workstreamId: '../x', name: 'X' }),
-		).rejects.toThrow('unsafe path');
-
-		const source = join(dir, 'acme', 'api');
-		await initRealRepo(source);
-		await realGit(source, ['branch', '-M', 'main']);
-		const projectRepoPath = await invoke<string>('repositories.create-repository', {
-			repoUrl: `file://${source}`,
-			defaultBranch: 'main',
-		});
-		for (const id of ['child-1', 'child-2', 'solo']) {
-			await invoke('repositories.create-workstream', {
-				projectRepoPath,
-				workstreamId: id,
-				baseBranch: 'main',
-				projectId: 'local__acme__api',
-				name: id,
-				startedBy: id === 'solo' ? null : acme.id,
-			});
-		}
-
-		expect((await listRepositoryCatalog(db)).map((repository) => repository.fullName)).toEqual([
-			'acme/api',
-		]);
 		const sibling = (id: string) => ({
 			repository: 'acme/api',
 			branch: `malini/${id}`,
 			path: expect.stringMatching(new RegExp(`${id}$`, 'u')),
 		});
 		expect(await workstreamLineage(db, 'child-1')).toEqual({
-			lead: null,
-			startedBy: { name: acme.name, lead: true, plan: null },
+			startedBy: { name: 'starter' },
 			siblings: [sibling('child-2')],
 		});
-		const plan = join(acme.path, '.context', 'plan.md');
-		expect(await workstreamLineage(db, acme.id)).toEqual({
-			lead: {
-				owner: 'acme',
-				repositories: [{ repository: 'acme/api', branch: 'main', path: projectRepoPath }],
-				workstreams: [sibling('child-2'), sibling('child-1')],
-				plan,
-			},
-			startedBy: null,
-			siblings: [],
+		expect(await workstreamLineage(db, 'child-2')).toEqual({
+			startedBy: { name: 'starter' },
+			siblings: [sibling('child-1')],
 		});
-		await mkdir(dirname(plan), { recursive: true });
-		await writeFile(plan, '# Plan\n');
-		expect((await workstreamLineage(db, 'child-1'))?.startedBy?.plan).toBe(plan);
-		expect((await workstreamLineage(db, home.id))?.lead?.repositories).toHaveLength(1);
+		expect(await workstreamLineage(db, 'starter')).toBeNull();
 		expect(await workstreamLineage(db, 'solo')).toBeNull();
+		expect(await workstreamLineage(db, 'missing')).toBeNull();
+	});
+});
+
+describe('retired chats', () => {
+	it('are archived by the boot sweep, cannot come back, and leave other workstreams alone', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const appDataRoot = join(dir, 'app');
+		await mkdir(appDataRoot);
+		const { invoke, db, context } = harness(appDataRoot);
+		const projectRepoPath = await cloneAcmeApi(dir, invoke);
+		await startWorkstream(invoke, projectRepoPath, 'work');
+		for (const [workstreamId, scope] of [
+			['retired-owner', 'owner:acme'],
+			['retired-home', 'home'],
+		] as const) {
+			await startWorkstream(invoke, projectRepoPath, workstreamId, {
+				projectId: RETIRED_CHATS_PROJECT_ID,
+			});
+			db.prepare('UPDATE workstreams SET scope = ? WHERE id = ?').run(scope, workstreamId);
+		}
+		const retiredPath = getWorkstream(db, 'retired-owner')?.path ?? '';
+		expect(existsSync(retiredPath)).toBe(true);
+		expect((await listRepositoryCatalog(db)).map((repository) => repository.fullName)).toEqual([
+			'acme/api',
+		]);
+
+		const restarted = registerRepositories(
+			{ ...context, commands: new CommandRegistry() },
+			{ shell: silentShell, startupReclaim: false },
+		);
+		cleanups.push(async () => restarted.watchers.dispose());
+		await restarted.archiveRetiredChats();
+		expect(
+			listArchivedWorkstreams(db)
+				.map(({ id }) => id)
+				.sort(),
+		).toEqual(['retired-home', 'retired-owner']);
+		expect(getWorkstream(db, 'work')?.status).toBe('active');
+
+		await archivedLeftoversCleared();
+		expect(existsSync(retiredPath)).toBe(false);
+		for (const workstreamId of ['retired-owner', 'retired-home']) {
+			await expect(invoke('repositories.restore-workstream', { workstreamId })).rejects.toThrow(
+				'This chat is gone',
+			);
+		}
+		expect(listArchivedWorkstreams(db)).toHaveLength(2);
 	});
 });
 

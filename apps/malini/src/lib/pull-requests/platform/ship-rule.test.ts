@@ -633,7 +633,6 @@ function defineFakes(): void {
 			title: definition?.name ?? 'automation',
 			workstreamId,
 			repositoryId: null,
-			scope: null,
 			sessionId,
 			agentRunId,
 			origin: args.origin ?? 'manual',
@@ -1638,7 +1637,6 @@ describe('shipping a queued merge', () => {
 			title: 'Merge',
 			workstreamId: 'ws-1',
 			repositoryId: null,
-			scope: null,
 			sessionId: null,
 			agentRunId: null,
 			origin: 'then',
@@ -2328,7 +2326,7 @@ describe('shipping a queued merge', () => {
 
 describe('Draft all and Merge all', () => {
 	it('logs the click on the chat and runs Merge in each workstream it names, for that chat', async () => {
-		seedWorkstream('lead');
+		seedWorkstream('starter');
 		seedWorkstream('ws-1');
 		seedWorkstream('ws-2');
 		start();
@@ -2336,10 +2334,10 @@ describe('Draft all and Merge all', () => {
 
 		await expect(
 			invoke('pull-requests.button-clicked', {
-				workstreamId: 'lead',
+				workstreamId: 'starter',
 				button: 'merge-all',
 				workstreamIds: ['ws-1', 'ws-2'],
-				chatSessionId: 'session-lead',
+				chatSessionId: 'session-starter',
 			}),
 		).resolves.toBeNull();
 		await until(() => expect(automationRuns.size).toBe(2));
@@ -2349,7 +2347,7 @@ describe('Draft all and Merge all', () => {
 			'SELECT id, workstream_id FROM event_log WHERE channel = ?',
 			PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 		);
-		expect(clicks).toEqual([{ id: expect.any(Number), workstream_id: 'lead' }]);
+		expect(clicks).toEqual([{ id: expect.any(Number), workstream_id: 'starter' }]);
 		expect(
 			[...automationRuns.values()]
 				.map((run) => [
@@ -2361,10 +2359,10 @@ describe('Draft all and Merge all', () => {
 				])
 				.sort(),
 		).toEqual([
-			['ws-1', merge?.id, 'merge-queue', 'session-lead', clicks[0]?.id],
-			['ws-2', merge?.id, 'merge-queue', 'session-lead', clicks[0]?.id],
+			['ws-1', merge?.id, 'merge-queue', 'session-starter', clicks[0]?.id],
+			['ws-2', merge?.id, 'merge-queue', 'session-starter', clicks[0]?.id],
 		]);
-		expect(getShip(db, 'lead')).toBeNull();
+		expect(getShip(db, 'starter')).toBeNull();
 	});
 
 	it('refuses a Draft all that names no workstream', async () => {
@@ -2372,7 +2370,7 @@ describe('Draft all and Merge all', () => {
 
 		await expect(
 			invoke('pull-requests.button-clicked', {
-				workstreamId: 'lead',
+				workstreamId: 'starter',
 				button: 'draft-all',
 				workstreamIds: [],
 				chatSessionId: null,

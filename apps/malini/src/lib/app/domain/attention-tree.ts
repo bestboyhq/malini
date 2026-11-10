@@ -6,9 +6,9 @@ export type TreeChatSummary = WorkstreamChatSummary & Readonly<{ attentionFromSt
 export function treeChatSummary(
 	own: WorkstreamChatSummary,
 	started: readonly WorkstreamChatSummary[],
-	led: boolean,
+	underRoot: boolean,
 ): TreeChatSummary {
-	if (led) return { ...own, attention: null, needsYou: false, attentionFromStarted: false };
+	if (underRoot) return { ...own, attention: null, needsYou: false, attentionFromStarted: false };
 	const attention = mostPressingAttention(
 		[own, ...started].flatMap((summary) => summary.attention ?? []),
 	);
