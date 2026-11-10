@@ -95,13 +95,13 @@
 {/snippet}
 
 <article
-	class="bg-surface-50 border-surface-50-border w-full overflow-hidden rounded-xl border-[0.5px]"
+	class="bg-surface-root border-border-default w-full overflow-hidden rounded-xl border-[0.5px]"
 	aria-label="Turn result"
 	data-testid="turn-report-card"
 >
 	<div
 		class={[
-			'lifted bg-surface-50 outline-surface-100-border relative flex flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] outline-[0.5px] -outline-offset-[0.5px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
+			'bg-surface-50 outline-surface-100-border relative flex flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] outline-[0.5px] -outline-offset-[0.5px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
 			status.rail,
 		]}
 	>
@@ -227,14 +227,6 @@
 </article>
 
 <style>
-	.lifted {
-		--color-surface-50: var(--themed-color-surface-100);
-		--color-surface-50-hover: var(--themed-color-surface-100-hover);
-		--color-surface-100: var(--themed-color-surface-150);
-		--color-surface-100-hover: var(--themed-color-surface-150-hover);
-		--color-surface-100-border: var(--themed-color-surface-150-border);
-	}
-
 	.note-count {
 		flex-shrink: 0;
 		margin-top: 1.5px;
