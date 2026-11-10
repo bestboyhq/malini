@@ -23,7 +23,9 @@ export type ActivityGroup = {
 	key: string;
 	items: readonly RunTimelineItem[];
 	verb: string;
+	liveVerb: string;
 	detail: string;
+	latestMessage: string | null;
 	status: 'running' | 'completed' | 'failed';
 	actionKinds: readonly ToolActionKind[];
 	failures: readonly ActivityFailure[];
@@ -245,7 +247,9 @@ function buildActivityGroup(
 		key: `activity-${items[0]?.key ?? 'empty'}`,
 		items: [...items],
 		verb: statuses.includes('running') ? forms.present : forms.past,
+		liveVerb: forms.present,
 		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(calls.length, 'call'),
+		latestMessage: items.filter((item) => item.kind === 'assistant').at(-1)?.text ?? null,
 		status: groupStatus(statuses),
 		actionKinds,
 		failures: calls

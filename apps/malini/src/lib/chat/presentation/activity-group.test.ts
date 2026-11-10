@@ -166,8 +166,8 @@ describe('groupRunTimeline folding', () => {
 	});
 
 	it('keeps one group across the status messages between tool calls', () => {
-		const first = assistant();
-		const second = assistant();
+		const first = assistant('Next I read b.');
+		const second = assistant('Then I run the tests.');
 		const items = [
 			tool('Read', { file_path: 'src/a.ts' }),
 			first,
@@ -178,6 +178,8 @@ describe('groupRunTimeline folding', () => {
 		const group = onlyGroup(items);
 		expect(group.items).toEqual(items);
 		expect(group.detail).toBe('2 files, ran 1 command');
+		expect(group.latestMessage).toBe('Then I run the tests.');
+		expect(group.liveVerb).toBe('Working');
 	});
 
 	it('leaves the message after the last tool call outside the group', () => {

@@ -77,6 +77,11 @@
 	const runTimelineItems = $derived(
 		live && live.pendingItems.length > 0 ? withPendingRows(runRows, live.pendingItems) : runRows,
 	);
+	const workingRow = $derived(
+		run.terminal === null
+			? runTimelineItems.filter((row) => row.kind !== 'assistant').at(-1)
+			: undefined,
+	);
 	const undoTarget = $derived(
 		!run.superseded && !run.obsoleted ? transcript.undoTarget(run.runId) : null,
 	);
@@ -160,7 +165,7 @@
 
 {#snippet timelineRow(item: GroupedRunTimelineItem)}
 	{#if item.kind === 'activity-group'}
-		<ChatActivityGroup group={item} {run} {isLastRun} />
+		<ChatActivityGroup group={item} {run} {isLastRun} live={item === workingRow} />
 	{:else if item.kind === 'subagent-group'}
 		<SubagentGroup group={item} {run} />
 	{:else if item.kind === 'workstreams'}

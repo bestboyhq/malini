@@ -887,8 +887,8 @@ test('a group in a run past two hundred steps stays in place and keeps counting 
 			globalThis.transcriptFrames = state;
 			const sample = (): void => {
 				if (!state.sampling) return;
-				const row = [...doc.querySelectorAll('[data-transcript-row]')].find((candidate) =>
-					candidate.textContent?.includes('Explored'),
+				const row = [...doc.querySelectorAll('[data-transcript-row]')].find(
+					(candidate) => candidate.querySelector('[data-testid="chat-activity-group"]') !== null,
 				);
 				let cover = row?.nextElementSibling;
 				while (cover?.getAttribute('data-cover-fade') === 'fade') cover = cover.nextElementSibling;

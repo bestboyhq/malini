@@ -22,15 +22,19 @@ test('a running chat folds its tool calls and the status messages between them i
 
 		const run = page.locator('li[data-run-id]').last();
 		const group = page.getByTestId('chat-activity-group-summary');
-		await expect(group).toHaveAccessibleName(/^Explored [3-7] files$/, { timeout: 20_000 });
+		await expect(group).toHaveAccessibleName(/^Exploring [3-7] files$/, { timeout: 20_000 });
 		await expect(run).toHaveAttribute('data-run-terminal', 'open');
+		await expect(page.getByTestId('chat-activity-group-latest')).toHaveText(
+			/^Next I read note [2-8]\.$/,
+		);
 		await expect(page.getByTestId('chat-activity-group')).toHaveCount(1);
-		await expect(page.getByText('Next I read note 2.')).toHaveCount(0);
+		await expect(page.getByTestId('chat-activity-group-message')).toHaveCount(0);
 		await untilStill(page);
-		await captureFlow(app, 'live-work-group-running');
+		await captureFlow(app, 'live-work-group-running-latest');
 
 		await expect(run).toHaveAttribute('data-run-terminal', 'completed', { timeout: 30_000 });
 		await expect(group).toHaveAccessibleName('Explored 8 files');
+		await expect(page.getByTestId('chat-activity-group-latest')).toHaveText('');
 		await expect(page.getByTestId('chat-activity-group')).toHaveCount(1);
 		await expect(page.getByTestId('chat-message-bubble')).toHaveText([
 			'Next I read note 1.',
@@ -38,13 +42,15 @@ test('a running chat folds its tool calls and the status messages between them i
 		]);
 
 		await group.click();
-		await expect(page.getByText('Next I read note 2.')).toBeVisible();
-		await expect(page.getByText('Next I read note 8.')).toBeVisible();
+		await expect(page.getByTestId('chat-activity-group-message')).toHaveCount(7);
+		await expect(page.getByTestId('chat-activity-group-message').last()).toHaveText(
+			'Next I read note 8.',
+		);
 		await expect(
 			page.getByRole('button', { name: 'Show contents of notes/row-8.txt' }),
 		).toBeVisible();
 		await untilStill(page);
-		await captureFlow(app, 'live-work-group-open');
+		await captureFlow(app, 'live-work-group-open-rows');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
