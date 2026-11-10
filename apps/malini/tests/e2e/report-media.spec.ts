@@ -783,3 +783,52 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 		await app.close();
 	}
 });
+
+test('a next step stays on one line and a tooltip shows the text that is cut off', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const shortStep = 'Add the toggle to the onboarding tour';
+		const longStep =
+			'Refresh every screenshot on the Appearance docs page so the dark mode toggle, the theme picker and the contrast notes all match the build that ships this week';
+		await seedReport(
+			page,
+			app.root,
+			'report-next-long',
+			[
+				`- Next: ${shortStep}`,
+				`- Next: ${longStep}`,
+				'',
+				'Outcome: The dark mode toggle lives in Settings.',
+				'Needs: nothing',
+			].join('\n'),
+			[],
+		);
+		const steps = page
+			.getByRole('article', { name: 'Turn result' })
+			.getByRole('region', { name: 'Next steps' });
+		await expect(steps).toBeVisible({ timeout: 30_000 });
+		const stepText = (text: string): Locator =>
+			steps.getByTestId('next-step-text').filter({ hasText: text });
+
+		await stepText(longStep).hover();
+		const tooltip = page.getByRole('tooltip');
+		await expect(tooltip).toHaveText(/^….+ships this week$/u);
+		const remainder = ((await tooltip.textContent()) ?? '').slice(1);
+		expect(longStep.endsWith(remainder), 'the tooltip carries the end of the step').toBe(true);
+		expect(remainder, 'the tooltip leaves out what is on screen').not.toContain(
+			'Refresh every screenshot',
+		);
+		await captureFlow(app, 'report-next-step-truncated');
+		await stepText(shortStep).hover();
+		await expect(page.getByRole('tooltip')).toHaveCount(0);
+		const heights = await steps
+			.getByTestId('next-step-text')
+			.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+		expect(new Set(heights).size, 'a long step takes the height of a short one').toBe(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
