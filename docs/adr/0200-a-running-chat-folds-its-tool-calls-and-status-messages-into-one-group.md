@@ -1,4 +1,4 @@
-# 0199 - A running chat folds its tool calls and status messages into one group
+# 0200 - A running chat folds its tool calls and status messages into one group
 
 Status: accepted
 

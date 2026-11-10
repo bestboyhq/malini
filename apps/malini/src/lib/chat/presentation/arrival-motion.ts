@@ -1,5 +1,8 @@
-import { fade, type TransitionConfig } from 'svelte/transition';
+import { cubicOut } from 'svelte/easing';
+import type { TransitionConfig } from 'svelte/transition';
 import { SCROLL_SPRING_STIFFNESS } from './scroll-glide';
+
+type SwapFly = Readonly<{ y: number; durationMs: number }>;
 
 export type ArrivalMotion = {
 	durationMs: number;
@@ -25,8 +28,16 @@ export function arrivalMotion(): Readonly<ArrivalMotion> {
 
 export const motionMs = (durationMs: number): number => (document.hidden ? 0 : durationMs);
 
-export function revealFade(node: Element): TransitionConfig {
-	return fade(node, { duration: motionMs(190) });
+export function revealFade(_node: Element): TransitionConfig {
+	return { duration: motionMs(190), css: (t) => `opacity: ${t}` };
+}
+
+export function swapFly(_node: Element, { y, durationMs }: SwapFly): TransitionConfig {
+	return {
+		duration: motionMs(durationMs),
+		easing: cubicOut,
+		css: (t, u) => `transform: translateY(${u * y}px); opacity: ${t}`,
+	};
 }
 
 export function setArrivalMotion(next: Partial<ArrivalMotion>): Readonly<ArrivalMotion> {
