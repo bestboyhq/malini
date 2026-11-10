@@ -784,7 +784,7 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 	}
 });
 
-test('a next step stays on one line and shows its full text in a tooltip only when it is cut off', async () => {
+test('a next step stays on one line and a tooltip shows the text that is cut off', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -810,16 +810,21 @@ test('a next step stays on one line and shows its full text in a tooltip only wh
 			.getByRole('region', { name: 'Next steps' });
 		await expect(steps).toBeVisible({ timeout: 30_000 });
 		const stepText = (text: string): Locator =>
-			steps.getByTestId('markdown-text').filter({ visible: true, hasText: text });
+			steps.getByTestId('next-step-text').filter({ hasText: text });
 
 		await stepText(longStep).hover();
-		await expect(page.getByRole('tooltip')).toHaveText(longStep);
+		const tooltip = page.getByRole('tooltip');
+		await expect(tooltip).toHaveText(/^….+ships this week$/u);
+		const remainder = ((await tooltip.textContent()) ?? '').slice(1);
+		expect(longStep.endsWith(remainder), 'the tooltip carries the end of the step').toBe(true);
+		expect(remainder, 'the tooltip leaves out what is on screen').not.toContain(
+			'Refresh every screenshot',
+		);
 		await captureFlow(app, 'report-next-step-truncated');
 		await stepText(shortStep).hover();
 		await expect(page.getByRole('tooltip')).toHaveCount(0);
 		const heights = await steps
-			.getByTestId('markdown-text')
-			.filter({ visible: true })
+			.getByTestId('next-step-text')
 			.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
 		expect(new Set(heights).size, 'a long step takes the height of a short one').toBe(1);
 		expectCleanConsole(app);

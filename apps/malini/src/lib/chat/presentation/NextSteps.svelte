@@ -3,7 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
-	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
+	import NextStepText from './NextStepText.svelte';
 
 	interface Props {
 		steps: readonly string[];
@@ -69,18 +69,7 @@
 			>
 				<Icon name="chevrons-right" size={14} ariaLabel="Next step" />
 			</Tooltip>
-			{#snippet fullStep()}
-				<MarkdownText text={step} mode="inline" />
-			{/snippet}
-			<Tooltip content={fullStep} placement="top" onlyWhenTruncated class="min-w-0 flex-1">
-				<MarkdownText
-					text={step}
-					mode="inline"
-					class="text-fg-default block min-w-0 flex-1 truncate select-text"
-					{onopenfile}
-					{canopenfile}
-				/>
-			</Tooltip>
+			<NextStepText text={step} {onopenfile} {canopenfile} />
 			{#if handled[index]}
 				<span class="text-2xs text-fg-tertiary flex h-6 shrink-0 items-center gap-1">
 					<Icon name="check" size={12} />
