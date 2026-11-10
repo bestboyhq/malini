@@ -59,13 +59,13 @@
 			icon: 'circle-dot',
 			label: 'Waiting on you',
 			tone: 'text-brand-foreground',
-			rail: 'border-brand-foreground/40',
+			rail: 'before:bg-brand-foreground/40',
 		},
 		done: {
 			icon: 'check',
 			label: 'Done',
 			tone: 'text-success-content',
-			rail: 'border-success-content/40',
+			rail: 'before:bg-success-content/40',
 		},
 	} as const satisfies Record<TurnStatus, Readonly<Record<string, string>>>;
 	const NOTE_ICONS: Readonly<Record<TurnNoteKind, IconName | null>> = {
@@ -95,7 +95,10 @@
 {/snippet}
 
 <article
-	class={['bg-surface-50 flex w-full flex-col gap-2.5 rounded-xl border-l-3 p-3', status.rail]}
+	class={[
+		'bg-surface-50 relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
+		status.rail,
+	]}
 	aria-label="Turn result"
 	data-testid="turn-report-card"
 >
