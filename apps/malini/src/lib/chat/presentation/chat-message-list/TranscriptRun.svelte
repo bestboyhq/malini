@@ -73,9 +73,7 @@
 	);
 
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
-	const runRows = $derived(
-		timelines.groupedTimelineItems(run, runTimelineWindow, isLastRun, folded),
-	);
+	const runRows = $derived(timelines.groupedTimelineItems(run, runTimelineWindow, folded));
 	const runTimelineItems = $derived(
 		live && live.pendingItems.length > 0 ? withPendingRows(runRows, live.pendingItems) : runRows,
 	);

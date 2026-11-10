@@ -66,6 +66,8 @@ export const ACTIVITY_GROUP_DETAIL_MAX_CHARS = 64;
 
 type MachineActivityItem = Extract<RunTimelineItem, { kind: 'tool' | 'command' | 'file' }>;
 
+type AssistantTimelineItem = Extract<RunTimelineItem, { kind: 'assistant' }>;
+
 type ItemStatus = 'running' | 'completed' | 'failed';
 
 type ActivityVerbStem = 'explore' | 'edit' | 'run' | 'work' | 'try';
@@ -90,17 +92,25 @@ const TOOL_PATH_KEYS = [
 
 export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunTimelineItem[] {
 	const grouped: GroupedRunTimelineItem[] = [];
-	let pending: MachineActivityItem[] = [];
+	let pending: (MachineActivityItem | AssistantTimelineItem)[] = [];
+	let trailingMessages: AssistantTimelineItem[] = [];
 
 	function flush(): void {
 		if (pending.length >= ACTIVITY_GROUP_MIN_ITEMS) grouped.push(buildActivityGroup(pending));
 		else grouped.push(...pending);
+		grouped.push(...trailingMessages);
 		pending = [];
+		trailingMessages = [];
 	}
 
 	for (const item of foldStartedWorkstreams(items)) {
 		if (item.kind !== 'workstreams' && isMachineActivity(item)) {
-			pending.push(item);
+			pending.push(...trailingMessages, item);
+			trailingMessages = [];
+			continue;
+		}
+		if (item.kind === 'assistant' && pending.length > 0) {
+			trailingMessages.push(item);
 			continue;
 		}
 		flush();
@@ -173,7 +183,11 @@ export function withPendingRows(
 ): readonly GroupedRunTimelineItem[] {
 	const drawn = new Set(
 		rows.flatMap((row) =>
-			row.kind === 'subagent-group' ? row.agents.map((agent) => agent.key) : [row.key],
+			row.kind === 'subagent-group'
+				? row.agents.map((agent) => agent.key)
+				: row.kind === 'activity-group'
+					? row.items.map((item) => item.key)
+					: [row.key],
 		),
 	);
 	const fresh = pending.filter((row) => !drawn.has(row.key));
@@ -216,10 +230,13 @@ function isMachineActivity(item: FoldedRow): item is MachineActivityItem {
 	);
 }
 
-function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGroup {
-	const ran = items.filter((item) => !blockedByAutoMode(item));
+function buildActivityGroup(
+	items: readonly (MachineActivityItem | AssistantTimelineItem)[],
+): ActivityGroup {
+	const calls = items.filter(isMachineActivity);
+	const ran = calls.filter((item) => !blockedByAutoMode(item));
 	const actions = ran.map(itemActionKind);
-	const statuses = items.map(itemStatus);
+	const statuses = calls.map(itemStatus);
 	const actionKinds = distinct(actions);
 	const forms = VERB_FORMS[ran.length > 0 ? verbStem(actionKinds) : 'try'];
 
@@ -228,13 +245,13 @@ function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGrou
 		key: `activity-${items[0]?.key ?? 'empty'}`,
 		items: [...items],
 		verb: statuses.includes('running') ? forms.present : forms.past,
-		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(items.length, 'call'),
+		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(calls.length, 'call'),
 		status: groupStatus(statuses),
 		actionKinds,
-		failures: items
+		failures: calls
 			.map(itemFailure)
 			.filter((failure): failure is ActivityFailure => failure !== null),
-		exitCodes: items.map(itemExitCode).filter((code): code is number => code !== null),
+		exitCodes: calls.map(itemExitCode).filter((code): code is number => code !== null),
 	};
 }
 

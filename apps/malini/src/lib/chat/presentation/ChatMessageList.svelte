@@ -308,7 +308,6 @@
 		return timelines.groupedTimelineItems(
 			run,
 			timelines.timelineWindow(run),
-			index === runs.length - 1,
 			foldsWork(runs, index),
 		);
 	}

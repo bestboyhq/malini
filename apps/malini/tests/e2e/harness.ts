@@ -931,6 +931,11 @@ export async function settleAnimations(page: Page): Promise<void> {
 	});
 }
 
+export async function openActivityGroups(page: Page): Promise<void> {
+	const closed = page.locator('details:not([open]) > [data-testid="chat-activity-group-summary"]');
+	for (let left = await closed.count(); left > 0; left -= 1) await closed.first().click();
+}
+
 const STILL_FRAMES = 24;
 
 export async function untilStill(page: Page): Promise<void> {

@@ -165,15 +165,38 @@ describe('groupRunTimeline folding', () => {
 		expect(group.items).toHaveLength(3);
 	});
 
-	it('splits into two groups when prose sits between the tool calls', () => {
+	it('keeps one group across the status messages between tool calls', () => {
+		const first = assistant();
+		const second = assistant();
+		const items = [
+			tool('Read', { file_path: 'src/a.ts' }),
+			first,
+			tool('Read', { file_path: 'src/b.ts' }),
+			second,
+			command(0),
+		];
+		const group = onlyGroup(items);
+		expect(group.items).toEqual(items);
+		expect(group.detail).toBe('2 files, ran 1 command');
+	});
+
+	it('leaves the message after the last tool call outside the group', () => {
+		const answer = assistant();
 		const grouped = groupRunTimeline([
 			tool('Read', { file_path: 'src/a.ts' }),
-			tool('Read', { file_path: 'src/b.ts' }),
 			assistant(),
-			tool('Read', { file_path: 'src/c.ts' }),
-			tool('Read', { file_path: 'src/d.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			answer,
 		]);
-		expect(kinds(grouped)).toEqual(['activity-group', 'assistant', 'activity-group']);
+		expect(kinds(grouped)).toEqual(['activity-group', 'assistant']);
+		expect(grouped[1]).toBe(answer);
+	});
+
+	it('leaves a message after a lone tool call outside, in order', () => {
+		const read = tool('Read', { file_path: 'src/a.ts' });
+		const note = assistant();
+		const grouped = groupRunTimeline([read, note]);
+		expect(grouped).toEqual([read, note]);
 	});
 
 	it('keeps a single tool call between two prose blocks unfolded', () => {
@@ -185,7 +208,6 @@ describe('groupRunTimeline folding', () => {
 
 	it.each<RunTimelineItem>([
 		{ kind: 'user', key: 'user', seq: 100, text: 'Fix it' },
-		{ kind: 'assistant', key: 'assistant', seq: 100, text: 'Sure' },
 		{ kind: 'plan', key: 'plan', seq: 100, text: '1. Look' },
 		{
 			kind: 'approval',

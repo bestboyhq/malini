@@ -1,10 +1,4 @@
-import {
-	foldRunWork,
-	foldStartedWorkstreams,
-	groupRunTimeline,
-	groupSubagents,
-	type GroupedRunTimelineItem,
-} from '../activity-group';
+import { foldRunWork, groupRunTimeline, type GroupedRunTimelineItem } from '../activity-group';
 import { runProjectionVersion } from '../render-projector';
 import type { RunGroup } from '../render-state';
 import type { RunTimelineItem } from '../run-timeline';
@@ -30,7 +24,6 @@ type TimelineDerivation = {
 	window: RunTimelineWindow;
 	grouped: readonly GroupedRunTimelineItem[] | null;
 	folded: readonly GroupedRunTimelineItem[] | null;
-	shownLinear: boolean;
 };
 
 export type TimelineDerivations = {
@@ -39,7 +32,6 @@ export type TimelineDerivations = {
 	groupedTimelineItems(
 		run: RunGroup,
 		window: RunTimelineWindow,
-		isLastRun: boolean,
 		folded: boolean,
 	): readonly GroupedRunTimelineItem[];
 	revealOlderTimeline(runId: string): void;
@@ -98,7 +90,6 @@ export function createTimelineDerivations(input: {
 			window: windowRunTimeline(items, limit),
 			grouped: null,
 			folded: null,
-			shownLinear: cached?.shownLinear ?? false,
 		};
 		timelineDerivations.set(run.runId, fresh);
 		return fresh;
@@ -135,23 +126,17 @@ export function createTimelineDerivations(input: {
 		groupedTimelineItems(
 			run: RunGroup,
 			window: RunTimelineWindow,
-			isLastRun: boolean,
 			folded: boolean,
 		): readonly GroupedRunTimelineItem[] {
 			const derivation = derivationFor(run);
-			if (folded) {
-				if (!derivation) return foldRunWork(groupRunTimeline(window.items));
-				derivation.grouped ??= groupRunTimeline(window.items);
-				derivation.folded ??= foldRunWork(derivation.grouped);
-				return derivation.folded;
+			if (!derivation) {
+				const grouped = groupRunTimeline(window.items);
+				return folded ? foldRunWork(grouped) : grouped;
 			}
-			if (derivation && isLastRun) derivation.shownLinear = true;
-			if (isLastRun || derivation?.shownLinear) {
-				return groupSubagents(foldStartedWorkstreams(window.items));
-			}
-			if (!derivation) return groupRunTimeline(window.items);
 			derivation.grouped ??= groupRunTimeline(window.items);
-			return derivation.grouped;
+			if (!folded) return derivation.grouped;
+			derivation.folded ??= foldRunWork(derivation.grouped);
+			return derivation.folded;
 		},
 
 		revealOlderTimeline(runId: string): void {
