@@ -206,17 +206,17 @@ describe('withMaliniApproval', () => {
 describe('allowedInTree', () => {
 	function tree(): MaliniDatabase {
 		const db = setup();
-		for (const id of ['lead', 'api', 'api-docs', 'site', 'other']) {
+		for (const id of ['root', 'api', 'api-docs', 'site', 'other']) {
 			seedChatWorkstream(db, id, `/tmp/${id}`);
 		}
-		run(db, `UPDATE workstreams SET started_by = 'lead' WHERE id IN ('api', 'site')`);
+		run(db, `UPDATE workstreams SET started_by = 'root' WHERE id IN ('api', 'site')`);
 		run(db, `UPDATE workstreams SET started_by = 'api' WHERE id = 'api-docs'`);
 		run(db, `UPDATE workstreams SET name = 'Api analytics' WHERE id = 'api'`);
 		run(db, `UPDATE workstreams SET name = 'Twin' WHERE id IN ('site', 'api-docs')`);
 		return db;
 	}
 
-	function inTree(db: MaliniDatabase, tool: string, input: unknown, caller = 'lead'): boolean {
+	function inTree(db: MaliniDatabase, tool: string, input: unknown, caller = 'root'): boolean {
 		return allowedInTree(db, `mcp__malini__${tool}`, input, caller);
 	}
 
@@ -237,9 +237,9 @@ describe('allowedInTree', () => {
 		expect(inTree(db, 'workstreams_archive', { workstream: ' api ANALYTICS ' })).toBe(true);
 		expect(inTree(db, 'workstreams_archive', { workstream: 'api-docs' }, 'api')).toBe(true);
 
-		expect(inTree(db, 'workstreams_archive', { workstream: 'lead' })).toBe(false);
+		expect(inTree(db, 'workstreams_archive', { workstream: 'root' })).toBe(false);
 		expect(inTree(db, 'workstreams_archive', { workstream: 'other' })).toBe(false);
-		expect(inTree(db, 'workstreams_archive', { workstream: 'lead' }, 'api')).toBe(false);
+		expect(inTree(db, 'workstreams_archive', { workstream: 'root' }, 'api')).toBe(false);
 		expect(inTree(db, 'workstreams_archive', { workstream: 'site' }, 'api')).toBe(false);
 		expect(inTree(db, 'workstreams_archive', { workstream: 'Twin' })).toBe(false);
 		expect(inTree(db, 'workstreams_archive', { workstream: 'nope' })).toBe(false);
@@ -253,7 +253,7 @@ describe('allowedInTree', () => {
 		const db = tree();
 		expect(inTree(db, 'automations_run', { automation: 'Release notes' })).toBe(true);
 		expect(inTree(db, 'automations_run', { automation: 'docs' })).toBe(true);
-		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'lead' })).toBe(true);
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'root' })).toBe(true);
 		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'api' })).toBe(true);
 		expect(
 			inTree(db, 'automations_run', { automation: 'notes', workstream: 'Api analytics' }),
@@ -265,7 +265,7 @@ describe('allowedInTree', () => {
 		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'other' })).toBe(false);
 		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'Twin' })).toBe(false);
 		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'nope' })).toBe(false);
-		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'lead' }, 'api')).toBe(
+		expect(inTree(db, 'automations_run', { automation: 'notes', workstream: 'root' }, 'api')).toBe(
 			false,
 		);
 		expect(inTree(db, 'automations_run', { automation: 'Twin' })).toBe(false);
@@ -307,8 +307,8 @@ describe('allowedInTree', () => {
 		expect(inTree(db, 'workstreams_send', { workstream: 'api', prompt: 'Go.' })).toBe(false);
 		expect(inTree(db, 'workstreams_create', { repository: 'acme/api', prompt: 'Go.' })).toBe(false);
 		expect(inTree(db, 'automations_save', { name: 'New', instructions: 'Go.' })).toBe(false);
-		expect(allowedInTree(db, 'Bash', { command: 'ls' }, 'lead')).toBe(false);
-		expect(allowedInTree(db, undefined, { workstream: 'api' }, 'lead')).toBe(false);
+		expect(allowedInTree(db, 'Bash', { command: 'ls' }, 'root')).toBe(false);
+		expect(allowedInTree(db, undefined, { workstream: 'api' }, 'root')).toBe(false);
 		db.close();
 	});
 });

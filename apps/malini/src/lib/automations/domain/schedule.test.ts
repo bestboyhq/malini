@@ -50,10 +50,15 @@ describe('scheduledAutomationOf', () => {
 
 	it('is the schedule of an automation that is not off', () => {
 		expect(
-			scheduledAutomationOf(automation({ when: 'every day at 09:00 in acme', mode: 'ask' })),
+			scheduledAutomationOf(automation({ when: 'every day at 09:00 in acme/app', mode: 'ask' })),
 		).toMatchObject({
 			mode: 'ask',
-			schedule: { cadence: 'day', hour: 9, minute: 0, place: { kind: 'owner', owner: 'acme' } },
+			schedule: {
+				cadence: 'day',
+				hour: 9,
+				minute: 0,
+				place: { kind: 'repository', repository: 'acme/app' },
+			},
 		});
 	});
 

@@ -2,6 +2,7 @@ import type { IconName } from '$hyper-ui/icons';
 import type {
 	SidebarGrouping,
 	SidebarOrdering,
+	SidebarShow,
 	SidebarSubgrouping,
 } from '$lib/app/domain/sidebar-arrangement';
 import type { SidebarSectionKey } from '$lib/app/domain/sidebar-sections';
@@ -17,6 +18,11 @@ export const SUBGROUPING_ICONS: Readonly<Record<SidebarSubgrouping, IconName>> =
 	none: 'circle-slash',
 	owner: 'users',
 	repository: 'book',
+};
+
+export const SHOW_ICONS: Readonly<Record<SidebarShow, IconName>> = {
+	everything: 'layers',
+	attention: 'eye',
 };
 
 export const ORDERING_ICONS: Readonly<Record<SidebarOrdering, IconName>> = {

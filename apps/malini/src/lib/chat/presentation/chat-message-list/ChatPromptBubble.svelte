@@ -6,13 +6,13 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { ChatTileIcon, Icon } from '$hyper-ui/icons';
+	import { Icon } from '$hyper-ui/icons';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
 	import type { RenderItem, RunGroup } from '../render-state';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
 	import ProviderConnectStrip from '../ProviderConnectStrip.svelte';
-	import { workstreamByIdQuery, workstreamNameQuery } from '$shared/repositories/repositories.api';
+	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import InlinePromptContent from '../InlinePromptContent.svelte';
 	import PromptEditField from '../PromptEditField.svelte';
@@ -41,10 +41,6 @@
 		item.key === transcript.firstUserKey(run)
 			? (transcript.promptPick(run.runId)?.pick ?? null)
 			: null,
-	);
-
-	const senderIsLead = $derived(
-		item.from ? (workstreamByIdQuery.data(item.from)?.scope ?? null) !== null : false,
 	);
 
 	const blocked = $derived(transcript.workstreamRunInFlight);
@@ -170,11 +166,7 @@
 			class="text-fg-tertiary hover:text-fg-secondary text-2xs inline-flex items-center gap-1.5 px-3"
 			data-testid="chat-prompt-from"
 		>
-			{#if senderIsLead}
-				<ChatTileIcon size={13} />
-			{:else}
-				<Icon name="branch" size={12} />
-			{/if}
+			<Icon name="branch" size={12} />
 			<span>
 				Prompt from
 				<span class="text-fg-secondary font-medium">

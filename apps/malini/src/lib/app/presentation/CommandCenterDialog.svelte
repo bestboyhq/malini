@@ -43,8 +43,10 @@
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import {
 		COMMAND_CENTER_COMMANDS,
+		START_CHAT_CHIP,
 		commandCenterGroups,
 		findableRepositories,
+		startableRepositories,
 		type CommandCenterCommand,
 		type CommandCenterEntry,
 		type CommandCenterMode,
@@ -72,6 +74,7 @@
 		commands: 'Command or repository',
 		find: 'Search repositories',
 		'new-repository': 'Repository name',
+		start: 'Repository',
 	};
 	const HINTS: Readonly<Record<CommandCenterMode, readonly (readonly [string, string])[]>> = {
 		commands: [
@@ -84,6 +87,10 @@
 		],
 		'new-repository': [
 			['↵', 'Create'],
+			['⌫', 'All commands'],
+		],
+		start: [
+			['↵', 'Start'],
 			['⌫', 'All commands'],
 		],
 	};
@@ -105,14 +112,17 @@
 	const connectingKey = $derived(repositoryConnectingKeyQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
 	const workstreamId = $derived(page.params.workstreamId ?? '');
-	const startsWorkstream = $derived(onboardingQuery.data.shown === 'picker');
+	const startsWorkstream = $derived(mode === 'start' || onboardingQuery.data.shown === 'picker');
 	const connectOptions: RepositoryConnectOptions = $derived({
 		open: startsWorkstream ? 'workstream' : 'repository',
 		onConnected: closeCommandCenterCommand,
 	});
-	const repositories = $derived(
-		findableRepositories(listing.kind === 'loaded' ? listing.repositories : null, connected),
-	);
+	const repositories = $derived.by(() => {
+		const github = listing.kind === 'loaded' ? listing.repositories : null;
+		return mode === 'start'
+			? startableRepositories(github, connected)
+			: findableRepositories(github, connected);
+	});
 	const groups = $derived(
 		commandCenterGroups({ mode, query, repositories, inWorkstream: workstreamId !== '' }),
 	);
@@ -123,7 +133,11 @@
 		return 0;
 	});
 	const selected = $derived(entries[selectedIndex]);
-	const chip = $derived(COMMAND_CENTER_COMMANDS.find((command) => command.id === mode));
+	const chip = $derived(
+		mode === 'start'
+			? START_CHAT_CHIP
+			: COMMAND_CENTER_COMMANDS.find((command) => command.id === mode),
+	);
 	const needsGithub = $derived(
 		auth?.authenticated === false &&
 			(mode === 'new-repository' || (mode === 'find' && !isCloneUrl(query))),
@@ -137,6 +151,7 @@
 	const placeholder = $derived.by((): string => {
 		if (mode === 'commands') return 'Type a command or a repository';
 		if (mode === 'new-repository') return 'Name it';
+		if (mode === 'start') return 'Pick a repository';
 		if (repositories === null) return 'Search repositories or paste a URL';
 		return `Search ${plural(repositories.length, 'repository', 'repositories')} or paste a URL`;
 	});
@@ -304,7 +319,9 @@
 			bind:this={list}
 			id={listId}
 			role="listbox"
-			aria-label={mode === 'find' ? 'Your repositories' : 'Commands and repositories'}
+			aria-label={mode === 'find' || mode === 'start'
+				? 'Your repositories'
+				: 'Commands and repositories'}
 			class="styled-scrollbar max-h-88 overflow-y-auto p-1.5"
 		>
 			{#each groups as group, groupIndex (group.heading ?? groupIndex)}
@@ -372,7 +389,7 @@
 				</div>
 			{/each}
 		</div>
-	{:else if mode === 'find' && listing.kind === 'failed'}
+	{:else if (mode === 'find' || mode === 'start') && listing.kind === 'failed'}
 		<StateBlock
 			layout="inline"
 			tone="caution"
@@ -387,7 +404,7 @@
 				<Icon name="alert" size={14} />
 			{/snippet}
 		</StateBlock>
-	{:else if mode === 'find'}
+	{:else if mode === 'find' || (mode === 'start' && listing.kind === 'loading')}
 		<ul class="p-1.5" aria-busy="true" aria-label="Loading your GitHub repositories">
 			{#each SKELETON_WIDTHS as width (width)}
 				<li class="flex h-9.5 items-center gap-2.5 px-2.5">
@@ -398,7 +415,7 @@
 		</ul>
 	{:else}
 		<p class="text-fg-tertiary px-4 py-3 text-sm" role="status">
-			Nothing called “{query.trim()}”
+			{query.trim() === '' ? 'No repositories yet' : `Nothing called “${query.trim()}”`}
 		</p>
 	{/if}
 

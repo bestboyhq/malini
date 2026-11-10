@@ -3,10 +3,7 @@ import { dirname, join } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
 import { parseTurnReport, userPromptText } from '$lib/chat/chat.platform';
-import {
-	parseLeadScope,
-	workstreamRepositoryName,
-} from '$shared/repositories/repositories.platform';
+import { workstreamRepositoryName } from '$shared/repositories/repositories.platform';
 import { isMissing } from './brain-git';
 import { saveCapturedSeq, uncapturedPrompts, type TypedPromptRow } from './brain-store.repository';
 import {
@@ -77,9 +74,18 @@ function typedText(event: string): string | null {
 	return text.length > 0 ? text : null;
 }
 
+const RETIRED_OWNER_SCOPE = 'owner:';
+
+function retiredChatPlace(scope: string | null): string | null {
+	if (scope === 'home') return 'Home';
+	if (scope === null || !scope.startsWith(RETIRED_OWNER_SCOPE)) return null;
+	return scope.slice(RETIRED_OWNER_SCOPE.length) || null;
+}
+
 async function placeOf(db: MaliniDatabase, row: TypedPromptRow): Promise<string> {
-	const scope = parseLeadScope(row.scope);
-	if (scope?.kind === 'home') return 'Home';
-	if (scope?.kind === 'owner') return scope.owner;
-	return (await workstreamRepositoryName(db, row.workstreamId)) ?? 'a removed repository';
+	return (
+		retiredChatPlace(row.scope) ??
+		(await workstreamRepositoryName(db, row.workstreamId)) ??
+		'a removed repository'
+	);
 }

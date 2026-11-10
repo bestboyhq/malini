@@ -3,6 +3,7 @@ import {
 	mergeRepositories,
 	workstreamRepositories,
 } from '$shared/repositories/domain/repository-context';
+import { isRetiredChat } from '$shared/repositories/domain/retired-chats';
 import type { ArchivedWorkstream } from '$shared/repositories/domain/workstream';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
@@ -21,14 +22,16 @@ class ArchivedWorkstreamsQuery {
 			),
 			workstreams: workstreamsAggregate.archived,
 		});
-		return workstreamsAggregate.archived.map((workstream) => {
-			const repository = repositories.get(workstream.id);
-			return {
-				...workstream,
-				repositoryId: repository?.id ?? null,
-				repositoryFullName: repository?.fullName ?? null,
-			};
-		});
+		return workstreamsAggregate.archived
+			.filter((workstream) => !isRetiredChat(workstream))
+			.map((workstream) => {
+				const repository = repositories.get(workstream.id);
+				return {
+					...workstream,
+					repositoryId: repository?.id ?? null,
+					repositoryFullName: repository?.fullName ?? null,
+				};
+			});
 	});
 }
 

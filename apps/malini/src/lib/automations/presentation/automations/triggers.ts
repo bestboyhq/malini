@@ -259,30 +259,23 @@ export function triggerFor(when: string | null): Trigger {
 }
 
 export function schedulePlaces(fullNames: readonly string[]): readonly SchedulePlace[] {
-	const repositories = fullNames
+	return fullNames
 		.filter((name) => githubOwnerFromFullName(name) !== null)
-		.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
-	const owners = [...new Set(repositories.map((name) => githubOwnerFromFullName(name) ?? ''))];
-	return [
-		{ kind: 'home' },
-		...owners.flatMap((owner): SchedulePlace[] => [
-			{ kind: 'owner', owner },
-			...repositories
-				.filter((name) => githubOwnerFromFullName(name) === owner)
-				.map((repository): SchedulePlace => ({ kind: 'repository', repository })),
-		]),
-	];
+		.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }))
+		.map((repository): SchedulePlace => ({ kind: 'repository', repository }));
+}
+
+export function defaultSchedulePlace(fullNames: readonly string[]): SchedulePlace {
+	return schedulePlaces(fullNames)[0] ?? { kind: 'none' };
 }
 
 export function schedulePlaceValue(place: SchedulePlace): string {
-	return place.kind === 'home' ? '' : schedulePlaceName(place);
+	return schedulePlaceName(place);
 }
 
 export function scheduleRunsIn(place: SchedulePlace): string {
-	if (place.kind === 'home') return 'in its own chat at Home';
-	return place.kind === 'owner'
-		? `in its own chat in ${place.owner}`
-		: `in its own workstream of ${place.repository}`;
+	if (place.kind === 'none') return 'in the brain';
+	return `in its own workstream of ${place.repository}`;
 }
 
 export function builtinTrigger(

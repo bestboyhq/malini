@@ -5,7 +5,7 @@ import type {
 	AutomationRunRecord,
 	AutomationTrigger,
 } from '$contract/automations';
-import type { WorkstreamDto, WorktreeStatus } from '$contract/repositories';
+import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -35,7 +35,7 @@ let pulls: number;
 
 const at = (day: number, hour: number, minute = 0): Date => new Date(2026, 9, day, hour, minute);
 
-function seedWorkstream(id: string, projectId: string, name: string, scope: string | null): void {
+function seedWorkstream(id: string, projectId: string, name: string): void {
 	upsertWorkstream(db, {
 		id,
 		projectId,
@@ -45,7 +45,6 @@ function seedWorkstream(id: string, projectId: string, name: string, scope: stri
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: at(MONDAY, 0).toISOString(),
-		scope,
 		startedBy: null,
 	});
 }
@@ -83,21 +82,8 @@ function harness(): MainContext {
 		prompts.push(String(Reflect.get(Object(args), 'prompt')));
 		return `agent-run-${sessions}`;
 	});
-	commands.define('repositories.create-lead', (args: unknown): WorkstreamDto => {
-		const id = `lead-${sessions + 1}`;
-		seedWorkstream(id, 'malini-lead-space', field(args, 'name'), field(args, 'scope'));
-		const lead = getWorkstream(db, id);
-		if (!lead) throw new Error('the lead is missing');
-		return {
-			...lead,
-			activeAt: lead.createdAt,
-			checkoutState: 'healthy',
-			checkoutIssue: null,
-			resolvedPath: lead.path,
-		};
-	});
 	commands.define('repositories.create-workstream', (args: unknown) => {
-		seedWorkstream(field(args, 'workstreamId'), 'local__acme__app', field(args, 'name'), null);
+		seedWorkstream(field(args, 'workstreamId'), 'local__acme__app', field(args, 'name'));
 		return '/tmp/new-workstream';
 	});
 	commands.define('repositories.sync-workstream-base', () => 'current' as const);
@@ -135,13 +121,6 @@ beforeEach(() => {
 	behind = 0;
 	dirty = [];
 	pulls = 0;
-	upsertProject(db, {
-		id: 'malini-lead-space',
-		name: 'malini-lead-space',
-		repoPath: '/tmp/lead-space',
-		defaultBranch: 'main',
-		createdAt: at(MONDAY, 0).toISOString(),
-	});
 	upsertProject(db, {
 		id: 'local__acme__app',
 		name: 'acme__app',
@@ -201,20 +180,24 @@ function finish(run: AutomationRunRecord | undefined): void {
 }
 
 describe('automation schedules', () => {
-	it('starts an automation at its time in its own chat at Home, once for each time it comes', async () => {
-		await schedule('every weekday at 09:00');
+	it('starts an automation at its time in a new workstream of its repository, once for each time it comes', async () => {
+		await schedule('every weekday at 09:00 in acme/app');
 		await passTo(at(MONDAY, 8, 59));
 		expect(await runs()).toEqual([]);
 
 		await passTo(at(MONDAY, 9));
 		await vi.waitFor(async () =>
 			expect(await runs()).toEqual([
-				expect.objectContaining({ origin: 'schedule', scope: 'home', workstreamId: 'lead-1' }),
+				expect.objectContaining({ origin: 'schedule', repositoryId: 'repo-1' }),
 			]),
 		);
-		expect(getWorkstream(db, 'lead-1')?.scope).toBe('home');
+		const [run] = await runs();
+		expect(getWorkstream(db, run?.workstreamId ?? '')).toMatchObject({
+			projectId: 'local__acme__app',
+			name: 'Triage',
+		});
 		expect(prompts[0]).toBe(
-			'Triage what came in.\n\nMalini started this run on its schedule, every weekday at 09:00, due Monday, October 26 at 09:00.',
+			'Triage what came in.\n\nMalini started this run on its schedule, every weekday at 09:00 in acme/app, due Monday, October 26 at 09:00.',
 		);
 
 		await passTo(at(MONDAY, 12));
@@ -222,7 +205,7 @@ describe('automation schedules', () => {
 	});
 
 	it('starts a run on the Time reached it logs, names it as the cause, and never again when it hears that time after a restart', async () => {
-		const automation = await schedule('every weekday at 09:00');
+		const automation = await schedule('every weekday at 09:00 in acme/app');
 		await passTo(at(MONDAY, 9));
 		await vi.waitFor(async () => expect(await runs()).toHaveLength(1));
 		const [reached] = all<{ id: number; payload: string }>(
@@ -233,7 +216,7 @@ describe('automation schedules', () => {
 		expect(JSON.parse(reached?.payload ?? 'null')).toEqual({
 			definitionId: automation.id,
 			name: 'Triage',
-			when: 'every weekday at 09:00',
+			when: 'every weekday at 09:00 in acme/app',
 			due: at(MONDAY, 9).toISOString(),
 		});
 		const [run] = await runs();
@@ -259,24 +242,19 @@ describe('automation schedules', () => {
 
 	it('catches up once on the times it missed, but never on a time before it was set', async () => {
 		vi.setSystemTime(at(MONDAY, 10));
-		await schedule('every day at 09:00 in acme');
+		await schedule('every day at 09:00 in acme/app');
 		await passTo(at(MONDAY, 10, 1));
 		expect(await runs()).toEqual([]);
 
 		await passTo(at(MONDAY + 3, 12));
 		await vi.waitFor(async () =>
-			expect(await runs()).toEqual([
-				expect.objectContaining({ origin: 'schedule', scope: 'owner:acme' }),
-			]),
+			expect(await runs()).toEqual([expect.objectContaining({ origin: 'schedule' })]),
 		);
 		const [first] = await runs();
 		finish(first);
 		await passTo(at(MONDAY + 4, 9));
 		await vi.waitFor(async () =>
-			expect((await runs())[1]).toMatchObject({
-				scope: 'owner:acme',
-				workstreamId: first?.workstreamId,
-			}),
+			expect((await runs())[1]).toMatchObject({ workstreamId: first?.workstreamId }),
 		);
 	});
 
@@ -333,7 +311,7 @@ describe('automation schedules', () => {
 	});
 
 	it('tells you when a run waits for your yes and when it finishes', async () => {
-		await schedule('every day at 09:00 in acme', 'ask');
+		await schedule('every day at 09:00 in acme/app', 'ask');
 		await passTo(at(MONDAY, 9));
 		await vi.waitFor(() =>
 			expect(notices).toEqual([
@@ -348,13 +326,14 @@ describe('automation schedules', () => {
 		const [waiting] = await runs();
 		await context.commands.call('automations.confirm-run', { automationRunId: waiting?.id ?? '' });
 		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('running'));
-		finish((await runs())[0]);
+		const [running] = await runs();
+		finish(running);
 		await vi.waitFor(() =>
 			expect(notices.at(-1)).toEqual({
 				options: {
 					title: 'Triage finished',
 					body: 'Nothing new.',
-					opens: { workstreamId: 'lead-1', sessionId: 'session-1' },
+					opens: { workstreamId: running?.workstreamId, sessionId: 'session-1' },
 				},
 			}),
 		);
@@ -367,8 +346,8 @@ describe('automation schedules', () => {
 		await expect(schedule('every day at 09:00 in acme/elsewhere')).rejects.toThrow(
 			/No repository in Malini is `acme\/elsewhere`/u,
 		);
-		await expect(schedule('every day at 09:00 in nobody')).rejects.toThrow(
-			/No repository in Malini belongs to `nobody`/u,
+		await expect(schedule('every day at 09:00 in acme')).rejects.toThrow(
+			/Unsupported schedule "every day at 09:00 in acme"\. Write .* followed by in <owner>\/<repository>/u,
 		);
 		const definitions = await context.commands.call('automations.list-definitions', undefined);
 		const merge = definitions.find((definition) => definition.builtin === 'merge');
@@ -376,8 +355,20 @@ describe('automation schedules', () => {
 		await expect(
 			context.commands.call('automations.save-definition', {
 				...merge,
-				trigger: { when: 'every day at 09:00', mode: 'auto' },
+				trigger: { when: 'every day at 09:00 in acme/app', mode: 'auto' },
 			}),
 		).rejects.toThrow(/never on a schedule/u);
+		await expect(schedule('every day at 09:00')).rejects.toThrow(/must say where it runs/u);
+	});
+
+	it('lets the brain notes keep a schedule with no place, and no other automation', async () => {
+		const definitions = await context.commands.call('automations.list-definitions', undefined);
+		const notes = definitions.find((definition) => definition.builtin === 'write-brain-notes');
+		if (!notes?.trigger) throw new Error('the built-in brain notes automation is missing');
+		const saved = await context.commands.call('automations.save-definition', {
+			...notes,
+			trigger: { when: notes.trigger.when, mode: 'ask' },
+		});
+		expect(saved.trigger).toEqual({ when: 'every sunday at 18:00', mode: 'ask' });
 	});
 });

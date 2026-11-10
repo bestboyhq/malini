@@ -8,6 +8,7 @@ import {
 } from '$lib/chat/chat.platform';
 import {
 	githubFullNameFromRemote,
+	isRetiredChat,
 	listArchivedWorkstreams,
 	listConnectedRepositories,
 	listWorkstreams,
@@ -45,15 +46,15 @@ export async function readPublishedStats(
 			...workstream,
 			mergedAt: workstream.mergedPullRequest ? workstream.archivedAt : null,
 		})),
-	].filter((workstream) => workstream.scope === null);
+	].filter((workstream) => !isRetiredChat(workstream));
 	const repositories = await repositoryVisibility(
 		db,
-		runs.filter((run) => !run.lead).map((run) => run.projectId),
+		runs.filter((run) => !isRetiredChat(run)).map((run) => run.projectId),
 		isPublic,
 	);
 	return publishedStats(
 		{
-			runs: runs.map((run) => ({ ...run, repository: run.lead ? null : run.projectId })),
+			runs: runs.map((run) => ({ ...run, repository: isRetiredChat(run) ? null : run.projectId })),
 			finishedToolCalls,
 			changedFiles,
 			workstreams,
@@ -69,7 +70,7 @@ export async function readPublicRepositories(
 	now: Date,
 	isPublic: RepositoryVisibility,
 ): Promise<PublicRepository[]> {
-	const runs = listRunFacts(db, now.toISOString()).filter((run) => !run.lead);
+	const runs = listRunFacts(db, now.toISOString()).filter((run) => !isRetiredChat(run));
 	const repositories = await repositoryVisibility(
 		db,
 		runs.map((run) => run.projectId),

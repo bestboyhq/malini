@@ -34,7 +34,6 @@ function entry(status: AutomationRunStatus, channel: string | null = null) {
 			title: 'Update from main',
 			workstreamId: 'ws-1',
 			repositoryId: null,
-			scope: null,
 			sessionId: null,
 			agentRunId: null,
 			origin: 'manual' as const,

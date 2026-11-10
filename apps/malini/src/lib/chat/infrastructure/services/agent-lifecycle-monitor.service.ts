@@ -178,17 +178,17 @@ export class AgentLifecycleMonitor {
 			branch: context.branch,
 		});
 		if (!decision) return true;
-		const { lead } = context;
-		if (lead && decision.kind !== 'approval') return true;
+		const { root } = context;
+		if (root && decision.kind !== 'approval') return true;
 		this.dependencies.sound(attentionSoundSignal(decision.kind));
 		const focused = this.dependencies.appFocused();
 		if (focused && envelope.sessionId === this.#shownChatId) return true;
 		if (!this.dependencies.markAttention(owner, decision)) return true;
-		const notice = lead
+		const notice = root
 			? {
-					workstreamId: lead.workstreamId,
-					sessionId: this.dependencies.chatIn(lead.workstreamId),
-					title: lead.label,
+					workstreamId: root.workstreamId,
+					sessionId: this.dependencies.chatIn(root.workstreamId),
+					title: root.label,
 					body: `${decision.title}: ${decision.body}`,
 				}
 			: {

@@ -56,8 +56,8 @@ export class AgentActivity {
 					current?.label === context.label &&
 					current.repositoryFullName === context.repositoryFullName &&
 					current.branch === context.branch &&
-					current.lead?.workstreamId === context.lead?.workstreamId &&
-					current.lead?.label === context.lead?.label
+					current.root?.workstreamId === context.root?.workstreamId &&
+					current.root?.label === context.root?.label
 				);
 			});
 		if (scopeUnchanged) return false;

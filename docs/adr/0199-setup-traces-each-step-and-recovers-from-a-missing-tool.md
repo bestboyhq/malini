@@ -1,4 +1,4 @@
-# 0197 - Setup traces each step and recovers from a missing tool
+# 0199 - Setup traces each step and recovers from a missing tool
 
 Status: accepted
 
@@ -16,7 +16,7 @@ Malini cannot do its work without either tool, so letting setup move on without 
 
 ## Decision
 
-- Four journey markers join 0194's list: `setup_tools`, `setup_sounds`, `setup_defaults` and `setup_heard_about`.
+- Five journey markers join 0194's list: `setup_tools`, `setup_sounds`, `setup_sidebar` (the step 0197 adds), `setup_defaults` and `setup_heard_about`.
   Each is sent from `Onboarding.svelte` when its step first shows, through `app.report-setup-step` and its `ReportSetupStepArgs`, and is stored as sent only after delivery, like every other journey marker.
 - `setup_tools` carries `claude_code` and `github`, each one of `missing`, `signed-out`, `ready` or `unknown`, from the raw `claudeCodeStatusQuery` and `githubSetupStatus` values.
   Claude Code signed out still counts as ready for setup, through `claudeCodeOnboardingStatus`, because it needs no account there.

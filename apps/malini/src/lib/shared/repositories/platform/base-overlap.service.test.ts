@@ -71,7 +71,6 @@ async function workstreamAt(id: string, start: string): Promise<string> {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-10-31T00:00:00.000Z',
-		scope: null,
 		startedBy: null,
 	});
 	checkouts.set(id, path);
@@ -118,7 +117,6 @@ beforeEach(async () => {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-10-31T00:00:00.000Z',
-		scope: null,
 		startedBy: null,
 	});
 	events = createEventBus({ forwardToWindows: false });

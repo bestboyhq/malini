@@ -822,7 +822,7 @@ export class ClaudeSession implements ProviderHandle {
 			...(permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
 			sandbox: { enabled: false },
 			disallowedTools: [
-				...disallowedTools(lineage),
+				...disallowedTools(),
 				...(boundary ? boundaryDenials(boundary, hidden) : []),
 			],
 			...(boundary?.internet === false ? { strictMcpConfig: true } : {}),

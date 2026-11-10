@@ -29,6 +29,7 @@ export type UsageJourney =
 	| 'first_open'
 	| 'setup_tools'
 	| 'setup_sounds'
+	| 'setup_sidebar'
 	| 'setup_defaults'
 	| 'setup_heard_about'
 	| 'setup_finished'
@@ -75,6 +76,7 @@ export interface UsageData {
 const SETUP_STEP_MARKERS: Readonly<Record<OnboardingStep, UsageJourneyMarker>> = {
 	tools: 'setup_tools',
 	sounds: 'setup_sounds',
+	sidebar: 'setup_sidebar',
 	defaults: 'setup_defaults',
 	'heard-about': 'setup_heard_about',
 };
@@ -292,11 +294,8 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopRepositories = context.events.subscribe(REPOSITORIES_CHANGED_CHANNEL, () => {
 		void firstRepository();
 	});
-	const stopWorkstreams = context.events.subscribe(
-		REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
-		(payload) => {
-			if (payload.workstream.scope === null) sendJourney('first_workstream');
-		},
+	const stopWorkstreams = context.events.subscribe(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, () =>
+		sendJourney('first_workstream'),
 	);
 	const stopShips = context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (changed) => {
 		if (changed.merged) sendJourney('first_merge');

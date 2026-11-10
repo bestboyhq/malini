@@ -19,10 +19,13 @@ let checkout: string;
 let scope: CaptureScope;
 let runs = 0;
 
-function workstream(id: string, place: 'archived' | 'active' | 'home'): void {
+function workstream(id: string, status: 'active' | 'archived', scope: string | null = null): void {
 	seedWorkstream(db, id);
-	if (place === 'archived') run(db, "UPDATE workstreams SET status = 'archived' WHERE id = ?", id);
-	if (place === 'home') run(db, "UPDATE workstreams SET scope = 'home' WHERE id = ?", id);
+	run(db, 'UPDATE workstreams SET status = ?, scope = ? WHERE id = ?', status, scope, id);
+}
+
+function retiredOrganizationChat(id: string): void {
+	workstream(id, 'archived', 'owner:acme');
 }
 
 function chat(sessionId: string, workstreamId: string, name: string, origin = 'user'): void {
@@ -100,16 +103,16 @@ afterEach(async () => {
 });
 
 describe('capturing typed chats into the brain log', () => {
-	it('appends what you typed in archived and Home chats with each Outcome, never the assistant', async () => {
+	it('appends what you typed in archived chats with each Outcome, never the assistant', async () => {
 		workstream('ws-archived', 'archived');
 		workstream('ws-active', 'active');
-		workstream('ws-home', 'home');
+		retiredOrganizationChat('ws-org');
 		chat('chat-archived', 'ws-archived', 'Fix the login loop');
 		chat('chat-active', 'ws-active', 'Still going');
-		chat('chat-home', 'ws-home', 'Plan the week');
+		chat('chat-org', 'ws-org', 'Plan the week');
 		turn('chat-archived', `Deploy with ${SECRET} and ghp_${'a'.repeat(36)}`);
 		turn('chat-active', 'Not archived yet');
-		turn('chat-home', 'What ships Friday');
+		turn('chat-org', 'What ships Friday');
 
 		const log = await capture();
 
@@ -117,7 +120,7 @@ describe('capturing typed chats into the brain log', () => {
 		expect(log).toContain('> Deploy with [secret] and [redacted-token]');
 		expect(log).toContain('Outcome: Shipped Deploy with');
 		expect(log).toContain(
-			'## Plan the week - Home\n\n> What ships Friday\n\nOutcome: Shipped What ships ',
+			'## Plan the week - acme\n\n> What ships Friday\n\nOutcome: Shipped What ships ',
 		);
 		expect(log).not.toContain('Not archived yet');
 		expect(log).not.toContain('ASSISTANT SAID');
@@ -125,20 +128,44 @@ describe('capturing typed chats into the brain log', () => {
 		expect(log).not.toContain('ghp_');
 	});
 
+	it('still names a retired Home chat Home when it is captured for the last time', async () => {
+		workstream('ws-retired', 'archived', 'home');
+		chat('chat-retired', 'ws-retired', 'Plan the week');
+		turn('chat-retired', 'What ships Friday');
+
+		expect(await capture()).toContain('## Plan the week - Home\n\n> What ships Friday');
+	});
+
+	it('still names a retired organization chat after its owner', async () => {
+		retiredOrganizationChat('ws-retired');
+		chat('chat-retired', 'ws-retired', 'Plan the week');
+		turn('chat-retired', 'What ships Friday');
+
+		expect(await capture()).toContain('## Plan the week - acme\n\n> What ships Friday');
+	});
+
+	it('leaves a chat that is not archived alone, whatever its scope says', async () => {
+		workstream('ws-scoped', 'active', 'owner:acme');
+		chat('chat-scoped', 'ws-scoped', 'Plan the week');
+		turn('chat-scoped', 'What ships Friday');
+
+		expect(await captureTypedChats(db, scope)).toEqual({ chats: 0, turns: 0, logPath: null });
+	});
+
 	it('adds nothing on a second capture, then only the turns that came after', async () => {
-		workstream('ws-home', 'home');
-		chat('chat-home', 'ws-home', 'Plan the week');
-		turn('chat-home', 'First question');
+		retiredOrganizationChat('ws-org');
+		chat('chat-org', 'ws-org', 'Plan the week');
+		turn('chat-org', 'First question');
 		const first = await capture();
 
 		expect(await captureTypedChats(db, scope)).toEqual({ chats: 0, turns: 0, logPath: null });
 		expect(await readFile(join(checkout, DAY_FILE), 'utf8')).toBe(first);
 
-		turn('chat-home', 'Second question');
+		turn('chat-org', 'Second question');
 		const second = await capture();
 		expect(second.startsWith(first)).toBe(true);
 		expect(second.slice(first.length)).toBe(
-			'\n## Plan the week - Home\n\n> Second question\n\nOutcome: Shipped Second quest\n',
+			'\n## Plan the week - acme\n\n> Second question\n\nOutcome: Shipped Second quest\n',
 		);
 	});
 
@@ -154,17 +181,17 @@ describe('capturing typed chats into the brain log', () => {
 
 	it('skips the brain, automations, prompts other chats sent and turns from before the brain', async () => {
 		workstream('ws-brain', 'archived');
-		workstream('ws-home', 'home');
+		retiredOrganizationChat('ws-org');
 		chat('chat-brain', 'ws-brain', 'Inside the brain');
-		chat('chat-home', 'ws-home', 'Plan the week');
-		chat('chat-automation', 'ws-home', 'An automation', 'automation');
+		chat('chat-org', 'ws-org', 'Plan the week');
+		chat('chat-automation', 'ws-org', 'An automation', 'automation');
 		turn('chat-brain', 'About the brain itself');
-		turn('chat-home', 'Before the brain existed');
+		turn('chat-org', 'Before the brain existed');
 		const sinceSeq = 4;
-		turn('chat-home', 'Sent by the lead', { payload: { from: 'lead' } });
-		turn('chat-home', 'Started by an automation', { automated: true });
+		turn('chat-org', 'Sent by the starter', { payload: { from: 'starter' } });
+		turn('chat-org', 'Started by an automation', { automated: true });
 		turn('chat-automation', 'Automation chat');
-		turn('chat-home', 'Typed after');
+		turn('chat-org', 'Typed after');
 
 		const log = await captureTypedChats(db, {
 			...scope,
@@ -187,10 +214,10 @@ describe('capturing typed chats into the brain log', () => {
 	});
 
 	it('waits for a turn still running and captures it once it finishes', async () => {
-		workstream('ws-home', 'home');
-		chat('chat-home', 'ws-home', 'Plan the week');
-		turn('chat-home', 'Done turn');
-		const running = turn('chat-home', 'Running turn', { finished: false });
+		retiredOrganizationChat('ws-org');
+		chat('chat-org', 'ws-org', 'Plan the week');
+		turn('chat-org', 'Done turn');
+		const running = turn('chat-org', 'Running turn', { finished: false });
 
 		expect(await capture()).not.toContain('Running turn');
 

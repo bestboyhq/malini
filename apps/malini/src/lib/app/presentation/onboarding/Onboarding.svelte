@@ -13,6 +13,7 @@
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
 	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
+	import { applyOnboardingSidebarCommand } from '$lib/app/application/commands/apply-onboarding-sidebar.command';
 	import { applyAutomationDefaultsCommand } from '$lib/app/application/commands/apply-automation-defaults.command';
 	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
@@ -33,6 +34,7 @@
 	import OnboardingToolsStep from './OnboardingToolsStep.svelte';
 	import OnboardingDefaultsStep from './OnboardingDefaultsStep.svelte';
 	import OnboardingHeardAboutStep from './OnboardingHeardAboutStep.svelte';
+	import OnboardingSidebarStep from './OnboardingSidebarStep.svelte';
 	import { rehearseStepTransition, type Rehearsal } from './rehearse-step-transition';
 
 	const STEP_COPY: Readonly<
@@ -47,6 +49,10 @@
 			title: 'Hear your afternoon',
 			description:
 				'Choose what you hear when an agent finishes, and when it needs you. Then try an afternoon of workstreams to hear how it feels.',
+		},
+		sidebar: {
+			title: 'Set up your sidebar',
+			description: 'Three questions. You can change all of them later.',
 		},
 		defaults: {
 			title: 'Pick your defaults',
@@ -72,7 +78,8 @@
 	const asksHeardAbout = $derived(onboarding.step === 'heard-about');
 	const asksDefaults = $derived(onboarding.step === 'defaults');
 	const asksTools = $derived(onboarding.step === 'tools');
-	const skippable = $derived(asksHeardAbout || asksDefaults);
+	const asksSidebar = $derived(onboarding.step === 'sidebar');
+	const skippable = $derived(asksHeardAbout || asksDefaults || asksSidebar);
 	const continueWaits = $derived(
 		(asksTools && !onboardingToolsSettled(tools)) ||
 			(asksDefaults && automationsLoadQuery.data.state !== 'ready') ||
@@ -144,6 +151,7 @@
 
 	function forward(): void {
 		if (asksHeardAbout) answerHeardAboutCommand(onboarding.heardAbout);
+		if (asksSidebar) applyOnboardingSidebarCommand(onboarding.sidebar);
 		if (asksDefaults) {
 			applyAutomationDefaultsCommand(
 				onboarding.defaultsChoice === 'recommended' ? RECOMMENDED : onboarding.customDefaults,
@@ -257,6 +265,8 @@
 					<div class="mt-7 flex min-h-0 flex-1 flex-col">
 						{#if asksTools}
 							<OnboardingToolsStep statuses={tools} />
+						{:else if asksSidebar}
+							<OnboardingSidebarStep />
 						{:else if asksDefaults}
 							<OnboardingDefaultsStep />
 						{:else if onboarding.step === 'heard-about'}

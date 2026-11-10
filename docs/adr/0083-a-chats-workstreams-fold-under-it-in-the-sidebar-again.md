@@ -1,6 +1,6 @@
 # 0083 - A chat's workstreams fold under it in the sidebar again
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0108 - A lead starts every turn fresh from its timeline
 
-Status: accepted
+Status: superseded by 0198
 
 ## Context
 

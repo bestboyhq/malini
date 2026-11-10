@@ -3,6 +3,7 @@ import type { HeardAbout } from '$lib/app/domain/heard-about';
 import {
 	ONBOARDING_STEPS,
 	type OnboardingScreen,
+	type OnboardingSidebar,
 	type OnboardingStep,
 } from '$lib/app/domain/onboarding';
 import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store.svelte';
@@ -14,6 +15,7 @@ type Onboarding = Readonly<{
 	direction: 1 | -1;
 	shown: OnboardingScreen | null;
 	heardAbout: HeardAbout | null;
+	sidebar: OnboardingSidebar;
 	defaultsChoice: DefaultsChoice;
 	customDefaults: AutomationDefaults;
 }>;
@@ -26,6 +28,7 @@ class OnboardingQuery {
 		direction: onboardingStore.direction,
 		shown: onboardingStore.shown,
 		heardAbout: onboardingStore.heardAbout,
+		sidebar: onboardingStore.sidebar,
 		defaultsChoice: onboardingStore.defaultsChoice,
 		customDefaults: onboardingStore.customDefaults,
 	});

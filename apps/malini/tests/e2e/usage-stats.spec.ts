@@ -5,6 +5,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	passDefaults,
+	passSidebar,
 	seedWorkstream,
 } from './harness';
 
@@ -24,7 +25,7 @@ test('the first setup step says in its description that Malini shares usage stat
 		const stats = setup.getByRole('paragraph').filter({ hasText: /usage stats/iu });
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(4);
+		).toHaveCount(5);
 		await expect(
 			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
 		).toBeVisible({
@@ -36,6 +37,9 @@ test('the first setup step says in its description that Malini shares usage stat
 
 		await next.click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await expect(stats).toHaveCount(0);
+		await next.click();
+		await expect(setup.getByRole('heading', { name: 'Set up your sidebar' })).toBeVisible();
 		await expect(stats).toHaveCount(0);
 		await next.click();
 		await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
@@ -84,6 +88,7 @@ test('setup reports each step it reaches, with both account states on the first'
 		await next.click();
 		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await next.click();
+		await passSidebar(app.page);
 		await passDefaults(app.page);
 		await expect(
 			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
@@ -101,6 +106,7 @@ test('setup reports each step it reaches, with both account states on the first'
 		expect(steps.filter((step, index) => steps.indexOf(step) === index)).toEqual([
 			'tools',
 			'sounds',
+			'sidebar',
 			'defaults',
 			'heard-about',
 		]);

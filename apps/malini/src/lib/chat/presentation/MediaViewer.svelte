@@ -222,7 +222,7 @@
 						bind:value={reason}
 						size="sm"
 						class="w-72"
-						placeholder="Why? Optional, the lead passes it on"
+						placeholder="Why? Optional, it steers the next round"
 						ariaLabel="Why this option"
 					/>
 					<Button type="submit" variant="primary" size="sm">{action}</Button>

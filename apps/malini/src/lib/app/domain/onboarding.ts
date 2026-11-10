@@ -1,12 +1,45 @@
 import { SETUP_STEPS, type SetupStep } from '$contract/commands';
 import type { ClaudeCodeStatus } from '$shared/providers/domain/claude-code-status';
 import type { GitHubSetupStatus } from '$shared/repositories/domain/github-auth';
+import {
+	DEFAULT_SIDEBAR_ARRANGEMENT,
+	type SidebarArrangement,
+	type SidebarShow,
+} from './sidebar-arrangement';
+import type { SidebarDensity } from './sidebar-density';
 
 export const ONBOARDING_FINISHED_SETTING = 'onboarding.finished-at';
 
 export type OnboardingStep = SetupStep;
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = SETUP_STEPS;
+
+export type OnboardingWhere = 'many' | 'one';
+
+export type OnboardingSidebar = Readonly<{
+	where: OnboardingWhere;
+	show: SidebarShow;
+	density: SidebarDensity;
+}>;
+
+export const DEFAULT_ONBOARDING_SIDEBAR: OnboardingSidebar = {
+	where: 'many',
+	show: 'everything',
+	density: 'compact',
+};
+
+export function onboardingSidebarArrangement({
+	where,
+	show,
+}: OnboardingSidebar): SidebarArrangement {
+	if (where === 'many' && show === 'everything') return DEFAULT_SIDEBAR_ARRANGEMENT;
+	return {
+		...DEFAULT_SIDEBAR_ARRANGEMENT,
+		grouping: 'status',
+		subgrouping: where === 'many' ? 'repository' : 'none',
+		show,
+	};
+}
 
 export type OnboardingScreen = 'setup' | 'picker';
 
