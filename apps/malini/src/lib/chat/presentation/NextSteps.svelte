@@ -32,7 +32,6 @@
 
 	const forking = $derived(commandHeld && onfork !== undefined);
 	const labelWidth = $derived(forking ? forkWidth : shipWidth);
-	const reservedWidth = $derived(onfork && labelWidth > 0 ? forkWidth - labelWidth : 0);
 
 	function mark(index: number, outcome: string): void {
 		handled = { ...handled, [index]: outcome };
@@ -88,10 +87,7 @@
 					{handled[index]}
 				</span>
 			{:else}
-				<span
-					class="actions flex shrink-0 items-center gap-1"
-					style:padding-inline-start={`${reservedWidth}px`}
-				>
+				<span class="flex shrink-0 items-center gap-1">
 					{#if onscratchpad}
 						<Button
 							variant="ghost"
@@ -170,14 +166,9 @@
 		transition: width 240ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
-	.actions {
-		transition: padding-inline-start 240ms cubic-bezier(0.16, 1, 0.3, 1);
-	}
-
 	@media (prefers-reduced-motion: reduce) {
 		.swap > .face,
-		.swap-label,
-		.actions {
+		.swap-label {
 			transition: none;
 		}
 	}
