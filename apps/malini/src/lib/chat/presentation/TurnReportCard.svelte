@@ -95,16 +95,13 @@
 {/snippet}
 
 <article
-	class={[
-		'bg-surface-50 flex w-full flex-col gap-2.5 rounded-l-xs rounded-r-md border-l-3 px-3 py-2.5',
-		status.rail,
-	]}
+	class={['bg-surface-50 flex w-full flex-col gap-2.5 rounded-xl border-l-3 p-3', status.rail]}
 	aria-label="Turn result"
 	data-testid="turn-report-card"
 >
 	<div class="flex flex-col">
 		{#if history.length > 0}
-			<ol class="flex flex-col pb-[5px]" aria-label="Earlier turns">
+			<ol class="-mt-[5px] flex flex-col pb-[5px]" aria-label="Earlier turns">
 				{#each history as turn (turn.runId)}
 					{@const earlierPick = pickOf?.(turn.runId) ?? null}
 					<li class="turn-step relative">
