@@ -19,3 +19,9 @@ Rules:
 - No motion while the window is hidden, or it all plays at once on return. A transition reads `motionOff()` from `$hyper-ui/motion/motion-off` (or `motionMs()` in the chat) where it starts.
 - Every rule runs at `error`, enforced by `@malini/desktop/*` in `packages/eslint-plugin-hyper-ui`.
 - Do not edit a `*.generated.ts` file. Edit its source and rerun the generator.
+
+Style cost (ADR 0199, not linted):
+
+- No daisyUI component classes. The app loads daisyUI with `include: properties`, for its theme colors only.
+- No global rule that ends in `*`, or in a `:where()` or `:is()` with no class, tag or id. Chrome tries it on every element in every style pass.
+- A list that grows with history, such as the archived workstreams, renders only the rows in view.

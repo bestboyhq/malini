@@ -53,9 +53,9 @@ class FramesService {
 	}
 }
 
-function frameContext(): Readonly<{ timeOrigin: number; focused: boolean; route: string }> {
+function frameContext(): Readonly<{ wallClockOrigin: number; focused: boolean; route: string }> {
 	return {
-		timeOrigin: performance.timeOrigin,
+		wallClockOrigin: Date.now() - performance.now(),
 		focused: document.hasFocus(),
 		route: currentDiagnosticRoute(),
 	};

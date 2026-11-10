@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fly } from 'svelte/transition';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
-	import { arrivalMotion, motionMs } from '../arrival-motion';
+	import { arrivalMotion, swapFly } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import UnfoldText from '../UnfoldText.svelte';
@@ -74,8 +72,8 @@
 				{#key live}
 					<span
 						class="whitespace-nowrap [grid-area:1/1]"
-						in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
-						out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
+						in:swapFly={{ y: flip, durationMs: 260 }}
+						out:swapFly={{ y: -flip, durationMs: 200 }}
 					>
 						{#if live}
 							<ShimmerText text="Thinking" />
@@ -93,8 +91,8 @@
 			{#key lineKey}
 				<span
 					class="text-fg-tertiary/75 truncate [grid-area:1/1]"
-					in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
-					out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
+					in:swapFly={{ y: flip, durationMs: 260 }}
+					out:swapFly={{ y: -flip, durationMs: 200 }}
 				>
 					<UnfoldText text={line.line} unfold={live && lineKey !== mountedLineKey} />
 				</span>
