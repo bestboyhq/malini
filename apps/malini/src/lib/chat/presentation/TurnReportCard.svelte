@@ -175,7 +175,7 @@
 		{:else if report.needs.length > 0}
 			<section
 				class={[
-					'rounded-lg border-[0.5px] px-2.5 py-2',
+					'rounded-md border-[0.5px] px-2.5 py-2',
 					needsOpen ? 'bg-brand/10 border-transparent' : 'border-surface-150-border',
 				]}
 				aria-labelledby={needsHeadingId}

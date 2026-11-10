@@ -36,7 +36,7 @@
 </script>
 
 {#if !sent}
-	<section class="bg-brand/10 rounded-lg px-2.5 py-2" aria-labelledby={headingId}>
+	<section class="bg-brand/10 rounded-md px-2.5 py-2" aria-labelledby={headingId}>
 		<div class="flex flex-wrap items-baseline gap-x-2">
 			<h3 id={headingId} class="text-brand-foreground text-xs font-medium">Your turn</h3>
 			{#each needs as need, index (index)}

@@ -156,7 +156,7 @@
 
 {#snippet framed(src: string, label: string, playing: boolean, caption?: Snippet)}
 	<div
-		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-lg outline-[0.5px] -outline-offset-[0.5px]"
+		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
 	>
 		<span class="block aspect-[16/10] max-h-[70vh] w-full" aria-hidden="true"></span>
 		<div class="absolute inset-0 grid place-items-center">

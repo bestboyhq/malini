@@ -64,7 +64,7 @@
 		{#if details.length > 0}
 			<details class="group/details mt-2">
 				<summary
-					class="bg-surface-100 hover:bg-surface-100-hover border-surface-100-border text-fg-default flex cursor-pointer list-none items-center gap-2 rounded-lg border-[0.5px] px-2 py-1 text-xs leading-5"
+					class="bg-surface-100 hover:bg-surface-100-hover border-surface-100-border text-fg-default flex cursor-pointer list-none items-center gap-2 rounded-md border-[0.5px] px-2 py-1 text-xs leading-5"
 				>
 					<span class="text-fg-tertiary grid shrink-0 place-items-center">
 						<Icon name="list-indent" size={14} />
