@@ -101,7 +101,7 @@
 >
 	<div
 		class={[
-			'lifted bg-surface-50 relative flex flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
+			'lifted bg-surface-50 outline-surface-100-border relative flex flex-col gap-2.5 overflow-hidden rounded-xl p-3 pl-[15px] outline-[0.5px] -outline-offset-[0.5px] before:absolute before:inset-y-0 before:left-0 before:w-[3px]',
 			status.rail,
 		]}
 	>
@@ -175,7 +175,7 @@
 		{:else if report.needs.length > 0}
 			<section
 				class={[
-					'rounded-md border-[0.5px] px-2.5 py-2',
+					'rounded-lg border-[0.5px] px-2.5 py-2',
 					needsOpen ? 'bg-brand/10 border-transparent' : 'border-surface-150-border',
 				]}
 				aria-labelledby={needsHeadingId}
