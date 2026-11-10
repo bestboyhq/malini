@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { promises as originalFs } from 'original-fs';
 import type {
 	ExtensionChange,
 	ExtensionDetail,
@@ -239,8 +240,8 @@ export class Marketplace {
 			if (existsSync(target)) await rename(target, trash);
 			await rename(staging, target);
 		} finally {
-			await rm(staging, { recursive: true, force: true });
-			await rm(trash, { recursive: true, force: true });
+			await originalFs.rm(staging, { recursive: true, force: true });
+			await originalFs.rm(trash, { recursive: true, force: true });
 		}
 		const kept = [target, previousVersion ? this.#folder(name, previousVersion) : null];
 		await this.#removeFolders(
@@ -255,7 +256,7 @@ export class Marketplace {
 		for (const entry of entries) {
 			const folder = join(installedRoot, entry);
 			if (!entry.startsWith(`${name}@`) || kept.includes(folder)) continue;
-			await rm(folder, { recursive: true, force: true });
+			await originalFs.rm(folder, { recursive: true, force: true });
 		}
 	}
 

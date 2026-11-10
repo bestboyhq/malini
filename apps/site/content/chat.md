@@ -64,7 +64,7 @@ The turn then goes on where it stopped: Malini sends your prompt again if Claude
 **Resume now** goes on at once, and a prompt you send replaces the pause.
 An automation whose turn pauses keeps running, so a merge that waits on it loses no attempt.
 A turn that only you can fix fails, and the chat shows the error with a **Run failed** strip under it: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
-A turn that a crash, a force quit or **Restart agent process** cut short shows a **Run interrupted** strip, and the chat stays idle, not failed.
+A turn that a crash, a force quit, a quit that could not pause it or **Restart agent process** cut short shows a **Run interrupted** strip, and the chat stays idle, not failed.
 **Try again** goes on.
 When the agent process stops answering mid-run, an **Agent process died** strip above the composer restarts it, and a chat whose agent session cannot start shows its error with an **Agent session unavailable** strip and **Retry session**.
 An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
@@ -345,7 +345,7 @@ Every run can be undone.
 Edit an earlier message and press **↵** to resend from there, or slice and fork: a new chat starts from the chat as it stood at that run, even while the agent is still busy.
 Runs that quitting Malini cut short pick up where they left off the next time Malini opens: Malini logs **Malini started**, and the [Reconciler](/malini/docs/automations.md#reconciler)'s Resume rule continues them.
 A prompt Claude had not replied to yet is sent again instead, because Claude Code keeps only a prompt it answered.
-A crash or a force quit gives Malini no time to pause the run, so it shows **Run interrupted** and waits for **Try again**.
+A crash or a force quit gives Malini no time to pause the run, and a quit pauses only a run that stops within 5 seconds, so any other run shows **Run interrupted** and waits for **Try again**.
 
 ## Skills
 

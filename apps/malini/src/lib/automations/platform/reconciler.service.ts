@@ -162,6 +162,7 @@ export class Reconciler {
 
 	dispose(): void {
 		this.#stopped = true;
+		for (const { done } of this.#queue.values()) done();
 		this.#queue.clear();
 	}
 

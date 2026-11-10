@@ -221,13 +221,7 @@ export function finalizeRunLifecycle(
 			}
 		}
 		const closedInteractions = closeTerminalInteractions(db, sessionId, runId, completedAt);
-		const otherRunOpen =
-			scalar(
-				db,
-				'SELECT COUNT(*) FROM agent_runs WHERE session_id = ? AND completed_at IS NULL',
-				sessionId,
-			) > 0;
-		if (changes === 1 && !otherRunOpen) {
+		if (changes === 1 && !sessionHasOpenRun(db, sessionId)) {
 			const moved = moveSessionStatus(
 				db,
 				sessionId,
@@ -240,6 +234,16 @@ export function finalizeRunLifecycle(
 		}
 		return closedInteractions;
 	});
+}
+
+export function sessionHasOpenRun(db: MaliniDatabase, sessionId: string): boolean {
+	return (
+		scalar(
+			db,
+			'SELECT COUNT(*) FROM agent_runs WHERE session_id = ? AND completed_at IS NULL',
+			sessionId,
+		) > 0
+	);
 }
 
 export function workstreamHasOpenRun(db: MaliniDatabase, workstreamId: string): boolean {

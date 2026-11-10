@@ -49,6 +49,7 @@ import {
 	activeRunWorkstreamIdentity,
 	continuableRun,
 	listPausedRuns,
+	sessionHasOpenRun,
 	workstreamHasOpenRun,
 	type AgentRun,
 	type PausedRun,
@@ -954,7 +955,9 @@ export function handleSendPromptHandoffFailure(
 		).changes;
 		if (changes === 0) return false;
 		closeTerminalInteractions(db, sessionId, runId, completedAt);
-		moveSessionStatus(db, sessionId, 'run.failed', { error: errorMessage });
+		if (!sessionHasOpenRun(db, sessionId)) {
+			moveSessionStatus(db, sessionId, 'run.failed', { error: errorMessage });
+		}
 		releaseRunAttachmentsForRetry(db, runId, retryExpiresAt);
 		return true;
 	});

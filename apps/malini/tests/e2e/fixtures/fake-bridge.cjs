@@ -1913,7 +1913,8 @@ const handle = (command) => {
 		}
 		case 'reconnect_mcp_server': {
 			connectMcp(command.serverName);
-			return ack(command.id, lateMcpReconnectErrors[command.serverName]);
+			const late = lateMcpReconnectErrors[command.serverName];
+			return ack(command.id, late === undefined ? undefined : `MCP_SERVER_FAILED: ${late}`);
 		}
 		case 'watch_mcp_servers': {
 			const watching = mcpWatchers.has(command.cwd) && !command.restart;

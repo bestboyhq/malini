@@ -37,6 +37,7 @@ let asked: string[];
 let delivered: ChatWake[];
 let undeliverable: string | null;
 let notified: unknown[];
+let choosing: Promise<void>;
 
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ['Date'] });
@@ -47,6 +48,7 @@ beforeEach(() => {
 	delivered = [];
 	undeliverable = null;
 	notified = [];
+	choosing = Promise.resolve();
 	seed();
 	boot();
 });
@@ -78,6 +80,7 @@ function boot(rules: Pick<AutomationsOptions, 'shipping' | 'resume' | 'deliverie
 		log: () => {},
 		choose: async (task) => {
 			asked.push(task);
+			await choosing;
 			const pick = picks.shift();
 			if (pick === undefined) throw new Error('Claude Code is not installed');
 			return pick;
@@ -721,6 +724,31 @@ describe('the event reconciler', () => {
 				{ id: 'starter', name: 'Move apps to Logdash', repository: 'project', startedBy: null },
 			]),
 		);
+	});
+
+	it('lets Malini close without waiting on news queued behind a decision it is making', async () => {
+		let answer = (): void => {};
+		choosing = new Promise((resolve) => {
+			answer = resolve;
+		});
+		finishAutomation(await publishDocs(), 'publish-1');
+		await vi.waitFor(() => expect(asked).toHaveLength(1));
+		finishAutomation(await publishDocs(), 'publish-2');
+		await settle();
+
+		automations.dispose();
+		answer();
+		const settled = async (): Promise<string> => {
+			await automations.settled();
+			return 'settled';
+		};
+		const closed = await Promise.race([
+			settled(),
+			new Promise((resolve) => setTimeout(resolve, 1_000, 'late')),
+		]);
+
+		expect(closed).toBe('settled');
+		expect(asked).toHaveLength(1);
 	});
 });
 

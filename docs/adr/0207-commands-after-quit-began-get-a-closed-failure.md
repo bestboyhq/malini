@@ -1,4 +1,4 @@
-# 0207 - A command that arrives after quit began gets a closed failure
+# 0207 - Commands after quit began get a closed failure
 
 Status: accepted
 

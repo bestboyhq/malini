@@ -1936,6 +1936,26 @@ describe('an automation whose turn ends over background commands', () => {
 		expect(fakes.startSession).toHaveBeenCalledTimes(1);
 	});
 
+	it('cancels a held Then when the automation goes on and fails after you unlinked that Then', async () => {
+		const { next, automation, automationSession } = await chained();
+
+		waitOver(automationSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+		await saveDefinition({
+			id: automation.definitionId,
+			name: 'Warm-up note',
+			thenAutomationId: null,
+		});
+		goOn(automationSession);
+		finalizeRunLifecycle(db, automationSession, 'agent-run-1', 'failed', null, 'tests fail', NOW);
+		agentEvent(automationSession, 'agent-run-1', { type: 'run.failed', error: 'tests fail' });
+		await until(automation.id, 'failed');
+
+		expect(await until(then.id, 'cancelled')).toMatchObject({
+			detail: 'Warm-up note went on and did not succeed.',
+		});
+	});
+
 	it('runs again after a restart once you answer its agent and it goes on, and finishes with that end', async () => {
 		const automation = await runOf(await saveDefinition());
 		const automationSession = await session(automation.id);

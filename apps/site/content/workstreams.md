@@ -137,7 +137,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   Its links open their files in tabs, and its images show from the worktree.
 
 A repository opens on its **scratchpad**, where you keep ideas.
-Any paragraph moves into a new workstream, and a heading takes what sits under it along.
+Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
 Workstreams you saved for later wait above the ideas, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 

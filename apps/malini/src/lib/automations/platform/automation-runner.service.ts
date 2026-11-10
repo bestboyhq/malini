@@ -65,6 +65,7 @@ import {
 	getAutomationRun,
 	getAutomationRunContext,
 	insertAutomationRun,
+	listPendingThenAutomationRuns,
 	listUnfinishedAutomationRuns,
 	saveAutomationRun,
 } from './automation-runs.repository';
@@ -659,16 +660,13 @@ export class AutomationRunner {
 
 	#followAgain(automation: AutomationRunRecord): void {
 		const { db } = this.#context;
-		const thenAutomationId =
-			getAutomationDefinition(db, automation.definitionId)?.thenAutomationId ?? null;
-		const then =
-			thenAutomationId === null ? null : childAutomationRun(db, automation.id, thenAutomationId);
-		if (!then || !isPendingAutomationRunStatus(then.status)) return;
-		if (automation.status === 'succeeded') {
-			const report = thenContext(automation, getAutomationDefinition(db, then.definitionId));
-			appendAutomationRunContext(db, then.id, truncateAutomationContext(report));
-		} else {
-			this.#finish(then.id, 'cancelled', `${automation.title} went on and did not succeed.`);
+		for (const then of listPendingThenAutomationRuns(db, automation.id)) {
+			if (automation.status === 'succeeded') {
+				const report = thenContext(automation, getAutomationDefinition(db, then.definitionId));
+				appendAutomationRunContext(db, then.id, truncateAutomationContext(report));
+			} else {
+				this.#finish(then.id, 'cancelled', `${automation.title} went on and did not succeed.`);
+			}
 		}
 	}
 

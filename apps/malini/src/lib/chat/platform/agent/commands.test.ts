@@ -495,6 +495,26 @@ describe('prompt round trips', () => {
 		expect(getSession(test.db, sessionId)?.status).toBe('completed');
 	});
 
+	it('keeps a chat running when a steer fails before it reaches the live run', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const busyRun = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+		run(
+			test.db,
+			`CREATE TRIGGER refuse_steer BEFORE INSERT ON agent_events WHEN NEW.event LIKE '%Instead%'
+			 BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`,
+		);
+
+		expect(
+			await invokeError('chat.send-prompt', { sessionId, prompt: 'Instead', steer: true }),
+		).toContain('could not record the prompt');
+
+		expect(getRun(test.db, busyRun)?.completedAt).toBeNull();
+		expect(getSession(test.db, sessionId)?.status).toBe('running');
+	});
+
 	it('hands a prompt only the skills chosen for its chat, and every skill otherwise', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

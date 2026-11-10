@@ -251,6 +251,19 @@ export function childAutomationRun(
 	return row ? fromRow(row) : null;
 }
 
+export function listPendingThenAutomationRuns(
+	db: MaliniDatabase,
+	parentRunId: string,
+): AutomationRunRecord[] {
+	return all<AutomationRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM automation_runs
+		 WHERE parent_run_id = ? AND origin = 'then' AND ${PENDING}
+		 ORDER BY created_at, rowid`,
+		parentRunId,
+	).map(fromRow);
+}
+
 export function findActiveAutomationRunForSession(
 	db: MaliniDatabase,
 	sessionId: string,
