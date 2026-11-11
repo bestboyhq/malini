@@ -21,6 +21,7 @@
 		ARCHIVED_HEIGHT,
 		ARCHIVED_ROW_PX,
 		archivedOverflows,
+		archivedRowWindow,
 	} from '$lib/app/domain/sidebar-archived';
 	import { formatTimeAgo } from '$lib/stats/stats.api';
 
@@ -44,9 +45,12 @@
 	let showAll = $state(false);
 	let dragHeight = $state<number | null>(null);
 	let renderedHeight = $state(0);
+	let scrollTop = $state(0);
 
 	const height = $derived(dragHeight ?? storedHeight);
 	const overflows = $derived(archivedOverflows(archived.length, height));
+	const rows = $derived(archivedRowWindow(archived.length, scrollTop, renderedHeight || height));
+	const shownRows = $derived(archived.slice(rows.start, rows.end));
 
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), CLOCK_MS);
@@ -151,9 +155,19 @@
 			style:max-height={showAll ? undefined : `${height}px`}
 			bind:clientHeight={renderedHeight}
 		>
-			<ScrollableDiv class="max-h-[inherit]" fadeEdges>
-				<ul id={LIST_ID} class="flex flex-col px-2" aria-labelledby={TITLE_ID}>
-					{#each archived as workstream (workstream.id)}
+			<ScrollableDiv
+				class="max-h-[inherit]"
+				fadeEdges
+				onscroll={(event) => (scrollTop = event.currentTarget.scrollTop)}
+			>
+				<ul
+					id={LIST_ID}
+					class="flex flex-col px-2"
+					aria-labelledby={TITLE_ID}
+					style:padding-top="{rows.start * ARCHIVED_ROW_PX}px"
+					style:padding-bottom="{(archived.length - rows.end) * ARCHIVED_ROW_PX}px"
+				>
+					{#each shownRows as workstream, index (workstream.id)}
 						{@const name = displayWorkstreamName(workstream, workstream.repositoryFullName)}
 						{@const restoring = busyActionFor(workstream.id) === 'restore'}
 						{@const merged = workstream.mergedPullRequest}
@@ -161,6 +175,8 @@
 							class="group/archived hover:bg-surface-root-hover flex items-center rounded-lg"
 							data-testid="sidebar-archived-workstream"
 							data-workstream-id={workstream.id}
+							aria-setsize={archived.length}
+							aria-posinset={rows.start + index + 1}
 						>
 							<Tooltip
 								content={detail(workstream)}
