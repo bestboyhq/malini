@@ -37,7 +37,7 @@ test('a background agent shows as running past the turn, then shows its result',
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
 		const card = page.getByRole('article', { name: 'Turn result' });
-		await expect(card.getByRole('img', { name: 'Not over yet' })).toBeVisible();
+		await expect(card.getByRole('img', { name: 'Still running' })).toBeVisible();
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();

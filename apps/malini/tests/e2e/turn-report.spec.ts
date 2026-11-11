@@ -226,8 +226,8 @@ async function reportLanded(app: LaunchedApp, name: string): Promise<Locator> {
 
 	writeFileSync(join(app.home, 'release-report-stream'), '');
 	await expect(card).toBeVisible({ timeout: 30_000 });
-	await expect(card.getByRole('img', { name: 'Not over yet' })).toBeVisible();
-	await expect(card.getByRole('heading', { name: 'Your turn next' })).toBeVisible();
+	await expect(card.getByRole('img', { name: 'Still running' })).toBeVisible();
+	await expect(card.getByRole('heading', { name: 'Over to you after' })).toBeVisible();
 	await expect(card.getByRole('img', { name: 'Waiting on you' })).toHaveCount(0);
 	await expect(card.getByRole('img', { name: 'Done' })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Stop current run' })).toBeVisible();
@@ -246,7 +246,7 @@ test('the result card shows as soon as the report lands, and asks only once the 
 			timeout: 30_000,
 		});
 		await expect(card.getByRole('heading', { name: 'Your turn', exact: true })).toBeVisible();
-		await expect(card.getByRole('img', { name: 'Not over yet' })).toHaveCount(0);
+		await expect(card.getByRole('img', { name: 'Still running' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

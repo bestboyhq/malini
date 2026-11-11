@@ -20,7 +20,7 @@ The user said: "we have run summary cards that by the way are not summarized unt
   A `paused` run is not over, since Malini resumes it (ADR 0100).
 - `ChatTimelineRow.svelte` passes `ended={turnOver(run)}` to the card, and opens its needs only when the turn is over.
 - `turnStatus` in `src/lib/chat/domain/turn-report.ts` returns a third status, `unfinished`, while the turn is not over.
-  The card shows it as a clock labelled **Not over yet** with a neutral rail, and its needs sit in the closed style under **Your turn next**.
+  The card shows it as a clock labelled **Still running** with a neutral rail, and its needs sit in the closed style under **Over to you after**.
   **Done**, **Waiting on you**, **Your turn** and the variant pick form appear only once the turn is over.
 - A run that fails or is stopped after its report keeps the card, because the agent wrote that report and it is still what the agent claims and asks.
   The card has no failure state, and adds none: the run's terminal banner under the card (**Run cancelled**, or the failure and its error) says how the run ended.

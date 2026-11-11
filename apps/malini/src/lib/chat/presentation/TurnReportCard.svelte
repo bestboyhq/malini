@@ -60,7 +60,7 @@
 	const STATUS = {
 		unfinished: {
 			icon: 'clock',
-			label: 'Not over yet',
+			label: 'Still running',
 			tone: 'text-fg-tertiary',
 			rail: 'before:bg-surface-150-border',
 		},
@@ -202,7 +202,7 @@
 					id={needsHeadingId}
 					class={['text-xs font-medium', needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary']}
 				>
-					{needsOpen ? 'Your turn' : ended ? 'You were asked' : 'Your turn next'}
+					{needsOpen ? 'Your turn' : ended ? 'You were asked' : 'Over to you after'}
 				</h3>
 				<ul
 					class={[

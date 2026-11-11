@@ -224,7 +224,7 @@
 					<span class="text-fg-secondary max-w-[48ch]">{listing.error}</span>
 				{:else}
 					<Icon name="image" size={16} />
-					Nothing here yet. Agents save media to .context
+					No media yet. Agents save it here
 				{/if}
 			</div>
 		{/if}

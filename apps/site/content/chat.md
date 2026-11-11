@@ -237,7 +237,7 @@ Every turn ends in a report. Proof included
 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 The report shows the moment the agent writes it, and its **Outcome** and **Needs** lines never stream in as text.
-While the run still goes after it, for a background agent or a hook, the report shows a clock, **Not over yet**, and lists what it asks of you under **Your turn next** until the run ends.
+While the run still goes after it, for a background agent or a hook, the report shows a clock, **Still running**, and lists what it asks of you under **Over to you after** until the run ends.
 A run you stop, or one that fails, keeps its report, with the failure under it.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under the **Details** row, which says how many words it holds.
 Reports run from a screenshot and one line to the full write-up.
