@@ -110,6 +110,7 @@ export class ClaudeTranscript {
 		this.#answered = true;
 		this.#turnSummary =
 			result.subtype === 'success' && !result.is_error ? result.result : undefined;
+		this.#emit({ type: 'turn.answered', runId: this.#runId });
 	}
 
 	get hasBackgroundTasks(): boolean {

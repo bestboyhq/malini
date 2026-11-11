@@ -453,6 +453,7 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		contentId: 'launched',
 		text: 'launched\n\nOutcome: The Sleep probe agent is running\nNeeds: nothing',
 	});
+	event({ type: 'turn.answered', runId });
 	const timer = setInterval(() => {
 		if (!pendingRuns.has(runId)) return clearInterval(timer);
 		if (!fs.existsSync(releasePath)) return;
@@ -471,8 +472,9 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 			type: 'assistant.message',
 			runId,
 			contentId: 'follow-up',
-			text: 'The Sleep probe agent finished with probe-done.',
+			text: 'It printed probe-done.\n\nOutcome: The Sleep probe agent finished\nNeeds: nothing',
 		});
+		event({ type: 'turn.answered', runId });
 		event({ type: 'run.completed', runId, summary: 'The Sleep probe agent finished.' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
@@ -623,6 +625,7 @@ const waitOnBackgroundCommand = (sessionId, runId, text) => {
 	backgroundCommands.set(sessionId, { runId, startedAt });
 	pendingRuns.set(runId, sessionId);
 	event({ type: 'assistant.message', runId, contentId: 'reply-' + runId, text });
+	event({ type: 'turn.answered', runId });
 	event({
 		type: 'background.updated',
 		runId,
@@ -682,6 +685,7 @@ const followUpTurnRun = (sessionId, runId, commit) => {
 		contentId: 'report-' + runId,
 		text: CHAT_TURN_REPORT.trim() + (commit ? '\nCommit: ' + commit : ''),
 	});
+	event({ type: 'turn.answered', runId });
 	event({
 		type: 'thinking.message',
 		runId,
@@ -694,6 +698,7 @@ const followUpTurnRun = (sessionId, runId, commit) => {
 		contentId: 'follow-up-' + runId,
 		text: FOLLOW_UP_REPLY,
 	});
+	event({ type: 'turn.answered', runId });
 	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, ...finalUsage });
 	event({ type: 'run.completed', runId, summary: FOLLOW_UP_REPLY });
 	event({ type: 'session.state', sessionId, status: 'completed' });
@@ -740,6 +745,7 @@ const goesOnAfterBackgroundCommand = (sessionId, runId) => {
 		const report =
 			'Fixed the flaky test.\n\nOutcome: The e2e suite passes\nNeeds: nothing\nCommit: test: fix the flaky test';
 		event({ type: 'assistant.message', runId, contentId: 'report-' + runId, text: report });
+		event({ type: 'turn.answered', runId });
 		event({ type: 'run.completed', runId, summary: report });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);

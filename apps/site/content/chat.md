@@ -241,6 +241,8 @@ What changed and what was verified read as one line each, with an icon for each,
 Reports run from a screenshot and one line to the full write-up.
 Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
+A report shows the moment its turn answers, while a background agent still runs, and the run's status line stays under it.
+When the agent goes on in that run and reports again, the new report takes the card, and the earlier one moves into the card's list of earlier turns.
 A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, or which chat, for [the workstreams a chat started](#work-a-chat-starts).
 
 ### Next steps

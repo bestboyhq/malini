@@ -29,7 +29,13 @@ import {
 	type EnvelopeSource,
 } from './envelope-source';
 import { EMPTY_TRANSCRIPT_FACTS, TranscriptFactsProjector } from './transcript-facts';
-import { earlierTurnsByRun, runTurn, variantPicksByRun, type EarlierTurn } from './turn-result';
+import {
+	answerTurn,
+	earlierTurnsByRun,
+	runTurns,
+	variantPicksByRun,
+	type EarlierTurn,
+} from './turn-result';
 
 type RunningTool = {
 	ownerRunId: string;
@@ -125,7 +131,7 @@ type RunDerivation = {
 	run: RunGroup;
 	version: number;
 	paths: RunChangedPaths;
-	turn: EarlierTurn | null;
+	turns: readonly EarlierTurn[];
 };
 
 const EMPTY_TURNS: readonly EarlierTurn[] = [];
@@ -187,7 +193,7 @@ export class IncrementalRenderProjector {
 			earlierTurns: this.#earlierTurns(runs),
 			variantPicks: variantPicksByRun(
 				runs,
-				(run) => this.#derivation(run).turn,
+				(run) => this.#derivation(run).turns,
 				this.#snapshot.variantPicks,
 			),
 		};
@@ -279,7 +285,7 @@ export class IncrementalRenderProjector {
 		const version = runProjectionVersion(run) ?? 0;
 		const cached = this.#derivations.get(run.runId);
 		if (cached && cached.run === run && cached.version === version) return cached;
-		const derivation = { run, version, paths: runChangedPaths(run), turn: runTurn(run) };
+		const derivation = { run, version, paths: runChangedPaths(run), turns: runTurns(run) };
 		this.#derivations.set(run.runId, derivation);
 		return derivation;
 	}
@@ -305,7 +311,7 @@ export class IncrementalRenderProjector {
 
 	#earlierTurns(runs: readonly RunGroup[]): ReadonlyMap<string, readonly EarlierTurn[]> {
 		const previous = this.#snapshot.earlierTurns;
-		const next = earlierTurnsByRun(runs, (run) => this.#derivation(run).turn);
+		const next = earlierTurnsByRun(runs, (run) => this.#derivation(run).turns);
 		let unchanged = next.size === previous.size;
 		for (const [runId, turns] of next) {
 			const prior = previous.get(runId);
@@ -335,6 +341,7 @@ export class IncrementalRenderProjector {
 				failure: null,
 				resumeAt: null,
 				turnEnded: false,
+				answeredReports: [],
 				superseded: false,
 				obsoleted: false,
 			};
@@ -348,7 +355,10 @@ export class IncrementalRenderProjector {
 	#withState(
 		group: RunGroup,
 		state: Partial<
-			Pick<RunGroup, 'terminal' | 'terminalText' | 'failure' | 'resumeAt' | 'turnEnded'>
+			Pick<
+				RunGroup,
+				'terminal' | 'terminalText' | 'failure' | 'resumeAt' | 'turnEnded' | 'answeredReports'
+			>
 		>,
 	): void {
 		const next = { ...group, items: [...group.items], ...state };
@@ -604,6 +614,14 @@ export class IncrementalRenderProjector {
 				}
 				return;
 			}
+			case 'turn.answered': {
+				const group = this.#runFor(runId);
+				const answeredReports = answerTurn(group);
+				if (group.terminal === null && answeredReports !== group.answeredReports) {
+					this.#withState(group, { answeredReports });
+				}
+				return;
+			}
 			case 'turn.ended':
 			case 'turn.resumed': {
 				const group = this.#runFor(runId);
@@ -624,6 +642,7 @@ export class IncrementalRenderProjector {
 						terminal: 'completed',
 						terminalText: event.summary,
 						turnEnded: true,
+						answeredReports: answerTurn(group),
 					});
 					this.#push(runId, {
 						kind: 'terminal',

@@ -19,7 +19,7 @@ function sidebarLoader(page: Page, workstreamId: string): Locator {
 		.getByTestId('sidebar-workstream-loader');
 }
 
-test('a background agent shows as running past the turn, then shows its result', async () => {
+test("a turn's report card shows at once while its background agent runs, then folds into the next report", async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -35,8 +35,13 @@ test('a background agent shows as running past the turn, then shows its result',
 			.filter({ hasText: '1 background agent running' });
 		const agentRow = page.getByTestId('subagent-row').filter({ hasText: 'Sleep probe' });
 		const submit = page.getByTestId('chat-composer-submit');
+		const card = page.getByRole('article', { name: 'Turn result' });
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText('launched', { exact: true })).toBeVisible();
+		await expect(card).toHaveCount(1);
+		await expect(card.getByTestId('turn-report-outcome')).toHaveText(
+			'The Sleep probe agent is running',
+		);
+		await expect(card.getByRole('img', { name: 'Done' })).toBeVisible();
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();
@@ -54,11 +59,13 @@ test('a background agent shows as running past the turn, then shows its result',
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed');
 		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toHaveCount(0);
 		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
+		await expect(card).toHaveCount(1);
+		await expect(card.getByTestId('turn-report-outcome')).toHaveText(
+			'The Sleep probe agent finished',
+		);
 		await expect(
-			page
-				.getByTestId('markdown-text')
-				.getByText('The Sleep probe agent finished with probe-done.'),
-		).toBeVisible();
+			card.getByRole('list', { name: 'Earlier turns' }).getByRole('listitem'),
+		).toHaveText([/The Sleep probe agent is running/u]);
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-agent-completed');

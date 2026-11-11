@@ -62,7 +62,7 @@ export type TranscriptContext = {
 	openImageGallery(id: string, handoff?: VideoHandoff): void;
 	openAttachment(attachment: StagedAgentAttachment): void;
 	earlierTurns(runId: string): readonly EarlierTurn[];
-	variantPick(runId: string): RunPick | null;
+	variantPick(reportKey: string): RunPick | null;
 	promptPick(runId: string): RunPick | null;
 	sendFollowUp(prompt: string, subject: string): void;
 	shipInFork(prompt: string, subject: string, atSeq: number): void;

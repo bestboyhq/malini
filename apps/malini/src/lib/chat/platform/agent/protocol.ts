@@ -352,6 +352,7 @@ export type BridgeEvent =
 			interim?: boolean;
 			handedOff?: boolean;
 	  }
+	| { type: 'turn.answered'; runId: string }
 	| { type: 'turn.ended'; runId: string }
 	| { type: 'turn.resumed'; runId: string }
 	| {
@@ -818,6 +819,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('interim', f.optionalBoolean('interim')),
 					...optional('handedOff', f.optionalBoolean('handedOff')),
 				});
+			case 'turn.answered':
 			case 'turn.ended':
 			case 'turn.resumed':
 				return ok({ type: kind, runId: f.string('runId') });

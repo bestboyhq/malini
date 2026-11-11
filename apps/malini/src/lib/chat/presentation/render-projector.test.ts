@@ -8,7 +8,7 @@ import {
 	type RenderState,
 	type RunGroup,
 } from './render-state';
-import { runTurn } from './turn-result';
+import { runTurns } from './turn-result';
 
 function firstRun(state: RenderState): RunGroup {
 	const run = state.runs[0];
@@ -73,7 +73,7 @@ describe('IncrementalRenderProjector', () => {
 		});
 	});
 
-	it('ends the turn when the agent replies while only background commands run, until it works again', () => {
+	it('shows each answered report at once while only background commands run, and folds the earlier one', () => {
 		const devServer = {
 			taskId: 'dev',
 			kind: 'command' as const,
@@ -93,14 +93,16 @@ describe('IncrementalRenderProjector', () => {
 		const envelopes = [
 			envelope(1, { type: 'user.message', runId: 'run-1', text: 'Serve the site' }),
 			envelope(2, { type: 'assistant.message', runId: 'run-1', text: started }),
-			update(3, [devServer], started),
-			envelope(4, { type: 'turn.ended', runId: 'run-1' }),
-			update(5, [devServer]),
-			envelope(6, { type: 'turn.resumed', runId: 'run-1' }),
-			envelope(7, { type: 'assistant.message', runId: 'run-1', text: checked }),
-			update(8, [devServer], checked),
-			envelope(9, { type: 'turn.ended', runId: 'run-1' }),
-			envelope(10, { type: 'run.completed', runId: 'run-1', summary: checked, handedOff: true }),
+			envelope(3, { type: 'turn.answered', runId: 'run-1' }),
+			update(4, [devServer], started),
+			envelope(5, { type: 'turn.ended', runId: 'run-1' }),
+			update(6, [devServer]),
+			envelope(7, { type: 'turn.resumed', runId: 'run-1' }),
+			envelope(8, { type: 'assistant.message', runId: 'run-1', text: checked }),
+			envelope(9, { type: 'turn.answered', runId: 'run-1' }),
+			update(10, [devServer], checked),
+			envelope(11, { type: 'turn.ended', runId: 'run-1' }),
+			envelope(12, { type: 'run.completed', runId: 'run-1', summary: checked, handedOff: true }),
 		];
 		const projector = new IncrementalRenderProjector();
 		const outcomes: (string | null)[] = [];
@@ -108,20 +110,16 @@ describe('IncrementalRenderProjector', () => {
 		for (let length = 1; length <= envelopes.length; length += 1) {
 			const state = projector.project(envelopes.slice(0, length));
 			expect(state).toEqual(foldEnvelopes(envelopes.slice(0, length)));
-			outcomes.push(runTurn(firstRun(state))?.report.outcome ?? null);
+			outcomes.push(runTurns(firstRun(state)).at(-1)?.report.outcome ?? null);
 		}
 		expect(outcomes).toEqual([
 			null,
 			null,
-			null,
-			'The site runs.',
-			'The site runs.',
-			null,
-			null,
-			null,
-			'The site still runs.',
-			'The site still runs.',
+			...Array<string>(6).fill('The site runs.'),
+			...Array<string>(4).fill('The site still runs.'),
 		]);
+		const earlier = projector.project(envelopes).earlierTurns.get('run-1') ?? [];
+		expect(earlier.map((turn) => turn.report.outcome)).toEqual(['The site runs.']);
 	});
 
 	it('keeps one row per tool call when a background agent hands back the same call again', () => {

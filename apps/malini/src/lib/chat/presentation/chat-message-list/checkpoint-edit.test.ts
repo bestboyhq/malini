@@ -39,6 +39,7 @@ function run(runId: string, items: RenderItem[]): RunGroup {
 		failure: null,
 		resumeAt: null,
 		turnEnded: true,
+		answeredReports: [],
 		superseded: false,
 		obsoleted: false,
 	};

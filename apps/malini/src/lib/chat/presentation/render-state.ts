@@ -21,6 +21,7 @@ import {
 } from './session-runtime-metadata';
 import { TranscriptFactsProjector, type TranscriptFacts } from './transcript-facts';
 import {
+	answerTurn,
 	earlierTurnsByRun,
 	variantPicksByRun,
 	type EarlierTurn,
@@ -160,6 +161,7 @@ export type RunGroup = {
 	failure: RunFailure | null;
 	resumeAt: string | null;
 	turnEnded: boolean;
+	answeredReports: readonly string[];
 	superseded: boolean;
 	obsoleted: boolean;
 };
@@ -497,6 +499,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				failure: null,
 				resumeAt: null,
 				turnEnded: false,
+				answeredReports: [],
 				superseded: false,
 				obsoleted: false,
 			};
@@ -756,6 +759,11 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				}
 				break;
 			}
+			case 'turn.answered': {
+				const group = runFor(runId);
+				if (group.terminal === null) group.answeredReports = answerTurn(group);
+				break;
+			}
 			case 'turn.ended':
 			case 'turn.resumed': {
 				const group = runFor(runId);
@@ -772,6 +780,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				group.terminal = 'completed';
 				group.terminalText = event.summary;
 				group.turnEnded = true;
+				group.answeredReports = answerTurn(group);
 				push(runId, {
 					kind: 'terminal',
 					key,
