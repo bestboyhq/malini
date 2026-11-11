@@ -37,7 +37,7 @@ test('rounds before the previous one fold their work into one line and keep the 
 			await expect(run.getByText(`Round ${index + 1} READ_TOOL`)).toBeVisible();
 			await expect(run.getByTestId('chat-message-bubble')).toHaveCount(1);
 			await expect(run.getByTestId('chat-work-fold-summary')).toHaveAccessibleName(
-				'Edited 2 files',
+				'Edited notes.md · read 1',
 			);
 			await expect(run.getByRole('button', read)).toHaveCount(0);
 		}
@@ -45,7 +45,7 @@ test('rounds before the previous one fold their work into one line and keep the 
 			const run = runs.nth(index);
 			await expect(run.getByTestId('chat-work-fold-summary')).toHaveCount(0);
 			await expect(run.getByTestId('chat-activity-group-summary')).toHaveAccessibleName(
-				'Edited 2 files',
+				'Edited notes.md · read 1',
 			);
 			await run.getByTestId('chat-activity-group-summary').click();
 			await expect(run.getByRole('button', read)).toBeVisible();
@@ -60,7 +60,7 @@ test('rounds before the previous one fold their work into one line and keep the 
 
 		await finishRound(page, 5);
 		await expect(runs.nth(2).getByTestId('chat-work-fold-summary')).toHaveAccessibleName(
-			'Edited 2 files',
+			'Edited notes.md · read 1',
 		);
 		await expect(runs.nth(2).getByRole('button', read)).toHaveCount(0);
 		await expect(first.getByRole('button', read)).toBeVisible();

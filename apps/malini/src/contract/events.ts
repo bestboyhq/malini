@@ -262,6 +262,7 @@ export interface ContractEvents {
 	'app:update-status-changed': UpdateStatus;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
+	'browser:tab-closed': BrowserTabArgs;
 	'browser:resize-requested': BrowserResizeRequest;
 	'browser:thread-opened': BrowserThreadOpened;
 	'extensions:file-open-requested': FileOpenRequestedPayload;
@@ -332,6 +333,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:update-status-changed': null,
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
+	'browser:tab-closed': null,
 	'browser:resize-requested': null,
 	'browser:thread-opened': null,
 	'extensions:file-open-requested': null,
@@ -438,6 +440,8 @@ export const APP_UPDATE_STATUS_CHANGED_CHANNEL = 'app:update-status-changed' sat
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
+
+export const BROWSER_TAB_CLOSED_CHANNEL = 'browser:tab-closed' satisfies EventChannel;
 
 export const BROWSER_RESIZE_REQUESTED_CHANNEL = 'browser:resize-requested' satisfies EventChannel;
 

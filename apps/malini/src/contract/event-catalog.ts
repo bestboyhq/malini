@@ -520,6 +520,11 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'Fires when a new browser tab opens in a workstream, for example when an agent opens a page.',
 		facts: ['workstreamId', 'tabId'],
 	},
+	'browser:tab-closed': {
+		description:
+			'Fires when an agent closes the browser tab it opened in a workstream; Malini takes the tab out of the inspector and closes its page. Tabs you opened stay.',
+		facts: ['workstreamId', 'tabId'],
+	},
 	'browser:resize-requested': {
 		description:
 			"Fires when an agent asks to make the browser tab you see wider or narrower, with the width it asked for in Malini's pixels; Malini moves the divider between the chat and the inspector to match.",

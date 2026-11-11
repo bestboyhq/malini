@@ -1,4 +1,13 @@
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+	closeSync,
+	constants,
+	mkdirSync,
+	openSync,
+	rmSync,
+	writeFileSync,
+	writeSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
@@ -8,6 +17,8 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	showInspector,
+	temporaryRoot,
 } from './harness';
 
 function inspectorTab(page: Page, name: string): Locator {
@@ -25,7 +36,74 @@ async function visit(page: Page, workstreamId: string): Promise<void> {
 	await expect(page).toHaveURL(new RegExp(`/workstreams/${workstreamId}`, 'u'));
 }
 
-test('a closed inspector lists its panels with the change count, a row reopens it on that panel, and each workstream keeps its own drawer, files and picked tab', async () => {
+test('Changes clicked before the extensions start still opens Files on the changed files', async () => {
+	test.setTimeout(120_000);
+	const root = temporaryRoot();
+	const home = join(root, 'extension-home');
+	mkdirSync(home, { recursive: true });
+	const registry = join(home, 'local.json');
+	execFileSync('mkfifo', [registry]);
+	const held: { writer: number | null } = { writer: null };
+	const release = (): void => {
+		if (held.writer === null) return;
+		rmSync(registry);
+		writeFileSync(registry, '[]');
+		writeSync(held.writer, '[]');
+		closeSync(held.writer);
+		held.writer = null;
+	};
+	const app = await launchMalini({ profile: root, env: { MALINI_EXTENSION_HOME: home } });
+	try {
+		const { page } = app;
+		const { workstreamId, worktree } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-drawer-early-changes',
+			'Drawer early changes',
+		);
+		writeFileSync(join(worktree, 'early.txt'), 'early\n');
+		await page.reload();
+		await expect
+			.poll(
+				() => {
+					try {
+						held.writer = openSync(registry, constants.O_WRONLY | constants.O_NONBLOCK);
+						return true;
+					} catch {
+						return false;
+					}
+				},
+				{ timeout: 20_000 },
+			)
+			.toBe(true);
+		await page.evaluate(
+			(next) => {
+				globalThis.location.hash = next;
+			},
+			`#/workstreams/${encodeURIComponent(workstreamId)}`,
+		);
+
+		await gutter(page)
+			.getByRole('button', { name: /^Changes/u })
+			.click({ timeout: 20_000 });
+		release();
+
+		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true', {
+			timeout: 20_000,
+		});
+		await expect(
+			page.getByRole('button', { name: 'Remove the changed files filter' }),
+		).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+		await expect(page.getByRole('treeitem', { name: 'Open early.txt' })).toBeVisible();
+		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		release();
+		await app.close();
+	}
+});
+
+test('the inspector starts closed, its Changes row opens Files on the changed files, and each workstream keeps its own drawer, files and picked tab', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -36,47 +114,63 @@ test('a closed inspector lists its panels with the change count, a row reopens i
 		writeFileSync(join(alpha.worktree, 'alpha-only.txt'), 'alpha\n');
 		writeFileSync(join(beta.worktree, 'beta-only.txt'), 'beta\n');
 		await openWorkstream(page, alpha.workstreamId);
-		await expect(page.getByRole('treeitem', { name: 'Open alpha-only.txt' })).toBeVisible({
-			timeout: 20_000,
-		});
-		await expect(gutter(page)).toHaveCount(0);
 
-		await page.getByRole('button', { name: 'Hide inspector' }).click();
-		await expect(gutter(page)).toBeVisible();
+		await expect(gutter(page)).toBeVisible({ timeout: 20_000 });
 		await expect(gutter(page)).toContainText('On Drawer alpha');
-		const filesRow = gutter(page).getByRole('button', { name: /^Files/u });
-		await expect(filesRow).toHaveCount(1);
-		await expect(gutter(page).getByLabel('1 additions, 0 deletions')).toBeVisible({
+		await expect(page.getByRole('region', { name: 'Inspector' }).getByRole('tab')).toHaveCount(0);
+		const changesRow = gutter(page).getByRole('button', { name: /^Changes/u });
+		await expect(changesRow).toHaveCount(1);
+		await expect(gutter(page).getByRole('button', { name: /^Files/u })).toHaveCount(0);
+		await expect(changesRow.getByLabel('1 additions, 0 deletions')).toBeVisible({
 			timeout: 20_000,
 		});
 		writeFileSync(join(alpha.worktree, 'alpha-only.txt'), 'alpha\nmore\nlines\n');
-		await expect(gutter(page).getByLabel('3 additions, 0 deletions')).toBeVisible({
+		await expect(changesRow.getByLabel('3 additions, 0 deletions')).toBeVisible({
 			timeout: 20_000,
 		});
 		await captureFlow(app, 'inspector-drawer-gutter');
 
 		await visit(page, beta.workstreamId);
+		await expect(gutter(page)).toContainText('On Drawer beta');
+		await gutter(page).getByRole('button', { name: 'Show inspector' }).click();
 		await expect(gutter(page)).toHaveCount(0);
+		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true');
 		await expect(page.getByRole('treeitem', { name: 'Open beta-only.txt' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(page.getByRole('treeitem', { name: 'Open alpha-only.txt' })).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Filter to files changed in this workstream' }),
+		).toHaveAttribute('aria-pressed', 'false');
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
 		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
 		await expect(inspectorTab(page, 'New tab')).toHaveAttribute('aria-selected', 'true');
 
 		await visit(page, alpha.workstreamId);
 		await expect(gutter(page)).toBeVisible();
-		await filesRow.click();
+		await changesRow.click();
 		await expect(gutter(page)).toHaveCount(0);
 		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true');
+		await expect(
+			page.getByRole('button', { name: 'Remove the changed files filter' }),
+		).toHaveAttribute('aria-pressed', 'true');
 		await expect(page.getByRole('treeitem', { name: 'Open alpha-only.txt' })).toBeVisible();
+		await expect(page.getByRole('treeitem', { name: 'Open README.md' })).toHaveCount(0);
 		await expect(page.getByRole('treeitem', { name: 'Open beta-only.txt' })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Hide inspector' })).toBeVisible();
+		await captureFlow(app, 'inspector-drawer-changes');
 
 		await visit(page, beta.workstreamId);
 		await expect(inspectorTab(page, 'New tab')).toHaveAttribute('aria-selected', 'true');
 		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'false');
+		await page.getByRole('button', { name: 'Hide inspector' }).click();
+		await expect(gutter(page)).toBeVisible();
+
+		await page.reload();
+		await expect(gutter(page)).toContainText('On Drawer beta', { timeout: 20_000 });
+		await visit(page, alpha.workstreamId);
+		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true', {
+			timeout: 20_000,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -95,6 +189,7 @@ test('the inspector resize handle lets go once the mouse moves with no button he
 			'Drawer resize',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		await expect(inspectorTab(page, 'Files')).toBeVisible({ timeout: 20_000 });
 		const handle = page.getByRole('separator', { name: 'Resize workstream-transcript' });
 		const box = await handle.boundingBox();

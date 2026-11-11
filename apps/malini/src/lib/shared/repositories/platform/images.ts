@@ -7,9 +7,12 @@ import type { WorkstreamImageRead } from '$contract/repositories';
 
 export const MAX_PREVIEW_BYTES = 32 * 1024 * 1024;
 
-const IMAGE_HEADER_BYTES = 16;
+const SNIFF_BYTES = 1024;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const WEBM_SIGNATURE = [0x1a, 0x45, 0xdf, 0xa3];
+const SVG_DOCUMENT =
+	/^\uFEFF?\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*|<!doctype\s+svg[^>]*>\s*)*<svg[\s>]/iu;
+const IMAGE_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
 const STREAM_CHUNK_BYTES = 256 * 1024;
 const MISSING: WorkstreamImageRead = { status: 'missing' };
 
@@ -35,6 +38,25 @@ export function videoMediaType(header: Uint8Array): string | null {
 	}
 	if (WEBM_SIGNATURE.every((byte, index) => header[index] === byte)) return 'video/webm';
 	return null;
+}
+
+export function audioMediaType(header: Uint8Array): string | null {
+	const ascii = Buffer.from(header).toString('latin1');
+	if (ascii.slice(4, 8) === 'ftyp')
+		return /^M4[AB] $/u.test(ascii.slice(8, 12)) ? 'audio/mp4' : null;
+	if (ascii.startsWith('ID3')) return 'audio/mpeg';
+	if (ascii.startsWith('OggS')) return 'audio/ogg';
+	if (ascii.startsWith('fLaC')) return 'audio/flac';
+	if (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WAVE') return 'audio/wav';
+	const [first, second = 0] = header;
+	if (first !== 0xff) return null;
+	if ((second & 0xf6) === 0xf0) return 'audio/aac';
+	return (second & 0xe0) === 0xe0 && (second & 0x06) !== 0 ? 'audio/mpeg' : null;
+}
+
+export function svgMediaType(header: Uint8Array): string | null {
+	// ponytail: sniffs the first KiB only, so an svg behind a longer comment or doctype is refused; read further if agents write those
+	return SVG_DOCUMENT.test(Buffer.from(header).toString('utf8')) ? 'image/svg+xml' : null;
 }
 
 export function safeRelativePath(path: string): string {
@@ -135,7 +157,11 @@ async function fileSize(file: FileHandle): Promise<number> {
 	return metadata.size;
 }
 
-async function readOpenImage(file: FileHandle, size: number): Promise<WorkstreamImageRead> {
+async function readOpenImage(
+	file: FileHandle,
+	size: number,
+	mediaTypeOf: (header: Uint8Array) => string | null = imageMediaType,
+): Promise<WorkstreamImageRead> {
 	if (size > MAX_PREVIEW_BYTES) return { status: 'too-large' };
 	const buffer = new Uint8Array(size);
 	let filled = 0;
@@ -150,7 +176,7 @@ async function readOpenImage(file: FileHandle, size: number): Promise<Workstream
 		filled += read;
 	}
 	const data = buffer.subarray(0, filled);
-	const mediaType = imageMediaType(data.subarray(0, IMAGE_HEADER_BYTES));
+	const mediaType = mediaTypeOf(data.subarray(0, SNIFF_BYTES));
 	if (mediaType === null) return { status: 'not-an-image' };
 	return { status: 'ready', bytes: { mediaType, data } };
 }
@@ -179,15 +205,21 @@ export async function workstreamMediaResponse(
 	let streaming = false;
 	try {
 		const size = await fileSize(file);
-		const header = new Uint8Array(IMAGE_HEADER_BYTES);
+		const header = new Uint8Array(SNIFF_BYTES);
 		const { bytesRead } = await file.read(header, 0, header.length, 0);
-		const video = videoMediaType(header.subarray(0, bytesRead));
-		if (video === null) {
-			const image = await readOpenImage(file, size);
+		const head = header.subarray(0, bytesRead);
+		const streamed = audioMediaType(head) ?? videoMediaType(head);
+		if (streamed === null) {
+			const image = await readOpenImage(
+				file,
+				size,
+				(sniffed) => imageMediaType(sniffed) ?? svgMediaType(sniffed),
+			);
 			if (image.status !== 'ready') return new Response(image.status, { status: 404 });
 			return new Response(image.bytes.data, {
 				headers: {
 					'content-type': image.bytes.mediaType,
+					'content-security-policy': IMAGE_POLICY,
 					'x-content-type-options': 'nosniff',
 					'access-control-allow-origin': '*',
 				},
@@ -202,7 +234,7 @@ export async function workstreamMediaResponse(
 		return new Response(fileStream(file, start, end), {
 			status: span === 'whole' ? 200 : 206,
 			headers: {
-				'content-type': video,
+				'content-type': streamed,
 				'content-length': String(end - start + 1),
 				'accept-ranges': 'bytes',
 				'x-content-type-options': 'nosniff',

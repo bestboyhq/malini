@@ -58,6 +58,11 @@ const repositoryExtension: ExtensionModule = {
 				'commands',
 				'malini.repository.open-agent-session-diff',
 			);
+			const showChangedFilesCommand = requireContribution(
+				api,
+				'commands',
+				'malini.repository.show-changed-files',
+			);
 			const statusCommand = requireContribution(api, 'commands', 'malini.repository.status');
 			const todosCommand = requireContribution(api, 'commands', 'malini.repository.todos');
 			const addTodoCommand = requireContribution(api, 'commands', 'malini.repository.todo-add');
@@ -127,6 +132,12 @@ const repositoryExtension: ExtensionModule = {
 				api.commands.register({
 					...agentSessionDiffCommand,
 					handler: (input) => controller.openAgentSessionDiff(input),
+				}),
+				api.commands.register({
+					...showChangedFilesCommand,
+					handler: () => {
+						controller.setChangedOnly(true);
+					},
 				}),
 				api.commands.register({
 					...statusCommand,

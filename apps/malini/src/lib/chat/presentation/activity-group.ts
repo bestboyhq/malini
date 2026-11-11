@@ -23,9 +23,7 @@ export type ActivityGroup = {
 	key: string;
 	items: readonly RunTimelineItem[];
 	verb: string;
-	liveVerb: string;
 	detail: string;
-	latestMessage: string | null;
 	status: 'running' | 'completed' | 'failed';
 	actionKinds: readonly ToolActionKind[];
 	failures: readonly ActivityFailure[];
@@ -242,9 +240,7 @@ function buildActivityGroup(
 		key: `activity-${items[0]?.key ?? 'empty'}`,
 		items: [...items],
 		verb: statuses.includes('running') ? forms.present : forms.past,
-		liveVerb: forms.present,
 		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(calls.length, 'call'),
-		latestMessage: items.filter((item) => !isMachineActivity(item)).at(-1)?.text ?? null,
 		status: groupStatus(statuses),
 		actionKinds,
 		failures: calls
@@ -323,7 +319,9 @@ function groupDetail(
 	items: readonly MachineActivityItem[],
 	actions: readonly ToolActionKind[],
 ): string {
-	const files = distinctFiles(items, actions);
+	const edited = distinctFiles(items, actions, 'edit');
+	const readOnly = distinctFiles(items, actions, 'read').filter((path) => !edited.includes(path));
+	const files = edited.length > 0 ? edited : readOnly;
 	let searches = 0;
 	let commands = 0;
 	for (const [index, item] of items.entries()) {
@@ -337,9 +335,9 @@ function groupDetail(
 	const onlyFile = files[0];
 	if (files.length === 1 && onlyFile !== undefined) clauses.push(basename(onlyFile));
 	else if (files.length > 1) clauses.push(pluralize(files.length, 'file'));
+	if (files === edited && readOnly.length > 0) clauses.push(`read ${readOnly.length}`);
 	if (searches > 0) clauses.push(pluralize(searches, 'search', 'searches'));
-	const commandCount = pluralize(commands, 'command');
-	if (commands > 0) clauses.push(clauses.length > 0 ? `ran ${commandCount}` : commandCount);
+	if (commands > 0) clauses.push(pluralize(commands, 'command'));
 
 	if (clauses.length === 0) clauses.push(pluralize(items.length, 'step'));
 
@@ -349,10 +347,12 @@ function groupDetail(
 function distinctFiles(
 	items: readonly MachineActivityItem[],
 	actions: readonly ToolActionKind[],
+	action: 'read' | 'edit',
 ): string[] {
 	const paths = new Set<string>();
 	for (const [index, item] of items.entries()) {
-		const raw = filePathOf(item, actions[index] ?? null);
+		if (actions[index] !== action) continue;
+		const raw = filePathOf(item);
 		if (raw === null) continue;
 		const canonical = canonicalChangedPath(raw);
 		if (canonical) paths.add(canonical);
@@ -360,17 +360,15 @@ function distinctFiles(
 	return [...paths];
 }
 
-function filePathOf(item: MachineActivityItem, action: ToolActionKind | null): string | null {
+function filePathOf(item: MachineActivityItem): string | null {
 	if (item.kind === 'file') return item.path;
-	if (item.kind !== 'tool') return null;
-	if (action !== 'read' && action !== 'edit') return null;
-	return stringField(item.tool.input, TOOL_PATH_KEYS);
+	return item.kind === 'tool' ? stringField(item.tool.input, TOOL_PATH_KEYS) : null;
 }
 
 function capDetail(clauses: readonly string[]): string {
 	const kept = [...clauses];
-	while (kept.length > 1 && kept.join(', ').length > ACTIVITY_GROUP_DETAIL_MAX_CHARS) kept.pop();
-	const detail = kept.join(', ');
+	while (kept.length > 1 && kept.join(' · ').length > ACTIVITY_GROUP_DETAIL_MAX_CHARS) kept.pop();
+	const detail = kept.join(' · ');
 	if (detail.length <= ACTIVITY_GROUP_DETAIL_MAX_CHARS) return detail;
 	return `${detail.slice(0, ACTIVITY_GROUP_DETAIL_MAX_CHARS - 1)}…`;
 }

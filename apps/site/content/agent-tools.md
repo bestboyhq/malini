@@ -21,11 +21,16 @@ A tab shows up as soon as the agent starts opening its page, and a page that doe
 | `browser_forward`    | Goes forward one page.                         |
 | `browser_reload`     | Reloads the page.                              |
 | `browser_resize`     | Makes the tab wider or narrower.               |
+| `browser_close`      | Closes the tab it opened, and its page.        |
 
 When a page is too narrow or too wide for what it checks, the agent calls `browser_resize` with the width the page should get.
 Malini moves the divider between the chat and the inspector, the one you drag, and the width stays until you drag it back.
 The chat and the inspector keep their minimum widths, so the page may end up narrower or wider than asked, and the agent hears how wide it got.
 Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
+
+Once a page has served its purpose, such as after the agent checked or captured it, the agent closes its tab with `browser_close`, and the page closes with it.
+It closes only the tab it opened, never one of yours, and the tab stays closed after Malini restarts.
+A page you should look at or use, such as a prototype or the variants the agent asks you to pick from, stays open.
 
 You can also pick an element on a page and ask for a change right there.
 Malini starts a thread of its own for it, on the model you pick in that box, and remembers that model for the next one; your chat stays as it was.

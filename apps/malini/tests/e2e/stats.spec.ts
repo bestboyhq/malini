@@ -9,6 +9,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 } from './harness';
 
 test('the sidebar reads out what malini uses and opens stats on its runs, tabs and memory', async () => {
@@ -25,6 +26,7 @@ test('the sidebar reads out what malini uses and opens stats on its runs, tabs a
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-stats-ws', 'Stats');
 		await openWorkstream(page, workstreamId);
+		await showInspector(page);
 		await sendPrompt(page, 'Count this run');
 		await expectAssistantReply(page);
 

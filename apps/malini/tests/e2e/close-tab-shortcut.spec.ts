@@ -11,6 +11,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 	startFreshChat,
 } from './harness';
 
@@ -50,6 +51,7 @@ test('Cmd+W closes the current tab, then archives the workstream once no tab is 
 		await startFreshChat(page);
 		const second = await chatAbout(page, 'second chat');
 		expect(second).not.toBe(first);
+		await showInspector(page);
 		await page.getByRole('treeitem', { name: 'Open seed.txt' }).click();
 		const file = tabRow(page).getByRole('tab', { name: 'seed.txt', exact: true });
 		await expect(file).toHaveAttribute('aria-selected', 'true');

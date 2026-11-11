@@ -68,6 +68,11 @@
 				"description": "Open an immutable, run-attributed agent session diff in Files."
 			},
 			{
+				"id": "malini.repository.show-changed-files",
+				"title": "Repository: Show Changed Files",
+				"description": "Filter Files to the files changed in the current workstream."
+			},
+			{
 				"id": "malini.repository.status",
 				"title": "Repository: Status",
 				"description": "Return the current repository panel state."

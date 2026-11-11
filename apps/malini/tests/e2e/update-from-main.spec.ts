@@ -17,6 +17,7 @@ import {
 	invoke,
 	launchMalini,
 	openWorkstream,
+	showInspector,
 	sendPrompt,
 	type LaunchedApp,
 	type SeededWorkstream,
@@ -113,6 +114,7 @@ test('a draft that main starts to conflict with gets main merged in, the conflic
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-overlap', null);
 		await openWorkstream(page, 'e2e-overlap');
+		await showInspector(page);
 		await sendPrompt(page, 'EDIT:conflict.txt COMMIT=feat: add the conflict file');
 		await expectAssistantReply(page);
 		const draft = page.getByRole('button', { name: 'Open a draft pull request' });
@@ -194,6 +196,7 @@ test('main changing only files a draft left alone leaves it as it is, and main c
 			},
 		);
 		await openWorkstream(page, 'e2e-overlap-clean');
+		await showInspector(page);
 		const draft = page.getByRole('button', { name: 'Open a draft pull request' });
 		await expect(draft).toHaveText('Draft', { timeout: 30_000 });
 		await draft.click();

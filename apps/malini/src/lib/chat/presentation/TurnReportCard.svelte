@@ -10,6 +10,7 @@
 	import type { VariantPick } from '$lib/chat/domain/variant-pick';
 	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
+	import { variantChoices } from '$shared/variants/variant-choices.store.svelte';
 	import NextSteps from './NextSteps.svelte';
 	import PickStep from './PickStep.svelte';
 	import ReportNotes from './ReportNotes.svelte';
@@ -23,6 +24,7 @@
 		workstreamId: string;
 		live: boolean;
 		needsOpen?: boolean;
+		ended?: boolean;
 		history?: readonly EarlierTurn[];
 		pick?: VariantPick | null;
 		pickOf?: ((reportKey: string) => VariantPick | null) | undefined;
@@ -42,6 +44,7 @@
 		workstreamId,
 		live,
 		needsOpen = true,
+		ended = true,
 		history = [],
 		pick = null,
 		pickOf,
@@ -57,6 +60,12 @@
 	}: Props = $props();
 
 	const STATUS = {
+		unfinished: {
+			icon: 'clock',
+			label: 'Still running',
+			tone: 'text-fg-tertiary',
+			rail: 'before:bg-surface-150-border',
+		},
 		waiting: {
 			icon: 'circle-dot',
 			label: 'Waiting on you',
@@ -78,13 +87,14 @@
 	};
 
 	const needsHeadingId = $props.id();
-	const status = $derived(STATUS[turnStatus(report, needsOpen)]);
+	const status = $derived(STATUS[turnStatus(report, needsOpen, ended)]);
 	const nextSteps = $derived(
 		report.notes.filter((note) => note.kind === 'next').map((note) => note.text),
 	);
 	const picking = $derived(report.variants.length > 0 && needsOpen && pick === null);
-	const defaultVariantId = $derived(pick?.picked.id ?? report.variants[0]?.id ?? '');
-	let chosenId = $derived(defaultVariantId);
+	const choice = $derived(variantChoices.newest(workstreamId, report.variants));
+	const chosenRevision = $derived(choice?.revision ?? 0);
+	const chosenId = $derived(choice?.variant.id ?? pick?.picked.id ?? report.variants[0]?.id ?? '');
 	const chosen = $derived(
 		report.variants.find((variant) => variant.id === chosenId) ?? report.variants[0] ?? null,
 	);
@@ -163,7 +173,16 @@
 			<MarkdownText text={report.diagrams.join('\n\n')} mode="prose" class="select-text" />
 		{/if}
 
-		<ReportStage {report} {pick} bind:chosenId {workstreamId} {live} {imagesrc} {onopenimage} />
+		<ReportStage
+			{report}
+			{pick}
+			{chosenId}
+			{chosenRevision}
+			{workstreamId}
+			{live}
+			{imagesrc}
+			{onopenimage}
+		/>
 
 		{#if picking && chosen}
 			<VariantPickForm
@@ -186,7 +205,7 @@
 					id={needsHeadingId}
 					class={['text-xs font-medium', needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary']}
 				>
-					{needsOpen ? 'Your turn' : 'You were asked'}
+					{needsOpen ? 'Your turn' : ended ? 'You were asked' : 'Over to you after'}
 				</h3>
 				<ul
 					class={[

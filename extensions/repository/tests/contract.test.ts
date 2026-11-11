@@ -27,6 +27,7 @@ test('activates, registers declared contributions, reloads, and cleans up', asyn
 			'malini.repository.open-file',
 			'malini.repository.render-diff',
 			'malini.repository.open-agent-session-diff',
+			'malini.repository.show-changed-files',
 			'malini.repository.status',
 			'malini.repository.todos',
 			'malini.repository.todo-add',

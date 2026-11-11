@@ -87,6 +87,7 @@ export interface BrowserAutomation {
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	resize(tab: BrowserTabArgs, width: number): Promise<number>;
+	close(tab: BrowserTabArgs): Promise<boolean>;
 }
 
 export interface AgentServiceDeps {
@@ -182,6 +183,13 @@ export async function answerBrowserRequest(
 				return {
 					ok: true,
 					text: describeWidth(request.width, await browser.resize(tab, request.width)),
+				};
+			case 'close':
+				return {
+					ok: true,
+					text: (await browser.close(tab))
+						? 'Closed your browser tab and its page.'
+						: 'You had no browser tab open, so nothing closed.',
 				};
 		}
 	} catch (error) {

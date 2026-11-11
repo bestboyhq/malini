@@ -2,7 +2,6 @@
 	import { quartOut } from 'svelte/easing';
 	import { slide } from 'svelte/transition';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
-	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
@@ -10,6 +9,7 @@
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
 	import { revealFade } from './arrival-motion';
 	import ExpandMark from './ExpandMark.svelte';
+	import ToolFailureNote from './ToolFailureNote.svelte';
 	import ToolLabel from './ToolLabel.svelte';
 	import ToolOutputText from './ToolOutputText.svelte';
 	import {
@@ -120,16 +120,7 @@
 	</Button>
 
 	{#if failed}
-		<div
-			class="bg-error text-2xs text-error-content mt-1 ml-5.5 flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
-			data-testid="bash-command-failure"
-			in:revealFade
-		>
-			<Icon name="warning" size={12} class="mt-1 shrink-0" />
-			<span class="min-w-0 flex-1 break-words select-text">
-				<SensitiveText text={failureReason} />
-			</span>
-		</div>
+		<ToolFailureNote text={failureReason} class="mt-1" data-testid="bash-command-failure" />
 	{/if}
 
 	{#if expanded}

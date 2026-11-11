@@ -29,10 +29,7 @@ describe('gutterRows', () => {
 			changeTotals: null,
 		});
 
-		expect(rows.map(({ panelId }) => panelId)).toEqual([
-			'example.linear.panel',
-			'example.terminal.panel',
-		]);
+		expect(rows.map(({ id }) => id)).toEqual(['example.linear.panel', 'example.terminal.panel']);
 		expect(rows.map(({ label }) => label)).toEqual(['Linear', 'Terminal']);
 	});
 
@@ -43,7 +40,7 @@ describe('gutterRows', () => {
 			changeTotals: null,
 		});
 
-		expect(rows.map(({ panelId }) => panelId)).toEqual([
+		expect(rows.map(({ id }) => id)).toEqual([
 			REPOSITORY_FILES_PANEL_ID,
 			'example.linear.panel',
 			'example.terminal.panel',
@@ -58,12 +55,12 @@ describe('gutterRows', () => {
 			changesPanelId: REPOSITORY_CHANGES_PANEL_ID,
 		});
 
-		expect(rows.map(({ panelId }) => panelId)).toEqual([
+		expect(rows.map(({ id }) => id)).toEqual([
 			REPOSITORY_CHANGES_PANEL_ID,
 			REPOSITORY_FILES_PANEL_ID,
 		]);
-		expect(rows[0]?.changeTotals).toEqual({ additions: 3, deletions: 1 });
-		expect(rows[1]?.changeTotals).toBeNull();
+		expect(rows[0]).toMatchObject({ changeTotals: { additions: 3, deletions: 1 } });
+		expect(rows[1]).toMatchObject({ changeTotals: null });
 	});
 
 	it('marks a panel that is not open as closed rather than dropping it', () => {
@@ -73,12 +70,12 @@ describe('gutterRows', () => {
 			changeTotals: null,
 		});
 
-		expect(rows.map(({ panelId }) => panelId)).toEqual([
+		expect(rows.map(({ id }) => id)).toEqual([
 			REPOSITORY_CHANGES_PANEL_ID,
 			'example.linear.panel',
 			'example.terminal.panel',
 		]);
-		expect(rows.map(({ closed }) => closed)).toEqual([false, true, false]);
+		expect(rows.map((row) => row.kind === 'panel' && row.closed)).toEqual([false, true, false]);
 	});
 
 	it('keeps the pinned files row listed, and pinned, even when it is closed', () => {
@@ -88,12 +85,8 @@ describe('gutterRows', () => {
 			changeTotals: { additions: 9, deletions: 9 },
 		});
 
-		expect(rows.map(({ panelId }) => panelId)).toEqual([
-			REPOSITORY_FILES_PANEL_ID,
-			'example.linear.panel',
-		]);
-		expect(rows[0]?.closed).toBe(true);
-		expect(rows[0]?.changeTotals).toEqual({ additions: 9, deletions: 9 });
+		expect(rows.map(({ id }) => id)).toEqual([REPOSITORY_FILES_PANEL_ID, 'example.linear.panel']);
+		expect(rows[0]).toMatchObject({ closed: true, changeTotals: { additions: 9, deletions: 9 } });
 	});
 
 	it('carries the diffstat on the files row and nowhere else', () => {
@@ -103,8 +96,8 @@ describe('gutterRows', () => {
 			changeTotals: { additions: 1265, deletions: 667 },
 		});
 
-		expect(rows[0]?.changeTotals).toEqual({ additions: 1265, deletions: 667 });
-		expect(rows[1]?.changeTotals).toBeNull();
+		expect(rows[0]).toMatchObject({ changeTotals: { additions: 1265, deletions: 667 } });
+		expect(rows[1]).toMatchObject({ changeTotals: null });
 	});
 
 	it('keeps an unread worktree distinct from a clean one', () => {
@@ -119,7 +112,34 @@ describe('gutterRows', () => {
 			changeTotals: { additions: 0, deletions: 0 },
 		});
 
-		expect(unread[0]?.changeTotals).toBeNull();
-		expect(clean[0]?.changeTotals).toEqual({ additions: 0, deletions: 0 });
+		expect(unread[0]).toMatchObject({ changeTotals: null });
+		expect(clean[0]).toMatchObject({ changeTotals: { additions: 0, deletions: 0 } });
+	});
+
+	it('names the files row Changes, since it opens Files on the changed files', () => {
+		const rows = gutterRows({
+			panels: [linear, files],
+			hiddenPanelIds: [],
+			changeTotals: null,
+		});
+
+		expect(rows.map(({ label }) => label)).toEqual(['Changes', 'Linear']);
+		expect(rows[0]?.icon).toBe('changes');
+	});
+
+	it('lists the actions right under the changes row, with their counts', () => {
+		const rows = gutterRows({
+			panels: [linear, files],
+			hiddenPanelIds: [],
+			changeTotals: null,
+			actions: [{ id: 'media', label: 'Media', icon: 'image', count: 4 }],
+		});
+
+		expect(rows.map(({ kind, id }) => `${kind}:${id}`)).toEqual([
+			`panel:${REPOSITORY_FILES_PANEL_ID}`,
+			'action:media',
+			'panel:example.linear.panel',
+		]);
+		expect(rows[1]).toMatchObject({ label: 'Media', count: 4 });
 	});
 });

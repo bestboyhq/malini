@@ -46,8 +46,7 @@ export function loadInspectorDrawerOpen(
 	workstreamId: string,
 	storage: InspectorPreferenceStorage | null = browserStorage(),
 ): boolean {
-	const state = loadInspectorDrawerState(workstreamId, storage);
-	return state !== 'closed' && state !== 'folded';
+	return loadInspectorDrawerState(workstreamId, storage) === 'open';
 }
 
 export function saveInspectorDrawerOpen(
@@ -61,6 +60,7 @@ export function saveInspectorDrawerOpen(
 export class InspectorDrawer {
 	#revision = $state(0);
 	#overlay: { workstreamId: string; folded: boolean } | null = $state.raw(null);
+	#heldOpen: ReadonlyMap<string, string> = $state.raw(new Map());
 	readonly #narrow: () => boolean;
 
 	constructor(narrow: () => boolean = isNarrowLayout) {
@@ -77,7 +77,33 @@ export class InspectorDrawer {
 	): boolean {
 		if (this.overlay) return this.#overlay?.workstreamId === workstreamId && !this.#overlay.folded;
 		this.#revision;
-		return loadInspectorDrawerOpen(workstreamId, storage);
+		return this.#heldOpen.has(workstreamId) || loadInspectorDrawerOpen(workstreamId, storage);
+	}
+
+	heldOpenBy(workstreamId: string): string | null {
+		return this.#heldOpen.get(workstreamId) ?? null;
+	}
+
+	openForPanel(
+		workstreamId: string,
+		panelId: string,
+		storage?: InspectorPreferenceStorage | null,
+	): void {
+		const resolved = storage === undefined ? browserStorage() : storage;
+		if (!workstreamId || this.overlay || this.isOpen(workstreamId, resolved)) return;
+		this.#heldOpen = new Map(this.#heldOpen).set(workstreamId, panelId);
+	}
+
+	closeAfterPanel(workstreamId: string, panelId: string): void {
+		if (this.heldOpenBy(workstreamId) === panelId) this.#release(workstreamId);
+	}
+
+	#release(workstreamId: string): boolean {
+		if (!this.#heldOpen.has(workstreamId)) return false;
+		const held = new Map(this.#heldOpen);
+		held.delete(workstreamId);
+		this.#heldOpen = held;
+		return true;
 	}
 
 	setOpen(
@@ -90,6 +116,7 @@ export class InspectorDrawer {
 			this.#overlay = open ? { workstreamId, folded: false } : null;
 			return;
 		}
+		this.#release(workstreamId);
 		if (loadInspectorDrawerOpen(workstreamId, storage) === open) return;
 		saveInspectorDrawerOpen(workstreamId, open, storage);
 		this.#revision += 1;
@@ -110,6 +137,7 @@ export class InspectorDrawer {
 			this.#overlay = { workstreamId, folded: true };
 			return;
 		}
+		if (this.#release(workstreamId)) return;
 		saveInspectorDrawerState(workstreamId, 'folded', resolved);
 		this.#revision += 1;
 	}

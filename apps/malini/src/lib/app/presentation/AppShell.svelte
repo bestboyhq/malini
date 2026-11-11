@@ -15,7 +15,9 @@
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { revealOpenedBrowserHook } from '$lib/browser/application/hooks/reveal-opened-browser.hook';
 	import { revealOpenedThreadHook } from '$lib/browser/application/hooks/reveal-opened-thread.hook';
+	import { removeClosedBrowserHook } from '$lib/browser/application/hooks/remove-closed-browser.hook';
 	import { openRequestedFilesHook } from '$lib/extensions/application/hooks/open-requested-files.hook.svelte';
+	import { followChosenVariantsHook } from '$lib/browser/application/hooks/follow-chosen-variants.hook';
 	import { watchBrowserStateHook } from '$lib/browser/application/hooks/watch-browser-state.hook';
 	import { forgetRemovedWorkstreamChatsHook } from '$lib/chat/application/hooks/forget-removed-workstream-chats.hook';
 	import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
@@ -49,13 +51,17 @@
 			},
 		);
 		const stopRevealingBrowsers = revealOpenedBrowserHook();
+		const stopRemovingBrowsers = removeClosedBrowserHook();
 		const stopRevealingThreads = revealOpenedThreadHook();
 		const stopWatchingBrowsers = watchBrowserStateHook();
+		const stopFollowingVariants = followChosenVariantsHook();
 		const stopOpeningRequestedFiles = openRequestedFilesHook();
 		return () => {
 			stopOpeningRequestedFiles();
+			stopFollowingVariants();
 			stopWatchingBrowsers();
 			stopRevealingThreads();
+			stopRemovingBrowsers();
 			stopRevealingBrowsers();
 			stopWatchingShips();
 			stopForgettingSurfaces();

@@ -106,17 +106,26 @@ describe('IncrementalRenderProjector', () => {
 		];
 		const projector = new IncrementalRenderProjector();
 		const outcomes: (string | null)[] = [];
+		const ended: boolean[] = [];
 
 		for (let length = 1; length <= envelopes.length; length += 1) {
 			const state = projector.project(envelopes.slice(0, length));
 			expect(state).toEqual(foldEnvelopes(envelopes.slice(0, length)));
 			outcomes.push(runTurns(firstRun(state)).at(-1)?.report.outcome ?? null);
+			ended.push(firstRun(state).turnEnded);
 		}
 		expect(outcomes).toEqual([
 			null,
-			null,
 			...Array<string>(6).fill('The site runs.'),
-			...Array<string>(4).fill('The site still runs.'),
+			...Array<string>(5).fill('The site still runs.'),
+		]);
+		expect(ended).toEqual([
+			...Array<boolean>(4).fill(false),
+			true,
+			true,
+			...Array<boolean>(4).fill(false),
+			true,
+			true,
 		]);
 		const earlier = projector.project(envelopes).earlierTurns.get('run-1') ?? [];
 		expect(earlier.map((turn) => turn.report.outcome)).toEqual(['The site runs.']);

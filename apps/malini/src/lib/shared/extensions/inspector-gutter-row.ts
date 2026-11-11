@@ -7,32 +7,63 @@ export type GutterChangeTotals = Readonly<{
 	deletions: number;
 }>;
 
-export type GutterRow = Readonly<{
-	panelId: string;
+export type GutterAction = Readonly<{
+	id: string;
 	label: string;
 	icon: string;
-	changeTotals: GutterChangeTotals | null;
-	closed: boolean;
+	count: number;
 }>;
+
+export type GutterRow =
+	| Readonly<{
+			kind: 'panel';
+			id: string;
+			label: string;
+			icon: string;
+			changeTotals: GutterChangeTotals | null;
+			closed: boolean;
+	  }>
+	| Readonly<{
+			kind: 'action';
+			id: string;
+			label: string;
+			icon: string;
+			count: number;
+	  }>;
 
 export type GutterRowsInput = Readonly<{
 	panels: readonly InspectorPanel[];
 	hiddenPanelIds: readonly string[];
 	changeTotals: GutterChangeTotals | null;
+	actions?: readonly GutterAction[];
 	changesPanelId?: string;
 }>;
 
 export function gutterRows(input: GutterRowsInput): readonly GutterRow[] {
 	const changesPanelId = input.changesPanelId ?? GUTTER_CHANGES_PANEL_ID;
 	const hidden = new Set(input.hiddenPanelIds);
-	const pinned = input.panels.filter((panel) => panel.id === changesPanelId);
-	const rest = input.panels.filter((panel) => panel.id !== changesPanelId);
-
-	return [...pinned, ...rest].map((panel) => ({
-		panelId: panel.id,
-		label: panel.label,
-		icon: panel.icon,
-		changeTotals: panel.id === changesPanelId ? input.changeTotals : null,
-		closed: hidden.has(panel.id),
+	const panelRow = (panel: InspectorPanel): GutterRow => {
+		const changes = panel.id === changesPanelId;
+		return {
+			kind: 'panel',
+			id: panel.id,
+			label: changes ? 'Changes' : panel.label,
+			icon: changes ? 'changes' : panel.icon,
+			changeTotals: changes ? input.changeTotals : null,
+			closed: hidden.has(panel.id),
+		};
+	};
+	const actionRows = (input.actions ?? []).map(({ id, label, icon, count }): GutterRow => ({
+		kind: 'action',
+		id,
+		label,
+		icon,
+		count,
 	}));
+
+	return [
+		...input.panels.filter((panel) => panel.id === changesPanelId).map(panelRow),
+		...actionRows,
+		...input.panels.filter((panel) => panel.id !== changesPanelId).map(panelRow),
+	];
 }

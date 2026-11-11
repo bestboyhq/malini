@@ -10,6 +10,7 @@ import type {
 import {
 	BROWSER_RESIZE_REQUESTED_CHANNEL,
 	BROWSER_STATE_CHANGED_CHANNEL,
+	BROWSER_TAB_CLOSED_CHANNEL,
 	BROWSER_TAB_OPENED_CHANNEL,
 	BROWSER_THREAD_OPENED_CHANNEL,
 } from '$contract/events';
@@ -27,6 +28,10 @@ class BrowserService {
 
 	onTabOpened(listener: (tab: BrowserTabArgs) => void): () => void {
 		return onPlatformEvent(BROWSER_TAB_OPENED_CHANNEL, listener);
+	}
+
+	onTabClosed(listener: (tab: BrowserTabArgs) => void): () => void {
+		return onPlatformEvent(BROWSER_TAB_CLOSED_CHANNEL, listener);
 	}
 
 	onThreadOpened(listener: (thread: BrowserThreadOpened) => void): () => void {

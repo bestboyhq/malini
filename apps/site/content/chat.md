@@ -237,6 +237,9 @@ Every turn ends in a report. Proof included
 -->
 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
+The report shows the moment the agent writes it, and its **Outcome** and **Needs** lines never stream in as text.
+While the run still goes after it, for a background agent or a hook, the report shows a clock, **Still running**, and lists what it asks of you under **Over to you after** until the run ends.
+A run you stop, or one that fails, keeps its report, with the failure under it.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under the **Details** row, which says how many words it holds.
 Reports run from a screenshot and one line to the full write-up.
 Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
@@ -274,6 +277,8 @@ While you hold the playhead, the recording stops on the frame under it, and it p
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 A page costs frames while it runs, so only the newest report runs its page; an older one waits as a picture behind a play button until you press it.
 When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.
+The report and the browser keep one variant selected.
+Choose a variant in the report, and a browser tab on one of its pages moves to that variant; flip the strip, and the report's tab and its **Go with** button follow.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why; click any variant in it to open it in the gallery.
 The pull request description lists which variant won over which, never your reason: what you type stays in the chat.
@@ -332,10 +337,11 @@ Old turns fold. Subagents get a line each. Files show their diff
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
-- Tool calls fold into one line while the chat works, such as **Exploring 4 files**, with the newest status message or thought beside it.
+- While the chat works, each tool call and status message shows as its own row.
+  When the turn ends, they fold into one line, such as **Explored 4 files**.
   Click the line to read the messages, thoughts and steps in order.
 - Only the last two turns show their work.
-  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs, ran 79 commands**.
+  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs · 79 commands**.
   Click it if you miss them.
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.

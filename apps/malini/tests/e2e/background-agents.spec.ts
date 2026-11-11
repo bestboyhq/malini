@@ -41,7 +41,7 @@ test("a turn's report card shows at once while its background agent runs, then f
 		await expect(card.getByTestId('turn-report-outcome')).toHaveText(
 			'The Sleep probe agent is running',
 		);
-		await expect(card.getByRole('img', { name: 'Done' })).toBeVisible();
+		await expect(card.getByRole('img', { name: 'Still running' })).toBeVisible();
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();
@@ -67,6 +67,8 @@ test("a turn's report card shows at once while its background agent runs, then f
 			card.getByRole('list', { name: 'Earlier turns' }).getByRole('listitem'),
 		).toHaveText([/The Sleep probe agent is running/u]);
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
+		await expect(card.getByRole('img', { name: 'Still running' })).toHaveCount(0);
+		await expect(card.getByRole('img', { name: 'Done' })).toHaveCount(2);
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-agent-completed');
 

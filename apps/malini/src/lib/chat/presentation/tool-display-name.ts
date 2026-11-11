@@ -120,17 +120,22 @@ export function toolActionKind(rawName: string, input?: unknown): ToolActionKind
 	return 'other';
 }
 
-export const TOOL_FAILURE_REASON_MAX_CHARS = 240;
-
 export function toolFailureReason(error: string | null | undefined): string | null {
-	const firstLine = error
-		?.split('\n')
-		.map((line) => line.trim())
-		.find(Boolean);
-	if (!firstLine) return null;
-	return firstLine.length > TOOL_FAILURE_REASON_MAX_CHARS
-		? `${firstLine.slice(0, TOOL_FAILURE_REASON_MAX_CHARS - 1)}…`
-		: firstLine;
+	return (
+		error
+			?.split('\n')
+			.map((line) => line.trim())
+			.find(Boolean) ?? null
+	);
+}
+
+export type FailureSpan = Readonly<{ text: string; code: boolean }>;
+
+export function failureSpans(text: string): readonly FailureSpan[] {
+	return text
+		.split(/`([^`\n]+)`/u)
+		.map((part, index) => ({ text: part, code: index % 2 === 1 }))
+		.filter((span) => span.text !== '');
 }
 
 export function blockedLabel(autoModeReason: string): string {

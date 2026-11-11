@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	backgroundAgentSummary,
+	failureSpans,
 	shellCommandLabel,
 	summarizeLiveToolInput,
 	toolActionKind,
@@ -156,10 +157,22 @@ describe('tool failure reasons', () => {
 		expect(toolFailureReason(error)).toBeNull();
 	});
 
-	it('caps a single runaway line so a failure row stays a row', () => {
-		const reason = toolFailureReason('x'.repeat(400));
-		expect(reason).toHaveLength(240);
-		expect(reason?.endsWith('…')).toBe(true);
+	it('keeps a long line whole, since the note clamps it on screen', () => {
+		expect(toolFailureReason('x'.repeat(400))).toBe('x'.repeat(400));
+	});
+});
+
+describe('failure spans', () => {
+	it('sets each backtick span apart as code and drops the backticks', () => {
+		expect(failureSpans('use an until-loop (e.g. `until <check>; do sleep 2; done`).')).toEqual([
+			{ text: 'use an until-loop (e.g. ', code: false },
+			{ text: 'until <check>; do sleep 2; done', code: true },
+			{ text: ').', code: false },
+		]);
+	});
+
+	it('leaves a lone backtick and a span across lines as text', () => {
+		expect(failureSpans('a ` b\nc ` d')).toEqual([{ text: 'a ` b\nc ` d', code: false }]);
 	});
 });
 

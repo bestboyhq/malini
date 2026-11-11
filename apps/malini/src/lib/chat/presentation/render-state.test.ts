@@ -12,6 +12,7 @@ import {
 	sanitizeRunErrorText,
 	splitRunErrorText,
 	toolDurationMs,
+	toolFailure,
 	type RenderState,
 	type RunGroup,
 } from './render-state';
@@ -906,5 +907,19 @@ describe('foldEnvelopes', () => {
 		]);
 		const item = firstRun(state).items[0];
 		expect(item && 'description' in item).toBe(false);
+	});
+});
+
+describe('toolFailure', () => {
+	it("takes off Claude Code's tool_use_error wrapper and keeps the text inside", () => {
+		expect(
+			toolFailure({ error: '<tool_use_error>File does not exist.\nMore.</tool_use_error>' }),
+		).toEqual({ error: 'File does not exist.\nMore.' });
+	});
+
+	it('leaves an error without the wrapper as it is', () => {
+		expect(toolFailure({ error: 'Exit code 1\n<tool_use_error> is text here' })).toEqual({
+			error: 'Exit code 1\n<tool_use_error> is text here',
+		});
 	});
 });

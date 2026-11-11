@@ -19,6 +19,7 @@
 		files: 'files',
 		'git-diff': 'diff',
 		changes: 'diff',
+		media: 'image',
 		checks: 'checklist',
 		verification: 'checklist',
 		'workstream-setup': 'cube',

@@ -1,6 +1,6 @@
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	APP_ROOT,
 	captureFlow,
@@ -8,6 +8,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
+	type LaunchedApp,
 	seedWorkstream,
 	sendPrompt,
 	untilStill,
@@ -202,6 +203,68 @@ test('switching between report images of different heights moves nothing in the 
 		expectStill(await pick('tall.png'), 'scrolled up and back down, to the tall image');
 		await pick('short.png');
 		await captureFlow(app, 'turn-report-image-switch');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+async function reportLanded(app: LaunchedApp, name: string): Promise<Locator> {
+	const { page } = app;
+	const source = await createSourceRepo(app.root);
+	const { workstreamId } = await seedWorkstream(page, source, name, 'Report lands');
+	await openWorkstream(page, workstreamId);
+
+	await sendPrompt(page, 'REPORT_HELD');
+	await expect(page.getByText('The shadow shows only once the page has scrolled.')).toBeVisible({
+		timeout: 30_000,
+	});
+	await untilStill(page);
+	const card = page.getByRole('article', { name: 'Turn result' });
+	await expect(page.getByText(/Outcome:|Needs:|Nee$/u)).toHaveCount(0);
+	await expect(card).toHaveCount(0);
+
+	writeFileSync(join(app.home, 'release-report-stream'), '');
+	await expect(card).toBeVisible({ timeout: 30_000 });
+	await expect(card.getByRole('img', { name: 'Still running' })).toBeVisible();
+	await expect(card.getByRole('heading', { name: 'Over to you after' })).toBeVisible();
+	await expect(card.getByRole('img', { name: 'Waiting on you' })).toHaveCount(0);
+	await expect(card.getByRole('img', { name: 'Done' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Stop current run' })).toBeVisible();
+	return card;
+}
+
+test('the result card shows as soon as the report lands, and asks only once the run ends', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const card = await reportLanded(app, 'e2e-report-lands-ws');
+		await captureFlow(app, 'turn-report-before-run-ends');
+
+		writeFileSync(join(app.home, 'release-report-check'), '');
+		await expect(card.getByRole('img', { name: 'Waiting on you' })).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(card.getByRole('heading', { name: 'Your turn', exact: true })).toBeVisible();
+		await expect(card.getByRole('img', { name: 'Still running' })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a run stopped after its report keeps the report as its result card', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const card = await reportLanded(app, 'e2e-report-stopped-ws');
+
+		await app.page.getByRole('button', { name: 'Stop current run' }).click();
+		await expect(card.getByRole('img', { name: 'Waiting on you' })).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(card.getByRole('heading', { name: 'Your turn', exact: true })).toBeVisible();
+		await captureFlow(app, 'turn-report-run-stopped');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

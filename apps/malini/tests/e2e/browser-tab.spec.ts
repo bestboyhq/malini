@@ -15,6 +15,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	settleAnimations,
+	showInspector,
 	temporaryRoot,
 } from './harness';
 
@@ -144,6 +145,7 @@ test('browser tabs show only once opened, each with its own page and close butto
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-browser-tab-ws', 'Browser tab');
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 		await expect(inspector.getByRole('tab')).toHaveCount(1);
@@ -190,6 +192,7 @@ test('a new browser tab scrolls the inspector tabs until all of it shows, also o
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-browser-tab-strip-ws', 'Tab strip');
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -232,6 +235,7 @@ test('a browser tab says why its page did not load, hides the page meanwhile, an
 			'Browser failed',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -273,6 +277,7 @@ test('a browser tab opens files of its worktree, shows their latest edit on relo
 		writeFileSync(join(seeded.worktree, 'docs', 'title.js'), 'document.title = "Report";');
 		writeFileSync(join(seeded.worktree, 'docs', 'next.html'), '<!doctype html><title>Next</title>');
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -330,6 +335,7 @@ test('a new browser tab takes the cursor and explains itself, keeps its page und
 		);
 		workstreamId = seeded.workstreamId;
 		await openWorkstream(page, workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -426,6 +432,7 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 			'Browser thread',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 		await sendPrompt(page, 'Hello main chat');
@@ -508,6 +515,7 @@ test('a thread pin stays on its element when a Vite dev server hot-updates the p
 			'Browser hot reload',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 		await openTab(page, origin, '/');
@@ -577,6 +585,7 @@ test('picking an element on a page that is still loading waits for the page inst
 			'Browser late pick',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -601,14 +610,32 @@ test('picking an element on a page that is still loading waits for the page inst
 	}
 });
 
-test('a page the agent opens shows up as its own tab, named by its title, without taking the cursor', async () => {
-	test.setTimeout(120_000);
-	const server = createServer((_request, response) => {
+async function closedInspector(page: Page): Promise<void> {
+	const gutter = page.getByTestId('extension-inspector-gutter');
+	await expect(gutter.getByRole('button', { name: /^Changes/u })).toBeEnabled({ timeout: 20_000 });
+	await expect(gutter.getByRole('button', { name: 'Show inspector' })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Inspector' }).getByRole('tab')).toHaveCount(0);
+}
+
+function lobbyServer(): Promise<{ origin: string; close: () => void }> {
+	const server = createServer((request, response) => {
+		const title = request.url === '/lobby' ? 'Lobby music' : 'Release notes';
 		response.writeHead(200, { 'content-type': 'text/html' });
-		response.end('<!doctype html><title>Lobby music</title><h1>Lobby music</h1>');
+		response.end(`<!doctype html><title>${title}</title><h1>${title}</h1>`);
 	});
-	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
-	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	return new Promise((resolve) =>
+		server.listen(0, 'localhost', () =>
+			resolve({
+				origin: `http://localhost:${(server.address() as AddressInfo).port}`,
+				close: () => server.close(),
+			}),
+		),
+	);
+}
+
+test('a page the agent opens shows up as its own tab, named by its title, without taking the cursor, and holds a closed inspector open only until the agent closes it', async () => {
+	test.setTimeout(120_000);
+	const server = await lobbyServer();
 	const app = await launchMalini();
 	try {
 		const { page } = app;
@@ -620,18 +647,71 @@ test('a page the agent opens shows up as its own tab, named by its title, withou
 		);
 		await openWorkstream(page, seeded.workstreamId);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
-		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
-		await expect(inspector.getByRole('tab')).toHaveCount(1);
+		await closedInspector(page);
 
-		await sendPrompt(page, `Open the lobby BROWSER_OPEN:${origin}/lobby`);
+		await sendPrompt(page, `Open the lobby BROWSER_OPEN:${server.origin}/lobby`);
 		await expectAssistantReply(page);
 
 		await expect(inspector.getByRole('tab', { name: 'Lobby music', selected: true })).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(inspector.getByRole('tab', { name: 'Files', selected: false })).toBeVisible();
+		await expect(inspector.getByRole('tab')).toHaveCount(2);
+		await expect(page.getByTestId('extension-inspector-gutter')).toHaveCount(0);
 		await expect(page.getByRole('textbox', { name: 'Page address' })).not.toBeFocused();
 		await captureFlow(app, 'browser-tab-agent-opened');
+
+		await sendPrompt(page, 'Done with the lobby BROWSER_CLOSE');
+		await expect(page.getByText('Closed your browser tab and its page.')).toBeVisible({
+			timeout: 20_000,
+		});
+		await closedInspector(page);
+		await expect(page.getByRole('button', { name: 'Hide inspector' })).toHaveCount(0);
+
+		await openWorkstream(page, seeded.workstreamId);
+		await closedInspector(page);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('an inspector the agent opened stays open after the agent closes its page once you click its tab', async () => {
+	test.setTimeout(120_000);
+	const server = await lobbyServer();
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-agent-kept-ws',
+			'Browser agent kept',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await closedInspector(page);
+
+		await sendPrompt(page, `Open the lobby BROWSER_OPEN:${server.origin}/lobby`);
+		await expectAssistantReply(page);
+		const lobby = inspector.getByRole('tab', { name: 'Lobby music', selected: true });
+		await expect(lobby).toBeVisible({ timeout: 20_000 });
+		await lobby.click();
+
+		await sendPrompt(page, 'Done with the lobby BROWSER_CLOSE');
+		await expect(page.getByText('Closed your browser tab and its page.')).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(inspector.getByRole('tab', { name: 'Lobby music' })).toHaveCount(0);
+		await expect(inspector.getByRole('tab', { name: 'Files', selected: true })).toBeVisible();
+		await expect(page.getByTestId('extension-inspector-gutter')).toHaveCount(0);
+
+		await openWorkstream(page, seeded.workstreamId);
+		await expect(inspector.getByRole('tab', { name: 'Files', selected: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(page.getByRole('button', { name: 'Hide inspector' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -662,6 +742,7 @@ test('the agent resizes the browser tab you see by moving the divider, stops whe
 			'Browser resize',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 		await sendPrompt(page, `Open the ruler BROWSER_OPEN:${origin}/ruler`);
@@ -695,6 +776,66 @@ test('the agent resizes the browser tab you see by moving the divider, stops whe
 			page.getByText(/The browser tab is not on screen, so its width did not change/u),
 		).toBeVisible({ timeout: 20_000 });
 		await expect(split).toHaveAttribute('aria-valuenow', resized ?? '');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('the agent closes the browser tab it opened and its page, leaves your tab and page alone, and its tab stays closed after a reload', async () => {
+	test.setTimeout(120_000);
+	const server = await lobbyServer();
+	const { origin } = server;
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const webPages = () =>
+			electronApp.evaluate(({ webContents }) =>
+				webContents
+					.getAllWebContents()
+					.map((contents) => contents.getURL())
+					.filter((url) => url.startsWith('http'))
+					.sort(),
+			);
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-close-ws',
+			'Browser close',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await closedInspector(page);
+
+		await sendPrompt(page, `Open the lobby BROWSER_OPEN:${origin}/lobby`);
+		await expectAssistantReply(page);
+		await expect(inspector.getByRole('tab', { name: 'Lobby music', selected: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		await openTab(page, origin, '/notes');
+		await expect(
+			inspector.getByRole('tab', { name: 'Release notes', selected: true }),
+		).toBeVisible();
+		await expect.poll(webPages).toEqual([`${origin}/lobby`, `${origin}/notes`]);
+
+		await sendPrompt(page, 'Done with the lobby BROWSER_CLOSE');
+		await expect(page.getByText('Closed your browser tab and its page.')).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(inspector.getByRole('tab', { name: 'Lobby music' })).toHaveCount(0);
+		await expect.poll(webPages).toEqual([`${origin}/notes`]);
+		await expect(
+			inspector.getByRole('tab', { name: 'Release notes', selected: true }),
+		).toBeVisible();
+		await expect(page.getByTestId('extension-inspector-gutter')).toHaveCount(0);
+		await captureFlow(app, 'browser-tab-agent-closed');
+
+		await openWorkstream(page, seeded.workstreamId);
+		await expect(inspector.getByRole('tab', { name: 'Release notes' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(inspector.getByRole('tab', { name: 'Lobby music' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -737,6 +878,7 @@ test('a page that breaks off after it shows stays shown and pickable, and so doe
 			'Browser broken off',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -797,6 +939,7 @@ test('a tab going back shows the address it goes back to while that page loads',
 			'Browser back',
 		);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
@@ -846,6 +989,7 @@ test('a restored tab shows its address while its page loads', async () => {
 		);
 		workstreamId = seeded.workstreamId;
 		await openWorkstream(page, workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 		await openTab(page, origin, '/slow');

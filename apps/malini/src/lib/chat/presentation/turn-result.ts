@@ -16,17 +16,22 @@ export function answerTurn(run: RunGroup): readonly string[] {
 }
 
 export function finalTurnReport(run: RunGroup, itemKey: string, text: string): TurnReport | null {
-	if (run.answeredReports.at(-1) !== itemKey || !hasTurnReport(text)) return null;
+	if (!hasTurnReport(text) || lastReport(run)?.key !== itemKey) return null;
 	return parseTurnReport(text);
 }
 
+export function turnOver(run: RunGroup): boolean {
+	return run.turnEnded || run.terminal === 'failed' || run.terminal === 'cancelled';
+}
+
 export function foldsIntoLaterTurn(run: RunGroup, itemKey: string): boolean {
-	const index = run.answeredReports.indexOf(itemKey);
-	return index >= 0 && index < run.answeredReports.length - 1;
+	if (!run.answeredReports.includes(itemKey)) return false;
+	const reports = answerTurn(run);
+	return reports.indexOf(itemKey) < reports.length - 1;
 }
 
 export function runTurns(run: RunGroup): readonly EarlierTurn[] {
-	return run.answeredReports.flatMap((key) => {
+	return answerTurn(run).flatMap((key) => {
 		const item = run.items.find((candidate) => candidate.key === key);
 		return item?.kind === 'assistant'
 			? [{ runId: run.runId, key, report: parseTurnReport(item.text) }]
