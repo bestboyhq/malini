@@ -447,7 +447,11 @@
 	}
 
 	function askBeforeStopping(session: SessionRecord): boolean {
-		if (session.origin !== 'user' || !closingStopsAgent(identityOf(session).activity)) return false;
+		if (session.origin !== 'user') return false;
+		const stops =
+			closingStopsAgent(identityOf(session).activity) ||
+			(backgroundWorkQuery.data(session.id)?.tasks.length ?? 0) > 0;
+		if (!stops) return false;
 		sessionToStop = session;
 		return true;
 	}

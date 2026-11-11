@@ -46,11 +46,10 @@ export function summarizeWorkstreamChat(input: WorkstreamChatSummaryInput): Work
 function workstreamChatState(input: WorkstreamChatSummaryInput): WorkstreamChatState | null {
 	const status = input.session?.status;
 	if (isWaitingForUser(status)) return { label: 'Approval', tone: 'waiting' };
-	if (status === 'running' && input.backgroundWait === null) {
-		return { label: 'Running', tone: 'running' };
-	}
-	if (status === 'running' && input.backgroundWait === 'agents') {
-		return { label: 'Background agents running', tone: 'background' };
+	if (status === 'running') {
+		return input.backgroundWait === 'agents'
+			? { label: 'Background agents running', tone: 'background' }
+			: { label: 'Running', tone: 'running' };
 	}
 	if (input.automationRunning) return { label: 'Automation running', tone: 'background' };
 	if (input.held) return { label: 'Needs you', tone: 'waiting' };
@@ -60,7 +59,7 @@ function workstreamChatState(input: WorkstreamChatSummaryInput): WorkstreamChatS
 	if (input.attention?.kind === 'input') return { label: 'Needs you', tone: 'waiting' };
 	if (input.attention?.kind === 'completed') return { label: 'Ready', tone: 'completed' };
 	if (status === 'failed') return { label: 'Failed', tone: 'failed' };
-	if (status === 'completed' || status === 'running') return { label: 'Ready', tone: 'completed' };
+	if (status === 'completed') return { label: 'Ready', tone: 'completed' };
 	if (input.hasDraft) return { label: 'Draft', tone: 'draft' };
 	return null;
 }

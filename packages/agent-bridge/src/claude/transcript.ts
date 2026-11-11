@@ -51,6 +51,8 @@ export class ClaudeTranscript {
 	readonly #settledTools = new Set<string>();
 	readonly #interruptedTools = new Set<string>();
 	#idle = false;
+	#answered = false;
+	#turnEnded = false;
 	#lastBackground = '';
 	#turnSummary: string | undefined;
 	#streamMessageId = '';
@@ -97,12 +99,15 @@ export class ClaudeTranscript {
 	handOff(runId: string): void {
 		this.#runId = runId;
 		this.#idle = false;
+		this.#answered = false;
+		this.#turnEnded = false;
 		this.#lastBackground = '';
 		this.#turnSummary = undefined;
 		this.#emitBackground();
 	}
 
 	recordTurnResult(result: SDKResultMessage): void {
+		this.#answered = true;
 		this.#turnSummary =
 			result.subtype === 'success' && !result.is_error ? result.result : undefined;
 	}
@@ -176,6 +181,7 @@ export class ClaudeTranscript {
 				if (message.subtype === 'session_state_changed') {
 					this.#idle = message.state === 'idle';
 					this.#emitBackground();
+					this.#moveTurn();
 				}
 				return;
 			case 'result':
@@ -255,6 +261,23 @@ export class ClaudeTranscript {
 			});
 		}
 		this.#emitBackground();
+		this.#moveTurn();
+	}
+
+	#moveTurn(): void {
+		const tasks = [...this.#backgroundTasks.values()];
+		const overCommands =
+			this.#answered &&
+			this.#idle &&
+			tasks.length > 0 &&
+			tasks.every((task) => task.kind === 'command');
+		if (overCommands && !this.#turnEnded) {
+			this.#turnEnded = true;
+			this.#emit({ type: 'turn.ended', runId: this.#runId });
+		} else if (this.#turnEnded && !this.#idle) {
+			this.#turnEnded = false;
+			this.#emit({ type: 'turn.resumed', runId: this.#runId });
+		}
 	}
 
 	#acceptTaskProgress(message: SDKTaskProgressMessage): void {

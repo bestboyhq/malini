@@ -20,7 +20,7 @@
 
 	const SECOND_MS = 1_000;
 
-	const openRun = $derived(run.terminal === null ? run : null);
+	const openRun = $derived(run.terminal === null && !run.turnEnded ? run : null);
 	const runStartedAtMs = $derived(openRun ? runStartedAtQuery.data(openRun.runId) : null);
 	let elapsedMs = $state(0);
 	let tenthsDelayMs = $state(0);

@@ -1,4 +1,5 @@
 import type { AgentSessionOrigin } from '$contract/agent';
+import { isLifecycleKind } from '$contract/agent-state-machine';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { LiveEventEnvelope } from '$contract/agent';
@@ -43,13 +44,15 @@ type AgentLifecycleMonitorDependencies = {
 function lifecycleEvent(value: unknown): value is AgentEvent {
 	if (typeof value !== 'object' || value === null || !('type' in value)) return false;
 	const type = value.type;
+	return typeof type === 'string' && (isLifecycleKind(type) || type === 'background.updated');
+}
+
+function needsAttention({ type }: AgentEvent): boolean {
 	return (
-		type === 'run.started' ||
 		type === 'approval.requested' ||
 		type === 'question.requested' ||
 		type === 'run.completed' ||
-		type === 'run.failed' ||
-		type === 'background.updated'
+		type === 'run.failed'
 	);
 }
 
@@ -142,6 +145,7 @@ export class AgentLifecycleMonitor {
 			this.dependencies.clearAttention(envelope.sessionId);
 			return;
 		}
+		if (!needsAttention(envelope.event)) return;
 
 		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {
 			const announced = this.#announcedSummaryByRun.get(runKey(envelope));

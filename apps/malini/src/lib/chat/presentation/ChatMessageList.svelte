@@ -33,7 +33,7 @@
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
-	import { hasOpenRun, isLifecycleKind } from '$contract/agent-state-machine';
+	import { isAgentWorking, isLifecycleKind } from '$contract/agent-state-machine';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 	import { Button } from '$hyper-ui/components/button';
@@ -502,7 +502,7 @@
 
 	const locallyVisibleRunInFlight = $derived(
 		isLatestRunOpen ||
-			workstreamChatsQuery.data(workstreamId).some((candidate) => hasOpenRun(candidate.status)),
+			workstreamChatsQuery.data(workstreamId).some((candidate) => isAgentWorking(candidate.status)),
 	);
 
 	const nativeOpenRun = createOpenRunGuard({

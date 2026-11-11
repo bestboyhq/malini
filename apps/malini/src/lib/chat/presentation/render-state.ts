@@ -10,7 +10,6 @@ import {
 } from '$lib/chat/domain/element-reference';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
-import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import { isBackgroundAgent } from './tool-display-name';
 import {
 	undoTargetsByRun,
@@ -546,8 +545,6 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		const event = env.event;
 		const key = envelopeKey(env);
 		const runId = env.runId;
-		const resumed = resumesTurn(event) ? runById.get(runId) : undefined;
-		if (resumed) resumed.turnEnded = false;
 		switch (event.type) {
 			case 'run.started': {
 				runFor(runId);
@@ -759,9 +756,10 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				}
 				break;
 			}
-			case 'background.updated': {
+			case 'turn.ended':
+			case 'turn.resumed': {
 				const group = runFor(runId);
-				if (group.terminal === null && replyOverCommands(event) !== null) group.turnEnded = true;
+				if (group.terminal === null) group.turnEnded = event.type === 'turn.ended';
 				break;
 			}
 			case 'run.completed': {

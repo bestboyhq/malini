@@ -1,4 +1,4 @@
-import { hasOpenRun } from '$contract/agent-state-machine';
+import { isAgentWorking } from '$contract/agent-state-machine';
 import {
 	checkpointEditTargetIsCurrent,
 	type CheckpointEditTarget,
@@ -80,7 +80,7 @@ class CheckpointService {
 		const sessionId = chatSessionStore.sessionId;
 		if (!sessionId) return false;
 		return (
-			hasOpenRun(sessionsAggregate.getSession(sessionId)?.status) ||
+			isAgentWorking(sessionsAggregate.getSession(sessionId)?.status) ||
 			chatSessionStore.isDispatchPending(sessionId)
 		);
 	}

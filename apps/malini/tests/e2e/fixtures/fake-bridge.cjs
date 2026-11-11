@@ -630,6 +630,7 @@ const waitOnBackgroundCommand = (sessionId, runId, text) => {
 		tasks: [backgroundCommandTask(startedAt)],
 		summary: text,
 	});
+	event({ type: 'turn.ended', runId });
 };
 const startBackgroundCommand = (sessionId, runId) => {
 	const startedAt = Date.now() - 95_000;
@@ -717,6 +718,7 @@ const goesOnAfterBackgroundCommand = (sessionId, runId) => {
 			resumed = true;
 			backgroundCommands.delete(sessionId);
 			event({ type: 'background.updated', runId, waiting: false, tasks: [] });
+			event({ type: 'turn.resumed', runId });
 			event({
 				type: 'tool.started',
 				runId,

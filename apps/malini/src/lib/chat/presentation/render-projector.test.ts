@@ -94,11 +94,13 @@ describe('IncrementalRenderProjector', () => {
 			envelope(1, { type: 'user.message', runId: 'run-1', text: 'Serve the site' }),
 			envelope(2, { type: 'assistant.message', runId: 'run-1', text: started }),
 			update(3, [devServer], started),
-			update(4, [devServer]),
-			update(5, []),
-			envelope(6, { type: 'assistant.message', runId: 'run-1', text: checked }),
-			update(7, [devServer], checked),
-			envelope(8, { type: 'run.completed', runId: 'run-1', summary: checked, handedOff: true }),
+			envelope(4, { type: 'turn.ended', runId: 'run-1' }),
+			update(5, [devServer]),
+			envelope(6, { type: 'turn.resumed', runId: 'run-1' }),
+			envelope(7, { type: 'assistant.message', runId: 'run-1', text: checked }),
+			update(8, [devServer], checked),
+			envelope(9, { type: 'turn.ended', runId: 'run-1' }),
+			envelope(10, { type: 'run.completed', runId: 'run-1', summary: checked, handedOff: true }),
 		];
 		const projector = new IncrementalRenderProjector();
 		const outcomes: (string | null)[] = [];
@@ -111,9 +113,11 @@ describe('IncrementalRenderProjector', () => {
 		expect(outcomes).toEqual([
 			null,
 			null,
+			null,
 			'The site runs.',
 			'The site runs.',
-			'The site runs.',
+			null,
+			null,
 			null,
 			'The site still runs.',
 			'The site still runs.',

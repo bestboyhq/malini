@@ -2078,6 +2078,13 @@ describe('ClaudeSession', () => {
 		expect(ofType(events, 'run.completed')).toEqual([
 			expect.objectContaining({ runId: 'run-1', summary: 'bg-done' }),
 		]);
+		const types = events.map(({ type }) => type);
+		expect(types.filter((type) => type.startsWith('turn.'))).toEqual(['turn.ended', 'turn.resumed']);
+		expect(types.indexOf('turn.ended')).toBe(waiting + 1);
+		expect(types.indexOf('turn.resumed')).toBeGreaterThan(settled);
+		expect(types.indexOf('turn.resumed')).toBeLessThan(
+			types.indexOf('assistant.message', types.indexOf('turn.ended')),
+		);
 	});
 
 	it('stops one background task on request and ends the run once nothing is left', async () => {
@@ -2106,6 +2113,9 @@ describe('ClaudeSession', () => {
 
 		expect(claude.runs[0]?.stoppedTasks).toEqual(['b6od5yi4e']);
 		expect(ofType(events, 'background.updated').at(-1)?.tasks).toEqual([]);
+		expect(events.filter(({ type }) => type.startsWith('turn.'))).toEqual([
+			{ type: 'turn.ended', runId: 'run-1' },
+		]);
 		expect(events.at(-1)).toEqual(
 			expect.objectContaining({ type: 'run.completed', runId: 'run-1', summary: 'launched' }),
 		);
@@ -2126,7 +2136,7 @@ describe('ClaudeSession', () => {
 			[[...script.slice(0, firstIdle + 1), 'wait-for-prompt', ...script.slice(firstIdle + 1)]],
 			{
 				onEvent: (event, current) => {
-					if (event.type === 'background.updated' && event.waiting && !followUp) {
+					if (event.type === 'turn.ended' && !followUp) {
 						followUp = current.sendPrompt('Anything else?', 'run-2', {
 							...profile(),
 							effort: 'low',
@@ -2173,6 +2183,9 @@ describe('ClaudeSession', () => {
 				.filter(({ runId }) => runId === 'run-1')
 				.at(-1),
 		).toMatchObject({ tasks: [], handedOff: true });
+		expect(events.filter(({ type }) => type.startsWith('turn.'))).toEqual([
+			{ type: 'turn.ended', runId: 'run-1' },
+		]);
 	});
 
 	it('steers a busy run by interrupting only its turn, so its background command keeps running', async () => {
@@ -2227,6 +2240,14 @@ describe('ClaudeSession', () => {
 				.filter(({ runId, tasks }) => runId === 'run-2' && tasks.length > 0)[0]
 				?.tasks.map(({ taskId }) => taskId),
 		).toEqual(['biv864hkk']);
+		const turns = events.filter(({ type }) => type.startsWith('turn.'));
+		expect(turns).toEqual([
+			{ type: 'turn.ended', runId: 'run-2' },
+			{ type: 'turn.resumed', runId: 'run-2' },
+		]);
+		expect(events.indexOf(turns[0] as AgentEvent)).toBeGreaterThan(
+			events.findIndex((event) => event.type === 'run.started' && event.runId === 'run-2'),
+		);
 	});
 
 	it('steers a run whose access level changes by restarting Claude Code, the only way to apply it', async () => {

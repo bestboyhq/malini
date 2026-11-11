@@ -11,7 +11,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
-import { seedWorkstreamOnFakeGithub, sidebarStatus } from './fake-github';
+import { seedWorkstreamOnFakeGithub, sidebarStatus, topBarStatus } from './fake-github';
 
 function sidebarLoader(page: Page, workstreamId: string): Locator {
 	return page
@@ -99,7 +99,7 @@ test('a background agent stops from its own row', async () => {
 	}
 });
 
-test('a background command keeps its run waiting, lets the user keep talking, and stops on request', async () => {
+test('a turn that ends over a background command reads as done, lets the user keep talking, and stops the command on request', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -116,23 +116,32 @@ test('a background command keeps its run waiting, lets the user keep talking, an
 		await sendPrompt(page, 'BACKGROUND_COMMAND');
 
 		const strip = page.getByRole('region', { name: '1 background command running' });
-		const status = page.getByRole('status').filter({ hasText: 'Waiting on 1 background command' });
+		const runStatus = page.getByRole('status').filter({ hasText: /Waiting on|Agent is working/u });
 		const submit = page.getByTestId('chat-composer-submit');
+		const chatTab = page.getByTestId('chat-agent-tab');
 		await expect(strip).toContainText('Run the e2e suite', { timeout: 20_000 });
 		await expect(strip).toContainText('✓ 212 passed · 2 running');
-		await expect(status).toBeVisible();
 		await expect(
 			page.getByTestId('markdown-text').getByText('Started the e2e suite in the background.'),
 		).toBeVisible();
-		await expect(submit).not.toHaveAccessibleName('Stop current run');
-		await expect(page.getByTestId('chat-agent-tab')).toHaveAccessibleDescription(
-			'Background commands running',
-		);
+		await expect(runStatus).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Copy response' }).last()).toBeAttached();
+		await expect(submit).toHaveAccessibleName('Send prompt');
+		await expect(chatTab).toHaveAccessibleDescription('');
+		await expect(topBarStatus(page, /running/u)).toHaveCount(0);
 		await expect(sidebarStatus(page, 'e2e-background-command-ws')).toHaveAccessibleName(
 			/^Workstream status: Ready/u,
 		);
 		await expect(sidebarLoader(page, 'e2e-background-command-ws')).toHaveCount(0);
-		await captureFlow(app, 'background-command-waiting');
+		await captureFlow(app, 'background-command-turn-ended');
+
+		const closing = page.getByRole('dialog', { name: 'Close running chat' });
+		await chatTab.hover();
+		await page.getByTestId('chat-agent-tab-close').first().click();
+		await expect(closing).toBeVisible();
+		await closing.getByRole('button', { name: 'Keep working' }).click();
+		await expect(closing).toHaveCount(0);
+		await expect(strip).toContainText('Run the e2e suite');
 
 		await sendPrompt(page, 'How is it going?');
 
@@ -142,7 +151,8 @@ test('a background command keeps its run waiting, lets the user keep talking, an
 			timeout: 20_000,
 		});
 		await expect(strip).toContainText('Run the e2e suite');
-		await expect(status).toBeVisible();
+		await expect(runStatus).toHaveCount(0);
+		await expect(chatTab).toHaveAccessibleDescription('');
 		await expect(page.getByTestId('prompt-queue')).toHaveCount(0);
 		await captureFlow(app, 'background-command-handed-off');
 
@@ -182,9 +192,8 @@ test('a turn that ends while its background command keeps running shows its resu
 			'The e2e suite runs in the background.',
 			{ timeout: 20_000 },
 		);
-		await expect(
-			page.getByRole('status').filter({ hasText: 'Waiting on 1 background command' }),
-		).toBeVisible();
+		await expect(page.getByRole('status').filter({ hasText: 'Waiting on' })).toHaveCount(0);
+		await expect(page.getByRole('region', { name: '1 background command running' })).toBeVisible();
 		await expect
 			.poll(() => github.pushedSubjects()[0], { timeout: 30_000 })
 			.toBe('test: run the suite in the background');
@@ -222,9 +231,8 @@ test('steering a busy run interrupts only its turn, so its background command ke
 			timeout: 20_000,
 		});
 		await expect(strip).toContainText('Run the e2e suite');
-		await expect(
-			page.getByRole('status').filter({ hasText: 'Waiting on 1 background command' }),
-		).toBeVisible();
+		await expect(page.getByRole('status').filter({ hasText: 'Waiting on' })).toHaveCount(0);
+		await expect(submit).toHaveAccessibleName('Send prompt');
 		await expect(page.getByTestId('prompt-queue')).toHaveCount(0);
 		await captureFlow(app, 'background-command-steered');
 

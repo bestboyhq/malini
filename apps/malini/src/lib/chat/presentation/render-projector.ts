@@ -1,4 +1,3 @@
-import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import { sanitizeAgentElementReferences } from '$lib/chat/domain/element-reference';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import {
@@ -434,9 +433,6 @@ export class IncrementalRenderProjector {
 		const event = envelope.event;
 		const key = envelopeKey(envelope);
 		const runId = envelope.runId;
-		const resumed = resumesTurn(event) ? this.#runById.get(runId) : undefined;
-		if (resumed?.turnEnded) this.#withState(resumed, { turnEnded: false });
-
 		switch (event.type) {
 			case 'run.started':
 				this.#runFor(runId);
@@ -608,10 +604,12 @@ export class IncrementalRenderProjector {
 				}
 				return;
 			}
-			case 'background.updated': {
+			case 'turn.ended':
+			case 'turn.resumed': {
 				const group = this.#runFor(runId);
-				if (group.terminal === null && !group.turnEnded && replyOverCommands(event) !== null) {
-					this.#withState(group, { turnEnded: true });
+				const turnEnded = event.type === 'turn.ended';
+				if (group.terminal === null && group.turnEnded !== turnEnded) {
+					this.#withState(group, { turnEnded });
 				}
 				return;
 			}

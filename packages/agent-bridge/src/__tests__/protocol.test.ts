@@ -847,7 +847,7 @@ describe('protocol: parseCommandLine', () => {
 				'set_secrets',
 				'history_result',
 			]);
-			expect(BRIDGE_EVENT_TYPES).toHaveLength(23);
+			expect(BRIDGE_EVENT_TYPES).toHaveLength(25);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
 				'bridge.ready',
 				'bridge.capabilities',

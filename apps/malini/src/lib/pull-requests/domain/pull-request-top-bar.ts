@@ -27,18 +27,16 @@ import { failureTries, shipFailure } from './ship-failure';
 
 type StatusLine = Omit<WorkstreamStatus, 'action'>;
 
-export type AgentWork = 'agent' | 'commands';
-
 export function pullRequestTopBar(
 	ship: PullRequestShip | null,
 	surface: RepositorySurface | null,
 	availability: PullRequestAvailability,
-	agentWork: AgentWork | null = null,
+	agentWorking = false,
 ): PullRequestTopBar {
 	const read = surface !== null && repositorySurfaceHasBeenRead(surface) ? surface : null;
 	const remoteFailure = surface === null ? null : surfaceFailure(surface);
 	const url = read?.pullRequest?.url ?? ship?.pullRequestUrl ?? null;
-	const status = workstreamStatus(ship, read, availability, surface, url, agentWork);
+	const status = workstreamStatus(ship, read, availability, surface, url, agentWorking);
 	return {
 		status,
 		menu: topBarMenu(ship, surface, remoteFailure).filter(
@@ -56,10 +54,10 @@ function workstreamStatus(
 	availability: PullRequestAvailability,
 	surface: RepositorySurface | null,
 	url: string | null,
-	agentWork: AgentWork | null,
+	agentWorking: boolean,
 ): WorkstreamStatus | null {
 	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null =>
-		agentWork ? whileAgentWorks(settled, agentWork) : settled;
+		agentWorking ? whileAgentWorks(settled) : settled;
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
 	if (ship?.phase === 'needs-you' && !mergedOnGithub) return needsYou(ship, read, url);
 	const failure = mergedOnGithub ? null : shipFailure(ship);
@@ -184,12 +182,9 @@ function clearingBlockers(settled: WorkstreamStatus | null): WorkstreamStatus {
 	return working('Clearing blockers', settled);
 }
 
-function whileAgentWorks(
-	settled: WorkstreamStatus | null,
-	work: AgentWork,
-): WorkstreamStatus | null {
+function whileAgentWorks(settled: WorkstreamStatus | null): WorkstreamStatus | null {
 	if (settled?.tone !== 'idle' && settled?.tone !== 'ready') return settled;
-	return working(work === 'agent' ? 'Agent running' : 'Commands running', settled);
+	return working('Agent running', settled);
 }
 
 function working(label: string, settled: WorkstreamStatus | null): WorkstreamStatus {
