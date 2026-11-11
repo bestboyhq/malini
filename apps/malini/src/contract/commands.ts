@@ -19,6 +19,8 @@ import type {
 	ClaudeAccountSwitchOutcome,
 	ChatGptSignInOutcome,
 	ClaudeSignInOutcome,
+	ClaudeCodeUpdateArgs,
+	ClaudeCodeUpdateCheck,
 	ModelProviderRecord,
 	ProviderCapability,
 	RestoreCheckpointResult,
@@ -492,7 +494,10 @@ export interface ContractCommands {
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
 	'providers.install-claude-code': { args: undefined; result: void };
-	'providers.update-claude-code': { args: undefined; result: boolean };
+	'providers.update-claude-code': {
+		args: ClaudeCodeUpdateArgs | undefined;
+		result: ClaudeCodeUpdateCheck;
+	};
 	'providers.sign-in-to-claude': { args: ClaudeSignInArgs; result: ClaudeSignInOutcome };
 	'providers.switch-claude-account': {
 		args: ClaudeAccountArgs;

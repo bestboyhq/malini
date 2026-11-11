@@ -18,10 +18,12 @@ Every merged `feat`, `fix`, or `perf` change ships as a release, so updates are 
 ## Claude Code
 
 Malini keeps Claude Code current too.
-On launch, every six hours, and when you open the model picker, it runs `claude update`, whatever your `autoUpdates` setting says.
+On launch, every six hours, and when you open the model picker or Settings, Providers, it runs `claude update`, whatever your `autoUpdates` setting says.
 The picker checks at most once every five minutes, and lists a new model as soon as the update lands, even while it is open.
 A chat keeps the Claude Code it started with until its next prompt, then restarts on the new version and resumes the same conversation.
-A failed update shows nothing, and Malini tries again at the next check.
+When Homebrew, winget, apk or mise manages Claude Code, Malini runs that package manager's upgrade itself.
+When npm cannot write its global folder, Malini runs `claude install`, which moves Claude Code to its own native install.
+When that fails too, the model picker shows **Claude Code 2.1.311 is out**, and the row opens Settings, Providers, where **Try again** runs the update again.
 To stop it, start Malini with `MALINI_CLAUDE_UPDATES=off`.
 
 ## Compatibility

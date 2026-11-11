@@ -67,7 +67,11 @@ export function registerProviders(
 
 	context.commands.define(
 		'providers.update-claude-code',
-		async () => (await claudeUpdates?.checkIfStale()) ?? false,
+		async (args: unknown) =>
+			(await claudeUpdates?.checkIfStale(isRecord(args) && args['now'] === true)) ?? {
+				updated: false,
+				failed: null,
+			},
 	);
 
 	const fetch = deps.fetch ?? electronFetch;
@@ -234,7 +238,7 @@ function invalidEmail(): never {
 function claudeExecutable(): string | null {
 	const environment = currentEnvironment();
 	const home = homedir();
-	const path = [environment.path, join(home, '.local', 'bin'), join(home, '.claude', 'local')];
+	const path = [join(home, '.local', 'bin'), environment.path, join(home, '.claude', 'local')];
 	return resolveToolPath('claude', { ...environment, path: path.join(':') });
 }
 

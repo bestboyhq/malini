@@ -1,8 +1,16 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { blockedUpdate, ClaudeCodeUpdates } from './claude-code-updates.service';
+import { blockedUpdate, ClaudeCodeUpdates, fixCommand } from './claude-code-updates.service';
 
 const roots: string[] = [];
 
@@ -69,8 +77,8 @@ describe('ClaudeCodeUpdates', () => {
 		});
 		expect(await updates.check()).toBe(true);
 		expect(readFileSync(replaced.executable, 'utf8')).toContain('# 2.0.0');
-		expect(await updates.checkIfStale()).toBe(true);
-		expect(await updates.checkIfStale()).toBe(false);
+		expect(await updates.checkIfStale()).toEqual({ updated: true, failed: null });
+		expect(await updates.checkIfStale()).toEqual({ updated: false, failed: null });
 	});
 
 	it('keeps going when claude is missing or the update fails', async () => {
@@ -98,17 +106,19 @@ describe('ClaudeCodeUpdates', () => {
 		const updates = new ClaudeCodeUpdates({
 			executable: () => claude.executable,
 			environment: () => ({ CLAUDE_UPDATE_MARK: 'mark' }),
-			recheckAfterMs: 400,
+			recheckAfterMs: 1_000,
 		});
 
 		await Promise.all([updates.check(), updates.checkIfStale()]);
 		expect(claude.calls()).toEqual(['mark update']);
-		expect(await updates.checkIfStale()).toBe(false);
+		expect((await updates.checkIfStale()).updated).toBe(false);
 		expect(claude.calls()).toEqual(['mark update']);
-
-		await new Promise((resolve) => setTimeout(resolve, 400));
-		await updates.checkIfStale();
+		await updates.checkIfStale(true);
 		expect(claude.calls()).toEqual(['mark update', 'mark update']);
+
+		await new Promise((resolve) => setTimeout(resolve, 1_000));
+		await updates.checkIfStale();
+		expect(claude.calls()).toEqual(['mark update', 'mark update', 'mark update']);
 	});
 
 	it('reports an update that something else made, such as brew upgrade, at the next ask', async () => {
@@ -119,33 +129,77 @@ describe('ClaudeCodeUpdates', () => {
 		});
 
 		expect(await updates.check()).toBe(false);
-		expect(await updates.checkIfStale()).toBe(false);
+		expect((await updates.checkIfStale()).updated).toBe(false);
 		writeFileSync(claude.executable, `${readFileSync(claude.executable, 'utf8')}# 2.0.0\n`);
 
-		expect(await updates.checkIfStale()).toBe(true);
+		expect((await updates.checkIfStale()).updated).toBe(true);
 		expect(claude.calls()).toEqual(['mark update', 'mark update']);
 	});
 
-	it('keeps what blocks the last update, and forgets it once an update goes through', async () => {
-		const outputs = mkdtempSync(join(tmpdir(), 'malini-claude-update-output-'));
-		roots.push(outputs);
-		writeFileSync(join(outputs, 'brew'), HOMEBREW_UPDATE_AVAILABLE);
-		const claude = fakeClaude(0, `cat "${join(outputs, 'brew')}"`);
+	it('runs the upgrade Homebrew asks for, and keeps the version only while it fails', async () => {
+		const root = mkdtempSync(join(tmpdir(), 'malini-claude-homebrew-'));
+		roots.push(root);
+		const bin = join(root, 'bin');
+		const claude = join(bin, 'claude');
+		const brewLog = join(root, 'brew.log');
+		const brewFails = join(root, 'brew-fails');
+		mkdirSync(bin);
+		writeFileSync(join(root, 'update.txt'), HOMEBREW_UPDATE_AVAILABLE);
+		writeFileSync(claude, `#!/bin/sh\ncat "${join(root, 'update.txt')}"\n`);
+		writeFileSync(
+			join(bin, 'brew'),
+			[
+				'#!/bin/sh',
+				`echo "$*" >> "${brewLog}"`,
+				`[ -f "${brewFails}" ] && { echo "Error: Download failed" >&2; exit 1; }`,
+				`printf '#!/bin/sh\\necho "Claude is up to date!"\\n' > "${claude}.next" && chmod +x "${claude}.next" && mv "${claude}.next" "${claude}"`,
+			].join('\n'),
+		);
+		chmodSync(claude, 0o755);
+		chmodSync(join(bin, 'brew'), 0o755);
+		writeFileSync(brewFails, '');
 		const updates = new ClaudeCodeUpdates({
-			executable: () => claude.executable,
+			executable: () => claude,
+			environment: () => ({ PATH: `${bin}:/usr/bin:/bin` }),
+		});
+
+		expect(await updates.checkIfStale()).toEqual({
+			updated: false,
+			failed: { version: '2.1.311' },
+		});
+
+		rmSync(brewFails);
+		expect(await updates.checkIfStale(true)).toEqual({ updated: true, failed: null });
+		expect(readFileSync(brewLog, 'utf8')).toBe('upgrade claude-code\nupgrade claude-code\n');
+		expect(await updates.checkIfStale(true)).toEqual({ updated: false, failed: null });
+	});
+
+	it('moves a read-only npm install to the native one', async () => {
+		const root = mkdtempSync(join(tmpdir(), 'malini-claude-npm-'));
+		roots.push(root);
+		const npm = join(root, 'npm', 'claude');
+		const native = join(root, 'native', 'claude');
+		mkdirSync(join(root, 'npm'));
+		writeFileSync(join(root, 'stdout.txt'), NPM_READ_ONLY_STDOUT);
+		writeFileSync(join(root, 'stderr.txt'), NPM_READ_ONLY_STDERR);
+		writeFileSync(
+			npm,
+			[
+				'#!/bin/sh',
+				`if [ "$1" = install ]; then mkdir -p "${join(root, 'native')}" && printf '#!/bin/sh\\n' > "${native}" && chmod +x "${native}"; exit 0; fi`,
+				`cat "${join(root, 'stdout.txt')}"`,
+				`cat "${join(root, 'stderr.txt')}" >&2`,
+				'exit 1',
+			].join('\n'),
+		);
+		chmodSync(npm, 0o755);
+		const updates = new ClaudeCodeUpdates({
+			executable: () => (existsSync(native) ? native : npm),
 			environment: () => ({}),
 		});
 
-		await updates.check();
-		expect(updates.blocked).toEqual({
-			managedBy: 'Homebrew',
-			version: '2.1.311',
-			command: 'brew upgrade claude-code',
-		});
-
-		writeFileSync(join(outputs, 'brew'), 'Claude is managed by Homebrew.\nClaude is up to date!\n');
-		await updates.check();
-		expect(updates.blocked).toBeNull();
+		expect(await updates.checkIfStale()).toEqual({ updated: true, failed: null });
+		expect(existsSync(native)).toBe(true);
 	});
 
 	it('updates when it starts and again on every interval, until it stops', async () => {
@@ -177,7 +231,6 @@ describe('blockedUpdate', () => {
 
 	it('reads the command a package manager wants', () => {
 		expect(blockedUpdate(ran(HOMEBREW_UPDATE_AVAILABLE))).toEqual({
-			managedBy: 'Homebrew',
 			version: '2.1.311',
 			command: 'brew upgrade claude-code',
 		});
@@ -188,7 +241,6 @@ describe('blockedUpdate', () => {
 				),
 			),
 		).toEqual({
-			managedBy: 'winget',
 			version: '2.1.311',
 			command: 'winget upgrade Anthropic.ClaudeCode',
 		});
@@ -196,7 +248,6 @@ describe('blockedUpdate', () => {
 
 	it('sends a read-only npm install to the native installer', () => {
 		expect(blockedUpdate(ran(NPM_READ_ONLY_STDOUT, NPM_READ_ONLY_STDERR, 1))).toEqual({
-			managedBy: 'npm',
 			version: '2.1.322',
 			command: 'claude install',
 		});
@@ -215,6 +266,27 @@ describe('blockedUpdate', () => {
 		).toBeNull();
 		expect(blockedUpdate(ran('Successfully updated from 2.1.293 to version 2.1.322\n'))).toBeNull();
 		expect(blockedUpdate(ran('', 'Error: Failed to install native update\n', 1))).toBeNull();
+	});
+});
+
+describe('fixCommand', () => {
+	it('runs only a package manager or claude install, word by word', () => {
+		expect(fixCommand('brew upgrade claude-code@latest', '/bin/claude')).toEqual([
+			'brew',
+			['upgrade', 'claude-code@latest'],
+		]);
+		expect(fixCommand('winget upgrade Anthropic.ClaudeCode', '/bin/claude')).toEqual([
+			'winget',
+			['upgrade', 'Anthropic.ClaudeCode'],
+		]);
+		expect(fixCommand('claude install', '/opt/npm/bin/claude')).toEqual([
+			'/opt/npm/bin/claude',
+			['install'],
+		]);
+		expect(fixCommand('claude update --force', '/bin/claude')).toBeNull();
+		expect(fixCommand('rm -rf ~', '/bin/claude')).toBeNull();
+		expect(fixCommand('brew upgrade $(curl evil)', '/bin/claude')).toBeNull();
+		expect(fixCommand('cd ~/.claude/local && npm update', '/bin/claude')).toBeNull();
 	});
 });
 

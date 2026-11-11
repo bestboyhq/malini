@@ -92,8 +92,8 @@ describe('providers.update-claude-code', () => {
 		});
 
 		expect(
-			await commands.invoke({ command: 'providers.update-claude-code', args: undefined }),
-		).toEqual({ ok: true, value: false });
+			await commands.invoke({ command: 'providers.update-claude-code', args: { now: true } }),
+		).toEqual({ ok: true, value: { updated: false, failed: null } });
 		expect(existsSync(claude.argsFile)).toBe(false);
 	});
 });

@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -231,6 +231,82 @@ test('the picker lists a model that a Claude Code update brings while it is open
 		);
 
 		await expect(released).toBeVisible({ timeout: 20_000 });
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Malini runs the upgrade Homebrew asks for, and only a failed one shows, until Try again works', async () => {
+	test.setTimeout(120_000);
+	const root = temporaryRoot();
+	const bin = join(root, 'bin');
+	const brewFails = join(root, 'brew-fails');
+	const models = join(root, 'released-models.json');
+	mkdirSync(bin, { recursive: true });
+	writeFileSync(brewFails, '');
+	writeFileSync(
+		join(bin, 'claude'),
+		[
+			'#!/bin/sh',
+			'[ "$1" = update ] || exit 0',
+			'echo "Claude is managed by Homebrew."',
+			'echo "Update available: 2.1.293 → 2.1.311"',
+			'echo "To update, run:"',
+			'echo "  brew upgrade claude-code"',
+		].join('\n'),
+	);
+	writeFileSync(
+		join(bin, 'brew'),
+		[
+			'#!/bin/sh',
+			'[ "$*" = "upgrade claude-code" ] || exit 2',
+			`[ -f '${brewFails}' ] && exit 1`,
+			`printf '#!/bin/sh\\nexit 0\\n' > '${bin}/claude.next'`,
+			`chmod +x '${bin}/claude.next' && mv '${bin}/claude.next' '${bin}/claude'`,
+			`echo '[{"id":"claude-mythos-1","label":"Mythos 1","description":"Fixture release","efforts":["low","medium","high","xhigh","max"]}]' > '${models}'`,
+		].join('\n'),
+	);
+	chmodSync(join(bin, 'claude'), 0o755);
+	chmodSync(join(bin, 'brew'), 0o755);
+	const app = await launchMalini({
+		profile: root,
+		env: { MALINI_CLAUDE_UPDATES: 'on', FAKE_BRIDGE_CLAUDE_MODELS_FILE: models },
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-claude-update-blocked-ws',
+			'Claude update blocked',
+		);
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		const failedRow = page.getByRole('button', { name: /^Claude Code 2\.1\.311 is out/u });
+		const card = page.getByTestId('claude-code-setup');
+		const retry = card.getByRole('button', { name: 'Try updating Claude Code again' });
+
+		await picker.click();
+		await expect(failedRow).toBeVisible({ timeout: 20_000 });
+		await expect(failedRow).toContainText('Malini could not update it');
+		await failedRow.click();
+
+		await expect(card.getByRole('status')).toHaveText(/^Could not update .*to v2\.1\.311$/u);
+		rmSync(brewFails);
+		await retry.click();
+		await expect(card.getByRole('status')).toHaveText(/^Installed on this Mac/u, {
+			timeout: 20_000,
+		});
+		await expect(retry).toHaveCount(0);
+
+		await page.keyboard.press('Escape');
+		await picker.click();
+		await expect(
+			page.getByRole('listbox', { name: 'Models' }).getByRole('option', { name: /^Mythos 1/u }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(failedRow).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
