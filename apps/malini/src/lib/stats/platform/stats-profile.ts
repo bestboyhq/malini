@@ -40,9 +40,7 @@ const MAX_PICKS = 10;
 const REPOSITORY_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/u;
 
 export type UsageAccount =
-	| Readonly<{ state: 'anonymous' }>
-	| Readonly<{ state: 'old-terms' }>
-	| Readonly<{ state: 'accepted'; userId: string }>;
+	Readonly<{ state: 'anonymous' }> | Readonly<{ state: 'accepted'; userId: string }>;
 
 export class StatsProfile {
 	readonly #deps: StatsProfileDeps;
@@ -144,9 +142,9 @@ export class StatsProfile {
 		// ponytail: up to an hour of counts carry the account after new terms; check /api/me per count.
 		if (await this.#checkAccount(USAGE_ACCOUNT_FRESH_MS)) this.#emit();
 		const { token, unacceptedTerms, acceptedUserId } = this.#saved;
-		if (!token) return { state: 'anonymous' };
-		if (unacceptedTerms) return { state: 'old-terms' };
-		return acceptedUserId ? { state: 'accepted', userId: acceptedUserId } : { state: 'anonymous' };
+		return token && !unacceptedTerms && acceptedUserId
+			? { state: 'accepted', userId: acceptedUserId }
+			: { state: 'anonymous' };
 	}
 
 	session(): BestboySession | null {
