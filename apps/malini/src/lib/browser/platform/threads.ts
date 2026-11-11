@@ -1,19 +1,11 @@
 import type { AgentRunProfile } from '$contract/agent';
+import { hasOpenRun, isLifecycleKind } from '$contract/agent-state-machine';
 import type { BrowserElementPrompt, BrowserTabArgs } from '$contract/browser';
 import type { CommandRegistry } from '$main/ipc/registry';
 import type { ElementThread } from '$lib/chat/chat.platform';
 import type { PinStatus, ThreadPin } from './thread-pins';
 
 const ELEMENT_SCREENSHOT_NAME = 'element.png';
-const PIN_EVENTS: ReadonlySet<string> = new Set([
-	'user.message',
-	'run.started',
-	'approval.requested',
-	'question.requested',
-	'approval.decided',
-	'run.completed',
-	'run.failed',
-]);
 
 export async function startElementThread(
 	commands: Pick<CommandRegistry, 'call'>,
@@ -49,7 +41,9 @@ export async function startElementThread(
 }
 
 export function movesPin(eventType: unknown): boolean {
-	return typeof eventType === 'string' && PIN_EVENTS.has(eventType);
+	return (
+		typeof eventType === 'string' && (eventType === 'user.message' || isLifecycleKind(eventType))
+	);
 }
 
 export function threadPin(thread: ElementThread): ThreadPin {
@@ -65,6 +59,6 @@ export function threadPin(thread: ElementThread): ThreadPin {
 
 function pinStatus({ status, waiting }: ElementThread): PinStatus {
 	if (waiting) return 'waiting';
-	if (status === 'running' || status === 'waiting_for_approval') return 'working';
+	if (hasOpenRun(status)) return 'working';
 	return status === 'failed' ? 'failed' : 'done';
 }

@@ -57,16 +57,20 @@ export function setProviderKey(
 	);
 }
 
-export function setProviderPlan(db: MaliniDatabase, id: string, plan: ProviderPlan): boolean {
-	return (
-		run(
-			db,
-			'UPDATE model_providers SET plan = ?, updated_at = ? WHERE id = ? AND kind = ?',
-			plan,
-			nowIso8601(),
-			id,
-			'anthropic',
-		).changes > 0
+export function setProviderPlan(
+	db: MaliniDatabase,
+	id: string,
+	sealed: Uint8Array,
+	plan: ProviderPlan,
+): void {
+	run(
+		db,
+		'UPDATE model_providers SET plan = ?, updated_at = ? WHERE id = ? AND kind = ? AND api_key = ?',
+		plan,
+		nowIso8601(),
+		id,
+		'anthropic',
+		sealed,
 	);
 }
 

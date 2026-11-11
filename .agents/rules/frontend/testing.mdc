@@ -19,6 +19,7 @@ Unit tests exist only where e2e cannot enumerate the cases.
     A function that turns a string into DOM or DOM into a string (markdown, clipboard, link decoration) may run under `// @vitest-environment jsdom` for the parser alone.
   - Main-process code under `src/main`, `src/contract`, `src/lib/**/platform/` and `*.platform.test.ts`, against the real `node:sqlite` and the real filesystem.
     Stub only what is outside malini: Electron, the OS, the network.
+    In this `main` vitest project `vi.waitFor` waits up to 10 s (`vitest.setup.ts`, ADR 0214), because its tests run in parallel; pass your own `timeout` to wait less.
 
 ## Never
 

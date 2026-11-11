@@ -46,6 +46,29 @@ test('closing the window asks first, Keep working keeps it open, and Close Malin
 	}
 });
 
+test('a reloaded window still asks before it closes', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		await expect(page).toHaveTitle('Malini · Repositories');
+		await page.reload();
+		await expect(page).toHaveTitle('Malini · Repositories');
+		const dialog = page.getByRole('dialog', { name: 'Close Malini' });
+
+		await expect(async () => {
+			await closeWindow(electronApp);
+			await expect(dialog).toBeVisible({ timeout: 1_000 });
+		}).toPass({ timeout: 20_000 });
+		expect(await openWindows(electronApp)).toBe(1);
+		await dialog.getByRole('button', { name: 'Keep working' }).click();
+		await expect(dialog).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('quitting while a prompt is still on its way to Claude Code records no error', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_ACK_DELAY_MS: '2000' } });

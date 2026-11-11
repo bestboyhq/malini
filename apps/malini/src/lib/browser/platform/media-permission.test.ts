@@ -60,6 +60,20 @@ describe('rememberMediaAnswers', () => {
 		expect(asked).toEqual(['Allow this worktree page to use your microphone?']);
 	});
 
+	it('gives two sites that ask at once their own answers, one question at a time', async () => {
+		const { asked, media } = asker([true, false]);
+		const answers = await Promise.all([
+			media.request('http://localhost:5173/', ['audio']),
+			media.request('http://localhost:5174/', ['audio']),
+			media.request('http://localhost:5173/', ['audio']),
+		]);
+		expect(answers).toEqual([true, false, true]);
+		expect(asked).toEqual([
+			'Allow localhost:5173 to use your microphone?',
+			'Allow localhost:5174 to use your microphone?',
+		]);
+	});
+
 	it('refuses without asking when there is no site or no device', async () => {
 		const { asked, media } = asker([true]);
 		expect(await media.request('null', ['audio'])).toBe(false);

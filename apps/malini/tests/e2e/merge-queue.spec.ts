@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -747,6 +748,39 @@ test('a Fix checks automation that keeps failing gives up, says so once, and Ret
 
 		await expectMergedAndArchived(page, 'e2e-fix-gave-up');
 		expect(mergeCalls(github)).toHaveLength(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Fix checks gets the attempts you set for each failing check, then needs you', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-fix-each-check', {
+			liveHead: true,
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: [{ name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' }],
+			nextChecks: FAILED,
+		});
+		github.setPullRequest({ checksHead: github.pushedHead() });
+		await invoke(page, 'app.set-setting', { key: MERGE_QUEUE_FIX_ATTEMPTS_SETTING, value: '1' });
+		await openWorkstream(page, 'e2e-fix-each-check');
+
+		await queueMerge(page);
+
+		await expect(topBarStatus(page, /Fix gave up/u)).toBeVisible({ timeout: 120_000 });
+		expect(await fixChecksRuns(app.page)).toHaveLength(2);
+		await page
+			.getByRole('button', { name: 'Open the transcript of the automation that stopped' })
+			.click();
+		await expect(
+			page.getByRole('region', { name: 'Merge stopped on this automation' }),
+		).toContainText('Malini tried once', { timeout: 20_000 });
+		await captureFlow(app, 'merge-queue-fix-gave-up-per-check');
+		expect(mergeCalls(github)).toEqual([]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

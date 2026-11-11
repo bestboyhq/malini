@@ -30,11 +30,13 @@ export class LocalEndpoint {
 	}
 
 	address(): Promise<ProxyAddress> {
-		this.#address ??= this.#listen().catch((error: unknown) => {
-			this.#address = null;
+		if (this.#address) return this.#address;
+		const address = this.#listen().catch((error: unknown) => {
+			if (this.#address === address) this.#address = null;
 			throw error;
 		});
-		return this.#address;
+		this.#address = address;
+		return address;
 	}
 
 	stop(): void {
@@ -51,9 +53,11 @@ export class LocalEndpoint {
 			});
 		});
 		server.requestTimeout = REQUEST_TIMEOUT_MS;
+		this.#server = server;
 		let port = 0;
 		await new Promise<void>((resolve, reject) => {
 			server.once('error', reject);
+			server.once('close', () => reject(new Error('The local proxy stopped.')));
 			server.listen({ port: 0, host: '127.0.0.1' }, () => {
 				server.removeListener('error', reject);
 				const address = server.address();
@@ -61,7 +65,6 @@ export class LocalEndpoint {
 				resolve();
 			});
 		});
-		this.#server = server;
 		return { baseUrl: `http://127.0.0.1:${port}`, token: this.#secret.toString() };
 	}
 

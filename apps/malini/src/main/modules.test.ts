@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -178,6 +179,21 @@ describe('the main module graph', () => {
 			},
 			{ timeout: 10_000, interval: 500 },
 		);
+	});
+
+	it('stops a dependency install when Malini quits', async () => {
+		const { modules } = await bootModules();
+		const install = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+		cleanups.push(() => {
+			if (install.exitCode === null && install.signalCode === null) install.kill('SIGKILL');
+		});
+		const slot = modules.repositories.installs.claim('ws-installing');
+		install.once('exit', () => slot?.dispose());
+		slot?.attach(install.pid ?? 0);
+
+		await modules.shutdown();
+
+		expect(install.signalCode).toBe('SIGTERM');
 	});
 
 	it('archives retired chats once boot has registered the modules teardown needs', async () => {

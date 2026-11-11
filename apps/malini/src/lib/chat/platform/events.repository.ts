@@ -2,7 +2,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
 import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
-import type { SessionStatus } from '$contract/agent-state-machine';
+import { isWaitingForUser, type SessionStatus } from '$contract/agent-state-machine';
 import type { WorkstreamTurn } from '$contract/stats';
 import { workstreamImagePath } from '$contract/workstream-images';
 import { hasTurnReport, markdownImages, parseTurnReport } from '../domain/turn-report';
@@ -529,11 +529,9 @@ export type ElementThread = Readonly<{
 }>;
 
 export function listElementThreads(db: MaliniDatabase, workstreamId: string): ElementThread[] {
-	return all<{ id: string; status: SessionStatus; waiting: number; event: string | null }>(
+	return all<{ id: string; status: SessionStatus; event: string | null }>(
 		db,
 		`SELECT s.id, s.status,
-		        EXISTS (SELECT 1 FROM agent_interactions i
-		                WHERE i.session_id = s.id AND i.state = 'pending') AS waiting,
 		        (SELECT e.event FROM agent_events e
 		         WHERE e.session_id = s.id AND e.event LIKE 'user.message' || char(10) || '%'
 		         ORDER BY e.seq LIMIT 1) AS event
@@ -548,7 +546,7 @@ export function listElementThreads(db: MaliniDatabase, workstreamId: string): El
 			{
 				sessionId: row.id,
 				status: row.status,
-				waiting: row.waiting === 1,
+				waiting: isWaitingForUser(row.status),
 				...anchor,
 				outcome: latestSessionReport(db, row.id)?.outcome ?? null,
 			},

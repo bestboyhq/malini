@@ -17,11 +17,21 @@ function run(argv) {
 	return String(values.objectForKey(key).js);
 }`;
 
-export async function requireFreeSpace(path: string, needed: number, task: string): Promise<void> {
-	const volume = nearestExisting(path);
+let availableBytes = async (volume: string, needed: number): Promise<number> => {
 	const free = await freeBytes(volume);
-	if (free >= needed) return;
-	const usable = Math.max(free, (await usableBytes(volume)) ?? 0);
+	return free >= needed ? free : Math.max(free, (await usableBytes(volume)) ?? 0);
+};
+
+export function installFreeSpaceForTests(bytes: (volume: string) => number): () => void {
+	const previous = availableBytes;
+	availableBytes = async (volume) => bytes(volume);
+	return () => {
+		availableBytes = previous;
+	};
+}
+
+export async function requireFreeSpace(path: string, needed: number, task: string): Promise<void> {
+	const usable = await availableBytes(nearestExisting(path), needed);
 	if (usable >= needed) return;
 	throw new Error(
 		`Only ${gigabytes(usable)} is free, and ${task} needs ${gigabytes(needed)}. Archive old workstreams or free up space.`,

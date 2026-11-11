@@ -76,6 +76,7 @@ import {
 	listPendingDecisions,
 	saveDecision,
 } from './reconciler-decisions.repository';
+import { BackgroundWork } from './background-work';
 
 export class ReconcilerError extends Error {
 	readonly kind: 'not-found' | 'invalid-args' | 'decided';
@@ -116,6 +117,7 @@ export class Reconciler {
 	readonly #choose: ChooseWithAutomation;
 	readonly #rules: ReconcilerRules;
 	readonly #deliver: DeliverWake;
+	readonly #work: BackgroundWork;
 	readonly #queue = new Map<string, QueuedEvent>();
 	readonly #shippingQueues = new Map<string, ShippingQueue>();
 	#working: Promise<void> | null = null;
@@ -127,12 +129,14 @@ export class Reconciler {
 		choose: ChooseWithAutomation,
 		rules: ReconcilerRules,
 		deliver: DeliverWake,
+		work = new BackgroundWork(log),
 	) {
 		this.#context = context;
 		this.#log = log;
 		this.#choose = choose;
 		this.#rules = rules;
 		this.#deliver = deliver;
+		this.#work = work;
 	}
 
 	start(): void {
@@ -158,6 +162,7 @@ export class Reconciler {
 
 	dispose(): void {
 		this.#stopped = true;
+		for (const { done } of this.#queue.values()) done();
 		this.#queue.clear();
 	}
 
@@ -170,24 +175,24 @@ export class Reconciler {
 	async handle(event: DispatchedEvent): Promise<void> {
 		this.#answerWithRun(event);
 		const heard = RULES.filter((rule) => ruleHears(rule, event.channel));
-		const matched = heard.includes('triggers') && (await this.#apply('triggers', event)) === true;
-		await Promise.all(
-			heard.filter((rule) => rule !== 'triggers').map((rule) => this.#apply(rule, event)),
-		);
-		if (!ruleHears('model', event.channel)) return;
-		await this.#consider(event, matched);
+		const failed: Rule[] = [];
+		const apply = (rule: Rule): Promise<unknown> =>
+			this.#apply(rule, event).catch((error: unknown) => {
+				this.#log(
+					`automations: the ${rule} rule could not handle ${event.channel}: ${describeError(error)}`,
+				);
+				failed.push(rule);
+				return false;
+			});
+		const matched = heard.includes('triggers') && (await apply('triggers')) === true;
+		await Promise.all(heard.filter((rule) => rule !== 'triggers').map(apply));
+		if (ruleHears('model', event.channel)) await this.#consider(event, matched);
+		if (failed.length > 0) throw new Error(`the ${failed.join(', ')} rule failed`);
 	}
 
 	async #apply(rule: Rule, event: DispatchedEvent): Promise<unknown> {
-		try {
-			if (rule === 'shipping') return await this.#ship(event);
-			return await this.#rules[rule](event);
-		} catch (error) {
-			this.#log(
-				`automations: the ${rule} rule could not handle ${event.channel}: ${describeError(error)}`,
-			);
-			return false;
-		}
+		if (rule === 'shipping') return this.#ship(event);
+		return this.#rules[rule](event);
 	}
 
 	async #ship(event: DispatchedEvent): Promise<void> {
@@ -297,6 +302,7 @@ export class Reconciler {
 			this.#working = null;
 			if (this.#queue.size > 0 && !this.#stopped) this.#drain();
 		});
+		this.#work.add(this.#working);
 	}
 
 	async #reconcile(event: DispatchedEvent): Promise<void> {
@@ -487,6 +493,9 @@ export class Reconciler {
 	}
 
 	#subject(decision: ReconcilerDecisionRecord): string {
+		if (decision.channel === REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL) {
+			return conflictSubject(decision.workstreamId ?? '');
+		}
 		const run =
 			decision.subjectRunId === null
 				? null
@@ -668,7 +677,7 @@ export class Reconciler {
 	}
 
 	#background(work: Promise<unknown>): void {
-		void work.catch((error: unknown) => this.#log(`automations: ${describeError(error)}`));
+		this.#work.add(work);
 	}
 }
 
@@ -677,19 +686,26 @@ function subjectKey(event: DispatchedEvent): string | null {
 	if (channel === AUTOMATIONS_RUN_FINISHED_CHANNEL) {
 		const run = isRecord(payload) ? payload['run'] : null;
 		const status = isRecord(run) ? run['status'] : null;
-		const id = findString(run, 'id');
-		if (id === null) return null;
-		return status === 'succeeded' || status === 'failed' ? `run:${id}` : null;
+		const definitionId = findString(run, 'definitionId');
+		if (definitionId === null || (status !== 'succeeded' && status !== 'failed')) return null;
+		return runSubject({ definitionId, workstreamId: findString(run, 'workstreamId') });
 	}
 	if (channel === REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL) {
 		const workstreamId = findString(payload, 'workstreamId');
-		return workstreamId === null ? null : `conflict:${workstreamId}`;
+		return workstreamId === null ? null : conflictSubject(workstreamId);
 	}
 	return null;
 }
 
-function runSubject(run: AutomationRunRecord): string {
-	return `automation:${run.definitionId}:${run.workstreamId ?? ''}`;
+function runSubject({
+	definitionId,
+	workstreamId,
+}: Pick<AutomationRunRecord, 'definitionId' | 'workstreamId'>): string {
+	return `automation:${definitionId}:${workstreamId ?? ''}`;
+}
+
+function conflictSubject(workstreamId: string): string {
+	return `conflict:${workstreamId}`;
 }
 
 function subjectRunId(event: DispatchedEvent): string | null {

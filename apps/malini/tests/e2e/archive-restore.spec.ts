@@ -1,9 +1,17 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+	appendFileSync,
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { ArchivedWorkstreamDto } from '../../src/contract/repositories';
 import {
+	APP_ROOT,
 	captureFlow,
 	clickRevealedOnHover,
 	createSourceRepo,
@@ -16,6 +24,11 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
+
+const ELECTRON_DEFAULT_APP = join(
+	APP_ROOT,
+	'node_modules/electron/dist/Electron.app/Contents/Resources/default_app.asar',
+);
 
 test('an archived workstream comes back from its repository in the sidebar with its chat, commits and uncommitted work', async () => {
 	test.setTimeout(180_000);
@@ -113,6 +126,30 @@ test('a read that reaches a workstream after its archive says it was retired and
 				/archived or deleted/u,
 			);
 		}
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('an archived workstream keeps the notes in its context folder and drops an Electron app built there', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-archived-app-build', 'Built an app');
+		const context = join(seeded.worktree, '.context');
+		const resources = join(context, 'Update.app', 'Contents', 'Resources');
+		mkdirSync(resources, { recursive: true });
+		copyFileSync(ELECTRON_DEFAULT_APP, join(resources, 'app.asar'));
+		writeFileSync(join(context, 'notes.md'), 'kept\n');
+
+		await invoke(page, 'repositories.archive-workstream', { workstreamId: seeded.workstreamId });
+		await invoke(page, 'repositories.restore-workstream', { workstreamId: seeded.workstreamId });
+
+		expect(readFileSync(join(context, 'notes.md'), 'utf8')).toBe('kept\n');
+		expect(existsSync(join(context, 'Update.app'))).toBe(false);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -15,6 +15,7 @@ Each rule names the events it hears in `RULE_EVENTS` (`src/lib/automations/domai
 The renderer subscribes through `onPlatformEvent(channel, listener)` from `$shared/port/events`, called only from infrastructure services.
 Every channel and its payload type is declared in `ContractEvents` in `$contract/events`.
 Its `EVENT_CATALOG` entry lists its `facts`, the payload fields an automation sees unless you let it see the event in full: only ids, statuses, paths and counts, never what you typed (0151).
+The entry also lists the `values` its state fields can hold, and a new trigger on any other value is refused (0201).
 
 ## The one-event rule
 

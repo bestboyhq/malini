@@ -1,13 +1,15 @@
 import type { AutomationRunStatus, ShippingAutomationBuiltin } from '$contract/automations';
-import type {
-	PullRequestChangedEvent,
-	PullRequestFailedCheck,
-	PullRequestMergeability,
-	PullRequestReviewItem,
-	ShipNeedsYouReason,
-	ShipPhase,
-	ShipStateRecord,
-	ShipStep,
+import {
+	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
+	MERGE_QUEUE_FIX_ATTEMPTS_RANGE,
+	type PullRequestChangedEvent,
+	type PullRequestFailedCheck,
+	type PullRequestMergeability,
+	type PullRequestReviewItem,
+	type ShipNeedsYouReason,
+	type ShipPhase,
+	type ShipStateRecord,
+	type ShipStep,
 } from '$contract/pull-requests';
 import type {
 	PullRequestCheckDto,
@@ -17,6 +19,8 @@ import type {
 } from '$contract/repositories';
 
 export type PullRequestFacts = PullRequestChangedEvent;
+
+export type FixAttempts = ReadonlyMap<string, number>;
 
 export type ShippingAutomation = Readonly<{
 	builtin: ShippingAutomationBuiltin | null;
@@ -49,7 +53,7 @@ export type ShippingSnapshot = Readonly<{
 	failureSignature: string | null;
 	checksRerun: Readonly<{ headSha: string; at: number }> | null;
 	fixSucceededAt: number | null;
-	attempts: number;
+	fixAttempts: FixAttempts;
 	fixAttemptLimit: number;
 	backoffUntil: number | null;
 	waitsForYou: boolean;
@@ -89,6 +93,7 @@ export type ShippingMove =
 			reason: ShipNeedsYouReason;
 			detail: string;
 			automationRunId: string | null;
+			signature?: string;
 	  }>;
 
 export type ReviewRouting = Readonly<{
@@ -192,6 +197,17 @@ const AUTOMATION_LABELS: Readonly<Record<ShippingAutomationBuiltin, string>> = {
 	'resolve-conflicts': 'Resolving conflicts',
 	'address-review': 'Addressing the review',
 };
+
+const SHIP_PHASE_MOVES: Readonly<Record<ShipPhase, readonly ShipPhase[]>> = {
+	local: ['local', 'draft', 'queued'],
+	draft: ['local', 'draft', 'queued'],
+	queued: ['local', 'draft', 'queued', 'needs-you'],
+	'needs-you': ['local', 'draft', 'queued', 'needs-you'],
+};
+
+export function shipPhaseMoves(from: ShipPhase, to: ShipPhase): boolean {
+	return SHIP_PHASE_MOVES[from].includes(to);
+}
 
 export function nextShippingMove(snapshot: ShippingSnapshot): ShippingMove {
 	if (snapshot.phase === 'needs-you') return { kind: 'idle', problem: null };
@@ -367,20 +383,16 @@ export function reviewSignature(review: ReviewToAddress): string {
 
 export function reviewToStart(
 	pullRequest: PullRequestFacts,
-	ship: Readonly<{
-		addressedReviews: readonly string[];
-		failureSignature: string | null;
-		attempts: number;
-	}>,
+	ship: Readonly<{ addressedReviews: readonly string[]; fixAttempts: FixAttempts }>,
 	attemptLimit: number,
 ): ReviewStart | null {
 	if (pullRequest.state !== 'open' && pullRequest.state !== 'draft') return null;
 	const review = reviewToAddress(pullRequest, ship.addressedReviews);
 	if (review.changeRequests.length === 0) return null;
 	const signature = reviewSignature(review);
-	const repeated = ship.failureSignature === signature;
-	if (repeated && ship.attempts >= attemptLimit) return null;
-	return { signature, attempt: repeated ? ship.attempts + 1 : 1 };
+	const spent = ship.fixAttempts.get(signature) ?? 0;
+	if (spent >= attemptLimit) return null;
+	return { signature, attempt: spent + 1 };
 }
 
 export function addressedChangeRequests(signature: string | null): readonly string[] {
@@ -414,9 +426,13 @@ export function shipBackoffMs(failures: number, delays: ShipDelays): number {
 	return Math.min(delays.backoffBaseMs * 2 ** doublings, delays.backoffCapMs);
 }
 
-export function clampedFixAttempts(value: string | undefined, fallback: number): number {
-	const parsed = Number.parseInt(value ?? '', 10);
-	return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 20) : fallback;
+export function clampedFixAttempts(value: string | undefined): number {
+	const parsed = Number(value ?? '');
+	if (value === undefined || value.trim() === '' || !Number.isFinite(parsed)) {
+		return DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS;
+	}
+	const { min, max } = MERGE_QUEUE_FIX_ATTEMPTS_RANGE;
+	return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
 export function pullRequestReadEvery(
@@ -589,7 +605,6 @@ export function checksRerunOf(snapshot: ShippingSnapshot, pullRequest: PullReque
 	const rerun = snapshot.checksRerun;
 	return (
 		rerun !== null &&
-		snapshot.attempts === 0 &&
 		rerun.headSha === pullRequest.headSha &&
 		signatureChecks(snapshot.failureSignature).length > 0
 	);
@@ -699,20 +714,23 @@ function fixAutomation(
 	builtin: ShippingAutomationBuiltin,
 	failure: string,
 ): ShippingMove {
-	const repeated = snapshot.failureSignature === failure;
-	if (repeated && snapshot.attempts >= snapshot.fixAttemptLimit) {
-		const tries = snapshot.attempts === 1 ? 'once' : `${snapshot.attempts} times`;
-		return needsYou(
-			snapshot,
-			'fix-gave-up',
-			`${AUTOMATION_LABELS[builtin]} did not work. Malini tried ${tries}.`,
-		);
+	const spent = snapshot.fixAttempts.get(failure) ?? 0;
+	if (spent >= snapshot.fixAttemptLimit) {
+		const tries = spent === 1 ? 'once' : `${spent} times`;
+		return {
+			...needsYou(
+				snapshot,
+				'fix-gave-up',
+				`${AUTOMATION_LABELS[builtin]} did not work. Malini tried ${tries}.`,
+			),
+			signature: failure,
+		};
 	}
 	return {
 		kind: 'run-automation',
 		builtin,
 		signature: failure,
-		attempt: repeated ? snapshot.attempts + 1 : 1,
+		attempt: spent + 1,
 	};
 }
 
@@ -720,7 +738,7 @@ function needsYou(
 	snapshot: ShippingSnapshot,
 	reason: ShipNeedsYouReason,
 	detail: string,
-): ShippingMove {
+): Extract<ShippingMove, { kind: 'needs-you' }> {
 	return {
 		kind: 'needs-you',
 		reason,

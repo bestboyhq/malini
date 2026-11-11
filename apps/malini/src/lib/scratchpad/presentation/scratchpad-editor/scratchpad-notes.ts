@@ -10,7 +10,7 @@ export type ScratchpadNote = Readonly<{
 export function scratchpadNotes(doc: ProseMirrorNode): ScratchpadNote[] {
 	const notes: ScratchpadNote[] = [];
 	doc.descendants((node, pos) => {
-		if (node.type.name !== 'paragraph') return node.isBlock;
+		if (node.type.name !== 'paragraph' && node.type.name !== 'heading') return node.isBlock;
 		const note = noteAt(doc.resolve(pos + 1));
 		if (note?.pos === pos) notes.push(note);
 		return false;
@@ -20,7 +20,7 @@ export function scratchpadNotes(doc: ProseMirrorNode): ScratchpadNote[] {
 
 export function noteAt($pos: ResolvedPos): ScratchpadNote | null {
 	const paragraph = paragraphDepth($pos);
-	if (paragraph === null) return null;
+	if (paragraph === null) return sectionAt($pos);
 	const inListItem = $pos.node(paragraph - 1).type.name === 'listItem';
 	const owner = inListItem ? paragraph - 1 : paragraph;
 	let cut = owner;
@@ -31,6 +31,21 @@ export function noteAt($pos: ResolvedPos): ScratchpadNote | null {
 		to: $pos.after(cut),
 		prompt: markdownLines($pos.node(owner)).join('\n').trim(),
 	};
+}
+
+function sectionAt($pos: ResolvedPos): ScratchpadNote | null {
+	if ($pos.depth !== 1 || $pos.parent.type.name !== 'heading') return null;
+	const doc = $pos.node(0);
+	const from = $pos.before(1);
+	const lines = markdownLines($pos.parent);
+	let to = $pos.after(1);
+	for (let index = $pos.index(0) + 1; index < doc.childCount; index += 1) {
+		const block = doc.child(index);
+		if (block.type.name === 'heading') break;
+		lines.push(...markdownLines(block));
+		to += block.nodeSize;
+	}
+	return { pos: from, from, to, prompt: lines.join('\n').trim() };
 }
 
 function paragraphDepth($pos: ResolvedPos): number | null {

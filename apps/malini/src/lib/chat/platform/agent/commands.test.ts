@@ -342,7 +342,7 @@ describe('prompt round trips', () => {
 			profile: { effort: 'high', mode: 'agent' },
 		});
 		expect(runId).toBe('run-req-1');
-		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		await waitFor(() => turnLanded(runId));
 		await service.runtime.settlePump();
 
 		const rows = listEventRowsForSession(test.db, sessionId, 0);
@@ -493,6 +493,26 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, busyRun)).toMatchObject({ error: 'cancelled' });
 		expect(getRun(test.db, steerRun)).toMatchObject({ summary: 'done', error: null });
 		expect(getSession(test.db, sessionId)?.status).toBe('completed');
+	});
+
+	it('keeps a chat running when a steer fails before it reaches the live run', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const busyRun = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+		run(
+			test.db,
+			`CREATE TRIGGER refuse_steer BEFORE INSERT ON agent_events WHEN NEW.event LIKE '%Instead%'
+			 BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`,
+		);
+
+		expect(
+			await invokeError('chat.send-prompt', { sessionId, prompt: 'Instead', steer: true }),
+		).toContain('could not record the prompt');
+
+		expect(getRun(test.db, busyRun)?.completedAt).toBeNull();
+		expect(getSession(test.db, sessionId)?.status).toBe('running');
 	});
 
 	it('hands a prompt only the skills chosen for its chat, and every skill otherwise', async () => {
@@ -966,7 +986,7 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, 'run-req-x')).toMatchObject({
 			error: 'agent bridge send failed: bridge protocol error: NO_SESSION: no active session',
 		});
-		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(getSession(test.db, sessionId)?.status).toBe('failed');
 		const kinds = listEventRowsForSession(test.db, sessionId, 0).map((row) => row.kind);
 		expect(kinds).toEqual(['session.state', 'user.message', 'run.failed']);
 		expect(await invokeBoolean('chat.workstream-has-open-run', { workstreamId: 'ws-1' })).toBe(
@@ -974,8 +994,14 @@ describe('prompt round trips', () => {
 		);
 	});
 
+	function turnLanded(runId: string): boolean {
+		const turn = getRun(test.db, runId);
+		if (turn === null || turn.completedAt === null) return false;
+		return listEventRowsForSession(test.db, turn.sessionId, 0).at(-1)?.kind === 'session.state';
+	}
+
 	async function finishTurn(runId: string): Promise<void> {
-		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		await waitFor(() => turnLanded(runId));
 		await service.runtime.settlePump();
 		await service.namer.settled();
 	}
@@ -1844,7 +1870,7 @@ describe('turn preparation', () => {
 		);
 		expect(turn?.completed_at).not.toBeNull();
 		expect(turn?.error).toContain('no such table: skill_choices');
-		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(getSession(test.db, sessionId)?.status).toBe('failed');
 		expect(prompts(sent)).toEqual([]);
 	});
 

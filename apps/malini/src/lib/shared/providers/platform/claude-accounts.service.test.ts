@@ -51,6 +51,10 @@ if (args[1] === 'status') {
 const refreshToken = process.env.CLAUDE_CODE_OAUTH_REFRESH_TOKEN;
 const email = (args[2] || '').replace('--email=', '');
 log({ refreshToken: refreshToken || null, scopes: process.env.CLAUDE_CODE_OAUTH_SCOPES || null, email });
+if (fs.existsSync(path.join(root, 'hold'))) {
+	setInterval(() => undefined, 60_000);
+	return;
+}
 if (!refreshToken) signIn(email, ['user:inference', 'user:profile']);
 else if (server.tokens[refreshToken]) {
 	const owner = server.tokens[refreshToken];
@@ -120,7 +124,11 @@ function fakeClaudeCode(cipher: SecretCipher = reversing) {
 			JSON.stringify({ ...(isRecord(server) ? server : {}), tokens: Object.fromEntries(kept) }),
 		);
 	};
-	return { directory, accounts, logins, signedIn, revoke };
+	const hold = (held: boolean): void => {
+		if (held) writeFileSync(join(root, 'hold'), '');
+		else rmSync(join(root, 'hold'));
+	};
+	return { directory, accounts, logins, signedIn, revoke, hold };
 }
 
 describe('Claude accounts', () => {
@@ -168,6 +176,27 @@ describe('Claude accounts', () => {
 		expect(await waiting).toBe('cancelled');
 		expect(claude.signedIn()).toBe(PRIVATE);
 		expect(claude.logins()).toHaveLength(1);
+	});
+
+	it('cancels a switch and keeps the account it was switching to', async () => {
+		const claude = fakeClaudeCode();
+		await claude.accounts.signIn(PRIVATE);
+		await claude.accounts.signIn(WORK);
+
+		claude.hold(true);
+		const switching = claude.accounts.switchTo(PRIVATE);
+		await expect.poll(() => claude.logins().length).toBe(3);
+		claude.accounts.cancelSignIn();
+		expect(await switching).toBe('cancelled');
+		claude.hold(false);
+
+		const queued = claude.accounts.switchTo(PRIVATE);
+		claude.accounts.cancelSignIn();
+		expect(await queued).toBe('cancelled');
+		expect(claude.logins()).toHaveLength(3);
+
+		expect(await claude.accounts.switchTo(PRIVATE)).toBe('switched');
+		expect(claude.signedIn()).toBe(PRIVATE);
 	});
 
 	it('saves nothing when this Mac cannot encrypt it', async () => {

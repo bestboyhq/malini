@@ -10,6 +10,7 @@ export class ProviderCapabilitiesStore {
 	loadState = $state<ProviderCapabilityLoadState>('idle');
 	error = $state<string | null>(null);
 	lastVerifiedAt = $state<number | null>(null);
+	checkingAgain = $state<boolean>(false);
 
 	readonly #load: (refresh: boolean) => Promise<ProviderCapability[]>;
 	#inflight: Promise<void> | null = null;
@@ -57,11 +58,11 @@ export class ProviderCapabilitiesStore {
 		if (!force && this.loadState === 'ready') return Promise.resolve();
 
 		this.loadState = 'loading';
-		this.error = null;
 		const operation = (async () => {
 			try {
 				const capabilities = await this.#load(force);
 				this.capability = capabilities.at(-1) ?? null;
+				this.error = null;
 				this.lastVerifiedAt = Date.now();
 				this.loadState = 'ready';
 			} catch (error: unknown) {

@@ -45,6 +45,7 @@ function start(shipping?: ShippingRule): void {
 		log: (line) => logged.push(line),
 		...(shipping ? { shipping } : {}),
 	});
+	automations.start();
 }
 
 beforeEach(() => {

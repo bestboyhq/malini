@@ -8,6 +8,8 @@ import {
 	MERGE_QUEUE_FIX_ATTEMPTS_RANGE,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 } from '$contract/pull-requests';
+import { automationsMaxConcurrent } from '$lib/automations/domain/automation-run';
+import { clampedFixAttempts } from '$lib/pull-requests/domain/shipping';
 
 export type AutomationSettingKey =
 	typeof AUTOMATIONS_MAX_CONCURRENT_SETTING | typeof MERGE_QUEUE_FIX_ATTEMPTS_SETTING;
@@ -30,9 +32,9 @@ export const AUTOMATION_SETTING_BOUNDS: Readonly<
 };
 
 export function clampAutomationSetting(key: AutomationSettingKey, value: number): number {
-	const { min, max, fallback } = AUTOMATION_SETTING_BOUNDS[key];
-	if (!Number.isFinite(value)) return fallback;
-	return Math.min(max, Math.max(min, Math.round(value)));
+	return key === MERGE_QUEUE_FIX_ATTEMPTS_SETTING
+		? clampedFixAttempts(String(value))
+		: automationsMaxConcurrent(String(value));
 }
 
 export function automationSettingsFromStored(

@@ -1,3 +1,4 @@
+import { isWaitingForUser } from '$contract/agent-state-machine';
 import type { SessionRecord, SessionState } from '$lib/chat/domain/session-record';
 
 export function preferredVisualSessionsByWorkstream(
@@ -32,7 +33,7 @@ function sessionIsPreferred(candidate: SessionRecord, current: SessionRecord): b
 }
 
 function visualSessionPriority(status: SessionState): number {
-	if (status === 'waiting_for_approval') return 2;
+	if (isWaitingForUser(status)) return 2;
 	if (status === 'running') return 1;
 	return 0;
 }

@@ -308,6 +308,29 @@ describe('archiving a workstream', () => {
 			expect.stringContaining('its workstream is live and already has a checkout'),
 		);
 	});
+
+	it('drops the snapshot refs a deleted workstream left behind on the next start', async () => {
+		const repo = await harness();
+		await createWorkstream(repo, 'ws-live');
+		await createWorkstream(repo, 'ws-gone');
+		const snapshotRefs = (workstreamId: string) =>
+			['checkpoints', 'run-changes', 'user-baselines'].map(
+				(namespace) => `refs/malini/${namespace}/${workstreamId}/snap-1`,
+			);
+		for (const ref of [...snapshotRefs('ws-live'), ...snapshotRefs('ws-gone')]) {
+			await realGit(repo.base, ['update-ref', ref, 'HEAD']);
+		}
+		await repo.invoke('repositories.delete-workstream', { workstreamId: 'ws-gone' });
+		await archivedLeftoversCleared();
+
+		await repo.restart();
+		await archivedLeftoversCleared();
+
+		const left = await realGit(repo.base, ['for-each-ref', '--format=%(refname)', 'refs/malini/']);
+		expect(left.trim().split('\n').sort()).toEqual(
+			['refs/malini/archived/ws-gone', ...snapshotRefs('ws-live')].sort(),
+		);
+	});
 });
 
 async function branchExists(repo: Harness, branch: string): Promise<boolean> {

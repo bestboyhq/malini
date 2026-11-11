@@ -44,11 +44,13 @@ export default defineConfig({
 					name: 'main',
 					include: [
 						'src/main/**/*.test.ts',
+						'src/preload/**/*.test.ts',
 						'src/contract/**/*.test.ts',
 						'src/lib/**/platform/**/*.test.ts',
 						'src/lib/**/*.platform.test.ts',
 					],
 					environment: 'node',
+					setupFiles: ['./vitest.setup.ts'],
 					testTimeout: 30_000,
 					unstubEnvs: true,
 					env: {

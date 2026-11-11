@@ -83,35 +83,34 @@ export async function moveCheckoutsHome({
 	const from = home ?? appDataRoot;
 	const to = chosen ?? home ?? defaultRoot;
 	if (from === to) return from;
-	const problem = chosen ? await folderProblem(to, from) : await otherDisk(to, from);
-	if (problem) return keepCheckouts(db, from, to, problem);
+	const resumed = chosen !== null && moveStarted(db);
+	const problem = chosen && !resumed ? await folderProblem(to, from) : await otherDisk(to, from);
+	if (problem) return keepCheckouts(db, from, to, problem, resumed);
+	writeSetting(
+		db,
+		CHOSEN_FOLDER_SETTING,
+		JSON.stringify({ appData: appDataRoot, folder: to, started: true }),
+	);
 	const undo: Undo[] = [];
-	const emptied: string[] = [];
 	try {
 		for (const name of MOVED_FOLDERS) {
 			await unlinkLinkTo(join(to, name), join(from, name), undo);
-			if (await moveFolder(join(from, name), join(to, name), undo)) emptied.push(name);
+			await moveFolder(join(from, name), join(to, name), undo);
 		}
 	} catch (error) {
 		console.error(`malini: checkouts stay in ${from}: ${describeError(error)}`);
 		for (const step of undo.reverse()) await settle('put a checkout back', step);
-		return keepCheckouts(db, from, to, 'move-failed');
+		await linkMovedFolders(from, to);
+		return keepCheckouts(db, from, to, 'move-failed', resumed);
 	}
 	await settle('repair the moved worktrees', () => repairWorktrees(from, to));
-	const moved = activeCheckouts(db, join(from, WORKSTREAMS_DIR_NAME) + sep).map(({ id, path }) => ({
-		id,
-		path: movedPath(path, from, to) ?? path,
-	}));
 	await settle('record the moved checkout paths', async () => rewriteRecordedPaths(db, from, to));
 	await settle("move Claude Code's chat records", () =>
 		moveChatRecords(join(claudeDirectory, 'projects'), from, to),
 	);
-	for (const name of emptied) {
-		await settle(`link the old ${name} folder`, () => symlink(join(to, name), join(from, name)));
-	}
-	const reinstall = new Set([...pendingReinstalls(db), ...(await forgetInstalls(moved))]);
+	await linkMovedFolders(from, to);
+	await forgetInstalls(db, join(to, WORKSTREAMS_DIR_NAME) + sep);
 	db.transaction(() => {
-		writeSetting(db, REINSTALL_SETTING, [...reinstall].join('\n'));
 		writeFolder(db, CHECKOUTS_HOME_SETTING, appDataRoot, to);
 		deleteSetting(db, CHOSEN_FOLDER_SETTING);
 		deleteSetting(db, MOVE_FAILURE_SETTING);
@@ -166,9 +165,10 @@ function keepCheckouts(
 	from: string,
 	to: string,
 	reason: CheckoutsFolderProblem,
+	resumed: boolean,
 ): string {
 	db.transaction(() => {
-		deleteSetting(db, CHOSEN_FOLDER_SETTING);
+		if (!resumed) deleteSetting(db, CHOSEN_FOLDER_SETTING);
 		writeSetting(db, MOVE_FAILURE_SETTING, JSON.stringify({ folder: to, reason }));
 	});
 	return from;
@@ -278,6 +278,10 @@ function writeFolder(db: MaliniDatabase, key: string, appDataRoot: string, folde
 	writeSetting(db, key, JSON.stringify({ appData: appDataRoot, folder }));
 }
 
+function moveStarted(db: MaliniDatabase): boolean {
+	return parseJson(readSetting(db, CHOSEN_FOLDER_SETTING))?.['started'] === true;
+}
+
 function readFailure(db: MaliniDatabase): CheckoutsFolder['problem'] {
 	const recorded = parseJson(readSetting(db, MOVE_FAILURE_SETTING));
 	const reason = PROBLEMS.find((problem) => problem === recorded?.['reason']);
@@ -304,17 +308,17 @@ function activeCheckouts(db: MaliniDatabase, prefix: string): { id: string; path
 	);
 }
 
-async function forgetInstalls(
-	checkouts: readonly { id: string; path: string }[],
-): Promise<string[]> {
-	const forgotten: string[] = [];
-	for (const { id, path } of checkouts) {
+async function forgetInstalls(db: MaliniDatabase, prefix: string): Promise<void> {
+	const installed: { id: string; marker: string }[] = [];
+	for (const { id, path } of activeCheckouts(db, prefix)) {
 		const marker = join(path, INSTALL_COMPLETION_PATH);
-		if (!(await lstat(marker).catch(() => null))) continue;
-		await settle(`forget the install of ${id}`, () => rm(marker, { force: true }));
-		forgotten.push(id);
+		if (await lstat(marker).catch(() => null)) installed.push({ id, marker });
 	}
-	return forgotten;
+	const reinstall = new Set([...pendingReinstalls(db), ...installed.map(({ id }) => id)]);
+	writeSetting(db, REINSTALL_SETTING, [...reinstall].join('\n'));
+	for (const { id, marker } of installed) {
+		await settle(`forget the install of ${id}`, () => rm(marker, { force: true }));
+	}
 }
 
 async function settle(step: string, attempt: () => Promise<unknown>): Promise<void> {
@@ -329,16 +333,26 @@ async function isFolder(path: string): Promise<boolean> {
 	return (await lstat(path).catch(() => null))?.isDirectory() ?? false;
 }
 
-async function moveFolder(from: string, to: string, undo: Undo[] = []): Promise<boolean> {
-	if (!(await isFolder(from))) return false;
+async function moveFolder(from: string, to: string, undo: Undo[] = []): Promise<void> {
+	if (!(await isFolder(from))) return;
 	await mkdir(dirname(to), { recursive: true });
 	if (await lstat(to).catch(() => null)) return mergeFolder(from, to, undo);
 	await rename(from, to);
 	undo.push(() => rename(to, from));
-	return true;
 }
 
-async function mergeFolder(from: string, to: string, undo: Undo[]): Promise<boolean> {
+async function linkMovedFolders(from: string, to: string): Promise<void> {
+	for (const name of MOVED_FOLDERS) {
+		const [old, moved] = [join(from, name), join(to, name)];
+		await settle(`link the old ${name} folder`, async () => {
+			if (!(await lstat(old).catch(() => null)) && (await isFolder(moved))) {
+				await symlink(moved, old);
+			}
+		});
+	}
+}
+
+async function mergeFolder(from: string, to: string, undo: Undo[]): Promise<void> {
 	for (const entry of await readdir(from)) {
 		const source = join(from, entry);
 		const target = join(to, entry);
@@ -353,11 +367,10 @@ async function mergeFolder(from: string, to: string, undo: Undo[]): Promise<bool
 	}
 	try {
 		await rmdir(from);
-		undo.push(() => mkdir(from));
-		return true;
 	} catch {
-		return false;
+		return;
 	}
+	undo.push(() => mkdir(from));
 }
 
 function movedPath(path: string, from: string, to: string): string | null {

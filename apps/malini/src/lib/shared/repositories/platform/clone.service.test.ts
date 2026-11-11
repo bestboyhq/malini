@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	classifyCloneError,
 	cleanupCreatedBaseClone,
@@ -21,8 +21,8 @@ afterEach(async () => {
 	while (cleanups.length > 0) await cleanups.pop()?.();
 });
 
-async function seedRemote(dir: string): Promise<string> {
-	const source = join(dir, 'source');
+async function seedRemote(dir: string, name = 'source'): Promise<string> {
+	const source = join(dir, name);
 	await initRealRepo(source);
 	await realGit(source, ['branch', '-M', 'main']);
 	return source;
@@ -197,6 +197,45 @@ describe('ensureBaseClone', () => {
 			expect((await stat(join(packs, pack))).nlink).toBeGreaterThan(1);
 			expect(existsSync(join(packs, pack.replace(/\.pack$/u, '.keep')))).toBe(true);
 		}
+	});
+
+	it('clones again at the next launch when a quit cut the clone short', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const remote = await seedRemote(dir, 'cut-short');
+		const folder = join(dir, 'folder');
+		await realGit(dir, ['clone', '-q', remote, folder]);
+		await writeFile(join(remote, 'later.txt'), 'later\n');
+		await realGit(remote, ['add', '.']);
+		await realGit(remote, ['commit', '-q', '-m', 'later']);
+		const remoteTip = (await realGit(remote, ['rev-parse', 'HEAD'])).trim();
+		const input = {
+			repoPath: remote,
+			checkoutsRoot: join(dir, 'app-data'),
+			githubToken: null,
+			credentials: noPromptCredentialEnv,
+			onProgress: () => undefined,
+			seed: { folder, branch: 'main' },
+		};
+		let quit: () => void = () => undefined;
+		const quitting = new Promise<void>((resolve) => {
+			quit = resolve;
+		});
+		const restore = installGitRunnerForTests(async (args, env, previous) => {
+			if (!args.includes('fetch')) return previous(args, env);
+			quit();
+			return new Promise<string>(() => undefined);
+		});
+		cleanups.push(async () => restore());
+		void ensureBaseCloneWithOutcome(input);
+		await quitting;
+		vi.resetModules();
+		const relaunched = await import('./clone.service');
+
+		const { path } = await relaunched.ensureBaseCloneWithOutcome(input);
+
+		expect((await realGit(path, ['rev-parse', 'HEAD'])).trim()).toBe(remoteTip);
+		expect(existsSync(join(path, 'later.txt'))).toBe(true);
 	});
 
 	it('fails without a second clone when the remote the folder points at cannot be reached', async () => {

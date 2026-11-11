@@ -2,7 +2,8 @@ import type { JSONContent } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Transform } from '@tiptap/pm/transform';
 import { describe, expect, it } from 'vitest';
-import { isBlankScratchpad, readScratchpadDocument } from './scratchpad-document';
+import { appendScratchpadIdea } from '$lib/scratchpad/domain/scratchpad-idea';
+import { isBlankScratchpad, readScratchpadDocument, scratchpadIdeas } from './scratchpad-document';
 import { scratchpadSchema } from './scratchpad-extensions';
 import { scratchpadNotes } from './scratchpad-notes';
 
@@ -33,7 +34,7 @@ function blocks(doc: ProseMirrorNode): string[] {
 }
 
 describe('scratchpad notes', () => {
-	it('reads paragraphs and list items, with sub-items, and skips headings and code', () => {
+	it('reads a heading with its section, paragraphs and list items with sub-items, and skips code', () => {
 		const doc = open([
 			{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Ideas' }] },
 			{
@@ -54,11 +55,38 @@ describe('scratchpad notes', () => {
 		]);
 
 		expect(prompts(doc)).toEqual([
+			'Ideas\nFirst line\nsecond line\n- Ship the scratchpad\n  1. cut on start\n  2. keep undo\npnpm check',
 			'First line\nsecond line',
 			'Ship the scratchpad\n1. cut on start\n2. keep undo',
 			'cut on start',
 			'keep undo',
 		]);
+	});
+
+	it('moves every idea it counts, a heading with what sits under it up to the next heading', () => {
+		const pad = JSON.stringify({
+			type: 'doc',
+			content: [
+				{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Brain' }] },
+				paragraph('Keep the log private'),
+			],
+		});
+		const content = appendScratchpadIdea(pad, 'Ship the scratchpad\ncut on start');
+		if (content === null) throw new Error('the idea was not added');
+		const doc = scratchpadSchema.nodeFromJSON(JSON.parse(content));
+
+		expect(scratchpadIdeas(content).map(({ title }) => title)).toEqual([
+			'Brain',
+			'Ship the scratchpad',
+		]);
+		expect(prompts(doc)).toEqual([
+			'Brain\nKeep the log private',
+			'Keep the log private',
+			'Ship the scratchpad\ncut on start',
+		]);
+		const withoutBrain = cut(doc, 'Brain\nKeep the log private');
+		expect(blocks(withoutBrain)).toEqual(['heading']);
+		expect(prompts(withoutBrain)).toEqual(['Ship the scratchpad\ncut on start']);
 	});
 
 	it('cuts a note with the list or quote it leaves empty, and nothing around it', () => {

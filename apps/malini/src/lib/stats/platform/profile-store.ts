@@ -12,6 +12,8 @@ export interface TokenCipher {
 	decryptString(encrypted: Buffer): string;
 }
 
+export type PendingSignIn = Readonly<{ verifier: string; state: string; until: number }>;
+
 export type SavedProfile = Readonly<{
 	token: string;
 	account: BestboyAccount | null;
@@ -21,6 +23,7 @@ export type SavedProfile = Readonly<{
 	publishing: StatsPublishing;
 	publishedThrough: string | null;
 	picked: readonly string[];
+	signIn: PendingSignIn | null;
 }>;
 
 export const SIGNED_OUT: SavedProfile = {
@@ -32,6 +35,7 @@ export const SIGNED_OUT: SavedProfile = {
 	publishing: 'off',
 	publishedThrough: null,
 	picked: [],
+	signIn: null,
 };
 
 export class ProfileStore {
@@ -67,6 +71,7 @@ export class ProfileStore {
 			picked: Array.isArray(saved['picked'])
 				? saved['picked'].filter((name): name is string => typeof name === 'string')
 				: [],
+			signIn: this.#pendingSignIn(saved['signIn']),
 		};
 	}
 
@@ -75,10 +80,12 @@ export class ProfileStore {
 	}
 
 	save(profile: SavedProfile): Promise<void> {
-		const sealed = profile.token
-			? this.#cipher.encryptString(profile.token).toString('base64')
-			: '';
-		const text = JSON.stringify({ ...profile, token: sealed });
+		const { token, signIn } = profile;
+		const text = JSON.stringify({
+			...profile,
+			token: token ? this.#seal(token) : '',
+			signIn: signIn ? { ...signIn, verifier: this.#seal(signIn.verifier) } : null,
+		});
 		const temporary = `${this.#path}.tmp`;
 		const previous = this.#writes;
 		this.#writes = (async () => {
@@ -87,6 +94,19 @@ export class ProfileStore {
 			await rename(temporary, this.#path);
 		})();
 		return this.#writes;
+	}
+
+	#seal(text: string): string {
+		return this.#cipher.encryptString(text).toString('base64');
+	}
+
+	#pendingSignIn(value: unknown): PendingSignIn | null {
+		if (!isRecord(value)) return null;
+		const { state, until } = value;
+		const verifier = this.#unseal(value['verifier']);
+		return verifier && typeof state === 'string' && typeof until === 'number'
+			? { verifier, state, until }
+			: null;
 	}
 
 	#unseal(sealed: unknown): string {

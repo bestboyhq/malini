@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import {
+	BRIDGE_INTERRUPTED_ERROR,
+	ORPHAN_INTERRUPTED_ERROR,
+	PAUSED_FOR_EXIT_ERROR,
+	RESET_BY_USER_ERROR,
+} from '$contract/agent-state-machine';
 import type { RunGroup } from '../render-state';
 import {
 	terminalLabel,
@@ -80,5 +85,18 @@ describe('how a run ended', () => {
 		const paused = { ...run('cancelled'), terminalText: PAUSED_FOR_EXIT_ERROR };
 		expect(terminalLabel(paused)).toBe('Run paused');
 		expect(terminalLabel(run('paused'))).toBe('Run paused');
+	});
+
+	it('says a run that malini, its agent process or a reset cut is interrupted, not failed', () => {
+		for (const terminalText of [
+			ORPHAN_INTERRUPTED_ERROR,
+			BRIDGE_INTERRUPTED_ERROR,
+			RESET_BY_USER_ERROR,
+		]) {
+			expect(terminalLabel({ ...run('failed'), terminalText })).toBe('Run interrupted');
+		}
+		expect(terminalLabel({ ...run('failed'), terminalText: 'provider overloaded' })).toBe(
+			'Run failed',
+		);
 	});
 });

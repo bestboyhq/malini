@@ -307,3 +307,36 @@ test('an agent opens a private file outside the worktree for the user, who fills
 		await app.close();
 	}
 });
+
+test('a second open of the same file that arrives while the first is opening still lands', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await workstreamWithFile(app, 'e2e-open-twice-ws');
+		await expect(page.getByTestId('extension-inspector-shell')).toHaveAttribute(
+			'data-workstream-ready',
+			'true',
+			{ timeout: 20_000 },
+		);
+		await app.electronApp.evaluate(({ BrowserWindow }, workstreamId) => {
+			const request = (line: number): unknown => ({
+				channel: 'extensions:file-open-requested',
+				payload: { workstreamId, path: 'alpha.ts', line },
+			});
+			for (const window of BrowserWindow.getAllWindows()) {
+				window.webContents.send('malini:event', [request(1), request(2)]);
+			}
+		}, 'e2e-open-twice-ws');
+
+		await expect(fileTab(page, 'alpha.ts')).toHaveAttribute('aria-selected', 'true', {
+			timeout: 20_000,
+		});
+		await expect
+			.poll(() => page.evaluate(() => localStorage.getItem('malini.requested-files-v1')))
+			.toBeNull();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

@@ -4,10 +4,12 @@ import { CHAT_TURN_FINISHED_CHANNEL, AUTOMATIONS_SUGGESTED_CHANNEL } from '$cont
 import type { AutomationSuggestedEvent } from '$contract/automations';
 import { typedRun } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
+import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { AUTOMATION_NAME_MAX_LENGTH } from '../domain/automation-definition';
 import {
+	deleteUnsuggestedAsksBefore,
 	insertAskIfFirst,
 	insertSuggestion,
 	listSuggestedBefore,
@@ -16,10 +18,13 @@ import {
 } from './automation-suggestions.repository';
 import { latestMergeBetween } from './event-log.repository';
 import { runOneShotAutomation, type AnswerWithAutomation } from './one-shot-automations.service';
+import { BackgroundWork } from './background-work';
 
 const AFTER_MERGE_MS = 24 * 60 * 60 * 1_000;
 
 const EARLIER_ASKS = 6;
+
+const ASK_KEEP_MS = 30 * 24 * 60 * 60 * 1_000;
 
 const ASK_CHARS = 600;
 
@@ -42,13 +47,20 @@ export function suggestAutomationsAfterMerges(
 	context: MainContext,
 	answer: AnswerWithAutomation,
 	log: (line: string) => void,
+	work = new BackgroundWork(log),
 ): () => void {
 	return context.events.subscribe(CHAT_TURN_FINISHED_CHANNEL, ({ sessionId, runId, status }) => {
 		if (status !== 'succeeded') return;
-		void noticeAsk(context, answer, sessionId, runId).catch((error: unknown) => {
-			log(`automations: could not look for a habit after \`${runId}\`: ${describeError(error)}`);
-		});
+		work.add(
+			noticeAsk(context, answer, sessionId, runId).catch((error: unknown) => {
+				log(`automations: could not look for a habit after \`${runId}\`: ${describeError(error)}`);
+			}),
+		);
 	});
+}
+
+export function forgetUnsuggestedAsks(db: MaliniDatabase, now = Date.now()): void {
+	deleteUnsuggestedAsksBefore(db, new Date(now - ASK_KEEP_MS).toISOString());
 }
 
 async function noticeAsk(
@@ -74,7 +86,8 @@ async function noticeAsk(
 		askedAt: typed.startedAt,
 	};
 	if (!insertAskIfFirst(db, ask)) return;
-	const earlier = listUnsuggestedAsks(db, ask.repositoryId, ask.id, EARLIER_ASKS).reverse();
+	const kept = new Date(Date.parse(ask.askedAt) - ASK_KEEP_MS).toISOString();
+	const earlier = listUnsuggestedAsks(db, ask.repositoryId, ask.id, kept, EARLIER_ASKS).reverse();
 	if (earlier.length === 0) return;
 	const task = habitTask(ask, earlier, listSuggestedBefore(db, ask.repositoryId));
 	const output = await runOneShotAutomation(

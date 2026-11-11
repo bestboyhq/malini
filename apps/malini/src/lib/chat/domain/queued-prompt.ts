@@ -22,3 +22,8 @@ export interface QueuedPrompt {
 	automated: boolean;
 	createdAt: number;
 }
+
+export interface QueueNote {
+	message: string;
+	waiting: boolean;
+}

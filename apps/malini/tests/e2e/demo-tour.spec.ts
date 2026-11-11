@@ -42,7 +42,7 @@ test.describe('the landing page demo', () => {
 			});
 			page.on('pageerror', (error) => errors.push(error.message));
 
-			await page.goto(url);
+			await page.goto(url, { waitUntil: 'commit' });
 
 			await expect(
 				page.locator('.demo-cursor[data-gone]'),

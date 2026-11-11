@@ -14,7 +14,7 @@ export const MAX_RECORDING_MS = 3000;
 
 export const RECORDING_LEVEL_BARS = 24;
 
-export type SoundRecorderPhase = 'asking' | 'ready' | 'denied' | 'recording';
+export type SoundRecorderPhase = 'asking' | 'ready' | 'denied' | 'starting' | 'recording';
 
 export type SoundRecorderState = Readonly<{
 	signal: SoundSignal;

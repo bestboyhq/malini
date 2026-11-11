@@ -27,7 +27,7 @@ import { CommandRegistry } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
-import { claimsUrlScheme, URL_SCHEME } from './url-scheme';
+import { claimsUrlScheme, URL_SCHEME, urlInbox } from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
 const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DIPS'];
@@ -60,15 +60,16 @@ const COMMANDS_CLOSE_BUDGET_MS = 5_000;
 
 let db: MaliniDatabase | undefined;
 let modules: Modules | undefined;
+const urls = urlInbox();
 
 app.on('open-url', (event, url) => {
 	event.preventDefault();
-	modules?.openUrl(url);
+	urls.receive(url);
 });
 
 app.on('second-instance', (_event, argv) => {
 	for (const url of argv.filter((argument) => argument.startsWith(`${URL_SCHEME}://`))) {
-		modules?.openUrl(url);
+		urls.receive(url);
 	}
 	const [window] = BrowserWindow.getAllWindows();
 	if (!window) return;
@@ -121,6 +122,7 @@ async function boot(): Promise<void> {
 		...(bridgeScriptPath ? { overrides: { bridgeScriptPath } } : {}),
 	});
 	serveWorkstreamImages(modules.repositories.media);
+	urls.deliverTo(modules.openUrl);
 	if (context.isDev) assertContractIsRegistered(context.commands.names());
 	context.commands.install();
 	createMainWindow();

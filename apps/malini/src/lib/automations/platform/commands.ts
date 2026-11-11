@@ -4,6 +4,7 @@ import {
 	SCHEDULE_GRAMMAR,
 	parseAutomationTrigger,
 	scheduleWhen,
+	unknownTriggerValueMessage,
 	type SchedulePlace,
 } from '$contract/automation-trigger';
 import {
@@ -211,7 +212,7 @@ export function defineAutomationCommands(
 
 	const createDefinition = async (args: unknown): Promise<AutomationDefinitionRecord> => {
 		const fields = definitionFields(args);
-		const trigger = await triggerField(db, args, false);
+		const trigger = await triggerField(db, args, null, false);
 		const now = nowIso8601();
 		const created: AutomationDefinitionRecord = {
 			id: randomUUID(),
@@ -234,7 +235,12 @@ export function defineAutomationCommands(
 		if (id === null) return createDefinition(args);
 		const fields = definitionFields(args);
 		const existing = requireDefinition(db, id);
-		const trigger = await triggerField(db, args, isBrainAutomationBuiltin(existing.builtin));
+		const trigger = await triggerField(
+			db,
+			args,
+			existing.trigger,
+			isBrainAutomationBuiltin(existing.builtin),
+		);
 		const now = nowIso8601();
 		const thenAutomationId = thenAutomationField(db, args, existing.id);
 		if (!isTriggerableAutomation(existing) && (trigger || thenAutomationId)) {
@@ -408,6 +414,7 @@ export function defineAutomationCommands(
 				agentRunId: null,
 				origin,
 				status: waitForYou || overBudget ? 'waiting' : 'queued',
+				interrupted: false,
 				detail: overBudget ? chainBudgetDetail(repeats) : null,
 				parentRunId: links.parentRunId,
 				chatSessionId: links.chatSessionId,
@@ -652,6 +659,7 @@ function experimentSetup(args: unknown): OneShotAutomation {
 async function triggerField(
 	db: MaliniDatabase,
 	args: unknown,
+	stored: AutomationTrigger | null,
 	unplacedAllowed: boolean,
 ): Promise<AutomationTrigger | null | undefined> {
 	const value = field(args, 'trigger');
@@ -659,18 +667,24 @@ async function triggerField(
 	if (!isRecord(value)) throw invalid('`trigger` must be { when, mode } or null');
 	const mode = value['mode'];
 	if (!isAutomationRunMode(mode)) throw invalid('`trigger.mode` must be off, ask or auto');
-	return { when: await triggerWhen(db, value['when'], unplacedAllowed), mode };
+	return {
+		when: await triggerWhen(db, value['when'], stored?.when ?? null, unplacedAllowed),
+		mode,
+	};
 }
 
 async function triggerWhen(
 	db: MaliniDatabase,
 	value: unknown,
+	stored: string | null,
 	unplacedAllowed: boolean,
 ): Promise<string> {
 	const when = typeof value === 'string' ? value.trim() : '';
 	let reason = '';
 	try {
 		const trigger = parseAutomationTrigger(when);
+		const unknownValue = when === stored ? null : unknownTriggerValueMessage(trigger);
+		if (unknownValue !== null) throw new Error(unknownValue);
 		if (trigger.kind === 'event') return when;
 		if (trigger.kind === 'schedule') {
 			return scheduleWhen({

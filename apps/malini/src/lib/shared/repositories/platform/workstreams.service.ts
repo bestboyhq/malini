@@ -123,11 +123,6 @@ export async function createRepository(
 	const seedFolder = input.seedFolder ?? null;
 	const sizeBytes = seedFolder === null ? (input.sizeBytes ?? 0) : 0;
 	const blobless = sizeBytes >= BLOBLESS_CLONE_MIN_BYTES;
-	await requireFreeSpace(
-		checkoutsRoot,
-		MINIMUM_FREE_BYTES + (blobless ? 0 : sizeBytes),
-		'cloning this repository',
-	);
 	let lastEmittedAt = Date.now() - 100;
 	const outcome = await ensureBaseCloneWithOutcome({
 		repoPath: input.repoUrl,
@@ -137,6 +132,7 @@ export async function createRepository(
 		seed:
 			seedFolder === null ? null : { folder: seedFolder, branch: input.defaultBranch ?? 'main' },
 		blobless,
+		requiredFreeBytes: MINIMUM_FREE_BYTES + (blobless ? 0 : sizeBytes),
 		onProgress: (progress) => {
 			const now = Date.now();
 			const terminal = progress.fraction >= 1;

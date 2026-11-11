@@ -1,4 +1,5 @@
 import type { AgentSessionOrigin } from '$contract/agent';
+import { isWaitingForUser, type SessionStatus } from '$contract/agent-state-machine';
 import type { BackgroundWait } from './background-work';
 
 export type AgentChatActivity =
@@ -7,7 +8,7 @@ export type AgentChatActivity =
 export type AgentChatIdentitySource = {
 	displayName: string;
 	model: string | null;
-	status: 'idle' | 'running' | 'waiting_for_approval' | 'completed' | 'failed';
+	status: SessionStatus;
 	lastError?: string | null;
 	origin?: AgentSessionOrigin;
 	backgroundWait?: BackgroundWait | null;
@@ -37,7 +38,7 @@ export function deriveAgentChatActivity(
 	if (dispatchPending) return 'in-progress';
 	if (status === 'running' && backgroundWait === 'commands') return 'commands-running';
 	if (status === 'running') return backgroundWait === 'agents' ? 'in-background' : 'in-progress';
-	if (status === 'waiting_for_approval') return 'needs-approval';
+	if (isWaitingForUser(status)) return 'needs-approval';
 	if (status === 'failed') return 'failed';
 	return 'idle';
 }

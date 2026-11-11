@@ -64,17 +64,25 @@ function createWindowForwarder(): (frame: EventFrame) => void {
 	};
 }
 
+function deliver(channel: EventChannel, notify: () => void): void {
+	try {
+		notify();
+	} catch (error) {
+		console.error(`malini: a listener of ${channel} threw:`, error);
+	}
+}
+
 export function createEventBus(options: { forwardToWindows?: boolean } = {}): EventBus {
 	const forward = options.forwardToWindows === false ? null : createWindowForwarder();
 	const listeners = new Map<EventChannel, Set<EventListener>>();
 	const observers = new Set<EventObserver>();
 	return {
 		emit(channel, payload) {
-			forward?.({ channel, payload });
-			for (const observer of [...observers]) observer(channel, payload);
-			const set = listeners.get(channel);
-			if (!set) return;
-			for (const listener of [...set]) listener(payload);
+			deliver(channel, () => forward?.({ channel, payload }));
+			for (const observer of [...observers]) deliver(channel, () => observer(channel, payload));
+			for (const listener of [...(listeners.get(channel) ?? [])]) {
+				deliver(channel, () => listener(payload));
+			}
 		},
 		subscribe(channel, listener) {
 			let set = listeners.get(channel);

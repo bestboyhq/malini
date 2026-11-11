@@ -37,6 +37,7 @@ let asked: string[];
 let delivered: ChatWake[];
 let undeliverable: string | null;
 let notified: unknown[];
+let choosing: Promise<void>;
 
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ['Date'] });
@@ -47,6 +48,7 @@ beforeEach(() => {
 	delivered = [];
 	undeliverable = null;
 	notified = [];
+	choosing = Promise.resolve();
 	seed();
 	boot();
 });
@@ -78,6 +80,7 @@ function boot(rules: Pick<AutomationsOptions, 'shipping' | 'resume' | 'deliverie
 		log: () => {},
 		choose: async (task) => {
 			asked.push(task);
+			await choosing;
 			const pick = picks.shift();
 			if (pick === undefined) throw new Error('Claude Code is not installed');
 			return pick;
@@ -203,6 +206,7 @@ function finishAutomation(
 		agentRunId: null,
 		origin: 'manual',
 		status: 'failed',
+		interrupted: false,
 		detail: 'The docs host timed out',
 		parentRunId: null,
 		chatSessionId: 'starter-chat',
@@ -248,6 +252,7 @@ function updateFromMain(): void {
 			agentRunId: null,
 			origin: 'manual',
 			status: 'running',
+			interrupted: false,
 			detail: null,
 			parentRunId: null,
 			chatSessionId: 'starter-chat',
@@ -720,6 +725,31 @@ describe('the event reconciler', () => {
 			]),
 		);
 	});
+
+	it('lets Malini close without waiting on news queued behind a decision it is making', async () => {
+		let answer = (): void => {};
+		choosing = new Promise((resolve) => {
+			answer = resolve;
+		});
+		finishAutomation(await publishDocs(), 'publish-1');
+		await vi.waitFor(() => expect(asked).toHaveLength(1));
+		finishAutomation(await publishDocs(), 'publish-2');
+		await settle();
+
+		automations.dispose();
+		answer();
+		const settled = async (): Promise<string> => {
+			await automations.settled();
+			return 'settled';
+		};
+		const closed = await Promise.race([
+			settled(),
+			new Promise((resolve) => setTimeout(resolve, 1_000, 'late')),
+		]);
+
+		expect(closed).toBe('settled');
+		expect(asked).toHaveLength(1);
+	});
 });
 
 describe('a question on its automation', () => {
@@ -815,6 +845,31 @@ describe('a question on its automation', () => {
 		expect(listed[0]?.candidates.at(-1)).toMatchObject({
 			reason: 'Stopped on conflicts in 1 file: b.ts.',
 		});
+	});
+
+	it('about conflicts an automation ran into gives way to a newer question about conflicts there', async () => {
+		await switchResolveConflicts('off');
+		updateFromMain();
+		picks.push(4, 3);
+		const conflict = () =>
+			context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+				workstreamId: 'api',
+				baseBranch: 'main',
+				conflictedPaths: ['src/shared.ts'],
+			});
+
+		conflict();
+		const [first] = await decided(1);
+		run(db, `UPDATE automation_runs SET status = 'succeeded' WHERE id = 'update'`);
+		conflict();
+		await decided(2);
+
+		const listed = await decisions();
+		expect(listed.map(({ status, detail }) => [status, detail])).toEqual([
+			['asking', null],
+			['dismissed', 'Malini asked again.'],
+		]);
+		expect(listed[1]?.id).toBe(first?.id);
 	});
 });
 

@@ -58,19 +58,24 @@ export function saveInspectorDrawerOpen(
 	saveInspectorDrawerState(workstreamId, open ? 'open' : 'closed', storage);
 }
 
-class InspectorDrawer {
+export class InspectorDrawer {
 	#revision = $state(0);
-	#overlayWorkstreamId: string | null = $state(null);
+	#overlay: { workstreamId: string; folded: boolean } | null = $state.raw(null);
+	readonly #narrow: () => boolean;
+
+	constructor(narrow: () => boolean = isNarrowLayout) {
+		this.#narrow = narrow;
+	}
 
 	get overlay(): boolean {
-		return isNarrowLayout();
+		return this.#narrow();
 	}
 
 	isOpen(
 		workstreamId: string,
 		storage: InspectorPreferenceStorage | null = browserStorage(),
 	): boolean {
-		if (this.overlay) return this.#overlayWorkstreamId === workstreamId;
+		if (this.overlay) return this.#overlay?.workstreamId === workstreamId && !this.#overlay.folded;
 		this.#revision;
 		return loadInspectorDrawerOpen(workstreamId, storage);
 	}
@@ -82,7 +87,7 @@ class InspectorDrawer {
 	): void {
 		if (!workstreamId) return;
 		if (this.overlay) {
-			this.#overlayWorkstreamId = open ? workstreamId : null;
+			this.#overlay = open ? { workstreamId, folded: false } : null;
 			return;
 		}
 		if (loadInspectorDrawerOpen(workstreamId, storage) === open) return;
@@ -100,8 +105,9 @@ class InspectorDrawer {
 
 	fold(workstreamId: string, storage?: InspectorPreferenceStorage | null): void {
 		const resolved = storage === undefined ? browserStorage() : storage;
-		if (this.overlay || !this.isOpen(workstreamId, resolved)) {
-			this.setOpen(workstreamId, false, resolved);
+		if (!this.isOpen(workstreamId, resolved)) return;
+		if (this.overlay) {
+			this.#overlay = { workstreamId, folded: true };
 			return;
 		}
 		saveInspectorDrawerState(workstreamId, 'folded', resolved);
@@ -110,8 +116,10 @@ class InspectorDrawer {
 
 	unfold(workstreamId: string, storage?: InspectorPreferenceStorage | null): void {
 		const resolved = storage === undefined ? browserStorage() : storage;
-		if (this.overlay || loadInspectorDrawerState(workstreamId, resolved) !== 'folded') return;
-		this.setOpen(workstreamId, true, resolved);
+		const folded = this.overlay
+			? this.#overlay?.workstreamId === workstreamId && this.#overlay.folded
+			: loadInspectorDrawerState(workstreamId, resolved) === 'folded';
+		if (folded) this.setOpen(workstreamId, true, resolved);
 	}
 
 	toggle(workstreamId: string, storage?: InspectorPreferenceStorage | null): void {

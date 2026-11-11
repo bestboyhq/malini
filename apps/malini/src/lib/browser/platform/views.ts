@@ -34,7 +34,7 @@ import {
 	type PinsPage,
 	type ThreadPin,
 } from './thread-pins';
-import { BLANK_PAGE, isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from './url';
+import { isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from './url';
 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
@@ -76,6 +76,7 @@ interface Entry<W extends HostWindow> {
 	bounds: Rectangle;
 	lastUrl: string;
 	failure: string | null;
+	pending: string | null;
 	pick: OpenPick | null;
 	pinActions: AbortController | null;
 }
@@ -110,9 +111,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	navigate(tab: BrowserTabArgs, url: string): void {
 		const address = this.address(tab, url);
-		void this.ensure(tab)
-			.view.contents.loadURL(address)
-			.catch(() => undefined);
+		this.load(this.ensure(tab), address);
 	}
 
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
@@ -191,20 +190,23 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		if (!entry || (!contents && !entry.view.contents.isLoading())) {
 			throw new Error(PICK_WITHOUT_PAGE);
 		}
-		while (entry.pick) {
-			entry.pick.controller.abort();
-			await entry.pick.done;
-		}
+		const previous = entry.pick;
 		const controller = new AbortController();
-		const picking = this.pickOnceLoaded(entry, controller.signal, args);
+		const picking = (async () => {
+			await previous?.done;
+			return this.pickOnceLoaded(entry, controller.signal, args);
+		})();
 		const pick: OpenPick = { controller, done: picking.catch(() => null) };
 		entry.pick = pick;
+		previous?.controller.abort();
 		try {
 			return await picking;
 		} finally {
-			if (entry.pick === pick) entry.pick = null;
-			this.returnFocus(entry);
-			this.showPins(entry);
+			if (entry.pick === pick) {
+				entry.pick = null;
+				this.returnFocus(entry);
+				this.showPins(entry);
+			}
 		}
 	}
 
@@ -310,7 +312,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		args: BrowserPickArgs,
 	): Promise<BrowserThreadStarted | null> {
 		await untilAborted(pageLoaded(entry.view.contents), signal);
-		if (signal.aborted || entry.failure) return null;
+		if (signal.aborted || entry.failure !== null) return null;
 		const contents = this.openContents(entry.tab);
 		if (!contents) throw new Error(PICK_WITHOUT_PAGE);
 		if (entry.window?.isFocused()) contents.focus();
@@ -329,10 +331,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			await previous;
 			return work();
 		})();
-		this.turns.set(
-			key,
-			turn.catch(() => undefined),
-		);
+		const done = turn.catch(() => undefined);
+		this.turns.set(key, done);
+		void (async () => {
+			await done;
+			if (this.turns.get(key) === done) this.turns.delete(key);
+		})();
 		return turn;
 	}
 
@@ -361,7 +365,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const contents = this.openContents(tab);
 		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) throw new Error(NOTHING_OPEN);
-		if (entry.failure) {
+		if (entry.failure !== null) {
 			throw new Error(
 				`${contents.getURL()} did not load (${entry.failure}). Fix it, then call browser_reload or browser_open.`,
 			);
@@ -378,8 +382,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	private openContents(tab: BrowserTabArgs): PageContents | null {
 		if (!this.entries.has(tabKey(tab))) return null;
 		const { contents } = this.ensure(tab).view;
-		const url = contents.getURL();
-		return url.length > 0 && url !== BLANK_PAGE ? contents : null;
+		return contents.getURL().length > 0 ? contents : null;
 	}
 
 	private ensure(tab: BrowserTabArgs): Entry<W> {
@@ -406,17 +409,21 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 					entry.favicon = favicon;
 					this.changed(entry);
 				},
-				navigating: () => {
+				navigating: (url) => {
+					entry.pending = url;
 					entry.pick?.controller.abort();
 					this.stopPins(entry);
+					this.changed(entry);
 				},
 				ready: () => this.showPins(entry),
 				movedInPage: () => this.showPins(entry),
 				committed: () => {
 					entry.failure = null;
+					entry.pending = null;
 				},
 				failed: (reason) => {
 					entry.failure = reason;
+					entry.pending = null;
 					this.changed(entry);
 				},
 				gone: () => {
@@ -431,14 +438,20 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			bounds: previous?.bounds ?? { x: 0, y: 0, ...DEFAULT_VIEW_SIZE },
 			lastUrl: previous?.lastUrl ?? '',
 			failure: null,
+			pending: null,
 			pick: null,
 			pinActions: null,
 		};
 		entry.view.setBounds(entry.bounds);
 		entry.view.setBorderRadius(CORNER_RADIUS);
 		this.entries.set(tabKey(tab), entry);
-		if (entry.lastUrl) void entry.view.contents.loadURL(entry.lastUrl).catch(() => undefined);
+		if (entry.lastUrl) this.load(entry, entry.lastUrl);
 		return entry;
+	}
+
+	private load(entry: Entry<W>, url: string): void {
+		entry.pending = url;
+		void entry.view.contents.loadURL(url).catch(() => undefined);
 	}
 
 	private attach(entry: Entry<W>): void {
@@ -457,6 +470,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		if (window.isDestroyed()) return;
 		for (const entry of this.entries.values()) {
 			if (!entry.alive || entry.window !== window) continue;
+			entry.pick?.controller.abort();
 			entry.shown = false;
 			entry.view.placeIn(window, 'back');
 		}
@@ -464,6 +478,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	private changed(entry: Entry<W>): void {
 		if (!entry.alive || this.entries.get(tabKey(entry.tab)) !== entry) return;
+		if (!entry.view.contents.isLoading()) entry.pending = null;
 		const state = stateOf(entry);
 		if (state.url.length > 0) entry.lastUrl = state.url;
 		this.deps.stateChanged(state);
@@ -533,17 +548,25 @@ function tabKey(tab: BrowserTabArgs): string {
 	return `${tab.workstreamId}/${tab.tabId}`;
 }
 
-function stateOf<W extends HostWindow>({ tab, view, favicon, failure }: Entry<W>): BrowserState {
+function stateOf<W extends HostWindow>({
+	tab,
+	view,
+	favicon,
+	failure,
+	pending,
+}: Entry<W>): BrowserState {
 	const { contents } = view;
+	const shown = contents.getURL();
+	const url = pending ?? shown;
 	return {
 		...tab,
-		url: contents.getURL(),
+		url,
 		title: contents.getTitle(),
 		favicon,
 		loading: contents.isLoading(),
 		canGoBack: contents.navigationHistory.canGoBack(),
 		canGoForward: contents.navigationHistory.canGoForward(),
-		failure,
+		failure: url === shown ? failure : null,
 	};
 }
 
