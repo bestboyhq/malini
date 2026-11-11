@@ -1319,6 +1319,18 @@ Payload: `BrowserTabArgs`
 type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
 ```
 
+## `browser:tab-closed`
+
+Fires when an agent closes the browser tab it opened in a workstream; Malini takes the tab out of the inspector and closes its page. Tabs you opened stay.
+
+An automation sees: `workstreamId`, `tabId`
+
+Payload: `BrowserTabArgs`
+
+```ts
+type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
+```
+
 ## `browser:resize-requested`
 
 Fires when an agent asks to make the browser tab you see wider or narrower, with the width it asked for in Malini's pixels; Malini moves the divider between the chat and the inspector to match.

@@ -13,6 +13,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 	type LaunchedApp,
 } from './harness';
 
@@ -80,6 +81,7 @@ test('clicking a file chip previews the file, before and after sending, and keep
 	try {
 		const { page } = app;
 		const worktree = await openSeededWorkstream(app, 'e2e-chip-click-ws');
+		await showInspector(page);
 		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toBeVisible({
 			timeout: 20_000,
 		});

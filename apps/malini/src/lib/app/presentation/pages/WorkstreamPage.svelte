@@ -1,11 +1,15 @@
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
+	import { worktreePageUrl } from '$contract/browser';
 	import { loadBrowserTabsCommand } from '$lib/browser/application/commands/load-browser-tabs.command';
 	import { openBrowserTabCommand } from '$lib/browser/application/commands/open-browser-tab.command';
+	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
-	import { WorkstreamChatBridge } from '$lib/chat/chat.api';
+	import { keepContextMediaFreshHook } from '$lib/chat/application/hooks/keep-context-media-fresh.hook';
+	import { contextMediaCountQuery } from '$lib/chat/application/queries/context-media-count.query.svelte';
+	import { MediaGallery, WorkstreamChatBridge } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
 	import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/extension-runtime-ready.query.svelte';
@@ -41,12 +45,22 @@
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
 	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery));
+	let mediaOpen = $state(false);
 	const panelActions = $derived([
 		{
 			id: 'new-browser-tab',
 			label: 'New browser tab',
 			icon: 'browser',
-			run: () => openBrowserTabCommand(workstreamId),
+			run: (): void => openBrowserTabCommand(workstreamId),
+		},
+		{
+			id: 'media',
+			label: 'Media',
+			icon: 'media',
+			count: contextMediaCountQuery.data(workstreamId),
+			run: (): void => {
+				mediaOpen = true;
+			},
 		},
 	]);
 
@@ -58,6 +72,8 @@
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
+	const checkoutReady = $derived(repositoryScopeReady && !worktreePending);
+	const mediaReady = $derived(checkoutReady && workstream !== null);
 	const changeTotals = $derived(changeTotalsQuery.data[workstreamId] ?? null);
 	const provisioning = $derived(provisioningRecordQuery.data(workstreamId));
 	const provisioningRetrying = $derived(provisioningRetryingQuery.data(workstreamId));
@@ -93,6 +109,8 @@
 			: null,
 	);
 
+	$effect(() => (mediaReady ? keepContextMediaFreshHook(workstreamId) : undefined));
+
 	function archiveWorkstream(): void {
 		if (workstream) archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand);
 	}
@@ -125,7 +143,7 @@
 <WorkstreamInspector
 	{workstreamId}
 	workstream={inspectedWorkstream}
-	activationReady={repositoryScopeReady && !worktreePending}
+	activationReady={checkoutReady}
 	workstreamName={workstream?.name ?? null}
 	{changeTotals}
 	creationContext={(id) => (creationPending(id) ? (creationContext(id) ?? {}) : null)}
@@ -141,3 +159,12 @@
 {/snippet}
 
 <WorkstreamPathContextMenu {workstreamId} />
+
+{#if mediaOpen}
+	<MediaGallery
+		{workstreamId}
+		onclose={() => (mediaOpen = false)}
+		onopendocument={(path) =>
+			openBrowserUrlCommand(workstreamId, worktreePageUrl(workstreamId, path))}
+	/>
+{/if}

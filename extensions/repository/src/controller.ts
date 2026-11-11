@@ -63,6 +63,7 @@ export type RepositoryViewState = {
 	additions: number;
 	deletions: number;
 	diffScope: RepositoryDiffScope;
+	changedOnly: boolean;
 	uncommitted: RepositoryChangeSlice;
 	refreshedAt: number | null;
 	pullRequestRefreshStatus: PullRequestRefreshStatus;
@@ -967,6 +968,12 @@ export class RepositoryController {
 		return this.snapshot();
 	}
 
+	setChangedOnly(changedOnly: boolean): RepositoryViewState {
+		if (this.#state.changedOnly === changedOnly) return this.snapshot();
+		this.#publish({ ...this.#state, changedOnly });
+		return this.snapshot();
+	}
+
 	async loadDiff(path?: string): Promise<RepositoryViewState> {
 		const scope = this.#state.diffScope;
 		return this.#runWorkstreamOperation(async (operation) => {
@@ -1484,6 +1491,7 @@ export type RepositoryPanelController = Pick<
 	| 'workstreamState'
 	| 'subscribeWorkstreamPreviews'
 	| 'setDiffScope'
+	| 'setChangedOnly'
 	| 'closeAgentSessionDiff'
 	| 'selectFile'
 	| 'showFile'
@@ -1690,6 +1698,7 @@ function createInitialState(context: RepositoryContext | null): RepositoryViewSt
 		additions: 0,
 		deletions: 0,
 		diffScope: 'uncommitted',
+		changedOnly: false,
 		uncommitted: changeSlice([], []),
 		refreshedAt: null,
 		pullRequestRefreshStatus: 'idle',

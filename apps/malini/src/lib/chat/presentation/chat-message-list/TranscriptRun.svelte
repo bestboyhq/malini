@@ -14,6 +14,7 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import { withoutStreamingFooter } from '$lib/chat/domain/turn-report';
 	import { withPendingRows, type GroupedRunTimelineItem } from '../activity-group';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import { runLastSeq, type RunGroup } from '../render-state';
@@ -244,23 +245,26 @@
 
 		{#if live}
 			{#each live.assistant as block (block.contentId)}
-				<div
-					class="text-fg-default w-full text-sm leading-relaxed"
-					use:stageEnter={blockKey(transcript.sessionId, block.runId, block.contentId)}
-					data-message-kind="assistant-live"
-					data-testid="chat-message-bubble-live"
-				>
-					<BufferedStreamingMarkdown
-						text={block.text}
-						class="select-text"
-						playbackKey={blockKey(transcript.sessionId, block.runId, block.contentId)}
-						flush={!isLastRun}
-						revealOnMount={!transcript.transcriptSettled()}
-						onopenfile={transcript.openFileMention}
-						canopenfile={transcript.canOpenFileMention}
-						imagesrc={transcript.markdownImageSource}
-					/>
-				</div>
+				{@const reply = withoutStreamingFooter(block.text)}
+				{#if reply !== ''}
+					<div
+						class="text-fg-default w-full text-sm leading-relaxed"
+						use:stageEnter={blockKey(transcript.sessionId, block.runId, block.contentId)}
+						data-message-kind="assistant-live"
+						data-testid="chat-message-bubble-live"
+					>
+						<BufferedStreamingMarkdown
+							text={reply}
+							class="select-text"
+							playbackKey={blockKey(transcript.sessionId, block.runId, block.contentId)}
+							flush={!isLastRun}
+							revealOnMount={!transcript.transcriptSettled()}
+							onopenfile={transcript.openFileMention}
+							canopenfile={transcript.canOpenFileMention}
+							imagesrc={transcript.markdownImageSource}
+						/>
+					</div>
+				{/if}
 			{/each}
 		{/if}
 

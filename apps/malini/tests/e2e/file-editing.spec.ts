@@ -14,6 +14,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 	type LaunchedApp,
 } from './harness';
 
@@ -34,6 +35,7 @@ async function workstreamWithFile(app: LaunchedApp, workstreamId: string): Promi
 	await execFileAsync('git', ['-C', source, 'commit', '-m', 'alpha']);
 	const seeded = await seedWorkstream(app.page, source, workstreamId, 'Edit files workstream');
 	await openWorkstream(app.page, seeded.workstreamId);
+	await showInspector(app.page);
 	await expect(app.page.getByRole('treeitem', { name: 'Open alpha.ts' })).toBeVisible({
 		timeout: 20_000,
 	});
@@ -107,6 +109,7 @@ test('a markdown file opens Raw to edit, Rich renders it, and its links open the
 		await execFileAsync('git', ['-C', source, 'commit', '-m', 'notes']);
 		const seeded = await seedWorkstream(page, source, 'e2e-markdown-ws', 'Markdown workstream');
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		await page.getByRole('treeitem', { name: 'Open NOTES.md' }).click({ timeout: 20_000 });
 
 		const panel = page.getByRole('tabpanel', { name: 'NOTES.md' });
@@ -155,6 +158,7 @@ test('switching a markdown file between Rich and Raw keeps the reading position'
 		await execFileAsync('git', ['-C', source, 'commit', '-m', 'guide']);
 		const seeded = await seedWorkstream(page, source, 'e2e-markdown-sync-ws', 'Markdown sync');
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		await page.getByRole('treeitem', { name: 'Open GUIDE.md' }).click({ timeout: 20_000 });
 
 		const panel = page.getByRole('tabpanel', { name: 'GUIDE.md' });
@@ -204,6 +208,7 @@ test('a file an agent opens in a workstream the user is not looking at waits the
 		);
 		await sendPrompt(page, 'MALINI_UNASKED_TOOL');
 		await openWorkstream(page, elsewhere.workstreamId);
+		await showInspector(page);
 		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toBeVisible({
 			timeout: 20_000,
 		});

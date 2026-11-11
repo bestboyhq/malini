@@ -153,6 +153,7 @@ describe('browser requests from the agent', () => {
 		const checkout = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const calls: string[] = [];
+		let closed = false;
 		const browser: BrowserAutomation = {
 			open: async ({ workstreamId, tabId }, url) => {
 				calls.push(`open ${workstreamId} ${tabId} ${url}`);
@@ -190,6 +191,12 @@ describe('browser requests from the agent', () => {
 				calls.push(`resize ${workstreamId} ${width}`);
 				return Math.min(Math.max(width, 400), 900);
 			},
+			close: async ({ workstreamId, tabId }) => {
+				calls.push(`close ${workstreamId} ${tabId}`);
+				const wasOpen = !closed;
+				closed = true;
+				return wasOpen;
+			},
 		};
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
@@ -215,10 +222,12 @@ describe('browser requests from the agent', () => {
 		bridge.send(browserRequest('req-9', { action: 'resize', width: 640 }));
 		bridge.send(browserRequest('req-10', { action: 'resize', width: 1280 }));
 		bridge.send(browserRequest('req-11', { action: 'resize', width: 320 }));
+		bridge.send(browserRequest('req-12', { action: 'close' }));
+		bridge.send(browserRequest('req-13', { action: 'close' }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'browser_result');
-		await waitFor(() => results().length === 11, 5_000, 'eleven browser results');
+		await waitFor(() => results().length === 13, 5_000, 'thirteen browser results');
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
@@ -234,6 +243,8 @@ describe('browser requests from the agent', () => {
 			'resize ws-1 640',
 			'resize ws-1 1280',
 			'resize ws-1 320',
+			'close ws-1 chat-sess-1',
+			'close ws-1 chat-sess-1',
 		]);
 		expect(answerTo('req-1')).toEqual({
 			cmd: 'browser_result',
@@ -286,6 +297,14 @@ describe('browser requests from the agent', () => {
 			ok: true,
 			text: "The page is now 400px wide, the narrowest the inspector gets in Malini's window.",
 		});
+		expect(answerTo('req-12')).toMatchObject({
+			ok: true,
+			text: 'Closed your browser tab and its page.',
+		});
+		expect(answerTo('req-13')).toMatchObject({
+			ok: true,
+			text: 'You had no browser tab open, so nothing closed.',
+		});
 	});
 
 	it('answers with an error when malini has no browser to drive', async () => {
@@ -327,6 +346,7 @@ describe('browser requests from the agent', () => {
 			goForward: unused,
 			reload: unused,
 			resize: unused,
+			close: unused,
 		};
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {

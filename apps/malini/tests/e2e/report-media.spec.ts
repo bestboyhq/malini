@@ -39,6 +39,46 @@ async function seedReport(
 	return seeded;
 }
 
+const badge = (title: string): string => `<!doctype html><title>${title}</title><h1>${title}</h1>`;
+
+async function seedBadgeVariants(page: Page, root: string, name: string): Promise<Locator> {
+	await seedReport(
+		page,
+		root,
+		name,
+		[
+			'![Variant A: Line - a quiet outline](.context/badge-a.html)',
+			'![Variant B: Hairline - thinner still](.context/badge-b.html)',
+			'![Variant C: Ticks - warming up](.context/badge-c.html)',
+			'',
+			'Outcome: Three badge directions.',
+			'Needs: Pick a badge',
+		].join('\n'),
+		[],
+		{
+			'badge-a.html': badge('Badge A'),
+			'badge-b.html': badge('Badge B'),
+			'badge-c.html': badge('Badge C'),
+			'notes.html': badge('Notes'),
+		},
+	);
+	const media = page
+		.getByRole('article', { name: 'Turn result' })
+		.getByRole('tablist', { name: 'Report media' });
+	await expect(media.getByRole('tab')).toHaveCount(3, { timeout: 30_000 });
+	return media;
+}
+
+async function openBrowserTab(page: Page, address: string): Promise<Locator> {
+	await page.getByRole('button', { name: 'Show inspector' }).click();
+	await page.getByRole('button', { name: 'Open inspector panel' }).click();
+	await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+	const field = page.getByRole('textbox', { name: 'Page address' }).last();
+	await field.fill(address);
+	await field.press('Enter');
+	return field;
+}
+
 async function playbackOf(recording: Locator): Promise<Readonly<{ src: string; at: number }>> {
 	return recording.evaluate((video) => ({
 		src: String(Reflect.get(video, 'currentSrc')),
@@ -391,38 +431,8 @@ test('the browser puts a variants strip under a page the report offers and flips
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const badge = (title: string) => `<!doctype html><title>${title}</title><h1>${title}</h1>`;
-		await seedReport(
-			page,
-			app.root,
-			'report-variant-pages',
-			[
-				'![Variant A: Line - a quiet outline](.context/badge-a.html)',
-				'![Variant B: Hairline - thinner still](.context/badge-b.html)',
-				'![Variant C: Ticks - warming up](.context/badge-c.html)',
-				'',
-				'Outcome: Three badge directions.',
-				'Needs: Pick a badge',
-			].join('\n'),
-			[],
-			{
-				'badge-a.html': badge('Badge A'),
-				'badge-b.html': badge('Badge B'),
-				'badge-c.html': badge('Badge C'),
-				'notes.html': badge('Notes'),
-			},
-		);
-		const offer = page.getByRole('article', { name: 'Turn result' });
-		await expect(offer.getByRole('tablist', { name: 'Report media' }).getByRole('tab')).toHaveCount(
-			3,
-			{ timeout: 30_000 },
-		);
-
-		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
-		const address = page.getByRole('textbox', { name: 'Page address' }).last();
-		await address.fill('./.context/badge-b.html?v=2');
-		await address.press('Enter');
+		await seedBadgeVariants(page, app.root, 'report-variant-pages');
+		const address = await openBrowserTab(page, './.context/badge-b.html?v=2');
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		const variants = inspector.getByRole('navigation', { name: 'Variants' });
 		const shows = (title: string) =>
@@ -449,6 +459,41 @@ test('the browser puts a variants strip under a page the report offers and flips
 		await address.press('Enter');
 		await shows('Notes');
 		await expect(variants).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a variant chosen in the report moves the browser to it, and a variant stepped in the browser is chosen in the report', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const media = await seedBadgeVariants(page, app.root, 'report-variant-sync');
+		await openBrowserTab(page, './.context/badge-a.html');
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		const variants = inspector.getByRole('navigation', { name: 'Variants' });
+		const shows = (title: string) =>
+			expect(inspector.getByRole('tab', { name: title, exact: true })).toBeVisible();
+		await shows('Badge A');
+
+		await media.getByRole('tab', { name: /^Variant B · Hairline/u }).click();
+		await shows('Badge B');
+		await expect(variants.getByRole('button', { name: 'Variant B · Hairline' })).toHaveAttribute(
+			'aria-current',
+			'page',
+		);
+
+		await variants.getByRole('button', { name: 'Next variant' }).click();
+		await shows('Badge C');
+		await expect(media.getByRole('tab', { name: /^Variant C · Ticks/u })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		const offer = page.getByRole('article', { name: 'Turn result' });
+		await expect(offer.getByRole('button', { name: 'Go with C' })).toBeVisible();
+		await captureFlow(app, 'browser-variant-sync');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

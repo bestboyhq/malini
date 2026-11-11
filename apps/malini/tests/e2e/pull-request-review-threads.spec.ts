@@ -1,7 +1,13 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
+import {
+	captureFlow,
+	expectCleanConsole,
+	launchMalini,
+	openWorkstream,
+	showInspector,
+} from './harness';
 import {
 	WORKSTREAM_NAME,
 	expectMergedAndArchived,
@@ -34,6 +40,7 @@ test('a queued merge has the agent address and resolve bot review threads and le
 			],
 		});
 		await openWorkstream(page, 'e2e-threads');
+		await showInspector(page);
 
 		await queueMerge(page);
 

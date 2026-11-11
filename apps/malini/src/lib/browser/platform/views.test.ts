@@ -240,6 +240,7 @@ function setup(zoom = 1) {
 	const views: FakeView[] = [];
 	const states: BrowserState[] = [];
 	const opened: unknown[] = [];
+	const closed: unknown[] = [];
 	const resizes: BrowserResizeRequest[] = [];
 	const resets = new Map<FakeWindow, () => void>();
 	const threads: ThreadPin[] = [];
@@ -260,6 +261,7 @@ function setup(zoom = 1) {
 		worktree: (workstreamId) => `/work/${workstreamId}`,
 		stateChanged: (state) => states.push(state),
 		tabOpened: (tab) => opened.push(tab),
+		tabClosed: (tab) => closed.push(tab),
 		resizeRequested: (request) => resizes.push(request),
 		threads: (workstreamId) => (workstreamId === 'ws-1' ? threads : []),
 		startThread: async () => 'session-1',
@@ -277,6 +279,7 @@ function setup(zoom = 1) {
 		views,
 		states,
 		opened,
+		closed,
 		resizes,
 		threads,
 		actions,
@@ -489,6 +492,39 @@ describe('BrowserViews', () => {
 			'ERR_NAME_NOT_RESOLVED',
 		);
 		expect(opened).toEqual([TAB]);
+	});
+
+	it('closes the agent tab only after the page it is opening, then opens a fresh one', async () => {
+		const { browser, views, viewAt, opened, closed } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+		let land = (): void => undefined;
+		viewAt(0).contents.nextLoad = new Promise((resolve) => (land = resolve));
+
+		const opening = browser.open(TAB, 'https://example.com');
+		const closing = browser.close(TAB);
+		await expect.poll(() => opened).toEqual([TAB]);
+		expect(viewAt(0).closed).toBe(false);
+		expect(closed).toEqual([]);
+
+		land();
+		await expect(opening).resolves.toMatchObject({ url: 'https://example.com/' });
+		await expect(closing).resolves.toBe(true);
+		expect(viewAt(0).closed).toBe(true);
+		expect(closed).toEqual([TAB]);
+		expect(browser.state(TAB).url).toBe('');
+
+		await browser.open(TAB, 'https://example.com/next');
+		expect(views).toHaveLength(2);
+		expect(opened).toEqual([TAB, TAB]);
+	});
+
+	it('tells malini a tab closed even when it has no page for it', async () => {
+		const { browser, views, closed } = setup();
+
+		await expect(browser.close(TAB)).resolves.toBe(false);
+
+		expect(views).toHaveLength(0);
+		expect(closed).toEqual([TAB]);
 	});
 
 	it('opens a file from the worktree as a page of its own workstream', async () => {

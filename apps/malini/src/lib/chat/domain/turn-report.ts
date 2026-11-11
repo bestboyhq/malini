@@ -7,7 +7,7 @@ export type TurnNoteKind = 'note' | 'changed' | 'verified' | 'next';
 
 export type TurnNote = Readonly<{ kind: TurnNoteKind; text: string }>;
 
-export type TurnStatus = 'waiting' | 'done';
+export type TurnStatus = 'unfinished' | 'waiting' | 'done';
 
 export type TurnComparison = Readonly<{ before: TurnReportImage; after: TurnReportImage }>;
 
@@ -29,6 +29,8 @@ type FooterKey = 'outcome' | 'needs' | 'commit' | 'pull request';
 
 const FOOTER_LINE =
 	/^\s*(?:[-*]\s+)?(?:\*\*|__)?(outcome|needs|commit|pull request|resolved)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.*?)\s*$/iu;
+const FOOTER_LABEL_START = /^\s*(?:[-*]\s*)?(?:\*\*?|__?)?([a-z ]*?)(?:\*\*?|__?)?\s*$/iu;
+const FOOTER_LABELS = ['outcome', 'needs', 'commit', 'pull request', 'resolved'] as const;
 const NOTHING_NEEDED = /^(?:nothing|none|no|n\/a|-|—)\.?$/iu;
 const CODE_OR_MARKDOWN_IMAGE =
 	/((?:^|\n) {0,3}(`{3,}|~{3,})[\s\S]*?(?:\n {0,3}\2|$)|(`+)[^\n]*?\3)|!\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/gu;
@@ -79,6 +81,18 @@ export function withoutReportFooter(text: string): string {
 	return footer.get('outcome') ? lines.slice(0, bodyEnd).join('\n').trimEnd() : text;
 }
 
+export function withoutStreamingFooter(text: string): string {
+	const lines = reportLines(text);
+	const settled = startsFooterLine(lines.at(-1) ?? '') ? lines.slice(0, -1) : lines;
+	const { footer, bodyEnd } = reportFooter(settled);
+	const kept = footer.has('outcome') ? bodyEnd : settled.length;
+	if (kept === lines.length) return text;
+	return lines
+		.slice(0, kept)
+		.map((line) => `${line}\n`)
+		.join('');
+}
+
 export function offeredVariants(
 	envelopes: readonly EventEnvelope[],
 ): readonly (readonly TurnVariant[])[] {
@@ -93,7 +107,8 @@ export function offeredVariants(
 		.filter((variants) => variants.length > 0);
 }
 
-export function turnStatus(report: TurnReport, needsOpen: boolean): TurnStatus {
+export function turnStatus(report: TurnReport, needsOpen: boolean, ended = true): TurnStatus {
+	if (!ended) return 'unfinished';
 	return needsOpen && report.needs.length > 0 ? 'waiting' : 'done';
 }
 
@@ -106,6 +121,11 @@ export function mediaMarker(src: string): number | null {
 
 function reportLines(text: string): string[] {
 	return text.replace(/\r\n?/gu, '\n').split('\n');
+}
+
+function startsFooterLine(line: string): boolean {
+	const word = FOOTER_LABEL_START.exec(line)?.[1]?.toLowerCase();
+	return word !== undefined && FOOTER_LABELS.some((label) => label.startsWith(word));
 }
 
 function reportFooter(lines: readonly string[]): {

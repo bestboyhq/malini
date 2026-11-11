@@ -21,7 +21,12 @@
 	} from './InspectorPanelContextMenu.svelte';
 	import type { ExtensionPanelHostErrorHandler } from './extension-panel-host';
 	import type { InspectorPanelAction } from './inspector-panel-action';
-	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
+	import {
+		GUTTER_CHANGES_PANEL_ID,
+		gutterRows,
+		type GutterChangeTotals,
+	} from '$shared/extensions/inspector-gutter-row';
+	import { showChangedFilesCommand } from '../application/commands/show-changed-files.command';
 	import { inspectorMinWidth } from '$shared/extensions/inspector-min-width';
 	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { inspectorGutter } from '$shared/extensions/inspector-gutter.store.svelte';
@@ -111,6 +116,7 @@
 	let panelMenu: InspectorPanelMenuTarget | null = $state.raw(null);
 	let panelFailures: Readonly<Record<string, string>> = $state.raw({});
 	let handledRequestedPanelId: string | null = $state(null);
+	let changesWantedIn: string | null = $state(null);
 	let openedPanelKey: string | null = null;
 	let keepAlive: InspectorPanelKeepAliveState<ExtensionPanelRegistration, ExtensionPanelContext> =
 		$state.raw(emptyInspectorPanelKeepAliveState());
@@ -154,6 +160,9 @@
 			panels: orderedPanels,
 			hiddenPanelIds: presentedPreferences.hidden,
 			changeTotals,
+			actions: panelActions.flatMap(({ id, label, icon, count }) =>
+				count ? [{ id, label, icon, count }] : [],
+			),
 		}),
 	);
 	const minWidth = $derived(inspectorMinWidth(orderedPanels, presentedPreferences.hidden));
@@ -240,6 +249,20 @@
 		handledRequestedPanelId = requested;
 		openPanel(requested);
 		onrequestedpanelhandled?.(requested);
+	});
+
+	$effect(() => {
+		if (changesWantedIn === null || !inspectorRuntimeReady) return;
+		const wanted = changesWantedIn;
+		changesWantedIn = null;
+		if (wanted === workstreamId) showChangedFilesCommand(wanted);
+	});
+
+	$effect(() => {
+		const held = inspectorDrawer.heldOpenBy(workstreamId);
+		if (held && inspectorRuntimeReady && !panels.some(({ id }) => id === held)) {
+			inspectorDrawer.closeAfterPanel(workstreamId, held);
+		}
 	});
 
 	$effect(() => {
@@ -339,6 +362,7 @@
 
 	function selectPanel(panelId: string): void {
 		if (!inspectorInteractive) return;
+		if (inspectorDrawer.heldOpenBy(workstreamId)) openDrawer();
 		persist((current) => selectInspectorPanel(current, panelId));
 	}
 
@@ -369,10 +393,20 @@
 		void focusPanelTab(panelId);
 	}
 
+	function openGutterRow(panelId: string): void {
+		if (panelId === GUTTER_CHANGES_PANEL_ID) changesWantedIn = workstreamId;
+		openPanel(panelId);
+	}
+
+	function runGutterAction(actionId: string): void {
+		panelActions.find(({ id }) => id === actionId)?.run();
+	}
+
 	function revealPanel(panelId: string): void {
 		persist((current) =>
 			selectInspectorPanel(setInspectorPanelVisible(current, panelId, true), panelId),
 		);
+		inspectorDrawer.openForPanel(workstreamId, panelId, storage);
 	}
 
 	async function focusPanelTab(
@@ -407,6 +441,7 @@
 		});
 		clearPanelFailure(panelId);
 		notifyPanelClosed(closingPanel);
+		inspectorDrawer.closeAfterPanel(workstreamId, panelId);
 		if (next.activeId === null) {
 			foldDrawer();
 			void focusPanelTab(panelId, 'extension-inspector-gutter-row');
@@ -594,6 +629,39 @@
 		return normalized > 99 ? '99+' : String(normalized);
 	}
 </script>
+
+{#snippet runtimeFailure(message: string)}
+	<div
+		class="grid place-items-center p-6"
+		class:min-h-0={!presentsMountedPanel}
+		class:flex-1={!presentsMountedPanel}
+		role="alert"
+		data-testid="inspector-runtime-error"
+		data-navigation-error="true"
+		data-navigation-error-message={message}
+		data-navigation-workstream-id={workstreamId}
+		data-navigation-panel-id={requestedPanelId ?? activePanel?.id ?? undefined}
+		data-navigation-agent-session-id={agentSessionId ?? undefined}
+	>
+		<div
+			class="border-surface-elevated-border bg-surface-elevated max-w-96 rounded-lg border-[0.5px] p-4"
+		>
+			<p class="text-fg-secondary text-sm font-medium">Workstream inspector did not start</p>
+			<p class="text-fg-tertiary mt-1 text-xs leading-relaxed">{message}</p>
+			{#if onruntimeretry}
+				<Button
+					variant="secondary"
+					bordered
+					class="border-surface-150-border bg-surface-150 hover:bg-surface-150-hover mt-3 h-8 px-3 text-xs"
+					data-testid="inspector-runtime-retry"
+					onclick={onruntimeretry}
+				>
+					Retry
+				</Button>
+			{/if}
+		</div>
+	</div>
+{/snippet}
 
 {#if floating}
 	<div class="mr-3 w-72 shrink-0" aria-hidden="true"></div>
@@ -942,36 +1010,7 @@
 		</DropdownLayer>
 
 		{#if runtimeError}
-			<div
-				class="grid place-items-center p-6"
-				class:min-h-0={!presentsMountedPanel}
-				class:flex-1={!presentsMountedPanel}
-				role="alert"
-				data-testid="inspector-runtime-error"
-				data-navigation-error="true"
-				data-navigation-error-message={runtimeError}
-				data-navigation-workstream-id={workstreamId}
-				data-navigation-panel-id={requestedPanelId ?? activePanel?.id ?? undefined}
-				data-navigation-agent-session-id={agentSessionId ?? undefined}
-			>
-				<div
-					class="border-surface-elevated-border bg-surface-elevated max-w-96 rounded-lg border-[0.5px] p-4"
-				>
-					<p class="text-fg-secondary text-sm font-medium">Workstream inspector did not start</p>
-					<p class="text-fg-tertiary mt-1 text-xs leading-relaxed">{runtimeError}</p>
-					{#if onruntimeretry}
-						<Button
-							variant="secondary"
-							bordered
-							class="border-surface-150-border bg-surface-150 hover:bg-surface-150-hover mt-3 h-8 px-3 text-xs"
-							data-testid="inspector-runtime-retry"
-							onclick={onruntimeretry}
-						>
-							Retry
-						</Button>
-					{/if}
-				</div>
-			</div>
+			{@render runtimeFailure(runtimeError)}
 		{:else if !inspectorRuntimeReady && !presentsMountedPanel}
 			<div
 				class="min-h-0 flex-1"
@@ -994,10 +1033,14 @@
 			rows={compactRows}
 			disabled={!inspectorInteractive}
 			{renderIcon}
-			onopen={openPanel}
+			onopen={openGutterRow}
+			onaction={runGutterAction}
 			oncontextmenu={openPanelMenu}
 			onshow={visiblePanels.length > 0 ? openDrawer : undefined}
 		/>
+		{#if runtimeError}
+			{@render runtimeFailure(runtimeError)}
+		{/if}
 	{/if}
 
 	{#each keepAlive.entries as entry (entry.workstreamId)}

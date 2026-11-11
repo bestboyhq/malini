@@ -36,7 +36,8 @@ test('a background agent shows as running past the turn, then shows its result',
 		const agentRow = page.getByTestId('subagent-row').filter({ hasText: 'Sleep probe' });
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText('launched', { exact: true })).toBeVisible();
+		const card = page.getByRole('article', { name: 'Turn result' });
+		await expect(card.getByRole('img', { name: 'Not over yet' })).toBeVisible();
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
 		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(agentRow.getByRole('button', { name: 'Stop Sleep probe' })).toBeVisible();
@@ -60,6 +61,7 @@ test('a background agent shows as running past the turn, then shows its result',
 				.getByText('The Sleep probe agent finished with probe-done.'),
 		).toBeVisible();
 		await expect(page.getByText(/Outcome:|Needs:/u)).toHaveCount(0);
+		await expect(card.getByRole('img', { name: 'Done' })).toBeVisible();
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-agent-completed');
 

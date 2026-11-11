@@ -49,26 +49,28 @@
 				/>
 			{/each}
 		</div>
-		<form class="mt-2 flex items-center gap-1.5" onsubmit={submit}>
+		<form class="mt-2 flex flex-wrap items-center gap-1.5" onsubmit={submit}>
 			<TextInput
 				bind:value={reason}
 				size="xs"
-				class="min-w-0 flex-1"
+				class="min-w-0 flex-1 basis-72"
 				inputClass="text-xs"
 				placeholder={`Why ${chosen.id}? Optional, it steers the next round`}
 				ariaLabel="Why this variant"
 			/>
-			{#if onnonefit}
-				<Button variant="ghost" size="sm" class="text-fg-secondary" onclick={noneFit}>
-					None fit
+			<div class="ml-auto flex items-center gap-1.5">
+				{#if onnonefit}
+					<Button variant="ghost" size="sm" class="text-fg-secondary" onclick={noneFit}>
+						None fit
+					</Button>
+				{/if}
+				<Button type="submit" variant="primary" size="sm" disabled={!onpick}>
+					Go with {chosen.id}
+					{#snippet trailing()}
+						<Icon name="enter" size={12} />
+					{/snippet}
 				</Button>
-			{/if}
-			<Button type="submit" variant="primary" size="sm" disabled={!onpick}>
-				Go with {chosen.id}
-				{#snippet trailing()}
-					<Icon name="enter" size={12} />
-				{/snippet}
-			</Button>
+			</div>
 		</form>
 	</section>
 {/if}

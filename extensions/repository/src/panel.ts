@@ -200,6 +200,11 @@ class RepositoryPanelView {
 		const renderIdentity = repositoryPanelRenderIdentity(state, projection);
 		if (!state.diff) this.#diffOpen = false;
 		this.#projection = projection;
+		if (state.changedOnly !== this.#changedOnly) {
+			this.#renderIdentity = renderIdentity;
+			this.#showChangedOnly(state.changedOnly);
+			return;
+		}
 		if (renderIdentity === this.#renderIdentity) return;
 		this.#renderIdentity = renderIdentity;
 		this.#render();
@@ -358,9 +363,10 @@ class RepositoryPanelView {
 		return this.#changedOnly ? this.#changedExpansion : this.#treeExpansion;
 	}
 
-	#setChangedOnly(on: boolean): void {
+	#showChangedOnly(on: boolean): void {
 		const changedTree = this.#projection?.changedTree ?? [];
 		this.#afterTreeIcons(on ? expandedTreeIconIds(changedTree) : [], () => {
+			if (this.#state.changedOnly !== on) return;
 			this.#changedOnly = on;
 			if (on) {
 				for (const path of directoryPaths(changedTree)) this.#changedExpansion.add(path);
@@ -556,7 +562,7 @@ class RepositoryPanelView {
 		const chip = actionButton(
 			'Changed',
 			`repository-panel__scope-chip${on ? ' repository-panel__scope-chip--active' : ''}`,
-			() => this.#setChangedOnly(!on),
+			() => this.#controller.setChangedOnly(!on),
 		);
 		chip.dataset.command = 'changed-only';
 		chip.dataset.reconcileKey = 'changed-only';

@@ -644,6 +644,14 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
+export async function showInspector(page: Page): Promise<void> {
+	await page
+		.getByTestId('extension-inspector-gutter')
+		.getByRole('button', { name: 'Show inspector' })
+		.click({ timeout: 20_000 });
+	await expect(page.getByRole('button', { name: 'Hide inspector' })).toBeVisible();
+}
+
 export async function openSettingsFromMenu(page: Page): Promise<void> {
 	await page.getByTestId('sidebar-open-profile').click();
 	await page

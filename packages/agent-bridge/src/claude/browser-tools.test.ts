@@ -113,6 +113,7 @@ describe('malini MCP server', () => {
 							required: ['width'],
 						},
 					},
+					{ name: 'browser_close', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'automations_list' },
 					{ name: 'automations_save' },
 					{ name: 'automations_run' },
@@ -131,7 +132,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('types into a field, submitting only when asked, steps through history and resizes the tab', async () => {
+	it('types into a field, submitting only when asked, steps through history, resizes the tab and closes it', async () => {
 		const { call, requests } = await connect(async () => ({ ok: true }));
 
 		await call('tools/call', {
@@ -146,6 +147,7 @@ describe('malini MCP server', () => {
 		await call('tools/call', { name: 'browser_forward', arguments: {} });
 		await call('tools/call', { name: 'browser_reload', arguments: {} });
 		await call('tools/call', { name: 'browser_resize', arguments: { width: 1280 } });
+		await call('tools/call', { name: 'browser_close', arguments: {} });
 
 		expect(requests).toEqual([
 			{ action: 'type', selector: 'input[name=q]', text: 'malini', submit: false },
@@ -154,6 +156,7 @@ describe('malini MCP server', () => {
 			{ action: 'forward' },
 			{ action: 'reload' },
 			{ action: 'resize', width: 1280 },
+			{ action: 'close' },
 		]);
 	});
 

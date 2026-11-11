@@ -139,6 +139,10 @@ class UpstreamPanelController {
 		return this.#state;
 	}
 
+	setChangedOnly(): RepositoryViewState {
+		return this.#state;
+	}
+
 	closeAgentSessionDiff(): RepositoryViewState {
 		return this.#state;
 	}
@@ -233,6 +237,7 @@ function viewState(): RepositoryViewState {
 		additions: 0,
 		deletions: 0,
 		diffScope: 'uncommitted',
+		changedOnly: false,
 		uncommitted: { diffs: [], changedFiles: 0, additions: 0, deletions: 0 },
 		refreshedAt: 1,
 		pullRequestRefreshStatus: 'ready',

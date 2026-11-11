@@ -36,6 +36,8 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('Write both in the commit convention the repository states');
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
+		expect(prompt).toContain('close its tab with `browser_close`');
+		expect(prompt).toContain('Keep it open only while the user should look at or use that page');
 		expect(prompt).toContain('give it a `when` trigger written from `events_list`');
 		expect(prompt).toContain(
 			'run Open draft or Merge, whichever they asked for, with `automations_run` and its id in `workstream`',

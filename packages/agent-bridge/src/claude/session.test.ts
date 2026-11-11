@@ -340,6 +340,7 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_forward',
 			'mcp__malini__browser_reload',
 			'mcp__malini__browser_resize',
+			'mcp__malini__browser_close',
 			'mcp__malini__automations_list',
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',

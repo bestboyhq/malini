@@ -14,6 +14,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 	startFreshChat,
 	untilStill,
 	type LaunchedApp,
@@ -84,6 +85,7 @@ async function workstreamWithFiles(
 	await execFileAsync('git', ['-C', source, 'commit', '-m', 'files']);
 	const seeded = await seedWorkstream(page, source, workstreamId, 'Open files workstream');
 	await openWorkstream(page, seeded.workstreamId);
+	await showInspector(page);
 	await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toBeVisible({
 		timeout: 20_000,
 	});

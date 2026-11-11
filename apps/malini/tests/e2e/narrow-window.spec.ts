@@ -6,6 +6,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	showInspector,
 } from './harness';
 
 test('a narrow window folds the sidebar away and keeps a compact inspector beside a full-height chat', async () => {
@@ -20,6 +21,7 @@ test('a narrow window folds the sidebar away and keeps a compact inspector besid
 			'Narrow window workstream',
 		);
 		await openWorkstream(page, workstreamId);
+		await showInspector(page);
 		const resize = (width: number): Promise<void> =>
 			electronApp.evaluate(
 				({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]?.setContentSize(width, 800),
@@ -41,8 +43,8 @@ test('a narrow window folds the sidebar away and keeps a compact inspector besid
 		await resize(900);
 		await expect(sidebar).toBeHidden();
 		await expect(inspector).toHaveAttribute('data-inspector-drawer-open', 'false');
-		const filesRow = inspector.getByTestId('extension-inspector-gutter-row').first();
-		await expect(filesRow).toBeVisible();
+		const changesRow = inspector.getByRole('button', { name: /^Changes/u });
+		await expect(changesRow).toBeVisible();
 		await expect.poll(async () => (await box(chat)).bottom).toBe(800);
 		const resting = await box(chat);
 		expect(resting.width).toBeGreaterThan(480);
@@ -59,7 +61,7 @@ test('a narrow window folds the sidebar away and keeps a compact inspector besid
 		await page.keyboard.press('Escape');
 		await expect(sidebar).toBeHidden();
 
-		await filesRow.click();
+		await changesRow.click();
 		await expect(inspector).toHaveAttribute('data-inspector-drawer-open', 'true');
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible();
 		expect(await box(chat)).toEqual(resting);
@@ -67,7 +69,8 @@ test('a narrow window folds the sidebar away and keeps a compact inspector besid
 		await page.getByTestId('chat-composer').click();
 		await expect(inspector).toHaveAttribute('data-inspector-drawer-open', 'false');
 
-		await filesRow.click();
+		await changesRow.click();
+		await page.getByRole('button', { name: 'Remove the changed files filter' }).click();
 		await page.getByRole('treeitem', { name: 'Open seed.txt' }).click();
 		await expect(inspector).toHaveAttribute('data-inspector-drawer-open', 'false');
 		await expect(

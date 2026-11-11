@@ -9,6 +9,7 @@ import { BROWSER_PARTITION } from './electron-view';
 
 const APP_MANAGED_DIR = dirname(AGENT_ATTACHMENTS_PATH);
 const PAGE = /\.html?$/iu;
+const PLAIN_TEXT = /\.(?:md|markdown|txt|csv|json)$/iu;
 const DOCTYPE = /^(?:\xEF\xBB\xBF)?\s*<!doctype[^>]*>/iu;
 // ponytail: only the nearest scroller moves, so a target inside a nested scroller leaves the page itself still; walk the page's scrollers if a preview needs both
 const CONTAINED_SCROLL = Buffer.from(
@@ -35,7 +36,10 @@ export function serveWorktreeFiles(worktreeOf: (host: string) => string | null):
 			if (!file)
 				return new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
 			const response = await net.fetch(pathToFileURL(file).href);
-			return uncached(framedInMalini && PAGE.test(file) ? await containScroll(response) : response);
+			return served(
+				file,
+				framedInMalini && PAGE.test(file) ? await containScroll(response) : response,
+			);
 		};
 	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve(false));
 	protocol.handle(BROWSER_WORKTREE_SCHEME, serve(true));
@@ -52,9 +56,10 @@ async function containScroll(response: Response): Promise<Response> {
 	});
 }
 
-function uncached(response: Response): Response {
+export function served(file: string, response: Response): Response {
 	const headers = new Headers(response.headers);
 	headers.set('Cache-Control', 'no-store');
+	if (PLAIN_TEXT.test(file)) headers.set('Content-Type', 'text/plain; charset=utf-8');
 	return new Response(response.body, { status: response.status, headers });
 }
 

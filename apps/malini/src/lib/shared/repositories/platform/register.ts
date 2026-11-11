@@ -76,6 +76,7 @@ import {
 } from './github.service';
 import { GitHubSignIn } from './github-sign-in.service';
 import { GithubReachWatch } from './github-reach';
+import { listContextMedia } from './context-media';
 import { workstreamMedia } from './image-protocol';
 import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
@@ -341,6 +342,10 @@ export function registerRepositories(
 
 	commands.define('repositories.workstream-files', (args: unknown) =>
 		readCheckout(args, listWorkstreamFiles),
+	);
+
+	commands.define('repositories.workstream-context-media', (args: unknown) =>
+		readCheckout(args, listContextMedia),
 	);
 
 	commands.define('repositories.base-files', async (args: unknown) => {

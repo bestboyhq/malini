@@ -2,6 +2,7 @@ import { app, type BrowserWindow } from 'electron';
 import {
 	BROWSER_RESIZE_REQUESTED_CHANNEL,
 	BROWSER_STATE_CHANGED_CHANNEL,
+	BROWSER_TAB_CLOSED_CHANNEL,
 	BROWSER_TAB_OPENED_CHANNEL,
 	BROWSER_THREAD_OPENED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
@@ -44,6 +45,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		worktree,
 		stateChanged: (state) => events.emit(BROWSER_STATE_CHANGED_CHANNEL, state),
 		tabOpened: (tab) => events.emit(BROWSER_TAB_OPENED_CHANNEL, tab),
+		tabClosed: (tab) => events.emit(BROWSER_TAB_CLOSED_CHANNEL, tab),
 		resizeRequested: (request) => events.emit(BROWSER_RESIZE_REQUESTED_CHANNEL, request),
 		threads: (workstreamId) => listElementThreads(db, workstreamId).map(threadPin),
 		startThread: (tab, picked, profile) => startElementThread(commands, tab, picked, profile),

@@ -15,6 +15,7 @@
 	import type { VideoHandoff } from './transcript-gallery';
 	import VideoCompare from './VideoCompare.svelte';
 	import { galleryImageId } from '$shared/markdown/workstream-images';
+	import { variantChoices } from '$shared/variants/variant-choices.store.svelte';
 
 	type Shot = Readonly<
 		{ key: string; label: string; thumb: string } & (
@@ -28,19 +29,14 @@
 		report: TurnReport;
 		pick: VariantPick | null;
 		chosenId: string;
+		chosenRevision: number;
 		workstreamId: string;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string, handoff?: VideoHandoff) => void) | undefined;
 	}
 
-	let {
-		report,
-		pick,
-		chosenId = $bindable(),
-		workstreamId,
-		imagesrc,
-		onopenimage,
-	}: Props = $props();
+	let { report, pick, chosenId, chosenRevision, workstreamId, imagesrc, onopenimage }: Props =
+		$props();
 
 	const stageId = $props.id();
 	const variantShots = $derived<Shot[]>(
@@ -74,9 +70,10 @@
 	]);
 	const shots = $derived([...variantShots, ...evidenceShots]);
 	const grouped = $derived(variantShots.length > 0 && evidenceShots.length > 0);
-	let selectedKey = $state<string | null>(null);
+	let evidence = $state<Readonly<{ key: string; revision: number }> | null>(null);
+	const evidenceKey = $derived(evidence?.revision === chosenRevision ? evidence.key : null);
 	const shown = $derived(
-		shots.find((shot) => shot.key === selectedKey) ??
+		evidenceShots.find((shot) => shot.key === evidenceKey) ??
 			variantShots.find((shot) => shot.kind === 'variant' && shot.variant.id === chosenId) ??
 			shots[0] ??
 			null,
@@ -95,8 +92,11 @@
 	}
 
 	function show(shot: Shot): void {
-		selectedKey = shot.key;
-		if (shot.kind === 'variant') chosenId = shot.variant.id;
+		if (shot.kind === 'variant') {
+			variantChoices.choose({ workstreamId, variants: report.variants, chosen: shot.variant });
+			return;
+		}
+		evidence = { key: shot.key, revision: chosenRevision };
 	}
 
 	function moveAlongTabs(event: KeyboardEvent & { currentTarget: HTMLElement }): void {

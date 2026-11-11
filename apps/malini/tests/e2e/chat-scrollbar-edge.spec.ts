@@ -7,6 +7,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 } from './harness';
 
 type EdgeOwnership = Readonly<{
@@ -58,6 +59,7 @@ test('the chat scrolls from the window edge while the inspector stays on top of 
 			'Chat scrollbar edge workstream',
 		);
 		await openWorkstream(page, workstreamId);
+		await showInspector(page);
 		await sendPrompt(page, 'Reach the edge');
 		await expectAssistantReply(page);
 		const resize = (width: number): Promise<void> =>

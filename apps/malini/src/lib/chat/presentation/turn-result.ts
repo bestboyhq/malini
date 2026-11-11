@@ -9,12 +9,16 @@ export type RunPick = Readonly<{ reportRunId: string; promptRunId: string; pick:
 const EARLIER_TURN_LIMIT = 3;
 
 export function finalTurnReport(run: RunGroup, itemKey: string, text: string): TurnReport | null {
-	if (!run.turnEnded || !hasTurnReport(text) || lastReport(run)?.key !== itemKey) return null;
+	if (!hasTurnReport(text) || lastReport(run)?.key !== itemKey) return null;
 	return parseTurnReport(text);
 }
 
+export function turnOver(run: RunGroup): boolean {
+	return run.turnEnded || run.terminal === 'failed' || run.terminal === 'cancelled';
+}
+
 export function runTurn(run: RunGroup): EarlierTurn | null {
-	const answer = run.turnEnded ? lastReport(run) : null;
+	const answer = lastReport(run);
 	return answer ? { runId: run.runId, report: parseTurnReport(answer.text) } : null;
 }
 

@@ -81,6 +81,7 @@ import type {
 } from './mcp-servers';
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
+import type { ContextMedia } from './workstream-images';
 import type {
 	ClaimHandleArgs,
 	ClaimHandleResult,
@@ -688,6 +689,7 @@ export interface ContractCommands {
 	'repositories.list-owned-docker-containers': { args: undefined; result: OwnedContainer[] };
 	'repositories.list-repositories': { args: undefined; result: ProjectDto[] };
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
+	'repositories.workstream-context-media': { args: WorkstreamIdArgs; result: ContextMedia[] };
 	'repositories.base-files': { args: RepositoryBaseFilesArgs; result: string[] };
 	'repositories.list-workstreams': { args: undefined; result: WorkstreamDto[] };
 	'repositories.list-archived-workstreams': {
@@ -1004,6 +1006,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.list-owned-docker-containers',
 	'repositories.list-repositories',
 	'repositories.workstream-files',
+	'repositories.workstream-context-media',
 	'repositories.base-files',
 	'repositories.list-workstreams',
 	'repositories.list-archived-workstreams',

@@ -226,6 +226,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.list-clones': () => [],
 	'repositories.owner-avatar': ({ owner }) => (owner === OWNER ? ownerAvatar() : null),
 	'repositories.workstream-files': ({ workstreamId }) => filesOf(workstreamOf(workstreamId)),
+	'repositories.workstream-context-media': () => [],
 	'repositories.workstream-change-totals': ({ workstreamId }) => totals(workstreamId),
 	'repositories.workstream-snapshot': ({ workstreamId }) => ({
 		patch: '',

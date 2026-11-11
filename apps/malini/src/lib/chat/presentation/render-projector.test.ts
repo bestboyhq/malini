@@ -8,7 +8,6 @@ import {
 	type RenderState,
 	type RunGroup,
 } from './render-state';
-import { runTurn } from './turn-result';
 
 function firstRun(state: RenderState): RunGroup {
 	const run = state.runs[0];
@@ -101,23 +100,14 @@ describe('IncrementalRenderProjector', () => {
 			envelope(8, { type: 'run.completed', runId: 'run-1', summary: checked, handedOff: true }),
 		];
 		const projector = new IncrementalRenderProjector();
-		const outcomes: (string | null)[] = [];
+		const ended: boolean[] = [];
 
 		for (let length = 1; length <= envelopes.length; length += 1) {
 			const state = projector.project(envelopes.slice(0, length));
 			expect(state).toEqual(foldEnvelopes(envelopes.slice(0, length)));
-			outcomes.push(runTurn(firstRun(state))?.report.outcome ?? null);
+			ended.push(firstRun(state).turnEnded);
 		}
-		expect(outcomes).toEqual([
-			null,
-			null,
-			'The site runs.',
-			'The site runs.',
-			'The site runs.',
-			null,
-			'The site still runs.',
-			'The site still runs.',
-		]);
+		expect(ended).toEqual([false, false, true, true, true, false, true, true]);
 	});
 
 	it('keeps one row per tool call when a background agent hands back the same call again', () => {

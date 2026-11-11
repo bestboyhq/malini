@@ -3,5 +3,6 @@ export { default as ChatSurface } from './presentation/ChatSurface.svelte';
 export { default as PermissionGrants } from './presentation/PermissionGrants.svelte';
 export { default as WorkstreamChatBridge } from './presentation/WorkstreamChatBridge.svelte';
 export { default as WorkstreamChatsPreloader } from './presentation/WorkstreamChatsPreloader.svelte';
+export { default as MediaGallery } from './presentation/MediaGallery.svelte';
 export { default as McpFixDialog } from './presentation/McpFixDialog.svelte';
 export { default as McpServersSettings } from './presentation/McpServersSettings.svelte';

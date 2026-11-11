@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderItem, RunGroup } from './render-state';
-import { earlierTurnsByRun, finalTurnReport, runTurn, variantPicksByRun } from './turn-result';
+import {
+	earlierTurnsByRun,
+	finalTurnReport,
+	runTurn,
+	turnOver,
+	variantPicksByRun,
+} from './turn-result';
 
 const REPORT = [
 	'![Sticky header](.malini/sandbox/screenshots/header.png)',
@@ -36,18 +42,38 @@ describe('which message becomes the result card', () => {
 		obsoleted: false,
 	});
 
-	it('is only the last answer of a completed run that carries a report', () => {
+	it('is only the last answer of a run that carries a report, whether or not the run has ended', () => {
 		const completed = run('completed', [assistant('a1', 'Looking.'), assistant('a2', REPORT)]);
 
 		expect(finalTurnReport(completed, 'a2', REPORT)?.outcome).toBe(
 			'The header stays pinned while the page scrolls.',
 		);
 		expect(finalTurnReport(completed, 'a1', 'Looking.')).toBeNull();
-		expect(finalTurnReport(run('failed', [assistant('a2', REPORT)]), 'a2', REPORT)).toBeNull();
-		expect(finalTurnReport(run(null, [assistant('a2', REPORT)]), 'a2', REPORT)).toBeNull();
+		for (const terminal of ['failed', 'cancelled', 'paused', null] as const) {
+			expect(
+				finalTurnReport(run(terminal, [assistant('a2', REPORT)]), 'a2', REPORT),
+			).not.toBeNull();
+		}
 		expect(
 			finalTurnReport(run('completed', [assistant('a2', 'Plain prose.')]), 'a2', 'Plain prose.'),
 		).toBeNull();
+	});
+
+	it('moves to a newer report the same run writes, and ends the turn only once the run stops for good', () => {
+		const rewritten = 'Outcome: The header stays pinned, shadow and all.';
+		const checking = run(null, [assistant('a1', REPORT), assistant('a2', rewritten)]);
+
+		expect(finalTurnReport(checking, 'a1', REPORT)).toBeNull();
+		expect(finalTurnReport(checking, 'a2', rewritten)?.outcome).toBe(
+			'The header stays pinned, shadow and all.',
+		);
+		expect(runTurn(checking)?.report.outcome).toBe('The header stays pinned, shadow and all.');
+		expect(
+			(['completed', 'failed', 'cancelled', 'paused', null] as const).map((terminal) =>
+				turnOver(run(terminal, [])),
+			),
+		).toEqual([true, true, true, false, false]);
+		expect(turnOver({ ...checking, turnEnded: true })).toBe(true);
 	});
 
 	it("stays the last report of the run when Claude Code's own follow-up turn answers after it", () => {

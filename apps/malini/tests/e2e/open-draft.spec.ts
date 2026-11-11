@@ -12,6 +12,7 @@ import {
 	openWorkstream,
 	sendPrompt,
 	openSettingsFromMenu,
+	showInspector,
 } from './harness';
 import {
 	headOf,
@@ -38,6 +39,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		git(worktree, 'config', 'user.name', 'E2E Chef');
 		git(worktree, 'config', 'user.email', 'chef@example.com');
 		await openWorkstream(page, 'e2e-open-draft');
+		await showInspector(page);
 		const status = sidebarStatus(page, 'e2e-open-draft');
 
 		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
@@ -163,6 +165,7 @@ test('Open draft is offered while the Files panel and the sidebar count the same
 			writeFileSync(join(junk, `${index}-${'0'.repeat(120)}.js`), 'x\n');
 		}
 		await openWorkstream(page, 'e2e-changed-count');
+		await showInspector(page);
 
 		const changed = page.getByRole('button', {
 			name: 'Filter to files changed in this workstream',

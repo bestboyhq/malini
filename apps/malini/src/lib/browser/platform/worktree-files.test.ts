@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { worktreeFile } from './worktree-files';
+import { served, worktreeFile } from './worktree-files';
 
 vi.mock('electron', () => ({}));
 
@@ -58,6 +58,31 @@ describe('worktreeFile', () => {
 			'/.malini',
 		]) {
 			await expect(worktreeFile(worktree, pathname)).resolves.toBeNull();
+		}
+	});
+});
+
+describe('served', () => {
+	it('shows text documents as UTF-8 text instead of a download, and never caches', async () => {
+		for (const file of ['/w/.context/data.csv', '/w/notes.MD', '/w/a.json', '/w/b.txt']) {
+			const response = served(
+				file,
+				new Response('Café — ok', { headers: { 'content-type': 'text/csv' } }),
+			);
+			expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+			expect(response.headers.get('cache-control')).toBe('no-store');
+			await expect(response.text()).resolves.toBe('Café — ok');
+		}
+	});
+
+	it('keeps the type of pages, PDFs and images', () => {
+		for (const [file, type] of [
+			['/w/index.html', 'text/html'],
+			['/w/spec.pdf', 'application/pdf'],
+			['/w/shot.png', 'image/png'],
+		] as const) {
+			const response = served(file, new Response('', { headers: { 'content-type': type } }));
+			expect(response.headers.get('content-type')).toBe(type);
 		}
 	});
 });
