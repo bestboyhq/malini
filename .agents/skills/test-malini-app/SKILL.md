@@ -36,6 +36,11 @@ P=$(realpath "${TMPDIR:-/tmp}")/malini-profile-<topic>; mkdir -p "$P"
 sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '$P/malini.sqlite'"
 ```
 
+A sealed value, such as a provider's API key or a repository's secret, opens only in the binary that sealed it: the keychain trusts the daily Malini's `Malini.app`, which `scripts/dev-bundle.mjs` builds, and this worktree's plain `Electron.app` reads "cannot be read. Save it again in Settings.".
+Pass that binary as `launch(topic, { executablePath })` to run this worktree's code with the user's saved keys, and never ask the user for a key Malini already holds.
+Its path is in the lock of the running Malini: `ps -p "$(readlink ~/Library/Application\ Support/malini/SingletonLock | sed 's/.*-//')" -o comm=`, which needs the command outside the sandbox.
+To bring in only the keys, copy the `api_key` and `plan` of `model_providers` from the snapshot into a fresh profile's database.
+
 The app looks for workstream checkouts in `$P/checkouts`, so the snapshot alone shows every workstream without its checkout.
 Copy the checkouts in too and repoint their git metadata at the copies.
 Skip each workstream's `.context` and `node_modules`: the sandbox needs neither, and copying them once grew a profile to 1.5 million files.
@@ -85,7 +90,7 @@ Send prompts and commit only in workstreams created inside the sandbox; a flow t
 
 ## Drive and capture
 
-`scripts/malini.mjs` exports `launch(topic, { foreground })`.
+`scripts/malini.mjs` exports `launch(topic, { foreground, executablePath })`.
 It returns the Playwright `page`, the Electron `app`, `errors` (console and page errors), `shot(name)`, and `close()`.
 `shot` waits for transitions to settle, then captures Malini's own window with Electron's `capturePage()` into `.context/<name>.png`.
 It needs no screen recording permission, so it runs inside Malini's sandbox, where `screencapture` cannot.

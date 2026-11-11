@@ -136,8 +136,11 @@ test('a message to a provider you have not connected sends, and waits under the 
 		await page.getByTestId('provider-connect-submit').click();
 		await expect(strip).toHaveCount(0);
 		await expect
-			.poll(() => sessionEnvironment(app.home, 'deepseek-v4-pro')?.['ANTHROPIC_AUTH_TOKEN'])
-			.toBe('sk-e2e-deepseek');
+			.poll(() => sessionEnvironment(app.home, 'deepseek-v4-pro')?.['ANTHROPIC_BASE_URL'])
+			.toMatch(/^http:\/\/127\.0\.0\.1:\d+\/deepseek$/u);
+		expect(sessionEnvironment(app.home, 'deepseek-v4-pro')?.['ANTHROPIC_AUTH_TOKEN']).not.toBe(
+			'sk-e2e-deepseek',
+		);
 		await expectAssistantReply(page);
 		expectCleanConsole(app);
 	} finally {
