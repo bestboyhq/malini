@@ -1,3 +1,5 @@
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -10,6 +12,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	startFreshChat,
+	temporaryRoot,
 } from './harness';
 
 test('the model picker is one button that opens and closes its list from the keyboard', async () => {
@@ -167,6 +170,67 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		await expect(
 			page.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }),
 		).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the picker lists a model that a Claude Code update brings while it is open', async () => {
+	test.setTimeout(120_000);
+	const root = temporaryRoot();
+	const bin = join(root, 'bin');
+	const release = join(root, 'release');
+	const models = join(root, 'released-models.json');
+	mkdirSync(bin, { recursive: true });
+	writeFileSync(
+		join(bin, 'claude'),
+		[
+			'#!/bin/sh',
+			'[ "$1" = update ] || exit 0',
+			`while [ ! -f '${release}' ]; do sleep 0.05; done`,
+			`cp "$0" "$0.next" && echo '# 2.0.0' >> "$0.next" && mv "$0.next" "$0"`,
+			`cp '${release}' '${models}'`,
+		].join('\n'),
+	);
+	chmodSync(join(bin, 'claude'), 0o755);
+	const app = await launchMalini({
+		profile: root,
+		env: { MALINI_CLAUDE_UPDATES: 'on', FAKE_BRIDGE_CLAUDE_MODELS_FILE: models },
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-claude-update-ws',
+			'Claude update',
+		);
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		const list = page
+			.getByRole('listbox', { name: 'Models' })
+			.getByRole('group', { name: 'Models' });
+		const released = list.getByRole('option', { name: /^Mythos 1/u });
+
+		await picker.click();
+		await expect(list.getByRole('option', { name: /^Opus/u })).toBeVisible();
+		await expect(released).toHaveCount(0);
+
+		writeFileSync(
+			release,
+			JSON.stringify([
+				{
+					id: 'claude-mythos-1',
+					label: 'Mythos 1',
+					description: 'Fixture release',
+					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+				},
+			]),
+		);
+
+		await expect(released).toBeVisible({ timeout: 20_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

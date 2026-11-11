@@ -18,10 +18,10 @@ Every merged `feat`, `fix`, or `perf` change ships as a release, so updates are 
 ## Claude Code
 
 Malini keeps Claude Code current too.
-On launch and every six hours, it runs `claude update`, whatever your `autoUpdates` setting says.
-The model picker lists a new model the next time you open it.
+On launch, every six hours, and when you open the model picker, it runs `claude update`, whatever your `autoUpdates` setting says.
+The picker checks at most once every five minutes, and lists a new model as soon as the update lands, even while it is open.
 A chat keeps the Claude Code it started with until its next prompt, then restarts on the new version and resumes the same conversation.
-A failed update shows nothing, and Malini tries again six hours later.
+A failed update shows nothing, and Malini tries again at the next check.
 To stop it, start Malini with `MALINI_CLAUDE_UPDATES=off`.
 
 ## Compatibility

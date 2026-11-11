@@ -42,7 +42,7 @@ export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directo
 
 export interface ProvidersPlatform {
 	readonly keys: ProviderKeys;
-	readonly updates: ClaudeCodeUpdates;
+	readonly updates: ClaudeCodeUpdates | null;
 	stop(): void;
 }
 
@@ -62,7 +62,15 @@ export function registerProviders(
 		cipher: deps.cipher ?? electronCipher,
 	});
 
-	const claudeUpdates = new ClaudeCodeUpdates({ executable, environment });
+	const claudeUpdates =
+		process.env['MALINI_CLAUDE_UPDATES'] === 'off'
+			? null
+			: new ClaudeCodeUpdates({ executable, environment });
+
+	context.commands.define(
+		'providers.update-claude-code',
+		async () => (await claudeUpdates?.checkIfStale()) ?? false,
+	);
 
 	context.commands.define('providers.install-claude-code', async () => {
 		if (platform !== 'darwin') {
@@ -168,7 +176,7 @@ export function registerProviders(
 		keys,
 		updates: claudeUpdates,
 		stop: () => {
-			claudeUpdates.stop();
+			claudeUpdates?.stop();
 			accounts.cancelSignIn();
 			chatgpt.cancelSignIn();
 			proxy.stop();

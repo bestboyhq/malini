@@ -218,7 +218,7 @@ export async function registerModules(
 
 	stats.start();
 	extensions.start();
-	if (process.env['MALINI_CLAUDE_UPDATES'] !== 'off') providers.updates.start();
+	providers.updates?.start();
 	app.streaming.start();
 	void repositories.archiveRetiredChats();
 

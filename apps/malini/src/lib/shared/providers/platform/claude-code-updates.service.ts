@@ -1,18 +1,22 @@
+import { stat } from 'node:fs/promises';
 import { runWithTimeout } from '$main/process/environment';
 
 const UPDATE_TIMEOUT_MS = 10 * 60_000;
 const UPDATE_INTERVAL_MS = 6 * 60 * 60_000;
+const RECHECK_AFTER_MS = 5 * 60_000;
 
 export interface ClaudeCodeUpdatesDeps {
 	readonly executable: () => string | null;
 	readonly environment: () => Readonly<Record<string, string>>;
 	readonly intervalMs?: number;
+	readonly recheckAfterMs?: number;
 }
 
 export class ClaudeCodeUpdates {
 	readonly #deps: ClaudeCodeUpdatesDeps;
 	#timer: NodeJS.Timeout | null = null;
-	#running: Promise<void> | null = null;
+	#running: Promise<boolean> | null = null;
+	#checkedAt = Number.NEGATIVE_INFINITY;
 
 	constructor(deps: ClaudeCodeUpdatesDeps) {
 		this.#deps = deps;
@@ -30,19 +34,36 @@ export class ClaudeCodeUpdates {
 		this.#timer = null;
 	}
 
-	check(): Promise<void> {
+	check(): Promise<boolean> {
 		this.#running ??= this.#update().finally(() => {
 			this.#running = null;
 		});
 		return this.#running;
 	}
 
-	async #update(): Promise<void> {
+	checkIfStale(): Promise<boolean> {
+		const recent = Date.now() - this.#checkedAt < (this.#deps.recheckAfterMs ?? RECHECK_AFTER_MS);
+		return this.#running || !recent ? this.check() : Promise.resolve(false);
+	}
+
+	async #update(): Promise<boolean> {
+		this.#checkedAt = Date.now();
 		const executable = this.#deps.executable();
-		if (!executable) return;
+		if (!executable) return false;
+		const before = await fingerprint(executable);
 		await runWithTimeout(executable, ['update'], {
 			env: this.#deps.environment(),
 			timeoutMs: UPDATE_TIMEOUT_MS,
 		}).catch(() => undefined);
+		return (await fingerprint(executable)) !== before;
+	}
+}
+
+async function fingerprint(executable: string): Promise<string | null> {
+	try {
+		const { ino, size, mtimeMs } = await stat(executable);
+		return `${ino}:${size}:${mtimeMs}`;
+	} catch {
+		return null;
 	}
 }

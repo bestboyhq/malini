@@ -6,6 +6,10 @@ class ClaudeSetupService {
 		return invoke('providers.install-claude-code', undefined);
 	}
 
+	update(): Promise<boolean> {
+		return invoke('providers.update-claude-code', undefined);
+	}
+
 	signIn(email: string | null): Promise<ClaudeSignInOutcome> {
 		return invoke('providers.sign-in-to-claude', email ? { email } : {});
 	}

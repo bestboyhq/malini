@@ -25,6 +25,14 @@ const signedInEmail = () => {
 		return null;
 	}
 };
+const releasedModels = () => {
+	if (!env.FAKE_BRIDGE_CLAUDE_MODELS_FILE) return [];
+	try {
+		return JSON.parse(fs.readFileSync(env.FAKE_BRIDGE_CLAUDE_MODELS_FILE, 'utf8'));
+	} catch {
+		return [];
+	}
+};
 const makeCapability = (capabilityVersion, message) => {
 	const email = signedInEmail();
 	const claudeState = email ? 'ready' : env.FAKE_BRIDGE_CLAUDE_STATE || 'ready';
@@ -48,6 +56,7 @@ const makeCapability = (capabilityVersion, message) => {
 				description: 'Fixture sonnet',
 				efforts: ['low', 'medium', 'high', 'max'],
 			},
+			...releasedModels(),
 		],
 		defaultModel: 'opus',
 		message,

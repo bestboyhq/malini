@@ -95,6 +95,21 @@ describe('providers.install-claude-code', () => {
 	});
 });
 
+describe('providers.update-claude-code', () => {
+	it('runs no claude update and reports none while MALINI_CLAUDE_UPDATES is off', async () => {
+		const claude = fakeClaude('exit 0');
+		const { commands } = boot({
+			executable: () => claude.executable,
+			environment: shellEnvironment,
+		});
+
+		expect(
+			await commands.invoke({ command: 'providers.update-claude-code', args: undefined }),
+		).toEqual({ ok: true, value: false });
+		expect(existsSync(claude.argsFile)).toBe(false);
+	});
+});
+
 describe('providers.sign-in-to-claude', () => {
 	it('runs claude auth login with the account to switch to and reports the sign-in', async () => {
 		const claude = fakeClaude('echo "Login successful."');
