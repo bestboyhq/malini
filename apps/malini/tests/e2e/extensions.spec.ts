@@ -17,19 +17,25 @@ import {
 } from './harness';
 import { fakeBestboy, openUrl, signInUrl, type ExtensionFile } from './fake-bestboy';
 
-function svelteExtension(version: string, publisher = 'szymeo'): ExtensionFile[] {
+function svelteExtension(
+	version: string,
+	publisher = 'szymeo',
+	name = 'svelte',
+	displayName = 'Svelte',
+	mcpServers: Record<string, { url: string }> = { svelte: { url: 'https://mcp.svelte.dev/mcp' } },
+): ExtensionFile[] {
 	return [
 		{
 			path: 'malini.json',
 			text: JSON.stringify({
 				apiVersion: 2,
 				publisher,
-				name: 'svelte',
+				name,
 				version,
-				displayName: 'Svelte',
+				displayName,
 				description: 'Svelte 5 docs, the autofixer and best-practice skills, for every agent.',
 				repository: 'https://github.com/sveltejs/ai-tools',
-				contributes: { mcpServers: { svelte: { url: 'https://mcp.svelte.dev/mcp' } } },
+				contributes: { mcpServers },
 			}),
 		},
 		{ path: 'README.md', text: '# Svelte\n\nAsk any chat to check a component.' },
@@ -137,6 +143,131 @@ test('Settings, Extensions installs an extension into the next prompt of every c
 			timeout: 20_000,
 		});
 		await expect(settings.getByRole('list', { name: 'Installed extensions' })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		platform.close();
+	}
+});
+
+test('Settings, Extensions undoes only the switch that failed', async () => {
+	test.setTimeout(180_000);
+	const platform = await fakeBestboy();
+	platform.listExtension(svelteExtension('1.0.0', 'szymeo', 'zulu', 'Zulu'));
+	platform.listExtension(svelteExtension('1.0.0', 'szymeo', 'kit', 'Kit'));
+	const app = await launchMalini({
+		env: { MALINI_BESTBOY_ORIGIN: platform.origin },
+		allowedDiagnostics: [/Its publisher withdrew Zulu 1\.0\.0\./u],
+	});
+	try {
+		const { page } = app;
+		await page.evaluate(() => {
+			location.hash = '#/settings/extensions';
+		});
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		const available = settings.getByRole('list', { name: 'Extensions in the marketplace' });
+		const installed = settings.getByRole('list', { name: 'Installed extensions' });
+		await available.getByRole('button', { name: 'Install Zulu' }).click({ timeout: 20_000 });
+		const zulu = installed.getByRole('switch', { name: 'Zulu' });
+		await expect(zulu).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
+		await zulu.click();
+		await expect(zulu).toHaveAttribute('aria-checked', 'false');
+		await settings.evaluate((dialog) => {
+			const view = dialog.ownerDocument.defaultView;
+			const kitShown = (): boolean =>
+				dialog.querySelector('[role="switch"][aria-label="Kit"]') !== null;
+			const seen: boolean[] = [kitShown()];
+			Reflect.set(view, 'kitSeen', seen);
+			new view.MutationObserver(() => {
+				if (seen.at(-1) !== kitShown()) seen.push(kitShown());
+			}).observe(dialog, { childList: true, subtree: true });
+		});
+
+		platform.yankExtension('szymeo', 'zulu', '1.0.0');
+		const release = platform.holdDownloads();
+		await available.getByRole('button', { name: 'Install Kit' }).click();
+		await expect
+			.poll(() => platform.requests.some(({ path }) => path.endsWith('/kit/1.0.0.malini')))
+			.toBe(true);
+		await zulu.click();
+		release();
+
+		await expect(installed.getByRole('alert')).toContainText('Its publisher withdrew Zulu 1.0.0.', {
+			timeout: 20_000,
+		});
+		await expect(installed.getByRole('switch', { name: 'Kit' })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await expect(zulu).toHaveAttribute('aria-checked', 'false');
+		expect(await page.evaluate(() => Reflect.get(globalThis, 'kitSeen'))).toEqual([false, true]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		platform.close();
+	}
+});
+
+test('Settings, Extensions lets you allow the fix of a withdrawn extension that reaches a new host, then turn it on', async () => {
+	test.setTimeout(180_000);
+	const platform = await fakeBestboy();
+	platform.listExtension(svelteExtension('1.0.0'));
+	const app = await launchMalini({
+		env: { MALINI_BESTBOY_ORIGIN: platform.origin },
+		allowedDiagnostics: [/The marketplace is down for a minute\./u],
+	});
+	try {
+		const { page } = app;
+		const openExtensions = (): Promise<void> =>
+			page.evaluate(() => {
+				location.hash = '#/settings/extensions';
+			});
+		await openExtensions();
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		const installed = settings.getByRole('list', { name: 'Installed extensions' });
+		await settings.getByRole('button', { name: 'Install Svelte' }).click({ timeout: 20_000 });
+		const onOff = installed.getByRole('switch', { name: 'Svelte' });
+		await expect(onOff).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
+		await page.keyboard.press('Escape');
+		await expect(settings).toHaveCount(0);
+
+		platform.yankExtension('szymeo', 'svelte', '1.0.0');
+		platform.listExtension(
+			svelteExtension('1.0.1', 'szymeo', 'svelte', 'Svelte', {
+				svelte: { url: 'https://mcp.svelte.dev/mcp' },
+				kit: { url: 'https://kit.svelte.dev/mcp' },
+			}),
+		);
+		await openExtensions();
+		const mine = installed.getByRole('listitem', { name: 'Svelte', exact: true });
+		await expect(mine).toContainText('Its publisher withdrew this version', { timeout: 20_000 });
+		await expect(onOff).toHaveAttribute('aria-checked', 'false');
+		await expect(mine).toContainText('Its next version also connects to kit.svelte.dev');
+		const allow = mine.getByRole('button', { name: 'Allow Svelte to connect to kit.svelte.dev' });
+
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'extensions-withdrawn-fix-waits');
+
+		platform.failNextDownload('The marketplace is down for a minute.');
+		await allow.click();
+		await expect(mine.getByRole('alert')).toHaveText('The marketplace is down for a minute.');
+		await captureFlow(app, 'extensions-withdrawn-fix-failed');
+		await allow.click();
+
+		await expect(allow).toHaveCount(0, { timeout: 20_000 });
+		await expect(mine).not.toContainText('Its publisher withdrew');
+		await expect(mine.getByRole('alert')).toHaveCount(0);
+		await expect(onOff).toBeEnabled();
+		await expect(onOff).toHaveAttribute('aria-checked', 'false');
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'extensions-withdrawn-fix-allowed');
+
+		await onOff.click();
+		await expect(onOff).toHaveAttribute('aria-checked', 'true');
+		await expect(onOff).toBeEnabled();
+		await expect(mine.getByRole('alert')).toHaveCount(0);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'extensions-withdrawn-fix-on');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -7,6 +7,7 @@ import {
 	foldSessionStatus,
 	foldSessionStatusIncremental,
 	isLifecycleKind,
+	type SessionStatusFold,
 } from '$contract/agent-state-machine';
 import type { SessionRecord, SessionState } from '$lib/chat/domain/session-record';
 import {
@@ -30,7 +31,7 @@ class SessionsAggregate {
 	currentRunBySession: Record<SessionId, RunId | null> = $state.raw({});
 	private envelopesBySession: Record<SessionId, readonly EventEnvelope[]> = {};
 	private envelopeIndex = new CanonicalEnvelopeIndex();
-	private terminatedRunsBySession = new Map<SessionId, Set<RunId>>();
+	private foldMemoryBySession = new Map<SessionId, FoldMemory>();
 	private hydratedTranscriptSessions = new SvelteSet<SessionId>();
 	private namedSessions = new SvelteSet<SessionId>();
 
@@ -90,7 +91,7 @@ class SessionsAggregate {
 			[input.sessionId]: null,
 		};
 		this.envelopeIndex.reset(input.sessionId, []);
-		this.terminatedRunsBySession.set(input.sessionId, new Set());
+		this.foldMemoryBySession.set(input.sessionId, emptyFoldMemory());
 		return next;
 	}
 
@@ -150,17 +151,6 @@ class SessionsAggregate {
 		return this.namedSessions.has(sessionId);
 	}
 
-	resumeRunAfterInteraction(sessionId: SessionId, runId: RunId): void {
-		const current = this.sessionsById[sessionId];
-		if (!current || current.status !== 'waiting_for_approval' || current.currentRunId !== runId) {
-			return;
-		}
-		this.sessionsById = {
-			...this.sessionsById,
-			[sessionId]: { ...current, status: 'running' },
-		};
-	}
-
 	getSession(sessionId: SessionId): SessionRecord | null {
 		return this.sessionsById[sessionId] ?? null;
 	}
@@ -180,7 +170,7 @@ class SessionsAggregate {
 		const { [sessionId]: _envelopes, ...envelopesBySession } = this.envelopesBySession;
 		this.envelopesBySession = envelopesBySession;
 		this.envelopeIndex.remove(sessionId);
-		this.terminatedRunsBySession.delete(sessionId);
+		this.foldMemoryBySession.delete(sessionId);
 		this.hydratedTranscriptSessions.delete(sessionId);
 		this.namedSessions.delete(sessionId);
 	}
@@ -331,9 +321,9 @@ class SessionsAggregate {
 				}
 
 				if (current) {
-					const terminated = this.terminatedRunsBySession.get(sessionId) ?? new Set<RunId>();
-					this.terminatedRunsBySession.set(sessionId, terminated);
-					const folded = foldLifecycleIncremental(current, acceptance.accepted, terminated);
+					const memory = this.foldMemoryBySession.get(sessionId) ?? emptyFoldMemory();
+					this.foldMemoryBySession.set(sessionId, memory);
+					const folded = foldLifecycleIncremental(current, acceptance.accepted, memory);
 					if (folded) {
 						nextSessionsById[sessionId] = folded.session;
 						nextCurrentRunBySession[sessionId] = folded.currentRunId;
@@ -352,7 +342,7 @@ class SessionsAggregate {
 				if (folded) {
 					nextSessionsById[sessionId] = folded.session;
 					nextCurrentRunBySession[sessionId] = folded.currentRunId;
-					this.terminatedRunsBySession.set(sessionId, folded.terminatedRunIds);
+					this.foldMemoryBySession.set(sessionId, folded.memory);
 					lifecycleChanged = true;
 				}
 			}
@@ -378,16 +368,35 @@ class SessionsAggregate {
 		this.currentRunBySession = {};
 		this.envelopesBySession = {};
 		this.envelopeIndex.clear();
-		this.terminatedRunsBySession.clear();
+		this.foldMemoryBySession.clear();
 		this.hydratedTranscriptSessions.clear();
 	}
 }
 
+type FoldMemory = Pick<SessionStatusFold, 'terminatedRunIds' | 'openRequests'>;
+
 type FoldedLifecycle = {
 	session: SessionRecord;
 	currentRunId: RunId | null;
-	terminatedRunIds: Set<RunId>;
+	memory: FoldMemory;
 };
+
+function emptyFoldMemory(): FoldMemory {
+	return { terminatedRunIds: new Set(), openRequests: new Set() };
+}
+
+function foldedLifecycle(base: SessionRecord, folded: SessionStatusFold): FoldedLifecycle {
+	return {
+		session: {
+			...base,
+			status: folded.status,
+			currentRunId: folded.currentRunId,
+			lastError: folded.lastError,
+		},
+		currentRunId: folded.currentRunId,
+		memory: { terminatedRunIds: folded.terminatedRunIds, openRequests: folded.openRequests },
+	};
+}
 
 function foldLifecycle(
 	base: SessionRecord,
@@ -396,44 +405,24 @@ function foldLifecycle(
 	const lifecycle = envelopes.filter(({ event }) => isLifecycleKind(event.type));
 	if (lifecycle.length === 0) return null;
 
-	const folded = foldSessionStatus('idle', lifecycle);
-	return {
-		session: {
-			...base,
-			status: folded.status,
-			currentRunId: folded.currentRunId,
-			lastError: folded.lastError,
-		},
-		currentRunId: folded.currentRunId,
-		terminatedRunIds: folded.terminatedRunIds,
-	};
+	return foldedLifecycle(base, foldSessionStatus('idle', lifecycle));
 }
 
 function foldLifecycleIncremental(
 	base: SessionRecord,
 	envelopes: readonly EventEnvelope[],
-	terminatedRunIds: Set<RunId>,
+	memory: FoldMemory,
 ): FoldedLifecycle | null {
 	const folded = foldSessionStatusIncremental(
 		{
 			status: base.status,
 			currentRunId: base.currentRunId,
 			lastError: base.lastError,
-			terminatedRunIds,
+			...memory,
 		},
 		envelopes,
 	);
-	if (!folded) return null;
-	return {
-		session: {
-			...base,
-			status: folded.status,
-			currentRunId: folded.currentRunId,
-			lastError: folded.lastError,
-		},
-		currentRunId: folded.currentRunId,
-		terminatedRunIds: folded.terminatedRunIds,
-	};
+	return folded && foldedLifecycle(base, folded);
 }
 
 export const sessionsAggregate = new SessionsAggregate();

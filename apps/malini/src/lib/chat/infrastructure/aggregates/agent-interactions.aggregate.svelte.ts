@@ -17,10 +17,11 @@ import {
 	type AgentInteractionState,
 } from '$lib/chat/domain/agent-interaction-state';
 import { leavesTheSandbox } from '$lib/chat/domain/approval-request';
+import { isLifecycleKind } from '$contract/agent-state-machine';
+import { CommandError } from '$contract/command-failure';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import { agentInteractions } from '$lib/chat/infrastructure/services/agent-interactions.service';
 import { agentActivity } from './agent-activity.aggregate.svelte';
-import { sessionsAggregate } from './sessions.aggregate.svelte';
 
 type InteractionAgentPort = Readonly<{
 	decideAgentApproval(input: DecideAgentApprovalInput): Promise<DecideAgentApprovalResult>;
@@ -74,15 +75,7 @@ function appendsWithoutInteractionLifecycle(
 	if (next[previous.length - 1] !== previous[previous.length - 1]) return false;
 	for (let index = previous.length; index < next.length; index += 1) {
 		const type = next[index]?.event.type;
-		if (
-			type === 'approval.requested' ||
-			type === 'approval.decided' ||
-			type === 'question.requested' ||
-			type === 'run.completed' ||
-			type === 'run.failed'
-		) {
-			return false;
-		}
+		if (type !== undefined && isLifecycleKind(type)) return false;
 	}
 	return true;
 }
@@ -97,15 +90,14 @@ export class AgentInteractionCommands {
 	states = $state<Record<string, AgentInteractionState>>({});
 	#requests = $state.raw(new Map<string, RegisteredInteraction>());
 	#syncedBySession = new Map<string, readonly EventEnvelope[]>();
+	#endedRuns = new Set<string>();
 	#resolveAgentPort: () => InteractionAgentPort;
 	#onResolved: (sessionId: string, runId: string) => void;
 
 	constructor(
 		resolveAgentPort: () => InteractionAgentPort = () => agentInteractions,
-		onResolved: (sessionId: string, runId: string) => void = (sessionId, runId) => {
-			sessionsAggregate.resumeRunAfterInteraction(sessionId, runId);
-			agentActivity.clearForRun(sessionId, runId);
-		},
+		onResolved: (sessionId: string, runId: string) => void = (sessionId, runId) =>
+			agentActivity.clearForRun(sessionId, runId),
 	) {
 		this.#resolveAgentPort = resolveAgentPort;
 		this.#onResolved = onResolved;
@@ -130,12 +122,25 @@ export class AgentInteractionCommands {
 		const answeredToolCalls = new Set<string>();
 		const questionToolCalls = new Map<string, string>();
 		const decisions = new Map<string, ApprovalDecided>();
+		const answered = new Set<string>();
 
 		for (const envelope of envelopes) {
 			if (sessionId !== undefined && envelope.sessionId !== sessionId) continue;
 			const event = envelope.event;
 			if (event.type === 'run.completed' || event.type === 'run.failed') {
 				terminalRuns.add(runKey(envelope.sessionId, envelope.runId));
+				this.#endedRuns.add(runKey(envelope.sessionId, envelope.runId));
+				continue;
+			}
+			if (event.type === 'question.answered') {
+				answered.add(
+					agentInteractionKey({
+						kind: 'question',
+						sessionId: envelope.sessionId,
+						runId: envelope.runId,
+						requestId: event.questionId,
+					}),
+				);
 				continue;
 			}
 			if (event.type === 'approval.decided') {
@@ -227,7 +232,7 @@ export class AgentInteractionCommands {
 			const decided = decisions.get(key);
 			if (decided && request.kind === 'approval') {
 				if (current?.status !== 'resolved') nextStates[key] = decidedState(decided, request);
-			} else if (toolCall && answeredToolCalls.has(toolCall)) {
+			} else if (answered.has(key) || (toolCall && answeredToolCalls.has(toolCall))) {
 				if (current?.status !== 'resolved') nextStates[key] = ANSWERED_STATE;
 			} else if (terminalRuns.has(runKey(request.sessionId, request.runId))) {
 				if (current?.status !== 'resolved' && current?.status !== 'submitting') {
@@ -371,8 +376,7 @@ export class AgentInteractionCommands {
 			};
 			return true;
 		} catch (error) {
-			if (this.states[key]?.status === 'stale') return false;
-			this.#fail(key, errorMessage(error));
+			this.#failUnlessEnded(key, input, error);
 			return false;
 		}
 	}
@@ -407,14 +411,14 @@ export class AgentInteractionCommands {
 			this.states = { ...this.states, [key]: ANSWERED_STATE };
 			return true;
 		} catch (error) {
-			if (this.states[key]?.status === 'stale') return false;
-			this.#fail(key, errorMessage(error));
+			this.#failUnlessEnded(key, input, error);
 			return false;
 		}
 	}
 
 	reset(): void {
 		this.#syncedBySession.clear();
+		this.#endedRuns.clear();
 		this.#requests = new Map();
 		this.states = {};
 	}
@@ -435,6 +439,17 @@ export class AgentInteractionCommands {
 		}
 		this.states = { ...this.states, [key]: { status: 'submitting' } };
 		return true;
+	}
+
+	#failUnlessEnded(
+		key: string,
+		{ sessionId, runId }: Readonly<{ sessionId: string; runId: string }>,
+		error: unknown,
+	): void {
+		if (this.states[key]?.status === 'stale') return;
+		const runEnded = error instanceof CommandError && error.kind === 'run_ended';
+		if (runEnded || this.#endedRuns.has(runKey(sessionId, runId))) this.#stale(key);
+		else this.#fail(key, errorMessage(error));
 	}
 
 	#fail(key: string, message: string): void {

@@ -49,6 +49,7 @@ import {
 } from './ship.repository';
 import {
 	dropShip,
+	fixAttemptSpent,
 	NO_SHIP_FAILURE,
 	saveShip,
 	setShipAlarm,
@@ -114,8 +115,8 @@ async function recheck(deps: ShipDeps, state: ShipState, event: DispatchedEvent)
 	const resumed = saveShip(
 		deps,
 		row.workstreamId,
-		{ phase: 'queued', step: null, needsYou: null, ...NO_SHIP_FAILURE },
-		'needs-you',
+		{ step: null, needsYou: null, ...NO_SHIP_FAILURE, failures: row.failures },
+		{ from: 'needs-you', to: 'queued' },
 	);
 	if (resumed !== null) await apply(deps, { ...state, row: resumed }, event);
 }
@@ -146,15 +147,15 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 				deps,
 				workstreamId,
 				{
-					phase: 'needs-you',
 					step: null,
 					needsYou: {
 						reason: move.reason,
 						detail: move.detail,
 						automationRunId: move.automationRunId,
 					},
+					...(move.signature === undefined ? {} : { failureSignature: move.signature }),
 				},
-				'queued',
+				{ from: 'queued', to: 'needs-you' },
 			);
 			return;
 		case 'run-automation':
@@ -429,8 +430,7 @@ async function startAutomation(
 	});
 	const started: ShipPatch = {
 		activeAutomationRunId: run.id,
-		attempts: move.attempt,
-		failureSignature: move.signature,
+		...fixAttemptSpent(getShip(db, workstreamId) ?? state.row, move.signature, move.attempt),
 		step: automationStep(move.builtin),
 		...NO_SHIP_FAILURE,
 		settledAutomationRunId: null,
@@ -462,7 +462,6 @@ async function rerunChecks(
 	}
 	saveShip(deps, workstreamId, {
 		failureSignature: move.signature,
-		attempts: 0,
 		checksRerun: { headSha: move.headSha, at: new Date(deps.now()).toISOString() },
 	});
 	return true;
@@ -594,13 +593,12 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 				deps,
 				workstreamId,
 				{
-					phase: 'needs-you',
 					step: null,
 					needsYou: { reason: 'github-reconnect', detail, automationRunId: null },
 					...NO_SHIP_FAILURE,
 					failures,
 				},
-				'queued',
+				{ from: 'queued', to: 'needs-you' },
 			);
 			setShipAlarm(deps, workstreamId, 'retry', due);
 			return;

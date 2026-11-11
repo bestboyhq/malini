@@ -22,6 +22,6 @@ function closeBrowserTabCommand(tab: BrowserTabArgs): void {
 		await browserService.close(tab).catch(() => undefined);
 		forgetBrowserPage(tab);
 		browserStatesAggregate.forget(tab);
-		browserViewStore.setSnapshot(browserTabKey(tab), null);
+		browserViewStore.forget(browserTabKey(tab));
 	})();
 }

@@ -29,6 +29,7 @@ let signedOut: number;
 let changes: ExtensionChangedEvent[];
 let sources: PublishSource[];
 let marketplace: Marketplace;
+let logged: string[];
 
 beforeEach(async () => {
 	root = await mkdtemp(join(tmpdir(), 'malini-marketplace-'));
@@ -38,6 +39,7 @@ beforeEach(async () => {
 	signedOut = 0;
 	changes = [];
 	sources = [];
+	logged = [];
 	marketplace = build();
 });
 
@@ -66,6 +68,7 @@ function build(): Marketplace {
 		client: new MarketplaceClient(access),
 		bestboy: access,
 		sources: () => Promise.resolve(sources),
+		log: (line) => logged.push(line),
 	});
 }
 
@@ -193,11 +196,60 @@ describe('following the marketplace', () => {
 
 		await settledIndex(build());
 
-		expect(marketplace.installed()[0]).toMatchObject({ enabled: false, withdrawn: true });
+		expect(marketplace.installed()[0]).toMatchObject({ withdrawn: true });
 		expect(marketplace.pluginFolders()).toEqual([]);
 		await expect(marketplace.switch('svelte', true)).rejects.toThrow(
 			'Its publisher withdrew Svelte 1.0.4.',
 		);
+	});
+
+	it('installs the fix of a withdrawn version off, until you turn it on', async () => {
+		platform.publish(svelte('1.0.4'));
+		await marketplace.install('szymeo', 'svelte');
+		platform.yank('szymeo', 'svelte', '1.0.4');
+		await settledIndex(build());
+		platform.publish(svelte('1.0.5'));
+
+		await settledIndex(build());
+
+		expect(marketplace.installed()[0]).toMatchObject({
+			version: '1.0.5',
+			enabled: false,
+			withdrawn: false,
+		});
+		expect(marketplace.pluginFolders()).toEqual([]);
+		await marketplace.switch('svelte', true);
+		expect(marketplace.pluginFolders()).toEqual([
+			join(root, 'extensions', 'installed', 'svelte@1.0.5'),
+		]);
+	});
+
+	it('keeps when you installed an extension across its updates', async () => {
+		platform.publish(svelte('1.0.4'));
+		const installed = await marketplace.install('szymeo', 'svelte');
+		platform.publish(svelte('1.0.5'));
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+
+		await settledIndex(build()).finally(() => vi.useRealTimers());
+
+		expect(marketplace.installed()[0]).toMatchObject({
+			version: '1.0.5',
+			installedAt: installed.installedAt,
+		});
+	});
+
+	it('says why it could not update an extension', async () => {
+		platform.publish(svelte('1.0.4'));
+		await marketplace.install('szymeo', 'svelte');
+		platform.publish(svelte('1.0.5'), { sha256: 'f'.repeat(64) });
+
+		await settledIndex(build());
+
+		expect(marketplace.installed()[0]?.version).toBe('1.0.4');
+		expect(logged).toEqual([
+			'malini: could not update svelte: Svelte 1.0.5 does not match what the marketplace listed.',
+		]);
 	});
 
 	it('says why when bestboy.dev cannot be reached and it never saw a list', async () => {

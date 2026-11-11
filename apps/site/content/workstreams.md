@@ -25,6 +25,7 @@ To keep checkouts elsewhere, open Settings, Storage and press **Change…**.
 The folder must be empty and on the same disk, since the move is a rename, not a copy.
 Malini moves every checkout there the next time it starts, the same way it moved them to `~/malini` below; **Restart now** starts it again right away, and **Cancel move** keeps them where they are.
 If a move fails, Malini puts back what it moved, keeps the checkouts where they were and says so in Settings, Storage.
+If Malini quits halfway through a move, the next start finishes it.
 
 Malini used to keep checkouts there too.
 The first launch after the update moves them to `~/malini`, archived workstreams included, and leaves a link at each old folder, so an old path still opens.
@@ -136,7 +137,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   Its links open their files in tabs, and its images show from the worktree.
 
 A repository opens on its **scratchpad**, where you keep ideas.
-Any paragraph moves into a new workstream.
+Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
 Workstreams you saved for later wait above the ideas, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 

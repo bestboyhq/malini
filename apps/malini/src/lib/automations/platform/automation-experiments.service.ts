@@ -34,6 +34,7 @@ import {
 	automationOutputInput,
 	recentAutomationOutputIds,
 } from './automation-outputs.repository';
+import { BackgroundWork } from './background-work';
 
 export const AUTOMATION_EXPERIMENT_SAMPLE_SIZE = 12;
 
@@ -72,14 +73,21 @@ export class AutomationExperiments {
 	readonly #context: MainContext;
 	readonly #replay: ReplayWithAutomation;
 	readonly #log: (line: string) => void;
+	readonly #work: BackgroundWork;
 	readonly #running = new Set<string>();
 	readonly #waiting: (() => void)[] = [];
 	#active = 0;
 
-	constructor(context: MainContext, replay: ReplayWithAutomation, log: (line: string) => void) {
+	constructor(
+		context: MainContext,
+		replay: ReplayWithAutomation,
+		log: (line: string) => void,
+		work = new BackgroundWork(log),
+	) {
 		this.#context = context;
 		this.#replay = replay;
 		this.#log = log;
+		this.#work = work;
 	}
 
 	open(definition: OneShotAutomationDefinition): AutomationExperimentsRecord {
@@ -164,7 +172,7 @@ export class AutomationExperiments {
 		if (!this.#running.has(experiment.id)) {
 			this.#running.add(experiment.id);
 			clearAutomationExperimentResults(this.#context.db, experiment.id);
-			void this.#replayAll(experiment);
+			this.#work.add(this.#replayAll(experiment));
 		}
 		return this.#record(experiment);
 	}
@@ -278,7 +286,7 @@ export class AutomationExperiments {
 		outputId: string,
 	): Promise<void> {
 		const { db } = this.#context;
-		const input = automationOutputInput(db, outputId);
+		const input = this.#running.has(experimentId) ? automationOutputInput(db, outputId) : null;
 		if (input === null) return;
 		let result: AutomationExperimentResult;
 		try {

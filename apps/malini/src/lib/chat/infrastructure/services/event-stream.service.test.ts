@@ -196,6 +196,48 @@ describe('createEventStream', () => {
 		}
 	});
 
+	it('flushes the live tail at once when the agent asks a question or gets its answer', async () => {
+		vi.useFakeTimers();
+		try {
+			const batches: number[][] = [];
+			const stream = createEventStream(vi.fn(), {
+				liveBatchWindowMs: 16,
+				onLiveBatch: (batch) => batches.push(batch.map(({ seq }) => seq)),
+			});
+			await stream.start();
+
+			emitAgentEvent(
+				env('live-question', 'r1', 1, {
+					type: 'question.requested',
+					runId: 'r1',
+					questionId: 'q1',
+					questions: [
+						{
+							id: 'q1:0',
+							prompt: 'Which?',
+							options: [{ label: 'A' }],
+							multiSelect: false,
+							allowFreeText: false,
+						},
+					],
+				}),
+			);
+			expect(batches).toEqual([[1]]);
+			emitAgentEvent(
+				env('live-question', 'r1', 2, {
+					type: 'question.answered',
+					runId: 'r1',
+					questionId: 'q1',
+				}),
+			);
+			expect(batches).toEqual([[1], [2]]);
+
+			await stream.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('dispose() unsubscribes the live listener so further emits are not delivered', async () => {
 		const received: number[] = [];
 		const stream = createEventStream((e) => {
@@ -411,7 +453,7 @@ describe('createEventStream', () => {
 			await stream.dispose();
 		});
 
-		it('retains the buffered live tail across replay failure and flushes it losslessly on retry', async () => {
+		it('releases the live tail when replay fails, and the retry fills in the history', async () => {
 			const received: EventEnvelope[] = [];
 			let rejectFirst!: (error: Error) => void;
 			const firstReplay = new Promise<readonly EventEnvelope[]>((_resolve, reject) => {
@@ -446,19 +488,18 @@ describe('createEventStream', () => {
 			rejectFirst(new Error('sqlite unavailable'));
 			await expect(hydratePromise).rejects.toThrow('sqlite unavailable');
 
-			expect(received).toEqual([]);
-			expect(stream.stats().live).toBe(0);
-			expect(stream.lastSeenSeq('failed-replay')).toBe(0);
+			expect(received.map((event) => event.seq)).toEqual([2]);
 			emitAgentEvent(
 				env('failed-replay', 'r1', 3, {
-					type: 'assistant.message',
+					type: 'run.completed',
 					runId: 'r1',
-					text: 'also buffered after failure',
+					summary: 'done',
 				}),
 			);
+			expect(received.map((event) => event.seq)).toEqual([2, 3]);
 
 			await stream.hydrate('failed-replay');
-			expect(received.map((event) => event.seq)).toEqual([1, 2, 3]);
+			expect(received.map((event) => event.seq)).toEqual([2, 3, 1]);
 			expect(attempts).toBe(2);
 			expect(stream.stats()).toMatchObject({ replayed: 1, live: 2 });
 
@@ -702,7 +743,7 @@ describe('createEventStream', () => {
 			await stream.dispose();
 		});
 
-		it('times out a stalled replay, keeps buffered live history gated, and reports recovery truth', async () => {
+		it('times out a stalled replay, releases the live tail, and reports recovery truth', async () => {
 			vi.useFakeTimers();
 			try {
 				const received: EventEnvelope[] = [];
@@ -738,7 +779,7 @@ describe('createEventStream', () => {
 				await vi.advanceTimersByTimeAsync(25);
 
 				await rejectedHydration;
-				expect(received).toEqual([]);
+				expect(received.map((event) => event.seq)).toEqual([2]);
 				expect(progress.map((event) => event.phase)).toEqual(['fetching', 'failed']);
 				expect(progress.at(-1)?.error).toContain('did not respond');
 				emitAgentEvent(
@@ -748,8 +789,9 @@ describe('createEventStream', () => {
 						text: 'arrived while recovery was visible',
 					}),
 				);
+				expect(received.map((event) => event.seq)).toEqual([2, 3]);
 				await stream.hydrate('stalled-history');
-				expect(received.map((event) => event.seq)).toEqual([1, 2, 3]);
+				expect(received.map((event) => event.seq)).toEqual([2, 3, 1]);
 				expect(replayAttempts).toBe(2);
 				await stream.dispose();
 			} finally {

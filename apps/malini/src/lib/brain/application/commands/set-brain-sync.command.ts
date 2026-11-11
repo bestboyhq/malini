@@ -2,7 +2,7 @@ import { toast } from '$hyper-ui/components/toast';
 import { brainAggregate } from '$lib/brain/infrastructure/aggregates/brain.aggregate.svelte';
 import { brainService } from '$lib/brain/infrastructure/services/brain.service';
 
-export { setBrainSyncCommand };
+export { retryBrainSyncCommand, setBrainSyncCommand };
 
 function setBrainSyncCommand(sync: boolean): void {
 	if (brainAggregate.syncing) return;
@@ -18,4 +18,8 @@ function setBrainSyncCommand(sync: boolean): void {
 			brainAggregate.syncing = false;
 		}
 	})();
+}
+
+function retryBrainSyncCommand(): void {
+	setBrainSyncCommand(brainAggregate.status?.sync ?? false);
 }

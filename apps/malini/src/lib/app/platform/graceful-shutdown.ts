@@ -64,15 +64,22 @@ export interface ConfirmedShutdownDeps {
 }
 
 export class ConfirmedShutdown {
-	private reclaimDone = false;
+	#running: Promise<ShutdownOutcome> | null = null;
 
 	constructor(private readonly deps: ConfirmedShutdownDeps) {}
 
-	get alreadyReclaimed(): boolean {
-		return this.reclaimDone;
+	async run(budgetMs: number = SHUTDOWN_BUDGET_MS): Promise<ShutdownOutcome> {
+		if (this.#running) return { ...(await this.#running), alreadyReclaimed: true };
+		const running = this.#shutDown(budgetMs);
+		this.#running = running;
+		try {
+			return await running;
+		} finally {
+			this.#running = null;
+		}
 	}
 
-	async run(budgetMs: number = SHUTDOWN_BUDGET_MS): Promise<ShutdownOutcome> {
+	async #shutDown(budgetMs: number): Promise<ShutdownOutcome> {
 		const started = Date.now();
 		const deadline = started + budgetMs;
 		const outcome: ShutdownOutcome = {
@@ -86,13 +93,6 @@ export class ConfirmedShutdown {
 			errors: [],
 		};
 		const { children } = this.deps;
-		if (this.reclaimDone) {
-			outcome.alreadyReclaimed = true;
-			outcome.durationMs = Date.now() - started;
-			return outcome;
-		}
-		this.reclaimDone = true;
-
 		await this.#reclaimStartedContainers(outcome, deadline);
 
 		try {

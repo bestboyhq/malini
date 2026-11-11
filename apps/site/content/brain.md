@@ -67,7 +67,8 @@ A GTM engineer might ask for accounts, campaigns and objections instead.
 Malini commits each capture and each rewrite itself, and pushes them straight to `main` of your private repository, with no pull request.
 Before every push it checks again that the repository is private, and pushes nothing to a public one.
 Offline, the commits wait on this Mac, and Malini tries again every five minutes.
-When GitHub has changes this Mac lacks, Malini rebases onto them once and pushes again; if that fails, the Brain page and Settings, Brain say so, with **Retry**.
+When GitHub has changes this Mac lacks, Malini rebases onto them and pushes again, at most twice; if that fails, the Brain page and Settings, Brain say so, with **Retry**.
+Two Macs that capture to the same log day both keep their lines.
 A push GitHub denies names the account and the repository, as a pull request does.
 
 Turn off **Sync with GitHub** under Settings, Brain to keep new commits on this Mac; turning it back on pushes what waits.

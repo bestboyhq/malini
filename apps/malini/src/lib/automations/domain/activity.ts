@@ -4,7 +4,7 @@ import type {
 	AutomationRunRecord,
 	ReconcilerDecisionRecord,
 } from '$contract/automations';
-import { automationRunLastActivityAt } from './automation-run';
+import { automationRunLastActivityAt, isFinishedAutomationRunStatus } from './automation-run';
 
 export type ActivityEntry =
 	| Readonly<{
@@ -88,7 +88,7 @@ export function decisionShown(decision: ReconcilerDecisionRecord): boolean {
 export function activityEntryRunning(entry: ActivityEntry): boolean {
 	switch (entry.kind) {
 		case 'automation':
-			return entry.run.status === 'running' || entry.run.status === 'queued';
+			return !isFinishedAutomationRunStatus(entry.run.status);
 		case 'chat':
 			return entry.turn.status === 'running';
 		case 'call':

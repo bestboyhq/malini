@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseAutomationTrigger, scheduleWhen } from './automation-trigger';
+import {
+	parseAutomationTrigger,
+	scheduleWhen,
+	unknownTriggerValueMessage,
+} from './automation-trigger';
 
 describe('parseAutomationTrigger event phrases', () => {
 	it('parses a channel with set and equality conditions', () => {
@@ -43,6 +47,33 @@ describe('parseAutomationTrigger event phrases', () => {
 		expect(() => parseAutomationTrigger('on automations:run-changed where run.status')).toThrow(
 			/Unsupported event condition "run.status"/u,
 		);
+	});
+
+	it('reads a stored trigger with a state its event never reports', () => {
+		expect(
+			parseAutomationTrigger('on automations:run-finished where run.status is succeded'),
+		).toMatchObject({
+			kind: 'event',
+			channel: 'automations:run-finished',
+			where: [{ path: 'run.status', equals: 'succeded' }],
+		});
+	});
+
+	it('names the states an event reports for a state it never reports', () => {
+		const message = (when: string) => unknownTriggerValueMessage(parseAutomationTrigger(when));
+		expect(message('on automations:run-finished where run.status is succeded')).toBe(
+			'automations:run-finished never reports run.status succeded. It reports succeeded, failed, or cancelled.',
+		);
+		expect(message('on automations:decision-changed where decision.status is asked')).toMatch(
+			/^automations:decision-changed never reports decision\.status asked\./u,
+		);
+		expect(
+			message(
+				'on automations:run-finished where run.status is succeeded and run.definitionId is 01X',
+			),
+		).toBeNull();
+		expect(message('on automations:run-finished where run.status is set')).toBeNull();
+		expect(message('every day at 07:00')).toBeNull();
 	});
 
 	it('keeps the plain-text phrases and mentions the event form in its error', () => {

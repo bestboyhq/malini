@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEventEnvelope } from '$contract/agent';
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { BRIDGE_INTERRUPTED_ERROR, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import {
 	APP_UPDATED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
@@ -10,11 +10,13 @@ import {
 	AUTOMATIONS_RUN_FINISHED_CHANNEL,
 	AUTOMATIONS_RUN_STARTED_CHANNEL,
 	AUTOMATIONS_SUGGESTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 } from '$contract/events';
 import type { CommandFailure } from '$contract/ipc';
 import {
 	DEFAULT_AUTOMATION_BOUNDARY,
 	AUTOMATIONS_MAX_CONCURRENT_SETTING,
+	automationRunInterrupted,
 	type AutomationBuiltin,
 	type AutomationDefinitionRecord,
 	type AutomationRunRecord,
@@ -33,7 +35,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { all, get } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import { insertRun } from '$lib/chat/platform/runs.repository';
+import { finalizeRunLifecycle, insertRun } from '$lib/chat/platform/runs.repository';
 import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { addressedReviewThreadIds } from '$lib/pull-requests/domain/pull-request-fix-prompt';
 import {
@@ -43,6 +45,7 @@ import {
 } from '$shared/repositories/repositories.platform';
 import type { AutomationsPlatform } from '../automations.platform';
 import { BUILTIN_AUTOMATIONS } from '../domain/builtin-automations';
+import { promptCandidates } from '../domain/reconciler';
 import { updateFromMainAutomationContext } from '../domain/update-from-main-context';
 import { insertLoggedEvent, automationRunEventIds } from './event-log.repository';
 import { getBuiltinAutomationDefinition } from './automation-definitions.repository';
@@ -63,6 +66,7 @@ let automations: AutomationsPlatform;
 let settings: Record<string, string>;
 let openRuns: Set<string>;
 let sessionEvents: Map<string, AgentEventEnvelope[]>;
+let eventsRead: Promise<void>;
 let definitionEvents: unknown[];
 let suggested: AutomationSuggestionRecord[];
 let answers: ReturnType<typeof vi.fn<(task: string) => Promise<Record<string, unknown>>>>;
@@ -73,7 +77,7 @@ function createFakes() {
 	let sessions = 0;
 	let agentRuns = 0;
 	return {
-		startSession: vi.fn((_args: unknown): string => `session-${++sessions}`),
+		startSession: vi.fn((_args: unknown): string | Promise<string> => `session-${++sessions}`),
 		sendPrompt: vi.fn((_args: unknown): string => `agent-run-${++agentRuns}`),
 		cancelRun: vi.fn((_args: unknown): undefined => undefined),
 		openDraft: vi.fn((_args: unknown): Promise<ShipStateRecord> => Promise.resolve(shipState())),
@@ -102,9 +106,10 @@ function harness(database: MaliniDatabase): MainContext {
 	commands.define('chat.start-session', fakes.startSession);
 	commands.define('chat.send-prompt', fakes.sendPrompt);
 	commands.define('chat.cancel-run', fakes.cancelRun);
-	commands.define('chat.list-events', (args: unknown) => [
-		...(sessionEvents.get(String(Reflect.get(Object(args), 'sessionId'))) ?? []),
-	]);
+	commands.define('chat.list-events', async (args: unknown) => {
+		await eventsRead;
+		return [...(sessionEvents.get(String(Reflect.get(Object(args), 'sessionId'))) ?? [])];
+	});
 	commands.define('chat.decide-approval', () => ({
 		decision: 'allow',
 		scope: 'once',
@@ -136,6 +141,7 @@ beforeEach(() => {
 	settings = {};
 	openRuns = new Set();
 	sessionEvents = new Map();
+	eventsRead = Promise.resolve();
 	definitionEvents = [];
 	suggested = [];
 	for (const workstreamId of ['ws-a', 'ws-b', 'ws-c', 'ws-d']) seedWorkstream(workstreamId);
@@ -935,6 +941,28 @@ describe('scheduling', () => {
 		expect(fakes.sendPrompt).toHaveBeenCalledTimes(2);
 	});
 
+	it('gives a retried run every skill once its automation has none left', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		const copyPass = await saveDefinition({ name: 'Copy pass', skills: ['humanizer'] });
+		fakes.sendPrompt.mockImplementationOnce(() => {
+			throw new Error('`ws-a` already has an active run');
+		});
+		const queued = await context.commands.call('automations.run', {
+			definitionId: copyPass.id,
+			workstreamId: 'ws-a',
+		});
+		const requeued = await until(queued.id, 'queued');
+		if (requeued.sessionId === null) throw new Error('the requeued run has no session');
+		expect(skillsForRun(db, requeued.sessionId)).toEqual(['humanizer']);
+
+		await saveDefinition({ id: copyPass.id, name: 'Copy pass', skills: [] });
+		vi.setSystemTime(Date.now() + BUSY_RETRY_MS + 1);
+		agentEvent('user-session', 'user-run', { type: 'run.completed', summary: '' });
+
+		expect(await session(queued.id)).toBe(requeued.sessionId);
+		expect(skillsForRun(db, requeued.sessionId)).toBeNull();
+	});
+
 	it('fails the automation with a readable reason when it cannot start', async () => {
 		fakes.startSession.mockImplementationOnce(() => {
 			throw new Error('bridge unavailable: the agent bridge exited');
@@ -1190,7 +1218,19 @@ describe('tracking', () => {
 		expect((await automationRun(queued.id)).status).toBe('running');
 
 		agentEvent(sessionId, 'agent-run-1', { type: 'run.failed', error: 'tests still fail' });
-		expect(await until(queued.id, 'failed')).toMatchObject({ detail: 'tests still fail' });
+		expect(await until(queued.id, 'failed')).toMatchObject({
+			interrupted: false,
+			detail: 'tests still fail',
+		});
+	});
+
+	it('counts an automation whose agent bridge restarted as interrupted', async () => {
+		const queued = await runFixChecks('ws-a');
+		const sessionId = await session(queued.id);
+
+		agentEvent(sessionId, 'agent-run-1', { type: 'run.failed', error: BRIDGE_INTERRUPTED_ERROR });
+
+		expect(automationRunInterrupted(await until(queued.id, 'failed'))).toBe(true);
 	});
 
 	it('keeps an automation running while a limit pauses its turn, and finishes it with the turn that goes on', async () => {
@@ -1292,6 +1332,7 @@ describe('restart', () => {
 				agentRunId: sessionId === null ? null : `${id}-first-run`,
 				origin: 'merge-queue',
 				status,
+				interrupted: false,
 				detail: null,
 				parentRunId: null,
 				chatSessionId: null,
@@ -1344,9 +1385,11 @@ describe('restart', () => {
 		automations.start();
 
 		expect(await until('lost', 'failed')).toMatchObject({
+			interrupted: true,
 			detail: 'Interrupted when Malini closed',
 		});
 		expect(await until('never', 'failed')).toMatchObject({
+			interrupted: true,
 			detail: 'Interrupted when Malini closed',
 		});
 		expect(await until('finished', 'succeeded')).toMatchObject({ detail: 'All green.' });
@@ -1358,6 +1401,139 @@ describe('restart', () => {
 		agentEvent('s-resumed', 'r2', { type: 'run.started', sessionId: 's-resumed' });
 		agentEvent('s-resumed', 'r2', { type: 'run.completed', summary: 'Picked up where it left.' });
 		await until('resumed', 'succeeded');
+	});
+
+	it('keeps a run waiting for you until you answered every request it left open', async () => {
+		automations.dispose();
+		const definition = await builtin('fix-checks');
+		insertAutomationRun(
+			db,
+			{
+				id: 'asks',
+				definitionId: definition.id,
+				title: definition.name,
+				workstreamId: 'ws-a',
+				repositoryId: null,
+				sessionId: 's-asks',
+				agentRunId: 'r1',
+				origin: 'merge-queue',
+				status: 'needs-you',
+				interrupted: false,
+				detail: null,
+				parentRunId: null,
+				chatSessionId: null,
+				chatAfterRunId: null,
+				chainId: 'asks',
+				requests: 1,
+				createdAt: NOW,
+				startedAt: NOW,
+				finishedAt: null,
+			},
+			null,
+		);
+		insertSession(db, {
+			id: 's-asks',
+			workstreamId: 'ws-a',
+			provider: 'claude',
+			model: null,
+			providerSessionId: null,
+			status: 'waiting_for_approval',
+			startedAt: NOW,
+		});
+		const logged = (event: Record<string, unknown>): AgentEventEnvelope => {
+			seq += 1;
+			return { sessionId: 's-asks', runId: 'r1', seq, event: { runId: 'r1', ...event } };
+		};
+		sessionEvents.set('s-asks', [
+			logged({ type: 'run.started' }),
+			logged({ type: 'approval.requested', approvalId: 'a1' }),
+			logged({ type: 'approval.requested', approvalId: 'a2' }),
+			logged({ type: 'approval.requested', approvalId: 'a3' }),
+			logged({ type: 'approval.decided', approvalId: 'a1' }),
+		]);
+		const decide = (approvalId: string) =>
+			context.commands.handle({
+				command: 'chat.decide-approval',
+				args: { sessionId: 's-asks', runId: 'r1', approvalId, decision: 'allow', scope: 'once' },
+			});
+
+		context = harness(db);
+		automations = registerAutomations(context, { log: () => {} });
+		automations.start();
+		await automations.settled();
+		expect((await automationRun('asks')).status).toBe('needs-you');
+
+		await decide('a2');
+		expect((await automationRun('asks')).status).toBe('needs-you');
+
+		db.exec("UPDATE agent_sessions SET status = 'running' WHERE id = 's-asks'");
+		await decide('a3');
+		await until('asks', 'running');
+	});
+
+	it('settles the runs it left behind before a rule reads them', async () => {
+		const resolver = await builtin('resolve-conflicts');
+		if (!resolver.trigger) throw new Error('Resolve conflicts has no trigger');
+		await context.commands.call('automations.save-definition', {
+			...resolver,
+			trigger: { ...resolver.trigger, mode: 'off' },
+		});
+		automations.dispose();
+		insertAutomationRun(
+			db,
+			{
+				id: 'left',
+				definitionId: resolver.id,
+				title: resolver.name,
+				workstreamId: 'ws-a',
+				repositoryId: null,
+				sessionId: 's-left',
+				agentRunId: 'r1',
+				origin: 'trigger',
+				status: 'running',
+				interrupted: false,
+				detail: null,
+				parentRunId: null,
+				chatSessionId: null,
+				chatAfterRunId: null,
+				chainId: 'left',
+				requests: 1,
+				createdAt: NOW,
+				startedAt: NOW,
+				finishedAt: null,
+			},
+			null,
+		);
+		let readEvents = (): void => {};
+		eventsRead = new Promise((resolve) => (readEvents = resolve));
+		context = harness(db);
+		fakes.workstreamStatus.mockImplementation(() => conflictedMerge());
+		automations = registerAutomations(context, {
+			log: () => {},
+			choose: async (task) =>
+				Math.max(1, promptCandidates(task).indexOf('Run Resolve conflicts') + 1),
+		});
+		automations.start();
+
+		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+			workstreamId: 'ws-a',
+			baseBranch: 'main',
+			conflictedPaths: ['src/shared.ts'],
+		});
+		await settle();
+		expect(await context.commands.call('automations.list-decisions', undefined)).toEqual([]);
+		readEvents();
+
+		expect(await until('left', 'failed')).toMatchObject({ interrupted: true });
+		await vi.waitFor(() => expect(fakes.startSession).toHaveBeenCalledTimes(1));
+		const runs = await context.commands.call('automations.list-runs', undefined);
+		expect(runs.filter(({ id }) => id !== 'left')).toEqual([
+			expect.objectContaining({
+				definitionId: resolver.id,
+				origin: 'reconciler',
+				status: 'running',
+			}),
+		]);
 	});
 });
 
@@ -1617,6 +1793,39 @@ describe('an automation whose turn ends over background commands', () => {
 		});
 	}
 
+	function opened(automationSession: string): void {
+		insertSession(db, {
+			id: automationSession,
+			workstreamId: 'ws-a',
+			provider: 'claude',
+			model: null,
+			providerSessionId: null,
+			status: 'running',
+			startedAt: NOW,
+		});
+		insertRun(db, {
+			id: 'agent-run-1',
+			sessionId: automationSession,
+			prompt: 'Warm up.',
+			startedAt: NOW,
+			completedAt: null,
+			summary: null,
+			error: null,
+		});
+	}
+
+	function completed(automationSession: string, summary: string): void {
+		finalizeRunLifecycle(db, automationSession, 'agent-run-1', 'completed', summary, null, NOW);
+		complete(automationSession, summary);
+	}
+
+	function restart(): void {
+		automations.dispose();
+		context = harness(db);
+		automations = registerAutomations(context, { log: () => {} });
+		automations.start();
+	}
+
 	async function runsOf(definitionId: string): Promise<AutomationRunRecord[]> {
 		const runs = await context.commands.call('automations.list-runs', undefined);
 		return runs.filter((run) => run.definitionId === definitionId);
@@ -1634,7 +1843,9 @@ describe('an automation whose turn ends over background commands', () => {
 		const next = await saveDefinition({ name: 'Note after', instructions: 'Append then.' });
 		const first = await saveDefinition({ name: 'Warm-up note', thenAutomationId: next.id });
 		const automation = await runOf(first);
-		return { next, automation, automationSession: await session(automation.id) };
+		const automationSession = await session(automation.id);
+		opened(automationSession);
+		return { next, automation, automationSession };
 	}
 
 	it('finishes at once, runs again when its agent goes on, and finishes with the end of that run', async () => {
@@ -1666,7 +1877,7 @@ describe('an automation whose turn ends over background commands', () => {
 		expect((await automationRun(then.id)).status).toBe('queued');
 		goOn(automationSession);
 		await until(automation.id, 'running');
-		complete(automationSession, REPORT);
+		completed(automationSession, REPORT);
 		await until(automation.id, 'succeeded');
 
 		await session(then.id);
@@ -1686,7 +1897,7 @@ describe('an automation whose turn ends over background commands', () => {
 		await until(then.id, 'succeeded');
 		goOn(automationSession);
 		await until(automation.id, 'running');
-		complete(automationSession, REPORT);
+		completed(automationSession, REPORT);
 		await until(automation.id, 'succeeded');
 		await settle();
 
@@ -1700,7 +1911,7 @@ describe('an automation whose turn ends over background commands', () => {
 		const then = await thenOf(next.id);
 		await settle();
 		expect((await automationRun(then.id)).status).toBe('queued');
-		complete(automationSession, 'Waiting for the warm-up.');
+		completed(automationSession, 'Waiting for the warm-up.');
 
 		await session(then.id);
 		expect(fakes.sendPrompt.mock.calls[1]?.[0]).toMatchObject({
@@ -1715,6 +1926,7 @@ describe('an automation whose turn ends over background commands', () => {
 		waitOver(automationSession, 'Waiting for the warm-up.');
 		const then = await thenOf(next.id);
 		goOn(automationSession);
+		finalizeRunLifecycle(db, automationSession, 'agent-run-1', 'failed', null, 'tests fail', NOW);
 		agentEvent(automationSession, 'agent-run-1', { type: 'run.failed', error: 'tests fail' });
 		await until(automation.id, 'failed');
 
@@ -1722,6 +1934,117 @@ describe('an automation whose turn ends over background commands', () => {
 			detail: 'Warm-up note went on and did not succeed.',
 		});
 		expect(fakes.startSession).toHaveBeenCalledTimes(1);
+	});
+
+	it('cancels a held Then when the automation goes on and fails after you unlinked that Then', async () => {
+		const { next, automation, automationSession } = await chained();
+
+		waitOver(automationSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+		await saveDefinition({
+			id: automation.definitionId,
+			name: 'Warm-up note',
+			thenAutomationId: null,
+		});
+		goOn(automationSession);
+		finalizeRunLifecycle(db, automationSession, 'agent-run-1', 'failed', null, 'tests fail', NOW);
+		agentEvent(automationSession, 'agent-run-1', { type: 'run.failed', error: 'tests fail' });
+		await until(automation.id, 'failed');
+
+		expect(await until(then.id, 'cancelled')).toMatchObject({
+			detail: 'Warm-up note went on and did not succeed.',
+		});
+	});
+
+	it('runs again after a restart once you answer its agent and it goes on, and finishes with that end', async () => {
+		const automation = await runOf(await saveDefinition());
+		const automationSession = await session(automation.id);
+		opened(automationSession);
+		waitOver(automationSession, 'Waiting for the warm-up.');
+		await until(automation.id, 'succeeded');
+		agentEvent(automationSession, 'agent-run-1', { type: 'approval.requested', approvalId: 'a1' });
+
+		restart();
+		await automations.settled();
+		await context.commands.call('chat.decide-approval', {
+			sessionId: automationSession,
+			runId: 'agent-run-1',
+			approvalId: 'a1',
+			decision: 'allow',
+			scope: 'once',
+		});
+		goOn(automationSession);
+
+		expect(await until(automation.id, 'running')).toMatchObject({ detail: null, finishedAt: null });
+		completed(automationSession, REPORT);
+		expect(await until(automation.id, 'succeeded')).toMatchObject({ detail: REPORT });
+	});
+
+	it('holds its Then across a restart while its agent may still go on', async () => {
+		const { next, automation, automationSession } = await chained();
+		waitOver(automationSession, 'Waiting for the warm-up.');
+		const then = await thenOf(next.id);
+
+		restart();
+		await automations.settled();
+		expect((await automationRun(then.id)).status).toBe('queued');
+		goOn(automationSession);
+		await until(automation.id, 'running');
+		completed(automationSession, REPORT);
+
+		await vi.waitFor(() => expect(fakes.sendPrompt).toHaveBeenCalledTimes(1));
+		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
+			prompt: `Append then.\n\nThis automation runs after “Warm-up note”, which finished with:\n\n${REPORT}`,
+		});
+	});
+});
+
+describe('closing Malini', () => {
+	it('lets the work it started finish before the database closes', async () => {
+		const logged: string[] = [];
+		automations.dispose();
+		context = harness(db);
+		automations = registerAutomations(context, { log: (line) => logged.push(line) });
+		automations.start();
+		let release = (): void => {};
+		fakes.startSession.mockImplementationOnce(
+			() => new Promise<string>((resolve) => (release = () => resolve('session-held'))),
+		);
+		await runOf(await saveDefinition());
+		await vi.waitFor(() => expect(fakes.startSession).toHaveBeenCalledTimes(1));
+
+		automations.dispose();
+		const closed = (async () => {
+			await automations.settled();
+			db.close();
+		})();
+		release();
+		await closed;
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		db = openMigratedDatabase(':memory:');
+
+		expect(logged).toEqual([]);
+	});
+
+	it('counts a run that closing Malini cut short as interrupted, not as failed', async () => {
+		let refuse = (): void => {};
+		fakes.startSession.mockImplementationOnce(
+			() =>
+				new Promise<string>(
+					(_resolve, reject) => (refuse = () => reject(new Error('Malini is closing.'))),
+				),
+		);
+		const cut = await runOf(await saveDefinition());
+		await vi.waitFor(() => expect(fakes.startSession).toHaveBeenCalledTimes(1));
+
+		automations.dispose();
+		refuse();
+		await automations.settled();
+		context = harness(db);
+		automations = registerAutomations(context, { log: () => {} });
+		automations.start();
+
+		expect(automationRunInterrupted(await until(cut.id, 'failed'))).toBe(true);
 	});
 });
 
@@ -1906,6 +2229,23 @@ describe('suggestions after merges', () => {
 		expect(await context.commands.call('automations.list-suggestions', undefined)).toEqual([
 			suggestion,
 		]);
+	});
+
+	it('forgets an ask that no suggestion took once it is a month old', async () => {
+		merge('ws-a', 71, '2026-08-01T10:00:00.000Z');
+		ask('ws-a', 'run-71', 'Is the changelog published?', '2026-08-01T10:55:00.000Z');
+		merge('ws-b', 75, '2026-10-12T09:00:00.000Z');
+		ask('ws-b', 'run-75', 'Did the changelog get an entry?', '2026-10-12T09:20:00.000Z');
+		await settle();
+
+		expect(answers).not.toHaveBeenCalled();
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date('2026-10-12T10:00:00.000Z'));
+		automations.dispose();
+		context = harness(db);
+		automations = registerAutomations(context, { log: () => {} });
+		automations.start();
+		expect(all(db, 'SELECT run_id FROM automation_asks')).toEqual([{ run_id: 'run-75' }]);
 	});
 
 	it('counts only the first typed ask in the day after a merge', async () => {

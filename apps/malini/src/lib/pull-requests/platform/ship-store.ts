@@ -28,6 +28,7 @@ import {
 	shipRecord,
 	updateShip,
 	type ShipPatch,
+	type ShipPhaseMove,
 	type ShipRow,
 } from './ship.repository';
 import { shipTarget } from './ship-target';
@@ -56,13 +57,13 @@ export function saveShip(
 	deps: ShipDeps,
 	workstreamId: string,
 	patch: ShipPatch,
-	onlyInPhase?: ShipPhase,
+	phase?: ShipPhase | ShipPhaseMove,
 	click?: ShipButton,
 ): ShipRow | null {
 	const { db, events } = deps.context;
 	if (!deps.running()) return null;
 	const before = getShip(db, workstreamId);
-	const after = updateShip(db, workstreamId, patch, onlyInPhase);
+	const after = updateShip(db, workstreamId, patch, phase);
 	if (!after) return null;
 	const state = shipRecord(after);
 	if (click) emitClicked(deps.context, workstreamId, click, state);
@@ -145,6 +146,14 @@ export async function startingAlone(
 	}
 }
 
+export function fixAttemptSpent(row: ShipRow, signature: string, attempt: number): ShipPatch {
+	return {
+		failureSignature: signature,
+		fixAttempts: new Map([...row.fixAttempts, [signature, attempt]]),
+		checksRerun: null,
+	};
+}
+
 export function shipping(row: ShipRow): boolean {
 	return (
 		row.phase === 'queued' ||
@@ -165,7 +174,7 @@ export async function trackShip(deps: ShipDeps, workstreamId: string): Promise<S
 	} catch {
 		return null;
 	}
-	insertShip(db, workstreamId, 'local');
+	insertShip(db, workstreamId);
 	const tracked = getShip(db, workstreamId);
 	if (tracked) {
 		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId, state: shipRecord(tracked) });

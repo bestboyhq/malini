@@ -1,3 +1,4 @@
+import { isLifecycleKind } from '$contract/agent-state-machine';
 import type { EventPage } from '$lib/chat/domain/event-page';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
@@ -6,6 +7,13 @@ import { agentEvents } from '$lib/chat/infrastructure/services/agent-events.serv
 import { yieldToIdle } from '$shared/performance/yield-to-idle';
 
 const UNBOUNDED_BYTES = Number.MAX_SAFE_INTEGER;
+const TRANSCRIPT_RESHAPES: ReadonlySet<string> = new Set([
+	'turn.superseded',
+	'turn.restored',
+	'run.obsoleted',
+	'run.restored',
+	'session.branched',
+]);
 const BACKFILL_IDLE_TIMEOUT_MS = 200;
 
 type EnvelopeListener = (envelope: EventEnvelope) => void;
@@ -152,22 +160,8 @@ export function createEventStream(
 		options.onLiveBatch?.(batch);
 	};
 
-	const isLiveFlushBoundary = (envelope: EventEnvelope): boolean => {
-		const type = envelope.event.type;
-		return (
-			type === 'run.started' ||
-			type === 'approval.requested' ||
-			type === 'approval.decided' ||
-			type === 'run.completed' ||
-			type === 'run.failed' ||
-			type === 'checkpoint.restored' ||
-			type === 'turn.superseded' ||
-			type === 'turn.restored' ||
-			type === 'run.obsoleted' ||
-			type === 'run.restored' ||
-			type === 'session.branched'
-		);
-	};
+	const isLiveFlushBoundary = ({ event }: EventEnvelope): boolean =>
+		isLifecycleKind(event.type) || TRANSCRIPT_RESHAPES.has(event.type);
 
 	const deliverLive = (envelope: EventEnvelope): void => {
 		if (!registerEnvelope(envelope, 'live')) return;
@@ -375,17 +369,15 @@ export function createEventStream(
 				});
 				throw error;
 			} finally {
-				if (replaySucceeded) {
-					hydratedSessions.add(sessionId);
-					const buffered = pendingBySession[sessionId] ?? [];
-					delete pendingBySession[sessionId];
-					hydratingSessions.delete(sessionId);
-					if (!disposed) {
-						for (const env of buffered.sort((a, b) => a.seq - b.seq)) {
-							handleLiveEnvelope(env);
-						}
-						flushLiveBatch();
+				if (replaySucceeded) hydratedSessions.add(sessionId);
+				const buffered = pendingBySession[sessionId] ?? [];
+				delete pendingBySession[sessionId];
+				hydratingSessions.delete(sessionId);
+				if (!disposed) {
+					for (const env of buffered.sort((a, b) => a.seq - b.seq)) {
+						handleLiveEnvelope(env);
 					}
+					flushLiveBatch();
 				}
 			}
 		})();

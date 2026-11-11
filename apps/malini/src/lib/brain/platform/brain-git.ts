@@ -1,10 +1,12 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { errorCode } from '$main/errors';
 import { commitPaths } from '$main/git/remote';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, runGitAllowingExit } from '$main/git/run';
 
 const ORIGIN_MAIN = 'refs/remotes/origin/main';
+
+const UNION_LOG = 'log/*.md merge=union';
 
 const README = [
 	'# Brain',
@@ -53,6 +55,18 @@ export async function pushToFolderOrigin(checkout: string): Promise<void> {
 		'HEAD:refs/heads/main',
 	]);
 	await runGit(['-C', checkout, 'update-ref', ORIGIN_MAIN, 'HEAD']);
+}
+
+export async function mergeLogsByUnion(checkout: string): Promise<void> {
+	const common = await runGit(['-C', checkout, 'rev-parse', '--git-common-dir']);
+	const attributes = resolve(checkout, common.trim(), 'info', 'attributes');
+	const text = (await isMissing(attributes)) ? '' : await readFile(attributes, 'utf8');
+	if (text.split('\n').includes(UNION_LOG)) return;
+	await mkdir(dirname(attributes), { recursive: true });
+	await writeFile(
+		attributes,
+		`${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${UNION_LOG}\n`,
+	);
 }
 
 export async function startFolderBrain(folder: string): Promise<void> {

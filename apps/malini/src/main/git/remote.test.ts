@@ -21,6 +21,7 @@ import {
 	MALINI_CO_AUTHOR,
 	MAX_ADDED_FILES_PER_COMMIT,
 	pullWorkstreamBaseBranch,
+	pushHeadToGithubMain,
 	pushWorkstreamBranch,
 	restartWorkstreamOnBase,
 } from './remote';
@@ -270,6 +271,47 @@ describe('pushWorkstreamBranch', () => {
 		await expect(
 			pushWorkstreamBranch('/wt', 'malini/ws-1', 'not-a-full-name', null, noPromptCredentialEnv),
 		).rejects.toThrow('unsafe path: invalid GitHub repository full name');
+	});
+});
+
+describe('pushHeadToGithubMain', () => {
+	it('rebases again over a push that lands between its clean rebase and its push', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
+		await writeFile(join(checkout, 'here.txt'), 'here\n');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'here');
+		await commitOnBase(dir, remote, 'first.txt', 'first\n');
+		let raced = false;
+		const restore = installGitRunnerForTests(async (args, env, real) => {
+			if (args.includes('get-url')) return 'https://github.com/acme/brain.git\n';
+			const ran = await real(
+				args
+					.map((arg) => (arg === 'https://github.com/acme/brain.git' ? remote : arg))
+					.filter(
+						(arg, index, all) =>
+							arg !== 'protocol.allow=never' && all[index + 1] !== 'protocol.allow=never',
+					),
+				env,
+			);
+			if (args.includes('rebase') && !raced) {
+				raced = true;
+				await mkdir(join(dir, 'race'));
+				await commitOnBase(join(dir, 'race'), remote, 'second.txt', 'second\n');
+			}
+			return ran;
+		});
+		try {
+			await pushHeadToGithubMain(checkout, 'acme/brain', noPromptCredentialEnv);
+		} finally {
+			restore();
+		}
+
+		const landed = (await realGit(remote, ['ls-tree', '--name-only', 'main'])).split('\n');
+		expect(landed).toEqual(expect.arrayContaining(['here.txt', 'first.txt', 'second.txt']));
+		expect((await realGit(remote, ['rev-parse', 'main'])).trim()).toBe(
+			(await realGit(checkout, ['rev-parse', 'HEAD'])).trim(),
+		);
 	});
 });
 

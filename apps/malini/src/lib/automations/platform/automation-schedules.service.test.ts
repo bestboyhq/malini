@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHAT_AGENT_EVENT_CHANNEL, AUTOMATIONS_TIME_REACHED_CHANNEL } from '$contract/events';
+import {
+	AUTOMATIONS_RUN_CHANGED_CHANNEL,
+	AUTOMATIONS_TIME_REACHED_CHANNEL,
+	CHAT_AGENT_EVENT_CHANNEL,
+} from '$contract/events';
 import type {
 	AutomationDefinitionRecord,
 	AutomationRunRecord,
@@ -19,7 +23,11 @@ import {
 	upsertWorkstream,
 } from '$shared/repositories/repositories.platform';
 import type { AutomationsPlatform } from '../automations.platform';
-import { SCHEDULE_CHECK_INTERVAL_MS } from './automation-schedules.service';
+import { setAlarm } from './alarms.repository';
+import {
+	ALARM_CHECK_INTERVAL_MS,
+	SCHEDULE_CHECK_INTERVAL_MS,
+} from './automation-schedules.service';
 import { registerAutomations } from './register';
 
 const MONDAY = 26;
@@ -32,6 +40,9 @@ let prompts: string[];
 let behind: number;
 let dirty: string[];
 let pulls: number;
+let statusHeld: boolean;
+let statusHolds: number;
+let chatRead: Promise<void>;
 
 const at = (day: number, hour: number, minute = 0): Date => new Date(2026, 9, day, hour, minute);
 
@@ -77,6 +88,10 @@ function harness(): MainContext {
 		notices.push(args);
 	});
 	commands.define('chat.workstream-has-working-run', () => false);
+	commands.define('chat.list-events', async () => {
+		await chatRead;
+		return [];
+	});
 	commands.define('chat.start-session', () => `session-${++sessions}`);
 	commands.define('chat.send-prompt', (args: unknown) => {
 		prompts.push(String(Reflect.get(Object(args), 'prompt')));
@@ -88,7 +103,13 @@ function harness(): MainContext {
 	});
 	commands.define('repositories.sync-workstream-base', () => 'current' as const);
 	commands.define('repositories.provision-dependencies', () => ({ status: 'succeeded' as const }));
-	commands.define('repositories.workstream-status', () => ({ ...worktree(), dirtyPaths: dirty }));
+	commands.define('repositories.workstream-status', async () => {
+		if (statusHeld) {
+			statusHolds += 1;
+			await new Promise(() => {});
+		}
+		return { ...worktree(), dirtyPaths: dirty };
+	});
 	commands.define('repositories.count-behind-base', () => behind);
 	commands.define('repositories.pull-workstream', () => {
 		pulls += 1;
@@ -121,6 +142,9 @@ beforeEach(() => {
 	behind = 0;
 	dirty = [];
 	pulls = 0;
+	statusHeld = false;
+	statusHolds = 0;
+	chatRead = Promise.resolve();
 	upsertProject(db, {
 		id: 'local__acme__app',
 		name: 'acme__app',
@@ -337,6 +361,98 @@ describe('automation schedules', () => {
 				},
 			}),
 		);
+	});
+
+	it('asks again for its next time while the last time still waits for your yes', async () => {
+		await schedule('every day at 09:00 in acme/app', 'ask');
+		await passTo(at(MONDAY, 9));
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('waiting'));
+
+		await passTo(at(MONDAY + 1, 9));
+
+		await vi.waitFor(async () =>
+			expect((await runs()).map(({ status }) => status)).toEqual(['cancelled', 'waiting']),
+		);
+		expect(notices).toHaveLength(2);
+	});
+
+	it('keeps the run you said yes to as its next time starts, and asks again for that time', async () => {
+		await schedule('every day at 09:00 in acme/app', 'ask');
+		await passTo(at(MONDAY, 9));
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('waiting'));
+		const [asked] = await runs();
+		context.events.subscribe(AUTOMATIONS_RUN_CHANGED_CHANNEL, ({ run }) => {
+			if (run.id !== asked?.id && run.status === 'waiting') {
+				void context.commands.call('automations.confirm-run', { automationRunId: asked?.id ?? '' });
+			}
+		});
+
+		await passTo(at(MONDAY + 1, 9));
+
+		await vi.waitFor(async () =>
+			expect((await runs()).map(({ status }) => status)).toEqual(['running', 'waiting']),
+		);
+	});
+
+	it('keeps a due alarm while the log cannot be read, and rings it once the log can', async () => {
+		const reached = {
+			workstreamId: 'lead-1',
+			sessionId: 'session-1',
+			runId: 'run-1',
+			wait: 'resume' as const,
+			due: new Date(Date.now() - 1_000).toISOString(),
+		};
+		const heard: unknown[] = [];
+		context.events.subscribe(AUTOMATIONS_TIME_REACHED_CHANNEL, (payload) => heard.push(payload));
+		db.exec('ALTER TABLE event_log RENAME TO event_log_away');
+		setAlarm(db, 'resume:session-1', reached);
+
+		await vi.advanceTimersByTimeAsync(ALARM_CHECK_INTERVAL_MS);
+		expect(all(db, 'SELECT key FROM alarms')).toEqual([{ key: 'resume:session-1' }]);
+
+		db.exec('ALTER TABLE event_log_away RENAME TO event_log');
+		await vi.advanceTimersByTimeAsync(ALARM_CHECK_INTERVAL_MS);
+		expect(heard).toEqual([reached]);
+		expect(all(db, 'SELECT key FROM alarms')).toEqual([]);
+	});
+
+	it('runs the time it missed while Malini was closed once it settles the run that closing cut', async () => {
+		await schedule('every day at 09:00 in acme/app');
+		await passTo(at(MONDAY, 9));
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('running'));
+		automations.dispose();
+		let readChat = (): void => {};
+		chatRead = new Promise((resolve) => (readChat = resolve));
+
+		vi.setSystemTime(at(MONDAY + 1, 10));
+		start();
+		await vi.advanceTimersByTimeAsync(SCHEDULE_CHECK_INTERVAL_MS);
+		expect((await runs()).map(({ status }) => status)).toEqual(['running']);
+
+		readChat();
+		await vi.waitFor(async () =>
+			expect((await runs()).map(({ status }) => status)).toEqual(['failed', 'running']),
+		);
+	});
+
+	it('starts a time once when Malini closed after it logged that time and before the run began', async () => {
+		await schedule('every day at 09:00 in acme/app');
+		await passTo(at(MONDAY, 9));
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('running'));
+		finish((await runs())[0]);
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('succeeded'));
+		statusHeld = true;
+		await passTo(at(MONDAY + 1, 9));
+		await vi.waitFor(() => expect(statusHolds).toBe(1));
+		automations.dispose();
+
+		statusHeld = false;
+		vi.setSystemTime(at(MONDAY + 1, 9, 5));
+		start();
+
+		await vi.waitFor(async () => expect(await runs()).toHaveLength(2));
+		await vi.advanceTimersByTimeAsync(SCHEDULE_CHECK_INTERVAL_MS);
+		expect(await runs()).toHaveLength(2);
 	});
 
 	it('saves a schedule in the casing Malini knows, and refuses a place it does not know', async () => {

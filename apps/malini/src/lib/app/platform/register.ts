@@ -56,6 +56,7 @@ export interface AppDeps {
 	readonly cancelAgentRuns?: () => Promise<number> | number;
 	readonly containerCount?: () => number;
 	readonly usageAccount?: () => Promise<UsageAccount>;
+	readonly profilePublished?: () => boolean;
 	readonly freshInstall?: boolean;
 }
 
@@ -64,6 +65,7 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	const window = defineShellCommands(context, deps, host);
 	const usageData = startUsageData(context, {
 		...(deps.usageAccount ? { account: deps.usageAccount } : {}),
+		...(deps.profilePublished ? { published: deps.profilePublished } : {}),
 		...(deps.freshInstall === undefined ? {} : { freshInstall: deps.freshInstall }),
 	});
 	defineSettingsCommands(context, usageData);

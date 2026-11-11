@@ -6,7 +6,13 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { commitPaths, MAIN_DIVERGED, pushHeadToGithubMain } from '$main/git/remote';
 import { installGitRunnerForTests } from '$main/git/run';
-import { commitsAhead, pushToFolderOrigin, restoreLog, startFolderBrain } from './brain-git';
+import {
+	commitsAhead,
+	mergeLogsByUnion,
+	pushToFolderOrigin,
+	restoreLog,
+	startFolderBrain,
+} from './brain-git';
 
 const GITHUB_BRAIN = 'https://github.com/acme/brain.git';
 
@@ -134,6 +140,25 @@ describe('pushing the brain to its main on GitHub', () => {
 		await pushHeadToGithubMain(here, 'acme/brain');
 		expect(await git(remote, ['log', '--format=%s', 'main'])).toBe(
 			'Capture 1 chat\nRewrite notes\nCapture 1 chat\nInitial commit',
+		);
+		expect(await commitsAhead(here)).toBe(0);
+	});
+
+	it('lands two Macs that captured the same day, keeping both captures', async () => {
+		const here = await cloneOf(remote, 'here');
+		const elsewhere = await cloneOf(remote, 'elsewhere');
+		await write(elsewhere, 'log/2026-11-07.md', '# 2026-11-07\n\n## Elsewhere\n');
+		await commitPaths(elsewhere, 'Capture 1 chat', ['log']);
+		await mergeLogsByUnion(elsewhere);
+		await pushHeadToGithubMain(elsewhere, 'acme/brain');
+		await write(here, 'log/2026-11-07.md', '# 2026-11-07\n\n## Here\n');
+		await commitPaths(here, 'Capture 1 chat', ['log']);
+
+		await mergeLogsByUnion(here);
+		await mergeLogsByUnion(here);
+		await pushHeadToGithubMain(here, 'acme/brain');
+		expect(await git(remote, ['show', 'main:log/2026-11-07.md'])).toBe(
+			'# 2026-11-07\n\n## Elsewhere\n## Here',
 		);
 		expect(await commitsAhead(here)).toBe(0);
 	});

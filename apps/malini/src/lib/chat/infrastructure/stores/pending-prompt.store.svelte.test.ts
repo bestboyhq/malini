@@ -20,7 +20,10 @@ function submit(runId: string | null, sessionId: SessionId = SESSION): void {
 }
 
 describe('the prompt this renderer has submitted', () => {
-	beforeEach(() => pendingPromptStore.set(null));
+	beforeEach(() => {
+		pendingPromptStore.clearForSession(SESSION);
+		pendingPromptStore.clearForSession('session-2');
+	});
 
 	it('is scoped to the transcript it was typed into', () => {
 		submit('run-req-1');

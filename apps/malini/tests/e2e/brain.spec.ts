@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type {
@@ -8,9 +8,11 @@ import type {
 	BrainStatus,
 } from '../../src/contract/brain';
 import {
+	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	git,
 	invoke,
 	launchMalini,
 	listSessions,
@@ -186,6 +188,48 @@ test('without GitHub the brain stays on this Mac and still captures an archived 
 		await expect
 			.poll(async () => (await invoke<BrainStatus>(page, 'brain.status', undefined)).unpushed)
 			.toBe(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a brain on this Mac that could not push says so, and Retry pushes it once the folder is clean', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
+	try {
+		const { page } = app;
+		const status = await invoke<BrainStatus>(page, 'brain.set-up', { sync: false });
+		const location = status.location ?? '';
+		const folder = join(app.userDataDir, 'checkouts', 'brain');
+		writeFileSync(join(folder, 'README.md'), 'Edited by hand\n');
+		mkdirSync(join(location, 'notes'));
+		writeFileSync(join(location, 'notes', 'deploys.md'), '# Deploys\n');
+		await git(location, ['add', 'notes']);
+		await git(location, ['-c', 'user.name=e2e', '-c', 'user.email=e2e', 'commit', '-qm', 'Note']);
+		await invoke(page, 'brain.capture', undefined);
+		await expect
+			.poll(async () => (await invoke<BrainStatus>(page, 'brain.status', undefined)).problem)
+			.not.toBeNull();
+
+		await page.evaluate(() => {
+			globalThis.location.hash = '#/brain';
+		});
+		const nav = page.getByTestId('brain-nav');
+		const retry = nav.getByRole('button', { name: 'Retry' });
+		await expect(retry).toBeVisible({ timeout: 20_000 });
+		const refused = 'The folder brain refused the push: Working directory has unstaged changes.';
+		await expect(nav.getByRole('status')).toHaveText(refused);
+		await nav.getByRole('status').hover();
+		await expect(page.getByRole('tooltip')).toHaveText(refused);
+		await captureFlow(app, 'brain-folder-push-refused');
+		await git(folder, ['checkout', '--', 'README.md']);
+		await retry.click();
+
+		await expect(nav.getByRole('status')).toHaveText('On this Mac');
+		await expect(retry).toHaveCount(0);
+		await expect(page.getByText(/Could not change sync/u)).toHaveCount(0);
+		expect(readFileSync(join(folder, 'notes', 'deploys.md'), 'utf8')).toBe('# Deploys\n');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

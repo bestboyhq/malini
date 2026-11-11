@@ -96,6 +96,7 @@ function run(
 		agentRunId: null,
 		origin: 'manual',
 		status: 'succeeded',
+		interrupted: false,
 		detail: null,
 		parentRunId: null,
 		chatSessionId: null,

@@ -9,7 +9,7 @@
 	import { splitRunErrorText, type RunGroup } from '../render-state';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import { failedRunNextStep, pauseReason, pauseTitle } from './run-stop-copy';
-	import { terminalLabel } from './transcript-labels';
+	import { interruptedRun, terminalLabel } from './transcript-labels';
 	import { transcriptContext } from './transcript-context';
 
 	interface Props {
@@ -22,6 +22,7 @@
 	const transcript = transcriptContext();
 	const { stageEnter, timelineKey } = transcript;
 	const errorDisplay = $derived(splitRunErrorText(run.terminalText));
+	const interrupted = $derived(interruptedRun(run));
 	const failureKind = $derived(run.failure?.kind ?? null);
 	const nextStep = $derived(failureKind === null ? null : failedRunNextStep(failureKind));
 	const continuing = $derived(runContinuationQuery.continuing);
@@ -141,8 +142,13 @@
 			{/if}
 		</div>
 		<Strip>
-			<span class="text-error-content flex min-w-0 items-center gap-1.5">
-				<Icon name="close" size={12} class="shrink-0" />
+			<span
+				class={[
+					'flex min-w-0 items-center gap-1.5',
+					interrupted ? 'text-fg-secondary' : 'text-error-content',
+				]}
+			>
+				<Icon name={interrupted ? 'circle-slash' : 'close'} size={12} class="shrink-0" />
 				<span class="truncate">{terminalLabel(run)}</span>
 			</span>
 			<div class="ml-auto flex shrink-0 items-center gap-1">

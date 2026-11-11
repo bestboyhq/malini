@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL } from '$contract/events';
 import type { OneShotAutomationBuiltin } from '$contract/automations';
 import type { MainContext } from '$main/context';
@@ -13,6 +14,7 @@ import type {
 	OneShotAutomation,
 	SuggestWithAutomation,
 } from './one-shot-automations.service';
+import { BackgroundWork } from './background-work';
 import { checkCompatibility } from './compatibility-check';
 import { pruneEvents, startEventLog, type DispatchedEvent } from './event-log.service';
 import { AutomationExperiments } from './automation-experiments.service';
@@ -21,11 +23,17 @@ import { createAutomationSchedules } from './automation-schedules.service';
 import { startAutomationTriggers } from './automation-triggers.service';
 import { pruneDecisions } from './reconciler-decisions.repository';
 import { Reconciler, type DeliverWake } from './reconciler.service';
-import { HABIT_SCHEMA, suggestAutomationsAfterMerges } from './suggestions.service';
+import {
+	forgetUnsuggestedAsks,
+	HABIT_SCHEMA,
+	suggestAutomationsAfterMerges,
+} from './suggestions.service';
 
 const HOUSEKEEPING_MS = 60 * 60 * 1_000;
 
 const DECISIONS_KEEP_MS = 30 * 24 * 60 * 60 * 1_000;
+
+const SETTLE_BUDGET_MS = 5_000;
 
 export interface AutomationsOptions {
 	readonly log?: (line: string) => void;
@@ -62,12 +70,14 @@ export function registerAutomations(
 	const answer =
 		options.answer ??
 		(() => Promise.reject(new Error('Answering is not available in this Malini.')));
-	const runner = new AutomationRunner(context, log);
+	const work = new BackgroundWork(log);
+	const runner = new AutomationRunner(context, log, work);
 	const experiments = new AutomationExperiments(
 		context,
 		(builtin, task, automation) =>
 			replay(builtin, task, automation, { suggestTitle, choose, answer }),
 		log,
+		work,
 	);
 	seedBuiltinAutomations(context.db);
 	settleInterruptedAgentActions(context.db, nowIso8601());
@@ -89,6 +99,7 @@ export function registerAutomations(
 		},
 		options.deliver ??
 			(() => Promise.reject(new Error('Delivering prompts is not available in this Malini.'))),
+		work,
 	);
 	defineAutomationCommands(
 		context,
@@ -97,8 +108,16 @@ export function registerAutomations(
 		reconciler,
 		options.brainWorkstream ?? (() => Promise.resolve(null)),
 	);
-	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event));
-	const stopSuggesting = suggestAutomationsAfterMerges(context, answer, log);
+	const eventLog = startEventLog(
+		context,
+		log,
+		async (event) => {
+			await runner.recovered();
+			await reconciler.handle(event);
+		},
+		work,
+	);
+	const stopSuggesting = suggestAutomationsAfterMerges(context, answer, log, work);
 	const stopClosing = context.events.subscribe(
 		REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 		({ workstreamId }) => {
@@ -116,6 +135,7 @@ export function registerAutomations(
 		try {
 			pruneEvents(context.db);
 			pruneDecisions(context.db, new Date(Date.now() - DECISIONS_KEEP_MS).toISOString());
+			forgetUnsuggestedAsks(context.db);
 		} catch (error) {
 			log(`automations: could not prune the event log: ${describeError(error)}`);
 		}
@@ -138,6 +158,14 @@ export function registerAutomations(
 			triggers.dispose();
 			reconciler.dispose();
 			runner.dispose();
+		},
+		settled: async () => {
+			const late = await Promise.race([
+				work.settled(),
+				delay(SETTLE_BUDGET_MS, 'late', { ref: false }),
+			]);
+			// ponytail: work past the budget meets a closed database; abort each job if that shows up
+			if (late === 'late') log('automations: Malini closed before its work finished');
 		},
 	};
 }

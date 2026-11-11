@@ -21,7 +21,13 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { captureTypedChats } from './brain-capture.service';
 import { listBrainEntries, readBrainDocument } from './brain-documents';
-import { commitsAhead, pushToFolderOrigin, restoreLog, startFolderBrain } from './brain-git';
+import {
+	commitsAhead,
+	mergeLogsByUnion,
+	pushToFolderOrigin,
+	restoreLog,
+	startFolderBrain,
+} from './brain-git';
 import { brainSetting, latestEventSeq, saveBrainSetting } from './brain-store.repository';
 import { logDay } from './capture-log';
 
@@ -306,7 +312,10 @@ export class Brain {
 			if (visibility === 'public') return this.#problem(publicBrain(fullName));
 			if (visibility === 'missing') return this.#problem(missingBrain(fullName));
 			if (visibility === 'unknown') return;
-			await this.#landed(() => pushHeadToGithubMain(checkout, fullName));
+			await this.#landed(async () => {
+				await mergeLogsByUnion(checkout);
+				await pushHeadToGithubMain(checkout, fullName);
+			});
 		} finally {
 			await this.#changed();
 		}
@@ -357,13 +366,13 @@ export class Brain {
 		const capture = automationDefinitions(db).find(({ builtin }) => builtin === 'capture-brain');
 		const mode = capture?.trigger?.mode ?? 'off';
 		if (capture === undefined || mode === 'off') return;
-		saveBrainSetting(db, 'caught-up-on', today);
 		await commands.call('automations.run', {
 			definitionId: capture.id,
 			origin: 'schedule',
 			context: CATCH_UP_CONTEXT,
 			waitForYou: mode === 'ask',
 		});
+		saveBrainSetting(db, 'caught-up-on', today);
 	}
 
 	async #notesFinished(run: AutomationRunRecord): Promise<void> {

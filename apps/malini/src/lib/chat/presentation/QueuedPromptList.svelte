@@ -4,7 +4,7 @@
 	import { endPromptEditCommand } from '$lib/chat/application/commands/end-prompt-edit.command';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
 	import type { AgentDraft } from '$lib/chat/domain/draft';
-	import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
+	import type { QueueNote, QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 	import InlinePromptContent from './InlinePromptContent.svelte';
 	import PromptEditField from './PromptEditField.svelte';
 	import { Icon } from '$hyper-ui/icons';
@@ -19,7 +19,7 @@
 		isRunning: boolean;
 		paused: boolean;
 		sendingId: string | null;
-		errorById: Readonly<Record<string, string>>;
+		noteById: Readonly<Record<string, QueueNote>>;
 		onupdate: (id: string, edit: AgentDraft) => void;
 		onremove: (id: string) => void;
 		onsendnext: (id: string) => void | Promise<void>;
@@ -32,7 +32,7 @@
 		isRunning,
 		paused,
 		sendingId,
-		errorById,
+		noteById,
 		onupdate,
 		onremove,
 		onsendnext,
@@ -235,14 +235,23 @@
 							</Tooltip>
 						</div>
 					</div>
-					{#if errorById[item.id]}
+					{@const note = noteById[item.id]}
+					{#if note?.waiting}
+						<p
+							class="text-2xs text-fg-tertiary mt-1 flex items-start gap-1.5 pl-6 leading-4"
+							role="status"
+						>
+							<Icon name="clock" class="mt-px shrink-0" size={13} />
+							<span class="min-w-0">{note.message}</span>
+						</p>
+					{:else if note}
 						<p
 							class="text-2xs text-error-content mt-1 flex items-start gap-1.5 pl-6 leading-4"
 							role="alert"
 							data-testid="queued-prompt-error"
 						>
 							<Icon name="alert" class="mt-px shrink-0" size={13} />
-							<span class="min-w-0">{errorById[item.id]}</span>
+							<span class="min-w-0">{note.message}</span>
 						</p>
 					{/if}
 				{/if}

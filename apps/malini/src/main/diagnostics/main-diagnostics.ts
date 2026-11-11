@@ -203,7 +203,7 @@ function budgetOf(level: MainDiagnosticLevel): RecordBudget {
 const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
 	GhError: new Set(['auth-required', 'not-installed', 'unreachable', 'down', 'rate-limited']),
 	AutomationError: new Set(['busy', 'loop']),
-	LifecycleError: new Set(['already_running', 'checkout_busy', 'cancel_race']),
+	LifecycleError: new Set(['already_running', 'checkout_busy', 'cancel_race', 'run_ended']),
 	ReconcilerError: new Set(['decided']),
 	ShipError: new Set(['nothing-to-ship', 'not-github', 'not-queued']),
 	SupervisorError: new Set(['stopped']),

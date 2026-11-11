@@ -6,6 +6,7 @@ import {
 	type RememberPermissionRule,
 } from './permissions.repository';
 import { invariant } from '$main/errors';
+import { moveSessionStatus } from './sessions.repository';
 import { all, canonicalJson, get, jsonEqual, parseJsonColumn, run, scalar } from '$main/db/rows';
 
 export type InteractionKind = 'approval' | 'question';
@@ -492,14 +493,10 @@ export function finalizeInteractionResponse(
 			}
 			effectiveRuleId = matchedRuleId;
 		}
-		run(
+		moveSessionStatus(
 			db,
-			`UPDATE agent_sessions SET status = 'running' WHERE id = ? AND archived_at IS NULL
-			 AND EXISTS (SELECT 1 FROM agent_runs WHERE id = ? AND session_id = ?
-			             AND completed_at IS NULL)`,
 			sessionId,
-			runId,
-			sessionId,
+			kind === 'approval' ? 'approval.decided' : 'question.answered',
 		);
 		return effectiveRuleId;
 	});

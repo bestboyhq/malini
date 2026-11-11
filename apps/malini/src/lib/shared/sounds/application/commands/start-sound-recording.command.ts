@@ -4,16 +4,17 @@ import { soundRecorderStore } from '$shared/sounds/infrastructure/stores/sound-r
 import { finishSoundRecordingCommand } from './finish-sound-recording.command';
 
 export function startSoundRecordingCommand(): void {
-	if (soundRecorderStore.state?.phase !== 'ready') return;
+	const session = soundRecorderStore.start();
+	if (session === null) return;
 	void (async () => {
 		try {
 			const stop = await microphone.record((level, elapsedMs) => {
-				soundRecorderStore.heard(level, elapsedMs);
-				if (elapsedMs >= MAX_RECORDING_MS) finishSoundRecordingCommand();
+				const live = soundRecorderStore.heard(session, level, elapsedMs);
+				if (live && elapsedMs >= MAX_RECORDING_MS) finishSoundRecordingCommand();
 			});
-			soundRecorderStore.recording(stop);
+			if (!soundRecorderStore.recording(session, stop)) void stop(false);
 		} catch (error) {
-			soundRecorderStore.denied();
+			soundRecorderStore.denied(session);
 			console.error('[malini sounds] could not record from the microphone', error);
 		}
 	})();

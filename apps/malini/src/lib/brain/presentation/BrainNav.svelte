@@ -4,10 +4,11 @@
 	import { fly } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { brainHref } from '$shared/router/routes-hrefs';
-	import { setBrainSyncCommand } from '$lib/brain/application/commands/set-brain-sync.command';
+	import { retryBrainSyncCommand } from '$lib/brain/application/commands/set-brain-sync.command';
 	import { brainQuery } from '$lib/brain/application/queries/brain.query.svelte';
 	import {
 		brainLogDays,
@@ -98,14 +99,16 @@
 	{#if sync}
 		<div class="text-fg-tertiary flex shrink-0 items-center gap-2 px-4.5 py-3 text-xs">
 			<span class={['size-1.5 shrink-0 rounded-full', DOT[sync.kind]]} aria-hidden="true"></span>
-			<span class="min-w-0 flex-1 truncate" role="status">{brainSyncLine(sync, now)}</span>
+			<Tooltip
+				content={brainSyncLine(sync, now)}
+				placement="top"
+				onlyWhenTruncated
+				class="min-w-0 flex-1"
+			>
+				<span class="min-w-0 flex-1 truncate" role="status">{brainSyncLine(sync, now)}</span>
+			</Tooltip>
 			{#if sync.kind === 'problem'}
-				<Button
-					variant="ghost"
-					size="xs"
-					loading={brain.syncing}
-					onclick={() => setBrainSyncCommand(true)}
-				>
+				<Button variant="ghost" size="xs" loading={brain.syncing} onclick={retryBrainSyncCommand}>
 					Retry
 				</Button>
 			{/if}

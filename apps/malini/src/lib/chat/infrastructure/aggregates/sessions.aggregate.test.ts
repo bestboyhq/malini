@@ -168,9 +168,21 @@ describe('SessionsAggregate', () => {
 		);
 
 		expect(sessionsAggregate.getSession(sessionId)?.status).toBe('waiting_for_approval');
-		sessionsAggregate.resumeRunAfterInteraction(sessionId, 'other-run');
+		sessionsAggregate.applyEvent(
+			env(sessionId, 'other-run', 3, {
+				type: 'question.answered',
+				runId: 'other-run',
+				questionId: 'question-1',
+			}),
+		);
 		expect(sessionsAggregate.getSession(sessionId)?.status).toBe('waiting_for_approval');
-		sessionsAggregate.resumeRunAfterInteraction(sessionId, 'run-1');
+		sessionsAggregate.applyEvent(
+			env(sessionId, 'run-1', 4, {
+				type: 'question.answered',
+				runId: 'run-1',
+				questionId: 'question-1',
+			}),
+		);
 		expect(sessionsAggregate.getSession(sessionId)?.status).toBe('running');
 	});
 

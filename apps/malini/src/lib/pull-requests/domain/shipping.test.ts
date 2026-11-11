@@ -147,7 +147,7 @@ function queued(overrides: Fixture = {}): ShippingSnapshot {
 		failureSignature: null,
 		checksRerun: null,
 		fixSucceededAt: null,
-		attempts: 0,
+		fixAttempts: new Map(),
 		fixAttemptLimit: 3,
 		backoffUntil: null,
 		waitsForYou: false,
@@ -324,7 +324,12 @@ describe('a local or draft workstream before you merge', () => {
 		).toEqual({ kind: 'push' });
 		expect(
 			nextShippingMove(
-				local({ ...afterResolve, failureSignature: 'update', attempts: 1, worktree: conflicted }),
+				local({
+					...afterResolve,
+					failureSignature: 'update',
+					fixAttempts: new Map([['update', 1]]),
+					worktree: conflicted,
+				}),
 			),
 		).toEqual(resolve);
 		expect(
@@ -332,7 +337,7 @@ describe('a local or draft workstream before you merge', () => {
 				local({
 					...afterResolve,
 					failureSignature: 'conflicts:["a.ts"]',
-					attempts: 1,
+					fixAttempts: new Map([['conflicts:["a.ts"]', 1]]),
 					worktree: conflicted,
 				}),
 			),
@@ -342,7 +347,7 @@ describe('a local or draft workstream before you merge', () => {
 				local({
 					...afterResolve,
 					failureSignature: 'conflicts:["a.ts"]',
-					attempts: 3,
+					fixAttempts: new Map([['conflicts:["a.ts"]', 3]]),
 					worktree: conflicted,
 				}),
 			),
@@ -425,7 +430,7 @@ describe('a queued workstream', () => {
 				queued({
 					settledAutomation: 'resolve-conflicts',
 					failureSignature: 'conflicts:["a.ts"]',
-					attempts: 1,
+					fixAttempts: new Map([['conflicts:["a.ts"]', 1]]),
 					worktree: { ...unstaged, conflictMarkerPaths: ['a.ts'] },
 				}),
 			),
@@ -521,27 +526,30 @@ describe('a queued workstream', () => {
 	it('counts attempts per failure signature and gives up after the limit', () => {
 		const failing = pullRequest({ checksState: 'failed', checks: [check('lint', 'FAILURE')] });
 		const same = 'checks:["lint"]';
+		const spent = (counts: [string, number][]): ShippingSnapshot =>
+			queued({ pullRequest: failing, failureSignature: same, fixAttempts: new Map(counts) });
+		expect(nextShippingMove(spent([[same, 2]]))).toMatchObject({
+			kind: 'run-automation',
+			attempt: 3,
+		});
+		expect(nextShippingMove(spent([['checks:["test"]', 3]]))).toMatchObject({
+			kind: 'run-automation',
+			attempt: 1,
+		});
 		expect(
-			nextShippingMove(queued({ pullRequest: failing, failureSignature: same, attempts: 2 })),
-		).toMatchObject({ kind: 'run-automation', attempt: 3 });
-		expect(
-			nextShippingMove(
-				queued({ pullRequest: failing, failureSignature: 'checks:["test"]', attempts: 3 }),
-			),
-		).toMatchObject({ kind: 'run-automation', attempt: 1 });
-		expect(
-			nextShippingMove(queued({ pullRequest: failing, failureSignature: same, attempts: 3 })),
-		).toEqual({
+			nextShippingMove({ ...spent([[same, 3]]), failureSignature: 'checks:["test"]' }),
+		).toMatchObject({ kind: 'needs-you', reason: 'fix-gave-up', signature: same });
+		expect(nextShippingMove(spent([[same, 3]]))).toEqual({
 			kind: 'needs-you',
 			reason: 'fix-gave-up',
 			detail: 'Fixing the checks did not work. Malini tried 3 times.',
 			automationRunId: 'automation-last',
+			signature: same,
 		});
-		expect(
-			nextShippingMove(
-				queued({ pullRequest: failing, failureSignature: same, attempts: 1, fixAttemptLimit: 1 }),
-			),
-		).toMatchObject({ reason: 'fix-gave-up', detail: expect.stringContaining('tried once') });
+		expect(nextShippingMove({ ...spent([[same, 1]]), fixAttemptLimit: 1 })).toMatchObject({
+			reason: 'fix-gave-up',
+			detail: expect.stringContaining('tried once'),
+		});
 	});
 
 	it('judges a fix only by checks that ran after it, and gives up when none run again', () => {
@@ -555,7 +563,7 @@ describe('a queued workstream', () => {
 				pullRequest: pullRequest({ checksState: 'failed', checks }),
 				failureSignature: 'checks:["conventional"]',
 				fixSucceededAt: fixedAt,
-				attempts: 1,
+				fixAttempts: new Map([['checks:["conventional"]', 1]]),
 				now,
 			});
 
@@ -651,10 +659,13 @@ describe('a queued workstream', () => {
 			signature: 'checks:["e2e"]',
 			attempt: 1,
 		});
-		expect(nextShippingMove({ ...afterRerun(again, rerunAt + 1_000), attempts: 1 })).toMatchObject({
-			kind: 'run-automation',
-			attempt: 2,
-		});
+		expect(
+			nextShippingMove({
+				...afterRerun(again, rerunAt + 1_000),
+				checksRerun: null,
+				fixAttempts: new Map([[signature, 1]]),
+			}),
+		).toMatchObject({ kind: 'run-automation', attempt: 2 });
 	});
 
 	it('reads the checks it re-runs and fixes back from the failure signature', () => {
@@ -860,9 +871,9 @@ describe('shipping helpers', () => {
 		]);
 	});
 
-	it('clamps the fix attempt setting to 1-20, defaulting when unset', () => {
-		expect(['0', '5', '99', 'x', undefined].map((value) => clampedFixAttempts(value, 3))).toEqual([
-			1, 5, 20, 3, 3,
+	it('clamps the fix attempt setting to 1-20 the way Settings rounds it, defaulting when unset', () => {
+		expect(['0', '5', '2.6', '99', 'x', '', undefined].map(clampedFixAttempts)).toEqual([
+			1, 5, 3, 20, 3, 3, 3,
 		]);
 	});
 
@@ -915,15 +926,15 @@ describe('shipping helpers', () => {
 			pullRequest({ reviewDecision: 'changes_requested' }),
 			feedback([], [{ id: 'PRR_1', login: 'alice', bot: false }]),
 		);
-		const fresh = { addressedReviews: [], failureSignature: null, attempts: 0 };
+		const fresh = { addressedReviews: [], fixAttempts: new Map<string, number>() };
 		const signature = reviewSignature(reviewToAddress(requested, []));
+		const spent = (attempts: number) => ({
+			...fresh,
+			fixAttempts: new Map([[signature, attempts]]),
+		});
 		expect(reviewToStart(requested, fresh, 3)).toEqual({ signature, attempt: 1 });
-		expect(
-			reviewToStart(requested, { ...fresh, failureSignature: signature, attempts: 2 }, 3),
-		).toEqual({ signature, attempt: 3 });
-		expect(
-			reviewToStart(requested, { ...fresh, failureSignature: signature, attempts: 3 }, 3),
-		).toBeNull();
+		expect(reviewToStart(requested, spent(2), 3)).toEqual({ signature, attempt: 3 });
+		expect(reviewToStart(requested, spent(3), 3)).toBeNull();
 		expect(reviewToStart(requested, { ...fresh, addressedReviews: ['PRR_1'] }, 3)).toBeNull();
 		expect(reviewToStart({ ...requested, state: 'merged' }, fresh, 3)).toBeNull();
 		expect(reviewToStart(facts(pullRequest()), fresh, 3)).toBeNull();

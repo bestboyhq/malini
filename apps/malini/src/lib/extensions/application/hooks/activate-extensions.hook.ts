@@ -44,6 +44,7 @@ function requestActivation(request: ExtensionActivationRequest): () => void {
 	extensionRuntimeStore.ready = false;
 	extensionRuntimeStore.error = null;
 	readinessDeadline(request.currentWorkstreamId).defer(workstream.id);
+	if (coordinator.warming) readinessDeadline(request.currentWorkstreamId).start(workstream.id);
 
 	const cancelActivationRelease = scheduleAfterSettledNavigationPaint(() => {
 		if (!isCurrent(generation, workstream.id, request)) return;

@@ -75,17 +75,23 @@ export function listUnsuggestedAsks(
 	db: MaliniDatabase,
 	repositoryId: string,
 	exceptId: string,
+	since: string,
 	limit: number,
 ): AutomationAsk[] {
 	return all<AskRow>(
 		db,
 		`SELECT ${ASK_COLUMNS} FROM automation_asks
-		 WHERE repository_id = ? AND id != ? AND suggestion_id IS NULL
+		 WHERE repository_id = ? AND id != ? AND suggestion_id IS NULL AND asked_at >= ?
 		 ORDER BY asked_at DESC, id DESC LIMIT ?`,
 		repositoryId,
 		exceptId,
+		since,
 		limit,
 	).map(askFromRow);
+}
+
+export function deleteUnsuggestedAsksBefore(db: MaliniDatabase, before: string): void {
+	run(db, 'DELETE FROM automation_asks WHERE suggestion_id IS NULL AND asked_at < ?', before);
 }
 
 export function insertSuggestion(

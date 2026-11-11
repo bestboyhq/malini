@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	FAILURE_DETAIL_LIMIT,
 	IGNORE_SCRIPTS_FLAG,
@@ -352,6 +352,25 @@ describe('installing', () => {
 		expect(runner.groupSignals.at(-1)?.signal).toBe('SIGKILL');
 	});
 
+	it('installs again after an install that did not finish, even on the lockfile it last finished', async () => {
+		const dir = checkout([
+			['package.json', '{}'],
+			['pnpm-lock.yaml', 'lockfileVersion: 9'],
+			['node_modules/.modules.yaml', ''],
+		]);
+		recordCompletion(dir, planned(dir));
+		writeFileSync(join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.1');
+		const runner = new ScriptedRunner().onCommand('pnpm', ['install'], { kind: 'exit', code: 1 });
+		const { deps } = harness(runner);
+
+		expect(await installDependencies(deps, 'ws-cut', dir)).toMatchObject({ status: 'failed' });
+		writeFileSync(join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9');
+
+		expect(detectInstallPlan(dir)).toEqual(
+			run(['pnpm', 'install', '--frozen-lockfile', '--ignore-scripts']),
+		);
+	});
+
 	it('reports the exit code and the stderr tail of a failure', async () => {
 		const dir = checkout([]);
 		const runner = new ScriptedRunner().onCommand('sh', [], {
@@ -469,6 +488,27 @@ describe('installing', () => {
 		expect(runner.groupSignals.map((entry) => entry.signal)).toContain('SIGKILL');
 		expect(Date.now() - started).toBeGreaterThanOrEqual(1_900);
 	}, 10_000);
+
+	it('stops waiting on an install whose process group refuses the signal, so a quit goes on', async () => {
+		const dir = checkout([]);
+		const runner = new ScriptedRunner().onCommand('pnpm', [], { kind: 'manual' });
+		runner.signalProcessGroup = () => {
+			throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' });
+		};
+		const { deps } = harness(runner);
+		const slot = deps.registry.claim('ws-refused')!;
+		const installing = installWithArgv(deps, slot, 'ws-refused', dir, ['pnpm', 'install']);
+		await waitFor(() => runner.spawns.length === 1);
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const started = Date.now();
+		await deps.registry.abortAll();
+		expect(Date.now() - started).toBeLessThan(1_000);
+		expect(logged).toHaveBeenCalledWith(expect.stringContaining('refused SIGTERM'));
+		runner.last('pnpm').process.exitWith(1);
+		await installing.catch(() => undefined);
+		slot.dispose();
+		logged.mockRestore();
+	});
 
 	it('kills a child spawned after the abort arrived', async () => {
 		const dir = checkout([]);

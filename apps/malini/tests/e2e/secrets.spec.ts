@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import type { SavedSecret } from '../../src/contract/secrets';
 import {
@@ -140,6 +142,62 @@ test('an agent asks for secrets on a card in the chat, the user saves one, and o
 		await expect(settings.getByText('Nothing yet. When an agent asks for a secret')).toBeVisible({
 			timeout: 20_000,
 		});
+		expect(await invoke(page, 'secrets.list', undefined)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+function askAgainBehindTheCard(app: LaunchedApp, why: string): void {
+	const askedAt = new Date().toISOString();
+	const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+	try {
+		db.prepare(
+			`INSERT INTO secret_requests (id, session_id, names, why, repository, asked_at)
+			 SELECT ?, session_id, names, ?, repository, ? FROM secret_requests WHERE settled IS NULL`,
+		).run(randomUUID(), why, askedAt);
+		db.prepare(
+			`UPDATE secret_requests SET settled = 'replaced', settled_at = ?
+			 WHERE settled IS NULL AND why != ?`,
+		).run(askedAt, why);
+	} finally {
+		db.close();
+	}
+}
+
+test('a card the agent already asked again over gives way to the newer ask when you dismiss or save it', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini({ allowedDiagnostics: [/no longer waiting for secrets/u] });
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-secrets-again-ws', 'Asked again');
+		await openWorkstream(page, seeded.workstreamId);
+		writeFileSync(
+			join(app.home, 'malini-tool.json'),
+			JSON.stringify({
+				tool: 'secrets_request',
+				input: { names: ['STRIPE_KEY'], why: 'To charge a test card.' },
+			}),
+		);
+		await sendPrompt(page, 'MALINI_TOOL');
+		const first = page.getByRole('region', { name: 'To charge a test card.' });
+		await expect(first).toBeVisible({ timeout: 20_000 });
+
+		askAgainBehindTheCard(app, 'To refund the test card.');
+		await first.getByRole('button', { name: 'Dismiss' }).click();
+		const second = page.getByRole('region', { name: 'To refund the test card.' });
+		await expect(second).toBeVisible({ timeout: 20_000 });
+		await expect(first).toBeHidden();
+
+		askAgainBehindTheCard(app, 'To void the test card.');
+		await second.getByLabel('Value for STRIPE_KEY').fill(STRIPE);
+		await second.getByRole('button', { name: 'Save', exact: true }).click();
+		await expect(page.getByRole('region', { name: 'To void the test card.' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(second).toBeHidden();
 		expect(await invoke(page, 'secrets.list', undefined)).toEqual([]);
 		expectCleanConsole(app);
 	} finally {

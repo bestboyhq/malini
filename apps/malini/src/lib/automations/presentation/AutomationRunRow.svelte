@@ -10,6 +10,7 @@
 	import { cancelAutomationRunCommand } from '$lib/automations/application/commands/cancel-automation-run.command';
 	import { automationActionStateQuery } from '$lib/automations/application/queries/automation-action-state.query.svelte';
 	import { automationRunByIdQuery } from '$lib/automations/application/queries/automation-run-by-id.query.svelte';
+	import { isFinishedAutomationRunStatus } from '$lib/automations/domain/automation-run';
 	import ActivityKind from './automations/ActivityKind.svelte';
 	import { automationPlace } from './automation-place';
 	import { AUTOMATION_RUN_STATUS } from './automation-run-status';
@@ -61,7 +62,7 @@
 			? workstreamHref(run.workstreamId, { agentSessionId: run.sessionId })
 			: null,
 	);
-	const cancellable = $derived(['waiting', 'queued', 'running'].includes(run.status));
+	const cancellable = $derived(!isFinishedAutomationRunStatus(run.status));
 	const detail = $derived(
 		run.status === 'needs-you' || run.status === 'failed' ? run.detail : null,
 	);
