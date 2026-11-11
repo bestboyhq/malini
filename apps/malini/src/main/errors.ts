@@ -412,8 +412,15 @@ export class GhError extends Error {
 	static notInstalled(): GhError {
 		return new GhError(
 			'not-installed',
-			'The GitHub CLI (`gh`) that Malini ships with is missing. Reinstall Malini, or install `gh` from https://cli.github.com.',
+			'The GitHub CLI (`gh`) is not on this Mac. Install it in Settings, Accounts.',
 			{ code: null },
+		);
+	}
+
+	static timedOut(milliseconds: number): GhError {
+		return new GhError(
+			'unreachable',
+			`GitHub did not answer in ${Math.round(milliseconds / 1000)} seconds.`,
 		);
 	}
 

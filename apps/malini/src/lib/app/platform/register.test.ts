@@ -58,6 +58,7 @@ const KEPT_COMMANDS = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
+	'app.report-setup-step',
 	'app.hold-lid',
 	'app.set-setting',
 	'app.shutdown-gracefully',
@@ -185,6 +186,36 @@ describe('registerApp', () => {
 			error: 'not a URL: nope',
 		});
 		expect(await invoke('app.open-external-url', {})).toMatchObject({ ok: false });
+	});
+
+	it('accepts a setup step, and both tool states only when they settled', async () => {
+		boot(context);
+		expect(await invoke('app.report-setup-step', { step: 'sounds' })).toEqual({
+			ok: true,
+			value: null,
+		});
+		expect(
+			await invoke('app.report-setup-step', {
+				step: 'tools',
+				claudeCode: 'missing',
+				github: 'ready',
+			}),
+		).toEqual({ ok: true, value: null });
+		expect(await invoke('app.report-setup-step', { step: 'later' })).toMatchObject({
+			ok: false,
+			error: 'invalid args: `step` must be a setup step',
+		});
+		expect(await invoke('app.report-setup-step', { step: 'tools' })).toMatchObject({
+			ok: false,
+			error: 'invalid args: `claudeCode` must be a string',
+		});
+		expect(
+			await invoke('app.report-setup-step', {
+				step: 'tools',
+				claudeCode: 'checking',
+				github: 'ready',
+			}),
+		).toMatchObject({ ok: false, error: 'invalid args: `claudeCode` must be a tool state' });
 	});
 
 	it('hands the theme mode the user picks to the host and refuses an unknown one', async () => {

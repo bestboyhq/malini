@@ -18,14 +18,20 @@ import { currentEnvironment } from '$main/process/environment';
 import { localDate, shiftDate, type UsageAccount } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
-import { ONBOARDING_FINISHED_SETTING } from '../domain/onboarding';
+import { ONBOARDING_FINISHED_SETTING, type OnboardingStep } from '../domain/onboarding';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
 import { hasPromptRun, readUsageReport, userWorkstreams } from './usage-report';
+import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-tools';
 
 export type UsageJourney =
 	| 'first_open'
+	| 'setup_tools'
+	| 'setup_sounds'
+	| 'setup_sidebar'
+	| 'setup_defaults'
+	| 'setup_heard_about'
 	| 'setup_finished'
 	| 'first_repository'
 	| 'first_workstream'
@@ -47,7 +53,8 @@ export type UsageActivity =
 	| 'profile_published'
 	| 'stats_off'
 	| 'day'
-	| 'month';
+	| 'month'
+	| ToolActivity;
 
 export interface UsageSink {
 	activity(
@@ -62,8 +69,20 @@ export interface UsageSink {
 
 export interface UsageData {
 	share(shared: boolean): void;
-	journey(marker: UsageJourneyMarker): void;
+	journey(marker: UsageJourneyMarker, details?: Readonly<Record<string, string | number>>): void;
 	shutdown(): Promise<void>;
+}
+
+const SETUP_STEP_MARKERS: Readonly<Record<OnboardingStep, UsageJourneyMarker>> = {
+	tools: 'setup_tools',
+	sounds: 'setup_sounds',
+	sidebar: 'setup_sidebar',
+	defaults: 'setup_defaults',
+	'heard-about': 'setup_heard_about',
+};
+
+export function setupStepMarker(step: OnboardingStep): UsageJourneyMarker {
+	return SETUP_STEP_MARKERS[step];
 }
 
 export interface UsageDataDeps {
@@ -90,6 +109,7 @@ const JOURNEY_SETTING = 'usage-data.journey';
 const LAST_ACTIVE_DAY_SETTING = 'usage-data.last-active-day';
 const ACTIVE_DAYS_SETTING = 'usage-data.active-days';
 const REPORTED_MONTH_SETTING = 'usage-data.reported-month';
+const SETUP_STARTED_SETTING = 'usage-data.setup-started';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
 const ANONYMOUS: UsageAccount = { state: 'anonymous' };
@@ -118,7 +138,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const send = async (deliver: (userId: string | null) => Promise<boolean>): Promise<boolean> => {
 		if (!shared()) return false;
 		const counted = await account();
-		if (counted.state === 'old-terms' || !shared()) return false;
+		if (!shared()) return false;
 		return deliver(counted.state === 'accepted' ? counted.userId : null);
 	};
 	const sending = new Map<string, Promise<void>>();
@@ -141,9 +161,27 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		});
 		sending.set(key, next);
 	};
-	const count = (name: UsageActivity): void => {
-		const props = heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING)));
+	const count = (
+		name: UsageActivity,
+		extra: Readonly<Record<string, string | number>> = {},
+	): void => {
+		const props = {
+			...heardAboutProps(heardAbout(getSetting(context.db, HEARD_ABOUT_SETTING))),
+			...extra,
+		};
 		void send((userId) => sink.activity(name, props, userId));
+	};
+	const setupSeconds = (marker: UsageJourney): Readonly<Record<string, number>> => {
+		if (!marker.startsWith('setup_')) return {};
+		if (marker === 'setup_tools' && getSetting(context.db, SETUP_STARTED_SETTING) === null)
+			setSetting(context.db, SETUP_STARTED_SETTING, now().toISOString());
+		const started = Date.parse(getSetting(context.db, SETUP_STARTED_SETTING) ?? '');
+		const finished =
+			marker === 'setup_finished' ? getSetting(context.db, ONBOARDING_FINISHED_SETTING) : null;
+		const end = finished === null ? now().getTime() : Date.parse(finished);
+		return Number.isNaN(started) || Number.isNaN(end)
+			? {}
+			: { setup_seconds: Math.max(0, Math.round((end - started) / 1000)) };
 	};
 	const journeySent = (): string[] => stringList(getSetting(context.db, JOURNEY_SETTING));
 	const sendJourney = (
@@ -151,14 +189,15 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		extra: Readonly<Record<string, string | number>> = {},
 	): void => {
 		const cohort = firstOpen;
-		if (cohort === null) return;
+		if (cohort === null || journeySent().includes(marker)) return;
+		const timing = setupSeconds(marker);
 		sendOnce(
 			marker,
 			() => journeySent().includes(marker),
 			(userId) =>
 				sink.activity(
 					marker,
-					{ cohort, days: daysBetween(cohort, localDate(now())), ...extra },
+					{ cohort, days: daysBetween(cohort, localDate(now())), ...timing, ...extra },
 					userId,
 				),
 			() => setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...journeySent(), marker])),
@@ -288,6 +327,16 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopShips = context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (changed) => {
 		if (changed.merged) sendJourney('first_merge');
 	});
+	const tools = createToolTracker();
+	const countTool = (event: ToolEvent | null): void => {
+		if (event === null) return;
+		const phase = getSetting(context.db, ONBOARDING_FINISHED_SETTING) === null ? 'setup' : 'later';
+		count(event.name, { ...event.props, phase });
+	};
+	const stopToolStarts = context.commands.observeStarts((started) =>
+		countTool(tools.begin(started)),
+	);
+	const stopTools = context.commands.observe((outcome) => countTool(tools.end(outcome)));
 
 	count('app_active');
 	launch();
@@ -308,7 +357,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 
 	return {
 		share,
-		journey: (marker) => sendJourney(marker),
+		journey: (marker, details) => sendJourney(marker, details),
 		shutdown: async () => {
 			clearInterval(reportTimer);
 			stopStarted();
@@ -320,6 +369,8 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopRepositories();
 			stopWorkstreams();
 			stopShips();
+			stopToolStarts();
+			stopTools();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};

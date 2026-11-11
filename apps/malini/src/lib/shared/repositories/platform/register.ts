@@ -3,6 +3,7 @@ import { net, type BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
 import {
 	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL,
 	REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL,
 } from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
@@ -22,6 +23,9 @@ import {
 import { describeError, failureOutput } from '$main/errors';
 import { noPromptCredentialEnv, type GitCredentialEnv } from '$main/git/credentials';
 import { validateBaseBranch, validateWorkstreamId, workstreamBranchName } from '$main/git/paths';
+import { ghVendor } from '$main/process/gh';
+import type { Fetch } from '$main/fs/download';
+import { installGh } from '$main/process/gh-install';
 import {
 	diffAll,
 	listWorkstreamFiles,
@@ -123,6 +127,7 @@ export interface RepositoriesDeps {
 	readonly credentials?: GitCredentialEnv;
 	readonly shell?: CheckoutShell;
 	readonly ghRunner?: GhRunner;
+	readonly downloadGh?: Fetch;
 	readonly isOnline?: () => boolean;
 	readonly githubSignIn?: GitHubSignIn;
 	readonly folderPicker?: FolderPicker;
@@ -511,6 +516,20 @@ export function registerRepositories(
 	);
 
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
+	let ghInstall: Promise<void> | null = null;
+	commands.define('repositories.install-github-cli', () => {
+		ghInstall ??= installGh(
+			ghVendor(appDataRoot),
+			deps.downloadGh ?? ((url, init) => net.fetch(url, init)),
+			{
+				onProgress: (progress) =>
+					events.emit(REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL, progress),
+			},
+		).finally(() => {
+			ghInstall = null;
+		});
+		return ghInstall;
+	});
 	commands.define('repositories.github-reach', () => githubReach.reach);
 
 	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());

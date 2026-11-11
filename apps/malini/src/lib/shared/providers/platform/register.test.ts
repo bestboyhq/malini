@@ -1,12 +1,4 @@
-import {
-	chmodSync,
-	existsSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	statSync,
-	writeFileSync,
-} from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -65,26 +57,22 @@ function fakeClaude(body: string): { executable: string; argsFile: string } {
 }
 
 describe('providers.install-claude-code', () => {
-	it('opens an executable Terminal script that installs Claude Code, and only on macOS', async () => {
-		const opened: string[] = [];
+	it('downloads Claude Code in the app, says why when it cannot, and only on macOS', async () => {
+		const asked: string[] = [];
 		const mac = boot({
 			platform: 'darwin',
-			openPath: async (path) => {
-				opened.push(path);
-				return '';
+			fetch: (url) => {
+				asked.push(url);
+				return Promise.reject(new Error('offline'));
 			},
 		});
 
 		expect(
 			await mac.commands.invoke({ command: 'providers.install-claude-code', args: undefined }),
-		).toEqual({ ok: true, value: null });
-		expect(opened).toEqual([join(mac.appDataRoot, 'claude-setup', 'install.command')]);
-		expect(readFileSync(opened[0] ?? '', 'utf8')).toBe(
-			'#!/bin/sh\ncurl -fsSL https://claude.ai/install.sh | bash\n',
-		);
-		expect(statSync(opened[0] ?? '').mode & 0o777).toBe(0o700);
+		).toEqual({ ok: false, error: 'Could not download Claude Code: offline' });
+		expect(asked).toContain('https://downloads.claude.ai/claude-code-releases/latest');
 
-		const linux = boot({ platform: 'linux', openPath: () => Promise.reject(new Error('opened')) });
+		const linux = boot({ platform: 'linux' });
 		expect(
 			await linux.commands.invoke({ command: 'providers.install-claude-code', args: undefined }),
 		).toEqual({

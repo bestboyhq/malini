@@ -114,7 +114,7 @@ async function boot(): Promise<void> {
 		isDev: !app.isPackaged,
 		appVersion: app.getVersion(),
 	};
-	process.env.PATH = withBundledGh(process.env.PATH, context.resourcesRoot);
+	process.env.PATH = withBundledGh(process.env.PATH, context.resourcesRoot, context.appDataRoot);
 	const bridgeScriptPath = testBridgeScript();
 	modules = await registerModules(context, {
 		getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
