@@ -70,10 +70,7 @@ describe('agent state machine', () => {
 	});
 
 	it('reads a turn that ends over its commands as done while its run stays open, until the agent goes on', () => {
-		const ended = foldSessionStatus('idle', [
-			envelope('run.started'),
-			envelope('turn.ended'),
-		]);
+		const ended = foldSessionStatus('idle', [envelope('run.started'), envelope('turn.ended')]);
 		expect(ended).toMatchObject({ status: 'completed', currentRunId: 'run-1', lastError: null });
 
 		const resumed = foldSessionStatusIncremental(ended, [envelope('turn.resumed')]);
