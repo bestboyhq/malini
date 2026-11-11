@@ -93,7 +93,7 @@ describe('StatsProfile', () => {
 		expect(profile.state()).toMatchObject({ account: null, publishing: 'on' });
 	});
 
-	it('lends usage counts the account on current terms, holds them on old terms, and lends none once signed out', async () => {
+	it('lends usage counts the account on current terms, and none on old terms or signed out', async () => {
 		vi.useFakeTimers({ toFake: ['Date'] });
 		vi.setSystemTime(NOW);
 		const { profile, platform } = await signedInProfile();
@@ -108,7 +108,7 @@ describe('StatsProfile', () => {
 		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
 		anHourLater();
 		const [first, second] = await Promise.all([profile.usageAccount(), profile.usageAccount()]);
-		expect([first, second]).toEqual([{ state: 'old-terms' }, { state: 'old-terms' }]);
+		expect([first, second]).toEqual([{ state: 'anonymous' }, { state: 'anonymous' }]);
 		expect(profile.state().unacceptedTerms?.date).toBe('2026-11-09');
 
 		platform.accept();
