@@ -19,6 +19,9 @@
 		type PickerRow,
 		type PickerRunner,
 	} from '$shared/providers/domain/model-catalog';
+	import type { ClaudeCodeFailedUpdate } from '$contract/agent';
+	import { goto } from '$shared/router/navigation';
+	import { PROVIDER_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import { usesSubscription } from '$shared/providers/domain/claude-code-status';
 	import {
 		CLAUDE_PROVIDER_ID,
@@ -40,6 +43,7 @@
 	import { toggleModelPresetCommand } from '$shared/providers/application/commands/toggle-model-preset.command';
 	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
+	import { claudeCodeUpdateQuery } from '$shared/providers/application/queries/claude-code-update.query.svelte';
 	import { modelPresetsQuery } from '$shared/providers/application/queries/model-presets.query.svelte';
 	import ProviderIcon from './ProviderIcon.svelte';
 
@@ -69,6 +73,9 @@
 
 	const groups = $derived(providerGroupsQuery.data);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
+	const failedUpdate = $derived(
+		claudeStatus.kind === 'ready' ? claudeCodeUpdateQuery.data.failed : null,
+	);
 	const rows = $derived(filterPickerRows(pickerRows(groups, selection), query));
 	const selectedLabel = $derived(selectionLabel(groups, selection));
 	const currentPreset: ModelPreset = $derived({
@@ -181,6 +188,10 @@
 		list
 			?.querySelector('[data-testid="chat-model-option"][aria-selected="true"]')
 			?.scrollIntoView({ block: 'nearest' });
+	}
+
+	function failedUpdateLabel(update: ClaudeCodeFailedUpdate): string {
+		return update.version ? `Claude Code ${update.version} is out` : 'A Claude Code update is out';
 	}
 
 	function onOpenChange(nextOpen: boolean): void {
@@ -380,6 +391,28 @@
 			</div>
 			<div class="px-1.5 pb-1.5">
 				<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+				{#if failedUpdate}
+					<DropdownItem
+						class="gap-2.5 py-2"
+						data-testid="chat-model-claude-update"
+						onmouseenter={closeFlyout}
+						onSelect={() => void goto(PROVIDER_SETTINGS_HREF)}
+					>
+						<ProviderIcon
+							providerId={CLAUDE_PROVIDER_ID}
+							class="text-fg-secondary shrink-0"
+							size={13}
+						/>
+						<span class="flex min-w-0 flex-1 flex-col">
+							<span class="truncate text-[13px] leading-5">{failedUpdateLabel(failedUpdate)}</span>
+							<span class="text-fg-tertiary text-2xs truncate leading-4">
+								Malini could not update it
+							</span>
+						</span>
+						<Icon name="arrow-right" class="text-fg-tertiary shrink-0" size={14} />
+					</DropdownItem>
+					<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+				{/if}
 				<DropdownItem
 					closeOnSelect={false}
 					class="gap-2.5"

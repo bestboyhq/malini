@@ -265,6 +265,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	env['MALINI_BRIDGE_SCRIPT'] = bridgeScript;
 	env['FAKE_BRIDGE_REVERSE_ACKS'] = '0';
 	env['MALINI_USAGE_DATA'] = 'off';
+	env['MALINI_CLAUDE_UPDATES'] = 'off';
 	delete env['DO_NOT_TRACK'];
 	env['MALINI_BACKGROUND_WINDOW'] = '1';
 	env['MALINI_SHIP_DELAY_SCALE'] = '0.1';

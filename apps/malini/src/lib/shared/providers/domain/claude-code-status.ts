@@ -1,4 +1,4 @@
-import type { AgentAccount, ProviderCapability } from '$contract/agent';
+import type { AgentAccount, ClaudeCodeFailedUpdate, ProviderCapability } from '$contract/agent';
 import type { InstallProgressPayload } from '$contract/events';
 
 export type ClaudeSetupStep = 'install' | 'sign-in';
@@ -7,6 +7,11 @@ export type ClaudeCodeInstall =
 	| Readonly<{ kind: 'idle' }>
 	| Readonly<{ kind: 'installing'; progress: InstallProgressPayload | null }>
 	| Readonly<{ kind: 'failed'; message: string }>;
+
+export type ClaudeCodeUpdate = Readonly<{
+	failed: ClaudeCodeFailedUpdate | null;
+	retrying: boolean;
+}>;
 
 export type ClaudeCodeStatus =
 	| { readonly kind: 'checking' }

@@ -218,6 +218,7 @@ export async function registerModules(
 
 	stats.start();
 	extensions.start();
+	providers.updates?.start();
 	app.streaming.start();
 	void repositories.archiveRetiredChats();
 
