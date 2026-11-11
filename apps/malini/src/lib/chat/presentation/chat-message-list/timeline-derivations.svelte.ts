@@ -1,4 +1,10 @@
-import { foldRunWork, groupRunTimeline, type GroupedRunTimelineItem } from '../activity-group';
+import {
+	foldRunWork,
+	foldStartedWorkstreams,
+	groupRunTimeline,
+	groupSubagents,
+	type GroupedRunTimelineItem,
+} from '../activity-group';
 import { runProjectionVersion } from '../render-projector';
 import type { RunGroup } from '../render-state';
 import type { RunTimelineItem } from '../run-timeline';
@@ -79,6 +85,9 @@ export function createTimelineDerivations(input: {
 
 		groupedTimelineItems(run: RunGroup, folded: boolean): readonly GroupedRunTimelineItem[] {
 			const items = timelineByRun.get(run.runId) ?? EMPTY_TIMELINE;
+			if (run.terminal === null && !run.turnEnded) {
+				return groupSubagents(foldStartedWorkstreams(items));
+			}
 			const derivation = derivationFor(run);
 			if (!derivation) {
 				const grouped = groupRunTimeline(items);

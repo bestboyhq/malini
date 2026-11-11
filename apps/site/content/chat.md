@@ -337,10 +337,11 @@ Old turns fold. Subagents get a line each. Files show their diff
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
-- Tool calls fold into one line while the chat works, such as **Exploring 4 files**, with the newest status message or thought beside it.
+- While the chat works, each tool call and status message shows as its own row.
+  When the turn ends, they fold into one line, such as **Explored 4 files**.
   Click the line to read the messages, thoughts and steps in order.
 - Only the last two turns show their work.
-  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs, ran 79 commands**.
+  Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs · 79 commands**.
   Click it if you miss them.
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.
