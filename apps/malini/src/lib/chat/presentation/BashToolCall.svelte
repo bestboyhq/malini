@@ -120,7 +120,7 @@
 	</Button>
 
 	{#if failed}
-		<ToolFailureNote text={failureReason} class="mt-1 ml-5.5" data-testid="bash-command-failure" />
+		<ToolFailureNote text={failureReason} class="mt-1" data-testid="bash-command-failure" />
 	{/if}
 
 	{#if expanded}

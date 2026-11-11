@@ -68,7 +68,6 @@
 			<ToolFailureNote
 				text={failure.message}
 				label={failure.label}
-				class="ml-5.5"
 				data-testid="chat-activity-group-failed"
 				data-failure-key={failure.key}
 			/>
