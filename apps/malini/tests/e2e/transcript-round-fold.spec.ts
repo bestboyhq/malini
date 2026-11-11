@@ -42,14 +42,19 @@ test('rounds before the previous one fold their work into one line and keep the 
 			await expect(run.getByRole('button', read)).toHaveCount(0);
 		}
 		for (const index of [2, 3]) {
-			await expect(runs.nth(index).getByTestId('chat-work-fold-summary')).toHaveCount(0);
-			await expect(runs.nth(index).getByRole('button', read)).toBeVisible();
+			const run = runs.nth(index);
+			await expect(run.getByTestId('chat-work-fold-summary')).toHaveCount(0);
+			await expect(run.getByTestId('chat-activity-group-summary')).toHaveAccessibleName(
+				'Edited 2 files',
+			);
+			await run.getByTestId('chat-activity-group-summary').click();
+			await expect(run.getByRole('button', read)).toBeVisible();
 		}
 
 		const first = runs.first();
 		await first.getByTestId('chat-work-fold-summary').click();
-		await first.getByTestId('chat-activity-group-summary').click();
 		await expect(first.getByRole('button', read)).toBeVisible();
+		await expect(first.getByTestId('chat-activity-group')).toHaveCount(0);
 		await untilStill(page);
 		await captureFlow(app, 'transcript-round-fold-open');
 

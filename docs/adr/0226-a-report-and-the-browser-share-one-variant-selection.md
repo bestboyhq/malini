@@ -1,4 +1,4 @@
-# 0224 - A report and the browser share one variant selection
+# 0226 - A report and the browser share one variant selection
 
 Status: accepted
 

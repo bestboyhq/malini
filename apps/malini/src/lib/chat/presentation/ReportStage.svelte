@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { isVideoPath } from '$contract/workstream-images';
+	import { isVideoPath, mediaKind } from '$contract/workstream-images';
 	import type {
 		TurnComparison,
 		TurnReport,
@@ -31,11 +31,12 @@
 		chosenId: string;
 		chosenRevision: number;
 		workstreamId: string;
+		live: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string, handoff?: VideoHandoff) => void) | undefined;
 	}
 
-	let { report, pick, chosenId, chosenRevision, workstreamId, imagesrc, onopenimage }: Props =
+	let { report, pick, chosenId, chosenRevision, workstreamId, live, imagesrc, onopenimage }: Props =
 		$props();
 
 	const stageId = $props.id();
@@ -72,6 +73,8 @@
 	const grouped = $derived(variantShots.length > 0 && evidenceShots.length > 0);
 	let evidence = $state<Readonly<{ key: string; revision: number }> | null>(null);
 	const evidenceKey = $derived(evidence?.revision === chosenRevision ? evidence.key : null);
+	let played = $state(false);
+	const running = $derived(live || played);
 	const shown = $derived(
 		evidenceShots.find((shot) => shot.key === evidenceKey) ??
 			variantShots.find((shot) => shot.kind === 'variant' && shot.variant.id === chosenId) ??
@@ -154,22 +157,26 @@
 	</Button>
 {/snippet}
 
-{#snippet framed(src: string, label: string, playing: boolean, caption?: Snippet)}
+{#snippet framed(src: string, label: string, visible: boolean, caption?: Snippet)}
+	{@const page = mediaKind(src) === 'page'}
 	<div
 		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
 	>
 		<span class="block aspect-[16/10] max-h-[70vh] w-full" aria-hidden="true"></span>
 		<div class="absolute inset-0 grid place-items-center">
-			<ReportMedia
-				{src}
-				{label}
-				{workstreamId}
-				size="hero"
-				{playing}
-				{imagesrc}
-				{caption}
-				onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
-			/>
+			{#if visible || !page}
+				<ReportMedia
+					{src}
+					{label}
+					{workstreamId}
+					size="hero"
+					playing={visible && (running || !page)}
+					{imagesrc}
+					{caption}
+					onplay={() => (played = true)}
+					onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
+				/>
+			{/if}
 		</div>
 	</div>
 {/snippet}

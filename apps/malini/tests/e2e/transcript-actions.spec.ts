@@ -7,6 +7,7 @@ import {
 	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
+	openActivityGroups,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -49,6 +50,7 @@ test('a failed command says why on its row, an edit shows its size on its row, a
 
 		await sendPrompt(page, 'BASH_FAIL EDIT_TOOL CODE');
 		await expectAssistantReply(page);
+		await openActivityGroups(page);
 		await expect(page.getByText('ESLint found 3 problems', { exact: true })).toBeVisible();
 		await expect(page.getByLabel('2 lines added, 1 line removed')).toBeVisible();
 
@@ -136,6 +138,7 @@ test('a command that exits non-zero shows its exit code quietly, an edit and a r
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'EDIT:notes.md EDIT_TOOL READ_TOOL CHAT_BASH_EXIT CHAT_HANDOFF');
 		await expectAssistantReply(page);
+		await openActivityGroups(page);
 
 		const command = page.getByRole('button', { name: 'Expand output for Run the unit tests' });
 		await expect(command).toContainText('pnpm test');
@@ -203,6 +206,7 @@ test('a file card opens on the first hover after the chat scrolls past its row',
 		await expect(page.locator('[data-run-terminal="completed"]')).toHaveCount(1, {
 			timeout: 30_000,
 		});
+		await openActivityGroups(page);
 
 		const scroller = page.getByTestId('chat-message-scroller');
 		const edit = page.getByRole('button', { name: 'Show changes to notes.md' });

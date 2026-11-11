@@ -22,6 +22,7 @@
 	interface Props {
 		report: TurnReport;
 		workstreamId: string;
+		live: boolean;
 		needsOpen?: boolean;
 		ended?: boolean;
 		history?: readonly EarlierTurn[];
@@ -41,6 +42,7 @@
 	let {
 		report,
 		workstreamId,
+		live,
 		needsOpen = true,
 		ended = true,
 		history = [],
@@ -177,6 +179,7 @@
 			{chosenId}
 			{chosenRevision}
 			{workstreamId}
+			{live}
 			{imagesrc}
 			{onopenimage}
 		/>

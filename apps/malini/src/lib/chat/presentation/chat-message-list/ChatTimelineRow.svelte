@@ -138,6 +138,7 @@
 				history={earlierTurns}
 				ended={turnOver(run)}
 				needsOpen={isLastRun && !transcript.pullRequestShipped && turnOver(run)}
+				live={transcript.newestReport === item.key}
 				pick={variantPick}
 				pickOf={(reportKey) => transcript.variantPick(reportKey)?.pick ?? null}
 				onopenfile={transcript.openFileMention}

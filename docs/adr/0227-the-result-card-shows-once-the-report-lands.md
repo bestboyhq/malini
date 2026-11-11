@@ -1,4 +1,4 @@
-# 0225 - The result card shows once the report lands
+# 0227 - The result card shows once the report lands
 
 Status: accepted
 

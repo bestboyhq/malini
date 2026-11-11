@@ -81,7 +81,11 @@ test('a thinking agent narrates each step live, keeps an opened thought open as 
 		);
 		await expect(live).toHaveCount(0);
 
+		await expect(page.getByTestId('chat-activity-group')).toHaveCount(1);
+		await expect(thoughts).toHaveCount(1);
+		await page.getByTestId('chat-activity-group-summary').click();
 		await expect(thoughts).toHaveCount(2);
+		await thoughts.nth(1).locator('summary').click();
 		await expect(
 			thoughts.nth(1).getByRole('list', { name: 'Thinking steps' }).getByRole('listitem'),
 		).toHaveText(['The hover card opens on any focus. I will gate it on keyboard focus.']);
@@ -93,9 +97,8 @@ test('a thinking agent narrates each step live, keeps an opened thought open as 
 		await expect(page.getByTestId('chat-message-bubble')).toHaveCount(2, { timeout: 30_000 });
 		await openWorkstream(page, seeded.workstreamId);
 		const earlier = page.locator('li[data-run-id]').first();
-		await expect(earlier.getByTestId('chat-activity-group')).toHaveCount(2);
+		await expect(earlier.getByTestId('chat-activity-group')).toHaveCount(1);
 		const folded = earlier.getByTestId('thinking-summary');
-		await expect(folded).toHaveCount(2);
 		await expect(folded.first()).toBeVisible();
 		await expect(folded.first().getByTestId('thinking-outcome')).toHaveText(
 			'Focus returns to the chip that opened it. I should read the hover card first.',

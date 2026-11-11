@@ -1,4 +1,4 @@
-# 0227 - The Media gallery shows the workstream's `.context` folder
+# 0229 - The Media gallery shows the workstream's `.context` folder
 
 Status: accepted
 
@@ -41,7 +41,7 @@ The browser's worktree scheme sent a CSV as `text/csv`, which Electron downloads
   It reads again when `repositories:workstream-files-changed` names a path under `.context`, or names no paths because it lost count.
   The watcher already waits for 250 ms of quiet and at most 2 s, and the latest read wins.
   When a later read fails, the gallery keeps the last list.
-- `WorkstreamPage.svelte` adds the panel action `media` with the file count, so the gutter hides the row at zero (ADR 0226).
+- `WorkstreamPage.svelte` adds the panel action `media` with the file count, so the gutter hides the row at zero (ADR 0228).
   Its icon is the new `image` glyph, mapped from `media` in `ExtensionPanelIcon.svelte`.
 - `MediaGallery.svelte` is a modal named **Media**.
   Its tabs are **All** and each category that has files, with their counts, as `role="tab"` with `aria-selected` and arrow keys.

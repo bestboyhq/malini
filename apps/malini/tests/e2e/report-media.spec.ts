@@ -402,8 +402,19 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 		await page.keyboard.press('Escape');
 		await expect(gallery).toBeHidden();
 
-		await variants.getByRole('tab', { name: /^Variant C · Live/u }).click();
-		const live = offer.locator('iframe[title="Variant C · Live"]:not([inert])').contentFrame();
+		const liveFrame = offer.locator('iframe[title="Variant C · Live"]');
+		await expect(liveFrame, 'a hidden page variant runs no page').toHaveCount(0);
+		const liveTab = variants.getByRole('tab', { name: /^Variant C · Live/u });
+		await expect
+			.poll(
+				() =>
+					liveTab.locator('img').evaluate((still) => Number(Reflect.get(still, 'naturalWidth'))),
+				{ message: 'the tab shows a still of the page', timeout: 20_000 },
+			)
+			.toBeGreaterThan(0);
+		await expect(offer.locator('iframe'), 'a thumbnail runs no page').toHaveCount(0);
+		await liveTab.click();
+		const live = liveFrame.contentFrame();
 		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
 			timeout: 20_000,
 		});
@@ -420,6 +431,68 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 			0,
 		);
 		await captureFlow(app, 'report-live-variants');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('only the newest report runs its page, and an older one shows a still until you press play', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { worktree } = await seedReport(
+			page,
+			app.root,
+			'report-paused-page',
+			[
+				'![Variant A: Live - the page itself](.context/variant-live.html)',
+				'![Variant B: Still - one screenshot](.context/variant-a.png)',
+				'',
+				'Outcome: Two ways to show the pricing hero.',
+				'Needs: Pick a direction',
+			].join('\n'),
+			['variant-live.html', 'variant-live.css', 'variant-a.png'],
+		);
+		const cards = page.getByRole('article', { name: 'Turn result' });
+		const older = cards.first();
+		await expect(older.locator('iframe[title="Variant A · Live"]')).toHaveCount(1, {
+			timeout: 30_000,
+		});
+
+		writeFileSync(
+			join(worktree, 'report.md'),
+			[
+				'![Pricing page, live](.context/variant-live.html)',
+				'',
+				'Outcome: The pricing page runs.',
+			].join('\n'),
+		);
+		await sendPrompt(page, 'Show me REPLY_FILE:report.md');
+		await expect(cards).toHaveCount(2, { timeout: 30_000 });
+		const newest = cards.last();
+		await expect(newest.locator('iframe')).toHaveCount(1);
+		await expect(older.locator('iframe'), 'an older report runs no page').toHaveCount(0);
+		const still = older.getByRole('img', { name: 'Variant A · Live' });
+		await expect
+			.poll(() => still.evaluate((image) => Number(Reflect.get(image, 'naturalWidth'))), {
+				message: 'the older report shows a still of its page',
+				timeout: 20_000,
+			})
+			.toBeGreaterThan(0);
+		const play = older.getByRole('button', { name: 'Play Variant A · Live' });
+		await older.scrollIntoViewIfNeeded();
+		await untilStill(page);
+		await captureFlow(app, 'report-paused-page');
+
+		await play.click();
+		await expect(play).toHaveCount(0);
+		const live = older.locator('iframe[title="Variant A · Live"]').contentFrame();
+		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(newest.locator('iframe'), 'the newest report keeps running').toHaveCount(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

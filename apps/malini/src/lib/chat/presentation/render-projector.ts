@@ -32,6 +32,7 @@ import { EMPTY_TRANSCRIPT_FACTS, TranscriptFactsProjector } from './transcript-f
 import {
 	answerTurn,
 	earlierTurnsByRun,
+	newestTurnKey,
 	runTurns,
 	variantPicksByRun,
 	type EarlierTurn,
@@ -164,6 +165,7 @@ export class IncrementalRenderProjector {
 		undoTargets: new Map(),
 		earlierTurns: new Map(),
 		variantPicks: new Map(),
+		newestReport: null,
 	};
 
 	project(envelopes: readonly EventEnvelope[]): RenderState {
@@ -196,6 +198,7 @@ export class IncrementalRenderProjector {
 				(run) => this.#derivation(run).turns,
 				this.#snapshot.variantPicks,
 			),
+			newestReport: newestTurnKey(runs, (run) => this.#derivation(run).turns),
 		};
 		return this.#snapshot;
 	}
@@ -218,6 +221,7 @@ export class IncrementalRenderProjector {
 			undoTargets: new Map(),
 			earlierTurns: new Map(),
 			variantPicks: new Map(),
+			newestReport: null,
 		};
 	}
 

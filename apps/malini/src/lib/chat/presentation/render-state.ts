@@ -23,6 +23,7 @@ import { TranscriptFactsProjector, type TranscriptFacts } from './transcript-fac
 import {
 	answerTurn,
 	earlierTurnsByRun,
+	newestTurnKey,
 	variantPicksByRun,
 	type EarlierTurn,
 	type RunPick,
@@ -194,6 +195,7 @@ export type RenderState = {
 	undoTargets: ReadonlyMap<string, RunUndoTarget>;
 	earlierTurns: ReadonlyMap<string, readonly EarlierTurn[]>;
 	variantPicks: ReadonlyMap<string, RunPick>;
+	newestReport: string | null;
 };
 
 const ERROR_DIAGNOSTICS_SEPARATOR = '\n\nDiagnostics:\n';
@@ -858,5 +860,6 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		undoTargets: undoTargetsByRun(visibleRuns),
 		earlierTurns: earlierTurnsByRun(visibleRuns),
 		variantPicks: variantPicksByRun(visibleRuns),
+		newestReport: newestTurnKey(visibleRuns),
 	};
 }

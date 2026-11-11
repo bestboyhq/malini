@@ -5,6 +5,7 @@
 	import DiffViewer from './DiffViewer.svelte';
 	import EditDiffPreview from './EditDiffPreview.svelte';
 	import FilePreviewHeader from './FilePreviewHeader.svelte';
+	import ActionKindIcon from './ActionKindIcon.svelte';
 	import ExpandMark from './ExpandMark.svelte';
 	import FileToolRow from './FileToolRow.svelte';
 	import ReadFilePreview from './ReadFilePreview.svelte';
@@ -216,17 +217,7 @@
 			onclick={() => (contentMounted = true)}
 		>
 			<ExpandMark>
-				{#if actionKind === 'edit'}
-					<Icon name="pencil" class="shrink-0" size={13} />
-				{:else if actionKind === 'command'}
-					<Icon name="terminal" size={14} class="shrink-0" />
-				{:else if actionKind === 'read'}
-					<Icon name="note" size={14} class="shrink-0" />
-				{:else if actionKind === 'search'}
-					<Icon name="search" size={14} class="shrink-0" />
-				{:else}
-					<Icon name="wrench" size={14} class="shrink-0" />
-				{/if}
+				<ActionKindIcon kind={actionKind} size={14} />
 			</ExpandMark>
 			<ToolLabel
 				title={description ?? label}

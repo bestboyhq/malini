@@ -3,6 +3,7 @@ import {
 	ACTIVITY_GROUP_DETAIL_MAX_CHARS,
 	ACTIVITY_GROUP_MIN_ITEMS,
 	foldRunWork,
+	leadActionKind,
 	groupRunTimeline,
 	withPendingRows,
 	type ActivityGroup,
@@ -122,17 +123,29 @@ describe('groupRunTimeline folding', () => {
 		expect(groupRunTimeline([read])).toEqual([read]);
 	});
 
-	it('never folds a thought, so the narration between tool calls stays readable', () => {
+	it('keeps one group across the thoughts between tool calls, and shows the newest', () => {
 		const narration = thought(4);
-		const grouped = groupRunTimeline([
+		const items = [
 			tool('Read', { file_path: 'src/a.ts' }),
 			tool('Read', { file_path: 'src/b.ts' }),
 			narration,
 			tool('Read', { file_path: 'src/c.ts' }),
 			tool('Read', { file_path: 'src/d.ts' }),
+		];
+		const group = onlyGroup(items);
+		expect(group.items).toEqual(items);
+		expect(group.detail).toBe('4 files');
+		expect(group.latestMessage).toBe('Considering the options');
+	});
+
+	it('leaves a thought before the first and after the last tool call outside the group', () => {
+		const grouped = groupRunTimeline([
+			thought(1),
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			thought(2),
 		]);
-		expect(kinds(grouped)).toEqual(['activity-group', 'thought', 'activity-group']);
-		expect(grouped[1]).toBe(narration);
+		expect(kinds(grouped)).toEqual(['thought', 'activity-group', 'thought']);
 	});
 
 	it('never folds a compaction, so the turn shows where the agent lost its detail', () => {
@@ -165,15 +178,40 @@ describe('groupRunTimeline folding', () => {
 		expect(group.items).toHaveLength(3);
 	});
 
-	it('splits into two groups when prose sits between the tool calls', () => {
+	it('keeps one group across the status messages between tool calls', () => {
+		const first = assistant('Next I read b.');
+		const second = assistant('Then I run the tests.');
+		const items = [
+			tool('Read', { file_path: 'src/a.ts' }),
+			first,
+			tool('Read', { file_path: 'src/b.ts' }),
+			second,
+			command(0),
+		];
+		const group = onlyGroup(items);
+		expect(group.items).toEqual(items);
+		expect(group.detail).toBe('2 files, ran 1 command');
+		expect(group.latestMessage).toBe('Then I run the tests.');
+		expect(group.liveVerb).toBe('Working');
+	});
+
+	it('leaves the message after the last tool call outside the group', () => {
+		const answer = assistant();
 		const grouped = groupRunTimeline([
 			tool('Read', { file_path: 'src/a.ts' }),
-			tool('Read', { file_path: 'src/b.ts' }),
 			assistant(),
-			tool('Read', { file_path: 'src/c.ts' }),
-			tool('Read', { file_path: 'src/d.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			answer,
 		]);
-		expect(kinds(grouped)).toEqual(['activity-group', 'assistant', 'activity-group']);
+		expect(kinds(grouped)).toEqual(['activity-group', 'assistant']);
+		expect(grouped[1]).toBe(answer);
+	});
+
+	it('leaves a message after a lone tool call outside, in order', () => {
+		const read = tool('Read', { file_path: 'src/a.ts' });
+		const note = assistant();
+		const grouped = groupRunTimeline([read, note]);
+		expect(grouped).toEqual([read, note]);
 	});
 
 	it('keeps a single tool call between two prose blocks unfolded', () => {
@@ -185,7 +223,6 @@ describe('groupRunTimeline folding', () => {
 
 	it.each<RunTimelineItem>([
 		{ kind: 'user', key: 'user', seq: 100, text: 'Fix it' },
-		{ kind: 'assistant', key: 'assistant', seq: 100, text: 'Sure' },
 		{ kind: 'plan', key: 'plan', seq: 100, text: '1. Look' },
 		{
 			kind: 'approval',
@@ -593,13 +630,23 @@ describe('foldRunWork', () => {
 			note,
 			startWorkstream('ws-1'),
 			command(),
+			agent('a'),
+			agent('b'),
 			answer,
 		]);
 		const folded = foldRunWork(rows);
 		expect(kinds(folded)).toEqual(['user', 'work-fold', 'workstreams', 'assistant']);
 		const fold = folded[1];
 		if (fold?.kind !== 'work-fold') throw new Error('expected a fold');
-		expect(kinds(fold.rows)).toEqual(['thought', 'activity-group', 'assistant', 'command']);
+		expect(kinds(fold.rows)).toEqual([
+			'thought',
+			'tool',
+			'tool',
+			'assistant',
+			'command',
+			'subagent',
+			'subagent',
+		]);
 		expect(fold.rows).toContain(note);
 		expect(folded[3]).toBe(answer);
 		expect(`${fold.verb} ${fold.detail}`).toBe('Edited a.ts, ran 1 command');
@@ -614,5 +661,15 @@ describe('foldRunWork', () => {
 		const fold = foldRunWork([prompt, thought(1), assistant('Thinking aloud.'), assistant()])[1];
 		if (fold?.kind !== 'work-fold') throw new Error('expected a fold');
 		expect(`${fold.verb} ${fold.detail}`).toBe('Worked 2 steps');
+	});
+});
+
+describe('leadActionKind', () => {
+	it('leads with the edit, the one kind, or nothing when the work is mixed', () => {
+		expect(leadActionKind(['read', 'edit', 'command'])).toBe('edit');
+		expect(leadActionKind(['search', 'read'])).toBe('search');
+		expect(leadActionKind(['command'])).toBe('command');
+		expect(leadActionKind(['read', 'command'])).toBeNull();
+		expect(leadActionKind([])).toBeNull();
 	});
 });

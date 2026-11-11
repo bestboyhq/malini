@@ -2,8 +2,26 @@ import type { AgentElementReference, AgentRunProfile } from './agent';
 
 export const BROWSER_WORKTREE_SCHEME = 'malini-worktree';
 
+const PAGE_STILL_PARAM = 'malini-still';
+
 export function worktreePageUrl(workstreamId: string, path: string): string {
 	return new URL(path, `${BROWSER_WORKTREE_SCHEME}://${workstreamId.toLowerCase()}/`).href;
+}
+
+export function pageStillUrl(workstreamId: string, path: string): string {
+	const url = new URL(worktreePageUrl(workstreamId, path));
+	url.searchParams.set(PAGE_STILL_PARAM, url.hash);
+	url.hash = '';
+	return url.href;
+}
+
+export function stillPageUrl(stillUrl: string): string | null {
+	const url = new URL(stillUrl);
+	const hash = url.searchParams.get(PAGE_STILL_PARAM);
+	if (hash === null) return null;
+	url.searchParams.delete(PAGE_STILL_PARAM);
+	url.hash = hash;
+	return url.href;
 }
 
 export type BrowserBounds = Readonly<{ x: number; y: number; width: number; height: number }>;

@@ -2,10 +2,11 @@ import { realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { net, protocol, session, type CustomScheme } from 'electron';
-import { BROWSER_WORKTREE_SCHEME } from '$contract/browser';
+import { BROWSER_WORKTREE_SCHEME, stillPageUrl } from '$contract/browser';
 import { isInsideDirectory } from '$main/fs/paths';
 import { AGENT_ATTACHMENTS_PATH } from '$main/git/paths';
 import { BROWSER_PARTITION } from './electron-view';
+import type { PageStills } from './page-stills';
 
 const APP_MANAGED_DIR = dirname(AGENT_ATTACHMENTS_PATH);
 const PAGE = /\.html?$/iu;
@@ -26,7 +27,10 @@ export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []
 	]);
 }
 
-export function serveWorktreeFiles(worktreeOf: (host: string) => string | null): void {
+export function serveWorktreeFiles(
+	worktreeOf: (host: string) => string | null,
+	stills: Pick<PageStills, 'still'>,
+): void {
 	const serve =
 		(framedInMalini: boolean) =>
 		async (request: Request): Promise<Response> => {
@@ -35,6 +39,9 @@ export function serveWorktreeFiles(worktreeOf: (host: string) => string | null):
 			const file = worktree ? await worktreeFile(worktree, decodeURIComponent(url.pathname)) : null;
 			if (!file)
 				return new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
+			const stillOf = framedInMalini ? stillPageUrl(request.url) : null;
+			if (stillOf !== null)
+				return stillResponse(await stills.still(stillOf, file).catch(() => null));
 			const response = await net.fetch(pathToFileURL(file).href);
 			return served(
 				file,
@@ -53,6 +60,13 @@ async function containScroll(response: Response): Promise<Response> {
 	return new Response(Buffer.concat([page.subarray(0, at), CONTAINED_SCROLL, page.subarray(at)]), {
 		status: response.status,
 		headers,
+	});
+}
+
+function stillResponse(still: Buffer | null): Response {
+	if (still === null) return new Response('This page painted nothing.', { status: 404 });
+	return new Response(new Uint8Array(still), {
+		headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' },
 	});
 }
 

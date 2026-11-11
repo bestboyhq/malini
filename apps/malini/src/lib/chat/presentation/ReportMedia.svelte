@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { worktreePageUrl } from '$contract/browser';
+	import { pageStillUrl, worktreePageUrl } from '$contract/browser';
 	import { mediaKind, mediaPath } from '$contract/workstream-images';
 	import { Button } from '$hyper-ui/components/button';
+	import { Icon } from '$hyper-ui/icons';
 	import type { VideoHandoff } from './transcript-gallery';
 	import VideoPlayer from './VideoPlayer.svelte';
 	import { galleryImageLabel, reportMediaSource } from '$shared/markdown/workstream-images';
@@ -16,6 +17,7 @@
 		playing?: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		caption?: Snippet | undefined;
+		onplay?: (() => void) | undefined;
 		onopen?: ((handoff?: VideoHandoff) => void) | undefined;
 	}
 
@@ -27,6 +29,7 @@
 		playing = true,
 		imagesrc,
 		caption,
+		onplay,
 		onopen,
 	}: Props = $props();
 
@@ -43,6 +46,7 @@
 	let missingSource = $state<string | null>(null);
 
 	const moving = $derived(playing && !prefersReducedMotion.current);
+	const paused = $derived(kind === 'page' && hero && !playing && onplay !== undefined);
 
 	$effect(() => {
 		if (!video) return;
@@ -51,11 +55,8 @@
 	});
 </script>
 
-{#if kind === 'page'}
-	<span
-		class={['block overflow-hidden', hero ? 'absolute inset-0' : 'relative size-full']}
-		bind:clientWidth={pageWidth}
-	>
+{#if kind === 'page' && hero && playing}
+	<span class="absolute inset-0 block overflow-hidden" bind:clientWidth={pageWidth}>
 		<iframe
 			src={worktreePageUrl(workstreamId, src)}
 			title={label}
@@ -63,13 +64,13 @@
 			loading="lazy"
 			width={PAGE_WIDTH}
 			height={PAGE_HEIGHT}
-			inert={!hero}
 			class="absolute top-0 left-0 origin-top-left border-0"
 			style:transform="scale({pageWidth / PAGE_WIDTH})"
 		></iframe>
 	</span>
 {:else}
-	{@const source = reportMediaSource(mediaPath(src), imagesrc)}
+	{@const source =
+		kind === 'page' ? pageStillUrl(workstreamId, src) : reportMediaSource(mediaPath(src), imagesrc)}
 	{#if !source}
 		<span class={hero ? 'absolute inset-0' : 'block size-full'}></span>
 	{:else if kind === 'video' && hero}
@@ -97,7 +98,7 @@
 			aria-label={hero ? label : undefined}
 			class={[hero ? 'absolute inset-0' : 'block size-full', 'grid place-items-center']}
 		>
-			{#if hero}
+			{#if hero && !paused}
 				<span
 					class="text-fg-tertiary flex max-w-full min-w-0 flex-col items-center gap-1 px-6 text-xs"
 				>
@@ -110,16 +111,34 @@
 		<img
 			src={source}
 			alt={hero ? label : ''}
+			loading={kind === 'page' ? 'lazy' : undefined}
 			class={fit}
 			onerror={() => (missingSource = source)}
 		/>
-		{#if hero && onopen}
+		{#if hero && onopen && !paused}
 			<Button
 				bare
 				class="absolute inset-0 cursor-zoom-in"
-				ariaLabel={galleryImageLabel(label, kind)}
+				ariaLabel={galleryImageLabel(label)}
 				onclick={() => onopen()}
 			/>
 		{/if}
+	{/if}
+	{#if paused}
+		<Button
+			bare
+			class="group/play absolute inset-0 grid cursor-pointer place-items-center"
+			ariaLabel={`Play ${label}`}
+			onclick={() => onplay?.()}
+		>
+			<span
+				class="absolute inset-0 bg-black/35 transition-opacity duration-150 ease-out group-hover/play:opacity-70 motion-reduce:transition-none"
+			></span>
+			<span
+				class="bg-surface-elevated/90 outline-surface-elevated-border text-fg-default group-hover/play:bg-surface-elevated relative grid size-12 place-items-center rounded-full shadow-sm outline-[0.5px] -outline-offset-[0.5px] backdrop-blur-md transition-[scale] duration-150 ease-out group-hover/play:scale-105 group-active/play:scale-95 motion-reduce:transition-none"
+			>
+				<Icon name="play" size={18} />
+			</span>
+		</Button>
 	{/if}
 {/if}
