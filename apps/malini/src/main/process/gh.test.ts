@@ -33,7 +33,7 @@ describe('runGh', () => {
 				message: 'GitHub did not answer in 2 seconds.',
 			});
 			await expect(
-				runGh(['auth', 'status'], { env: ghEnvironment({ MALINI_GH_PATH: '/bin' }) }),
+				runGh(['auth', 'status'], { env: ghEnvironment({ MALINI_GH_PATH: join(bin, 'missing') }) }),
 			).rejects.toMatchObject({ kind: 'not-installed' });
 		} finally {
 			rmSync(bin, { recursive: true, force: true });

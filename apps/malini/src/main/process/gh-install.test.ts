@@ -11,7 +11,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { InstallProgressPayload } from '$contract/events';
 import { GH_DOWNLOAD_URL, GH_VERSION, installGh } from './gh-install';
@@ -34,7 +34,7 @@ function releaseZip(): Uint8Array {
 	mkdirSync(join(asset, 'bin'), { recursive: true });
 	writeFileSync(join(asset, 'bin', 'gh'), '#!/bin/sh\necho gh\n');
 	writeFileSync(join(asset, 'LICENSE'), 'MIT');
-	execFileSync('ditto', ['-c', '-k', '--keepParent', asset, join(root, 'gh.zip')]);
+	execFileSync('zip', ['-qr', 'gh.zip', basename(asset)], { cwd: root });
 	return new Uint8Array(readFileSync(join(root, 'gh.zip')));
 }
 

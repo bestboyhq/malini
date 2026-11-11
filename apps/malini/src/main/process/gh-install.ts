@@ -89,7 +89,7 @@ async function downloaded(
 
 async function unpack(zip: string, scratch: string, staged: string): Promise<void> {
 	try {
-		await execFileAsync('ditto', ['-x', '-k', zip, scratch]);
+		await execFileAsync('unzip', ['-q', zip, '-d', scratch]);
 		await mkdir(join(staged, 'bin'), { recursive: true });
 		await copyFile(join(scratch, ASSET, 'bin', 'gh'), join(staged, 'bin', 'gh'));
 		await chmod(join(staged, 'bin', 'gh'), 0o755);
