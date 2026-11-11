@@ -138,7 +138,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const send = async (deliver: (userId: string | null) => Promise<boolean>): Promise<boolean> => {
 		if (!shared()) return false;
 		const counted = await account();
-		if (counted.state === 'old-terms' || !shared()) return false;
+		if (!shared()) return false;
 		return deliver(counted.state === 'accepted' ? counted.userId : null);
 	};
 	const sending = new Map<string, Promise<void>>();

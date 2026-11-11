@@ -1,6 +1,6 @@
 # 0156 - Usage counts carry your Bestboy account, and stop on old terms
 
-Status: accepted
+Status: superseded by 0219
 
 ## Context
 
