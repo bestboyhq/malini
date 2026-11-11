@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { worktreePageUrl } from '$contract/browser';
+	import { pageStillUrl, worktreePageUrl } from '$contract/browser';
 	import { mediaKind, mediaPath } from '$contract/workstream-images';
 	import { Button } from '$hyper-ui/components/button';
 	import type { VideoHandoff } from './transcript-gallery';
@@ -51,11 +51,8 @@
 	});
 </script>
 
-{#if kind === 'page'}
-	<span
-		class={['block overflow-hidden', hero ? 'absolute inset-0' : 'relative size-full']}
-		bind:clientWidth={pageWidth}
-	>
+{#if kind === 'page' && hero}
+	<span class="absolute inset-0 block overflow-hidden" bind:clientWidth={pageWidth}>
 		<iframe
 			src={worktreePageUrl(workstreamId, src)}
 			title={label}
@@ -63,13 +60,13 @@
 			loading="lazy"
 			width={PAGE_WIDTH}
 			height={PAGE_HEIGHT}
-			inert={!hero}
 			class="absolute top-0 left-0 origin-top-left border-0"
 			style:transform="scale({pageWidth / PAGE_WIDTH})"
 		></iframe>
 	</span>
 {:else}
-	{@const source = reportMediaSource(mediaPath(src), imagesrc)}
+	{@const source =
+		kind === 'page' ? pageStillUrl(workstreamId, src) : reportMediaSource(mediaPath(src), imagesrc)}
 	{#if !source}
 		<span class={hero ? 'absolute inset-0' : 'block size-full'}></span>
 	{:else if kind === 'video' && hero}
@@ -110,6 +107,7 @@
 		<img
 			src={source}
 			alt={hero ? label : ''}
+			loading={kind === 'page' ? 'lazy' : undefined}
 			class={fit}
 			onerror={() => (missingSource = source)}
 		/>
@@ -117,7 +115,7 @@
 			<Button
 				bare
 				class="absolute inset-0 cursor-zoom-in"
-				ariaLabel={galleryImageLabel(label, kind)}
+				ariaLabel={galleryImageLabel(label)}
 				onclick={() => onopen()}
 			/>
 		{/if}

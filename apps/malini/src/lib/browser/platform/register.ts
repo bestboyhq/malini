@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { app, type BrowserWindow } from 'electron';
 import {
 	BROWSER_RESIZE_REQUESTED_CHANNEL,
@@ -14,6 +15,7 @@ import { getWorkstream, listWorkstreams } from '$shared/repositories/repositorie
 import type { BrowserPlatform } from '../browser.platform';
 import { readBounds, readPick, readRequestId, readTab, readUrl } from './args';
 import { askBeforeMediaAccess, createElectronView, watchRendererReset } from './electron-view';
+import { pageStills } from './page-stills';
 import { movesPin, startElementThread, threadPin } from './threads';
 import { BrowserViews } from './views';
 import { serveWorktreeFiles } from './worktree-files';
@@ -23,9 +25,10 @@ export interface BrowserDeps {
 }
 
 export function registerBrowser(context: MainContext, deps: BrowserDeps): BrowserPlatform {
-	const { commands, events, db, checkoutsRoot } = context;
+	const { commands, events, db, checkoutsRoot, appDataRoot } = context;
 	const worktree = (workstreamId: string): string =>
 		resolveWorkstreamCheckoutCanonical(checkoutsRoot, workstreamId);
+	const stills = pageStills(join(appDataRoot, 'page-stills'), deps.getMainWindow);
 	serveWorktreeFiles((host) => {
 		const workstream = listWorkstreams(db).find(({ id }) => id.toLowerCase() === host);
 		try {
@@ -33,7 +36,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		} catch {
 			return null;
 		}
-	});
+	}, stills);
 	askBeforeMediaAccess(deps.getMainWindow);
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
@@ -81,9 +84,10 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	commands.define('browser.close', (args) => views.destroy(readTab(args)));
 	commands.define('browser.resized', (args) => views.resized(readRequestId(args)));
 
-	events.subscribe(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, ({ workstreamId }) =>
-		views.destroyWorkstream(workstreamId),
-	);
+	events.subscribe(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, ({ workstreamId }) => {
+		views.destroyWorkstream(workstreamId);
+		void stills.forget(workstreamId).catch(() => undefined);
+	});
 	events.subscribe(CHAT_AGENT_EVENT_CHANNEL, ({ sessionId, event, ephemeral }) => {
 		if (ephemeral || !movesPin(event['type'])) return;
 		const workstreamId = threadWorkstreamId(db, sessionId);
