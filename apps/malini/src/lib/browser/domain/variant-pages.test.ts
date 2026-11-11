@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { steppedVariant, variantSwitcher } from './variant-pages';
+import { chosenVariantPage, steppedVariant, variantSwitcher } from './variant-pages';
 
 const older = [
 	{ id: 'A', name: 'Calm', src: '.context/hero/a.html' },
@@ -53,6 +53,22 @@ describe('variant switcher', () => {
 		expect(
 			variantSwitcher('http://localhost:5173/.context/badges/a.html', 'ws-1', [newer]),
 		).toBeNull();
+	});
+
+	it('moves a page of the chosen set to the chosen variant and leaves every other page', () => {
+		expect(
+			chosenVariantPage('malini-worktree://ws-1/.context/badges/a.html?v=2', 'WS-1', newer, 'C'),
+		).toBe('malini-worktree://ws-1/.context/badges/c.png');
+		expect(
+			chosenVariantPage('malini-worktree://ws-1/.context/badges/c.png', 'ws-1', newer, 'C'),
+		).toBeNull();
+		expect(
+			chosenVariantPage('malini-worktree://ws-1/.context/hero/a.html', 'ws-1', newer, 'B'),
+		).toBeNull();
+		expect(
+			chosenVariantPage('malini-worktree://ws-1/.context/badges/a.html', 'ws-1', newer, 'D'),
+		).toBeNull();
+		expect(chosenVariantPage('http://localhost:5173/', 'ws-1', newer, 'B')).toBeNull();
 	});
 
 	it('steps around the ends', () => {

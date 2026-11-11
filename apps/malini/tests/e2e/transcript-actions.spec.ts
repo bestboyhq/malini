@@ -67,6 +67,62 @@ test('a failed command says why on its row, an edit shows its size on its row, a
 	}
 });
 
+test('a tool failure reads as plain text, with its inline code set as code, on a row, a card and a group', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-tool-failure-ws',
+			'Tool failure workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		const idle = (): Promise<void> =>
+			expect(page.getByRole('button', { name: 'Stop current run' })).toHaveCount(0);
+
+		const replies = page.getByTestId('chat-message-bubble');
+		await sendPrompt(page, 'BASH_BLOCKED');
+		await expectAssistantReply(page);
+		const row = page.getByTestId('bash-command-failure').first();
+		await expect(row).toBeVisible();
+		await idle();
+		await captureFlow(app, 'tool-failure-row');
+
+		await sendPrompt(page, 'READ_MISSING');
+		await expect(replies).toHaveCount(2, { timeout: 30_000 });
+		const card = page.getByTestId('tool-card-failed').first();
+		await expect(card).toBeVisible();
+		await idle();
+		await captureFlow(app, 'tool-failure-card');
+
+		await sendPrompt(page, 'BASH_BLOCKED READ_MISSING');
+		await expect(replies).toHaveCount(3, { timeout: 30_000 });
+		await sendPrompt(page, 'next');
+		await expect(replies).toHaveCount(4, { timeout: 30_000 });
+		await openWorkstream(page, workstreamId);
+		const group = page.locator('li[data-run-id]').nth(2).getByTestId('chat-activity-group-failed');
+		await expect(group).toHaveCount(2);
+		await group.first().scrollIntoViewIfNeeded();
+		await idle();
+		await captureFlow(app, 'tool-failure-group');
+
+		await expect(row).toContainText('Blocked: standalone sleep 45. To wait for a condition');
+		await expect(row.getByRole('code')).toHaveText('until <check>; do sleep 2; done');
+		await expect(card).toContainText('File does not exist.');
+		await expect(card.getByRole('code')).toHaveText('/Users/dev/app');
+		await expect(group.first()).toContainText('Blocked: standalone sleep 45.');
+		await expect(group.last()).toContainText('File does not exist.');
+		await expect(page.getByText(/tool_use_error/u)).toHaveCount(0);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a command that exits non-zero shows its exit code quietly, an edit and a read open their file in a card on click, and a context handoff draws a divider', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

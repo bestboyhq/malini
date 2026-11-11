@@ -7,6 +7,36 @@ const NOT_A_WORKSTREAM_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/|[#?])/iu;
 
 export type MediaKind = 'image' | 'video' | 'page';
 
+export const CONTEXT_MEDIA_CATEGORIES = [
+	'images',
+	'videos',
+	'audio',
+	'pages',
+	'documents',
+] as const;
+
+export type ContextMediaCategory = (typeof CONTEXT_MEDIA_CATEGORIES)[number];
+
+export type ContextMedia = Readonly<{
+	path: string;
+	size: number;
+	modifiedAt: string;
+	category: ContextMediaCategory;
+}>;
+
+const CATEGORY_PATHS: ReadonlyArray<readonly [ContextMediaCategory, RegExp]> = [
+	['images', IMAGE_PATH],
+	['images', /\.svg$/iu],
+	['videos', VIDEO_PATH],
+	['audio', /\.(?:mp3|m4a|wav|ogg|oga|flac|aac)$/iu],
+	['pages', /\.html?$/iu],
+	['documents', /\.(?:pdf|md|markdown|txt|csv|json)$/iu],
+];
+
+export function contextMediaCategory(path: string): ContextMediaCategory | null {
+	return CATEGORY_PATHS.find(([, pattern]) => pattern.test(path))?.[0] ?? null;
+}
+
 export function workstreamImageUrl(workstreamId: string, path: string, version: number): string {
 	return `${WORKSTREAM_IMAGE_SCHEME}://${WORKSTREAM_IMAGE_HOST}/${encodeURIComponent(workstreamId)}/${encodeURIComponent(path)}?v=${version}`;
 }

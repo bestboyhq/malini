@@ -13,6 +13,7 @@ import {
 	parseTurnReport,
 	turnStatus,
 	withoutReportFooter,
+	withoutStreamingFooter,
 } from './turn-report';
 
 describe('turn report', () => {
@@ -243,11 +244,35 @@ describe('turn report', () => {
 		]);
 	});
 
-	it('waits on the user only while the needs are open, and reads done otherwise', () => {
+	it('waits on the user only while the needs are open, reads done otherwise, and neither before the turn ends', () => {
 		const blocked = parseTurnReport('- Next: Notarize.\n\nOutcome: Built.\nNeeds: Add the key');
 
 		expect(turnStatus(blocked, true)).toBe('waiting');
 		expect(turnStatus(blocked, false)).toBe('done');
 		expect(turnStatus(parseTurnReport('Outcome: Built.\nNeeds: nothing'), true)).toBe('done');
+		expect(turnStatus(blocked, false, false)).toBe('unfinished');
+	});
+
+	it('never shows a footer line while the reply streams, and only ever grows the text it shows', () => {
+		const body = 'The shadow shows once the page scrolls.\n\n';
+		for (const footer of [
+			'Outcome: The header stays pinned.\nNeeds: Approve the shadow; Merge it\nCommit: Pin it\n',
+			'- **Outcome:** The header stays pinned.\n- **Needs:** nothing\n- **Pull request:** Pin it',
+		]) {
+			const reply = body + footer;
+			let shown = '';
+			for (let length = 0; length <= reply.length; length += 1) {
+				const next = withoutStreamingFooter(reply.slice(0, length));
+				expect(body.startsWith(next), JSON.stringify(next)).toBe(true);
+				expect(next.startsWith(shown), JSON.stringify(next)).toBe(true);
+				shown = next;
+			}
+			expect(shown).toBe(body);
+		}
+		expect(withoutStreamingFooter('Clean.\n\nCommit: Fix the guard')).toBe(
+			'Clean.\n\nCommit: Fix the guard',
+		);
+		expect(withoutStreamingFooter('Done.\n\nNeeds more work')).toBe('Done.\n\nNeeds more work');
+		expect(withoutStreamingFooter('Done.\n\nNee')).toBe('Done.\n\n');
 	});
 });

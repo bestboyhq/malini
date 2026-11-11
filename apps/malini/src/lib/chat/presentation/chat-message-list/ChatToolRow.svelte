@@ -4,9 +4,9 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { loadFullToolOutputCommand } from '$lib/chat/application/commands/load-full-tool-output.command';
 	import { fullToolOutputQuery } from '$lib/chat/application/queries/full-tool-output.query.svelte';
-	import { revealFade } from '../arrival-motion';
 	import type { RunGroup } from '../render-state';
 	import BashToolCall from '../BashToolCall.svelte';
+	import ToolFailureNote from '../ToolFailureNote.svelte';
 	import ToolCard from '../ToolCard.svelte';
 	import {
 		activityLabelFromTool,
@@ -73,41 +73,29 @@
 		data-tool-status={item.tool.status}
 	>
 		{#if item.tool.status === 'failed' && blockedReason === null}
-			<div
-				class="bg-error flex items-start gap-2 rounded-md px-2.5 py-2 text-xs"
+			<ToolFailureNote
+				text={failureTextFromTool(item)}
+				label={activityLabelFromTool(item)}
+				whole
 				data-testid="tool-card-failed"
-				in:revealFade
 			>
-				<span
-					class="bg-error-content/15 text-error-content mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm"
-				>
-					<Icon name="close" size={10} />
-				</span>
-				<div class="min-w-0 flex-1">
-					<div class="text-error-content font-mono text-xs font-medium">
-						{activityLabelFromTool(item)}
-					</div>
-					<p
-						class="text-2xs text-error-content/85 mt-0.5 leading-relaxed break-words whitespace-pre-wrap select-text"
-						data-testid="tool-card-error-text"
+				{#snippet action()}
+					<Tooltip
+						content={transcript.copiedErrorKey === item.key ? 'Copied' : 'Copy full error'}
+						placement="top"
 					>
-						{failureTextFromTool(item)}
-					</p>
-				</div>
-				<Tooltip
-					content={transcript.copiedErrorKey === item.key ? 'Copied' : 'Copy full error'}
-					placement="top"
-				>
-					<IconButton
-						bare
-						class="text-error-content/70 hover:bg-error-content/10 hover:text-error-content focus-visible:ring-error-content/30 grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
-						ariaLabel={`Copy ${displayNameFromTool(item)} error`}
-						onclick={() => transcript.copyErrorText(item.key, failureTextFromTool(item))}
-					>
-						<Icon name="copy" size={12} />
-					</IconButton>
-				</Tooltip>
-			</div>
+						<IconButton
+							variant="ghost"
+							size="sm"
+							class="-my-0.5 shrink-0"
+							ariaLabel={`Copy ${displayNameFromTool(item)} error`}
+							onclick={() => transcript.copyErrorText(item.key, failureTextFromTool(item))}
+						>
+							<Icon name="copy" size={12} />
+						</IconButton>
+					</Tooltip>
+				{/snippet}
+			</ToolFailureNote>
 		{:else}
 			<ToolCard
 				workstreamId={transcript.workstreamId}

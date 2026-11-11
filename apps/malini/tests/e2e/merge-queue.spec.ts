@@ -15,6 +15,7 @@ import {
 	openedUrls,
 	openAutomations,
 	openWorkstream,
+	showInspector,
 	recordBrowser,
 	seedWorkstream,
 	sendPrompt,
@@ -132,6 +133,7 @@ test('Keep on a queued merge leaves the workstream open on Merged once it lands'
 	try {
 		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-merge-keep', null);
 		await openWorkstream(page, 'e2e-merge-keep');
+		await showInspector(page);
 		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
 		await expectAssistantReply(page);
 		await page.getByRole('button', { name: 'Open a draft pull request' }).click();

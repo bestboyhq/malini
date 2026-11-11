@@ -387,7 +387,7 @@ describe('browser requests', () => {
 			ok: true,
 			value: { ...frame, ...typing },
 		});
-		for (const action of ['back', 'forward', 'reload']) {
+		for (const action of ['back', 'forward', 'reload', 'close']) {
 			expect(decodeControlFrame({ ...frame, action })).toEqual({
 				ok: true,
 				value: { ...frame, action },

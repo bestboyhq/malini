@@ -364,11 +364,13 @@ export function outlivesHandoff(tool: ToolAggregate, carried: ReadonlySet<string
 	return tool.parentToolCallId !== undefined && carried.has(tool.parentToolCallId);
 }
 
+const TOOL_USE_ERROR_WRAPPER = /^\s*<tool_use_error>([\s\S]*)<\/tool_use_error>\s*$/u;
+
 export function toolFailure(
 	event: Readonly<{ error: string; autoModeReason?: string }>,
 ): Pick<ToolAggregate, 'error' | 'autoModeReason'> {
 	return {
-		error: event.error,
+		error: event.error.replace(TOOL_USE_ERROR_WRAPPER, '$1'),
 		...(event.autoModeReason ? { autoModeReason: event.autoModeReason } : {}),
 	};
 }

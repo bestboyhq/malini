@@ -6,6 +6,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	showInspector,
 } from './harness';
 
 function panels(page: Page): Locator {
@@ -42,6 +43,7 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-inspector-tabs-ws', 'Inspector tabs');
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toBeVisible({
 			timeout: 20_000,
 		});
@@ -122,28 +124,29 @@ test('the X closes Files in its workstream, and the right-click menu hides or sh
 		);
 		const files = inspectorTab(page, 'Files');
 		const inspector = page.getByRole('region', { name: 'Inspector' });
-		const filesRow = inspector.getByRole('button', { name: /^Files/ });
+		const changesRow = inspector.getByRole('button', { name: /^Changes/u });
 		const switchTo = (name: string) =>
 			page.getByRole('link', { name: new RegExp(`${name}$`) }).click();
 
 		await openWorkstream(page, first.workstreamId);
+		await showInspector(page);
 		await expect(files).toBeVisible({ timeout: 20_000 });
 		await files.click({ button: 'right' });
 		await page.getByRole('menuitem', { name: 'Hide Files in every workstream' }).click();
-		await expect(filesRow).toBeFocused();
+		await expect(changesRow).toBeFocused();
 		await expect(panels(page)).toHaveCount(0);
 		await expect(inspector.getByRole('button', { name: 'Show inspector' })).toHaveCount(0);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'inspector-files-hidden-everywhere');
 
 		await switchTo('Second');
-		await expect(filesRow).toBeVisible({ timeout: 20_000 });
+		await expect(changesRow).toBeVisible({ timeout: 20_000 });
 		await expect(panels(page)).toHaveCount(0);
-		await filesRow.click();
+		await changesRow.click();
 		await expectPanels(page, ['tab "Files" [selected]']);
 
 		await switchTo('First');
-		await expect(filesRow).toBeVisible({ timeout: 20_000 });
+		await expect(changesRow).toBeVisible({ timeout: 20_000 });
 		await expect(panels(page)).toHaveCount(0);
 
 		await switchTo('Second');
@@ -161,7 +164,7 @@ test('the X closes Files in its workstream, and the right-click menu hides or sh
 
 		await files.hover();
 		await page.getByRole('button', { name: 'Close Files', exact: true }).click();
-		await expect(filesRow).toBeFocused();
+		await expect(changesRow).toBeFocused();
 		await expect(panels(page)).toHaveCount(0);
 
 		await switchTo('Second');

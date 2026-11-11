@@ -9,10 +9,12 @@ import {
 } from '../../infrastructure/services/browser-pages.storage';
 import { browserService } from '../../infrastructure/services/browser.service';
 import { browserViewStore } from '../../infrastructure/stores/browser-view.store.svelte';
+import { loadBrowserTabsCommand } from './load-browser-tabs.command';
 
 export { closeBrowserTabCommand };
 
 function closeBrowserTabCommand(tab: BrowserTabArgs): void {
+	loadBrowserTabsCommand(tab.workstreamId);
 	const remaining = browserTabsAggregate
 		.tabsOf(tab.workstreamId)
 		.filter((tabId) => tabId !== tab.tabId);

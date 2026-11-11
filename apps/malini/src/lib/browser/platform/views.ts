@@ -51,6 +51,7 @@ export interface BrowserViewsDeps<W extends HostWindow> {
 	worktree(workstreamId: string): string;
 	stateChanged(state: BrowserState): void;
 	tabOpened(tab: BrowserTabArgs): void;
+	tabClosed(tab: BrowserTabArgs): void;
 	resizeRequested(request: BrowserResizeRequest): void;
 	threads(workstreamId: string): readonly ThreadPin[];
 	startThread(
@@ -304,6 +305,15 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	resized(requestId: string): void {
 		this.resizes.get(requestId)?.();
+	}
+
+	close(tab: BrowserTabArgs): Promise<boolean> {
+		return this.inTurn(tab, async () => {
+			const wasOpen = this.entries.has(tabKey(tab));
+			this.destroy(tab);
+			this.deps.tabClosed({ workstreamId: tab.workstreamId, tabId: tab.tabId });
+			return wasOpen;
+		});
 	}
 
 	private async pickOnceLoaded(

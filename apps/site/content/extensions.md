@@ -66,13 +66,20 @@ Nothing else about you, your repositories or your chats goes up.
 
 ## The inspector is built from extensions
 
-The inspector sits next to the chat.
+The inspector sits next to the chat, closed until you ask for it.
+Closed, it is a short list: **Changes** with the lines the workstream added and removed, **Media** with the number of files agents saved in `.context`, then the workstream's tabs.
+**Changes** opens **Files** on the changed files only, and **Show inspector** opens it on the tab you had.
+**Media** shows once an agent saves a screenshot, recording or prototype, and opens them as a grid sorted into images, videos, audio, pages and documents, newest first.
+Pictures, recordings and pages open full size, audio plays in place, and documents open in a browser tab.
+An agent that opens a page opens the inspector for that page, and the inspector closes again when the agent closes the page, unless you opened it yourself.
+Malini keeps open or closed per workstream.
+
 The built-in **Repository** extension gives you **Files**: changed files with their diffs, the full tree, file tabs, and todos.
 Browser tabs sit there too.
 Don't need the files?
 Right-click the **Files** tab and choose **Hide Files in every workstream**: it stays hidden everywhere, new workstreams included, until you choose **Show Files in every workstream** the same way.
 The **×** on a tab closes it in that workstream only.
-With no tab left, the inspector folds to a slim list, and its **Files** row opens Files again in that workstream.
+With no tab left, the inspector folds to its short list.
 
 The inspector's extensions are built into Malini, on the MIT licensed `@malini/extension-api` in [`packages/extension-api`](https://github.com/bestboyhq/malini/tree/main/packages/extension-api).
 An extension there declares its panels, commands, settings and workflows in `manifest.json` with `apiVersion: 1`, and an automation in a repository's `.malini/workspace.json` runs its commands and workflows when a workstream is created or a frontend resource becomes ready.

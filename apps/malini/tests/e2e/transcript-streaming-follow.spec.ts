@@ -303,18 +303,6 @@ async function untilLatestRunShows(page: Page, line: string, timeout = 10_000): 
 	await expect.poll(latestRunText, { intervals: [50], timeout }).toContain(line);
 }
 
-async function filesInLatestGroup(page: Page): Promise<number> {
-	const group = latestRun(page).getByTestId('chat-activity-group-summary');
-	await expect(group).toBeVisible({ timeout: 20_000 });
-	return Number(/(\d+) files$/.exec((await group.getAttribute('aria-label')) ?? '')?.[1]);
-}
-
-async function untilLatestGroupCounts(page: Page, files: number, timeout = 10_000): Promise<void> {
-	await expect
-		.poll(() => filesInLatestGroup(page), { intervals: [50], timeout })
-		.toBeGreaterThanOrEqual(files);
-}
-
 async function expectStatusClosesRunAboveTray(page: Page, when: string): Promise<void> {
 	const run = latestRun(page);
 	await expect(
@@ -326,9 +314,9 @@ async function expectStatusClosesRunAboveTray(page: Page, when: string): Promise
 		`a row under the working status ${when}`,
 	).toHaveCount(0);
 	const statusHeight = (await page.locator(LATEST_STATUS_ROW).boundingBox())?.height ?? Number.NaN;
-	const reads = await filesInLatestGroup(page);
+	const reads = await run.getByTestId('tool-file-toggle').count();
 	await startSampling(page, [LATEST_STATUS_ROW, FOOTER], { painted: true });
-	await untilLatestRunShows(page, `${reads + 2} files`);
+	await untilLatestRunShows(page, `row-${reads + 2}.txt`);
 	const samples = await stopSampling(page);
 	const blank = Math.max(
 		...samples.map(([, status = 0, footer = 0]) => footer - status - statusHeight),
@@ -462,7 +450,7 @@ test('a run beside a background command ends on its working status, held still r
 		await expect(page.getByRole('region', { name: '1 background command running' })).toBeVisible({
 			timeout: 20_000,
 		});
-		await untilLatestRunShows(page, '3 files');
+		await untilLatestRunShows(page, 'row-3.txt');
 
 		await expectStatusClosesRunAboveTray(page, 'while the agent works');
 
@@ -872,14 +860,14 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 	}
 });
 
-test('a group in a run past two hundred steps stays in place and keeps counting while later steps stream into it', async () => {
+test('a tool row in a run past two hundred steps stays in place while later steps stream in below it', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		await longChat(app, 'e2e-long-run-follow-ws');
 		await sendPrompt(page, 'TOOL_STREAM:240 Read every note');
-		await untilLatestGroupCounts(page, 226, 60_000);
+		await untilLatestRunShows(page, 'row-226.txt', 60_000);
 
 		await page.getByTestId('chat-message-scroller').evaluate((scroller) => {
 			const doc = scroller.ownerDocument;
@@ -887,8 +875,8 @@ test('a group in a run past two hundred steps stays in place and keeps counting 
 			globalThis.transcriptFrames = state;
 			const sample = (): void => {
 				if (!state.sampling) return;
-				const row = [...doc.querySelectorAll('[data-transcript-row]')].find(
-					(candidate) => candidate.querySelector('[data-testid="chat-activity-group"]') !== null,
+				const row = [...doc.querySelectorAll('[data-transcript-row]')].find((candidate) =>
+					candidate.textContent?.includes('row-225.txt'),
 				);
 				let cover = row?.nextElementSibling;
 				while (cover?.getAttribute('data-cover-fade') === 'fade') cover = cover.nextElementSibling;
@@ -912,18 +900,18 @@ test('a group in a run past two hundred steps stays in place and keeps counting 
 			};
 			sample();
 		});
-		await untilLatestGroupCounts(page, 236);
+		await untilLatestRunShows(page, 'row-236.txt');
 		await expect
 			.poll(() => page.evaluate(() => globalThis.transcriptFrames.samples.length))
 			.toBeGreaterThan(10);
 		const samples = await stopSampling(page);
 		expect(
 			samples.filter((sample) => sample[2] === 1).length,
-			'frames the group was clipped away under the step below it',
+			'frames the row was clipped away under the step below it',
 		).toBe(0);
 		expect(
 			jumpOnScreen(samples, 1),
-			'px the group jumped while later steps arrived',
+			'px the tool row jumped while later steps arrived',
 		).toBeLessThanOrEqual(STILL_PX);
 		expect(
 			samples.filter((sample) => (sample[3] ?? 0) > 0).length,

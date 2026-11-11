@@ -88,6 +88,12 @@ export function maliniTools(
 			},
 			({ width }) => run({ action: 'resize', width }),
 		),
+		tool(
+			'browser_close',
+			"Close the tab you opened in Malini's browser, its page included, once the user no longer needs to see it. Tabs the user opened stay. browser_open opens a new tab again.",
+			{},
+			() => run({ action: 'close' }),
+		),
 	];
 	const preApproved = [...browserTools.map(({ name }) => name), ...PRE_APPROVED_PLATFORM_TOOLS];
 	return {

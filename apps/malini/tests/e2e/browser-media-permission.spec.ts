@@ -8,6 +8,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	showInspector,
 } from './harness';
 
 const MICROPHONE_PAGE = `<!doctype html><title>Microphone</title><button>Record</button><script>
@@ -57,6 +58,7 @@ test('a page that asks for the microphone asks you first in a sheet on the Malin
 		);
 		writeFileSync(join(seeded.worktree, 'microphone.html'), MICROPHONE_PAGE);
 		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 

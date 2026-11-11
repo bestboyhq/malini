@@ -32,6 +32,20 @@ export function variantSwitcher(
 	return null;
 }
 
+export function chosenVariantPage(
+	url: string,
+	workstreamId: string,
+	variants: readonly OfferedVariant[],
+	chosenId: string,
+): string | null {
+	const switcher = variantSwitcher(url, workstreamId, [variants]);
+	if (!switcher) return null;
+	const chosen = switcher.pages.findIndex((page) => page.id === chosenId);
+	return chosen === -1 || chosen === switcher.current
+		? null
+		: (switcher.pages[chosen]?.url ?? null);
+}
+
 export function steppedVariant(switcher: VariantSwitcher, step: number): VariantPage | null {
 	const count = switcher.pages.length;
 	return switcher.pages[(((switcher.current + step) % count) + count) % count] ?? null;

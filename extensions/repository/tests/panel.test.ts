@@ -291,6 +291,28 @@ test('the Changed filter opens its own folders and hands the whole tree back as 
 	});
 });
 
+test('Files opens on the changed files when the workstream asked for them before it mounted', async () => {
+	await withDom(async ({ document }) => {
+		const controller = new PanelTestController({
+			...repositoryPanelState(['src/lib/view.ts', 'src/main.ts', 'README.md'], ['src/lib/view.ts']),
+			changedOnly: true,
+		});
+		const target = document.createElement('div');
+		const instance = await createRepositoryPanel(repositoryPanelApi(), controller, 'files').mount(
+			target,
+			repositoryPanelContext(),
+		);
+		await new Promise<void>((resolve) => setImmediate(resolve));
+
+		try {
+			assert.deepEqual(treeRowPaths(target), ['src', 'src/lib', 'src/lib/view.ts']);
+			assert.ok(target.querySelector('[aria-label="Remove the changed files filter"]'));
+		} finally {
+			await instance.dispose();
+		}
+	});
+});
+
 test('a changed row shows its line stat, and the directories above it sum theirs', async () => {
 	await withDom(async ({ document }) => {
 		const state = repositoryPanelState(
@@ -1537,6 +1559,11 @@ class PanelTestController {
 		return this.#state;
 	}
 
+	setChangedOnly(changedOnly: boolean): RepositoryViewState {
+		this.emit({ ...this.#state, changedOnly });
+		return this.#state;
+	}
+
 	setDiffScope(scope: RepositoryViewState['diffScope']): RepositoryViewState {
 		this.requestedDiffScopes.push(scope);
 		this.#state = { ...this.#state, diffScope: scope, diff: null };
@@ -1652,6 +1679,7 @@ function repositoryPanelState(
 		additions: 0,
 		deletions: 0,
 		diffScope: 'uncommitted',
+		changedOnly: false,
 		uncommitted: { diffs: [], changedFiles: dirtyPaths.length, additions: 0, deletions: 0 },
 		refreshedAt: 1,
 		pullRequestRefreshStatus: 'ready',

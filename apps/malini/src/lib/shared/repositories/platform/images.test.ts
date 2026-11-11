@@ -7,11 +7,13 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }));
 
 import {
 	MAX_PREVIEW_BYTES,
+	audioMediaType,
 	imageMediaType,
 	readWorkstreamImage,
 	safeRelativePath,
 	parseWorkstreamId,
 	requestedRange,
+	svgMediaType,
 	videoMediaType,
 	workstreamMediaResponse,
 } from './images';
@@ -168,6 +170,50 @@ describe('videoMediaType', () => {
 	});
 });
 
+describe('audioMediaType', () => {
+	it('recognizes mp3, aac, wav, ogg, flac and m4a by signature only', () => {
+		expect(audioMediaType(Buffer.from('ID3\x04\0\0'))).toBe('audio/mpeg');
+		expect(audioMediaType(Buffer.from([0xff, 0xfb, 0x90, 0x64]))).toBe('audio/mpeg');
+		expect(audioMediaType(Buffer.from([0xff, 0xf3, 0x48, 0xc4]))).toBe('audio/mpeg');
+		expect(audioMediaType(Buffer.from([0xff, 0xf1, 0x50, 0x80]))).toBe('audio/aac');
+		expect(audioMediaType(Buffer.from([0xff, 0xf9, 0x50, 0x80]))).toBe('audio/aac');
+		expect(audioMediaType(Buffer.from('RIFF\0\0\0\0WAVEfmt '))).toBe('audio/wav');
+		expect(audioMediaType(Buffer.from('OggS\0\x02'))).toBe('audio/ogg');
+		expect(audioMediaType(Buffer.from('fLaC\0\0\0\x22'))).toBe('audio/flac');
+		expect(audioMediaType(Buffer.from('\0\0\0\x20ftypM4A \0\0\0\0'))).toBe('audio/mp4');
+	});
+
+	it('leaves video, images and text alone', () => {
+		expect(audioMediaType(Buffer.from('\0\0\0\x20ftypisom'))).toBeNull();
+		expect(audioMediaType(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01]))).toBeNull();
+		expect(audioMediaType(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBeNull();
+		expect(audioMediaType(Buffer.from([0xff, 0xe0, 0x00, 0x00]))).toBeNull();
+		expect(audioMediaType(Buffer.from('RIFF\0\0\0\0WEBPVP8 '))).toBeNull();
+		expect(audioMediaType(PNG)).toBeNull();
+		expect(audioMediaType(Buffer.from('hello'))).toBeNull();
+		expect(audioMediaType(Buffer.alloc(0))).toBeNull();
+	});
+});
+
+describe('svgMediaType', () => {
+	it('recognizes an svg document behind a declaration, comments or a doctype', () => {
+		expect(svgMediaType(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'))).toBe(
+			'image/svg+xml',
+		);
+		expect(
+			svgMediaType(
+				Buffer.from(
+					'\uFEFF<?xml version="1.0"?>\n<!-- logo -->\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n<svg>',
+				),
+			),
+		).toBe('image/svg+xml');
+		expect(svgMediaType(Buffer.from('<!doctype html><svg>'))).toBeNull();
+		expect(svgMediaType(Buffer.from('<html><svg></svg></html>'))).toBeNull();
+		expect(svgMediaType(Buffer.from('<svgx>'))).toBeNull();
+		expect(svgMediaType(PNG)).toBeNull();
+	});
+});
+
 describe('requestedRange', () => {
 	it('reads one byte range the way a video element asks for it', () => {
 		expect(requestedRange(null, 100)).toBe('whole');
@@ -198,6 +244,25 @@ describe('workstreamMediaResponse', () => {
 
 		const beyond = await workstreamMediaResponse(join(worktree, 'clip.mp4'), 'bytes=5000-');
 		expect(beyond.status).toBe(416);
+	});
+
+	it('streams audio with ranges, and an svg whole under a policy that runs nothing', async () => {
+		const WAV = Buffer.concat([Buffer.from('RIFF\0\0\0\0WAVEfmt '), Buffer.alloc(500, 3)]);
+		await worktreeWith('.context/voice.wav', WAV);
+		await worktreeWith(
+			'.context/logo.svg',
+			'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+		);
+		const audio = await workstreamMediaResponse(join(worktree, '.context/voice.wav'), 'bytes=0-3');
+		expect(audio.status).toBe(206);
+		expect(audio.headers.get('content-type')).toBe('audio/wav');
+		expect(audio.headers.get('content-range')).toBe(`bytes 0-3/${WAV.length}`);
+		expect(Buffer.from(await audio.arrayBuffer()).toString('latin1')).toBe('RIFF');
+
+		const svg = await workstreamMediaResponse(join(worktree, '.context/logo.svg'), null);
+		expect(svg.status).toBe(200);
+		expect(svg.headers.get('content-type')).toBe('image/svg+xml');
+		expect(svg.headers.get('content-security-policy')).toContain("default-src 'none'");
 	});
 
 	it('serves an image whole and refuses what is neither', async () => {

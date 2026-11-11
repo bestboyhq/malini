@@ -21,6 +21,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	showInspector,
 	temporaryRoot,
 	withoutConsoleErrors,
 } from './harness';
@@ -171,6 +172,7 @@ test.fixme(
 			const seeded = await seedWorkstream(page, source, 'e2e-local-extension', 'Local extension');
 			const other = await seedWorkstream(page, source, 'e2e-local-extension-other', 'Other');
 			await openWorkstream(page, seeded.workstreamId);
+			await showInspector(page);
 			await recordOpenedLinks(app);
 
 			await showHealthyPanel(page);
@@ -238,6 +240,7 @@ test('recovery mode starts no local extension', async () => {
 			.toEqual(
 				expect.arrayContaining([`${HEALTHY} recovery-skipped`, `${CRASHES} recovery-skipped`]),
 			);
+		await showInspector(page);
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
 		await expect(page.getByRole('menuitem', { name: 'New browser tab' })).toBeVisible();
 		await expect(page.getByRole('menuitem', { name: 'Healthy' })).toHaveCount(0);
@@ -339,6 +342,7 @@ test('the inspector says it did not start when the warm-up ahead of it hangs', a
 		await expect(failure).toContainText(/did not become ready within 15 seconds/u, {
 			timeout: 30_000,
 		});
+		await captureFlow(app, 'inspector-runtime-error-closed');
 		await failure.getByRole('button', { name: 'Retry' }).click();
 		await expect(failure).toHaveCount(0);
 		await expect(failure).toContainText(/did not become ready within 15 seconds/u, {

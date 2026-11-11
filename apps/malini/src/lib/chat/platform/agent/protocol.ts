@@ -477,7 +477,8 @@ export type BrowserRequestAction =
 	| { action: 'back' }
 	| { action: 'forward' }
 	| { action: 'reload' }
-	| { action: 'resize'; width: number };
+	| { action: 'resize'; width: number }
+	| { action: 'close' };
 
 export type BridgeBrowserRequest = {
 	type: 'bridge.browser_request';
@@ -1156,6 +1157,7 @@ function decodeBrowserRequest(
 		case 'back':
 		case 'forward':
 		case 'reload':
+		case 'close':
 			return { ok: true, value: { ...base, action } };
 		case 'click':
 			return { ok: true, value: { ...base, action, selector: f.string('selector') } };

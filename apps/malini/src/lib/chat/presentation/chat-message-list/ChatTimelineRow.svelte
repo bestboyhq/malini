@@ -11,7 +11,7 @@
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
-	import { finalTurnReport } from '../turn-result';
+	import { finalTurnReport, turnOver } from '../turn-result';
 	import { withoutReportFooter } from '$lib/chat/domain/turn-report';
 	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { shellRunsQuery } from '$lib/chat/application/queries/shell-runs.query.svelte';
@@ -136,7 +136,8 @@
 				report={turnReport}
 				workstreamId={transcript.workstreamId}
 				history={earlierTurns}
-				needsOpen={isLastRun && !transcript.pullRequestShipped}
+				ended={turnOver(run)}
+				needsOpen={isLastRun && !transcript.pullRequestShipped && turnOver(run)}
 				live={transcript.newestReport === item.key}
 				pick={variantPick}
 				pickOf={(reportKey) => transcript.variantPick(reportKey)?.pick ?? null}

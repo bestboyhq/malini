@@ -123,7 +123,7 @@ describe('groupRunTimeline folding', () => {
 		expect(groupRunTimeline([read])).toEqual([read]);
 	});
 
-	it('keeps one group across the thoughts between tool calls, and shows the newest', () => {
+	it('keeps one group across the thoughts between tool calls', () => {
 		const narration = thought(4);
 		const items = [
 			tool('Read', { file_path: 'src/a.ts' }),
@@ -135,7 +135,6 @@ describe('groupRunTimeline folding', () => {
 		const group = onlyGroup(items);
 		expect(group.items).toEqual(items);
 		expect(group.detail).toBe('4 files');
-		expect(group.latestMessage).toBe('Considering the options');
 	});
 
 	it('leaves a thought before the first and after the last tool call outside the group', () => {
@@ -190,9 +189,8 @@ describe('groupRunTimeline folding', () => {
 		];
 		const group = onlyGroup(items);
 		expect(group.items).toEqual(items);
-		expect(group.detail).toBe('2 files, ran 1 command');
-		expect(group.latestMessage).toBe('Then I run the tests.');
-		expect(group.liveVerb).toBe('Working');
+		expect(group.detail).toBe('2 files · 1 command');
+		expect(group.verb).toBe('Worked');
 	});
 
 	it('leaves the message after the last tool call outside the group', () => {
@@ -433,11 +431,7 @@ describe('groupRunTimeline failures', () => {
 		if (failed.kind !== 'tool') throw new Error('expected a tool item');
 		failed.tool.error = `${'x'.repeat(400)}\nstderr:\nnoise`;
 
-		const failure = onlyGroup([tool('Read'), failed]).failures[0];
-		if (!failure) throw new Error('expected a failure');
-		const message = failure.message;
-		expect(message).toHaveLength(240);
-		expect(message.endsWith('…')).toBe(true);
+		expect(onlyGroup([tool('Read'), failed]).failures[0]?.message).toBe('x'.repeat(400));
 	});
 
 	it('lists every failure in the group, in order', () => {
@@ -474,13 +468,23 @@ describe('groupRunTimeline detail', () => {
 		expect(onlyGroup([file('src/a.ts'), file('src/b.ts')]).detail).toBe('2 files');
 	});
 
+	it('names what an edit group edited and counts the files it only read', () => {
+		const group = onlyGroup([
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			tool('Edit', { file_path: 'src/b.ts' }),
+			tool('Read', { file_path: 'src/c.ts' }),
+		]);
+		expect(`${group.verb} ${group.detail}`).toBe('Edited b.ts · read 2');
+	});
+
 	it('aggregates files, searches and commands in that order', () => {
 		const group = onlyGroup([
 			tool('Read', { file_path: 'src/lib/is-dev.util.ts' }),
 			tool('Grep', { pattern: 'isDev' }),
 			...Array.from({ length: 7 }, () => tool('Bash', { command: 'ls' })),
 		]);
-		expect(group.detail).toBe('is-dev.util.ts, 1 search, ran 7 commands');
+		expect(group.detail).toBe('is-dev.util.ts · 1 search · 7 commands');
 	});
 
 	it('pluralises the search clause', () => {
@@ -489,13 +493,13 @@ describe('groupRunTimeline detail', () => {
 		).toBe('2 searches');
 		expect(
 			onlyGroup([tool('Grep', { pattern: 'todo' }), tool('Bash', { command: 'ls' })]).detail,
-		).toBe('1 search, ran 1 command');
+		).toBe('1 search · 1 command');
 	});
 
 	it('pluralises the command clause', () => {
 		expect(onlyGroup([command(0), command(0), command(0)]).detail).toBe('3 commands');
 		expect(onlyGroup([command(0), tool('mcp__malini__browser_open')]).detail).toBe('1 command');
-		expect(onlyGroup([command(0), file('src/a.ts')]).detail).toBe('a.ts, ran 1 command');
+		expect(onlyGroup([command(0), file('src/a.ts')]).detail).toBe('a.ts · 1 command');
 	});
 
 	it('falls back to a step count when nothing nameable happened', () => {
@@ -509,7 +513,7 @@ describe('groupRunTimeline detail', () => {
 			tool('Grep', { pattern: 'todo' }),
 			...Array.from({ length: 7 }, () => tool('Bash', { command: 'ls' })),
 		]);
-		expect(group.detail).toBe('an-extremely-long-component-file-name.stories.tsx, 1 search');
+		expect(group.detail).toBe('an-extremely-long-component-file-name.stories.tsx · 1 search');
 		expect(group.detail.length).toBeLessThanOrEqual(ACTIVITY_GROUP_DETAIL_MAX_CHARS);
 	});
 
@@ -653,7 +657,7 @@ describe('foldRunWork', () => {
 		]);
 		expect(fold.rows).toContain(note);
 		expect(folded[3]).toBe(answer);
-		expect(`${fold.verb} ${fold.detail}`).toBe('Edited a.ts, ran 1 command');
+		expect(`${fold.verb} ${fold.detail}`).toBe('Edited a.ts · 1 command');
 	});
 
 	it('leaves a run with one step of work as it is', () => {

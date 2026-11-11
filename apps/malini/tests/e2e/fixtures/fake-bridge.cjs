@@ -720,6 +720,37 @@ const released = (name) => {
 	fs.rmSync(path);
 	return true;
 };
+const REPORT_STREAM_RELEASE = 'release-report-stream';
+const REPORT_CHECK_RELEASE = 'release-report-check';
+const heldReportRun = (sessionId, runId) => {
+	pendingRuns.set(runId, sessionId);
+	const text = 'Checked the header.' + CHAT_TURN_REPORT;
+	const held = text.indexOf('Needs:') + 'Nee'.length;
+	const chunks = [...text.slice(0, held).split(/(?<=\n)/), text.slice(held)];
+	let streamed = 0;
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (streamed < chunks.length) {
+			if (streamed === chunks.length - 1 && !released(REPORT_STREAM_RELEASE)) return;
+			event({ type: 'assistant.delta', runId, contentId: 'report', text: chunks[streamed] });
+			streamed += 1;
+			if (streamed === chunks.length) {
+				event({ type: 'assistant.message', runId, contentId: 'report', text });
+			}
+			return;
+		}
+		if (!released(REPORT_CHECK_RELEASE)) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, ...finalUsage });
+		event({
+			type: 'run.completed',
+			runId,
+			summary: 'The header stays pinned while the page scrolls.',
+		});
+		event({ type: 'session.state', sessionId, status: 'completed' });
+	}, STREAM_LINE_MS);
+};
 const goesOnAfterBackgroundCommand = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
@@ -1290,6 +1321,7 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_REPORT')) {
 		return backgroundReportRun(sessionId, runId, /COMMIT=([^"\n]+)/.exec(prompt)?.[1]);
 	}
+	if (prompt.includes('REPORT_HELD')) return heldReportRun(sessionId, runId);
 	if (prompt.includes('FOLLOW_UP_TURN')) {
 		return followUpTurnRun(sessionId, runId, /COMMIT=([^"\n]+)/.exec(prompt)?.[1]);
 	}
@@ -1379,6 +1411,32 @@ const respond = async (sessionId, runId, prompt) => {
 			error: 'ESLint found 3 problems\n  src/a.ts  1:1  error',
 		});
 	}
+	if (prompt.includes('BASH_BLOCKED')) {
+		const toolCallId = 'bash-blocked-' + runId;
+		const input = { command: 'sleep 45', description: 'Wait 45 seconds' };
+		event({ type: 'tool.started', runId, name: 'Bash', toolCallId, input });
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Bash',
+			toolCallId,
+			error:
+				'<tool_use_error>Blocked: standalone sleep 45. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to get around this block.</tool_use_error>',
+		});
+	}
+	if (prompt.includes('READ_MISSING')) {
+		const toolCallId = 'read-missing-' + runId;
+		const input = { file_path: 'src/missing.ts' };
+		event({ type: 'tool.started', runId, name: 'Read', toolCallId, input });
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Read',
+			toolCallId,
+			error:
+				'<tool_use_error>File does not exist. Note: your current working directory is `/Users/dev/app`.</tool_use_error>',
+		});
+	}
 	const stream = /STREAM:(\d+)/.exec(prompt);
 	const toolStream = /TOOL_STREAM:(\d+)(?::(\d+))?/.exec(prompt);
 	if (toolStream) {
@@ -1456,6 +1514,17 @@ const respond = async (sessionId, runId, prompt) => {
 			sessionId,
 			action: 'resize',
 			width: Number(browserResize[1]),
+		});
+		return;
+	}
+	if (prompt.includes('BROWSER_CLOSE')) {
+		pendingRuns.set(runId, sessionId);
+		write({
+			type: 'bridge.browser_request',
+			protocolVersion: version,
+			requestId: 'browser-close-' + runId,
+			sessionId,
+			action: 'close',
 		});
 		return;
 	}
@@ -2012,7 +2081,7 @@ const handle = (command) => {
 		}
 		case 'browser_result': {
 			ack(command.id);
-			const runId = /^browser-resize-(.+)$/.exec(command.requestId)?.[1];
+			const runId = /^browser-(?:resize|close)-(.+)$/.exec(command.requestId)?.[1];
 			if (!runId || !pendingRuns.has(runId)) return;
 			pendingRuns.delete(runId);
 			const result = command.ok ? command.text : command.error;

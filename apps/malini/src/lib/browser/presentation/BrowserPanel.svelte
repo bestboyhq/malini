@@ -6,6 +6,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { overlaySuppression } from '$hyper-ui/overlay';
+	import { variantChoices } from '$shared/variants/variant-choices.store.svelte';
 
 	import { cancelElementPickCommand } from '../application/commands/cancel-element-pick.command';
 	import { goBackBrowserCommand } from '../application/commands/go-back-browser.command';
@@ -63,6 +64,9 @@
 	const settledUrl = $derived(browser && !browser.loading && failure === null ? url : '');
 	const variants = $derived(isWorktreePage(url) ? offered.data(workstreamId) : NO_VARIANTS);
 	const switcher = $derived(variantSwitcher(url, workstreamId, variants));
+	const shownVariant = $derived(
+		switcher && failure === null ? (switcher.pages[switcher.current]?.url ?? null) : null,
+	);
 
 	let draft: string | null = $state(null);
 	let viewport: HTMLElement | null = null;
@@ -73,6 +77,10 @@
 
 	$effect(() => {
 		if (settledUrl) pictureBrowserPageCommand(tab);
+	});
+
+	$effect(() => {
+		if (shownVariant) variantChoices.show(shownVariant);
 	});
 
 	onMount(() => {
