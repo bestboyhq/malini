@@ -1,4 +1,4 @@
-# 0223 - The result card shows once the report lands
+# 0225 - The result card shows once the report lands
 
 Status: accepted
 
@@ -12,10 +12,11 @@ The user said: "we have run summary cards that by the way are not summarized unt
 
 ## Decision
 
-- `finalTurnReport` and `runTurn` in `src/lib/chat/presentation/turn-result.ts` no longer read `run.turnEnded`.
+- `finalTurnReport` in `src/lib/chat/presentation/turn-result.ts` reads neither `run.turnEnded` nor `turn.answered` (amends 0222).
   The card belongs to the run's last complete assistant message with a report footer, as soon as it exists.
-  When the same run writes a newer reported message, the card moves to it and the older one shows as prose without its footer, as before.
-  The earlier-turns list and variant picks use `runTurn`, so the trail moves to the new card when it shows, not when the run ends.
+  `runTurns` and `foldsIntoLaterTurn` read `answerTurn(run)`, the answered reports plus that latest one.
+  When the same run writes a newer reported message, the card moves to it: an older answered report folds into **Earlier turns** (0222), and an unanswered one shows as prose without its footer.
+  The earlier-turns list and variant picks use `runTurns`, so the trail moves to the new card when it shows, not when the turn answers.
 - `turnOver(run)` is `turnEnded`, or a `failed` or `cancelled` terminal.
   A `paused` run is not over, since Malini resumes it (ADR 0100).
 - `ChatTimelineRow.svelte` passes `ended={turnOver(run)}` to the card, and opens its needs only when the turn is over.
@@ -37,4 +38,4 @@ The user said: "we have run summary cards that by the way are not summarized unt
 - The card shows the moment the report lands, honest that the run still goes, and asks only once the turn is over.
 - With **Plain replies** on (ADR 0178), the bridge holds a reply until its check passes, so the card still waits for the check; the streamed preview shows without its footer meanwhile.
 - A footer written in an odd order, such as `Commit:` before `Outcome:`, shows its earlier lines while they stream, then drops them, which restarts that block's playback.
-- Enforced by `turn-report.test.ts` ("never shows a footer line while the reply streams, and only ever grows the text it shows", and the `unfinished` status case), `turn-result.test.ts` ("is only the last answer of a run that carries a report, whether or not the run has ended", "moves to a newer report the same run writes, and ends the turn only once the run stops for good"), `render-projector.test.ts` ("ends the turn when the agent replies while only background commands run, until it works again"), `tests/e2e/turn-report.spec.ts` ("the result card shows as soon as the report lands, and asks only once the run ends", "a run stopped after its report keeps the report as its result card") on the fake bridge's `REPORT_HELD` directive, and `tests/e2e/background-agents.spec.ts` ("a background agent shows as running past the turn, then shows its result").
+- Enforced by `turn-report.test.ts` ("never shows a footer line while the reply streams, and only ever grows the text it shows", and the `unfinished` status case), `turn-result.test.ts` ("is only the last answer of a run that carries a report, whether or not its turn answered or the run ended", "moves to a newer report the same run writes, and ends the turn only once the run stops for good", "moves to the next report the same run writes, and folds the earlier answered one into it"), `render-projector.test.ts` ("shows each answered report at once while only background commands run, and folds the earlier one"), `tests/e2e/turn-report.spec.ts` ("the result card shows as soon as the report lands, and asks only once the run ends", "a run stopped after its report keeps the report as its result card") on the fake bridge's `REPORT_HELD` directive, and `tests/e2e/background-agents.spec.ts` ("a turn's report card shows at once while its background agent runs, then folds into the next report").

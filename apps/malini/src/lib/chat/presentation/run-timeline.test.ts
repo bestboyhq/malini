@@ -33,6 +33,7 @@ function runWithEdit(name: string, toolPath: string, changedPath: string): RunGr
 		failure: null,
 		resumeAt: null,
 		turnEnded: false,
+		answeredReports: [],
 		items: [
 			toolItem(name, { file_path: toolPath }),
 			{ kind: 'file', key: 'file', seq: 3, path: changedPath },
@@ -51,6 +52,7 @@ describe('linearizeRunTimeline', () => {
 			failure: null,
 			resumeAt: null,
 			turnEnded: true,
+			answeredReports: [],
 			items: [
 				{ kind: 'user', key: 'user', seq: 1, text: 'Update it' },
 				{
@@ -109,6 +111,7 @@ describe('linearizeRunTimeline', () => {
 			failure: null,
 			resumeAt: null,
 			turnEnded: false,
+			answeredReports: [],
 			items: [
 				{
 					kind: 'tool',
@@ -142,6 +145,7 @@ describe('linearizeRunTimeline', () => {
 			failure: null,
 			resumeAt: null,
 			turnEnded: false,
+			answeredReports: [],
 			items: [
 				{
 					kind: 'tool',
@@ -180,6 +184,7 @@ describe('linearizeRunTimeline', () => {
 			failure: null,
 			resumeAt: null,
 			turnEnded: false,
+			answeredReports: [],
 			items: [
 				{ kind: 'file', key: 'file', seq: 2, path: 'src/app.ts' },
 				toolItem('Edit', { file_path: 'src/app.ts' }, 5),

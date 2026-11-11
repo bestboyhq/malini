@@ -23,6 +23,7 @@ function run(terminal: RunGroup['terminal']): RunGroup {
 		failure: null,
 		resumeAt: null,
 		turnEnded: terminal === 'completed',
+		answeredReports: [],
 		superseded: false,
 		obsoleted: false,
 	};

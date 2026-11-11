@@ -18,7 +18,7 @@ export function isWaitingForUser(status: SessionStatus | null | undefined): bool
 	return status === 'waiting_for_approval';
 }
 
-export function hasOpenRun(status: SessionStatus | null | undefined): boolean {
+export function isAgentWorking(status: SessionStatus | null | undefined): boolean {
 	return status === 'running' || status === 'waiting_for_approval';
 }
 
@@ -28,6 +28,8 @@ export type LifecycleEventKind =
 	| 'question.requested'
 	| 'approval.decided'
 	| 'question.answered'
+	| 'turn.ended'
+	| 'turn.resumed'
 	| 'run.completed'
 	| 'run.failed'
 	| 'checkpoint.restored';
@@ -38,6 +40,8 @@ export const LIFECYCLE_KINDS: readonly LifecycleEventKind[] = [
 	'question.requested',
 	'approval.decided',
 	'question.answered',
+	'turn.ended',
+	'turn.resumed',
 	'run.completed',
 	'run.failed',
 	'checkpoint.restored',
@@ -88,6 +92,10 @@ export function nextSessionStatus(
 		case 'approval.decided':
 		case 'question.answered':
 			return isWaitingForUser(status) && guard.stillWaiting !== true ? 'running' : status;
+		case 'turn.ended':
+			return 'completed';
+		case 'turn.resumed':
+			return status === 'completed' ? 'running' : status;
 		case 'run.completed':
 			return 'completed';
 		case 'run.failed':

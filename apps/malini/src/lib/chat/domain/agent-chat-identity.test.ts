@@ -12,7 +12,7 @@ describe('agent chat identity', () => {
 		expect(deriveAgentChatActivity('completed')).toBe('idle');
 		expect(deriveAgentChatActivity('running')).toBe('in-progress');
 		expect(deriveAgentChatActivity('running', false, 'agents')).toBe('in-background');
-		expect(deriveAgentChatActivity('running', false, 'commands')).toBe('commands-running');
+		expect(deriveAgentChatActivity('running', false, 'commands')).toBe('in-progress');
 		expect(deriveAgentChatActivity('running', true, 'commands')).toBe('in-progress');
 		expect(deriveAgentChatActivity('idle', true, 'agents')).toBe('in-progress');
 		expect(deriveAgentChatActivity('idle', true)).toBe('in-progress');
@@ -20,32 +20,19 @@ describe('agent chat identity', () => {
 		expect(deriveAgentChatActivity('failed')).toBe('failed');
 	});
 
-	it('asks before closing a chat whose agent or background commands would stop', () => {
+	it('asks before closing a chat whose agent would stop', () => {
 		const activities: AgentChatActivity[] = [
 			'idle',
 			'in-progress',
 			'in-background',
-			'commands-running',
 			'needs-approval',
 			'failed',
 		];
 		expect(activities.filter(closingStopsAgent)).toEqual([
 			'in-progress',
 			'in-background',
-			'commands-running',
 			'needs-approval',
 		]);
-	});
-
-	it('names a chat that only waits on its background commands without calling it busy', () => {
-		expect(
-			agentChatIdentity({
-				displayName: 'Serve the app',
-				model: null,
-				status: 'running',
-				backgroundWait: 'commands',
-			}),
-		).toMatchObject({ activity: 'commands-running', statusLabel: 'Background commands running' });
 	});
 
 	it('keeps provider and model as metadata instead of using them as the name', () => {

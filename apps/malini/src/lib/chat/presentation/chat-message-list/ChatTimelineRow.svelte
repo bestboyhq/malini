@@ -46,7 +46,7 @@
 	const earlierTurns = $derived(turnReport ? transcript.earlierTurns(run.runId) : []);
 	const reportSeq = $derived(turnReport ? runLastSeq(run) : null);
 	const variantPick = $derived(
-		turnReport ? (transcript.variantPick(run.runId)?.pick ?? null) : null,
+		turnReport ? (transcript.variantPick(item.key)?.pick ?? null) : null,
 	);
 	const message = $derived(
 		item.kind === 'assistant' ? timelineKey(run, item.contentId ?? item.key) : null,
@@ -139,7 +139,7 @@
 				ended={turnOver(run)}
 				needsOpen={isLastRun && !transcript.pullRequestShipped && turnOver(run)}
 				pick={variantPick}
-				pickOf={(runId) => transcript.variantPick(runId)?.pick ?? null}
+				pickOf={(reportKey) => transcript.variantPick(reportKey)?.pick ?? null}
 				onopenfile={transcript.openFileMention}
 				canopenfile={transcript.canOpenFileMention}
 				imagesrc={transcript.markdownImageSource}

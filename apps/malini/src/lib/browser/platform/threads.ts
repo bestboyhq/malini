@@ -1,5 +1,5 @@
 import type { AgentRunProfile } from '$contract/agent';
-import { hasOpenRun, isLifecycleKind } from '$contract/agent-state-machine';
+import { isAgentWorking, isLifecycleKind } from '$contract/agent-state-machine';
 import type { BrowserElementPrompt, BrowserTabArgs } from '$contract/browser';
 import type { CommandRegistry } from '$main/ipc/registry';
 import type { ElementThread } from '$lib/chat/chat.platform';
@@ -59,6 +59,6 @@ export function threadPin(thread: ElementThread): ThreadPin {
 
 function pinStatus({ status, waiting }: ElementThread): PinStatus {
 	if (waiting) return 'waiting';
-	if (hasOpenRun(status)) return 'working';
+	if (isAgentWorking(status)) return 'working';
 	return status === 'failed' ? 'failed' : 'done';
 }

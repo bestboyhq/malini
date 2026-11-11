@@ -13,6 +13,7 @@ import {
 	listOpenBackgroundCommands,
 	providerResumePoint,
 	runAdvancedResumePoint,
+	sessionHasWorkingRun,
 	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	updateEventPayload,
@@ -35,7 +36,7 @@ import {
 	workstreamHasOpenRun,
 	type TerminalRunStatus,
 } from './runs.repository';
-import { getSession, insertSession } from './sessions.repository';
+import { getSession, insertSession, moveSessionStatus } from './sessions.repository';
 import { seedInteractionContext } from './test-support';
 
 describe('events', () => {
@@ -523,17 +524,18 @@ describe('what keeps running in a workstream', () => {
 		seedInteractionContext(db, 'ws-dev', 'sess-dev', 'run-dev');
 		const server = { taskId: 'b-dev', kind: 'command', description: 'Dev server', startedAt: 1 };
 		const helper = { taskId: 'a-help', kind: 'agent', description: 'Helper', startedAt: 2 };
-		const background = (waiting: boolean, tasks: readonly object[]) =>
-			appendEvent(db, 'sess-dev', 'run-dev', 'background.updated', { waiting, tasks });
+		const working = () => [
+			workstreamHasWorkingRun(db, 'ws-dev'),
+			sessionHasWorkingRun(db, 'sess-dev'),
+		];
 
-		expect(workstreamHasWorkingRun(db, 'ws-dev')).toBe(true);
-		background(false, [server]);
-		expect(workstreamHasWorkingRun(db, 'ws-dev')).toBe(true);
-		background(true, [server, helper]);
-		expect(workstreamHasWorkingRun(db, 'ws-dev')).toBe(true);
-		background(true, [server]);
-		expect(workstreamHasWorkingRun(db, 'ws-dev')).toBe(false);
+		moveSessionStatus(db, 'sess-dev', 'run.started');
+		expect(working()).toEqual([true, true]);
+		moveSessionStatus(db, 'sess-dev', 'turn.ended');
+		expect(working()).toEqual([false, false]);
 		expect(workstreamHasOpenRun(db, 'ws-dev')).toBe(true);
+		moveSessionStatus(db, 'sess-dev', 'turn.resumed');
+		expect(working()).toEqual([true, true]);
 		expect(
 			turnEndedOverBackgroundCommands({
 				type: 'background.updated',

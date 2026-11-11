@@ -18,6 +18,7 @@ function monitorHarness() {
 		workstreamId: string;
 		sessionId: string;
 	}> = [];
+	const applied: string[] = [];
 	const unlisten = vi.fn();
 	const sound = vi.fn();
 	let subscribeCount = 0;
@@ -37,6 +38,9 @@ function monitorHarness() {
 			if (envelope.event.type === 'approval.requested') session.status = 'waiting_for_approval';
 			if (envelope.event.type === 'run.completed') session.status = 'completed';
 			if (envelope.event.type === 'run.failed') session.status = 'failed';
+			if (envelope.event.type === 'turn.ended') session.status = 'completed';
+			if (envelope.event.type === 'turn.resumed') session.status = 'running';
+			applied.push(envelope.event.type);
 			sessions.set(envelope.sessionId, session);
 		},
 		sessionFor: (sessionId) => sessions.get(sessionId) ?? null,
@@ -64,6 +68,7 @@ function monitorHarness() {
 
 	return {
 		monitor,
+		applied,
 		sessions,
 		contexts,
 		attentions,
@@ -157,6 +162,20 @@ describe('AgentLifecycleMonitor', () => {
 			},
 		]);
 		expect(harness.sound).toHaveBeenCalledExactlyOnceWith('finished');
+	});
+
+	it('moves a chat off screen through the end and the resumption of its turn without asking for the user', () => {
+		const harness = watchingStreamA();
+
+		harness.emit(envelope('session-a', 'run-a', 4, { type: 'turn.ended', runId: 'run-a' }));
+		expect(harness.sessions.get('session-a')?.status).toBe('completed');
+		harness.emit(envelope('session-a', 'run-a', 5, { type: 'turn.resumed', runId: 'run-a' }));
+
+		expect(harness.applied).toEqual(['turn.ended', 'turn.resumed']);
+		expect(harness.sessions.get('session-a')?.status).toBe('running');
+		expect(harness.attentions.has('session-a')).toBe(false);
+		expect(harness.notifications).toEqual([]);
+		expect(harness.sound).not.toHaveBeenCalled();
 	});
 
 	it('names a turn that ended over background commands and needs the user as needing them', () => {

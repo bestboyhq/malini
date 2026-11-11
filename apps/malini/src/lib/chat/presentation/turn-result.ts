@@ -2,11 +2,18 @@ import { hasTurnReport, parseTurnReport, type TurnReport } from '$lib/chat/domai
 import { readVariantPick, type VariantPick } from '$lib/chat/domain/variant-pick';
 import type { RenderItem, RunGroup } from './render-state';
 
-export type EarlierTurn = Readonly<{ runId: string; report: TurnReport }>;
+export type EarlierTurn = Readonly<{ runId: string; key: string; report: TurnReport }>;
 
-export type RunPick = Readonly<{ reportRunId: string; promptRunId: string; pick: VariantPick }>;
+export type RunPick = Readonly<{ reportKey: string; promptRunId: string; pick: VariantPick }>;
 
 const EARLIER_TURN_LIMIT = 3;
+
+export function answerTurn(run: RunGroup): readonly string[] {
+	const key = lastReport(run)?.key;
+	return key === undefined || run.answeredReports.includes(key)
+		? run.answeredReports
+		: [...run.answeredReports, key];
+}
 
 export function finalTurnReport(run: RunGroup, itemKey: string, text: string): TurnReport | null {
 	if (!hasTurnReport(text) || lastReport(run)?.key !== itemKey) return null;
@@ -17,30 +24,46 @@ export function turnOver(run: RunGroup): boolean {
 	return run.turnEnded || run.terminal === 'failed' || run.terminal === 'cancelled';
 }
 
-export function runTurn(run: RunGroup): EarlierTurn | null {
-	const answer = lastReport(run);
-	return answer ? { runId: run.runId, report: parseTurnReport(answer.text) } : null;
+export function foldsIntoLaterTurn(run: RunGroup, itemKey: string): boolean {
+	if (!run.answeredReports.includes(itemKey)) return false;
+	const reports = answerTurn(run);
+	return reports.indexOf(itemKey) < reports.length - 1;
+}
+
+export function runTurns(run: RunGroup): readonly EarlierTurn[] {
+	return answerTurn(run).flatMap((key) => {
+		const item = run.items.find((candidate) => candidate.key === key);
+		return item?.kind === 'assistant'
+			? [{ runId: run.runId, key, report: parseTurnReport(item.text) }]
+			: [];
+	});
 }
 
 export function earlierTurnsByRun(
 	runs: readonly RunGroup[],
-	turnFor: (run: RunGroup) => EarlierTurn | null = runTurn,
+	turnsFor: (run: RunGroup) => readonly EarlierTurn[] = runTurns,
 ): Map<string, readonly EarlierTurn[]> {
-	let latest: EarlierTurn | null = null;
-	let earlier: readonly EarlierTurn[] = [];
+	const byRun = new Map<string, readonly EarlierTurn[]>();
+	let before: readonly EarlierTurn[] = [];
+	let latest: readonly EarlierTurn[] = [];
 	for (const run of runs) {
 		if (run.superseded || run.obsoleted) continue;
-		const turn = turnFor(run);
-		if (!turn) continue;
-		if (latest) earlier = [...earlier, latest].slice(-EARLIER_TURN_LIMIT);
-		latest = turn;
+		const turns = turnsFor(run);
+		if (turns.length === 0) continue;
+		if (turns.length > 1) byRun.set(run.runId, turns.slice(0, -1));
+		before = [...before, ...latest].slice(-EARLIER_TURN_LIMIT);
+		latest = turns;
 	}
-	return latest ? new Map([[latest.runId, earlier]]) : new Map();
+	const last = latest.at(-1);
+	if (!last) return byRun;
+	const own = latest.slice(0, -1);
+	byRun.set(last.runId, [...before, ...own].slice(-Math.max(EARLIER_TURN_LIMIT, own.length)));
+	return byRun;
 }
 
 export function variantPicksByRun(
 	runs: readonly RunGroup[],
-	turnFor: (run: RunGroup) => EarlierTurn | null = runTurn,
+	turnsFor: (run: RunGroup) => readonly EarlierTurn[] = runTurns,
 	previous: ReadonlyMap<string, RunPick> = new Map(),
 ): ReadonlyMap<string, RunPick> {
 	const picks = new Map<string, RunPick>();
@@ -51,15 +74,15 @@ export function variantPicksByRun(
 		const pick =
 			offered && prompt !== null ? readVariantPick(prompt, offered.report.variants) : null;
 		if (offered && pick) {
-			const prior = previous.get(offered.runId);
+			const prior = previous.get(offered.key);
 			picks.set(
-				offered.runId,
+				offered.key,
 				prior && samePick(prior, run.runId, pick)
 					? prior
-					: { reportRunId: offered.runId, promptRunId: run.runId, pick },
+					: { reportKey: offered.key, promptRunId: run.runId, pick },
 			);
 		}
-		offered = turnFor(run) ?? offered;
+		offered = turnsFor(run).at(-1) ?? offered;
 	}
 	return picks;
 }

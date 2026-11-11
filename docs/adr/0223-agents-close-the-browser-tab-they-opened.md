@@ -1,4 +1,4 @@
-# 0221 - Agents close the browser tab they opened
+# 0223 - Agents close the browser tab they opened
 
 Status: accepted
 
@@ -11,7 +11,7 @@ The agent must never close a tab the user opened.
 
 ## Decision
 
-- The agent gets `browser_close`, with no input (`packages/agent-bridge/src/claude/browser-tools.ts`), sent as the bridge browser action `close`; protocol 54.
+- The agent gets `browser_close`, with no input (`packages/agent-bridge/src/claude/browser-tools.ts`), sent as the bridge browser action `close`; protocol 56.
 - `answerBrowserRequest` (`src/lib/chat/platform/agent/service.ts`) closes only the session's own tab, `agentBrowserTabId(sessionId)`, so no request can name a tab the user opened.
 - `BrowserViews.close` (`src/lib/browser/platform/views.ts`) runs inside the tab's turn, so it closes after a page still opening, destroys the view when one exists, and always emits `browser:tab-closed` with `{ workstreamId, tabId }`.
   It emits even without a view, because after a restart the renderer lists the tab before its panel mounts one.

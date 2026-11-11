@@ -132,7 +132,7 @@
 			{repositoryScopeReady}
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
-			agentWork={chat.agentWork}
+			agentWorking={chat.agentWorking}
 			overrideStatus={provisioningStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}

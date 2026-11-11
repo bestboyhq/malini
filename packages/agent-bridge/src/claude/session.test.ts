@@ -2055,6 +2055,14 @@ describe('ClaudeSession', () => {
 		const runDone = events.findIndex((event) => event.type === 'run.completed');
 		expect(agentDone).toBeGreaterThan(-1);
 		expect(runDone).toBeGreaterThan(agentDone);
+		const answered = events.flatMap((event, index) =>
+			event.type === 'turn.answered' ? [index] : [],
+		);
+		expect(answered).toHaveLength(2);
+		expect(answered[0]).toBeLessThan(agentDone);
+		expect(answered[1]).toBeGreaterThan(agentDone);
+		expect(answered[1]).toBeLessThan(runDone);
+		expect(ofType(events, 'turn.ended')).toEqual([]);
 		expect(
 			ofType(events, 'background.updated').filter((event) => event.summary !== undefined),
 		).toEqual([]);
@@ -2101,6 +2109,22 @@ describe('ClaudeSession', () => {
 		expect(ofType(events, 'run.completed')).toEqual([
 			expect.objectContaining({ runId: 'run-1', summary: 'bg-done' }),
 		]);
+		const types = events.map(({ type }) => type);
+		expect(types.filter((type) => type.startsWith('turn.'))).toEqual([
+			'turn.answered',
+			'turn.ended',
+			'turn.resumed',
+			'turn.answered',
+		]);
+		expect(types.indexOf('turn.answered')).toBeGreaterThan(types.indexOf('assistant.message'));
+		expect(types.lastIndexOf('turn.answered')).toBeGreaterThan(
+			types.lastIndexOf('assistant.message'),
+		);
+		expect(types.indexOf('turn.ended')).toBe(waiting + 1);
+		expect(types.indexOf('turn.resumed')).toBeGreaterThan(settled);
+		expect(types.indexOf('turn.resumed')).toBeLessThan(
+			types.indexOf('assistant.message', types.indexOf('turn.ended')),
+		);
 	});
 
 	it('stops one background task on request and ends the run once nothing is left', async () => {
@@ -2129,6 +2153,10 @@ describe('ClaudeSession', () => {
 
 		expect(claude.runs[0]?.stoppedTasks).toEqual(['b6od5yi4e']);
 		expect(ofType(events, 'background.updated').at(-1)?.tasks).toEqual([]);
+		expect(events.filter(({ type }) => type.startsWith('turn.'))).toEqual([
+			{ type: 'turn.answered', runId: 'run-1' },
+			{ type: 'turn.ended', runId: 'run-1' },
+		]);
 		expect(events.at(-1)).toEqual(
 			expect.objectContaining({ type: 'run.completed', runId: 'run-1', summary: 'launched' }),
 		);
@@ -2149,7 +2177,7 @@ describe('ClaudeSession', () => {
 			[[...script.slice(0, firstIdle + 1), 'wait-for-prompt', ...script.slice(firstIdle + 1)]],
 			{
 				onEvent: (event, current) => {
-					if (event.type === 'background.updated' && event.waiting && !followUp) {
+					if (event.type === 'turn.ended' && !followUp) {
 						followUp = current.sendPrompt('Anything else?', 'run-2', {
 							...profile(),
 							effort: 'low',
@@ -2196,6 +2224,11 @@ describe('ClaudeSession', () => {
 				.filter(({ runId }) => runId === 'run-1')
 				.at(-1),
 		).toMatchObject({ tasks: [], handedOff: true });
+		expect(events.filter(({ type }) => type.startsWith('turn.'))).toEqual([
+			{ type: 'turn.answered', runId: 'run-1' },
+			{ type: 'turn.ended', runId: 'run-1' },
+			{ type: 'turn.answered', runId: 'run-2' },
+		]);
 	});
 
 	it('steers a busy run by interrupting only its turn, so its background command keeps running', async () => {
@@ -2250,6 +2283,16 @@ describe('ClaudeSession', () => {
 				.filter(({ runId, tasks }) => runId === 'run-2' && tasks.length > 0)[0]
 				?.tasks.map(({ taskId }) => taskId),
 		).toEqual(['biv864hkk']);
+		const turns = events.filter(({ type }) => type.startsWith('turn.'));
+		expect(turns).toEqual([
+			{ type: 'turn.answered', runId: 'run-2' },
+			{ type: 'turn.ended', runId: 'run-2' },
+			{ type: 'turn.resumed', runId: 'run-2' },
+			{ type: 'turn.answered', runId: 'run-2' },
+		]);
+		expect(events.findIndex(({ type }) => type.startsWith('turn.'))).toBeGreaterThan(
+			events.findIndex((event) => event.type === 'run.started' && event.runId === 'run-2'),
+		);
 	});
 
 	it('steers a run whose access level changes by restarting Claude Code, the only way to apply it', async () => {
