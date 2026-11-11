@@ -248,7 +248,10 @@ test('a recording cancelled while the microphone starts turns the microphone off
 		await start.click();
 		await start.click({ force: true });
 		await page.getByRole('button', { name: /^Finished sound:/u }).click();
-		await page.getByRole('menuitem', { name: 'Record a sound…' }).click();
+		await page
+			.getByRole('menu', { name: 'Finished sound' })
+			.getByRole('menuitem', { name: 'Record a sound…' })
+			.click();
 		await expect(start).toBeEnabled();
 		await microphone(page, 'release');
 
