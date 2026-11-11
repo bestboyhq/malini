@@ -289,7 +289,7 @@ describe('usage data', () => {
 		expect(reports).toEqual([]);
 	});
 
-	it('carries the account only on current terms, sends no id signed out, and nothing at all on old terms', async () => {
+	it('carries the account when lent one, no id otherwise, and nothing once sharing is off', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		seedLoop(context.db);
 		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
@@ -309,31 +309,23 @@ describe('usage data', () => {
 		await settled();
 		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
 
-		lent = { state: 'old-terms' };
-		finishRun(context, 'run.completed');
-		publishProfile(context);
-		throwUncaught(new TypeError('x is undefined'));
-		await settled();
-		expect(activity).toEqual(['app_active', 'day', 'run_finished']);
-		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
-		expect(errors).toEqual([]);
-
 		setSetting(context.db, USAGE_DATA_SETTING, 'off');
 		lent = { state: 'accepted', userId: 'u1' };
 		const askedBefore = asked;
 		finishRun(context, 'run.completed');
 		publishProfile(context);
+		throwUncaught(new TypeError('x is undefined'));
 		await settled();
 		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
+		expect(errors).toEqual([]);
 		expect(asked).toBe(askedBefore);
 	});
 
-	it('says once that usage stats went off, with no id even on old terms, and nothing after', async () => {
+	it('says once that usage stats went off, with no id, and nothing after', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
 		const { activity, tags, accounts, share } = harness(context, () => lent);
 		await settled();
-		lent = { state: 'old-terms' };
 		share(false);
 		share(false);
 		finishRun(context, 'run.completed');
@@ -780,18 +772,6 @@ describe('usage days and months', () => {
 		off.share(true);
 		await settled();
 		expect(off.activity).toEqual(['first_open', 'day']);
-	});
-
-	it('sends no journey marker on old terms, then sends it once accepted', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		const old = harness(context, () => ({ state: 'old-terms' }), { freshInstall: true });
-		await settled();
-		expect(old.activity).toEqual([]);
-
-		const accepted = harness(context, () => ({ state: 'accepted', userId: 'u1' }));
-		await settled();
-		expect(accepted.activity).toEqual(['app_active', 'first_open', 'day']);
-		expect(accepted.accounts).toEqual(['u1', 'u1', 'u1']);
 	});
 
 	it('counts nothing at launch while sharing is off, only the day later', async () => {
