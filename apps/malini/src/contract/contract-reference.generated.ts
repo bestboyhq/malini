@@ -223,6 +223,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"interface CloneProgressPayload {\n\trepo_id: string;\n\tstage: 'fetch' | 'checkout' | 'done';\n\tfraction: number;\n}",
 		},
 		{
+			channel: 'repositories:github-cli-install-progress',
+			description:
+				'Fires repeatedly while Malini downloads the GitHub CLI after you press Install, with the bytes received and the size when known, and once more when the download ends. Malini does not keep it in its event log.',
+			facts: ['received', 'total'],
+			payloadType: 'InstallProgressPayload',
+			payload:
+				'interface InstallProgressPayload {\n\treceived: number;\n\ttotal: number | null;\n}',
+		},
+		{
 			channel: 'repositories:changed',
 			description:
 				'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
@@ -238,6 +247,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'GithubReachChangedPayload',
 			payload:
 				"type GithubFailure = 'unreachable' | 'down' | 'rate-limited';\n\ntype GithubReach = 'ok' | GithubFailure;\n\ntype GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;",
+		},
+		{
+			channel: 'providers:claude-code-install-progress',
+			description:
+				'Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.',
+			facts: ['received', 'total'],
+			payloadType: 'InstallProgressPayload',
+			payload:
+				'interface InstallProgressPayload {\n\treceived: number;\n\ttotal: number | null;\n}',
 		},
 		{
 			channel: 'pull-requests:local-base-synced',

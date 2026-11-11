@@ -1,3 +1,5 @@
+import type { InstallProgressPayload } from '$contract/events';
+
 export type GitHubAuthStatus = Readonly<{
 	authenticated: boolean;
 	installed: boolean;
@@ -16,6 +18,11 @@ export function githubSetupStatus(
 	if (!auth.installed) return 'missing';
 	return auth.authenticated ? 'ready' : 'signed-out';
 }
+
+export type GitHubCliInstall =
+	| Readonly<{ kind: 'idle' }>
+	| Readonly<{ kind: 'installing'; progress: InstallProgressPayload | null }>
+	| Readonly<{ kind: 'failed'; message: string }>;
 
 export type GitHubDeviceCode = Readonly<{ userCode: string; verificationUri: string }>;
 
