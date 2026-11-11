@@ -13,6 +13,8 @@ import {
 	sendPrompt,
 } from './harness';
 
+const LOCAL_TOKEN = /^(?!sk-|oc_sk_)\S{32,}$/u;
+
 interface SessionEnvironment {
 	sessionId: string;
 	model: string | null;
@@ -243,14 +245,23 @@ test('a DeepSeek run starts with its provider environment while a Claude run sta
 					null,
 			)
 			.toEqual({
-				ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
-				ANTHROPIC_AUTH_TOKEN: 'sk-e2e-deepseek',
+				ANTHROPIC_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/deepseek$/u),
+				ANTHROPIC_AUTH_TOKEN: expect.stringMatching(LOCAL_TOKEN),
 				ANTHROPIC_MODEL: 'deepseek-v4-pro',
 				ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-v4-pro',
 				ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-pro',
 				ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-pro',
 				CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
 			});
+		const proxied = sessionEnvironments(app.home).find(
+			(entry) => entry.model === 'deepseek-v4-pro',
+		)?.env;
+		const stranger = await fetch(`${proxied?.['ANTHROPIC_BASE_URL']}/v1/messages`, {
+			method: 'POST',
+			headers: { authorization: 'Bearer sk-e2e-deepseek' },
+			body: '{}',
+		});
+		expect(stranger.status).toBe(401);
 		await expectAssistantReply(page);
 		await usage.hover();
 		await expect(panel.getByRole('region', { name: 'DeepSeek' })).toContainText('API key');
@@ -378,8 +389,8 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
 			)
 			.toEqual({
-				ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/anthropic',
-				ANTHROPIC_AUTH_TOKEN: 'oc_sk_e2e',
+				ANTHROPIC_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/opencode$/u),
+				ANTHROPIC_AUTH_TOKEN: expect.stringMatching(LOCAL_TOKEN),
 				ANTHROPIC_MODEL: 'glm-6',
 				ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-6',
 				ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-6',
@@ -460,8 +471,8 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
 			)
 			.toEqual({
-				ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/go/anthropic',
-				ANTHROPIC_AUTH_TOKEN: 'oc_sk_go_e2e',
+				ANTHROPIC_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/opencode$/u),
+				ANTHROPIC_AUTH_TOKEN: expect.stringMatching(LOCAL_TOKEN),
 				ANTHROPIC_MODEL: 'glm-6',
 				ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-6',
 				ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-6',
