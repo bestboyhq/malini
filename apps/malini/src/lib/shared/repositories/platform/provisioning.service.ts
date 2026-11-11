@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { promises as originalFs } from 'original-fs';
 import { claudeChatRecords, sandboxedCommand, sandboxProfile } from '@malini/agent-bridge/sandbox';
+import { describeError } from '$main/errors';
 import { cloneInto } from '$main/fs/copy-on-write';
 import { isDirectory, isFile } from '$main/fs/stat';
 import type { EventBus } from '$main/events';
@@ -239,7 +240,7 @@ export class InstallRegistry {
 		const entry = this.inFlight.get(workstreamId);
 		if (!entry) return;
 		entry.aborted = true;
-		if (entry.pid !== null) this.runner.signalProcessGroup(entry.pid, 'SIGTERM');
+		if (entry.pid !== null && !this.signalInstall(workstreamId, entry.pid, 'SIGTERM')) return;
 		const started = Date.now();
 		let escalated = false;
 		while (this.inFlight.has(workstreamId)) {
@@ -257,9 +258,27 @@ export class InstallRegistry {
 			if (!changed && !escalated) {
 				escalated = true;
 				const pid = this.inFlight.get(workstreamId)?.pid ?? null;
-				if (pid !== null) this.runner.signalProcessGroup(pid, 'SIGKILL');
+				if (pid !== null && !this.signalInstall(workstreamId, pid, 'SIGKILL')) return;
 			}
 		}
+	}
+
+	private signalInstall(workstreamId: string, pid: number, signal: NodeJS.Signals): boolean {
+		try {
+			this.runner.signalProcessGroup(pid, signal);
+			return true;
+		} catch (error) {
+			console.error(
+				`environment: install for workstream \`${workstreamId}\` refused ${signal}; continuing without it: ${describeError(error)}`,
+			);
+			return false;
+		}
+	}
+
+	async abortAll(): Promise<void> {
+		await Promise.all(
+			[...this.inFlight.keys()].map((workstreamId) => this.abortAndWait(workstreamId)),
+		);
 	}
 
 	private waitForChange(timeoutMs: number): Promise<boolean> {
@@ -339,6 +358,7 @@ export async function installDependencies(
 			emit(deps.events, workstreamId, 'skipped', { reason: skipped });
 			return { status: 'skipped', reason: skipped };
 		}
+		await originalFs.rm(join(worktree, INSTALL_COMPLETION_PATH), { force: true });
 		const started = Date.now();
 		if (await sharedNodeModules(worktree, plan.argv, deps.siblings?.(workstreamId) ?? [])) {
 			recordCompletion(worktree, plan.argv);
@@ -377,7 +397,7 @@ export async function sharedNodeModules(
 			if (!isDirectory(source) || existsSync(target)) continue;
 			await cloneInto([source], join(worktree, folder));
 			for (const cache of NODE_MODULES_CACHES) {
-				await rm(join(target, cache), { recursive: true, force: true });
+				await originalFs.rm(join(target, cache), { recursive: true, force: true });
 			}
 		}
 		return true;
@@ -386,7 +406,7 @@ export async function sharedNodeModules(
 			`environment: could not copy node_modules from \`${donor}\` into \`${worktree}\`, so it installs them: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		for (const folder of folders) {
-			await rm(join(worktree, folder, 'node_modules'), { recursive: true, force: true });
+			await originalFs.rm(join(worktree, folder, 'node_modules'), { recursive: true, force: true });
 		}
 		return false;
 	}

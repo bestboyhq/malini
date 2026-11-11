@@ -178,6 +178,20 @@ describe('close guard', () => {
 		expect(() => commands.destroy()).not.toThrow();
 	});
 
+	it('keeps the guard when the window refuses to close', () => {
+		const { commands, main, created } = setup();
+		if (!main) throw new Error('unreachable');
+		created(main);
+		commands.setCloseGuard({ armed: true });
+		Object.assign(main.window, {
+			destroy: () => {
+				throw new Error('the window refused');
+			},
+		});
+		expect(() => commands.destroy()).toThrow('the window refused');
+		expect(main.emit('close').defaultPrevented).toBe(true);
+	});
+
 	it('disarms when the renderer is gone or navigates, so the window can always close', () => {
 		const { commands, main, created } = setup();
 		if (!main) throw new Error('unreachable');

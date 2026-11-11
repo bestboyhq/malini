@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,7 +24,13 @@ import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
 import { GH_DOWNLOAD_URL } from '$main/process/gh-install';
-import { GITHUB_AUTH_CHECK_TIMEOUT_MS, type GhRunner } from './github.service';
+import {
+	defaultGhRunner,
+	GH_ANSWER_TIMEOUT_MS,
+	githubAuthStatus,
+	type GhRunner,
+} from './github.service';
+import { processIsAlive } from '$main/process/process-group';
 import {
 	listConnectedRepositories,
 	upsertConnectedRepository,
@@ -140,7 +154,7 @@ describe('repositories.github-auth-status', () => {
 			},
 		});
 		await invoke('repositories.github-auth-status');
-		expect(limits).toEqual([GITHUB_AUTH_CHECK_TIMEOUT_MS, GITHUB_AUTH_CHECK_TIMEOUT_MS]);
+		expect(limits).toEqual([GH_ANSWER_TIMEOUT_MS, GH_ANSWER_TIMEOUT_MS]);
 	});
 
 	it('reports gh missing while other commands keep working', async () => {
@@ -475,5 +489,39 @@ describe('repositories.owner-avatar', () => {
 		await expect(invoke('repositories.owner-avatar', { owner: 'owner/name' })).rejects.toThrow(
 			/invalid args/,
 		);
+	});
+});
+
+describe('githubAuthStatus', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllEnvs();
+	});
+
+	it('gives up on a gh that never answers and kills it, so setup stops checking', async () => {
+		const home = mkdtempSync(join(tmpdir(), 'malini-gh-hangs-'));
+		mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+		writeFileSync(
+			join(home, '.local', 'bin', 'gh'),
+			'#!/bin/sh\necho $$ > "$HOME/gh.pid"\nexec sleep 60\n',
+			{ mode: 0o755 },
+		);
+		vi.stubEnv('HOME', home);
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+		const status = expect(githubAuthStatus(defaultGhRunner)).rejects.toThrow(
+			'GitHub did not answer in 15 seconds.',
+		);
+		const pid = await vi.waitFor(() => {
+			const started = Number(readFileSync(join(home, 'gh.pid'), 'utf8'));
+			expect(started).toBeGreaterThan(0);
+			return started;
+		});
+		await vi.advanceTimersByTimeAsync(GH_ANSWER_TIMEOUT_MS);
+		await status;
+
+		vi.useRealTimers();
+		await vi.waitFor(() => expect(processIsAlive(pid)).toBe(false));
+		rmSync(home, { recursive: true, force: true });
 	});
 });

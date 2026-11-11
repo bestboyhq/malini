@@ -24,6 +24,7 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
+import { isActiveAutomationRunStatus } from '../domain/automation-run';
 import {
 	chatTurnChainId,
 	chatTurnSessionId,
@@ -46,6 +47,7 @@ import {
 	automationRunChainId,
 	workAutomationRunInWorkstream,
 } from './automation-runs.repository';
+import { BackgroundWork } from './background-work';
 
 export const EVENT_LOG_KEEP_MS = 7 * 24 * 60 * 60 * 1_000;
 
@@ -124,6 +126,7 @@ export function startEventLog(
 	context: MainContext,
 	log: (line: string) => void,
 	handle: EventHandler,
+	work = new BackgroundWork(log),
 ): { dispose(): void } {
 	const { db, events } = context;
 	let stopped = false;
@@ -133,6 +136,7 @@ export function startEventLog(
 			await withHandledEvent(event, () => handle(event));
 		} catch (error) {
 			log(`automations: could not handle ${event.channel}: ${describeError(error)}`);
+			return;
 		}
 		if (event.id === null || stopped) return;
 		try {
@@ -143,7 +147,7 @@ export function startEventLog(
 	};
 
 	const dispatch = (event: DispatchedEvent): void => {
-		void handleAndMark(event);
+		work.add(handleAndMark(event));
 	};
 
 	const replay = (): void => {
@@ -265,10 +269,7 @@ function turnCause(
 
 function workIn(db: MaliniDatabase, workstreamId: string, since: string): EventCause | null {
 	const automationRun = workAutomationRunInWorkstream(db, workstreamId, since);
-	if (
-		automationRun &&
-		(automationRun.status === 'running' || automationRun.status === 'needs-you')
-	) {
+	if (automationRun && isActiveAutomationRunStatus(automationRun.status)) {
 		return { kind: 'automation-run', id: automationRun.id };
 	}
 	const turn = workChatTurnInWorkstream(db, workstreamId, since);

@@ -155,7 +155,7 @@ describe('CommandRegistry', () => {
 		]);
 	});
 
-	it('closes once every command in flight has replied, and leaves later commands unanswered', async () => {
+	it('closes once every command in flight has replied, and refuses later commands without running them', async () => {
 		const registry = new CommandRegistry();
 		const handled: string[] = [];
 		registry.define('app.focus-window', async () => {
@@ -165,18 +165,27 @@ describe('CommandRegistry', () => {
 		registry.define('app.destroy-window', () => {
 			handled.push('after close');
 		});
-		void registry.handle({ command: 'app.focus-window', args: {} });
+		const inFlight = registry.handle({ command: 'app.focus-window', args: {} });
 
 		const closed = registry.close();
-		const unanswered = Symbol('unanswered');
 		const later = registry.handle({ command: 'app.destroy-window', args: {} });
 		await closed;
-		const reply = await Promise.race([
-			later,
-			new Promise((resolve) => setTimeout(resolve, 10, unanswered)),
-		]);
 
+		expect(await inFlight).toEqual({ ok: true, value: null });
+		expect(await later).toEqual({
+			ok: false,
+			failure: {
+				name: 'CommandRegistryClosed',
+				message: 'app.destroy-window came in after Malini began to quit',
+				code: null,
+				kind: 'closed',
+				command: 'app.destroy-window',
+			},
+		});
+		expect(await registry.invoke({ command: 'app.destroy-window', args: {} })).toEqual({
+			ok: false,
+			error: 'app.destroy-window came in after Malini began to quit',
+		});
 		expect(handled).toEqual(['in flight']);
-		expect(reply).toBe(unanswered);
 	});
 });

@@ -243,12 +243,14 @@
 	});
 
 	$effect(() => {
-		const request = inspectorPanelCommands.requestFor(workstreamId);
-		if (!request || !inspectorInteractive) return;
-		if (!panels.some((panel) => panel.id === request.panelId)) return;
-		if (request.reveal) revealPanel(request.panelId);
-		else openPanel(request.panelId);
-		inspectorPanelCommands.consume(workstreamId, request.revision);
+		const requests = inspectorPanelCommands.requestsFor(workstreamId);
+		if (!inspectorInteractive) return;
+		for (const request of requests) {
+			if (!panels.some((panel) => panel.id === request.panelId)) continue;
+			if (request.reveal) revealPanel(request.panelId);
+			else openPanel(request.panelId);
+			inspectorPanelCommands.consume(workstreamId, request.revision);
+		}
 	});
 
 	$effect(() => {
@@ -941,7 +943,9 @@
 
 		{#if runtimeError}
 			<div
-				class="grid min-h-0 flex-1 place-items-center p-6"
+				class="grid place-items-center p-6"
+				class:min-h-0={!presentsMountedPanel}
+				class:flex-1={!presentsMountedPanel}
 				role="alert"
 				data-testid="inspector-runtime-error"
 				data-navigation-error="true"

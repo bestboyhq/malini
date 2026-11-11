@@ -67,8 +67,10 @@ The Automations page offers the common triggers by name, such as **A pull reques
 
 A triggered run gets the event channel and the payload [it may see](#what-an-automation-sees-and-reaches) as context, and runs in the workstream the event names, or in a new one when the automation runs in a new workstream.
 Every event counts, even when its payload repeats an earlier one: open the same workstream twice, and an automation on `pull-requests:workstream-opened` runs for each opening.
-The same event starts an automation once, even across a restart: each event Malini logs has its own id, Malini keeps every event for a week, and hands the ones it had not finished with to the triggers again when it starts.
+The same event starts an automation once, even across a restart: each event Malini logs has its own id, Malini keeps every event for a week, and hands the ones from the last hour it had not finished with to the [Reconciler](#reconciler) again when it starts.
 An unknown channel or a malformed condition is refused when you save the automation, with the channels Malini knows.
+So is a value a field never takes, such as `run.status is succeded`, with the values it does take, when you write a new When or change one.
+A save that keeps its When as it was goes through, so you can still turn off or edit an automation saved with such a value.
 
 ### On a schedule
 
@@ -102,7 +104,8 @@ When the time comes, Malini's clock logs a **Time reached** event, and the [Reco
 The same time starts the automation once, even across a restart.
 When your Mac sleeps or Malini is quit at the time, the automation runs once when they are back, however many times it missed.
 A schedule you set runs from the next time on, never for a time that already passed.
-While the automation's last run waits for you, is queued, or still runs, it skips its time, so two runs never overlap.
+While the automation has a run that is queued, still runs or needs you, it skips its time, so two runs never overlap.
+A run that waits for your yes holds its time too, unless its schedule started it: then the new time takes its place and asks again.
 
 A scheduled run tells you with a notification when it waits for your yes, when it needs you, when it fails, and when it finishes, with its result.
 A run that needs your approval waits for it, so always allow a command it needs, and later runs go on without asking.
@@ -234,6 +237,7 @@ Settings decides how many automations run at once.
 The **Reconciler** is the middleman between an event and what reacts to it: every event Malini emits passes through it, and you can't turn it off.
 Nothing in Malini starts work on its own: each start is an event the Reconciler hands to a rule, and only what you do yourself, a prompt or an automation you run, goes straight to your chats and automations.
 Each rule names the events it hears, and the Reconciler hands an event to every rule that hears it, so one event can start many things: both Resume and Shipping act on **Malini started**.
+A rule that fails on an event leaves it unfinished, and Malini hands the event to the rules again the next time it starts within the hour.
 It hands each event to your triggers first, then to its own rules at once:
 
 - **Your triggers** handle the events they name.

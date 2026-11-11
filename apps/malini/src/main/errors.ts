@@ -184,6 +184,7 @@ const REMOTE_REJECTED = /^\s*!\s+\[remote rejected\][^\n(]*\((.+)\)[ \t]*$/mu;
 const WORKFLOW_REFUSED =
 	/refusing to allow an? (OAuth App|Personal Access Token|GitHub App) to create or update workflow `([^`]+)` without `workflows?` (?:scope|permission)/u;
 const REMOTE_LINE = /^remote:[ \t]?(.*)$/gmu;
+const PUSHED_TO_FOLDER = /^To (\/.*?)\/?$/mu;
 const REMOTE_PROGRESS = /^(?:Enumerating|Counting|Compressing|Resolving|Total|Writing)\b/u;
 const REMOTE_SAID_MAX_CHARS = 2_000;
 const MERGE_CONFLICT = /^CONFLICT \(/mu;
@@ -224,7 +225,9 @@ function refusedPush(output: string, reason: string): string {
 	const workflow = WORKFLOW_REFUSED.exec(output);
 	const fix = workflow?.[1] === undefined ? undefined : WORKFLOW_FIXES[workflow[1]];
 	if (!workflow || fix === undefined) {
-		return `GitHub refused the push: ${/[.!?]$/u.test(reason) ? reason : `${reason}.`}`;
+		const folder = PUSHED_TO_FOLDER.exec(output)?.[1];
+		const refuser = folder === undefined ? 'GitHub' : `The folder ${basename(folder)}`;
+		return `${refuser} refused the push: ${/[.!?]$/u.test(reason) ? reason : `${reason}.`}`;
 	}
 	return `GitHub refused the push: this change edits \`${workflow[2] ?? 'a workflow'}\`, and ${fix}`;
 }

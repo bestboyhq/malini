@@ -43,6 +43,16 @@ export type CommandStartObserver = (started: StartedCommand) => void;
 
 export type CommandFailureObserver = (failed: FailedCommand) => void;
 
+function closedFailure(command: string): CommandFailure {
+	return {
+		name: 'CommandRegistryClosed',
+		message: `${command} came in after Malini began to quit`,
+		code: null,
+		kind: 'closed',
+		command,
+	};
+}
+
 export class CommandRegistry {
 	private readonly handlers = new Map<CommandName, CommandHandler>();
 	private readonly observers = new Set<CommandObserver>();
@@ -101,7 +111,7 @@ export class CommandRegistry {
 	}
 
 	async handle(request: InvokeRequest): Promise<InvokeReply> {
-		if (this.closed) return new Promise<never>(() => {});
+		if (this.closed) return { ok: false, failure: closedFailure(request.command) };
 		const reply = this.reply(request);
 		this.running.add(reply);
 		try {

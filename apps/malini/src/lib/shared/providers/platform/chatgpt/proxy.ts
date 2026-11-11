@@ -117,6 +117,7 @@ export class ChatGptProxy {
 		};
 		try {
 			const upstream = await this.#send(translated.body, sessionId, controller.signal);
+			this.#deps.onUsageLimit(false);
 			for await (const data of serverSentData(upstream)) {
 				const event = parseUpstreamEvent(data);
 				if (event) emit(stream.next(event));
@@ -127,13 +128,12 @@ export class ChatGptProxy {
 			}
 		} catch (error) {
 			const failure = errorOf(error);
-			this.#deps.onUsageLimit(isUsageLimit(failure));
+			if (isUsageLimit(failure)) this.#deps.onUsageLimit(true);
 			if (!response.headersSent) throw failure;
 			const { type, message } = anthropicErrorOf(failure);
 			response.end(`event: error\ndata: ${JSON.stringify(anthropicError(type, message))}\n\n`);
 			return;
 		}
-		this.#deps.onUsageLimit(false);
 		if (translated.stream) response.end();
 		else sendJson(response, 200, accumulator.message());
 	}

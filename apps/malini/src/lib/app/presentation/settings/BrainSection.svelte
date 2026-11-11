@@ -15,7 +15,10 @@
 	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
 	import { builtinAutomationDefinitionsQuery } from '$lib/automations/application/queries/builtin-automation-definitions.query.svelte';
 	import { loadBrainCommand } from '$lib/brain/application/commands/load-brain.command';
-	import { setBrainSyncCommand } from '$lib/brain/application/commands/set-brain-sync.command';
+	import {
+		retryBrainSyncCommand,
+		setBrainSyncCommand,
+	} from '$lib/brain/application/commands/set-brain-sync.command';
 	import { watchBrainHook } from '$lib/brain/application/hooks/watch-brain.hook';
 	import { brainQuery } from '$lib/brain/application/queries/brain.query.svelte';
 	import SettingsSection from './SettingsSection.svelte';
@@ -76,12 +79,7 @@
 			role="alert"
 		>
 			<p class="text-error-content min-w-0 flex-1 text-xs">{status.problem}</p>
-			<Button
-				variant="secondary"
-				size="sm"
-				loading={brain.syncing}
-				onclick={() => setBrainSyncCommand(true)}
-			>
+			<Button variant="secondary" size="sm" loading={brain.syncing} onclick={retryBrainSyncCommand}>
 				Retry
 			</Button>
 		</div>

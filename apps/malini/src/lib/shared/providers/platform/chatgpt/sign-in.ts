@@ -356,7 +356,7 @@ export class ChatGptAuth {
 	async #signingKey(kid: string | undefined): Promise<z.infer<typeof rsaKey>> {
 		const find = (keys: readonly z.infer<typeof rsaKey>[]) =>
 			keys.find((key) => kid === undefined || key.kid === kid);
-		const cached = this.#keys ? find(await this.#keys) : undefined;
+		const cached = this.#keys ? find(await this.#keys.catch(() => [])) : undefined;
 		if (cached) return cached;
 		this.#keys = this.#loadKeys();
 		const fresh = find(await this.#keys);
@@ -371,7 +371,6 @@ export class ChatGptAuth {
 		});
 		const parsed = keySet.safeParse(await jsonBody(response));
 		if (!response.ok || !parsed.success) {
-			this.#keys = null;
 			throw new ChatGptError('keys_unavailable', 'ChatGPT sign-in is not reachable right now.');
 		}
 		return parsed.data.keys.flatMap((key) => {

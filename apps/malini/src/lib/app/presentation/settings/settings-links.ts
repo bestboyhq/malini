@@ -1,7 +1,7 @@
 import type { BeforeNavigate } from '$shared/router/hash-router.svelte';
 import { goto, pushState, replaceState } from '$shared/router/navigation';
 import { REPOSITORIES_HREF } from '$shared/router/routes-hrefs';
-import { page } from '$shared/router/state';
+import { navigating, page } from '$shared/router/state';
 
 const SETTINGS_PATH = /^\/settings(?:\/|$)/u;
 
@@ -14,8 +14,13 @@ export function openSettingsOverPage(navigation: BeforeNavigate): void {
 		void openOverRepositories(settings);
 		return;
 	}
+	void openOverLandedPage(settings, navigation.type === 'popstate');
+}
+
+async function openOverLandedPage(settings: string, popped: boolean): Promise<void> {
+	for (let landing = navigating.complete; landing; landing = navigating.complete) await landing;
 	const state = { ...page.state, settings };
-	if (navigation.type === 'popstate' || page.state.settings !== undefined) replaceState('', state);
+	if (popped || page.state.settings !== undefined) replaceState('', state);
 	else pushState('', state);
 }
 

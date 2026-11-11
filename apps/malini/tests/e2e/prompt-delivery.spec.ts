@@ -12,7 +12,9 @@ import {
 	listEvents,
 	listSessions,
 	openWorkstream,
+	seedTwoChats,
 	seedWorkstream,
+	selectChat,
 	sendPrompt,
 	type LaunchedApp,
 } from './harness';
@@ -52,12 +54,7 @@ test('⌘↵ sends a prompt ahead of one still waiting for the last turn to fini
 	try {
 		const { page } = app;
 		const sessionId = await chatWithOneReply(app, 'e2e-steer-waiting-ws');
-		const heldRuns = join(app.home, 'hold-agent-runs');
-		writeFileSync(heldRuns, '');
-		await sendPrompt(page, 'EDIT:c.txt');
-		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Stop current run');
-		const releaseSnapshots = holdRunSnapshots(app);
-		rmSync(heldRuns);
+		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
 		await expect
 			.poll(async () =>
 				(await listEvents(page, sessionId)).filter(({ event }) => event.type === 'run.completed'),
@@ -78,6 +75,77 @@ test('⌘↵ sends a prompt ahead of one still waiting for the last turn to fini
 		await expect
 			.poll(() => userMessages(page, sessionId), { timeout: 30_000 })
 			.toEqual(['EDIT:a.txt', 'EDIT:c.txt', 'Steer now', 'Waiting for the chat']);
+		await expect(page.getByTestId('prompt-queue')).toBeHidden();
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a prompt sent ahead of a turn that keeps saving its changes runs once the save ends', async () => {
+	test.setTimeout(150_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const sessionId = await chatWithOneReply(app, 'e2e-steer-stalled-ws');
+		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt', {
+			timeout: 20_000,
+		});
+
+		await page.getByTestId('chat-composer-input').click();
+		await page.keyboard.type('Steer now', { delay: 10 });
+		await page.keyboard.press('Meta+Enter');
+		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
+		await page.waitForTimeout(30_000);
+		await expect(page.getByTestId('prompt-queue-item')).toHaveCount(0);
+		expect(await userMessages(page, sessionId)).toEqual(['EDIT:a.txt', 'EDIT:c.txt']);
+
+		releaseSnapshots();
+		await expect
+			.poll(() => userMessages(page, sessionId), { timeout: 30_000 })
+			.toEqual(['EDIT:a.txt', 'EDIT:c.txt', 'Steer now']);
+		await expect(page.getByTestId('prompt-queue')).toBeHidden();
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a prompt sent ahead of a reply that keeps running says it waits, then runs once the reply ends', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { chatA, chatB } = await seedTwoChats(page, source, 'e2e-queue-note-ws', 'Queue note');
+		await startHangingRun(page);
+		await selectChat(page, chatA);
+		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
+		await expect
+			.poll(async () =>
+				(await listEvents(page, chatA)).filter(({ event }) => event.type === 'run.completed'),
+			)
+			.toHaveLength(2);
+
+		await selectChat(page, chatB);
+		await queuePrompt(page, 'Send ahead');
+		await page.getByRole('button', { name: 'Interrupt and send queued prompt 1' }).click();
+		const queued = page.getByTestId('prompt-queue-item').filter({ hasText: 'Send ahead' });
+		await expect(queued.getByRole('status')).toHaveText(
+			'The interrupted reply is still running. This prompt waits for it to end.',
+			{ timeout: 60_000 },
+		);
+		await expect(queued.getByRole('alert')).toHaveCount(0);
+		await captureFlow(app, 'prompt-queue-waiting-note');
+
+		releaseSnapshots();
+		await page.getByRole('button', { name: 'Stop current run' }).click();
+		await expect
+			.poll(() => userMessages(page, chatB), { timeout: 30_000 })
+			.toEqual(['EDIT:b.txt', 'HANG', 'Send ahead']);
 		await expect(page.getByTestId('prompt-queue')).toBeHidden();
 
 		expectCleanConsole(app);
@@ -228,6 +296,18 @@ async function userMessages(page: Page, sessionId: string): Promise<string[]> {
 	return (await listEvents(page, sessionId)).flatMap(({ event }) =>
 		event.type === 'user.message' ? [String(event['text'])] : [],
 	);
+}
+
+async function finishTurnWithHeldSnapshot(app: LaunchedApp, prompt: string): Promise<() => void> {
+	const heldRuns = join(app.home, 'hold-agent-runs');
+	writeFileSync(heldRuns, '');
+	await sendPrompt(app.page, prompt);
+	await expect(app.page.getByTestId('chat-composer-submit')).toHaveAccessibleName(
+		'Stop current run',
+	);
+	const releaseSnapshots = holdRunSnapshots(app);
+	rmSync(heldRuns);
+	return releaseSnapshots;
 }
 
 function holdRunSnapshots(app: LaunchedApp): () => void {

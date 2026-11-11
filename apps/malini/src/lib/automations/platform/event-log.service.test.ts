@@ -21,7 +21,8 @@ import { CommandRegistry } from '$main/ipc/registry';
 import { insertRun } from '$lib/chat/platform/runs.repository';
 import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
-import type { AutomationsPlatform } from '../automations.platform';
+import type { AutomationsPlatform, ShippingRule } from '../automations.platform';
+import { setAlarm } from './alarms.repository';
 import { insertLoggedEvent, linkAutomationRunEvent } from './event-log.repository';
 import { pruneEvents } from './event-log.service';
 import { insertAutomationRun, saveAutomationRun } from './automation-runs.repository';
@@ -122,6 +123,7 @@ function automationRun(
 		agentRunId: null,
 		origin: 'manual',
 		status,
+		interrupted: false,
 		detail: null,
 		parentRunId: null,
 		chatSessionId: null,
@@ -411,6 +413,47 @@ describe('the event log', () => {
 		});
 	});
 
+	it('takes a due alarm only once its Time reached is in the log, and rings it once across a restart', async () => {
+		const heard: unknown[] = [];
+		const resume = async ({ channel, payload }: { channel: string; payload: unknown }) => {
+			if (channel === AUTOMATIONS_TIME_REACHED_CHANNEL) heard.push(payload);
+		};
+		const reached = {
+			workstreamId: 'ws-1',
+			sessionId: 'session-1',
+			runId: 'run-1',
+			wait: 'resume' as const,
+			due: new Date(Date.now() - 1_000).toISOString(),
+		};
+		const alarms = () => all(db, 'SELECT key FROM alarms');
+		const alarmsWhenLogged: unknown[] = [];
+		context.events.subscribe(AUTOMATIONS_TIME_REACHED_CHANNEL, () =>
+			alarmsWhenLogged.push(...alarms()),
+		);
+		setAlarm(db, 'resume:session-1', reached);
+		automations = registerAutomations(context, { log: () => {}, resume });
+		automations.start();
+
+		await vi.waitFor(() => expect(heard).toEqual([reached]));
+		expect(alarmsWhenLogged).toEqual([{ key: 'resume:session-1' }]);
+		expect(alarms()).toEqual([]);
+
+		automations.dispose();
+		setAlarm(db, 'resume:session-1', reached);
+		run(db, 'UPDATE event_log SET handled_at = NULL');
+		context = freshContext();
+		automations = registerAutomations(context, { log: () => {}, resume });
+		automations.start();
+
+		await vi.waitFor(() => expect(heard).toHaveLength(2));
+		await automations.settled();
+		expect(heard).toHaveLength(2);
+		expect(alarms()).toEqual([]);
+		expect(
+			all(db, 'SELECT id FROM event_log WHERE channel = ?', AUTOMATIONS_TIME_REACHED_CHANNEL),
+		).toHaveLength(1);
+	});
+
 	it('names an automation, not the turn it ran in, as the cause of what follows it', async () => {
 		start();
 		const fix = await fixChecksRun('fix-1', 'chain-of-fix');
@@ -524,13 +567,49 @@ describe('the event log', () => {
 
 		clickMerge();
 		await heard;
-		automations.dispose();
+		const stopped = automations;
+		stopped.dispose();
 		automations = null;
 		release();
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await stopped.settled();
 
 		expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toHaveLength(1);
 		expect(lines).toEqual([]);
+	});
+
+	it('leaves an event a rule could not handle for the next start, which hands it over again', async () => {
+		let failing = true;
+		const heard: string[] = [];
+		const shipping: ShippingRule = {
+			hear: async (event) => {
+				heard.push(event.channel);
+				if (failing) throw new Error('the database is busy');
+				return [];
+			},
+			decide: async () => null,
+			merging: () => false,
+			triggered: async () => false,
+		};
+		const unhandled = () => all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL');
+		automations = registerAutomations(context, { log: () => {}, shipping });
+		automations.start();
+
+		clickMerge();
+		await vi.waitFor(() => expect(heard).toEqual([PULL_REQUESTS_BUTTON_CLICKED_CHANNEL]));
+		await automations.settled();
+		expect(unhandled()).toHaveLength(1);
+
+		automations.dispose();
+		context = freshContext();
+		failing = false;
+		automations = registerAutomations(context, { log: () => {}, shipping });
+		automations.start();
+
+		await vi.waitFor(() => expect(unhandled()).toEqual([]));
+		expect(heard).toEqual([
+			PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+			PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+		]);
 	});
 
 	it('starts a Then once from the automation finished event it hears, even when it hears it again after a restart', async () => {

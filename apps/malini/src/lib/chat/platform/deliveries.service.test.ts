@@ -282,6 +282,25 @@ describe('ChatDeliveries', () => {
 		expect(status(delivery.id)).toBe('delivered');
 	});
 
+	it('counts busy answers again once a turn of that chat ran in between', async () => {
+		vi.useFakeTimers();
+		busy = 19;
+		const delivery = await deliveries.deliver(prompt('api-chat', 'Retry me.'));
+		await vi.advanceTimersByTimeAsync(18 * 3_000);
+		expect(attempts).toBe(19);
+
+		turn('api-working', 'api-chat', { completedAt: null });
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(attempts).toBe(19);
+		finishRuns();
+		busy = 19;
+		await deliveries.flush('api-chat');
+		await vi.advanceTimersByTimeAsync(19 * 3_000);
+
+		expect(attempts).toBe(39);
+		expect(status(delivery.id)).toBe('delivered');
+	});
+
 	it('fails the delivery with the reason when the prompt cannot be sent', async () => {
 		failure = 'agent bridge is not running';
 		const delivery = await deliveries.deliver(prompt('api-chat', 'Go.'));

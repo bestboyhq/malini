@@ -70,6 +70,20 @@ describe('ExtensionWorkstreamReadinessDeadline', () => {
 		expect(onTimeout).toHaveBeenCalledWith('workstream-b');
 	});
 
+	it('keeps a running clock when its workstream is deferred again', () => {
+		vi.useFakeTimers();
+		const onTimeout = vi.fn();
+		const deadline = new ExtensionWorkstreamReadinessDeadline({ deadlineMs: 80, onTimeout });
+
+		deadline.defer('workstream-a');
+		deadline.start('workstream-a');
+		vi.advanceTimersByTime(40);
+		deadline.defer('workstream-a');
+		vi.advanceTimersByTime(40);
+
+		expect(onTimeout).toHaveBeenCalledWith('workstream-a');
+	});
+
 	it('lets a timed-out workstream defer and recover on retry', () => {
 		vi.useFakeTimers();
 		const onTimeout = vi.fn();

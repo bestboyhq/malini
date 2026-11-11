@@ -1,4 +1,5 @@
 import type { AgentReasoningEffort } from './agent';
+import type { RunEnding } from './agent-state-machine';
 
 export type AutomationRunsIn = 'workstream' | 'new-workstream';
 
@@ -114,11 +115,46 @@ export type AutomationDefinitionRecord = Readonly<{
 	updatedAt: string;
 }>;
 
-export type AutomationRunStatus =
-	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+export const AUTOMATION_RUN_STATUSES = [
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+	'succeeded',
+	'failed',
+	'cancelled',
+] as const;
 
-export type AutomationRunOrigin =
-	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
+export type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];
+
+export const UNFINISHED_AUTOMATION_RUN_STATUSES: readonly AutomationRunStatus[] = [
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+];
+
+export const ACTIVE_AUTOMATION_RUN_STATUSES: readonly AutomationRunStatus[] = [
+	'running',
+	'needs-you',
+];
+
+export const PENDING_AUTOMATION_RUN_STATUSES: readonly AutomationRunStatus[] = [
+	'waiting',
+	'queued',
+];
+
+export const AUTOMATION_RUN_ORIGINS = [
+	'merge-queue',
+	'manual',
+	'trigger',
+	'then',
+	'schedule',
+	'reconciler',
+	'compatibility',
+] as const;
+
+export type AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];
 
 export type AutomationRunRecord = Readonly<{
 	id: string;
@@ -130,6 +166,7 @@ export type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -179,7 +216,9 @@ export type AutomationAskRecord = Readonly<{
 	askedAt: string;
 }>;
 
-export type AutomationSuggestionStatus = 'open' | 'dismissed' | 'accepted';
+export const AUTOMATION_SUGGESTION_STATUSES = ['open', 'dismissed', 'accepted'] as const;
+
+export type AutomationSuggestionStatus = (typeof AUTOMATION_SUGGESTION_STATUSES)[number];
 
 export type AutomationSuggestionRecord = Readonly<{
 	id: string;
@@ -329,9 +368,18 @@ export type AlarmTimeReached = ShippingTimeReached | ResumeTimeReached;
 
 export type TimeReachedEvent = ScheduleTimeReached | AlarmTimeReached;
 
-export type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
+export const AGENT_ACTION_STATUSES = ['running', 'succeeded', 'failed', 'denied'] as const;
 
-export type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';
+export type AgentActionStatus = (typeof AGENT_ACTION_STATUSES)[number];
+
+export const AGENT_ACTION_APPROVALS = [
+	'not-needed',
+	'allowed',
+	'always-allowed',
+	'denied',
+] as const;
+
+export type AgentActionApproval = (typeof AGENT_ACTION_APPROVALS)[number];
 
 export type AgentActionRecord = Readonly<{
 	id: string;
@@ -349,7 +397,7 @@ export type AgentActionRecord = Readonly<{
 
 export type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
 
-export type ChatTurnStatus = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
+export type ChatTurnStatus = 'running' | RunEnding;
 
 export type ChatTurnRecord = Readonly<{
 	runId: string;
@@ -411,9 +459,19 @@ export type ReconcilerCandidate =
 	  }>
 	| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;
 
-export type ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';
+export const RECONCILER_DECISION_STATUSES = [
+	'pending',
+	'done',
+	'asking',
+	'dismissed',
+	'failed',
+] as const;
 
-export type ReconcilerDecider = 'model' | 'rules' | 'you';
+export type ReconcilerDecisionStatus = (typeof RECONCILER_DECISION_STATUSES)[number];
+
+export const RECONCILER_DECIDERS = ['model', 'rules', 'you'] as const;
+
+export type ReconcilerDecider = (typeof RECONCILER_DECIDERS)[number];
 
 export type ReconcilerDecisionRecord = Readonly<{
 	id: string;
@@ -463,6 +521,12 @@ export type TimelineRecord = Readonly<{
 }>;
 
 export const AUTOMATION_INTERRUPTED_DETAIL = 'Interrupted when Malini closed';
+
+export function automationRunInterrupted(
+	run: Pick<AutomationRunRecord, 'status' | 'interrupted'>,
+): boolean {
+	return run.status === 'failed' && run.interrupted;
+}
 
 export const AUTOMATIONS_MAX_CONCURRENT_SETTING = 'automations.max-concurrent';
 

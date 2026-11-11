@@ -22,7 +22,7 @@ import { ONBOARDING_FINISHED_SETTING, type OnboardingStep } from '../domain/onbo
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
-import { hasPromptRun, readUsageReport } from './usage-report';
+import { hasPromptRun, readUsageReport, userWorkstreams } from './usage-report';
 import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-tools';
 
 export type UsageJourney =
@@ -61,9 +61,9 @@ export interface UsageSink {
 		name: UsageActivity,
 		props: Readonly<Record<string, string | number>>,
 		userId: string | null,
-	): void;
-	report(report: UsageReport, userId: string | null): void;
-	error(message: string): void;
+	): Promise<boolean>;
+	report(report: UsageReport, userId: string | null): Promise<boolean>;
+	error(message: string): Promise<boolean>;
 	shutdown(timeoutMs: number): Promise<void>;
 }
 
@@ -88,6 +88,7 @@ export function setupStepMarker(step: OnboardingStep): UsageJourneyMarker {
 export interface UsageDataDeps {
 	readonly sink?: UsageSink | null;
 	readonly account?: () => Promise<UsageAccount>;
+	readonly published?: () => boolean;
 	readonly hooks?: Pick<MainProcessHooks, 'onUncaughtException' | 'onUnhandledRejection'>;
 	readonly processGone?: (
 		listener: (process: string, reason: string, exitCode: number) => void,
@@ -134,11 +135,31 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	};
 	rememberActiveDay();
 	const account = deps.account ?? ((): Promise<UsageAccount> => Promise.resolve(ANONYMOUS));
-	const send = async (deliver: (userId: string | null) => void): Promise<void> => {
-		if (!shared()) return;
+	const send = async (deliver: (userId: string | null) => Promise<boolean>): Promise<boolean> => {
+		if (!shared()) return false;
 		const counted = await account();
-		if (counted.state === 'old-terms' || !shared()) return;
-		deliver(counted.state === 'accepted' ? counted.userId : null);
+		if (counted.state === 'old-terms' || !shared()) return false;
+		return deliver(counted.state === 'accepted' ? counted.userId : null);
+	};
+	const sending = new Map<string, Promise<void>>();
+	const sendOnce = (
+		key: string,
+		sent: () => boolean,
+		deliver: (userId: string | null) => Promise<boolean>,
+		record: () => void,
+	): void => {
+		if (sent()) return;
+		const attempt = async (): Promise<void> => {
+			if (!sent() && (await send(deliver))) record();
+		};
+		const previous = sending.get(key);
+		const next = (async () => {
+			if (previous) await previous.catch(() => undefined);
+			await attempt();
+		})().finally(() => {
+			if (sending.get(key) === next) sending.delete(key);
+		});
+		sending.set(key, next);
 	};
 	const count = (
 		name: UsageActivity,
@@ -170,16 +191,17 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		const cohort = firstOpen;
 		if (cohort === null || journeySent().includes(marker)) return;
 		const timing = setupSeconds(marker);
-		void send((userId) => {
-			const sent = journeySent();
-			if (sent.includes(marker)) return;
-			setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...sent, marker]));
-			sink.activity(
-				marker,
-				{ cohort, days: daysBetween(cohort, localDate(now())), ...timing, ...extra },
-				userId,
-			);
-		});
+		sendOnce(
+			marker,
+			() => journeySent().includes(marker),
+			(userId) =>
+				sink.activity(
+					marker,
+					{ cohort, days: daysBetween(cohort, localDate(now())), ...timing, ...extra },
+					userId,
+				),
+			() => setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...journeySent(), marker])),
+		);
 	};
 	const sendMonth = (): void => {
 		const today = localDate(now());
@@ -190,42 +212,40 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		const last = earlier.sort().at(-1);
 		if (last === undefined) return;
 		const month = monthOf(last);
-		if (getSetting(context.db, REPORTED_MONTH_SETTING) === month) return;
 		const activeDays = new Set(earlier.filter((day) => monthOf(day) === month)).size;
-		void send((userId) => {
-			if (getSetting(context.db, REPORTED_MONTH_SETTING) === month) return;
-			setSetting(context.db, REPORTED_MONTH_SETTING, month);
-			setSetting(
-				context.db,
-				ACTIVE_DAYS_SETTING,
-				JSON.stringify(
-					stringList(getSetting(context.db, ACTIVE_DAYS_SETTING)).filter(
-						(day) => monthOf(day) >= current,
+		sendOnce(
+			`month:${month}`,
+			() => getSetting(context.db, REPORTED_MONTH_SETTING) === month,
+			(userId) => sink.activity('month', { month, active_days: activeDays }, userId),
+			() => {
+				setSetting(context.db, REPORTED_MONTH_SETTING, month);
+				setSetting(
+					context.db,
+					ACTIVE_DAYS_SETTING,
+					JSON.stringify(
+						stringList(getSetting(context.db, ACTIVE_DAYS_SETTING)).filter(
+							(day) => monthOf(day) >= current,
+						),
 					),
-				),
-			);
-			sink.activity('month', { month, active_days: activeDays }, userId);
-		});
+				);
+			},
+		);
 	};
 	const sendDay = (): void => {
 		const today = localDate(now());
-		if (getSetting(context.db, LAST_ACTIVE_DAY_SETTING) === today) return;
-		const previous =
-			stringList(getSetting(context.db, ACTIVE_DAYS_SETTING))
-				.filter((day) => day < today)
-				.sort()
-				.at(-1) ?? null;
+		const previous = getSetting(context.db, LAST_ACTIVE_DAY_SETTING);
 		const base = firstOpen ?? earliestActivity(context.db);
 		const props = {
 			week_first: previous === null || weekStart(previous) !== weekStart(today) ? 'yes' : 'no',
 			month_first: previous === null || monthOf(previous) !== monthOf(today) ? 'yes' : 'no',
 			age: base === null ? 'later' : reportAge(Date.parse(today) - Date.parse(base)),
 		};
-		void send((userId) => {
-			if (getSetting(context.db, LAST_ACTIVE_DAY_SETTING) === today) return;
-			setSetting(context.db, LAST_ACTIVE_DAY_SETTING, today);
-			sink.activity('day', props, userId);
-		});
+		sendOnce(
+			`day:${today}`,
+			() => getSetting(context.db, LAST_ACTIVE_DAY_SETTING) === today,
+			(userId) => sink.activity('day', props, userId),
+			() => setSetting(context.db, LAST_ACTIVE_DAY_SETTING, today),
+		);
 	};
 	const launch = (): void => {
 		if (firstOpen !== null) {
@@ -239,12 +259,17 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		sendDay();
 		void firstRepository();
 		if (hasPromptRun(context.db, now())) sendJourney('first_prompt');
+		if (firstOpen === null) return;
+		const workstreams = userWorkstreams(context.db);
+		if (workstreams.length > 0) sendJourney('first_workstream');
+		if (workstreams.some(({ merged }) => merged)) sendJourney('first_merge');
+		if (deps.published?.() === true) sendJourney('first_profile_published');
 	};
 	const share = (next: boolean): void => {
 		const was = shared();
 		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
 		if (next && !was) launch();
-		if (was && !next) sink.activity('stats_off', {}, null);
+		if (was && !next) void sink.activity('stats_off', {}, null);
 	};
 	const firstRepository = async (): Promise<void> => {
 		if (firstOpen === null || journeySent().includes('first_repository')) return;
@@ -263,7 +288,9 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const report = (what: string): void => {
 		if (!shared() || reported.has(what)) return;
 		reported.add(what);
-		void send(() => sink.error(`${what} · ${system}`));
+		void (async () => {
+			if (!(await send(() => sink.error(`${what} · ${system}`)))) reported.delete(what);
+		})();
 	};
 
 	const stopFailures = context.commands.observeFailures((failed) => {
@@ -317,10 +344,12 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const reportYesterday = (): void => {
 		const at = now();
 		const day = reportDay(at);
-		if (!shared() || getSetting(context.db, REPORTED_DAY_SETTING) === day) return;
-		setSetting(context.db, REPORTED_DAY_SETTING, day);
+		const reported = (): boolean => getSetting(context.db, REPORTED_DAY_SETTING) === day;
+		if (!shared() || reported()) return;
+		const record = (): void => setSetting(context.db, REPORTED_DAY_SETTING, day);
 		const report = readUsageReport(context.db, at);
-		if (report) void send((userId) => sink.report(report, userId));
+		if (!report) return record();
+		sendOnce(`loop:${day}`, reported, (userId) => sink.report(report, userId), record);
 	};
 	const stopStarted = context.events.subscribe(APP_STARTED_CHANNEL, reportYesterday);
 	const reportTimer = setInterval(reportYesterday, REPORT_CHECK_MS);
@@ -405,23 +434,33 @@ function logdashSink(appVersion: string): UsageSink | null {
 	const key = import.meta.env.MAIN_VITE_LOGDASH_API_KEY;
 	if (!site && !key) return null;
 	const pending = new Set<Promise<unknown>>();
-	const post = (path: string, headers: Readonly<Record<string, string>>, body: unknown): void => {
-		const sent = net
-			.fetch(`${LOGDASH_API}${path}`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...headers },
-				body: JSON.stringify(body),
-			})
-			.catch(() => undefined)
-			.finally(() => pending.delete(sent));
+	const post = (
+		path: string,
+		headers: Readonly<Record<string, string>>,
+		body: unknown,
+	): Promise<boolean> => {
+		const deliver = async (): Promise<boolean> => {
+			try {
+				const response = await net.fetch(`${LOGDASH_API}${path}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', ...headers },
+					body: JSON.stringify(body),
+				});
+				return response.ok;
+			} catch {
+				return false;
+			}
+		};
+		const sent = deliver().finally(() => pending.delete(sent));
 		pending.add(sent);
+		return sent;
 	};
 	const webEvent = (
 		name: string,
 		props: Readonly<Record<string, string | number>>,
 		userId: string | null,
-	): void => {
-		if (!site) return;
+	): Promise<boolean> => {
+		if (!site) return Promise.resolve(false);
 		const at = new Date().toISOString();
 		const event = {
 			id: randomUUID(),
@@ -430,7 +469,7 @@ function logdashSink(appVersion: string): UsageSink | null {
 			path: '/',
 			...(userId ? { userId: logdashUserId(site, userId) } : {}),
 		};
-		post(
+		return post(
 			'/web_events',
 			{ Origin: LOGDASH_ORIGIN },
 			{
@@ -444,8 +483,8 @@ function logdashSink(appVersion: string): UsageSink | null {
 		activity: (name, props, userId) => webEvent(name, props, userId),
 		report: (report, userId) => webEvent('loop', reportProps(report), userId),
 		error: (message) => {
-			if (!key) return;
-			post(
+			if (!key) return Promise.resolve(false);
+			return post(
 				'/logs',
 				{ 'project-api-key': key },
 				{

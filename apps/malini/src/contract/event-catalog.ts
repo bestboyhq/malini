@@ -1,3 +1,13 @@
+import {
+	AGENT_ACTION_APPROVALS,
+	AGENT_ACTION_STATUSES,
+	AUTOMATION_RUN_ORIGINS,
+	AUTOMATION_RUN_STATUSES,
+	AUTOMATION_SUGGESTION_STATUSES,
+	RECONCILER_DECIDERS,
+	RECONCILER_DECISION_STATUSES,
+	UNFINISHED_AUTOMATION_RUN_STATUSES,
+} from './automations';
 import type { ContractEvents, EventChannel } from './events';
 
 type Keys<T> = T extends unknown ? keyof T & string : never;
@@ -15,11 +25,28 @@ export type EventFact<T> = T extends readonly unknown[]
 	? never
 	: { [K in Keys<T>]: K | Nested<T, K> }[Keys<T>];
 
+type FactValue<T, F extends string> = F extends `${infer K}.${infer R}`
+	? Field<NonNullable<Field<T, K>>, R>
+	: Field<T, F>;
+
 export type EventCatalogEntry<C extends EventChannel = EventChannel> = Readonly<{
 	description: string;
 	logged?: false;
 	facts: readonly EventFact<ContractEvents[C]>[];
+	values?: {
+		readonly [F in EventFact<ContractEvents[C]>]?: readonly Extract<
+			FactValue<ContractEvents[C], F>,
+			string
+		>[];
+	};
 }>;
+
+const RUN_ORIGINS = { 'run.origin': AUTOMATION_RUN_ORIGINS } as const;
+
+const ACTION_VALUES = {
+	'action.status': AGENT_ACTION_STATUSES,
+	'action.approval': AGENT_ACTION_APPROVALS,
+} as const;
 
 export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C> } = {
 	'chat:agent-event': {
@@ -45,7 +72,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'chat:turn-finished': {
 		description:
-			"Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.",
+			"Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended. A turn that Malini quitting, an agent restart or a reset cut short ends `interrupted`, not `failed`, so `where status is failed` skips it.",
 		facts: ['workstreamId', 'sessionId', 'runId', 'status'],
 	},
 	'chat:delivery-changed': {
@@ -272,6 +299,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'run.startedAt',
 			'run.finishedAt',
 		],
+		values: { ...RUN_ORIGINS, 'run.status': AUTOMATION_RUN_STATUSES },
 	},
 	'automations:run-started': {
 		description:
@@ -293,6 +321,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'run.startedAt',
 			'run.finishedAt',
 		],
+		values: { ...RUN_ORIGINS, 'run.status': ['running'] },
 	},
 	'automations:run-finished': {
 		description:
@@ -314,6 +343,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'run.startedAt',
 			'run.finishedAt',
 		],
+		values: {
+			...RUN_ORIGINS,
+			'run.status': AUTOMATION_RUN_STATUSES.filter(
+				(status) => !UNFINISHED_AUTOMATION_RUN_STATUSES.includes(status),
+			),
+		},
 	},
 	'automations:agent-action-changed': {
 		description:
@@ -330,6 +365,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'action.startedAt',
 			'action.finishedAt',
 		],
+		values: ACTION_VALUES,
 	},
 	'automations:tool-called': {
 		description:
@@ -345,10 +381,11 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'action.startedAt',
 			'action.finishedAt',
 		],
+		values: ACTION_VALUES,
 	},
 	'automations:time-reached': {
 		description:
-			"Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
+			"Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation has a run that has not finished; a run its schedule started that waits for your yes gives way to the new one. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
 		facts: ['definitionId', 'name', 'when', 'due'],
 	},
 	'automations:decision-changed': {
@@ -370,6 +407,10 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'decision.createdAt',
 			'decision.finishedAt',
 		],
+		values: {
+			'decision.status': RECONCILER_DECISION_STATUSES,
+			'decision.decidedBy': RECONCILER_DECIDERS,
+		},
 	},
 	'automations:definition-changed': {
 		description:
@@ -401,6 +442,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'suggestion.createdAt',
 			'suggestion.updatedAt',
 		],
+		values: { 'suggestion.status': AUTOMATION_SUGGESTION_STATUSES },
 	},
 	'automations:experiment-changed': {
 		description:
@@ -588,6 +630,14 @@ export function eventFacts(channel: EventChannel, payload: unknown): Record<stri
 		if (leaf !== undefined) facts[head] = { ...Object(facts[head]), [tail]: leaf };
 	}
 	return facts;
+}
+
+export function eventFactValues(channel: EventChannel, path: string): readonly string[] | null {
+	return (
+		new Map<string, readonly string[] | undefined>(
+			Object.entries(EVENT_CATALOG[channel].values ?? {}),
+		).get(path) ?? null
+	);
 }
 
 function fieldOf(value: unknown, key: string): unknown {

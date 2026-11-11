@@ -1,5 +1,6 @@
 import type { BrowserState, BrowserTabArgs } from '$contract/browser';
 import { browserStatesAggregate } from '../../infrastructure/aggregates/browser-states.aggregate.svelte';
+import { browserTabsAggregate } from '../../infrastructure/aggregates/browser-tabs.aggregate.svelte';
 import { readLastBrowserPage } from '../../infrastructure/services/browser-pages.storage';
 import { browserService } from '../../infrastructure/services/browser.service';
 
@@ -8,6 +9,7 @@ export { loadBrowserStateCommand };
 function loadBrowserStateCommand(tab: BrowserTabArgs): void {
 	void (async () => {
 		const state = await currentState(tab);
+		if (!browserTabsAggregate.tabsOf(tab.workstreamId).includes(tab.tabId)) return;
 		const remembered = state.url ? null : readLastBrowserPage(tab);
 		if (!remembered) {
 			browserStatesAggregate.accept(state);

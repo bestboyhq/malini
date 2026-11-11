@@ -11,6 +11,7 @@ export interface MaliniDatabase {
 }
 
 const INCREMENTAL_AUTO_VACUUM = 2;
+const BUSY_TIMEOUT_MS = 1_000;
 
 export function openDatabase(path: string): MaliniDatabase {
 	const db = new DatabaseSync(path);
@@ -18,6 +19,7 @@ export function openDatabase(path: string): MaliniDatabase {
 	if (path !== ':memory:') {
 		db.exec('PRAGMA journal_mode = WAL;');
 		db.exec('PRAGMA synchronous = NORMAL;');
+		db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
 	}
 	const pragma = (name: string): unknown => db.prepare(`PRAGMA ${name}`).get()?.[name];
 

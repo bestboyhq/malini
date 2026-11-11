@@ -161,7 +161,7 @@
 	);
 	const queuePaused = $derived(queuePausedQuery.data);
 	const queueSendingId = $derived(queueSendingQuery.data);
-	const queueErrorById = $derived(queueErrorsQuery.data);
+	const queueNoteById = $derived(queueErrorsQuery.data);
 	const sessionChanges = $derived(
 		sessionChangesQuery.data(presentedWorkstreamId === workstreamId ? presentedSessionId : null),
 	);
@@ -570,7 +570,7 @@
 															{isRunning}
 															paused={queuePaused}
 															sendingId={queueSendingId}
-															errorById={queueErrorById}
+															noteById={queueNoteById}
 															onupdate={updateQueuedPromptCommand}
 															onremove={removeQueuedPromptCommand}
 															onsendnext={sendQueuedPromptCommand}

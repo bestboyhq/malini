@@ -77,7 +77,7 @@ export function switchInstalledExtension(db: MaliniDatabase, name: string, enabl
 }
 
 export function withdrawInstalledExtension(db: MaliniDatabase, name: string): void {
-	run(db, 'UPDATE installed_extensions SET enabled = 0, withdrawn = 1 WHERE name = ?', name);
+	run(db, 'UPDATE installed_extensions SET withdrawn = 1 WHERE name = ?', name);
 }
 
 export function deleteInstalledExtension(db: MaliniDatabase, name: string): void {

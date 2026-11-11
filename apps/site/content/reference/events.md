@@ -79,14 +79,16 @@ interface SessionRenamedPayload {
 
 ## `chat:turn-finished`
 
-Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.
+Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended. A turn that Malini quitting, an agent restart or a reset cut short ends `interrupted`, not `failed`, so `where status is failed` skips it.
 
 An automation sees: `workstreamId`, `sessionId`, `runId`, `status`
 
 Payload: `ChatTurnFinishedPayload`
 
 ```ts
-type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';
+type RunEnding = 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
+
+type ChatTurnFinishedStatus = RunEnding;
 
 interface ChatTurnFinishedPayload {
 	workstreamId: string;
@@ -706,11 +708,29 @@ An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repos
 Payload: `AutomationRunChangedEvent`
 
 ```ts
-type AutomationRunOrigin =
-	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
+const AUTOMATION_RUN_ORIGINS = [
+	'merge-queue',
+	'manual',
+	'trigger',
+	'then',
+	'schedule',
+	'reconciler',
+	'compatibility',
+] as const;
 
-type AutomationRunStatus =
-	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+type AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];
+
+const AUTOMATION_RUN_STATUSES = [
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+	'succeeded',
+	'failed',
+	'cancelled',
+] as const;
+
+type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];
 
 type AutomationRunRecord = Readonly<{
 	id: string;
@@ -722,6 +742,7 @@ type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -745,11 +766,29 @@ An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repos
 Payload: `AutomationRunChangedEvent`
 
 ```ts
-type AutomationRunOrigin =
-	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
+const AUTOMATION_RUN_ORIGINS = [
+	'merge-queue',
+	'manual',
+	'trigger',
+	'then',
+	'schedule',
+	'reconciler',
+	'compatibility',
+] as const;
 
-type AutomationRunStatus =
-	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+type AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];
+
+const AUTOMATION_RUN_STATUSES = [
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+	'succeeded',
+	'failed',
+	'cancelled',
+] as const;
+
+type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];
 
 type AutomationRunRecord = Readonly<{
 	id: string;
@@ -761,6 +800,7 @@ type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -784,11 +824,29 @@ An automation sees: `run.id`, `run.definitionId`, `run.workstreamId`, `run.repos
 Payload: `AutomationRunChangedEvent`
 
 ```ts
-type AutomationRunOrigin =
-	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
+const AUTOMATION_RUN_ORIGINS = [
+	'merge-queue',
+	'manual',
+	'trigger',
+	'then',
+	'schedule',
+	'reconciler',
+	'compatibility',
+] as const;
 
-type AutomationRunStatus =
-	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+type AutomationRunOrigin = (typeof AUTOMATION_RUN_ORIGINS)[number];
+
+const AUTOMATION_RUN_STATUSES = [
+	'waiting',
+	'queued',
+	'running',
+	'needs-you',
+	'succeeded',
+	'failed',
+	'cancelled',
+] as const;
+
+type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];
 
 type AutomationRunRecord = Readonly<{
 	id: string;
@@ -800,6 +858,7 @@ type AutomationRunRecord = Readonly<{
 	agentRunId: string | null;
 	origin: AutomationRunOrigin;
 	status: AutomationRunStatus;
+	interrupted: boolean;
 	detail: string | null;
 	parentRunId: string | null;
 	chatSessionId: string | null;
@@ -891,7 +950,9 @@ An automation sees: `suggestion.id`, `suggestion.repositoryId`, `suggestion.sess
 Payload: `AutomationSuggestedEvent`
 
 ```ts
-type AutomationSuggestionStatus = 'open' | 'dismissed' | 'accepted';
+const AUTOMATION_SUGGESTION_STATUSES = ['open', 'dismissed', 'accepted'] as const;
+
+type AutomationSuggestionStatus = (typeof AUTOMATION_SUGGESTION_STATUSES)[number];
 
 type AutomationAskRecord = Readonly<{
 	text: string;
@@ -958,9 +1019,13 @@ An automation sees: `action.id`, `action.sessionId`, `action.runId`, `action.wor
 Payload: `AgentActionChangedEvent`
 
 ```ts
-type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
+const AGENT_ACTION_STATUSES = ['running', 'succeeded', 'failed', 'denied'] as const;
 
-type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';
+type AgentActionStatus = (typeof AGENT_ACTION_STATUSES)[number];
+
+const AGENT_ACTION_APPROVALS = ['not-needed', 'allowed', 'always-allowed', 'denied'] as const;
+
+type AgentActionApproval = (typeof AGENT_ACTION_APPROVALS)[number];
 
 type AgentActionRecord = Readonly<{
 	id: string;
@@ -988,9 +1053,13 @@ An automation sees: `action.id`, `action.sessionId`, `action.runId`, `action.wor
 Payload: `AgentActionChangedEvent`
 
 ```ts
-type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
+const AGENT_ACTION_STATUSES = ['running', 'succeeded', 'failed', 'denied'] as const;
 
-type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';
+type AgentActionStatus = (typeof AGENT_ACTION_STATUSES)[number];
+
+const AGENT_ACTION_APPROVALS = ['not-needed', 'allowed', 'always-allowed', 'denied'] as const;
+
+type AgentActionApproval = (typeof AGENT_ACTION_APPROVALS)[number];
 
 type AgentActionRecord = Readonly<{
 	id: string;
@@ -1040,9 +1109,13 @@ type ReconcilerCandidate =
 	  }>
 	| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;
 
-type ReconcilerDecider = 'model' | 'rules' | 'you';
+const RECONCILER_DECIDERS = ['model', 'rules', 'you'] as const;
 
-type ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';
+type ReconcilerDecider = (typeof RECONCILER_DECIDERS)[number];
+
+const RECONCILER_DECISION_STATUSES = ['pending', 'done', 'asking', 'dismissed', 'failed'] as const;
+
+type ReconcilerDecisionStatus = (typeof RECONCILER_DECISION_STATUSES)[number];
 
 type ReconcilerDecisionRecord = Readonly<{
 	id: string;
@@ -1068,7 +1141,7 @@ type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRec
 
 ## `automations:time-reached`
 
-Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
+Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation has a run that has not finished; a run its schedule started that waits for your yes gives way to the new one. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
 
 An automation sees: `definitionId`, `name`, `when`, `due`
 

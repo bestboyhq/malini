@@ -16,6 +16,7 @@
 	let { recorder }: Props = $props();
 
 	const recording = $derived(recorder.phase === 'recording');
+	const waiting = $derived(recorder.phase === 'asking' || recorder.phase === 'starting');
 	const seconds = $derived(`0:0${(recorder.elapsedMs / 1000).toFixed(1)}`);
 
 	function onRecord(): void {
@@ -35,13 +36,13 @@
 					variant="secondary"
 					size="md"
 					radius="full"
-					disabled={recorder.phase === 'asking'}
+					disabled={waiting}
 					ariaPressed={recording}
 					onclick={onRecord}
 				>
 					{#if recording}
 						<Icon name="stop" size={14} />
-					{:else if recorder.phase === 'asking'}
+					{:else if waiting}
 						<BusyIcon size={14} class="text-fg-secondary" />
 					{:else}
 						<Icon name="circle-dot" size={14} class="text-error-content" />

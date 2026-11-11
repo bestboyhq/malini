@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -47,5 +49,31 @@ describe('openDatabase', () => {
 		const second = openDatabase(path);
 		expect(second.prepare('SELECT body FROM notes').all()).toEqual([{ body: 'kept' }]);
 		second.close();
+	});
+
+	it('waits for another connection to finish writing instead of failing', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'malini-db-'));
+		cleanups.push(() => rm(dir, { recursive: true, force: true }));
+		const path = join(dir, 'malini.sqlite');
+		const db = openDatabase(path);
+		cleanups.push(async () => db.close());
+		db.exec('CREATE TABLE notes (body TEXT)');
+
+		const holder = spawn(process.execPath, [
+			'-e',
+			[
+				"const { DatabaseSync } = require('node:sqlite');",
+				'const other = new DatabaseSync(process.argv[1]);',
+				"other.exec('BEGIN IMMEDIATE');",
+				"process.stdout.write('locked');",
+				"setTimeout(() => other.exec('COMMIT'), 300);",
+			].join('\n'),
+			path,
+		]);
+		await once(holder.stdout, 'data');
+
+		db.prepare('INSERT INTO notes VALUES (?)').run('late');
+		expect(db.prepare('SELECT body FROM notes').all()).toEqual([{ body: 'late' }]);
+		await once(holder, 'exit');
 	});
 });

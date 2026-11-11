@@ -104,6 +104,8 @@ const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
 const uncheckedRuns = new Set();
 const heldApprovals = new Set();
+const heldQuestions = new Set();
+const endingApprovals = new Set();
 const APPROVAL_RELEASE = 'release-approval';
 const UNCHECKED_INPUT = { command: 'node -e "console.log(6*7)"', description: 'Print 6*7' };
 const lastRuns = new Map();
@@ -1228,6 +1230,7 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('APPROVAL')) {
 		pendingRuns.set(runId, sessionId);
 		if (prompt.includes('APPROVAL_HOLD')) heldApprovals.add(runId);
+		if (prompt.includes('APPROVAL_ENDS')) endingApprovals.add(runId);
 		event({
 			type: 'approval.requested',
 			sessionId,
@@ -1247,6 +1250,12 @@ const respond = async (sessionId, runId, prompt) => {
 				],
 			},
 		});
+		return;
+	}
+	if (prompt.includes('QUESTION_HOLD')) {
+		pendingRuns.set(runId, sessionId);
+		heldQuestions.add(runId);
+		askQuestion(sessionId, runId, 'question-1', 'ask-1', 'Which?', ['A', 'B']);
 		return;
 	}
 	if (prompt.includes('QUESTION_PAIR')) {
@@ -1613,6 +1622,9 @@ const reportMcpListing = (cwd) => {
 	});
 };
 const stuckMcpServers = env.FAKE_BRIDGE_MCP_STUCK ? JSON.parse(env.FAKE_BRIDGE_MCP_STUCK) : [];
+const lateMcpReconnectErrors = env.FAKE_BRIDGE_MCP_RECONNECT_ERRORS
+	? JSON.parse(env.FAKE_BRIDGE_MCP_RECONNECT_ERRORS)
+	: {};
 const connectMcp = (serverName) => {
 	const stuck = stuckMcpServers.includes(serverName);
 	mcpServers = mcpServers.map((server) => {
@@ -1710,6 +1722,17 @@ const handle = (command) => {
 		case 'close_session':
 			return ack(command.id);
 		case 'approve': {
+			if (endingApprovals.delete(command.runId)) {
+				pendingRuns.delete(command.runId);
+				event({ type: 'run.failed', runId: command.runId, error: 'cancelled' });
+				return ack(
+					command.id,
+					'INTERACTION_RUN_NOT_ACTIVE: run ' +
+						command.runId +
+						' is not active in session ' +
+						command.sessionId,
+				);
+			}
 			ack(command.id);
 			if (uncheckedRuns.delete(command.runId)) {
 				event(
@@ -1835,8 +1858,17 @@ const handle = (command) => {
 			});
 			if (asked.questions.size > 0) return;
 			askedQuestions.delete(command.runId);
-			completeRun(command.sessionId, command.runId, 'answered:' + JSON.stringify(asked.answers));
-			pendingRuns.delete(command.runId);
+			const answered = () => {
+				completeRun(command.sessionId, command.runId, 'answered:' + JSON.stringify(asked.answers));
+				pendingRuns.delete(command.runId);
+			};
+			if (!heldQuestions.delete(command.runId)) return answered();
+			const released = nodePath.join(env.HOME, APPROVAL_RELEASE);
+			const holdingAnswer = setInterval(() => {
+				if (!fs.existsSync(released)) return;
+				clearInterval(holdingAnswer);
+				answered();
+			}, 50);
 			return;
 		}
 		case 'refresh_capabilities': {
@@ -1881,7 +1913,8 @@ const handle = (command) => {
 		}
 		case 'reconnect_mcp_server': {
 			connectMcp(command.serverName);
-			return ack(command.id);
+			const late = lateMcpReconnectErrors[command.serverName];
+			return ack(command.id, late === undefined ? undefined : `MCP_SERVER_FAILED: ${late}`);
 		}
 		case 'watch_mcp_servers': {
 			const watching = mcpWatchers.has(command.cwd) && !command.restart;

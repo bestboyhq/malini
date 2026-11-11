@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	INSPECTOR_DRAWER_STORAGE_KEY_PREFIX,
+	InspectorDrawer,
 	inspectorDrawer,
 	loadInspectorDrawerOpen,
 	saveInspectorDrawerOpen,
@@ -56,6 +57,23 @@ describe('inspector drawer state', () => {
 		inspectorDrawer.fold('workstream-1', storage);
 		inspectorDrawer.unfold('workstream-1', storage);
 		expect(inspectorDrawer.isOpen('workstream-1', storage)).toBe(false);
+	});
+
+	it('reopens the overlay by itself after folding for lack of panels, but not once closed', () => {
+		const storage = memoryStorage();
+		const overlay = new InspectorDrawer(() => true);
+
+		overlay.open('workstream-1', storage);
+		overlay.fold('workstream-1', storage);
+		expect(overlay.isOpen('workstream-1', storage)).toBe(false);
+		overlay.unfold('workstream-1', storage);
+		expect(overlay.isOpen('workstream-1', storage)).toBe(true);
+
+		overlay.close('workstream-1', storage);
+		overlay.fold('workstream-1', storage);
+		overlay.unfold('workstream-1', storage);
+		expect(overlay.isOpen('workstream-1', storage)).toBe(false);
+		expect([...storage.values.keys()]).toEqual([]);
 	});
 
 	it('keeps the decision per workstream instead of leaking it to the next one', () => {

@@ -17,6 +17,12 @@ export type ExtensionEntry = Readonly<{
 	update: ExtensionUpdate | null;
 }>;
 
+export function isExtensionOn(
+	installed: Pick<InstalledExtension, 'enabled' | 'withdrawn'>,
+): boolean {
+	return installed.enabled && !installed.withdrawn;
+}
+
 export function extensionKey(publisher: string, name: string): string {
 	return `${publisher}/${name}`;
 }

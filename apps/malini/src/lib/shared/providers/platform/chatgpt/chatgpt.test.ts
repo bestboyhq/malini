@@ -57,6 +57,7 @@ interface FakeOpenAi {
 	readonly replies: Reply[];
 	readonly codes: Map<string, Authorization>;
 	readonly refreshTokens: Set<string>;
+	readonly down: Map<string, number>;
 }
 
 interface Browser {
@@ -105,6 +106,7 @@ async function fakeOpenAi(now: () => number): Promise<FakeOpenAi> {
 		replies: [],
 		codes: new Map(),
 		refreshTokens: new Set(),
+		down: new Map(),
 	};
 	let issued = 0;
 	let accessToken = '';
@@ -169,6 +171,8 @@ async function fakeOpenAi(now: () => number): Promise<FakeOpenAi> {
 	};
 
 	const route = (method: string, path: string, headers: IncomingHttpHeaders, body: Buffer) => {
+		const down = openai.down.get(`${method} ${path}`);
+		if (down !== undefined) return json(down, { error: { message: 'Down.' } });
 		switch (`${method} ${path}`) {
 			case 'GET /.well-known/openid-configuration':
 				return json(200, {
@@ -206,6 +210,10 @@ async function fakeOpenAi(now: () => number): Promise<FakeOpenAi> {
 		const path = new URL(request.url ?? '/', url).pathname;
 		openai.requests.push(`${request.method} ${path}`);
 		const reply = route(request.method ?? 'GET', path, request.headers, body);
+		if (reply.status === 0) {
+			request.socket.destroy();
+			return;
+		}
 		response.writeHead(reply.status, { 'content-type': reply.type }).end(reply.body);
 	};
 	server.on('request', (request, response) => void handle(request, response));
@@ -506,6 +514,44 @@ describe('ChatGPT sign-in', () => {
 		expect(h.account.account()).toBeNull();
 	});
 
+	it('lists the models again an hour after ChatGPT answered, and on the next refresh when it did not', async () => {
+		const h = await harness();
+		await h.signIn();
+		const listings = () => h.openai.requests.filter((request) => request === 'GET /v1/models');
+
+		h.advance(HOUR);
+		h.openai.down.set('GET /v1/models', 503);
+		await h.account.refreshModels();
+		expect(listings()).toHaveLength(2);
+
+		h.openai.down.clear();
+		await Promise.all([h.account.refreshModels(), h.account.refreshModels()]);
+		await h.account.refreshModels();
+		expect(listings()).toHaveLength(3);
+	});
+
+	it('forgets the sign-in even when ChatGPT cannot be reached to sign out', async () => {
+		const h = await harness();
+		await h.signIn();
+
+		h.openai.down.set('POST /oauth/revoke', 0);
+		await expect(h.account.signOut()).rejects.toThrow('ChatGPT did not confirm it');
+		expect(h.account.account()).toBeNull();
+		await expect(h.account.accessToken()).rejects.toMatchObject({ code: 'signed_out' });
+	});
+
+	it('loads the signing keys again after ChatGPT could not be reached for them', async () => {
+		const h = await harness();
+		await h.signIn();
+		const reopened = h.reopened();
+		h.advance(2 * HOUR);
+
+		h.openai.down.set('GET /.well-known/jwks.json', 0);
+		await expect(reopened.accessToken()).rejects.toMatchObject({ code: 'network_error' });
+		h.openai.down.clear();
+		expect(await reopened.accessToken()).toBe('at-2');
+	});
+
 	it('signs out by revoking the refresh token and forgetting the account', async () => {
 		const h = await harness();
 		await h.signIn();
@@ -592,6 +638,7 @@ describe('ChatGptProxy', () => {
 			type: 'error',
 			error: { type: 'not_found_error', message: 'Your ChatGPT plan does not include this model.' },
 		});
+		expect(h.account.account()?.usageLimitReachedAt).toBe(new Date(h.now()).toISOString());
 
 		h.openai.replies.push(hello('resp_1'));
 		const streamed = await post(claudeCodeTurn(true));
@@ -651,6 +698,22 @@ describe('ChatGptProxy', () => {
 			usage: { input_tokens: 30, cache_read_input_tokens: 20, output_tokens: 3 },
 		});
 		expect(h.openai.responses).toHaveLength(4);
+	});
+});
+
+describe('ChatGptProxy lifecycle', () => {
+	it('leaves nothing listening when it stops while it is still starting', async () => {
+		const h = await harness();
+		const proxy = h.proxy();
+		const first = proxy.address();
+		proxy.stop();
+		const second = proxy.address();
+		const started = (await Promise.allSettled([first, second])).flatMap((result) =>
+			result.status === 'fulfilled' ? [result.value.baseUrl] : [],
+		);
+		expect(started).toHaveLength(1);
+		proxy.stop();
+		for (const baseUrl of started) await expect(fetch(baseUrl)).rejects.toThrow();
 	});
 });
 

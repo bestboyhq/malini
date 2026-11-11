@@ -8,7 +8,8 @@ import type {
 } from '$contract/pull-requests';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, nowIso8601, run, type BindValue } from '$main/db/rows';
-import { signatureChecks } from '../domain/shipping';
+import { invariant } from '$main/errors';
+import { shipPhaseMoves, signatureChecks, type FixAttempts } from '../domain/shipping';
 
 export type ShipRequest = 'push' | 'review';
 
@@ -16,9 +17,12 @@ export type ShipRequests = Readonly<Record<ShipRequest, number>>;
 
 export type ChecksRerun = Readonly<{ headSha: string; at: string }>;
 
+export type ShipPhaseMove = Readonly<{ from: ShipPhase; to: ShipPhase }>;
+
 export type ShipRow = ShipStateRecord &
 	Readonly<{
 		failureSignature: string | null;
+		fixAttempts: FixAttempts;
 		checksRerun: ChecksRerun | null;
 		generatedTitle: string | null;
 		generatedBody: string | null;
@@ -29,7 +33,6 @@ export type ShipRow = ShipStateRecord &
 
 export type ShipPatch = Partial<
 	Readonly<{
-		phase: ShipPhase;
 		step: ShipStep | null;
 		keep: boolean;
 		pullRequestNumber: number | null;
@@ -38,7 +41,7 @@ export type ShipPatch = Partial<
 		queuedAt: string | null;
 		failureSignature: string | null;
 		checksRerun: ChecksRerun | null;
-		attempts: number;
+		fixAttempts: FixAttempts;
 		activeAutomationRunId: string | null;
 		lastError: string | null;
 		githubSaid: string | null;
@@ -67,7 +70,7 @@ interface ShipDbRow {
 	failure_signature: string | null;
 	checks_rerun_at: string | null;
 	checks_rerun_head_sha: string | null;
-	attempts: number;
+	fix_attempts: string;
 	active_automation_run_id: string | null;
 	last_error: string | null;
 	github_said: string | null;
@@ -113,7 +116,7 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 const WAITS: readonly ShipWaitsFor[] = ['workflow-scope', 'workflow-permission', 'push-access'];
 
 const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
-	needs_you_detail, needs_you_automation_run_id, queued_at, failure_signature, attempts, active_automation_run_id,
+	needs_you_detail, needs_you_automation_run_id, queued_at, failure_signature, fix_attempts, active_automation_run_id,
 	last_error, github_said, failed_since, next_attempt_at, waits_for, generated_title, generated_body,
 	addressed_reviews, push_requests, review_requests, failures, settled_automation_run_id, updated_at,
 	checks_rerun_at, checks_rerun_head_sha`;
@@ -129,6 +132,7 @@ function member<T extends string>(values: readonly T[], value: string | null): T
 
 function fromRow(row: ShipDbRow): ShipRow {
 	const reason = member(REASONS, row.needs_you_reason);
+	const fixAttempts = attemptCounts(row.fix_attempts);
 	return {
 		workstreamId: row.workstream_id,
 		phase: member(PHASES, row.phase) ?? 'local',
@@ -145,7 +149,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 						automationRunId: row.needs_you_automation_run_id,
 					},
 		queuedAt: row.queued_at,
-		attempts: row.attempts,
+		attempts: row.failure_signature === null ? 0 : (fixAttempts.get(row.failure_signature) ?? 0),
 		checks: signatureChecks(row.failure_signature),
 		activeAutomationRunId: row.active_automation_run_id,
 		lastError: row.last_error,
@@ -156,6 +160,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 		waitsFor: member(WAITS, row.waits_for),
 		updatedAt: row.updated_at,
 		failureSignature: row.failure_signature,
+		fixAttempts,
 		checksRerun:
 			row.checks_rerun_at === null || row.checks_rerun_head_sha === null
 				? null
@@ -169,6 +174,20 @@ function fromRow(row: ShipDbRow): ShipRow {
 		},
 		settledAutomationRunId: row.settled_automation_run_id,
 	};
+}
+
+function attemptCounts(json: string): FixAttempts {
+	try {
+		const parsed: unknown = JSON.parse(json);
+		if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return new Map();
+		return new Map(
+			Object.entries(parsed).filter(
+				(entry): entry is [string, number] => typeof entry[1] === 'number',
+			),
+		);
+	} catch {
+		return new Map();
+	}
 }
 
 function reviewIds(json: string): readonly string[] {
@@ -219,13 +238,12 @@ export function listShips(db: MaliniDatabase): ShipRow[] {
 	).map(fromRow);
 }
 
-export function insertShip(db: MaliniDatabase, workstreamId: string, phase: ShipPhase): void {
+export function insertShip(db: MaliniDatabase, workstreamId: string): void {
 	run(
 		db,
-		`INSERT INTO workstream_ship (workstream_id, phase, updated_at) VALUES (?, ?, ?)
+		`INSERT INTO workstream_ship (workstream_id, phase, updated_at) VALUES (?, 'local', ?)
 		 ON CONFLICT(workstream_id) DO NOTHING`,
 		workstreamId,
-		phase,
 		nowIso8601(),
 	);
 }
@@ -234,15 +252,19 @@ export function updateShip(
 	db: MaliniDatabase,
 	workstreamId: string,
 	patch: ShipPatch,
-	onlyInPhase?: ShipPhase,
+	phase?: ShipPhase | ShipPhaseMove,
 ): ShipRow | null {
+	const move = typeof phase === 'string' ? { from: phase, to: phase } : phase;
+	if (move && !shipPhaseMoves(move.from, move.to)) {
+		throw invariant(`a ship cannot move from ${move.from} to ${move.to}`);
+	}
 	const assignments: string[] = [];
 	const values: BindValue[] = [];
 	const set = (column: string, value: BindValue): void => {
 		assignments.push(`${column} = ?`);
 		values.push(value);
 	};
-	if (patch.phase !== undefined) set('phase', patch.phase);
+	if (move && move.to !== move.from) set('phase', move.to);
 	if (patch.step !== undefined) set('step', patch.step);
 	if (patch.keep !== undefined) set('keep_workstream', patch.keep ? 1 : 0);
 	if (patch.pullRequestNumber !== undefined) set('pull_request_number', patch.pullRequestNumber);
@@ -258,7 +280,9 @@ export function updateShip(
 		set('checks_rerun_at', patch.checksRerun?.at ?? null);
 		set('checks_rerun_head_sha', patch.checksRerun?.headSha ?? null);
 	}
-	if (patch.attempts !== undefined) set('attempts', patch.attempts);
+	if (patch.fixAttempts !== undefined) {
+		set('fix_attempts', JSON.stringify(Object.fromEntries(patch.fixAttempts)));
+	}
 	if (patch.activeAutomationRunId !== undefined)
 		set('active_automation_run_id', patch.activeAutomationRunId);
 	if (patch.lastError !== undefined) set('last_error', patch.lastError);
@@ -275,13 +299,13 @@ export function updateShip(
 	if (patch.settledAutomationRunId !== undefined)
 		set('settled_automation_run_id', patch.settledAutomationRunId);
 	set('updated_at', nowIso8601());
-	const phaseGuard = onlyInPhase === undefined ? '' : ' AND phase = ?';
+	const phaseGuard = move === undefined ? '' : ' AND phase = ?';
 	const { changes } = run(
 		db,
 		`UPDATE workstream_ship SET ${assignments.join(', ')} WHERE workstream_id = ?${phaseGuard}`,
 		...values,
 		workstreamId,
-		...(onlyInPhase === undefined ? [] : [onlyInPhase]),
+		...(move === undefined ? [] : [move.from]),
 	);
 	return changes === 0 ? null : getShip(db, workstreamId);
 }

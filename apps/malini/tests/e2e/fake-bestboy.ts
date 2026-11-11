@@ -23,6 +23,8 @@ export type FakeBestboy = Readonly<{
 	changeTerms(date: string): void;
 	listExtension(files: readonly ExtensionFile[]): void;
 	yankExtension(publisher: string, name: string, version: string): void;
+	holdDownloads(): () => void;
+	failNextDownload(error: string): void;
 	close(): void;
 }>;
 
@@ -80,6 +82,8 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 	let profile: { handle: string | null; public: boolean } = { handle: null, public: false };
 	let terms = '2026-10-23';
 	let acceptedTerms: string | null = null;
+	let downloads: Promise<void> = Promise.resolve();
+	let downloadFailure: string | null = null;
 
 	const list = (bytes: Buffer): Listing => {
 		const files = unpacked(bytes);
@@ -157,6 +161,12 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 			const media = /^\/media\/extensions\/([^/]+)\/([^/]+)\/[^/]+\.malini$/u.exec(url.pathname);
 			if (request.method === 'GET' && media) {
 				const entry = listed.get(`${media[1]}/${media[2]}`);
+				await downloads;
+				if (downloadFailure) {
+					reply(503, { error: downloadFailure });
+					downloadFailure = null;
+					return;
+				}
 				response.writeHead(entry ? 200 : 404, { 'content-type': 'application/gzip' });
 				response.end(entry?.bytes ?? '');
 				return;
@@ -283,6 +293,16 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 		},
 		listExtension: (files) => {
 			list(extensionPackage(files));
+		},
+		holdDownloads: () => {
+			let release = (): void => undefined;
+			downloads = new Promise((resolve) => {
+				release = resolve;
+			});
+			return release;
+		},
+		failNextDownload: (error) => {
+			downloadFailure = error;
 		},
 		yankExtension: (publisher, name, version) => {
 			yanked.push({ publisher, name, version });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	agentRunWasAlreadyGone,
 	AUTOMATION_CONTEXT_MAX_BYTES,
+	automationsMaxConcurrent,
 	truncateAutomationContext,
 } from './automation-run';
 
@@ -26,5 +27,15 @@ describe('agentRunWasAlreadyGone', () => {
 	it('tells a cancel that found no run apart from a cancel that failed', () => {
 		expect(agentRunWasAlreadyGone(new Error('cancel race: no active run for session'))).toBe(true);
 		expect(agentRunWasAlreadyGone(new Error('bridge unavailable: socket closed'))).toBe(false);
+	});
+});
+
+describe('automationsMaxConcurrent', () => {
+	it('runs as many automations as Settings shows for what is stored', () => {
+		expect(automationsMaxConcurrent('2.6')).toBe(3);
+		expect(automationsMaxConcurrent('1e1')).toBe(10);
+		expect(automationsMaxConcurrent('0')).toBe(1);
+		expect(automationsMaxConcurrent(' ')).toBe(3);
+		expect(automationsMaxConcurrent('lots')).toBe(3);
 	});
 });

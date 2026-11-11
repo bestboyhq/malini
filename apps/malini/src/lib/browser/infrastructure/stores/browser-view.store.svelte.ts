@@ -44,6 +44,12 @@ class BrowserViewStore {
 		this.picking = next;
 	}
 
+	forget(tabKey: string): void {
+		this.#placements.delete(tabKey);
+		this.setSnapshot(tabKey, null);
+		this.setAddressFocus(tabKey, false);
+	}
+
 	setAddressFocus(tabKey: string, pending: boolean): void {
 		if (this.addressFocus.has(tabKey) === pending) return;
 		const next = new Set(this.addressFocus);

@@ -1,5 +1,5 @@
 import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
@@ -9,6 +9,7 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -114,6 +115,10 @@ async function openTab(page: Page, origin: string, path: string): Promise<void> 
 	const address = page.getByRole('textbox', { name: 'Page address' }).last();
 	await address.fill(`${origin}${path}`);
 	await address.press('Enter');
+}
+
+async function untilBrowserEventsArrive(page: Page, workstreamId: string): Promise<void> {
+	await invoke(page, 'browser.state', { workstreamId, tabId: 'round-trip' });
 }
 
 test('browser tabs show only once opened, each with its own page and close button, keep the inspector width on every tab, and closing one closes only its page', async () => {
@@ -692,6 +697,189 @@ test('the agent resizes the browser tab you see by moving the divider, stops whe
 		await expect(split).toHaveAttribute('aria-valuenow', resized ?? '');
 		expectCleanConsole(app);
 	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('a page that breaks off after it shows stays shown and pickable, and so does a blank page', async () => {
+	test.setTimeout(120_000);
+	const held: ServerResponse[] = [];
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html', 'content-length': '4096' });
+		response.write('<!doctype html><title>Broken off</title><h1>Half a page</h1>');
+		held.push(response);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const pageShown = () =>
+			electronApp.evaluate(({ BrowserWindow }) =>
+				(BrowserWindow.getAllWindows()[0]?.contentView.children ?? []).some((view) =>
+					view.getVisible(),
+				),
+			);
+		const stillLoading = (prefix: string) =>
+			electronApp.evaluate(
+				({ webContents }, prefix) =>
+					webContents
+						.getAllWebContents()
+						.find((contents) => contents.getURL().startsWith(prefix))
+						?.isLoading() ?? true,
+				prefix,
+			);
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-broken-off-ws',
+			'Browser broken off',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+
+		await openTab(page, origin, '/partial');
+		await expect(inspector.getByRole('tab', { name: 'Broken off', selected: true })).toBeVisible();
+		for (const response of held) response.destroy();
+		await expect.poll(() => stillLoading(origin)).toBe(false);
+		await untilBrowserEventsArrive(page, seeded.workstreamId);
+		const pick = page.getByRole('button', { name: 'Pick an element' });
+		await expect(pick).toBeEnabled();
+		await expect(inspector.getByRole('status')).toHaveCount(0);
+		await expect.poll(pageShown).toBe(true);
+
+		const address = page.getByRole('textbox', { name: 'Page address' });
+		await address.fill('about:blank');
+		await address.press('Enter');
+		await expect(address).toHaveValue('about:blank');
+		await expect.poll(() => stillLoading('about:blank')).toBe(false);
+		await untilBrowserEventsArrive(page, seeded.workstreamId);
+		const blank = webPage(electronApp, 'about:blank');
+		await pick.click();
+		await expect
+			.poll(() => blank.inPage(`Boolean(document.querySelector('malini-picker'))`))
+			.toBe(true);
+		await expect(pick).toHaveAttribute('aria-pressed', 'true');
+		await pick.click();
+		await expect(pick).toHaveAttribute('aria-pressed', 'false');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('a tab going back shows the address it goes back to while that page loads', async () => {
+	test.setTimeout(120_000);
+	let hold = false;
+	const held: ServerResponse[] = [];
+	const server = createServer((request, response) => {
+		if (hold && request.url === '/first') {
+			held.push(response);
+			return;
+		}
+		const title = request.url === '/first' ? 'First page' : 'Second page';
+		response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' });
+		response.end(`<!doctype html><title>${title}</title><h1>${title}</h1>`);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const host = new URL(origin).host;
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-back-ws',
+			'Browser back',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+
+		await openTab(page, origin, '/first');
+		await expect(inspector.getByRole('tab', { name: 'First page', selected: true })).toBeVisible();
+		const address = page.getByRole('textbox', { name: 'Page address' });
+		await address.fill(`${origin}/second`);
+		await address.press('Enter');
+		await expect(inspector.getByRole('tab', { name: 'Second page', selected: true })).toBeVisible();
+
+		hold = true;
+		await page.getByRole('button', { name: 'Back', exact: true }).click();
+		await expect.poll(() => held.length).toBe(1);
+		await expect(address).toHaveValue(`${host}/first`);
+		expectCleanConsole(app);
+	} finally {
+		for (const response of held) response.destroy();
+		await app.close();
+		server.close();
+	}
+});
+
+test('a restored tab shows its address while its page loads', async () => {
+	test.setTimeout(180_000);
+	let hold = false;
+	const held: ServerResponse[] = [];
+	const server = createServer((request, response) => {
+		if (hold && request.url === '/slow') {
+			held.push(response);
+			return;
+		}
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end('<!doctype html><title>Slow page</title><h1>Slow page</h1>');
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const host = new URL(origin).host;
+	const first = await launchMalini();
+	let workstreamId = '';
+	try {
+		const { page } = first;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(first.root),
+			'e2e-browser-restore-ws',
+			'Browser restore',
+		);
+		workstreamId = seeded.workstreamId;
+		await openWorkstream(page, workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+		await openTab(page, origin, '/slow');
+		await expect(inspector.getByRole('tab', { name: 'Slow page', selected: true })).toBeVisible();
+		await inspector.getByRole('tab', { name: 'Files' }).click();
+		await expect(inspector.getByRole('tab', { name: 'Files', selected: true })).toBeVisible();
+		expectCleanConsole(first);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		server.close();
+		throw error;
+	}
+
+	hold = true;
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await openWorkstream(page, workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		const slowTab = inspector.getByRole('tab', { name: `${host}/slow` });
+		await expect(slowTab).toBeVisible({ timeout: 20_000 });
+		await slowTab.click();
+
+		await expect.poll(() => held.length).toBe(1);
+		await untilBrowserEventsArrive(page, workstreamId);
+		await expect(
+			inspector.getByRole('tab', { name: `${host}/slow`, selected: true }),
+		).toBeVisible();
+		await expect(page.getByRole('textbox', { name: 'Page address' })).toHaveValue(`${host}/slow`);
+		await expect(inspector.getByText('Open a page')).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		for (const response of held) response.destroy();
 		await app.close();
 		server.close();
 	}

@@ -9,11 +9,7 @@ class PendingPromptStore {
 		return this.pendingBySession[sessionId] ?? null;
 	}
 
-	set(pending: PendingUserPrompt | null): void {
-		if (pending === null) {
-			this.pendingBySession = {};
-			return;
-		}
+	set(pending: PendingUserPrompt): void {
 		this.pendingBySession = { ...this.pendingBySession, [pending.sessionId]: pending };
 	}
 

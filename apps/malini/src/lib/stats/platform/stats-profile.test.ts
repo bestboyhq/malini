@@ -121,6 +121,78 @@ describe('StatsProfile', () => {
 		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
 		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(3);
 	});
+
+	it('asks Bestboy again five minutes after an account check that failed', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(NOW);
+		const { profile, platform } = await signedInProfile();
+		const later = (minutes: number): void => {
+			vi.setSystemTime(Date.now() + minutes * 60_000);
+		};
+		platform.fail('/api/me', 503);
+
+		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		later(4);
+		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(1);
+
+		later(2);
+		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(2);
+	});
+
+	it('keeps your stats off when an account check answers after you unpublish', async () => {
+		const { profile, platform, folder } = await signedInProfile();
+		await profile.publish('szymeo');
+		await vi.waitFor(() => expect(profile.state().upload.state).toBe('published'));
+
+		const answer = platform.hold('/api/me');
+		const counting = profile.usageAccount();
+		expect((await profile.unpublish()).publishing).toBe('off');
+		answer();
+		await counting;
+
+		expect(profile.state().publishing).toBe('off');
+		expect(new ProfileStore(folder, fakeCipher()).load()).toMatchObject({
+			publishing: 'off',
+			publishedThrough: null,
+		});
+	});
+
+	it('says so when the Bestboy sign-in runs out of time', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		const { profile } = await signedInProfile();
+		expect(profile.signIn().signingIn).toBe(true);
+
+		await vi.advanceTimersByTimeAsync(10 * 60_000);
+		expect(profile.state().signingIn).toBe(false);
+		expect(profile.state().signInProblem).toEqual(expect.any(String));
+	});
+
+	it('finishes a Bestboy sign-in that comes back after Malini restarts', async () => {
+		const folder = mkdtempSync(join(tmpdir(), 'malini-stats-profile-'));
+		folders.push(folder);
+		const platform = fakePlatform();
+		const opened: string[] = [];
+		const before = statsProfile(new ProfileStore(folder, fakeCipher()), platform, opened);
+		expect(before.signIn().signingIn).toBe(true);
+		await vi.waitFor(() => expect(opened).toHaveLength(1));
+		before.stop();
+		const state = new URL(opened[0] ?? '').searchParams.get('state') ?? '';
+
+		const after = statsProfile(new ProfileStore(folder, fakeCipher()), platform, []);
+		expect(after.state().signingIn).toBe(true);
+		await after.completeSignIn(`malini://auth?${new URLSearchParams({ code: 'c1', state })}`);
+
+		expect(after.state()).toMatchObject({
+			account: { name: 'Simon', email: 'simon@test' },
+			signingIn: false,
+			signInProblem: null,
+		});
+		expect(platform.calls().slice(0, 2)).toEqual(['POST /api/auth/token', 'GET /api/me']);
+		const relaunched = statsProfile(new ProfileStore(folder, fakeCipher()), platform, []);
+		expect(relaunched.state()).toMatchObject({ signingIn: false, account: { name: 'Simon' } });
+	});
 });
 
 async function signedInProfile(): Promise<{
@@ -141,26 +213,40 @@ async function signedInProfile(): Promise<{
 		publishing: 'off',
 		publishedThrough: null,
 		picked: [],
+		signIn: null,
 	});
-	const db = seededDatabase();
 	const platform = fakePlatform();
 	const publishedProfiles: BestboyProfile[] = [];
-	const profile = new StatsProfile({
+	const profile = statsProfile(store, platform, [], publishedProfiles);
+	return { profile, platform, folder, publishedProfiles };
+}
+
+function statsProfile(
+	store: ProfileStore,
+	platform: ReturnType<typeof fakePlatform>,
+	opened: string[],
+	publishedProfiles: BestboyProfile[] = [],
+): StatsProfile {
+	const db = seededDatabase();
+	return new StatsProfile({
 		bestboy: new Bestboy(ORIGIN, platform.fetch),
 		store,
-		openExternal: () => Promise.resolve(),
+		openExternal: (url) => {
+			opened.push(url);
+			return Promise.resolve();
+		},
 		readStats: (picked) => readPublishedStats(db, NOW, picked, () => Promise.resolve(true)),
 		githubLogin: () => Promise.resolve('szymeo'),
 		changed: () => undefined,
 		published: (published) => publishedProfiles.push(published),
 		now: () => NOW,
 	});
-	return { profile, platform, folder, publishedProfiles };
 }
 
 function fakePlatform(): {
 	fetch: (url: string, init: RequestInit) => Promise<Response>;
 	fail(path: string, status: number): void;
+	hold(path: string): () => void;
 	changeTerms(date: string): void;
 	accept(): void;
 	calls(): string[];
@@ -169,12 +255,18 @@ function fakePlatform(): {
 	const calls: string[] = [];
 	const uploads: unknown[] = [];
 	const failures = new Map<string, number>();
+	const held = new Map<string, Promise<void>>();
 	let profile = { handle: null as string | null, public: false };
 	let terms = '2026-11-02';
 	let accepted = terms;
 	return {
 		fail: (path, status) => {
 			failures.set(path, status);
+		},
+		hold: (path) => {
+			let release = (): void => undefined;
+			held.set(path, new Promise((resolve) => (release = resolve)));
+			return () => release();
 		},
 		changeTerms: (date) => {
 			terms = date;
@@ -184,35 +276,43 @@ function fakePlatform(): {
 		},
 		calls: () => calls,
 		uploads: () => uploads,
-		fetch: (url, init) => {
+		fetch: async (url, init) => {
 			const path = new URL(url).pathname;
 			const body = typeof init.body === 'string' ? init.body : '';
 			calls.push(`${init.method} ${path}${path === '/api/profile' ? ` ${body}` : ''}`.trimEnd());
-			const failure = failures.get(path);
-			failures.delete(path);
-			if (failure) return Promise.resolve(new Response('{}', { status: failure }));
-			if (path === '/api/me') {
-				return Promise.resolve(
-					Response.json({
-						user: { id: 'u1', name: 'Simon', email: 'simon@test', terms: accepted },
-						terms,
-						profile,
-					}),
-				);
-			}
-			if (path === '/api/profile') {
-				profile = { ...profile, ...JSON.parse(body) };
-				return Promise.resolve(
-					Response.json({
-						...profile,
-						url: profile.handle ? `${ORIGIN}/@${profile.handle}` : null,
-					}),
-				);
-			}
-			if (path === '/api/stats/malini' && init.method === 'PUT') uploads.push(JSON.parse(body));
-			return Promise.resolve(new Response(null, { status: 204 }));
+			const gate = held.get(path);
+			held.delete(path);
+			if (gate) await gate;
+			return respond(path, body, init);
 		},
 	};
+
+	function respond(path: string, body: string, init: RequestInit): Promise<Response> {
+		const failure = failures.get(path);
+		failures.delete(path);
+		if (failure) return Promise.resolve(new Response('{}', { status: failure }));
+		if (path === '/api/auth/token') return Promise.resolve(Response.json({ token: 'new-token' }));
+		if (path === '/api/me') {
+			return Promise.resolve(
+				Response.json({
+					user: { id: 'u1', name: 'Simon', email: 'simon@test', terms: accepted },
+					terms,
+					profile,
+				}),
+			);
+		}
+		if (path === '/api/profile') {
+			profile = { ...profile, ...JSON.parse(body) };
+			return Promise.resolve(
+				Response.json({
+					...profile,
+					url: profile.handle ? `${ORIGIN}/@${profile.handle}` : null,
+				}),
+			);
+		}
+		if (path === '/api/stats/malini' && init.method === 'PUT') uploads.push(JSON.parse(body));
+		return Promise.resolve(new Response(null, { status: 204 }));
+	}
 }
 
 function fakeCipher(): TokenCipher {

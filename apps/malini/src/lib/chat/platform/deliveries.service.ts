@@ -112,7 +112,10 @@ export class ChatDeliveries {
 			this.#settle(ids, { status: 'failed', detail: 'That chat is gone.' });
 			return;
 		}
-		if (sessionHasWorkingRun(db, sessionId)) return;
+		if (sessionHasWorkingRun(db, sessionId)) {
+			this.#retries.delete(sessionId);
+			return;
+		}
 		const batch = deliveryBatch(waiting);
 		const profile =
 			firstProfile(waiting.map((delivery) => delivery.profile)) ??
@@ -159,7 +162,7 @@ export class ChatDeliveries {
 		const report = workstreamReport({
 			workstreamId: workstream.id,
 			runId: turn.runId,
-			status: turn.status,
+			status: turn.status === 'succeeded' ? 'succeeded' : 'failed',
 			outcome: turn.outcome,
 			needs: turn.needs,
 			summary,

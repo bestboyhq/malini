@@ -1,14 +1,17 @@
 import {
 	foldSessionStatus,
 	isLifecycleKind,
-	type LifecycleEnvelope,
+	isSessionStatus,
+	nextSessionStatus,
+	type LifecycleEventKind,
 	type SessionStatus,
+	type TransitionGuard,
 } from '$contract/agent-state-machine';
 import { listEventRowsForSession } from './events.repository';
 import { promptChipSegments } from '$lib/chat/domain/prompt-chip';
 import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
-import { all, column, get, run, scalar } from '$main/db/rows';
+import { all, column, get, isRecord, run, scalar } from '$main/db/rows';
 import {
 	agentRunProfileOf,
 	type AgentRunProfile,
@@ -304,7 +307,7 @@ export function listSessionSummaries(
 		display_name: string;
 		provider: string;
 		model: string | null;
-		projected_status: SessionStatus;
+		status: SessionStatus;
 		started_at: string;
 		origin: AgentSessionOrigin;
 		latest_profile: string | null;
@@ -317,21 +320,7 @@ export function listSessionSummaries(
 		            ORDER BY r.rowid DESC
 		            LIMIT 1
 		        ) AS latest_profile,
-		        COALESCE((
-		            SELECT CASE
-		                WHEN r.completed_at IS NULL THEN
-		                    CASE WHEN s.status = 'waiting_for_approval'
-		                        THEN 'waiting_for_approval' ELSE 'running' END
-		                WHEN r.resume_at IS NOT NULL THEN 'idle'
-		                WHEN r.error IS NOT NULL THEN 'failed'
-		                ELSE 'completed'
-		            END
-		            FROM agent_runs r
-		            WHERE r.session_id = s.id
-		            ORDER BY r.rowid DESC
-		            LIMIT 1
-		        ), s.status) AS projected_status,
-		        s.started_at
+		        s.status, s.started_at
 		 FROM agent_sessions s
 		 WHERE s.workstream_id = ? AND s.archived_at IS NULL ORDER BY s.rowid DESC`,
 		workstreamId,
@@ -341,7 +330,7 @@ export function listSessionSummaries(
 		displayName: row.display_name,
 		provider: row.provider,
 		model: row.model,
-		status: row.projected_status,
+		status: row.status,
 		startedAt: row.started_at,
 		origin: row.origin,
 		latestProfile: storedProfile(row.latest_profile),
@@ -376,20 +365,15 @@ export function repairSessionStatusesWithoutOpenRuns(
 	);
 	let repaired = 0;
 	for (const session of stale) {
-		const events: LifecycleEnvelope[] = listEventRowsForSession(db, session.id, 0)
-			.filter((row) => isLifecycleKind(row.kind))
-			.map((row) => {
-				const payload = row.payload;
-				const error =
-					payload !== null && typeof payload === 'object'
-						? Reflect.get(payload, 'error')
-						: undefined;
-				return {
-					runId: row.runId,
-					event: error === undefined ? { type: row.kind } : { type: row.kind, error },
-				};
-			});
-		const folded = foldSessionStatus('idle', events);
+		const folded = foldSessionStatus(
+			'idle',
+			listEventRowsForSession(db, session.id, 0)
+				.filter(({ kind }) => isLifecycleKind(kind))
+				.map(({ runId, kind, payload }) => ({
+					runId,
+					event: { ...(isRecord(payload) ? payload : {}), type: kind },
+				})),
+		);
 		repaired += run(
 			db,
 			'UPDATE agent_sessions SET status = ? WHERE id = ?',
@@ -435,12 +419,30 @@ export function setSessionModel(db: MaliniDatabase, sessionId: string, model: st
 	run(db, 'UPDATE agent_sessions SET model = ? WHERE id = ?', model, sessionId);
 }
 
-export function setSessionStatus(
+export function moveSessionStatus(
 	db: MaliniDatabase,
 	sessionId: string,
-	status: SessionStatus,
-): void {
-	run(db, 'UPDATE agent_sessions SET status = ? WHERE id = ?', status, sessionId);
+	kind: LifecycleEventKind,
+	guard: Omit<TransitionGuard, 'stillWaiting'> = {},
+): SessionStatus | null {
+	const status = get<{ status: string; waiting: number }>(
+		db,
+		`SELECT status, EXISTS (
+		   SELECT 1 FROM agent_interactions
+		   WHERE session_id = agent_sessions.id AND state IN ('pending', 'dispatching')
+		 ) AS waiting
+		 FROM agent_sessions WHERE id = ?`,
+		sessionId,
+	);
+	if (!status || !isSessionStatus(status.status)) return null;
+	const next = nextSessionStatus(status.status, kind, {
+		...guard,
+		stillWaiting: status.waiting === 1,
+	});
+	if (next !== status.status) {
+		run(db, 'UPDATE agent_sessions SET status = ? WHERE id = ?', next, sessionId);
+	}
+	return next;
 }
 
 export function threadWorkstreamId(db: MaliniDatabase, sessionId: string): string | null {

@@ -1,4 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+	closeSync,
+	constants,
+	existsSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+	writeSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -11,6 +22,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	temporaryRoot,
+	withoutConsoleErrors,
 } from './harness';
 
 const HEALTHY = 'community.healthy';
@@ -233,6 +245,113 @@ test('recovery mode starts no local extension', async () => {
 		await page.keyboard.press('Escape');
 		expectCleanConsole(app);
 	} finally {
+		await app.close();
+	}
+});
+
+const EXTENSION_FAILED =
+	/An extension could not start|community\.(crashes|healthy)|dynamically imported module|Content Security Policy/u;
+
+async function goToWorkstream(page: Page, workstreamId: string): Promise<void> {
+	await page.evaluate(
+		(next) => {
+			globalThis.location.hash = next;
+		},
+		`#/workstreams/${encodeURIComponent(workstreamId)}`,
+	);
+	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
+}
+
+test('a local extension that fails while Malini warms the last workstream says so once you open it', async () => {
+	test.setTimeout(120_000);
+	const root = temporaryRoot();
+	const home = join(root, 'extension-home');
+	installExtensions(home, root);
+	const app = await launchMalini({
+		profile: root,
+		env: { MALINI_EXTENSION_HOME: home },
+		allowedDiagnostics: [EXTENSION_FAILED],
+	});
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-extension-warm',
+			'Extension warm',
+		);
+		await page.reload();
+		await expect
+			.poll(() => developmentLog(home), { timeout: 20_000 })
+			.toEqual(expect.arrayContaining([expect.stringMatching(/^community\.crashes \S+-failed$/u)]));
+
+		await goToWorkstream(page, seeded.workstreamId);
+
+		await expect(
+			page.getByTestId('toast').filter({ hasText: 'An extension could not start' }).first(),
+		).toBeVisible({ timeout: 20_000 });
+		withoutConsoleErrors(app, EXTENSION_FAILED);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the inspector says it did not start when the warm-up ahead of it hangs', async () => {
+	test.setTimeout(120_000);
+	const root = temporaryRoot();
+	const home = join(root, 'extension-home');
+	mkdirSync(home, { recursive: true });
+	const registry = join(home, 'local.json');
+	execFileSync('mkfifo', [registry]);
+	const held: { writer: number | null } = { writer: null };
+	const app = await launchMalini({
+		profile: root,
+		env: { MALINI_EXTENSION_HOME: home },
+		allowedDiagnostics: [/did not become ready/u],
+	});
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-extension-warm-hangs',
+			'Extension warm hangs',
+		);
+		await page.reload();
+		await expect
+			.poll(
+				() => {
+					try {
+						held.writer = openSync(registry, constants.O_WRONLY | constants.O_NONBLOCK);
+						return true;
+					} catch {
+						return false;
+					}
+				},
+				{ timeout: 20_000 },
+			)
+			.toBe(true);
+
+		await goToWorkstream(page, seeded.workstreamId);
+
+		const failure = page.getByTestId('inspector-runtime-error');
+		await expect(failure).toContainText(/did not become ready within 15 seconds/u, {
+			timeout: 30_000,
+		});
+		await failure.getByRole('button', { name: 'Retry' }).click();
+		await expect(failure).toHaveCount(0);
+		await expect(failure).toContainText(/did not become ready within 15 seconds/u, {
+			timeout: 30_000,
+		});
+		expectCleanConsole(app);
+	} finally {
+		if (held.writer !== null) {
+			rmSync(registry);
+			writeFileSync(registry, '[]');
+			writeSync(held.writer, '[]');
+			closeSync(held.writer);
+		}
 		await app.close();
 	}
 });

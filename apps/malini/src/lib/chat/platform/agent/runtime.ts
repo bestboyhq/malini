@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { isCancellationError, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import {
+	isCancellationError,
+	isLifecycleKind,
+	PAUSED_FOR_EXIT_ERROR,
+} from '$contract/agent-state-machine';
 import {
 	CHAT_AGENT_EVENT_CHANNEL,
 	CHAT_MCP_SERVER_CHANGED_CHANNEL,
@@ -38,7 +42,7 @@ import {
 	openTurnReply,
 	recordOpenTurnReply,
 } from '../runs.repository';
-import { setProviderSessionId, setSessionStatus, type SessionStatus } from '../sessions.repository';
+import { moveSessionStatus, setProviderSessionId } from '../sessions.repository';
 import { get, nowIso8601 } from '$main/db/rows';
 import {
 	normalizeRequestedPermission,
@@ -334,26 +338,6 @@ export async function tryAutoApprove(
 	return true;
 }
 
-function durableSessionStatus(event: BridgeEvent): SessionStatus | null {
-	switch (event.type) {
-		case 'run.started':
-			return 'running';
-		case 'approval.requested':
-		case 'question.requested':
-			return 'waiting_for_approval';
-		case 'run.completed':
-			return 'completed';
-		case 'run.failed':
-			return 'failed';
-		case 'session.state':
-			return event.status === 'idle' || event.status === 'completed' || event.status === 'failed'
-				? event.status
-				: null;
-		default:
-			return null;
-	}
-}
-
 export function pumpStep(
 	correlator: SessionCorrelator,
 	db: MaliniDatabase,
@@ -435,10 +419,9 @@ export function pumpStep(
 		}
 	} else {
 		if (resolved.event.type === 'run.started') clearAlarm(db, resumeAlarmKey(resolved.sessionId));
-		const status = durableSessionStatus(resolved.event);
-		if (status !== null) {
+		if (isLifecycleKind(resolved.event.type)) {
 			try {
-				setSessionStatus(db, resolved.sessionId, status);
+				moveSessionStatus(db, resolved.sessionId, resolved.event.type);
 			} catch {}
 		}
 		try {

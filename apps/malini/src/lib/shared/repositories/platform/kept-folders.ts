@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
-import { lstat, mkdir, open, readdir, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { promises as originalFs } from 'original-fs';
 import { isErrnoException } from '$main/errors';
 import { cloneFile } from '$main/fs/copy-on-write';
 import {
@@ -11,6 +11,8 @@ import {
 	validateWorkstreamId,
 	workstreamsRoot,
 } from '$main/git/paths';
+
+const { lstat, mkdir, open, readdir, rename, rm, rmdir, writeFile } = originalFs;
 
 // ponytail: an archived workstream keeps its attachments, the text notes in its context folder and every file its chats showed until it is deleted; age them out if they pile up
 const KEPT_FOLDERS = [AGENT_CONTEXT_PATH, AGENT_ATTACHMENTS_PATH] as const;

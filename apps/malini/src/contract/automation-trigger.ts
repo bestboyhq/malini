@@ -1,3 +1,4 @@
+import { eventFactValues } from './event-catalog';
 import { EVENT_CHANNELS, isEventChannel, type EventChannel } from './events';
 
 export type AutomationEventCondition = Readonly<{ path: string; equals: string | null }>;
@@ -63,6 +64,8 @@ const MERGED_IN_REPOSITORY =
 	'on pull-requests:ship-changed where merged is set and repositoryId is ';
 
 const EVENT_PHRASE = /^on\s+(\S+:\S+)(?:\s+where\s+(.+))?$/iu;
+
+const ONE_OF = new Intl.ListFormat('en', { type: 'disjunction' });
 
 const EVENT_CONDITION = /^([\w-]+(?:\.[\w-]+)*)\s+is\s+(.+)$/u;
 
@@ -160,6 +163,17 @@ function schedulePlace(name: string | undefined): SchedulePlace {
 
 function twoDigits(value: number): string {
 	return String(value).padStart(2, '0');
+}
+
+export function unknownTriggerValueMessage(trigger: ParsedTrigger): string | null {
+	if (trigger.kind !== 'event') return null;
+	for (const { path, equals } of trigger.where) {
+		const known = eventFactValues(trigger.channel, path);
+		if (equals !== null && known && !known.includes(equals)) {
+			return `${trigger.channel} never reports ${path} ${equals}. It reports ${ONE_OF.format(known)}.`;
+		}
+	}
+	return null;
 }
 
 function parseEventTrigger(channel: string, conditions: string | undefined): ParsedTrigger {

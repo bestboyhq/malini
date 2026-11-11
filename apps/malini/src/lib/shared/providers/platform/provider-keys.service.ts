@@ -30,6 +30,7 @@ import {
 } from './provider.repository';
 
 const MAX_API_KEY_LENGTH = 8_192;
+const PLAN_RETRY_MS = 60 * 60 * 1000;
 
 export type PlanDetector = (apiKey: string) => Promise<ProviderPlan | null>;
 
@@ -59,18 +60,22 @@ export class ProviderKeys {
 	readonly #detectPlan: PlanDetector;
 	readonly #chatgpt: SignedInProvider;
 	readonly #keyProxy: (providerId: string) => Promise<ProxyAddress>;
+	readonly #now: () => number;
+	#planUnknownAt = Number.NEGATIVE_INFINITY;
 
 	constructor(
 		db: MaliniDatabase,
 		cipher: () => Promise<SecretCipher>,
 		detectPlan: PlanDetector,
 		proxies: Partial<ProviderProxies> = {},
+		now: () => number = Date.now,
 	) {
 		this.#db = db;
 		this.#cipher = cipher;
 		this.#detectPlan = detectPlan;
 		this.#chatgpt = proxies.chatgpt ?? SIGNED_OUT;
 		this.#keyProxy = proxies.keys ?? NO_KEY_PROXY;
+		this.#now = now;
 	}
 
 	list(): ModelProviderRecord[] {
@@ -104,7 +109,7 @@ export class ProviderKeys {
 				'Malini cannot reach the macOS keychain to seal the API key. Unlock it, then save again.',
 			);
 		}
-		const plan = provider.id === OPENCODE_PROVIDER_ID ? await this.#detectPlan(key) : null;
+		const plan = provider.id === OPENCODE_PROVIDER_ID ? await this.#askPlan(key) : null;
 		if (!setProviderKey(this.#db, provider.id, cipher.encryptString(key), plan)) {
 			throw new Error(`Unknown provider \`${provider.id}\``);
 		}
@@ -128,6 +133,7 @@ export class ProviderKeys {
 	async detectMissingPlan(): Promise<void> {
 		const provider = getStoredProvider(this.#db, OPENCODE_PROVIDER_ID);
 		if (!provider || provider.sealedKey === null || provider.plan !== null) return;
+		if (this.#now() - this.#planUnknownAt < PLAN_RETRY_MS) return;
 		await this.#adoptPlan(provider).catch(() => undefined);
 	}
 
@@ -189,11 +195,20 @@ export class ProviderKeys {
 
 	async #adoptPlan(provider: StoredProvider): Promise<void> {
 		const key = await this.#decryptedKey(provider);
-		if (key === null) throw new Error('Save an OpenCode API key first.');
-		const plan = await this.#detectPlan(key);
-		if (plan !== null && !setProviderPlan(this.#db, provider.id, plan)) {
-			throw new Error(`Unknown provider \`${provider.id}\``);
+		if (key === null || provider.sealedKey === null) {
+			throw new Error('Save an OpenCode API key first.');
 		}
+		const plan = await this.#askPlan(key);
+		if (plan !== null) setProviderPlan(this.#db, provider.id, provider.sealedKey, plan);
+	}
+
+	async #askPlan(key: string): Promise<ProviderPlan | null> {
+		const plan = await this.#detectPlan(key).catch((error: unknown) => {
+			this.#planUnknownAt = this.#now();
+			throw error;
+		});
+		this.#planUnknownAt = plan === null ? this.#now() : Number.NEGATIVE_INFINITY;
+		return plan;
 	}
 
 	#servedBy(provider: StoredProvider): StoredProvider {

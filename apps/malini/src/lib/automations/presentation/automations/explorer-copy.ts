@@ -133,6 +133,16 @@ const INSTALL_VERBS: ReadonlyMap<string, string> = new Map([
 	['aborted', 'stopped'],
 ]);
 
+const TURN_NOTES: ReadonlyMap<unknown, string> = new Map([
+	['running', 'working'],
+	['interrupted', 'interrupted'],
+	['cancelled', 'stopped'],
+]);
+
+function turnNote(status: unknown): string | null {
+	return TURN_NOTES.get(status) ?? null;
+}
+
 const EVENT_NAMES: Readonly<Record<string, (payload: Payload) => string>> = {
 	'chat:session-renamed': () => 'Chat renamed',
 	'chat:run-changes-captured': () => 'Changes captured',
@@ -297,11 +307,7 @@ export function itemMark(item: ExplorerItem): Mark | null {
 
 export function itemNote(item: ExplorerItem): string | null {
 	if (item.kind === 'event') return eventNote(item.event);
-	if (item.kind === 'turn') {
-		if (item.turn.status === 'running') return 'working';
-		if (item.turn.status === 'interrupted') return 'interrupted';
-		return item.turn.status === 'cancelled' ? 'stopped' : null;
-	}
+	if (item.kind === 'turn') return turnNote(item.turn.status);
 	if (item.kind !== 'run') return null;
 	if (item.run.status === 'running') return 'running';
 	if (item.run.status === 'queued') return 'queued';
@@ -382,7 +388,7 @@ function eventName(event: LoggedEventRecord): string {
 
 function eventNote(event: LoggedEventRecord): string | null {
 	const payload = record(event.payload);
-	if (event.channel === 'chat:turn-finished' && payload['status'] === 'cancelled') return 'stopped';
+	if (event.channel === 'chat:turn-finished') return turnNote(payload['status']);
 	if (event.channel !== 'automations:run-finished') return null;
 	return record(payload['run'])['status'] === 'cancelled' ? 'cancelled' : null;
 }

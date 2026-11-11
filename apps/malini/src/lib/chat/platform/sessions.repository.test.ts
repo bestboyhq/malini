@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentRunProfile } from '$contract/agent';
+import {
+	foldSessionStatus,
+	PAUSED_FOR_EXIT_ERROR,
+	type SessionStatus,
+} from '$contract/agent-state-machine';
+import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { listPermissionRules } from './permissions.repository';
-import { all, run, scalar } from '$main/db/rows';
-import { insertRun } from './runs.repository';
+import { all, isRecord, run, scalar } from '$main/db/rows';
+import { handleSendPromptHandoffFailure } from './agent/commands';
+import { terminalizeRunsAfterBridgeLoss } from './agent/lifecycle';
+import { pumpStep, SessionCorrelator } from './agent/runtime';
+import { insertCheckpoint, supersedeSessionFromCheckpoint } from './checkpoints.repository';
+import { appendEvent, listEventRowsForSession } from './events.repository';
+import { finalizeInteractionResponse, prepareInteractionResponse } from './interactions.repository';
+import { finalizeRunLifecycle, insertRun } from './runs.repository';
 import {
 	agentSessionBelongsToWorkstream,
 	archiveSession,
@@ -19,8 +31,8 @@ import {
 	repairSessionStatusesWithoutOpenRuns,
 	sessionContextIdentity,
 	setProviderSessionId,
+	moveSessionStatus,
 	setSessionModel,
-	setSessionStatus,
 	type AgentSession,
 } from './sessions.repository';
 import { seedWorkstream } from '$main/db/test-fixtures';
@@ -214,7 +226,7 @@ describe('sessions', () => {
 		db.close();
 	});
 
-	it('projects the sidebar status from the latest run and repairs stale busy sessions', () => {
+	it('lists the stored status and repairs stale busy sessions', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, 'workstream-list');
 		insertSession(db, session('session-idle', 'workstream-list'));
@@ -228,10 +240,19 @@ describe('sessions', () => {
 			sessionId: 'session-failed',
 			prompt: 'p',
 			startedAt: '2026-07-10T00:00:00Z',
-			completedAt: '2026-07-10T00:00:01Z',
+			completedAt: null,
 			summary: null,
-			error: 'boom',
+			error: null,
 		});
+		finalizeRunLifecycle(
+			db,
+			'session-failed',
+			'run-failed',
+			'failed',
+			null,
+			'boom',
+			'2026-07-10T00:00:01Z',
+		);
 		insertRun(db, {
 			id: 'run-open',
 			sessionId: 'session-running',
@@ -353,7 +374,8 @@ describe('sessions', () => {
 		expect(sessionContextIdentity(db, 'nope')).toBeNull();
 		setProviderSessionId(db, 'session-meta', 'resume-token');
 		setSessionModel(db, 'session-meta', 'vendor/model-5');
-		setSessionStatus(db, 'session-meta', 'completed');
+		expect(moveSessionStatus(db, 'session-meta', 'run.completed')).toBe('completed');
+		expect(moveSessionStatus(db, 'nope', 'run.started')).toBeNull();
 		expect(getSession(db, 'session-meta')).toMatchObject({
 			providerSessionId: 'resume-token',
 			model: 'vendor/model-5',
@@ -370,6 +392,168 @@ describe('sessions', () => {
 		expect(getSession(db, 'session-discard')).toBeNull();
 		expect(scalar(db, 'SELECT COUNT(*) FROM agent_runs')).toBe(0);
 		expect(all(db, 'SELECT * FROM agent_events')).toEqual([]);
+		db.close();
+	});
+});
+
+describe('session status', () => {
+	const WORKSTREAM = 'workstream-status';
+	const SESSION = 'session-status';
+
+	function seeded(): MaliniDatabase {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, WORKSTREAM);
+		insertSession(db, session(SESSION, WORKSTREAM));
+		return db;
+	}
+
+	function started(db: MaliniDatabase, runId: string, correlator = new SessionCorrelator()) {
+		insertRun(db, {
+			id: runId,
+			sessionId: SESSION,
+			prompt: 'p',
+			startedAt: '2026-07-10T00:00:00Z',
+			completedAt: null,
+			summary: null,
+			error: null,
+		});
+		pumpStep(correlator, db, { type: 'run.started', runId, sessionId: SESSION });
+		return correlator;
+	}
+
+	function statuses(db: MaliniDatabase) {
+		return {
+			stored: getSession(db, SESSION)?.status,
+			listed: listSessionSummaries(db, WORKSTREAM).find(({ id }) => id === SESSION)?.status,
+			folded: foldSessionStatus(
+				'idle',
+				listEventRowsForSession(db, SESSION, 0).map(({ runId, kind, payload }) => ({
+					runId,
+					event: { ...(isRecord(payload) ? payload : {}), type: kind },
+				})),
+			).status,
+		};
+	}
+
+	function agreeOn(status: SessionStatus) {
+		return { stored: status, listed: status, folded: status };
+	}
+
+	function decide(db: MaliniDatabase, runId: string, approvalId: string): void {
+		const intendedResponse = { decision: 'allow', scope: 'once', permission: null };
+		const request = { kind: 'approval', sessionId: SESSION, runId, requestId: approvalId } as const;
+		prepareInteractionResponse(db, { ...request, suppliedPermission: null, intendedResponse });
+		finalizeInteractionResponse(db, {
+			...request,
+			intendedResponse,
+			decision: 'allow',
+			scope: 'once',
+			source: 'manual',
+			decidedAt: '2026-07-10T00:00:02Z',
+		});
+		appendEvent(db, SESSION, runId, 'approval.decided', {
+			approvalId,
+			decision: 'allow',
+			scope: 'once',
+			remembered: false,
+		});
+	}
+
+	it('agrees with the event fold after a stop, a pause, a bridge restart and a lost prompt', () => {
+		const db = seeded();
+		const correlator = started(db, 'run-stopped');
+		pumpStep(correlator, db, { type: 'run.failed', runId: 'run-stopped', error: 'cancelled' });
+		expect(statuses(db)).toEqual(agreeOn('idle'));
+
+		started(db, 'run-paused', correlator);
+		pumpStep(correlator, db, {
+			type: 'run.failed',
+			runId: 'run-paused',
+			error: PAUSED_FOR_EXIT_ERROR,
+		});
+		expect(statuses(db)).toEqual(agreeOn('idle'));
+
+		started(db, 'run-cut', correlator);
+		terminalizeRunsAfterBridgeLoss(db, () => {});
+		expect(statuses(db)).toEqual(agreeOn('idle'));
+
+		started(db, 'run-lost', correlator);
+		handleSendPromptHandoffFailure(
+			db,
+			SESSION,
+			'run-lost',
+			'agent bridge send failed: closed',
+			() => {},
+		);
+		expect(statuses(db)).toEqual(agreeOn('failed'));
+		db.close();
+	});
+
+	it('agrees with the event fold while a run waits on the user and after each answer', () => {
+		const db = seeded();
+		const correlator = started(db, 'run-asks');
+		for (const approvalId of ['approval-1', 'approval-2']) {
+			pumpStep(correlator, db, {
+				type: 'approval.requested',
+				sessionId: SESSION,
+				runId: 'run-asks',
+				approvalId,
+				reason: 'read outside',
+				toolName: 'read_file',
+			});
+		}
+		expect(statuses(db)).toEqual(agreeOn('waiting_for_approval'));
+
+		decide(db, 'run-asks', 'approval-1');
+		expect(statuses(db)).toEqual(agreeOn('waiting_for_approval'));
+
+		decide(db, 'run-asks', 'approval-2');
+		expect(statuses(db)).toEqual(agreeOn('running'));
+
+		pumpStep(correlator, db, { type: 'run.completed', runId: 'run-asks', summary: 'Done.' });
+		expect(statuses(db)).toEqual(agreeOn('completed'));
+		db.close();
+	});
+
+	it('agrees with the event fold when a repair or a restore rewrites a closed run', () => {
+		const db = seeded();
+		const correlator = started(db, 'run-limited');
+		appendEvent(db, SESSION, 'run-limited', 'run.failed', {
+			error: "You've hit your session limit",
+			resumeAt: '2026-07-10T05:00:00Z',
+		});
+		finalizeRunLifecycle(
+			db,
+			SESSION,
+			'run-limited',
+			'failed',
+			null,
+			"You've hit your session limit",
+			'2026-07-10T00:00:01Z',
+			{ kind: 'usage-limit', resumeAt: '2026-07-10T05:00:00Z' },
+		);
+		run(db, "UPDATE agent_sessions SET status = 'running' WHERE id = ?", SESSION);
+		repairSessionStatusesWithoutOpenRuns(db, WORKSTREAM);
+		expect(statuses(db)).toEqual(agreeOn('idle'));
+
+		started(db, 'run-restored', correlator);
+		pumpStep(correlator, db, { type: 'run.completed', runId: 'run-restored', summary: 'Done.' });
+		expect(statuses(db)).toEqual(agreeOn('completed'));
+		const checkpoint = {
+			id: 'checkpoint-1',
+			workstreamId: WORKSTREAM,
+			sessionId: SESSION,
+			runId: 'run-restored',
+			userMessageSeq:
+				listEventRowsForSession(db, SESSION, 0).find(({ runId }) => runId === 'run-restored')
+					?.seq ?? null,
+			gitRef: 'refs/malini/checkpoints/1',
+			gitCommit: 'abc',
+			createdAt: '2026-07-10T00:00:03Z',
+		};
+		insertCheckpoint(db, checkpoint);
+		supersedeSessionFromCheckpoint(db, checkpoint, null, () => {});
+		expect(statuses(db)).toEqual(agreeOn('idle'));
 		db.close();
 	});
 });

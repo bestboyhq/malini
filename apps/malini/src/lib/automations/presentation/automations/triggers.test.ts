@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAutomationTrigger } from '$contract/automation-trigger';
+import { parseAutomationTrigger, unknownTriggerValueMessage } from '$contract/automation-trigger';
 import {
 	DEFAULT_AUTOMATION_BOUNDARY,
 	type AutomationDefinitionRecord,
@@ -42,10 +42,12 @@ function automation(
 const MERGED = 'on pull-requests:ship-changed where merged is set';
 
 describe('the trigger picker', () => {
-	it('offers only event triggers, besides running it yourself', () => {
+	it('offers only event triggers on states their events report, besides running it yourself', () => {
 		for (const trigger of TRIGGERS) {
 			if (trigger.when === null) continue;
-			expect(parseAutomationTrigger(trigger.when).kind).toBe('event');
+			const parsed = parseAutomationTrigger(trigger.when);
+			expect(parsed.kind).toBe('event');
+			expect(unknownTriggerValueMessage(parsed)).toBeNull();
 		}
 	});
 

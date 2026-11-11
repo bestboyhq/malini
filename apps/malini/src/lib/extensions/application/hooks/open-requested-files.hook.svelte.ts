@@ -14,6 +14,7 @@ export function openRequestedFilesHook(): () => void {
 		await openRequestedFileCommand(request);
 		requestedFilesStore.remove(request);
 		opening.delete(key);
+		openReady();
 	};
 	const openReady = (): void => {
 		for (const request of requestedFilesStore.readyIn(extensionRuntimeReadyQuery.data)) {

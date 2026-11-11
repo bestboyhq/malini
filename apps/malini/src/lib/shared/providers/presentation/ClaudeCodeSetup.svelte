@@ -14,10 +14,11 @@
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
 	import { copyClaudeInstallCommandCommand } from '$shared/providers/application/commands/copy-claude-install-command.command';
 	import { installClaudeCodeCommand } from '$shared/providers/application/commands/install-claude-code.command';
-	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
+	import { checkClaudeCodeAgainCommand } from '$shared/providers/application/commands/check-claude-code-again.command';
 	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
 	import { claudeCodeInstallQuery } from '$shared/providers/application/queries/claude-code-install.query.svelte';
+	import { checkingClaudeCodeAgainQuery } from '$shared/providers/application/queries/checking-claude-code-again.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
 	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
 	import ClaudeAccountList from './ClaudeAccountList.svelte';
@@ -34,6 +35,7 @@
 
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
+	const checkingAgain = $derived(checkingClaudeCodeAgainQuery.data);
 	const setupStep = $derived(setupStepFor(status));
 	const install = $derived(claudeCodeInstallQuery.data);
 	const download = $derived(
@@ -177,10 +179,11 @@
 			radius={actionRadius}
 			class="shrink-0"
 			ariaLabel="Check Claude Code again"
-			onclick={() => loadProviderCapabilitiesCommand('force')}
+			loading={checkingAgain}
+			onclick={checkClaudeCodeAgainCommand}
 		>
 			{#snippet leading()}
-				<Icon name="refresh" size={14} />
+				<Icon name="refresh" size={step ? 14 : 12} />
 			{/snippet}
 			Check again
 		</Button>

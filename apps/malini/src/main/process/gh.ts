@@ -44,12 +44,12 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 		let stdoutBytes = 0;
 		let stderrBytes = 0;
 		let overflowed = false;
-		const { timeoutMs } = options;
+		const timeoutMs = options.timeoutMs;
 		const timer =
 			timeoutMs === undefined
 				? undefined
 				: setTimeout(() => {
-						child.kill();
+						child.kill('SIGKILL');
 						reject(GhError.timedOut(timeoutMs));
 					}, timeoutMs);
 
