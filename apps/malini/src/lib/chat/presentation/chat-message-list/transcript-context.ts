@@ -63,6 +63,7 @@ export type TranscriptContext = {
 	openAttachment(attachment: StagedAgentAttachment): void;
 	earlierTurns(runId: string): readonly EarlierTurn[];
 	variantPick(reportKey: string): RunPick | null;
+	readonly newestReport: string | null;
 	promptPick(runId: string): RunPick | null;
 	sendFollowUp(prompt: string, subject: string): void;
 	shipInFork(prompt: string, subject: string, atSeq: number): void;

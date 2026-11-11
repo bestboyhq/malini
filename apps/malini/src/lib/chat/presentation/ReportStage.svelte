@@ -29,6 +29,7 @@
 		pick: VariantPick | null;
 		chosenId: string;
 		workstreamId: string;
+		live: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string, handoff?: VideoHandoff) => void) | undefined;
 	}
@@ -38,6 +39,7 @@
 		pick,
 		chosenId = $bindable(),
 		workstreamId,
+		live,
 		imagesrc,
 		onopenimage,
 	}: Props = $props();
@@ -75,6 +77,8 @@
 	const shots = $derived([...variantShots, ...evidenceShots]);
 	const grouped = $derived(variantShots.length > 0 && evidenceShots.length > 0);
 	let selectedKey = $state<string | null>(null);
+	let played = $state(false);
+	const running = $derived(live || played);
 	const shown = $derived(
 		shots.find((shot) => shot.key === selectedKey) ??
 			variantShots.find((shot) => shot.kind === 'variant' && shot.variant.id === chosenId) ??
@@ -154,21 +158,23 @@
 	</Button>
 {/snippet}
 
-{#snippet framed(src: string, label: string, playing: boolean, caption?: Snippet)}
+{#snippet framed(src: string, label: string, visible: boolean, caption?: Snippet)}
+	{@const page = mediaKind(src) === 'page'}
 	<div
 		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
 	>
 		<span class="block aspect-[16/10] max-h-[70vh] w-full" aria-hidden="true"></span>
 		<div class="absolute inset-0 grid place-items-center">
-			{#if playing || mediaKind(src) !== 'page'}
+			{#if visible || !page}
 				<ReportMedia
 					{src}
 					{label}
 					{workstreamId}
 					size="hero"
-					{playing}
+					playing={visible && (running || !page)}
 					{imagesrc}
 					{caption}
+					onplay={() => (played = true)}
 					onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
 				/>
 			{/if}

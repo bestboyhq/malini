@@ -60,6 +60,7 @@
 			{pickOf}
 			{pick}
 			needsOpen={pick === null}
+			live
 			imagesrc={demoMediaUrl}
 			onpick={choose}
 			onsendnext={stay}

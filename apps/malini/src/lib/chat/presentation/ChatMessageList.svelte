@@ -607,6 +607,9 @@
 		openAttachment,
 		earlierTurns: (runId) => renderState.earlierTurns.get(runId) ?? [],
 		variantPick: (reportKey) => renderState.variantPicks.get(reportKey) ?? null,
+		get newestReport() {
+			return renderState.newestReport;
+		},
 		promptPick,
 		sendFollowUp,
 		shipInFork,

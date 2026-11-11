@@ -5,6 +5,7 @@ import {
 	earlierTurnsByRun,
 	finalTurnReport,
 	foldsIntoLaterTurn,
+	newestTurnKey,
 	runTurns,
 	variantPicksByRun,
 } from './turn-result';
@@ -137,6 +138,22 @@ describe('which message becomes the result card', () => {
 		expect(trail(earlierTurnsByRun(runs))).toEqual([['r7', ['r2', 'r5', 'r6']]]);
 		expect(trail(earlierTurnsByRun(runs.slice(0, 1)))).toEqual([['r1', []]]);
 		expect(trail(earlierTurnsByRun(runs.slice(2, 4)))).toEqual([]);
+	});
+
+	it('names the newest report past answers, superseded runs and an open run', () => {
+		const reported = (runId: string, superseded = false): RunGroup =>
+			run('completed', [assistant(`${runId}-a`, `Outcome: ${runId} done.`)], runId, superseded);
+		const runs = [
+			reported('r1'),
+			reported('r2'),
+			run('completed', [assistant('r3-a', 'Just an answer.')], 'r3'),
+			reported('r4', true),
+			run(null, [], 'r5'),
+		];
+
+		expect(newestTurnKey(runs)).toBe('r2-a');
+		expect(newestTurnKey([...runs, reported('r6')])).toBe('r6-a');
+		expect(newestTurnKey(runs.slice(2))).toBeNull();
 	});
 
 	it('pairs each pick with the variants offered right before it, and keeps an unchanged pick as it was', () => {

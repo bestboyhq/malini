@@ -137,6 +137,7 @@
 				workstreamId={transcript.workstreamId}
 				history={earlierTurns}
 				needsOpen={isLastRun && !transcript.pullRequestShipped}
+				live={transcript.newestReport === item.key}
 				pick={variantPick}
 				pickOf={(reportKey) => transcript.variantPick(reportKey)?.pick ?? null}
 				onopenfile={transcript.openFileMention}

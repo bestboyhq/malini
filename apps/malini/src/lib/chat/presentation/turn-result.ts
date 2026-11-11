@@ -56,6 +56,19 @@ export function earlierTurnsByRun(
 	return byRun;
 }
 
+export function newestTurnKey(
+	runs: readonly RunGroup[],
+	turnsFor: (run: RunGroup) => readonly EarlierTurn[] = runTurns,
+): string | null {
+	for (let index = runs.length - 1; index >= 0; index -= 1) {
+		const run = runs[index];
+		if (!run || run.superseded || run.obsoleted) continue;
+		const newest = turnsFor(run).at(-1);
+		if (newest) return newest.key;
+	}
+	return null;
+}
+
 export function variantPicksByRun(
 	runs: readonly RunGroup[],
 	turnsFor: (run: RunGroup) => readonly EarlierTurn[] = runTurns,

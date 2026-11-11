@@ -7,7 +7,7 @@ import { MALINI_WORLD_ID } from './page';
 
 const PAGE_WIDTH = 1_280;
 const PAGE_HEIGHT = 800;
-const STILL_WIDTH = 640;
+const STILL_WIDTH = 1_280;
 const STILL_QUALITY = 85;
 const LOAD_MS = 10_000;
 const SETTLE_MS = 2_000;
@@ -47,7 +47,9 @@ export function pageStills(root: string, getWindow: () => BrowserWindow | null):
 	return {
 		async still(pageUrl, file) {
 			const name = createHash('sha256')
-				.update(`${pageUrl}\u0000${nativeTheme.shouldUseDarkColors ? 'dark' : 'light'}`)
+				.update(
+					`${pageUrl}\u0000${nativeTheme.shouldUseDarkColors ? 'dark' : 'light'}\u0000${STILL_WIDTH}`,
+				)
 				.digest('hex');
 			const path = join(root, new URL(pageUrl).hostname, `${name}.jpg`);
 			// ponytail: a still is fresh while it is newer than its page file, so a page that changes only through its stylesheet or scripts keeps the old still; compare its folder's newest file if that bites
