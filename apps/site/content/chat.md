@@ -122,6 +122,7 @@ Send with a model that is not connected and the prompt still lands in the chat, 
 Connecting runs the prompt, and **Cancel** or Escape puts it back in the composer.
 It waits under its strip while you switch chats or restart Malini, the sidebar marks its workstream **Needs you**, and an edited prompt rewinds its checkpoint, then waits the same way.
 You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
+The key never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server adds the key and talks to DeepSeek or OpenCode.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
 DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.

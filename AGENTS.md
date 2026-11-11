@@ -10,7 +10,7 @@ Its landing page embeds the real renderer, built from `apps/malini/src/renderer/
 Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 A docs section can lead with that renderer on `?play=docs` from a `<!-- demo <workstream> <height>` directive in its markdown, its text folded below it (ADR 0175).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes eight outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166, ADR 0195).
+The app makes nine outbound calls of its own (ADR 0129, ADR 0142, ADR 0157, ADR 0165, ADR 0166, ADR 0195, ADR 0217).
 Usage counts, yesterday's loop counted on the Mac, each install's first setup and first-use steps, the days and months it runs, and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058, ADR 0143, ADR 0156, ADR 0194, ADR 0213); first-use markers belong only to installs first opened after ADR 0194, and every marker is stored in `settings` as sent only once it is delivered.
 Signed in to Bestboy on its current terms, each count carries the account as `sha256(<site>:<user.id>)`; on older terms Malini sends nothing but `malini_desktop_stats_off`, which goes once, with no id, when the switch turns off, and a count waits for `/api/me` once its last answer is an hour old, or five minutes after a failed one (ADR 0209).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
@@ -21,6 +21,7 @@ Provider model lists come from models.dev, from `src/lib/shared/providers/platfo
 Saving an OpenCode key sends one-token messages to opencode.ai's Go endpoint, from `src/lib/shared/providers/platform/opencode-plan.ts`, to learn whether the key runs Go or Console, and stores that plan so the picker lists only its models; `MALINI_OPENCODE_PROBE_URL` points an unpackaged build at another origin (ADR 0165).
 That Go key's usage is read from `https://opencode.ai/zen/go/v1/usage`, from `src/lib/shared/providers/platform/opencode-usage.ts`, when a chat opens with an OpenCode model picked or its usage panel opens, at most once a minute, and only on the Go plan; the same `MALINI_OPENCODE_PROBE_URL` covers it (ADR 0195, ADR 0196).
 A ChatGPT plan reaches `auth.openai.com` and `api.openai.com`, from `src/lib/shared/providers/platform/chatgpt/`, only after you press **Continue with ChatGPT**, and the token never leaves the main process, whose proxy on `127.0.0.1` Claude Code calls; `MALINI_CHATGPT_ISSUER` and `MALINI_CHATGPT_RESOURCE` point an unpackaged build at a fake (ADR 0166).
+A DeepSeek or OpenCode chat reaches its provider from the main process too, through `src/lib/shared/providers/platform/key-proxy.ts` on `127.0.0.1`, which swaps in the saved key on each request, so Claude Code and its commands hold only that proxy's launch secret (ADR 0217).
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.

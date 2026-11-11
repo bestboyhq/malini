@@ -14,8 +14,20 @@ function cipher(): SecretCipher {
 	};
 }
 
+const LOCAL_PROXY = {
+	keys: async (providerId: string) => ({
+		baseUrl: `http://127.0.0.1:4100/${providerId}`,
+		token: 'local-token',
+	}),
+};
+
 function keys(detectPlan: PlanDetector = () => Promise.resolve('console')): ProviderKeys {
-	return new ProviderKeys(openMigratedDatabase(':memory:'), async () => cipher(), detectPlan);
+	return new ProviderKeys(
+		openMigratedDatabase(':memory:'),
+		async () => cipher(),
+		detectPlan,
+		LOCAL_PROXY,
+	);
 }
 
 function openCodePlan(providers: ProviderKeys): ProviderPlan | null {
@@ -58,12 +70,13 @@ describe('ProviderKeys', () => {
 		});
 	});
 
-	it('seals the key, never stores it as plain text, and resolves the run environment', async () => {
+	it('seals the key, never stores it as plain text, and runs through the local proxy', async () => {
 		const db = openMigratedDatabase(':memory:');
 		const providers = new ProviderKeys(
 			db,
 			async () => cipher(),
 			async () => 'console',
+			LOCAL_PROXY,
 		);
 		await providers.save('deepseek', '  sk-test  ');
 
@@ -75,13 +88,17 @@ describe('ProviderKeys', () => {
 		expect(Buffer.from(stored?.api_key ?? []).toString()).toBe('sealed:sk-test');
 		expect(providers.list()[1]?.keySaved).toBe(true);
 		await expect(providers.environment('deepseek', 'deepseek-v4-pro')).resolves.toEqual({
-			ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
-			ANTHROPIC_AUTH_TOKEN: 'sk-test',
+			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/deepseek',
+			ANTHROPIC_AUTH_TOKEN: 'local-token',
 			ANTHROPIC_MODEL: 'deepseek-v4-pro',
 			ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-v4-pro',
 			ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-pro',
 			ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-pro',
 			CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
+		});
+		await expect(providers.upstream('deepseek')).resolves.toEqual({
+			baseUrl: 'https://api.deepseek.com/anthropic',
+			apiKey: 'sk-test',
 		});
 		await expect(providers.environment('claude', 'opus')).resolves.toEqual({});
 	});
@@ -92,11 +109,12 @@ describe('ProviderKeys', () => {
 			db,
 			async () => cipher(),
 			async () => 'console',
+			LOCAL_PROXY,
 		);
 		await providers.save('opencode', 'oc_sk_test');
 		await expect(providers.environment('opencode', 'minimax-m3')).resolves.toEqual({
-			ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/anthropic',
-			ANTHROPIC_AUTH_TOKEN: 'oc_sk_test',
+			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/opencode',
+			ANTHROPIC_AUTH_TOKEN: 'local-token',
 			ANTHROPIC_MODEL: 'minimax-m3',
 			ANTHROPIC_DEFAULT_OPUS_MODEL: 'minimax-m3',
 			ANTHROPIC_DEFAULT_SONNET_MODEL: 'minimax-m3',
@@ -118,6 +136,7 @@ describe('ProviderKeys', () => {
 			openMigratedDatabase(':memory:'),
 			async () => cipher(),
 			async () => 'go',
+			LOCAL_PROXY,
 		);
 		await providers.save('opencode', 'oc_sk_go');
 		const opencode = providers.list().find((provider) => provider.id === 'opencode');
@@ -125,9 +144,13 @@ describe('ProviderKeys', () => {
 		expect(opencode?.baseUrl).toBe('https://opencode.ai/inference/go/anthropic');
 		expect(opencode?.models.some((model) => model.id === 'hy4')).toBe(true);
 		expect(opencode?.models.some((model) => model.id === 'claude-opus-5-5')).toBe(false);
+		await expect(providers.upstream('opencode')).resolves.toEqual({
+			baseUrl: 'https://opencode.ai/inference/go/anthropic',
+			apiKey: 'oc_sk_go',
+		});
 		await expect(providers.environment('opencode', 'hy4')).resolves.toEqual({
-			ANTHROPIC_BASE_URL: 'https://opencode.ai/inference/go/anthropic',
-			ANTHROPIC_AUTH_TOKEN: 'oc_sk_go',
+			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/opencode',
+			ANTHROPIC_AUTH_TOKEN: 'local-token',
 			ANTHROPIC_MODEL: 'hy4',
 			ANTHROPIC_DEFAULT_OPUS_MODEL: 'hy4',
 			ANTHROPIC_DEFAULT_SONNET_MODEL: 'hy4',
@@ -258,6 +281,10 @@ describe('ProviderKeys', () => {
 		await expect(providers.environment('deepseek', 'deepseek-v4-pro')).rejects.toThrow(
 			'DeepSeek needs an API key. Add it in Settings, then try again.',
 		);
+		await expect(providers.upstream('deepseek')).rejects.toThrow(
+			'DeepSeek needs an API key. Add it in Settings, then try again.',
+		);
+		await expect(providers.upstream('chatgpt')).rejects.toThrow('Unknown provider `chatgpt`');
 	});
 
 	it('refuses Claude, the hidden Go catalog, an unknown provider, and an empty key', async () => {

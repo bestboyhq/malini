@@ -7,12 +7,6 @@ const PANEL_CONTROLS = ':where(button, input, select, textarea, summary)';
 export const EXTENSION_PANEL_BASE_STYLE_ID = 'malini.panel-kit';
 
 export const EXTENSION_PANEL_BASE_STYLES = `
-${PANEL_SCOPE},
-${PANEL_SCOPE}::before,
-${PANEL_SCOPE}::after {
-	box-sizing: border-box;
-}
-
 ${PANEL_ROOT} ${PANEL_CONTROLS} {
 	font: inherit;
 	color: inherit;

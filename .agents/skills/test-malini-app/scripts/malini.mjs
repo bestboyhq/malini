@@ -10,12 +10,13 @@ const contextRoot = join(root, '.context');
 const { _electron: electron } = createRequire(join(appRoot, 'package.json'))('@playwright/test');
 const REPAINT_MS = 300;
 
-export async function launch(topic, { foreground = false } = {}) {
+export async function launch(topic, { foreground = false, executablePath } = {}) {
 	const userDataDir = join(realpathSync(tmpdir()), `malini-profile-${topic}`);
 	const temp = join(userDataDir, 'tmp');
 	mkdirSync(temp, { recursive: true });
 	const theme = process.env.MALINI_THEME;
 	const app = await electron.launch({
+		...(executablePath ? { executablePath } : {}),
 		args: ['.', `--user-data-dir=${userDataDir}`],
 		cwd: appRoot,
 		colorScheme: theme === 'light' || theme === 'dark' ? theme : null,

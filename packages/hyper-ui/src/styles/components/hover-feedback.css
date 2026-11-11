@@ -29,12 +29,8 @@
 			[role='treeitem'],
 			[tabindex]
 		):hover
-		* {
-		transition-duration: 0ms;
-	}
-
-	.group:hover *,
-	[class*='group/']:hover * {
+		:where([class*='transition']),
+	:is(.group, [class*='group/']):hover :where([class*='transition']) {
 		transition-duration: 0ms;
 	}
 }

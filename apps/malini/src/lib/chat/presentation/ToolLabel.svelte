@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fly } from 'svelte/transition';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { motionMs, revealFade } from './arrival-motion';
+	import { revealFade, swapFly } from './arrival-motion';
 	import UnfoldText from './UnfoldText.svelte';
 
 	interface Props {
@@ -47,8 +45,8 @@
 	{#key shown.title}
 		<span
 			class="flex min-w-0 items-baseline gap-2 [grid-area:1/1]"
-			in:fly={{ y: flip, duration: motionMs(260), easing: cubicOut }}
-			out:fly={{ y: -flip, duration: motionMs(200), easing: cubicOut }}
+			in:swapFly={{ y: flip, durationMs: 260 }}
+			out:swapFly={{ y: -flip, durationMs: 200 }}
 		>
 			<span class={titleClass}><UnfoldText text={shown.title} unfold={shown.swapped} /></span>
 			{#if shown.detail}
