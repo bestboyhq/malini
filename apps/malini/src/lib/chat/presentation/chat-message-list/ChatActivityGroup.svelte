@@ -3,6 +3,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import type { ActivityGroup } from '../activity-group';
 	import type { RunGroup } from '../render-state';
+	import ToolFailureNote from '../ToolFailureNote.svelte';
 	import ActivityKindIcons from './ActivityKindIcons.svelte';
 	import ChatTimelineRow from './ChatTimelineRow.svelte';
 	import { transcriptContext } from './transcript-context';
@@ -64,20 +65,13 @@
 	</details>
 	{#if !expandedActivityGroups[group.key]}
 		{#each group.failures as failure (failure.key)}
-			<div
-				class="bg-error text-2xs text-error-content flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
+			<ToolFailureNote
+				text={failure.message}
+				label={failure.label}
+				class="ml-5.5"
 				data-testid="chat-activity-group-failed"
 				data-failure-key={failure.key}
-			>
-				<Icon name="warning" size={12} class="mt-1 shrink-0" />
-				<span class="min-w-0 flex-1 break-words select-text">
-					<span class="text-error-content/75 font-mono">
-						<SensitiveText text={failure.label} />
-					</span>
-					<span class="text-error-content/50 mx-1" aria-hidden="true">·</span>
-					<span><SensitiveText text={failure.message} /></span>
-				</span>
-			</div>
+			/>
 		{/each}
 	{/if}
 </div>

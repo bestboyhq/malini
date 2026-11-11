@@ -1411,6 +1411,32 @@ const respond = async (sessionId, runId, prompt) => {
 			error: 'ESLint found 3 problems\n  src/a.ts  1:1  error',
 		});
 	}
+	if (prompt.includes('BASH_BLOCKED')) {
+		const toolCallId = 'bash-blocked-' + runId;
+		const input = { command: 'sleep 45', description: 'Wait 45 seconds' };
+		event({ type: 'tool.started', runId, name: 'Bash', toolCallId, input });
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Bash',
+			toolCallId,
+			error:
+				'<tool_use_error>Blocked: standalone sleep 45. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to get around this block.</tool_use_error>',
+		});
+	}
+	if (prompt.includes('READ_MISSING')) {
+		const toolCallId = 'read-missing-' + runId;
+		const input = { file_path: 'src/missing.ts' };
+		event({ type: 'tool.started', runId, name: 'Read', toolCallId, input });
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Read',
+			toolCallId,
+			error:
+				'<tool_use_error>File does not exist. Note: your current working directory is `/Users/dev/app`.</tool_use_error>',
+		});
+	}
 	const stream = /STREAM:(\d+)/.exec(prompt);
 	const toolStream = /TOOL_STREAM:(\d+)(?::(\d+))?/.exec(prompt);
 	if (toolStream) {

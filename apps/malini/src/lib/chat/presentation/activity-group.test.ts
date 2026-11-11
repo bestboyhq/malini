@@ -396,11 +396,7 @@ describe('groupRunTimeline failures', () => {
 		if (failed.kind !== 'tool') throw new Error('expected a tool item');
 		failed.tool.error = `${'x'.repeat(400)}\nstderr:\nnoise`;
 
-		const failure = onlyGroup([tool('Read'), failed]).failures[0];
-		if (!failure) throw new Error('expected a failure');
-		const message = failure.message;
-		expect(message).toHaveLength(240);
-		expect(message.endsWith('…')).toBe(true);
+		expect(onlyGroup([tool('Read'), failed]).failures[0]?.message).toBe('x'.repeat(400));
 	});
 
 	it('lists every failure in the group, in order', () => {
