@@ -40,8 +40,7 @@ const MAX_PICKS = 10;
 const REPOSITORY_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/u;
 
 export type UsageAccount =
-	| Readonly<{ state: 'anonymous' }>
-	| Readonly<{ state: 'accepted'; userId: string }>;
+	Readonly<{ state: 'anonymous' }> | Readonly<{ state: 'accepted'; userId: string }>;
 
 export class StatsProfile {
 	readonly #deps: StatsProfileDeps;
