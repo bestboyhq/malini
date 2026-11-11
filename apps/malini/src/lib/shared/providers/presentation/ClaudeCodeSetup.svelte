@@ -16,10 +16,12 @@
 	import { installClaudeCodeCommand } from '$shared/providers/application/commands/install-claude-code.command';
 	import { checkClaudeCodeAgainCommand } from '$shared/providers/application/commands/check-claude-code-again.command';
 	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
+	import { updateClaudeCodeCommand } from '$shared/providers/application/commands/update-claude-code.command';
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
 	import { claudeCodeInstallQuery } from '$shared/providers/application/queries/claude-code-install.query.svelte';
 	import { checkingClaudeCodeAgainQuery } from '$shared/providers/application/queries/checking-claude-code-again.query.svelte';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
+	import { claudeCodeUpdateQuery } from '$shared/providers/application/queries/claude-code-update.query.svelte';
 	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
 	import ClaudeAccountList from './ClaudeAccountList.svelte';
 
@@ -45,6 +47,8 @@
 		download !== null && download.total !== null && download.received >= download.total,
 	);
 	const listsAccounts = $derived(!step && status.kind === 'ready');
+	const claudeUpdate = $derived(claudeCodeUpdateQuery.data);
+	const failedUpdate = $derived(listsAccounts ? claudeUpdate.failed : null);
 	const detail = $derived(
 		listsAccounts
 			? installedDetail(status)
@@ -54,9 +58,14 @@
 	const actionRadius = $derived(step ? 'full' : 'md');
 
 	function installedDetail(current: ClaudeCodeStatus): string {
-		return current.kind === 'ready' && current.version
-			? `Installed on this Mac · v${current.version}`
-			: 'Installed on this Mac';
+		const version = current.kind === 'ready' ? current.version : null;
+		if (failedUpdate) return failedUpdateDetail(version, failedUpdate.version);
+		return version ? `Installed on this Mac · v${version}` : 'Installed on this Mac';
+	}
+
+	function failedUpdateDetail(from: string | null, to: string | null): string {
+		const target = to ? ` to v${to}` : '';
+		return from ? `Could not update v${from}${target}` : `Could not update Claude Code${target}`;
 	}
 
 	function statusDetail(current: ClaudeCodeStatus): string {
@@ -124,6 +133,22 @@
 		{/if}
 	{:else if status.kind === 'checking'}
 		<BusyIcon size={16} />
+	{:else if failedUpdate}
+		<Button
+			variant="secondary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Try updating Claude Code again"
+			loading={claudeUpdate.retrying}
+			data-testid="claude-code-update-retry"
+			onclick={() => updateClaudeCodeCommand(true)}
+		>
+			{#snippet leading()}
+				<Icon name="refresh" size={step ? 14 : 12} />
+			{/snippet}
+			Try again
+		</Button>
 	{:else if status.kind === 'ready'}
 		<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
 			<Icon name="check" size={14} />
@@ -237,7 +262,7 @@
 			</svelte:element>
 			{@render statusLine(['text-fg-tertiary leading-5', step ? 'text-[13px]' : 'text-xs'])}
 		</div>
-		{#if !listsAccounts}
+		{#if !listsAccounts || failedUpdate}
 			{@render action()}
 		{/if}
 	</div>

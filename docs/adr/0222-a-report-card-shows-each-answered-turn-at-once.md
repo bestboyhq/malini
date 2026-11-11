@@ -1,11 +1,11 @@
-# 0221 - A report card shows each answered turn at once
+# 0222 - A report card shows each answered turn at once
 
 Status: accepted
 
 ## Context
 
-The report card showed only once its run's turn had ended: `turn.ended` (0220) or the run's end set `turnEnded`, and the card took the run's last report.
-A background agent keeps the turn open (0037, 0220), so a turn that launched one and answered showed its report as plain text with no card until the agent ended.
+The report card showed only once its run's turn had ended: `turn.ended` (0221) or the run's end set `turnEnded`, and the card took the run's last report.
+A background agent keeps the turn open (0037, 0221), so a turn that launched one and answered showed its report as plain text with no card until the agent ended.
 A run can hold several turns: the agent goes on once its background agent ends, and writes a new report.
 The card then took the first report it saw ended and marked an out-of-date outcome **Done**.
 The user asked why the summary card cannot render while background work runs, and picked variant A, **Card at once**, of three prototypes.
