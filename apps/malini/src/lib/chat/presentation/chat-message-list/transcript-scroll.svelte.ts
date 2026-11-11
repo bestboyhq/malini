@@ -57,7 +57,6 @@ export type TranscriptScroll = {
 	followNewContent(): void;
 	showNewPrompt(fromComposer: boolean): void;
 	jumpToLatest(): void;
-	revealOlderContent(reference: HTMLElement | null, mutate: () => Promise<void>): Promise<void>;
 	holdRowTop(row: HTMLElement, mutate: () => void | Promise<void>): Promise<void>;
 	cancelGlide(): void;
 	destroy(): void;
@@ -668,15 +667,6 @@ export function createTranscriptScroll(
 		},
 
 		holdRowTop,
-
-		async revealOlderContent(
-			reference: HTMLElement | null,
-			mutate: () => Promise<void>,
-		): Promise<void> {
-			if (reference) return holdRowTop(reference, mutate);
-			becomeReader();
-			await mutate();
-		},
 
 		cancelGlide(): void {
 			scrollGlide.cancel();

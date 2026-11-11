@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import { IncrementalRenderProjector } from './render-projector';
 import { IncrementalRunTimelineProjector } from './incremental-run-timeline';
-import { windowRunTimeline } from './run-timeline-window';
 import { foldEnvelopes, type RenderState, type RunGroup } from './render-state';
 import { linearizeRunTimeline, type RunTimelineItem } from './run-timeline';
 
@@ -57,20 +56,19 @@ function replayEdit(toolName: string, toolPath: string, changedPath: string): st
 }
 
 describe('IncrementalRunTimelineProjector', () => {
-	it('projects and windows 5k one-by-one live rows without rebuilding the run', () => {
+	it('projects 5k one-by-one live rows without rebuilding the run', () => {
 		const renderProjector = new IncrementalRenderProjector();
 		const timelineProjector = new IncrementalRunTimelineProjector();
 		const envelopes: EventEnvelope[] = [];
-		let mountedCount = 0;
+		let projected = 0;
 
 		for (let seq = 1; seq <= 5_000; seq += 1) {
 			envelopes.push(assistant(seq));
 			const run = firstRun(renderProjector.project(envelopes));
-			const timeline = timelineProjector.project(run, []);
-			mountedCount = windowRunTimeline(timeline, 200).items.length;
+			projected = timelineProjector.project(run, []).length;
 		}
 
-		expect(mountedCount).toBe(200);
+		expect(projected).toBe(5_000);
 		expect(timelineProjector.stats()).toEqual({
 			processedChanges: 4_999,
 			rebuildCount: 1,

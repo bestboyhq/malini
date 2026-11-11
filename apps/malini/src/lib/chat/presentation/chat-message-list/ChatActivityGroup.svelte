@@ -5,7 +5,6 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
-	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import { leadActionKind, type ActivityGroup } from '../activity-group';
 	import ExpandMark from '../ExpandMark.svelte';
 	import { motionMs } from '../arrival-motion';
@@ -13,7 +12,7 @@
 	import UnfoldText from '../UnfoldText.svelte';
 	import ActionKindIcon from '../ActionKindIcon.svelte';
 	import ActivityKindIcons from './ActivityKindIcons.svelte';
-	import ChatTimelineRow from './ChatTimelineRow.svelte';
+	import StepRows from './StepRows.svelte';
 	import { transcriptContext } from './transcript-context';
 	import { thinkingOutcome } from './transcript-labels';
 
@@ -87,32 +86,7 @@
 		</summary>
 		{#if childrenMounted}
 			<div class="border-surface-100-border mt-1 ml-1.5 flex flex-col gap-2 border-l pl-3.5">
-				{#each group.items as child (child.key)}
-					{#if child.kind === 'assistant'}
-						<div
-							class="text-fg-secondary flex w-full items-start gap-2 text-sm leading-6"
-							use:stageEnter={timelineKey(run, child.contentId ?? child.key)}
-							data-message-kind="activity-message"
-							data-testid="chat-activity-group-message"
-						>
-							<span
-								class="text-fg-tertiary grid h-6 w-3.5 shrink-0 place-items-center"
-								aria-hidden="true"
-							>
-								<Icon name="chat" size={13} />
-							</span>
-							<div class="min-w-0 flex-1 select-text">
-								<MarkdownText
-									text={child.text}
-									onopenfile={transcript.openFileMention}
-									canopenfile={transcript.canOpenFileMention}
-								/>
-							</div>
-						</div>
-					{:else}
-						<ChatTimelineRow item={child} {run} {isLastRun} />
-					{/if}
-				{/each}
+				<StepRows rows={group.items} {run} {isLastRun} />
 			</div>
 		{/if}
 	</details>

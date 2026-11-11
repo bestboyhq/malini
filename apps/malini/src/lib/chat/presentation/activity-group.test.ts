@@ -634,13 +634,23 @@ describe('foldRunWork', () => {
 			note,
 			startWorkstream('ws-1'),
 			command(),
+			agent('a'),
+			agent('b'),
 			answer,
 		]);
 		const folded = foldRunWork(rows);
 		expect(kinds(folded)).toEqual(['user', 'work-fold', 'workstreams', 'assistant']);
 		const fold = folded[1];
 		if (fold?.kind !== 'work-fold') throw new Error('expected a fold');
-		expect(kinds(fold.rows)).toEqual(['thought', 'activity-group', 'assistant', 'command']);
+		expect(kinds(fold.rows)).toEqual([
+			'thought',
+			'tool',
+			'tool',
+			'assistant',
+			'command',
+			'subagent',
+			'subagent',
+		]);
 		expect(fold.rows).toContain(note);
 		expect(folded[3]).toBe(answer);
 		expect(`${fold.verb} ${fold.detail}`).toBe('Edited a.ts, ran 1 command');

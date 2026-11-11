@@ -10,7 +10,6 @@
 
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
@@ -23,9 +22,9 @@
 	import RunTerminalBanner from './RunTerminalBanner.svelte';
 	import RunUndoFooter from './RunUndoFooter.svelte';
 	import RunWorkFold from './RunWorkFold.svelte';
+	import StepRows from './StepRows.svelte';
 	import SubagentGroup from './SubagentGroup.svelte';
 	import { blockKey } from './streaming-finalization';
-	import { RUN_TIMELINE_REVEAL_INCREMENT } from './timeline-derivations.svelte';
 	import { transcriptContext } from './transcript-context';
 	import {
 		anchoredRowStart,
@@ -72,8 +71,7 @@
 					estimateRunHeight(run, transcriptWindow.textWidth, folded)),
 	);
 
-	const runTimelineWindow = $derived(timelines.timelineWindow(run));
-	const runRows = $derived(timelines.groupedTimelineItems(run, runTimelineWindow, folded));
+	const runRows = $derived(timelines.groupedTimelineItems(run, folded));
 	const runTimelineItems = $derived(
 		live && live.pendingItems.length > 0 ? withPendingRows(runRows, live.pendingItems) : runRows,
 	);
@@ -132,36 +130,10 @@
 		return seeded;
 	}
 
-	function onShowOlder(event: MouseEvent): void {
-		const row =
-			event.currentTarget instanceof Element
-				? event.currentTarget.closest('li')?.querySelector<HTMLElement>('[data-transcript-row]')
-				: null;
-		void transcript.showOlderTimeline(run.runId, row ?? null);
-	}
-
 	function promptLabel(): string | undefined {
 		return opening?.kind === 'user' ? opening.text : undefined;
 	}
 </script>
-
-{#snippet showOlder()}
-	{#if runTimelineWindow.hiddenCount > 0}
-		<div class="flex justify-center pb-1">
-			<Button
-				variant="secondary"
-				size="sm"
-				bordered
-				class="border-chip-border bg-chip hover:bg-chip-hover h-8 px-3"
-				data-testid="chat-show-older-activity"
-				data-run-id={run.runId}
-				onclick={onShowOlder}
-			>
-				Show {Math.min(RUN_TIMELINE_REVEAL_INCREMENT, runTimelineWindow.hiddenCount)} older events
-			</Button>
-		</div>
-	{/if}
-{/snippet}
 
 {#snippet timelineRow(item: GroupedRunTimelineItem)}
 	{#if item.kind === 'activity-group'}
@@ -174,16 +146,7 @@
 		</div>
 	{:else if item.kind === 'work-fold'}
 		<RunWorkFold fold={item}>
-			{@render showOlder()}
-			{#each item.rows as row (row.key)}
-				<TranscriptRow
-					rowKey={rowKey(row)}
-					initiallyMounted
-					estimate={() => estimateRowHeight(row, transcriptWindow.textWidth)}
-				>
-					{@render timelineRow(row)}
-				</TranscriptRow>
-			{/each}
+			<StepRows rows={item.rows} {run} {isLastRun} />
 		</RunWorkFold>
 	{:else}
 		<ChatTimelineRow {item} {run} {isLastRun} />
@@ -221,16 +184,10 @@
 	data-run-id={run.runId}
 	data-run-terminal={run.terminal ?? 'open'}
 	data-transcript-placeholder={mounted ? undefined : ''}
-	data-transcript-total-items={mounted ? timelines.timelineItems(run).length : undefined}
-	data-transcript-mounted-items={mounted ? runTimelineWindow.items.length : undefined}
 	{@attach transcriptWindow.track(runKey)}
 	{@attach isLastRun ? transcript.glideRowLayout : undefined}
 >
 	{#if mounted}
-		{#if !folded}
-			{@render showOlder()}
-		{/if}
-
 		{#each runTimelineItems as item (item.key)}
 			{#if item.kind === 'user'}
 				<ChatTimelineRow {item} {run} {isLastRun} />

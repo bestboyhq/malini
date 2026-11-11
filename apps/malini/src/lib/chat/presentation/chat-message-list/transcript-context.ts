@@ -76,7 +76,6 @@ export type TranscriptContext = {
 	readonly backgroundWork: BackgroundWork | null;
 	glideRowLayout(container: HTMLElement): () => void;
 	rebaseRowLayout(): void;
-	showOlderTimeline(runId: string, reference: HTMLElement | null): Promise<void>;
 	copyRunResponse(run: RunGroup): void;
 };
 

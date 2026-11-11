@@ -44,12 +44,10 @@ export type SubagentGroup = {
 	agents: readonly SubagentTimelineItem[];
 };
 
-export type FoldedRow = RunTimelineItem | ActivityGroup | SubagentGroup;
-
 export type WorkFold = {
 	kind: 'work-fold';
 	key: string;
-	rows: readonly FoldedRow[];
+	rows: readonly RunTimelineItem[];
 	verb: string;
 	detail: string;
 	actionKinds: readonly ToolActionKind[];
@@ -153,7 +151,7 @@ export function foldRunWork(
 ): readonly GroupedRunTimelineItem[] {
 	const answer = rows.filter((row) => row.kind === 'assistant').at(-1);
 	const work = rows.filter(
-		(row): row is FoldedRow =>
+		(row) =>
 			row !== answer &&
 			row.kind !== 'user' &&
 			row.kind !== 'workstreams' &&
@@ -161,18 +159,16 @@ export function foldRunWork(
 	);
 	const [first] = work;
 	if (!first || work.length < ACTIVITY_GROUP_MIN_ITEMS) return rows;
-	const ran = work
-		.flatMap((row): readonly FoldedRow[] => (row.kind === 'activity-group' ? row.items : [row]))
-		.filter(isMachineActivity)
-		.filter((item) => !blockedByAutoMode(item));
+	const steps = work.flatMap(timelineItems);
+	const ran = steps.filter(isMachineActivity).filter((item) => !blockedByAutoMode(item));
 	const actions = ran.map(itemActionKind);
 	const actionKinds = distinct(actions);
 	const fold: WorkFold = {
 		kind: 'work-fold',
 		key: `work-${first.key}`,
-		rows: work,
+		rows: steps,
 		verb: VERB_FORMS[ran.length > 0 ? verbStem(actionKinds) : 'work'].past,
-		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(work.length, 'step'),
+		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(steps.length, 'step'),
 		actionKinds,
 	};
 	const folded = new Set<GroupedRunTimelineItem>(work);
@@ -183,17 +179,16 @@ export function withPendingRows(
 	rows: readonly GroupedRunTimelineItem[],
 	pending: readonly RunTimelineItem[],
 ): readonly GroupedRunTimelineItem[] {
-	const drawn = new Set(
-		rows.flatMap((row) =>
-			row.kind === 'subagent-group'
-				? row.agents.map((agent) => agent.key)
-				: row.kind === 'activity-group'
-					? row.items.map((item) => item.key)
-					: [row.key],
-		),
-	);
+	const drawn = new Set(rows.flatMap(timelineItems).map((item) => item.key));
 	const fresh = pending.filter((row) => !drawn.has(row.key));
 	return fresh.length > 0 ? groupSubagents([...rows, ...fresh]) : rows;
+}
+
+function timelineItems(row: GroupedRunTimelineItem): readonly RunTimelineItem[] {
+	if (row.kind === 'activity-group') return row.items;
+	if (row.kind === 'subagent-group') return row.agents;
+	if (row.kind === 'work-fold') return row.rows;
+	return row.kind === 'workstreams' ? [] : [row];
 }
 
 export function foldStartedWorkstreams(
@@ -222,7 +217,7 @@ function startedWorkstreamId(item: RunTimelineItem): string | null {
 	}
 }
 
-function isMachineActivity(item: FoldedRow): item is MachineActivityItem {
+function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 	return (
 		(item.kind === 'tool' &&
 			!isBackgroundAgent(item.tool.name, item.tool.input) &&

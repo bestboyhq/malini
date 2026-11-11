@@ -53,8 +53,8 @@ test('rounds before the previous one fold their work into one line and keep the 
 
 		const first = runs.first();
 		await first.getByTestId('chat-work-fold-summary').click();
-		await first.getByTestId('chat-activity-group-summary').click();
 		await expect(first.getByRole('button', read)).toBeVisible();
+		await expect(first.getByTestId('chat-activity-group')).toHaveCount(0);
 		await untilStill(page);
 		await captureFlow(app, 'transcript-round-fold-open');
 

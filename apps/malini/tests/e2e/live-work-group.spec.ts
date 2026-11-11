@@ -28,7 +28,7 @@ test('a running chat folds its tool calls and the status messages between them i
 			/^Next I read note [2-8]\.$/,
 		);
 		await expect(page.getByTestId('chat-activity-group')).toHaveCount(1);
-		await expect(page.getByTestId('chat-activity-group-message')).toHaveCount(0);
+		await expect(page.getByTestId('chat-activity-message')).toHaveCount(0);
 		await untilStill(page);
 		await captureFlow(app, 'live-work-group-running-latest');
 
@@ -42,8 +42,8 @@ test('a running chat folds its tool calls and the status messages between them i
 		]);
 
 		await group.click();
-		await expect(page.getByTestId('chat-activity-group-message')).toHaveCount(7);
-		await expect(page.getByTestId('chat-activity-group-message').last()).toHaveText(
+		await expect(page.getByTestId('chat-activity-message')).toHaveCount(7);
+		await expect(page.getByTestId('chat-activity-message').last()).toHaveText(
 			'Next I read note 8.',
 		);
 		await expect(

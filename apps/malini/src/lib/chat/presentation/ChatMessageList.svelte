@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
+	import { onDestroy, onMount, untrack, type Snippet } from 'svelte';
 	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
 	import { forkToNewChatCommand } from '$lib/chat/application/commands/fork-to-new-chat.command';
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
@@ -306,11 +306,7 @@
 
 	function openingRows(run: RunGroup): readonly GroupedRunTimelineItem[] {
 		const index = runs.indexOf(run);
-		return timelines.groupedTimelineItems(
-			run,
-			timelines.timelineWindow(run),
-			foldsWork(runs, index),
-		);
+		return timelines.groupedTimelineItems(run, foldsWork(runs, index));
 	}
 
 	let viewportEl: HTMLDivElement | null = $state(null);
@@ -339,14 +335,6 @@
 			return { destroy: () => undefined };
 		}
 		return stageEnter(node, key);
-	}
-
-	function showOlderTimeline(runId: string, reference: HTMLElement | null): Promise<void> {
-		return transcriptScroll.revealOlderContent(reference, async () => {
-			rebaseRowLayout();
-			timelines.revealOlderTimeline(runId);
-			await tick();
-		});
 	}
 
 	const persistedStreamingMembership = $derived(sessionProjectors.streaming.project(envelopes));
@@ -637,7 +625,6 @@
 		},
 		glideRowLayout,
 		rebaseRowLayout,
-		showOlderTimeline,
 		copyRunResponse,
 	});
 
