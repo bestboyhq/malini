@@ -17,15 +17,19 @@ export interface RunGhOptions {
 
 export const MAX_GH_OUTPUT_BYTES = 16 * 1024 * 1024;
 
-export function withBundledGh(path: string | undefined, resourcesRoot: string): string {
-	return [path, join(resourcesRoot, 'vendor', 'gh', 'bin')].filter(Boolean).join(':');
+export function ghVendor(root: string): string {
+	return join(root, 'vendor', 'gh');
+}
+
+export function withBundledGh(path: string | undefined, ...roots: readonly string[]): string {
+	return [path, ...roots.map((root) => join(ghVendor(root), 'bin'))].filter(Boolean).join(':');
 }
 
 export function ghEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
 	const home = base.HOME ?? '';
 	const inherited = base.PATH ?? '';
 	const augmented = `${home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${inherited}`;
-	return { ...base, PATH: augmented };
+	return { ...base, PATH: base['MALINI_GH_PATH'] ?? augmented };
 }
 
 export function runGh(args: readonly string[], options: RunGhOptions = {}): Promise<GhResult> {
@@ -46,12 +50,7 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 				? undefined
 				: setTimeout(() => {
 						child.kill('SIGKILL');
-						reject(
-							new GhError(
-								'failed',
-								`gh ${args.slice(0, 2).join(' ')} gave no answer in ${timeoutMs / 1000}s`,
-							),
-						);
+						reject(GhError.timedOut(timeoutMs));
 					}, timeoutMs);
 
 		const collect = (chunk: Buffer, stream: 'out' | 'err'): void => {

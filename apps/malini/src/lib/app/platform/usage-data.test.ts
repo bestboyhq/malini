@@ -14,6 +14,7 @@ import {
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
+import type { GitHubSignInOutcome } from '$contract/repositories';
 import type { UsageReport } from '$contract/system';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -90,7 +91,10 @@ function harness(
 	return {
 		context,
 		share: (shared: boolean) => usageData.share(shared),
-		journey: (marker: Parameters<typeof usageData.journey>[0]) => usageData.journey(marker),
+		journey: (
+			marker: Parameters<typeof usageData.journey>[0],
+			details?: Parameters<typeof usageData.journey>[1],
+		) => usageData.journey(marker, details),
 		activity,
 		reports,
 		tags,
@@ -385,6 +389,75 @@ describe('usage journeys', () => {
 		const { activity } = harness();
 		await settled();
 		expect(activity).toEqual(['app_active', 'day']);
+	});
+
+	it('records each setup step once, with both tool states on the first', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		launched.journey('setup_tools', { claude_code: 'missing', github: 'ready' });
+		launched.journey('setup_tools', { claude_code: 'ready', github: 'ready' });
+		launched.journey('setup_sounds');
+		launched.journey('setup_defaults');
+		launched.journey('setup_heard_about');
+		await settled();
+		const steps = launched.activity.filter((name) => name.startsWith('setup_'));
+		expect(steps).toEqual(['setup_tools', 'setup_sounds', 'setup_defaults', 'setup_heard_about']);
+		expect(launched.tags[launched.activity.indexOf('setup_tools')]).toEqual({
+			cohort: '2026-10-15',
+			days: 0,
+			setup_seconds: 0,
+			claude_code: 'missing',
+			github: 'ready',
+		});
+		expect(launched.tags[launched.activity.indexOf('setup_sounds')]).toEqual({
+			cohort: '2026-10-15',
+			days: 0,
+			setup_seconds: 0,
+		});
+	});
+
+	it('times each setup step from the moment the tools step first showed', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		let clock = NOW;
+		const launched = harness(context, undefined, { freshInstall: true, now: () => clock });
+		await settled();
+		launched.journey('setup_tools', { claude_code: 'missing', github: 'missing' });
+		await settled();
+		clock = new Date(NOW.getTime() + 95_000);
+		launched.journey('setup_sounds');
+		await settled();
+		clock = new Date(NOW.getTime() + 140_000);
+		launched.journey('setup_defaults');
+		await settled();
+		setSetting(
+			context.db,
+			ONBOARDING_FINISHED_SETTING,
+			new Date(NOW.getTime() + 200_000).toISOString(),
+		);
+		clock = new Date(NOW.getTime() + 3_600_000);
+		launched.journey('setup_finished');
+		await settled();
+		const seconds = (name: UsageActivity): unknown =>
+			launched.tags[launched.activity.indexOf(name)]?.['setup_seconds'];
+		expect([
+			seconds('setup_tools'),
+			seconds('setup_sounds'),
+			seconds('setup_defaults'),
+			seconds('setup_finished'),
+		]).toEqual([0, 95, 140, 200]);
+	});
+
+	it('sends no setup time for an install that never showed the tools step', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const launched = harness(context, undefined, { freshInstall: true });
+		await settled();
+		launched.journey('setup_sounds');
+		await settled();
+		expect(launched.tags[launched.activity.indexOf('setup_sounds')]).toEqual({
+			cohort: '2026-10-15',
+			days: 0,
+		});
 	});
 
 	it('sends setup_finished once, when onboarding finishes', async () => {
@@ -958,3 +1031,126 @@ function seedRun(
 		startedAt,
 	);
 }
+
+describe('usage tools', () => {
+	type ToolRecord = Readonly<Record<string, string | number | undefined>> & { name: string };
+
+	function tools(launched: ReturnType<typeof harness>): ToolRecord[] {
+		return launched.activity.flatMap((name, index) =>
+			name.startsWith('tool_') ? [{ ...launched.tags[index], name }] : [],
+		);
+	}
+
+	async function call(context: MainContext, command: string): Promise<void> {
+		await context.commands.handle({ command, args: undefined });
+		await settled();
+	}
+
+	it('follows a tool install from the press to its outcome, and retries as new attempts', async () => {
+		const launched = harness();
+		let attempt = 0;
+		launched.context.commands.define('providers.install-claude-code', () => {
+			attempt += 1;
+			if (attempt === 1) {
+				throw Object.assign(new Error('Could not download Claude Code: ENOTFOUND host'), {
+					name: 'ClaudeInstallError',
+					kind: 'download',
+					code: 'ENOTFOUND',
+				});
+			}
+			return undefined;
+		});
+		await call(launched.context, 'providers.install-claude-code');
+		await call(launched.context, 'providers.install-claude-code');
+		expect(tools(launched)).toEqual([
+			{ name: 'tool_install_started', tool: 'claude_code', attempt: 1, phase: 'setup' },
+			{
+				name: 'tool_install_failed',
+				tool: 'claude_code',
+				attempt: 1,
+				seconds: 0,
+				stage: 'download',
+				error: 'ClaudeInstallError',
+				code: 'ENOTFOUND',
+				phase: 'setup',
+			},
+			{ name: 'tool_install_started', tool: 'claude_code', attempt: 2, phase: 'setup' },
+			{
+				name: 'tool_install_finished',
+				tool: 'claude_code',
+				attempt: 2,
+				seconds: 0,
+				phase: 'setup',
+			},
+		]);
+		expect(JSON.stringify(launched.tags)).not.toContain('host');
+	});
+
+	it('counts an install whose app quit as a start with no outcome', async () => {
+		const launched = harness();
+		launched.context.commands.define(
+			'repositories.install-github-cli',
+			() => new Promise(() => {}),
+		);
+		void launched.context.commands.handle({
+			command: 'repositories.install-github-cli',
+			args: undefined,
+		});
+		await settled();
+		expect(tools(launched).map((event) => event.name)).toEqual(['tool_install_started']);
+	});
+
+	it('follows a GitHub sign-in through the code, the wait and the outcome', async () => {
+		const launched = harness();
+		const outcomes: GitHubSignInOutcome[] = ['signed-in', 'cancelled'];
+		launched.context.commands.define('repositories.start-github-sign-in', () => ({
+			userCode: 'ABCD-1234',
+			verificationUri: 'https://github.com/login/device',
+		}));
+		launched.context.commands.define(
+			'repositories.finish-github-sign-in',
+			() => outcomes.shift() ?? 'cancelled',
+		);
+		for (let round = 0; round < 2; round += 1) {
+			await call(launched.context, 'repositories.start-github-sign-in');
+			await call(launched.context, 'repositories.finish-github-sign-in');
+		}
+		expect(tools(launched).map(({ name, tool, attempt }) => [name, tool, attempt])).toEqual([
+			['tool_sign_in_started', 'github', 1],
+			['tool_sign_in_finished', 'github', 1],
+			['tool_sign_in_started', 'github', 2],
+			['tool_sign_in_cancelled', 'github', 2],
+		]);
+	});
+
+	it('records a GitHub sign-in that shows no code as one failure', async () => {
+		const launched = harness();
+		launched.context.commands.define('repositories.start-github-sign-in', () => {
+			throw new Error('GitHub CLI showed no sign-in code.');
+		});
+		await call(launched.context, 'repositories.start-github-sign-in');
+		expect(tools(launched).map(({ name, stage, error }) => [name, stage, error])).toEqual([
+			['tool_sign_in_started', undefined, undefined],
+			['tool_sign_in_failed', 'unknown', 'Error'],
+		]);
+	});
+
+	it('follows a Claude sign-in and marks it later once setup is over', async () => {
+		const launched = harness();
+		setSetting(launched.context.db, ONBOARDING_FINISHED_SETTING, at(15, 9));
+		launched.context.commands.define('providers.sign-in-to-claude', () => 'signed-in');
+		await call(launched.context, 'providers.sign-in-to-claude');
+		expect(tools(launched).map(({ name, tool, phase }) => [name, tool, phase])).toEqual([
+			['tool_sign_in_started', 'claude_code', 'later'],
+			['tool_sign_in_finished', 'claude_code', 'later'],
+		]);
+	});
+
+	it('sends no tool event once the user turns usage data off', async () => {
+		const launched = harness();
+		launched.share(false);
+		launched.context.commands.define('providers.install-claude-code', () => undefined);
+		await call(launched.context, 'providers.install-claude-code');
+		expect(tools(launched)).toEqual([]);
+	});
+});

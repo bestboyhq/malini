@@ -23,6 +23,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
+import { GH_DOWNLOAD_URL } from '$main/process/gh-install';
 import {
 	defaultGhRunner,
 	GH_ANSWER_TIMEOUT_MS,
@@ -144,6 +145,18 @@ describe('repositories.github-auth-status', () => {
 		expect(status.login).toBe('szymeo');
 	});
 
+	it('gives gh a time limit for the check, so a hung gh never leaves setup checking', async () => {
+		const limits: (number | undefined)[] = [];
+		boot({
+			ghRunner: async (args, options) => {
+				limits.push(options?.timeoutMs);
+				return args[0] === 'auth' ? ok('Logged in') : ok('szymeo\n');
+			},
+		});
+		await invoke('repositories.github-auth-status');
+		expect(limits).toEqual([GH_ANSWER_TIMEOUT_MS, GH_ANSWER_TIMEOUT_MS]);
+	});
+
 	it('reports gh missing while other commands keep working', async () => {
 		const run: GhRunner = () => Promise.reject(GhError.notInstalled());
 		boot({ ghRunner: run });
@@ -151,6 +164,24 @@ describe('repositories.github-auth-status', () => {
 			'repositories.github-auth-status',
 		);
 		expect(status).toMatchObject({ authenticated: false, installed: false });
+	});
+});
+
+describe('repositories.install-github-cli', () => {
+	it('downloads the pinned gh into the app data folder and says why when it cannot', async () => {
+		const asked: string[] = [];
+		boot({
+			ghRunner: fakeRunner(() => ok('')).run,
+			downloadGh: async (url) => {
+				asked.push(url);
+				return new Response('', { status: 503 });
+			},
+		});
+		await expect(invoke('repositories.install-github-cli')).rejects.toThrow(
+			'Could not download the GitHub CLI: HTTP 503',
+		);
+		expect(asked).toEqual([GH_DOWNLOAD_URL]);
+		expect(existsSync(join(context.appDataRoot, 'vendor', 'gh'))).toBe(false);
 	});
 });
 
@@ -479,7 +510,7 @@ describe('githubAuthStatus', () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
 		const status = expect(githubAuthStatus(defaultGhRunner)).rejects.toThrow(
-			'gh auth status gave no answer in 15s',
+			'GitHub did not answer in 15 seconds.',
 		);
 		const pid = await vi.waitFor(() => {
 			const started = Number(readFileSync(join(home, 'gh.pid'), 'utf8'));
