@@ -50,7 +50,7 @@ describe('ClaudeCodeUpdates', () => {
 		expect(claude.calls()).toEqual(['mark update', 'mark update']);
 	});
 
-	it('reports an update only when claude replaced itself', async () => {
+	it('reports an update only when claude replaced itself, and tells the next ask once', async () => {
 		const unchanged = fakeClaude();
 		const replaced = fakeClaude(
 			0,
@@ -69,6 +69,8 @@ describe('ClaudeCodeUpdates', () => {
 		});
 		expect(await updates.check()).toBe(true);
 		expect(readFileSync(replaced.executable, 'utf8')).toContain('# 2.0.0');
+		expect(await updates.checkIfStale()).toBe(true);
+		expect(await updates.checkIfStale()).toBe(false);
 	});
 
 	it('keeps going when claude is missing or the update fails', async () => {
@@ -99,9 +101,8 @@ describe('ClaudeCodeUpdates', () => {
 			recheckAfterMs: 400,
 		});
 
-		const running = updates.check();
-		expect(updates.checkIfStale()).toBe(running);
-		await running;
+		await Promise.all([updates.check(), updates.checkIfStale()]);
+		expect(claude.calls()).toEqual(['mark update']);
 		expect(await updates.checkIfStale()).toBe(false);
 		expect(claude.calls()).toEqual(['mark update']);
 

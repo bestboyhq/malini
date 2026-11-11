@@ -17,6 +17,7 @@ export class ClaudeCodeUpdates {
 	#timer: NodeJS.Timeout | null = null;
 	#running: Promise<boolean> | null = null;
 	#checkedAt = Number.NEGATIVE_INFINITY;
+	#unseen = false;
 
 	constructor(deps: ClaudeCodeUpdatesDeps) {
 		this.#deps = deps;
@@ -41,9 +42,12 @@ export class ClaudeCodeUpdates {
 		return this.#running;
 	}
 
-	checkIfStale(): Promise<boolean> {
+	async checkIfStale(): Promise<boolean> {
 		const recent = Date.now() - this.#checkedAt < (this.#deps.recheckAfterMs ?? RECHECK_AFTER_MS);
-		return this.#running || !recent ? this.check() : Promise.resolve(false);
+		if (this.#running || !recent) await this.check();
+		const updated = this.#unseen;
+		this.#unseen = false;
+		return updated;
 	}
 
 	async #update(): Promise<boolean> {
@@ -55,7 +59,9 @@ export class ClaudeCodeUpdates {
 			env: this.#deps.environment(),
 			timeoutMs: UPDATE_TIMEOUT_MS,
 		}).catch(() => undefined);
-		return (await fingerprint(executable)) !== before;
+		const updated = (await fingerprint(executable)) !== before;
+		this.#unseen ||= updated;
+		return updated;
 	}
 }
 

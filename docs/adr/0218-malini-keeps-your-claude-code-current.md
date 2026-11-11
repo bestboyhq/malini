@@ -18,7 +18,7 @@ Bundling Claude Code was turned down: its license gives no right to redistribute
 - `registerModules` starts it once the boot environment is resolved, so the login shell's `PATH` finds `claude`, and `providers.stop` stops it.
   It runs at launch and every 6 hours.
 - Opening the model picker calls `providers.update-claude-code`, which runs `checkIfStale()`: it joins a check that runs, skips one that started less than 5 minutes ago, and runs one otherwise.
-  It answers whether the `claude` executable changed, by its inode, size and modified time through the link before and after, and the picker reloads the capabilities when it did, so the new model shows up in the open picker.
+  It answers whether the `claude` executable changed since the picker last asked, by its inode, size and modified time through the link before and after each run, so an update the launch or 6 hour check installed counts too, and the picker reloads the capabilities when it did, so the new model shows up in the open picker.
 - Malini never reads `autoUpdates`, and a failed or missing `claude` changes nothing: the next interval tries again.
 - `MALINI_CLAUDE_UPDATES=off` stops it, and `providers.update-claude-code` then answers `false` and runs nothing.
   The main vitest project, the e2e harness, the `test-malini-app` launcher, `packaged-smoke.mjs` and `update-e2e.mjs` set it, so no test or agent run touches the `claude` on the machine.
@@ -33,4 +33,4 @@ Bundling Claude Code was turned down: its license gives no right to redistribute
 - A user who pins a version has to start Malini with `MALINI_CLAUDE_UPDATES=off`, and a bad Claude Code release reaches Malini's users within six hours too.
 - An update that fails, such as a package manager install that needs permissions, shows nothing, and the picker stays as it was.
 - The pinned SDK is not covered: `@anthropic-ai/claude-agent-sdk` still changes only when someone bumps it.
-- Enforced by `claude-code-updates.service.test.ts` (the call, the environment, one run at a time, an update only when `claude` replaced itself, a missing or failing `claude`, the 5 minute recheck, the interval and stop), `register.test.ts` (the off switch), `model-picker.spec.ts` ("the picker lists a model that a Claude Code update brings while it is open") and `session.test.ts` ("restarts Claude Code for a prompt sent after claude was updated").
+- Enforced by `claude-code-updates.service.test.ts` (the call, the environment, one run at a time, an update only when `claude` replaced itself and told to the next ask once, a missing or failing `claude`, the 5 minute recheck, the interval and stop), `register.test.ts` (the off switch), `model-picker.spec.ts` ("the picker lists a model that a Claude Code update brings while it is open") and `session.test.ts` ("restarts Claude Code for a prompt sent after claude was updated").
