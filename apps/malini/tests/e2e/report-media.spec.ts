@@ -362,8 +362,10 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 		await page.keyboard.press('Escape');
 		await expect(gallery).toBeHidden();
 
+		const liveFrame = offer.locator('iframe[title="Variant C · Live"]:not([inert])');
+		await expect(liveFrame, 'a hidden page variant runs no page').toHaveCount(0);
 		await variants.getByRole('tab', { name: /^Variant C · Live/u }).click();
-		const live = offer.locator('iframe[title="Variant C · Live"]:not([inert])').contentFrame();
+		const live = liveFrame.contentFrame();
 		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
 			timeout: 20_000,
 		});

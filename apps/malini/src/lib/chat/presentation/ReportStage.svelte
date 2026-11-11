@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { isVideoPath } from '$contract/workstream-images';
+	import { isVideoPath, mediaKind } from '$contract/workstream-images';
 	import type {
 		TurnComparison,
 		TurnReport,
@@ -160,16 +160,18 @@
 	>
 		<span class="block aspect-[16/10] max-h-[70vh] w-full" aria-hidden="true"></span>
 		<div class="absolute inset-0 grid place-items-center">
-			<ReportMedia
-				{src}
-				{label}
-				{workstreamId}
-				size="hero"
-				{playing}
-				{imagesrc}
-				{caption}
-				onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
-			/>
+			{#if playing || mediaKind(src) !== 'page'}
+				<ReportMedia
+					{src}
+					{label}
+					{workstreamId}
+					size="hero"
+					{playing}
+					{imagesrc}
+					{caption}
+					onopen={(handoff) => onopenimage?.(galleryImageId(src), handoff)}
+				/>
+			{/if}
 		</div>
 	</div>
 {/snippet}
