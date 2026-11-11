@@ -3,7 +3,7 @@ import { isWaitingForUser, type SessionStatus } from '$contract/agent-state-mach
 import type { BackgroundWait } from './background-work';
 
 export type AgentChatActivity =
-	'idle' | 'in-progress' | 'in-background' | 'commands-running' | 'needs-approval' | 'failed';
+	'idle' | 'in-progress' | 'in-background' | 'needs-approval' | 'failed';
 
 export type AgentChatIdentitySource = {
 	displayName: string;
@@ -25,7 +25,6 @@ const STATUS_LABELS: Readonly<Record<AgentChatActivity, string>> = {
 	idle: 'Ready',
 	'in-progress': 'Working',
 	'in-background': 'Background agents running',
-	'commands-running': 'Background commands running',
 	'needs-approval': 'Waiting for approval',
 	failed: 'Last run failed',
 };
@@ -36,7 +35,6 @@ export function deriveAgentChatActivity(
 	backgroundWait: BackgroundWait | null = null,
 ): AgentChatActivity {
 	if (dispatchPending) return 'in-progress';
-	if (status === 'running' && backgroundWait === 'commands') return 'commands-running';
 	if (status === 'running') return backgroundWait === 'agents' ? 'in-background' : 'in-progress';
 	if (isWaitingForUser(status)) return 'needs-approval';
 	if (status === 'failed') return 'failed';

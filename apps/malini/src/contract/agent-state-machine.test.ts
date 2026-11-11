@@ -23,6 +23,8 @@ describe('agent state machine', () => {
 			'question.requested',
 			'approval.decided',
 			'question.answered',
+			'turn.ended',
+			'turn.resumed',
 			'run.completed',
 			'run.failed',
 			'checkpoint.restored',
@@ -51,6 +53,11 @@ describe('agent state machine', () => {
 		expect(nextSessionStatus('failed', 'run.failed')).toBe('failed');
 		expect(nextSessionStatus('idle', 'run.completed')).toBe('completed');
 		expect(nextSessionStatus('idle', 'run.failed')).toBe('failed');
+		expect(nextSessionStatus('running', 'turn.ended')).toBe('completed');
+		expect(nextSessionStatus('completed', 'turn.resumed')).toBe('running');
+		expect(nextSessionStatus('running', 'turn.resumed')).toBe('running');
+		expect(nextSessionStatus('failed', 'turn.resumed')).toBe('failed');
+		expect(nextSessionStatus('idle', 'turn.resumed')).toBe('idle');
 		for (const status of [
 			'idle',
 			'running',
@@ -60,6 +67,21 @@ describe('agent state machine', () => {
 		] satisfies SessionStatus[]) {
 			expect(nextSessionStatus(status, 'checkpoint.restored')).toBe('idle');
 		}
+	});
+
+	it('reads a turn that ends over its commands as done while its run stays open, until the agent goes on', () => {
+		const ended = foldSessionStatus('idle', [envelope('run.started'), envelope('turn.ended')]);
+		expect(ended).toMatchObject({ status: 'completed', currentRunId: 'run-1', lastError: null });
+
+		const resumed = foldSessionStatusIncremental(ended, [envelope('turn.resumed')]);
+		expect(resumed).toMatchObject({ status: 'running', currentRunId: 'run-1' });
+
+		const closed = foldSessionStatusIncremental(resumed ?? ended, [
+			envelope('turn.ended'),
+			envelope('run.completed'),
+			envelope('turn.resumed'),
+		]);
+		expect(closed).toMatchObject({ status: 'completed', currentRunId: null });
 	});
 
 	it('folds a started, approved, completed session from idle', () => {

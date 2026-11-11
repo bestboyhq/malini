@@ -1,5 +1,6 @@
 import type { RenderItem, RunGroup, ToolAggregate } from './render-state';
 import { isAgentTool } from './tool-display-name';
+import { foldsIntoLaterTurn } from './turn-result';
 import { canonicalChangedPath } from '$shared/markdown/workstream-path';
 
 export type RunTimelineThought = {
@@ -195,6 +196,7 @@ export function linearizeRunTimeline(
 			if (item.kind === 'terminal' || item.kind === 'usage') return false;
 			if (item.kind === 'command') return !represented.commands.has(item.command.trim());
 			if (item.kind === 'file') return !represented.mutations.has(item.path, item.seq);
+			if (item.kind === 'assistant') return !foldsIntoLaterTurn(run, item.key);
 			return true;
 		},
 	);

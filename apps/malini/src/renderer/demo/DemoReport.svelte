@@ -12,7 +12,7 @@
 
 	const runs = $derived(reportedWorkstream(workstreamId)?.runs ?? []);
 	const turns = $derived(
-		runs.map((run) => ({ runId: run.id, report: parseTurnReport(run.report) })),
+		runs.map((run) => ({ runId: run.id, key: run.id, report: parseTurnReport(run.report) })),
 	);
 	const report = $derived(turns.at(-1)?.report ?? parseTurnReport(''));
 	const history = $derived(turns.slice(0, -1).slice(-3));
@@ -31,8 +31,8 @@
 		return whileWatched(view, () => (play === 'sweep' ? sweepWipe(view) : cycleTabs(view)), true);
 	});
 
-	function pickOf(runId: string): VariantPick | null {
-		const index = runs.findIndex((run) => run.id === runId);
+	function pickOf(reportKey: string): VariantPick | null {
+		const index = runs.findIndex((run) => run.id === reportKey);
 		const next = runs[index + 1];
 		return next ? readVariantPick(next.prompt, turns[index]?.report.variants ?? []) : null;
 	}

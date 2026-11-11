@@ -16,7 +16,6 @@
 	import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
 	import { pullRequestGithubStatusQuery } from '$lib/pull-requests/application/queries/pull-request-github-status.query.svelte';
 	import { pullRequestTopBarQuery } from '$lib/pull-requests/application/queries/pull-request-top-bar.query.svelte';
-	import type { AgentWork } from '$lib/pull-requests/domain/pull-request-top-bar';
 	import { repositorySurfaceQuery } from '$lib/pull-requests/application/queries/repository-surface.query.svelte';
 	import type {
 		PullRequestMenuItem,
@@ -35,7 +34,7 @@
 		repositoryScopeReady: boolean;
 		remotePullRequestsSupported: boolean;
 		repositoryExtensionRegistered: boolean;
-		agentWork: AgentWork | null;
+		agentWorking: boolean;
 		overrideStatus: GlobalTopBarGithubStatus | null;
 		ongitstatusstale: () => void;
 		onarchive: () => void;
@@ -50,7 +49,7 @@
 		repositoryScopeReady,
 		remotePullRequestsSupported,
 		repositoryExtensionRegistered,
-		agentWork,
+		agentWorking,
 		overrideStatus,
 		ongitstatusstale,
 		onarchive,
@@ -58,7 +57,7 @@
 
 	const surface = $derived(repositorySurfaceQuery.data);
 	const githubStatus = $derived(pullRequestGithubStatusQuery.data);
-	const topBar = $derived(pullRequestTopBarQuery.data(agentWork));
+	const topBar = $derived(pullRequestTopBarQuery.data(agentWorking));
 	const status = $derived(topBar.status);
 	const continuing = $derived(workstreamBusyActionQuery.data(workstreamId) === 'continue');
 	const busy = $derived(pullRequestBusyQuery.data || continuing);
@@ -145,7 +144,7 @@
 			id: item.id,
 			label: item.label,
 			confirmLabel: item.confirmLabel,
-			disabled: busy || (item.id === 'abort-operation' && agentWork !== null),
+			disabled: busy || (item.id === 'abort-operation' && agentWorking),
 			onInvoke: () => onMenuItem(item.id),
 		};
 	}

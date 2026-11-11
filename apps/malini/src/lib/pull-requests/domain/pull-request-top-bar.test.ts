@@ -7,7 +7,7 @@ import type {
 	WorkstreamStatus,
 } from './pull-request-action';
 import type { PullRequestShip } from './pull-request-ship';
-import { pullRequestTopBar, type AgentWork } from './pull-request-top-bar';
+import { pullRequestTopBar } from './pull-request-top-bar';
 import type {
 	RepositorySurface,
 	SurfacePullRequest,
@@ -98,9 +98,9 @@ function topBar(
 	shipState: PullRequestShip | null,
 	read: RepositorySurface | null,
 	availability: PullRequestAvailability = 'ready',
-	agentWork: AgentWork | null = null,
+	agentWorking = false,
 ): PullRequestTopBar {
-	return pullRequestTopBar(shipState, read, availability, agentWork);
+	return pullRequestTopBar(shipState, read, availability, agentWorking);
 }
 
 function menu(bar: PullRequestTopBar): readonly PullRequestMenuItemId[] {
@@ -111,16 +111,16 @@ function status(
 	shipState: PullRequestShip | null,
 	read: RepositorySurface | null,
 	availability: PullRequestAvailability = 'ready',
-	agentWork: AgentWork | null = null,
+	agentWorking = false,
 ): WorkstreamStatus | null {
-	return topBar(shipState, read, availability, agentWork).status;
+	return topBar(shipState, read, availability, agentWorking).status;
 }
 
 function whileAgentRuns(
 	shipState: PullRequestShip | null,
 	read: RepositorySurface | null,
 ): WorkstreamStatus | null {
-	return status(shipState, read, 'ready', 'agent');
+	return status(shipState, read, 'ready', true);
 }
 
 type Line = Readonly<{
@@ -878,14 +878,6 @@ describe('the workstream status', () => {
 		expect(whileAgentRuns(null, null)).toBeNull();
 	});
 
-	it('says commands run while only background commands keep the run open', () => {
-		expect(status(null, open({ checkItems: [passed] }), 'ready', 'commands')).toMatchObject({
-			busy: true,
-			label: 'Commands running',
-			action: { kind: 'queue-merge', tone: 'secondary' },
-		});
-	});
-
 	it('clears blockers while an automation works, keeping Merge and Draft but neutral', () => {
 		const local = (overrides: Parameters<typeof ship>[0] = {}) =>
 			ship({ phase: 'local', pullRequestNumber: null, pullRequestUrl: null, ...overrides });
@@ -907,7 +899,7 @@ describe('the workstream status', () => {
 			'fixing-checks',
 			'addressing-review',
 		] as const) {
-			expect(status(ship({ step }), open(), 'ready', 'agent')).toMatchObject({
+			expect(status(ship({ step }), open(), 'ready', true)).toMatchObject({
 				label: 'Clearing blockers',
 				action: { kind: 'queue-merge', ariaLabel: 'Merge pull request #42', tone: 'secondary' },
 			});

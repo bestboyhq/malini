@@ -45,6 +45,7 @@ function run(
 		failure: null,
 		resumeAt: null,
 		turnEnded: terminal === 'completed',
+		answeredReports: [],
 		superseded: false,
 		obsoleted: false,
 	};

@@ -12,7 +12,7 @@ import { REPORTS_PREAMBLE } from '../domain/deliveries';
 import { getDelivery } from './deliveries.repository';
 import { ChatDeliveries } from './deliveries.service';
 import { insertRun, type AgentRun } from './runs.repository';
-import { archiveSession, insertSession } from './sessions.repository';
+import { archiveSession, insertSession, moveSessionStatus } from './sessions.repository';
 
 const NOW = '2026-10-28T09:00:00.000Z';
 
@@ -116,6 +116,7 @@ function turn(id: string, sessionId: string, fields: Partial<AgentRun> = {}): vo
 		error: null,
 		...fields,
 	});
+	if (fields.completedAt === null) moveSessionStatus(db, sessionId, 'run.started');
 }
 
 function finishRuns(): void {
@@ -409,20 +410,21 @@ describe('ChatDeliveries', () => {
 		]);
 	});
 
-	it('reports a turn that waits on a background command, then the turn that goes on, and hands the chat what waited', async () => {
+	it('reports a turn that ended over a background command, then the turn that goes on, and hands the chat a prompt at once', async () => {
 		turn('starter-turn', 'starter-chat');
 		turn('api-turn', 'api-chat', {
 			completedAt: null,
 			chainId: 'starter-turn',
 			summary: 'Waiting for the merge from main to land.',
 		});
+		moveSessionStatus(db, 'api-chat', 'turn.ended');
 
 		await deliveries.turnFinished(
 			finished('api-turn', { outcome: null, backgroundCommands: ['Wait for the merge'] }),
 			41,
 		);
 		const followUp = await deliveries.deliver(prompt('api-chat', 'Also add the line second.'));
-		expect(followUp.status).toBe('waiting');
+		expect(followUp.status).toBe('delivered');
 		run(
 			db,
 			'UPDATE agent_runs SET completed_at = ?, summary = ? WHERE id = ?',

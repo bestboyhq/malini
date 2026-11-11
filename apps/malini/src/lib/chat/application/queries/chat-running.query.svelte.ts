@@ -1,4 +1,4 @@
-import { hasOpenRun } from '$contract/agent-state-machine';
+import { isAgentWorking } from '$contract/agent-state-machine';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
@@ -10,7 +10,7 @@ class ChatRunningQuery {
 		const sessionId = chatSessionStore.sessionId;
 		if (!sessionId) return false;
 		return (
-			hasOpenRun(sessionsAggregate.getSession(sessionId)?.status) ||
+			isAgentWorking(sessionsAggregate.getSession(sessionId)?.status) ||
 			chatSessionStore.isDispatchPending(sessionId) ||
 			pendingPromptStore.for(sessionId) !== null
 		);

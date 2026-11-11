@@ -253,7 +253,7 @@
 			</p>
 		{/if}
 
-		{#if run.terminal !== null && !endsQuietly && (hasAssistantAnswer || undoTarget || forkAvailable)}
+		{#if (run.terminal !== null || run.turnEnded) && !endsQuietly && (hasAssistantAnswer || undoTarget || forkAvailable)}
 			<div class="flex h-6 items-center justify-end gap-1.5" data-testid="chat-run-actions">
 				{@render runActions()}
 			</div>

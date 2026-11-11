@@ -1,6 +1,6 @@
 import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
-import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
+import { all, column, get, isRecord, nowIso8601, run, scalar } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
 import { isWaitingForUser, type SessionStatus } from '$contract/agent-state-machine';
 import type { WorkstreamTurn } from '$contract/stats';
@@ -319,26 +319,33 @@ export function runUserMessage(db: MaliniDatabase, runId: string): Record<string
 	return isRecord(payload) ? payload : {};
 }
 
+const SESSION_WORKS = "s.status IN ('running', 'waiting_for_approval')";
+
 export function runIsWaitingOnBackgroundWork(db: MaliniDatabase, runId: string): boolean {
 	const background = latestBackgroundWork(db, runId);
 	return isRecord(background) && background['waiting'] === true;
 }
 
 export function workstreamHasWorkingRun(db: MaliniDatabase, workstreamId: string): boolean {
-	return column(
-		db,
-		`SELECT r.id FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
-		 WHERE s.workstream_id = ? AND r.completed_at IS NULL`,
-		workstreamId,
-	).some((runId) => !waitsOnlyOnBackgroundCommands(latestBackgroundWork(db, runId)));
+	return (
+		scalar(
+			db,
+			`SELECT COUNT(*) FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+			 WHERE s.workstream_id = ? AND r.completed_at IS NULL AND ${SESSION_WORKS}`,
+			workstreamId,
+		) > 0
+	);
 }
 
 export function sessionHasWorkingRun(db: MaliniDatabase, sessionId: string): boolean {
-	return column(
-		db,
-		'SELECT id FROM agent_runs WHERE session_id = ? AND completed_at IS NULL',
-		sessionId,
-	).some((runId) => !waitsOnlyOnBackgroundCommands(latestBackgroundWork(db, runId)));
+	return (
+		scalar(
+			db,
+			`SELECT COUNT(*) FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+			 WHERE r.session_id = ? AND r.completed_at IS NULL AND ${SESSION_WORKS}`,
+			sessionId,
+		) > 0
+	);
 }
 
 export function turnEndedOverBackgroundCommands(event: Readonly<Record<string, unknown>>): boolean {
