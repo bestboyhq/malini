@@ -10,7 +10,12 @@ const app = await electron.launch({
 		'../release/mac-arm64/Malini.app/Contents/MacOS/Malini',
 	),
 	args: [`--user-data-dir=${userData}`, '--use-mock-keychain'],
-	env: { ...process.env, MALINI_BACKGROUND_WINDOW: '1', MALINI_USAGE_DATA: 'off' },
+	env: {
+		...process.env,
+		MALINI_BACKGROUND_WINDOW: '1',
+		MALINI_USAGE_DATA: 'off',
+		MALINI_CLAUDE_UPDATES: 'off',
+	},
 });
 try {
 	const page = await app.firstWindow();

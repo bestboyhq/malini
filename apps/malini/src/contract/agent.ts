@@ -155,6 +155,19 @@ export interface ProviderCapability {
 
 export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh | bash';
 
+export interface ClaudeCodeFailedUpdate {
+	version: string | null;
+}
+
+export interface ClaudeCodeUpdateCheck {
+	updated: boolean;
+	failed: ClaudeCodeFailedUpdate | null;
+}
+
+export interface ClaudeCodeUpdateArgs {
+	now?: true;
+}
+
 export type ClaudeSignInOutcome = 'signed-in' | 'cancelled';
 
 export type ChatGptSignInOutcome = 'signed-in' | 'cancelled';

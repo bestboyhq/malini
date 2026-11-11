@@ -15,6 +15,7 @@ import {
 	type SecretCipher,
 } from './claude-accounts.service';
 import { ChatGptAccount } from './chatgpt/account.service';
+import { ClaudeCodeUpdates } from './claude-code-updates.service';
 import { installClaudeCode } from './claude-install';
 import { ChatGptProxy } from './chatgpt/proxy';
 import {
@@ -40,6 +41,7 @@ export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directo
 
 export interface ProvidersPlatform {
 	readonly keys: ProviderKeys;
+	readonly updates: ClaudeCodeUpdates | null;
 	stop(): void;
 }
 
@@ -48,14 +50,29 @@ export function registerProviders(
 	deps: ProvidersDeps = {},
 ): ProvidersPlatform {
 	const platform = deps.platform ?? process.platform;
+	const executable = deps.executable ?? claudeExecutable;
 	const environment = deps.environment ?? (() => withoutProviderVariables(buildSpawnEnvironment()));
 	const accounts = new ClaudeAccounts({
 		directory: join(context.appDataRoot, 'claude-accounts'),
-		executable: deps.executable ?? claudeExecutable,
+		executable,
 		environment,
 		security: deps.security ?? (() => (platform === 'darwin' ? resolveToolPath('security') : null)),
 		cipher: deps.cipher ?? electronCipher,
 	});
+
+	const claudeUpdates =
+		process.env['MALINI_CLAUDE_UPDATES'] === 'off'
+			? null
+			: new ClaudeCodeUpdates({ executable, environment });
+
+	context.commands.define(
+		'providers.update-claude-code',
+		async (args: unknown) =>
+			(await claudeUpdates?.checkIfStale(isRecord(args) && args['now'] === true)) ?? {
+				updated: false,
+				failed: null,
+			},
+	);
 
 	const fetch = deps.fetch ?? electronFetch;
 	let claudeInstall: Promise<void> | null = null;
@@ -164,7 +181,9 @@ export function registerProviders(
 
 	return {
 		keys,
+		updates: claudeUpdates,
 		stop: () => {
+			claudeUpdates?.stop();
 			accounts.cancelSignIn();
 			chatgpt.cancelSignIn();
 			proxy.stop();
@@ -219,7 +238,7 @@ function invalidEmail(): never {
 function claudeExecutable(): string | null {
 	const environment = currentEnvironment();
 	const home = homedir();
-	const path = [environment.path, join(home, '.local', 'bin'), join(home, '.claude', 'local')];
+	const path = [join(home, '.local', 'bin'), environment.path, join(home, '.claude', 'local')];
 	return resolveToolPath('claude', { ...environment, path: path.join(':') });
 }
 

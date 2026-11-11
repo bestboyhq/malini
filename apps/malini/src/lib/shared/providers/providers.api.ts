@@ -86,6 +86,7 @@ export { deleteProviderKeyCommand } from './application/commands/delete-provider
 export { loadModelDefaultsCommand } from './application/commands/load-model-defaults.command';
 export { loadModelProvidersCommand } from './application/commands/load-model-providers.command';
 export { loadProviderCapabilitiesCommand } from './application/commands/load-provider-capabilities.command';
+export { updateClaudeCodeCommand } from './application/commands/update-claude-code.command';
 export { refreshModelProvidersCommand } from './application/commands/refresh-model-providers.command';
 export { reloadModelProvidersCommand } from './application/commands/reload-model-providers.command';
 export { saveAgentAccessDefaultCommand } from './application/commands/save-agent-access-default.command';

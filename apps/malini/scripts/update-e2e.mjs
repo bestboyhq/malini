@@ -9,7 +9,11 @@ const NAME = 'MaliniUpdateTest';
 const OLD_NAME = NAME.toLowerCase();
 const ID = 'app.malini.updatetest';
 const PORT = 8765;
-const BACKGROUND = { MALINI_BACKGROUND_WINDOW: '1', MALINI_USAGE_DATA: 'off' };
+const BACKGROUND = {
+	MALINI_BACKGROUND_WINDOW: '1',
+	MALINI_USAGE_DATA: 'off',
+	MALINI_CLAUDE_UPDATES: 'off',
+};
 const THEME = process.env['MALINI_THEME'];
 const LAUNCH = {
 	args: [],
