@@ -8,6 +8,7 @@ import {
 import { invariant } from '$main/errors';
 import { all, column, get, isRecord, nowIso8601, run, scalar } from '$main/db/rows';
 import { workstreamHasOpenRun } from './runs.repository';
+import { moveSessionStatus } from './sessions.repository';
 import type { CheckpointRestoreRedoResult } from '$contract/agent';
 
 export type { CheckpointRestoreRedoResult };
@@ -313,7 +314,7 @@ export function supersedeSessionFromCheckpoint(
 			);
 		}
 
-		run(db, "UPDATE agent_sessions SET status = 'idle' WHERE id = ?", sessionId);
+		moveSessionStatus(db, sessionId, 'checkpoint.restored');
 		return { sessionId, restoreSeq, obsoletedRunIds };
 	});
 	for (const entry of pending) emit(entry.event, entry.seq);
@@ -501,7 +502,7 @@ export function applyCheckpointRestoreRedo(
 			run(db, 'UPDATE agent_runs SET obsoleted_at = NULL WHERE id = ?', runId);
 			run(db, 'UPDATE agent_checkpoints SET obsoleted_at = NULL WHERE run_id = ?', runId);
 		}
-		run(db, "UPDATE agent_sessions SET status = 'idle' WHERE id = ?", plan.sessionId);
+		moveSessionStatus(db, plan.sessionId, 'checkpoint.restored');
 		return {
 			sessionId: plan.sessionId,
 			restoreSeq: plan.restoreSeq,

@@ -71,6 +71,7 @@ export interface StatsPlatform {
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
 	openUrl(url: string): void;
 	usageAccount(): Promise<UsageAccount>;
+	published(): boolean;
 	chef(): Promise<PullRequestChef | null>;
 }
 
@@ -206,6 +207,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		},
 		openUrl: (url) => void profile.completeSignIn(url),
 		usageAccount: () => profile.usageAccount(),
+		published: () => profile.state().publishing === 'on',
 		chef: async () => {
 			const { publishing, profile: published } = profile.state();
 			if (publishing === 'on' && published?.public && published.handle && published.url) {

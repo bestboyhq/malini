@@ -16,7 +16,9 @@ class McpFixQueueStore {
 		const queue = this.queue;
 		if (!queue) return;
 		const steps = queue.steps.map((step) =>
-			step.server.name === serverName ? { ...step, outcome, error } : step,
+			step.server.name === serverName && (step.outcome === 'to-do' || step.outcome === 'working')
+				? { ...step, outcome, error }
+				: step,
 		);
 		this.queue = { ...queue, steps };
 	}

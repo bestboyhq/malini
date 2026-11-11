@@ -86,6 +86,18 @@ describe('ModelsDevCatalog', () => {
 		expect(modelIds('opencode')).toEqual(['glm-9']);
 	});
 
+	it('asks again on the next refresh when models.dev sent something unreadable', async () => {
+		const { models, requests, modelIds } = harness([
+			() => new Response('not json', { status: 200 }),
+			() => Response.json(catalog),
+		]);
+		await models.refresh();
+		await models.refresh();
+		await models.refresh();
+		expect(requests).toHaveLength(2);
+		expect(modelIds('opencode')).toEqual(['glm-9']);
+	});
+
 	it('keeps the models it has when models.dev is down or sends something unreadable', async () => {
 		const { models, advance, modelIds } = harness([
 			() => new Response('not json', { status: 200 }),

@@ -711,6 +711,9 @@ export async function passDefaults(page: Page): Promise<void> {
 	const proceed = setup.getByRole('button', { name: 'Continue' });
 	await expect(proceed).toBeEnabled();
 	await proceed.click();
+	await expect(
+		setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
+	).toBeVisible();
 }
 
 export async function passSidebar(page: Page): Promise<void> {
@@ -726,9 +729,6 @@ export async function passSetup(page: Page): Promise<void> {
 	await setup.getByRole('button', { name: 'Continue' }).click();
 	await passSidebar(page);
 	await passDefaults(page);
-	await expect(
-		setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
-	).toBeVisible();
 	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
 	await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
 }
@@ -1036,4 +1036,9 @@ function diagnosticsSignature(userDataDir: string): string {
 export function expectCleanConsole(handle: LaunchedApp): void {
 	expect(handle.pageErrors, `page errors: ${handle.pageErrors.join('\n')}`).toEqual([]);
 	expect(handle.consoleErrors, `console errors: ${handle.consoleErrors.join('\n')}`).toEqual([]);
+}
+
+export function withoutConsoleErrors(handle: LaunchedApp, expected: RegExp): void {
+	const unexpected = handle.consoleErrors.filter((line) => !expected.test(line));
+	handle.consoleErrors.splice(0, handle.consoleErrors.length, ...unexpected);
 }

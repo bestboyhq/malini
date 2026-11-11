@@ -67,7 +67,6 @@ function subscribe(channel: string, callback: AnyEventCallback): () => void {
 	set.add(callback);
 	return () => {
 		set.delete(callback);
-		if (set.size === 0) subscribers.delete(channel);
 	};
 }
 

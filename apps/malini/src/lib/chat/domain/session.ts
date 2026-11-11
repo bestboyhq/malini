@@ -1,4 +1,4 @@
-import type { SessionStatus } from './events';
+import type { SessionStatus } from '$contract/agent-state-machine';
 
 export type SessionId = string;
 

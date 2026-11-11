@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import {
+	BRIDGE_INTERRUPTED_ERROR,
+	ORPHAN_INTERRUPTED_ERROR,
+	PAUSED_FOR_EXIT_ERROR,
+} from '$contract/agent-state-machine';
 import { agentAttentionDecision } from './agent-attention';
 
 const BASE = {
@@ -33,5 +38,20 @@ describe('agentAttentionDecision', () => {
 				event: { type: 'run.failed', runId: 'run-1', error, failure: { kind: 'billing' } },
 			}),
 		).toMatchObject({ kind: 'failed', title: 'Search needs attention' });
+	});
+
+	it('asks for no attention when a stop, a restart or a reset ended the turn', () => {
+		for (const error of [
+			'cancelled',
+			PAUSED_FOR_EXIT_ERROR,
+			ORPHAN_INTERRUPTED_ERROR,
+			BRIDGE_INTERRUPTED_ERROR,
+			'reset by user',
+		]) {
+			expect([
+				error,
+				agentAttentionDecision({ ...BASE, event: { type: 'run.failed', runId: 'run-1', error } }),
+			]).toEqual([error, null]);
+		}
 	});
 });

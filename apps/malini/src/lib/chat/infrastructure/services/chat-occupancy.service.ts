@@ -1,3 +1,4 @@
+import { isWaitingForUser } from '$contract/agent-state-machine';
 import { latestBackgroundWork, type BackgroundWork } from '$lib/chat/domain/background-work';
 import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 import type { SessionId } from '$lib/chat/domain/session';
@@ -22,7 +23,7 @@ class ChatOccupancyService {
 	sessionIsBusy(sessionId: SessionId): boolean {
 		if (chatSessionStore.isDispatchPending(sessionId)) return true;
 		const status = sessionsAggregate.getSession(sessionId)?.status ?? 'idle';
-		if (status === 'waiting_for_approval') return true;
+		if (isWaitingForUser(status)) return true;
 		return status === 'running' && !this.backgroundWork(sessionId)?.waiting;
 	}
 

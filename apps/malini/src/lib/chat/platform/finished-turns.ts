@@ -1,9 +1,5 @@
 import type { AgentEventEnvelope } from '$contract/agent';
-import {
-	PAUSED_FOR_EXIT_ERROR,
-	isCancellationError,
-	isPausedRunEvent,
-} from '$contract/agent-state-machine';
+import { PAUSED_FOR_EXIT_ERROR, isPausedRunEvent, runEnding } from '$contract/agent-state-machine';
 import type { ChatTurnFinishedPayload } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
@@ -48,12 +44,7 @@ export class FinishedTurns {
 			workstreamId,
 			sessionId,
 			runId,
-			status:
-				type !== 'run.failed'
-					? 'succeeded'
-					: isCancellationError(error ?? '')
-						? 'cancelled'
-						: 'failed',
+			status: type === 'run.failed' ? runEnding(error ?? 'unknown') : 'succeeded',
 			outcome: report.outcome,
 			needs: report.needs.length > 0 ? report.needs.join('; ') : null,
 			backgroundCommands,

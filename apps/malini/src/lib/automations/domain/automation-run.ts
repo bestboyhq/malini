@@ -1,6 +1,9 @@
 import {
+	ACTIVE_AUTOMATION_RUN_STATUSES,
 	DEFAULT_AUTOMATIONS_MAX_CONCURRENT,
 	AUTOMATIONS_MAX_CONCURRENT_RANGE,
+	PENDING_AUTOMATION_RUN_STATUSES,
+	UNFINISHED_AUTOMATION_RUN_STATUSES,
 	type AutomationRunOrigin,
 	type AutomationRunRecord,
 	type AutomationRunStatus,
@@ -26,7 +29,15 @@ export function foldedAutomationContext(
 }
 
 export function isFinishedAutomationRunStatus(status: AutomationRunStatus): boolean {
-	return status === 'succeeded' || status === 'failed' || status === 'cancelled';
+	return !UNFINISHED_AUTOMATION_RUN_STATUSES.includes(status);
+}
+
+export function isActiveAutomationRunStatus(status: AutomationRunStatus): boolean {
+	return ACTIVE_AUTOMATION_RUN_STATUSES.includes(status);
+}
+
+export function isPendingAutomationRunStatus(status: AutomationRunStatus): boolean {
+	return PENDING_AUTOMATION_RUN_STATUSES.includes(status);
 }
 
 export function automationRunLastActivityAt(
@@ -57,12 +68,10 @@ export function truncateAutomationContext(text: string): string {
 }
 
 export function automationsMaxConcurrent(setting: string | null | undefined): number {
-	const parsed = Number.parseInt(setting ?? '', 10);
-	if (Number.isNaN(parsed)) return DEFAULT_AUTOMATIONS_MAX_CONCURRENT;
-	return Math.min(
-		AUTOMATIONS_MAX_CONCURRENT_RANGE.max,
-		Math.max(AUTOMATIONS_MAX_CONCURRENT_RANGE.min, parsed),
-	);
+	const parsed = Number(setting ?? '');
+	if (!setting?.trim() || !Number.isFinite(parsed)) return DEFAULT_AUTOMATIONS_MAX_CONCURRENT;
+	const { min, max } = AUTOMATIONS_MAX_CONCURRENT_RANGE;
+	return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
 export function workstreamWasBusy(error: unknown): boolean {

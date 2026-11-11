@@ -6,6 +6,7 @@ import {
 	isLifecycleKind,
 	LIFECYCLE_KINDS,
 	nextSessionStatus,
+	runEnding,
 	type LifecycleEnvelope,
 	type SessionStatus,
 } from './agent-state-machine';
@@ -20,6 +21,8 @@ describe('agent state machine', () => {
 			'run.started',
 			'approval.requested',
 			'question.requested',
+			'approval.decided',
+			'question.answered',
 			'run.completed',
 			'run.failed',
 			'checkpoint.restored',
@@ -28,7 +31,7 @@ describe('agent state machine', () => {
 		expect(isLifecycleKind('assistant.message')).toBe(false);
 	});
 
-	it('transitions only where the table says a move is possible', () => {
+	it('moves to where each lifecycle event leads', () => {
 		expect(nextSessionStatus('idle', 'run.started')).toBe('running');
 		expect(nextSessionStatus('running', 'approval.requested')).toBe('waiting_for_approval');
 		expect(nextSessionStatus('running', 'question.requested')).toBe('waiting_for_approval');
@@ -38,7 +41,12 @@ describe('agent state machine', () => {
 		expect(nextSessionStatus('waiting_for_approval', 'run.failed')).toBe('failed');
 		expect(nextSessionStatus('completed', 'run.started')).toBe('running');
 		expect(nextSessionStatus('failed', 'run.started')).toBe('running');
-		expect(nextSessionStatus('running', 'run.started')).toBe('invalid');
+		expect(nextSessionStatus('running', 'run.started')).toBe('running');
+		expect(nextSessionStatus('running', 'approval.decided')).toBe('running');
+		expect(nextSessionStatus('idle', 'question.answered')).toBe('idle');
+		expect(
+			nextSessionStatus('waiting_for_approval', 'approval.decided', { stillWaiting: true }),
+		).toBe('waiting_for_approval');
 		expect(nextSessionStatus('completed', 'run.completed')).toBe('completed');
 		expect(nextSessionStatus('failed', 'run.failed')).toBe('failed');
 		expect(nextSessionStatus('idle', 'run.completed')).toBe('completed');
@@ -91,9 +99,11 @@ describe('agent state machine', () => {
 		expect(
 			foldSessionStatusIncremental(running, [envelope('run.failed', 'run-1', 'cancelled')]),
 		).toMatchObject({ status: 'idle', lastError: 'cancelled' });
-		expect(nextSessionStatus('running', 'run.failed', 'cancelled')).toBe('idle');
-		expect(nextSessionStatus('waiting_for_approval', 'run.failed', 'cancelled')).toBe('idle');
-		expect(nextSessionStatus('running', 'run.failed', 'boom')).toBe('failed');
+		expect(nextSessionStatus('running', 'run.failed', { error: 'cancelled' })).toBe('idle');
+		expect(nextSessionStatus('waiting_for_approval', 'run.failed', { error: 'cancelled' })).toBe(
+			'idle',
+		);
+		expect(nextSessionStatus('running', 'run.failed', { error: 'boom' })).toBe('failed');
 	});
 
 	it('counts only a stop as a cancellation, never a failure that mentions cancelling', () => {
@@ -135,5 +145,90 @@ describe('agent state machine', () => {
 		expect(next?.terminatedRunIds).toEqual(new Set(['run-1']));
 		expect(base.terminatedRunIds).toEqual(new Set(['run-1']));
 		expect(foldSessionStatusIncremental(base, [envelope('run.started')])).toBeNull();
+	});
+});
+
+describe('one session machine', () => {
+	const statuses = [
+		'idle',
+		'running',
+		'waiting_for_approval',
+		'completed',
+		'failed',
+	] satisfies SessionStatus[];
+
+	function request(type: string, id: string, runId = 'run-1'): LifecycleEnvelope {
+		return {
+			runId,
+			event: type.startsWith('approval.') ? { type, approvalId: id } : { type, questionId: id },
+		};
+	}
+
+	it('moves the fold exactly as nextSessionStatus says, from every status on every kind', () => {
+		for (const status of statuses) {
+			for (const kind of LIFECYCLE_KINDS) {
+				const folded = foldSessionStatusIncremental(
+					{
+						status,
+						currentRunId: 'run-1',
+						lastError: null,
+						terminatedRunIds: new Set(),
+						openRequests: new Set(),
+					},
+					[envelope(kind)],
+				);
+				expect([status, kind, folded?.status ?? status]).toEqual([
+					status,
+					kind,
+					nextSessionStatus(status, kind),
+				]);
+			}
+		}
+	});
+
+	it('goes back to running once the user answers the last request a run waits on', () => {
+		const asked = [
+			envelope('run.started'),
+			request('approval.requested', 'approval-1'),
+			request('question.requested', 'question-1'),
+		];
+		const allowed = [...asked, request('approval.decided', 'approval-1')];
+		expect(foldSessionStatus('idle', allowed)).toMatchObject({
+			status: 'waiting_for_approval',
+			currentRunId: 'run-1',
+		});
+		expect(
+			foldSessionStatus('idle', [...allowed, request('question.answered', 'question-1')]),
+		).toMatchObject({ status: 'running', currentRunId: 'run-1' });
+	});
+
+	it('ends a run that Malini, the bridge or a reset cut as quietly as a stop', () => {
+		for (const error of [
+			'interrupted: app closed mid-run',
+			'interrupted: agent bridge restarted',
+			'paused: malini closed mid-run',
+			'reset by user',
+		]) {
+			expect(
+				foldSessionStatus('idle', [envelope('run.started'), envelope('run.failed', 'run-1', error)])
+					.status,
+			).toBe('idle');
+			expect(nextSessionStatus('running', 'run.failed', { error })).toBe('idle');
+		}
+	});
+
+	it('names how a run ended once, for the session, the turn and the transcript', () => {
+		expect(runEnding(null)).toBe('succeeded');
+		expect(runEnding('model overloaded')).toBe('failed');
+		expect(runEnding('cancelled')).toBe('cancelled');
+		expect(runEnding("You've hit your session limit", true)).toBe('interrupted');
+		for (const error of [
+			'interrupted: app closed mid-run',
+			'interrupted: agent bridge restarted',
+			'paused: malini closed mid-run',
+			'reset by user',
+		]) {
+			expect(runEnding(error)).toBe('interrupted');
+		}
 	});
 });

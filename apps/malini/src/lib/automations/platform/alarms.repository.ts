@@ -19,16 +19,18 @@ export function clearAlarm(db: MaliniDatabase, key: string): void {
 	run(db, 'DELETE FROM alarms WHERE key = ?', key);
 }
 
-export function takeDueAlarms(db: MaliniDatabase, now: string): AlarmTimeReached[] {
-	const due = all<{ key: string; due_at: string; payload: string }>(
+export type DueAlarm = Readonly<{ key: string; dueAt: string; reached: AlarmTimeReached | null }>;
+
+export function listDueAlarms(db: MaliniDatabase, now: string): DueAlarm[] {
+	return all<{ key: string; due_at: string; payload: string }>(
 		db,
 		'SELECT key, due_at, payload FROM alarms WHERE due_at <= ? ORDER BY due_at',
 		now,
-	);
-	for (const alarm of due) {
-		run(db, 'DELETE FROM alarms WHERE key = ? AND due_at = ?', alarm.key, alarm.due_at);
-	}
-	return due.flatMap((alarm) => parsed(alarm.payload) ?? []);
+	).map((alarm) => ({ key: alarm.key, dueAt: alarm.due_at, reached: parsed(alarm.payload) }));
+}
+
+export function takeAlarm(db: MaliniDatabase, { key, dueAt }: DueAlarm): void {
+	run(db, 'DELETE FROM alarms WHERE key = ? AND due_at = ?', key, dueAt);
 }
 
 function parsed(payload: string): AlarmTimeReached | null {

@@ -241,6 +241,38 @@ describe('extension inspector panel preferences', () => {
 		}
 	});
 
+	it('lets the newest choice win when the clock stands still or steps back', () => {
+		vi.useFakeTimers();
+		try {
+			const storage = memoryStorage();
+			const files = REPOSITORY_FILES_PANEL_ID;
+			const panels = [panel(files), panel('browser-tab')];
+			const hiddenHere = () =>
+				loadInspectorPanelPreferences('here', panels, storage).hidden.includes(files);
+			const chooseHere = (visible: boolean) =>
+				saveInspectorPanelPreferences(
+					'here',
+					setInspectorPanelVisible(
+						loadInspectorPanelPreferences('here', panels, storage),
+						files,
+						visible,
+					),
+					storage,
+				);
+
+			vi.setSystemTime(5_000);
+			chooseHere(false);
+			saveInspectorPanelHiddenEverywhere(files, false, storage);
+			expect(hiddenHere()).toBe(false);
+
+			vi.setSystemTime(1_000);
+			saveInspectorPanelHiddenEverywhere(files, true, storage);
+			expect(hiddenHere()).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('repairs corrupt persisted state instead of making the inspector unreachable', () => {
 		const storage = memoryStorage({
 			[`${INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}workstream-2`]: '{broken',

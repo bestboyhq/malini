@@ -9,6 +9,7 @@ import {
 } from '$main/git/credentials';
 import { deriveProjectId, repositoryBaseDir } from '$main/git/paths';
 import { describeError, GitError } from '$main/errors';
+import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from '$main/git/run';
 import { branchList, withProjectLock } from '$main/git/worktrees';
 
@@ -57,6 +58,7 @@ export interface EnsureBaseCloneInput {
 	onProgress: (progress: Progress) => void;
 	seed?: CloneSeed | null;
 	blobless?: boolean;
+	requiredFreeBytes?: number;
 }
 
 const BLOBLESS_CLONE_ARGS = [
@@ -88,14 +90,21 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 			};
 		}
 
+		await requireFreeSpace(
+			checkoutsRoot,
+			input.requiredFreeBytes ?? MINIMUM_FREE_BYTES,
+			'cloning this repository',
+		);
 		const repoDirExistedBeforeClone = existsSync(repoDir);
 		const baseDirExistedBeforeClone = existsSync(baseDir);
 		await mkdir(repoDir, { recursive: true });
 
 		const env = await input.credentials.prepare(normalizeGithubToken(input.githubToken));
+		const staging = `${baseDir}.cloning`;
 		try {
+			await originalFs.rm(staging, { recursive: true, force: true });
 			const seed = input.seed ? await usableSeed(input.seed.folder) : null;
-			if (seed === null || !(await clonedFromSeed(seed, input, baseDir, env))) {
+			if (seed === null || !(await clonedFromSeed(seed, input, staging, env))) {
 				await runGit(
 					[
 						...GH_CREDENTIAL_HELPER_CONFIG,
@@ -105,18 +114,14 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 						'--progress',
 						...(input.blobless ? BLOBLESS_CLONE_ARGS : []),
 						input.repoPath,
-						baseDir,
+						staging,
 					],
 					env,
 				);
 			}
+			await originalFs.rename(staging, baseDir);
 		} catch (error) {
-			await cleanupFailedBaseClone(
-				repoDir,
-				baseDir,
-				repoDirExistedBeforeClone,
-				baseDirExistedBeforeClone,
-			);
+			await cleanupFailedBaseClone(repoDir, staging, repoDirExistedBeforeClone);
 			throw classifyCloneError(error instanceof GitError ? error : GitError.fromNodeError(error));
 		}
 
@@ -237,17 +242,13 @@ async function keepSharedPacks(repository: string): Promise<void> {
 
 async function cleanupFailedBaseClone(
 	repoDir: string,
-	baseDir: string,
+	staging: string,
 	repoDirExistedBeforeClone: boolean,
-	baseDirExistedBeforeClone: boolean,
 ): Promise<void> {
-	if (!repoDirExistedBeforeClone) {
-		await originalFs.rm(repoDir, { recursive: true, force: true });
-		return;
-	}
-	if (!baseDirExistedBeforeClone && existsSync(baseDir)) {
-		await originalFs.rm(baseDir, { recursive: true, force: true });
-	}
+	await originalFs.rm(repoDirExistedBeforeClone ? staging : repoDir, {
+		recursive: true,
+		force: true,
+	});
 }
 
 export async function cleanupCreatedBaseClone(outcome: BaseCloneOutcome): Promise<void> {

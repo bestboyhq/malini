@@ -2,11 +2,7 @@ import { providerCapabilitiesStore } from '$shared/providers/infrastructure/stor
 
 export { loadProviderCapabilitiesCommand };
 
-function loadProviderCapabilitiesCommand(mode: 'once' | 'stale' | 'force' = 'once'): void {
-	if (mode === 'force') {
-		void providerCapabilitiesStore.refresh();
-		return;
-	}
+function loadProviderCapabilitiesCommand(mode: 'once' | 'stale' = 'once'): void {
 	if (mode === 'stale') {
 		void providerCapabilitiesStore.refreshIfStale();
 		return;

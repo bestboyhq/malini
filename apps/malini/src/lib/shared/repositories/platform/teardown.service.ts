@@ -26,6 +26,8 @@ import {
 	deleteCheckpointRef,
 	deleteRunChangeRef,
 	deleteUserBaselineRef,
+	dropSnapshotRefs,
+	snapshotRefsByWorkstream,
 } from '$main/git/snapshots';
 import {
 	deleteWorkstreamBranch,
@@ -441,6 +443,7 @@ async function sweepLeftovers(
 			if (!existsSync(join(project.repoPath, '.git'))) continue;
 			await pruneWorktreeAdministration(project.repoPath);
 			await sweepOrphanBranches(db, project.repoPath, project.defaultBranch);
+			await sweepOrphanSnapshotRefs(db, project.repoPath);
 		}
 		const remaining = await sweepCheckoutTrash(
 			checkoutsRoot,
@@ -501,6 +504,18 @@ async function sweepOrphanBranches(
 			continue;
 		}
 		await deleteBranchIfItsWorkIsKept(repository, branch, baseBranch, saved?.ref ?? null);
+	}
+}
+
+async function sweepOrphanSnapshotRefs(db: MaliniDatabase, repository: string): Promise<void> {
+	try {
+		for (const [workstreamId, refs] of await snapshotRefsByWorkstream(repository)) {
+			if (getWorkstream(db, workstreamId) === null) await dropSnapshotRefs(repository, refs);
+		}
+	} catch (error) {
+		console.error(
+			`malini: could not drop the snapshot refs of deleted workstreams in \`${repository}\`; the next start retries: ${errorWithStack(error)}`,
+		);
 	}
 }
 

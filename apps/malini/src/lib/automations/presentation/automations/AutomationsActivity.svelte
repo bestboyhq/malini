@@ -15,10 +15,7 @@
 		activityEntryRunning,
 		type ActivityEntry,
 	} from '$lib/automations/domain/activity';
-	import {
-		isFinishedAutomationRunStatus,
-		automationRunLastActivityAt,
-	} from '$lib/automations/domain/automation-run';
+	import { automationRunLastActivityAt } from '$lib/automations/domain/automation-run';
 	import AutomationRunRow from '../AutomationRunRow.svelte';
 	import ActivityRun from './ActivityRun.svelte';
 	import AgentActionRow from './AgentActionRow.svelte';
@@ -57,7 +54,9 @@
 		),
 	);
 	const running = $derived(entries.filter(activityEntryRunning));
-	const days = $derived(groupByDay(entries.filter(finished).slice(0, RECENT_LIMIT)));
+	const days = $derived(
+		groupByDay(entries.filter((entry) => !activityEntryRunning(entry)).slice(0, RECENT_LIMIT)),
+	);
 
 	$effect(() => {
 		loadActivityCommand();
@@ -67,11 +66,6 @@
 		const clock = setInterval(() => (nowMs = Date.now()), running.length > 0 ? 1_000 : 30_000);
 		return () => clearInterval(clock);
 	});
-
-	function finished(entry: ActivityEntry): boolean {
-		if (entry.kind === 'automation') return isFinishedAutomationRunStatus(entry.run.status);
-		return !activityEntryRunning(entry);
-	}
 
 	function dayLabel(iso: string): string {
 		const start = new Date();

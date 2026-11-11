@@ -69,7 +69,7 @@ describe('AgentSessionFileDiffExtensionTarget', () => {
 		pendingCommand.resolve(undefined);
 		await opening;
 
-		expect(inspectorPanelCommands.requestFor('workstream-1')).toBeNull();
+		expect(inspectorPanelCommands.requestsFor('workstream-1')).toEqual([]);
 	});
 
 	it('rejects a stale workstream before mutating the active repository controller', async () => {
@@ -81,6 +81,6 @@ describe('AgentSessionFileDiffExtensionTarget', () => {
 			target.open('workstream-1', request, new AbortController().signal),
 		).rejects.toThrow('not active for this workstream');
 		expect(executeCommand).not.toHaveBeenCalled();
-		expect(inspectorPanelCommands.requestFor('workstream-1')).toBeNull();
+		expect(inspectorPanelCommands.requestsFor('workstream-1')).toEqual([]);
 	});
 });

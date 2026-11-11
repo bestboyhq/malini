@@ -1,8 +1,10 @@
-class QueueErrorsStore {
-	byId: Record<string, string> = $state({});
+import type { QueueNote } from '$lib/chat/domain/queued-prompt';
 
-	set(id: string, message: string): void {
-		this.byId = { ...this.byId, [id]: message };
+class QueueErrorsStore {
+	byId: Record<string, QueueNote> = $state({});
+
+	set(id: string, message: string, waiting = false): void {
+		this.byId = { ...this.byId, [id]: { message, waiting } };
 	}
 
 	clear(id: string | undefined): void {

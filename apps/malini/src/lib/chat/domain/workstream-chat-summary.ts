@@ -1,3 +1,4 @@
+import { isWaitingForUser } from '$contract/agent-state-machine';
 import { attentionNeedsUser, type AgentAttention } from '$lib/chat/domain/agent-attention';
 import type { BackgroundWait } from '$lib/chat/domain/background-work';
 import type { SessionId } from '$lib/chat/domain/session';
@@ -44,7 +45,7 @@ export function summarizeWorkstreamChat(input: WorkstreamChatSummaryInput): Work
 
 function workstreamChatState(input: WorkstreamChatSummaryInput): WorkstreamChatState | null {
 	const status = input.session?.status;
-	if (status === 'waiting_for_approval') return { label: 'Approval', tone: 'waiting' };
+	if (isWaitingForUser(status)) return { label: 'Approval', tone: 'waiting' };
 	if (status === 'running' && input.backgroundWait === null) {
 		return { label: 'Running', tone: 'running' };
 	}

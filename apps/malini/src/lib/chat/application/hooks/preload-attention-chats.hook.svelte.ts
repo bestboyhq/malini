@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import { isWaitingForUser } from '$contract/agent-state-machine';
 import { preloadAttentionChatsCommand } from '$lib/chat/application/commands/preload-attention-chats.command';
 import type { SessionId } from '$lib/chat/domain/session';
 import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
@@ -16,7 +17,7 @@ export function preloadAttentionChatsHook(readWorkstreamIds: () => readonly stri
 			for (const session of sessionsAggregate.listSessions()) {
 				if (
 					session.origin === 'user' &&
-					session.status === 'waiting_for_approval' &&
+					isWaitingForUser(session.status) &&
 					workstreamIds.has(session.workstreamId)
 				) {
 					sessionIds.add(session.id);

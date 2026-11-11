@@ -12,6 +12,7 @@ export interface RunGhOptions {
 	cwd?: string;
 	env?: NodeJS.ProcessEnv;
 	maxBytes?: number;
+	timeoutMs?: number;
 }
 
 export const MAX_GH_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -39,6 +40,19 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 		let stdoutBytes = 0;
 		let stderrBytes = 0;
 		let overflowed = false;
+		const timeoutMs = options.timeoutMs;
+		const timer =
+			timeoutMs === undefined
+				? undefined
+				: setTimeout(() => {
+						child.kill('SIGKILL');
+						reject(
+							new GhError(
+								'failed',
+								`gh ${args.slice(0, 2).join(' ')} gave no answer in ${timeoutMs / 1000}s`,
+							),
+						);
+					}, timeoutMs);
 
 		const collect = (chunk: Buffer, stream: 'out' | 'err'): void => {
 			if (stream === 'out') {
@@ -55,6 +69,7 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 		child.stdout.on('data', (chunk: Buffer) => collect(chunk, 'out'));
 		child.stderr.on('data', (chunk: Buffer) => collect(chunk, 'err'));
 		child.on('error', (error: NodeJS.ErrnoException) => {
+			clearTimeout(timer);
 			if (error.code === 'ENOENT') {
 				reject(GhError.notInstalled());
 				return;
@@ -62,6 +77,7 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 			reject(new GhError('failed', error.message));
 		});
 		child.on('close', (code) => {
+			clearTimeout(timer);
 			if (overflowed) {
 				reject(new GhError('failed', `gh output exceeded ${maxBytes} bytes`, { code }));
 				return;

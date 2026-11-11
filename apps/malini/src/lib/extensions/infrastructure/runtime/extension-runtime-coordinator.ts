@@ -10,6 +10,8 @@ import { extensionBindings } from '$shared/extensions/bindings';
 import {
 	extensionRuntimeFailureDiagnostic,
 	failedOnRetiredWorkstream,
+	unseenWarmFailures,
+	type WorkstreamActivationFailures,
 } from '../../domain/extension-runtime-failure';
 import type { WorkstreamCreatedAutomationContext } from '../../domain/workstream-created-automation-context';
 import { InspectorPanelRegistry } from '../stores/inspector-panel-registry.store.svelte';
@@ -49,6 +51,8 @@ export class ExtensionRuntimeCoordinator {
 		workstream: ExtensionWorkstream;
 		report: ExtensionActivationReport;
 	} | null = null;
+	#unseenFailures: WorkstreamActivationFailures | null = null;
+	#warming = 0;
 	readonly #creationAnnouncements = new Map<string, Promise<void>>();
 	#transition: Promise<void>;
 
@@ -62,6 +66,10 @@ export class ExtensionRuntimeCoordinator {
 
 	get service(): WorkstreamExtensions | null {
 		return this.#service;
+	}
+
+	get warming(): boolean {
+		return this.#warming > 0;
 	}
 
 	initialize(options: ExtensionRuntimeOptions): WorkstreamExtensions {
@@ -100,10 +108,11 @@ export class ExtensionRuntimeCoordinator {
 
 	activate(
 		workstream: ExtensionWorkstream,
-		options: { recoveryMode?: boolean; onStarted?: () => void } = {},
+		options: { recoveryMode?: boolean; onStarted?: () => void; background?: boolean } = {},
 	): Promise<ExtensionActivationReport> {
 		const fromWorkstreamId = this.#service?.workstream?.id ?? null;
 		const operation = fromWorkstreamId === null ? 'startup' : 'workstream-transition';
+		if (options.background) this.#warming += 1;
 		return runtimeDiagnostics
 			.measure(
 				{
@@ -115,20 +124,10 @@ export class ExtensionRuntimeCoordinator {
 				() =>
 					this.#enqueue(async () => {
 						options.onStarted?.();
-						const service = this.#requireService();
-						if (!service.workstream) {
-							return this.#recordActivationReport(
-								workstream,
-								await service.start(workstream, options),
-							);
-						}
-						if (!sameWorkstream(service.workstream, workstream)) {
-							return this.#recordActivationReport(
-								workstream,
-								await service.setWorkstream(workstream),
-							);
-						}
-						return this.#retryPendingActivationFailures(service, workstream);
+						const report = await this.#activate(workstream, options);
+						if (!options.background) return this.#withUnseenFailures(workstream, report);
+						this.#unseenFailures = { workstreamId: workstream.id, failed: report.failed };
+						return report;
 					}),
 			)
 			.catch((error) => {
@@ -143,6 +142,9 @@ export class ExtensionRuntimeCoordinator {
 					}),
 				);
 				throw error;
+			})
+			.finally(() => {
+				if (options.background) this.#warming -= 1;
 			});
 	}
 
@@ -181,9 +183,43 @@ export class ExtensionRuntimeCoordinator {
 				this.#workstreamSnapshots?.clear();
 				this.#service = null;
 				this.#pendingActivationFailures = null;
+				this.#unseenFailures = null;
 				this.#creationAnnouncements.clear();
 			}
 		});
+	}
+
+	async #activate(
+		workstream: ExtensionWorkstream,
+		options: { recoveryMode?: boolean },
+	): Promise<ExtensionActivationReport> {
+		const service = this.#requireService();
+		if (!service.workstream) {
+			return this.#recordActivationReport(workstream, await service.start(workstream, options));
+		}
+		if (!sameWorkstream(service.workstream, workstream)) {
+			return this.#recordActivationReport(workstream, await service.setWorkstream(workstream));
+		}
+		return this.#retryPendingActivationFailures(service, workstream);
+	}
+
+	#withUnseenFailures(
+		workstream: ExtensionWorkstream,
+		report: ExtensionActivationReport,
+	): ExtensionActivationReport {
+		const service = this.#service;
+		const warm = this.#unseenFailures;
+		this.#unseenFailures = null;
+		if (!service || !warm) return report;
+		const unseen = unseenWarmFailures(
+			warm,
+			{ workstreamId: workstream.id, failed: report.failed },
+			{
+				active: (id) => isActive(service, id),
+				bundled: (id) => service.runtime.registry.get(id) !== null,
+			},
+		);
+		return unseen.length === 0 ? report : { ...report, failed: [...unseen, ...report.failed] };
 	}
 
 	async #retryPendingActivationFailures(
@@ -243,6 +279,13 @@ async function settled(promise: Promise<unknown>): Promise<void> {
 	} catch {
 		return;
 	}
+}
+
+function isActive(service: WorkstreamExtensions, id: string): boolean {
+	const record =
+		service.runtime.registry.get(id) ??
+		service.local.list().find(({ manifest }) => manifest.id === id);
+	return record?.state === 'active';
 }
 
 function sameWorkstream(left: ExtensionWorkstream, right: ExtensionWorkstream): boolean {

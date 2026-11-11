@@ -52,9 +52,11 @@ export class ModelsDevCatalog {
 			headers: this.#etag ? { 'If-None-Match': this.#etag } : {},
 			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 		});
-		if (response.status !== 304 && !response.ok) return;
-		this.#checkedAt = this.#now();
-		if (response.status === 304) return;
+		if (response.status === 304) {
+			this.#checkedAt = this.#now();
+			return;
+		}
+		if (!response.ok) return;
 		if (Number(response.headers.get('content-length') ?? '0') > MAX_CATALOG_BYTES) return;
 		const body = await response.text();
 		if (body.length > MAX_CATALOG_BYTES) return;
@@ -65,5 +67,6 @@ export class ModelsDevCatalog {
 			if (models.length > 0) setProviderModels(this.#deps.db, provider.id, models);
 		}
 		this.#etag = response.headers.get('etag');
+		this.#checkedAt = this.#now();
 	}
 }

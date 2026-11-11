@@ -11,10 +11,10 @@ import {
 	readSync,
 	realpathSync,
 	renameSync,
-	rmSync,
 	writeSync,
 } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
+import { rmSync } from 'original-fs';
 import { isInsideDirectory } from '$main/fs/paths';
 import {
 	attachmentIdIsSafe,

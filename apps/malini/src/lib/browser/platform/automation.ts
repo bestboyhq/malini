@@ -18,6 +18,7 @@ const LOAD_POLL_MS = 50;
 const FIRST_FRAME_MS = 3_000;
 const FRAME_POLL_MS = 50;
 const MAX_NAME_ATTEMPTS = 1_000;
+const BROKE_OFF_AFTER_COMMIT = '';
 
 export async function openUrl(contents: PageContents, url: string): Promise<void> {
 	const serverDeadline = Date.now() + OPEN_TIMEOUT_MS;
@@ -41,7 +42,7 @@ async function load(contents: PageContents, url: string): Promise<string | null>
 		await within(contents.loadURL(url), OPEN_TIMEOUT_MS);
 	} catch (error) {
 		const code = loadErrorCode(error);
-		if (code !== 'ERR_ABORTED') return code ?? describe(error);
+		if (code !== 'ERR_ABORTED' && code !== BROKE_OFF_AFTER_COMMIT) return code ?? describe(error);
 	}
 	await settled(contents, deadline);
 	return null;
@@ -77,12 +78,20 @@ async function actOnSelector(
 	args: readonly [selector: string, ...rest: unknown[]],
 ): Promise<void> {
 	const call = args.map((arg) => JSON.stringify(arg)).join(', ');
-	const outcome = await contents.executeJavaScriptInIsolatedWorld(
-		MALINI_WORLD_ID,
-		[{ code: `(${program})(${call})` }],
-		true,
+	const outcome = await within(
+		contents.executeJavaScriptInIsolatedWorld(
+			MALINI_WORLD_ID,
+			[{ code: `(${program})(${call})` }],
+			true,
+		),
+		ACTION_SETTLE_MS,
 	);
 	const selector = args[0];
+	if (outcome === undefined) {
+		throw new Error(
+			`The page did not answer within ${ACTION_SETTLE_MS / 1_000}s. Call browser_screenshot to see what it shows.`,
+		);
+	}
 	if (outcome === 'done') return;
 	if (outcome === 'invalid') throw new Error(`\`${selector}\` is not a valid CSS selector.`);
 	if (outcome === 'readonly') throw new Error(`\`${selector}\` is not a field you can type into.`);

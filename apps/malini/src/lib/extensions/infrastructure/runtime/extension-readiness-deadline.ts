@@ -23,12 +23,9 @@ export class ExtensionWorkstreamReadinessDeadline {
 	}
 
 	defer(workstreamId: string): void {
-		if (!workstreamId) {
-			this.cancel();
-			return;
-		}
+		if (workstreamId && workstreamId === this.#workstreamId) return;
 		this.cancel();
-		this.#workstreamId = workstreamId;
+		this.#workstreamId = workstreamId || null;
 	}
 
 	start(workstreamId: string, options: { restart?: boolean } = {}): boolean {

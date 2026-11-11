@@ -3,7 +3,7 @@
 	import { Skeleton } from '$hyper-ui/components/skeleton';
 	import { Switch } from '$hyper-ui/components/switch';
 	import { Icon } from '$hyper-ui/icons';
-	import type { ExtensionEntry } from '../domain/extension-entry';
+	import { isExtensionOn, type ExtensionEntry } from '../domain/extension-entry';
 	import { serverHosts } from '../domain/marketplace-manifest';
 	import { installExtensionCommand } from '../application/commands/install-extension.command';
 	import { loadExtensionDetailCommand } from '../application/commands/load-extension-detail.command';
@@ -27,8 +27,8 @@
 	const working = $derived(action?.status === 'working' ? action.work : null);
 	const installed = $derived(entry.installed);
 	const withdrawn = $derived(installed?.withdrawn ?? false);
-	const off = $derived(installed !== null && !installed.enabled);
-	const newHosts = $derived(installed && !withdrawn ? (entry.update?.newHosts ?? []) : []);
+	const off = $derived(installed !== null && !isExtensionOn(installed));
+	const newHosts = $derived(installed ? (entry.update?.newHosts ?? []) : []);
 	const hosts = $derived(serverHosts(entry.mcpServers));
 	const load = $derived(open ? extensionDetailQuery.data(entry.publisher, entry.name) : null);
 	const readme = $derived(load?.state === 'ready' ? load.detail.readme : null);
@@ -71,7 +71,7 @@
 		<div class="relative z-10 flex items-center">
 			{#if installed}
 				<Switch
-					checked={installed.enabled}
+					checked={isExtensionOn(installed)}
 					disabled={withdrawn || working !== null}
 					ariaLabel={entry.displayName}
 					onchange={(on) => switchExtensionCommand(entry, on)}
@@ -97,7 +97,8 @@
 		<p class="text-warning-content pr-3 pb-2.5 pl-13.5 text-xs">
 			Its publisher withdrew this version, so Malini turned it off.
 		</p>
-	{:else if newHosts.length > 0}
+	{/if}
+	{#if newHosts.length > 0}
 		<div
 			class="bg-surface-100 text-fg-secondary mr-3 mb-2.5 ml-13.5 flex items-center gap-2 rounded-lg py-1 pr-1 pl-2.5 text-xs"
 		>

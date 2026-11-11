@@ -249,6 +249,48 @@ test('skipping a sign-in in Fix stops waiting for it', async () => {
 	}
 });
 
+test('a reconnect that reports an error after its server connected keeps the server fixed', async () => {
+	test.setTimeout(180_000);
+	const { root } = claudeHome();
+	const app = await launchMalini({
+		profile: root,
+		env: {
+			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify([
+				{ name: 'flaky', status: 'failed', source: 'user', error: 'Connection closed' },
+				{ name: 'stuck', status: 'failed', source: 'user', error: 'Connection closed' },
+			]),
+			FAKE_BRIDGE_MCP_STUCK: JSON.stringify(['stuck']),
+			FAKE_BRIDGE_MCP_RECONNECT_ERRORS: JSON.stringify({ flaky: 'Reconnect timed out' }),
+		},
+		allowedDiagnostics: [/Reconnect timed out/u],
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-mcp-late-ws', 'MCP late');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check the servers');
+		await expectAssistantReply(page);
+
+		await page.getByRole('button', { name: 'View MCP server status' }).hover();
+		const panel = page.getByRole('dialog', { name: 'MCP server status' });
+		await panel.getByRole('button', { name: 'Fix 2 MCP servers' }).click();
+		const fix = page.getByRole('dialog', { name: 'Fix MCP servers' });
+		await expect(fix.getByRole('region', { name: 'Stuck' }).getByRole('alert')).toContainText(
+			'Connection closed',
+		);
+		await expect(fix.getByTestId('mcp-fix-summary')).toHaveText('1 fixed · 1 to go');
+
+		await fix.getByRole('button', { name: 'Skip' }).click();
+		await expect(fix.getByRole('heading', { name: 'Done' })).toBeVisible();
+		await expect(fix.getByTestId('mcp-fix-summary')).toHaveText('1 fixed · 1 skipped');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a switch reaches the Claude Code of an open chat at once and is undone where it was off', async () => {
 	test.setTimeout(180_000);
 	const { root } = claudeHome();

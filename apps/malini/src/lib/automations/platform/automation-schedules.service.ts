@@ -26,8 +26,8 @@ import {
 	scheduledAutomationOf,
 	type ScheduledAutomation,
 } from '../domain/schedule';
-import { takeDueAlarms } from './alarms.repository';
-import { triggeredBefore } from './event-log.repository';
+import { listDueAlarms, takeAlarm } from './alarms.repository';
+import { loggedSince, triggeredBefore } from './event-log.repository';
 import { findString, type DispatchedEvent } from './event-log.service';
 import {
 	getBuiltinAutomationDefinition,
@@ -35,9 +35,10 @@ import {
 	listAutomationDefinitions,
 } from './automation-definitions.repository';
 import {
-	countUnfinishedAutomationRuns,
+	getAutomationRun,
 	latestScheduledAutomationRun,
 	latestScheduledWorkstreamId,
+	listUnfinishedRunsOfAutomation,
 } from './automation-runs.repository';
 
 export const SCHEDULE_CHECK_INTERVAL_MS = 30_000;
@@ -76,6 +77,7 @@ export function createAutomationSchedules(
 	const { db, events, commands } = context;
 	const attempted = new Map<string, number>();
 	const notified = new Map<string, AutomationRunStatus>();
+	const turns = new Map<string, Promise<void>>();
 	const unsubscribes: Array<() => void> = [];
 	let clock: ReturnType<typeof setInterval> | null = null;
 	let alarms: ReturnType<typeof setInterval> | null = null;
@@ -83,8 +85,16 @@ export function createAutomationSchedules(
 
 	const ring = (): void => {
 		const now = options.now?.() ?? Date.now();
-		for (const reached of takeDueAlarms(db, new Date(now).toISOString())) {
-			events.emit(AUTOMATIONS_TIME_REACHED_CHANNEL, reached);
+		for (const alarm of listDueAlarms(db, new Date(now).toISOString())) {
+			const { reached, dueAt } = alarm;
+			try {
+				if (reached && !loggedSince(db, AUTOMATIONS_TIME_REACHED_CHANNEL, reached, dueAt)) {
+					events.emit(AUTOMATIONS_TIME_REACHED_CHANNEL, reached);
+				}
+				takeAlarm(db, alarm);
+			} catch (error) {
+				log(`automations: could not ring \`${alarm.key}\`: ${describeError(error)}`);
+			}
 		}
 	};
 
@@ -111,14 +121,34 @@ export function createAutomationSchedules(
 	};
 
 	const handle = async (event: DispatchedEvent): Promise<void> => {
-		if (event.channel !== AUTOMATIONS_TIME_REACHED_CHANNEL) return;
-		const definition = getAutomationDefinition(db, findString(event.payload, 'definitionId') ?? '');
+		const definitionId = findString(event.payload, 'definitionId');
+		if (event.channel !== AUTOMATIONS_TIME_REACHED_CHANNEL || definitionId === null) return;
+		const previous = turns.get(definitionId);
+		const turn = (async () => {
+			await previous?.catch(() => undefined);
+			await startOnTime(event, definitionId);
+		})();
+		turns.set(definitionId, turn);
+		try {
+			await turn;
+		} finally {
+			if (turns.get(definitionId) === turn) turns.delete(definitionId);
+		}
+	};
+
+	const startOnTime = async (event: DispatchedEvent, definitionId: string): Promise<void> => {
+		const definition = getAutomationDefinition(db, definitionId);
 		const automation = definition === null ? null : scheduledAutomationOf(definition);
 		const due = Date.parse(findString(event.payload, 'due') ?? '');
 		if (automation === null || !Number.isFinite(due)) return;
 		const { id, name, trigger } = automation.definition;
 		if (triggeredBefore(db, id, event.id)) return;
-		if (countUnfinishedAutomationRuns(db, id) > 0) {
+		if (Date.parse(latestScheduledAutomationRun(db, id)?.createdAt ?? '') >= due) return;
+		const unfinished = listUnfinishedRunsOfAutomation(db, id);
+		const askedBefore = unfinished.filter(
+			(run) => run.status === 'waiting' && run.origin === 'schedule',
+		);
+		if (askedBefore.length < unfinished.length) {
 			log(`automations: ${name} skips a run on its schedule, its last run has not finished`);
 			return;
 		}
@@ -136,6 +166,10 @@ export function createAutomationSchedules(
 				...(event.id === null ? {} : { causeEventId: event.id }),
 				...target,
 			});
+			for (const run of askedBefore) {
+				if (getAutomationRun(db, run.id)?.status !== 'waiting') continue;
+				await commands.call('automations.cancel-run', { automationRunId: run.id });
+			}
 		} catch (error) {
 			log(`automations: ${name} did not start on its schedule: ${describeError(error)}`);
 		}

@@ -287,8 +287,8 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		destroy() {
 			const window = deps.getMainWindow();
 			if (!window || window.isDestroyed()) return;
-			armed = false;
 			window.destroy();
+			armed = false;
 		},
 		notify(args) {
 			const options = args?.options;

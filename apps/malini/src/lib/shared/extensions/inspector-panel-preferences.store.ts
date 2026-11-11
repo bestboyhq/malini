@@ -17,6 +17,7 @@ import type { InspectorPreferenceStorage } from './inspector-preference-storage'
 
 const LEGACY_INSPECTOR_PANEL_PREFERENCES_VERSION = 1;
 const PREVIOUS_INSPECTOR_PANEL_PREFERENCES_VERSION = 2;
+const INSPECTOR_PANEL_CHOICE_CLOCK_KEY = 'malini.extensions.inspector-panels-clock-v1';
 
 type StoredPreferences = Readonly<{ preferences: InspectorPanelPreferences; savedAt: number }>;
 
@@ -57,10 +58,20 @@ export function saveInspectorPanelHiddenEverywhere(
 	storage: InspectorPreferenceStorage | null = browserInspectorPreferenceStorage(),
 ): void {
 	if (!storage) return;
-	const choices = new Map(loadEverywhereChoices(storage)).set(panelId, { hidden, at: Date.now() });
 	try {
+		const choices = new Map(loadEverywhereChoices(storage)).set(panelId, {
+			hidden,
+			at: nextChoiceStamp(storage),
+		});
 		storage.setItem(INSPECTOR_PANELS_EVERYWHERE_KEY, JSON.stringify(Object.fromEntries(choices)));
 	} catch {}
+}
+
+function nextChoiceStamp(storage: InspectorPreferenceStorage): number {
+	const last = Number(storage.getItem(INSPECTOR_PANEL_CHOICE_CLOCK_KEY));
+	const stamp = Math.max(Date.now(), Number.isFinite(last) ? last + 1 : 0);
+	storage.setItem(INSPECTOR_PANEL_CHOICE_CLOCK_KEY, String(stamp));
+	return stamp;
 }
 
 function loadEverywhereChoices(
@@ -135,7 +146,7 @@ export function saveInspectorPanelPreferences(
 	try {
 		storage.setItem(
 			storageKey(workstreamId),
-			JSON.stringify({ ...preferences, savedAt: Date.now() }),
+			JSON.stringify({ ...preferences, savedAt: nextChoiceStamp(storage) }),
 		);
 	} catch {}
 }

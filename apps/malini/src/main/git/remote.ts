@@ -257,6 +257,8 @@ export async function commitPaths(
 export const MAIN_DIVERGED =
 	'GitHub has brain changes this Mac lacks, and they clash with its own. Pull them into the Brain workstream, then retry.';
 
+const MAIN_PUSH_ROUNDS = 3;
+
 export async function pushHeadToGithubMain(
 	worktreePath: string,
 	repositoryFullName: string,
@@ -264,12 +266,15 @@ export async function pushHeadToGithubMain(
 ): Promise<void> {
 	const canonicalUrl = canonicalGithubHttpsUrl(repositoryFullName);
 	const env = await credentials.prepare(null);
-	const push = (): Promise<string> =>
-		runGit(githubPushArgs(worktreePath, canonicalUrl, 'HEAD:refs/heads/main'), env);
-	try {
-		await push();
-	} catch (error) {
-		if (!REMOTE_HAS_NEW_COMMITS.test(failureOutput(error))) throw error;
+	for (let round = 1; ; round += 1) {
+		try {
+			await runGit(githubPushArgs(worktreePath, canonicalUrl, 'HEAD:refs/heads/main'), env);
+			break;
+		} catch (error) {
+			if (round === MAIN_PUSH_ROUNDS || !REMOTE_HAS_NEW_COMMITS.test(failureOutput(error))) {
+				throw error;
+			}
+		}
 		const remoteRef = await syncRemoteBase(worktreePath, 'main', null, credentials);
 		try {
 			await runGit([
@@ -286,12 +291,6 @@ export async function pushHeadToGithubMain(
 				await runGit(['-C', worktreePath, 'rebase', '--abort']);
 			}
 			throw GitError.git(MAIN_DIVERGED);
-		}
-		try {
-			await push();
-		} catch (again) {
-			if (REMOTE_HAS_NEW_COMMITS.test(failureOutput(again))) throw GitError.git(MAIN_DIVERGED);
-			throw again;
 		}
 	}
 	await runGit([

@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
-import { lstat, mkdir, realpath, rm } from 'node:fs/promises';
+import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { basename, dirname, join } from 'node:path';
+import { promises as originalFs } from 'original-fs';
 import { promisify } from 'node:util';
 import {
 	deriveBranchFromPath,
@@ -233,7 +234,7 @@ async function emptyClonedSubmodules(checkout: string): Promise<void> {
 		);
 		if (directory === null || !isInsideDirectory(root, directory)) continue;
 		if (!existsSync(join(directory, '.git'))) continue;
-		await rm(directory, { recursive: true, force: true });
+		await originalFs.rm(directory, { recursive: true, force: true });
 		await mkdir(directory, { recursive: true });
 	}
 }

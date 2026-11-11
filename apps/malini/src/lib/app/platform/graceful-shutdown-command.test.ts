@@ -104,7 +104,8 @@ describe('graceful shutdown command', () => {
 		expect(ownership.ownedContainerCount()).toBe(0);
 		expect(await invokeShutdown()).toMatchObject({
 			ok: true,
-			value: { alreadyReclaimed: true },
+			value: { containersRemoved: [], agentRunsClosed: 1, alreadyReclaimed: false },
 		});
+		expect(calls).toEqual(['runs', 'runs']);
 	});
 });

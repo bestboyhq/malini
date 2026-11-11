@@ -255,7 +255,7 @@ export class AgentPromptQueue {
 	}
 
 	handOff(id: string): void {
-		if (this.#handedOff[id]) return;
+		if (this.#handedOff[id] || !this.#queued(id)) return;
 		this.#handedOff = { ...this.#handedOff, [id]: true };
 	}
 
@@ -378,7 +378,6 @@ export class AgentPromptQueue {
 		this.hydrate(workstreamId);
 		const current = this.entriesFor(workstreamId);
 		const next = current.filter((entry) => entry.id !== id);
-		this.takeBack(id);
 		if (next.length === current.length) return false;
 		this.#setEntries(workstreamId, next);
 		return true;
@@ -447,7 +446,15 @@ export class AgentPromptQueue {
 		return `${base}-${suffix}`;
 	}
 
+	#queued(id: string): boolean {
+		return Object.values(this.#entriesByWorkstream).some((entries) =>
+			entries.some((entry) => entry.id === id),
+		);
+	}
+
 	#setEntries(workstreamId: string, entries: readonly QueuedPrompt[], persist = true): void {
+		const kept = new Set(entries.map(({ id }) => id));
+		for (const { id } of this.entriesFor(workstreamId)) if (!kept.has(id)) this.takeBack(id);
 		this.#entriesByWorkstream = {
 			...this.#entriesByWorkstream,
 			[workstreamId]: [...entries],

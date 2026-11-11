@@ -1,4 +1,4 @@
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { PAUSED_FOR_EXIT_ERROR, isInterruptionError } from '$contract/agent-state-machine';
 import type { RunGroup } from '../render-state';
 
 const STEP_BREAK = /\n\s*\n/u;
@@ -32,10 +32,14 @@ export function thoughtLabel(durationSeconds: number | null): string {
 	return durationSeconds >= 1 ? `Thought for ${Math.round(durationSeconds)}s` : 'Thought briefly';
 }
 
+export function interruptedRun(run: RunGroup): boolean {
+	return run.terminal === 'failed' && isInterruptionError(run.terminalText);
+}
+
 export function terminalLabel(run: RunGroup): string {
 	if (run.terminal === 'paused') return 'Run paused';
 	if (run.terminal === 'cancelled') {
 		return run.terminalText === PAUSED_FOR_EXIT_ERROR ? 'Run paused' : 'Run cancelled';
 	}
-	return 'Run failed';
+	return interruptedRun(run) ? 'Run interrupted' : 'Run failed';
 }

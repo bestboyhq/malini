@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUTOMATIONS_EXPERIMENT_CHANGED_CHANNEL } from '$contract/events';
 import type { AutomationDefinitionRecord, AutomationExperimentRecord } from '$contract/automations';
 import type { MainContext } from '$main/context';
@@ -20,9 +20,13 @@ let context: MainContext;
 let automations: AutomationsPlatform;
 let finished: AutomationExperimentRecord[];
 let calls: OneShotAutomation[];
+let held: Promise<void> | null;
+
+const HELD = 'Take your time naming it.';
 
 async function name(_task: string, automation: OneShotAutomation): Promise<string> {
 	calls.push(automation);
+	if (automation.instructions === HELD) await held;
 	const named = NAMES[automation.model];
 	if (named === undefined) throw new Error(`no name from ${automation.model}`);
 	return named;
@@ -33,6 +37,7 @@ beforeEach(() => {
 	const events = createEventBus({ forwardToWindows: false });
 	finished = [];
 	calls = [];
+	held = null;
 	events.subscribe(AUTOMATIONS_EXPERIMENT_CHANGED_CHANNEL, ({ experiment }) =>
 		finished.push(experiment),
 	);
@@ -47,6 +52,7 @@ beforeEach(() => {
 		appVersion: '0.0.0-test',
 	};
 	automations = registerAutomations(context, { log: () => {}, suggestTitle: name });
+	automations.start();
 });
 
 afterEach(() => {
@@ -145,6 +151,36 @@ describe('automation outputs and experiments', () => {
 			(await context.commands.call('automations.list-setups', { definitionId: definition.id }))
 				.length,
 		).toBe(2);
+	});
+
+	it('stops the replays an experiment still has queued once you use another one', async () => {
+		const definition = await nameChats();
+		for (const task of ['One', 'Two', 'Three', 'Four', 'Five']) {
+			await runOneShotAutomation(db, 'name-chats', task, name);
+		}
+		await context.commands.call('automations.open-experiments', { definitionId: definition.id });
+		const save = (instructions: string) =>
+			context.commands.call('automations.save-experiment', {
+				definitionId: definition.id,
+				provider: 'claude',
+				model: 'sonnet',
+				instructions,
+			});
+		const winner = await save('Name it.');
+		const slow = await save(HELD);
+		await context.commands.call('automations.run-experiment', { experimentId: winner.id });
+		await untilFinished(1);
+		let release = (): void => {};
+		held = new Promise((resolve) => (release = resolve));
+		const slowCalls = () => calls.filter(({ instructions }) => instructions === HELD).length;
+
+		await context.commands.call('automations.run-experiment', { experimentId: slow.id });
+		await vi.waitFor(() => expect(slowCalls()).toBe(3));
+		await context.commands.call('automations.use-experiment', { experimentId: winner.id });
+		release();
+		await automations.settled();
+
+		expect(slowCalls()).toBe(3);
 	});
 
 	it('keeps Today and refuses an experiment that has not run', async () => {
