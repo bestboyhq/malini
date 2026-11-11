@@ -24,6 +24,7 @@ import {
 	type ChatGptEndpoints,
 } from './chatgpt/sign-in';
 import { ModelsDevCatalog, modelsDevUrl, type CatalogFetch } from './models-dev.service';
+import { KeyProxy } from './key-proxy';
 import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
 import { loadOpencodeUsage } from './opencode-usage';
 import { ProviderKeys } from './provider-keys.service';
@@ -104,13 +105,14 @@ export function registerProviders(
 		onUsageLimit: (reached) => chatgpt.noteUsageLimit(reached),
 		userAgent: `Malini/${context.appVersion}`,
 	});
-	const keys = new ProviderKeys(
+	const keyProxy = new KeyProxy({ fetch, upstream: (providerId) => keys.upstream(providerId) });
+	const keys: ProviderKeys = new ProviderKeys(
 		context.db,
 		deps.cipher ?? electronCipher,
 		(apiKey) => detectOpenCodePlan({ apiKey, origin: probeOrigin, fetch }),
 		{
-			account: () => chatgpt.account(),
-			endpoint: () => proxy.address(),
+			chatgpt: { account: () => chatgpt.account(), endpoint: () => proxy.address() },
+			keys: (providerId) => keyProxy.address(providerId),
 		},
 	);
 	// ponytail: successful reads cached a minute; misses read again
@@ -166,6 +168,7 @@ export function registerProviders(
 			accounts.cancelSignIn();
 			chatgpt.cancelSignIn();
 			proxy.stop();
+			keyProxy.stop();
 		},
 	};
 }

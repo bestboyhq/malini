@@ -11,14 +11,16 @@ export interface ProviderEnvironmentInput {
 
 export class ProviderNotConnectedError extends Error {}
 
+export function missingKey(name: string): ProviderNotConnectedError {
+	return new ProviderNotConnectedError(
+		`${name} needs an API key. Add it in Settings, then try again.`,
+	);
+}
+
 export function providerEnvironment(input: ProviderEnvironmentInput): Record<string, string> {
 	if (input.kind === 'claude') return {};
 	if (input.baseUrl === null) throw new Error(`${input.name} has no base URL`);
-	if (input.apiKey === null || input.apiKey.length === 0) {
-		throw new ProviderNotConnectedError(
-			`${input.name} needs an API key. Add it in Settings, then try again.`,
-		);
-	}
+	if (input.apiKey === null || input.apiKey.length === 0) throw missingKey(input.name);
 	const subagentModel = input.subagentModel ?? input.model;
 	return {
 		ANTHROPIC_BASE_URL: input.baseUrl,
