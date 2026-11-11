@@ -21,6 +21,7 @@
 	interface Props {
 		report: TurnReport;
 		workstreamId: string;
+		live: boolean;
 		needsOpen?: boolean;
 		history?: readonly EarlierTurn[];
 		pick?: VariantPick | null;
@@ -39,6 +40,7 @@
 	let {
 		report,
 		workstreamId,
+		live,
 		needsOpen = true,
 		history = [],
 		pick = null,
@@ -161,7 +163,7 @@
 			<MarkdownText text={report.diagrams.join('\n\n')} mode="prose" class="select-text" />
 		{/if}
 
-		<ReportStage {report} {pick} bind:chosenId {workstreamId} {imagesrc} {onopenimage} />
+		<ReportStage {report} {pick} bind:chosenId {workstreamId} {live} {imagesrc} {onopenimage} />
 
 		{#if picking && chosen}
 			<VariantPickForm

@@ -7,6 +7,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	listEvents,
+	openActivityGroups,
 	openSettingsFromMenu,
 	openWorkstream,
 	seedWorkstream,
@@ -318,6 +319,7 @@ test('a call auto mode could not check asks once in its chat, and every other ch
 		await expect(page.getByRole('status').filter({ hasText: 'Kept blocked' })).toBeVisible();
 		await expectAssistantReply(page);
 		expect(await runSummary(currentSessionId(page) ?? '')).toBe('unchecked:deny:once');
+		await openActivityGroups(page);
 		await expect(page.getByTestId('tool-blocked')).toHaveText(['not checked', 'not checked']);
 		await expect(page.getByTestId('tool-card-failed')).toHaveCount(0);
 		await captureFlow(app, 'unchecked-call-kept-blocked');

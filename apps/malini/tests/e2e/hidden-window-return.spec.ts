@@ -142,7 +142,8 @@ test('a thought and the tools it runs while the window is hidden start no motion
 		} finally {
 			clearInterval(release);
 		}
-		await expect(page.getByTestId('thinking-summary')).toHaveCount(2);
+		await expect(page.getByTestId('thinking-summary')).toHaveCount(1);
+		await expect(page.getByTestId('chat-activity-group')).toHaveCount(1);
 		expect(await animatedWhileHidden(page), 'elements that animated while hidden').toEqual([]);
 		await showWindow(page);
 		expectCleanConsole(app);

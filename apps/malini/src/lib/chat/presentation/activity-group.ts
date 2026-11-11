@@ -23,7 +23,9 @@ export type ActivityGroup = {
 	key: string;
 	items: readonly RunTimelineItem[];
 	verb: string;
+	liveVerb: string;
 	detail: string;
+	latestMessage: string | null;
 	status: 'running' | 'completed' | 'failed';
 	actionKinds: readonly ToolActionKind[];
 	failures: readonly ActivityFailure[];
@@ -42,12 +44,10 @@ export type SubagentGroup = {
 	agents: readonly SubagentTimelineItem[];
 };
 
-export type FoldedRow = RunTimelineItem | ActivityGroup | SubagentGroup;
-
 export type WorkFold = {
 	kind: 'work-fold';
 	key: string;
-	rows: readonly FoldedRow[];
+	rows: readonly RunTimelineItem[];
 	verb: string;
 	detail: string;
 	actionKinds: readonly ToolActionKind[];
@@ -65,6 +65,8 @@ export const SUBAGENT_GROUP_MIN_AGENTS = 2;
 export const ACTIVITY_GROUP_DETAIL_MAX_CHARS = 64;
 
 type MachineActivityItem = Extract<RunTimelineItem, { kind: 'tool' | 'command' | 'file' }>;
+
+type NarrationItem = Extract<RunTimelineItem, { kind: 'assistant' | 'thought' }>;
 
 type ItemStatus = 'running' | 'completed' | 'failed';
 
@@ -90,17 +92,25 @@ const TOOL_PATH_KEYS = [
 
 export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunTimelineItem[] {
 	const grouped: GroupedRunTimelineItem[] = [];
-	let pending: MachineActivityItem[] = [];
+	let pending: (MachineActivityItem | NarrationItem)[] = [];
+	let trailingMessages: NarrationItem[] = [];
 
 	function flush(): void {
 		if (pending.length >= ACTIVITY_GROUP_MIN_ITEMS) grouped.push(buildActivityGroup(pending));
 		else grouped.push(...pending);
+		grouped.push(...trailingMessages);
 		pending = [];
+		trailingMessages = [];
 	}
 
 	for (const item of foldStartedWorkstreams(items)) {
 		if (item.kind !== 'workstreams' && isMachineActivity(item)) {
-			pending.push(item);
+			pending.push(...trailingMessages, item);
+			trailingMessages = [];
+			continue;
+		}
+		if ((item.kind === 'assistant' || item.kind === 'thought') && pending.length > 0) {
+			trailingMessages.push(item);
 			continue;
 		}
 		flush();
@@ -141,7 +151,7 @@ export function foldRunWork(
 ): readonly GroupedRunTimelineItem[] {
 	const answer = rows.filter((row) => row.kind === 'assistant').at(-1);
 	const work = rows.filter(
-		(row): row is FoldedRow =>
+		(row) =>
 			row !== answer &&
 			row.kind !== 'user' &&
 			row.kind !== 'workstreams' &&
@@ -149,18 +159,16 @@ export function foldRunWork(
 	);
 	const [first] = work;
 	if (!first || work.length < ACTIVITY_GROUP_MIN_ITEMS) return rows;
-	const ran = work
-		.flatMap((row): readonly FoldedRow[] => (row.kind === 'activity-group' ? row.items : [row]))
-		.filter(isMachineActivity)
-		.filter((item) => !blockedByAutoMode(item));
+	const steps = work.flatMap(timelineItems);
+	const ran = steps.filter(isMachineActivity).filter((item) => !blockedByAutoMode(item));
 	const actions = ran.map(itemActionKind);
 	const actionKinds = distinct(actions);
 	const fold: WorkFold = {
 		kind: 'work-fold',
 		key: `work-${first.key}`,
-		rows: work,
+		rows: steps,
 		verb: VERB_FORMS[ran.length > 0 ? verbStem(actionKinds) : 'work'].past,
-		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(work.length, 'step'),
+		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(steps.length, 'step'),
 		actionKinds,
 	};
 	const folded = new Set<GroupedRunTimelineItem>(work);
@@ -171,13 +179,16 @@ export function withPendingRows(
 	rows: readonly GroupedRunTimelineItem[],
 	pending: readonly RunTimelineItem[],
 ): readonly GroupedRunTimelineItem[] {
-	const drawn = new Set(
-		rows.flatMap((row) =>
-			row.kind === 'subagent-group' ? row.agents.map((agent) => agent.key) : [row.key],
-		),
-	);
+	const drawn = new Set(rows.flatMap(timelineItems).map((item) => item.key));
 	const fresh = pending.filter((row) => !drawn.has(row.key));
 	return fresh.length > 0 ? groupSubagents([...rows, ...fresh]) : rows;
+}
+
+function timelineItems(row: GroupedRunTimelineItem): readonly RunTimelineItem[] {
+	if (row.kind === 'activity-group') return row.items;
+	if (row.kind === 'subagent-group') return row.agents;
+	if (row.kind === 'work-fold') return row.rows;
+	return row.kind === 'workstreams' ? [] : [row];
 }
 
 export function foldStartedWorkstreams(
@@ -206,7 +217,7 @@ function startedWorkstreamId(item: RunTimelineItem): string | null {
 	}
 }
 
-function isMachineActivity(item: FoldedRow): item is MachineActivityItem {
+function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 	return (
 		(item.kind === 'tool' &&
 			!isBackgroundAgent(item.tool.name, item.tool.input) &&
@@ -216,10 +227,13 @@ function isMachineActivity(item: FoldedRow): item is MachineActivityItem {
 	);
 }
 
-function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGroup {
-	const ran = items.filter((item) => !blockedByAutoMode(item));
+function buildActivityGroup(
+	items: readonly (MachineActivityItem | NarrationItem)[],
+): ActivityGroup {
+	const calls = items.filter(isMachineActivity);
+	const ran = calls.filter((item) => !blockedByAutoMode(item));
 	const actions = ran.map(itemActionKind);
-	const statuses = items.map(itemStatus);
+	const statuses = calls.map(itemStatus);
 	const actionKinds = distinct(actions);
 	const forms = VERB_FORMS[ran.length > 0 ? verbStem(actionKinds) : 'try'];
 
@@ -228,13 +242,15 @@ function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGrou
 		key: `activity-${items[0]?.key ?? 'empty'}`,
 		items: [...items],
 		verb: statuses.includes('running') ? forms.present : forms.past,
-		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(items.length, 'call'),
+		liveVerb: forms.present,
+		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(calls.length, 'call'),
+		latestMessage: items.filter((item) => !isMachineActivity(item)).at(-1)?.text ?? null,
 		status: groupStatus(statuses),
 		actionKinds,
-		failures: items
+		failures: calls
 			.map(itemFailure)
 			.filter((failure): failure is ActivityFailure => failure !== null),
-		exitCodes: items.map(itemExitCode).filter((code): code is number => code !== null),
+		exitCodes: calls.map(itemExitCode).filter((code): code is number => code !== null),
 	};
 }
 
@@ -288,6 +304,12 @@ function groupStatus(statuses: readonly ItemStatus[]): ItemStatus {
 
 function distinct(actions: readonly ToolActionKind[]): ToolActionKind[] {
 	return [...new Set(actions)];
+}
+
+export function leadActionKind(actionKinds: readonly ToolActionKind[]): ToolActionKind | null {
+	const stem = verbStem(actionKinds);
+	if (stem === 'edit') return 'edit';
+	return stem === 'work' ? null : (actionKinds[0] ?? null);
 }
 
 function verbStem(actionKinds: readonly ToolActionKind[]): ActivityVerbStem {

@@ -272,6 +272,7 @@ Point at a recording to show its controls: play or pause, scrub, change the volu
 A variant's name rises above the controls while they show, so it never covers them.
 While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
+A page costs frames while it runs, so only the newest report runs its page; an older one waits as a picture behind a play button until you press it.
 When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why; click any variant in it to open it in the gallery.
@@ -331,6 +332,8 @@ Old turns fold. Subagents get a line each. Files show their diff
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
+- Tool calls fold into one line while the chat works, such as **Exploring 4 files**, with the newest status message or thought beside it.
+  Click the line to read the messages, thoughts and steps in order.
 - Only the last two turns show their work.
   Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs, ran 79 commands**.
   Click it if you miss them.
