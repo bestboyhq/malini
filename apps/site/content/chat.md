@@ -272,6 +272,7 @@ Point at a recording to show its controls: play or pause, scrub, change the volu
 A variant's name rises above the controls while they show, so it never covers them.
 While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
+A page costs frames while it runs, so only the newest report runs its page; an older one waits as a picture behind a play button until you press it.
 When the browser shows one of the report's variants, Malini puts a **Variants** strip under the page: click a variant, or step with the arrows or the ← and → keys, to flip between them in one tab.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why; click any variant in it to open it in the gallery.
