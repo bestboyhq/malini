@@ -1,4 +1,9 @@
 import type { ClaudeAccountSwitchOutcome, ClaudeSignInOutcome } from '$contract/agent';
+import {
+	PROVIDERS_CLAUDE_CODE_INSTALL_PROGRESS_CHANNEL,
+	type InstallProgressPayload,
+} from '$contract/events';
+import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
 class ClaudeSetupService {
@@ -8,6 +13,10 @@ class ClaudeSetupService {
 
 	update(): Promise<boolean> {
 		return invoke('providers.update-claude-code', undefined);
+	}
+
+	onInstallProgress(listener: (progress: InstallProgressPayload) => void): () => void {
+		return onPlatformEvent(PROVIDERS_CLAUDE_CODE_INSTALL_PROGRESS_CHANNEL, listener);
 	}
 
 	signIn(email: string | null): Promise<ClaudeSignInOutcome> {

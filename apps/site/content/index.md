@@ -43,6 +43,9 @@ Malini makes eight calls of its own: update checks to GitHub Releases, usage dat
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
 For a new install, it marks each first step once: the first open, setup finished, the first repository, workstream, prompt, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
+Each setup step you reach is marked too, with the seconds since the first step opened and whether Claude Code and the GitHub CLI were on your Mac.
+When you install Claude Code or the GitHub CLI, or sign in to either, Malini counts the start and the finish, cancel or failure, with the tool, which try it was, and the seconds it took.
+For a failure it adds the step that failed and the name of the error, never the message.
 On the first launch of a new month, it also sends how many days Malini ran in the last month you used it.
 While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
 Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.

@@ -147,6 +147,11 @@ export interface CloneProgressPayload {
 	fraction: number;
 }
 
+export interface InstallProgressPayload {
+	received: number;
+	total: number | null;
+}
+
 export interface LocalBaseSyncedPayload {
 	workstreamId: string | null;
 	checkout: string;
@@ -226,8 +231,10 @@ export interface ContractEvents {
 	'repositories:workstream-head-moved': WorkstreamHeadMovedPayload;
 	'repositories:workstream-pushed': WorkstreamPushedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
+	'repositories:github-cli-install-progress': InstallProgressPayload;
 	'repositories:changed': EmptyEventPayload;
 	'repositories:github-reach-changed': GithubReachChangedPayload;
+	'providers:claude-code-install-progress': InstallProgressPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
@@ -294,8 +301,10 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-head-moved': null,
 	'repositories:workstream-pushed': null,
 	'repositories:clone-progress': null,
+	'repositories:github-cli-install-progress': null,
 	'repositories:changed': null,
 	'repositories:github-reach-changed': null,
+	'providers:claude-code-install-progress': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'pull-requests:pull-request-changed': null,
@@ -397,8 +406,14 @@ export const REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL =
 export const REPOSITORIES_CLONE_PROGRESS_CHANNEL =
 	'repositories:clone-progress' satisfies EventChannel;
 
+export const REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL =
+	'repositories:github-cli-install-progress' satisfies EventChannel;
+
 export const REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL =
 	'repositories:github-reach-changed' satisfies EventChannel;
+
+export const PROVIDERS_CLAUDE_CODE_INSTALL_PROGRESS_CHANNEL =
+	'providers:claude-code-install-progress' satisfies EventChannel;
 
 export const APP_STARTED_CHANNEL = 'app:started' satisfies EventChannel;
 

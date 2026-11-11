@@ -1,4 +1,3 @@
-import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CLAUDE_INSTALL_COMMAND, type AgentPlanUsage } from '$contract/agent';
@@ -17,6 +16,7 @@ import {
 } from './claude-accounts.service';
 import { ChatGptAccount } from './chatgpt/account.service';
 import { ClaudeCodeUpdates } from './claude-code-updates.service';
+import { installClaudeCode } from './claude-install';
 import { ChatGptProxy } from './chatgpt/proxy';
 import {
 	CHATGPT_ISSUER,
@@ -35,7 +35,6 @@ const USAGE_CACHE_MS = 60_000;
 
 export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directory'>> {
 	readonly platform?: NodeJS.Platform;
-	readonly openPath?: (path: string) => Promise<string>;
 	readonly openExternal?: (url: string) => Promise<void>;
 	readonly fetch?: CatalogFetch;
 }
@@ -51,7 +50,6 @@ export function registerProviders(
 	deps: ProvidersDeps = {},
 ): ProvidersPlatform {
 	const platform = deps.platform ?? process.platform;
-	const openPath = deps.openPath ?? openWithElectron;
 	const executable = deps.executable ?? claudeExecutable;
 	const environment = deps.environment ?? (() => withoutProviderVariables(buildSpawnEnvironment()));
 	const accounts = new ClaudeAccounts({
@@ -72,16 +70,22 @@ export function registerProviders(
 		async () => (await claudeUpdates?.checkIfStale()) ?? false,
 	);
 
-	context.commands.define('providers.install-claude-code', async () => {
+	const fetch = deps.fetch ?? electronFetch;
+	let claudeInstall: Promise<void> | null = null;
+	context.commands.define('providers.install-claude-code', () => {
 		if (platform !== 'darwin') {
 			throw new Error(`Run \`${CLAUDE_INSTALL_COMMAND}\` in a terminal, then check again.`);
 		}
-		const directory = join(context.appDataRoot, 'claude-setup');
-		await mkdir(directory, { recursive: true, mode: 0o700 });
-		const script = join(directory, 'install.command');
-		await writeFile(script, `#!/bin/sh\n${CLAUDE_INSTALL_COMMAND}\n`, { mode: 0o700 });
-		const failure = await openPath(script);
-		if (failure.length > 0) throw new Error(`Could not open Terminal: ${failure}`);
+		claudeInstall ??= installClaudeCode({
+			fetch,
+			directory: join(context.appDataRoot, 'claude-setup'),
+			environment: environment(),
+			onProgress: (progress) =>
+				context.events.emit('providers:claude-code-install-progress', progress),
+		}).finally(() => {
+			claudeInstall = null;
+		});
+		return claudeInstall;
 	});
 
 	context.commands.define('providers.sign-in-to-claude', (args: unknown) =>
@@ -94,7 +98,6 @@ export function registerProviders(
 
 	context.commands.define('providers.cancel-claude-sign-in', () => accounts.cancelSignIn());
 
-	const fetch = deps.fetch ?? electronFetch;
 	const probeOrigin = opencodeProbeOrigin(!context.isDev, process.env);
 	const endpoints = chatGptEndpoints(!context.isDev, process.env);
 	const chatgpt = new ChatGptAccount({
@@ -233,11 +236,6 @@ function claudeExecutable(): string | null {
 	const home = homedir();
 	const path = [environment.path, join(home, '.local', 'bin'), join(home, '.claude', 'local')];
 	return resolveToolPath('claude', { ...environment, path: path.join(':') });
-}
-
-async function openWithElectron(path: string): Promise<string> {
-	const { shell } = await import('electron');
-	return shell.openPath(path);
 }
 
 async function openExternalWithElectron(url: string): Promise<void> {

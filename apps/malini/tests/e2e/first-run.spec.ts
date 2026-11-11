@@ -3,6 +3,7 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
+import { CLAUDE_INSTALL_COMMAND } from '../../src/contract/agent';
 import type { BrainStatus } from '../../src/contract/brain';
 import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
 import {
@@ -23,9 +24,12 @@ import {
 	withoutConsoleErrors,
 } from './harness';
 
-test('a new Mac without Claude Code is walked to install it, with the command it will run', async () => {
+test('a new Mac without Claude Code cannot pass setup, installs it in place, and says why an install failed', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' } });
+	const app = await launchMalini({
+		env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
+		allowedDiagnostics: [/providers\.install-claude-code ClaudeInstallError/u],
+	});
 	try {
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
@@ -37,11 +41,24 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toHaveCount(5);
 		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
-		await expect(
-			claude.getByRole('button', { name: 'Install Claude Code in Terminal' }),
-		).toBeVisible();
-		await expect(claude.getByText('curl -fsSL https://claude.ai/install.sh | bash')).toBeVisible();
+		await expect(claude.getByRole('status')).toHaveText('Not installed on this Mac yet.');
+		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
+		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
+		await expect(claude.getByText(CLAUDE_INSTALL_COMMAND)).toHaveCount(0);
 		await captureFlow(app, 'first-run-install-claude');
+
+		await claude.getByRole('button', { name: 'Install Claude Code' }).click();
+
+		await expect(
+			claude.getByRole('button', { name: 'Try installing Claude Code again' }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(claude.getByRole('status')).toHaveText(
+			'Could not download Claude Code: net::ERR_NAME_NOT_RESOLVED',
+		);
+		await expect(claude.getByText(CLAUDE_INSTALL_COMMAND)).toBeVisible();
+		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
+		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
+		await captureFlow(app, 'first-run-install-claude-failed');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -127,9 +144,9 @@ test('a signed-out Claude Code passes setup, and only a Claude send asks to sign
 	try {
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
-		const accounts = setup.getByRole('list', { name: 'Accounts' });
-		await expect(accounts).toContainText('Installed on this Mac', { timeout: 20_000 });
-		await expect(accounts.getByRole('button', { name: /^Claude Code/u })).toHaveCount(0);
+		const tools = setup.getByRole('list', { name: 'Tools' });
+		await expect(tools).toContainText('Installed on this Mac', { timeout: 20_000 });
+		await expect(tools.getByRole('button', { name: /^Claude Code/u })).toHaveCount(0);
 		await expect(setup.getByRole('button', { name: 'Sign in to Claude Code' })).toHaveCount(0);
 		const proceed = setup.getByTestId('onboarding-continue');
 		await expect(proceed).toBeEnabled();
