@@ -79,7 +79,7 @@
 	);
 	const workingRow = $derived(
 		run.terminal === null
-			? runTimelineItems.filter((row) => row.kind !== 'assistant').at(-1)
+			? runTimelineItems.filter((row) => row.kind !== 'assistant' && row.kind !== 'thought').at(-1)
 			: undefined,
 	);
 	const undoTarget = $derived(

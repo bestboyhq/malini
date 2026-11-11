@@ -123,17 +123,29 @@ describe('groupRunTimeline folding', () => {
 		expect(groupRunTimeline([read])).toEqual([read]);
 	});
 
-	it('never folds a thought, so the narration between tool calls stays readable', () => {
+	it('keeps one group across the thoughts between tool calls, and shows the newest', () => {
 		const narration = thought(4);
-		const grouped = groupRunTimeline([
+		const items = [
 			tool('Read', { file_path: 'src/a.ts' }),
 			tool('Read', { file_path: 'src/b.ts' }),
 			narration,
 			tool('Read', { file_path: 'src/c.ts' }),
 			tool('Read', { file_path: 'src/d.ts' }),
+		];
+		const group = onlyGroup(items);
+		expect(group.items).toEqual(items);
+		expect(group.detail).toBe('4 files');
+		expect(group.latestMessage).toBe('Considering the options');
+	});
+
+	it('leaves a thought before the first and after the last tool call outside the group', () => {
+		const grouped = groupRunTimeline([
+			thought(1),
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			thought(2),
 		]);
-		expect(kinds(grouped)).toEqual(['activity-group', 'thought', 'activity-group']);
-		expect(grouped[1]).toBe(narration);
+		expect(kinds(grouped)).toEqual(['thought', 'activity-group', 'thought']);
 	});
 
 	it('never folds a compaction, so the turn shows where the agent lost its detail', () => {

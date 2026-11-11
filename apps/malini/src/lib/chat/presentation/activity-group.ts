@@ -68,7 +68,7 @@ export const ACTIVITY_GROUP_DETAIL_MAX_CHARS = 64;
 
 type MachineActivityItem = Extract<RunTimelineItem, { kind: 'tool' | 'command' | 'file' }>;
 
-type AssistantTimelineItem = Extract<RunTimelineItem, { kind: 'assistant' }>;
+type NarrationItem = Extract<RunTimelineItem, { kind: 'assistant' | 'thought' }>;
 
 type ItemStatus = 'running' | 'completed' | 'failed';
 
@@ -94,8 +94,8 @@ const TOOL_PATH_KEYS = [
 
 export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunTimelineItem[] {
 	const grouped: GroupedRunTimelineItem[] = [];
-	let pending: (MachineActivityItem | AssistantTimelineItem)[] = [];
-	let trailingMessages: AssistantTimelineItem[] = [];
+	let pending: (MachineActivityItem | NarrationItem)[] = [];
+	let trailingMessages: NarrationItem[] = [];
 
 	function flush(): void {
 		if (pending.length >= ACTIVITY_GROUP_MIN_ITEMS) grouped.push(buildActivityGroup(pending));
@@ -111,7 +111,7 @@ export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunT
 			trailingMessages = [];
 			continue;
 		}
-		if (item.kind === 'assistant' && pending.length > 0) {
+		if ((item.kind === 'assistant' || item.kind === 'thought') && pending.length > 0) {
 			trailingMessages.push(item);
 			continue;
 		}
@@ -233,7 +233,7 @@ function isMachineActivity(item: FoldedRow): item is MachineActivityItem {
 }
 
 function buildActivityGroup(
-	items: readonly (MachineActivityItem | AssistantTimelineItem)[],
+	items: readonly (MachineActivityItem | NarrationItem)[],
 ): ActivityGroup {
 	const calls = items.filter(isMachineActivity);
 	const ran = calls.filter((item) => !blockedByAutoMode(item));
@@ -249,7 +249,7 @@ function buildActivityGroup(
 		verb: statuses.includes('running') ? forms.present : forms.past,
 		liveVerb: forms.present,
 		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(calls.length, 'call'),
-		latestMessage: items.filter((item) => item.kind === 'assistant').at(-1)?.text ?? null,
+		latestMessage: items.filter((item) => !isMachineActivity(item)).at(-1)?.text ?? null,
 		status: groupStatus(statuses),
 		actionKinds,
 		failures: calls
