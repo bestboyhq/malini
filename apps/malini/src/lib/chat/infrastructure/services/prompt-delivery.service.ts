@@ -344,12 +344,17 @@ class PromptDeliveryService {
 			this.disarmInterruptRecovery(workstreamId);
 			return;
 		}
-		if (recovery.attempts >= QUEUE_INTERRUPT_MAX_ATTEMPTS) {
+		// ponytail: retries every 100 ms for as long as a finished turn saves its changes; have main emit when the save ends if a save can hang
+		if (
+			recovery.attempts >= QUEUE_INTERRUPT_MAX_ATTEMPTS &&
+			chatOccupancy.sessionIsBusy(recovery.sessionId)
+		) {
 			const entryId = recovery.entryId;
 			this.disarmInterruptRecovery(workstreamId);
 			queueErrorsStore.set(
 				entryId,
 				'The interrupted reply is still running. This prompt waits for it to end.',
+				true,
 			);
 			return;
 		}
