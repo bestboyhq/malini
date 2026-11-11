@@ -23,6 +23,7 @@ export async function launch(topic, { foreground = false, executablePath } = {})
 		env: {
 			...process.env,
 			MALINI_USAGE_DATA: 'off',
+			MALINI_CLAUDE_UPDATES: 'off',
 			TMPDIR: temp,
 			...(foreground ? {} : { MALINI_BACKGROUND_WINDOW: '1' }),
 		},

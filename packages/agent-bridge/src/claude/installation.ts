@@ -23,8 +23,8 @@ export function findClaudeExecutable(env: NodeJS.ProcessEnv = process.env): stri
 	const pathEntries = (env['PATH'] ?? '').split(delimiter).filter(Boolean);
 	const home = env['HOME'] ?? homedir();
 	const candidates = [
-		...pathEntries.map((entry) => join(entry, 'claude')),
 		join(home, '.local', 'bin', 'claude'),
+		...pathEntries.map((entry) => join(entry, 'claude')),
 		join(home, '.claude', 'local', 'claude'),
 		'/opt/homebrew/bin/claude',
 		'/usr/local/bin/claude',

@@ -7,12 +7,16 @@
 		ProviderKeyCard,
 		providerGroupsQuery,
 		refreshModelProvidersCommand,
+		updateClaudeCodeCommand,
 	} from '$shared/providers/providers.api';
 	import SettingsSection from './SettingsSection.svelte';
 
 	const others = $derived(providerGroupsQuery.data.filter((group) => group.kind !== 'claude'));
 
-	onMount(refreshModelProvidersCommand);
+	onMount(() => {
+		refreshModelProvidersCommand();
+		updateClaudeCodeCommand();
+	});
 </script>
 
 <SettingsSection

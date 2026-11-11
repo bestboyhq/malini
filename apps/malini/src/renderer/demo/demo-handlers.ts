@@ -271,6 +271,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'secrets.list': () => [],
 	'providers.list': () => [],
 	'providers.refresh-models': () => [],
+	'providers.update-claude-code': () => ({ updated: false, failed: null }),
 	'chat.list-sessions': ({ workstreamId }) => sessionSummaries(workstreamId),
 	'chat.get-or-create-session': ({ workstreamId, model }) => startSession(workstreamId, model),
 	'chat.start-session': ({ workstreamId, model }) => startSession(workstreamId, model),
