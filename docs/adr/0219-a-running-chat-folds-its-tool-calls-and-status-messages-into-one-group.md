@@ -18,6 +18,7 @@ The user asked: "we should collapse tool calls into groups. When you have a chat
 - The group's line still counts only its tool calls, commands and files.
 - While the run is open and no other row follows the group but messages, its line takes the present verb with a shimmer, such as "Exploring", and shows the newest status message beside it, as a thought's line shows its last step.
 - Opened, `ChatActivityGroup.svelte` draws each status message as a compact row with a chat icon in the tool rows' icon column, in secondary text, never as a full reply.
+- The activity group and the fold over an older turn open with `ExpandMark`, like the Thought row, tool calls and subagents, not a chevron: at rest the line shows the icon of its main kind of work from `leadActionKind`, a plus on hover and a minus while open, and the kind icons after the count leave that one out.
 - `withPendingRows` counts the rows inside a group as drawn, so a streaming tool call never shows twice.
 
 ## Consequences

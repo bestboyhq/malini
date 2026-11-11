@@ -311,6 +311,12 @@ function distinct(actions: readonly ToolActionKind[]): ToolActionKind[] {
 	return [...new Set(actions)];
 }
 
+export function leadActionKind(actionKinds: readonly ToolActionKind[]): ToolActionKind | null {
+	const stem = verbStem(actionKinds);
+	if (stem === 'edit') return 'edit';
+	return stem === 'work' ? null : (actionKinds[0] ?? null);
+}
+
 function verbStem(actionKinds: readonly ToolActionKind[]): ActivityVerbStem {
 	if (actionKinds.includes('edit')) return 'edit';
 	if (actionKinds.every((kind) => kind === 'read' || kind === 'search')) return 'explore';

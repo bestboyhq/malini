@@ -3,6 +3,7 @@ import {
 	ACTIVITY_GROUP_DETAIL_MAX_CHARS,
 	ACTIVITY_GROUP_MIN_ITEMS,
 	foldRunWork,
+	leadActionKind,
 	groupRunTimeline,
 	withPendingRows,
 	type ActivityGroup,
@@ -642,5 +643,15 @@ describe('foldRunWork', () => {
 		const fold = foldRunWork([prompt, thought(1), assistant('Thinking aloud.'), assistant()])[1];
 		if (fold?.kind !== 'work-fold') throw new Error('expected a fold');
 		expect(`${fold.verb} ${fold.detail}`).toBe('Worked 2 steps');
+	});
+});
+
+describe('leadActionKind', () => {
+	it('leads with the edit, the one kind, or nothing when the work is mixed', () => {
+		expect(leadActionKind(['read', 'edit', 'command'])).toBe('edit');
+		expect(leadActionKind(['search', 'read'])).toBe('search');
+		expect(leadActionKind(['command'])).toBe('command');
+		expect(leadActionKind(['read', 'command'])).toBeNull();
+		expect(leadActionKind([])).toBeNull();
 	});
 });

@@ -6,10 +6,12 @@
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
-	import type { ActivityGroup } from '../activity-group';
+	import { leadActionKind, type ActivityGroup } from '../activity-group';
+	import ExpandMark from '../ExpandMark.svelte';
 	import { motionMs } from '../arrival-motion';
 	import type { RunGroup } from '../render-state';
 	import UnfoldText from '../UnfoldText.svelte';
+	import ActionKindIcon from '../ActionKindIcon.svelte';
 	import ActivityKindIcons from './ActivityKindIcons.svelte';
 	import ChatTimelineRow from './ChatTimelineRow.svelte';
 	import { transcriptContext } from './transcript-context';
@@ -27,7 +29,9 @@
 	const transcript = transcriptContext();
 	const { stageEnter, timelineKey, expandedActivityGroups } = transcript;
 	let everOpened = $state(false);
-	const childrenMounted = $derived(everOpened || expandedActivityGroups[group.key] === true);
+	const open = $derived(expandedActivityGroups[group.key] === true);
+	const childrenMounted = $derived(everOpened || open);
+	const lead = $derived(leadActionKind(group.actionKinds));
 	const verb = $derived(live ? group.liveVerb : group.verb);
 	const latest = $derived(
 		live && group.latestMessage !== null ? thinkingOutcome(group.latestMessage) : '',
@@ -48,22 +52,19 @@
 		ontoggle={(event) => (everOpened ||= event.currentTarget.open)}
 	>
 		<summary
-			class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
+			class="group/expand text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 			aria-label={`${verb} ${group.detail}`}
+			aria-expanded={open}
 			data-testid="chat-activity-group-summary"
 		>
-			<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
-				<Icon
-					name="chevron-right"
-					size={10}
-					class="transition-transform duration-150 group-open/activity:rotate-90"
-				/>
-			</span>
+			<ExpandMark>
+				<ActionKindIcon kind={lead} size={14} />
+			</ExpandMark>
 			<span class="text-fg-secondary shrink-0">
 				{#if live}<ShimmerText text={verb} />{:else}{verb}{/if}
 			</span>
 			<span class="min-w-0 truncate"><SensitiveText text={group.detail} /></span>
-			<ActivityKindIcons actionKinds={group.actionKinds} />
+			<ActivityKindIcons actionKinds={group.actionKinds.filter((kind) => kind !== lead)} />
 			{#if group.exitCodes.length > 0}
 				<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums">
 					exit {group.exitCodes.join(', ')}
@@ -85,7 +86,7 @@
 			</span>
 		</summary>
 		{#if childrenMounted}
-			<div class="border-surface-100-border mt-1 flex flex-col gap-2 border-l pl-3.5">
+			<div class="border-surface-100-border mt-1 ml-1.5 flex flex-col gap-2 border-l pl-3.5">
 				{#each group.items as child (child.key)}
 					{#if child.kind === 'assistant'}
 						<div
