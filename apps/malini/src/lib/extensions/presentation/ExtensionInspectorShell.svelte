@@ -943,7 +943,9 @@
 
 		{#if runtimeError}
 			<div
-				class="grid min-h-0 flex-1 place-items-center p-6"
+				class="grid place-items-center p-6"
+				class:min-h-0={!presentsMountedPanel}
+				class:flex-1={!presentsMountedPanel}
 				role="alert"
 				data-testid="inspector-runtime-error"
 				data-navigation-error="true"
