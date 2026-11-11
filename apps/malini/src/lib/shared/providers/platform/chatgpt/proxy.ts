@@ -1,5 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { promisify } from 'node:util';
 import { zstdCompress } from 'node:zlib';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages';
@@ -15,10 +14,16 @@ import {
 	type UpstreamErrorKind,
 } from './translate';
 import { ChatGptError, oauthErrorCode, type ChatGptEndpoints, type ChatGptFetch } from './sign-in';
+import {
+	anthropicError,
+	LocalEndpoint,
+	readBody,
+	sendJson,
+	type ProxyAddress,
+} from '../local-endpoint';
 
 const compress = promisify(zstdCompress);
 
-const MAX_REQUEST_BYTES = 64 * 1024 * 1024;
 const RESPONSE_TIMEOUT_MS = 10 * 60 * 1000;
 const SESSION_ID = /^[\w-]{1,128}$/u;
 const USAGE_LIMIT_CODES: ReadonlySet<string> = new Set([
@@ -40,73 +45,32 @@ export interface ChatGptProxyDeps {
 	readonly userAgent: string;
 }
 
-export interface ProxyAddress {
-	readonly baseUrl: string;
-	readonly token: string;
-}
-
 export class ChatGptProxy {
 	readonly #deps: ChatGptProxyDeps;
-	readonly #secret = Buffer.from(randomBytes(32).toString('base64url'));
-	#server: Server | null = null;
-	#address: Promise<ProxyAddress> | null = null;
+	readonly #endpoint = new LocalEndpoint(
+		(request, response, url) => this.#route(request, response, url),
+		(response, error) => sendError(response, errorOf(error)),
+	);
 
 	constructor(deps: ChatGptProxyDeps) {
 		this.#deps = deps;
 	}
 
 	address(): Promise<ProxyAddress> {
-		this.#address ??= this.#listen().catch((error: unknown) => {
-			this.#address = null;
-			throw error;
-		});
-		return this.#address;
+		return this.#endpoint.address();
 	}
 
 	stop(): void {
-		this.#server?.close();
-		this.#server?.closeAllConnections();
-		this.#server = null;
-		this.#address = null;
+		this.#endpoint.stop();
 	}
 
-	async #listen(): Promise<ProxyAddress> {
-		const server = createServer((request, response) => {
-			void this.#handle(request, response, port).catch((error: unknown) => {
-				sendError(response, errorOf(error));
-			});
-		});
-		server.requestTimeout = RESPONSE_TIMEOUT_MS;
-		let port = 0;
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen({ port: 0, host: '127.0.0.1' }, () => {
-				server.removeListener('error', reject);
-				const address = server.address();
-				if (address && typeof address !== 'string') port = address.port;
-				resolve();
-			});
-		});
-		this.#server = server;
-		return { baseUrl: `http://127.0.0.1:${port}`, token: this.#secret.toString() };
-	}
-
-	async #handle(request: IncomingMessage, response: ServerResponse, port: number): Promise<void> {
-		if (request.headers.host !== `127.0.0.1:${port}` || !this.#authorized(request)) {
-			sendError(
-				response,
-				new UpstreamError('authentication', 'Malini did not recognize this caller.'),
-			);
-			request.resume();
-			return;
-		}
-		const path = URL.parse(request.url ?? '/', `http://127.0.0.1:${port}`)?.pathname;
-		if (request.method === 'POST' && path === '/v1/messages') {
+	async #route(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+		if (request.method === 'POST' && url.pathname === '/v1/messages') {
 			await this.#messages(request, response);
 			return;
 		}
-		if (request.method === 'POST' && path === '/v1/messages/count_tokens') {
-			const body = await readBody(request);
+		if (request.method === 'POST' && url.pathname === '/v1/messages/count_tokens') {
+			const body = await readChatGptBody(request);
 			// ponytail: four characters a token, a real tokenizer when Claude Code leans on the count
 			sendJson(response, 200, { input_tokens: Math.ceil(body.length / 4) });
 			return;
@@ -115,16 +79,9 @@ export class ChatGptProxy {
 		sendJson(response, 404, anthropicError('not_found_error', 'Not found.'));
 	}
 
-	#authorized(request: IncomingMessage): boolean {
-		const bearer = request.headers.authorization?.replace(/^Bearer /u, '');
-		const key = request.headers['x-api-key'];
-		const offered = Buffer.from(bearer ?? (typeof key === 'string' ? key : ''));
-		return offered.length === this.#secret.length && timingSafeEqual(offered, this.#secret);
-	}
-
 	async #messages(request: IncomingMessage, response: ServerResponse): Promise<void> {
 		const parsed = claudeCodeRequest.safeParse(
-			JSON.parse((await readBody(request)).toString('utf8')),
+			JSON.parse((await readChatGptBody(request)).toString('utf8')),
 		);
 		if (!parsed.success) {
 			throw new UpstreamError(
@@ -266,21 +223,11 @@ function dataOf(block: string): string | null {
 	return lines.length > 0 ? lines.join('\n') : null;
 }
 
-async function readBody(request: IncomingMessage): Promise<Buffer> {
-	const chunks: Buffer[] = [];
-	let size = 0;
-	for await (const chunk of request) {
-		const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-		size += buffer.length;
-		if (size > MAX_REQUEST_BYTES) {
-			throw new UpstreamError(
-				'prompt-too-long',
-				'Prompt is too long for Malini to send to ChatGPT.',
-			);
-		}
-		chunks.push(buffer);
-	}
-	return Buffer.concat(chunks);
+function readChatGptBody(request: IncomingMessage): Promise<Buffer> {
+	return readBody(
+		request,
+		() => new UpstreamError('prompt-too-long', 'Prompt is too long for Malini to send to ChatGPT.'),
+	);
 }
 
 function errorOf(error: unknown): UpstreamError {
@@ -377,20 +324,6 @@ function sendError(response: ServerResponse, error: UpstreamError): void {
 
 function isUsageLimit(error: UpstreamError): boolean {
 	return error.code !== null && USAGE_LIMIT_CODES.has(error.code);
-}
-
-function anthropicError(type: string, message: string): Record<string, unknown> {
-	return { type: 'error', error: { type, message } };
-}
-
-function sendJson(
-	response: ServerResponse,
-	status: number,
-	body: unknown,
-	headers: Readonly<Record<string, string>> = {},
-): void {
-	response.writeHead(status, { 'content-type': 'application/json', ...headers });
-	response.end(JSON.stringify(body));
 }
 
 function parseJson(text: string): unknown {

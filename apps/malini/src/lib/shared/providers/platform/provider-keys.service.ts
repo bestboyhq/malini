@@ -13,10 +13,13 @@ import {
 	isValidProviderId,
 } from '$shared/providers/domain/provider';
 import {
+	missingKey,
 	ProviderNotConnectedError,
 	providerEnvironment,
 } from '$shared/providers/domain/provider-env';
 import type { SecretCipher } from './claude-accounts.service';
+import type { KeyUpstream } from './key-proxy';
+import type { ProxyAddress } from './local-endpoint';
 import {
 	clearProviderKey,
 	getStoredProvider,
@@ -32,7 +35,12 @@ export type PlanDetector = (apiKey: string) => Promise<ProviderPlan | null>;
 
 export interface SignedInProvider {
 	account(): ProviderAccount | null;
-	endpoint(): Promise<Readonly<{ baseUrl: string; token: string }>>;
+	endpoint(): Promise<ProxyAddress>;
+}
+
+export interface ProviderProxies {
+	readonly chatgpt: SignedInProvider;
+	readonly keys: (providerId: string) => Promise<ProxyAddress>;
 }
 
 type SessionOpening = 'new' | 'reopened';
@@ -42,22 +50,27 @@ const SIGNED_OUT: SignedInProvider = {
 	endpoint: () => Promise.reject(new Error('Sign in to ChatGPT in Settings, then try again.')),
 };
 
+const NO_KEY_PROXY = (): Promise<ProxyAddress> =>
+	Promise.reject(new Error('Malini has no proxy for API keys.'));
+
 export class ProviderKeys {
 	readonly #db: MaliniDatabase;
 	readonly #cipher: () => Promise<SecretCipher>;
 	readonly #detectPlan: PlanDetector;
 	readonly #chatgpt: SignedInProvider;
+	readonly #keyProxy: (providerId: string) => Promise<ProxyAddress>;
 
 	constructor(
 		db: MaliniDatabase,
 		cipher: () => Promise<SecretCipher>,
 		detectPlan: PlanDetector,
-		chatgpt: SignedInProvider = SIGNED_OUT,
+		proxies: Partial<ProviderProxies> = {},
 	) {
 		this.#db = db;
 		this.#cipher = cipher;
 		this.#detectPlan = detectPlan;
-		this.#chatgpt = chatgpt;
+		this.#chatgpt = proxies.chatgpt ?? SIGNED_OUT;
+		this.#keyProxy = proxies.keys ?? NO_KEY_PROXY;
 	}
 
 	list(): ModelProviderRecord[] {
@@ -143,17 +156,35 @@ export class ProviderKeys {
 		if (session === 'new' && !served.models.some((candidate) => candidate.id === model)) {
 			throw new ProviderNotConnectedError(`${provider.name} does not offer model \`${model}\``);
 		}
-		const endpoint = provider.kind === 'chatgpt' ? await this.#chatgpt.endpoint() : null;
+		const endpoint =
+			provider.kind === 'chatgpt'
+				? await this.#chatgpt.endpoint()
+				: await this.#keyEndpoint(provider.id);
 		return providerEnvironment({
 			name: provider.name,
 			kind: provider.kind,
-			baseUrl: endpoint?.baseUrl ?? served.baseUrl,
-			apiKey: endpoint?.token ?? (await this.#decryptedKey(provider)),
+			baseUrl: endpoint.baseUrl,
+			apiKey: endpoint.token,
 			model,
 			subagentModel: served.models.some(({ id }) => id === served.subagentModel)
 				? served.subagentModel
 				: null,
 		});
+	}
+
+	async upstream(providerId: string): Promise<KeyUpstream> {
+		const provider = this.#customProvider(providerId);
+		if (provider.kind !== 'anthropic') throw new Error(`Unknown provider \`${providerId}\``);
+		const { baseUrl } = this.#servedBy(provider);
+		if (baseUrl === null) throw new Error(`${provider.name} has no base URL`);
+		const apiKey = await this.#decryptedKey(provider);
+		if (apiKey === null) throw missingKey(provider.name);
+		return { baseUrl, apiKey };
+	}
+
+	async #keyEndpoint(providerId: string): Promise<ProxyAddress> {
+		await this.upstream(providerId);
+		return this.#keyProxy(providerId);
 	}
 
 	async #adoptPlan(provider: StoredProvider): Promise<void> {
