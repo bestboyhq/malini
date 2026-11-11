@@ -1,12 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import {
-		workstreamAgentRunningQuery,
-		type WorkstreamAgentWork,
-	} from '$lib/chat/application/queries/workstream-agent-running.query.svelte';
+	import { workstreamAgentRunningQuery } from '$lib/chat/application/queries/workstream-agent-running.query.svelte';
 
 	type WorkstreamChatSeams = Readonly<{
-		agentWork: WorkstreamAgentWork | null;
+		agentWorking: boolean;
 	}>;
 
 	interface Props {
@@ -16,11 +13,11 @@
 
 	let { workstreamId, children }: Props = $props();
 
-	const agentWork = $derived(workstreamAgentRunningQuery.data(workstreamId));
+	const agentWorking = $derived(workstreamAgentRunningQuery.data(workstreamId));
 
 	const seams: WorkstreamChatSeams = {
-		get agentWork(): WorkstreamAgentWork | null {
-			return agentWork;
+		get agentWorking(): boolean {
+			return agentWorking;
 		},
 	};
 </script>

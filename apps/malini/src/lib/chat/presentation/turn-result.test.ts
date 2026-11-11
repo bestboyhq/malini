@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderItem, RunGroup } from './render-state';
-import { earlierTurnsByRun, finalTurnReport, runTurn, variantPicksByRun } from './turn-result';
+import {
+	answerTurn,
+	earlierTurnsByRun,
+	finalTurnReport,
+	foldsIntoLaterTurn,
+	runTurns,
+	variantPicksByRun,
+} from './turn-result';
 
 const REPORT = [
 	'![Sticky header](.malini/sandbox/screenshots/header.png)',
@@ -24,35 +31,72 @@ describe('which message becomes the result card', () => {
 		items: RenderItem[],
 		runId = 'run-1',
 		superseded = false,
-	): RunGroup => ({
-		runId,
-		items,
-		terminal,
-		terminalText: '',
-		failure: null,
-		resumeAt: null,
-		turnEnded: terminal === 'completed',
-		superseded,
-		obsoleted: false,
+	): RunGroup => {
+		const open: RunGroup = {
+			runId,
+			items,
+			terminal,
+			terminalText: '',
+			failure: null,
+			resumeAt: null,
+			turnEnded: terminal === 'completed',
+			answeredReports: [],
+			superseded,
+			obsoleted: false,
+		};
+		return terminal === 'completed' ? answered(open) : open;
+	};
+	const answered = (group: RunGroup): RunGroup => ({
+		...group,
+		answeredReports: answerTurn(group),
 	});
 
-	it('is only the last answer of a completed run that carries a report', () => {
+	it('is only the latest report that answered a turn, even while the run is still open', () => {
 		const completed = run('completed', [assistant('a1', 'Looking.'), assistant('a2', REPORT)]);
+		const open = run(null, [assistant('a2', REPORT)]);
 
 		expect(finalTurnReport(completed, 'a2', REPORT)?.outcome).toBe(
 			'The header stays pinned while the page scrolls.',
 		);
 		expect(finalTurnReport(completed, 'a1', 'Looking.')).toBeNull();
 		expect(finalTurnReport(run('failed', [assistant('a2', REPORT)]), 'a2', REPORT)).toBeNull();
-		expect(finalTurnReport(run(null, [assistant('a2', REPORT)]), 'a2', REPORT)).toBeNull();
+		expect(finalTurnReport(open, 'a2', REPORT)).toBeNull();
+		expect(finalTurnReport(answered(open), 'a2', REPORT)?.outcome).toBe(
+			'The header stays pinned while the page scrolls.',
+		);
 		expect(
 			finalTurnReport(run('completed', [assistant('a2', 'Plain prose.')]), 'a2', 'Plain prose.'),
 		).toBeNull();
 	});
 
+	it('moves to the next report the same run answers, and folds the earlier one into it', () => {
+		const finished = 'Outcome: The reviewer finished.\nNeeds: nothing';
+		const trail = (byRun: ReadonlyMap<string, readonly { key: string }[]>) =>
+			[...byRun].map(([runId, turns]) => [runId, turns.map((turn) => turn.key)]);
+		const launched = answered(run(null, [assistant('a1', REPORT)]));
+		const writing = { ...launched, items: [...launched.items, assistant('a2', finished)] };
+		const goesOn = answered(writing);
+
+		expect(finalTurnReport(launched, 'a1', REPORT)).not.toBeNull();
+		expect(finalTurnReport(writing, 'a2', finished)).toBeNull();
+		expect(foldsIntoLaterTurn(writing, 'a1')).toBe(false);
+		expect(goesOn.answeredReports).toEqual(['a1', 'a2']);
+		expect(answered(goesOn).answeredReports).toBe(goesOn.answeredReports);
+		expect(finalTurnReport(goesOn, 'a1', REPORT)).toBeNull();
+		expect(foldsIntoLaterTurn(goesOn, 'a1')).toBe(true);
+		expect(finalTurnReport(goesOn, 'a2', finished)?.outcome).toBe('The reviewer finished.');
+		expect(trail(earlierTurnsByRun([goesOn]))).toEqual([['run-1', ['a1']]]);
+
+		const later = run('completed', [assistant('b1', 'Outcome: Later.')], 'run-2');
+		expect(trail(earlierTurnsByRun([goesOn, later]))).toEqual([
+			['run-1', ['a1']],
+			['run-2', ['a1', 'a2']],
+		]);
+	});
+
 	it("stays the last report of the run when Claude Code's own follow-up turn answers after it", () => {
 		const followUp = 'That notice is the dev server I used for screenshots stopping.';
-		const answered = run('completed', [
+		const answeredOnce = run('completed', [
 			assistant('a1', REPORT),
 			assistant('a2', followUp),
 			assistant('a3', 'Still nothing to change.'),
@@ -63,15 +107,15 @@ describe('which message becomes the result card', () => {
 			assistant('a3', followUp),
 		]);
 
-		expect(finalTurnReport(answered, 'a1', REPORT)?.outcome).toBe(
+		expect(finalTurnReport(answeredOnce, 'a1', REPORT)?.outcome).toBe(
 			'The header stays pinned while the page scrolls.',
 		);
-		expect(finalTurnReport(answered, 'a2', followUp)).toBeNull();
-		expect(runTurn(answered)?.report.outcome).toBe(
+		expect(finalTurnReport(answeredOnce, 'a2', followUp)).toBeNull();
+		expect(runTurns(answeredOnce).at(-1)?.report.outcome).toBe(
 			'The header stays pinned while the page scrolls.',
 		);
 		expect(finalTurnReport(reportedTwice, 'a1', REPORT)).toBeNull();
-		expect(runTurn(reportedTwice)?.report.outcome).toBe('Shipped the shadow.');
+		expect(runTurns(reportedTwice).at(-1)?.report.outcome).toBe('Shipped the shadow.');
 	});
 
 	it('gives the last three reported turns to the latest result card only, even while a newer run is open', () => {
@@ -114,15 +158,15 @@ describe('which message becomes the result card', () => {
 			run(null, [user('u4', 'Go with variant A (Calm).')], 'r4', true),
 		];
 
-		const turns = new Map(runs.map((each) => [each.runId, runTurn(each)]));
-		const cached = (each: RunGroup) => turns.get(each.runId) ?? null;
+		const turns = new Map(runs.map((each) => [each.runId, runTurns(each)]));
+		const cached = (each: RunGroup) => turns.get(each.runId) ?? [];
 		const picks = variantPicksByRun(runs, cached);
-		const pick = picks.get('r1');
+		const pick = picks.get('a1');
 
-		expect([...picks.keys()]).toEqual(['r1']);
+		expect([...picks.keys()]).toEqual(['a1']);
 		expect(pick?.promptRunId).toBe('r3');
 		expect(pick?.pick.picked.name).toBe('Bold');
 		expect(pick?.pick.reason).toBe('darker');
-		expect(variantPicksByRun(runs, cached, picks).get('r1')).toBe(pick);
+		expect(variantPicksByRun(runs, cached, picks).get('a1')).toBe(pick);
 	});
 });

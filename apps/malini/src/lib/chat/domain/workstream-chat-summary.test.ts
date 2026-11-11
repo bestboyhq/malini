@@ -95,26 +95,27 @@ describe('the loader of a workstream with only background work', () => {
 	});
 
 	it('reads a chat that only waits on its background commands as a finished turn', () => {
+		const turnEndedChat: SessionRecord = { ...runningChat, status: 'completed' };
 		const needsYou = {
 			kind: 'input',
 			runId: 'run-1',
 			sessionId: 'running-chat',
 			updatedAt: 1,
 		} as const;
-		expect(state(runningChat, 'commands', false)).toEqual({ label: 'Ready', tone: 'completed' });
-		expect(state(runningChat, 'commands', false, { attention: needsYou })).toEqual({
+		expect(state(turnEndedChat, null, false)).toEqual({ label: 'Ready', tone: 'completed' });
+		expect(state(turnEndedChat, null, false, { attention: needsYou })).toEqual({
 			label: 'Needs you',
 			tone: 'waiting',
 		});
-		expect(state(runningChat, 'commands', false, { queueCount: 2 })).toEqual({
+		expect(state(turnEndedChat, null, false, { queueCount: 2 })).toEqual({
 			label: '2 queued',
 			tone: 'queued',
 		});
-		expect(state(runningChat, 'commands', false, { queueCount: 1, held: true })).toEqual({
+		expect(state(turnEndedChat, null, false, { queueCount: 1, held: true })).toEqual({
 			label: 'Needs you',
 			tone: 'waiting',
 		});
-		expect(state(runningChat, 'commands', true)).toEqual({
+		expect(state(turnEndedChat, null, true)).toEqual({
 			label: 'Automation running',
 			tone: 'background',
 		});

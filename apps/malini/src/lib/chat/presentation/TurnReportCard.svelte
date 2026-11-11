@@ -24,7 +24,7 @@
 		needsOpen?: boolean;
 		history?: readonly EarlierTurn[];
 		pick?: VariantPick | null;
-		pickOf?: ((runId: string) => VariantPick | null) | undefined;
+		pickOf?: ((reportKey: string) => VariantPick | null) | undefined;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
@@ -108,8 +108,8 @@
 		<div class="flex flex-col">
 			{#if history.length > 0}
 				<ol class="-mt-[5px] flex flex-col pb-[5px]" aria-label="Earlier turns">
-					{#each history as turn (turn.runId)}
-						{@const earlierPick = pickOf?.(turn.runId) ?? null}
+					{#each history as turn (turn.key)}
+						{@const earlierPick = pickOf?.(turn.key) ?? null}
 						<li class="turn-step relative">
 							<details class="group/turn">
 								<summary

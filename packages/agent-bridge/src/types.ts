@@ -125,6 +125,9 @@ export type AgentEvent =
 			interim?: boolean;
 			handedOff?: boolean;
 	  }
+	| { type: 'turn.answered'; runId: string }
+	| { type: 'turn.ended'; runId: string }
+	| { type: 'turn.resumed'; runId: string }
 	| {
 			type: 'run.completed';
 			runId: string;
