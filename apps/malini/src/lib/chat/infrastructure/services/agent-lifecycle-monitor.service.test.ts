@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { AgentSessionOrigin, LiveEventEnvelope } from '$contract/agent';
+import type { SessionStatus } from '$contract/agent-state-machine';
 import type { AgentAttention, AgentWorkstreamContext } from '$lib/chat/domain/agent-attention';
 import { AgentLifecycleMonitor } from './agent-lifecycle-monitor.service';
 
@@ -8,8 +9,9 @@ function monitorHarness() {
 	let listener: ((payload: LiveEventEnvelope) => void) | null = null;
 	const sessions = new Map<
 		string,
-		{ workstreamId: string; status: string; origin?: AgentSessionOrigin }
+		{ workstreamId: string; status: SessionStatus; origin?: AgentSessionOrigin }
 	>();
+	const openApprovals = new Set<string>();
 	const contexts = new Map<string, AgentWorkstreamContext>();
 	const attentions = new Map<string, AgentAttention>();
 	const notifications: Array<{
@@ -30,12 +32,21 @@ function monitorHarness() {
 			return unlisten;
 		},
 		applyLifecycle: (envelope: EventEnvelope) => {
-			const session = sessions.get(envelope.sessionId) ?? {
+			const session: { workstreamId: string; status: SessionStatus } = sessions.get(
+				envelope.sessionId,
+			) ?? {
 				workstreamId: '_unknown',
 				status: 'idle',
 			};
 			if (envelope.event.type === 'run.started') session.status = 'running';
-			if (envelope.event.type === 'approval.requested') session.status = 'waiting_for_approval';
+			if (envelope.event.type === 'approval.requested') {
+				openApprovals.add(envelope.event.approvalId);
+				session.status = 'waiting_for_approval';
+			}
+			if (envelope.event.type === 'approval.withdrawn') {
+				openApprovals.delete(envelope.event.approvalId);
+				if (openApprovals.size === 0) session.status = 'running';
+			}
 			if (envelope.event.type === 'run.completed') session.status = 'completed';
 			if (envelope.event.type === 'run.failed') session.status = 'failed';
 			if (envelope.event.type === 'turn.ended') session.status = 'completed';
@@ -160,6 +171,43 @@ describe('AgentLifecycleMonitor', () => {
 			},
 		]);
 		expect(harness.sound).toHaveBeenCalledExactlyOnceWith('finished');
+	});
+
+	it('stops asking for the user once Claude Code withdraws the last open request', () => {
+		const harness = watchingStreamA();
+		for (const [seq, approvalId] of [
+			[1, 'approval-fork'],
+			[2, 'approval-main'],
+		] as const) {
+			harness.emit(
+				envelope('session-a', 'run-a', seq, {
+					type: 'approval.requested',
+					runId: 'run-a',
+					approvalId,
+					reason: 'Read outside',
+				}),
+			);
+		}
+		expect(harness.attentions.get('session-a')?.kind).toBe('approval');
+
+		harness.emit(
+			envelope('session-a', 'run-a', 3, {
+				type: 'approval.withdrawn',
+				runId: 'run-a',
+				approvalId: 'approval-fork',
+			}),
+		);
+		expect(harness.attentions.get('session-a')?.kind).toBe('approval');
+
+		harness.emit(
+			envelope('session-a', 'run-a', 4, {
+				type: 'approval.withdrawn',
+				runId: 'run-a',
+				approvalId: 'approval-main',
+			}),
+		);
+		expect(harness.attentions.has('session-a')).toBe(false);
+		expect(harness.notifications).toHaveLength(1);
 	});
 
 	it('moves a chat off screen through the end and the resumption of its turn without asking for the user', () => {

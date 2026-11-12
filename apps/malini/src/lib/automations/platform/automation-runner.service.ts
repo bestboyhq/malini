@@ -534,6 +534,8 @@ export class AutomationRunner {
 			if (type === 'run.started') this.#resumed(envelope.sessionId, envelope.runId);
 			else if (type === 'approval.requested' || type === 'question.requested')
 				this.#waiting(envelope.sessionId);
+			else if (type === 'approval.withdrawn' || type === 'question.withdrawn')
+				this.#stoppedWaiting(envelope.sessionId);
 			else if (type === 'run.completed' || type === 'run.failed') {
 				this.#ended(envelope);
 				this.kick();
@@ -613,7 +615,10 @@ export class AutomationRunner {
 		if (outcome.command !== 'chat.decide-approval' && outcome.command !== 'chat.answer-question')
 			return;
 		const sessionId = stringField(outcome.args, 'sessionId');
-		if (sessionId === null) return;
+		if (sessionId !== null) this.#stoppedWaiting(sessionId);
+	}
+
+	#stoppedWaiting(sessionId: string): void {
 		if (isWaitingForUser(getSession(this.#context.db, sessionId)?.status)) return;
 		const automationRun = findActiveAutomationRunForSession(this.#context.db, sessionId);
 		if (!automationRun) return;
