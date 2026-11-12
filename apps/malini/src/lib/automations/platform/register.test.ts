@@ -1403,7 +1403,7 @@ describe('restart', () => {
 		await until('resumed', 'succeeded');
 	});
 
-	it('keeps a run waiting for you until you answered every request it left open', async () => {
+	it('keeps a run waiting for you until every request it left open is answered or withdrawn', async () => {
 		automations.dispose();
 		const definition = await builtin('fix-checks');
 		insertAutomationRun(
@@ -1468,6 +1468,16 @@ describe('restart', () => {
 
 		db.exec("UPDATE agent_sessions SET status = 'running' WHERE id = 's-asks'");
 		await decide('a3');
+		await until('asks', 'running');
+
+		db.exec("UPDATE agent_sessions SET status = 'waiting_for_approval' WHERE id = 's-asks'");
+		agentEvent('s-asks', 'r1', { type: 'approval.requested', approvalId: 'a4' });
+		await until('asks', 'needs-you');
+		agentEvent('s-asks', 'r1', { type: 'approval.withdrawn', approvalId: 'a4' });
+		expect((await automationRun('asks')).status).toBe('needs-you');
+
+		db.exec("UPDATE agent_sessions SET status = 'running' WHERE id = 's-asks'");
+		agentEvent('s-asks', 'r1', { type: 'approval.withdrawn', approvalId: 'a4' });
 		await until('asks', 'running');
 	});
 

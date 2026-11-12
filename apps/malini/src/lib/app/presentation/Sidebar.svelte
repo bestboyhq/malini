@@ -847,7 +847,9 @@
 		pullRequest: PullRequestVisual,
 	): string {
 		if (state.tone === 'background') return pullRequest.color || state.icon;
-		return busy || state.tone === 'broken' ? state.icon : pullRequest.color;
+		return busy || state.tone === 'broken' || state.tone === 'waiting'
+			? state.icon
+			: pullRequest.color;
 	}
 
 	function attentionColor(chat: ChatSummary): string | null {

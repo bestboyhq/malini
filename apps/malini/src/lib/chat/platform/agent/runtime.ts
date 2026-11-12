@@ -26,9 +26,11 @@ import {
 } from '../events.repository';
 import {
 	abortInteractionDispatch,
+	closeWithdrawnInteraction,
 	finalizeInteractionResponse,
 	prepareInteractionResponse,
 	recordPendingInteraction,
+	type InteractionKind,
 	type InteractionRecordOutcome,
 } from '../interactions.repository';
 import { matchPermissionRule, rememberPermissionRule } from '../permissions.repository';
@@ -235,6 +237,14 @@ function safelyAllowedInTree(
 	}
 }
 
+function withdrawnRequest(
+	event: BridgeEvent,
+): Readonly<{ kind: InteractionKind; requestId: string }> | null {
+	if (event.type === 'approval.withdrawn') return { kind: 'approval', requestId: event.approvalId };
+	if (event.type === 'question.withdrawn') return { kind: 'question', requestId: event.questionId };
+	return null;
+}
+
 function suppressed(outcome: InteractionRecordOutcome): boolean {
 	return outcome === 'dispatching' || outcome === 'resolved' || outcome === 'closed';
 }
@@ -360,6 +370,26 @@ export function pumpStep(
 			`agent: failed to persist provider interaction correlation for session \`${resolved.sessionId}\` run \`${resolved.runId}\`; dropping the request event: ${describe(error)}`,
 		);
 		return null;
+	}
+
+	const withdrawn = withdrawnRequest(resolved.event);
+	if (withdrawn !== null) {
+		try {
+			const closed = closeWithdrawnInteraction(
+				db,
+				withdrawn.kind,
+				resolved.sessionId,
+				resolved.runId,
+				withdrawn.requestId,
+				nowIso8601(),
+			);
+			if (!closed) return null;
+		} catch (error) {
+			log(
+				`agent: failed to close withdrawn ${withdrawn.kind} \`${withdrawn.requestId}\` of run \`${resolved.runId}\`: ${describe(error)}`,
+			);
+			return null;
+		}
 	}
 
 	if (resolved.event.type === 'session.state' && resolved.event.providerSessionId !== undefined) {
