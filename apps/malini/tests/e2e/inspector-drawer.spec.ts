@@ -116,7 +116,7 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 		await openWorkstream(page, alpha.workstreamId);
 
 		await expect(gutter(page)).toBeVisible({ timeout: 20_000 });
-		await expect(gutter(page)).toContainText('On Drawer alpha');
+		await expect(gutter(page).getByRole('button', { name: 'Browser', exact: true })).toBeVisible();
 		await expect(page.getByRole('region', { name: 'Inspector' }).getByRole('tab')).toHaveCount(0);
 		const changesRow = gutter(page).getByRole('button', { name: /^Changes/u });
 		await expect(changesRow).toHaveCount(1);
@@ -131,7 +131,6 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 		await captureFlow(app, 'inspector-drawer-gutter');
 
 		await visit(page, beta.workstreamId);
-		await expect(gutter(page)).toContainText('On Drawer beta');
 		await gutter(page).getByRole('button', { name: 'Show inspector' }).click();
 		await expect(gutter(page)).toHaveCount(0);
 		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true');
@@ -143,7 +142,7 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 			page.getByRole('button', { name: 'Filter to files changed in this workstream' }),
 		).toHaveAttribute('aria-pressed', 'false');
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		await expect(inspectorTab(page, 'New tab')).toHaveAttribute('aria-selected', 'true');
 
 		await visit(page, alpha.workstreamId);
@@ -166,7 +165,8 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 		await expect(gutter(page)).toBeVisible();
 
 		await page.reload();
-		await expect(gutter(page)).toContainText('On Drawer beta', { timeout: 20_000 });
+		await expect(page).toHaveURL(new RegExp(`/workstreams/${beta.workstreamId}`, 'u'));
+		await expect(gutter(page)).toBeVisible({ timeout: 20_000 });
 		await visit(page, alpha.workstreamId);
 		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true', {
 			timeout: 20_000,

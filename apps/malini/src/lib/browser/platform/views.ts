@@ -66,7 +66,7 @@ import {
 import { isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from './url';
 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
-export const CORNER_RADIUS = 16;
+export const CORNER_RADIUS = 8;
 export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_open first.';
 export const RESIZE_ANSWER_MS = 5_000;
 export const MAX_CONSOLE_LINES = 200;

@@ -57,7 +57,6 @@
 
 	interface Props {
 		workstreamId: string;
-		workstreamName?: string | null;
 		changeTotals?: GutterChangeTotals | null;
 		agentSessionId?: string | null;
 		panels: readonly ExtensionPanelRegistration[];
@@ -80,7 +79,6 @@
 
 	let {
 		workstreamId,
-		workstreamName = null,
 		changeTotals = null,
 		agentSessionId = null,
 		panels,
@@ -159,7 +157,7 @@
 			hiddenPanelIds: presentedPreferences.hidden,
 			changeTotals,
 			actions: panelActions.flatMap(({ id, label, icon, count }) =>
-				count ? [{ id, label, icon, count }] : [],
+				count === 0 ? [] : [{ id, label, icon, count: count ?? null }],
 			),
 		}),
 	);
@@ -667,7 +665,7 @@
 
 <section
 	class={[
-		'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-h-0 min-w-0 shrink flex-col overflow-hidden rounded-3xl border-[0.5px] [-webkit-app-region:no-drag] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-7',
+		'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-h-0 min-w-0 shrink flex-col overflow-hidden rounded-2xl border-[0.5px] [-webkit-app-region:no-drag] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-7',
 		floating
 			? 'shadow-popup absolute top-0 right-0 z-10 max-h-[calc(100%-1.75rem)]'
 			: 'relative z-10',
@@ -1021,7 +1019,6 @@
 	{:else}
 		<ExtensionGutter
 			{workstreamId}
-			{workstreamName}
 			rows={compactRows}
 			disabled={!inspectorInteractive}
 			{renderIcon}

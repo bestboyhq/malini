@@ -12,7 +12,6 @@
 
 	interface Props {
 		workstreamId: string;
-		workstreamName?: string | null;
 		rows: readonly GutterRow[];
 		disabled?: boolean;
 		renderIcon?: Snippet<[icon: string, size: number]> | undefined;
@@ -24,7 +23,6 @@
 
 	let {
 		workstreamId,
-		workstreamName = null,
 		rows,
 		disabled = false,
 		renderIcon,
@@ -35,35 +33,30 @@
 	}: Props = $props();
 
 	const rowClass =
-		'hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40';
+		'hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-2 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40';
 </script>
 
 <div
-	class="extension-gutter flex max-h-full min-h-0 w-full flex-col overflow-x-hidden overflow-y-auto py-1.5 pr-2 pl-1"
+	class="flex max-h-full min-h-0 w-full flex-col overflow-x-hidden overflow-y-auto p-1.5"
 	data-testid="extension-inspector-gutter"
 	data-navigation-workstream-id={workstreamId}
 >
-	<div class="flex h-7 shrink-0 items-center gap-1 pr-0.5 pl-2">
-		<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs font-medium">
-			{#if workstreamName}On {workstreamName}{/if}
-		</span>
-		{#if onshow}
-			<span class="extension-gutter__show shrink-0">
-				<Tooltip content="Show inspector" placement="left">
-					<IconButton
-						ariaLabel="Show inspector"
-						variant="ghost"
-						size="sm"
-						ariaExpanded={false}
-						data-testid="extension-inspector-show"
-						onclick={onshow}
-					>
-						<Icon name="chevron-left" size={12} />
-					</IconButton>
-				</Tooltip>
-			</span>
-		{/if}
-	</div>
+	{#if onshow}
+		<div class="flex h-7 shrink-0 items-center justify-end pr-0.5">
+			<Tooltip content="Show inspector" placement="left">
+				<IconButton
+					ariaLabel="Show inspector"
+					variant="ghost"
+					size="sm"
+					ariaExpanded={false}
+					data-testid="extension-inspector-show"
+					onclick={onshow}
+				>
+					<Icon name="chevron-left" size={12} />
+				</IconButton>
+			</Tooltip>
+		</div>
+	{/if}
 
 	{#snippet rowIcon(icon: string)}
 		<span class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center" aria-hidden="true">
@@ -86,12 +79,18 @@
 			>
 				{@render rowIcon(row.icon)}
 				<span class="min-w-0 flex-1 truncate">{row.label}</span>
-				<span
-					class="text-2xs text-fg-tertiary shrink-0 font-mono tabular-nums"
-					aria-label={`${formatCount(row.count)} ${row.count === 1 ? 'file' : 'files'}`}
-				>
-					{formatCount(row.count)}
-				</span>
+				{#if row.count === null}
+					<span class="text-fg-tertiary shrink-0" aria-hidden="true">
+						<Icon name="plus" size={11} />
+					</span>
+				{:else}
+					<span
+						class="text-2xs text-fg-tertiary shrink-0 font-mono tabular-nums"
+						aria-label={`${formatCount(row.count)} ${row.count === 1 ? 'file' : 'files'}`}
+					>
+						{formatCount(row.count)}
+					</span>
+				{/if}
 			</Button>
 		{:else}
 			<Button
@@ -148,22 +147,3 @@
 		{/if}
 	{/each}
 </div>
-
-<style>
-	.extension-gutter__show {
-		opacity: 0;
-
-		transition: opacity var(--default-transition-duration) ease;
-	}
-
-	.extension-gutter:hover .extension-gutter__show,
-	.extension-gutter:focus-within .extension-gutter__show {
-		opacity: 1;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.extension-gutter__show {
-			transition: none;
-		}
-	}
-</style>

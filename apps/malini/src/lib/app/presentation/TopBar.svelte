@@ -788,7 +788,7 @@
 		margin-bottom: -52px;
 		border: 0.5px solid var(--dock-edge);
 		border-bottom: 0;
-		border-radius: 24px 24px 0 0;
+		border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
 		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-50);
 		padding: 0 16px 24px;
 		position: relative;

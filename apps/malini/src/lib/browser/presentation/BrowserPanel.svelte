@@ -266,7 +266,7 @@
 
 	<div
 		{@attach followViewport}
-		class="border-surface-100-border bg-surface-100 relative mx-2 mb-2 min-h-0 flex-1 basis-[100vh] overflow-hidden rounded-2xl border-[0.5px]"
+		class="border-surface-100-border bg-surface-100 relative mx-2 mb-2 min-h-0 flex-1 basis-[100vh] overflow-hidden rounded-lg border-[0.5px]"
 	>
 		{#if browser && !hasPage}
 			<div class="flex h-full flex-col items-center justify-center gap-3 px-6 py-8 text-center">

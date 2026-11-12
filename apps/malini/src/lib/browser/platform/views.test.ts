@@ -398,7 +398,7 @@ describe('BrowserViews', () => {
 			[window(), 'back'],
 			[window(), 'front'],
 		]);
-		expect(view.radius).toBe(20);
+		expect(view.radius).toBe(10);
 	});
 
 	it('moves a shown view to new bounds without lifting it out of the window again', () => {

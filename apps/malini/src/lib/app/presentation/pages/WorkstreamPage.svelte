@@ -46,12 +46,6 @@
 	let mediaOpen = $state(false);
 	const panelActions = $derived([
 		{
-			id: 'new-browser-tab',
-			label: 'New browser tab',
-			icon: 'browser',
-			run: (): void => openBrowserTabCommand(workstreamId),
-		},
-		{
 			id: 'media',
 			label: 'Media',
 			icon: 'media',
@@ -59,6 +53,12 @@
 			run: (): void => {
 				mediaOpen = true;
 			},
+		},
+		{
+			id: 'new-browser-tab',
+			label: 'Browser',
+			icon: 'browser',
+			run: (): void => openBrowserTabCommand(workstreamId),
 		},
 	]);
 
@@ -141,7 +141,6 @@
 	{workstreamId}
 	workstream={inspectedWorkstream}
 	activationReady={checkoutReady}
-	workstreamName={workstream?.name ?? null}
 	{changeTotals}
 	creationContext={(id) => (creationPending(id) ? (creationContext(id) ?? {}) : null)}
 	oncreationannounced={consumeWorkstreamCreationCommand}

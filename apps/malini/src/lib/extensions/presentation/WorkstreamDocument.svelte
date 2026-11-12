@@ -44,7 +44,7 @@
 
 {#if active}
 	<div
-		class="bg-surface-50 border-surface-50-border relative mx-3 mt-1 mb-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border-[0.5px]"
+		class="bg-surface-50 border-surface-50-border relative mx-3 mt-1 mb-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border-[0.5px]"
 		id={workstreamDocumentPanelId(workstreamId)}
 		role="tabpanel"
 		aria-label={active.label}
