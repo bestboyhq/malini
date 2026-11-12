@@ -11,22 +11,40 @@ Malini's tools reach Claude Code through an MCP server named `malini`, so their 
 The agent drives the same browser tabs you see in the inspector, and the tabs it opens show up beside yours.
 A tab shows up as soon as the agent starts opening its page, and a page that does not load says why, such as `ERR_CONNECTION_REFUSED` while your dev server starts.
 
-| Tool                 | What it does                                   |
-| -------------------- | ---------------------------------------------- |
-| `browser_open`       | Opens a web page or a file from the worktree.  |
-| `browser_screenshot` | Captures the open page.                        |
-| `browser_click`      | Clicks the first element a CSS selector finds. |
-| `browser_type`       | Types into a field, optionally pressing Enter. |
-| `browser_back`       | Goes back one page.                            |
-| `browser_forward`    | Goes forward one page.                         |
-| `browser_reload`     | Reloads the page.                              |
-| `browser_resize`     | Makes the tab wider or narrower.               |
-| `browser_close`      | Closes the tab it opened, and its page.        |
+| Tool                 | What it does                                                                  |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `browser_open`       | Opens a web page or a file from the worktree.                                 |
+| `browser_snapshot`   | Reads the page as text, with a ref such as `@e3` for each element it can use. |
+| `browser_screenshot` | Captures the view, the whole page, or one element.                            |
+| `browser_click`      | Clicks an element with the mouse.                                             |
+| `browser_hover`      | Moves the mouse over an element, for menus and tooltips.                      |
+| `browser_type`       | Types into a field or picks an option, optionally pressing Enter.             |
+| `browser_press`      | Presses a key or a shortcut, such as `Escape` or `Meta+a`.                    |
+| `browser_scroll`     | Scrolls the page or the element under the mouse.                              |
+| `browser_wait`       | Waits for text or an element to show or go, or for a number of seconds.       |
+| `browser_evaluate`   | Runs JavaScript in the page and returns the result.                           |
+| `browser_console`    | Reads what the page logged to its console since it loaded.                    |
+| `browser_back`       | Goes back one page.                                                           |
+| `browser_forward`    | Goes forward one page.                                                        |
+| `browser_reload`     | Reloads the page.                                                             |
+| `browser_resize`     | Sets the page's width, and its height while you do not see the tab.           |
+| `browser_close`      | Closes the tab it opened, and its page.                                       |
+
+Every tool works while you do not see the tab, look at another workstream, or keep Malini behind other windows.
+The agent names an element by a ref from its last `browser_snapshot` or by a CSS selector.
+A click, a hover or a scroll moves the real mouse in the page, so the page sees the same events as from you.
+Malini waits up to 5 seconds for the element to show and hold still, and when something else covers it, such as a cookie banner, the agent hears what.
+A select or a date field opens a picker outside the page, so the agent picks the option or types the date with `browser_type` instead.
+A file field opens a file chooser, which the browser tools cannot use.
 
 When a page is too narrow or too wide for what it checks, the agent calls `browser_resize` with the width the page should get.
-Malini moves the divider between the chat and the inspector, the one you drag, and the width stays until you drag it back.
+While you see the tab, Malini moves the divider between the chat and the inspector, the one you drag, and the width stays until you drag it back.
 The chat and the inspector keep their minimum widths, so the page may end up narrower or wider than asked, and the agent hears how wide it got.
-Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
+While you do not see the tab, it takes the width and height the agent asks for, such as 390 by 844 for a phone, and fits the inspector again once you open it.
+While Malini is minimized with the tab open, its size stays and the agent hears why.
+
+Malini's browser replaces agent-browser, Playwright MCP, Puppeteer and any Chrome an agent launches to look at a page.
+Malini tells the agent so, since a Chrome inside Malini's sandbox cannot start its own sandbox and asks you for access it does not need.
 
 Once a page has served its purpose, such as after the agent checked or captured it, the agent closes its tab with `browser_close`, and the page closes with it.
 It closes only the tab it opened, never one of yours, and the tab stays closed after Malini restarts.

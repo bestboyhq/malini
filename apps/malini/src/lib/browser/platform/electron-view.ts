@@ -70,6 +70,10 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 		const favicon = await faviconDataUrl(contents.session, favicons[0]);
 		if (visit === pageVisit && !contents.isDestroyed()) events.favicon(favicon);
 	});
+	contents.on('console-message', ({ message, level, sourceId, lineNumber }) => {
+		const source = sourceId ? `${sourceId}:${lineNumber}` : '';
+		events.console({ level, text: message, source });
+	});
 	contents.on('render-process-gone', () => events.gone());
 	contents.on('destroyed', () => events.gone());
 	return {

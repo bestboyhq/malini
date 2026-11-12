@@ -215,11 +215,12 @@ An agent starts a server in the background and stops it through Claude Code, sin
 Tools keep state of their own outside your files, and the sandbox opens general tool state by folder without a card: `~/Library/Logs/<tool>`, `~/.local/state/<tool>`, the caches, the temporary folders, a dot folder at the top of your home, and `~/Library/Application Support/<tool>` when the folder matches the program's name.
 Malini records each one in Settings, Agent access, and every later command keeps it.
 When a command needs anything else the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
-The card lists each blocked folder or socket, such as Docker's, and what opening it lets a command do.
+The card lists each folder or socket the sandbox blocked while that command ran, such as Docker's, and what opening it lets a command do; what other commands hit stays off it.
 **Allow once** opens it for that command, and the same card comes back the next time it asks.
 **Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.
 The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json` and `.mcp.json` closed.
-Malini never offers your files in those folders, your credentials, its own data, the workstream or a folder every app shares.
+Malini never offers your files in those folders, your credentials or a folder that holds them, its own data, the workstream or a folder every app shares.
+A Chrome that a command starts in the sandbox needs `--no-sandbox`, and opening folders does not change that, so the agent hears it and uses Malini's browser to look at pages.
 An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
 
 When Malini sees nothing it can open, the chat asks to run the command outside instead.

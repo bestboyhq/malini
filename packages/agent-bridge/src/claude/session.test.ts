@@ -102,8 +102,11 @@ function harness(
 	return { session, claude, events };
 }
 
-function denialFeed(...blocked: readonly (readonly [operation: string, target: string])[]) {
+type Blocked = readonly [operation: string, target: string];
+
+function denialFeed(...runs: readonly (readonly Blocked[])[]) {
 	const listeners = new Map<string, (denial: SandboxDenial) => void>();
+	const queued = [...runs];
 	const block = (operation: string, target: string) => {
 		for (const [tag, listener] of listeners)
 			listener({ tag, process: 'docker', operation, target });
@@ -111,27 +114,29 @@ function denialFeed(...blocked: readonly (readonly [operation: string, target: s
 	return {
 		watch(tag: string, listener: (denial: SandboxDenial) => void) {
 			listeners.set(tag, listener);
-			for (const [operation, target] of blocked) block(operation, target);
 			return () => listeners.delete(tag);
 		},
-		hold: () => Promise.resolve(() => {}),
+		hold: () => {
+			for (const [operation, target] of queued.shift() ?? []) block(operation, target);
+			return Promise.resolve(() => {});
+		},
 		block,
 	};
 }
 
-function ranInside(command: string): ScriptStep {
-	return {
-		hook: {
-			session_id: READ_AND_BASH_SESSION,
-			transcript_path: '/tmp/transcript.jsonl',
-			cwd: '/work/repo',
-			hook_event_name: 'PostToolUseFailure',
-			tool_name: 'Bash',
-			tool_input: { command },
-			tool_use_id: 'toolu_ran_inside',
-			error: 'Exit code 1',
-		},
+function ranInside(command: string, toolUseId = 'toolu_ran_inside'): ScriptStep[] {
+	const hook = {
+		session_id: READ_AND_BASH_SESSION,
+		transcript_path: '/tmp/transcript.jsonl',
+		cwd: '/work/repo',
+		tool_name: 'Bash',
+		tool_input: { command },
+		tool_use_id: toolUseId,
 	};
+	return [
+		{ hook: { ...hook, hook_event_name: 'PreToolUse' } },
+		{ hook: { ...hook, hook_event_name: 'PostToolUseFailure', error: 'Exit code 1' } },
+	];
 }
 
 function askedToLeave(command: string, toolUseId: string): ScriptStep {
@@ -333,9 +338,16 @@ describe('ClaudeSession', () => {
 		});
 		expect(claude.runs[0]?.options.allowedTools).toEqual([
 			'mcp__malini__browser_open',
+			'mcp__malini__browser_snapshot',
 			'mcp__malini__browser_screenshot',
 			'mcp__malini__browser_click',
+			'mcp__malini__browser_hover',
 			'mcp__malini__browser_type',
+			'mcp__malini__browser_press',
+			'mcp__malini__browser_scroll',
+			'mcp__malini__browser_wait',
+			'mcp__malini__browser_evaluate',
+			'mcp__malini__browser_console',
 			'mcp__malini__browser_back',
 			'mcp__malini__browser_forward',
 			'mcp__malini__browser_reload',
@@ -1208,7 +1220,7 @@ describe('ClaudeSession', () => {
 		const { session, claude } = harness(
 			[
 				[
-					ranInside('pnpm test:e2e'),
+					...ranInside('pnpm test:e2e'),
 					askedToLeave('pnpm test:e2e', 'toolu_outside'),
 					...recordedScript('readAndBash'),
 				],
@@ -1284,22 +1296,29 @@ describe('ClaudeSession', () => {
 		const socket = '/Users/someone/.docker/run/docker.sock';
 		const asked = askedToLeave('pnpm test', 'toolu_grant');
 
-		function grantRun(scope: ApprovalScope, steps: readonly ScriptStep[] = [asked]) {
+		function grantRun(
+			scope: ApprovalScope,
+			steps: readonly ScriptStep[] = [asked],
+			feed = denialFeed([['network-outbound', socket]]),
+		) {
 			const requests: Extract<AgentEvent, { type: 'approval.requested' }>[] = [];
-			const run = harness([[...steps, ...recordedScript('readAndBash')]], {
-				denials: denialFeed(['network-outbound', socket]),
-				onEvent: (event, current) => {
-					if (event.type !== 'approval.requested') return;
-					requests.push(event);
-					void current.respondToApproval({
-						sessionId: event.sessionId,
-						runId: event.runId,
-						approvalId: event.approvalId,
-						decision: 'allow',
-						scope,
-					});
+			const run = harness(
+				[[...ranInside('pnpm test'), ...steps, ...recordedScript('readAndBash')]],
+				{
+					denials: feed,
+					onEvent: (event, current) => {
+						if (event.type !== 'approval.requested') return;
+						requests.push(event);
+						void current.respondToApproval({
+							sessionId: event.sessionId,
+							runId: event.runId,
+							approvalId: event.approvalId,
+							decision: 'allow',
+							scope,
+						});
+					},
 				},
-			});
+			);
 			return { ...run, requests };
 		}
 
@@ -1348,6 +1367,23 @@ describe('ClaudeSession', () => {
 				permission: { capability: 'sandbox', resources: [{ kind: 'socket', value: socket }] },
 			};
 			expect(requests).toMatchObject([blockedSocket, blockedSocket]);
+		});
+
+		it('offers only what the sandbox blocked for that command, never what another command hit', async () => {
+			const wranglerLogs = join(homedir(), 'Library/Preferences/.wrangler/logs/wrangler.log');
+			const { session, requests } = grantRun(
+				'once',
+				[...ranInside('wrangler whoami', 'toolu_wrangler'), asked],
+				denialFeed([['network-outbound', socket]], [['file-write-create', wranglerLogs]]),
+			);
+
+			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
+
+			expect(requests).toHaveLength(1);
+			expect(requests[0]?.permission).toEqual({
+				capability: 'sandbox',
+				resources: [expect.objectContaining({ kind: 'socket', value: socket })],
+			});
 		});
 
 		it('keeps it open for the chat on Always allow, until Malini sends the grants again', async () => {
@@ -1502,7 +1538,7 @@ describe('ClaudeSession', () => {
 			const { session, claude } = harness(
 				[
 					[
-						ranInside(outside.command),
+						...ranInside(outside.command),
 						leaves('toolu_first'),
 						asked('toolu_first'),
 						leaves('toolu_second'),
@@ -1562,7 +1598,7 @@ describe('ClaudeSession', () => {
 			const { session, claude } = harness(
 				[
 					[
-						ranInside(outside.command),
+						...ranInside(outside.command),
 						leaves('toolu_first'),
 						asked('toolu_first'),
 						leaves('toolu_second'),
@@ -1584,7 +1620,7 @@ describe('ClaudeSession', () => {
 			const first = harness(
 				[
 					[
-						ranInside(outside.command),
+						...ranInside(outside.command),
 						leaves('toolu_first'),
 						asked('toolu_first'),
 						...recordedScript('readAndBash'),

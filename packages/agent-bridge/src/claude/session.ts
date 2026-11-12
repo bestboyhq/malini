@@ -106,7 +106,6 @@ const IDLE_PROCESS_MS = 10 * 60_000;
 const MCP_SETTLE_MS = 5_000;
 const MCP_SETTLE_POLL_MS = 250;
 const SANDBOX_REPORT_SETTLE_MS = 200;
-const BLOCKED_FOR_MS = 10 * 60_000;
 const MAX_BLOCKED = 50;
 const MAX_COMMANDS = 200;
 const BLOCKED_CALL_DECISION_TIMEOUT_S = 24 * 60 * 60;
@@ -607,23 +606,15 @@ export class ClaudeSession implements ProviderHandle {
 	}
 
 	#grantable(command: string): SandboxGrant[] {
-		const since = Date.now() - BLOCKED_FOR_MS;
 		const granted = new Set(this.#grants.map(grantKey));
-		const fresh = [...this.#blocked.values()].flatMap(({ grant, at }) =>
-			grant && at >= since ? [grant] : [],
-		);
-		const grants = new Map<string, SandboxGrant>();
-		for (const grant of [...(this.#needs.get(command) ?? []), ...fresh]) {
-			if (!granted.has(grantKey(grant))) grants.set(grantKey(grant), grant);
-		}
-		return [...grants.values()];
+		return (this.#needs.get(command) ?? []).filter((grant) => !granted.has(grantKey(grant)));
 	}
 
-	#forget(grants: readonly SandboxGrant[]): void {
-		const forgotten = new Set(grants.map(grantKey));
-		for (const [key, { grant }] of this.#blocked) {
-			if (grant && forgotten.has(grantKey(grant))) this.#blocked.delete(key);
-		}
+	#need(command: string, grants: readonly SandboxGrant[]): void {
+		const needs = new Map(
+			[...(this.#needs.get(command) ?? []), ...grants].map((grant) => [grantKey(grant), grant]),
+		);
+		keepLatest(this.#needs, command, [...needs.values()], MAX_COMMANDS);
 	}
 
 	async #handOff(
@@ -930,8 +921,6 @@ export class ClaudeSession implements ProviderHandle {
 				...(unchecked ? { autoModeUnavailable: true } : {}),
 				signal: options.signal,
 			});
-			this.#forget(blocked);
-			if (blocked.length > 0) keepLatest(this.#needs, command, blocked, MAX_COMMANDS);
 			if (resolution.decision === 'deny') {
 				if (resolution.reason) return { behavior: 'deny', message: resolution.reason };
 				if (unchecked) {
@@ -1113,16 +1102,22 @@ export class ClaudeSession implements ProviderHandle {
 			running?.release();
 			const toolInput = isRecord(input.tool_input) ? input.tool_input : {};
 			const command = toolInput['command'];
-			const ranInside =
-				typeof command === 'string' && !leavesTheSandbox(input.tool_name, toolInput);
-			if (ranInside && !this.#needs.has(command))
-				keepLatest(this.#needs, command, [], MAX_COMMANDS);
+			const inside =
+				typeof command === 'string' && !leavesTheSandbox(input.tool_name, toolInput)
+					? command
+					: null;
+			if (inside !== null && !this.#needs.has(inside)) this.#need(inside, []);
 			if (running === undefined || String(command).includes(OUTSIDE_THE_SANDBOX)) return {};
 			const { started } = running;
 			if (event === 'PostToolUseFailure') await delay(SANDBOX_REPORT_SETTLE_MS);
-			const additionalContext = sandboxBlockedContext(
-				[...this.#blocked.values()].filter(({ at }) => at >= started).map(({ denial }) => denial),
-			);
+			const blocked = [...this.#blocked.values()].filter(({ at }) => at >= started);
+			if (inside !== null) {
+				this.#need(
+					inside,
+					blocked.flatMap(({ grant }) => (grant ? [grant] : [])),
+				);
+			}
+			const additionalContext = sandboxBlockedContext(blocked.map(({ denial }) => denial));
 			if (!additionalContext) return {};
 			return {
 				hookSpecificOutput:

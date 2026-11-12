@@ -159,8 +159,12 @@ describe('browser requests from the agent', () => {
 				calls.push(`open ${workstreamId} ${tabId} ${url}`);
 				return { url: 'http://localhost:5173/', title: 'Pricing' };
 			},
-			screenshot: async ({ workstreamId }, worktree) => {
-				calls.push(`screenshot ${workstreamId} ${worktree}`);
+			readPage: async ({ workstreamId }) => {
+				calls.push(`snapshot ${workstreamId}`);
+				return 'Page "Pricing" at http://localhost:5173/\nbutton "Buy" @e1';
+			},
+			screenshot: async ({ workstreamId }, worktree, part) => {
+				calls.push(`screenshot ${workstreamId} ${worktree} ${JSON.stringify(part)}`);
 				return {
 					path: '.malini/sandbox/screenshots/2026-10-11-104512.png',
 					previewPath: join(worktree, '.malini/sandbox/screenshots/2026-10-11-104512.jpg'),
@@ -175,6 +179,39 @@ describe('browser requests from the agent', () => {
 				calls.push(`type ${workstreamId} ${selector} ${text} ${submit}`);
 				return { url: 'http://localhost:5173/search?q=pro', title: 'Search' };
 			},
+			hover: async ({ workstreamId }, selector) => {
+				calls.push(`hover ${workstreamId} ${selector}`);
+				return { url: 'http://localhost:5173/', title: 'Pricing' };
+			},
+			press: async ({ workstreamId }, key) => {
+				calls.push(`press ${workstreamId} ${key}`);
+				return { url: 'http://localhost:5173/', title: 'Pricing' };
+			},
+			scroll: async ({ workstreamId }, by) => {
+				calls.push(`scroll ${workstreamId} ${JSON.stringify(by)}`);
+				return by.selector === undefined
+					? { x: 0, y: 600, height: 2400 }
+					: { x: 0, y: 120, height: 900, container: 'div.list' };
+			},
+			wait: async ({ workstreamId }, until) => {
+				calls.push(`wait ${workstreamId} ${JSON.stringify(until)}`);
+				return { url: 'http://localhost:5173/', title: 'Pricing' };
+			},
+			evaluate: async ({ workstreamId }, script) => {
+				calls.push(`evaluate ${workstreamId} ${script}`);
+				return '"Pricing"';
+			},
+			consoleLines: async ({ workstreamId }) => {
+				calls.push(`console ${workstreamId}`);
+				return {
+					url: 'http://localhost:5173/',
+					lines: [
+						{ level: 'error', text: 'Uncaught TypeError: x is null', source: 'app.js:12' },
+						{ level: 'info', text: 'ready', source: '' },
+					],
+					dropped: 3,
+				};
+			},
 			goBack: async ({ workstreamId }) => {
 				calls.push(`back ${workstreamId}`);
 				return { url: 'http://localhost:5173/', title: 'Pricing' };
@@ -187,9 +224,9 @@ describe('browser requests from the agent', () => {
 				calls.push(`reload ${workstreamId}`);
 				return { url: 'http://localhost:5173/', title: 'http://localhost:5173/' };
 			},
-			resize: async ({ workstreamId }, width) => {
-				calls.push(`resize ${workstreamId} ${width}`);
-				return Math.min(Math.max(width, 400), 900);
+			resize: async ({ workstreamId }, width, height) => {
+				calls.push(`resize ${workstreamId} ${width} ${height}`);
+				return { width: Math.min(Math.max(width, 400), 900), height: height ?? 800 };
 			},
 			close: async ({ workstreamId, tabId }) => {
 				calls.push(`close ${workstreamId} ${tabId}`);
@@ -224,27 +261,47 @@ describe('browser requests from the agent', () => {
 		bridge.send(browserRequest('req-11', { action: 'resize', width: 320 }));
 		bridge.send(browserRequest('req-12', { action: 'close' }));
 		bridge.send(browserRequest('req-13', { action: 'close' }));
+		bridge.send(browserRequest('req-14', { action: 'snapshot' }));
+		bridge.send(browserRequest('req-15', { action: 'hover', selector: '@e1' }));
+		bridge.send(browserRequest('req-16', { action: 'press', key: 'Escape' }));
+		bridge.send(browserRequest('req-17', { action: 'scroll', y: 600 }));
+		bridge.send(browserRequest('req-18', { action: 'scroll', y: 120, selector: '.list' }));
+		bridge.send(browserRequest('req-19', { action: 'wait', seconds: 5, text: 'Saved' }));
+		bridge.send(browserRequest('req-20', { action: 'wait', seconds: 1 }));
+		bridge.send(browserRequest('req-21', { action: 'evaluate', script: 'document.title' }));
+		bridge.send(browserRequest('req-22', { action: 'console' }));
+		bridge.send(browserRequest('req-23', { action: 'resize', width: 640, height: 844 }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'browser_result');
-		await waitFor(() => results().length === 13, 5_000, 'thirteen browser results');
+		await waitFor(() => results().length === 23, 5_000, 'twenty-three browser results');
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
 		const worktree = realpathSync(checkout);
 		expect(calls).toEqual([
 			'open ws-1 chat-sess-1 localhost:5173',
-			`screenshot ws-1 ${worktree}`,
+			`screenshot ws-1 ${worktree} {"fullPage":false}`,
 			'click ws-1 #buy',
 			'type ws-1 #q pro true',
 			'back ws-1',
 			'forward ws-1',
 			'reload ws-1',
-			'resize ws-1 640',
-			'resize ws-1 1280',
-			'resize ws-1 320',
+			'resize ws-1 640 undefined',
+			'resize ws-1 1280 undefined',
+			'resize ws-1 320 undefined',
 			'close ws-1 chat-sess-1',
 			'close ws-1 chat-sess-1',
+			'snapshot ws-1',
+			'hover ws-1 @e1',
+			'press ws-1 Escape',
+			'scroll ws-1 {"x":0,"y":600}',
+			'scroll ws-1 {"x":0,"y":120,"selector":".list"}',
+			'wait ws-1 {"seconds":5,"gone":false,"text":"Saved"}',
+			'wait ws-1 {"seconds":1,"gone":false}',
+			'evaluate ws-1 document.title',
+			'console ws-1',
+			'resize ws-1 640 844',
 		]);
 		expect(answerTo('req-1')).toEqual({
 			cmd: 'browser_result',
@@ -305,6 +362,47 @@ describe('browser requests from the agent', () => {
 			ok: true,
 			text: 'You had no browser tab open, so nothing closed.',
 		});
+		expect(answerTo('req-14')).toMatchObject({
+			ok: true,
+			text: 'Page "Pricing" at http://localhost:5173/\nbutton "Buy" @e1',
+		});
+		expect(answerTo('req-15')).toMatchObject({
+			ok: true,
+			text: 'The mouse is over `@e1`. The page is now http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-16')).toMatchObject({
+			ok: true,
+			text: 'Pressed Escape. The page is now http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-17')).toMatchObject({
+			ok: true,
+			text: 'The page is scrolled to x 0, y 600 of 2400px.',
+		});
+		expect(answerTo('req-18')).toMatchObject({
+			ok: true,
+			text: 'div.list is scrolled to x 0, y 120 of 900px.',
+		});
+		expect(answerTo('req-19')).toMatchObject({
+			ok: true,
+			text: '"Saved" shows. The page is http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-20')).toMatchObject({
+			ok: true,
+			text: 'Waited 1s. The page is http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-21')).toMatchObject({ ok: true, text: '"Pricing"' });
+		expect(answerTo('req-22')).toMatchObject({
+			ok: true,
+			text: [
+				'2 console messages of http://localhost:5173/ since it loaded, after 3 older ones Malini no longer keeps:',
+				'[error] Uncaught TypeError: x is null (app.js:12)',
+				'[info] ready',
+			].join('\n'),
+		});
+		expect(answerTo('req-23')).toMatchObject({
+			ok: true,
+			text: 'The page is now 640px wide and 844px tall.',
+		});
 	});
 
 	it('answers with an error when malini has no browser to drive', async () => {
@@ -339,9 +437,16 @@ describe('browser requests from the agent', () => {
 		};
 		const browser: BrowserAutomation = {
 			open: unused,
+			readPage: unused,
 			screenshot: unused,
 			click: unused,
+			hover: unused,
 			type: unused,
+			press: unused,
+			scroll: unused,
+			wait: unused,
+			evaluate: unused,
+			consoleLines: unused,
 			goBack: unused,
 			goForward: unused,
 			reload: unused,

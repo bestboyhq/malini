@@ -152,6 +152,7 @@ const KEYCHAIN_SERVICE = 'com.apple.SecurityServer';
 const CHROMIUM_RENDEZVOUS = '\\.MachPortRendezvousServer\\.[0-9]+$';
 const REGISTERED_SERVICES = ['com.apple.axserver', 'com.apple.coredrag', 'com.apple.tsm.portname'];
 const DNS_SOCKET = '/private/var/run/mDNSResponder';
+const LOG_SOCKET = '/private/var/run/syslog';
 const LAUNCHD_SOCKETS = '^/private/tmp/com\\.apple\\.launchd\\.';
 const UNSANDBOXED_TOOLS = ['/bin/ps', '/usr/bin/top', '/usr/bin/log'];
 const DENIAL =
@@ -228,7 +229,7 @@ export function sandboxProfile(
 	const pnpmLinkProbes = regex(`^${escapeRegex(canonicalPath(join(home, PNPM_LINK_PROBES)))}`);
 	const sockets = [
 		...[root, ...TEMP_FOLDERS, ...grantedPaths].map((path) => subpath(canonicalPath(path))),
-		...[DNS_SOCKET, ...grantedSockets].map(literal),
+		...[DNS_SOCKET, LOG_SOCKET, ...grantedSockets].map(literal),
 	];
 	const secret = [...CREDENTIALS.map((entry) => join(home, entry)), ...hidden];
 	const userData = USER_DATA.map((entry) => join(home, entry));
@@ -276,12 +277,13 @@ export function sandboxGrant(
 	home: string = homedir(),
 ): SandboxGrant | null {
 	if (!isAbsolute(target)) return null;
+	const closed = closedPlaces(places, home);
 	const grant: SandboxGrant | null = operation.startsWith('file-write')
-		? { kind: 'path', path: grantFolder(target, home) }
+		? { kind: 'path', path: grantFolder(target, closed) }
 		: operation === 'network-outbound'
 			? { kind: 'socket', path: target }
 			: null;
-	return grant && grantProblem(grant, places, home) === null ? grant : null;
+	return grant && refusal(grant, closed) === null ? grant : null;
 }
 
 export function toolStateGrant(
@@ -383,17 +385,20 @@ function refusal({ kind, path }: SandboxGrant, closed: ClosedPlaces): string | n
 	if (within(closed.malini) || closed.malini.some((root) => isWithin(path, root))) {
 		return "holds Malini's own data";
 	}
-	if (within(closed.secret)) return 'holds credentials';
-	if (within(closed.userData)) return 'holds your files';
+	const holds = (roots: readonly string[]) => roots.some((root) => isWithin(path, root));
+	if (within(closed.secret) || holds(closed.secret)) return 'holds credentials';
+	if (within(closed.userData) || holds(closed.userData)) return 'holds your files';
 	if (within(closed.runOutsideLater)) return 'runs outside the sandbox later';
 	return null;
 }
 
-function grantFolder(target: string, home: string): string {
-	const shared = canonicalPath(home);
+function grantFolder(target: string, closed: ClosedPlaces): string {
+	const guarded = [...closed.secret, ...closed.userData];
+	const stops = (folder: string) =>
+		isSharedFolder(folder, closed.home) || guarded.some((root) => isWithin(folder, root));
 	let child = target;
 	let parent = dirname(target);
-	while (parent !== child && !isSharedFolder(parent, shared)) {
+	while (parent !== child && !stops(parent)) {
 		child = parent;
 		parent = dirname(parent);
 	}

@@ -1517,6 +1517,18 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	const browserRequest = /BROWSER_REQUEST:([\w-]+)/.exec(prompt);
+	if (browserRequest) {
+		pendingRuns.set(runId, sessionId);
+		write({
+			type: 'bridge.browser_request',
+			protocolVersion: version,
+			requestId: 'browser-request-' + runId,
+			sessionId,
+			...JSON.parse(Buffer.from(browserRequest[1], 'base64url').toString()),
+		});
+		return;
+	}
 	if (prompt.includes('BROWSER_CLOSE')) {
 		pendingRuns.set(runId, sessionId);
 		write({
@@ -2081,11 +2093,12 @@ const handle = (command) => {
 		}
 		case 'browser_result': {
 			ack(command.id);
-			const runId = /^browser-(?:resize|close)-(.+)$/.exec(command.requestId)?.[1];
+			const [, kind, runId] = /^browser-(resize|close|request)-(.+)$/.exec(command.requestId) ?? [];
 			if (!runId || !pendingRuns.has(runId)) return;
 			pendingRuns.delete(runId);
 			const result = command.ok ? command.text : command.error;
-			return completeRun(command.sessionId, runId, 'browser:' + result, [], [], '\n\n' + result);
+			const shown = kind === 'request' ? '\n\n```\n' + result + '\n```' : '\n\n' + result;
+			return completeRun(command.sessionId, runId, 'browser:' + result, [], [], shown);
 		}
 		case 'set_secrets': {
 			recordSecrets({ cmd: 'set_secrets', sessionId: command.sessionId, secrets: command.secrets });

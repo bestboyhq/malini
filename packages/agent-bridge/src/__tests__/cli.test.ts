@@ -1420,7 +1420,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		const results: BrowserResult[] = [];
 		defaultProviderRegistry.setProvider(async (ctx) => ({
 			async sendPrompt() {
-				results.push(await ctx.requestBrowser({ action: 'screenshot' }));
+				results.push(await ctx.requestBrowser({ action: 'screenshot', fullPage: false }));
 			},
 			async cancel() {},
 			async close() {},

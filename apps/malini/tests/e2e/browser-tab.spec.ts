@@ -1,4 +1,4 @@
-import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -116,6 +116,18 @@ async function openTab(page: Page, origin: string, path: string): Promise<void> 
 	const address = page.getByRole('textbox', { name: 'Page address' }).last();
 	await address.fill(`${origin}${path}`);
 	await address.press('Enter');
+}
+
+async function agentBrowser(
+	page: Page,
+	request: { readonly action: string } & Record<string, unknown>,
+	answer: string | RegExp,
+): Promise<void> {
+	const encoded = Buffer.from(JSON.stringify(request)).toString('base64url');
+	const answers = page.getByText(answer);
+	const before = await answers.count();
+	await sendPrompt(page, `Browser ${request.action} BROWSER_REQUEST:${encoded}`);
+	await expect(answers).toHaveCount(before + 1, { timeout: 20_000 });
 }
 
 async function untilBrowserEventsArrive(page: Page, workstreamId: string): Promise<void> {
@@ -719,7 +731,7 @@ test('an inspector the agent opened stays open after the agent closes its page o
 	}
 });
 
-test('the agent resizes the browser tab you see by moving the divider, stops where the chat or the inspector keeps its width, and leaves a tab you do not see alone', async () => {
+test('the agent resizes the browser tab you see by moving the divider, stops where the chat or the inspector keeps its width, and sizes a tab you do not see without moving it', async () => {
 	test.setTimeout(120_000);
 	const server = createServer((_request, response) => {
 		response.writeHead(200, { 'content-type': 'text/html' });
@@ -771,11 +783,117 @@ test('the agent resizes the browser tab you see by moving the divider, stops whe
 		const resized = await split.getAttribute('aria-valuenow');
 
 		await inspector.getByRole('tab', { name: 'Files' }).click();
-		await sendPrompt(page, 'Back to the widest BROWSER_RESIZE:5000');
-		await expect(
-			page.getByText(/The browser tab is not on screen, so its width did not change/u),
-		).toBeVisible({ timeout: 20_000 });
+		await agentBrowser(
+			page,
+			{ action: 'resize', width: 390, height: 844 },
+			'The page is now 390px wide and 844px tall.',
+		);
+		await expect(inspector.getByRole('tab', { name: 'Width 390', selected: false })).toBeVisible();
 		await expect(split).toHaveAttribute('aria-valuenow', resized ?? '');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('the agent reads, clicks, types, hovers, presses, waits, scrolls, runs JavaScript, reads the console and captures a page you do not see, and your tab stays put', async () => {
+	test.setTimeout(180_000);
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(`<!doctype html><title>Sign-up</title>
+<style>body{margin:0;font:16px sans-serif}#tip{visibility:hidden}#hint:hover~#tip{visibility:visible}#rest{height:3000px}</style>
+<h1>Join the list</h1>
+<label>Email <input id="email"></label>
+<button id="join">Join</button>
+<p id="result"></p>
+<p><span id="hint">Why join</span> <span id="tip">Monthly notes</span></p>
+<p id="pressed"></p>
+<div id="rest"></div>
+<script>
+console.log('form ready');
+document.getElementById('join').addEventListener('click', () => setTimeout(() => {
+	document.getElementById('result').textContent = 'Joined as ' + document.getElementById('email').value;
+}, 300));
+addEventListener('keydown', (event) => { document.getElementById('pressed').textContent = 'Pressed ' + event.key; });
+</script>`);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-tools-ws',
+			'Browser tools',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await sendPrompt(page, `Open the form BROWSER_OPEN:${origin}/form`);
+		await expectAssistantReply(page);
+		await expect(inspector.getByRole('tab', { name: 'Sign-up', selected: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		const files = inspector.getByRole('tab', { name: 'Files' });
+		await files.click();
+
+		await agentBrowser(page, { action: 'snapshot' }, 'textbox "Email" @e2');
+		await agentBrowser(
+			page,
+			{ action: 'type', selector: '@e2', text: 'ada@example.com', submit: false },
+			'Typed into `@e2`',
+		);
+		await agentBrowser(page, { action: 'click', selector: '@e3' }, 'Clicked `@e3`');
+		await agentBrowser(
+			page,
+			{ action: 'wait', seconds: 5, gone: false, text: 'Joined as ada@example.com' },
+			'"Joined as ada@example.com" shows.',
+		);
+		await agentBrowser(page, { action: 'hover', selector: '#hint' }, 'The mouse is over `#hint`');
+		await agentBrowser(
+			page,
+			{ action: 'evaluate', script: `getComputedStyle(document.getElementById('tip')).visibility` },
+			/^\s*visible\s*$/u,
+		);
+		await agentBrowser(page, { action: 'press', key: 'Shift+K' }, 'Pressed Shift+K.');
+		await agentBrowser(
+			page,
+			{ action: 'evaluate', script: `document.getElementById('pressed').textContent` },
+			/^\s*Pressed K\s*$/u,
+		);
+		await agentBrowser(
+			page,
+			{ action: 'scroll', x: 0, y: 5_000 },
+			/The page is scrolled to x 0, y [1-9]\d* of \d+px\./u,
+		);
+		await agentBrowser(page, { action: 'console' }, '[info] form ready');
+		await agentBrowser(
+			page,
+			{ action: 'screenshot', fullPage: true },
+			new RegExp(`^Screenshot of ${origin}/form saved to `, 'u'),
+		);
+		await agentBrowser(
+			page,
+			{ action: 'resize', width: 390, height: 844 },
+			'The page is now 390px wide and 844px tall.',
+		);
+		await agentBrowser(page, { action: 'screenshot', fullPage: false }, /saved to /u);
+		const saved = /saved to (\S+\.png)\./u.exec(
+			(await page
+				.getByText(/saved to /u)
+				.last()
+				.textContent()) ?? '',
+		)?.[1];
+		const png = readFileSync(join(seeded.worktree, saved ?? 'missing.png'));
+		const scale = await electronApp.evaluate(
+			({ screen }) => screen.getPrimaryDisplay().scaleFactor,
+		);
+		expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([390 * scale, 844 * scale]);
+		await expect(files).toHaveAttribute('aria-selected', 'true');
+		await expect(inspector.getByRole('tab', { name: 'Sign-up', selected: false })).toBeVisible();
+		await captureFlow(app, 'browser-tools-hidden-tab');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

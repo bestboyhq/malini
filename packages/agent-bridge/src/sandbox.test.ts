@@ -205,6 +205,14 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		expect(await inside('/usr/bin/log show --last 1s --style compact')).toBe(0);
 	});
 
+	it('lets a command write to the system log through its socket', async () => {
+		expect(
+			await inside(
+				`/usr/bin/python3 -c "import socket; s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM); s.connect('/private/var/run/syslog'); s.send(b'<13>malini sandbox test')"`,
+			),
+		).toBe(0);
+	});
+
 	it('keeps a command off the internet when the internet is off', async () => {
 		expect(await inside('/usr/bin/nc -z -G 2 1.1.1.1 443')).not.toBe(0);
 	});
@@ -249,6 +257,10 @@ describe('sandbox grants', () => {
 		],
 		[`${home}/.config/wrangler/logs/today.log`, `${home}/.config/wrangler`],
 		['/opt/homebrew/var/postgresql/pid', '/opt/homebrew/var'],
+		[
+			`${home}/Library/Application Support/Google/Chrome for Testing/Crashpad/settings.dat`,
+			`${home}/Library/Application Support/Google/Chrome for Testing`,
+		],
 	])('offers the folder a tool keeps for %s', (target, path) => {
 		expect(sandboxGrant(denial('file-write-create', target), places, home)).toEqual({
 			kind: 'path',
@@ -269,6 +281,13 @@ describe('sandbox grants', () => {
 		['a key agent', denial('network-outbound', `${home}/.ssh/agent.sock`)],
 		['a hidden place', denial('file-write-create', `${home}/.private/notes`)],
 		['credentials', denial('file-write-create', `${home}/.aws/credentials`)],
+		[
+			"Chrome's profile",
+			denial(
+				'file-write-create',
+				`${home}/Library/Application Support/Google/Chrome/Crashpad/settings.dat`,
+			),
+		],
 		['a shell startup file', denial('file-write-create', `${home}/.zshrc`)],
 		['a folder every app shares', denial('file-write-create', `${home}/notes.txt`)],
 		[
@@ -328,6 +347,16 @@ describe('sandbox grants', () => {
 			),
 		).toBe('holds your files');
 		expect(grantProblem({ kind: 'path', path: `${home}/Documents` }, places, home)).not.toBeNull();
+	});
+
+	it('refuses a grant of a folder that holds credentials', () => {
+		expect(
+			grantProblem(
+				{ kind: 'path', path: `${home}/Library/Application Support/Google` },
+				places,
+				home,
+			),
+		).toBe('holds credentials');
 	});
 
 	it("refuses a grant into Malini's own data", () => {

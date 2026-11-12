@@ -1,3 +1,5 @@
+import type { BrowserConsoleLine } from '../browser.platform';
+
 export const MALINI_WORLD_ID = 1_729;
 
 export interface Rectangle {
@@ -33,7 +35,13 @@ export interface PageContents {
 		goForward(): void;
 	};
 	capturePage(rect?: Rectangle, options?: { stayHidden?: boolean }): Promise<PageImage>;
-	executeJavaScript(code: string): Promise<unknown>;
+	setBackgroundThrottling(allowed: boolean): void;
+	readonly debugger: {
+		isAttached(): boolean;
+		attach(protocolVersion?: string): void;
+		sendCommand(method: string, params?: object): Promise<unknown>;
+	};
+	executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
 	executeJavaScriptInIsolatedWorld(
 		worldId: number,
 		scripts: Array<{ code: string }>,
@@ -49,6 +57,7 @@ export interface PageEvents {
 	movedInPage(): void;
 	committed(): void;
 	failed(reason: string): void;
+	console(line: BrowserConsoleLine): void;
 	gone(): void;
 }
 

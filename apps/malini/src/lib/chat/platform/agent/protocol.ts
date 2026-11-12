@@ -471,13 +471,20 @@ export type BridgePlatformRequest = {
 
 export type BrowserRequestAction =
 	| { action: 'open'; url: string }
-	| { action: 'screenshot' }
+	| { action: 'snapshot' }
+	| { action: 'screenshot'; fullPage: boolean; selector?: string }
 	| { action: 'click'; selector: string }
+	| { action: 'hover'; selector: string }
 	| { action: 'type'; selector: string; text: string; submit: boolean }
+	| { action: 'press'; key: string }
+	| { action: 'scroll'; x: number; y: number; selector?: string }
+	| { action: 'wait'; seconds: number; gone: boolean; text?: string; selector?: string }
+	| { action: 'evaluate'; script: string }
+	| { action: 'console' }
 	| { action: 'back' }
 	| { action: 'forward' }
 	| { action: 'reload' }
-	| { action: 'resize'; width: number }
+	| { action: 'resize'; width: number; height?: number }
 	| { action: 'close' };
 
 export type BridgeBrowserRequest = {
@@ -1153,20 +1160,66 @@ function decodeBrowserRequest(
 	switch (action) {
 		case 'open':
 			return { ok: true, value: { ...base, action, url: f.string('url') } };
-		case 'screenshot':
+		case 'snapshot':
+		case 'console':
 		case 'back':
 		case 'forward':
 		case 'reload':
 		case 'close':
 			return { ok: true, value: { ...base, action } };
+		case 'screenshot':
+			return {
+				ok: true,
+				value: {
+					...base,
+					action,
+					fullPage: f.optionalBoolean('fullPage') ?? false,
+					...optional('selector', f.optionalString('selector')),
+				},
+			};
 		case 'click':
+		case 'hover':
 			return { ok: true, value: { ...base, action, selector: f.string('selector') } };
+		case 'press':
+			return { ok: true, value: { ...base, action, key: f.string('key') } };
+		case 'evaluate':
+			return { ok: true, value: { ...base, action, script: f.string('script') } };
+		case 'scroll':
+			return {
+				ok: true,
+				value: {
+					...base,
+					action,
+					x: f.optionalNumber('x') ?? 0,
+					y: f.optionalNumber('y') ?? 0,
+					...optional('selector', f.optionalString('selector')),
+				},
+			};
+		case 'wait': {
+			const seconds = f.number('seconds');
+			if (seconds <= 0) return { ok: false, error: `${type}: \`seconds\` must be above zero` };
+			return {
+				ok: true,
+				value: {
+					...base,
+					action,
+					seconds,
+					gone: f.optionalBoolean('gone') ?? false,
+					...optional('text', f.optionalString('text')),
+					...optional('selector', f.optionalString('selector')),
+				},
+			};
+		}
 		case 'resize': {
 			const width = f.number('width');
-			if (!Number.isInteger(width) || width <= 0) {
-				return { ok: false, error: `${type}: \`width\` must be a whole number above zero` };
+			const height = f.optionalNumber('height');
+			if (!isPositiveWhole(width) || (height !== undefined && !isPositiveWhole(height))) {
+				return {
+					ok: false,
+					error: `${type}: \`width\` and \`height\` must be whole numbers above zero`,
+				};
 			}
-			return { ok: true, value: { ...base, action, width } };
+			return { ok: true, value: { ...base, action, width, ...optional('height', height) } };
 		}
 		case 'type':
 			return {
@@ -1182,6 +1235,10 @@ function decodeBrowserRequest(
 		default:
 			return { ok: false, error: `${type}: unknown action \`${action}\`` };
 	}
+}
+
+function isPositiveWhole(value: number): boolean {
+	return Number.isInteger(value) && value > 0;
 }
 
 export function eventRunId(event: BridgeEvent): string | null {

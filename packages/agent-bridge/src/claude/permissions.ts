@@ -175,6 +175,9 @@ const RUNS_IN_THE_SANDBOX = "Sandboxed access runs every command in Malini's san
 const FULL_RUNS_OUTSIDE = 'Full access runs commands outside the sandbox without asking.';
 const CHAT_RUNS_OUTSIDE = 'The user allowed commands outside the sandbox for this chat.';
 const MAX_REPORTED_BLOCKS = 10;
+const CHROMIUM = /chrom(?:e|ium)/iu;
+const CHROME_INSIDE =
+	"Chrome cannot start its own sandbox inside Malini's, and opening folders does not change that. Look at pages with Malini's browser tools, such as `browser_open` and `browser_snapshot`, and pass `--no-sandbox` to a Chrome a project's tests launch.";
 
 export const SANDBOX_BLOCKED = 'Everything else stays in the sandbox.';
 
@@ -249,6 +252,7 @@ export function sandboxBlockedContext(denials: readonly SandboxDenial[]): string
 			.slice(0, MAX_REPORTED_BLOCKS)
 			.map(({ process, operation, target }) => `- ${process}: ${operation} ${target}`.trimEnd()),
 		...(more > 0 ? [`- and ${more} more`] : []),
+		...(denials.some(({ process }) => CHROMIUM.test(process)) ? [CHROME_INSIDE] : []),
 		'When the command failed because of it, run it again with `dangerouslyDisableSandbox: true`: Malini asks the user to allow what it blocked inside the sandbox.',
 	].join('\n');
 }

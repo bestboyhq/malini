@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { app, type BrowserWindow } from 'electron';
+import { app, nativeImage, type BrowserWindow } from 'electron';
 import {
 	BROWSER_RESIZE_REQUESTED_CHANNEL,
 	BROWSER_STATE_CHANGED_CHANNEL,
@@ -43,6 +43,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		getMainWindow: deps.getMainWindow,
 		onScreen: (window) => !app.isHidden() && !window.isMinimized(),
 		createView: createElectronView,
+		imageFromPng: (png) => nativeImage.createFromBuffer(png),
 		watchRendererReset,
 		workstreamExists: (workstreamId) => getWorkstream(db, workstreamId) !== null,
 		worktree,

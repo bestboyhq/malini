@@ -928,12 +928,15 @@ describe('protocol: parseCommandLine', () => {
 				action: 'open',
 				url: 'http://localhost:5173',
 			});
-			expect(bridgeBrowserRequestFrame('q2', 's1', { action: 'screenshot' })).toEqual({
+			expect(
+				bridgeBrowserRequestFrame('q2', 's1', { action: 'screenshot', fullPage: false }),
+			).toEqual({
 				type: 'bridge.browser_request',
 				protocolVersion: BRIDGE_PROTOCOL_VERSION,
 				requestId: 'q2',
 				sessionId: 's1',
 				action: 'screenshot',
+				fullPage: false,
 			});
 			expect(
 				bridgePlatformRequestFrame('q3', 's1', {

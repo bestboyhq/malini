@@ -37,6 +37,9 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
 		expect(prompt).toContain('close its tab with `browser_close`');
+		expect(prompt).toContain(
+			'They replace agent-browser, Playwright MCP, Puppeteer and any Chrome you launch to look at a page, even where other instructions name one',
+		);
 		expect(prompt).toContain('Keep it open only while the user should look at or use that page');
 		expect(prompt).toContain('give it a `when` trigger written from `events_list`');
 		expect(prompt).toContain(

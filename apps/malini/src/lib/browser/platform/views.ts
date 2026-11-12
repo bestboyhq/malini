@@ -9,22 +9,37 @@ import type {
 	BrowserThreadStarted,
 } from '$contract/browser';
 import type {
+	BrowserConsole,
+	BrowserConsoleLine,
 	BrowserPageInfo,
 	BrowserPlatform,
 	BrowserScreenshotFile,
+	BrowserScreenshotPart,
+	BrowserScrollPosition,
+	BrowserSize,
 	BrowserTabProcess,
+	BrowserWait,
 } from '../browser.platform';
 import {
 	captureFrame,
-	clickSelector,
+	captureRegion,
+	captureVisible,
+	clickTarget,
+	evaluateScript,
+	hoverTarget,
 	openUrl,
 	pageLoaded,
+	pressKey,
+	readPage,
 	saveScreenshot,
+	scrollPage,
 	settleAfterAction,
-	typeIntoSelector,
+	typeInto,
+	untilSized,
+	waitFor,
 	within,
 } from './automation';
-import type { HostWindow, PageContents, PageEvents, PageView, Rectangle } from './page';
+import type { HostWindow, PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
 import { pickElement, pickerPage, untilAborted } from './picker';
 import {
 	pinsOnPage,
@@ -40,12 +55,15 @@ export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
 export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_open first.';
 export const RESIZE_ANSWER_MS = 5_000;
+export const MAX_CONSOLE_LINES = 200;
+export const MAX_CONSOLE_TEXT = 1_000;
 const PICK_WITHOUT_PAGE = 'Open a page before picking an element.';
 
 export interface BrowserViewsDeps<W extends HostWindow> {
 	getMainWindow(): W | null;
 	onScreen(window: W): boolean;
 	createView(events: PageEvents): PageView<W>;
+	imageFromPng(png: Buffer): PageImage;
 	watchRendererReset(window: W, reset: () => void): void;
 	workstreamExists(workstreamId: string): boolean;
 	worktree(workstreamId: string): string;
@@ -80,6 +98,8 @@ interface Entry<W extends HostWindow> {
 	pending: string | null;
 	pick: OpenPick | null;
 	pinActions: AbortController | null;
+	consoleLines: BrowserConsoleLine[];
+	consoleDropped: number;
 }
 
 export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
@@ -239,6 +259,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			const address = this.address(tab, url);
 			const fresh = this.openContents(tab) === null;
 			const { contents } = this.ensure(tab).view;
+			contents.setBackgroundThrottling(false);
 			const opening = openUrl(contents, address);
 			if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
 			await opening;
@@ -246,19 +267,40 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		});
 	}
 
-	screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile> {
+	readPage(tab: BrowserTabArgs): Promise<string> {
+		return this.inTurn(tab, async () => readPage(this.loaded(tab).contents));
+	}
+
+	screenshot(
+		tab: BrowserTabArgs,
+		worktree: string,
+		part: BrowserScreenshotPart,
+	): Promise<BrowserScreenshotFile> {
 		return this.inTurn(tab, async () => {
 			const { contents, entry } = this.loaded(tab);
-			return this.rendered(entry, () => saveScreenshot(contents, worktree, new Date()));
+			return this.rendered(entry, async () => {
+				const now = new Date();
+				if (part.selector === undefined && !part.fullPage) {
+					return saveScreenshot(await captureVisible(contents), contents.getURL(), worktree, now);
+				}
+				const { png, pageHeight } = await captureRegion(contents, part);
+				const image = this.deps.imageFromPng(png);
+				const file = await saveScreenshot(image, contents.getURL(), worktree, now);
+				return pageHeight === undefined ? file : { ...file, pageHeight };
+			});
 		});
 	}
 
 	click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
-			const { contents } = this.loaded(tab);
-			await clickSelector(contents, selector);
-			return pageInfo(contents);
-		});
+		return this.act(tab, (contents) => clickTarget(contents, selector));
+	}
+
+	hover(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo> {
+		return this.act(tab, (contents) => hoverTarget(contents, selector));
+	}
+
+	press(tab: BrowserTabArgs, key: string): Promise<BrowserPageInfo> {
+		return this.act(tab, (contents) => pressKey(contents, key));
 	}
 
 	type(
@@ -269,18 +311,67 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	): Promise<BrowserPageInfo> {
 		return this.inTurn(tab, async () => {
 			const { contents } = this.loaded(tab);
-			await typeIntoSelector(contents, selector, text, submit);
+			await typeInto(contents, selector, text, submit);
 			return pageInfo(contents);
 		});
 	}
 
-	resize(tab: BrowserTabArgs, width: number): Promise<number> {
+	scroll(
+		tab: BrowserTabArgs,
+		by: { readonly x: number; readonly y: number; readonly selector?: string },
+	): Promise<BrowserScrollPosition> {
 		return this.inTurn(tab, async () => {
-			const { entry } = this.loaded(tab);
+			const { contents, entry } = this.loaded(tab);
+			return this.rendered(entry, () => scrollPage(contents, by));
+		});
+	}
+
+	wait(tab: BrowserTabArgs, until: BrowserWait): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const { contents } = this.loaded(tab);
+			await waitFor(contents, until);
+			return pageInfo(contents);
+		});
+	}
+
+	evaluate(tab: BrowserTabArgs, script: string): Promise<string> {
+		return this.inTurn(tab, async () => evaluateScript(this.loaded(tab).contents, script));
+	}
+
+	consoleLines(tab: BrowserTabArgs): Promise<BrowserConsole> {
+		return this.inTurn(tab, async () => {
+			const contents = this.page(tab);
+			const entry = this.entries.get(tabKey(tab));
+			return {
+				url: contents.getURL(),
+				lines: [...(entry?.consoleLines ?? [])],
+				dropped: entry?.consoleDropped ?? 0,
+			};
+		});
+	}
+
+	resize(tab: BrowserTabArgs, width: number, height?: number): Promise<BrowserSize> {
+		return this.inTurn(tab, async () => {
+			const { contents, entry } = this.loaded(tab);
 			const window = entry.window;
-			if (!window || window.isDestroyed() || !entry.shown || !this.deps.onScreen(window)) {
+			if (!entry.shown || !window || window.isDestroyed()) {
+				const asked = { width, height: height ?? entry.bounds.height };
+				entry.bounds = { ...entry.bounds, ...asked };
+				entry.view.setBounds(entry.bounds);
+				entry.view.setVisible(true);
+				try {
+					const size = await untilSized(contents, asked);
+					if (size.width === asked.width && size.height === asked.height) return size;
+					throw new Error(
+						`The page stayed ${size.width} by ${size.height}px instead of ${asked.width} by ${asked.height}px. Call browser_resize again.`,
+					);
+				} finally {
+					if (!entry.shown) entry.view.setVisible(false);
+				}
+			}
+			if (!this.deps.onScreen(window)) {
 				throw new Error(
-					`The browser tab is not on screen, so its width did not change: the page is ${entry.bounds.width}px wide. Malini resizes it only while the user sees the tab.`,
+					`Malini's window is minimized or hidden while the user has the browser tab open, so its size did not change: the page is ${entry.bounds.width}px wide.`,
 				);
 			}
 			this.resizeCount += 1;
@@ -299,7 +390,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			} finally {
 				this.resizes.delete(requestId);
 			}
-			return entry.bounds.width;
+			return { width: entry.bounds.width, height: entry.bounds.height };
 		});
 	}
 
@@ -332,6 +423,17 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			{ provider: args.provider, model: args.model, models: args.models },
 			(picked) => this.deps.startThread(entry.tab, picked, args.profile),
 		);
+	}
+
+	private act(
+		tab: BrowserTabArgs,
+		action: (contents: PageContents) => Promise<void>,
+	): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const { contents, entry } = this.loaded(tab);
+			await this.rendered(entry, () => action(contents));
+			return pageInfo(contents);
+		});
 	}
 
 	private inTurn<T>(tab: BrowserTabArgs, work: () => Promise<T>): Promise<T> {
@@ -430,6 +532,18 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 				committed: () => {
 					entry.failure = null;
 					entry.pending = null;
+					entry.consoleLines = [];
+					entry.consoleDropped = 0;
+				},
+				console: (line) => {
+					const text =
+						line.text.length > MAX_CONSOLE_TEXT
+							? `${line.text.slice(0, MAX_CONSOLE_TEXT)}…`
+							: line.text;
+					entry.consoleLines.push({ ...line, text });
+					if (entry.consoleLines.length <= MAX_CONSOLE_LINES) return;
+					entry.consoleLines.shift();
+					entry.consoleDropped += 1;
 				},
 				failed: (reason) => {
 					entry.failure = reason;
@@ -451,6 +565,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			pending: null,
 			pick: null,
 			pinActions: null,
+			consoleLines: [],
+			consoleDropped: 0,
 		};
 		entry.view.setBounds(entry.bounds);
 		entry.view.setBorderRadius(CORNER_RADIUS);

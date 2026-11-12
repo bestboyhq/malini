@@ -376,7 +376,44 @@ describe('browser requests', () => {
 		});
 		expect(decodeControlFrame({ ...frame, action: 'screenshot', url: 'ignored' })).toEqual({
 			ok: true,
-			value: { ...frame, action: 'screenshot' },
+			value: { ...frame, action: 'screenshot', fullPage: false },
+		});
+		expect(
+			decodeControlFrame({ ...frame, action: 'screenshot', fullPage: true, selector: '@e2' }),
+		).toEqual({
+			ok: true,
+			value: { ...frame, action: 'screenshot', fullPage: true, selector: '@e2' },
+		});
+		for (const action of ['snapshot', 'console']) {
+			expect(decodeControlFrame({ ...frame, action })).toEqual({
+				ok: true,
+				value: { ...frame, action },
+			});
+		}
+		for (const target of [
+			{ action: 'hover', selector: '@e3' },
+			{ action: 'press', key: 'Meta+K' },
+		]) {
+			expect(decodeControlFrame({ ...frame, ...target })).toEqual({
+				ok: true,
+				value: { ...frame, ...target },
+			});
+		}
+		expect(decodeControlFrame({ ...frame, action: 'scroll', y: 600 })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'scroll', x: 0, y: 600 },
+		});
+		expect(decodeControlFrame({ ...frame, action: 'scroll', selector: '#footer' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'scroll', x: 0, y: 0, selector: '#footer' },
+		});
+		expect(decodeControlFrame({ ...frame, action: 'wait', seconds: 5, text: 'Saved' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'wait', seconds: 5, gone: false, text: 'Saved' },
+		});
+		expect(decodeControlFrame({ ...frame, action: 'evaluate', script: 'document.title' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'evaluate', script: 'document.title' },
 		});
 		expect(decodeControlFrame({ ...frame, action: 'click', selector: '#buy' })).toEqual({
 			ok: true,
@@ -397,13 +434,23 @@ describe('browser requests', () => {
 			ok: true,
 			value: { ...frame, action: 'resize', width: 1280 },
 		});
+		expect(decodeControlFrame({ ...frame, action: 'resize', width: 390, height: 844 })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'resize', width: 390, height: 844 },
+		});
 	});
 
 	it('refuses a request it cannot route or act on', () => {
-		expect(decodeControlFrame({ ...frame, action: 'scroll' })).toEqual({
+		expect(decodeControlFrame({ ...frame, action: 'drag' })).toEqual({
 			ok: false,
-			error: 'bridge.browser_request: unknown action `scroll`',
+			error: 'bridge.browser_request: unknown action `drag`',
 		});
+		expect(decodeControlFrame({ ...frame, action: 'wait', seconds: 0 })).toEqual({
+			ok: false,
+			error: 'bridge.browser_request: `seconds` must be above zero',
+		});
+		expect(decodeControlFrame({ ...frame, action: 'press' })).toMatchObject({ ok: false });
+		expect(decodeControlFrame({ ...frame, action: 'evaluate' })).toMatchObject({ ok: false });
 		expect(decodeControlFrame({ ...frame, action: 'open' })).toEqual({
 			ok: false,
 			error: 'bridge.browser_request: field `url` must be a string',
@@ -412,7 +459,7 @@ describe('browser requests', () => {
 		for (const width of [0, -320, 1280.5]) {
 			expect(decodeControlFrame({ ...frame, action: 'resize', width })).toEqual({
 				ok: false,
-				error: 'bridge.browser_request: `width` must be a whole number above zero',
+				error: 'bridge.browser_request: `width` and `height` must be whole numbers above zero',
 			});
 		}
 		expect(decodeControlFrame({ ...frame, action: 'resize' })).toMatchObject({ ok: false });
@@ -433,6 +480,7 @@ describe('browser requests', () => {
 			...frame,
 			type: 'bridge.browser_request',
 			action: 'screenshot',
+			fullPage: false,
 		};
 		expect(
 			browserResultCommand('cmd-9', request, {

@@ -81,9 +81,27 @@ describe('malini MCP server', () => {
 							required: ['url'],
 						},
 					},
-					{ name: 'browser_screenshot', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'browser_snapshot', inputSchema: { type: 'object', properties: {} } },
+					{
+						name: 'browser_screenshot',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								selector: { type: 'string' },
+								fullPage: { type: 'boolean', default: false },
+							},
+						},
+					},
 					{
 						name: 'browser_click',
+						inputSchema: {
+							type: 'object',
+							properties: { selector: { type: 'string' } },
+							required: ['selector'],
+						},
+					},
+					{
+						name: 'browser_hover',
 						inputSchema: {
 							type: 'object',
 							properties: { selector: { type: 'string' } },
@@ -102,6 +120,46 @@ describe('malini MCP server', () => {
 							required: ['selector', 'text'],
 						},
 					},
+					{
+						name: 'browser_press',
+						inputSchema: {
+							type: 'object',
+							properties: { key: { type: 'string' } },
+							required: ['key'],
+						},
+					},
+					{
+						name: 'browser_scroll',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								y: { type: 'integer', default: 0 },
+								x: { type: 'integer', default: 0 },
+								selector: { type: 'string' },
+							},
+						},
+					},
+					{
+						name: 'browser_wait',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								text: { type: 'string' },
+								selector: { type: 'string' },
+								gone: { type: 'boolean', default: false },
+								seconds: { type: 'number', default: 10, maximum: 30 },
+							},
+						},
+					},
+					{
+						name: 'browser_evaluate',
+						inputSchema: {
+							type: 'object',
+							properties: { script: { type: 'string' } },
+							required: ['script'],
+						},
+					},
+					{ name: 'browser_console', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'browser_back', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'browser_forward', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'browser_reload', inputSchema: { type: 'object', properties: {} } },
@@ -109,7 +167,7 @@ describe('malini MCP server', () => {
 						name: 'browser_resize',
 						inputSchema: {
 							type: 'object',
-							properties: { width: { type: 'integer' } },
+							properties: { width: { type: 'integer' }, height: { type: 'integer' } },
 							required: ['width'],
 						},
 					},
@@ -147,6 +205,7 @@ describe('malini MCP server', () => {
 		await call('tools/call', { name: 'browser_forward', arguments: {} });
 		await call('tools/call', { name: 'browser_reload', arguments: {} });
 		await call('tools/call', { name: 'browser_resize', arguments: { width: 1280 } });
+		await call('tools/call', { name: 'browser_resize', arguments: { width: 390, height: 844 } });
 		await call('tools/call', { name: 'browser_close', arguments: {} });
 
 		expect(requests).toEqual([
@@ -156,8 +215,49 @@ describe('malini MCP server', () => {
 			{ action: 'forward' },
 			{ action: 'reload' },
 			{ action: 'resize', width: 1280 },
+			{ action: 'resize', width: 390, height: 844 },
 			{ action: 'close' },
 		]);
+	});
+
+	it('reads, inspects and drives the page with the defaults filled in', async () => {
+		const { call, requests } = await connect(async () => ({ ok: true }));
+
+		await call('tools/call', { name: 'browser_snapshot', arguments: {} });
+		await call('tools/call', { name: 'browser_hover', arguments: { selector: '@e3' } });
+		await call('tools/call', { name: 'browser_press', arguments: { key: 'Shift+Tab' } });
+		await call('tools/call', { name: 'browser_scroll', arguments: { y: 600 } });
+		await call('tools/call', { name: 'browser_scroll', arguments: { selector: '#footer' } });
+		await call('tools/call', { name: 'browser_wait', arguments: { text: 'Saved' } });
+		await call('tools/call', {
+			name: 'browser_wait',
+			arguments: { selector: '.spinner', gone: true, seconds: 30 },
+		});
+		await call('tools/call', { name: 'browser_wait', arguments: { seconds: 0.5 } });
+		await call('tools/call', { name: 'browser_evaluate', arguments: { script: 'document.title' } });
+		await call('tools/call', { name: 'browser_console', arguments: {} });
+		await call('tools/call', { name: 'browser_screenshot', arguments: { fullPage: true } });
+		await call('tools/call', { name: 'browser_screenshot', arguments: { selector: '@e7' } });
+		const tooLong = await call('tools/call', {
+			name: 'browser_wait',
+			arguments: { text: 'Saved', seconds: 31 },
+		});
+
+		expect(requests).toEqual([
+			{ action: 'snapshot' },
+			{ action: 'hover', selector: '@e3' },
+			{ action: 'press', key: 'Shift+Tab' },
+			{ action: 'scroll', x: 0, y: 600 },
+			{ action: 'scroll', x: 0, y: 0, selector: '#footer' },
+			{ action: 'wait', seconds: 10, gone: false, text: 'Saved' },
+			{ action: 'wait', seconds: 30, gone: true, selector: '.spinner' },
+			{ action: 'wait', seconds: 0.5, gone: false },
+			{ action: 'evaluate', script: 'document.title' },
+			{ action: 'console' },
+			{ action: 'screenshot', fullPage: true },
+			{ action: 'screenshot', fullPage: false, selector: '@e7' },
+		]);
+		expect(tooLong).toMatchObject({ result: { isError: true } });
 	});
 
 	it('opens a page through malini and returns what the browser answered', async () => {
@@ -189,7 +289,7 @@ describe('malini MCP server', () => {
 
 		const captured = await call('tools/call', { name: 'browser_screenshot', arguments: {} });
 
-		expect(requests).toEqual([{ action: 'screenshot' }]);
+		expect(requests).toEqual([{ action: 'screenshot', fullPage: false }]);
 		expect(captured).toMatchObject({
 			result: {
 				content: [
