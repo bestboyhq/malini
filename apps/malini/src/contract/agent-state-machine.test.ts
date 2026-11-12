@@ -23,6 +23,8 @@ describe('agent state machine', () => {
 			'question.requested',
 			'approval.decided',
 			'question.answered',
+			'approval.withdrawn',
+			'question.withdrawn',
 			'turn.ended',
 			'turn.resumed',
 			'run.completed',
@@ -222,6 +224,25 @@ describe('one session machine', () => {
 		expect(
 			foldSessionStatus('idle', [...allowed, request('question.answered', 'question-1')]),
 		).toMatchObject({ status: 'running', currentRunId: 'run-1' });
+	});
+
+	it('goes back to running once Claude Code withdraws a request nobody answered', () => {
+		const asked = [
+			envelope('run.started'),
+			request('approval.requested', 'approval-fork'),
+			request('approval.requested', 'approval-1'),
+			request('question.requested', 'question-1'),
+		];
+		const withdrawn = [...asked, request('approval.withdrawn', 'approval-fork')];
+		const allowed = [...withdrawn, request('approval.decided', 'approval-1')];
+		expect(foldSessionStatus('idle', allowed).status).toBe('waiting_for_approval');
+		expect(
+			foldSessionStatus('idle', [...allowed, request('question.withdrawn', 'question-1')]),
+		).toMatchObject({ status: 'running', currentRunId: 'run-1', openRequests: new Set() });
+		expect(nextSessionStatus('waiting_for_approval', 'approval.withdrawn')).toBe('running');
+		expect(
+			nextSessionStatus('waiting_for_approval', 'question.withdrawn', { stillWaiting: true }),
+		).toBe('waiting_for_approval');
 	});
 
 	it('ends a run that Malini, the bridge or a reset cut as quietly as a stop', () => {

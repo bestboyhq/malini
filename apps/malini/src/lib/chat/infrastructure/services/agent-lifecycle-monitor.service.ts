@@ -1,5 +1,9 @@
 import type { AgentSessionOrigin } from '$contract/agent';
-import { isLifecycleKind } from '$contract/agent-state-machine';
+import {
+	isLifecycleKind,
+	isWaitingForUser,
+	type SessionStatus,
+} from '$contract/agent-state-machine';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { LiveEventEnvelope } from '$contract/agent';
@@ -18,6 +22,7 @@ const HANDLED_LIFECYCLE_EVENT_LIMIT = 2_048;
 type SessionOwner = {
 	workstreamId: string;
 	origin?: AgentSessionOrigin;
+	status?: SessionStatus;
 };
 
 type AgentLifecycleMonitorDependencies = {
@@ -143,6 +148,15 @@ export class AgentLifecycleMonitor {
 		if (envelope.event.type === 'run.started') {
 			this.#pendingAttentionBySession.delete(envelope.sessionId);
 			this.dependencies.clearAttention(envelope.sessionId);
+			return;
+		}
+		if (
+			envelope.event.type === 'approval.withdrawn' ||
+			envelope.event.type === 'question.withdrawn'
+		) {
+			if (!isWaitingForUser(this.dependencies.sessionFor(envelope.sessionId)?.status)) {
+				this.dependencies.clearAttentionForRun(envelope.sessionId, envelope.runId);
+			}
 			return;
 		}
 		if (!needsAttention(envelope.event)) return;

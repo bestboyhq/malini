@@ -515,6 +515,41 @@ describe('session status', () => {
 		db.close();
 	});
 
+	it('agrees with the event fold once Claude Code withdraws a request nobody answered', () => {
+		const db = seeded();
+		const runId = 'run-withdraws';
+		const correlator = started(db, runId);
+		for (const approvalId of ['approval-fork', 'approval-1']) {
+			pumpStep(correlator, db, {
+				type: 'approval.requested',
+				sessionId: SESSION,
+				runId,
+				approvalId,
+				reason: 'read outside',
+				toolName: 'read_file',
+			});
+		}
+		const withdraw = (approvalId: string) =>
+			pumpStep(correlator, db, { type: 'approval.withdrawn', runId, approvalId });
+
+		expect(withdraw('approval-fork')).not.toBeNull();
+		expect(statuses(db)).toEqual(agreeOn('waiting_for_approval'));
+
+		decide(db, runId, 'approval-1');
+		expect(statuses(db)).toEqual(agreeOn('running'));
+		expect(withdraw('approval-1')).toBeNull();
+		expect(withdraw('approval-fork')).toBeNull();
+		expect(statuses(db)).toEqual(agreeOn('running'));
+		expect(
+			scalar(
+				db,
+				"SELECT COUNT(*) FROM agent_interactions WHERE run_id = ? AND state = 'pending'",
+				runId,
+			),
+		).toBe(0);
+		db.close();
+	});
+
 	it('agrees with the event fold when a repair or a restore rewrites a closed run', () => {
 		const db = seeded();
 		const correlator = started(db, 'run-limited');

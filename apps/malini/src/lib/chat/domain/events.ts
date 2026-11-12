@@ -105,6 +105,8 @@ export type AgentEvent =
 			toolCallId?: string;
 	  }
 	| { type: 'question.answered'; runId: string; questionId: string }
+	| { type: 'approval.withdrawn'; runId: string; approvalId: string }
+	| { type: 'question.withdrawn'; runId: string; questionId: string }
 	| {
 			type: 'usage.updated';
 			runId: string;

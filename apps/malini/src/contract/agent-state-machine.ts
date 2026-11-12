@@ -28,6 +28,8 @@ export type LifecycleEventKind =
 	| 'question.requested'
 	| 'approval.decided'
 	| 'question.answered'
+	| 'approval.withdrawn'
+	| 'question.withdrawn'
 	| 'turn.ended'
 	| 'turn.resumed'
 	| 'run.completed'
@@ -40,6 +42,8 @@ export const LIFECYCLE_KINDS: readonly LifecycleEventKind[] = [
 	'question.requested',
 	'approval.decided',
 	'question.answered',
+	'approval.withdrawn',
+	'question.withdrawn',
 	'turn.ended',
 	'turn.resumed',
 	'run.completed',
@@ -91,6 +95,8 @@ export function nextSessionStatus(
 			return 'waiting_for_approval';
 		case 'approval.decided':
 		case 'question.answered':
+		case 'approval.withdrawn':
+		case 'question.withdrawn':
 			return isWaitingForUser(status) && guard.stillWaiting !== true ? 'running' : status;
 		case 'turn.ended':
 			return 'completed';
@@ -204,6 +210,8 @@ function applyLifecycle(fold: SessionStatusFold, { runId, event }: LifecycleEnve
 			break;
 		case 'approval.decided':
 		case 'question.answered':
+		case 'approval.withdrawn':
+		case 'question.withdrawn':
 			fold.openRequests.delete(requestKey(runId, event));
 			break;
 		case 'run.completed':

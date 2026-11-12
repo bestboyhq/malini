@@ -74,6 +74,29 @@ export function closeTerminalInteractions(
 	).changes;
 }
 
+export function closeWithdrawnInteraction(
+	db: MaliniDatabase,
+	kind: InteractionKind,
+	sessionId: string,
+	runId: string,
+	requestId: string,
+	closedAt: string,
+): boolean {
+	return (
+		run(
+			db,
+			`UPDATE agent_interactions SET state = 'closed', closed_at = ?
+			 WHERE kind = ? AND session_id = ? AND run_id = ? AND request_id = ?
+			   AND state IN ('pending', 'dispatching')`,
+			closedAt,
+			kind,
+			sessionId,
+			runId,
+			requestId,
+		).changes > 0
+	);
+}
+
 function validateInteractionIdentity(
 	kind: string,
 	sessionId: string,

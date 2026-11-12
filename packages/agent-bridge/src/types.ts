@@ -99,6 +99,8 @@ export type AgentEvent =
 			toolName?: string;
 			toolCallId?: string;
 	  }
+	| { type: 'approval.withdrawn'; runId: string; approvalId: string }
+	| { type: 'question.withdrawn'; runId: string; questionId: string }
 	| {
 			type: 'usage.updated';
 			runId: string;
