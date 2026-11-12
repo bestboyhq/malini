@@ -1275,6 +1275,30 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('APPROVAL_WITHDRAWN')) {
+		pendingRuns.set(runId, sessionId);
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-withdrawn-1',
+			reason: 'read outside',
+			toolName: 'read_file',
+		});
+		const release = nodePath.join(env.HOME, APPROVAL_RELEASE);
+		const withdrawing = setInterval(() => {
+			if (!fs.existsSync(release)) return;
+			clearInterval(withdrawing);
+			event({ type: 'approval.withdrawn', runId, approvalId: 'approval-withdrawn-1' });
+			const finishing = setInterval(() => {
+				if (fs.existsSync(release)) return;
+				clearInterval(finishing);
+				completeRun(sessionId, runId, 'withdrawn');
+				pendingRuns.delete(runId);
+			}, 50);
+		}, 50);
+		return;
+	}
 	if (prompt.includes('APPROVAL')) {
 		pendingRuns.set(runId, sessionId);
 		if (prompt.includes('APPROVAL_HOLD')) heldApprovals.add(runId);

@@ -16,10 +16,8 @@ describe('draftFromWords', () => {
 	});
 
 	it('moves opening a draft PR or queueing the merge into the automation that runs next', () => {
-		const draft = draftFromWords(
-			'When a pull request merges, update CHANGELOG.md and open a draft PR',
-		);
-		expect(draft.steps).toEqual(['Update CHANGELOG.md']);
+		const draft = draftFromWords('When a pull request merges, update the docs and open a draft PR');
+		expect(draft.steps).toEqual(['Update the docs']);
 		expect(draft.then).toBe('open-draft');
 		expect(draftFromWords('Fix the flaky test, then queue the merge')).toMatchObject({
 			steps: ['Fix the flaky test'],
@@ -32,6 +30,15 @@ describe('draftFromWords', () => {
 			'Run lint',
 			'Run the tests near the changed files',
 		]);
+	});
+});
+
+describe('recipe steps', () => {
+	it('drafts a recipe from its own steps', () => {
+		const changelog = RECIPES.find((recipe) => recipe.id === 'changelog');
+		const draft = draftFromWords(changelog?.sentence ?? '');
+		expect(draft).toMatchObject({ name: 'Update CHANGELOG.md', then: 'open-draft' });
+		expect(draft.steps).toEqual(changelog?.steps);
 	});
 });
 

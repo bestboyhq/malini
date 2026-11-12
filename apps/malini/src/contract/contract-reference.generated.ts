@@ -716,6 +716,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'type BestboyProfile = Readonly<{\n\thandle: string | null;\n\tpublic: boolean;\n\turl: string | null;\n}>;',
 		},
 		{
+			channel: 'stats:projects-changed',
+			description:
+				'Fires when your projects on Bestboy change in Malini: you turn one on or off, change its link, sign in or out, or an upload of them finishes or fails, with the state bestboy.dev last answered for each. Malini does not keep it in its event log.',
+			facts: ['signedIn', 'problem'],
+			payloadType: 'BestboyProjects',
+			payload:
+				"type BestboyProjectState = 'preview' | 'ready' | 'submitted' | 'live' | 'asked' | 'removed';\n\ntype BestboyProject = Readonly<{\n\trepositoryId: string;\n\tfullName: string;\n\tprivate: boolean;\n\truns: number;\n\tdays: number;\n\tlink: string;\n\ton: boolean;\n\tstate: BestboyProjectState | null;\n\turl: string | null;\n\tproblem: string | null;\n}>;\n\ntype BestboyProjects = Readonly<{\n\tsignedIn: boolean;\n\tprojects: readonly BestboyProject[];\n\tproblem: string | null;\n}>;",
+		},
+		{
 			channel: 'secrets:requested',
 			description:
 				'Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.',

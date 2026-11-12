@@ -1,4 +1,4 @@
-# 0232 - Malini's browser is the agent's only browser
+# 0234 - Malini's browser is the agent's only browser
 
 Status: accepted
 
@@ -12,7 +12,7 @@ The user asked for a browser that meets the highest bar and for this problem nev
 
 ## Decision
 
-- The bridge offers `browser_snapshot`, `browser_hover`, `browser_press`, `browser_scroll`, `browser_wait`, `browser_evaluate` and `browser_console` beside the earlier tools, and `browser_screenshot` takes `fullPage` or a `selector` (`packages/agent-bridge/src/claude/browser-tools.ts`); protocol 57.
+- The bridge offers `browser_snapshot`, `browser_hover`, `browser_press`, `browser_scroll`, `browser_wait`, `browser_evaluate` and `browser_console` beside the earlier tools, and `browser_screenshot` takes `fullPage` or a `selector` (`packages/agent-bridge/src/claude/browser-tools.ts`); protocol 58.
 - `src/lib/browser/platform/automation.ts` drives the page over the DevTools protocol through `webContents.debugger`, with focus emulation on, so every tool works while the tab is out of sight.
 - `browser_snapshot` reads the page as text with refs such as `@e3`, which every tool that takes a selector also takes (`page-programs.ts`).
 - Clicks and hovers are real mouse events at the element's center, after it holds still for two polls and a hit test finds it on top, waiting up to `ACTION_WAIT_MS`, 5 seconds; a select, date or file field is refused with how to set it.

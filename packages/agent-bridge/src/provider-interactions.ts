@@ -71,6 +71,11 @@ export class ProviderInteractionBroker implements ProviderInteractionRequester {
 		};
 		pending.dispose = listenForAbort(request.signal, () => {
 			this.#settleApproval(pending, this.#denied(request, 'request-aborted'));
+			this.#emit({
+				type: 'approval.withdrawn',
+				runId: request.runId,
+				approvalId: request.approvalId,
+			});
 		});
 		this.#pending.set(pending.id, pending);
 		this.#emit({
@@ -111,6 +116,11 @@ export class ProviderInteractionBroker implements ProviderInteractionRequester {
 		};
 		pending.dispose = listenForAbort(request.signal, () => {
 			this.#settleQuestion(pending, { behavior: 'cancelled', reason: 'request-aborted' });
+			this.#emit({
+				type: 'question.withdrawn',
+				runId: request.runId,
+				questionId: request.questionId,
+			});
 		});
 		this.#pending.set(pending.id, pending);
 		this.#emit({

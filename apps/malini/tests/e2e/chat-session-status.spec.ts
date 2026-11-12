@@ -105,6 +105,48 @@ test('a chat you stopped does not show as failed from another workstream', async
 	}
 });
 
+test('a request Claude Code withdraws stops the chat waiting for you', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-withdrawn-ws',
+			'Withdrawn workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		const status = sidebarStatus(page, workstreamId);
+		const runStatus = page.getByTestId('run-status-slot');
+		const release = join(app.home, 'release-approval');
+
+		await sendPrompt(page, 'APPROVAL_WITHDRAWN');
+		await expect(page.getByRole('group', { name: 'Permission decision' })).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(status).toHaveAccessibleName('Workstream status: Approval');
+		await expect(runStatus).toContainText('Waiting for you');
+
+		writeFileSync(release, '');
+		await expect(page.getByText('No longer active')).toBeVisible({ timeout: 20_000 });
+		await expect(status).toHaveAccessibleName('Workstream status: Running');
+		await expect(runStatus).not.toContainText('Waiting for you');
+		await reloadChat(page);
+		await expect(status).toHaveAccessibleName('Workstream status: Running');
+		await expect(page.getByText('No longer active')).toBeVisible();
+		await expect(runStatus).not.toContainText('Waiting for you');
+
+		rmSync(release);
+		await expect(status).toHaveAccessibleName('Workstream status: Ready', { timeout: 20_000 });
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('allowing a call the run already left behind says it is no longer active', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

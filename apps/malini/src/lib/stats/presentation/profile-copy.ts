@@ -1,4 +1,4 @@
-import type { ProfileState } from '$contract/stats';
+import type { BestboyProjectState, ProfileState } from '$contract/stats';
 
 const PUBLISH_HOUR_UTC = 3;
 
@@ -48,3 +48,12 @@ export function uploadLine(state: ProfileState): string | null {
 function sentence(text: string): string {
 	return /[.!?]$/u.test(text.trim()) ? text.trim() : `${text.trim()}.`;
 }
+
+export const PROJECT_STATE_LABELS: Readonly<Record<BestboyProjectState, string>> = {
+	preview: 'Preview',
+	ready: 'Ready to submit',
+	submitted: 'In review',
+	live: 'Live',
+	asked: 'Asked to join',
+	removed: 'Taken down',
+};

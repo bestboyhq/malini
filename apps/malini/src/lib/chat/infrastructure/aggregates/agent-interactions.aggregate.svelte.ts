@@ -123,6 +123,7 @@ export class AgentInteractionCommands {
 		const questionToolCalls = new Map<string, string>();
 		const decisions = new Map<string, ApprovalDecided>();
 		const answered = new Set<string>();
+		const withdrawn = new Set<string>();
 
 		for (const envelope of envelopes) {
 			if (sessionId !== undefined && envelope.sessionId !== sessionId) continue;
@@ -151,6 +152,17 @@ export class AgentInteractionCommands {
 					requestId: event.approvalId,
 				} satisfies AgentInteractionReference;
 				decisions.set(agentInteractionKey(reference), event);
+				continue;
+			}
+			if (event.type === 'approval.withdrawn' || event.type === 'question.withdrawn') {
+				withdrawn.add(
+					agentInteractionKey({
+						kind: event.type === 'approval.withdrawn' ? 'approval' : 'question',
+						sessionId: envelope.sessionId,
+						runId: envelope.runId,
+						requestId: event.type === 'approval.withdrawn' ? event.approvalId : event.questionId,
+					}),
+				);
 				continue;
 			}
 			if (event.type === 'tool.completed' && event.toolCallId) {
@@ -234,6 +246,9 @@ export class AgentInteractionCommands {
 				if (current?.status !== 'resolved') nextStates[key] = decidedState(decided, request);
 			} else if (answered.has(key) || (toolCall && answeredToolCalls.has(toolCall))) {
 				if (current?.status !== 'resolved') nextStates[key] = ANSWERED_STATE;
+			} else if (withdrawn.has(key)) {
+				if (current?.status !== 'resolved')
+					nextStates[key] = { status: 'stale', message: STALE_MESSAGE };
 			} else if (terminalRuns.has(runKey(request.sessionId, request.runId))) {
 				if (current?.status !== 'resolved' && current?.status !== 'submitting') {
 					nextStates[key] = { status: 'stale', message: STALE_MESSAGE };

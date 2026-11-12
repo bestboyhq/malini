@@ -18,11 +18,15 @@ import { publishedStats, statsCutoff, type StatsRepository } from '../domain/pub
 
 export type RepositoryVisibility = (fullName: string) => Promise<boolean>;
 
+export type RepositoryFacts = Readonly<{ public: boolean; homepage: string | null }>;
+
+export type RepositoryLookup = (fullName: string) => Promise<RepositoryFacts | null>;
+
 export type GitHubIdentity = Readonly<{ login: string; name: string | null }>;
 
 type GhRun = typeof runGh;
 
-const VISIBILITY_FRESH_MS = 60 * 60_000;
+const LOOKUP_FRESH_MS = 60 * 60_000;
 
 export const NOT_PUBLIC: RepositoryVisibility = () => Promise.resolve(false);
 
@@ -88,21 +92,32 @@ export async function readPublicRepositories(
 		.sort((left, right) => right.runs - left.runs || left.fullName.localeCompare(right.fullName));
 }
 
-export function createRepositoryVisibility(run: GhRun = runGh): RepositoryVisibility {
-	const known = new Map<string, Readonly<{ public: boolean; checkedAt: number }>>();
+export function createRepositoryLookup(run: GhRun = runGh): RepositoryLookup {
+	const known = new Map<string, Readonly<{ facts: RepositoryFacts; checkedAt: number }>>();
 	return async (fullName) => {
 		const key = fullName.toLowerCase();
 		const cached = known.get(key);
-		if (cached && Date.now() - cached.checkedAt < VISIBILITY_FRESH_MS) return cached.public;
+		if (cached && Date.now() - cached.checkedAt < LOOKUP_FRESH_MS) return cached.facts;
 		try {
-			const result = await run(['api', `repos/${fullName}`, '--jq', '.visibility']);
-			const isPublic = result.code === 0 && result.stdout.trim() === 'public';
-			if (result.code === 0) known.set(key, { public: isPublic, checkedAt: Date.now() });
-			return isPublic;
+			const result = await run([
+				'api',
+				`repos/${fullName}`,
+				'--jq',
+				'[.visibility, (.homepage // "")] | @tsv',
+			]);
+			if (result.code !== 0) return null;
+			const [visibility = '', homepage = ''] = result.stdout.replace(/\r?\n$/u, '').split('\t');
+			const facts = { public: visibility === 'public', homepage: homepage.trim() || null };
+			known.set(key, { facts, checkedAt: Date.now() });
+			return facts;
 		} catch {
-			return false;
+			return null;
 		}
 	};
+}
+
+export function visibilityOf(lookup: RepositoryLookup): RepositoryVisibility {
+	return async (fullName) => (await lookup(fullName))?.public === true;
 }
 
 export function createGitHubIdentity(run: GhRun = runGh): () => Promise<GitHubIdentity | null> {

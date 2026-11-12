@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { Well } from '$hyper-ui/components/well';
 	import { PublishExtensionsSettings } from '$lib/extensions/extensions.api';
-	import { MomentSettings, PublishStatsSettings } from '$lib/stats/stats.api';
+	import {
+		BestboyProjectsSettings,
+		MomentSettings,
+		PublishStatsSettings,
+	} from '$lib/stats/stats.api';
 	import SettingsSection from './SettingsSection.svelte';
 </script>
 
@@ -12,6 +16,7 @@
 	<Well title="Profile" headed={false}>
 		<PublishStatsSettings />
 	</Well>
+	<BestboyProjectsSettings />
 	<Well title="Milestone cards" headed={false}>
 		<MomentSettings />
 	</Well>

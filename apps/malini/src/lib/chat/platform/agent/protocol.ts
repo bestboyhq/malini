@@ -331,6 +331,8 @@ export type BridgeEvent =
 			toolName?: string;
 			toolCallId?: string;
 	  }
+	| { type: 'approval.withdrawn'; runId: string; approvalId: string }
+	| { type: 'question.withdrawn'; runId: string; questionId: string }
 	| {
 			type: 'usage.updated';
 			runId: string;
@@ -802,6 +804,10 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('toolName', f.optionalString('toolName')),
 					...optional('toolCallId', f.optionalString('toolCallId')),
 				});
+			case 'approval.withdrawn':
+				return ok({ type: kind, runId: f.string('runId'), approvalId: f.string('approvalId') });
+			case 'question.withdrawn':
+				return ok({ type: kind, runId: f.string('runId'), questionId: f.string('questionId') });
 			case 'usage.updated':
 				return ok({
 					type: kind,

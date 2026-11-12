@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 58,
+	"protocolVersion": 59,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -53,6 +53,8 @@
 		"file.changed",
 		"approval.requested",
 		"question.requested",
+		"approval.withdrawn",
+		"question.withdrawn",
 		"usage.updated",
 		"mcp.status",
 		"background.updated",

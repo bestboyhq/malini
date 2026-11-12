@@ -1,5 +1,13 @@
-import type { BestboyAccount, BestboyProfile, BestboyTerms, PublishedStats } from '$contract/stats';
+import type {
+	ActivityDay,
+	BestboyAccount,
+	BestboyProfile,
+	BestboyProjectState,
+	BestboyTerms,
+	PublishedStats,
+} from '$contract/stats';
 import { isRecord } from '$main/db/rows';
+import { PROJECT_STATES } from '../domain/projects';
 
 export const BESTBOY_ORIGIN = 'https://bestboy.dev';
 
@@ -18,6 +26,14 @@ export type BestboyMe = Readonly<{
 export type ProfileChange = Readonly<{ handle?: string; public?: boolean; terms?: string }>;
 
 export type BestboySession = Readonly<{ token: string; handle: string | null }>;
+
+export type ProjectUpload = Readonly<{
+	link: string;
+	days: readonly ActivityDay[];
+	changelog?: string;
+}>;
+
+export type ProjectAnswer = Readonly<{ state: BestboyProjectState | null; url: string | null }>;
 
 export type BestboyAccess = Readonly<{
 	origin: string;
@@ -120,6 +136,22 @@ export class Bestboy {
 
 	async deleteStats(token: string): Promise<void> {
 		await this.#call(token, 'DELETE', '/api/stats/malini');
+	}
+
+	async putProjects(token: string, projects: readonly ProjectUpload[]): Promise<ProjectAnswer[]> {
+		const reply = await this.#call(token, 'PUT', '/api/projects', { version: 1, projects });
+		const answers = isRecord(reply) ? reply['projects'] : null;
+		if (!Array.isArray(answers)) {
+			throw new BestboyError(`${this.host} sent no projects back.`, 200);
+		}
+		return answers.map((answer: unknown) => {
+			const state = isRecord(answer) ? answer['state'] : null;
+			const url = isRecord(answer) ? answer['url'] : null;
+			return {
+				state: PROJECT_STATES.find((known) => known === state) ?? null,
+				url: typeof url === 'string' && url.startsWith(`${this.origin}/`) ? url : null,
+			};
+		});
 	}
 
 	async logout(token: string): Promise<void> {

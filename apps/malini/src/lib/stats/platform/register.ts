@@ -3,6 +3,7 @@ import type {
 	ActivityStats,
 	PublishedStats,
 	RecentMoments,
+	SetProjectArgs,
 	StatsMoment,
 	ShareCard,
 	StopRunningArgs,
@@ -10,6 +11,7 @@ import type {
 import {
 	STATS_PROFILE_CHANGED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
+	STATS_PROJECTS_CHANGED_CHANNEL,
 	STATS_RESOURCES_SAMPLED_CHANNEL,
 } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -39,12 +41,14 @@ import { recentMoments } from '../domain/moments';
 import { Bestboy, bestboyOrigin, type BestboyAccess, type BestboyFetch } from './bestboy';
 import { FrameJournal, type FrameJournalEntry } from './frame-journal';
 import { ProfileStore, type TokenCipher } from './profile-store';
+import { BestboyProjects, readProjectSources } from './projects';
 import {
 	createGitHubIdentity,
-	createRepositoryVisibility,
+	createRepositoryLookup,
 	NOT_PUBLIC,
 	readPublicRepositories,
 	readPublishedStats,
+	visibilityOf,
 } from './published-stats';
 import { ResourceSampler, type BrowserTab } from './resource-sampler';
 import { StatsProfile, type UsageAccount } from './stats-profile';
@@ -131,17 +135,29 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	const liveFolders = (): WorkstreamFolder[] =>
 		listWorkstreams(db).map(({ id, path }) => ({ id, path }));
 
-	const visibility = createRepositoryVisibility();
+	const lookup = createRepositoryLookup();
+	const visibility = visibilityOf(lookup);
 	const github = createGitHubIdentity();
 	const fetcher: BestboyFetch = deps.fetch ?? ((url, init) => net.fetch(url, init));
 	const bestboy = new Bestboy(bestboyOrigin(!context.isDev, process.env), fetcher);
+	const projects = new BestboyProjects({
+		bestboy,
+		appDataRoot: context.appDataRoot,
+		session: () => profile.session(),
+		signedOut: () => profile.forgetSignIn(),
+		sources: () => readProjectSources(db, new Date(), lookup),
+		changed: (state) => events.emit(STATS_PROJECTS_CHANGED_CHANNEL, state),
+	});
 	const profile = new StatsProfile({
 		bestboy,
 		store: new ProfileStore(context.appDataRoot, deps.cipher),
 		openExternal: (url) => deps.openExternal(url),
 		readStats: (picked) => readPublishedStats(db, new Date(), picked, visibility),
 		githubLogin: async () => (await github())?.login ?? null,
-		changed: (state) => events.emit(STATS_PROFILE_CHANGED_CHANNEL, state),
+		changed: (state) => {
+			events.emit(STATS_PROFILE_CHANGED_CHANNEL, state);
+			projects.keepUp();
+		},
 		published: (published) => events.emit(STATS_PROFILE_PUBLISHED_CHANNEL, published),
 	});
 	commands.define('stats.profile', () => profile.profile());
@@ -162,6 +178,8 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	commands.define('stats.public-repositories', () =>
 		readPublicRepositories(db, new Date(), visibility),
 	);
+	commands.define('stats.projects', () => projects.projects());
+	commands.define('stats.set-project', (args: unknown) => projects.set(setProjectArgs(args)));
 	const cardStats = (): Promise<PublishedStats | null> =>
 		readPublishedStats(db, new Date(), [], NOT_PUBLIC);
 	const shareCard = async (stats: Promise<PublishedStats | null>): Promise<ShareCard> => {
@@ -220,6 +238,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		},
 		start: () => {
 			profile.start();
+			projects.start();
 			sampler.start();
 			running.start();
 			app.on('browser-window-focus', watchStalls);
@@ -232,6 +251,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		},
 		stop: () => {
 			profile.stop();
+			projects.stop();
 			sampler.stop();
 			running.stop();
 			app.off('browser-window-focus', watchStalls);
@@ -252,6 +272,16 @@ function requiredText(args: unknown, key: string): string {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
 	return value;
+}
+
+function setProjectArgs(args: unknown): SetProjectArgs {
+	const repositoryId = isRecord(args) ? args['repositoryId'] : undefined;
+	const on = isRecord(args) ? args['on'] : undefined;
+	if (typeof repositoryId !== 'string' || repositoryId === '') {
+		throw new Error('invalid args: `repositoryId` must be a non-empty string');
+	}
+	if (typeof on !== 'boolean') throw new Error('invalid args: `on` must be a boolean');
+	return { repositoryId, on, link: requiredText(args, 'link') };
 }
 
 function stopRunningArgs(args: unknown): StopRunningArgs {
