@@ -17,6 +17,16 @@ class ProjectsAggregate {
 		this.#generation += 1;
 		this.projects = projects;
 	}
+
+	turn(repositoryId: string, on: boolean): void {
+		if (!this.projects) return;
+		this.replace({
+			...this.projects,
+			projects: this.projects.projects.map((project) =>
+				project.repositoryId === repositoryId ? { ...project, on } : project,
+			),
+		});
+	}
 }
 
 export const projectsAggregate = new ProjectsAggregate();

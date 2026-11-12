@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
 
 	interface Props {
@@ -25,7 +26,19 @@
 
 	const CROSS = ['M3 3 L7 7', 'M7 3 L3 7'] as const;
 	const CHECK = ['M2.2 5.3 L4.2 7.2', 'M7.8 2.9 L4.2 7.2'] as const;
+	const DIM_AFTER_MS = 300;
+
 	const strokes = $derived(checked ? CHECK : CROSS);
+	let dimmed = $state(untrack(() => disabled));
+
+	$effect(() => {
+		if (!disabled) {
+			dimmed = false;
+			return;
+		}
+		const timer = setTimeout(() => (dimmed = true), DIM_AFTER_MS);
+		return () => clearTimeout(timer);
+	});
 </script>
 
 <button
@@ -37,9 +50,9 @@
 	aria-labelledby={labelledBy}
 	bind:this={element}
 	{disabled}
+	data-dimmed={dimmed || undefined}
 	class={[
-		'switch focus-visible:ring-border-default/50 bg-button-secondary-border relative inline-flex h-6 w-10 shrink-0 rounded-full inset-shadow-[0_1px_2px_rgb(0_0_0/0.35)] focus-visible:ring-2 disabled:opacity-40',
-		disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+		'switch focus-visible:ring-border-default/50 bg-button-secondary-border relative inline-flex h-6 w-10 shrink-0 rounded-full inset-shadow-[0_1px_2px_rgb(0_0_0/0.35)] focus-visible:ring-2',
 		className,
 	]}
 	onclick={() => onchange(!checked)}
@@ -54,15 +67,44 @@
 
 <style>
 	.switch {
-		--switch-ease: cubic-bezier(0.32, 0.72, 0, 1);
+		--switch-motion: 380ms cubic-bezier(0.32, 0.72, 0, 1);
 		isolation: isolate;
+		cursor: pointer;
+		transition: opacity 150ms ease;
 	}
 
-	.switch::before {
+	.switch[data-dimmed] {
+		cursor: not-allowed;
+		opacity: 0.4;
+	}
+
+	@property --switch-travel {
+		syntax: '<number>';
+		inherits: false;
+		initial-value: 0;
+	}
+
+	@property --switch-press {
+		syntax: '<number>';
+		inherits: false;
+		initial-value: 0;
+	}
+
+	.switch::before,
+	.switch::after {
 		content: '';
 		position: absolute;
 		inset: 0;
 		border-radius: inherit;
+		opacity: 0;
+	}
+
+	.switch::before {
+		background: var(--color-fg-default);
+		transition: opacity 150ms ease;
+	}
+
+	.switch::after {
 		background: linear-gradient(
 			180deg,
 			color-mix(in oklab, var(--color-brand), white 18%),
@@ -70,23 +112,35 @@
 		);
 		box-shadow:
 			inset 0 1px 0 rgb(255 255 255 / 0.18),
-			0 0 0 0.5px color-mix(in oklab, var(--color-brand) 60%, transparent),
-			0 0 14px color-mix(in oklab, var(--color-brand) 45%, transparent);
-		opacity: 0;
-		transition: opacity 240ms ease;
+			0 0 0 0.5px color-mix(in oklab, var(--color-brand) 60%, transparent);
+		transition:
+			opacity var(--switch-motion),
+			filter 150ms ease;
 	}
 
-	.switch[aria-checked='true']::before {
+	.switch[aria-checked='true']::after {
 		opacity: 1;
 	}
 
+	@media (hover: hover) and (pointer: fine) {
+		.switch:not([data-dimmed]):hover::before {
+			opacity: 0.1;
+		}
+
+		.switch:not([data-dimmed]):hover::after {
+			filter: brightness(1.08);
+		}
+	}
+
 	.thumb {
+		--switch-stretch: calc(6px * min(1, var(--switch-press) + sin(var(--switch-travel) * 180deg)));
 		position: absolute;
 		top: 2px;
 		left: 2px;
+		z-index: 1;
 		display: grid;
 		place-items: center;
-		width: 20px;
+		width: calc(20px + var(--switch-stretch));
 		height: 20px;
 		border-radius: 9999px;
 		background: var(--color-grey-50);
@@ -94,21 +148,18 @@
 			0 0 0 0.5px rgb(0 0 0 / 0.12),
 			0 1px 1px rgb(0 0 0 / 0.18),
 			0 2px 6px rgb(0 0 0 / 0.28);
+		transform: translateX(calc(var(--switch-travel) * (16px - var(--switch-stretch))));
 		transition:
-			transform 380ms var(--switch-ease),
-			width 240ms var(--switch-ease);
+			--switch-travel var(--switch-motion),
+			--switch-press var(--switch-motion);
 	}
 
 	.switch[aria-checked='true'] .thumb {
-		transform: translateX(16px);
+		--switch-travel: 1;
 	}
 
 	.switch:not(:disabled):active .thumb {
-		width: 26px;
-	}
-
-	.switch[aria-checked='true']:not(:disabled):active .thumb {
-		transform: translateX(10px);
+		--switch-press: 1;
 	}
 
 	svg {
@@ -123,26 +174,12 @@
 		stroke-width: 1.9;
 		stroke-linecap: round;
 		transition:
-			d 320ms cubic-bezier(0.45, 0, 0.25, 1),
-			stroke 320ms ease;
+			d var(--switch-motion),
+			stroke var(--switch-motion);
 	}
 
 	.switch[aria-checked='true'] path {
 		stroke: var(--color-brand);
-	}
-
-	@media (hover: hover) and (pointer: fine) {
-		.switch:not(:disabled):hover {
-			background-color: color-mix(
-				in oklab,
-				var(--color-button-secondary-border),
-				var(--color-fg-default) 10%
-			);
-		}
-
-		.switch:not(:disabled):hover::before {
-			filter: brightness(1.08);
-		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
