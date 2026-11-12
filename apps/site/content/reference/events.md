@@ -604,9 +604,9 @@ type PullRequestChangedEvent = Readonly<{
 
 ## `pull-requests:button-clicked`
 
-Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there. Draft all and Merge all on a chat that started workstreams fire it too, with `draft-all` or `merge-all`, the `workstreamIds` to ship and the `chatSessionId` to report to, and the Shipping rule runs Open draft or Merge in each.
+Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there.
 
-An automation sees: `workstreamId`, `button`, `workstreamIds`, `chatSessionId`
+An automation sees: `workstreamId`, `button`
 
 Payload: `ShipButtonClickedEvent`
 
@@ -669,22 +669,11 @@ type ShipStateRecord = Readonly<{
 	updatedAt: string;
 }>;
 
-type ShipAllButton = 'draft-all' | 'merge-all';
-
-type ShipAllClicked = Readonly<{
+type ShipButtonClickedEvent = Readonly<{
 	workstreamId: string;
-	button: ShipAllButton;
-	workstreamIds: readonly string[];
-	chatSessionId: string | null;
+	button: ShipButton;
+	state: ShipStateRecord | null;
 }>;
-
-type ShipButtonClickedEvent =
-	| Readonly<{
-			workstreamId: string;
-			button: ShipButton;
-			state: ShipStateRecord | null;
-	  }>
-	| ShipAllClicked;
 ```
 
 ## `pull-requests:workstream-opened`

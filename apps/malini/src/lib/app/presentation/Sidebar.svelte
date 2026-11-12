@@ -29,11 +29,7 @@
 	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
-	import { attentionTreeQuery } from '$lib/app/application/queries/attention-tree.query.svelte';
-	import { startedProgressQuery } from '$lib/app/application/queries/started-progress.query.svelte';
-	import { progressLabel, type ProgressDot } from '$lib/app/domain/started-progress';
 	import { ALL_FOCUS, focusStillExists, type SidebarFocus } from '$lib/app/domain/sidebar-focus';
-	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import { SECTION_ICONS } from './sidebar-arrangement-icons';
 	import {
 		branchWorkstreamIds,
@@ -96,8 +92,6 @@
 	import SidebarFrame from './SidebarFrame.svelte';
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
-	import StartedWorkstreams from './StartedWorkstreams.svelte';
-	import { startedShipAction } from './started-ship-action';
 	import { REPOSITORIES_HREF, repositoryHref, workstreamHref } from '$shared/router/routes-hrefs';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { RepositorySidebarSkeleton } from '$shared/repositories/repositories.api';
@@ -778,7 +772,6 @@
 		needsYou: boolean;
 		hasDraft: boolean;
 		state: Readonly<{ label: string; tone: ChatTone }> | null;
-		attentionFromStarted: boolean;
 	}>;
 
 	const CHAT_TONE_ICON: Readonly<Record<ChatTone, string>> = {
@@ -868,8 +861,7 @@
 		return { phase: 'unknown', label: null };
 	}
 
-	function attentionLabel(attention: ChatAttention, fromStarted: boolean): string {
-		if (fromStarted) return 'A workstream it started is waiting for approval';
+	function attentionLabel(attention: ChatAttention): string {
 		if (attention.kind === 'failed') return 'Agent run needs attention';
 		if (attention.kind === 'approval') return 'Agent is waiting for approval';
 		return 'Agent needs your input';
@@ -884,9 +876,7 @@
 			state.label,
 			pullRequest.label,
 			chat.hasDraft ? 'Unsent draft' : null,
-			chat.needsYou && chat.attention
-				? attentionLabel(chat.attention, chat.attentionFromStarted)
-				: null,
+			chat.needsYou && chat.attention ? attentionLabel(chat.attention) : null,
 		]
 			.filter(Boolean)
 			.join(' · ');
@@ -951,7 +941,6 @@
 	}
 
 	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9'] as const;
-	const MAX_PROGRESS_DOTS = 8;
 
 	function moveShortcuts(...more: readonly string[]): string {
 		return [...(dragEnabled ? ['Alt+ArrowUp', 'Alt+ArrowDown'] : []), ...more].join(' ');
@@ -1021,7 +1010,7 @@
 			sectionOf,
 		});
 		return sidebarWorkstreamIds(focused).some(
-			(workstreamId) => attentionTreeQuery.summary(workstreamId).needsYou,
+			(workstreamId) => workstreamChatSummaryQuery.data(workstreamId).needsYou,
 		);
 	}
 </script>
@@ -1317,10 +1306,11 @@
 
 {#snippet workstreamItem(row: SidebarRow, level: number, siblingIds: readonly string[])}
 	{@const workstream = row.workstream}
-
-	{@const dots = startedProgressQuery.dots(workstream.id)}
-
-	{@const view = workstreamView(workstream, row.label, attentionTreeQuery.summary(workstream.id))}
+	{@const view = workstreamView(
+		workstream,
+		row.label,
+		workstreamChatSummaryQuery.data(workstream.id),
+	)}
 	{@const saveable = view.lifecycle.kind === 'archive' && onSaveWorkstreamForLater !== undefined}
 	<li
 		class={['relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
@@ -1333,160 +1323,112 @@
 			{#snippet card()}
 				{@render runningCard(workstream, view)}
 			{/snippet}
-			{#snippet rowLink()}
-				<Tooltip
-					content={card}
-					interactive
-					placement="right"
-					suppressed={!view.running || dots.length > 0}
-					class="w-full min-w-0"
-				>
-					<a
-						draggable="false"
-						href={rowHref(workstream.id, view.targetSessionId)}
-						data-navigation-path-id="expected-path:workstream-sidebar.switch"
-						aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
-						aria-busy={workstream.id === pendingWorkstreamId || undefined}
-						class={[
-							'sidebar-row relative w-full flex-col items-stretch outline-none',
-							rowEndPadding(saveable),
-							levelPadding(level),
-							compact && 'py-1 text-xs',
-							view.chat.attention !== null
-								? 'text-500'
-								: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
-							view.selected
-								? 'sidebar-row-active'
-								: 'group-hover/row:bg-surface-root-hover focus-visible:bg-surface-root-hover data-[active=true]:bg-surface-root-hover',
-						]}
-						data-active={workstream.id === contextMenu?.workstreamId}
-						{...workstreamLinkData(workstream, row.repositoryFullName, view)}
-						onpointerdown={(event) =>
-							previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
-						onpointerup={() =>
-							scheduleAbandonedDestinationPreviewCleanup(
-								rowHref(workstream.id, view.targetSessionId),
-							)}
-						onpointercancel={() =>
-							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-						onpointerleave={() =>
-							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-						onpointerenter={clearRowEnd}
-						onfocus={clearRowEnd}
-						aria-keyshortcuts={moveShortcuts('Shift+F10')}
-						onkeydown={(event) => {
-							if (opensMenu(event)) {
-								openWorkstreamMenu(event, workstream.id);
-								return;
-							}
-							previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
-							void onMoveKey(event, 'workstream', workstream.id, siblingIds);
-						}}
-						onkeyup={(event) =>
-							scheduleKeyboardDestinationPreviewCleanup(
-								event,
-								rowHref(workstream.id, view.targetSessionId),
-							)}
-						onblur={() =>
-							scheduleAbandonedDestinationPreviewCleanup(
-								rowHref(workstream.id, view.targetSessionId),
-							)}
-						onclick={(event) =>
-							beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
-						oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
-					>
-						<span class="relative flex items-center gap-2">
-							{@render statusIndicator(view, level)}
-							<span class="sidebar-row-text gap-1.5">
-								{@render workstreamName(workstream, view)}
-								{#if row.repositoryName}
-									<span
-										class="text-2xs text-fg-quaternary max-w-24 shrink-0 truncate group-hover/row:hidden group-has-focus-visible/row:hidden"
-										data-testid="sidebar-row-repository"
-									>
-										{row.repositoryName}
-									</span>
-								{/if}
-								{@render workstreamTrail(view)}
-								{#if dots.length > 0}
-									{@render progress(dots)}
-								{/if}
-							</span>
-						</span>
-						{#if view.running}
-							<span class="pl-6" transition:slide={foldMotion()}>
-								<WorkstreamRunningLine running={view.running} selected={view.selected} />
-							</span>
-						{/if}
-					</a>
-
-					{#if saveable}
-						{@render saveForLaterButton(
-							workstream,
-							view,
-							[
-								'absolute h-lh items-center leading-relaxed',
-								'right-7',
-								compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
-							].join(' '),
+			<Tooltip
+				content={card}
+				interactive
+				placement="right"
+				suppressed={!view.running}
+				class="w-full min-w-0"
+			>
+				<a
+					draggable="false"
+					href={rowHref(workstream.id, view.targetSessionId)}
+					data-navigation-path-id="expected-path:workstream-sidebar.switch"
+					aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
+					aria-busy={workstream.id === pendingWorkstreamId || undefined}
+					class={[
+						'sidebar-row relative w-full flex-col items-stretch outline-none',
+						rowEndPadding(saveable),
+						levelPadding(level),
+						compact && 'py-1 text-xs',
+						view.chat.attention !== null
+							? 'text-500'
+							: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
+						view.selected
+							? 'sidebar-row-active'
+							: 'group-hover/row:bg-surface-root-hover focus-visible:bg-surface-root-hover data-[active=true]:bg-surface-root-hover',
+					]}
+					data-active={workstream.id === contextMenu?.workstreamId}
+					{...workstreamLinkData(workstream, row.repositoryFullName, view)}
+					onpointerdown={(event) =>
+						previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
+					onpointerup={() =>
+						scheduleAbandonedDestinationPreviewCleanup(
+							rowHref(workstream.id, view.targetSessionId),
 						)}
+					onpointercancel={() =>
+						abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+					onpointerleave={() =>
+						abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+					onpointerenter={clearRowEnd}
+					onfocus={clearRowEnd}
+					aria-keyshortcuts={moveShortcuts('Shift+F10')}
+					onkeydown={(event) => {
+						if (opensMenu(event)) {
+							openWorkstreamMenu(event, workstream.id);
+							return;
+						}
+						previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
+						void onMoveKey(event, 'workstream', workstream.id, siblingIds);
+					}}
+					onkeyup={(event) =>
+						scheduleKeyboardDestinationPreviewCleanup(
+							event,
+							rowHref(workstream.id, view.targetSessionId),
+						)}
+					onblur={() =>
+						scheduleAbandonedDestinationPreviewCleanup(
+							rowHref(workstream.id, view.targetSessionId),
+						)}
+					onclick={(event) =>
+						beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
+					oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+				>
+					<span class="relative flex items-center gap-2">
+						{@render statusIndicator(view, level)}
+						<span class="sidebar-row-text gap-1.5">
+							{@render workstreamName(workstream, view)}
+							{#if row.repositoryName}
+								<span
+									class="text-2xs text-fg-quaternary max-w-24 shrink-0 truncate group-hover/row:hidden group-has-focus-visible/row:hidden"
+									data-testid="sidebar-row-repository"
+								>
+									{row.repositoryName}
+								</span>
+							{/if}
+							{@render workstreamTrail(view)}
+						</span>
+					</span>
+					{#if view.running}
+						<span class="pl-6" transition:slide={foldMotion()}>
+							<WorkstreamRunningLine running={view.running} selected={view.selected} />
+						</span>
 					{/if}
-					{@render archiveButton(
+				</a>
+
+				{#if saveable}
+					{@render saveForLaterButton(
 						workstream,
 						view,
 						[
 							'absolute h-lh items-center leading-relaxed',
-							'right-1',
+							'right-7',
 							compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 						].join(' '),
 					)}
-				</Tooltip>
-			{/snippet}
-			{#if dots.length > 0}
-				<HoverCard
-					side="right"
-					align="start"
-					sideOffset={12}
-					openDelay={500}
-					triggerPress="dismiss"
-					triggerClass="w-full min-w-0"
-					panelClass="w-88 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
-					testId="sidebar-started-card"
-				>
-					{#snippet trigger()}
-						{@render rowLink()}
-					{/snippet}
-					{#snippet content()}
-						{@render startedCard(workstream, view, dots)}
-					{/snippet}
-				</HoverCard>
-			{:else}
-				{@render rowLink()}
-			{/if}
+				{/if}
+				{@render archiveButton(
+					workstream,
+					view,
+					[
+						'absolute h-lh items-center leading-relaxed',
+						'right-1',
+						compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+					].join(' '),
+				)}
+			</Tooltip>
 		</div>
 	</li>
-{/snippet}
-
-{#snippet progress(dots: readonly ProgressDot[])}
-	{@const shown = dots.slice(0, MAX_PROGRESS_DOTS)}
-	<span
-		class="flex shrink-0 items-center gap-[3px]"
-		role="img"
-		aria-label={progressLabel(dots)}
-		data-testid="sidebar-progress"
-	>
-		{#each shown as dot, index (index)}
-			<span
-				class={['h-1.5 w-1.5 rounded-full', PROGRESS_DOT_CLASS[dot]]}
-				data-progress-dot={dot}
-			></span>
-		{/each}
-		{#if dots.length > shown.length}
-			<span class="text-3xs text-fg-tertiary font-mono font-medium tabular-nums">
-				+{dots.length - shown.length}
-			</span>
-		{/if}
-	</span>
 {/snippet}
 
 {#snippet newChatRow(name: string, start: () => void)}
@@ -1696,45 +1638,6 @@
 			{/snippet}
 		</WorkstreamRunningCard>
 	{/if}
-{/snippet}
-
-{#snippet startedCard(workstream: Workstream, view: WorkstreamView, dots: readonly ProgressDot[])}
-	{@const targets = startedProgressQuery.shipTargets(workstream.id)}
-	{@const chatSessionId = () => workstreamChatSummaryQuery.data(workstream.id).sessionId}
-	{@const shipActions = [
-		startedShipAction('draft-all', workstream.id, targets.draft, chatSessionId),
-		startedShipAction('merge-all', workstream.id, targets.merge, chatSessionId),
-	].filter((action) => action !== null)}
-	<div class="flex flex-col gap-1.5">
-		{#if view.running}
-			<div class="border-surface-elevated-border border-b px-1.5 pt-1 pb-2.5">
-				{@render runningCard(workstream, view)}
-			</div>
-		{/if}
-		<div class="flex min-w-0 items-center gap-2 px-2 pt-1">
-			<div class="flex min-w-0 flex-1 flex-col gap-0.5">
-				<span class="text-fg-default truncate text-sm font-medium">{view.label}</span>
-				<span class="text-fg-tertiary text-xs">{progressLabel(dots)}</span>
-			</div>
-			{#each shipActions as action (action.label)}
-				<Button
-					size="xs"
-					variant={action.tone}
-					ariaLabel={action.ariaLabel}
-					onclick={() => action.onInvoke()}
-				>
-					{action.label}
-				</Button>
-			{/each}
-		</div>
-		<div class="max-h-96 overflow-y-auto">
-			<StartedWorkstreams
-				workstreamIds={startedProgressQuery.startedIds(workstream.id)}
-				framed={false}
-				label={`Started by ${view.label}`}
-			/>
-		</div>
-	</div>
 {/snippet}
 
 {#snippet repositoryCard(repository: Repository, workstreamTotal: number)}

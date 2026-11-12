@@ -1,4 +1,3 @@
-import { treeDot } from '$lib/app/domain/started-progress';
 import type { SidebarGrouping } from '$lib/app/domain/sidebar-arrangement';
 import {
 	daySection,
@@ -8,7 +7,6 @@ import {
 import { workstreamActivityQuery } from '$lib/chat/application/queries/workstream-activity.query.svelte';
 import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 import type { Workstream } from '$shared/repositories/repositories.api';
-import { attentionTreeQuery } from './attention-tree.query.svelte';
 import { startedProgressQuery } from './started-progress.query.svelte';
 
 class SidebarSectionsQuery {
@@ -25,13 +23,12 @@ class SidebarSectionsQuery {
 		now: number,
 	) => (workstream: Workstream) => SidebarSectionKey = $derived(
 		(grouping: SidebarGrouping, now: number) => (workstream: Workstream) => {
-			const { root, started } = attentionTreeQuery.treeOf(workstream);
-			const activeAt = Math.max(...[root, ...started].map(this.activeAt));
+			const activeAt = this.activeAt(workstream);
 			return grouping === 'day'
 				? daySection(activeAt, now)
 				: statusSection({
-						dot: treeDot(startedProgressQuery.dot(root), started.map(startedProgressQuery.dot)),
-						pullRequest: pullRequestBadgesQuery.data(root.id).phase,
+						dot: startedProgressQuery.dot(workstream),
+						pullRequest: pullRequestBadgesQuery.data(workstream.id).phase,
 						activeAt,
 						now,
 					});

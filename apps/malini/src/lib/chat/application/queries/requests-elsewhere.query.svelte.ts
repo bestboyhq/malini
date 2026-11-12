@@ -2,14 +2,14 @@ import type { AgentQuestionRequest } from '$lib/chat/domain/agent-interaction';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import { agentInteractionCommands } from '$lib/chat/infrastructure/aggregates/agent-interactions.aggregate.svelte';
-import { childRequestsAggregate } from '$lib/chat/infrastructure/aggregates/child-requests.aggregate.svelte';
+import { requestsElsewhereAggregate } from '$lib/chat/infrastructure/aggregates/requests-elsewhere.aggregate.svelte';
 
-export { childRequestsQuery };
+export { requestsElsewhereQuery };
 
-class ChildRequestsQuery {
+class RequestsElsewhereQuery {
 	public readonly approvals: (sessionId: SessionId) => readonly EventEnvelope[] = $derived(
 		(sessionId: SessionId) =>
-			childRequestsAggregate.envelopesFor(sessionId).filter((envelope) => {
+			requestsElsewhereAggregate.envelopesFor(sessionId).filter((envelope) => {
 				if (envelope.event.type !== 'approval.requested') return false;
 				const { status } = agentInteractionCommands.stateFor({
 					kind: 'approval',
@@ -26,4 +26,4 @@ class ChildRequestsQuery {
 	);
 }
 
-const childRequestsQuery = new ChildRequestsQuery();
+const requestsElsewhereQuery = new RequestsElsewhereQuery();

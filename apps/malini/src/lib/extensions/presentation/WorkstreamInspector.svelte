@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack, type Snippet } from 'svelte';
+	import { untrack } from 'svelte';
 	import type { ExtensionPanelRegistration, ExtensionWorkstream } from '@malini/extension-api';
 	import type { WorkstreamChangeTotals } from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
@@ -24,7 +24,6 @@
 		creationContext: (workstreamId: string) => WorkstreamCreatedAutomationContext | null;
 		oncreationannounced: (workstreamId: string) => void;
 		onruntimeretry: () => void;
-		dock?: Snippet | undefined;
 		builtInPanels?: readonly ExtensionPanelRegistration[];
 		panelActions?: readonly InspectorPanelAction[];
 	}
@@ -38,7 +37,6 @@
 		creationContext,
 		oncreationannounced,
 		onruntimeretry,
-		dock,
 		builtInPanels = [],
 		panelActions = [],
 	}: Props = $props();
@@ -90,7 +88,6 @@
 	{ready}
 	{runtimeError}
 	onruntimeretry={onRuntimeRetry}
-	header={dock}
 	{panelActions}
 	{workstreamPanelIds}
 	requestedPanelId={routePanelId}

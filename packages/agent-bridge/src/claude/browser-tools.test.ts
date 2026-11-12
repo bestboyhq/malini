@@ -282,10 +282,12 @@ describe('malini MCP server', () => {
 			},
 			required: ['automation'],
 		});
+		const wake = { type: 'boolean', description: expect.stringContaining("this turn's result") };
 		expect(schemaOf('workstreams_create')).toMatchObject({
 			properties: {
 				repository: { type: 'string', description: expect.any(String) },
 				prompt: { type: 'string', description: expect.any(String) },
+				wake,
 			},
 			required: ['repository', 'prompt'],
 		});
@@ -293,6 +295,7 @@ describe('malini MCP server', () => {
 			properties: {
 				workstream: { type: 'string', description: expect.any(String) },
 				prompt: { type: 'string', description: expect.any(String) },
+				wake,
 			},
 			required: ['workstream', 'prompt'],
 		});

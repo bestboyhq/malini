@@ -1,6 +1,6 @@
 # 0133 - Merged work clears from Started here for good
 
-Status: accepted
+Status: superseded by 0231
 
 ## Context
 

@@ -29,6 +29,13 @@ const SHIP_ONLY_WHEN_ASKED =
 
 const ASKS = 'The user approves it in the chat unless they always allow it.';
 
+const WAKE = z
+	.boolean()
+	.optional()
+	.describe(
+		"Set true only when your next step needs this turn's result: Malini sends this chat that chat's report once the turn this prompt starts ends. Leave it out to let the work run on its own.",
+	);
+
 const AUTOMATION_TRIGGER_GRAMMAR =
 	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>/<repository>` for a repository, and every schedule names one, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
@@ -180,7 +187,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_create',
-			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt, records that this chat's workstream started it, and tells its chat about the other workstreams this chat started. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. When the user asked for that work shipped, run Open draft or Merge there yourself with automations_run and this id in \`workstream\`, rather than asking its chat to. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. It needs no approval: what a chat starts stays in its own tree.`,
+			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt, records that this chat's workstream started it, and tells its chat about the other workstreams this chat started. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. When the user asked for that work shipped, run Open draft or Merge there yourself with automations_run and this id in \`workstream\`, rather than asking its chat to. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. Its chat alerts the user itself, and its turns reach this chat only when you pass \`wake\`; workstreams_list shows where it stands. It needs no approval: what a chat starts stays in its own tree.`,
 			{
 				repository: z
 					.string()
@@ -199,12 +206,13 @@ export function platformTools(request: PlatformToolRequester) {
 					.describe(
 						"A tag, branch or full commit hash on the repository's origin to start from instead of the default branch, for example v0.17.5. Its pull request still targets the default branch.",
 					),
+				wake: WAKE,
 			},
 			(input) => call('workstreams_create', input),
 		),
 		tool(
 			'workstreams_send',
-			"Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini delivers it at once when that chat is idle, or as soon as its turn ends, even after a restart, and prompts waiting for the same turn arrive as one. It needs no approval. Returns the workstream, its chat and the delivery as JSON, with the delivery's status: `delivered`, or `waiting` for that chat's turn to end.",
+			"Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini delivers it at once when that chat is idle, or as soon as its turn ends, even after a restart, and prompts waiting for the same turn arrive as one. That chat's turns reach this chat only when you pass `wake`. It needs no approval. Returns the workstream, its chat and the delivery as JSON, with the delivery's status: `delivered`, or `waiting` for that chat's turn to end.",
 			{
 				workstream: z
 					.string()
@@ -218,6 +226,7 @@ export function platformTools(request: PlatformToolRequester) {
 					.describe(
 						'The prompt, written to the agent there. It does not see this chat, so give it everything it needs.',
 					),
+				wake: WAKE,
 			},
 			(input) => call('workstreams_send', input),
 		),

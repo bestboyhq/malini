@@ -35,7 +35,6 @@
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
 	import StartedWorkstreams from '../StartedWorkstreams.svelte';
-	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
 	interface Props {
 		children: Snippet;
@@ -103,9 +102,6 @@
 				: undefined}
 			notice={stoppedHere || shipFailure ? workstreamNotice : undefined}
 		>
-			{#snippet header(presentedWorkstreamId: string)}
-				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
-			{/snippet}
 			{#snippet workstreamsCard(workstreamIds: readonly string[])}
 				<StartedWorkstreams {workstreamIds} />
 			{/snippet}

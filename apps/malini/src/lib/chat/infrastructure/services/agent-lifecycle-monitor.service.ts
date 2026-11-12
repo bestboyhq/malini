@@ -31,7 +31,6 @@ type AgentLifecycleMonitorDependencies = {
 	sessionFor(sessionId: SessionId): SessionOwner | null;
 	appFocused(): boolean;
 	queueCountFor(workstreamId: string): number;
-	chatIn(workstreamId: string): SessionId | null;
 	contextFor: typeof agentActivity.contextFor;
 	clearAttention: typeof agentActivity.clearChat;
 	clearAttentionForRun: typeof agentActivity.clearForRun;
@@ -196,35 +195,12 @@ export class AgentLifecycleMonitor {
 			branch: context.branch,
 		});
 		if (!decision) return true;
-		const { root } = context;
-		if (root && decision.kind !== 'approval') return true;
 		this.dependencies.sound(attentionSoundSignal(decision.kind));
 		const focused = this.dependencies.appFocused();
 		if (focused && envelope.sessionId === this.#shownChatId) return true;
 		if (!this.dependencies.markAttention(owner, decision)) return true;
-		const notice = root
-			? {
-					workstreamId: root.workstreamId,
-					sessionId: this.dependencies.chatIn(root.workstreamId),
-					title: root.label,
-					body: `${decision.title}: ${decision.body}`,
-				}
-			: {
-					workstreamId: owner,
-					sessionId: envelope.sessionId,
-					title: decision.title,
-					body: decision.body,
-				};
-		const onScreen =
-			focused &&
-			(owner === this.#activeWorkstreamId || notice.workstreamId === this.#activeWorkstreamId);
-		if (notice.sessionId && !onScreen) {
-			void this.dependencies.notify(
-				notice.title,
-				notice.body,
-				notice.workstreamId,
-				notice.sessionId,
-			);
+		if (!focused || owner !== this.#activeWorkstreamId) {
+			void this.dependencies.notify(decision.title, decision.body, owner, envelope.sessionId);
 		}
 		return true;
 	}
@@ -236,7 +212,6 @@ export const agentLifecycleMonitor = new AgentLifecycleMonitor({
 	sessionFor: (sessionId) => sessionsAggregate.getSession(sessionId),
 	appFocused: () => (typeof document === 'undefined' ? true : document.hasFocus()),
 	queueCountFor: (workstreamId) => agentPromptQueue.countFor(workstreamId),
-	chatIn: (workstreamId) => sessionsAggregate.cachedSessionFor(workstreamId, null),
 	contextFor: (workstreamId) => agentActivity.contextFor(workstreamId),
 	clearAttention: (sessionId) => agentActivity.clearChat(sessionId),
 	clearAttentionForRun: (sessionId, runId) => agentActivity.clearForRun(sessionId, runId),

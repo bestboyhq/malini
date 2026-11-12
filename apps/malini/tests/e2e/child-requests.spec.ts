@@ -13,14 +13,9 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	type LaunchedApp,
 } from './harness';
 
 type RunRow = Readonly<{ title: string; status: string; sessionId: string | null }>;
-
-function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
-	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
-}
 
 async function saveApprovalAutomation(page: Page): Promise<string> {
 	const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
@@ -107,7 +102,7 @@ test('an automation a chat runs in another workstream asks for permission in tha
 	}
 });
 
-test('what the workstreams a chat started, and theirs, ask is answered in that chat', async () => {
+test('what a workstream a chat started asks waits in its own chat, and the chat that started it stays free', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -126,59 +121,42 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 				calls: [
 					{
 						tool: 'workstreams_create',
-						input: { repository: 'acme/api', prompt: 'MALINI_TOOL TITLE="Api child"' },
+						input: { repository: 'acme/api', prompt: 'QUESTION TITLE="Api child"' },
 					},
 				],
 				reply: 'Started the api child',
 			}),
 		);
-		agentCalls(app, {
-			tool: 'workstreams_create',
-			input: { repository: 'acme/api', prompt: 'QUESTION TITLE="Api grandchild"' },
-		});
 		await sendPrompt(page, 'TOOL_CALLS');
-
-		const asking = page.getByRole('region', { name: /needs you$/u });
-		const choices = asking.getByRole('radiogroup', { name: 'Which?' });
-		await expect(choices).toBeVisible({ timeout: 60_000 });
-		await expect(page.getByTestId('chat-composer')).toBeHidden();
-		await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
-		const chat = currentSessionId(page);
-		await captureFlow(app, 'child-request-queue-grandchild-question');
-
-		await choices.getByRole('radio', { name: /^B/u }).click();
-		await asking.getByRole('button', { name: 'Send answer' }).click();
-		await expect(asking).toHaveCount(0, { timeout: 20_000 });
-
-		const workstreams = await invoke<{ id: string; startedBy: string | null }[]>(
-			page,
-			'repositories.list-workstreams',
-			undefined,
-		);
-		const child = workstreams.find((workstream) => workstream.startedBy === workstreamId);
-		const grandchild = workstreams.find((workstream) => workstream.startedBy === child?.id);
-		if (!grandchild) throw new Error('the started workstream did not start one of its own');
-		const [session] = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
-			workstreamId: grandchild.id,
+		await expect(page.getByText('Started the api child', { exact: true })).toBeVisible({
+			timeout: 30_000,
 		});
-		await expect
-			.poll(
-				async () => {
-					const events = await listEvents(page, session?.id ?? '');
-					const completed = events.find((entry) => entry.event.type === 'run.completed');
-					return completed?.event.type === 'run.completed' ? completed.event.summary : null;
-				},
-				{ timeout: 30_000 },
-			)
-			.toContain('"B"');
-		expect(currentSessionId(page)).toBe(chat);
+
+		const childRow = page
+			.getByRole('navigation', { name: 'Connected repositories' })
+			.getByTestId('sidebar-workstream')
+			.filter({ hasText: 'Api child' });
+		await expect(childRow.getByRole('status')).toHaveAccessibleName(/waiting for approval/u, {
+			timeout: 60_000,
+		});
+		await expect(page.getByRole('region', { name: /needs you$/u })).toHaveCount(0);
+		await expect(page.getByTestId('request-queue')).toHaveCount(0);
+		await expect(page.getByTestId('chat-composer')).toBeVisible();
+		await captureFlow(app, 'started-workstream-asks-in-its-own-chat');
+
+		await childRow.click();
+		const choices = page.getByRole('radiogroup', { name: 'Which?' });
+		await expect(choices).toBeVisible({ timeout: 30_000 });
+		await choices.getByRole('radio', { name: /^B/u }).click();
+		await page.getByRole('button', { name: 'Send answer' }).click();
+		await expect(choices).toHaveCount(0, { timeout: 20_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('requests from several children queue in the composer slot one at a time, over a draft, and Later folds them until a new one comes', async () => {
+test('requests from several automations a chat ran queue in the composer slot one at a time, over a draft, and Later folds them until a new one comes', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -216,8 +194,8 @@ test('requests from several children queue in the composer slot one at a time, o
 		await runIn(switchChild);
 		await runIn(notesChild);
 
-		const queue = page.getByTestId('child-request-queue');
-		const position = queue.getByTestId('child-request-position');
+		const queue = page.getByTestId('request-queue');
+		const position = queue.getByTestId('request-position');
 		const composer = page.getByTestId('chat-composer');
 		await expect(position).toHaveText('1 of 2', { timeout: 30_000 });
 		await expect(composer).toBeHidden();

@@ -69,7 +69,6 @@ export {
 } from './domain/repository-context';
 
 export { displayWorkstreamName, isPlaceholderWorkstreamName } from './domain/workstream-names';
-export { workstreamRoots } from './domain/workstream-roots';
 
 export {
 	inSidebarOrder,
@@ -184,8 +183,6 @@ export { continueOwnPullRequestCommand } from './application/commands/continue-o
 export { loadOwnPullRequestsCommand } from './application/commands/load-own-pull-requests.command';
 export { ownPullRequestsQuery } from './application/queries/own-pull-requests.query.svelte';
 export type { OwnPullRequest } from './domain/own-pull-requests';
-export { clearMergedFromStarterCommand } from './application/commands/clear-merged-from-starter.command';
-export { detachFromStarterCommand } from './application/commands/detach-from-starter.command';
 export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';

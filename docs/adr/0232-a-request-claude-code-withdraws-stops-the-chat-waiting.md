@@ -1,4 +1,4 @@
-# 0231 - A request Claude Code withdraws stops the chat waiting
+# 0232 - A request Claude Code withdraws stops the chat waiting
 
 Status: accepted
 

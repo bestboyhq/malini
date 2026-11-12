@@ -786,7 +786,6 @@ describe('restoring an archived workstream', () => {
 				archivedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
 				mergedPullRequest: null,
 				savedForLater: false,
-				clearedFromStarter: false,
 				startedBy: null,
 			},
 		]);

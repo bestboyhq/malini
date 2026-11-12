@@ -17,14 +17,11 @@ export type AgentAttentionDecision = AgentAttention & {
 	body: string;
 };
 
-export type AgentWorkstreamRoot = Readonly<{ workstreamId: string; label: string }>;
-
 export type AgentWorkstreamContext = {
 	workstreamId: string;
 	label: string;
 	repositoryFullName: string;
 	branch: string;
-	root: AgentWorkstreamRoot | null;
 };
 
 type AgentAttentionInput = {

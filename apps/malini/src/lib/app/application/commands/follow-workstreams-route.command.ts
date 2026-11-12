@@ -4,7 +4,6 @@ import {
 	displayWorkstreamName,
 	repositoryContextForWorkstream,
 	trackWorkstreamChangeTotalsCommand,
-	workstreamRoots,
 	type Repository,
 	type Workstream,
 } from '$shared/repositories/repositories.api';
@@ -29,30 +28,18 @@ function followWorkstreamsRouteCommand(
 		})),
 	);
 	if (!loaded) return;
-	const contexts = workstreams.map((workstream) => {
-		const context = repositoryContextForWorkstream({
-			repositories,
-			workstreams,
-			workstreamId: workstream.id,
-		});
-		return {
-			workstreamId: workstream.id,
-			label: displayWorkstreamName(workstream, context?.repo.fullName ?? ''),
-			repositoryFullName: context?.repo.fullName ?? '',
-			branch: workstream.branch,
-		};
-	});
-	const labels = new Map(contexts.map(({ workstreamId, label }) => [workstreamId, label]));
-	const roots = workstreamRoots(workstreams);
 	registerAttentionScopeCommand(
-		contexts.map((context) => {
-			const rootId = roots.get(context.workstreamId) ?? context.workstreamId;
+		workstreams.map((workstream) => {
+			const context = repositoryContextForWorkstream({
+				repositories,
+				workstreams,
+				workstreamId: workstream.id,
+			});
 			return {
-				...context,
-				root:
-					rootId === context.workstreamId
-						? null
-						: { workstreamId: rootId, label: labels.get(rootId) ?? '' },
+				workstreamId: workstream.id,
+				label: displayWorkstreamName(workstream, context?.repo.fullName ?? ''),
+				repositoryFullName: context?.repo.fullName ?? '',
+				branch: workstream.branch,
 			};
 		}),
 	);
