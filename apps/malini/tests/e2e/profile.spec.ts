@@ -536,14 +536,14 @@ test('Projects on Bestboy sends only the link, the runs per day and CHANGELOG.md
 		await expect(row).toContainText('Needs its link');
 		await expect(toggle).toBeDisabled();
 		await expect(link).toBeDisabled();
-		await expect(section.getByText('Sign in to Bestboy above to turn one on.')).toBeVisible();
+		await expect(section.getByText('Sign in to Bestboy above to turn one on')).toBeVisible();
 
 		await settings.getByRole('button', { name: 'Sign in' }).click();
 		const signIn = await signInUrl(app, platform, 1);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
 		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
 		await expect(link).toBeEnabled();
-		await expect(section.getByText('Sign in to Bestboy above to turn one on.')).toHaveCount(0);
+		await expect(section.getByText('Sign in to Bestboy above to turn one on')).toHaveCount(0);
 
 		await link.fill('10.0.0.4');
 		await expect(row.getByRole('alert')).toHaveText('Needs a domain name, not an IP address');

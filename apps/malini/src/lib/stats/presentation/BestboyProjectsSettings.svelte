@@ -22,12 +22,15 @@
 		runs Malini counted and the changelog from its CHANGELOG.md. Submit it from there, and we review
 		each project by hand before it joins the board. A private repository keeps its name to itself.
 	</p>
+	{#if listing?.problem}
+		<p class="text-error-content px-3 pb-1.5 text-xs" role="alert">{listing.problem}</p>
+	{:else if listing && !listing.signedIn}
+		<p class="text-fg-tertiary px-3 pb-1.5 text-xs">Sign in to Bestboy above to turn one on</p>
+	{/if}
 	{#if listing === null}
 		<Skeleton height="52px" class="rounded-xl" />
 	{:else if listing.projects.length === 0}
-		<p class="text-fg-tertiary px-3 pb-1.5 text-xs">
-			The repositories you run agents in show here.
-		</p>
+		<p class="text-fg-tertiary px-3 pb-1.5 text-xs">The repositories you run agents in show here</p>
 	{:else}
 		<ul
 			class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]"
@@ -37,10 +40,5 @@
 				<BestboyProjectRow {project} signedIn={listing.signedIn} />
 			{/each}
 		</ul>
-	{/if}
-	{#if listing?.problem}
-		<p class="text-error-content px-3 pb-1.5 text-xs" role="alert">{listing.problem}</p>
-	{:else if listing && !listing.signedIn}
-		<p class="text-fg-tertiary px-3 pb-1.5 text-xs">Sign in to Bestboy above to turn one on.</p>
 	{/if}
 </Well>
