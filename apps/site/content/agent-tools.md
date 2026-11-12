@@ -181,7 +181,7 @@ A `git clone` still runs, for reading code, and Malini reminds the agent to star
 `when` is an automation's [event trigger](/malini/docs/automations.md#when-an-automation-runs) or [schedule](/malini/docs/automations.md#on-a-schedule), and `then` names the automation that runs next, by id or exact name, such as **Open draft** or **Merge**.
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.
-A run the agent starts waits under **Automations** beside its chat until it finishes, wherever it runs.
+A run the agent starts waits in its chat's composer tray until it finishes, wherever it runs.
 No tool changes [what an automation sees and reaches](/malini/docs/automations.md#what-an-automation-sees-and-reaches), and `automations_run` refuses extra context for an automation that does not see your chats, so an agent cannot hand an automation more than you let it see.
 
 ## Tools and automations
@@ -208,7 +208,7 @@ Right after it starts a workstream, it runs **Open draft** or **Merge** there wi
 Malini holds each run while that workstream sets up and its chat works, then does what **Draft** or **Merge** in its top bar does once the chat ends its turn.
 So a chat that starts five workstreams and merges them leaves you five merged pull requests and five archived workstreams, not five drafts to click through.
 
-Until it finishes, the run waits under **Automations** beside your chat as a line that names the workstream it runs in, such as **Merge · Queued in Fetch command**.
+Until it finishes, the run waits in your chat's composer tray as a row that names the workstream it runs in, such as **Merge · Automation in Fetch command**.
 Merge still waits for checks, fixes what fails and resolves conflicts first, and a problem shows in that workstream's top bar.
 
 ## You decide how often it asks

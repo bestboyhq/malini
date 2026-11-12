@@ -1,3 +1,4 @@
+export { default as AutomationGutterRows } from './presentation/AutomationGutterRows.svelte';
 export { default as AutomationPicker } from './presentation/AutomationPicker.svelte';
 export { default as WorkstreamAutomations } from './presentation/WorkstreamAutomations.svelte';
 export { default as Automations } from './presentation/automations/Automations.svelte';

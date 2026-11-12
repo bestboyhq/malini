@@ -2,6 +2,9 @@ import type { InspectorPanel } from './inspector-panel';
 
 export const GUTTER_CHANGES_PANEL_ID = 'malini.repository.files-panel';
 
+export const GUTTER_ROW_CLASS =
+	'hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-2 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40';
+
 export type GutterChangeTotals = Readonly<{
 	additions: number;
 	deletions: number;

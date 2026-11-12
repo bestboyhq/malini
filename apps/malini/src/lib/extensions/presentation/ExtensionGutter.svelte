@@ -8,7 +8,7 @@
 	import { Icon } from '$hyper-ui/icons';
 
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
-	import type { GutterRow } from '$shared/extensions/inspector-gutter-row';
+	import { GUTTER_ROW_CLASS, type GutterRow } from '$shared/extensions/inspector-gutter-row';
 
 	interface Props {
 		workstreamId: string;
@@ -33,9 +33,6 @@
 		oncontextmenu,
 		onshow,
 	}: Props = $props();
-
-	const rowClass =
-		'hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-2 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40';
 </script>
 
 <div
@@ -73,7 +70,7 @@
 		{#if row.kind === 'action'}
 			<Button
 				bare
-				class={[rowClass, 'text-fg-secondary']}
+				class={[GUTTER_ROW_CLASS, 'text-fg-secondary']}
 				{disabled}
 				data-testid="extension-inspector-gutter-action"
 				data-action-id={row.id}
@@ -97,7 +94,7 @@
 		{:else}
 			<Button
 				bare
-				class={[rowClass, row.closed ? 'text-fg-tertiary' : 'text-fg-secondary']}
+				class={[GUTTER_ROW_CLASS, row.closed ? 'text-fg-tertiary' : 'text-fg-secondary']}
 				{disabled}
 				data-testid="extension-inspector-gutter-row"
 				data-panel-id={row.id}

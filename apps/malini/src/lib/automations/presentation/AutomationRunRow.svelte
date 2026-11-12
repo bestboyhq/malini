@@ -48,7 +48,7 @@
 	const where = $derived(
 		shownIn !== null && run.workstreamId !== shownIn && place ? ` in ${place}` : '',
 	);
-	const placeName = $derived(shownIn === null ? place : `${look.label}${where}`);
+	const placeName = $derived(shownIn === null ? place : `Automation${where} · ${look.label}`);
 	const subject = $derived(
 		(shownIn === null
 			? [run.title, place, followed]

@@ -177,6 +177,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   Every automation Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/automations.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
+- **The top bar says when an agent works.** While a chat or an automation in the workstream works, it says **Agent running**, and **Needs you** while one waits for your approval.
 - **Main reaching your files merges it in.** Malini fetches main every five minutes and compares it with each workstream, and again after every commit there.
   When merging main would stop on conflicts, or main changed a file the workstream changed too, **Update from main** merges main in once no agent works there, nothing is uncommitted, no merge is queued and its pull request has not merged or closed on GitHub, **Resolve conflicts** resolves what conflicts, and a workstream with a pull request gets the resolved merge pushed.
   A merge without conflicts stays local, and the workstream's next push carries it, so it starts no checks of its own.

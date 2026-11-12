@@ -12,10 +12,9 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	showInspector,
 } from './harness';
 
-test('an automation run from the slash list waits in the closed inspector instead of the chat, in the composer tray while the inspector is open, and its transcript opens and closes as a tab of its own', async () => {
+test('an automation run from the slash list waits in the composer tray instead of the chat, shows as a line in the closed inspector, and its transcript opens from there and closes as a tab of its own', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -59,28 +58,21 @@ test('an automation run from the slash list waits in the closed inspector instea
 		).toBeVisible();
 		await page.keyboard.press('Enter');
 
-		const queued = {
-			name: 'Fix checks automation, Queued. The transcript opens once the automation starts',
-		};
-		const inspector = page.getByRole('region', { name: 'Inspector', exact: true });
-		const composerTray = page.getByTestId('chat-composer-tray');
-		const tray = inspector.getByRole('region', { name: 'Automations (1)', exact: true });
-		await expect(tray.getByRole('button', queued)).toBeVisible({ timeout: 20_000 });
-		await expect(composerTray.getByRole('region', { name: /^Automations \(/u })).toHaveCount(0);
+		const tray = page.getByRole('region', { name: 'Automations (1)', exact: true });
+		await expect(
+			tray.getByRole('button', {
+				name: 'Fix checks automation, Queued. The transcript opens once the automation starts',
+			}),
+		).toBeVisible({ timeout: 20_000 });
+		const lines = page
+			.getByRole('region', { name: 'Inspector', exact: true })
+			.getByRole('list', { name: 'Automations', exact: true });
+		await expect(
+			lines.getByRole('link', { name: 'Fix checks, Queued', exact: true }),
+		).toBeVisible();
 		await expect(input).toHaveText('');
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
 		await captureFlow(app, 'automations-in-chat-queued');
-
-		await showInspector(page);
-		await expect(
-			composerTray
-				.getByRole('region', { name: 'Automations (1)', exact: true })
-				.getByRole('button', queued),
-		).toBeVisible();
-		await expect(tray).toHaveCount(0);
-		await page.getByRole('button', { name: 'Hide inspector' }).click();
-		await expect(tray.getByRole('button', queued)).toBeVisible();
-		await expect(composerTray.getByRole('region', { name: /^Automations \(/u })).toHaveCount(0);
 
 		holdAgentRuns(app, true);
 		await submit.click();
@@ -90,7 +82,7 @@ test('an automation run from the slash list waits in the closed inspector instea
 		await expect(opener).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByTestId('chat-agent-tab')).toHaveCount(1);
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
-		await opener.click();
+		await lines.getByRole('link', { name: 'Fix checks, Running', exact: true }).click();
 		const automationTab = page.getByRole('tab', { name: /Automation: Fix checks/u });
 		await expect(automationTab).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
 		await expect.poll(() => currentSessionId(page)).not.toBe(chat);
@@ -98,6 +90,7 @@ test('an automation run from the slash list waits in the closed inspector instea
 
 		holdAgentRuns(app, false);
 		await expect(tray).toHaveCount(0, { timeout: 30_000 });
+		await expect(lines).toHaveCount(0);
 		await page.getByRole('button', { name: 'Close Automation: Fix checks' }).click();
 		await expect(automationTab).toHaveCount(0);
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).toBe(chat);

@@ -7,10 +7,9 @@
 	interface Props {
 		entries: readonly LiveAutomation[];
 		workstreamId: string;
-		inGutter?: boolean;
 	}
 
-	let { entries, workstreamId, inGutter = false }: Props = $props();
+	let { entries, workstreamId }: Props = $props();
 
 	let nowMs = $state(Date.now());
 
@@ -25,10 +24,7 @@
 	aria-label={`Automations (${entries.length})`}
 	data-testid="workstream-automation-runs"
 >
-	<div class={[!inGutter && 'max-h-60 overflow-y-auto p-1']}>
-		<div class="text-fg-tertiary flex h-6 items-center px-2 text-xs" aria-hidden="true">
-			Automations
-		</div>
+	<div class="max-h-60 overflow-y-auto p-1">
 		<AutomationRunList {entries} {nowMs} shownIn={workstreamId} asksHere />
 	</div>
 </section>

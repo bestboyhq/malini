@@ -30,7 +30,7 @@ Each is a [workstream](/malini/docs/workstreams.md) with one repository and one 
 
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued; **↵** saves an edit and **⇧↵** adds a line.
-- An [automation](/malini/docs/automations.md#run-an-automation) run from the chat, by you or the agent, waits under **Automations** in the closed inspector until it finishes, or above the composer while the inspector is open, never among the messages.
+- An [automation](/malini/docs/automations.md#run-an-automation) run from the chat, by you or the agent, waits above the composer with what you queued until it finishes, never among the messages.
 - **⌘↵** steers: it interrupts the turn and sends the prompt now, while background commands keep running.
 - Steering or stopping keeps what the agent already wrote, marked **Run cancelled**.
 

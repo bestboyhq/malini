@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { SessionStatus } from '$contract/agent-state-machine';
 import type { ShipNeedsYou, ShipNeedsYouReason } from '$contract/pull-requests';
 import type {
 	PullRequestAvailability,
@@ -98,9 +99,9 @@ function topBar(
 	shipState: PullRequestShip | null,
 	read: RepositorySurface | null,
 	availability: PullRequestAvailability = 'ready',
-	agentWorking = false,
+	agentStatus: SessionStatus | null = null,
 ): PullRequestTopBar {
-	return pullRequestTopBar(shipState, read, availability, agentWorking);
+	return pullRequestTopBar(shipState, read, availability, agentStatus);
 }
 
 function menu(bar: PullRequestTopBar): readonly PullRequestMenuItemId[] {
@@ -111,16 +112,16 @@ function status(
 	shipState: PullRequestShip | null,
 	read: RepositorySurface | null,
 	availability: PullRequestAvailability = 'ready',
-	agentWorking = false,
+	agentStatus: SessionStatus | null = null,
 ): WorkstreamStatus | null {
-	return topBar(shipState, read, availability, agentWorking).status;
+	return topBar(shipState, read, availability, agentStatus).status;
 }
 
 function whileAgentRuns(
 	shipState: PullRequestShip | null,
 	read: RepositorySurface | null,
 ): WorkstreamStatus | null {
-	return status(shipState, read, 'ready', true);
+	return status(shipState, read, 'ready', 'running');
 }
 
 type Line = Readonly<{
@@ -878,6 +879,18 @@ describe('the workstream status', () => {
 		expect(whileAgentRuns(null, null)).toBeNull();
 	});
 
+	it('says a chat waiting for your approval needs you, not that the agent runs', () => {
+		expect(
+			lineOf(status(null, open({ checkItems: [passed] }), 'ready', 'waiting_for_approval')),
+		).toEqual({
+			tone: 'idle',
+			busy: false,
+			label: 'Needs you',
+			detail: null,
+			action: 'Merge',
+		});
+	});
+
 	it('clears blockers while an automation works, keeping Merge and Draft but neutral', () => {
 		const local = (overrides: Parameters<typeof ship>[0] = {}) =>
 			ship({ phase: 'local', pullRequestNumber: null, pullRequestUrl: null, ...overrides });
@@ -899,7 +912,7 @@ describe('the workstream status', () => {
 			'fixing-checks',
 			'addressing-review',
 		] as const) {
-			expect(status(ship({ step }), open(), 'ready', true)).toMatchObject({
+			expect(status(ship({ step }), open(), 'ready', 'running')).toMatchObject({
 				label: 'Clearing blockers',
 				action: { kind: 'queue-merge', ariaLabel: 'Merge pull request #42', tone: 'secondary' },
 			});

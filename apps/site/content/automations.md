@@ -119,7 +119,7 @@ A schedule in a repository Malini does not have is refused when you save the aut
 An automation with a When runs one of three ways:
 
 1. **Off**: it never starts on its own.
-2. **Ask me first**: every run waits for you under **Automations** beside its workstream's chat, or on the Automations page when it has no workstream, with **Run it** and **Skip**.
+2. **Ask me first**: every run waits for you above the composer of its workstream's chat, or on the Automations page when it has no workstream, with **Run it** and **Skip**.
 3. **On its own**: it runs as soon as its trigger fires.
 
 New automations ask first, and a trigger an agent adds starts Off.
@@ -201,7 +201,7 @@ When it ends, Malini commits what it changed under the `Commit:` line its agent 
 A workstream an agent just started counts as busy until the turn of its first prompt ends, so an automation run there right away waits for that turn.
 
 - Type **/** in the composer to run an automation from a chat.
-  It waits under **Automations** beside the chat, and stays there while it runs, with its transcript a click away.
+  It waits above the composer, next to the prompts you queued, and stays there while it runs, with its transcript a click away.
   Once it finishes, it leaves, and its result stays on the automation's page and in **Activity**.
 - Run it from the Automations page, in a workstream or a new one.
   A new one shows **Setting up** in the sidebar while Malini updates its branch and installs its dependencies.
@@ -211,15 +211,15 @@ A workstream an agent just started counts as busy until the turn of its first pr
   Its edit to an automation that runs without asking waits for your [review](/malini/docs/agent-tools.md#edits-you-review), change by change.
 
 An automation shows where it runs.
-Beside a chat, the closed inspector lists its workstream's live automations under **Automations**, one line each: first the ones that need you, then the running ones, then the queue, oldest first.
-While the inspector is open, the list sits above the composer instead.
+Above the composer, a chat lists its workstream's live automations, one line each: first the ones that need you, then the running ones, then the queue, oldest first.
+The closed inspector beside it lists them too, as one line each that opens its transcript, or the chat where it asks you.
 A finished automation leaves the list.
 An automation that has no workstream yet, such as the first run of a schedule in a repository, shows under **In progress** on the Automations page.
 The **Automations** icon at the top, beside the sidebar icon, opens that page.
 Its dot shows that something needs you or runs, and its tooltip counts them.
 
 An automation that needs you says why at the end of its line: **Conflicts**, **Failed**, **Wants to run**, or **Asks you**.
-Click it to go where you make the call: the chat of its workstream, where the question waits under **Automations** with what you need to decide.
+Click it to go where you make the call: the chat of its workstream, where the question waits above the composer with what you need to decide.
 A run that asks you first shows when it runs, what it does, and how its last run went.
 Its answers are buttons under it:
 
@@ -255,6 +255,7 @@ It hands each event to your triggers first, then to its own rules at once:
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, or after a step that brought nothing back, **Checks rerun**, the minute a fix or a re-run gives its failing checks to run again, and **Agent settled**, the 5 seconds after an agent's turn ends that let a prompt you queued start first.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
   The chat shows each continued turn under a divider, such as **Malini restarted. Back for more**, instead of a prompt from you.
+  An automation's turn goes on as the same run, which stays **Running**, and the chat of an automation that already ended stays as it is.
   It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
 - **Deliveries** hears **Turn finished**: when a chat sent the prompt that started the turn with `wake: true`, it sends that chat the turn's report, with its `Outcome:`, its `Needs:` and the pictures it embeds, and it hands each chat what waits for it once its turn ends.
   Every other turn of a workstream a chat started stays out of that chat.
@@ -277,7 +278,7 @@ When the model can't answer, Malini picks by its own rules: it wakes the chat wa
 - **Wake**: the report reaches the chat that asked for the work through Deliveries, beginning "Malini woke you: work you asked for moved on": the chat that ran the automation, or ran the work whose merge stopped on conflicts.
   A chat is never woken only because it works in that workstream.
   When that chat is on a turn, the report waits and arrives with any others when the turn ends.
-- **Ask you**: the question waits under **Automations** beside its workstream's chat, which its line [where it runs](#run-an-automation) opens, with a button for each thing Malini could do, marks that automation on the Automations page, and sends a notification titled with the automation and its workstream, which opens the work.
+- **Ask you**: the question waits above the composer of its workstream's chat, which its line [where it runs](#run-an-automation) opens, with a button for each thing Malini could do, marks that automation on the Automations page, and sends a notification titled with the automation and its workstream, which opens the work.
 - **Run again** asks first, unless the automation runs on its own.
 
 Every pick shows in Activity, with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.

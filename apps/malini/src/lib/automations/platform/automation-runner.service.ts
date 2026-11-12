@@ -573,8 +573,8 @@ export class AutomationRunner {
 			this.#succeed(automationRun.id, text(envelope.event['summary']));
 			return;
 		}
+		if (pausedToGoOn(envelope.event)) return;
 		const error = text(envelope.event['error']) ?? 'The agent run failed.';
-		if (error === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(envelope.event)) return;
 		const ending = runEnding(error);
 		this.#finish(automationRun.id, ending, ending === 'cancelled' ? null : error);
 	}
@@ -732,7 +732,7 @@ export class AutomationRunner {
 			status: fold.status,
 			runId: fold.currentRunId,
 			summary: text(completed?.event['summary']),
-			paused: fold.status === 'idle' && ended !== undefined && isPausedRunEvent(ended.event),
+			paused: fold.status === 'idle' && ended !== undefined && pausedToGoOn(ended.event),
 		};
 	}
 
@@ -836,6 +836,10 @@ function updateBlocker(status: WorktreeStatus): string | null {
 
 function text(value: unknown): string | null {
 	return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function pausedToGoOn(event: Readonly<Record<string, unknown>>): boolean {
+	return event['error'] === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(event);
 }
 
 function stringField(value: unknown, key: string): string | null {

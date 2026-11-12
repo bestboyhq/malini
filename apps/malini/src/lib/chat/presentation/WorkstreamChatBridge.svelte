@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { workstreamAgentRunningQuery } from '$lib/chat/application/queries/workstream-agent-running.query.svelte';
+	import type { SessionStatus } from '$contract/agent-state-machine';
+	import { workstreamAgentStatusQuery } from '$lib/chat/application/queries/workstream-agent-status.query.svelte';
 
 	type WorkstreamChatSeams = Readonly<{
-		agentWorking: boolean;
+		agentStatus: SessionStatus | null;
 	}>;
 
 	interface Props {
@@ -13,11 +14,11 @@
 
 	let { workstreamId, children }: Props = $props();
 
-	const agentWorking = $derived(workstreamAgentRunningQuery.data(workstreamId));
+	const agentStatus = $derived(workstreamAgentStatusQuery.data(workstreamId));
 
 	const seams: WorkstreamChatSeams = {
-		get agentWorking(): boolean {
-			return agentWorking;
+		get agentStatus(): SessionStatus | null {
+			return agentStatus;
 		},
 	};
 </script>

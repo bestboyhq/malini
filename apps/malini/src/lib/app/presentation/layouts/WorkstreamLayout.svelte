@@ -29,7 +29,6 @@
 		repositoryContextQuery,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
-	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { page } from '$shared/router/state';
 	import {
 		WORKSTREAM_BROWSER_RATIO_KEY,
@@ -54,9 +53,6 @@
 	);
 	const chatSessionId = $derived(activeSessionQuery.data);
 	const automations = $derived(workstreamLiveAutomationsQuery.data(workstreamId, chatSessionId));
-	const automationsInTray = $derived(
-		automations.length > 0 && inspectorDrawer.isOpen(workstreamId),
-	);
 	const automationRuns = $derived(automations.flatMap((entry) => (entry.run ? [entry.run] : [])));
 
 	onMount(() => {
@@ -93,7 +89,7 @@
 			{workstreamId}
 			{pullRequestShipped}
 			{automationRuns}
-			automations={automationsInTray ? automationsInProgress : undefined}
+			automations={automations.length > 0 ? automationsInProgress : undefined}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)

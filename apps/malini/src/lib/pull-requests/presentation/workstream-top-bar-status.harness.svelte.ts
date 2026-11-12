@@ -22,7 +22,7 @@ export function mountWorkstreamTopBarStatus(route: TopBarStatusRoute): TopBarSta
 		repositoryScopeReady: true,
 		remotePullRequestsSupported: true,
 		repositoryExtensionRegistered: true,
-		agentWorking: false,
+		agentStatus: null,
 		overrideStatus: null,
 		ongitstatusstale: (): void => undefined,
 		onarchive: (): void => undefined,

@@ -854,6 +854,26 @@ describe('prompt round trips', () => {
 		expect(latestRun(sessionId)).toMatchObject({ prompt: 'UNANSWERED', cause_event_id: 7 });
 	});
 
+	it('leaves an automation chat a quit paused as it is once Malini started, when its automation run is over', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', {
+			workstreamId: 'ws-1',
+			origin: 'automation',
+			displayName: 'Fix checks',
+		});
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+
+		await service.stop();
+		expect(getRun(test.db, runId)).toMatchObject({ error: PAUSED_FOR_EXIT_ERROR });
+
+		await bootAfterRestart();
+		await service.continuePausedRuns(7);
+
+		expect(latestRun(sessionId)).toMatchObject({ prompt: 'HANG', cause_event_id: null });
+	});
+
 	function resumeAlarm(sessionId: string): Record<string, unknown> | null {
 		const row = get<{ payload: string }>(
 			test.db,

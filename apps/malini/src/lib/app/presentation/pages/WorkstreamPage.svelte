@@ -2,7 +2,7 @@
 	import type { ExtensionWorkstream } from '@malini/extension-api';
 	import { worktreePageUrl } from '$contract/browser';
 	import { workstreamLiveAutomationsQuery } from '$lib/automations/application/queries/workstream-live-automations.query.svelte';
-	import { WorkstreamAutomationRuns } from '$lib/automations/automations.api';
+	import { AutomationGutterRows } from '$lib/automations/automations.api';
 	import { loadBrowserTabsCommand } from '$lib/browser/application/commands/load-browser-tabs.command';
 	import { openBrowserTabCommand } from '$lib/browser/application/commands/open-browser-tab.command';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
@@ -136,7 +136,7 @@
 			{repositoryScopeReady}
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
-			agentWorking={chat.agentWorking}
+			agentStatus={chat.agentStatus}
 			overrideStatus={provisioningStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
@@ -158,7 +158,7 @@
 />
 
 {#snippet automationsHere()}
-	<WorkstreamAutomationRuns entries={automations} {workstreamId} inGutter />
+	<AutomationGutterRows entries={automations} {workstreamId} />
 {/snippet}
 
 <WorkstreamPathContextMenu {workstreamId} />
