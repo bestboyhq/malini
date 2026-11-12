@@ -82,13 +82,6 @@
 				<p class="came">Malini is what we came up with.</p>
 			</div>
 		</div>
-		<div class="cloud rise">
-			<h3><Icon name="cloud-off" size={20} />No cloud, on purpose.</h3>
-			<p>
-				The only people asking us for one would take a margin on hosting you. It’s not forever. The
-				market hasn’t made up its mind, and we’re in no rush.
-			</p>
-		</div>
 	{/snippet}
 </SectionHeading>
 
@@ -156,8 +149,7 @@
 		margin-top: 28px;
 	}
 
-	.pains p,
-	.cloud p {
+	.pains p {
 		max-width: 480px;
 		color: var(--fg-muted);
 		font-size: 15px;
@@ -251,30 +243,6 @@
 		line-height: 1.55;
 	}
 
-	.cloud {
-		display: grid;
-		grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
-		gap: 12px 80px;
-		margin: 0 calc(-1 * max(var(--pad), env(safe-area-inset-left)));
-		padding: 40px max(var(--pad), env(safe-area-inset-left)) 48px;
-		border-top: 1px solid var(--frame);
-	}
-
-	.cloud h3 {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.cloud h3 :global(svg) {
-		flex: none;
-		color: var(--fg-muted);
-	}
-
-	.cloud p {
-		padding-top: 2px;
-	}
-
 	@media (max-width: 1023px) {
 		.pains {
 			grid-template-columns: minmax(0, 1fr);
@@ -286,12 +254,8 @@
 	}
 
 	@media (max-width: 859px) {
-		.question,
-		.cloud {
-			grid-template-columns: minmax(0, 1fr);
-		}
-
 		.question {
+			grid-template-columns: minmax(0, 1fr);
 			padding: 80px 0;
 		}
 	}
