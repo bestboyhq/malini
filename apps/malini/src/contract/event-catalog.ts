@@ -571,6 +571,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'Fires when you claim your `@handle` and **Publish my stats** turns on, with your Bestboy profile: its handle, whether it is public, and its address.',
 		facts: ['handle', 'public', 'url'],
 	},
+	'stats:projects-changed': {
+		description:
+			'Fires when your projects on Bestboy change in Malini: you turn one on or off, change its link, sign in or out, or an upload of them finishes or fails, with the state bestboy.dev last answered for each. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['signedIn', 'problem'],
+	},
 	'secrets:requested': {
 		description:
 			'Fires when an agent asks you for secrets by name with `secrets_request`, with the chat that asked, the names, why it needs them and which of them you already saved; the chat shows a card where you paste them. It carries no value.',

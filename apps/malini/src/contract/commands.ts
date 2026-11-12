@@ -119,6 +119,7 @@ import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
+	BestboyProjects,
 	PickRepositoriesArgs,
 	ProfileState,
 	PublicRepository,
@@ -127,6 +128,7 @@ import type {
 	RecordFramesArgs,
 	ResourceHistory,
 	ResourceKindBreakdown,
+	SetProjectArgs,
 	ShareCard,
 	RecentMoments,
 	StopRunningArgs,
@@ -857,6 +859,8 @@ export interface ContractCommands {
 	'stats.sign-out': { args: undefined; result: ProfileState };
 	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
 	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
+	'stats.projects': { args: undefined; result: BestboyProjects };
+	'stats.set-project': { args: SetProjectArgs; result: BestboyProjects };
 	'stats.record-frames': { args: RecordFramesArgs; result: void };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
@@ -1126,6 +1130,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'stats.sign-out',
 	'stats.pick-repositories',
 	'stats.public-repositories',
+	'stats.projects',
+	'stats.set-project',
 	'stats.record-frames',
 	'sounds.list',
 	'sounds.read',

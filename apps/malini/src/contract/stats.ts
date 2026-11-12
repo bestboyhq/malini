@@ -185,6 +185,29 @@ export type PickRepositoriesArgs = Readonly<{ repositories: readonly string[] }>
 
 export type PublicRepository = Readonly<{ fullName: string; runs: number }>;
 
+export type BestboyProjectState = 'preview' | 'ready' | 'submitted' | 'live' | 'asked' | 'removed';
+
+export type BestboyProject = Readonly<{
+	repositoryId: string;
+	fullName: string;
+	private: boolean;
+	runs: number;
+	days: number;
+	link: string;
+	on: boolean;
+	state: BestboyProjectState | null;
+	url: string | null;
+	problem: string | null;
+}>;
+
+export type BestboyProjects = Readonly<{
+	signedIn: boolean;
+	projects: readonly BestboyProject[];
+	problem: string | null;
+}>;
+
+export type SetProjectArgs = Readonly<{ repositoryId: string; on: boolean; link: string }>;
+
 export type FrameKind = 'long-frame' | 'frame-gap';
 
 export type FrameScript = Readonly<{

@@ -1,7 +1,7 @@
 import { externalUrlService } from '$shared/system/external-url.service';
 
-export { openProfilePageCommand };
+export { openBestboyPageCommand };
 
-function openProfilePageCommand(url: string): void {
+function openBestboyPageCommand(url: string): void {
 	void externalUrlService.open(url).catch(() => undefined);
 }

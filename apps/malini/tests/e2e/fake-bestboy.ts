@@ -15,11 +15,16 @@ export type PlatformRequest = Readonly<{
 
 export type ExtensionFile = Readonly<{ path: string; text: string }>;
 
+export type ProjectsAnswer = (
+	links: readonly string[],
+) => Readonly<{ status: number; value: unknown }>;
+
 export type FakeBestboy = Readonly<{
 	origin: string;
 	requests: PlatformRequest[];
 	expectChallenge(challenge: string): void;
 	refuseNextStatsUpload(): void;
+	answerProjects(answer: ProjectsAnswer): void;
 	changeTerms(date: string): void;
 	listExtension(files: readonly ExtensionFile[]): void;
 	yankExtension(publisher: string, name: string, version: string): void;
@@ -78,6 +83,7 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 	let challenge = '';
 	let tokens = 0;
 	let refuseStats = false;
+	let projectsAnswer: ProjectsAnswer | null = null;
 	const revoked = new Set<string>();
 	let profile: { handle: string | null; public: boolean } = { handle: null, public: false };
 	let terms = '2026-10-23';
@@ -266,6 +272,17 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 				reply(401, { error: 'Sign in again.' });
 				return;
 			}
+			if (route === 'PUT /api/projects' && projectsAnswer) {
+				const sent = typeof body === 'object' && body ? Reflect.get(body, 'projects') : [];
+				const links = Array.isArray(sent)
+					? sent.map((project: unknown) =>
+							typeof project === 'object' && project ? String(Reflect.get(project, 'link')) : '',
+						)
+					: [];
+				const { status, value } = projectsAnswer(links);
+				reply(status, value);
+				return;
+			}
 			if (route === 'PUT /api/stats/malini' || route === 'DELETE /api/stats/malini') {
 				reply(204);
 				return;
@@ -287,6 +304,9 @@ export async function fakeBestboy(): Promise<FakeBestboy> {
 		},
 		refuseNextStatsUpload: () => {
 			refuseStats = true;
+		},
+		answerProjects: (answer) => {
+			projectsAnswer = answer;
 		},
 		changeTerms: (date) => {
 			terms = date;

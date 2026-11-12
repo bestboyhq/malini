@@ -1,3 +1,4 @@
+export { default as BestboyProjectsSettings } from './presentation/BestboyProjectsSettings.svelte';
 export { default as MomentPeek } from './presentation/MomentPeek.svelte';
 export { default as MomentSettings } from './presentation/MomentSettings.svelte';
 export { default as ProfileBadge } from './presentation/ProfileBadge.svelte';

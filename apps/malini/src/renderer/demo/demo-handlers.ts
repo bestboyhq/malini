@@ -318,6 +318,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 		pickedRepositories: [],
 		suggestedHandle: null,
 	}),
+	'stats.projects': () => ({ signedIn: false, projects: [], problem: null }),
 	'sounds.list': () => [],
 	'extensions.list-sources': () => [],
 	'extensions.list-listings': () => ({ listings: DEMO_EXTENSIONS, unreachable: null }),

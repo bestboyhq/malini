@@ -9,6 +9,7 @@ export type Recipe = Readonly<{
 	title: string;
 	description: string;
 	sentence: string;
+	steps?: readonly string[];
 }>;
 
 export const RECIPES: readonly Recipe[] = [
@@ -26,6 +27,13 @@ export const RECIPES: readonly Recipe[] = [
 		title: 'Changelog on merge',
 		description: 'Update CHANGELOG.md and open a draft PR.',
 		sentence: 'When a pull request merges, update CHANGELOG.md and open a draft PR',
+		steps: [
+			'Read the merged pull request, and leave CHANGELOG.md as it is when nobody who uses the product would notice the change, such as a refactor, a test, a dependency bump, or a CI fix',
+			"Find today's release at the top of CHANGELOG.md, a `## YYYY-MM-DD` heading, or `## <version> - YYYY-MM-DD` when the product has a version, and start it above the older releases when there is none",
+			"Keep one line under that heading as the release's headline, at most 120 characters, that says what people can do now, then a blank line",
+			'Add the change as a list item of at most 300 characters that leads with bold words, such as `- **Party rooms.** Press PLAY together, and your party joins one live room.`',
+			'Gather fixes into one `- **Fixes:**` item, and write every line for the people who use the product: never a pull request title, a file name, or an internal chore',
+		],
 	},
 	{
 		id: 'broken-install',
@@ -158,7 +166,7 @@ export function draftFromWords(text: string): WordsDraft {
 	return {
 		name,
 		lead,
-		steps,
+		steps: RECIPES.find((recipe) => recipe.sentence === trimmed)?.steps ?? steps,
 		then: then?.then ?? null,
 	};
 }
