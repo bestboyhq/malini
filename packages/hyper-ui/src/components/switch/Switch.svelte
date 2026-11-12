@@ -100,6 +100,18 @@
 		opacity: 0.4;
 	}
 
+	@property --switch-travel {
+		syntax: '<number>';
+		inherits: false;
+		initial-value: 0;
+	}
+
+	@property --switch-stretch {
+		syntax: '<length>';
+		inherits: false;
+		initial-value: 0px;
+	}
+
 	.switch::before,
 	.switch::after {
 		content: '';
@@ -110,27 +122,35 @@
 	}
 
 	.switch::before {
-		background: linear-gradient(
-			180deg,
-			color-mix(in oklab, var(--color-brand), white 14%),
-			var(--color-brand)
-		);
-		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16);
-		transition: opacity 380ms var(--switch-ease);
-	}
-
-	.switch::after {
 		background: var(--color-fg-default);
 		transition: opacity 150ms ease;
 	}
 
-	.switch[aria-checked='true']::before {
+	.switch::after {
+		background: linear-gradient(
+			180deg,
+			color-mix(in oklab, var(--color-brand), white 18%),
+			var(--color-brand)
+		);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.18),
+			0 0 0 0.5px color-mix(in oklab, var(--color-brand) 60%, transparent);
+		transition:
+			opacity 380ms var(--switch-ease),
+			filter 150ms ease;
+	}
+
+	.switch[aria-checked='true']::after {
 		opacity: 1;
 	}
 
 	@media (hover: hover) and (pointer: fine) {
+		.switch:not([data-dimmed]):hover::before {
+			opacity: 0.1;
+		}
+
 		.switch:not([data-dimmed]):hover::after {
-			opacity: 0.08;
+			filter: brightness(1.08);
 		}
 	}
 
@@ -141,7 +161,7 @@
 		z-index: 1;
 		display: grid;
 		place-items: center;
-		width: 20px;
+		width: calc(20px + var(--switch-stretch));
 		height: 20px;
 		border-radius: 9999px;
 		background: var(--color-grey-50);
@@ -149,21 +169,18 @@
 			0 0 0 0.5px rgb(0 0 0 / 0.12),
 			0 1px 1px rgb(0 0 0 / 0.18),
 			0 2px 6px rgb(0 0 0 / 0.28);
+		transform: translateX(calc(var(--switch-travel) * (16px - var(--switch-stretch))));
 		transition:
-			transform 380ms var(--switch-ease),
-			width 240ms var(--switch-ease);
+			--switch-travel 380ms var(--switch-ease),
+			--switch-stretch 240ms var(--switch-ease);
 	}
 
 	.switch[aria-checked='true'] .thumb {
-		transform: translateX(16px);
+		--switch-travel: 1;
 	}
 
 	.switch:is(:active, [data-pressed]) .thumb {
-		width: 26px;
-	}
-
-	.switch[aria-checked='true']:is(:active, [data-pressed]) .thumb {
-		transform: translateX(10px);
+		--switch-stretch: 6px;
 	}
 
 	svg {
