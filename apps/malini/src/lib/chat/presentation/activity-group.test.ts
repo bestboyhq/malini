@@ -137,14 +137,20 @@ describe('groupRunTimeline folding', () => {
 		expect(group.detail).toBe('4 files');
 	});
 
-	it('leaves a thought before the first and after the last tool call outside the group', () => {
-		const grouped = groupRunTimeline([
+	it('takes a thought before the first and after the last tool call into the group', () => {
+		const items = [
 			thought(1),
 			tool('Read', { file_path: 'src/a.ts' }),
 			tool('Read', { file_path: 'src/b.ts' }),
 			thought(2),
-		]);
-		expect(kinds(grouped)).toEqual(['thought', 'activity-group', 'thought']);
+		];
+		expect(onlyGroup(items).items).toEqual(items);
+	});
+
+	it('groups a lone tool call with the thought beside it', () => {
+		expect(onlyGroup([tool('Bash', { command: 'swift test' }), thought(3)]).detail).toBe(
+			'1 command',
+		);
 	});
 
 	it('never folds a compaction, so the turn shows where the agent lost its detail', () => {
@@ -177,32 +183,43 @@ describe('groupRunTimeline folding', () => {
 		expect(group.items).toHaveLength(3);
 	});
 
-	it('keeps one group across the status messages between tool calls', () => {
-		const first = assistant('Next I read b.');
-		const second = assistant('Then I run the tests.');
-		const items = [
-			tool('Read', { file_path: 'src/a.ts' }),
-			first,
-			tool('Read', { file_path: 'src/b.ts' }),
-			second,
-			command(0),
-		];
-		const group = onlyGroup(items);
-		expect(group.items).toEqual(items);
-		expect(group.detail).toBe('2 files · 1 command');
-		expect(group.verb).toBe('Worked');
-	});
-
-	it('leaves the message after the last tool call outside the group', () => {
-		const answer = assistant();
+	it('ends a group at every status message, so each burst of work between them is one group', () => {
+		const status = assistant('Next I run the tests.');
+		const answer = assistant('All green.');
 		const grouped = groupRunTimeline([
 			tool('Read', { file_path: 'src/a.ts' }),
-			assistant(),
 			tool('Read', { file_path: 'src/b.ts' }),
+			thought(2),
+			status,
+			command(0),
+			thought(1),
+			command(0),
 			answer,
 		]);
-		expect(kinds(grouped)).toEqual(['activity-group', 'assistant']);
-		expect(grouped[1]).toBe(answer);
+		expect(kinds(grouped)).toEqual(['activity-group', 'assistant', 'activity-group', 'assistant']);
+		expect(grouped[1]).toBe(status);
+		expect(grouped[3]).toBe(answer);
+		expect(grouped.map((row) => (row.kind === 'activity-group' ? row.detail : null))).toEqual([
+			'2 files',
+			null,
+			'2 commands',
+			null,
+		]);
+	});
+
+	it('leaves the burst still at work as rows while the run is open, and groups the ones a message closed', () => {
+		const closed = [
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+		];
+		const working = [tool('Read', { file_path: 'src/c.ts' }), thought(1), command(0)];
+		const grouped = groupRunTimeline([...closed, assistant(), ...working], true);
+		expect(kinds(grouped)).toEqual(['activity-group', 'assistant', 'tool', 'thought', 'command']);
+		expect(kinds(groupRunTimeline([...closed, assistant(), ...working]))).toEqual([
+			'activity-group',
+			'assistant',
+			'activity-group',
+		]);
 	});
 
 	it('leaves a message after a lone tool call outside, in order', () => {

@@ -113,6 +113,14 @@ export function dropShip(deps: ShipDeps, workstreamId: string): void {
 	forgetShip(deps, workstreamId);
 }
 
+export function dropDraftShip(deps: ShipDeps, workstreamId: string): boolean {
+	const row = getShip(deps.context.db, workstreamId);
+	if (row?.phase !== 'draft' || row.step !== null || row.pullRequestNumber === null) return false;
+	dropShip(deps, workstreamId);
+	deps.context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId, state: null });
+	return true;
+}
+
 export function settleShipRequests(deps: ShipDeps, row: ShipRow): void {
 	const { db } = deps.context;
 	settleShipRequest(db, row.workstreamId, 'push', row.requests.push);
