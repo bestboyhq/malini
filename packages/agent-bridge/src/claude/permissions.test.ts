@@ -458,4 +458,27 @@ describe('steerToMalini', () => {
 		}
 		expect(await steer('git status')).toBeUndefined();
 	});
+
+	it("points another browser at Malini's browser tools and leaves a project's tests alone", async () => {
+		for (const command of [
+			'agent-browser open http://localhost:5173',
+			'npx -y agent-browser snapshot -i',
+			'"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --screenshot',
+			'pnpm exec playwright screenshot http://localhost:5173 shot.png',
+			'cd site && open http://localhost:4321',
+		]) {
+			expect(await steer(command)).toMatchObject({
+				permissionDecision: 'deny',
+				permissionDecisionReason: expect.stringContaining('`browser_open`'),
+			});
+		}
+		for (const command of [
+			'pnpm exec playwright test tests/e2e',
+			'npx playwright install chromium',
+			'grep -rn agent-browser docs',
+			'open -R build/app.zip',
+		]) {
+			expect(await steer(command)).toBeUndefined();
+		}
+	});
 });

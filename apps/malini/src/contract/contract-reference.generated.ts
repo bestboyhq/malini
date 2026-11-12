@@ -72,7 +72,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			facts: ['name', 'status', 'source', 'toolCount'],
 			payloadType: 'McpServerReport',
 			payload:
-				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;',
+				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n\tbrowser?: boolean;\n}>;',
 		},
 		{
 			channel: 'chat:mcp-servers-listed',
@@ -81,7 +81,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			facts: ['workstreamId', 'settled'],
 			payloadType: 'McpServerListing',
 			payload:
-				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;\n\ntype McpServerListing = Readonly<{\n\tworkstreamId: string | null;\n\tservers: readonly McpServerReport[];\n\tsettled: boolean;\n\terror?: string;\n}>;',
+				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n\tbrowser?: boolean;\n}>;\n\ntype McpServerListing = Readonly<{\n\tworkstreamId: string | null;\n\tservers: readonly McpServerReport[];\n\tsettled: boolean;\n\terror?: string;\n}>;',
 		},
 		{
 			channel: 'chat:shell-run-changed',

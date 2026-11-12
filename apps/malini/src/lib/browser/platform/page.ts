@@ -1,3 +1,5 @@
+import type { BrowserConsoleLine, BrowserDialog } from '../browser.platform';
+
 export const MALINI_WORLD_ID = 1_729;
 
 export interface Rectangle {
@@ -33,7 +35,17 @@ export interface PageContents {
 		goForward(): void;
 	};
 	capturePage(rect?: Rectangle, options?: { stayHidden?: boolean }): Promise<PageImage>;
-	executeJavaScript(code: string): Promise<unknown>;
+	setBackgroundThrottling(allowed: boolean): void;
+	readonly debugger: {
+		isAttached(): boolean;
+		attach(protocolVersion?: string): void;
+		sendCommand(method: string, params?: object, sessionId?: string): Promise<unknown>;
+		on(
+			event: 'message',
+			listener: (event: unknown, method: string, params: unknown, sessionId: string) => void,
+		): unknown;
+	};
+	executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
 	executeJavaScriptInIsolatedWorld(
 		worldId: number,
 		scripts: Array<{ code: string }>,
@@ -49,7 +61,16 @@ export interface PageEvents {
 	movedInPage(): void;
 	committed(): void;
 	failed(reason: string): void;
+	console(line: BrowserConsoleLine): void;
+	dialog(dialog: PageDialog): void;
+	dialogsClosed(): void;
+	leaving(): boolean;
 	gone(): void;
+}
+
+export interface PageDialog extends BrowserDialog {
+	answer(accept: boolean): void;
+	showToUser(): void;
 }
 
 export interface HostWindow {

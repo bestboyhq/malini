@@ -141,6 +141,7 @@ type McpServerReport = Readonly<{
 	error?: string;
 	source?: string;
 	toolCount?: number;
+	browser?: boolean;
 }>;
 ```
 
@@ -159,6 +160,7 @@ type McpServerReport = Readonly<{
 	error?: string;
 	source?: string;
 	toolCount?: number;
+	browser?: boolean;
 }>;
 
 type McpServerListing = Readonly<{

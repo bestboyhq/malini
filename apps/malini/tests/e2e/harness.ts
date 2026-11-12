@@ -276,7 +276,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		args: [
 			'.',
 			`--user-data-dir=${userDataDir}`,
-			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost',
+			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
 			'--use-mock-keychain',
 			'--use-fake-device-for-media-stream',
 		],
@@ -291,6 +291,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	};
 	electronApp.process().stdout?.on('data', keepOutput);
 	electronApp.process().stderr?.on('data', keepOutput);
+	electronApp.context().on('dialog', leaveDialogsToMalini);
 	await keepTheClipboardInMemory(electronApp);
 	const page = await electronApp.firstWindow();
 
@@ -581,6 +582,8 @@ export function openedUrls(app: LaunchedApp): Promise<string[]> {
 		return Array.isArray(opened) ? opened.map(String) : [];
 	});
 }
+
+const leaveDialogsToMalini = (): void => undefined;
 
 function keepTheClipboardInMemory(electronApp: ElectronApplication): Promise<void> {
 	return electronApp.evaluate(({ clipboard, ClipboardItem }) => {

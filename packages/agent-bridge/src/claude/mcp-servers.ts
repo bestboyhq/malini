@@ -6,6 +6,7 @@ import {
 	type Options,
 	type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
+import { isBrowserMcpServer } from './browser-mcp.js';
 import type { McpServerListing, McpServerReport } from '../types.js';
 import { idle } from './capabilities.js';
 import { configChanged, mcpConfigSnapshot } from './config-snapshot.js';
@@ -77,7 +78,7 @@ export interface McpServerProbes {
 
 export type McpServerEntry = Pick<
 	McpServerStatus,
-	'name' | 'error' | 'source' | 'scope' | 'tools'
+	'name' | 'error' | 'source' | 'scope' | 'tools' | 'config'
 > & {
 	readonly status: string;
 };
@@ -97,14 +98,8 @@ function claudeProbe(cwd: string, plugins: readonly string[]): McpProbeOptions {
 	return { cwd, plugins, executable, env: claudeEnvironment(), query: sdkQuery };
 }
 
-export function mcpServerReport({
-	name,
-	status,
-	error,
-	source,
-	scope,
-	tools,
-}: McpServerEntry): McpServerReport {
+export function mcpServerReport(server: McpServerEntry): McpServerReport {
+	const { name, status, error, source, scope, tools } = server;
 	const origin = source ?? scope;
 	return {
 		name,
@@ -112,6 +107,7 @@ export function mcpServerReport({
 		...(error ? { error } : {}),
 		...(origin ? { source: origin } : {}),
 		...(tools ? { toolCount: tools.length } : {}),
+		...(isBrowserMcpServer(server) ? { browser: true } : {}),
 	};
 }
 

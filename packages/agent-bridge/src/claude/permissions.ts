@@ -15,6 +15,7 @@ import type {
 } from '../interaction-types.js';
 import { claudeChatRecords, type SandboxDenial, type SandboxGrant } from '../sandbox.js';
 import { isRecord } from '../type-guards.js';
+import { BROWSER_TOOL_HINT } from './browser-mcp.js';
 import { MALINI_MCP_SERVER } from './browser-tools.js';
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS']);
@@ -55,6 +56,21 @@ const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
 const SHELL_TOKEN = /"[^"]*"|'[^']*'|&&|\|\||[;|&\n`(){}]|[^\s"';|&`(){}]+/gu;
 const SHELL_OPERATOR = /^(?:&&|\|\||[;|&\n`(){}])$/u;
 const BRANCH_COMMANDS = new Set(['git checkout', 'git switch', 'git worktree']);
+const PACKAGE_RUNNERS = new Set(['npx', 'bunx', 'pnpx', 'uvx']);
+const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+const RUN_VERBS = new Set(['exec', 'dlx', 'x']);
+const CHROME_PROGRAM =
+	/^(?:google[- ]chrome(?:[- ](?:stable|beta|dev|unstable|canary))?|chrom(?:e|ium)(?:-browser)?|chrome-headless-shell)$/iu;
+const PLAYWRIGHT_BROWSER_COMMANDS = new Set([
+	'open',
+	'codegen',
+	'screenshot',
+	'pdf',
+	'cr',
+	'ff',
+	'wk',
+]);
+const PAGE_ARGUMENT = /^(?:https?|file):|\.html?$/iu;
 
 const START_A_WORKSTREAM =
 	'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit to start there, and hand its chat the task in `prompt`';
@@ -67,12 +83,13 @@ export const steerToMalini: HookCallback = async (input) => {
 	const command = input.tool_input['command'];
 	if (typeof command !== 'string') return {};
 	const owned = maliniOwnedCommand(command);
-	if (owned !== null) {
+	const browser = owned === null ? otherBrowser(command) : null;
+	if (owned !== null || browser !== null) {
 		return {
 			hookSpecificOutput: {
 				hookEventName: 'PreToolUse',
 				permissionDecision: 'deny',
-				permissionDecisionReason: refusal(owned),
+				permissionDecisionReason: owned !== null ? refusal(owned) : browserRefusal(browser ?? ''),
 			},
 		};
 	}
@@ -85,6 +102,35 @@ function refusal(owned: string): string {
 	return BRANCH_COMMANDS.has(owned)
 		? `Malini runs \`${owned}\` itself: it owns this workstream's branch and every worktree. To restore files, use git restore. To change code in another repository, such as a fork, or apart from this branch, ${START_A_WORKSTREAM}. ${NO_WORKAROUND}`
 		: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge automation with \`automations_run\` from the \`malini\` MCP server. ${NO_WORKAROUND}`;
+}
+
+function browserRefusal(launch: string): string {
+	const why =
+		launch === 'open'
+			? '`open` hands the page to another app on the Mac.'
+			: `\`${launch}\` drives a browser of its own.`;
+	return `${why} Malini's browser replaces it in Malini chats, even where other instructions name it: the page opens in a tab the user sees, with no sandbox exception and no approval. ${BROWSER_TOOL_HINT}`;
+}
+
+export function otherBrowser(command: string): string | null {
+	for (const [program, args] of programCalls(command)) {
+		const [name, rest] = withoutPackageRunner(program, args);
+		if (name === 'agent-browser' || CHROME_PROGRAM.test(name)) return name;
+		if (name === 'playwright' && PLAYWRIGHT_BROWSER_COMMANDS.has(rest[0] ?? '')) {
+			return `playwright ${rest[0]}`;
+		}
+		if (name === 'open' && rest.some((arg) => PAGE_ARGUMENT.test(arg))) return 'open';
+	}
+	return null;
+}
+
+function withoutPackageRunner(program: string, args: string[]): readonly [string, string[]] {
+	const runs =
+		PACKAGE_RUNNERS.has(program) || (PACKAGE_MANAGERS.has(program) && RUN_VERBS.has(args[0] ?? ''));
+	if (!runs) return [program, args];
+	const words = PACKAGE_RUNNERS.has(program) ? args : args.slice(1);
+	const at = words.findIndex((word) => !word.startsWith('-'));
+	return at === -1 ? [program, args] : [basename(words[at] ?? ''), words.slice(at + 1)];
 }
 
 export function maliniOwnedCommand(command: string): string | null {
@@ -175,6 +221,9 @@ const RUNS_IN_THE_SANDBOX = "Sandboxed access runs every command in Malini's san
 const FULL_RUNS_OUTSIDE = 'Full access runs commands outside the sandbox without asking.';
 const CHAT_RUNS_OUTSIDE = 'The user allowed commands outside the sandbox for this chat.';
 const MAX_REPORTED_BLOCKS = 10;
+const CHROMIUM = /chrom(?:e|ium)/iu;
+const CHROME_INSIDE =
+	"Chrome cannot start its own sandbox inside Malini's, and opening folders does not change that. Look at pages with Malini's browser tools, such as `browser_open` and `browser_snapshot`, and pass `--no-sandbox` to a Chrome a project's tests launch.";
 
 export const SANDBOX_BLOCKED = 'Everything else stays in the sandbox.';
 
@@ -249,6 +298,7 @@ export function sandboxBlockedContext(denials: readonly SandboxDenial[]): string
 			.slice(0, MAX_REPORTED_BLOCKS)
 			.map(({ process, operation, target }) => `- ${process}: ${operation} ${target}`.trimEnd()),
 		...(more > 0 ? [`- and ${more} more`] : []),
+		...(denials.some(({ process }) => CHROMIUM.test(process)) ? [CHROME_INSIDE] : []),
 		'When the command failed because of it, run it again with `dangerouslyDisableSandbox: true`: Malini asks the user to allow what it blocked inside the sandbox.',
 	].join('\n');
 }

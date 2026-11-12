@@ -1,12 +1,48 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserResizeRequest, BrowserState } from '$contract/browser';
-import { PREVIEW_LONG_EDGE } from './automation';
-import type { PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
+import { BrowserDialogOpen } from '../browser.platform';
+import { FULL_PAGE_MAX_HEIGHT, PREVIEW_LONG_EDGE } from './automation';
+import type { PageContents, PageDialog, PageEvents, PageImage, PageView, Rectangle } from './page';
 import type { PinAction, ThreadPin } from './thread-pins';
-import { BrowserViews, DEFAULT_VIEW_SIZE, NOTHING_OPEN, RESIZE_ANSWER_MS, toDip } from './views';
+import {
+	BrowserViews,
+	DEFAULT_VIEW_SIZE,
+	MAX_CONSOLE_LINES,
+	MAX_CONSOLE_TEXT,
+	NO_DIALOG,
+	NOTHING_OPEN,
+	RESIZE_ANSWER_MS,
+	toDip,
+} from './views';
+
+const LOCATED = { x: 110, y: 220, rect: { x: 100, y: 1_200, width: 20, height: 40 } };
+const FRAME_PLUMBING = new Set([
+	'Page.getFrameTree',
+	'Page.createIsolatedWorld',
+	'Target.setAutoAttach',
+]);
+
+type DevtoolsListener = (
+	event: unknown,
+	method: string,
+	params: unknown,
+	sessionId: string,
+) => void;
+const PAGE_METRICS = {
+	cssVisualViewport: { pageX: 0, pageY: 0, clientWidth: 1_280, clientHeight: 800 },
+	cssContentSize: { width: 1_280, height: 3_000 },
+};
+const CDP_PNG = Buffer.from('cdp png');
 
 class FakeWindow {
 	destroyed = false;
@@ -70,7 +106,39 @@ class FakeContents implements PageContents {
 	readonly loadFailures: string[] = [];
 	readonly scripts: string[] = [];
 	readonly pinActions: unknown[] = [];
-	actionOutcome: unknown = 'done';
+	actionOutcome: unknown = { ...LOCATED, done: true };
+	readonly scriptOutcomes: unknown[] = [];
+	throttled = true;
+	devtoolsAnswer: (method: string, params?: object) => unknown = (method) =>
+		method === 'Page.getLayoutMetrics'
+			? PAGE_METRICS
+			: method === 'Page.captureScreenshot'
+				? { data: CDP_PNG.toString('base64') }
+				: {};
+	readonly devtoolsCommands: Array<readonly [string, object | undefined]> = [];
+	readonly devtoolsListeners: DevtoolsListener[] = [];
+	attachedCount = 0;
+	readonly debugger = {
+		isAttached: (): boolean => this.attachedCount > 0,
+		attach: (): void => {
+			this.attachedCount += 1;
+		},
+		sendCommand: async (method: string, params?: object): Promise<unknown> => {
+			if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
+			if (method === 'Page.createIsolatedWorld') return { executionContextId: 7 };
+			if (FRAME_PLUMBING.has(method)) return {};
+			if (method === 'Runtime.evaluate' && params && 'contextId' in params) {
+				const value = await this.runProgram(String(Reflect.get(params, 'expression')));
+				const byValue = Reflect.get(params, 'returnByValue') !== false;
+				return { result: byValue ? { value } : { objectId: 'node-1' } };
+			}
+			this.devtoolsCommands.push([method, params]);
+			return this.devtoolsAnswer(method, params);
+		},
+		on: (_event: 'message', listener: DevtoolsListener): void => {
+			this.devtoolsListeners.push(listener);
+		},
+	};
 	static #nextProcessId = 4_000;
 	readonly processId = FakeContents.#nextProcessId++;
 	frame = new FakeImage(2_560, 1_600);
@@ -147,6 +215,10 @@ class FakeContents implements PageContents {
 		return Promise.resolve(this.frame);
 	}
 
+	setBackgroundThrottling(allowed: boolean): void {
+		this.throttled = allowed;
+	}
+
 	executeJavaScript(): Promise<unknown> {
 		return Promise.resolve(null);
 	}
@@ -165,7 +237,13 @@ class FakeContents implements PageContents {
 				? Promise.resolve(this.pinActions.shift())
 				: new Promise(() => undefined);
 		}
-		return Promise.resolve(this.actionOutcome);
+		return this.runProgram(code, false);
+	}
+
+	runProgram(code: string, record = true): Promise<unknown> {
+		if (record) this.scripts.push(code);
+		const queued = this.scriptOutcomes.length > 0;
+		return Promise.resolve(queued ? this.scriptOutcomes.shift() : this.actionOutcome);
 	}
 }
 
@@ -228,12 +306,17 @@ const PAGE_PIN = {
 	outcome: null,
 } as const;
 const OTHER_TAB = { workstreamId: 'ws-2', tabId: 'tab-1' } as const;
+const VISIBLE = { fullPage: false } as const;
 
 const roots: string[] = [];
 
 afterEach(() => {
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+
+function inputs(contents: FakeContents): ReadonlyArray<readonly [string, object | undefined]> {
+	return contents.devtoolsCommands.filter(([method]) => method.startsWith('Input.'));
+}
 
 function setup(zoom = 1) {
 	let window: FakeWindow | null = new FakeWindow(zoom);
@@ -253,6 +336,8 @@ function setup(zoom = 1) {
 			views.push(view);
 			return view;
 		},
+		imageFromPng: (png) =>
+			png.equals(CDP_PNG) ? new FakeImage(2_560, 6_000) : new FakeImage(0, 0),
 		watchRendererReset: (watched, reset) => {
 			if (resets.has(watched)) throw new Error('watched the same window twice');
 			resets.set(watched, reset);
@@ -583,13 +668,13 @@ describe('BrowserViews', () => {
 
 		const failed = 'http://localhost:5173/ did not load (ERR_CONNECTION_REFUSED).';
 		expect(states.at(-1)).toMatchObject({ failure: 'ERR_CONNECTION_REFUSED' });
-		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(failed);
+		await expect(browser.screenshot(TAB, worktree, VISIBLE)).rejects.toThrow(failed);
 		await expect(browser.click(TAB, 'a')).rejects.toThrow(failed);
 		viewAt(0).events.navigating('http://localhost:5173/');
 		expect(browser.state(TAB)).toMatchObject({ failure: 'ERR_CONNECTION_REFUSED' });
 		viewAt(0).events.committed();
 		expect(browser.state(TAB)).toMatchObject({ failure: null });
-		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({
+		await expect(browser.screenshot(TAB, worktree, VISIBLE)).resolves.toMatchObject({
 			url: 'http://localhost:5173/',
 		});
 	});
@@ -621,9 +706,18 @@ describe('BrowserViews', () => {
 			url: 'https://example.com/',
 		});
 		expect(viewAt(0).contents.scripts.at(-1)).toMatch(/\("#q", "malini", true\)$/u);
-		viewAt(0).contents.actionOutcome = 'readonly';
+		const { scriptOutcomes } = viewAt(0).contents;
+		scriptOutcomes.push(LOCATED, LOCATED, { problem: 'readonly' });
 		await expect(browser.type(TAB, 'h1', 'x', false)).rejects.toThrow(
 			'`h1` is not a field you can type into.',
+		);
+		scriptOutcomes.push(LOCATED, LOCATED, { problem: 'option', options: ['Monthly', 'Yearly'] });
+		await expect(browser.type(TAB, 'select', 'Weekly', false)).rejects.toThrow(
+			'`select` has no option "Weekly". Its options are: "Monthly", "Yearly".',
+		);
+		scriptOutcomes.push(LOCATED, LOCATED, { problem: 'format', kind: 'date' });
+		await expect(browser.type(TAB, '#day', 'tomorrow', false)).rejects.toThrow(
+			'`#day` is a date field and did not take "tomorrow". Use its format, for example 2026-11-12.',
 		);
 	});
 
@@ -631,13 +725,13 @@ describe('BrowserViews', () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-shots-'));
 		roots.push(worktree);
 		const { browser } = setup();
-		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(NOTHING_OPEN);
+		await expect(browser.screenshot(TAB, worktree, VISIBLE)).rejects.toThrow(NOTHING_OPEN);
 		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
-		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(NOTHING_OPEN);
+		await expect(browser.screenshot(TAB, worktree, VISIBLE)).rejects.toThrow(NOTHING_OPEN);
 
 		await browser.open(TAB, 'https://example.com');
-		const first = await browser.screenshot(TAB, worktree);
-		const second = await browser.screenshot(TAB, worktree);
+		const first = await browser.screenshot(TAB, worktree, VISIBLE);
+		const second = await browser.screenshot(TAB, worktree, VISIBLE);
 
 		expect(first.path).toMatch(/^\.malini\/sandbox\/screenshots\/\d{4}-\d\d-\d\d-\d{6}\.png$/);
 		expect(second.path).toMatch(/-\d{6}(?:-2)?\.png$/);
@@ -657,7 +751,7 @@ describe('BrowserViews', () => {
 		browser.hide(TAB);
 		await browser.open(TAB, 'https://example.com');
 
-		await browser.screenshot(TAB, worktree);
+		await browser.screenshot(TAB, worktree, VISIBLE);
 
 		expect(viewAt(0).removedFrom).toEqual([window()]);
 		expect(viewAt(0).visibility).toEqual([true]);
@@ -672,11 +766,11 @@ describe('BrowserViews', () => {
 		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
 		await browser.open(TAB, 'https://example.com');
 
-		await browser.screenshot(TAB, worktree);
+		await browser.screenshot(TAB, worktree, VISIBLE);
 		expect(viewAt(0).removedFrom).toEqual([]);
 
 		window().onScreen = false;
-		await browser.screenshot(TAB, worktree);
+		await browser.screenshot(TAB, worktree, VISIBLE);
 		expect(viewAt(0).removedFrom).toEqual([window()]);
 		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'front']);
 	});
@@ -688,7 +782,7 @@ describe('BrowserViews', () => {
 		await browser.open(TAB, 'https://example.com');
 		viewAt(0).contents.unpainted.push(new Error('UnknownVizError'), new FakeImage(0, 0));
 
-		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({
+		await expect(browser.screenshot(TAB, worktree, VISIBLE)).resolves.toMatchObject({
 			url: 'https://example.com/',
 		});
 		expect(viewAt(0).contents.captured).toHaveLength(3);
@@ -701,7 +795,7 @@ describe('BrowserViews', () => {
 			await browser.open(TAB, 'https://example.com');
 			viewAt(0).contents.captureFailure = new Error('UnknownVizError');
 
-			const outcome = expect(browser.screenshot(TAB, '/work/ws-1')).rejects.toThrow(
+			const outcome = expect(browser.screenshot(TAB, '/work/ws-1', VISIBLE)).rejects.toThrow(
 				'The browser painted nothing for 3s. Call browser_reload',
 			);
 			await vi.advanceTimersByTimeAsync(3_100);
@@ -724,7 +818,7 @@ describe('BrowserViews', () => {
 
 		const opening = browser.open(TAB, 'https://example.org');
 		await expect.poll(() => viewAt(0).contents.nextLoad).toBeNull();
-		const shot = browser.screenshot(TAB, worktree);
+		const shot = browser.screenshot(TAB, worktree, VISIBLE);
 		land();
 
 		await Promise.all([opening, shot]);
@@ -760,21 +854,429 @@ describe('BrowserViews', () => {
 		}
 	});
 
-	it('clicks for the agent and says so when nothing matches', async () => {
-		const { browser, viewAt } = setup();
+	it('clicks with the mouse once the element holds still, with the hidden tab lifted out of the window', async () => {
+		const { browser, viewAt, window } = setup();
 		await expect(browser.click(TAB, '#buy')).rejects.toThrow(NOTHING_OPEN);
 		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+		contents.scriptOutcomes.push({ ...LOCATED, x: 90 });
 
 		await expect(browser.click(TAB, '#buy')).resolves.toEqual({
 			url: 'https://example.com/',
 			title: 'Title of https://example.com/',
 		});
-		viewAt(0).contents.actionOutcome = 'missing';
-		await expect(browser.click(TAB, '#gone')).rejects.toThrow(
-			'Nothing on the page matches `#gone`.',
+
+		expect(
+			contents.scripts.filter((code) => code.includes('("#buy", "click", false)')),
+		).toHaveLength(3);
+		expect(contents.attachedCount).toBe(1);
+		expect(contents.devtoolsCommands).toEqual([
+			['Emulation.setFocusEmulationEnabled', { enabled: true }],
+			['Page.enable', undefined],
+			['Page.setInterceptFileChooserDialog', { enabled: true, cancel: true }],
+			[
+				'Input.dispatchMouseEvent',
+				{ type: 'mouseMoved', x: 110, y: 220, button: 'none', buttons: 0 },
+			],
+			[
+				'Input.dispatchMouseEvent',
+				{ type: 'mousePressed', x: 110, y: 220, button: 'left', buttons: 1, clickCount: 1 },
+			],
+			[
+				'Input.dispatchMouseEvent',
+				{ type: 'mouseReleased', x: 110, y: 220, button: 'left', buttons: 0, clickCount: 1 },
+			],
+			['Page.setInterceptFileChooserDialog', { enabled: false }],
+			['Page.disable', undefined],
+		]);
+		expect(viewAt(0).removedFrom).toEqual([window()]);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+	});
+
+	it('refuses a click it can never land, without touching the mouse', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+
+		contents.actionOutcome = { problem: 'invalid' };
+		await expect(browser.click(TAB, 'button:has-text("Buy")')).rejects.toThrow(
+			'`button:has-text("Buy")` is not a valid CSS selector or ref. Call browser_snapshot',
 		);
-		viewAt(0).contents.actionOutcome = 'invalid';
-		await expect(browser.click(TAB, '[')).rejects.toThrow('`[` is not a valid CSS selector.');
+		contents.actionOutcome = { problem: 'stale' };
+		await expect(browser.click(TAB, '@e4')).rejects.toThrow(
+			'`@e4` is a ref from an older snapshot, and its element is gone.',
+		);
+		contents.actionOutcome = { problem: 'popup', kind: 'select' };
+		await expect(browser.click(TAB, '#plan')).rejects.toThrow(
+			'`#plan` is a select, and a click opens its menu outside the page. Pick an option with browser_type',
+		);
+		contents.actionOutcome = { problem: 'popup', kind: 'date' };
+		await expect(browser.click(TAB, '#day')).rejects.toThrow(
+			'Set its value with browser_type instead, for example 2026-11-12.',
+		);
+		expect(inputs(contents)).toEqual([]);
+	});
+
+	it('waits up to 5s for an element to show and for what covers it to go', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			await browser.open(TAB, 'https://example.com');
+			const { contents } = viewAt(0);
+
+			contents.actionOutcome = { problem: 'missing' };
+			const missing = expect(browser.click(TAB, '#gone')).rejects.toThrow(
+				'Nothing on the page matches `#gone` within 5s. Call browser_snapshot',
+			);
+			await vi.advanceTimersByTimeAsync(5_100);
+			await missing;
+
+			contents.actionOutcome = { problem: 'covered', by: 'div.cookie-banner "Accept all"' };
+			const covered = expect(browser.hover(TAB, '#menu')).rejects.toThrow(
+				'div.cookie-banner "Accept all" covers `#menu`, so the mouse reaches it instead.',
+			);
+			await vi.advanceTimersByTimeAsync(5_100);
+			await covered;
+			expect(inputs(contents)).toEqual([]);
+
+			contents.actionOutcome = { problem: 'missing' };
+			const late = browser.click(TAB, '#late');
+			await vi.advanceTimersByTimeAsync(1_000);
+			contents.actionOutcome = LOCATED;
+			await vi.advanceTimersByTimeAsync(1_000);
+			await expect(late).resolves.toMatchObject({ url: 'https://example.com/' });
+			expect(contents.devtoolsCommands.map(([, params]) => params)).toContainEqual(
+				expect.objectContaining({ type: 'mousePressed' }),
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('presses keys, hovers and scrolls with real input, with background throttling off', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+		expect(contents.throttled).toBe(false);
+
+		await browser.press(TAB, 'Shift+Tab');
+		await browser.hover(TAB, '@e2');
+		contents.scriptOutcomes.push(
+			{ x: 0, y: 0, height: 3_000, viewport: { width: 1_280, height: 800 } },
+			{ x: 0, y: 600, height: 3_000 },
+			{ x: 0, y: 600, height: 3_000 },
+		);
+		await expect(browser.scroll(TAB, { x: 0, y: 600 })).resolves.toEqual({
+			x: 0,
+			y: 600,
+			height: 3_000,
+		});
+		await expect(browser.press(TAB, 'Hyper+K')).rejects.toThrow(
+			'`Hyper+K` is not a key Malini knows.',
+		);
+
+		const sent = contents.devtoolsCommands.map(([method, params]) => [
+			method,
+			params && 'type' in params ? params.type : undefined,
+			params && 'key' in params ? params.key : undefined,
+		]);
+		expect(sent).toEqual([
+			['Emulation.setFocusEmulationEnabled', undefined, undefined],
+			['Page.enable', undefined, undefined],
+			['Page.setInterceptFileChooserDialog', undefined, undefined],
+			['Input.dispatchKeyEvent', 'rawKeyDown', 'Shift'],
+			['Input.dispatchKeyEvent', 'rawKeyDown', 'Tab'],
+			['Input.dispatchKeyEvent', 'keyUp', 'Tab'],
+			['Input.dispatchKeyEvent', 'keyUp', 'Shift'],
+			['Page.setInterceptFileChooserDialog', undefined, undefined],
+			['Page.disable', undefined, undefined],
+			['Input.dispatchMouseEvent', 'mouseMoved', undefined],
+			['Input.dispatchMouseEvent', 'mouseWheel', undefined],
+		]);
+		expect(contents.devtoolsCommands.at(-1)).toEqual([
+			'Input.dispatchMouseEvent',
+			{ type: 'mouseWheel', x: 640, y: 400, deltaX: 0, deltaY: 600 },
+		]);
+	});
+
+	it('waits for text to show or an element to go, and says when it never does', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			await browser.open(TAB, 'https://example.com');
+			const { contents } = viewAt(0);
+			contents.actionOutcome = false;
+
+			const shows = browser.wait(TAB, { seconds: 5, gone: false, text: 'Saved' });
+			await vi.advanceTimersByTimeAsync(300);
+			contents.actionOutcome = true;
+			await vi.advanceTimersByTimeAsync(300);
+			await expect(shows).resolves.toMatchObject({ url: 'https://example.com/' });
+
+			const stays = expect(
+				browser.wait(TAB, { seconds: 2, gone: true, selector: '.spinner' }),
+			).rejects.toThrow('`.spinner` is still on the page after 2s.');
+			await vi.advanceTimersByTimeAsync(2_200);
+			await stays;
+
+			contents.actionOutcome = 'stale';
+			await expect(
+				browser.wait(TAB, { seconds: 2, gone: true, selector: '@e9' }),
+			).resolves.toMatchObject({ url: 'https://example.com/' });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('runs a script the way the DevTools console does and returns its result as text', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+		const evaluated: string[] = [];
+		const threw = (className: string, description: string) => ({
+			exceptionDetails: { exception: { className, description } },
+		});
+		contents.devtoolsAnswer = (method, params) => {
+			if (method === 'Runtime.callFunctionOn') {
+				return { result: { type: 'string', value: '["<a>"]' } };
+			}
+			if (method !== 'Runtime.evaluate' || !params || !('expression' in params)) return {};
+			const expression = String(params.expression);
+			evaluated.push(expression);
+			if (expression === 'document.title') return { result: { type: 'string', value: 'Pricing' } };
+			if (expression === '1 + 1') return { result: { type: 'number', value: 2 } };
+			if (expression === 'return 3') {
+				return threw('SyntaxError', 'SyntaxError: Illegal return statement');
+			}
+			if (expression.startsWith('(async () => {')) return { result: { type: 'number', value: 3 } };
+			if (expression === 'boom()') {
+				return threw('ReferenceError', 'ReferenceError: boom is not defined');
+			}
+			if (expression === 'document.links') return { result: { type: 'object', objectId: 'o-1' } };
+			return { result: { type: 'undefined' } };
+		};
+
+		await expect(browser.evaluate(TAB, 'document.title')).resolves.toBe('Pricing');
+		await expect(browser.evaluate(TAB, '1 + 1')).resolves.toBe('2');
+		await expect(browser.evaluate(TAB, 'void 0')).resolves.toBe('undefined');
+		await expect(browser.evaluate(TAB, 'return 3')).resolves.toBe('3');
+		await expect(browser.evaluate(TAB, 'document.links')).resolves.toBe('["<a>"]');
+		await expect(browser.evaluate(TAB, 'boom()')).rejects.toThrow(
+			'The script threw ReferenceError: boom is not defined',
+		);
+
+		expect(evaluated).toEqual([
+			'document.title',
+			'1 + 1',
+			'void 0',
+			'return 3',
+			'(async () => {\nreturn 3\n})()',
+			'document.links',
+			'boom()',
+		]);
+		expect(contents.devtoolsCommands).toContainEqual([
+			'Runtime.callFunctionOn',
+			expect.objectContaining({ objectId: 'o-1', returnByValue: true, awaitPromise: true }),
+		]);
+		expect(contents.devtoolsCommands.at(-1)).toEqual([
+			'Runtime.releaseObjectGroup',
+			{ objectGroup: 'malini' },
+		]);
+	});
+
+	it('holds a dialog the page opens while the agent acts, until the agent answers it', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents, events } = viewAt(0);
+		let release = (): void => undefined;
+		const released = new Promise<object>((resolve) => {
+			release = () => resolve({});
+		});
+		contents.devtoolsAnswer = (_method, params) =>
+			params && 'type' in params && params.type === 'mouseReleased' ? released : {};
+		const answers: boolean[] = [];
+		const showToUser = vi.fn();
+		const confirm: PageDialog = {
+			type: 'confirm',
+			message: 'Delete the draft?',
+			answer: (accept) => {
+				answers.push(accept);
+				release();
+			},
+			showToUser,
+		};
+
+		const clicking = browser.click(TAB, '#delete');
+		await expect.poll(() => inputs(contents)).toHaveLength(3);
+		expect(events.leaving()).toBe(true);
+		events.dialog(confirm);
+
+		await expect(clicking).rejects.toThrow(
+			'The page shows a confirm dialog and waits for an answer: "Delete the draft?". Call browser_dialog with accept true to press OK, or false to press Cancel.',
+		);
+		expect(events.leaving()).toBe(false);
+		await expect(browser.readPage(TAB)).rejects.toBeInstanceOf(BrowserDialogOpen);
+		await expect(browser.answerDialog(TAB, false)).resolves.toEqual({
+			dialog: { type: 'confirm', message: 'Delete the draft?' },
+			accepted: false,
+			page: { url: 'https://example.com/', title: 'Title of https://example.com/' },
+		});
+		expect(answers).toEqual([false]);
+		expect(showToUser).not.toHaveBeenCalled();
+		await expect(browser.answerDialog(TAB, true)).rejects.toThrow(NO_DIALOG);
+		await expect(browser.click(TAB, '#other')).resolves.toMatchObject({
+			url: 'https://example.com/',
+		});
+	});
+
+	it('shows the user a dialog on the tab they see, and holds one on a hidden tab until they open it', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { events } = viewAt(0);
+		const shown: string[] = [];
+		const alert = (message: string): PageDialog => ({
+			type: 'alert',
+			message,
+			answer: () => undefined,
+			showToUser: () => void shown.push(message),
+		});
+		const bounds = { x: 0, y: 0, width: 300, height: 200 };
+
+		browser.show(TAB, bounds);
+		events.dialog(alert('Saved'));
+		expect(shown).toEqual(['Saved']);
+
+		browser.hide(TAB);
+		events.dialog(alert('Your session ends soon'));
+		expect(shown).toEqual(['Saved']);
+		await expect(browser.readPage(TAB)).rejects.toThrow(
+			'The page shows an alert and waits for an answer: "Your session ends soon". Call browser_dialog to close it.',
+		);
+		browser.show(TAB, bounds);
+		expect(shown).toEqual(['Saved', 'Your session ends soon']);
+		await expect(browser.answerDialog(TAB, true)).rejects.toThrow(NO_DIALOG);
+
+		browser.hide(TAB);
+		events.dialog(alert('Left behind'));
+		events.dialogsClosed();
+		await expect(browser.readPage(TAB)).resolves.toBe('');
+	});
+
+	it('picks worktree files for a file field, or through the chooser a button opens', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-upload-'));
+		roots.push(worktree);
+		writeFileSync(join(worktree, 'cv.pdf'), 'pdf');
+		writeFileSync(join(worktree, 'photo.png'), 'png');
+		const cv = realpathSync(join(worktree, 'cv.pdf'));
+		const photo = realpathSync(join(worktree, 'photo.png'));
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+		const setFiles = () =>
+			contents.devtoolsCommands.filter(([method]) => method === 'DOM.setFileInputFiles');
+
+		await expect(browser.upload(TAB, worktree, '#cv', ['/etc/hosts'])).rejects.toThrow(
+			'/etc/hosts is not a file in this worktree. Copy it into the worktree first',
+		);
+		await expect(browser.upload(TAB, worktree, '#cv', ['missing.pdf'])).rejects.toThrow(
+			'missing.pdf is not a file in this worktree.',
+		);
+
+		contents.scriptOutcomes.push({ kind: 'input', multiple: false, disabled: false });
+		await browser.upload(TAB, worktree, '#cv', ['cv.pdf']);
+		contents.scriptOutcomes.push({ kind: 'input', multiple: false, disabled: false });
+		await expect(browser.upload(TAB, worktree, '#cv', ['cv.pdf', 'photo.png'])).rejects.toThrow(
+			'`#cv` takes one file, and you passed 2. Pick one.',
+		);
+		expect(setFiles()).toEqual([['DOM.setFileInputFiles', { files: [cv], objectId: 'node-1' }]]);
+
+		const openChooser = (): void => {
+			for (const listener of contents.devtoolsListeners) {
+				listener(null, 'Page.fileChooserOpened', { backendNodeId: 42, mode: 'selectMultiple' }, '');
+			}
+		};
+		contents.devtoolsAnswer = (_method, params) => {
+			if (params && 'type' in params && params.type === 'mouseReleased') openChooser();
+			return {};
+		};
+		contents.scriptOutcomes.push({ kind: 'other' });
+		await browser.upload(TAB, worktree, '#attach', [cv, 'photo.png']);
+		expect(setFiles().at(-1)).toEqual([
+			'DOM.setFileInputFiles',
+			{ files: [cv, photo], backendNodeId: 42 },
+		]);
+
+		await expect(browser.click(TAB, '#attach')).rejects.toThrow(
+			'`#attach` opened a file chooser, and Malini closed it. Pick the files with browser_upload on `#attach` instead.',
+		);
+		expect(setFiles()).toHaveLength(2);
+	});
+
+	it('keeps the latest console messages of the page since it loaded, each clipped', async () => {
+		const { browser, viewAt } = setup();
+		await expect(browser.consoleLines(TAB)).rejects.toThrow(NOTHING_OPEN);
+		await browser.open(TAB, 'https://example.com');
+		const { events } = viewAt(0);
+
+		events.console({ level: 'info', text: 'old page', source: '' });
+		events.committed();
+		events.console({ level: 'error', text: 'x'.repeat(MAX_CONSOLE_TEXT + 5), source: 'app.js:3' });
+		await expect(browser.consoleLines(TAB)).resolves.toEqual({
+			url: 'https://example.com/',
+			lines: [{ level: 'error', text: `${'x'.repeat(MAX_CONSOLE_TEXT)}…`, source: 'app.js:3' }],
+			dropped: 0,
+		});
+
+		for (let index = 0; index < MAX_CONSOLE_LINES + 2; index += 1) {
+			events.console({ level: 'debug', text: `tick ${index}`, source: '' });
+		}
+		const { lines, dropped } = await browser.consoleLines(TAB);
+		expect(lines).toHaveLength(MAX_CONSOLE_LINES);
+		expect(dropped).toBe(3);
+		expect(lines[0]?.text).toBe('tick 2');
+		expect(lines.at(-1)?.text).toBe(`tick ${MAX_CONSOLE_LINES + 1}`);
+	});
+
+	it('captures the whole page or one element through DevTools, and says when the page is longer than one capture', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-full-page-'));
+		roots.push(worktree);
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+
+		const page = await browser.screenshot(TAB, worktree, { fullPage: true });
+		const element = await browser.screenshot(TAB, worktree, { fullPage: false, selector: '@e3' });
+		contents.devtoolsAnswer = (method) =>
+			method === 'Page.getLayoutMetrics'
+				? { ...PAGE_METRICS, cssContentSize: { width: 1_280, height: 20_000 } }
+				: { data: CDP_PNG.toString('base64') };
+		const long = await browser.screenshot(TAB, worktree, { fullPage: true });
+
+		const clips = contents.devtoolsCommands
+			.filter(([method]) => method === 'Page.captureScreenshot')
+			.map(([, params]) => params);
+		expect(clips).toEqual([
+			{
+				format: 'png',
+				clip: { x: 0, y: 0, width: 1_280, height: 3_000, scale: 1 },
+				captureBeyondViewport: true,
+			},
+			{
+				format: 'png',
+				clip: { x: 100, y: 1_200, width: 20, height: 40, scale: 1 },
+				captureBeyondViewport: true,
+			},
+			{
+				format: 'png',
+				clip: { x: 0, y: 0, width: 1_280, height: FULL_PAGE_MAX_HEIGHT, scale: 1 },
+				captureBeyondViewport: true,
+			},
+		]);
+		expect(readFileSync(join(worktree, page.path), 'utf8')).toBe('png 2560x6000');
+		expect(page).not.toHaveProperty('pageHeight');
+		expect(element).not.toHaveProperty('pageHeight');
+		expect(long.pageHeight).toBe(20_000);
+		expect(contents.captured).toEqual([]);
 	});
 
 	it('keeps one pick per view: a new pick takes over the open one without handing focus or pins back in between, and a cancel ends it', async () => {
@@ -825,7 +1327,9 @@ describe('BrowserViews', () => {
 		await browser.open(TAB, 'about:blank');
 		await browser.open(TAB, 'about:blank');
 		expect(opened).toEqual([TAB]);
-		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({ url: 'about:blank' });
+		await expect(browser.screenshot(TAB, worktree, VISIBLE)).resolves.toMatchObject({
+			url: 'about:blank',
+		});
 
 		const selects = () =>
 			viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"select"'));
@@ -894,7 +1398,7 @@ describe('BrowserViews', () => {
 
 			expect(clicked).toMatchObject({
 				message:
-					'The page did not answer within 10s. Call browser_screenshot to see what it shows.',
+					'The page did not answer within 10s. It may wait on a dialog or a busy script. Call browser_screenshot to see what it shows.',
 			});
 			await expect(next).resolves.toMatchObject({ url: 'https://example.com/next' });
 		} finally {
@@ -977,23 +1481,50 @@ describe('BrowserViews', () => {
 		browser.resized('2');
 		browser.resized('1');
 
-		await expect(resizing).resolves.toBe(900);
+		await expect(resizing).resolves.toEqual({ width: 900, height: 750 });
 	});
 
-	it('leaves the width of a tab the user does not see, and says so', async () => {
-		const { browser, resizes, window } = setup();
+	it('sizes a tab the user does not see as asked, and says when malini is hidden with the tab open', async () => {
+		const { browser, resizes, window, viewAt } = setup();
 		await expect(browser.resize(TAB, 1_000)).rejects.toThrow(NOTHING_OPEN);
 		browser.show(TAB, { x: 0, y: 0, width: 640, height: 600 });
 		await browser.open(TAB, 'https://example.com');
 		browser.hide(TAB);
+		const view = viewAt(0);
+		view.contents.scriptOutcomes.push({ width: 390, height: 844 }, { width: 1_000, height: 844 });
+		view.visibility.splice(0);
 
-		await expect(browser.resize(TAB, 1_000)).rejects.toThrow(
-			'The browser tab is not on screen, so its width did not change: the page is 640px wide.',
-		);
+		await expect(browser.resize(TAB, 390, 844)).resolves.toEqual({ width: 390, height: 844 });
+		expect(view.bounds.at(-1)).toEqual({ x: 0, y: 0, width: 390, height: 844 });
+		expect(view.visibility).toEqual([true, false]);
+		await expect(browser.resize(TAB, 1_000)).resolves.toEqual({ width: 1_000, height: 844 });
+
 		browser.show(TAB, { x: 0, y: 0, width: 640, height: 600 });
 		window().onScreen = false;
-		await expect(browser.resize(TAB, 1_000)).rejects.toThrow('not on screen');
+		await expect(browser.resize(TAB, 1_000)).rejects.toThrow(
+			"Malini's window is minimized or hidden while the user has the browser tab open, so its size did not change: the page is 640px wide.",
+		);
 		expect(resizes).toEqual([]);
+	});
+
+	it('says so when a page the user does not see keeps its old size', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			browser.show(TAB, { x: 0, y: 0, width: 640, height: 600 });
+			await browser.open(TAB, 'https://example.com');
+			browser.hide(TAB);
+			viewAt(0).contents.actionOutcome = { width: 640, height: 600 };
+
+			const resizing = expect(browser.resize(TAB, 390, 844)).rejects.toThrow(
+				'The page stayed 640 by 600px instead of 390 by 844px. Call browser_resize again.',
+			);
+			await vi.advanceTimersByTimeAsync(2_000);
+			await resizing;
+			expect(viewAt(0).visibility.at(-1)).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('gives up on a resize malini never answers', async () => {

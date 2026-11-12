@@ -195,6 +195,8 @@ export function contextWindowUnknownMessage(): string {
 	return 'No published window size for this model, so there is no percentage to show, only what has been used so far.';
 }
 
+export const BROWSER_MCP_NOTE = "Hidden from agents. Malini's browser does this";
+
 export function mcpUnavailableMessage(): string {
 	return 'MCP status appears after the agent starts the first response.';
 }

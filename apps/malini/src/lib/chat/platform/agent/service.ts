@@ -20,6 +20,7 @@ import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { automationBoundaryForSession } from '$lib/automations/automations.platform';
+import { BrowserDialogOpen, type BrowserDialogAnswer } from '$lib/browser/browser.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	listWorkstreams,
@@ -70,23 +71,73 @@ export interface BrowserPageInfo {
 	readonly title: string;
 }
 
+export interface BrowserConsoleLine {
+	readonly level: 'debug' | 'info' | 'warning' | 'error';
+	readonly text: string;
+	readonly source: string;
+}
+
 export interface BrowserAutomation {
 	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo>;
+	readPage(tab: BrowserTabArgs): Promise<string>;
 	screenshot(
 		tab: BrowserTabArgs,
 		worktree: string,
-	): Promise<{ readonly path: string; readonly previewPath: string; readonly url: string }>;
+		part: { readonly selector?: string; readonly fullPage: boolean },
+	): Promise<{
+		readonly path: string;
+		readonly previewPath: string;
+		readonly url: string;
+		readonly pageHeight?: number;
+	}>;
 	click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo>;
+	hover(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo>;
 	type(
 		tab: BrowserTabArgs,
 		selector: string,
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo>;
+	press(tab: BrowserTabArgs, key: string): Promise<BrowserPageInfo>;
+	scroll(
+		tab: BrowserTabArgs,
+		by: { readonly x: number; readonly y: number; readonly selector?: string },
+	): Promise<{
+		readonly x: number;
+		readonly y: number;
+		readonly height: number;
+		readonly container?: string;
+	}>;
+	wait(
+		tab: BrowserTabArgs,
+		until: {
+			readonly seconds: number;
+			readonly gone: boolean;
+			readonly text?: string;
+			readonly selector?: string;
+		},
+	): Promise<BrowserPageInfo>;
+	evaluate(tab: BrowserTabArgs, script: string): Promise<string>;
+	consoleLines(tab: BrowserTabArgs): Promise<{
+		readonly url: string;
+		readonly lines: readonly BrowserConsoleLine[];
+		readonly dropped: number;
+	}>;
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
-	resize(tab: BrowserTabArgs, width: number): Promise<number>;
+	resize(
+		tab: BrowserTabArgs,
+		width: number,
+		height?: number,
+	): Promise<{ readonly width: number; readonly height: number }>;
+	upload(
+		tab: BrowserTabArgs,
+		worktree: string,
+		selector: string,
+		paths: readonly string[],
+	): Promise<BrowserPageInfo>;
+	answerDialog(tab: BrowserTabArgs, accept: boolean): Promise<BrowserDialogAnswer>;
 	close(tab: BrowserTabArgs): Promise<boolean>;
 }
 
@@ -144,11 +195,20 @@ export async function answerBrowserRequest(
 					text: `Opened ${describePage(page)}. Call browser_screenshot to see it.`,
 				};
 			}
+			case 'snapshot':
+				return { ok: true, text: await browser.readPage(tab) };
 			case 'screenshot': {
-				const shot = await browser.screenshot(tab, worktreePath(deps.checkoutsRoot, workstreamId));
+				const worktree = worktreePath(deps.checkoutsRoot, workstreamId);
+				const { fullPage, selector } = request;
+				const part = selector === undefined ? { fullPage } : { fullPage, selector };
+				const shot = await browser.screenshot(tab, worktree, part);
+				const cut =
+					shot.pageHeight === undefined
+						? ''
+						: ` The page is ${shot.pageHeight}px tall, more than one screenshot holds, so it shows the top part. Pass the selector of an element further down for the rest.`;
 				return {
 					ok: true,
-					text: `Screenshot of ${shot.url} saved to ${shot.path}. Embed it in your report as ![what it shows](${shot.path}).`,
+					text: `Screenshot of ${shot.url} saved to ${shot.path}.${cut} Embed it in your report as ![what it shows](${shot.path}).`,
 					imagePath: shot.previewPath,
 				};
 			}
@@ -157,6 +217,13 @@ export async function answerBrowserRequest(
 				return {
 					ok: true,
 					text: `Clicked \`${request.selector}\`. The page is now ${describePage(page)}.`,
+				};
+			}
+			case 'hover': {
+				const page = await browser.hover(tab, request.selector);
+				return {
+					ok: true,
+					text: `The mouse is over \`${request.selector}\`. The page is now ${describePage(page)}.`,
 				};
 			}
 			case 'type': {
@@ -168,6 +235,34 @@ export async function answerBrowserRequest(
 					text: `Typed into \`${selector}\`${enter}. The page is now ${describePage(page)}.`,
 				};
 			}
+			case 'press': {
+				const page = await browser.press(tab, request.key);
+				return {
+					ok: true,
+					text: `Pressed ${request.key}. The page is now ${describePage(page)}.`,
+				};
+			}
+			case 'scroll': {
+				const { x, y, selector } = request;
+				const by = selector === undefined ? { x, y } : { x, y, selector };
+				const { height, container, ...at } = await browser.scroll(tab, by);
+				const what = container === undefined ? 'The page' : container;
+				return { ok: true, text: `${what} is scrolled to x ${at.x}, y ${at.y} of ${height}px.` };
+			}
+			case 'wait': {
+				const { seconds, gone, text, selector } = request;
+				const page = await browser.wait(tab, {
+					seconds,
+					gone,
+					...(text === undefined ? {} : { text }),
+					...(selector === undefined ? {} : { selector }),
+				});
+				return { ok: true, text: `${describeWait(request)} The page is ${describePage(page)}.` };
+			}
+			case 'evaluate':
+				return { ok: true, text: await browser.evaluate(tab, request.script) };
+			case 'console':
+				return { ok: true, text: describeConsole(await browser.consoleLines(tab)) };
 			case 'back':
 				return {
 					ok: true,
@@ -179,11 +274,27 @@ export async function answerBrowserRequest(
 			}
 			case 'reload':
 				return { ok: true, text: `Reloaded ${describePage(await browser.reload(tab))}.` };
-			case 'resize':
+			case 'resize': {
+				const size = await browser.resize(tab, request.width, request.height);
+				return { ok: true, text: describeSize(request, size) };
+			}
+			case 'upload': {
+				const { selector, paths } = request;
+				const worktree = worktreePath(deps.checkoutsRoot, workstreamId);
+				const page = await browser.upload(tab, worktree, selector, paths);
+				const files = paths.length === 1 ? 'one file' : `${paths.length} files`;
 				return {
 					ok: true,
-					text: describeWidth(request.width, await browser.resize(tab, request.width)),
+					text: `Picked ${files} for \`${selector}\`: ${paths.join(', ')}. The page is now ${describePage(page)}.`,
 				};
+			}
+			case 'dialog': {
+				const answer = await browser.answerDialog(tab, request.accept);
+				return {
+					ok: true,
+					text: `${describeDialogAnswer(answer)} The page is now ${describePage(answer.page)}.`,
+				};
+			}
 			case 'close':
 				return {
 					ok: true,
@@ -193,22 +304,68 @@ export async function answerBrowserRequest(
 				};
 		}
 	} catch (error) {
+		if (error instanceof BrowserDialogOpen && error.openedByAction) {
+			return { ok: true, text: error.message };
+		}
 		return { ok: false, error: describe(error) };
 	}
+}
+
+function describeDialogAnswer({ dialog, accepted }: BrowserDialogAnswer): string {
+	if (dialog.type === 'alert') return 'Closed the alert.';
+	return `Pressed ${accepted ? 'OK' : 'Cancel'} on the confirm dialog.`;
 }
 
 export function agentBrowserTabId(sessionId: string): string {
 	return `chat-${sessionId}`;
 }
 
-function describeWidth(asked: number, width: number): string {
-	if (width < asked - RESIZE_ROUNDING_PX) {
-		return `The page is now ${width}px wide, the widest Malini's window allows while the chat keeps its minimum width.`;
+function describeSize(
+	asked: { readonly width: number; readonly height?: number },
+	{ width, height }: { readonly width: number; readonly height: number },
+): string {
+	const wide =
+		width < asked.width - RESIZE_ROUNDING_PX
+			? `${width}px wide, the widest Malini's window allows while the chat keeps its minimum width`
+			: width > asked.width + RESIZE_ROUNDING_PX
+				? `${width}px wide, the narrowest the inspector gets in Malini's window`
+				: `${width}px wide`;
+	if (asked.height === undefined) return `The page is now ${wide}.`;
+	if (Math.abs(height - asked.height) <= RESIZE_ROUNDING_PX) {
+		return `The page is now ${wide} and ${height}px tall.`;
 	}
-	if (width > asked + RESIZE_ROUNDING_PX) {
-		return `The page is now ${width}px wide, the narrowest the inspector gets in Malini's window.`;
-	}
-	return `The page is now ${width}px wide.`;
+	return `The page is now ${wide}. It stays ${height}px tall while the user sees the tab.`;
+}
+
+function describeWait({
+	seconds,
+	gone,
+	text,
+	selector,
+}: Extract<BridgeBrowserRequest, { action: 'wait' }>): string {
+	if (text === undefined && selector === undefined) return `Waited ${seconds}s.`;
+	const what =
+		text === undefined
+			? `\`${selector ?? ''}\``
+			: selector === undefined
+				? `"${text}"`
+				: `"${text}" in \`${selector}\``;
+	return gone ? `${what} is gone.` : `${what} shows.`;
+}
+
+function describeConsole({
+	url,
+	lines,
+	dropped,
+}: Awaited<ReturnType<BrowserAutomation['consoleLines']>>): string {
+	if (lines.length === 0) return `The console of ${url} is empty since it loaded.`;
+	const older = dropped > 0 ? `, after ${dropped} older ones Malini no longer keeps` : '';
+	const listed = lines.map(
+		({ level, text, source }) => `[${level}] ${text}${source ? ` (${source})` : ''}`,
+	);
+	return [`${lines.length} console messages of ${url} since it loaded${older}:`, ...listed].join(
+		'\n',
+	);
 }
 
 function describePage(page: BrowserPageInfo): string {

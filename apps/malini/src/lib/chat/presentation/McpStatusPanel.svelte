@@ -19,7 +19,7 @@
 	import { goto } from '$shared/router/navigation';
 	import { MCP_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import McpServerRow from './McpServerRow.svelte';
-	import { mcpUnavailableMessage } from './session-runtime-metadata';
+	import { BROWSER_MCP_NOTE, mcpUnavailableMessage } from './session-runtime-metadata';
 
 	interface Props {
 		servers: readonly McpServer[] | null;
@@ -38,7 +38,7 @@
 	const listed = $derived(servers === null ? [] : withTurnedOffListed(servers, turnedOff));
 	const groups = $derived(groupMcpServers(listed, turnedOff));
 	const steps = $derived(mcpFixSteps(groups));
-	const onCount = $derived(listed.length - groups.off.length);
+	const onCount = $derived(listed.length - groups.off.length - groups.browsers.length);
 	const settled = $derived(
 		steps.length === 0 && groups.duplicates.length === 0 && groups.connecting.length === 0,
 	);
@@ -262,6 +262,16 @@
 					{#if readyOpen}
 						{@render rows(groups.ready, false)}
 					{/if}
+				</section>
+			{/if}
+
+			{#if groups.browsers.length > 0}
+				<section aria-label="Browsers">
+					<div class="flex h-8 items-center gap-2 px-1.5">
+						{@render heading('globe', 'text-fg-tertiary', 'Browsers', groups.browsers.length)}
+					</div>
+					<p class="text-2xs text-fg-tertiary pr-1.5 pb-1 pl-7">{BROWSER_MCP_NOTE}</p>
+					{@render rows(groups.browsers, false)}
 				</section>
 			{/if}
 

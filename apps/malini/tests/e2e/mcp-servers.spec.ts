@@ -151,6 +151,59 @@ test('the MCP panel groups servers by their fix, and Fix walks them one after an
 	}
 });
 
+test('browser MCP servers show as hidden from agents, in the panel and in Settings, with nothing to fix', async () => {
+	test.setTimeout(180_000);
+	const { root } = claudeHome();
+	const hidden = "Hidden from agents. Malini's browser does this";
+	const app = await launchMalini({
+		profile: root,
+		env: {
+			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify([
+				{ name: 'codebase-memory-mcp', status: 'connected', source: 'user', toolCount: 14 },
+				{ name: 'playwright', status: 'connected', source: 'user', toolCount: 21, browser: true },
+				{
+					name: 'chrome-devtools',
+					status: 'failed',
+					source: 'user',
+					error: 'Connection closed',
+					browser: true,
+				},
+			]),
+		},
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-mcp-browsers', 'Browsers');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check the servers');
+		await expectAssistantReply(page);
+
+		await page.getByRole('button', { name: 'View MCP server status' }).hover();
+		const panel = page.getByRole('dialog', { name: 'MCP server status' });
+		await expect(panel.getByTestId('session-mcp-ready-count')).toHaveText('1 of 1 ready');
+		const browsers = panel.getByRole('region', { name: 'Browsers' });
+		await expect(browsers).toContainText(hidden);
+		await expect(browsers.getByTestId('session-mcp-display-name')).toHaveText([
+			'Playwright',
+			'Chrome Devtools',
+		]);
+		await expect(panel.getByRole('button', { name: /^(Fix|Retry|Sign in)/u })).toHaveCount(0);
+		await captureFlow(app, 'mcp-panel-browsers');
+
+		const settings = await openMcpSettings(page);
+		for (const name of ['playwright', 'chrome-devtools']) {
+			await expect(settings.locator(`[data-mcp-server-id="${name}"]`)).toContainText(hidden);
+		}
+		await expect(settings.getByRole('button', { name: /^(Fix|Retry|Sign in)/u })).toHaveCount(0);
+		await captureFlow(app, 'mcp-settings-browsers');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Settings lists MCP servers by where they come from, signs in, and turns one off', async () => {
 	test.setTimeout(180_000);
 	const { root, settingsFile } = claudeHome();

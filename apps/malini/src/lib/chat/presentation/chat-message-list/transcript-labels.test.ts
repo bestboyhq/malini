@@ -58,6 +58,9 @@ describe('a thought read as steps', () => {
 	it('names the last step as the outcome, without markdown marks', () => {
 		expect(thinkingOutcome(THOUGHT)).toBe('I will gate it on :focus-visible in HoverCard.');
 		expect(thinkingOutcome('Focus returns to the **chip**.')).toBe('Focus returns to the chip.');
+		expect(thinkingOutcome('I have no __mcp__playwright__ tool.')).toBe(
+			'I have no mcp__playwright tool.',
+		);
 	});
 });
 

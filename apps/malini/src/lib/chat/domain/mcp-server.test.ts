@@ -43,6 +43,17 @@ describe('MCP server triage', () => {
 		expect(names(groups.off)).toEqual(['plugin:github:github']);
 	});
 
+	it('sets browser servers apart from the ready count and every fix, since Malini hides them', () => {
+		const playwright = mcpServer({ name: 'playwright', status: 'connected', browser: true });
+		const failing = mcpServer({ name: 'chrome-devtools', status: 'failed', browser: true });
+		const groups = groupMcpServers([...servers, playwright, failing], ['plugin:github:github']);
+
+		expect(groups.browsers).toEqual([playwright, failing]);
+		expect(groups.ready).not.toContain(playwright);
+		expect(groups.failed).not.toContain(failing);
+		expect(mcpFixSteps(groups).map(({ server }) => server.name)).not.toContain('chrome-devtools');
+	});
+
 	it('tags a server with its origin only when another server shares its name', () => {
 		const gmail = servers[1];
 		const slack = servers[0];

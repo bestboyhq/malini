@@ -11,22 +11,54 @@ Malini's tools reach Claude Code through an MCP server named `malini`, so their 
 The agent drives the same browser tabs you see in the inspector, and the tabs it opens show up beside yours.
 A tab shows up as soon as the agent starts opening its page, and a page that does not load says why, such as `ERR_CONNECTION_REFUSED` while your dev server starts.
 
-| Tool                 | What it does                                   |
-| -------------------- | ---------------------------------------------- |
-| `browser_open`       | Opens a web page or a file from the worktree.  |
-| `browser_screenshot` | Captures the open page.                        |
-| `browser_click`      | Clicks the first element a CSS selector finds. |
-| `browser_type`       | Types into a field, optionally pressing Enter. |
-| `browser_back`       | Goes back one page.                            |
-| `browser_forward`    | Goes forward one page.                         |
-| `browser_reload`     | Reloads the page.                              |
-| `browser_resize`     | Makes the tab wider or narrower.               |
-| `browser_close`      | Closes the tab it opened, and its page.        |
+| Tool                 | What it does                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `browser_open`       | Opens a web page or a file from the worktree.                                                 |
+| `browser_snapshot`   | Reads the page and its iframes as text, with a ref such as `@e3` for each element it can use. |
+| `browser_screenshot` | Captures the view, the whole page, or one element.                                            |
+| `browser_click`      | Clicks an element with the mouse.                                                             |
+| `browser_hover`      | Moves the mouse over an element, for menus and tooltips.                                      |
+| `browser_type`       | Types into a field or picks an option, optionally pressing Enter.                             |
+| `browser_press`      | Presses a key or a shortcut, such as `Escape` or `Meta+a`.                                    |
+| `browser_scroll`     | Scrolls the page or the element under the mouse.                                              |
+| `browser_wait`       | Waits for text or an element to show or go, or for a number of seconds.                       |
+| `browser_evaluate`   | Runs JavaScript in the page and returns the result.                                           |
+| `browser_console`    | Reads what the page logged to its console since it loaded.                                    |
+| `browser_upload`     | Picks files from the worktree for a file field, or for the button that opens a file chooser.  |
+| `browser_dialog`     | Answers the alert or confirm dialog the page waits on: OK or Cancel.                          |
+| `browser_back`       | Goes back one page.                                                                           |
+| `browser_forward`    | Goes forward one page.                                                                        |
+| `browser_reload`     | Reloads the page.                                                                             |
+| `browser_resize`     | Sets the page's width, and its height while you do not see the tab.                           |
+| `browser_close`      | Closes the tab it opened, and its page.                                                       |
+
+Every tool works while you do not see the tab, look at another workstream, or keep Malini behind other windows.
+The agent names an element by a ref from its last `browser_snapshot` or by a CSS selector.
+An element inside an iframe gets a ref such as `@f1e3`, from the same site or another one, and every tool reaches it there.
+A click, a hover or a scroll moves the real mouse in the page, so the page sees the same events as from you.
+Malini waits up to 5 seconds for the element to show and hold still, and when something else covers it, such as a cookie banner, the agent hears what.
+A select or a date field opens a picker outside the page, so the agent picks the option or types the date with `browser_type` instead.
+A file field opens a file chooser outside the page, so the agent picks the files with `browser_upload`, from inside the worktree only.
+A click that opens a file chooser any other way closes it, and the agent hears to use `browser_upload`.
+
+An alert or confirm dialog on a tab you do not see, or while the agent acts on it, waits for the agent.
+The tool that opened it returns its message, the other browser tools wait until `browser_dialog` answers it, and showing the tab hands it to you.
+On a tab you see while the agent does nothing there, the dialog shows to you as before.
+A page that asks to stay before you leave lets the agent leave.
+Electron does not support `prompt()`, so a page that calls it gets an error, in Malini as in every Electron app.
 
 When a page is too narrow or too wide for what it checks, the agent calls `browser_resize` with the width the page should get.
-Malini moves the divider between the chat and the inspector, the one you drag, and the width stays until you drag it back.
+While you see the tab, Malini moves the divider between the chat and the inspector, the one you drag, and the width stays until you drag it back.
 The chat and the inspector keep their minimum widths, so the page may end up narrower or wider than asked, and the agent hears how wide it got.
-Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
+While you do not see the tab, it takes the width and height the agent asks for, such as 390 by 844 for a phone, and fits the inspector again once you open it.
+While Malini is minimized with the tab open, its size stays and the agent hears why.
+
+Malini's browser replaces agent-browser, Playwright MCP, Puppeteer and any Chrome an agent launches to look at a page.
+Malini tells the agent so, since a Chrome inside Malini's sandbox cannot start its own sandbox and asks you for access it does not need.
+A browser MCP server you set up, such as Playwright MCP or Chrome DevTools MCP, stays out of every Malini chat: the agent does not get its tools, and the [MCP panel](/malini/docs/chat.md#mcp-servers) lists it as **Hidden**.
+Your `claude` in the terminal keeps it.
+In Bash, `agent-browser`, a Chrome binary, Playwright's `open`, `codegen` and `screenshot`, and `open` on a page do not run, and the agent hears which browser tool to use instead.
+A project's own tests, such as `playwright test`, and iOS and Android simulators run as before.
 
 Once a page has served its purpose, such as after the agent checked or captured it, the agent closes its tab with `browser_close`, and the page closes with it.
 It closes only the tab it opened, never one of yours, and the tab stays closed after Malini restarts.

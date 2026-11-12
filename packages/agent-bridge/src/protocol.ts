@@ -240,18 +240,46 @@ export interface TurnedOffSkills {
 
 export type BrowserRequest =
 	| { readonly action: 'open'; readonly url: string }
-	| { readonly action: 'screenshot' }
+	| { readonly action: 'snapshot' }
+	| {
+			readonly action: 'screenshot';
+			readonly fullPage: boolean;
+			readonly selector?: string;
+	  }
 	| { readonly action: 'click'; readonly selector: string }
+	| { readonly action: 'hover'; readonly selector: string }
 	| {
 			readonly action: 'type';
 			readonly selector: string;
 			readonly text: string;
 			readonly submit: boolean;
 	  }
+	| { readonly action: 'press'; readonly key: string }
+	| {
+			readonly action: 'scroll';
+			readonly x: number;
+			readonly y: number;
+			readonly selector?: string;
+	  }
+	| {
+			readonly action: 'wait';
+			readonly seconds: number;
+			readonly gone: boolean;
+			readonly text?: string;
+			readonly selector?: string;
+	  }
+	| { readonly action: 'evaluate'; readonly script: string }
+	| { readonly action: 'console' }
 	| { readonly action: 'back' }
 	| { readonly action: 'forward' }
 	| { readonly action: 'reload' }
-	| { readonly action: 'resize'; readonly width: number }
+	| { readonly action: 'resize'; readonly width: number; readonly height?: number }
+	| {
+			readonly action: 'upload';
+			readonly selector: string;
+			readonly paths: readonly string[];
+	  }
+	| { readonly action: 'dialog'; readonly accept: boolean }
 	| { readonly action: 'close' };
 
 export interface BrowserResult {
