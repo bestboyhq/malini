@@ -5,7 +5,6 @@ import { CHAT_DELIVERY_CHANGED_CHANNEL, type ChatTurnFinishedPayload } from '$co
 import type { MainContext } from '$main/context';
 import { get, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
-import { startingSessionId } from '$lib/automations/automations.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
 	deliveryBatch,
@@ -15,16 +14,18 @@ import {
 } from '../domain/deliveries';
 import { isAlreadyActiveError } from '../domain/prompt-dispatch-failure';
 import {
+	clearWakes,
 	insertDelivery,
 	getDelivery,
 	sessionsWithWaitingDeliveries,
 	settleDeliveries,
 	waitingDeliveries,
+	wakesAnsweredBy,
 	type NewDelivery,
 } from './deliveries.repository';
 import { sessionHasWorkingRun } from './events.repository';
 import { chatTurnChainId, getRun } from './runs.repository';
-import { getSession, latestSessionForWorkstream } from './sessions.repository';
+import { getSession } from './sessions.repository';
 
 const BUSY_RETRY_MS = 3_000;
 const BUSY_RETRIES = 20;
@@ -70,7 +71,7 @@ export class ChatDeliveries {
 	}
 
 	async turnFinished(turn: ChatTurnFinishedPayload, eventId: number | null): Promise<void> {
-		await Promise.all([this.flush(turn.sessionId), this.#reportToStarter(turn, eventId)]);
+		await Promise.all([this.flush(turn.sessionId), this.#wakeAskers(turn, eventId)]);
 	}
 
 	async flush(sessionId: string): Promise<void> {
@@ -147,17 +148,21 @@ export class ChatDeliveries {
 		this.#settle(ids, { status: 'delivered', runId, at: nowIso8601() });
 	}
 
-	async #reportToStarter(turn: ChatTurnFinishedPayload, eventId: number | null): Promise<void> {
+	async #wakeAskers(turn: ChatTurnFinishedPayload, eventId: number | null): Promise<void> {
 		const { db } = this.#context;
-		if (turn.status === 'cancelled') return;
+		if (turn.status === 'interrupted') return;
+		const wakes = wakesAnsweredBy(db, turn.sessionId, turn.runId);
+		if (wakes.length === 0) return;
+		if (turn.status === 'cancelled' || turn.backgroundCommands === null) {
+			clearWakes(db, wakes);
+		}
 		const workstream = getWorkstream(db, turn.workstreamId);
-		if (!workstream?.startedBy) return;
-		const starterId =
-			startingSessionId(db, workstream.id) ??
-			latestSessionForWorkstream(db, workstream.startedBy)?.id ??
-			null;
-		const starter = starterId === null ? null : getSession(db, starterId);
-		if (!starter || starter.archivedAt !== null || starter.workstreamId === workstream.id) return;
+		if (turn.status === 'cancelled' || !workstream) return;
+		const askers = [...new Set(wakes.map(({ fromSessionId }) => fromSessionId))].filter((id) => {
+			const asker = getSession(db, id);
+			return asker?.archivedAt === null && asker.workstreamId !== workstream.id;
+		});
+		if (askers.length === 0) return;
 		const summary = getRun(db, turn.runId)?.summary ?? null;
 		const report = workstreamReport({
 			workstreamId: workstream.id,
@@ -172,19 +177,23 @@ export class ChatDeliveries {
 			summary && summary.trim().length > 0
 				? reportForStarter(summary.trim(), workstream.path)
 				: [`Outcome: ${turn.outcome ?? 'none'}`, `Needs: ${turn.needs ?? 'nothing'}`].join('\n');
-		await this.deliver({
-			sessionId: starter.id,
-			kind: 'report',
-			prompt: [
-				`“${workstream.name}” (\`${workstream.id}\`), a workstream you started, ${reportedTurnEnd(report)}.`,
-				`Its checkout: ${workstream.path}`,
-				body,
-			].join('\n'),
-			fromWorkstreamId: workstream.id,
-			report,
-			chainId: chatTurnChainId(db, turn.runId),
-			causeEventId: eventId,
-		});
+		const prompt = [
+			`“${workstream.name}” (\`${workstream.id}\`), a workstream you started, ${reportedTurnEnd(report)}.`,
+			`Its checkout: ${workstream.path}`,
+			body,
+		].join('\n');
+		const chainId = chatTurnChainId(db, turn.runId);
+		for (const sessionId of askers) {
+			await this.deliver({
+				sessionId,
+				kind: 'report',
+				prompt,
+				fromWorkstreamId: workstream.id,
+				report,
+				chainId,
+				causeEventId: eventId,
+			});
+		}
 	}
 
 	#retryLater(sessionId: string): void {

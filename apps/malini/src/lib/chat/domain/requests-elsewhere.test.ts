@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AutomationRunRecord, AutomationRunStatus } from '$contract/automations';
-import { askingChildren, descendantWorkstreamIds } from './child-requests';
+import { askingAutomations, waitingElsewhere } from './requests-elsewhere';
 import type { SessionRecord, SessionState } from './session-record';
 
 function run(sessionId: string | null, status: AutomationRunStatus): AutomationRunRecord {
@@ -47,40 +47,34 @@ function session(
 	};
 }
 
-describe('askingChildren', () => {
-	it('brings up automations that need you and child chats waiting on you, once each, never the shown chat', () => {
+describe('requests elsewhere', () => {
+	it('brings up the automations that need you, once each, never the shown chat', () => {
 		expect(
-			askingChildren(
-				'root-chat',
-				[
-					run('automation-chat', 'needs-you'),
-					run('busy-automation', 'running'),
-					run(null, 'needs-you'),
-				],
-				[
-					session('automation-chat', 'waiting_for_approval', 'automation'),
-					session('docs-chat', 'waiting_for_approval'),
-					session('fix-chat', 'waiting_for_approval', 'automation'),
-					session('idle-chat', 'completed'),
-					session('root-chat', 'waiting_for_approval'),
-				],
-			),
+			askingAutomations('shown-automation', [
+				run('automation-chat', 'needs-you'),
+				run('automation-chat', 'needs-you'),
+				run('busy-automation', 'running'),
+				run(null, 'needs-you'),
+				run('shown-automation', 'needs-you'),
+			]),
 		).toEqual([
 			{ sessionId: 'automation-chat', workstreamId: 'switch', automation: 'Address review' },
-			{ sessionId: 'docs-chat', workstreamId: 'docs', automation: null },
-			{ sessionId: 'fix-chat', workstreamId: 'docs', automation: 'Fix checks' },
 		]);
 	});
 
-	it('reaches every workstream started down the tree, and stops at a loop', () => {
+	it('lists every other chat waiting on you, past the shown chat and the automations already asking', () => {
+		const asking = askingAutomations(null, [run('automation-chat', 'needs-you')]);
 		expect(
-			descendantWorkstreamIds('root', [
-				{ id: 'root', startedBy: 'grandchild' },
-				{ id: 'child', startedBy: 'root' },
-				{ id: 'grandchild', startedBy: 'child' },
-				{ id: 'great-grandchild', startedBy: 'grandchild' },
-				{ id: 'sibling', startedBy: null },
+			waitingElsewhere('root-chat', asking, [
+				session('automation-chat', 'waiting_for_approval', 'automation'),
+				session('docs-chat', 'waiting_for_approval'),
+				session('fix-chat', 'waiting_for_approval', 'automation'),
+				session('idle-chat', 'completed'),
+				session('root-chat', 'waiting_for_approval'),
 			]),
-		).toEqual(new Set(['child', 'grandchild', 'great-grandchild']));
+		).toEqual([
+			{ sessionId: 'docs-chat', workstreamId: 'docs', automation: null },
+			{ sessionId: 'fix-chat', workstreamId: 'docs', automation: 'Fix checks' },
+		]);
 	});
 });

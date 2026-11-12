@@ -107,7 +107,10 @@ async function starterStartsChild(app: LaunchedApp): Promise<string> {
 	);
 	await openWorkstream(page, workstreamId);
 	await toolCalls(app, [
-		{ tool: 'workstreams_create', input: { repository: 'acme/api', prompt: CHILD_PROMPT } },
+		{
+			tool: 'workstreams_create',
+			input: { repository: 'acme/api', prompt: CHILD_PROMPT, wake: true },
+		},
 	]);
 	return workstreamId;
 }
@@ -148,7 +151,7 @@ function wokenBy(page: Page, from: string) {
 		.filter({ hasText: `Prompt from ${from}` });
 }
 
-test('a chat hears every turn a workstream it started ends, and the Explorer says Deliveries woke it', async () => {
+test('a chat that asks to wake hears the turn a workstream it started ends, and the Explorer says Deliveries woke it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {

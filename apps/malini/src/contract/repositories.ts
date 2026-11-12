@@ -58,7 +58,6 @@ export interface ArchivedWorkstreamDto {
 	archivedAt: string;
 	mergedPullRequest: MergedPullRequest | null;
 	savedForLater: boolean;
-	clearedFromStarter: boolean;
 	startedBy: string | null;
 }
 

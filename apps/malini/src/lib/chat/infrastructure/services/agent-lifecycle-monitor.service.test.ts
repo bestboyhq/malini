@@ -46,7 +46,6 @@ function monitorHarness() {
 		sessionFor: (sessionId) => sessions.get(sessionId) ?? null,
 		appFocused: () => true,
 		queueCountFor: () => 0,
-		chatIn: (workstreamId) => `${workstreamId}-chat`,
 		contextFor: (workstreamId) => contexts.get(workstreamId) ?? null,
 		clearAttention: (sessionId) => attentions.delete(sessionId),
 		clearAttentionForRun: (sessionId, runId) => {
@@ -89,7 +88,6 @@ function context(owner: string, workstreamId: string): AgentWorkstreamContext {
 		label: `${workstreamId} label`,
 		repositoryFullName: `${owner}/repo`,
 		branch: `malini/${workstreamId}`,
-		root: null,
 	};
 }
 
@@ -280,70 +278,6 @@ describe('AgentLifecycleMonitor', () => {
 
 		expect(harness.attentions.get('session-behind')?.kind).toBe('completed');
 		expect(harness.notifications).toEqual([]);
-	});
-
-	it('leaves the turns of a started workstream to the chat at the root of its tree, which asks for its approvals', () => {
-		const harness = monitorHarness();
-		harness.sessions.set('session-child', { workstreamId: 'stream-child', status: 'running' });
-		harness.contexts.set('stream-child', {
-			...context('acme', 'stream-child'),
-			root: { workstreamId: 'root', label: 'Ship hutch' },
-		});
-		harness.monitor.setShown('stream-b', null);
-		harness.monitor.start();
-
-		harness.emit(
-			envelope('session-child', 'run-1', 1, {
-				type: 'run.completed',
-				runId: 'run-1',
-				summary: 'Done.\n\nOutcome: Shipped\nNeeds: Pick a name',
-			}),
-		);
-		expect(harness.attentions.get('session-child')).toBeUndefined();
-		expect(harness.sound).not.toHaveBeenCalled();
-		expect(harness.notifications).toEqual([]);
-
-		harness.emit(
-			envelope('session-child', 'run-fail', 2, {
-				type: 'run.failed',
-				runId: 'run-fail',
-				error: 'boom',
-			}),
-		);
-		expect(harness.attentions.get('session-child')).toBeUndefined();
-		expect(harness.sound).not.toHaveBeenCalled();
-
-		harness.emit(envelope('session-child', 'run-2', 3, { type: 'run.started', runId: 'run-2' }));
-		harness.emit(
-			envelope('session-child', 'run-2', 4, {
-				type: 'approval.requested',
-				runId: 'run-2',
-				approvalId: 'approval-2',
-				reason: 'Run the tests',
-			}),
-		);
-		expect(harness.sound).toHaveBeenCalledWith('needs-you');
-		expect(harness.notifications).toEqual([
-			{
-				title: 'Ship hutch',
-				body: 'stream-child label is waiting: Run the tests',
-				workstreamId: 'root',
-				sessionId: 'root-chat',
-			},
-		]);
-
-		harness.monitor.setShown('root', 'root-chat');
-		harness.emit(envelope('session-child', 'run-3', 5, { type: 'run.started', runId: 'run-3' }));
-		harness.emit(
-			envelope('session-child', 'run-3', 6, {
-				type: 'approval.requested',
-				runId: 'run-3',
-				approvalId: 'approval-3',
-				reason: 'Push the branch',
-			}),
-		);
-		expect(harness.attentions.get('session-child')?.kind).toBe('approval');
-		expect(harness.notifications).toHaveLength(1);
 	});
 
 	it('leaves automation runs to their own rows: no attention, no notification, no cleared dot', () => {

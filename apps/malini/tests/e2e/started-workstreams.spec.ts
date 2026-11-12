@@ -86,7 +86,7 @@ async function choose(page: Page, setting: string, choice: string): Promise<void
 	await expect(panel.getByRole('button', { name: `${setting}: ${choice}` })).toBeVisible();
 }
 
-test('a chat starts workstreams in two repositories, which show its progress, list in its transcript and disconnect from it', async () => {
+test('a chat starts workstreams in two repositories, which run on their own and show no link to it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -124,13 +124,13 @@ test('a chat starts workstreams in two repositories, which show its progress, li
 		});
 		await expect(rowsIn(page, 'acme/web')).toHaveCount(1);
 		await expect(rowsIn(page, 'acme/api')).toHaveCount(2);
-		await expect(starterRow.getByTestId('sidebar-progress')).toHaveAccessibleName(
-			/^2 workstreams/u,
-		);
 		const card = transcript(page).getByTestId('started-workstreams');
 		await expect(card.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(card.getByRole('link', { name: /^acme\/web, / })).toBeVisible();
-		await expect(card).toContainText('of 2 merged');
+		await starterRow.hover();
+		await expect(page.getByRole('list', { name: /^Started by / })).toHaveCount(0);
+		await page.mouse.move(0, 0);
+		await expect(page.getByRole('heading', { name: /^Started here/u })).toHaveCount(0);
 		await captureFlow(app, 'started-workstreams-sidebar');
 
 		await card.getByRole('link', { name: /^acme\/web, / }).click();
@@ -138,62 +138,31 @@ test('a chat starts workstreams in two repositories, which show its progress, li
 		await expect(startedWeb).toHaveAttribute('aria-current', 'page');
 		await lastReply(page, 'Started by: Logdash migration');
 		await lastReply(page, 'Siblings: acme/api');
-		const lineage = page.getByTestId('workstream-lineage');
-		await expect(lineage).toContainText('Started by Logdash migration');
-		await expect(lineage.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(transcript(page).getByTestId('chat-prompt-from')).toHaveText(
 			'Prompt from Logdash migration',
 		);
-		await captureFlow(app, 'started-workstream-lineage');
-		const webId = await startedWeb.getAttribute('data-workstream-id');
-		await lineage.getByTestId('workstream-lineage-starter').click();
-		await expect(starterRow).toHaveAttribute('aria-current', 'page');
-		await page.mouse.move(0, 0);
-		const progress = starterRow.getByTestId('sidebar-progress');
-		await expect(progress).toBeVisible();
+		await expect(page.getByTestId('workstream-lineage')).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Disconnect from Logdash migration' }),
+		).toHaveCount(0);
+		await captureFlow(app, 'started-workstream-on-its-own');
 
-		await invoke(page, 'repositories.archive-workstream', { workstreamId: webId });
-		await expect(progress).toHaveAccessibleName(/^2 workstreams: .*1 archived$/u, {
-			timeout: 20_000,
-		});
-		await expect
-			.poll(() =>
-				progress
-					.locator('[data-progress-dot]')
-					.evaluateAll((dots) =>
-						dots.map((dot) => dot.getAttribute('data-progress-dot')).join(' '),
-					),
-			)
-			.toMatch(/^(merged|blocked|needs|failed|running|idle) archived$/u);
-		await starterRow.hover();
-		const started = page
-			.getByTestId('sidebar-started-card')
-			.getByRole('list', { name: 'Started by Logdash migration' });
-		await expect(started.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
-		await expect(started.getByRole('group', { name: /^acme\/web, .*, Archived, / })).toBeVisible();
-		await captureFlow(app, 'started-workstreams-card');
-
-		const startedApi = rowNamed(page, 'Api analytics');
-		await startedApi.click();
-		await expect(startedApi).toHaveAttribute('aria-current', 'page');
-		await lineage.getByRole('button', { name: 'Disconnect from Logdash migration' }).click();
-		await expect(lineage).toHaveCount(0);
-		await expect(rowsIn(page, 'acme/api')).toHaveCount(2);
-		await expect(progress).toHaveAccessibleName(/^1 workstream: 1 archived$/u, {
-			timeout: 20_000,
-		});
-		const workstreamsAfter = await invoke<readonly WorkstreamRow[]>(
+		const workstreams = await invoke<readonly WorkstreamRow[]>(
 			page,
 			'repositories.list-workstreams',
 		);
-		expect(workstreamsAfter.filter((workstream) => workstream.startedBy !== null)).toEqual([]);
+		expect(
+			workstreams
+				.filter((workstream) => workstream.id !== starter.workstreamId)
+				.map((workstream) => workstream.startedBy),
+		).toEqual([starter.workstreamId, starter.workstreamId]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a workstream a chat started stays quiet, and its report with what it needs reaches that chat', async () => {
+test('a workstream a chat started needs you in its own row, and its turn reaches that chat only when the chat asks to wake', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -222,9 +191,33 @@ test('a workstream a chat started stays quiet, and its report with what it needs
 		);
 
 		const child = rowNamed(page, 'Api analytics');
-		await expect(child.getByRole('status')).toHaveAccessibleName('Workstream status: Ready', {
-			timeout: 60_000,
+		await expect(child.getByRole('status')).toHaveAccessibleName(NEEDS_YOU, { timeout: 60_000 });
+		await page.waitForTimeout(2_000);
+		expect(await reportsHeardBy(page, starter.workstreamId)).toEqual([]);
+		const [starterSession] = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
+			workstreamId: starter.workstreamId,
 		});
+		expect(await promptsOf(page, starterSession?.id ?? '')).toHaveLength(1);
+		await expect(sidebarStatus(page, starter.workstreamId)).not.toHaveAccessibleName(NEEDS_YOU);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'started-workstreams-quiet');
+
+		const childId = await child.getAttribute('data-workstream-id');
+		await callTools(
+			app,
+			[
+				{
+					tool: 'workstreams_send',
+					input: {
+						workstream: childId,
+						prompt:
+							'TURN_OUTCOME="The endpoint reads the project" TURN_NEEDS="Pick the Logdash key"',
+						wake: true,
+					},
+				},
+			],
+			'Asked the api work to wake me',
+		);
 		await expect
 			.poll(
 				async () =>
@@ -234,12 +227,9 @@ test('a workstream a chat started stays quiet, and its report with what it needs
 					]),
 				{ timeout: 60_000 },
 			)
-			.toEqual([['The endpoint answers', 'Pick the Logdash project']]);
+			.toEqual([['The endpoint reads the project', 'Pick the Logdash key']]);
 		await untilIdle(page);
 		await expect(sidebarStatus(page, starter.workstreamId)).not.toHaveAccessibleName(NEEDS_YOU);
-		await expect(child.getByRole('status')).not.toHaveAccessibleName(NEEDS_YOU);
-		await page.mouse.move(0, 0);
-		await captureFlow(app, 'started-workstreams-quiet');
 
 		await page
 			.getByRole('group', { name: 'Focus' })
@@ -247,15 +237,11 @@ test('a workstream a chat started stays quiet, and its report with what it needs
 			.click();
 		await choose(page, 'Grouping', 'Status');
 		await page.keyboard.press('Escape');
-		await expect(sidebar(page).getByRole('button', { name: /^Needs you, /u })).toHaveCount(0);
 		const idle = sidebar(page)
 			.getByTestId('sidebar-section')
 			.filter({ has: page.getByRole('button', { name: /^Idle, /u }) });
 		await expect(
 			idle.getByTestId('sidebar-workstream').filter({ hasText: 'Ship analytics' }),
-		).toBeVisible();
-		await expect(
-			idle.getByTestId('sidebar-workstream').filter({ hasText: 'Api analytics' }),
 		).toBeVisible();
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'started-workstreams-quiet-status');
@@ -265,7 +251,7 @@ test('a workstream a chat started stays quiet, and its report with what it needs
 	}
 });
 
-test('a chat hears a turn that ends over a background command, and again when it goes on, which delivers what waited and commits', async () => {
+test('a chat that asks to wake hears a turn that ends over a background command, and again when it goes on, which delivers what waited and commits', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -287,7 +273,12 @@ test('a chat hears a turn that ends over a background command, and again when it
 
 		await callTools(
 			app,
-			[{ tool: 'workstreams_send', input: { workstream: childId, prompt: 'BACKGROUND_GOES_ON' } }],
+			[
+				{
+					tool: 'workstreams_send',
+					input: { workstream: childId, prompt: 'BACKGROUND_GOES_ON', wake: true },
+				},
+			],
 			'Sent it the suite',
 		);
 		await expect
@@ -309,7 +300,11 @@ test('a chat hears a turn that ends over a background command, and again when it
 			[
 				{
 					tool: 'workstreams_send',
-					input: { workstream: childId, prompt: 'TURN_OUTCOME="Noted the follow-up"' },
+					input: {
+						workstream: childId,
+						prompt: 'TURN_OUTCOME="Noted the follow-up"',
+						wake: true,
+					},
 				},
 			],
 			'Sent the follow-up',
@@ -397,7 +392,7 @@ test('a prompt for a workstream that is on a turn waits for that turn, then arri
 	}
 });
 
-test('allowing what a workstream a chat started asks stops that chat from waiting on you while the workstream works on', async () => {
+test('a workstream a chat started asks for approval in its own row, and that chat shows nothing', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -426,18 +421,18 @@ test('allowing what a workstream a chat started asks stops that chat from waitin
 		});
 		await invoke(page, 'chat.send-prompt', { sessionId: childSession, prompt: 'APPROVAL_HOLD' });
 
-		await expect(starterStatus).toHaveAccessibleName(
-			/A workstream it started is waiting for approval/u,
+		await expect(childStatus).toHaveAccessibleName(
+			'Workstream status: Approval · Agent is waiting for approval',
 			{ timeout: 30_000 },
 		);
-		await expect(childStatus).toHaveAccessibleName('Workstream status: Approval');
+		await expect(starterStatus).not.toHaveAccessibleName(NEEDS_YOU);
 		await row(page, child.workstreamId).click();
 		const decision = page.getByRole('group', { name: 'Permission decision' });
 		await expect(decision).toBeVisible({ timeout: 30_000 });
 
 		await decision.getByRole('button', { name: 'Allow once' }).click();
 		await expect(decision).toHaveCount(0);
-		await expect(starterStatus).not.toHaveAccessibleName(/waiting for approval/u);
+		await expect(starterStatus).not.toHaveAccessibleName(NEEDS_YOU);
 		const ended = (await listEvents(page, childSession)).some(
 			({ event }) => event['type'] === 'run.completed',
 		);

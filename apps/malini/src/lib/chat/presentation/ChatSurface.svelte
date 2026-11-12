@@ -19,18 +19,16 @@
 	import { stopBackgroundTaskCommand } from '$lib/chat/application/commands/stop-background-task.command';
 	import { updateQueuedPromptCommand } from '$lib/chat/application/commands/update-queued-prompt.command';
 	import { followChatRouteHook } from '$lib/chat/application/hooks/follow-chat-route.hook.svelte';
-	import { followChildRequestsHook } from '$lib/chat/application/hooks/follow-child-requests.hook.svelte';
+	import { followRequestsElsewhereHook } from '$lib/chat/application/hooks/follow-requests-elsewhere.hook.svelte';
 	import { preloadOpenChatsHook } from '$lib/chat/application/hooks/preload-open-chats.hook.svelte';
 	import { watchAgentLifecycleHook } from '$lib/chat/application/hooks/watch-agent-lifecycle.hook.svelte';
 	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
 	import { watchShellRunsHook } from '$lib/chat/application/hooks/watch-shell-runs.hook';
 	import { activeModelQuery } from '$lib/chat/application/queries/active-model.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
-	import { askingChildrenQuery } from '$lib/chat/application/queries/asking-children.query.svelte';
 	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
 	import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
 	import { chatRunningQuery } from '$lib/chat/application/queries/chat-running.query.svelte';
-	import { childRequestsQuery } from '$lib/chat/application/queries/child-requests.query.svelte';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
 	import { emptySessionModeQuery } from '$lib/chat/application/queries/empty-session-mode.query.svelte';
 	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
@@ -44,6 +42,7 @@
 	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
 	import { queueSendingQuery } from '$lib/chat/application/queries/queue-sending.query.svelte';
 	import { queuedPromptsQuery } from '$lib/chat/application/queries/queued-prompts.query.svelte';
+	import { requestsElsewhereQuery } from '$lib/chat/application/queries/requests-elsewhere.query.svelte';
 	import { requestedSessionQuery } from '$lib/chat/application/queries/requested-session.query.svelte';
 	import { restoringSessionQuery } from '$lib/chat/application/queries/restoring-session.query.svelte';
 	import { runProfileQuery } from '$lib/chat/application/queries/run-profile.query.svelte';
@@ -53,7 +52,7 @@
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
 	import { waitingElsewhereQuery } from '$lib/chat/application/queries/waiting-elsewhere.query.svelte';
 	import { trayWork } from '$lib/chat/domain/background-work';
-	import { isUncheckedApproval } from '$lib/chat/domain/child-requests';
+	import { askingAutomations, isUncheckedApproval } from '$lib/chat/domain/requests-elsewhere';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
@@ -77,11 +76,11 @@
 	import ChatMessageList from './ChatMessageList.svelte';
 	import ChatSessionError from './ChatSessionError.svelte';
 	import ChatTabs from './ChatTabs.svelte';
-	import ChildRequestQueue from './ChildRequestQueue.svelte';
-	import { childRequestSteps } from './child-request-steps';
 	import FreshChatSuggestions from './FreshChatSuggestions.svelte';
 	import QueuedPromptList from './QueuedPromptList.svelte';
+	import RequestQueue from './RequestQueue.svelte';
 	import RequestsWaiting from './RequestsWaiting.svelte';
+	import { requestSteps } from './request-steps';
 	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
 	import { chatStage } from './chat-stage';
 
@@ -91,7 +90,6 @@
 		automationRuns?: readonly AutomationRunRecord[];
 		oncloseworkstream: () => void;
 		onsavetoscratchpad?: ((idea: string) => void) | undefined;
-		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
 		afterRun: Snippet<[string]>;
 		notice?: Snippet | undefined;
@@ -104,7 +102,6 @@
 		automationRuns = [],
 		oncloseworkstream,
 		onsavetoscratchpad,
-		header,
 		workstreamsCard,
 		afterRun,
 		notice,
@@ -118,8 +115,8 @@
 	const releaseSessionChanges = watchSessionChangesHook();
 	const releaseShellRuns = watchShellRunsHook();
 	const releaseAgentLifecycle = watchAgentLifecycleHook();
-	const releaseChildRequests = followChildRequestsHook(() =>
-		[...askingChildren, ...waitingElsewhere].map((child) => child.sessionId),
+	const releaseRequestsElsewhere = followRequestsElsewhereHook(() =>
+		[...askingRuns, ...waitingElsewhere].map((chat) => chat.sessionId),
 	);
 
 	onMount(() => {
@@ -132,7 +129,7 @@
 		releaseAgentLifecycle();
 		releaseChatRoute();
 		stopPreloadingOpenChats();
-		releaseChildRequests();
+		releaseRequestsElsewhere();
 	});
 
 	const sessionId = $derived(activeSessionQuery.data);
@@ -168,18 +165,16 @@
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
-	const askingChildren = $derived(
-		askingChildrenQuery.data(workstreamId, sessionId, automationRuns),
+	const askingRuns = $derived(askingAutomations(sessionId, automationRuns));
+	const automationSteps = $derived(
+		requestSteps(askingRuns, requestsElsewhereQuery.approvals, requestsElsewhereQuery.questions),
 	);
-	const childSteps = $derived(
-		childRequestSteps(askingChildren, childRequestsQuery.approvals, childRequestsQuery.questions),
-	);
-	const waitingElsewhere = $derived(waitingElsewhereQuery.data(sessionId, askingChildren));
+	const waitingElsewhere = $derived(waitingElsewhereQuery.data(sessionId, askingRuns));
 	const uncheckedSteps = $derived(
-		childRequestSteps(
+		requestSteps(
 			waitingElsewhere,
 			(waitingSessionId) =>
-				childRequestsQuery.approvals(waitingSessionId).filter(isUncheckedApproval),
+				requestsElsewhereQuery.approvals(waitingSessionId).filter(isUncheckedApproval),
 			() => [],
 		),
 	);
@@ -242,15 +237,17 @@
 			pendingQuestions.length > 0,
 	);
 	let answerLaterKeys = $state<ReadonlySet<string>>(new Set());
-	const childRequestsAside = $derived(
-		childSteps.length > 0 && childSteps.every((step) => answerLaterKeys.has(step.key)),
+	const automationRequestsAside = $derived(
+		automationSteps.length > 0 && automationSteps.every((step) => answerLaterKeys.has(step.key)),
 	);
-	const answeringChildren = $derived(childSteps.length > 0 && !childRequestsAside && !asking);
+	const answeringAutomations = $derived(
+		automationSteps.length > 0 && !automationRequestsAside && !asking,
+	);
 	let answeringUnchecked = $state(false);
 	const showsUncheckedQueue = $derived(
-		answeringUnchecked && uncheckedSteps.length > 0 && !asking && !answeringChildren,
+		answeringUnchecked && uncheckedSteps.length > 0 && !asking && !answeringAutomations,
 	);
-	const composerHidden = $derived(asking || answeringChildren || showsUncheckedQueue);
+	const composerHidden = $derived(asking || answeringAutomations || showsUncheckedQueue);
 	const secretsSessionId = $derived(
 		stage === 'transcript' &&
 			!presentationPending &&
@@ -259,7 +256,7 @@
 			? sessionId
 			: null,
 	);
-	const childRequestsWaiting = $derived(childRequestsAside && !asking);
+	const automationRequestsWaiting = $derived(automationRequestsAside && !asking);
 	const uncheckedCallsWaiting = $derived(uncheckedSteps.length > 0 && !showsUncheckedQueue);
 
 	$effect(() => {
@@ -450,7 +447,6 @@
 										{onsavetoscratchpad}
 										spaceBelow={footerHeight}
 										overlayBelow={trayHeight}
-										{header}
 										{workstreamsCard}
 										{afterRun}
 									>
@@ -506,7 +502,7 @@
 							<div class="chat-stage-inset flex flex-col">
 								<AgentProcessDiedBanner />
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || backgroundTray || automations || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || automationRequestsWaiting || uncheckedCallsWaiting || backgroundTray || automations || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -518,10 +514,10 @@
 													</div>
 												{/if}
 
-												{#if childRequestsWaiting}
+												{#if automationRequestsWaiting}
 													<div transition:slide={foldMotion()}>
 														<RequestsWaiting
-															count={childSteps.length}
+															count={automationSteps.length}
 															onanswer={() => (answerLaterKeys = new Set())}
 														/>
 													</div>
@@ -585,13 +581,14 @@
 
 								{#if asking}
 									<AgentQuestionPanel requests={pendingQuestions} />
-								{:else if answeringChildren}
-									<ChildRequestQueue
-										steps={childSteps}
-										onlater={() => (answerLaterKeys = new Set(childSteps.map(({ key }) => key)))}
+								{:else if answeringAutomations}
+									<RequestQueue
+										steps={automationSteps}
+										onlater={() =>
+											(answerLaterKeys = new Set(automationSteps.map(({ key }) => key)))}
 									/>
 								{:else if showsUncheckedQueue}
-									<ChildRequestQueue
+									<RequestQueue
 										steps={uncheckedSteps}
 										onlater={() => (answeringUnchecked = false)}
 									/>

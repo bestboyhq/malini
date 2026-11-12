@@ -246,19 +246,19 @@ It hands each event to your triggers first, then to its own rules at once:
   For each event about a workstream it ships, the Reconciler reads that workstream's state fresh, one workstream at a time: its pull request bar, the automations in it whoever started them, `git status` and the last read of GitHub.
   Shipping then takes the one next step: commit and push its work, open the draft, mark it ready, merge main into the branch when GitHub says it is behind or conflicts, re-run failed GitHub Actions jobs once, run **Fix checks** or **Address review** when something blocks the merge, merge, or archive the workstream unless you clicked **Keep**.
   The step's result comes back as an event, **Head moved**, **Branch pushed**, **Merge conflicted**, **Pull request changed** or **Automation finished**, and the next step happens on it; a step that brings nothing back looks again 15 seconds later.
-  It hears only logged events: **Button clicked** (your **Draft**, **Merge**, **Cancel** or **Keep** in the pull request bar, **Retry merge** in the chat of the automation a merge stopped on, or **Draft all** or **Merge all** on a chat), **Turn finished**, **Automation finished**, **Pull request changed**, **Time reached**, **Head moved**, **Branch pushed** and **Merge conflicted** while it ships, **Files changed** while a git operation stopped it, **Workstream archived**, and **Malini started**, on which it picks up every workstream it was shipping.
+  It hears only logged events: **Button clicked** (your **Draft**, **Merge**, **Cancel** or **Keep** in the pull request bar, or **Retry merge** in the chat of the automation a merge stopped on), **Turn finished**, **Automation finished**, **Pull request changed**, **Time reached**, **Head moved**, **Branch pushed** and **Merge conflicted** while it ships, **Files changed** while a git operation stopped it, **Workstream archived**, and **Malini started**, on which it picks up every workstream it was shipping.
   A merge that stops on conflicts starts **Resolve conflicts** through that automation's own trigger, and Shipping waits for it; with the trigger off, Shipping runs it itself, within **Fix attempts before asking you**, and cancelling it does not start it again.
   Shipping merges main into a workstream itself only while it merges that workstream; before that, **Update from main** does it on its own trigger, in the [mode](#defaults) you picked, Shipping pushes that merge only once **Resolve conflicts** resolved it, and a workstream with no commits of its own fast-forwards instead.
   A change request on a draft starts **Address review** through its own trigger, and Shipping commits and pushes what it changed, once; with the trigger off, the change request waits until you press **Merge**.
   A chat or an automation ships with the **Open draft** or **Merge** automation, whose **Automation finished** moves the workstream on.
-  On **Draft all** or **Merge all**, Shipping runs that automation in each workstream the click names, for the chat you clicked on, which hears when a run finishes or fails.
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, or after a step that brought nothing back, **Checks rerun**, the minute a fix or a re-run gives its failing checks to run again, and **Agent settled**, the 5 seconds after an agent's turn ends that let a prompt you queued start first.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
   The chat shows each continued turn under a divider, such as **Malini restarted. Back for more**, instead of a prompt from you.
   It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
-- **Deliveries** hears **Turn finished**: it sends the report of every turn a workstream a chat started ends to that chat, with its `Outcome:`, its `Needs:` and the pictures it embeds, and hands each chat what waits for it once its turn ends.
-  A turn that ends while only background commands run is a **Turn finished** at once, whose report names the commands it waits on, and the turn that goes on after them is another one when it ends.
-  Everything sent to a chat waits in Malini while that chat is on a turn, and arrives as one prompt when the turn ends: reports, prompts another chat sent it with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back).
+- **Deliveries** hears **Turn finished**: when a chat sent the prompt that started the turn with `wake: true`, it sends that chat the turn's report, with its `Outcome:`, its `Needs:` and the pictures it embeds, and it hands each chat what waits for it once its turn ends.
+  Every other turn of a workstream a chat started stays out of that chat.
+  A turn that ends while only background commands run is a **Turn finished** at once, whose report names the commands it waits on.
+  Everything sent to a chat waits in Malini while that chat is on a turn, and arrives as one prompt when the turn ends: reports, prompts another chat sent it with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-runs-on-its-own).
   What waits survives a restart: on **Malini started**, Resume sends it on once it has continued the turns the restart cut short.
 - **Schedules** start an automation on the **Time reached** its schedule names.
 - **Compatibility** runs **Check compatibility** on **Malini updated**, once per update. See [Updates](/malini/docs/updates.md#compatibility).
@@ -276,7 +276,7 @@ When the model can't answer, Malini picks by its own rules: it wakes the chat wa
 - **Wake**: the report reaches the chat that asked for the work through Deliveries, beginning "Malini woke you: work you asked for moved on": the chat that ran the automation, or ran the work whose merge stopped on conflicts.
   A chat is never woken only because it works in that workstream.
   When that chat is on a turn, the report waits and arrives with any others when the turn ends.
-- **Ask you**: the question waits above the composer of its workstream's chat, which its line [where it runs](#run-an-automation) opens, with a button for each thing Malini could do, marks that automation on the Automations page, and sends a notification titled with the automation and its workstream, which opens the work, or the top-most chat that started it.
+- **Ask you**: the question waits above the composer of its workstream's chat, which its line [where it runs](#run-an-automation) opens, with a button for each thing Malini could do, marks that automation on the Automations page, and sends a notification titled with the automation and its workstream, which opens the work.
 - **Run again** asks first, unless the automation runs on its own.
 
 Every pick shows in Activity, with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.
@@ -292,7 +292,7 @@ The workstreams and automations an agent starts with its tools start from its ch
 
 Every event has one row, named for what it is about and what happened to it, with a label for where it comes from: you, an agent, git, GitHub, Malini or the clock.
 **Button clicked**, **Workstream opened**, **Turn finished**, **Tool called**, **Automation started**, **Automation finished**, **Head moved**, **Files changed**, **Branch pushed**, **Merge conflicted**, **Base overlapped**, **Pull request changed**, **Workstream created**, **Workstream archived**, **Malini started**, **Malini updated** and **Time reached** each show how many happened, and **Other** holds the rest.
-**Button clicked** is your click on **Draft**, **Merge**, **Cancel** or **Keep** in the pull request bar, on **Retry merge** in the chat of the automation a merge stopped on, or on **Draft all** or **Merge all** on a chat, and **Workstream opened** is you opening a workstream.
+**Button clicked** is your click on **Draft**, **Merge**, **Cancel** or **Keep** in the pull request bar, or on **Retry merge** in the chat of the automation a merge stopped on, and **Workstream opened** is you opening a workstream.
 In a list, an event starts with that name, such as "Automation finished: Fix checks".
 
 Inside the Reconciler, each rule names the events it hears and counts what it started, and **Choose a reaction** counts its decisions.

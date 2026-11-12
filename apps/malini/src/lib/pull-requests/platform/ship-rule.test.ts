@@ -2324,63 +2324,6 @@ describe('shipping a queued merge', () => {
 	});
 });
 
-describe('Draft all and Merge all', () => {
-	it('logs the click on the chat and runs Merge in each workstream it names, for that chat', async () => {
-		seedWorkstream('starter');
-		seedWorkstream('ws-1');
-		seedWorkstream('ws-2');
-		start();
-		const merge = getBuiltinAutomationDefinition(db, 'merge');
-
-		await expect(
-			invoke('pull-requests.button-clicked', {
-				workstreamId: 'starter',
-				button: 'merge-all',
-				workstreamIds: ['ws-1', 'ws-2'],
-				chatSessionId: 'session-starter',
-			}),
-		).resolves.toBeNull();
-		await until(() => expect(automationRuns.size).toBe(2));
-
-		const clicks = all<{ id: number; workstream_id: string }>(
-			db,
-			'SELECT id, workstream_id FROM event_log WHERE channel = ?',
-			PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
-		);
-		expect(clicks).toEqual([{ id: expect.any(Number), workstream_id: 'starter' }]);
-		expect(
-			[...automationRuns.values()]
-				.map((run) => [
-					run.workstreamId,
-					run.definitionId,
-					run.origin,
-					run.chatSessionId,
-					automationCauses.get(run.id),
-				])
-				.sort(),
-		).toEqual([
-			['ws-1', merge?.id, 'merge-queue', 'session-starter', clicks[0]?.id],
-			['ws-2', merge?.id, 'merge-queue', 'session-starter', clicks[0]?.id],
-		]);
-		expect(getShip(db, 'starter')).toBeNull();
-	});
-
-	it('refuses a Draft all that names no workstream', async () => {
-		start();
-
-		await expect(
-			invoke('pull-requests.button-clicked', {
-				workstreamId: 'starter',
-				button: 'draft-all',
-				workstreamIds: [],
-				chatSessionId: null,
-			}),
-		).rejects.toThrow('`workstreamIds` must be a non-empty list of non-empty strings');
-		await settle();
-		expect(automationRuns.size).toBe(0);
-	});
-});
-
 function workflowRefusal(actor = 'an OAuth App'): GitError {
 	return refusal(
 		`refusing to allow ${actor} to create or update workflow \`.github/workflows/map-tiles.yml\` without \`workflow\` scope`,

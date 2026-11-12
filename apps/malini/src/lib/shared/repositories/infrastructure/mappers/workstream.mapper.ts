@@ -77,7 +77,6 @@ export class ArchivedWorkstreamMapper {
 					archivedAt,
 					mergedPullRequest,
 					savedForLater,
-					clearedFromStarter,
 					startedBy,
 				}) => ({
 					id,
@@ -87,7 +86,6 @@ export class ArchivedWorkstreamMapper {
 					archivedAt,
 					mergedPullRequest: toMergedPullRequest(mergedPullRequest),
 					savedForLater: savedForLater === true,
-					clearedFromStarter: clearedFromStarter === true,
 					startedBy: toStartedBy(startedBy),
 				}),
 			);
@@ -105,11 +103,10 @@ function toMergedPullRequest(value: unknown): MergedPullRequest | null {
 
 function isRawArchivedWorkstream(value: unknown): value is Omit<
 	ArchivedWorkstream,
-	'mergedPullRequest' | 'savedForLater' | 'clearedFromStarter' | 'startedBy'
+	'mergedPullRequest' | 'savedForLater' | 'startedBy'
 > & {
 	mergedPullRequest?: unknown;
 	savedForLater?: unknown;
-	clearedFromStarter?: unknown;
 	startedBy?: unknown;
 } {
 	return (

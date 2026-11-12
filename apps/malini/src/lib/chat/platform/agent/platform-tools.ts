@@ -283,6 +283,7 @@ async function createWorkstream(
 	const { input } = request;
 	const prompt = requiredText(input, 'prompt');
 	const base = text(input, 'base') ?? null;
+	const wake = flag(input, 'wake');
 	const source = requestSession(db, request);
 	const repository = findRepository(
 		await listRepositoryCatalog(db),
@@ -328,6 +329,7 @@ async function createWorkstream(
 		fromWorkstreamId: source.workstreamId,
 		profile: parseRunProfile(storedRunProfile(db, request.runId)),
 		chainId: chatTurnChainId(db, request.runId),
+		wake,
 	});
 	void sending.during(workstreamId, async () => {
 		await settingUp;
@@ -355,6 +357,7 @@ async function sendToWorkstream(
 ): Promise<unknown> {
 	const { input } = request;
 	const prompt = requiredText(input, 'prompt');
+	const wake = flag(input, 'wake');
 	const source = requestSession(db, request);
 	const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
 	if (workstream.startedBy !== source.workstreamId) {
@@ -380,6 +383,7 @@ async function sendToWorkstream(
 		fromSessionId: request.sessionId,
 		fromWorkstreamId: source.workstreamId,
 		chainId,
+		wake,
 	});
 	return {
 		id: workstream.id,
@@ -652,6 +656,12 @@ function nullableText(input: Input, key: string): string | null | undefined {
 function requiredText(input: Input, key: string): string {
 	const value = text(input, key);
 	if (value === undefined) throw new Error(`\`${key}\` is required.`);
+	return value;
+}
+
+function flag(input: Input, key: string): boolean {
+	const value = input[key] ?? false;
+	if (typeof value !== 'boolean') throw new Error(`\`${key}\` must be true or false.`);
 	return value;
 }
 

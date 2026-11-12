@@ -118,8 +118,8 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                                                                                                                  |
 | `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                                                                                                                    |
 | `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in, with whether each merged. It adds the archived ones this chat started. |
-| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it.                                                              |
-| `workstreams_send`    | Sends a prompt into the chat of a workstream this chat started, as a prompt from this chat. Malini delivers it once that chat ends its turn.                                                              |
+| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt; with `wake: true`, the turn that prompt starts reaches this chat as a report.                |
+| `workstreams_send`    | Sends a prompt into the chat of a workstream this chat started, as a prompt from this chat, once that chat ends its turn; `wake: true` works as it does on `workstreams_create`.                          |
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
 
 `workstreams_list` also says whether a chat in each workstream is on a turn, and the `Outcome:` and `Needs:` its last turn stated, so a chat sees where the work it started stands without reading its code.
@@ -131,15 +131,17 @@ Once it is set up, Malini sends the agent's prompt as that chat's first message,
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
 Malini remembers which chat started each workstream.
-The sidebar lists the workstream under its repository, and the row of the chat that started it shows a dot for it; its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
+The sidebar lists the workstream under its repository like any other; its first prompt says **Prompt from** and names the chat, and its agent learns which workstreams that chat started besides, whose checkouts it may read.
 A chat that [starts workstreams](/malini/docs/chat.md#work-a-chat-starts) in several repositories works through these tools: it lists the repositories, clones the ones Malini lacks and starts a workstream for each change.
 
-### Work it started reports back
+### Work it started runs on its own
 
-Every turn a workstream a chat started ends reaches that chat as a report from that workstream, through the [Deliveries rule](/malini/docs/automations.md#reconciler): its `Outcome:`, its `Needs:`, the rest of its report, and the pictures it embeds.
-A turn that ends while only background commands run reports at once that it waits on them, by name, and the agent reports again if it goes on once they end.
+A workstream a chat started asks you itself, in its own chat, and its turns do not reach the chat that started it.
+The agent reads where that work stands with `workstreams_list`.
+When its next step needs a result, it passes `wake: true` to `workstreams_create` or `workstreams_send`, and the turn that prompt starts reaches the chat as a report, through the [Deliveries rule](/malini/docs/automations.md#reconciler): its `Outcome:`, its `Needs:`, the rest of its report, and the pictures it embeds.
+A wake answers one turn: a turn Malini cut and continued after a restart still answers it, and a turn you stop drops it.
+A turn that ends while only background commands run reports at once that it waits on them, by name.
 Reports that arrive while the chat works wait, and come as one prompt once its turn ends.
-The agent answers what it can settle itself with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and brings you only what you must decide, in its `Needs:` line.
 `workstreams_send` reaches only the workstreams the chat started.
 A prompt for a chat on a turn waits until that turn ends, and survives a restart of Malini, so the agent never sends it twice.
 It sends one workstream at most six prompts after your last message; past that, the agent asks you whether to go on.

@@ -1,6 +1,6 @@
 # 0077 - A chat answers what the work it started asks
 
-Status: accepted
+Status: superseded by 0231
 
 ## Context
 
