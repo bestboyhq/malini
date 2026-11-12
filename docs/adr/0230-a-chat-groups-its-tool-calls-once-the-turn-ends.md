@@ -1,6 +1,6 @@
 # 0230 - A chat groups its tool calls once the turn ends
 
-Status: accepted
+Status: superseded by 0236
 
 ## Context
 
