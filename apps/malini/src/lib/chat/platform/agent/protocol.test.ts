@@ -438,6 +438,15 @@ describe('browser requests', () => {
 			ok: true,
 			value: { ...frame, action: 'resize', width: 390, height: 844 },
 		});
+		const upload = { action: 'upload', selector: '@f1e2', paths: ['./a.png', 'b.pdf'] };
+		expect(decodeControlFrame({ ...frame, ...upload })).toEqual({
+			ok: true,
+			value: { ...frame, ...upload },
+		});
+		expect(decodeControlFrame({ ...frame, action: 'dialog', accept: false })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'dialog', accept: false },
+		});
 	});
 
 	it('refuses a request it cannot route or act on', () => {
@@ -463,6 +472,12 @@ describe('browser requests', () => {
 			});
 		}
 		expect(decodeControlFrame({ ...frame, action: 'resize' })).toMatchObject({ ok: false });
+		for (const paths of [[], [''], ['a.png', 7], 'a.png']) {
+			expect(
+				decodeControlFrame({ ...frame, action: 'upload', selector: '#avatar', paths }),
+			).toMatchObject({ ok: false });
+		}
+		expect(decodeControlFrame({ ...frame, action: 'dialog' })).toMatchObject({ ok: false });
 		expect(
 			decodeControlFrame({ ...frame, action: 'type', selector: '#q', text: 'x' }),
 		).toMatchObject({ ok: false });

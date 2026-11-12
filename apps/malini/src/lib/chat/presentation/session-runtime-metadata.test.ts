@@ -69,6 +69,7 @@ describe('session runtime metadata', () => {
 				error: null,
 				origin: { kind: 'user' },
 				toolCount: 12,
+				browser: false,
 			},
 			{
 				name: 'computer-use',
@@ -77,6 +78,7 @@ describe('session runtime metadata', () => {
 				error: 'handshake failed',
 				origin: { kind: 'other' },
 				toolCount: null,
+				browser: false,
 			},
 		]);
 	});

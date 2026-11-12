@@ -79,6 +79,7 @@ export interface AgentMcpServerStatus {
 	error?: string;
 	source?: string;
 	toolCount?: number;
+	browser?: boolean;
 }
 
 export type BridgeMcpServerTarget = { sessionId: string } | { cwd: string };
@@ -485,6 +486,8 @@ export type BrowserRequestAction =
 	| { action: 'forward' }
 	| { action: 'reload' }
 	| { action: 'resize'; width: number; height?: number }
+	| { action: 'upload'; selector: string; paths: string[] }
+	| { action: 'dialog'; accept: boolean }
 	| { action: 'close' };
 
 export type BridgeBrowserRequest = {
@@ -640,6 +643,7 @@ function decodeMcpServer(value: unknown, where: string): AgentMcpServerStatus {
 		...optional('error', fields.optionalString('error')),
 		...optional('source', fields.optionalString('source')),
 		...optional('toolCount', fields.optionalNumber('toolCount')),
+		...optional('browser', fields.optionalBoolean('browser')),
 	};
 }
 
@@ -1221,6 +1225,15 @@ function decodeBrowserRequest(
 			}
 			return { ok: true, value: { ...base, action, width, ...optional('height', height) } };
 		}
+		case 'upload': {
+			const paths = f.stringArray('paths');
+			if (paths.length === 0 || paths.some((path) => path.length === 0)) {
+				return { ok: false, error: `${type}: \`paths\` must name at least one file` };
+			}
+			return { ok: true, value: { ...base, action, selector: f.string('selector'), paths } };
+		}
+		case 'dialog':
+			return { ok: true, value: { ...base, action, accept: f.boolean('accept') } };
 		case 'type':
 			return {
 				ok: true,

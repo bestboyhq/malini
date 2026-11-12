@@ -8,19 +8,23 @@ import type {
 	BrowserTabArgs,
 	BrowserThreadStarted,
 } from '$contract/browser';
-import type {
-	BrowserConsole,
-	BrowserConsoleLine,
-	BrowserPageInfo,
-	BrowserPlatform,
-	BrowserScreenshotFile,
-	BrowserScreenshotPart,
-	BrowserScrollPosition,
-	BrowserSize,
-	BrowserTabProcess,
-	BrowserWait,
+import {
+	BrowserDialogOpen,
+	type BrowserConsole,
+	type BrowserConsoleLine,
+	type BrowserDialog,
+	type BrowserDialogAnswer,
+	type BrowserPageInfo,
+	type BrowserPlatform,
+	type BrowserScreenshotFile,
+	type BrowserScreenshotPart,
+	type BrowserScrollPosition,
+	type BrowserSize,
+	type BrowserTabProcess,
+	type BrowserWait,
 } from '../browser.platform';
 import {
+	ACTION_SETTLE_MS,
 	captureFrame,
 	captureRegion,
 	captureVisible,
@@ -36,10 +40,20 @@ import {
 	settleAfterAction,
 	typeInto,
 	untilSized,
+	uploadFiles,
 	waitFor,
 	within,
+	worktreeUploads,
 } from './automation';
-import type { HostWindow, PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
+import type {
+	HostWindow,
+	PageContents,
+	PageDialog,
+	PageEvents,
+	PageImage,
+	PageView,
+	Rectangle,
+} from './page';
 import { pickElement, pickerPage, untilAborted } from './picker';
 import {
 	pinsOnPage,
@@ -57,6 +71,7 @@ export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_op
 export const RESIZE_ANSWER_MS = 5_000;
 export const MAX_CONSOLE_LINES = 200;
 export const MAX_CONSOLE_TEXT = 1_000;
+export const NO_DIALOG = 'No dialog is open on the page.';
 const PICK_WITHOUT_PAGE = 'Open a page before picking an element.';
 
 export interface BrowserViewsDeps<W extends HostWindow> {
@@ -100,6 +115,8 @@ interface Entry<W extends HostWindow> {
 	pinActions: AbortController | null;
 	consoleLines: BrowserConsoleLine[];
 	consoleDropped: number;
+	dialog: PageDialog | null;
+	interrupted: Promise<unknown> | null;
 }
 
 export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
@@ -107,6 +124,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	private readonly watchedWindows = new WeakSet<W>();
 	private readonly turns = new Map<string, Promise<unknown>>();
 	private readonly resizes = new Map<string, () => void>();
+	private readonly acting = new Set<string>();
+	private readonly dialogWaiters = new Map<string, Set<(dialog: BrowserDialog) => void>>();
 	private resizeCount = 0;
 
 	constructor(private readonly deps: BrowserViewsDeps<W>) {}
@@ -121,6 +140,11 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		entry.view.setBorderRadius(Math.round(CORNER_RADIUS * zoom));
 		if (!entry.shown) entry.view.placeIn(window, 'front');
 		entry.shown = true;
+		const held = entry.dialog;
+		if (held === null || this.acting.has(tabKey(tab)) || !this.deps.onScreen(window)) return;
+		entry.dialog = null;
+		entry.interrupted = null;
+		held.showToUser();
 	}
 
 	hide(tab: BrowserTabArgs): void {
@@ -136,7 +160,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const contents = this.page(tab);
 			if (!contents.navigationHistory.canGoBack()) {
 				throw new Error('There is no page to go back to.');
@@ -147,7 +171,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const contents = this.page(tab);
 			if (!contents.navigationHistory.canGoForward()) {
 				throw new Error('There is no page to go forward to.');
@@ -158,7 +182,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const contents = this.page(tab);
 			contents.reload();
 			return settledPage(contents);
@@ -255,7 +279,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const address = this.address(tab, url);
 			const fresh = this.openContents(tab) === null;
 			const { contents } = this.ensure(tab).view;
@@ -268,7 +292,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	readPage(tab: BrowserTabArgs): Promise<string> {
-		return this.inTurn(tab, async () => readPage(this.loaded(tab).contents));
+		return this.agentTurn(tab, async () => readPage(this.loaded(tab).contents));
 	}
 
 	screenshot(
@@ -276,7 +300,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		worktree: string,
 		part: BrowserScreenshotPart,
 	): Promise<BrowserScreenshotFile> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const { contents, entry } = this.loaded(tab);
 			return this.rendered(entry, async () => {
 				const now = new Date();
@@ -309,7 +333,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const { contents } = this.loaded(tab);
 			await typeInto(contents, selector, text, submit);
 			return pageInfo(contents);
@@ -320,14 +344,14 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		tab: BrowserTabArgs,
 		by: { readonly x: number; readonly y: number; readonly selector?: string },
 	): Promise<BrowserScrollPosition> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const { contents, entry } = this.loaded(tab);
 			return this.rendered(entry, () => scrollPage(contents, by));
 		});
 	}
 
 	wait(tab: BrowserTabArgs, until: BrowserWait): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const { contents } = this.loaded(tab);
 			await waitFor(contents, until);
 			return pageInfo(contents);
@@ -335,7 +359,40 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	evaluate(tab: BrowserTabArgs, script: string): Promise<string> {
-		return this.inTurn(tab, async () => evaluateScript(this.loaded(tab).contents, script));
+		return this.agentTurn(tab, async () => evaluateScript(this.loaded(tab).contents, script));
+	}
+
+	upload(
+		tab: BrowserTabArgs,
+		worktree: string,
+		selector: string,
+		paths: readonly string[],
+	): Promise<BrowserPageInfo> {
+		return this.agentTurn(tab, async () => {
+			const { contents, entry } = this.loaded(tab);
+			const files = await worktreeUploads(worktree, paths);
+			await this.rendered(entry, () => uploadFiles(contents, selector, files));
+			return pageInfo(contents);
+		});
+	}
+
+	answerDialog(tab: BrowserTabArgs, accept: boolean): Promise<BrowserDialogAnswer> {
+		return this.inTurn(tab, async () => {
+			const entry = this.entries.get(tabKey(tab));
+			const dialog = entry?.alive ? entry.dialog : null;
+			if (!entry || !dialog) throw new Error(NO_DIALOG);
+			const { interrupted } = entry;
+			entry.dialog = null;
+			entry.interrupted = null;
+			const accepted = dialog.type === 'alert' || accept;
+			dialog.answer(accepted);
+			const { contents } = entry.view;
+			await this.guarded(tab, async () => {
+				await within(interrupted ?? Promise.resolve(), ACTION_SETTLE_MS);
+				await settleAfterAction(contents);
+			});
+			return { dialog: plain(dialog), accepted, page: pageInfo(contents) };
+		});
 	}
 
 	consoleLines(tab: BrowserTabArgs): Promise<BrowserConsole> {
@@ -351,7 +408,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	resize(tab: BrowserTabArgs, width: number, height?: number): Promise<BrowserSize> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const { contents, entry } = this.loaded(tab);
 			const window = entry.window;
 			if (!entry.shown || !window || window.isDestroyed()) {
@@ -429,7 +486,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		tab: BrowserTabArgs,
 		action: (contents: PageContents) => Promise<void>,
 	): Promise<BrowserPageInfo> {
-		return this.inTurn(tab, async () => {
+		return this.agentTurn(tab, async () => {
 			const { contents, entry } = this.loaded(tab);
 			await this.rendered(entry, () => action(contents));
 			return pageInfo(contents);
@@ -450,6 +507,45 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			if (this.turns.get(key) === done) this.turns.delete(key);
 		})();
 		return turn;
+	}
+
+	private agentTurn<T>(tab: BrowserTabArgs, work: () => Promise<T>): Promise<T> {
+		return this.inTurn(tab, () => this.guarded(tab, work));
+	}
+
+	private async guarded<T>(tab: BrowserTabArgs, work: () => Promise<T>): Promise<T> {
+		const key = tabKey(tab);
+		const held = this.entries.get(key)?.dialog;
+		if (held) throw new BrowserDialogOpen(plain(held), false);
+		let wake = (_dialog: BrowserDialog): void => undefined;
+		const opened = new Promise<BrowserDialog>((resolve) => {
+			wake = resolve;
+		});
+		const waiters = this.dialogWaiters.get(key) ?? new Set();
+		waiters.add(wake);
+		this.dialogWaiters.set(key, waiters);
+		this.acting.add(key);
+		try {
+			const running = work();
+			const ending = running.catch(() => undefined);
+			const first = await Promise.race([
+				(async () => ({ done: true, value: await running }) as const)(),
+				(async () => ({ done: false, dialog: await opened }) as const)(),
+			]);
+			if (first.done) return first.value;
+			const entry = this.entries.get(key);
+			if (entry) entry.interrupted = ending;
+			throw new BrowserDialogOpen(first.dialog, true);
+		} finally {
+			this.acting.delete(key);
+			waiters.delete(wake);
+			if (waiters.size === 0) this.dialogWaiters.delete(key);
+		}
+	}
+
+	private userSees(entry: Entry<W>): boolean {
+		const window = entry.window;
+		return entry.shown && window !== null && !window.isDestroyed() && this.deps.onScreen(window);
 	}
 
 	private async rendered<T>(entry: Entry<W>, capture: () => Promise<T>): Promise<T> {
@@ -550,6 +646,19 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 					entry.pending = null;
 					this.changed(entry);
 				},
+				dialog: (dialog) => {
+					const key = tabKey(entry.tab);
+					if (!this.acting.has(key) && this.userSees(entry)) {
+						dialog.showToUser();
+						return;
+					}
+					entry.dialog = dialog;
+					for (const wake of this.dialogWaiters.get(key) ?? []) wake(plain(dialog));
+				},
+				dialogsClosed: () => {
+					entry.dialog = null;
+				},
+				leaving: () => this.acting.has(tabKey(entry.tab)),
 				gone: () => {
 					entry.alive = false;
 					entry.pick?.controller.abort();
@@ -567,6 +676,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			pinActions: null,
 			consoleLines: [],
 			consoleDropped: 0,
+			dialog: null,
+			interrupted: null,
 		};
 		entry.view.setBounds(entry.bounds);
 		entry.view.setBorderRadius(CORNER_RADIUS);
@@ -699,6 +810,10 @@ function stateOf<W extends HostWindow>({
 async function settledPage(contents: PageContents): Promise<BrowserPageInfo> {
 	await settleAfterAction(contents);
 	return pageInfo(contents);
+}
+
+function plain({ type, message }: BrowserDialog): BrowserDialog {
+	return { type, message };
 }
 
 function pageInfo(contents: PageContents): BrowserPageInfo {

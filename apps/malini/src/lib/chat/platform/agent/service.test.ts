@@ -8,6 +8,7 @@ import {
 	type AutomationDefinitionRecord,
 } from '$contract/automations';
 import { all, run } from '$main/db/rows';
+import { BrowserDialogOpen, type BrowserDialog } from '$lib/browser/browser.platform';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
 import {
@@ -23,6 +24,9 @@ import {
 	waitFor,
 	type TestContext,
 } from './test-support';
+
+const PRICING = { url: 'http://localhost:5173/', title: 'Pricing' };
+const DELETE_PLAN: BrowserDialog = { type: 'confirm', message: 'Delete the plan?' };
 
 interface ScriptedBridge {
 	readonly factory: BridgeProcessFactory;
@@ -181,11 +185,13 @@ describe('browser requests from the agent', () => {
 			},
 			hover: async ({ workstreamId }, selector) => {
 				calls.push(`hover ${workstreamId} ${selector}`);
-				return { url: 'http://localhost:5173/', title: 'Pricing' };
+				if (selector === '#menu') throw new BrowserDialogOpen(DELETE_PLAN, false);
+				return PRICING;
 			},
 			press: async ({ workstreamId }, key) => {
 				calls.push(`press ${workstreamId} ${key}`);
-				return { url: 'http://localhost:5173/', title: 'Pricing' };
+				if (key === 'Delete') throw new BrowserDialogOpen(DELETE_PLAN, true);
+				return PRICING;
 			},
 			scroll: async ({ workstreamId }, by) => {
 				calls.push(`scroll ${workstreamId} ${JSON.stringify(by)}`);
@@ -227,6 +233,15 @@ describe('browser requests from the agent', () => {
 			resize: async ({ workstreamId }, width, height) => {
 				calls.push(`resize ${workstreamId} ${width} ${height}`);
 				return { width: Math.min(Math.max(width, 400), 900), height: height ?? 800 };
+			},
+			upload: async ({ workstreamId }, worktree, selector, paths) => {
+				calls.push(`upload ${workstreamId} ${worktree} ${selector} ${paths.join(' ')}`);
+				return PRICING;
+			},
+			answerDialog: async ({ workstreamId }, accept) => {
+				calls.push(`dialog ${workstreamId} ${accept}`);
+				const dialog: BrowserDialog = accept ? { type: 'alert', message: 'Saved' } : DELETE_PLAN;
+				return { dialog, accepted: accept, page: PRICING };
 			},
 			close: async ({ workstreamId, tabId }) => {
 				calls.push(`close ${workstreamId} ${tabId}`);
@@ -271,10 +286,20 @@ describe('browser requests from the agent', () => {
 		bridge.send(browserRequest('req-21', { action: 'evaluate', script: 'document.title' }));
 		bridge.send(browserRequest('req-22', { action: 'console' }));
 		bridge.send(browserRequest('req-23', { action: 'resize', width: 640, height: 844 }));
+		bridge.send(
+			browserRequest('req-24', { action: 'upload', selector: '#avatar', paths: ['./a.png'] }),
+		);
+		bridge.send(
+			browserRequest('req-25', { action: 'upload', selector: '@f1e2', paths: ['a.png', 'b.pdf'] }),
+		);
+		bridge.send(browserRequest('req-26', { action: 'press', key: 'Delete' }));
+		bridge.send(browserRequest('req-27', { action: 'hover', selector: '#menu' }));
+		bridge.send(browserRequest('req-28', { action: 'dialog', accept: false }));
+		bridge.send(browserRequest('req-29', { action: 'dialog', accept: true }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'browser_result');
-		await waitFor(() => results().length === 23, 5_000, 'twenty-three browser results');
+		await waitFor(() => results().length === 29, 5_000, 'twenty-nine browser results');
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
@@ -302,6 +327,12 @@ describe('browser requests from the agent', () => {
 			'evaluate ws-1 document.title',
 			'console ws-1',
 			'resize ws-1 640 844',
+			`upload ws-1 ${worktree} #avatar ./a.png`,
+			`upload ws-1 ${worktree} @f1e2 a.png b.pdf`,
+			'press ws-1 Delete',
+			'hover ws-1 #menu',
+			'dialog ws-1 false',
+			'dialog ws-1 true',
 		]);
 		expect(answerTo('req-1')).toEqual({
 			cmd: 'browser_result',
@@ -403,6 +434,26 @@ describe('browser requests from the agent', () => {
 			ok: true,
 			text: 'The page is now 640px wide and 844px tall.',
 		});
+		expect(answerTo('req-24')).toMatchObject({
+			ok: true,
+			text: 'Picked one file for `#avatar`: ./a.png. The page is now http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-25')).toMatchObject({
+			ok: true,
+			text: 'Picked 2 files for `@f1e2`: a.png, b.pdf. The page is now http://localhost:5173/ ("Pricing").',
+		});
+		const waiting =
+			'The page shows a confirm dialog and waits for an answer: "Delete the plan?". Call browser_dialog with accept true to press OK, or false to press Cancel.';
+		expect(answerTo('req-26')).toMatchObject({ ok: true, text: waiting });
+		expect(answerTo('req-27')).toMatchObject({ ok: false, error: waiting });
+		expect(answerTo('req-28')).toMatchObject({
+			ok: true,
+			text: 'Pressed Cancel on the confirm dialog. The page is now http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-29')).toMatchObject({
+			ok: true,
+			text: 'Closed the alert. The page is now http://localhost:5173/ ("Pricing").',
+		});
 	});
 
 	it('answers with an error when malini has no browser to drive', async () => {
@@ -451,6 +502,8 @@ describe('browser requests from the agent', () => {
 			goForward: unused,
 			reload: unused,
 			resize: unused,
+			upload: unused,
+			answerDialog: unused,
 			close: unused,
 		};
 		const bridge = scriptedBridge();

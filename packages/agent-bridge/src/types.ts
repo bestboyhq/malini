@@ -170,6 +170,7 @@ export interface McpServerReport {
 	readonly error?: string;
 	readonly source?: string;
 	readonly toolCount?: number;
+	readonly browser?: boolean;
 }
 
 export interface McpServerListing {

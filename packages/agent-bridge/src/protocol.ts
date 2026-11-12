@@ -274,6 +274,12 @@ export type BrowserRequest =
 	| { readonly action: 'forward' }
 	| { readonly action: 'reload' }
 	| { readonly action: 'resize'; readonly width: number; readonly height?: number }
+	| {
+			readonly action: 'upload';
+			readonly selector: string;
+			readonly paths: readonly string[];
+	  }
+	| { readonly action: 'dialog'; readonly accept: boolean }
 	| { readonly action: 'close' };
 
 export interface BrowserResult {

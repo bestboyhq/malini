@@ -127,7 +127,12 @@ async function agentBrowser(
 	const answers = page.getByText(answer);
 	const before = await answers.count();
 	await sendPrompt(page, `Browser ${request.action} BROWSER_REQUEST:${encoded}`);
-	await expect(answers).toHaveCount(before + 1, { timeout: 20_000 });
+	try {
+		await expect(answers).toHaveCount(before + 1, { timeout: 20_000 });
+	} catch (error) {
+		const last = await page.locator('pre').last().textContent();
+		throw new Error(`The browser answered ${request.action} with: ${last}`, { cause: error });
+	}
 }
 
 async function untilBrowserEventsArrive(page: Page, workstreamId: string): Promise<void> {
@@ -898,6 +903,249 @@ addEventListener('keydown', (event) => { document.getElementById('pressed').text
 	} finally {
 		await app.close();
 		server.close();
+	}
+});
+
+test('the agent answers alerts and confirms, picks files for a file field and for a button, and leaves a page that asks to stay', async () => {
+	test.setTimeout(180_000);
+	const server = createServer((request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(
+			request.url === '/done'
+				? '<!doctype html><title>Done</title>'
+				: `<!doctype html><title>Plan</title>
+<button id="delete">Delete plan</button>
+<button id="hello">Say hello</button>
+<p id="status"></p>
+<label>Avatar <input id="avatar" type="file"></label>
+<input id="docs" type="file" multiple hidden>
+<button id="attach">Attach files</button>
+<p id="files"></p>
+<script>
+const status = document.getElementById('status');
+const files = document.getElementById('files');
+document.getElementById('delete').onclick = () => { status.textContent = confirm('Delete the plan?') ? 'Deleted' : 'Kept'; };
+document.getElementById('hello').onclick = () => { alert('Hello'); status.textContent = 'Greeted'; };
+for (const input of document.querySelectorAll('input[type=file]')) {
+	input.addEventListener('change', () => {
+		files.textContent = input.id + ': ' + [...input.files].map((file) => file.name + ' ' + file.size).join(', ');
+	});
+}
+document.getElementById('attach').onclick = () => document.getElementById('docs').click();
+addEventListener('beforeunload', (event) => { event.preventDefault(); event.returnValue = ''; });
+</script>`,
+		);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-dialogs-ws',
+			'Browser dialogs',
+		);
+		mkdirSync(join(seeded.worktree, '.context'), { recursive: true });
+		writeFileSync(join(seeded.worktree, '.context/avatar.png'), 'png');
+		writeFileSync(join(seeded.worktree, '.context/a.txt'), 'a');
+		writeFileSync(join(seeded.worktree, '.context/b.txt'), 'bb');
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await sendPrompt(page, `Open the plan BROWSER_OPEN:${origin}/plan`);
+		await expectAssistantReply(page);
+		await expect(inspector.getByRole('tab', { name: 'Plan', selected: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		const files = inspector.getByRole('tab', { name: 'Files' });
+		await files.click();
+		const status = { action: 'evaluate', script: `document.getElementById('status').textContent` };
+		const picked = { action: 'evaluate', script: `document.getElementById('files').textContent` };
+
+		const deleting =
+			'The page shows a confirm dialog and waits for an answer: "Delete the plan?". Call browser_dialog';
+		await agentBrowser(page, { action: 'click', selector: '#delete' }, deleting);
+		await agentBrowser(page, { action: 'snapshot' }, deleting);
+		await agentBrowser(
+			page,
+			{ action: 'dialog', accept: false },
+			'Pressed Cancel on the confirm dialog. The page is now',
+		);
+		await agentBrowser(page, status, /^\s*Kept\s*$/u);
+		await agentBrowser(page, { action: 'click', selector: '#delete' }, deleting);
+		await agentBrowser(
+			page,
+			{ action: 'dialog', accept: true },
+			'Pressed OK on the confirm dialog. The page is now',
+		);
+		await agentBrowser(page, status, /^\s*Deleted\s*$/u);
+		await agentBrowser(
+			page,
+			{ action: 'click', selector: '#hello' },
+			'The page shows an alert and waits for an answer: "Hello".',
+		);
+		await agentBrowser(page, { action: 'dialog', accept: false }, 'Closed the alert.');
+		await agentBrowser(
+			page,
+			{ action: 'wait', seconds: 5, gone: false, text: 'Greeted' },
+			'"Greeted" shows.',
+		);
+		await agentBrowser(page, { action: 'dialog', accept: true }, 'No dialog is open on the page.');
+
+		await agentBrowser(
+			page,
+			{ action: 'upload', selector: '#avatar', paths: ['.context/avatar.png'] },
+			'Picked one file for `#avatar`: .context/avatar.png.',
+		);
+		await agentBrowser(page, picked, /^\s*avatar: avatar\.png 3\s*$/u);
+		await agentBrowser(
+			page,
+			{ action: 'upload', selector: '#avatar', paths: ['.context/a.txt', '.context/b.txt'] },
+			'`#avatar` takes one file, and you passed 2. Pick one.',
+		);
+		await agentBrowser(
+			page,
+			{ action: 'upload', selector: '#attach', paths: ['.context/a.txt', '.context/b.txt'] },
+			'Picked 2 files for `#attach`',
+		);
+		await agentBrowser(page, picked, /^\s*docs: a\.txt 1, b\.txt 2\s*$/u);
+		await agentBrowser(
+			page,
+			{ action: 'click', selector: '#attach' },
+			'`#attach` opened a file chooser, and Malini closed it.',
+		);
+		await agentBrowser(
+			page,
+			{ action: 'upload', selector: '#avatar', paths: ['/etc/hosts'] },
+			'/etc/hosts is not a file in this worktree.',
+		);
+
+		await agentBrowser(page, { action: 'open', url: `${origin}/done` }, `Opened ${origin}/done`);
+		await expect(files).toHaveAttribute('aria-selected', 'true');
+		await expect(inspector.getByRole('tab', { name: 'Done', selected: false })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('the agent reads, types into, clicks, waits on and captures controls in same-origin and cross-origin frames', async () => {
+	test.setTimeout(180_000);
+	const card = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(`<!doctype html><title>Card</title>
+<label>Card number <input id="number"></label>
+<button id="pay">Pay</button>
+<p id="paid"></p>
+<script>
+document.getElementById('pay').onclick = () => setTimeout(() => {
+	document.getElementById('paid').textContent = 'Paid with ' + document.getElementById('number').value.slice(-4);
+}, 200);
+</script>`);
+	});
+	await new Promise<void>((resolve) => card.listen(0, '127.0.0.1', resolve));
+	const cardOrigin = `http://127.0.0.1:${(card.address() as AddressInfo).port}`;
+	const shop = createServer((request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(
+			request.url === '/coupon'
+				? `<!doctype html>
+<label>Coupon <input id="coupon"></label>
+<button id="apply">Apply</button>
+<p id="applied"></p>
+<script>
+document.getElementById('apply').onclick = () => {
+	document.getElementById('applied').textContent = 'Applied ' + document.getElementById('coupon').value;
+};
+</script>`
+				: `<!doctype html><title>Checkout</title>
+<style>body{margin:0;font:16px sans-serif}iframe{display:block;width:420px;height:180px;border:0}</style>
+<h1>Checkout</h1>
+<iframe title="Coupon" src="/coupon"></iframe>
+<div style="height:1600px"></div>
+<iframe title="Card" src="${cardOrigin}/card"></iframe>`,
+		);
+	});
+	await new Promise<void>((resolve) => shop.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(shop.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-frames-ws',
+			'Browser frames',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await sendPrompt(page, `Open the checkout BROWSER_OPEN:${origin}/checkout`);
+		await expectAssistantReply(page);
+		await expect(inspector.getByRole('tab', { name: 'Checkout', selected: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		const files = inspector.getByRole('tab', { name: 'Files' });
+		await files.click();
+
+		await agentBrowser(page, { action: 'snapshot' }, /textbox "Card number" @f2e\d+/u);
+		const snapshot =
+			(await page
+				.getByText(/textbox "Card number"/u)
+				.last()
+				.textContent()) ?? '';
+		const ref = (control: string): string =>
+			new RegExp(`${control} (@f\\de\\d+)`, 'u').exec(snapshot)?.[1] ?? `missing ${control}`;
+		expect(snapshot).toContain('iframe "Coupon" -> /coupon:');
+		expect(snapshot).toContain(`iframe "Card" -> ${cardOrigin}/card:`);
+
+		await agentBrowser(
+			page,
+			{ action: 'type', selector: ref('textbox "Coupon"'), text: 'SAVE10', submit: false },
+			`Typed into \`${ref('textbox "Coupon"')}\``,
+		);
+		await agentBrowser(
+			page,
+			{ action: 'click', selector: ref('button "Apply"') },
+			`Clicked \`${ref('button "Apply"')}\``,
+		);
+		await agentBrowser(
+			page,
+			{ action: 'wait', seconds: 5, gone: false, text: 'Applied SAVE10' },
+			'"Applied SAVE10" shows.',
+		);
+		await agentBrowser(
+			page,
+			{
+				action: 'type',
+				selector: ref('textbox "Card number"'),
+				text: '4242 4242 4242 4242',
+				submit: false,
+			},
+			`Typed into \`${ref('textbox "Card number"')}\``,
+		);
+		await agentBrowser(
+			page,
+			{ action: 'click', selector: ref('button "Pay"') },
+			`Clicked \`${ref('button "Pay"')}\``,
+		);
+		await agentBrowser(
+			page,
+			{ action: 'wait', seconds: 5, gone: false, text: 'Paid with 4242' },
+			'"Paid with 4242" shows.',
+		);
+		await agentBrowser(
+			page,
+			{ action: 'screenshot', fullPage: false, selector: ref('button "Pay"') },
+			new RegExp(`^Screenshot of ${origin}/checkout saved to `, 'u'),
+		);
+		await expect(files).toHaveAttribute('aria-selected', 'true');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		shop.close();
+		card.close();
 	}
 });
 

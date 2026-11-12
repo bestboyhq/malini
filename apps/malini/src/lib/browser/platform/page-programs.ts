@@ -31,7 +31,7 @@ const NATIVE_POPUP = String.raw`(element) => {
 	return picker && control === element ? control.type : null;
 }`;
 
-export const LOCATE_PROGRAM = String.raw`(target, mode) => {
+export const LOCATE_PROGRAM = String.raw`(target, mode, nested) => {
 	const find = ${FIND};
 	const describe = ${DESCRIBE};
 	const nativePopup = ${NATIVE_POPUP};
@@ -45,7 +45,8 @@ export const LOCATE_PROGRAM = String.raw`(target, mode) => {
 	}
 	const before = element.getBoundingClientRect();
 	const inView = before.top >= 0 && before.left >= 0 && before.bottom <= innerHeight && before.right <= innerWidth;
-	if (!inView) element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+	const align = inView ? 'nearest' : 'center';
+	if (!inView || nested) element.scrollIntoView({ block: align, inline: align, behavior: 'instant' });
 	const rect = element.getBoundingClientRect();
 	const shows =
 		rect.width > 0 &&
@@ -58,8 +59,8 @@ export const LOCATE_PROGRAM = String.raw`(target, mode) => {
 	const bottom = Math.min(rect.bottom, innerHeight);
 	const x = right > left ? (left + right) / 2 : rect.left + rect.width / 2;
 	const y = bottom > top ? (top + bottom) / 2 : rect.top + rect.height / 2;
-	const page = { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
-	if (mode === 'see') return { x, y, page };
+	const box = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+	if (mode === 'see') return { x, y, rect: box };
 	let hit = document.elementFromPoint(x, y);
 	while (hit && hit.shadowRoot) {
 		const inner = hit.shadowRoot.elementFromPoint(x, y);
@@ -72,7 +73,45 @@ export const LOCATE_PROGRAM = String.raw`(target, mode) => {
 	};
 	const reaches =
 		hit && (within(hit, element) || [...(element.labels ?? [])].some((label) => within(hit, label)));
-	return reaches ? { x, y, page } : { problem: 'covered', by: describe(hit) };
+	return reaches ? { x, y, rect: box } : { problem: 'covered', by: describe(hit) };
+}`;
+
+export const OWNER_PROGRAM = String.raw`(index, x, y, check) => {
+	const describe = ${DESCRIBE};
+	const owner = (globalThis.__maliniFrames ?? [])[index];
+	if (!owner || !owner.isConnected) return { problem: 'stale' };
+	const place = () => {
+		const box = owner.getBoundingClientRect();
+		const style = getComputedStyle(owner);
+		const dx = box.left + owner.clientLeft + parseFloat(style.paddingLeft);
+		const dy = box.top + owner.clientTop + parseFloat(style.paddingTop);
+		return { dx, dy, shows: dx + x >= 0 && dy + y >= 0 && dx + x <= innerWidth && dy + y <= innerHeight };
+	};
+	let at = place();
+	if (!at.shows) {
+		owner.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+		at = place();
+	}
+	if (!at.shows) return { problem: 'hidden' };
+	if (!check) return { dx: at.dx, dy: at.dy };
+	let hit = document.elementFromPoint(at.dx + x, at.dy + y);
+	while (hit && hit.shadowRoot) {
+		const inner = hit.shadowRoot.elementFromPoint(at.dx + x, at.dy + y);
+		if (!inner || inner === hit) break;
+		hit = inner;
+	}
+	return hit === owner ? { dx: at.dx, dy: at.dy } : { problem: 'covered', by: describe(hit) };
+}`;
+
+export const FILE_INPUT_PROGRAM = String.raw`(target, element) => {
+	const find = ${FIND};
+	const found = find(target);
+	if (found.problem) return element ? null : { problem: found.problem };
+	if (!found.element) return element ? null : { problem: 'missing' };
+	const input = found.element instanceof HTMLLabelElement ? found.element.control : found.element;
+	const file = input instanceof HTMLInputElement && input.type === 'file';
+	if (element) return file ? input : null;
+	return file ? { kind: 'input', multiple: input.multiple, disabled: input.disabled } : { kind: 'other' };
 }`;
 
 export const TYPE_PROGRAM = String.raw`(target, text, submit) => {
@@ -156,9 +195,12 @@ export const SCROLL_POSITION_PROGRAM = String.raw`(x, y) => {
 	return { x: round(scrollX), y: round(scrollY), height: round(root.scrollHeight), viewport };
 }`;
 
-export const SNAPSHOT_PROGRAM = String.raw`(maxLines, maxChars) => {
+export const SNAPSHOT_PROGRAM = String.raw`(maxLines, maxChars, prefix, top) => {
 	const refs = [];
 	globalThis.__maliniRefs = refs;
+	const owners = [];
+	globalThis.__maliniFrames = owners;
+	const frames = [];
 	const lines = [];
 	let chars = 0;
 	let cut = false;
@@ -292,7 +334,7 @@ export const SNAPSHOT_PROGRAM = String.raw`(maxLines, maxChars) => {
 		if (name) parts.push(quote(clip(name, 100)));
 		if (INTERACTIVE.has(role) || role === 'heading') {
 			refs.push(element);
-			parts.push('@e' + refs.length);
+			parts.push('@' + prefix + 'e' + refs.length);
 		}
 		parts.push(...statesOf(element, role));
 		push(depth, parts.join(' '));
@@ -325,7 +367,13 @@ export const SNAPSHOT_PROGRAM = String.raw`(maxLines, maxChars) => {
 				flush();
 				if (role === 'iframe') {
 					const title = squash(element.getAttribute('title'));
-					push(depth, 'iframe' + (title ? ' ' + quote(title) : '') + ' -> ' + relative(element.getAttribute('src') ?? ''));
+					const box = element.getBoundingClientRect();
+					const opens = box.width >= 2 && box.height >= 2;
+					push(depth, 'iframe' + (title ? ' ' + quote(title) : '') + ' -> ' + relative(element.getAttribute('src') ?? '') + (opens ? ':' : ''));
+					if (opens && !cut) {
+						frames.push({ at: lines.length - 1, depth, index: owners.length });
+						owners.push(element);
+					}
 				} else if (role !== 'img' || nameOf(element, role)) {
 					line(depth, element, role);
 				}
@@ -346,12 +394,13 @@ export const SNAPSHOT_PROGRAM = String.raw`(maxLines, maxChars) => {
 		}
 	};
 	const root = document.scrollingElement ?? document.documentElement;
-	push(0, 'Page ' + quote(document.title) + ' at ' + location.href);
-	push(0, 'Viewport ' + innerWidth + 'x' + innerHeight + ', scrolled to y ' + Math.round(scrollY) + ' of ' + root.scrollHeight + 'px');
+	if (top) {
+		push(0, 'Page ' + quote(document.title) + ' at ' + location.href);
+		push(0, 'Viewport ' + innerWidth + 'x' + innerHeight + ', scrolled to y ' + Math.round(scrollY) + ' of ' + root.scrollHeight + 'px');
+	}
 	if (document.body) walk(document.body, 0);
 	flush();
-	if (cut) lines.push('… The page goes on. Read the rest with browser_evaluate, for example document.querySelector("main").innerText.');
-	return lines.join('\n');
+	return { lines, frames, cut };
 }`;
 
 export const SERIALIZE_FUNCTION = String.raw`async function () {

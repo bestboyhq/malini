@@ -1,6 +1,7 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { isErrnoException } from '$main/errors';
+import { isInsideDirectory } from '$main/fs/paths';
 import { SANDBOX_SCRATCH_PATH } from '$main/git/paths';
 import type {
 	BrowserScreenshotFile,
@@ -10,9 +11,11 @@ import type {
 	BrowserWait,
 } from '../browser.platform';
 import { keyPresses } from './keyboard';
-import { MALINI_WORLD_ID, type PageContents, type PageImage, type Rectangle } from './page';
+import type { PageContents, PageImage, Rectangle } from './page';
 import {
+	FILE_INPUT_PROGRAM,
 	LOCATE_PROGRAM,
+	OWNER_PROGRAM,
 	PRESENCE_PROGRAM,
 	SCROLL_POSITION_PROGRAM,
 	SERIALIZE_FUNCTION,
@@ -30,7 +33,7 @@ export const MAX_RESULT_CHARS = 30_000;
 const OPEN_TIMEOUT_MS = 20_000;
 const SERVER_RETRY_MS = 500;
 const REFUSED = 'ERR_CONNECTION_REFUSED';
-const ACTION_SETTLE_MS = 10_000;
+export const ACTION_SETTLE_MS = 10_000;
 const NAVIGATION_GRACE_MS = 250;
 const LOAD_POLL_MS = 50;
 const FIRST_FRAME_MS = 3_000;
@@ -49,6 +52,11 @@ const SNAPSHOT_MAX_LINES = 1_500;
 const SNAPSHOT_MAX_CHARS = 40_000;
 const OBJECT_GROUP = 'malini';
 const DEVTOOLS_PROTOCOL = '1.3';
+const WORLD_NAME = 'Malini';
+const FRAME_REF = /^@f([0-9]+)(e[0-9]+)$/u;
+const AUTO_ATTACH = { autoAttach: true, waitForDebuggerOnStart: false, flatten: true };
+const SNAPSHOT_CUT =
+	'… The page goes on. Read the rest with browser_evaluate, for example document.querySelector("main").innerText.';
 const MAC = process.platform === 'darwin';
 const FINAL_PROBLEMS = new Set(['invalid', 'stale', 'popup']);
 const FORMATS: Readonly<Record<string, string>> = {
@@ -69,8 +77,32 @@ interface Point {
 }
 
 interface Located extends Point {
-	readonly page: Rectangle;
+	readonly rect: Rectangle;
+	readonly frame: PageFrame;
+	readonly target: string;
+	readonly inner: Point;
 }
+
+interface PageFrame {
+	readonly frameId: string;
+	readonly session: string | undefined;
+	readonly parent: PageFrame | null;
+	readonly index: number;
+}
+
+interface Chooser {
+	readonly backendNodeId: number;
+	readonly multiple: boolean;
+	readonly session: string | undefined;
+}
+
+interface Frames {
+	readonly sessions: Map<string, string>;
+	numbered: ReadonlyMap<number, PageFrame>;
+	readonly choosers: Set<(chooser: Chooser) => void>;
+}
+
+const pageFrames = new WeakMap<PageContents, Frames>();
 
 export async function openUrl(contents: PageContents, url: string): Promise<void> {
 	const serverDeadline = Date.now() + OPEN_TIMEOUT_MS;
@@ -128,20 +160,22 @@ export async function captureRegion(
 	const viewport = field(metrics, 'cssVisualViewport');
 	const content = field(metrics, 'cssContentSize');
 	const height = requireNumber(content, 'height');
-	const clip = snapOut(
-		element?.page ?? {
-			x: 0,
-			y: 0,
-			width: requireNumber(content, 'width'),
-			height: Math.min(height, FULL_PAGE_MAX_HEIGHT),
-		},
-	);
 	const visible = {
 		x: requireNumber(viewport, 'pageX'),
 		y: requireNumber(viewport, 'pageY'),
 		width: requireNumber(viewport, 'clientWidth'),
 		height: requireNumber(viewport, 'clientHeight'),
 	};
+	const clip = snapOut(
+		element === null
+			? {
+					x: 0,
+					y: 0,
+					width: requireNumber(content, 'width'),
+					height: Math.min(height, FULL_PAGE_MAX_HEIGHT),
+				}
+			: { ...element.rect, x: element.rect.x + visible.x, y: element.rect.y + visible.y },
+	);
 	const shot = await devtools(contents, 'Page.captureScreenshot', {
 		format: 'png',
 		clip: { ...clip, scale: 1 },
@@ -168,20 +202,165 @@ export async function saveScreenshot(
 }
 
 export async function readPage(contents: PageContents): Promise<string> {
-	const text = await runInPage(contents, SNAPSHOT_PROGRAM, [
-		SNAPSHOT_MAX_LINES,
-		SNAPSHOT_MAX_CHARS,
+	const numbered = new Map<number, PageFrame>();
+	framesOf(contents).numbered = numbered;
+	const room = { lines: SNAPSHOT_MAX_LINES, chars: SNAPSHOT_MAX_CHARS };
+	const { lines, cut } = await frameLines(contents, await topFrame(contents), '', room, numbered);
+	return [...lines, ...(cut ? [SNAPSHOT_CUT] : [])].join('\n');
+}
+
+async function frameLines(
+	contents: PageContents,
+	frame: PageFrame,
+	prefix: string,
+	room: { readonly lines: number; readonly chars: number },
+	numbered: Map<number, PageFrame>,
+): Promise<{ readonly lines: readonly string[]; readonly cut: boolean }> {
+	const answer = await runInFrame(contents, frame, SNAPSHOT_PROGRAM, [
+		room.lines,
+		room.chars,
+		prefix,
+		frame.parent === null,
 	]);
-	if (typeof text !== 'string') throw new Error('The page did not return a snapshot.');
-	return text;
+	const own = list(field(answer, 'lines')).filter((line) => typeof line === 'string');
+	const owners = new Map(list(field(answer, 'frames')).map((owner) => [field(owner, 'at'), owner]));
+	let cut = field(answer, 'cut') === true;
+	let used = { lines: own.length, chars: charsOf(own) };
+	const lines: string[] = [];
+	for (const [at, line] of own.entries()) {
+		lines.push(line);
+		const owner = owners.get(at);
+		if (owner === undefined) continue;
+		const left = { lines: room.lines - used.lines, chars: room.chars - used.chars };
+		if (left.lines <= 0 || left.chars <= 0) {
+			cut = true;
+			continue;
+		}
+		const child = await childFrame(contents, frame, requireNumber(owner, 'index')).catch(
+			() => null,
+		);
+		if (child === null) continue;
+		const number = numbered.size + 1;
+		numbered.set(number, child);
+		const inner = await frameLines(contents, child, `f${number}`, left, numbered).catch(() => null);
+		if (inner === null) continue;
+		const indent = '  '.repeat(requireNumber(owner, 'depth') + 1);
+		const nested = inner.lines.map((each) => indent + each);
+		lines.push(...nested);
+		used = { lines: used.lines + nested.length, chars: used.chars + charsOf(nested) };
+		cut ||= inner.cut;
+	}
+	return { lines, cut };
+}
+
+function charsOf(lines: readonly string[]): number {
+	return lines.reduce((sum, line) => sum + line.length + 1, 0);
 }
 
 export async function clickTarget(contents: PageContents, target: string): Promise<void> {
 	const point = await locate(contents, target, 'click');
-	await mouse(contents, 'mouseMoved', point, { button: 'none', buttons: 0 });
-	await mouse(contents, 'mousePressed', point, { button: 'left', buttons: 1, clickCount: 1 });
-	await mouse(contents, 'mouseReleased', point, { button: 'left', buttons: 0, clickCount: 1 });
+	const { chooser } = await catchingChooser(contents, true, async () => {
+		await pressAt(contents, point);
+		await settleAfterAction(contents);
+	});
+	if (chooser !== null) {
+		throw new Error(
+			`\`${target}\` opened a file chooser, and Malini closed it. Pick the files with browser_upload on \`${target}\` instead.`,
+		);
+	}
+}
+
+export async function uploadFiles(
+	contents: PageContents,
+	target: string,
+	files: readonly string[],
+): Promise<void> {
+	const fileInput = await fileField(contents, target);
+	if (fileInput === null) {
+		const point = await locate(contents, target, 'click');
+		const { chooser } = await catchingChooser(contents, false, async () => {
+			await pressAt(contents, point);
+			await settleAfterAction(contents);
+		});
+		if (chooser === null) {
+			throw new Error(
+				`\`${target}\` is not a file field, and clicking it opened no file chooser. Call browser_snapshot to find the file field or the button that opens one.`,
+			);
+		}
+		if (!chooser.multiple && files.length > 1) throw new Error(oneFile(target, files));
+		await devtools(
+			contents,
+			'DOM.setFileInputFiles',
+			{ files, backendNodeId: chooser.backendNodeId },
+			chooser.session,
+		);
+	} else {
+		if (fileInput.disabled) throw new Error(`\`${target}\` is disabled, so it takes no files.`);
+		if (!fileInput.multiple && files.length > 1) throw new Error(oneFile(target, files));
+		const { frame, local } = await frameOf(contents, target);
+		const input = await evaluateInFrame(
+			contents,
+			frame,
+			`(${FILE_INPUT_PROGRAM})(${JSON.stringify(local)}, true)`,
+			false,
+		);
+		const objectId = stringField(field(input, 'result'), 'objectId');
+		if (objectId === undefined) throw new Error(locateError(target, 'stale', null));
+		try {
+			await devtools(contents, 'DOM.setFileInputFiles', { files, objectId }, frame.session);
+		} finally {
+			void devtools(contents, 'Runtime.releaseObject', { objectId }, frame.session).catch(
+				() => undefined,
+			);
+		}
+	}
 	await settleAfterAction(contents);
+}
+
+function oneFile(target: string, files: readonly string[]): string {
+	return `\`${target}\` takes one file, and you passed ${files.length}. Pick one.`;
+}
+
+async function fileField(
+	contents: PageContents,
+	target: string,
+): Promise<{ readonly multiple: boolean; readonly disabled: boolean } | null> {
+	const { frame, local } = await frameOf(contents, target);
+	const deadline = Date.now() + ACTION_WAIT_MS;
+	for (;;) {
+		const answer = await runInFrame(contents, frame, FILE_INPUT_PROGRAM, [local, false]);
+		const problem = stringField(answer, 'problem');
+		if (problem === undefined) {
+			if (stringField(answer, 'kind') !== 'input') return null;
+			return {
+				multiple: field(answer, 'multiple') === true,
+				disabled: field(answer, 'disabled') === true,
+			};
+		}
+		if (FINAL_PROBLEMS.has(problem) || Date.now() >= deadline) {
+			throw new Error(locateError(target, problem, answer));
+		}
+		await delay(LOCATE_POLL_MS);
+	}
+}
+
+export async function worktreeUploads(
+	worktree: string,
+	paths: readonly string[],
+): Promise<readonly string[]> {
+	const root = await realpath(worktree);
+	return Promise.all(
+		paths.map(async (path) => {
+			const file = await realpath(resolve(root, path)).catch(() => null);
+			const info = file === null ? null : await stat(file).catch(() => null);
+			if (file === null || !info?.isFile() || !isInsideDirectory(root, file)) {
+				throw new Error(
+					`${path} is not a file in this worktree. Copy it into the worktree first, for example under .context/, then pass that path.`,
+				);
+			}
+			return file;
+		}),
+	);
 }
 
 export async function hoverTarget(contents: PageContents, target: string): Promise<void> {
@@ -198,30 +377,46 @@ export async function typeInto(
 	text: string,
 	submit: boolean,
 ): Promise<void> {
-	await locate(contents, target, 'see');
-	const answer = await runInPage(contents, TYPE_PROGRAM, [target, text, submit]);
+	const found = await locate(contents, target, 'see');
+	const answer = await runInFrame(contents, found.frame, TYPE_PROGRAM, [
+		found.target,
+		text,
+		submit,
+	]);
 	const problem = stringField(answer, 'problem');
 	if (problem !== undefined) throw new Error(typeError(target, text, problem, answer));
 	await settleAfterAction(contents);
 }
 
 export async function pressKey(contents: PageContents, chord: string): Promise<void> {
-	for (const event of keyPresses(chord, MAC)) {
-		await devtools(contents, 'Input.dispatchKeyEvent', event);
+	const events = keyPresses(chord, MAC);
+	const { chooser } = await catchingChooser(contents, true, async () => {
+		for (const event of events) await devtools(contents, 'Input.dispatchKeyEvent', event);
+		await settleAfterAction(contents);
+	});
+	if (chooser !== null) {
+		throw new Error(
+			`${chord} opened a file chooser, and Malini closed it. Pick the files with browser_upload on the file field or the button that opens one.`,
+		);
 	}
-	await settleAfterAction(contents);
 }
 
 export async function scrollPage(
 	contents: PageContents,
 	by: { readonly x: number; readonly y: number; readonly selector?: string },
 ): Promise<BrowserScrollPosition> {
+	const top = await topFrame(contents);
 	const point =
 		by.selector === undefined
-			? middleOf(await runInPage(contents, SCROLL_POSITION_PROGRAM, [null, null]))
+			? centered(top, await runInFrame(contents, top, SCROLL_POSITION_PROGRAM, [null, null]))
 			: await locate(contents, by.selector, 'see');
 	const read = async (): Promise<BrowserScrollPosition> =>
-		scrollPosition(await runInPage(contents, SCROLL_POSITION_PROGRAM, [point.x, point.y]));
+		scrollPosition(
+			await runInFrame(contents, point.frame, SCROLL_POSITION_PROGRAM, [
+				point.inner.x,
+				point.inner.y,
+			]),
+		);
 	if (by.x === 0 && by.y === 0) return read();
 	await mouse(contents, 'mouseWheel', point, { deltaX: by.x, deltaY: by.y });
 	const deadline = Date.now() + SCROLL_SETTLE_MS;
@@ -236,8 +431,9 @@ export async function scrollPage(
 
 export async function untilSized(contents: PageContents, size: BrowserSize): Promise<BrowserSize> {
 	const deadline = Date.now() + RESIZE_SETTLE_MS;
+	const top = await topFrame(contents);
 	for (;;) {
-		const answer = await runInPage(contents, VIEWPORT_PROGRAM, []);
+		const answer = await runInFrame(contents, top, VIEWPORT_PROGRAM, []);
 		const now = { width: requireNumber(answer, 'width'), height: requireNumber(answer, 'height') };
 		if ((now.width === size.width && now.height === size.height) || Date.now() >= deadline) {
 			return now;
@@ -251,14 +447,22 @@ export async function waitFor(contents: PageContents, until: BrowserWait): Promi
 	const ms = seconds * 1_000;
 	if (text === undefined && selector === undefined) return delay(ms);
 	const deadline = Date.now() + ms;
+	const target =
+		selector === undefined ? null : await frameOf(contents, selector).catch(() => null);
 	for (;;) {
 		const left = Math.max(deadline - Date.now(), LOCATE_POLL_MS);
-		const shows = await runInPage(
-			contents,
-			PRESENCE_PROGRAM,
-			[selector ?? null, text ?? null],
-			left,
-		).catch(() => null);
+		const shows =
+			selector === undefined
+				? await shownAnywhere(contents, text ?? '', left)
+				: target === null
+					? 'stale'
+					: await runInFrame(
+							contents,
+							target.frame,
+							PRESENCE_PROGRAM,
+							[target.local, text ?? null],
+							left,
+						).catch(() => null);
 		if (shows === 'stale' && gone) return;
 		if (shows === 'invalid' || shows === 'stale') {
 			throw new Error(locateError(selector ?? '', shows, null));
@@ -331,13 +535,14 @@ async function settled(contents: PageContents, deadline: number): Promise<void> 
 }
 
 async function locate(contents: PageContents, target: string, mode: LocateMode): Promise<Located> {
+	const { frame, local } = await frameOf(contents, target);
 	const deadline = Date.now() + ACTION_WAIT_MS;
 	let last: Located | null = null;
 	for (;;) {
-		const answer = await runInPage(contents, LOCATE_PROGRAM, [target, mode]);
+		const answer = await locateIn(contents, frame, local, mode);
 		const problem = stringField(answer, 'problem');
 		if (problem === undefined) {
-			const found = located(answer);
+			const found = located(answer, frame, local);
 			if ((last && samePlace(found, last)) || Date.now() >= deadline) return found;
 			last = found;
 		} else {
@@ -350,17 +555,54 @@ async function locate(contents: PageContents, target: string, mode: LocateMode):
 	}
 }
 
-function located(answer: unknown): Located {
-	const page = field(answer, 'page');
+async function locateIn(
+	contents: PageContents,
+	frame: PageFrame,
+	target: string,
+	mode: LocateMode,
+): Promise<unknown> {
+	const nested = frame.parent !== null;
+	const answer = await runInFrame(contents, frame, LOCATE_PROGRAM, [target, mode, nested]);
+	if (stringField(answer, 'problem') !== undefined) return answer;
+	const inner = { x: requireNumber(answer, 'x'), y: requireNumber(answer, 'y') };
+	let { x, y } = inner;
+	let rect = rectangle(field(answer, 'rect'));
+	for (let child = frame; child.parent !== null; child = child.parent) {
+		const check = mode !== 'see';
+		const owner = await runInFrame(contents, child.parent, OWNER_PROGRAM, [
+			child.index,
+			x,
+			y,
+			check,
+		]);
+		if (stringField(owner, 'problem') !== undefined) return owner;
+		const dx = requireNumber(owner, 'dx');
+		const dy = requireNumber(owner, 'dy');
+		x += dx;
+		y += dy;
+		rect = { ...rect, x: rect.x + dx, y: rect.y + dy };
+	}
+	return { x, y, rect, inner };
+}
+
+function located(answer: unknown, frame: PageFrame, target: string): Located {
+	const inner = field(answer, 'inner');
 	return {
 		x: requireNumber(answer, 'x'),
 		y: requireNumber(answer, 'y'),
-		page: {
-			x: requireNumber(page, 'x'),
-			y: requireNumber(page, 'y'),
-			width: requireNumber(page, 'width'),
-			height: requireNumber(page, 'height'),
-		},
+		rect: rectangle(field(answer, 'rect')),
+		frame,
+		target,
+		inner: { x: requireNumber(inner, 'x'), y: requireNumber(inner, 'y') },
+	};
+}
+
+function rectangle(value: unknown): Rectangle {
+	return {
+		x: requireNumber(value, 'x'),
+		y: requireNumber(value, 'y'),
+		width: requireNumber(value, 'width'),
+		height: requireNumber(value, 'height'),
 	};
 }
 
@@ -368,8 +610,8 @@ function samePlace(a: Located, b: Located): boolean {
 	return (
 		Math.abs(a.x - b.x) < 1 &&
 		Math.abs(a.y - b.y) < 1 &&
-		Math.abs(a.page.width - b.page.width) < 1 &&
-		Math.abs(a.page.height - b.page.height) < 1
+		Math.abs(a.rect.width - b.rect.width) < 1 &&
+		Math.abs(a.rect.height - b.rect.height) < 1
 	);
 }
 
@@ -396,7 +638,7 @@ function popupError(target: string, kind: string): string {
 		return `\`${target}\` is a select, and a click opens its menu outside the page. Pick an option with browser_type and the option's label instead.`;
 	}
 	if (kind === 'file') {
-		return `\`${target}\` opens a file chooser outside the page, and Malini's browser tools cannot pick files.`;
+		return `\`${target}\` is a file field, and a click opens a file chooser outside the page. Pick its files with browser_upload instead.`;
 	}
 	return `\`${target}\` is a ${kind} field, and a click opens a picker outside the page. Set its value with browser_type instead, for example ${FORMATS[kind] ?? 'its value'}.`;
 }
@@ -429,9 +671,13 @@ function waitError({ seconds, gone, text, selector }: BrowserWait): string {
 		: `${what} did not show within ${seconds}s. Call browser_snapshot to see what the page shows.`;
 }
 
-function middleOf(answer: unknown): Point {
+function centered(frame: PageFrame, answer: unknown): Point & Pick<Located, 'frame' | 'inner'> {
 	const viewport = field(answer, 'viewport');
-	return { x: requireNumber(viewport, 'width') / 2, y: requireNumber(viewport, 'height') / 2 };
+	const middle = {
+		x: requireNumber(viewport, 'width') / 2,
+		y: requireNumber(viewport, 'height') / 2,
+	};
+	return { ...middle, frame, inner: middle };
 }
 
 function scrollPosition(answer: unknown): BrowserScrollPosition {
@@ -455,6 +701,7 @@ function evaluateInPage(contents: PageContents, expression: string): Promise<unk
 			awaitPromise: true,
 			userGesture: true,
 		},
+		undefined,
 		EVALUATE_TIMEOUT_MS,
 	);
 }
@@ -498,6 +745,7 @@ async function serialized(contents: PageContents, remote: unknown): Promise<stri
 			returnByValue: true,
 			userGesture: true,
 		},
+		undefined,
 		EVALUATE_TIMEOUT_MS,
 	);
 	throwIfThrew(call);
@@ -509,39 +757,215 @@ export function clipResult(text: string): string {
 	return `${text.slice(0, MAX_RESULT_CHARS)}\n… ${text.length - MAX_RESULT_CHARS} more characters. Return less, for example with .slice().`;
 }
 
-async function runInPage(
+async function runInFrame(
 	contents: PageContents,
+	frame: PageFrame,
 	program: string,
 	args: readonly unknown[],
 	ms = PAGE_ANSWER_MS,
 ): Promise<unknown> {
 	const call = args.map((arg) => JSON.stringify(arg)).join(', ');
-	const answer = await within(
-		contents.executeJavaScriptInIsolatedWorld(
-			MALINI_WORLD_ID,
-			[{ code: `(${program})(${call})` }],
-			true,
-		),
+	const answer = await evaluateInFrame(contents, frame, `(${program})(${call})`, true, ms);
+	return field(field(answer, 'result'), 'value');
+}
+
+async function evaluateInFrame(
+	contents: PageContents,
+	frame: PageFrame,
+	expression: string,
+	byValue: boolean,
+	ms = PAGE_ANSWER_MS,
+): Promise<unknown> {
+	const { frameId, session } = frame;
+	const world = await devtools(
+		contents,
+		'Page.createIsolatedWorld',
+		{ frameId, worldName: WORLD_NAME },
+		session,
 		ms,
 	);
-	if (answer === undefined) throw new Error(noAnswer(ms));
+	const answer = await devtools(
+		contents,
+		'Runtime.evaluate',
+		{
+			expression,
+			contextId: requireNumber(world, 'executionContextId'),
+			returnByValue: byValue,
+			awaitPromise: true,
+			userGesture: true,
+		},
+		session,
+		ms,
+	);
+	throwIfThrew(answer);
 	return answer;
+}
+
+async function topFrame(contents: PageContents): Promise<PageFrame> {
+	const tree = await devtools(contents, 'Page.getFrameTree');
+	const frameId = stringField(field(field(tree, 'frameTree'), 'frame'), 'id');
+	if (frameId === undefined) throw new Error('The browser answered without its page frame.');
+	return { frameId, session: undefined, parent: null, index: -1 };
+}
+
+async function frameOf(
+	contents: PageContents,
+	target: string,
+): Promise<{ readonly frame: PageFrame; readonly local: string }> {
+	const ref = FRAME_REF.exec(target);
+	if (!ref) return { frame: await topFrame(contents), local: target };
+	const frame = framesOf(contents).numbered.get(Number(ref[1]));
+	if (!frame) throw new Error(locateError(target, 'stale', null));
+	return { frame, local: `@${ref[2] ?? ''}` };
+}
+
+async function childFrame(
+	contents: PageContents,
+	parent: PageFrame,
+	index: number,
+): Promise<PageFrame | null> {
+	const expression = `globalThis.__maliniFrames?.[${index}] ?? null`;
+	const owner = await evaluateInFrame(contents, parent, expression, false);
+	const objectId = stringField(field(owner, 'result'), 'objectId');
+	if (objectId === undefined) return null;
+	try {
+		const node = await devtools(contents, 'DOM.describeNode', { objectId }, parent.session);
+		const frameId = stringField(field(node, 'node'), 'frameId');
+		if (frameId === undefined) return null;
+		const session = framesOf(contents).sessions.get(frameId) ?? parent.session;
+		return { frameId, session, parent, index };
+	} finally {
+		void devtools(contents, 'Runtime.releaseObject', { objectId }, parent.session).catch(
+			() => undefined,
+		);
+	}
+}
+
+async function shownAnywhere(contents: PageContents, text: string, ms: number): Promise<boolean> {
+	for (const frame of await everyFrame(contents)) {
+		const shows = await runInFrame(contents, frame, PRESENCE_PROGRAM, [null, text], ms).catch(
+			() => false,
+		);
+		if (shows === true) return true;
+	}
+	return false;
+}
+
+async function everyFrame(contents: PageContents): Promise<readonly PageFrame[]> {
+	const top = await topFrame(contents);
+	const { sessions } = framesOf(contents);
+	const found = new Map<string, PageFrame>([[top.frameId, top]]);
+	for (const session of [undefined, ...sessions.values()]) {
+		const tree = await devtools(contents, 'Page.getFrameTree', {}, session).catch(() => null);
+		const visit = (node: unknown): void => {
+			const frameId = stringField(field(node, 'frame'), 'id');
+			if (frameId !== undefined && !found.has(frameId)) {
+				found.set(frameId, {
+					frameId,
+					session: sessions.get(frameId) ?? session,
+					parent: null,
+					index: -1,
+				});
+			}
+			for (const child of list(field(node, 'childFrames'))) visit(child);
+		};
+		visit(field(tree, 'frameTree'));
+	}
+	return [...found.values()];
+}
+
+async function catchingChooser(
+	contents: PageContents,
+	cancel: boolean,
+	action: () => Promise<void>,
+): Promise<{ readonly chooser: Chooser | null }> {
+	const known = framesOf(contents);
+	const caught: Chooser[] = [];
+	const catcher = (chooser: Chooser): void => void caught.push(chooser);
+	known.choosers.add(catcher);
+	const sessions: Array<string | undefined> = [];
+	try {
+		await devtools(contents, 'Page.enable');
+		sessions.push(undefined, ...known.sessions.values());
+		for (const session of sessions) {
+			if (session !== undefined) await devtools(contents, 'Page.enable', undefined, session);
+			const intercept = { enabled: true, cancel };
+			await devtools(contents, 'Page.setInterceptFileChooserDialog', intercept, session);
+		}
+		await action();
+		return { chooser: caught[0] ?? null };
+	} finally {
+		known.choosers.delete(catcher);
+		for (const session of sessions) {
+			const off = { enabled: false };
+			await devtools(contents, 'Page.setInterceptFileChooserDialog', off, session).catch(
+				() => undefined,
+			);
+			await devtools(contents, 'Page.disable', undefined, session).catch(() => undefined);
+		}
+	}
+}
+
+function framesOf(contents: PageContents): Frames {
+	const known = pageFrames.get(contents);
+	if (known) return known;
+	const frames: Frames = { sessions: new Map(), numbered: new Map(), choosers: new Set() };
+	pageFrames.set(contents, frames);
+	contents.debugger.on('message', (_event, method, params, session) => {
+		if (method === 'Target.attachedToTarget') {
+			const info = field(params, 'targetInfo');
+			const child = stringField(params, 'sessionId');
+			const frameId = stringField(info, 'targetId');
+			if (stringField(info, 'type') !== 'iframe' || !child || !frameId) return;
+			frames.sessions.set(frameId, child);
+			const send = (command: string, args: object): Promise<unknown> =>
+				contents.debugger.sendCommand(command, args, child).catch(() => undefined);
+			void send('Target.setAutoAttach', AUTO_ATTACH);
+			void send('Emulation.setFocusEmulationEnabled', { enabled: true });
+		} else if (method === 'Target.detachedFromTarget') {
+			const gone = stringField(params, 'sessionId');
+			for (const [frameId, each] of frames.sessions) {
+				if (each === gone) frames.sessions.delete(frameId);
+			}
+		} else if (method === 'Page.fileChooserOpened') {
+			const backendNodeId = field(params, 'backendNodeId');
+			if (typeof backendNodeId !== 'number') return;
+			const multiple = stringField(params, 'mode') === 'selectMultiple';
+			const chooser = { backendNodeId, multiple, session: session || undefined };
+			for (const catcher of frames.choosers) catcher(chooser);
+		}
+	});
+	return frames;
 }
 
 async function devtools(
 	contents: PageContents,
 	method: string,
 	params?: object,
+	session?: string,
 	ms = PAGE_ANSWER_MS,
 ): Promise<unknown> {
-	const session = contents.debugger;
-	if (!session.isAttached()) {
-		session.attach(DEVTOOLS_PROTOCOL);
-		await session.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
+	const known = framesOf(contents);
+	const target = contents.debugger;
+	if (!target.isAttached()) {
+		target.attach(DEVTOOLS_PROTOCOL);
+		known.sessions.clear();
+		await target.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
+		await target.sendCommand('Target.setAutoAttach', AUTO_ATTACH);
 	}
-	const answer = await within(session.sendCommand(method, params), ms);
+	const answer = await within(target.sendCommand(method, params, session), ms);
 	if (answer === undefined) throw new Error(noAnswer(ms));
 	return answer;
+}
+
+async function pressAt(contents: PageContents, point: Point): Promise<void> {
+	await mouse(contents, 'mouseMoved', point, { button: 'none', buttons: 0 });
+	await mouse(contents, 'mousePressed', point, { button: 'left', buttons: 1, clickCount: 1 });
+	await mouse(contents, 'mouseReleased', point, { button: 'left', buttons: 0, clickCount: 1 });
+}
+
+function list(value: unknown): readonly unknown[] {
+	return Array.isArray(value) ? value : [];
 }
 
 function mouse(

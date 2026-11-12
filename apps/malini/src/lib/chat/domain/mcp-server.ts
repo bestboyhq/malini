@@ -17,6 +17,7 @@ export type McpServer = Readonly<{
 	error: string | null;
 	origin: McpServerOrigin;
 	toolCount: number | null;
+	browser: boolean;
 }>;
 
 export type McpServerFix = 'sign-in' | 'reconnect-on-claude-ai' | 'retry' | 'duplicate';
@@ -28,6 +29,7 @@ export type McpServerGroups = Readonly<{
 	duplicates: readonly McpServer[];
 	connecting: readonly McpServer[];
 	ready: readonly McpServer[];
+	browsers: readonly McpServer[];
 	off: readonly McpServer[];
 }>;
 
@@ -100,6 +102,7 @@ export function mcpServer(report: McpServerReport): McpServer {
 			report.toolCount !== undefined && Number.isFinite(report.toolCount)
 				? Math.max(0, Math.floor(report.toolCount))
 				: null,
+		browser: report.browser === true,
 	};
 }
 
@@ -180,7 +183,7 @@ export function mcpServerFix(
 	server: McpServer,
 	servers: readonly McpServer[],
 ): McpServerFix | null {
-	if (server.status !== 'needs-auth' && server.status !== 'failed') return null;
+	if (server.browser || (server.status !== 'needs-auth' && server.status !== 'failed')) return null;
 	if (hasConnectedTwin(server, servers)) return 'duplicate';
 	if (server.status === 'needs-auth') return 'sign-in';
 	if (server.origin.kind === 'claude-ai') return 'reconnect-on-claude-ai';
@@ -195,7 +198,7 @@ export function groupMcpServers(
 	servers: readonly McpServer[],
 	turnedOff: readonly string[],
 ): McpServerGroups {
-	const on = servers.filter((server) => !isTurnedOff(server, turnedOff));
+	const on = servers.filter((server) => !isTurnedOff(server, turnedOff) && !server.browser);
 	const fixes = new Map(on.map((server) => [server.name, mcpServerFix(server, on)]));
 	const withFix = (fix: McpServerFix): McpServer[] =>
 		on.filter((server) => fixes.get(server.name) === fix);
@@ -206,6 +209,7 @@ export function groupMcpServers(
 		duplicates: withFix('duplicate'),
 		connecting: on.filter((server) => server.status === 'pending'),
 		ready: on.filter((server) => server.status === 'connected'),
+		browsers: servers.filter((server) => server.browser && !isTurnedOff(server, turnedOff)),
 		off: servers.filter((server) => isTurnedOff(server, turnedOff)),
 	};
 }

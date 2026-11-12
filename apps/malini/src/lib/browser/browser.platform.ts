@@ -48,6 +48,33 @@ export interface BrowserSize {
 	readonly height: number;
 }
 
+export interface BrowserDialog {
+	readonly type: 'alert' | 'confirm';
+	readonly message: string;
+}
+
+export interface BrowserDialogAnswer {
+	readonly dialog: BrowserDialog;
+	readonly accepted: boolean;
+	readonly page: BrowserPageInfo;
+}
+
+export class BrowserDialogOpen extends Error {
+	constructor(
+		readonly dialog: BrowserDialog,
+		readonly openedByAction: boolean,
+	) {
+		super(waitingDialog(dialog));
+	}
+}
+
+function waitingDialog({ type, message }: BrowserDialog): string {
+	const says = `The page shows ${type === 'alert' ? 'an alert' : 'a confirm dialog'} and waits for an answer: ${JSON.stringify(message)}.`;
+	return type === 'alert'
+		? `${says} Call browser_dialog to close it.`
+		: `${says} Call browser_dialog with accept true to press OK, or false to press Cancel.`;
+}
+
 export interface BrowserTabProcess {
 	readonly processId: number;
 	readonly title: string;
@@ -82,6 +109,13 @@ export interface BrowserPlatform {
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	resize(tab: BrowserTabArgs, width: number, height?: number): Promise<BrowserSize>;
+	upload(
+		tab: BrowserTabArgs,
+		worktree: string,
+		selector: string,
+		paths: readonly string[],
+	): Promise<BrowserPageInfo>;
+	answerDialog(tab: BrowserTabArgs, accept: boolean): Promise<BrowserDialogAnswer>;
 	close(tab: BrowserTabArgs): Promise<boolean>;
 	tabProcesses(): BrowserTabProcess[];
 }

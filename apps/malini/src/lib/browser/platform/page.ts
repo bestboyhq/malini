@@ -1,4 +1,4 @@
-import type { BrowserConsoleLine } from '../browser.platform';
+import type { BrowserConsoleLine, BrowserDialog } from '../browser.platform';
 
 export const MALINI_WORLD_ID = 1_729;
 
@@ -39,7 +39,11 @@ export interface PageContents {
 	readonly debugger: {
 		isAttached(): boolean;
 		attach(protocolVersion?: string): void;
-		sendCommand(method: string, params?: object): Promise<unknown>;
+		sendCommand(method: string, params?: object, sessionId?: string): Promise<unknown>;
+		on(
+			event: 'message',
+			listener: (event: unknown, method: string, params: unknown, sessionId: string) => void,
+		): unknown;
 	};
 	executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
 	executeJavaScriptInIsolatedWorld(
@@ -58,7 +62,15 @@ export interface PageEvents {
 	committed(): void;
 	failed(reason: string): void;
 	console(line: BrowserConsoleLine): void;
+	dialog(dialog: PageDialog): void;
+	dialogsClosed(): void;
+	leaving(): boolean;
 	gone(): void;
+}
+
+export interface PageDialog extends BrowserDialog {
+	answer(accept: boolean): void;
+	showToUser(): void;
 }
 
 export interface HostWindow {

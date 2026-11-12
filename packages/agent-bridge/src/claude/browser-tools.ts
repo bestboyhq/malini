@@ -17,7 +17,7 @@ import {
 export const MALINI_MCP_SERVER = 'malini';
 
 const TARGET =
-	'A CSS selector such as button[type=submit], or a ref such as @e3 from browser_snapshot';
+	'A CSS selector such as button[type=submit], or a ref such as @e3 or @f1e3 from browser_snapshot';
 const DEFAULT_WAIT_SECONDS = 10;
 const MAX_WAIT_SECONDS = 30;
 const MAX_PAGE_SIZE = 3_840;
@@ -45,7 +45,7 @@ export function maliniTools(
 		),
 		tool(
 			'browser_snapshot',
-			"Read the page open in Malini's browser as text: its headings, text, images and every control you can click or type into, each control with a ref such as @e3 that the other browser tools take as their selector. It is faster than a screenshot when you need what the page says or which element to act on. Take a new snapshot once the page changes: the refs of an older one stop working.",
+			"Read the page open in Malini's browser as text: its headings, text, images and every control you can click or type into, each control with a ref such as @e3 that the other browser tools take as their selector. It reads into iframes too, and a control inside one gets a ref such as @f1e3. It is faster than a screenshot when you need what the page says or which element to act on. Take a new snapshot once the page changes: the refs of an older one stop working.",
 			{},
 			() => run({ action: 'snapshot' }),
 		),
@@ -190,6 +190,32 @@ export function maliniTools(
 			},
 			({ width, height }) =>
 				run({ action: 'resize', width, ...(height === undefined ? {} : { height }) }),
+		),
+		tool(
+			'browser_upload',
+			"Pick files for a file field in Malini's browser, the way a person picks them in the file chooser. The selector is the file input or the button that opens a file chooser. Malini never shows the chooser itself, so use this tool instead of clicking such a button.",
+			{
+				selector: target.describe(TARGET),
+				paths: z
+					.array(z.string().min(1))
+					.min(1)
+					.describe(
+						'The files to pick, each a path in your worktree, for example ./fixtures/photo.png. Copy a file from elsewhere into the worktree first, for example under .context/',
+					),
+			},
+			({ selector, paths }) => run({ action: 'upload', selector, paths }),
+		),
+		tool(
+			'browser_dialog',
+			"Answer the alert or confirm dialog the page in Malini's browser waits on. A browser tool that opens one returns its message, and the other browser tools wait until you answer it.",
+			{
+				accept: z
+					.boolean()
+					.describe(
+						'Press OK, or Cancel when false. An alert has only OK, so it closes either way',
+					),
+			},
+			({ accept }) => run({ action: 'dialog', accept }),
 		),
 		tool(
 			'browser_close',

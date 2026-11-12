@@ -6,7 +6,7 @@ const SENTENCE_BREAK = /(?<=[.!?…])\s+(?=\S)/u;
 
 function plain(text: string): string {
 	return text
-		.replace(/\*\*|__|`/gu, '')
+		.replace(/\*\*|`|(?<!\w)__|__(?!\w)/gu, '')
 		.replace(/\s+/gu, ' ')
 		.trim();
 }

@@ -20,6 +20,7 @@ import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { automationBoundaryForSession } from '$lib/automations/automations.platform';
+import { BrowserDialogOpen, type BrowserDialogAnswer } from '$lib/browser/browser.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	listWorkstreams,
@@ -130,6 +131,13 @@ export interface BrowserAutomation {
 		width: number,
 		height?: number,
 	): Promise<{ readonly width: number; readonly height: number }>;
+	upload(
+		tab: BrowserTabArgs,
+		worktree: string,
+		selector: string,
+		paths: readonly string[],
+	): Promise<BrowserPageInfo>;
+	answerDialog(tab: BrowserTabArgs, accept: boolean): Promise<BrowserDialogAnswer>;
 	close(tab: BrowserTabArgs): Promise<boolean>;
 }
 
@@ -270,6 +278,23 @@ export async function answerBrowserRequest(
 				const size = await browser.resize(tab, request.width, request.height);
 				return { ok: true, text: describeSize(request, size) };
 			}
+			case 'upload': {
+				const { selector, paths } = request;
+				const worktree = worktreePath(deps.checkoutsRoot, workstreamId);
+				const page = await browser.upload(tab, worktree, selector, paths);
+				const files = paths.length === 1 ? 'one file' : `${paths.length} files`;
+				return {
+					ok: true,
+					text: `Picked ${files} for \`${selector}\`: ${paths.join(', ')}. The page is now ${describePage(page)}.`,
+				};
+			}
+			case 'dialog': {
+				const answer = await browser.answerDialog(tab, request.accept);
+				return {
+					ok: true,
+					text: `${describeDialogAnswer(answer)} The page is now ${describePage(answer.page)}.`,
+				};
+			}
 			case 'close':
 				return {
 					ok: true,
@@ -279,8 +304,16 @@ export async function answerBrowserRequest(
 				};
 		}
 	} catch (error) {
+		if (error instanceof BrowserDialogOpen && error.openedByAction) {
+			return { ok: true, text: error.message };
+		}
 		return { ok: false, error: describe(error) };
 	}
+}
+
+function describeDialogAnswer({ dialog, accepted }: BrowserDialogAnswer): string {
+	if (dialog.type === 'alert') return 'Closed the alert.';
+	return `Pressed ${accepted ? 'OK' : 'Cancel'} on the confirm dialog.`;
 }
 
 export function agentBrowserTabId(sessionId: string): string {

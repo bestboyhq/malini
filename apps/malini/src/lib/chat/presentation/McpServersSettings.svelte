@@ -27,6 +27,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
+	import { BROWSER_MCP_NOTE } from './session-runtime-metadata';
 
 	type Filter = 'all' | 'needs-you' | 'off';
 
@@ -84,6 +85,7 @@
 				? 'Off in Claude Code for this folder'
 				: 'Off';
 		}
+		if (server.browser) return BROWSER_MCP_NOTE;
 		if (fix === 'duplicate') return 'A connected server with the same name covers it.';
 		if (server.status === 'needs-auth') return 'Not signed in';
 		if (server.status === 'pending') return 'Connecting';
@@ -258,6 +260,8 @@
 						>
 							{#if off}
 								<Icon name="circle-slash" size={14} class="text-fg-tertiary" />
+							{:else if server.browser}
+								<Icon name="globe" size={14} class="text-fg-tertiary" />
 							{:else if server.status === 'connected'}
 								<Icon name="check" size={14} class="text-success-content" />
 							{:else if server.status === 'pending'}
@@ -285,7 +289,7 @@
 								<p
 									class={[
 										'line-clamp-2 text-xs break-words',
-										!off && server.status === 'failed' && fix !== 'duplicate'
+										!off && !server.browser && server.status === 'failed' && fix !== 'duplicate'
 											? 'text-error-content'
 											: 'text-fg-tertiary',
 									]}

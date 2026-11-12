@@ -20,7 +20,7 @@
 	let { server, fix, off, target, showOrigin }: Props = $props();
 	const busy = $derived(target ? mcpServerBusyQuery.data(target, server.name) : false);
 	const failure = $derived(
-		!off && server.status === 'failed' && fix !== 'duplicate'
+		!off && !server.browser && server.status === 'failed' && fix !== 'duplicate'
 			? sanitizeFailureDetail(server.error) || 'Could not connect'
 			: null,
 	);
@@ -63,7 +63,7 @@
 	data-mcp-server-id={server.name}
 	data-mcp-status={off ? 'off' : server.status}
 >
-	{#if off}
+	{#if off || server.browser}
 		<Icon name="circle-slash" size={14} class="text-fg-tertiary shrink-0" />
 	{:else if server.status === 'connected'}
 		<Icon name="check" size={14} class="text-success-content shrink-0" />
@@ -75,7 +75,10 @@
 	<div class="min-w-0 flex-1">
 		<p class="flex min-w-0 items-center gap-1.5">
 			<span
-				class={['truncate font-medium', off ? 'text-fg-tertiary' : 'text-fg-default']}
+				class={[
+					'truncate font-medium',
+					off || server.browser ? 'text-fg-tertiary' : 'text-fg-default',
+				]}
 				data-testid="session-mcp-display-name"
 			>
 				{server.displayName}
@@ -102,6 +105,8 @@
 		{@render action('Retry', `Retry ${server.displayName}`, onRetry, 'ghost')}
 	{:else if target && fix === 'retry'}
 		{@render action('Retry', `Retry ${server.displayName}`, onRetry, 'secondary')}
+	{:else if server.browser}
+		<span class="text-2xs text-fg-tertiary shrink-0">Hidden</span>
 	{:else if server.status === 'pending'}
 		<span class="text-2xs text-fg-tertiary shrink-0">Connecting</span>
 	{:else if server.status === 'connected' && server.toolCount !== null}

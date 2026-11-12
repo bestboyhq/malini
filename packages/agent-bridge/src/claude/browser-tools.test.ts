@@ -171,6 +171,25 @@ describe('malini MCP server', () => {
 							required: ['width'],
 						},
 					},
+					{
+						name: 'browser_upload',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								selector: { type: 'string' },
+								paths: { type: 'array', items: { type: 'string' }, minItems: 1 },
+							},
+							required: ['selector', 'paths'],
+						},
+					},
+					{
+						name: 'browser_dialog',
+						inputSchema: {
+							type: 'object',
+							properties: { accept: { type: 'boolean' } },
+							required: ['accept'],
+						},
+					},
 					{ name: 'browser_close', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'automations_list' },
 					{ name: 'automations_save' },
@@ -218,6 +237,28 @@ describe('malini MCP server', () => {
 			{ action: 'resize', width: 390, height: 844 },
 			{ action: 'close' },
 		]);
+	});
+
+	it('picks files and answers dialogs, refusing an upload without a file', async () => {
+		const { call, requests } = await connect(async () => ({ ok: true }));
+
+		await call('tools/call', {
+			name: 'browser_upload',
+			arguments: { selector: '@f1e2', paths: ['./a.png', '.context/b.pdf'] },
+		});
+		const noFile = await call('tools/call', {
+			name: 'browser_upload',
+			arguments: { selector: '#avatar', paths: [] },
+		});
+		await call('tools/call', { name: 'browser_dialog', arguments: { accept: false } });
+		await call('tools/call', { name: 'browser_dialog', arguments: { accept: true } });
+
+		expect(requests).toEqual([
+			{ action: 'upload', selector: '@f1e2', paths: ['./a.png', '.context/b.pdf'] },
+			{ action: 'dialog', accept: false },
+			{ action: 'dialog', accept: true },
+		]);
+		expect(noFile).toMatchObject({ result: { isError: true } });
 	});
 
 	it('reads, inspects and drives the page with the defaults filled in', async () => {

@@ -75,6 +75,7 @@ import {
 	retryKey,
 	UNCHECKED_CALL_REASON,
 } from './permissions.js';
+import { BROWSER_MCP_REFUSAL, isBrowserMcpServer, mcpToolPrefix } from './browser-mcp.js';
 import { RunFailureSignals, SIGNED_OUT_TEXT, UNKNOWN_FAILURE } from './run-failure.js';
 import { claudeShell, type SessionSecrets } from './secrets.js';
 import { lastOutputLine } from './task-output.js';
@@ -215,6 +216,7 @@ interface ActiveRun {
 	readonly approvedRetries: Set<string>;
 	readonly retriedCalls: Set<string>;
 	readonly allowRules: Set<string>;
+	readonly hiddenMcp: Set<string>;
 	readonly uncheckedRetries: Map<string, number>;
 	readonly uncheckedFallbacks: Set<string>;
 	fallback: NodeJS.Timeout | null;
@@ -415,6 +417,7 @@ export class ClaudeSession implements ProviderHandle {
 			approvedRetries: new Set(),
 			retriedCalls: new Set(),
 			allowRules: new Set(),
+			hiddenMcp: new Set(),
 			uncheckedRetries: new Map(),
 			uncheckedFallbacks: new Set(),
 			fallback: null,
@@ -436,6 +439,7 @@ export class ClaudeSession implements ProviderHandle {
 			if (!servers || mcpSettled(servers, this.#knownMcpServers)) break;
 			await delay(MCP_SETTLE_POLL_MS, undefined, { ref: false });
 		}
+		await this.#hideBrowserMcp(active);
 		open(!active.cancelled);
 	}
 
@@ -686,11 +690,61 @@ export class ClaudeSession implements ProviderHandle {
 		this.#mcpStatus = new Map(servers.map((server) => [server.name, server]));
 	}
 
+	async #hideBrowserMcp(active: ActiveRun): Promise<void> {
+		const browsers = [...this.#mcpStatus.values()]
+			.filter(isBrowserMcpServer)
+			.map(({ name }) => mcpToolPrefix(name));
+		if (browsers.every((prefix) => active.hiddenMcp.has(prefix))) return;
+		for (const prefix of browsers) active.hiddenMcp.add(prefix);
+		await this.#applyPermissionRules(active).catch((error: unknown) =>
+			process.stderr.write(`[claude] could not hide browser MCP servers: ${describe(error)}\n`),
+		);
+	}
+
+	#applyPermissionRules(active: ActiveRun): Promise<void> {
+		return active.query.applyFlagSettings({
+			permissions: { allow: [...active.allowRules], deny: [...active.hiddenMcp] },
+		});
+	}
+
+	#refuseBrowserMcp(): HookCallback {
+		return async (input) => {
+			const active = this.#active;
+			if (
+				input.hook_event_name !== 'PreToolUse' ||
+				!active ||
+				!input.tool_name.startsWith('mcp__')
+			) {
+				return {};
+			}
+			const calls = (prefix: string) => input.tool_name.startsWith(`${prefix}__`);
+			const server = [...this.#mcpStatus.values()].find(({ name }) => calls(mcpToolPrefix(name)));
+			if (server?.status !== 'connected') {
+				const servers = await active.query.mcpServerStatus().catch(() => null);
+				if (servers) this.#learnMcpStatus(servers);
+				await this.#hideBrowserMcp(active);
+			}
+			if (![...active.hiddenMcp].some(calls)) return {};
+			return {
+				hookSpecificOutput: {
+					hookEventName: 'PreToolUse',
+					permissionDecision: 'deny',
+					permissionDecisionReason: BROWSER_MCP_REFUSAL,
+				},
+			};
+		};
+	}
+
 	#describeMcp(server: McpServerEntry): McpServerReport {
 		const known = this.#mcpStatus.get(server.name);
 		const report = mcpServerReport(known?.status === server.status ? known : server);
-		const source = report.source ?? (known && mcpServerReport(known).source);
-		return source ? { ...report, source } : report;
+		const learned = known ? mcpServerReport(known) : null;
+		const source = report.source ?? learned?.source;
+		return {
+			...report,
+			...(source ? { source } : {}),
+			...(learned?.browser ? { browser: true } : {}),
+		};
 	}
 
 	#reportMcp(runId: string, servers: readonly McpServerReport[]): void {
@@ -834,6 +888,7 @@ export class ClaudeSession implements ProviderHandle {
 							: [steerToMalini],
 					},
 					{ hooks: [this.#allowApprovedRetry()] },
+					{ hooks: [this.#refuseBrowserMcp()] },
 					...(this.#sandbox ? [{ matcher: 'Bash', hooks: [this.#noteCommandStart()] }] : []),
 				],
 				PostToolUse: [
@@ -1148,11 +1203,9 @@ export class ClaudeSession implements ProviderHandle {
 	async #allowWhileRunning(active: ActiveRun, rule: string): Promise<void> {
 		active.allowRules.add(rule);
 		if (active.config) active.config = restamped(active.config, userSettingsFile());
-		await active.query
-			.applyFlagSettings({ permissions: { allow: [...active.allowRules] } })
-			.catch((error: unknown) =>
-				process.stderr.write(`[claude] could not allow ${rule} live: ${describe(error)}\n`),
-			);
+		await this.#applyPermissionRules(active).catch((error: unknown) =>
+			process.stderr.write(`[claude] could not allow ${rule} live: ${describe(error)}\n`),
+		);
 	}
 
 	#requestPlatform(call: PlatformToolCall): Promise<PlatformResult> {
@@ -1215,6 +1268,7 @@ export class ClaudeSession implements ProviderHandle {
 			anthropicSnapshot(query, new Date()),
 		]);
 		this.#learnMcpStatus(servers);
+		await this.#hideBrowserMcp(active);
 		this.#reportMcp(
 			runId,
 			servers.map((server) => mcpServerReport(server)),

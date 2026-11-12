@@ -1,22 +1,43 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserResizeRequest, BrowserState } from '$contract/browser';
+import { BrowserDialogOpen } from '../browser.platform';
 import { FULL_PAGE_MAX_HEIGHT, PREVIEW_LONG_EDGE } from './automation';
-import type { PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
+import type { PageContents, PageDialog, PageEvents, PageImage, PageView, Rectangle } from './page';
 import type { PinAction, ThreadPin } from './thread-pins';
 import {
 	BrowserViews,
 	DEFAULT_VIEW_SIZE,
 	MAX_CONSOLE_LINES,
 	MAX_CONSOLE_TEXT,
+	NO_DIALOG,
 	NOTHING_OPEN,
 	RESIZE_ANSWER_MS,
 	toDip,
 } from './views';
 
-const LOCATED = { x: 110, y: 220, page: { x: 100, y: 1_200, width: 20, height: 40 } };
+const LOCATED = { x: 110, y: 220, rect: { x: 100, y: 1_200, width: 20, height: 40 } };
+const FRAME_PLUMBING = new Set([
+	'Page.getFrameTree',
+	'Page.createIsolatedWorld',
+	'Target.setAutoAttach',
+]);
+
+type DevtoolsListener = (
+	event: unknown,
+	method: string,
+	params: unknown,
+	sessionId: string,
+) => void;
 const PAGE_METRICS = {
 	cssVisualViewport: { pageX: 0, pageY: 0, clientWidth: 1_280, clientHeight: 800 },
 	cssContentSize: { width: 1_280, height: 3_000 },
@@ -95,6 +116,7 @@ class FakeContents implements PageContents {
 				? { data: CDP_PNG.toString('base64') }
 				: {};
 	readonly devtoolsCommands: Array<readonly [string, object | undefined]> = [];
+	readonly devtoolsListeners: DevtoolsListener[] = [];
 	attachedCount = 0;
 	readonly debugger = {
 		isAttached: (): boolean => this.attachedCount > 0,
@@ -102,8 +124,19 @@ class FakeContents implements PageContents {
 			this.attachedCount += 1;
 		},
 		sendCommand: async (method: string, params?: object): Promise<unknown> => {
+			if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' } } };
+			if (method === 'Page.createIsolatedWorld') return { executionContextId: 7 };
+			if (FRAME_PLUMBING.has(method)) return {};
+			if (method === 'Runtime.evaluate' && params && 'contextId' in params) {
+				const value = await this.runProgram(String(Reflect.get(params, 'expression')));
+				const byValue = Reflect.get(params, 'returnByValue') !== false;
+				return { result: byValue ? { value } : { objectId: 'node-1' } };
+			}
 			this.devtoolsCommands.push([method, params]);
 			return this.devtoolsAnswer(method, params);
+		},
+		on: (_event: 'message', listener: DevtoolsListener): void => {
+			this.devtoolsListeners.push(listener);
 		},
 	};
 	static #nextProcessId = 4_000;
@@ -204,6 +237,11 @@ class FakeContents implements PageContents {
 				? Promise.resolve(this.pinActions.shift())
 				: new Promise(() => undefined);
 		}
+		return this.runProgram(code, false);
+	}
+
+	runProgram(code: string, record = true): Promise<unknown> {
+		if (record) this.scripts.push(code);
 		const queued = this.scriptOutcomes.length > 0;
 		return Promise.resolve(queued ? this.scriptOutcomes.shift() : this.actionOutcome);
 	}
@@ -275,6 +313,10 @@ const roots: string[] = [];
 afterEach(() => {
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+
+function inputs(contents: FakeContents): ReadonlyArray<readonly [string, object | undefined]> {
+	return contents.devtoolsCommands.filter(([method]) => method.startsWith('Input.'));
+}
 
 function setup(zoom = 1) {
 	let window: FakeWindow | null = new FakeWindow(zoom);
@@ -824,10 +866,14 @@ describe('BrowserViews', () => {
 			title: 'Title of https://example.com/',
 		});
 
-		expect(contents.scripts.filter((code) => code.includes('("#buy", "click")'))).toHaveLength(3);
+		expect(
+			contents.scripts.filter((code) => code.includes('("#buy", "click", false)')),
+		).toHaveLength(3);
 		expect(contents.attachedCount).toBe(1);
 		expect(contents.devtoolsCommands).toEqual([
 			['Emulation.setFocusEmulationEnabled', { enabled: true }],
+			['Page.enable', undefined],
+			['Page.setInterceptFileChooserDialog', { enabled: true, cancel: true }],
 			[
 				'Input.dispatchMouseEvent',
 				{ type: 'mouseMoved', x: 110, y: 220, button: 'none', buttons: 0 },
@@ -840,6 +886,8 @@ describe('BrowserViews', () => {
 				'Input.dispatchMouseEvent',
 				{ type: 'mouseReleased', x: 110, y: 220, button: 'left', buttons: 0, clickCount: 1 },
 			],
+			['Page.setInterceptFileChooserDialog', { enabled: false }],
+			['Page.disable', undefined],
 		]);
 		expect(viewAt(0).removedFrom).toEqual([window()]);
 		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
@@ -866,7 +914,7 @@ describe('BrowserViews', () => {
 		await expect(browser.click(TAB, '#day')).rejects.toThrow(
 			'Set its value with browser_type instead, for example 2026-11-12.',
 		);
-		expect(contents.devtoolsCommands).toEqual([]);
+		expect(inputs(contents)).toEqual([]);
 	});
 
 	it('waits up to 5s for an element to show and for what covers it to go', async () => {
@@ -889,7 +937,7 @@ describe('BrowserViews', () => {
 			);
 			await vi.advanceTimersByTimeAsync(5_100);
 			await covered;
-			expect(contents.devtoolsCommands).toEqual([]);
+			expect(inputs(contents)).toEqual([]);
 
 			contents.actionOutcome = { problem: 'missing' };
 			const late = browser.click(TAB, '#late');
@@ -934,10 +982,14 @@ describe('BrowserViews', () => {
 		]);
 		expect(sent).toEqual([
 			['Emulation.setFocusEmulationEnabled', undefined, undefined],
+			['Page.enable', undefined, undefined],
+			['Page.setInterceptFileChooserDialog', undefined, undefined],
 			['Input.dispatchKeyEvent', 'rawKeyDown', 'Shift'],
 			['Input.dispatchKeyEvent', 'rawKeyDown', 'Tab'],
 			['Input.dispatchKeyEvent', 'keyUp', 'Tab'],
 			['Input.dispatchKeyEvent', 'keyUp', 'Shift'],
+			['Page.setInterceptFileChooserDialog', undefined, undefined],
+			['Page.disable', undefined, undefined],
 			['Input.dispatchMouseEvent', 'mouseMoved', undefined],
 			['Input.dispatchMouseEvent', 'mouseWheel', undefined],
 		]);
@@ -1030,6 +1082,134 @@ describe('BrowserViews', () => {
 			'Runtime.releaseObjectGroup',
 			{ objectGroup: 'malini' },
 		]);
+	});
+
+	it('holds a dialog the page opens while the agent acts, until the agent answers it', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents, events } = viewAt(0);
+		let release = (): void => undefined;
+		const released = new Promise<object>((resolve) => {
+			release = () => resolve({});
+		});
+		contents.devtoolsAnswer = (_method, params) =>
+			params && 'type' in params && params.type === 'mouseReleased' ? released : {};
+		const answers: boolean[] = [];
+		const showToUser = vi.fn();
+		const confirm: PageDialog = {
+			type: 'confirm',
+			message: 'Delete the draft?',
+			answer: (accept) => {
+				answers.push(accept);
+				release();
+			},
+			showToUser,
+		};
+
+		const clicking = browser.click(TAB, '#delete');
+		await expect.poll(() => inputs(contents)).toHaveLength(3);
+		expect(events.leaving()).toBe(true);
+		events.dialog(confirm);
+
+		await expect(clicking).rejects.toThrow(
+			'The page shows a confirm dialog and waits for an answer: "Delete the draft?". Call browser_dialog with accept true to press OK, or false to press Cancel.',
+		);
+		expect(events.leaving()).toBe(false);
+		await expect(browser.readPage(TAB)).rejects.toBeInstanceOf(BrowserDialogOpen);
+		await expect(browser.answerDialog(TAB, false)).resolves.toEqual({
+			dialog: { type: 'confirm', message: 'Delete the draft?' },
+			accepted: false,
+			page: { url: 'https://example.com/', title: 'Title of https://example.com/' },
+		});
+		expect(answers).toEqual([false]);
+		expect(showToUser).not.toHaveBeenCalled();
+		await expect(browser.answerDialog(TAB, true)).rejects.toThrow(NO_DIALOG);
+		await expect(browser.click(TAB, '#other')).resolves.toMatchObject({
+			url: 'https://example.com/',
+		});
+	});
+
+	it('shows the user a dialog on the tab they see, and holds one on a hidden tab until they open it', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { events } = viewAt(0);
+		const shown: string[] = [];
+		const alert = (message: string): PageDialog => ({
+			type: 'alert',
+			message,
+			answer: () => undefined,
+			showToUser: () => void shown.push(message),
+		});
+		const bounds = { x: 0, y: 0, width: 300, height: 200 };
+
+		browser.show(TAB, bounds);
+		events.dialog(alert('Saved'));
+		expect(shown).toEqual(['Saved']);
+
+		browser.hide(TAB);
+		events.dialog(alert('Your session ends soon'));
+		expect(shown).toEqual(['Saved']);
+		await expect(browser.readPage(TAB)).rejects.toThrow(
+			'The page shows an alert and waits for an answer: "Your session ends soon". Call browser_dialog to close it.',
+		);
+		browser.show(TAB, bounds);
+		expect(shown).toEqual(['Saved', 'Your session ends soon']);
+		await expect(browser.answerDialog(TAB, true)).rejects.toThrow(NO_DIALOG);
+
+		browser.hide(TAB);
+		events.dialog(alert('Left behind'));
+		events.dialogsClosed();
+		await expect(browser.readPage(TAB)).resolves.toBe('');
+	});
+
+	it('picks worktree files for a file field, or through the chooser a button opens', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-upload-'));
+		roots.push(worktree);
+		writeFileSync(join(worktree, 'cv.pdf'), 'pdf');
+		writeFileSync(join(worktree, 'photo.png'), 'png');
+		const cv = realpathSync(join(worktree, 'cv.pdf'));
+		const photo = realpathSync(join(worktree, 'photo.png'));
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		const { contents } = viewAt(0);
+		const setFiles = () =>
+			contents.devtoolsCommands.filter(([method]) => method === 'DOM.setFileInputFiles');
+
+		await expect(browser.upload(TAB, worktree, '#cv', ['/etc/hosts'])).rejects.toThrow(
+			'/etc/hosts is not a file in this worktree. Copy it into the worktree first',
+		);
+		await expect(browser.upload(TAB, worktree, '#cv', ['missing.pdf'])).rejects.toThrow(
+			'missing.pdf is not a file in this worktree.',
+		);
+
+		contents.scriptOutcomes.push({ kind: 'input', multiple: false, disabled: false });
+		await browser.upload(TAB, worktree, '#cv', ['cv.pdf']);
+		contents.scriptOutcomes.push({ kind: 'input', multiple: false, disabled: false });
+		await expect(browser.upload(TAB, worktree, '#cv', ['cv.pdf', 'photo.png'])).rejects.toThrow(
+			'`#cv` takes one file, and you passed 2. Pick one.',
+		);
+		expect(setFiles()).toEqual([['DOM.setFileInputFiles', { files: [cv], objectId: 'node-1' }]]);
+
+		const openChooser = (): void => {
+			for (const listener of contents.devtoolsListeners) {
+				listener(null, 'Page.fileChooserOpened', { backendNodeId: 42, mode: 'selectMultiple' }, '');
+			}
+		};
+		contents.devtoolsAnswer = (_method, params) => {
+			if (params && 'type' in params && params.type === 'mouseReleased') openChooser();
+			return {};
+		};
+		contents.scriptOutcomes.push({ kind: 'other' });
+		await browser.upload(TAB, worktree, '#attach', [cv, 'photo.png']);
+		expect(setFiles().at(-1)).toEqual([
+			'DOM.setFileInputFiles',
+			{ files: [cv, photo], backendNodeId: 42 },
+		]);
+
+		await expect(browser.click(TAB, '#attach')).rejects.toThrow(
+			'`#attach` opened a file chooser, and Malini closed it. Pick the files with browser_upload on `#attach` instead.',
+		);
+		expect(setFiles()).toHaveLength(2);
 	});
 
 	it('keeps the latest console messages of the page since it loaded, each clipped', async () => {

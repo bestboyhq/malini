@@ -80,7 +80,7 @@ function mcpServerReports(text: string): McpServerReport[] {
 	if (!Array.isArray(parsed)) return [];
 	return parsed.flatMap((value): McpServerReport[] => {
 		if (!isRecord(value)) return [];
-		const { name, status, error, source, toolCount } = value;
+		const { name, status, error, source, toolCount, browser } = value;
 		if (typeof name !== 'string' || typeof status !== 'string') return [];
 		return [
 			{
@@ -89,6 +89,7 @@ function mcpServerReports(text: string): McpServerReport[] {
 				...(typeof error === 'string' ? { error } : {}),
 				...(typeof source === 'string' ? { source } : {}),
 				...(typeof toolCount === 'number' ? { toolCount } : {}),
+				...(browser === true ? { browser } : {}),
 			},
 		];
 	});

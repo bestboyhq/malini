@@ -4,6 +4,7 @@ export type McpServerReport = Readonly<{
 	error?: string;
 	source?: string;
 	toolCount?: number;
+	browser?: boolean;
 }>;
 
 export type McpServerTarget =

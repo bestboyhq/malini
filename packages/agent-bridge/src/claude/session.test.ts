@@ -352,6 +352,8 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_forward',
 			'mcp__malini__browser_reload',
 			'mcp__malini__browser_resize',
+			'mcp__malini__browser_upload',
+			'mcp__malini__browser_dialog',
 			'mcp__malini__browser_close',
 			'mcp__malini__automations_list',
 			'mcp__malini__events_list',
@@ -1077,6 +1079,55 @@ describe('ClaudeSession', () => {
 		});
 	});
 
+	it('hides browser MCP servers before the first prompt and refuses a call that slips through', async () => {
+		const playwright: McpServerStatus = {
+			name: 'playwright',
+			status: 'connected',
+			scope: 'user',
+			config: { type: 'stdio', command: 'npx', args: ['@playwright/mcp@latest'] },
+			tools: [{ name: 'browser_navigate' }],
+		};
+		const navigate: ScriptStep = {
+			hook: {
+				hook_event_name: 'PreToolUse',
+				session_id: READ_AND_BASH_SESSION,
+				transcript_path: '/tmp/transcript.jsonl',
+				cwd: '/work/repo',
+				tool_name: 'mcp__playwright__browser_navigate',
+				tool_input: { url: 'http://localhost:5173' },
+				tool_use_id: 'toolu_navigate',
+			},
+		};
+		const { session, claude, events } = harness(
+			[[navigate, ...recordedScript('readAndBash'), 'wait-for-prompt']],
+			{
+				mcpServerStatus: () => [
+					playwright,
+					{ name: 'codebase-memory-mcp', status: 'connected', scope: 'user', tools: [] },
+				],
+			},
+		);
+
+		const sending = session.sendPrompt('Hello', 'run-1', profile());
+		await claude.runs[0]?.prompt;
+		const rulesBeforePrompt = [...(claude.runs[0]?.flagPermissions ?? [])];
+		await sending;
+		await session.refreshSessionStatus();
+
+		expect(rulesBeforePrompt).toEqual([{ allow: [], deny: ['mcp__playwright'] }]);
+		expect(claude.runs[0]?.flagPermissions).toHaveLength(1);
+		expect(claude.runs[0]?.hookOutputs[0]).toMatchObject({
+			hookSpecificOutput: {
+				permissionDecision: 'deny',
+				permissionDecisionReason: expect.stringContaining('`browser_open`'),
+			},
+		});
+		expect(ofType(events, 'mcp.status').at(-1)?.servers).toEqual([
+			{ name: 'playwright', status: 'connected', source: 'user', toolCount: 1, browser: true },
+			{ name: 'codebase-memory-mcp', status: 'connected', source: 'user', toolCount: 0 },
+		]);
+	});
+
 	it('reports where each MCP server comes from and how many tools it brings', async () => {
 		const script = recordedScript('readAndBash');
 		const { session, events } = harness(
@@ -1728,7 +1779,9 @@ describe('ClaudeSession', () => {
 					model: 'opus',
 					permissions: { allow: ['Bash(ls:*)', 'mcp__ops__set_member_role'] },
 				});
-				expect(claude.runs[0]?.flagPermissions).toEqual([{ allow: ['mcp__ops__set_member_role'] }]);
+				expect(claude.runs[0]?.flagPermissions).toEqual([
+					{ allow: ['mcp__ops__set_member_role'], deny: [] },
+				]);
 				expect(claude.runs[0]?.hookOutputs).toEqual([RETRY, RETRY_ALLOWED]);
 			} finally {
 				vi.unstubAllEnvs();

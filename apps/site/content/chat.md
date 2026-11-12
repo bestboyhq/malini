@@ -361,6 +361,7 @@ An [automation](/malini/docs/automations.md) can name the skills it loads.
 
 The plug in the composer lists the chat's MCP servers by what fixes them: servers to sign in to, claude.ai connectors to reconnect on claude.ai, servers that failed, and duplicates of a server that already connects.
 Servers that work fold into **Ready**, and servers you turned off into **Off**.
+Browser servers, such as Playwright MCP, show under **Browsers** as **Hidden**: Malini keeps their tools from its agents, since [its browser](/malini/docs/agent-tools.md#browser) does that work, and they need no fix.
 When two servers share a name, each shows where it comes from, such as claude.ai or the plugin that ships it.
 
 - **Sign in** opens the server's sign-in page in your browser.
@@ -373,6 +374,7 @@ When two servers share a name, each shows where it comes from, such as claude.ai
 Settings, MCP servers lists every server a chat in the open workstream connects, grouped by where it comes from: claude.ai connectors, each plugin, your own servers, and the repository's `.mcp.json`.
 It opens with what it found last time and updates each row live while its server connects, signs in or fails.
 Filter it to the servers that need you or the ones that are off, sign in or retry from there, and switch any server on or off.
+A browser server says it is hidden from agents; its switch still turns it off for the terminal too.
 The refresh button starts its Claude Code again, for a claude.ai connector you just added on claude.ai.
 
 ## Tools

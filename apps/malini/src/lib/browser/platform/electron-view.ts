@@ -1,4 +1,11 @@
-import { dialog, session, WebContentsView, type BrowserWindow, type Session } from 'electron';
+import {
+	dialog,
+	session,
+	WebContentsView,
+	type BrowserWindow,
+	type Session,
+	type WebContents,
+} from 'electron';
 import { rememberMediaAnswers } from './media-permission';
 import { MALINI_WORLD_ID, type PageEvents, type PageView } from './page';
 import { isAllowedNavigation } from './url';
@@ -74,6 +81,10 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 		const source = sourceId ? `${sourceId}:${lineNumber}` : '';
 		events.console({ level, text: message, source });
 	});
+	contents.on('will-prevent-unload', (event) => {
+		if (events.leaving()) event.preventDefault();
+	});
+	answerDialogs(contents, events);
 	contents.on('render-process-gone', () => events.gone());
 	contents.on('destroyed', () => events.gone());
 	return {
@@ -90,6 +101,41 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 			if (!contents.isDestroyed()) contents.close();
 		},
 	};
+}
+
+// ponytail: Electron's private -run-dialog event; the e2e browser dialog test fails if Electron renames it
+function answerDialogs(contents: WebContents, events: PageEvents): void {
+	const emitter: NodeJS.EventEmitter = contents;
+	const electronDialogs = emitter.listeners('-run-dialog');
+	emitter.removeAllListeners('-run-dialog');
+	emitter.on('-run-dialog', (info: unknown, callback: unknown) => {
+		if (typeof callback !== 'function') return;
+		let answered = false;
+		const answer = (accept: boolean, text = ''): void => {
+			if (answered || contents.isDestroyed()) return;
+			answered = true;
+			Reflect.apply(callback, undefined, [accept, text]);
+		};
+		const showToUser = (): void => {
+			for (const show of electronDialogs) Reflect.apply(show, contents, [info, answer]);
+		};
+		const type = field(info, 'dialogType');
+		if (type === 'alert' || type === 'confirm') {
+			events.dialog({
+				type,
+				message: String(field(info, 'messageText') ?? ''),
+				answer,
+				showToUser,
+			});
+		} else {
+			showToUser();
+		}
+	});
+	emitter.on('-cancel-dialogs', () => events.dialogsClosed());
+}
+
+function field(value: unknown, key: string): unknown {
+	return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined;
 }
 
 export function watchRendererReset(window: BrowserWindow, reset: () => void): void {
