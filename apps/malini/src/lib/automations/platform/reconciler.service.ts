@@ -29,8 +29,6 @@ import {
 	getArchivedWorkstream,
 	getWorkstream,
 	isWorkstreamClosed,
-	listWorkstreams,
-	workstreamRoots,
 } from '$shared/repositories/repositories.platform';
 import type { ShippingRule } from '../automations.platform';
 import { isRunnableAutomation } from '../domain/builtin-automations';
@@ -640,16 +638,11 @@ export class Reconciler {
 		const { commands, db } = this.#context;
 		try {
 			if ((await commands.call('app.notification-permission-granted', undefined)) !== true) return;
-			const workstreamId =
-				decision.workstreamId === null
-					? null
-					: (workstreamRoots(listWorkstreams(db)).get(decision.workstreamId) ??
-						decision.workstreamId);
+			const { workstreamId } = decision;
 			const session = workstreamId === null ? null : latestSessionForWorkstream(db, workstreamId);
 			const subject =
 				decision.subjectRunId === null ? null : getAutomationRun(db, decision.subjectRunId);
-			const workstream =
-				decision.workstreamId === null ? null : getWorkstream(db, decision.workstreamId);
+			const workstream = workstreamId === null ? null : getWorkstream(db, workstreamId);
 			await commands.call('app.notify', {
 				options: {
 					title: [subject?.title ?? UNRUN_QUESTION_TITLE, workstream?.name]

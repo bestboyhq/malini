@@ -489,6 +489,33 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('wakes no chat for the deliveries it already holds, and stores only a yes or no', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const boundary = MIGRATIONS.findIndex((migration) => migration.includes('wake INTEGER'));
+		for (const migration of MIGRATIONS.slice(0, boundary)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + boundary};`);
+		seedWorkstream(db);
+		const delivery = (id: string, wake: string) =>
+			`INSERT INTO agent_deliveries (id, session_id, kind, prompt, status, created_at${wake === '' ? '' : ', wake'})
+			 VALUES ('${id}', 's', 'prompt', 'Go.', 'delivered', '2026-11-12T00:00:00Z'${wake === '' ? '' : `, ${wake}`});`;
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, provider, status, started_at)
+			  VALUES ('s', 'w', 'claude', 'idle', '2026-11-12T00:00:00Z');
+			${delivery('old', '')}
+		`);
+
+		migrate(db);
+		db.exec(delivery('asked', '1'));
+
+		expect(all(db, 'SELECT id, wake FROM agent_deliveries ORDER BY id')).toEqual([
+			{ id: 'asked', wake: 1 },
+			{ id: 'old', wake: 0 },
+		]);
+		expect(() => db.exec(delivery('maybe', '2'))).toThrow();
+		db.close();
+	});
+
 	it('turns the internet off for every job you made, and keeps it on for the built-in ones', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);

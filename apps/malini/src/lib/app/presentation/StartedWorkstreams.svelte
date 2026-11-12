@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
-	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { startedProgressQuery } from '$lib/app/application/queries/started-progress.query.svelte';
@@ -20,7 +18,6 @@
 		RepositoryAvatar,
 		archivedWorkstreamsQuery,
 		changeTotalsQuery,
-		clearMergedFromStarterCommand,
 		repositoryContextQuery,
 		repositoryName,
 		workstreamByIdQuery,
@@ -30,12 +27,9 @@
 
 	interface Props {
 		workstreamIds: readonly string[];
-		framed?: boolean;
-		label?: string;
-		heading?: string;
 	}
 
-	let { workstreamIds, framed = true, label = 'Workstreams', heading }: Props = $props();
+	let { workstreamIds }: Props = $props();
 
 	type Trail =
 		| Readonly<{ kind: 'changes'; additions: number; deletions: number }>
@@ -68,17 +62,8 @@
 
 	let nowMs = $state(Date.now());
 
-	const gapClass = $derived(framed ? 'gap-2.5' : 'gap-2');
-	const rowClass = $derived(
-		framed ? 'h-10 pr-3.5 pl-3.5 text-sm' : 'h-8 rounded-xl pr-2 pl-2 text-xs',
-	);
 	const lines = $derived(workstreamIds.flatMap(lineOf));
 	const merged = $derived(lines.filter((line) => line.dot === 'merged').length);
-	const clearableIds = $derived(
-		heading === undefined
-			? []
-			: lines.filter((line) => !line.open && line.dot === 'merged').map((line) => line.id),
-	);
 	const showsAges = $derived(lines.some((line) => line.trail?.kind === 'archived'));
 
 	$effect(() => {
@@ -147,15 +132,8 @@
 		return formatTimeAgo(Math.max(0, nowMs - archivedAt));
 	}
 
-	function clearable(line: Line): boolean {
-		return clearableIds.includes(line.id);
-	}
-
 	function swapsOnHover(line: Line): string | false {
-		return (
-			(line.pullRequest !== null || clearable(line)) &&
-			'group-focus-within/row:hidden group-hover/row:hidden'
-		);
+		return line.pullRequest !== null && 'group-focus-within/row:hidden group-hover/row:hidden';
 	}
 
 	function accessibleNameOf(line: Line): string {
@@ -214,81 +192,7 @@
 	{/if}
 {/snippet}
 
-{#snippet list()}
-	<ul aria-label={framed ? undefined : label}>
-		{#each lines as line (line.id)}
-			{@const accessibleName = accessibleNameOf(line)}
-			<li
-				class={[
-					'group/row relative flex items-center',
-					gapClass,
-					rowClass,
-					framed && 'border-surface-50-border border-t-[0.5px]',
-					(line.open || line.pullRequest || clearable(line)) && 'hover:bg-surface-50-hover',
-					clearable(line) && 'focus-within:pr-8 hover:pr-8',
-				]}
-			>
-				{#if line.open}
-					<Button
-						bare
-						href={workstreamHref(line.id)}
-						ariaLabel={accessibleName}
-						class={[
-							'focus-visible:after:ring-border-default/50 flex min-w-0 flex-1 items-center outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-2',
-							gapClass,
-						]}
-						data-testid="started-workstream"
-					>
-						{@render identity(line)}
-					</Button>
-				{:else}
-					<div
-						class={['flex min-w-0 flex-1 items-center', gapClass]}
-						role="group"
-						aria-label={accessibleName}
-						data-testid="started-workstream"
-					>
-						{@render identity(line)}
-					</div>
-				{/if}
-				{#if line.pullRequest}
-					{@const { number, url } = line.pullRequest}
-					<Button
-						bare
-						ariaLabel={`Open pull request #${number} on GitHub`}
-						class="text-fg-tertiary hover:text-fg-default focus-visible:ring-border-default/50 text-2xs relative hidden shrink-0 items-center gap-0.5 rounded-md tabular-nums outline-none group-focus-within/row:inline-flex group-hover/row:inline-flex focus-visible:ring-2"
-						data-testid="started-workstream-pull-request"
-						onclick={() => openExternalUrlCommand(url)}
-					>
-						#{number}
-						<Icon name="external-link" size={11} />
-					</Button>
-				{/if}
-				{@render trail(line)}
-				{#if clearable(line)}
-					<Tooltip
-						content="Clear from this list. It stays in Archived and in your stats."
-						placement="top"
-						class="absolute top-1/2 right-1.5 -translate-y-1/2"
-					>
-						<IconButton
-							variant="ghost"
-							size="sm"
-							class="pointer-events-none opacity-0 transition-none group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 group-hover/row:pointer-events-auto group-hover/row:opacity-100"
-							ariaLabel={`Clear ${line.name || line.fullName || 'this workstream'} from Started here`}
-							data-testid="started-workstream-clear"
-							onclick={() => clearMergedFromStarterCommand([line.id])}
-						>
-							<Icon name="close" size={12} />
-						</IconButton>
-					</Tooltip>
-				{/if}
-			</li>
-		{/each}
-	</ul>
-{/snippet}
-
-{#if lines.length > 0 && framed}
+{#if lines.length > 0}
 	<section
 		class="bg-surface-50 border-surface-50-border overflow-hidden rounded-xl border-[0.5px]"
 		aria-label="Workstreams"
@@ -300,40 +204,51 @@
 				{merged} of {lines.length} merged
 			</span>
 		</h3>
-		{@render list()}
-	</section>
-{:else if lines.length > 0}
-	{#if heading}
-		<div class="group/heading relative">
-			<h3 class="text-fg-tertiary flex items-center gap-2 px-2 pt-1 pb-1.5 text-xs">
-				<span class="text-fg-default font-medium">{heading}</span>
-				<span
+		<ul>
+			{#each lines as line (line.id)}
+				{@const accessibleName = accessibleNameOf(line)}
+				<li
 					class={[
-						'ml-auto',
-						clearableIds.length > 0 &&
-							'group-focus-within/heading:invisible group-hover/heading:invisible',
+						'group/row border-surface-50-border relative flex h-10 items-center gap-2.5 border-t-[0.5px] pr-3.5 pl-3.5 text-sm',
+						(line.open || line.pullRequest) && 'hover:bg-surface-50-hover',
 					]}
 				>
-					{merged} of {lines.length} merged
-				</span>
-			</h3>
-			{#if clearableIds.length > 0}
-				<Tooltip
-					content="Clear merged work from this list. It stays in Archived and in your stats."
-					placement="top"
-					class="absolute top-1 right-2"
-				>
-					<Button
-						bare
-						class="text-fg-tertiary hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none h-5 rounded-md text-xs opacity-0 outline-none group-focus-within/heading:pointer-events-auto group-focus-within/heading:opacity-100 group-hover/heading:pointer-events-auto group-hover/heading:opacity-100 focus-visible:ring-2"
-						data-testid="started-workstreams-clear-merged"
-						onclick={() => clearMergedFromStarterCommand(clearableIds)}
-					>
-						Clear merged
-					</Button>
-				</Tooltip>
-			{/if}
-		</div>
-	{/if}
-	{@render list()}
+					{#if line.open}
+						<Button
+							bare
+							href={workstreamHref(line.id)}
+							ariaLabel={accessibleName}
+							class="focus-visible:after:ring-border-default/50 flex min-w-0 flex-1 items-center gap-2.5 outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-2"
+							data-testid="started-workstream"
+						>
+							{@render identity(line)}
+						</Button>
+					{:else}
+						<div
+							class="flex min-w-0 flex-1 items-center gap-2.5"
+							role="group"
+							aria-label={accessibleName}
+							data-testid="started-workstream"
+						>
+							{@render identity(line)}
+						</div>
+					{/if}
+					{#if line.pullRequest}
+						{@const { number, url } = line.pullRequest}
+						<Button
+							bare
+							ariaLabel={`Open pull request #${number} on GitHub`}
+							class="text-fg-tertiary hover:text-fg-default focus-visible:ring-border-default/50 text-2xs relative hidden shrink-0 items-center gap-0.5 rounded-md tabular-nums outline-none group-focus-within/row:inline-flex group-hover/row:inline-flex focus-visible:ring-2"
+							data-testid="started-workstream-pull-request"
+							onclick={() => openExternalUrlCommand(url)}
+						>
+							#{number}
+							<Icon name="external-link" size={11} />
+						</Button>
+					{/if}
+					{@render trail(line)}
+				</li>
+			{/each}
+		</ul>
+	</section>
 {/if}

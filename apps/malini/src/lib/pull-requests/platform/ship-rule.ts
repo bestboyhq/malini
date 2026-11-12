@@ -40,7 +40,6 @@ import {
 	type PullRequestFacts,
 	type ShippingSnapshot,
 } from '../domain/shipping';
-import { shipAllClicked } from './ship-intents';
 import {
 	actOnShipMove,
 	retitlePullRequest,
@@ -97,7 +96,7 @@ async function hear(deps: ShipDeps, event: DispatchedEvent): Promise<readonly st
 	if (workstreamId === null) return [];
 	switch (channel) {
 		case PULL_REQUESTS_BUTTON_CLICKED_CHANNEL:
-			return buttonClicked(deps, workstreamId, event);
+			return [workstreamId];
 		case AUTOMATIONS_TIME_REACHED_CHANNEL:
 			return stringField(payload, 'wait') === 'resume' || !getShip(db, workstreamId)
 				? []
@@ -130,32 +129,6 @@ function resume(deps: ShipDeps): readonly string[] {
 		if (row.phase === 'draft' && row.step !== null) requestShip(db, row.workstreamId, 'push');
 		return shipping(row) ? [row.workstreamId] : [];
 	});
-}
-
-async function buttonClicked(
-	deps: ShipDeps,
-	workstreamId: string,
-	event: DispatchedEvent,
-): Promise<readonly string[]> {
-	const all = shipAllClicked(event.payload);
-	if (all === null) return [workstreamId];
-	const builtin = all.button === 'draft-all' ? 'open-draft' : 'merge';
-	const definition = automationDefinitions(deps.context.db).find(
-		(candidate) => candidate.builtin === builtin,
-	);
-	if (!definition) throw new Error(`The built-in ${builtin} automation is missing`);
-	await Promise.all(
-		all.workstreamIds.map((started) =>
-			deps.context.commands.call('automations.run', {
-				definitionId: definition.id,
-				workstreamId: started,
-				origin: 'merge-queue',
-				...(all.chatSessionId === null ? {} : { chatSessionId: all.chatSessionId }),
-				...(event.id === null ? {} : { causeEventId: event.id }),
-			}),
-		),
-	);
-	return [];
 }
 
 async function pullRequestChanged(

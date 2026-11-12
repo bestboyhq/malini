@@ -322,7 +322,7 @@ describe('the event reconciler', () => {
 					options: {
 						title: 'Publish docs · Api analytics',
 						body: 'Failed: The docs host timed out.',
-						opens: { workstreamId: 'starter', sessionId: 'starter-chat' },
+						opens: { workstreamId: 'api', sessionId: 'api-chat' },
 					},
 				},
 			]),

@@ -5,7 +5,7 @@ import type {
 	LoggedEventRecord,
 	ShippingWait,
 } from '$contract/automations';
-import type { ShipAllButton, ShipButton, ShipStep } from '$contract/pull-requests';
+import type { ShipButton, ShipStep } from '$contract/pull-requests';
 import type { IconName } from '$hyper-ui/icons';
 import {
 	EVENT_ROWS,
@@ -104,9 +104,7 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 		retry: 'Retry',
 		cancel: 'Cancel',
 		keep: 'Keep',
-		'draft-all': 'Draft all',
-		'merge-all': 'Merge all',
-	} satisfies Record<ShipButton | ShipAllButton, string>),
+	} satisfies Record<ShipButton, string>),
 );
 
 const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(

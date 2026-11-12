@@ -354,7 +354,6 @@ export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 			archivedAt,
 			mergedPullRequest,
 			savedForLater,
-			clearedFromStarter,
 			startedBy,
 		}) => ({
 			id,
@@ -364,7 +363,6 @@ export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 			archivedAt,
 			mergedPullRequest,
 			savedForLater,
-			clearedFromStarter,
 			startedBy,
 		}),
 	);

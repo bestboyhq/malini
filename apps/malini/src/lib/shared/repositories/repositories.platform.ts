@@ -100,7 +100,6 @@ export {
 	prepareStartedWorkstream,
 } from './platform/workstream-start.service';
 export { displayWorkstreamName, isPlaceholderWorkstreamName } from './domain/workstream-names';
-export { workstreamRoots } from './domain/workstream-roots';
 export { isRetiredChat } from './domain/retired-chats';
 export { nextWorkstreamId } from './domain/project-identity';
 export {

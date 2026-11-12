@@ -1,4 +1,4 @@
-import { waitingElsewhere, type AskingChild } from '$lib/chat/domain/child-requests';
+import { waitingElsewhere, type AskingChat } from '$lib/chat/domain/requests-elsewhere';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 
 export { waitingElsewhereQuery };
@@ -6,10 +6,10 @@ export { waitingElsewhereQuery };
 class WaitingElsewhereQuery {
 	public readonly data: (
 		shownSessionId: string | null,
-		children: readonly AskingChild[],
-	) => AskingChild[] = $derived.by(() => {
+		asking: readonly AskingChat[],
+	) => AskingChat[] = $derived.by(() => {
 		const sessions = sessionsAggregate.listSessions();
-		return (shownSessionId, children) => waitingElsewhere(shownSessionId, children, sessions);
+		return (shownSessionId, asking) => waitingElsewhere(shownSessionId, asking, sessions);
 	});
 }
 

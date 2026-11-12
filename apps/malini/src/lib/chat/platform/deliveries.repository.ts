@@ -13,7 +13,10 @@ export type NewDelivery = Readonly<{
 	profile?: unknown;
 	chainId?: string | null;
 	causeEventId?: number | null;
+	wake?: boolean;
 }>;
+
+export type PendingWake = Readonly<{ id: string; fromSessionId: string }>;
 
 export type WaitingDelivery = DeliveryItem & Readonly<{ id: string; profile: unknown }>;
 
@@ -64,8 +67,8 @@ export function insertDelivery(
 		db,
 		`INSERT INTO agent_deliveries
 		 (id, session_id, kind, prompt, from_session_id, from_workstream_id, report,
-		  profile, chain_id, cause_event_id, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
+		  profile, chain_id, cause_event_id, wake, status, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
 		id,
 		delivery.sessionId,
 		delivery.kind,
@@ -78,6 +81,7 @@ export function insertDelivery(
 			: JSON.stringify(delivery.profile),
 		delivery.chainId ?? null,
 		delivery.causeEventId ?? null,
+		delivery.wake === true ? 1 : 0,
 		createdAt,
 	);
 	return getDelivery(db, id) ?? missing(id);
@@ -138,6 +142,30 @@ export function settleDeliveries(
 			return settled ? [settled] : [];
 		}),
 	);
+}
+
+export function wakesAnsweredBy(
+	db: MaliniDatabase,
+	sessionId: string,
+	runId: string,
+): PendingWake[] {
+	return all<{ id: string; from_session_id: string }>(
+		db,
+		`SELECT d.id, d.from_session_id FROM agent_deliveries d
+		 JOIN agent_runs started ON started.id = d.run_id
+		 WHERE d.session_id = ? AND d.wake = 1 AND d.kind = 'prompt' AND d.status = 'delivered'
+		   AND d.from_session_id IS NOT NULL
+		   AND started.rowid <= (SELECT rowid FROM agent_runs WHERE id = ?)
+		 ORDER BY d.created_at, d.rowid`,
+		sessionId,
+		runId,
+	).map((row) => ({ id: row.id, fromSessionId: row.from_session_id }));
+}
+
+export function clearWakes(db: MaliniDatabase, wakes: readonly PendingWake[]): void {
+	db.transaction(() => {
+		for (const { id } of wakes) run(db, 'UPDATE agent_deliveries SET wake = 0 WHERE id = ?', id);
+	});
 }
 
 export function promptsSentInChain(

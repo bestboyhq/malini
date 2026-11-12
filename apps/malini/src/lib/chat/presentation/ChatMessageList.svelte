@@ -100,7 +100,6 @@
 		contentBelow?: boolean;
 		newContentBelow?: boolean;
 		empty: Snippet;
-		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
 		afterRun: Snippet<[string]>;
 	}
@@ -117,7 +116,6 @@
 		contentBelow = $bindable(false),
 		newContentBelow = $bindable(false),
 		empty,
-		header,
 		workstreamsCard,
 		afterRun,
 	}: Props = $props();
@@ -868,9 +866,6 @@
 			onscroll={(event) => transcriptScroll.handleScroll(event.currentTarget)}
 		>
 			<div class="chat-stage-inset flex grow flex-col">
-				<div class="chat-column px-7">
-					{@render header(workstreamId)}
-				</div>
 				{#if hasSupersededRuns || redoCheckpointTarget}
 					<div
 						class="flex shrink-0 flex-col items-center gap-1 pb-2"

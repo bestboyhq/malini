@@ -46,12 +46,12 @@ describe('systemPromptAppend', () => {
 			"Malini holds the automation until that workstream's chat ends its turn",
 		);
 		expect(prompt).toContain(
-			'every turn a workstream you started ends reaches this chat as a report from that workstream',
+			'its chat alerts the user itself, and its turns reach this chat only when you ask',
 		);
 		expect(prompt).toContain(
-			'reports that arrive while you work come as one prompt after your turn',
+			'Pass `wake: true` to `workstreams_create` or `workstreams_send` only when your next step needs the result of the turn that prompt starts',
 		);
-		expect(prompt).toContain('Answer what you can settle with `workstreams_send`');
+		expect(prompt).not.toContain('every turn a workstream you started ends reaches this chat');
 		expect(prompt).toContain('run them as parallel subagents with the Agent tool');
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).toContain('every shell code block you write has a Run button');
@@ -122,6 +122,7 @@ describe('systemPromptAppend', () => {
 		expect(child).toContain('never edit them:\n- acme/web on malini/w2: /workstreams/w2');
 		expect(child).not.toContain('lead chat');
 		expect(child).not.toContain('plan lives');
+		expect(child.slice(child.indexOf('<malini_lineage>'))).not.toMatch(/report|answer|supervis/u);
 	});
 
 	it('names the starter and no siblings when it started only this workstream', () => {

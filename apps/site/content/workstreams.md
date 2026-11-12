@@ -88,16 +88,10 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   A search opens every owner it matches.
 - Every repository you connect shows, with or without workstreams, until you hide it.
   A clock and a count on its row say how many wait saved for later.
-- A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting, then a dot for each archived one, filled when it merged and hollow when it did not.
-  A needs-you dot is blue when the workstream asks you something, and amber when its merge stopped on a problem.
-  Hover the row to list them with where each stands.
-  On that workstream's page, **Started here** at the top right lists them by name and repository, with how many merged, above **Files** and any browser tab.
-  Hover a merged one and click **×**, or hover the heading and click **Clear merged**, to take merged work off that list and the row's dots for good; it stays in **Recently archived** and in your stats, and comes back only if you restore it.
-  The row's own lines added and removed stay beside its dots.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
   A row's icon turns blue when its agent waits on an answer or an approval, and red when its run failed.
   Amber means a problem, such as a pull request Malini could not merge.
-  A workstream a chat started stays calm: its turns report to the chat, and [the chat's row](/malini/docs/chat.md#work-a-chat-starts) lights up only for an approval or a question of its that waits there.
+  A workstream an agent started shows its own state like any other, and the row of the chat that started it shows none of it.
 - **Settings → Appearance → Sidebar density** picks **Compact** rows, the default, or **Comfortable** ones.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.

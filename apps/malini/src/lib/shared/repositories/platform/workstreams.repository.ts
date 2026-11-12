@@ -12,7 +12,6 @@ export interface ArchivedWorkstreamRecord extends Workstream {
 	readonly archivedRef: string | null;
 	readonly mergedPullRequest: MergedPullRequest | null;
 	readonly savedForLater: boolean;
-	readonly clearedFromStarter: boolean;
 }
 
 interface WorkstreamRow {
@@ -114,11 +113,10 @@ interface ArchivedWorkstreamRow extends WorkstreamRow {
 	merged_pull_request_number: number | null;
 	merged_pull_request_url: string | null;
 	saved_for_later: number;
-	cleared_from_starter: number;
 }
 
 const ARCHIVED_WORKSTREAM_COLUMNS = `${WORKSTREAM_COLUMNS}, archived_at, archived_ref,
-	merged_pull_request_number, merged_pull_request_url, saved_for_later, cleared_from_starter`;
+	merged_pull_request_number, merged_pull_request_url, saved_for_later`;
 
 function archivedWorkstreamFromRow(row: ArchivedWorkstreamRow): ArchivedWorkstreamRecord {
 	return {
@@ -130,7 +128,6 @@ function archivedWorkstreamFromRow(row: ArchivedWorkstreamRow): ArchivedWorkstre
 				? null
 				: { number: row.merged_pull_request_number, url: row.merged_pull_request_url },
 		savedForLater: row.saved_for_later === 1,
-		clearedFromStarter: row.cleared_from_starter === 1,
 	};
 }
 
@@ -246,23 +243,6 @@ export function moveArchivedWorkstream(
 	return changes > 0;
 }
 
-export function clearMergedFromStarter(db: MaliniDatabase, workstreamIds: readonly string[]): void {
-	db.transaction(() => {
-		for (const workstreamId of workstreamIds) {
-			run(
-				db,
-				`UPDATE workstreams SET cleared_from_starter = 1
-				 WHERE id = ? AND status = 'archived' AND merged_pull_request_number IS NOT NULL`,
-				workstreamId,
-			);
-		}
-	});
-}
-
-export function detachFromStarter(db: MaliniDatabase, workstreamId: string): void {
-	run(db, 'UPDATE workstreams SET started_by = NULL WHERE id = ?', workstreamId);
-}
-
 export function recordMergedPullRequest(
 	db: MaliniDatabase,
 	workstreamId: string,
@@ -287,7 +267,7 @@ export function restoreWorkstreamRecord(
 		db,
 		`UPDATE workstreams SET status = 'active', path = ?, branch = ?, archived_at = NULL,
 		   archived_ref = NULL, merged_pull_request_number = NULL, merged_pull_request_url = NULL,
-		   saved_for_later = 0, cleared_from_starter = 0
+		   saved_for_later = 0
 		 WHERE id = ? AND status = 'archived'`,
 		path,
 		branch,
