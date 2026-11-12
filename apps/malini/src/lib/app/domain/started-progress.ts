@@ -13,8 +13,6 @@ export type ProgressInput = Readonly<{
 	broken: boolean;
 }>;
 
-export type Progress = Readonly<Record<ProgressDot, number>>;
-
 export function progressDot(input: ProgressInput): ProgressDot {
 	if (input.merged || input.pullRequest === 'merged') return 'merged';
 	if (input.pullRequest === 'needs-you') return 'blocked';
@@ -24,64 +22,6 @@ export function progressDot(input: ProgressInput): ProgressDot {
 	return 'idle';
 }
 
-const PRESSING_DOTS: readonly ProgressDot[] = ['blocked', 'needs', 'failed', 'running'];
-
-export function treeDot(parent: ProgressDot, started: readonly ProgressDot[]): ProgressDot {
-	return PRESSING_DOTS.find((dot) => dot === parent || started.includes(dot)) ?? parent;
-}
-
-export function progressOf(dots: readonly ProgressDot[]): Progress {
-	const count = (dot: ProgressDot): number => dots.filter((entry) => entry === dot).length;
-	return {
-		merged: count('merged'),
-		blocked: count('blocked'),
-		needs: count('needs'),
-		failed: count('failed'),
-		running: count('running'),
-		idle: count('idle'),
-		archived: count('archived'),
-	};
-}
-
-export function progressLabel(dots: readonly ProgressDot[]): string {
-	const progress = progressOf(dots);
-	const parts = [
-		progress.merged > 0 ? `${progress.merged} merged` : null,
-		progress.blocked + progress.needs > 0 ? needYou(progress.blocked + progress.needs) : null,
-		progress.failed > 0 ? `${progress.failed} failed` : null,
-		progress.running > 0 ? `${progress.running} working` : null,
-		progress.idle > 0 ? `${progress.idle} waiting` : null,
-		progress.archived > 0 ? `${progress.archived} archived` : null,
-	].filter((part): part is string => part !== null);
-	const total = `${dots.length} ${dots.length === 1 ? 'workstream' : 'workstreams'}`;
-	return parts.length > 0 ? `${total}: ${parts.join(', ')}` : total;
-}
-
-export type ShipCandidate = Readonly<{
-	id: string;
-	pullRequest: PullRequestPhase;
-	changed: boolean;
-	working: boolean;
-	shipping: boolean;
-}>;
-
-export type ShipTargets = Readonly<{ draft: readonly string[]; merge: readonly string[] }>;
-
-const UNSHIPPED: ReadonlySet<PullRequestPhase> = new Set(['none', 'unknown']);
-
-const MERGEABLE: ReadonlySet<PullRequestPhase> = new Set(['none', 'unknown', 'draft', 'open']);
-
-export function shipTargets(candidates: readonly ShipCandidate[]): ShipTargets {
-	const ready = candidates.filter(
-		(candidate) =>
-			!candidate.shipping &&
-			(candidate.changed || candidate.working || !UNSHIPPED.has(candidate.pullRequest)),
-	);
-	const idsIn = (phases: ReadonlySet<PullRequestPhase>): string[] =>
-		ready.filter((candidate) => phases.has(candidate.pullRequest)).map(({ id }) => id);
-	return { draft: idsIn(UNSHIPPED), merge: idsIn(MERGEABLE) };
-}
-
 export function standingLabel(dot: ProgressDot, pullRequest: PullRequestPhase): string {
 	if (dot === 'merged') return 'Merged';
 	if (dot === 'blocked' || dot === 'needs') return 'Needs you';
@@ -89,8 +29,4 @@ export function standingLabel(dot: ProgressDot, pullRequest: PullRequestPhase): 
 	if (dot === 'running') return pullRequest === 'queued' ? 'Merging' : 'Working';
 	if (pullRequest === 'open') return 'In review';
 	return pullRequest === 'draft' ? 'Draft' : 'Waiting';
-}
-
-function needYou(count: number): string {
-	return `${count} ${count === 1 ? 'needs' : 'need'} you`;
 }

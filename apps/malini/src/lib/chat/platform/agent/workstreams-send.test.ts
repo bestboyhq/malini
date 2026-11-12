@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
-import { isRecord } from '$main/db/rows';
+import { isRecord, run } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
@@ -26,7 +26,17 @@ beforeEach(() => {
 	commands.define('chat.send-prompt', (args: unknown) => {
 		if (!isRecord(args)) throw new Error('chat.send-prompt takes an object');
 		sent.push(args);
-		return `api-run-${sent.length}`;
+		const runId = `api-run-${sent.length}`;
+		insertRun(db, {
+			id: runId,
+			sessionId: String(args['sessionId']),
+			prompt: String(args['prompt']),
+			startedAt: NOW,
+			completedAt: NOW,
+			summary: null,
+			error: null,
+		});
+		return runId;
 	});
 	upsertProject(db, {
 		id: 'project',
@@ -96,7 +106,12 @@ function output(answer: PlatformAnswer): unknown {
 	return JSON.parse(answer.text ?? 'null');
 }
 
-function send(workstream: string, prompt: string, runId = 'starter-run'): Promise<PlatformAnswer> {
+function send(
+	workstream: string,
+	prompt: string,
+	runId = 'starter-run',
+	extra: Record<string, unknown> = {},
+): Promise<PlatformAnswer> {
 	return answerPlatformRequest(
 		{
 			type: 'bridge.platform_request',
@@ -105,9 +120,24 @@ function send(workstream: string, prompt: string, runId = 'starter-run'): Promis
 			sessionId: 'starter-chat',
 			runId,
 			tool: 'workstreams_send',
-			input: { workstream, prompt },
+			input: { workstream, prompt, ...extra },
 		},
 		deps,
+	);
+}
+
+function apiTurnFinished(runId: string): Promise<void> {
+	return deps.deliveries.turnFinished(
+		{
+			workstreamId: 'api',
+			sessionId: 'api-chat',
+			runId,
+			status: 'succeeded',
+			outcome: 'Added the endpoint',
+			needs: null,
+			backgroundCommands: null,
+		},
+		null,
 	);
 }
 
@@ -129,6 +159,31 @@ describe('workstreams_send', () => {
 				chainId: 'starter-run',
 			}),
 		]);
+	});
+
+	it('wakes this chat with the report of the turn its prompt starts only when it passes wake', async () => {
+		run(db, 'UPDATE agent_runs SET completed_at = ? WHERE id = ?', NOW, 'starter-run');
+		expect((await send('Api analytics', 'Add the endpoint.')).ok).toBe(true);
+		await apiTurnFinished('api-run-1');
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat']);
+
+		expect((await send('Api analytics', 'Now the chart.', 'starter-run', { wake: true })).ok).toBe(
+			true,
+		);
+		await apiTurnFinished('api-run-2');
+
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat', 'api-chat', 'starter-chat']);
+		expect(sent[2]).toMatchObject({
+			from: 'api',
+			reports: [{ workstreamId: 'api', runId: 'api-run-2', outcome: 'Added the endpoint' }],
+		});
+	});
+
+	it('refuses a wake that is not true or false, and sends nothing', async () => {
+		const answer = await send('Api analytics', 'Go.', 'starter-run', { wake: 'yes' });
+
+		expect(answer).toEqual({ ok: false, error: '`wake` must be true or false.' });
+		expect(sent).toEqual([]);
 	});
 
 	it('refuses a workstream this chat did not start', async () => {

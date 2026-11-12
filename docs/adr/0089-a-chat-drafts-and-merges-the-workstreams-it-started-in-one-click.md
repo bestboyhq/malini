@@ -1,6 +1,6 @@
 # 0089 - A chat drafts and merges the workstreams it started in one click
 
-Status: accepted
+Status: superseded by 0231
 
 ## Context
 

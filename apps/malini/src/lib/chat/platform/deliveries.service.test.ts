@@ -6,7 +6,6 @@ import { openMigratedDatabase } from '$main/db/open';
 import { isRecord, run } from '$main/db/rows';
 import { createEventBus, type EventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import { recordAgentAction } from '$lib/automations/automations.platform';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import { REPORTS_PREAMBLE } from '../domain/deliveries';
 import { getDelivery } from './deliveries.repository';
@@ -48,7 +47,18 @@ beforeEach(() => {
 		if (failure !== null) throw new Error(failure);
 		if (!isRecord(args)) throw new Error('chat.send-prompt takes an object');
 		sent.push(args);
-		return `delivered-run-${sent.length}`;
+		const runId = `delivered-run-${sent.length}`;
+		insertRun(db, {
+			id: runId,
+			sessionId: String(args['sessionId']),
+			prompt: String(args['prompt']),
+			startedAt: NOW,
+			completedAt: NOW,
+			summary: null,
+			error: null,
+			...(typeof args['chainId'] === 'string' ? { chainId: args['chainId'] } : {}),
+		});
+		return runId;
 	});
 	events.subscribe(CHAT_DELIVERY_CHANGED_CHANNEL, ({ delivery }) => {
 		changed.push(delivery);
@@ -147,6 +157,14 @@ function prompt(sessionId: string, text: string): Parameters<ChatDeliveries['del
 		fromSessionId: 'starter-chat',
 		fromWorkstreamId: 'starter',
 	};
+}
+
+function ask(sessionId: string, text: string): Parameters<ChatDeliveries['deliver']>[0] {
+	return { ...prompt(sessionId, text), wake: true };
+}
+
+function summarize(runId: string, summary: string): void {
+	run(db, 'UPDATE agent_runs SET summary = ? WHERE id = ?', summary, runId);
 }
 
 function status(id: string): string | undefined {
@@ -366,17 +384,29 @@ describe('ChatDeliveries', () => {
 		]);
 	});
 
-	it('reports a finished turn to the chat that started the workstream', async () => {
-		turn('starter-turn', 'starter-chat');
-		turn('api-turn', 'api-chat', {
-			chainId: 'starter-turn',
-			summary:
-				'Added the endpoint.\n\n![Chart](shots/chart.png)\n\nOutcome: Added the analytics endpoint\nNeeds: nothing',
-		});
+	it('reports nothing to the chat that started a workstream unless that chat asked', async () => {
+		turn('api-turn', 'api-chat', { summary: 'Added it.\n\nOutcome: Added it\nNeeds: nothing' });
+		await deliveries.turnFinished(finished('api-turn'), 7);
+		const told = await deliveries.deliver(prompt('api-chat', 'Add analytics.'));
+		await deliveries.turnFinished(finished('delivered-run-1', { status: 'failed' }), 8);
 
-		await deliveries.turnFinished(finished('api-turn'), 41);
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat']);
+		expect(changed.map(({ id }) => id)).toEqual([told.id, told.id]);
+	});
 
-		expect(sent).toEqual([
+	it('reports the turn a prompt that asks to wake starts to the chat that sent it, once', async () => {
+		await deliveries.deliver({ ...ask('api-chat', 'Add the endpoint.'), chainId: 'starter-turn' });
+		summarize(
+			'delivered-run-1',
+			'Added the endpoint.\n\n![Chart](shots/chart.png)\n\nOutcome: Added the analytics endpoint\nNeeds: nothing',
+		);
+
+		await deliveries.turnFinished(finished('delivered-run-1'), 41);
+		await deliveries.turnFinished(finished('delivered-run-1'), 42);
+		turn('api-later', 'api-chat');
+		await deliveries.turnFinished(finished('api-later'), 43);
+
+		expect(sent.slice(1)).toEqual([
 			{
 				sessionId: 'starter-chat',
 				prompt: [
@@ -399,7 +429,7 @@ describe('ChatDeliveries', () => {
 				reports: [
 					{
 						workstreamId: 'api',
-						runId: 'api-turn',
+						runId: 'delivered-run-1',
 						status: 'succeeded',
 						outcome: 'Added the analytics endpoint',
 						needs: null,
@@ -410,29 +440,90 @@ describe('ChatDeliveries', () => {
 		]);
 	});
 
-	it('reports a turn that ended over a background command, then the turn that goes on, and hands the chat a prompt at once', async () => {
-		turn('starter-turn', 'starter-chat');
-		turn('api-turn', 'api-chat', {
-			completedAt: null,
-			chainId: 'starter-turn',
-			summary: 'Waiting for the merge from main to land.',
-		});
-		moveSessionStatus(db, 'api-chat', 'turn.ended');
+	it('wakes the chat that started a workstream for the first prompt it held until setup ended', async () => {
+		deliveries.hold('api-chat');
+		await deliveries.deliver(ask('api-chat', 'Add analytics.'));
+		await deliveries.release('api-chat');
+
+		await deliveries.turnFinished(finished('delivered-run-1'), 5);
+
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat', 'starter-chat']);
+	});
+
+	it('reports the outcome and needs of a failed turn that left no summary', async () => {
+		await deliveries.deliver(ask('api-chat', 'Add analytics.'));
 
 		await deliveries.turnFinished(
-			finished('api-turn', { outcome: null, backgroundCommands: ['Wait for the merge'] }),
+			finished('delivered-run-1', {
+				status: 'failed',
+				outcome: null,
+				needs: 'Which Logdash project?',
+			}),
+			null,
+		);
+
+		expect(sent[1]?.['prompt']).toBe(
+			[
+				REPORTS_PREAMBLE,
+				'“Api analytics” (`api`), a workstream you started, failed its turn.\nIts checkout: /tmp/api\nOutcome: none\nNeeds: Which Logdash project?',
+			].join('\n\n'),
+		);
+		expect(sent[1]?.['reports']).toEqual([
+			{
+				workstreamId: 'api',
+				runId: 'delivered-run-1',
+				status: 'failed',
+				outcome: null,
+				needs: 'Which Logdash project?',
+				media: [],
+			},
+		]);
+		expect(sent[1]).not.toHaveProperty('causeEventId');
+	});
+
+	it('keeps the wake over an interrupted turn and reports the turn that resumes it', async () => {
+		await deliveries.deliver(ask('api-chat', 'Add analytics.'));
+		await deliveries.turnFinished(finished('delivered-run-1', { status: 'interrupted' }), 9);
+		expect(sent).toHaveLength(1);
+
+		turn('api-resumed', 'api-chat');
+		await deliveries.turnFinished(finished('api-resumed'), 10);
+
+		expect(sent.slice(1)).toEqual([
+			expect.objectContaining({
+				sessionId: 'starter-chat',
+				reports: [expect.objectContaining({ runId: 'api-resumed' })],
+			}),
+		]);
+	});
+
+	it('drops the wake of a turn the user stopped', async () => {
+		await deliveries.deliver(ask('api-chat', 'Add analytics.'));
+		await deliveries.turnFinished(finished('delivered-run-1', { status: 'cancelled' }), 11);
+		turn('api-again', 'api-chat');
+		await deliveries.turnFinished(finished('api-again'), 12);
+
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat']);
+	});
+
+	it('reports a turn that ended over a background command, then the turn that goes on, and hands the chat a prompt at once', async () => {
+		await deliveries.deliver(ask('api-chat', 'Merge main in.'));
+		run(db, 'UPDATE agent_runs SET completed_at = NULL WHERE id = ?', 'delivered-run-1');
+		moveSessionStatus(db, 'api-chat', 'run.started');
+		moveSessionStatus(db, 'api-chat', 'turn.ended');
+		summarize('delivered-run-1', 'Waiting for the merge from main to land.');
+
+		await deliveries.turnFinished(
+			finished('delivered-run-1', { outcome: null, backgroundCommands: ['Wait for the merge'] }),
 			41,
 		);
 		const followUp = await deliveries.deliver(prompt('api-chat', 'Also add the line second.'));
 		expect(followUp.status).toBe('delivered');
-		run(
-			db,
-			'UPDATE agent_runs SET completed_at = ?, summary = ? WHERE id = ?',
-			NOW,
-			'Merged it.\n\nOutcome: The merge landed\nNeeds: nothing',
-			'api-turn',
-		);
-		await deliveries.turnFinished(finished('api-turn', { outcome: 'The merge landed' }), 42);
+		turn('api-goes-on', 'api-chat', {
+			summary: 'Merged it.\n\nOutcome: The merge landed\nNeeds: nothing',
+		});
+		await deliveries.turnFinished(finished('api-goes-on', { outcome: 'The merge landed' }), 42);
+		await deliveries.turnFinished(finished('delivered-run-2'), 43);
 
 		const toStarter = sent.filter((args) => args['sessionId'] === 'starter-chat');
 		expect(toStarter.map((args) => args['prompt'])).toEqual([
@@ -449,7 +540,7 @@ describe('ChatDeliveries', () => {
 			[
 				{
 					workstreamId: 'api',
-					runId: 'api-turn',
+					runId: 'delivered-run-1',
 					status: 'succeeded',
 					outcome: null,
 					needs: null,
@@ -460,7 +551,7 @@ describe('ChatDeliveries', () => {
 			[
 				{
 					workstreamId: 'api',
-					runId: 'api-turn',
+					runId: 'api-goes-on',
 					status: 'succeeded',
 					outcome: 'The merge landed',
 					needs: null,
@@ -469,111 +560,63 @@ describe('ChatDeliveries', () => {
 			],
 		]);
 		expect(sent.filter((args) => args['sessionId'] === 'api-chat')).toEqual([
+			expect.objectContaining({ prompt: 'Merge main in.', from: 'starter' }),
 			expect.objectContaining({ prompt: 'Also add the line second.', from: 'starter' }),
 		]);
 		expect(status(followUp.id)).toBe('delivered');
 	});
 
-	it('reports the outcome and needs of a failed turn that left no summary', async () => {
-		turn('api-turn', 'api-chat');
-
-		await deliveries.turnFinished(
-			finished('api-turn', { status: 'failed', outcome: null, needs: 'Which Logdash project?' }),
-			null,
-		);
-
-		expect(sent[0]?.['prompt']).toBe(
-			[
-				REPORTS_PREAMBLE,
-				'“Api analytics” (`api`), a workstream you started, failed its turn.\nIts checkout: /tmp/api\nOutcome: none\nNeeds: Which Logdash project?',
-			].join('\n\n'),
-		);
-		expect(sent[0]?.['reports']).toEqual([
-			{
-				workstreamId: 'api',
-				runId: 'api-turn',
-				status: 'failed',
-				outcome: null,
-				needs: 'Which Logdash project?',
-				media: [],
-			},
-		]);
-		expect(sent[0]).not.toHaveProperty('causeEventId');
-	});
-
-	it("reports to the chat whose workstreams_create started it, else to the starter's latest chat", async () => {
-		chat('starter-other', 'starter');
-		turn('api-turn', 'api-chat');
-		await deliveries.turnFinished(finished('api-turn'), 7);
-		expect(sent.map((args) => args['sessionId'])).toEqual(['starter-other']);
-
-		recordAgentAction(
-			{ db, events },
-			{
-				sessionId: 'starter-chat',
-				runId: 'starter-turn',
-				workstreamId: 'starter',
-				tool: 'workstreams_create',
-				input: { repository: 'acme/api', prompt: 'Add analytics' },
-				status: 'succeeded',
-				approval: 'not-needed',
-				output: JSON.stringify({ id: 'api', name: 'Api analytics' }),
-			},
-		);
-		turn('api-turn-2', 'api-chat');
-		await deliveries.turnFinished(finished('api-turn-2'), 8);
-
-		expect(sent.map((args) => args['sessionId'])).toEqual(['starter-other', 'starter-chat']);
-	});
-
-	it('reports nothing for a stopped turn, a workstream nobody started, or a starter that is gone', async () => {
-		turn('api-turn', 'api-chat');
-		await deliveries.turnFinished(finished('api-turn', { status: 'cancelled' }), 9);
-		turn('starter-turn', 'starter-chat');
-		await deliveries.turnFinished(
-			finished('starter-turn', { workstreamId: 'starter', sessionId: 'starter-chat' }),
-			10,
-		);
-		recordAgentAction(
-			{ db, events },
-			{
-				sessionId: 'starter-chat',
-				runId: 'starter-turn',
-				workstreamId: 'starter',
-				tool: 'workstreams_create',
-				input: {},
-				status: 'succeeded',
-				approval: 'not-needed',
-				output: JSON.stringify({ id: 'api' }),
-			},
-		);
-		chat('starter-other', 'starter');
-		archiveSession(db, 'starter-chat', NOW);
-		await deliveries.turnFinished(finished('api-turn'), 11);
-
-		expect(attempts).toBe(0);
-		expect(changed).toEqual([]);
-	});
-
-	it('sends what waited for a chat once its turn finished, beside the report to its starter', async () => {
-		turn('api-turn', 'api-chat', { completedAt: null });
-		const waiting = await deliveries.deliver(prompt('api-chat', 'Next step.'));
+	it('answers a wake with the turn its prompt starts, never the turn that was busy when it came', async () => {
+		turn('api-busy', 'api-chat', { completedAt: null });
+		turn('site-busy', 'site-chat', { completedAt: null });
+		await deliveries.deliver(ask('api-chat', 'Then add the endpoint.'));
+		await deliveries.deliver(ask('site-chat', 'Then add the chart.'));
 		finishRuns();
 
-		await deliveries.turnFinished(finished('api-turn'), 12);
-
-		expect(status(waiting.id)).toBe('delivered');
-		expect(sent).toHaveLength(2);
-		expect(sent).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ sessionId: 'api-chat', prompt: 'Next step.' }),
-				expect.objectContaining({
-					sessionId: 'starter-chat',
-					prompt: expect.stringContaining('a workstream you started, finished a turn.'),
-					causeEventId: 12,
-				}),
-			]),
+		await deliveries.turnFinished(finished('api-busy'), 20);
+		await deliveries.flush('site-chat');
+		await deliveries.turnFinished(
+			finished('site-busy', { workstreamId: 'site', sessionId: 'site-chat' }),
+			21,
 		);
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat', 'site-chat']);
+
+		await deliveries.turnFinished(finished('delivered-run-1'), 22);
+		await deliveries.turnFinished(
+			finished('delivered-run-2', { workstreamId: 'site', sessionId: 'site-chat' }),
+			23,
+		);
+
+		expect(sent.slice(2)).toEqual([
+			expect.objectContaining({
+				sessionId: 'starter-chat',
+				reports: [expect.objectContaining({ workstreamId: 'api', runId: 'delivered-run-1' })],
+			}),
+			expect.objectContaining({
+				sessionId: 'starter-chat',
+				reports: [expect.objectContaining({ workstreamId: 'site', runId: 'delivered-run-2' })],
+			}),
+		]);
+	});
+
+	it('reports once to each chat that asked, and never to a chat that is gone or in the same workstream', async () => {
+		chat('starter-other', 'starter');
+		chat('api-other', 'api');
+		turn('api-busy', 'api-chat', { completedAt: null });
+		await deliveries.deliver(ask('api-chat', 'First.'));
+		await deliveries.deliver(ask('api-chat', 'Second.'));
+		await deliveries.deliver({
+			...ask('api-chat', 'From a closed chat.'),
+			fromSessionId: 'starter-other',
+		});
+		await deliveries.deliver({ ...ask('api-chat', 'From beside it.'), fromSessionId: 'api-other' });
+		archiveSession(db, 'starter-other', NOW);
+		finishRuns();
+		await deliveries.flush('api-chat');
+
+		await deliveries.turnFinished(finished('delivered-run-1'), 30);
+
+		expect(sent.map((args) => args['sessionId'])).toEqual(['api-chat', 'starter-chat']);
 	});
 
 	it('sends nothing once stopped, and drops the retries it planned', async () => {

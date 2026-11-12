@@ -8,15 +8,15 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import { dismissChildQuestionCommand } from '$lib/chat/application/commands/dismiss-child-question.command';
+	import { dismissQuestionElsewhereCommand } from '$lib/chat/application/commands/dismiss-question-elsewhere.command';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import AgentInteractionCard from './AgentInteractionCard.svelte';
 	import AgentQuestionPanel from './AgentQuestionPanel.svelte';
-	import type { ChildRequestStep } from './child-request-steps';
+	import type { RequestStep } from './request-steps';
 
 	interface Props {
-		steps: readonly ChildRequestStep[];
+		steps: readonly RequestStep[];
 		onlater: () => void;
 	}
 
@@ -27,10 +27,10 @@
 	const position = $derived(Math.max(0, Math.min(index, steps.length - 1)));
 	const step = $derived(steps[position]);
 	const place = $derived(
-		step ? (workstreamNameQuery.data(step.child.workstreamId) ?? 'another workstream') : '',
+		step ? (workstreamNameQuery.data(step.chat.workstreamId) ?? 'another workstream') : '',
 	);
 	const label = $derived(
-		step?.child.automation ? `${step.child.automation} automation in ${place}` : place,
+		step?.chat.automation ? `${step.chat.automation} automation in ${place}` : place,
 	);
 	const motion = (): number => (motionOff() ? 0 : 1);
 
@@ -67,7 +67,7 @@
 				>
 					<Icon name="chevron-left" size={12} />
 				</IconButton>
-				<span class="text-fg-tertiary tabular-nums" data-testid="child-request-position">
+				<span class="text-fg-tertiary tabular-nums" data-testid="request-position">
 					{position + 1} of {steps.length}
 				</span>
 				<IconButton
@@ -89,7 +89,7 @@
 					size="xs"
 					class="text-fg-tertiary"
 					ariaLabel="Open transcript"
-					href={workstreamHref(step.child.workstreamId, { agentSessionId: step.child.sessionId })}
+					href={workstreamHref(step.chat.workstreamId, { agentSessionId: step.chat.sessionId })}
 				>
 					<Icon name="arrow-right" size={12} />
 				</IconButton>
@@ -111,14 +111,14 @@
 
 {#if step}
 	{@const current = step}
-	<section bind:this={queue} aria-label={`${label} needs you`} data-testid="child-request-queue">
+	<section bind:this={queue} aria-label={`${label} needs you`} data-testid="request-queue">
 		{#key current.key}
 			{#if current.kind === 'approval'}
 				<div
 					class="chat-column relative z-20 px-4 pb-1"
 					in:fly={{ y: 10 * motion(), duration: 240 * motion(), easing: cubicOut }}
 				>
-					<ComposerShell testId="child-request-shell">
+					<ComposerShell testId="request-shell">
 						{@render source()}
 						<AgentInteractionCard item={current.item} bare />
 					</ComposerShell>
@@ -133,7 +133,7 @@
 				<AgentQuestionPanel
 					requests={current.requests}
 					{source}
-					ondismiss={() => dismissChildQuestionCommand(current.child.sessionId)}
+					ondismiss={() => dismissQuestionElsewhereCommand(current.chat.sessionId)}
 				/>
 			{/if}
 		{/key}

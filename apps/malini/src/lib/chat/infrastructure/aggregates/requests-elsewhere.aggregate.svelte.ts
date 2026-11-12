@@ -3,7 +3,7 @@ import type { SessionId } from '$lib/chat/domain/session';
 
 const NONE: readonly EventEnvelope[] = [];
 
-class ChildRequestsAggregate {
+class RequestsElsewhereAggregate {
 	envelopesBySession: Record<SessionId, readonly EventEnvelope[]> = $state.raw({});
 
 	envelopesFor(sessionId: SessionId): readonly EventEnvelope[] {
@@ -21,4 +21,4 @@ class ChildRequestsAggregate {
 	}
 }
 
-export const childRequestsAggregate = new ChildRequestsAggregate();
+export const requestsElsewhereAggregate = new RequestsElsewhereAggregate();

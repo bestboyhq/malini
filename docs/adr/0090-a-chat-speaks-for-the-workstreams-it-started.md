@@ -1,6 +1,6 @@
 # 0090 - A chat speaks for the workstreams it started
 
-Status: accepted
+Status: superseded by 0231
 
 ## Context
 

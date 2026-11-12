@@ -196,16 +196,11 @@ describe('AgentActivity', () => {
 				label: 'Alpha edit',
 				repositoryFullName: 'bestboyhq/alpha',
 				branch: 'malini/alpha',
-				root: null,
 			},
 		] as const;
 		expect(activity.registerWorkstreamScope(alphaScope)).toBe(true);
 		expect(activity.registerWorkstreamScope(alphaScope)).toBe(false);
 		expect(activity.registerWorkstreamScope([...alphaScope, ...alphaScope])).toBe(false);
-		const rootedAlpha = { ...alphaScope[0], root: { workstreamId: 'root', label: 'Root' } };
-		expect(activity.registerWorkstreamScope([rootedAlpha])).toBe(true);
-		expect(activity.contextFor('stream-a')?.root).toEqual({ workstreamId: 'root', label: 'Root' });
-		expect(activity.registerWorkstreamScope(alphaScope)).toBe(true);
 		activity.registerWorkstreamScope([
 			...alphaScope,
 			{
@@ -213,7 +208,6 @@ describe('AgentActivity', () => {
 				label: 'Beta edit',
 				repositoryFullName: 'bestboyhq/beta',
 				branch: 'malini/beta',
-				root: null,
 			},
 		]);
 		activity.mark('stream-a', {
