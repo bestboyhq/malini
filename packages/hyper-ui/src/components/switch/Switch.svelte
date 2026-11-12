@@ -26,14 +26,10 @@
 
 	const CROSS = ['M3 3 L7 7', 'M7 3 L3 7'] as const;
 	const CHECK = ['M2.2 5.3 L4.2 7.2', 'M7.8 2.9 L4.2 7.2'] as const;
-	const PRESS_MS = 140;
 	const DIM_AFTER_MS = 300;
 
 	const strokes = $derived(checked ? CHECK : CROSS);
 	let dimmed = $state(untrack(() => disabled));
-	let pressed = $state(false);
-	let pressedAt = 0;
-	let release: ReturnType<typeof setTimeout> | undefined;
 
 	$effect(() => {
 		if (!disabled) {
@@ -43,19 +39,6 @@
 		const timer = setTimeout(() => (dimmed = true), DIM_AFTER_MS);
 		return () => clearTimeout(timer);
 	});
-
-	function press(event: PointerEvent): void {
-		if (disabled || event.button !== 0) return;
-		clearTimeout(release);
-		pressedAt = performance.now();
-		pressed = true;
-	}
-
-	function lift(): void {
-		if (!pressed) return;
-		const held = performance.now() - pressedAt;
-		release = setTimeout(() => (pressed = false), Math.max(0, PRESS_MS - held));
-	}
 </script>
 
 <button
@@ -67,16 +50,11 @@
 	aria-labelledby={labelledBy}
 	bind:this={element}
 	{disabled}
-	data-pressed={pressed || undefined}
 	data-dimmed={dimmed || undefined}
 	class={[
 		'switch focus-visible:ring-border-default/50 bg-button-secondary-border relative inline-flex h-6 w-10 shrink-0 rounded-full inset-shadow-[0_1px_2px_rgb(0_0_0/0.35)] focus-visible:ring-2',
 		className,
 	]}
-	onpointerdown={press}
-	onpointerup={lift}
-	onpointercancel={lift}
-	onpointerleave={lift}
 	onclick={() => onchange(!checked)}
 >
 	<span class="thumb">
@@ -89,7 +67,7 @@
 
 <style>
 	.switch {
-		--switch-ease: cubic-bezier(0.32, 0.72, 0, 1);
+		--switch-motion: 380ms cubic-bezier(0.32, 0.72, 0, 1);
 		isolation: isolate;
 		cursor: pointer;
 		transition: opacity 150ms ease;
@@ -106,10 +84,10 @@
 		initial-value: 0;
 	}
 
-	@property --switch-stretch {
-		syntax: '<length>';
+	@property --switch-press {
+		syntax: '<number>';
 		inherits: false;
-		initial-value: 0px;
+		initial-value: 0;
 	}
 
 	.switch::before,
@@ -136,7 +114,7 @@
 			inset 0 1px 0 rgb(255 255 255 / 0.18),
 			0 0 0 0.5px color-mix(in oklab, var(--color-brand) 60%, transparent);
 		transition:
-			opacity 380ms var(--switch-ease),
+			opacity var(--switch-motion),
 			filter 150ms ease;
 	}
 
@@ -155,6 +133,7 @@
 	}
 
 	.thumb {
+		--switch-stretch: calc(6px * min(1, var(--switch-press) + sin(var(--switch-travel) * 180deg)));
 		position: absolute;
 		top: 2px;
 		left: 2px;
@@ -171,16 +150,16 @@
 			0 2px 6px rgb(0 0 0 / 0.28);
 		transform: translateX(calc(var(--switch-travel) * (16px - var(--switch-stretch))));
 		transition:
-			--switch-travel 380ms var(--switch-ease),
-			--switch-stretch 240ms var(--switch-ease);
+			--switch-travel var(--switch-motion),
+			--switch-press var(--switch-motion);
 	}
 
 	.switch[aria-checked='true'] .thumb {
 		--switch-travel: 1;
 	}
 
-	.switch:is(:active, [data-pressed]) .thumb {
-		--switch-stretch: 6px;
+	.switch:not(:disabled):active .thumb {
+		--switch-press: 1;
 	}
 
 	svg {
@@ -195,8 +174,8 @@
 		stroke-width: 1.9;
 		stroke-linecap: round;
 		transition:
-			d 320ms cubic-bezier(0.45, 0, 0.25, 1),
-			stroke 320ms ease;
+			d var(--switch-motion),
+			stroke var(--switch-motion);
 	}
 
 	.switch[aria-checked='true'] path {
