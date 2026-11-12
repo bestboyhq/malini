@@ -85,7 +85,10 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 		);
 		await expect(settings.getByText(/^Signed in to Bestboy as/u)).toHaveCount(0);
 
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		const secondSignIn = await signInUrl(app, platform, 2);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${secondSignIn.state}`);
 		await expect(settings.getByTestId('profile-status')).toHaveText(/^Published through /u, {
@@ -252,7 +255,10 @@ test('the Stats panel nudges to publish, copies the heatmap and readout cards on
 
 		await openProfileSettings(page);
 		const settings = page.getByRole('dialog', { name: 'Settings' });
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		await expect(
 			settings.getByText('Sign in to Bestboy in your browser, then come back.'),
 		).toBeVisible();
@@ -331,7 +337,10 @@ test('the profile menu opens Stats, the brain and Settings with or without Bestb
 
 		await openProfileSettings(page);
 		const settings = page.getByRole('dialog', { name: 'Settings' });
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		const signIn = await signInUrl(app, platform, 1);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
 		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
@@ -536,14 +545,14 @@ test('Projects on Bestboy sends only the link, the runs per day and CHANGELOG.md
 		await expect(row).toContainText('Needs its link');
 		await expect(toggle).toBeDisabled();
 		await expect(link).toBeDisabled();
-		await expect(section.getByText('Sign in to Bestboy above to turn one on')).toBeVisible();
+		await expect(section.getByText('Sign in to Bestboy to turn one on')).toBeVisible();
 
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await section.getByRole('button', { name: 'Sign in' }).click();
 		const signIn = await signInUrl(app, platform, 1);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
 		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
 		await expect(link).toBeEnabled();
-		await expect(section.getByText('Sign in to Bestboy above to turn one on')).toHaveCount(0);
+		await expect(section.getByText('Sign in to Bestboy to turn one on')).toHaveCount(0);
 
 		await link.fill('10.0.0.4');
 		await expect(row.getByRole('alert')).toHaveText('Needs a domain name, not an IP address');
@@ -602,7 +611,10 @@ test('Projects on Bestboy sends only the link, the runs per day and CHANGELOG.md
 		expect(projectUploads(platform)).toHaveLength(sentBeforeSignOut);
 		expect(platform.requests.at(-1)).toMatchObject({ method: 'POST', path: '/api/auth/logout' });
 
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		const again = await signInUrl(app, platform, 3);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${again.state}`);
 		await expect(toggle).toBeEnabled();
