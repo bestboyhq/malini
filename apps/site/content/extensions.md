@@ -68,6 +68,7 @@ Nothing else about you, your repositories or your chats goes up.
 
 The inspector sits next to the chat, closed until you ask for it.
 Closed, it is a short list: **Changes** with the lines the workstream added and removed, **Media** with the number of files agents saved in `.context`, **Browser**, then the workstream's tabs.
+Under them, **Automations** lists what runs, waits or asks you in the workstream, and moves above the composer while the inspector is open.
 **Changes** opens **Files** on the changed files only, **Browser** opens a new tab with the address field waiting for a URL, and **Show inspector** opens it on the tab you had.
 **Media** shows once an agent saves a screenshot, recording or prototype, and opens them as a grid sorted into images, videos, audio, pages and documents, newest first.
 Pictures, recordings and pages open full size, audio plays in place, and documents open in a browser tab.

@@ -12,9 +12,10 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 } from './harness';
 
-test('an automation run from the slash list waits in the composer tray instead of the chat, and its transcript opens and closes as a tab of its own', async () => {
+test('an automation run from the slash list waits in the closed inspector instead of the chat, in the composer tray while the inspector is open, and its transcript opens and closes as a tab of its own', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -58,15 +59,28 @@ test('an automation run from the slash list waits in the composer tray instead o
 		).toBeVisible();
 		await page.keyboard.press('Enter');
 
-		const tray = page.getByRole('region', { name: 'Automations (1)', exact: true });
-		await expect(
-			tray.getByRole('button', {
-				name: 'Fix checks automation, Queued. The transcript opens once the automation starts',
-			}),
-		).toBeVisible({ timeout: 20_000 });
+		const queued = {
+			name: 'Fix checks automation, Queued. The transcript opens once the automation starts',
+		};
+		const inspector = page.getByRole('region', { name: 'Inspector', exact: true });
+		const composerTray = page.getByTestId('chat-composer-tray');
+		const tray = inspector.getByRole('region', { name: 'Automations (1)', exact: true });
+		await expect(tray.getByRole('button', queued)).toBeVisible({ timeout: 20_000 });
+		await expect(composerTray.getByRole('region', { name: /^Automations \(/u })).toHaveCount(0);
 		await expect(input).toHaveText('');
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
 		await captureFlow(app, 'automations-in-chat-queued');
+
+		await showInspector(page);
+		await expect(
+			composerTray
+				.getByRole('region', { name: 'Automations (1)', exact: true })
+				.getByRole('button', queued),
+		).toBeVisible();
+		await expect(tray).toHaveCount(0);
+		await page.getByRole('button', { name: 'Hide inspector' }).click();
+		await expect(tray.getByRole('button', queued)).toBeVisible();
+		await expect(composerTray.getByRole('region', { name: /^Automations \(/u })).toHaveCount(0);
 
 		holdAgentRuns(app, true);
 		await submit.click();

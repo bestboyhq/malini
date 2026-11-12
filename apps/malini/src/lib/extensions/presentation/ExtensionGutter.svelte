@@ -15,6 +15,7 @@
 		rows: readonly GutterRow[];
 		disabled?: boolean;
 		renderIcon?: Snippet<[icon: string, size: number]> | undefined;
+		footer?: Snippet | undefined;
 		onopen: (panelId: string) => void;
 		onaction?: ((actionId: string) => void) | undefined;
 		oncontextmenu?: ((event: MouseEvent, panelId: string) => void) | undefined;
@@ -26,6 +27,7 @@
 		rows,
 		disabled = false,
 		renderIcon,
+		footer,
 		onopen,
 		onaction,
 		oncontextmenu,
@@ -146,4 +148,10 @@
 			</Button>
 		{/if}
 	{/each}
+
+	{#if footer}
+		<div class="border-surface-50-border -mx-1.5 mt-1.5 border-t-[0.5px] px-1.5 pt-1.5">
+			{@render footer()}
+		</div>
+	{/if}
 </div>

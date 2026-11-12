@@ -27,11 +27,7 @@
 	const title = $derived(run?.title ?? UNRUN_QUESTION_TITLE);
 	const place = $derived(automationPlace(run, entry.workstreamId));
 	const placeName = $derived(
-		shownIn === null
-			? place
-			: entry.workstreamId !== shownIn && place
-				? `Automation in ${place}`
-				: 'Automation',
+		shownIn === null ? place : entry.workstreamId !== shownIn && place ? `In ${place}` : null,
 	);
 	const reason = $derived(automationQuestionReason(entry));
 	const look = $derived(

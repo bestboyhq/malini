@@ -12,6 +12,7 @@ import {
 	seedWorkstream,
 	selectChat,
 	sendPrompt,
+	showInspector,
 	startFreshChat,
 	type LaunchedApp,
 	typeDraft,
@@ -342,6 +343,7 @@ async function chatWithAutomationInTray(
 ): Promise<Readonly<{ automations: Locator; automationRunId: string }>> {
 	const { page } = app;
 	await longChat(app, workstreamId);
+	await showInspector(page);
 	const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
 		name: 'Watch the deploy',
 		instructions: 'HANG',
@@ -355,7 +357,9 @@ async function chatWithAutomationInTray(
 		definitionId: automation.id,
 		workstreamId,
 	});
-	const automations = page.getByRole('region', { name: 'Automations (1)', exact: true });
+	const automations = page
+		.getByTestId('chat-composer-tray')
+		.getByRole('region', { name: 'Automations (1)', exact: true });
 	await expect(automations).toContainText('Watch the deploy', { timeout: 20_000 });
 	holdAgentRuns(app, false);
 	await expectRunFinished(page, 'Hello from the fake bridge');

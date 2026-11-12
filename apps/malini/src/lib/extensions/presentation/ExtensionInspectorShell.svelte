@@ -68,6 +68,7 @@
 		>;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		panelActions?: readonly InspectorPanelAction[];
+		gutterFooter?: Snippet | undefined;
 		workstreamPanelIds?: ReadonlySet<string>;
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
@@ -88,6 +89,7 @@
 		panelBadges = {},
 		renderIcon,
 		panelActions = [],
+		gutterFooter,
 		workstreamPanelIds = new Set(),
 		storage,
 		onactivechange,
@@ -1022,6 +1024,7 @@
 			rows={compactRows}
 			disabled={!inspectorInteractive}
 			{renderIcon}
+			footer={gutterFooter}
 			onopen={openGutterRow}
 			onaction={runGutterAction}
 			oncontextmenu={openPanelMenu}

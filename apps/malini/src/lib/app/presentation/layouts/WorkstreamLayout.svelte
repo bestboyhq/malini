@@ -7,9 +7,9 @@
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
 	import { loadAutomationsCommand } from '$lib/automations/application/commands/load-automations.command';
 	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
-	import { liveAutomationsQuery } from '$lib/automations/application/queries/live-automations.query.svelte';
 	import { automationRunByIdQuery } from '$lib/automations/application/queries/automation-run-by-id.query.svelte';
 	import { automationSuggestionsQuery } from '$lib/automations/application/queries/automation-suggestions.query.svelte';
+	import { workstreamLiveAutomationsQuery } from '$lib/automations/application/queries/workstream-live-automations.query.svelte';
 	import {
 		AutomationSuggestionCard,
 		WorkstreamAutomationRuns,
@@ -29,6 +29,7 @@
 		repositoryContextQuery,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
+	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { page } from '$shared/router/state';
 	import {
 		WORKSTREAM_BROWSER_RATIO_KEY,
@@ -52,12 +53,9 @@
 			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
 	);
 	const chatSessionId = $derived(activeSessionQuery.data);
-	const automations = $derived(
-		liveAutomationsQuery.data.filter(
-			(entry) =>
-				entry.workstreamId === workstreamId ||
-				(chatSessionId !== null && entry.run?.chatSessionId === chatSessionId),
-		),
+	const automations = $derived(workstreamLiveAutomationsQuery.data(workstreamId, chatSessionId));
+	const automationsInTray = $derived(
+		automations.length > 0 && inspectorDrawer.isOpen(workstreamId),
 	);
 	const automationRuns = $derived(automations.flatMap((entry) => (entry.run ? [entry.run] : [])));
 
@@ -95,7 +93,7 @@
 			{workstreamId}
 			{pullRequestShipped}
 			{automationRuns}
-			automations={automations.length > 0 ? automationsInProgress : undefined}
+			automations={automationsInTray ? automationsInProgress : undefined}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
