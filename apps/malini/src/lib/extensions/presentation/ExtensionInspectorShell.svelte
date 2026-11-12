@@ -57,7 +57,6 @@
 
 	interface Props {
 		workstreamId: string;
-		workstreamName?: string | null;
 		changeTotals?: GutterChangeTotals | null;
 		agentSessionId?: string | null;
 		panels: readonly ExtensionPanelRegistration[];
@@ -80,7 +79,6 @@
 
 	let {
 		workstreamId,
-		workstreamName = null,
 		changeTotals = null,
 		agentSessionId = null,
 		panels,
@@ -159,7 +157,7 @@
 			hiddenPanelIds: presentedPreferences.hidden,
 			changeTotals,
 			actions: panelActions.flatMap(({ id, label, icon, count }) =>
-				count ? [{ id, label, icon, count }] : [],
+				count === 0 ? [] : [{ id, label, icon, count: count ?? null }],
 			),
 		}),
 	);
@@ -1021,7 +1019,6 @@
 	{:else}
 		<ExtensionGutter
 			{workstreamId}
-			{workstreamName}
 			rows={compactRows}
 			disabled={!inspectorInteractive}
 			{renderIcon}

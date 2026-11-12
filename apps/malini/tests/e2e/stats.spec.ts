@@ -31,7 +31,7 @@ test('the sidebar reads out what malini uses and opens stats on its runs, tabs a
 		await expectAssistantReply(page);
 
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		const address = page.getByRole('textbox', { name: 'Page address' }).last();
 		await address.fill(`${origin}/`);
 		await address.press('Enter');

@@ -19,7 +19,6 @@
 		workstreamId: string;
 		workstream: ExtensionWorkstream | null;
 		activationReady: boolean;
-		workstreamName: string | null;
 		changeTotals: WorkstreamChangeTotals | null;
 		creationContext: (workstreamId: string) => WorkstreamCreatedAutomationContext | null;
 		oncreationannounced: (workstreamId: string) => void;
@@ -32,7 +31,6 @@
 		workstreamId,
 		workstream,
 		activationReady,
-		workstreamName,
 		changeTotals,
 		creationContext,
 		oncreationannounced,
@@ -80,7 +78,6 @@
 
 <ExtensionInspectorShell
 	{workstreamId}
-	{workstreamName}
 	{changeTotals}
 	{agentSessionId}
 	{panels}

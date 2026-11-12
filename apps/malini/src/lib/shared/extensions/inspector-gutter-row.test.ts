@@ -132,14 +132,19 @@ describe('gutterRows', () => {
 			panels: [linear, files],
 			hiddenPanelIds: [],
 			changeTotals: null,
-			actions: [{ id: 'media', label: 'Media', icon: 'image', count: 4 }],
+			actions: [
+				{ id: 'media', label: 'Media', icon: 'image', count: 4 },
+				{ id: 'browser', label: 'Browser', icon: 'browser', count: null },
+			],
 		});
 
 		expect(rows.map(({ kind, id }) => `${kind}:${id}`)).toEqual([
 			`panel:${REPOSITORY_FILES_PANEL_ID}`,
 			'action:media',
+			'action:browser',
 			'panel:example.linear.panel',
 		]);
 		expect(rows[1]).toMatchObject({ label: 'Media', count: 4 });
+		expect(rows[2]).toMatchObject({ label: 'Browser', count: null });
 	});
 });

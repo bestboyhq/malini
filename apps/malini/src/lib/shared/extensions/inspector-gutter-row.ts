@@ -11,7 +11,7 @@ export type GutterAction = Readonly<{
 	id: string;
 	label: string;
 	icon: string;
-	count: number;
+	count: number | null;
 }>;
 
 export type GutterRow =
@@ -28,7 +28,7 @@ export type GutterRow =
 			id: string;
 			label: string;
 			icon: string;
-			count: number;
+			count: number | null;
 	  }>;
 
 export type GutterRowsInput = Readonly<{

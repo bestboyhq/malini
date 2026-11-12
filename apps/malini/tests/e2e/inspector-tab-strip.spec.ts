@@ -48,7 +48,7 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 			timeout: 20_000,
 		});
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		const files = inspectorTab(page, 'Files');
 		const newTab = inspectorTab(page, 'New tab');
 		await expect(newTab).toHaveAttribute('aria-selected', 'true');

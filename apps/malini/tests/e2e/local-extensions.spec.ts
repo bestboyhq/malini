@@ -242,7 +242,7 @@ test('recovery mode starts no local extension', async () => {
 			);
 		await showInspector(page);
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await expect(page.getByRole('menuitem', { name: 'New browser tab' })).toBeVisible();
+		await expect(page.getByRole('menuitem', { name: 'Browser', exact: true })).toBeVisible();
 		await expect(page.getByRole('menuitem', { name: 'Healthy' })).toHaveCount(0);
 		expect(developmentLog(home)).not.toContain(`${HEALTHY} activated`);
 		await page.keyboard.press('Escape');

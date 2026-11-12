@@ -63,7 +63,7 @@ test('a page that asks for the microphone asks you first in a sheet on the Malin
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		const address = page.getByRole('textbox', { name: 'Page address' }).last();
 		await address.fill('./microphone.html');
 		await address.press('Enter');

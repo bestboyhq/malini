@@ -112,7 +112,7 @@ async function askAboutElement(
 
 async function openTab(page: Page, origin: string, path: string): Promise<void> {
 	await page.getByRole('button', { name: 'Open inspector panel' }).click();
-	await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+	await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 	const address = page.getByRole('textbox', { name: 'Page address' }).last();
 	await address.fill(`${origin}${path}`);
 	await address.press('Enter');
@@ -357,7 +357,7 @@ test('a new browser tab takes the cursor and explains itself, keeps its page und
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
 
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		const address = page.getByRole('textbox', { name: 'Page address' });
 		await expect(address).toBeFocused();
 		await expect(inspector.getByText('Open a page')).toBeVisible();
@@ -372,7 +372,7 @@ test('a new browser tab takes the cursor and explains itself, keeps its page und
 		await expect.poll(pageShown).toBe(true);
 
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await expect(page.getByRole('menuitem', { name: 'New browser tab' })).toBeVisible();
+		await expect(page.getByRole('menuitem', { name: 'Browser', exact: true })).toBeVisible();
 		await expect.poll(pageShown).toBe(false);
 		await settleAnimations(page);
 		const menuHeading = page
@@ -729,6 +729,39 @@ test('an inspector the agent opened stays open after the agent closes its page o
 			timeout: 20_000,
 		});
 		await expect(page.getByRole('button', { name: 'Hide inspector' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('Browser in the closed inspector opens a new tab with the address ready to type', async () => {
+	test.setTimeout(120_000);
+	const server = await lobbyServer();
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-gutter-ws',
+			'Browser gutter',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await closedInspector(page);
+
+		await page
+			.getByTestId('extension-inspector-gutter')
+			.getByRole('button', { name: 'Browser', exact: true })
+			.click();
+		const address = page.getByRole('textbox', { name: 'Page address' });
+		await expect(address).toBeFocused();
+		await address.fill(`${server.origin}/lobby`);
+		await address.press('Enter');
+		await expect(inspector.getByRole('tab', { name: 'Lobby music', selected: true })).toBeVisible();
+		await captureFlow(app, 'browser-tab-from-gutter');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

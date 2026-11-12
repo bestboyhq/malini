@@ -143,7 +143,7 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 			page.getByRole('button', { name: 'Filter to files changed in this workstream' }),
 		).toHaveAttribute('aria-pressed', 'false');
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		await expect(inspectorTab(page, 'New tab')).toHaveAttribute('aria-selected', 'true');
 
 		await visit(page, alpha.workstreamId);
