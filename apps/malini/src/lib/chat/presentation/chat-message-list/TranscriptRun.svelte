@@ -72,7 +72,10 @@
 					estimateRunHeight(run, transcriptWindow.textWidth, folded)),
 	);
 
-	const runRows = $derived(timelines.groupedTimelineItems(run, folded));
+	const replying = $derived(
+		live?.assistant.some((block) => withoutStreamingFooter(block.text) !== '') ?? false,
+	);
+	const runRows = $derived(timelines.groupedTimelineItems(run, folded, replying));
 	const runTimelineItems = $derived(
 		live && live.pendingItems.length > 0 ? withPendingRows(runRows, live.pendingItems) : runRows,
 	);

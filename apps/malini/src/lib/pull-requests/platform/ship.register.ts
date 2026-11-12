@@ -1,7 +1,4 @@
-import {
-	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
-	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
-} from '$contract/events';
+import { PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL } from '$contract/events';
 import { SHIP_BUTTONS, type ShipButton } from '$contract/pull-requests';
 import type { PullRequestStatusDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
@@ -15,7 +12,7 @@ import { PullRequestReader } from './pull-request-reader.service';
 import { clickShip, openDraft, queueMerge } from './ship-intents';
 import { getShip, listShips, shipRecord } from './ship.repository';
 import { createShippingRule } from './ship-rule';
-import { dropShip, type ShipDeps } from './ship-store';
+import { dropDraftShip, type ShipDeps } from './ship-store';
 
 export interface ShippingOptions {
 	delays?: Partial<ShipDelays>;
@@ -48,9 +45,9 @@ export function registerShip(
 		running: () => running,
 		starting: new Map(),
 		...(options.chef ? { chef: options.chef } : {}),
-		reader: new PullRequestReader(context, operations, delays, now, (id) =>
-			pullRequestGone(deps, id),
-		),
+		reader: new PullRequestReader(context, operations, delays, now, (id) => {
+			dropDraftShip(deps, id);
+		}),
 	};
 	const workstreamId = (args: unknown): string => requireString(args, 'workstreamId');
 
@@ -78,13 +75,6 @@ export function registerShip(
 			deps.reader.dispose();
 		},
 	};
-}
-
-function pullRequestGone(deps: ShipDeps, workstreamId: string): void {
-	const row = getShip(deps.context.db, workstreamId);
-	if (row?.phase !== 'draft' || row.step !== null || row.pullRequestNumber === null) return;
-	dropShip(deps, workstreamId);
-	deps.context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId, state: null });
 }
 
 function button(args: unknown): ShipButton {

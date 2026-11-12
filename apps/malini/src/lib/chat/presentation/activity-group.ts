@@ -64,7 +64,7 @@ export const ACTIVITY_GROUP_DETAIL_MAX_CHARS = 64;
 
 type MachineActivityItem = Extract<RunTimelineItem, { kind: 'tool' | 'command' | 'file' }>;
 
-type NarrationItem = Extract<RunTimelineItem, { kind: 'assistant' | 'thought' }>;
+type BurstItem = MachineActivityItem | Extract<RunTimelineItem, { kind: 'thought' }>;
 
 type ItemStatus = 'running' | 'completed' | 'failed';
 
@@ -88,33 +88,30 @@ const TOOL_PATH_KEYS = [
 	'notebookPath',
 ] as const;
 
-export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunTimelineItem[] {
+export function groupRunTimeline(
+	items: readonly RunTimelineItem[],
+	lastBurstOpen = false,
+): GroupedRunTimelineItem[] {
 	const grouped: GroupedRunTimelineItem[] = [];
-	let pending: (MachineActivityItem | NarrationItem)[] = [];
-	let trailingMessages: NarrationItem[] = [];
+	let burst: BurstItem[] = [];
 
 	function flush(): void {
-		if (pending.length >= ACTIVITY_GROUP_MIN_ITEMS) grouped.push(buildActivityGroup(pending));
-		else grouped.push(...pending);
-		grouped.push(...trailingMessages);
-		pending = [];
-		trailingMessages = [];
+		if (burst.length >= ACTIVITY_GROUP_MIN_ITEMS && burst.some(isMachineActivity)) {
+			grouped.push(buildActivityGroup(burst));
+		} else grouped.push(...burst);
+		burst = [];
 	}
 
 	for (const item of foldStartedWorkstreams(items)) {
-		if (item.kind !== 'workstreams' && isMachineActivity(item)) {
-			pending.push(...trailingMessages, item);
-			trailingMessages = [];
-			continue;
-		}
-		if ((item.kind === 'assistant' || item.kind === 'thought') && pending.length > 0) {
-			trailingMessages.push(item);
+		if (item.kind !== 'workstreams' && isBurstItem(item)) {
+			burst.push(item);
 			continue;
 		}
 		flush();
 		grouped.push(item);
 	}
-	flush();
+	if (lastBurstOpen) grouped.push(...burst);
+	else flush();
 
 	return groupSubagents(grouped);
 }
@@ -225,9 +222,11 @@ function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 	);
 }
 
-function buildActivityGroup(
-	items: readonly (MachineActivityItem | NarrationItem)[],
-): ActivityGroup {
+function isBurstItem(item: RunTimelineItem): item is BurstItem {
+	return item.kind === 'thought' || isMachineActivity(item);
+}
+
+function buildActivityGroup(items: readonly BurstItem[]): ActivityGroup {
 	const calls = items.filter(isMachineActivity);
 	const ran = calls.filter((item) => !blockedByAutoMode(item));
 	const actions = ran.map(itemActionKind);

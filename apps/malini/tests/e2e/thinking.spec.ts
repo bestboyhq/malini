@@ -82,7 +82,7 @@ test('a thinking agent narrates each step live, keeps an opened thought open as 
 		await expect(live).toHaveCount(0);
 
 		await expect(page.getByTestId('chat-activity-group')).toHaveCount(1);
-		await expect(thoughts).toHaveCount(1);
+		await expect(thoughts).toHaveCount(0);
 		await page.getByTestId('chat-activity-group-summary').click();
 		await expect(thoughts).toHaveCount(2);
 		await thoughts.nth(1).locator('summary').click();
@@ -98,6 +98,7 @@ test('a thinking agent narrates each step live, keeps an opened thought open as 
 		await openWorkstream(page, seeded.workstreamId);
 		const earlier = page.locator('li[data-run-id]').first();
 		await expect(earlier.getByTestId('chat-activity-group')).toHaveCount(1);
+		await earlier.getByTestId('chat-activity-group-summary').click();
 		const folded = earlier.getByTestId('thinking-summary');
 		await expect(folded.first()).toBeVisible();
 		await expect(folded.first().getByTestId('thinking-outcome')).toHaveText(

@@ -181,8 +181,14 @@ const settleStreamedText = (runId) => {
 	streamedText.delete(runId);
 	if (text) event({ type: 'assistant.message', runId, contentId: 'stream', text: text.trimEnd() });
 };
-const streamRun = (sessionId, runId, lines, appended = '') => {
+const streamRun = (sessionId, runId, lines, appended = '', reads = 0) => {
 	pendingRuns.set(runId, sessionId);
+	for (let read = 1; read <= reads; read += 1) {
+		const readId = 'read-' + runId + '-' + read;
+		const input = { file_path: 'notes/row-' + read + '.txt' };
+		event({ type: 'tool.started', runId, name: 'Read', toolCallId: readId, input });
+		event({ type: 'tool.completed', runId, name: 'Read', toolCallId: readId, output: 'ok' });
+	}
 	const toolCallId = 'bash-' + runId;
 	event({
 		type: 'tool.started',
@@ -252,7 +258,7 @@ const toolStreamRun = (sessionId, runId, count, slowTail, background, narrated) 
 		read += 1;
 		const toolCallId = 'read-' + runId + '-' + read;
 		const input = { file_path: 'notes/row-' + read + '.txt' };
-		if (narrated) {
+		if (narrated > 0 && (read - 1) % narrated === 0) {
 			event({
 				type: 'assistant.message',
 				runId,
@@ -1463,6 +1469,7 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	const stream = /STREAM:(\d+)/.exec(prompt);
 	const toolStream = /TOOL_STREAM:(\d+)(?::(\d+))?/.exec(prompt);
+	const narrated = /NARRATED(?::(\d+))?/.exec(prompt);
 	if (toolStream) {
 		return toolStreamRun(
 			sessionId,
@@ -1470,13 +1477,14 @@ const respond = async (sessionId, runId, prompt) => {
 			Number(toolStream[1]),
 			Number(toolStream[2] ?? 0),
 			prompt.includes('TRAY_COMMAND'),
-			prompt.includes('NARRATED'),
+			narrated ? Number(narrated[1] ?? 1) : 0,
 		);
 	}
 	if (stream) {
 		if (prompt.includes('LATE_CANCEL')) lateCancelRuns.add(runId);
 		const report = prompt.includes('CHAT_TURN_REPORT') ? CHAT_TURN_REPORT : '';
-		return streamRun(sessionId, runId, Number(stream[1]), report);
+		const reads = Number(/READS:(\d+)/.exec(prompt)?.[1] ?? 0);
+		return streamRun(sessionId, runId, Number(stream[1]), report, reads);
 	}
 	const commitLine = /COMMIT=([^"\n]+?)(?: PR=([^"\n]+?))?(?:"|$)/.exec(prompt);
 	const resolvedLines = [...prompt.matchAll(/RESOLVE:([\w-]+)/g)].map(
