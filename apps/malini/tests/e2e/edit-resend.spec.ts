@@ -29,8 +29,9 @@ test('editing a prompt resends it, appends a run, and keeps the old run under th
 		await openWorkstream(page, workstreamId, chatA);
 		await page.getByRole('button', { name: 'Edit message: EDIT:a.txt' }).click();
 		const editor = page.getByRole('textbox', { name: 'Edit message' });
-		await expect(editor).toBeVisible({ timeout: 20_000 });
-		await editor.fill('EDIT:a-v2.txt');
+		await expect(editor).toBeFocused({ timeout: 20_000 });
+		await page.keyboard.press('ControlOrMeta+a');
+		await page.keyboard.insertText('EDIT:a-v2.txt');
 		await page.keyboard.press('Shift+Enter');
 		await expect.poll(() => editor.innerText()).toMatch(/^EDIT:a-v2\.txt\n/u);
 		await page.keyboard.press('Backspace');
