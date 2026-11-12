@@ -11,7 +11,7 @@
 	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { loadActivityCommand } from '$lib/stats/application/commands/load-activity.command';
 	import { loadProfileBadgeCommand } from '$lib/stats/application/commands/load-profile-badge.command';
-	import { openProfilePageCommand } from '$lib/stats/application/commands/open-profile-page.command';
+	import { openBestboyPageCommand } from '$lib/stats/application/commands/open-bestboy-page.command';
 	import { signOutOfBestboyCommand } from '$lib/stats/application/commands/sign-out-of-bestboy.command';
 	import { watchProfileHook } from '$lib/stats/application/hooks/watch-profile.hook';
 	import { activityStatsQuery } from '$lib/stats/application/queries/activity-stats.query.svelte';
@@ -131,7 +131,7 @@
 				<DropdownItem
 					role="menuitem"
 					class="gap-2.5"
-					onSelect={() => openProfilePageCommand(profileUrl)}
+					onSelect={() => openBestboyPageCommand(profileUrl)}
 				>
 					<Icon name="external-link" size={15} class="shrink-0" />
 					<span class="min-w-0 flex-1 truncate text-left">Open profile</span>

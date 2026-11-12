@@ -300,7 +300,10 @@ test('Settings, Profile signs in to Bestboy, claims a handle, and publishes what
 		await expect(publish).toBeDisabled();
 		await expect(yours).toContainText('Sign in to Bestboy above to publish.');
 
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		const { state } = await signInUrl(app, platform, 1);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${state}`);
 		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible({

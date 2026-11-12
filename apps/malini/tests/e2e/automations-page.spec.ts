@@ -181,7 +181,12 @@ test("an automation's When, run mode and Then are fields of the automation, and 
 		await expect(page.getByText('Malini reads')).toBeVisible();
 		await page.getByRole('button', { name: /^Draft it/u }).click();
 		const draft = page.getByRole('article', { name: 'New automation draft' });
-		await expect(draft.getByRole('textbox', { name: 'Step 1' })).toHaveValue('Update CHANGELOG.md');
+		await expect(draft.getByRole('textbox', { name: 'Step 1' })).toHaveValue(
+			/^Read the merged pull request/u,
+		);
+		await expect(draft.getByRole('textbox', { name: 'Step 4' })).toHaveValue(
+			/leads with bold words/u,
+		);
 		await expect(
 			draft.getByRole('button', { name: /runs: A pull request merges$/u }),
 		).toBeVisible();
@@ -200,7 +205,9 @@ test("an automation's When, run mode and Then are fields of the automation, and 
 		await expect
 			.poll(() => automationNamed(page, 'Changelog on merge'))
 			.toMatchObject({
-				instructions: 'Update CHANGELOG.md',
+				instructions: expect.stringMatching(
+					/^1\. Read the merged pull request.*\n2\. Find today's release.*\n5\. Gather fixes/su,
+				),
 				trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'ask' },
 				thenAutomationId: openDraft,
 			});

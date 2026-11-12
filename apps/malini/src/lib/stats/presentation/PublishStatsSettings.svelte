@@ -228,7 +228,8 @@
 
 	<p class="text-fg-tertiary px-1 text-xs">
 		Malini sends numbers only, never your prompts, code, file names, or the names of repositories
-		you did not pick, and bestboy.dev publishes changes once a day at {publishTime(new Date())}.
+		you did not pick, and bestboy.dev publishes changes once a day at {publishTime(new Date())}. A
+		project you turn on adds its link and its CHANGELOG.md.
 		<a href={WHAT_IS_SENT_URL} class="text-fg-secondary hover:underline">
 			See every number it sends
 		</a>

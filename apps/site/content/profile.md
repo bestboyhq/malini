@@ -1,11 +1,12 @@
 ---
 title: Public profile
-description: Publish your Malini stats to a public profile at bestboy.dev and share cards of it. Every number Malini sends, in plain words, and what never leaves your Mac.
+description: Publish your Malini stats to a public profile at bestboy.dev, share cards of it, and put the projects you build on bestboy.dev. Everything Malini sends, in plain words, and what never leaves your Mac.
 ---
 
 Malini counts how you work with agents on your Mac, in the Stats panel.
 You can publish those stats to a public profile at `bestboy.dev/@handle`, and then share cards of them.
 Your profile lives in your Bestboy account, and publishing is off until you turn it on.
+The same account puts the projects you build with Malini on bestboy.dev; see [Projects on Bestboy](#projects-on-bestboy).
 
 ## Your Bestboy account
 
@@ -131,3 +132,44 @@ It sends no tool, skill, MCP server, model or language name.
 
 Anyone could change the numbers their own Malini sends, so a profile says its stats are self-reported by Malini.
 Once seeded, a profile grows only as days pass, so a made-up history takes as long to build as a real one.
+
+## Projects on Bestboy
+
+The front page of bestboy.dev shows projects built with Malini, and a project gets there only from Malini.
+Settings, Profile, **Projects on Bestboy** lists the repositories you ran agents in, busiest first, with their runs and the days you ran them.
+Each one has a switch and a link: the page a visitor opens, such as `https://garden-wars.io`.
+Malini fills the link in from the repository's homepage on GitHub when it has one, and a repository without a link stays off until you write one.
+
+A link is a public web address.
+Malini assumes `https://` when you write none, and refuses a password, a port, an IP address, or a name that only works on your network, such as one ending `.local` or `.test`.
+It says what is wrong under the field before it sends anything.
+
+Turning a project on needs you signed in to Bestboy, and nothing more: it does not need **Publish my stats**.
+Each project you turn on gets a preview page on bestboy.dev that only its makers see.
+Submit it from that page, and someone at Bestboy reviews it by hand before it joins the board.
+
+Beside the switch, Malini shows what bestboy.dev last said about the project:
+
+- **Preview**: its page is up, and only its makers see it.
+- **Ready to submit**: its page offers **Submit**.
+- **In review**: someone at Bestboy is looking at it.
+- **Live**: it is on the board.
+- **Asked to join**: the link is already a live project someone else makes, and its makers decide whether to add you.
+- **Taken down**: it came off the board after a report.
+
+**Open it** opens the project's page in your browser, or **Open its page** once it is live, whenever bestboy.dev lets you open it.
+
+Malini sends every project you have on each time you turn one on or off or change a link, and once a day besides.
+Turn a project off, and its preview leaves bestboy.dev; a live project stays on the board.
+Signing out of Bestboy sends nothing and keeps your projects as they are, and they go up again once you sign back in.
+When bestboy.dev cannot be reached, Malini keeps trying until it can.
+
+### What a project sends
+
+- **Link**: the address you wrote.
+- **Days**: for each complete day in your time zone with a run in that repository in the last 53 weeks, through yesterday, the date and how many runs started that day.
+- **Changelog**: the start of `CHANGELOG.md` on the repository's default branch, up to 32 KB, cut at the end of a line, and nothing when there is none.
+  The **Changelog on merge** recipe on the Automations page keeps it for you, written for the people who use the project.
+
+Nothing else about a project leaves your Mac: never the repository's name, its files or code, your prompts, or its pull requests.
+A private repository is a project like any other, since its link is all that names it.

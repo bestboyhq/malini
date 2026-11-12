@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
@@ -7,6 +8,7 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	git,
 	invoke,
 	launchMalini,
 	openWorkstream,
@@ -83,7 +85,10 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 		);
 		await expect(settings.getByText(/^Signed in to Bestboy as/u)).toHaveCount(0);
 
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		const secondSignIn = await signInUrl(app, platform, 2);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${secondSignIn.state}`);
 		await expect(settings.getByTestId('profile-status')).toHaveText(/^Published through /u, {
@@ -250,7 +255,10 @@ test('the Stats panel nudges to publish, copies the heatmap and readout cards on
 
 		await openProfileSettings(page);
 		const settings = page.getByRole('dialog', { name: 'Settings' });
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		await expect(
 			settings.getByText('Sign in to Bestboy in your browser, then come back.'),
 		).toBeVisible();
@@ -329,7 +337,10 @@ test('the profile menu opens Stats, the brain and Settings with or without Bestb
 
 		await openProfileSettings(page);
 		const settings = page.getByRole('dialog', { name: 'Settings' });
-		await settings.getByRole('button', { name: 'Sign in' }).click();
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
 		const signIn = await signInUrl(app, platform, 1);
 		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
 		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
@@ -511,14 +522,129 @@ test('closing a milestone keeps the next one away for a week, even one reached s
 	}
 });
 
+test('Projects on Bestboy sends only the link, the runs per day and CHANGELOG.md, shows what bestboy.dev answers, and keeps the projects through a sign-out', async () => {
+	test.setTimeout(240_000);
+	const platform = await fakeBestboy();
+	const changelog =
+		'## 2026-11-05\n\nPlay with your party in one live room\n\n- **Party rooms.** Press PLAY together.\n';
+	const app = await launchWithPastRuns({ MALINI_BESTBOY_ORIGIN: platform.origin }, 1, 1, changelog);
+	try {
+		const { page } = app;
+		await recordBrowser(app);
+		await openProfileSettings(page);
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		const section = settings.getByRole('region', { name: 'Projects on Bestboy' });
+		const row = section.getByRole('listitem');
+		await expect(row).toHaveCount(1);
+		const repository = (await row.getByRole('heading').textContent())?.trim() ?? '';
+		expect(repository).not.toBe('');
+		const toggle = row.getByRole('switch', { name: `Put ${repository} on Bestboy` });
+		const link = row.getByRole('textbox', { name: `Link for ${repository}` });
+		await expect(row).toContainText('Private');
+		await expect(row).toContainText('1 run · 1 day');
+		await expect(row).toContainText('Needs its link');
+		await expect(toggle).toBeDisabled();
+		await expect(link).toBeDisabled();
+		await expect(section.getByText('Sign in to Bestboy to turn one on')).toBeVisible();
+
+		await section.getByRole('button', { name: 'Sign in' }).click();
+		const signIn = await signInUrl(app, platform, 1);
+		await openUrl(app, `malini://auth?code=e2e-code&state=${signIn.state}`);
+		await expect(settings.getByText('Signed in to Bestboy as E2E Person')).toBeVisible();
+		await expect(link).toBeEnabled();
+		await expect(section.getByText('Sign in to Bestboy to turn one on')).toHaveCount(0);
+
+		await link.fill('10.0.0.4');
+		await expect(row.getByRole('alert')).toHaveText('Needs a domain name, not an IP address');
+		await expect(toggle).toBeDisabled();
+		await link.fill('garden-wars.io');
+		await expect(row.getByRole('alert')).toHaveCount(0);
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
+		await expect(section.getByText('1 on')).toBeVisible();
+		await expect.poll(() => projectUploads(platform).length).toBe(1);
+		const [first] = projectUploads(platform);
+		expect(first).toMatchObject({
+			authorization: 'Bearer e2e-token-1',
+			contentType: 'application/json',
+		});
+		expect(first?.body).toEqual({
+			version: 1,
+			projects: [
+				{ link: 'https://garden-wars.io', days: [{ date: yesterday(), runs: 1 }], changelog },
+			],
+		});
+		expect(JSON.stringify(first?.body)).not.toContain(repository);
+		await expect(link).toHaveValue('https://garden-wars.io');
+		await expect(section.getByRole('alert')).toHaveCount(0);
+
+		platform.answerProjects(() => ({
+			status: 400,
+			value: { error: 'Nothing answers at this link', field: 'projects[0].link' },
+		}));
+		await link.fill('https://garden-wars.io/play');
+		await link.press('Enter');
+		await expect(row.getByRole('alert')).toHaveText('Nothing answers at this link');
+		expect(projectUploads(platform).at(-1)?.body).toMatchObject({
+			projects: [{ link: 'https://garden-wars.io/play' }],
+		});
+
+		const projectPage = `${platform.origin}/projects/garden-wars`;
+		platform.answerProjects((links) => ({
+			status: 200,
+			value: { projects: links.map(() => ({ state: 'ready', url: projectPage })) },
+		}));
+		await link.fill('garden-wars.io');
+		await link.press('Enter');
+		await expect(row.getByText('Ready to submit')).toBeVisible();
+		await expect(row.getByRole('alert')).toHaveCount(0);
+		await captureFlow(app, 'profile-projects');
+		await row.getByRole('button', { name: 'Open it' }).click();
+		await expect.poll(async () => (await openedUrls(app)).at(-1)).toBe(projectPage);
+
+		const sentBeforeSignOut = projectUploads(platform).length;
+		await settings.getByRole('button', { name: 'Sign out' }).click();
+		await expect(settings.getByText('Not signed in to Bestboy')).toBeVisible();
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
+		await expect(toggle).toBeDisabled();
+		await page.waitForTimeout(3_000);
+		expect(projectUploads(platform)).toHaveLength(sentBeforeSignOut);
+		expect(platform.requests.at(-1)).toMatchObject({ method: 'POST', path: '/api/auth/logout' });
+
+		await settings
+			.getByTestId('publish-stats-settings')
+			.getByRole('button', { name: 'Sign in' })
+			.click();
+		const again = await signInUrl(app, platform, 3);
+		await openUrl(app, `malini://auth?code=e2e-code&state=${again.state}`);
+		await expect(toggle).toBeEnabled();
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
+		await expect
+			.poll(() => projectUploads(platform).at(-1)?.body)
+			.toEqual({ version: 1, projects: [] });
+		expect(projectUploads(platform)).toHaveLength(sentBeforeSignOut + 1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		platform.close();
+	}
+});
+
 async function launchWithPastRuns(
 	env: Readonly<Record<string, string>>,
 	streakDays = 1,
 	lastDaysAgo = 1,
+	changelog: string | null = null,
 ): Promise<LaunchedApp> {
 	const first = await launchMalini();
 	try {
 		const source = await createSourceRepo(first.root);
+		if (changelog !== null) {
+			writeFileSync(join(source, 'CHANGELOG.md'), changelog);
+			await git(source, ['add', 'CHANGELOG.md']);
+			await git(source, ['commit', '-m', 'Write the changelog']);
+		}
 		const { workstreamId } = await seedWorkstream(first.page, source, 'e2e-profile-ws', 'Profile');
 		await seedWorkstream(first.page, source, 'e2e-profile-archived', 'Archived');
 		await invoke(first.page, 'repositories.archive-workstream', {
@@ -565,6 +691,12 @@ async function openProfileSettings(page: Page): Promise<void> {
 	});
 	await page.reload();
 	await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
+}
+
+function projectUploads(platform: FakeBestboy): FakeBestboy['requests'] {
+	return platform.requests.filter(
+		({ method, path }) => method === 'PUT' && path === '/api/projects',
+	);
 }
 
 function accountChecksOf(platform: FakeBestboy): number {

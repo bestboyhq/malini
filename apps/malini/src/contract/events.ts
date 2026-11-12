@@ -34,7 +34,13 @@ import type {
 	SecretsSavedEvent,
 } from './secrets';
 import type { ShellRun } from './shell-runs';
-import type { BestboyProfile, ProfileState, ResourceSample, WorkstreamRunning } from './stats';
+import type {
+	BestboyProfile,
+	BestboyProjects,
+	ProfileState,
+	ResourceSample,
+	WorkstreamRunning,
+} from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
 export type EmptyEventPayload = Readonly<Record<string, never>>;
@@ -270,6 +276,7 @@ export interface ContractEvents {
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
 	'stats:profile-changed': ProfileState;
 	'stats:profile-published': BestboyProfile;
+	'stats:projects-changed': BestboyProjects;
 	'secrets:requested': SecretsRequestedEvent;
 	'brain:changed': BrainChangedEvent;
 	'secrets:saved': SecretsSavedEvent;
@@ -341,6 +348,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'stats:workstream-running-changed': null,
 	'stats:profile-changed': null,
 	'stats:profile-published': null,
+	'stats:projects-changed': null,
 	'secrets:requested': null,
 	'brain:changed': null,
 	'secrets:saved': null,
@@ -458,6 +466,8 @@ export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies EventChannel;
 
 export const STATS_PROFILE_PUBLISHED_CHANNEL = 'stats:profile-published' satisfies EventChannel;
+
+export const STATS_PROJECTS_CHANGED_CHANNEL = 'stats:projects-changed' satisfies EventChannel;
 
 export const SECRETS_REQUESTED_CHANNEL = 'secrets:requested' satisfies EventChannel;
 
