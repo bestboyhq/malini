@@ -10,7 +10,6 @@
 		globalTopBarBandSlot,
 		provideGlobalTopBarActions,
 	} from '$shared/shell/global-topbar-actions.svelte';
-	import { attentionTreeQuery } from '$lib/app/application/queries/attention-tree.query.svelte';
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { revealOpenedBrowserHook } from '$lib/browser/application/hooks/reveal-opened-browser.hook';
@@ -43,12 +42,8 @@
 		const hideRuntimeDiagnostics = exposeRuntimeDiagnostics();
 		const stopForgettingChats = forgetRemovedWorkstreamChatsHook();
 		const stopForgettingSurfaces = forgetRemovedWorkstreamSurfacesHook();
-		const stopWatchingShips = watchShipStatesHook(
-			(workstreamId) => workstreamNameQuery.data(workstreamId),
-			(workstreamId) => {
-				const root = attentionTreeQuery.rootOf(workstreamId);
-				return root === workstreamId ? null : root;
-			},
+		const stopWatchingShips = watchShipStatesHook((workstreamId) =>
+			workstreamNameQuery.data(workstreamId),
 		);
 		const stopRevealingBrowsers = revealOpenedBrowserHook();
 		const stopRemovingBrowsers = removeClosedBrowserHook();

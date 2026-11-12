@@ -267,24 +267,18 @@ test('an agent clones a repository, starts and archives a workstream in it witho
 		const choresRow = sidebar.locator(
 			`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`,
 		);
-		await expect(choresRow.getByTestId('sidebar-progress')).toHaveAccessibleName(/^1 workstream/u);
 		await expect(choresRow.getByTestId('sidebar-workstream-change-totals')).toHaveAccessibleName(
 			'1 additions, 0 deletions',
 			{ timeout: 20_000 },
 		);
-		const startedHere = page.getByTestId('inspector-header');
-		await expect(startedHere.getByRole('heading', { name: /^Started here/u })).toContainText(
-			'0 of 1 merged',
-		);
-		await expect(startedHere.getByRole('link', { name: `${kennelName}, Fetch, ` })).toBeVisible();
+		await expect(page.getByRole('heading', { name: /^Started here/u })).toHaveCount(0);
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
 		await expect(fetchRow).toHaveCount(0, { timeout: 30_000 });
-		await expect(startedHere.getByRole('link')).toHaveCount(0);
 		await expect(
-			startedHere.getByRole('group', { name: `${kennelName}, Fetch, Archived` }),
-		).toBeVisible();
+			page.getByTestId('sidebar-archived-workstream').filter({ hasText: 'Fetch' }),
+		).toHaveCount(1);
 		await expect(decision(page)).toHaveCount(0);
 
 		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });

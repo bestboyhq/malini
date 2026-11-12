@@ -9,26 +9,15 @@ It restarts after 10 idle minutes, when you change the access, mode, report, ski
 
 ## Work a chat starts
 
-A chat starts workstreams with [`workstreams_create`](/malini/docs/agent-tools.md#work-it-started-reports-back), in its own repository or in another one Malini has.
+A chat starts workstreams with [`workstreams_create`](/malini/docs/agent-tools.md#work-it-started-runs-on-its-own), in its own repository or in another one Malini has.
 Each is a [workstream](/malini/docs/workstreams.md) with one repository and one prompt, so everything a chat delegates is work you can see and checks gate every merge.
 
-- **Started here**, at the top of the chat's inspector above **Files** and the browser tabs, lists every workstream the chat started by name and repository: lines added and removed while it is open, and when it merged once it lands.
-  Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
-  **×** on a merged one, or **Clear merged** on the heading, clears merged work from the list and the dots for good.
-- The chat's row in the sidebar shows a dot for each workstream it started, archived ones last.
-  Hover the row for a card that counts how many merged and which need you, and lists them.
-- **Draft all** and **Merge all**, in that card, log a **Button clicked**, and the [Shipping rule](/malini/docs/automations.md#reconciler) runs the **Open draft** or **Merge** [automation](/malini/docs/automations.md#run-an-automation) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
-  Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
-  A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
-- The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
-  Those workstreams keep their rows calm, with no unread mark and no blue, amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
-  An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
-  The chat's row lights up for the chat's own turns and for a request of theirs that waits in it, never for a turn they end, so it shows only what you have to do.
-  Grouped by Status it sits where the most pressing of the chat and its workstreams belongs.
-  A pull request of theirs that needs you says so in a toast that names the chat and opens it.
-- A workstream the chat starts shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
-  The × beside **Started by** disconnects it from that chat: its turns stop reporting there and the chat can no longer send it prompts.
-- The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
+- A workstream a chat starts runs on its own, like one you started.
+  Its row lights up, plays the sound and sends a notification when it finishes, needs you or fails, and its approvals and questions wait in its own chat.
+- Its first prompt says **Prompt from** and names the chat; nothing else on screen links the two.
+- Its turns stay out of the chat that started it.
+  Only when that chat's agent asked to hear back, with `wake: true`, does the report of the turn its prompt started arrive there, as a prompt.
+- The agent in that workstream reads the checkouts of the other workstreams the same chat started.
 
 ## Queue or steer
 
@@ -185,10 +174,11 @@ Malini lets Claude retry the call up to three times over about a minute, so a sh
 If the check stays down, the chat trusts edits the way **Sandboxed** does: edits inside the workstream go through, and everything else asks, saying auto mode couldn't check the call.
 Other chats skip the retries while the check is known to be down, and each chat tries auto mode again after five minutes.
 **Keep blocked** on such a call leaves it blocked, and the agent carries on without it.
-Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the work a chat started show.
+Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the automations a chat ran show.
 
-A chat also answers for the work it started.
-When an automation it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the automation or workstream it came from.
+A chat also answers for the automations it runs.
+When an automation it ran in another workstream asks for permission or asks a question, the request takes this chat's composer slot, named after the automation.
+A workstream it started asks in its own chat instead, like any other.
 Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.
 **Open transcript** goes to the asking chat when you want its context.
 **Later**, or Escape, folds the queue into a **requests need you** row above the composer, so you can write to this chat, and **Answer** brings it back.
@@ -246,7 +236,7 @@ Every picture of a report sits in one frame with a tab for each under it, so pic
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
 A report shows the moment its turn answers, while a background agent still runs, and the run's status line stays under it.
 When the agent goes on in that run and reports again, the new report takes the card, and the earlier one moves into the card's list of earlier turns.
-A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, or which chat, for [the workstreams a chat started](#work-a-chat-starts).
+A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, [the ones a chat started](#work-a-chat-starts) included.
 
 ### Next steps
 

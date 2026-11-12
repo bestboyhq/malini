@@ -1,4 +1,4 @@
-# 0231 - Projects on Bestboy go up from Settings, Profile
+# 0232 - Projects on Bestboy go up from Settings, Profile
 
 Status: accepted
 

@@ -1,14 +1,7 @@
 import { PULL_REQUESTS_SHIP_CHANGED_CHANNEL } from '$contract/events';
-import {
-	SHIP_ALL_BUTTONS,
-	type ShipAllClicked,
-	type ShipButton,
-	type ShipPhase,
-	type ShipStateRecord,
-} from '$contract/pull-requests';
+import type { ShipButton, ShipPhase, ShipStateRecord } from '$contract/pull-requests';
 import { clearAlarm } from '$lib/automations/automations.platform';
 import { shipFailure } from '../domain/ship-failure';
-import { field, requireString, requireStrings } from './args';
 import {
 	clearShipRequests,
 	getShip,
@@ -242,16 +235,4 @@ function unchanged(deps: ShipDeps, row: ShipRow, click: ShipButton | null): Ship
 	const state = shipRecord(row);
 	if (click !== null) emitClicked(deps.context, row.workstreamId, click, state);
 	return state;
-}
-
-export function shipAllClicked(args: unknown): ShipAllClicked | null {
-	const button = SHIP_ALL_BUTTONS.find((candidate) => candidate === field(args, 'button'));
-	if (button === undefined) return null;
-	return {
-		workstreamId: requireString(args, 'workstreamId'),
-		button,
-		workstreamIds: requireStrings(args, 'workstreamIds'),
-		chatSessionId:
-			(field(args, 'chatSessionId') ?? null) === null ? null : requireString(args, 'chatSessionId'),
-	};
 }

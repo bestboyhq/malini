@@ -866,7 +866,7 @@ test('a tool row in a run past two hundred steps stays in place while later step
 	try {
 		const { page } = app;
 		await longChat(app, 'e2e-long-run-follow-ws');
-		await sendPrompt(page, 'TOOL_STREAM:240 Read every note');
+		await sendPrompt(page, 'TOOL_STREAM:240:14 Read every note');
 		await untilLatestRunShows(page, 'row-226.txt', 60_000);
 
 		await page.getByTestId('chat-message-scroller').evaluate((scroller) => {

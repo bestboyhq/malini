@@ -18,7 +18,7 @@
 	const source = $derived(
 		unchecked ? "auto mode's safety check is down (Anthropic)" : 'from work this chat started',
 	);
-	const testId = $derived(unchecked ? 'unchecked-calls-waiting' : 'child-requests-waiting');
+	const testId = $derived(unchecked ? 'unchecked-calls-waiting' : 'requests-waiting');
 </script>
 
 <div class="p-1" data-testid={testId}>

@@ -1,5 +1,4 @@
 import {
-	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 } from '$contract/events';
@@ -13,7 +12,7 @@ import { DEFAULT_SHIP_DELAYS, type ShipDelays } from '../domain/shipping';
 import { requireString } from './args';
 import type { PullRequestOperations } from './pull-request-operations';
 import { PullRequestReader } from './pull-request-reader.service';
-import { clickShip, openDraft, queueMerge, shipAllClicked } from './ship-intents';
+import { clickShip, openDraft, queueMerge } from './ship-intents';
 import { getShip, listShips, shipRecord } from './ship.repository';
 import { createShippingRule } from './ship-rule';
 import { dropShip, type ShipDeps } from './ship-store';
@@ -55,12 +54,9 @@ export function registerShip(
 	};
 	const workstreamId = (args: unknown): string => requireString(args, 'workstreamId');
 
-	commands.define('pull-requests.button-clicked', (args: unknown) => {
-		const all = shipAllClicked(args);
-		if (all === null) return clickShip(deps, workstreamId(args), button(args));
-		events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, all);
-		return null;
-	});
+	commands.define('pull-requests.button-clicked', (args: unknown) =>
+		clickShip(deps, workstreamId(args), button(args)),
+	);
 	commands.define('pull-requests.open-draft', (args: unknown) =>
 		openDraft(deps, workstreamId(args)),
 	);

@@ -41,7 +41,6 @@ export type ArchivedWorkstream = Readonly<{
 	archivedAt: string;
 	mergedPullRequest: MergedPullRequest | null;
 	savedForLater: boolean;
-	clearedFromStarter: boolean;
 	startedBy: WorkstreamId | null;
 }>;
 

@@ -1,6 +1,6 @@
 # 0132 - Started here lists a workstream's work above its Files
 
-Status: accepted
+Status: superseded by 0231
 
 ## Context
 

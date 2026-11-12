@@ -9,7 +9,7 @@ import {
 	type AgentActionContext,
 } from '$lib/automations/automations.platform';
 import { listWorkstreams } from '$shared/repositories/repositories.platform';
-import { descendantWorkstreamIds } from '../../domain/child-requests';
+import { descendantWorkstreamIds } from '../../domain/workstream-tree';
 import { getInteraction } from '../interactions.repository';
 import { hasActivePermissionRule } from '../permissions.repository';
 import {
