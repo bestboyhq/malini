@@ -59,6 +59,7 @@ import {
 	type ShipRow,
 } from './ship.repository';
 import {
+	dropDraftShip,
 	dropShip,
 	fixAttemptSpent,
 	NO_SHIP_FAILURE,
@@ -138,6 +139,7 @@ async function pullRequestChanged(
 ): Promise<readonly string[]> {
 	const facts = pullRequestFacts(payload);
 	if (facts === null) return [];
+	if (facts.state === 'merged' && dropDraftShip(deps, workstreamId)) return [];
 	const open = facts.state === 'open' || facts.state === 'draft';
 	if (open && facts.reviewDecision === 'changes_requested' && reviewsOnItsOwn(deps)) {
 		await request(deps, workstreamId, 'review');
