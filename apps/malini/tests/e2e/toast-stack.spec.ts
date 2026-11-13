@@ -29,8 +29,8 @@ declare global {
 const ARCHIVED_NAME = 'Create the file notes/scratch.txt containing';
 const OLDER_NAME = 'Short one';
 const NEWER_NAME = 'Short two';
-const OLDER_SAVED = `Archived ${OLDER_NAME} · Its commit is saved`;
-const NEWER_SAVED = `Archived ${NEWER_NAME} · Its commit is saved`;
+const OLDER_ARCHIVED = `Archived ${OLDER_NAME}`;
+const NEWER_ARCHIVED = `Archived ${NEWER_NAME}`;
 const KEPT_REASON =
 	'Its checkout could not be moved aside (permission denied), so nothing was removed.';
 const archiveFailure = (name: string): string => `Could not archive ${name} · ${KEPT_REASON}`;
@@ -104,17 +104,17 @@ async function expectStack(
 async function show(
 	page: Page,
 	message: string,
-	{ id, undo = false }: { id?: string; undo?: boolean } = {},
+	{ id, undo = false, ttlMs = null }: { id?: string; undo?: boolean; ttlMs?: number | null } = {},
 ): Promise<void> {
 	await page.evaluate(
-		({ message, id, undo }) => {
+		({ message, id, undo, ttlMs }) => {
 			globalThis.toast.info(message, {
-				ttlMs: null,
+				ttlMs,
 				...(id === undefined ? {} : { id }),
 				...(undo ? { action: { label: 'Undo', onclick: () => undefined } } : {}),
 			});
 		},
-		{ message, id, undo },
+		{ message, id, undo, ttlMs },
 	);
 }
 
@@ -127,25 +127,11 @@ async function archive(page: Page, name: string): Promise<void> {
 	).toBeVisible({ timeout: 20_000 });
 }
 
-async function collapse(page: Page): Promise<void> {
+async function leave(page: Page): Promise<void> {
 	await page.mouse.move(4, 4);
 }
 
-async function expand(page: Page, messages: readonly string[]): Promise<void> {
-	await expect(async () => {
-		const boxes = await Promise.all(
-			(await page.getByTestId('toast').all()).map((toast) => toast.boundingBox()),
-		);
-		const lowest = Math.max(...boxes.map((box) => (box ? box.y + box.height : 0)));
-		const front = boxes.find((box) => box && box.y + box.height === lowest);
-		if (!front) throw new Error('no toast is on screen to hover');
-		await page.mouse.move(front.x + front.width - 8, front.y + front.height / 2);
-		const texts = await readToastTexts(page, messages);
-		expect(texts.map((text) => text.shown)).toEqual(messages.map(() => true));
-	}).toPass({ timeout: 20_000 });
-}
-
-test('a long toast behind newer short ones keeps its text inside its box, collapsed and expanded', async () => {
+test('a long toast behind newer short ones shows its whole text inside its box without a hover', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
 	let lockedDirectory: string | null = null;
@@ -165,17 +151,10 @@ test('a long toast behind newer short ones keeps its text inside its box, collap
 		await showToastsTogether(failures, messages.length, async () => {
 			for (const name of [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME]) await archive(page, name);
 		});
-		const newest = archiveFailure(NEWER_NAME);
 
-		await collapse(page);
-		await expectStack(page, messages, [newest]);
-		await expand(page, messages);
+		await leave(page);
 		await expectStack(page, messages, messages);
 		await captureFlow(app, 'toast-stack-expanded');
-
-		await collapse(page);
-		await expectStack(page, messages, [newest]);
-		await captureFlow(app, 'toast-stack-collapsed');
 		expectCleanConsole(app);
 	} finally {
 		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
@@ -218,18 +197,15 @@ test.describe('a hyper-ui toast in the app window', () => {
 
 				await show(page, archived, { id: 'archive', undo: true });
 				await show(page, saved, { id: 'archive' });
-				await show(page, OLDER_SAVED);
-				await show(page, NEWER_SAVED);
-				const messages = [saved, OLDER_SAVED, NEWER_SAVED];
+				await show(page, OLDER_ARCHIVED);
+				await show(page, NEWER_ARCHIVED);
+				const messages = [saved, OLDER_ARCHIVED, NEWER_ARCHIVED];
 
-				await collapse(page);
-				await expectStack(page, messages, [NEWER_SAVED]);
-
-				await expand(page, messages);
+				await leave(page);
 				await expectStack(page, messages, messages);
 
 				await show(page, 'Archived', { id: 'archive' });
-				const shorter = ['Archived', OLDER_SAVED, NEWER_SAVED];
+				const shorter = ['Archived', OLDER_ARCHIVED, NEWER_ARCHIVED];
 				await expectStack(page, shorter, shorter);
 				await expect
 					.poll(async () => {
@@ -237,9 +213,6 @@ test.describe('a hyper-ui toast in the app window', () => {
 						return Math.max(...heights) - Math.min(...heights);
 					}, 'every one-line toast is as tall as the others')
 					.toBeLessThan(2);
-
-				await collapse(page);
-				await expectStack(page, shorter, [NEWER_SAVED]);
 				expectCleanConsole(app);
 			} finally {
 				await app.close();
@@ -247,28 +220,25 @@ test.describe('a hyper-ui toast in the app window', () => {
 		});
 	}
 
-	test('a stack whose hovered toast is dismissed under a still pointer collapses once the pointer leaves', async () => {
+	test('a stack whose hovered toast is dismissed under a still pointer lets the rest time out once the pointer leaves', async () => {
 		const app = await launchMalini({ env: { ELECTRON_RENDERER_URL: url } });
 		try {
 			const { page } = app;
 			await expect.poll(() => page.evaluate(() => typeof globalThis.toast)).toBe('object');
-			await show(page, OLDER_SAVED);
-			await show(page, NEWER_SAVED);
 			await show(page, 'Archived', { id: 'archive' });
+			await show(page, OLDER_ARCHIVED, { ttlMs: 5_000 });
+			await show(page, NEWER_ARCHIVED, { ttlMs: 5_000 });
 			const hovered = page
 				.getByTestId('toast')
 				.filter({ has: page.getByText('Archived', { exact: true }) });
-			const box = await hovered.boundingBox();
-			if (!box) throw new Error('the hovered toast is not on screen');
-			await hovered.hover({ position: { x: box.width / 2, y: box.height - 3 } });
-			const messages = ['Archived', OLDER_SAVED, NEWER_SAVED];
+			await hovered.hover({ position: { x: 24, y: 3 } });
+			const messages = ['Archived', OLDER_ARCHIVED, NEWER_ARCHIVED];
 			await expectStack(page, messages, messages);
 
 			await page.evaluate(() => globalThis.toast.dismiss('archive'));
 			await expect(hovered).toHaveCount(0);
-			await collapse(page);
-			await expectStack(page, [OLDER_SAVED, NEWER_SAVED], [NEWER_SAVED]);
-			await captureFlow(app, 'toast-stack-collapsed-after-dismissal');
+			await leave(page);
+			await expect(page.getByTestId('toast')).toHaveCount(0, { timeout: 15_000 });
 			expectCleanConsole(app);
 		} finally {
 			await app.close();

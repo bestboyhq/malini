@@ -427,18 +427,16 @@
 					<div class="toaster">
 						<div class="toast-lane" data-mounted={toastMounted} {@attach mountToast}>
 							<div
-								class="border-surface-toast-border bg-surface-toast text-fg-default flex overflow-hidden rounded-xl border-[0.5px] text-sm antialiased shadow-lg"
+								class="border-surface-elevated-border bg-surface-elevated text-fg-default shadow-popup flex items-start gap-2.5 rounded-xl border-[0.5px] p-2.5 text-[13px] leading-5 antialiased"
 							>
-								<div class="flex w-max max-w-full shrink-0 items-center gap-3 p-2">
-									<div
-										class="bg-success-content/12 flex size-8 shrink-0 items-center justify-center rounded-lg"
-									>
-										<Icon name="check" size={16} class="text-success-content" />
-									</div>
-									<span class="min-w-0 break-words whitespace-normal">
-										Merged #142 · Rate limit headers archived
-									</span>
+								<div
+									class="bg-success-content/12 flex size-6 shrink-0 items-center justify-center rounded-md"
+								>
+									<Icon name="check" size={14} class="text-success-content" />
 								</div>
+								<span class="min-w-0 pt-0.5 break-words">
+									Merged #142 · Rate limit headers archived
+								</span>
 							</div>
 						</div>
 					</div>
@@ -476,14 +474,12 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		gap: 16px;
+		gap: 8px;
 	}
 
 	.toaster {
 		display: flex;
-		max-width: min(460px, calc(100% - 4px));
-		justify-content: flex-end;
-		margin-right: 4px;
+		width: min(18rem, 100%);
 		clip-path: inset(-100vh -100vw -16px -100vw);
 	}
 
@@ -537,6 +533,7 @@
 	.toast-lane {
 		display: flex;
 		min-width: 0;
+		flex: 1;
 		opacity: 0;
 		transform: translateY(100%);
 		transition:
