@@ -27,10 +27,19 @@ function freshScenes(): void {
 	localStorage.setItem('malini.settings.theme', siteTheme());
 }
 
+function freshInstall(): void {
+	for (const stored of Object.keys(localStorage)) {
+		if (stored.startsWith('malini.') && stored !== 'malini.settings.theme') {
+			localStorage.removeItem(stored);
+		}
+	}
+}
+
 if (DEMO_PLAY === 'docs') {
 	document.documentElement.dataset['demo'] = 'docs';
 	freshScenes();
 }
+if (DEMO_PLAY === 'first-run') freshInstall();
 
 window.malini = demoBridge(demoHandlers);
 passScrollToTheSite();

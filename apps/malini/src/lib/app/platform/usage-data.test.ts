@@ -22,7 +22,6 @@ import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
 import type { UsageAccount } from '$lib/stats/stats.platform';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
-import { ONBOARDING_FINISHED_SETTING } from '../domain/onboarding';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
 import { createTestContext } from './test-support';
@@ -91,10 +90,6 @@ function harness(
 	return {
 		context,
 		share: (shared: boolean) => usageData.share(shared),
-		journey: (
-			marker: Parameters<typeof usageData.journey>[0],
-			details?: Parameters<typeof usageData.journey>[1],
-		) => usageData.journey(marker, details),
 		activity,
 		reports,
 		tags,
@@ -383,96 +378,50 @@ describe('usage journeys', () => {
 		expect(activity).toEqual(['app_active', 'day']);
 	});
 
-	it('records each setup step once, with both tool states on the first', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		const launched = harness(context, undefined, { freshInstall: true });
-		await settled();
-		launched.journey('setup_tools', { claude_code: 'missing', github: 'ready' });
-		launched.journey('setup_tools', { claude_code: 'ready', github: 'ready' });
-		launched.journey('setup_sounds');
-		launched.journey('setup_defaults');
-		launched.journey('setup_heard_about');
-		await settled();
-		const steps = launched.activity.filter((name) => name.startsWith('setup_'));
-		expect(steps).toEqual(['setup_tools', 'setup_sounds', 'setup_defaults', 'setup_heard_about']);
-		expect(launched.tags[launched.activity.indexOf('setup_tools')]).toEqual({
-			cohort: '2026-10-15',
-			days: 0,
-			setup_seconds: 0,
-			claude_code: 'missing',
-			github: 'ready',
-		});
-		expect(launched.tags[launched.activity.indexOf('setup_sounds')]).toEqual({
-			cohort: '2026-10-15',
-			days: 0,
-			setup_seconds: 0,
-		});
-	});
-
-	it('times each setup step from the moment the tools step first showed', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		let clock = NOW;
-		const launched = harness(context, undefined, { freshInstall: true, now: () => clock });
-		await settled();
-		launched.journey('setup_tools', { claude_code: 'missing', github: 'missing' });
-		await settled();
-		clock = new Date(NOW.getTime() + 95_000);
-		launched.journey('setup_sounds');
-		await settled();
-		clock = new Date(NOW.getTime() + 140_000);
-		launched.journey('setup_defaults');
-		await settled();
-		setSetting(
-			context.db,
-			ONBOARDING_FINISHED_SETTING,
-			new Date(NOW.getTime() + 200_000).toISOString(),
-		);
-		clock = new Date(NOW.getTime() + 3_600_000);
-		launched.journey('setup_finished');
-		await settled();
-		const seconds = (name: UsageActivity): unknown =>
-			launched.tags[launched.activity.indexOf(name)]?.['setup_seconds'];
-		expect([
-			seconds('setup_tools'),
-			seconds('setup_sounds'),
-			seconds('setup_defaults'),
-			seconds('setup_finished'),
-		]).toEqual([0, 95, 140, 200]);
-	});
-
-	it('sends no setup time for an install that never showed the tools step', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		const launched = harness(context, undefined, { freshInstall: true });
-		await settled();
-		launched.journey('setup_sounds');
-		await settled();
-		expect(launched.tags[launched.activity.indexOf('setup_sounds')]).toEqual({
-			cohort: '2026-10-15',
-			days: 0,
-		});
-	});
-
-	it('sends setup_finished once, when onboarding finishes', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		const launched = harness(context, undefined, { freshInstall: true });
-		await settled();
-		setSetting(context.db, ONBOARDING_FINISHED_SETTING, at(15, 10));
-		launched.journey('setup_finished');
-		launched.journey('setup_finished');
-		await settled();
-		expect(launched.activity).toEqual(['app_active', 'first_open', 'day', 'setup_finished']);
-		expect(launched.tags.at(-1)).toEqual({ cohort: '2026-10-15', days: 0 });
-	});
-
-	it('sends setup_finished at launch when onboarding finished off screen', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		const first = harness(context, undefined, { freshInstall: true });
-		await settled();
-		setSetting(context.db, ONBOARDING_FINISHED_SETTING, at(15, 10));
-		const second = harness(context);
-		await settled();
-		expect(first.activity).toEqual(['app_active', 'first_open', 'day']);
-		expect(second.activity).toEqual(['app_active', 'setup_finished']);
+	it('tags the first repository with where it came from', async () => {
+		const sources = [
+			{ source: { kind: 'local-folder', path: '/tmp/repo' }, expected: 'folder' },
+			{ source: { kind: 'clone-url', url: 'https://github.com/a/b.git' }, expected: 'github' },
+			{ source: { kind: 'clone-url', url: 'https://github.com/me/new.git' }, expected: 'new' },
+		];
+		for (const { source, expected } of sources) {
+			const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+			const launched = harness(context, undefined, { freshInstall: true });
+			context.commands.define('repositories.create-github-repository', () => ({
+				fullName: 'me/new',
+				description: null,
+				cloneUrl: 'https://github.com/me/new.git',
+				private: true,
+				pushedAt: null,
+			}));
+			context.commands.define('repositories.connect', () => {
+				seedProject(context.db);
+				addRepository(context);
+				return {
+					created: true,
+					repository: {
+						id: 'repo',
+						fullName: 'me/new',
+						defaultBranch: 'main',
+						localPath: null,
+						remoteUrl: null,
+						createdAt: at(15, 9),
+					},
+				};
+			});
+			if (expected === 'new')
+				await context.commands.handle({
+					command: 'repositories.create-github-repository',
+					args: { owner: 'me', name: 'new', visibility: 'private' },
+				});
+			await context.commands.handle({ command: 'repositories.connect', args: { source } });
+			await vi.waitFor(() => expect(launched.activity).toContain('first_repository'));
+			expect(launched.tags[launched.activity.indexOf('first_repository')]).toEqual({
+				cohort: '2026-10-15',
+				days: 0,
+				source: expected,
+			});
+		}
 	});
 
 	it('records the first repository, workstream, merge and prompt once each', async () => {
@@ -1115,9 +1064,11 @@ describe('usage tools', () => {
 		]);
 	});
 
-	it('follows a Claude sign-in and marks it later once setup is over', async () => {
+	it('follows a Claude sign-in and marks it later once a prompt ran', async () => {
 		const launched = harness();
-		setSetting(launched.context.db, ONBOARDING_FINISHED_SETTING, at(15, 9));
+		seedProject(launched.context.db);
+		seedWorkstream(launched.context.db, 'ws-a', { createdAt: at(15, 9) });
+		seedRun(launched.context.db, 'r1', 'ws-a', at(15, 9));
 		launched.context.commands.define('providers.sign-in-to-claude', () => 'signed-in');
 		await call(launched.context, 'providers.sign-in-to-claude');
 		expect(tools(launched).map(({ name, tool, phase }) => [name, tool, phase])).toEqual([

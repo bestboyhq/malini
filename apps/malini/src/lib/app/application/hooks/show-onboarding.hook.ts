@@ -1,9 +1,8 @@
-import type { OnboardingScreen } from '$lib/app/domain/onboarding';
 import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store.svelte';
 
-export function showOnboardingHook(screen: OnboardingScreen): () => void {
-	onboardingStore.shown = screen;
+export function showOnboardingHook(): () => void {
+	onboardingStore.picking = true;
 	return () => {
-		onboardingStore.shown = null;
+		onboardingStore.picking = false;
 	};
 }

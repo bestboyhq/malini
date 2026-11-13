@@ -9,7 +9,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	openRepositoriesPage,
-	passSetup,
+	expectPicker,
 } from './harness';
 
 test('⌘K runs a command or finds any repository you work on, on GitHub or only on this Mac, and opens it', async () => {
@@ -29,7 +29,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 		await app.electronApp.evaluate(({ dialog }, picked) => {
 			dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] });
 		}, alpha);
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 
@@ -126,7 +126,7 @@ test('New chat asks for a repository, lists the connected ones first, and starts
 				{ full_name: 'e2e/hutch', clone_url: `file://${hutch}`, description: 'Rabbits live here.' },
 			]),
 		);
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });

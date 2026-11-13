@@ -16,7 +16,10 @@ export type ComposerSubmissionRecoverySnapshot = Readonly<{
 	elementReferences?: readonly AgentElementReference[];
 }>;
 
-export type DraftRestoration = Readonly<{ revision: number; cause: 'failed' | 'withdrawn' }>;
+export type DraftRestoration = Readonly<{
+	revision: number;
+	cause: 'failed' | 'withdrawn' | 'filled';
+}>;
 
 export function mergeFailedComposerSubmissions(
 	failures: readonly ComposerSubmissionRecoverySnapshot[],

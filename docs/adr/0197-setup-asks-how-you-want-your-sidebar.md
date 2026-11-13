@@ -1,6 +1,6 @@
 # 0197 - Setup asks how you want your sidebar
 
-Status: accepted
+Status: superseded by 0242
 
 ## Context
 

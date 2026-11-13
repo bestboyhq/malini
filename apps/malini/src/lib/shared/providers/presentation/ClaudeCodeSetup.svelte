@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { onMount, type Snippet } from 'svelte';
+	import { onMount } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
 	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
@@ -26,12 +26,10 @@
 	import ClaudeAccountList from './ClaudeAccountList.svelte';
 
 	interface Props {
-		step?: boolean;
 		nested?: boolean;
-		marker?: Snippet;
 	}
 
-	let { step = false, nested = false, marker }: Props = $props();
+	let { nested = false }: Props = $props();
 	let copied = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -46,7 +44,7 @@
 	const downloaded = $derived(
 		download !== null && download.total !== null && download.received >= download.total,
 	);
-	const listsAccounts = $derived(!step && status.kind === 'ready');
+	const listsAccounts = $derived(status.kind === 'ready');
 	const claudeUpdate = $derived(claudeCodeUpdateQuery.data);
 	const failedUpdate = $derived(listsAccounts ? claudeUpdate.failed : null);
 	const detail = $derived(
@@ -54,8 +52,6 @@
 			? installedDetail(status)
 			: (claudeSignInProgress(signIn) ?? statusDetail(status)),
 	);
-	const actionSize = $derived(step ? 'md' : 'sm');
-	const actionRadius = $derived(step ? 'full' : 'md');
 
 	function installedDetail(current: ClaudeCodeStatus): string {
 		const version = current.kind === 'ready' ? current.version : null;
@@ -122,8 +118,7 @@
 		{#if signIn === 'waiting-for-browser'}
 			<Button
 				variant="secondary"
-				size={actionSize}
-				radius={actionRadius}
+				size="sm"
 				class="shrink-0"
 				ariaLabel="Cancel signing in to Claude Code"
 				onclick={cancelClaudeSignInCommand}
@@ -136,8 +131,7 @@
 	{:else if failedUpdate}
 		<Button
 			variant="secondary"
-			size={actionSize}
-			radius={actionRadius}
+			size="sm"
 			class="shrink-0"
 			ariaLabel="Try updating Claude Code again"
 			loading={claudeUpdate.retrying}
@@ -145,7 +139,7 @@
 			onclick={() => updateClaudeCodeCommand(true)}
 		>
 			{#snippet leading()}
-				<Icon name="refresh" size={step ? 14 : 12} />
+				<Icon name="refresh" size={12} />
 			{/snippet}
 			Try again
 		</Button>
@@ -161,8 +155,7 @@
 	{:else if setupStep === 'install' && install.kind === 'failed'}
 		<Button
 			variant="secondary"
-			size={actionSize}
-			radius={actionRadius}
+			size="sm"
 			class="shrink-0"
 			ariaLabel="Try installing Claude Code again"
 			data-testid="claude-code-setup-action"
@@ -176,8 +169,7 @@
 	{:else if setupStep === 'install'}
 		<Button
 			variant="primary"
-			size={actionSize}
-			radius={actionRadius}
+			size="sm"
 			class="shrink-0"
 			ariaLabel="Install Claude Code"
 			data-testid="claude-code-setup-action"
@@ -188,8 +180,7 @@
 	{:else if setupStep === 'sign-in'}
 		<Button
 			variant="primary"
-			size={actionSize}
-			radius={actionRadius}
+			size="sm"
 			class="shrink-0"
 			ariaLabel="Sign in to Claude Code"
 			data-testid="claude-code-setup-action"
@@ -200,15 +191,14 @@
 	{:else}
 		<Button
 			variant="secondary"
-			size={actionSize}
-			radius={actionRadius}
+			size="sm"
 			class="shrink-0"
 			ariaLabel="Check Claude Code again"
 			loading={checkingAgain}
 			onclick={checkClaudeCodeAgainCommand}
 		>
 			{#snippet leading()}
-				<Icon name="refresh" size={step ? 14 : 12} />
+				<Icon name="refresh" size={12} />
 			{/snippet}
 			Check again
 		</Button>
@@ -233,40 +223,29 @@
 {/snippet}
 
 <div
-	class={step
-		? undefined
-		: [
-				'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
-				nested ? 'rounded-xl' : 'rounded-2xl',
-			]}
+	class={[
+		'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
+		nested ? 'rounded-xl' : 'rounded-2xl',
+	]}
 	data-testid="claude-code-setup"
 	data-claude-code-status={status.kind}
 >
 	<div class="flex items-center gap-3">
-		{#if marker}
-			{@render marker()}
-		{:else}
-			<div
-				class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
-				aria-hidden="true"
-			>
-				<ClaudeIcon size={16} />
-			</div>
-		{/if}
+		<div
+			class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+			aria-hidden="true"
+		>
+			<ClaudeIcon size={16} />
+		</div>
 		<div class="min-w-0 flex-1">
-			<svelte:element
-				this={step ? 'h2' : 'h3'}
-				class={['text-fg-default font-medium', step ? 'text-[15px]' : 'text-sm']}
-			>
-				Claude Code
-			</svelte:element>
-			{@render statusLine(['text-fg-tertiary leading-5', step ? 'text-[13px]' : 'text-xs'])}
+			<h3 class="text-fg-default text-sm font-medium">Claude Code</h3>
+			{@render statusLine('text-fg-tertiary text-xs leading-5')}
 		</div>
 		{#if !listsAccounts || failedUpdate}
 			{@render action()}
 		{/if}
 	</div>
-	<div class={step ? 'pl-10' : undefined}>
+	<div>
 		{@render downloadBar('mt-3')}
 		{#if listsAccounts}
 			<ClaudeAccountList class="border-surface-150-border mt-3 -mb-1.5 border-t-[0.5px] pt-1.5" />

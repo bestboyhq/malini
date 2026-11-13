@@ -44,9 +44,8 @@
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
 	import { repositoryGroups, type OwnerGroup } from '$lib/app/domain/repository-groups';
-	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import FirstRepositoryPicker from '../FirstRepositoryPicker.svelte';
-	import Onboarding from '../onboarding/Onboarding.svelte';
+	import HeardAboutCard from '../HeardAboutCard.svelte';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure } from '$shared/errors/failure-copy';
 
@@ -108,7 +107,6 @@
 	const loneRepositories = $derived(
 		groups.flatMap((group) => (group.kind === 'repository' ? [group.item] : [])),
 	);
-	const onboarding = $derived(onboardingQuery.data);
 	const firstRun = $derived(
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
 	);
@@ -126,7 +124,7 @@
 	});
 
 	$effect.pre(() => {
-		if (firstRun && onboarding.finished) picking = true;
+		if (firstRun) picking = true;
 	});
 
 	function workstreamsFor(repo: Repository): Workstream[] {
@@ -260,13 +258,13 @@
 	data-navigation-error={workstreamScopeError ? 'true' : undefined}
 	data-navigation-error-message={workstreamScopeError ?? undefined}
 >
-	{#if firstRun && onboarding.finished === false}
-		<Onboarding />
-	{:else if picking}
+	{#if picking}
 		<FirstRepositoryPicker />
 	{:else if !firstRun}
 		<div class="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-6 pt-10 pb-32">
 			<h1 class="sr-only">Repositories</h1>
+
+			<HeardAboutCard />
 
 			{#if claudeNeedsSetup}
 				<ClaudeCodeSetup nested />

@@ -1,57 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import {
-	DEFAULT_ONBOARDING_SIDEBAR,
-	claudeCodeOnboardingStatus,
 	customArrangement,
-	onboardingSidebarArrangement,
-	onboardingToolsSettled,
+	presetArrangement,
 	presetArranged,
 	sidebarPreset,
-} from './onboarding';
+	type SidebarPreset,
+} from './sidebar-preset';
 import { DEFAULT_SIDEBAR_ARRANGEMENT, type SidebarArrangement } from './sidebar-arrangement';
 
-describe('onboarding tools', () => {
-	it('settles once every tool is ready', () => {
-		expect(onboardingToolsSettled({ 'claude-code': 'ready', github: 'ready' })).toBe(true);
-		expect(onboardingToolsSettled({ 'claude-code': 'ready', github: 'signed-out' })).toBe(false);
-		expect(onboardingToolsSettled({ 'claude-code': 'checking', github: 'ready' })).toBe(false);
-	});
+const SEPARATE_EVERYTHING: SidebarPreset = { repositories: 'separate', show: 'everything' };
 
-	it('settles when a tool cannot be checked, so a failed check never traps the user', () => {
-		expect(onboardingToolsSettled({ 'claude-code': 'ready', github: 'unknown' })).toBe(true);
-	});
-
-	it('takes an installed Claude Code as done, signed in or not, but never a missing one', () => {
-		expect(claudeCodeOnboardingStatus('signed-out')).toBe('ready');
-		expect(claudeCodeOnboardingStatus('ready')).toBe('ready');
-		expect(claudeCodeOnboardingStatus('missing')).toBe('missing');
-		expect(claudeCodeOnboardingStatus('checking')).toBe('checking');
-	});
-});
-
-describe('onboarding sidebar', () => {
+describe('sidebar preset', () => {
 	it('keeps the default sidebar for separate repositories showing everything', () => {
-		expect(onboardingSidebarArrangement(DEFAULT_ONBOARDING_SIDEBAR)).toEqual(
+		expect(presetArrangement(SEPARATE_EVERYTHING)).toEqual(
 			DEFAULT_SIDEBAR_ARRANGEMENT,
 		);
 	});
 
 	it('lists mixed repositories flat, grouped by status', () => {
 		expect(
-			onboardingSidebarArrangement({ ...DEFAULT_ONBOARDING_SIDEBAR, repositories: 'mixed' }),
+			presetArrangement({ ...SEPARATE_EVERYTHING, repositories: 'mixed' }),
 		).toMatchObject({ grouping: 'status', subgrouping: 'none', show: 'everything' });
 	});
 
 	it('nests repositories under the statuses that need you when repositories stay separate', () => {
 		expect(
-			onboardingSidebarArrangement({ ...DEFAULT_ONBOARDING_SIDEBAR, show: 'attention' }),
+			presetArrangement({ ...SEPARATE_EVERYTHING, show: 'attention' }),
 		).toMatchObject({ grouping: 'status', subgrouping: 'repository', show: 'attention' });
 	});
 
 	it('lists mixed repositories flat when only what needs you shows', () => {
 		expect(
-			onboardingSidebarArrangement({
-				...DEFAULT_ONBOARDING_SIDEBAR,
+			presetArrangement({
+				...SEPARATE_EVERYTHING,
 				repositories: 'mixed',
 				show: 'attention',
 			}),
@@ -60,7 +41,7 @@ describe('onboarding sidebar', () => {
 });
 
 describe('sidebar options', () => {
-	const flat = onboardingSidebarArrangement({ repositories: 'mixed', show: 'everything' });
+	const flat = presetArrangement({ repositories: 'mixed', show: 'everything' });
 
 	it('reads repositories as mixed only when a status or day list is flat', () => {
 		expect(sidebarPreset(DEFAULT_SIDEBAR_ARRANGEMENT).repositories).toBe('separate');
@@ -84,7 +65,7 @@ describe('sidebar options', () => {
 	});
 
 	it('lands Show all on the preset of the repositories answer', () => {
-		const attention = onboardingSidebarArrangement({ repositories: 'separate', show: 'attention' });
+		const attention = presetArrangement({ repositories: 'separate', show: 'attention' });
 		const shown = presetArranged(attention, { show: 'everything' });
 		expect(shown).toEqual(DEFAULT_SIDEBAR_ARRANGEMENT);
 		expect(customArrangement(shown)).toBe(false);

@@ -7,132 +7,13 @@ import {
 	captureFlow,
 	connectFolder,
 	expectCleanConsole,
-	invoke,
+	expectPicker,
 	launchMalini,
 	recordBrowserAndClipboard,
 	recordedBrowserAndClipboard,
 } from './harness';
 
-test('setup signs in to GitHub with a one-time code, without a terminal', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
-	try {
-		const { page } = app;
-		await recordBrowserAndClipboard(app);
-		const setup = page.getByTestId('onboarding');
-		await expect(
-			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
-		).toBeVisible();
-		const github = setup.getByTestId('github-setup');
-		await expect(github).toHaveAttribute('data-github-status', 'signed-out', { timeout: 20_000 });
-		await expect(setup.getByRole('heading', { name: /^Claude Code Signed in as / })).toBeVisible({
-			timeout: 20_000,
-		});
-		await expect(github.getByRole('button', { name: 'Connect GitHub' })).toBeVisible();
-		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
-		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
-		await captureFlow(app, 'github-sign-in-signed-out');
-
-		await github.getByRole('button', { name: 'Connect GitHub' }).click();
-
-		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
-		await expect
-			.poll(() => recordedBrowserAndClipboard(app))
-			.toEqual({ opened: ['https://github.com/login/device'], copied: ['E2E0-C0DE'] });
-		await captureFlow(app, 'github-sign-in-code');
-
-		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
-
-		await expect(
-			setup.getByRole('heading', { name: 'GitHub Signed in as e2e-user' }),
-		).toBeVisible();
-		await expect(setup.getByRole('button', { name: 'Connect GitHub' })).toBeHidden();
-		await expect(setup.getByRole('button', { name: 'Continue' })).toBeEnabled();
-		await captureFlow(app, 'github-sign-in-ready');
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('setup installs a missing GitHub CLI and Claude Code side by side, says why each install failed, and never lets the user past them', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini({
-		env: { MALINI_GH_PATH: '/usr/bin:/bin', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
-		allowedDiagnostics: [
-			/repositories\.install-github-cli GhInstallError/u,
-			/providers\.install-claude-code ClaudeInstallError/u,
-		],
-	});
-	try {
-		const setup = app.page.getByTestId('onboarding');
-		const github = setup.getByTestId('github-setup');
-		const claude = setup.getByTestId('claude-code-setup');
-		await expect(github).toHaveAttribute('data-github-status', 'missing', { timeout: 20_000 });
-		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', {
-			timeout: 20_000,
-		});
-		await expect(github.getByRole('status')).toHaveText('The GitHub CLI is not on this Mac.');
-		const proceed = setup.getByRole('button', { name: 'Continue' });
-		const skip = setup.getByRole('button', { name: 'Skip', exact: true });
-		await expect(proceed).toBeDisabled();
-		await expect(skip).toHaveCount(0);
-		await captureFlow(app, 'setup-github-cli-missing');
-
-		await claude.getByRole('button', { name: 'Install Claude Code' }).click();
-		await github.getByRole('button', { name: 'Install the GitHub CLI' }).click();
-
-		await expect(
-			github.getByRole('button', { name: 'Try installing the GitHub CLI again' }),
-		).toBeVisible({ timeout: 20_000 });
-		await expect(
-			claude.getByRole('button', { name: 'Try installing Claude Code again' }),
-		).toBeVisible({ timeout: 20_000 });
-		await expect(github.getByRole('status')).toContainText('Could not download the GitHub CLI');
-		await expect(claude.getByRole('status')).toContainText('Could not download Claude Code');
-		await expect(github).toHaveAttribute('data-github-status', 'missing');
-		await expect(proceed).toBeDisabled();
-		await expect(skip).toHaveCount(0);
-		await captureFlow(app, 'setup-github-cli-install-failed');
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('setup shows every tool at once, so the user can start each one without waiting for the other', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini({
-		env: { E2E_GITHUB_SIGNED_OUT: '1', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
-		allowedDiagnostics: [/providers\.install-claude-code ClaudeInstallError/u],
-	});
-	try {
-		await recordBrowserAndClipboard(app);
-		const setup = app.page.getByTestId('onboarding');
-		const tools = setup.getByRole('list', { name: 'Tools' });
-		const install = tools.getByRole('button', { name: 'Install Claude Code' });
-		const connect = tools.getByRole('button', { name: 'Connect GitHub' });
-		await expect(install).toBeVisible({ timeout: 20_000 });
-		await expect(connect).toBeVisible({ timeout: 20_000 });
-		await expect(tools.getByRole('heading', { name: 'Claude Code', exact: true })).toBeVisible();
-		await expect(tools.getByRole('heading', { name: 'GitHub', exact: true })).toBeVisible();
-		await captureFlow(app, 'setup-tools-all-open');
-
-		await install.click();
-		await connect.click();
-
-		await expect(tools.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
-		await expect(
-			tools.getByRole('button', { name: 'Try installing Claude Code again' }),
-		).toBeVisible({ timeout: 20_000 });
-		await captureFlow(app, 'setup-tools-side-by-side');
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('after setup, a signed-out clone dialog asks only to connect GitHub, then lists repositories', async () => {
+test('the picker signs in to GitHub with a one-time code, without a terminal, then lists your repositories', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
 	try {
@@ -148,10 +29,91 @@ test('after setup, a signed-out clone dialog asks only to connect GitHub, then l
 				},
 			]),
 		);
-		await invoke(page, 'app.set-setting', {
-			key: 'onboarding.finished-at',
-			value: new Date().toISOString(),
-		});
+		await expectPicker(page);
+		const chooser = page.getByRole('region', { name: 'Your repositories' });
+		const github = chooser.getByTestId('github-setup');
+		await expect(github).toHaveAttribute('data-github-status', 'signed-out', { timeout: 20_000 });
+		await expect(
+			github.getByRole('heading', { name: 'Sign in to GitHub to list your repositories' }),
+		).toBeVisible();
+		await expect(github.getByRole('status')).toHaveText(
+			'Malini clones its own copy. Your checkouts stay as they are.',
+		);
+		await expect(chooser.getByRole('button', { name: 'Open a folder' })).toBeVisible();
+		await expect(chooser.getByRole('list', { name: 'Your GitHub repositories' })).toHaveCount(0);
+		await captureFlow(app, 'github-sign-in-signed-out');
+
+		await github.getByRole('button', { name: 'Sign in to GitHub' }).click();
+
+		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
+		await expect
+			.poll(() => recordedBrowserAndClipboard(app))
+			.toEqual({ opened: ['https://github.com/login/device'], copied: ['E2E0-C0DE'] });
+		await captureFlow(app, 'github-sign-in-code');
+
+		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
+
+		await expect(
+			chooser
+				.getByRole('list', { name: 'Your GitHub repositories' })
+				.getByRole('button', { name: 'e2e/hutch' }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(chooser.getByTestId('github-setup')).toHaveCount(0);
+		await captureFlow(app, 'github-sign-in-ready');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a missing GitHub CLI and Claude Code install on their own at launch, and each says why it failed', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({
+		env: { MALINI_GH_PATH: '/usr/bin:/bin', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
+		allowedDiagnostics: [
+			/repositories\.install-github-cli GhInstallError/u,
+			/providers\.install-claude-code ClaudeInstallError/u,
+		],
+	});
+	try {
+		const { page } = app;
+		await expectPicker(page);
+		const github = page.getByTestId('github-setup');
+		const claude = page.getByTestId('claude-code-install-status');
+		await expect(github).toHaveAttribute('data-github-status', 'missing', { timeout: 20_000 });
+		const githubAgain = github.getByRole('button', { name: 'Try installing the GitHub CLI again' });
+		await expect(githubAgain).toBeVisible({ timeout: 20_000 });
+		await expect(github.getByRole('status')).toContainText('Could not download the GitHub CLI');
+		await expect(claude).toHaveRole('alert', { timeout: 20_000 });
+		await expect(claude).toContainText('Could not download Claude Code');
+		await expect(claude.getByRole('button', { name: 'Try again' })).toBeVisible();
+		await captureFlow(app, 'first-run-tools-install-failed');
+
+		await githubAgain.click();
+		await expect(githubAgain).toBeVisible({ timeout: 20_000 });
+		await expect(github).toHaveAttribute('data-github-status', 'missing');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a signed-out clone dialog asks only to sign in to GitHub, then lists repositories', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
+	try {
+		const { page } = app;
+		await recordBrowserAndClipboard(app);
+		writeFileSync(
+			join(app.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify([
+				{
+					full_name: 'e2e/hutch',
+					clone_url: 'https://github.com/e2e/hutch.git',
+					description: null,
+				},
+			]),
+		);
 		await connectFolder(app, 'pasture');
 		await page.getByRole('button', { name: 'Find a repository' }).first().click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
@@ -160,7 +122,7 @@ test('after setup, a signed-out clone dialog asks only to connect GitHub, then l
 		await expect(dialog.getByRole('listbox')).toHaveCount(0);
 		await captureFlow(app, 'github-sign-in-clone-dialog');
 
-		await github.getByRole('button', { name: 'Connect GitHub' }).click();
+		await github.getByRole('button', { name: 'Sign in to GitHub' }).click();
 		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
 		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
 

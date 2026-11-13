@@ -14,7 +14,6 @@ import type {
 	SetThemeModeArgs,
 	ThemeMode,
 } from '$contract/commands';
-import { SETUP_TOOL_STATES } from '$contract/commands';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import { APP_STARTED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -26,11 +25,6 @@ import { currentEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
 import type { UsageAccount } from '$lib/stats/stats.platform';
 import type { AppPlatform } from '../app.platform';
-import {
-	ONBOARDING_FINISHED_SETTING,
-	ONBOARDING_STEPS,
-	type OnboardingStep,
-} from '../domain/onboarding';
 import {
 	ConfirmedShutdown,
 	openAgentRunCount,
@@ -48,7 +42,7 @@ import { getSetting, listSettings, setSetting } from './settings.repository';
 import { createElectronShellHost, type ShellHost } from './shell-host';
 import { StreamingDetector } from './streaming';
 import { startUpdates } from './updates';
-import { setupStepMarker, startUsageData, type UsageData } from './usage-data';
+import { startUsageData } from './usage-data';
 import { readUsageReport } from './usage-report';
 import { createWindowCommands, type WindowCommands } from './window';
 import { lidTools, startLidHold } from './lid-hold';
@@ -74,7 +68,7 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		...(deps.profilePublished ? { published: deps.profilePublished } : {}),
 		...(deps.freshInstall === undefined ? {} : { freshInstall: deps.freshInstall }),
 	});
-	defineSettingsCommands(context, usageData);
+	defineSettingsCommands(context);
 	context.commands.define('app.share-usage-data', (args: unknown): void =>
 		usageData.share(requireBoolean(args, 'shared')),
 	);
@@ -225,7 +219,7 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	return window;
 }
 
-function defineSettingsCommands(context: MainContext, usageData: UsageData): void {
+function defineSettingsCommands(context: MainContext): void {
 	const { db, commands } = context;
 
 	commands.define('app.list-settings', (): Record<string, string> => listSettings(db));
@@ -235,41 +229,9 @@ function defineSettingsCommands(context: MainContext, usageData: UsageData): voi
 		report: readUsageReport(db, new Date()),
 	}));
 
-	commands.define('app.set-setting', (args: unknown): void => {
-		const key = requireString(args, 'key');
-		setSetting(db, key, requireString(args, 'value'));
-		if (key === ONBOARDING_FINISHED_SETTING) usageData.journey('setup_finished');
-	});
-
-	commands.define('app.report-setup-step', (args: unknown): void => {
-		const step = requireSetupStep(args);
-		usageData.journey(setupStepMarker(step), setupStepDetails(args, step));
-	});
-}
-
-function requireSetupStep(args: unknown): OnboardingStep {
-	const value = requireString(args, 'step');
-	const step = ONBOARDING_STEPS.find((candidate) => candidate === value);
-	if (!step) throw new Error('invalid args: `step` must be a setup step');
-	return step;
-}
-
-function setupStepDetails(
-	args: unknown,
-	step: OnboardingStep,
-): Readonly<Record<string, string>> | undefined {
-	if (step !== 'tools') return undefined;
-	return {
-		claude_code: requireSetupToolState(args, 'claudeCode'),
-		github: requireSetupToolState(args, 'github'),
-	};
-}
-
-function requireSetupToolState(args: unknown, key: string): string {
-	const value = requireString(args, key);
-	const state = SETUP_TOOL_STATES.find((candidate) => candidate === value);
-	if (!state) throw new Error(`invalid args: \`${key}\` must be a tool state`);
-	return state;
+	commands.define('app.set-setting', (args: unknown): void =>
+		setSetting(db, requireString(args, 'key'), requireString(args, 'value')),
+	);
 }
 
 function defineShutdownCommands(

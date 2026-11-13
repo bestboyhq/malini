@@ -1,8 +1,10 @@
 import type { CustomSound, CustomSoundKind } from '$contract/sounds';
 import { invoke } from '$shared/port/invoke';
 import {
+	SOUNDS_NOTED_SETTING,
 	soundChoices,
 	soundSettingKey,
+	soundsNoted,
 	type LoadedSounds,
 	type SoundSignal,
 } from '$shared/sounds/domain/sounds';
@@ -13,7 +15,14 @@ class SoundsService {
 			invoke('app.list-settings', undefined),
 			invoke('sounds.list', undefined),
 		]);
-		return { choices: soundChoices(settings), custom };
+		return { choices: soundChoices(settings), custom, noted: soundsNoted(settings) };
+	}
+
+	note(): Promise<void> {
+		return invoke('app.set-setting', {
+			key: SOUNDS_NOTED_SETTING,
+			value: new Date().toISOString(),
+		});
 	}
 
 	choose(signal: SoundSignal, id: string): Promise<void> {

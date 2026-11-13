@@ -16,10 +16,10 @@
 	import { Icon } from '$hyper-ui/icons';
 	import {
 		customArrangement,
-		onboardingSidebarArrangement,
+		presetArrangement,
 		sidebarPreset,
 		type SidebarPreset,
-	} from '$lib/app/domain/onboarding';
+	} from '$lib/app/domain/sidebar-preset';
 	import {
 		SIDEBAR_GROUPINGS,
 		SIDEBAR_ORDERINGS,
@@ -247,7 +247,7 @@
 										variant="ghost"
 										size="sm"
 										class="font-normal"
-										onclick={() => onarrange(onboardingSidebarArrangement(preset))}
+										onclick={() => onarrange(presetArrangement(preset))}
 									>
 										Reset
 									</Button>

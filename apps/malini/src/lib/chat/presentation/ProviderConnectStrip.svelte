@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ClassValue } from 'svelte/elements';
 	import { Button } from '$hyper-ui/components/button';
+	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { Strip } from '$hyper-ui/components/strip';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
@@ -11,14 +12,15 @@
 		cancelChatGptSignInCommand,
 		cancelClaudeSignInCommand,
 		chatGptSignInQuery,
+		claudeCodeInstallQuery,
 		claudeSignInQuery,
+		installClaudeCodeCommand,
 		modelAccessQuery,
 		providerKeyUrl,
 		saveProviderKeyCommand,
 		signInToChatGptCommand,
 		signInToClaudeCommand,
 	} from '$shared/providers/providers.api';
-	import { PROVIDER_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 
 	interface Props {
@@ -42,6 +44,9 @@
 	const waiting = $derived(
 		(access.kind === 'claude-signed-out' && (waitingForClaude || busy)) ||
 			(access.kind === 'chatgpt-signed-out' && waitingForChatGpt),
+	);
+	const install = $derived(
+		access.kind === 'claude-code-missing' ? claudeCodeInstallQuery.data : null,
 	);
 	const hasDraft = $derived(draft.trim().length > 0);
 	const keyUrl = $derived(access.kind === 'needs-key' ? providerKeyUrl(access.providerId) : null);
@@ -146,6 +151,28 @@
 				<BusyIcon size={12} />
 				<span class="truncate">Continue in your browser</span>
 			</span>
+		{:else if install?.kind === 'installing'}
+			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5" role="status">
+				<BusyIcon size={12} />
+				<span class="truncate">
+					Installing Claude Code. <span class="text-fg-tertiary">
+						Your prompt sends once it is in
+					</span>
+				</span>
+			</span>
+			{#if install.progress}
+				<DownloadProgress
+					class="min-w-32 flex-1"
+					received={install.progress.received}
+					total={install.progress.total}
+					ariaLabel="Claude Code download"
+				/>
+			{/if}
+		{:else if install?.kind === 'failed'}
+			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5" role="alert">
+				<Icon name="warning" size={12} />
+				<span class="min-w-0 break-words">{install.message}</span>
+			</span>
 		{:else}
 			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
 				<Icon name={access.kind === 'claude-code-missing' ? 'warning' : 'lock'} size={12} />
@@ -202,15 +229,15 @@
 					>
 						Continue with ChatGPT
 					</Button>
-				{:else if access.kind === 'claude-code-missing'}
+				{:else if access.kind === 'claude-code-missing' && install?.kind !== 'installing'}
 					<Button
 						variant="primary"
 						size="sm"
-						href={PROVIDER_SETTINGS_HREF}
 						bind:element={primary}
-						data-testid="provider-connect-setup"
+						onclick={installClaudeCodeCommand}
+						data-testid="provider-connect-install"
 					>
-						Set up
+						{install?.kind === 'failed' ? 'Try again' : 'Install'}
 					</Button>
 				{/if}
 			{/if}

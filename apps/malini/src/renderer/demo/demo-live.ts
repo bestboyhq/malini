@@ -2,7 +2,7 @@ import type { AgentEventEnvelope, AgentSessionSummary } from '$contract/agent';
 import type { CreateWorkstreamArgs } from '$contract/commands';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { ShipButton, ShipStateRecord } from '$contract/pull-requests';
-import type { WorkstreamDto } from '$contract/repositories';
+import type { ArchivedWorkstreamDto, WorkstreamDto } from '$contract/repositories';
 import type { AgentEvent } from '$lib/chat/domain/events';
 import type { DemoEmit } from './demo-bridge';
 import { openPage } from './demo-browser';
@@ -18,6 +18,7 @@ import {
 	SETUP_WORKSTREAM,
 	toolEvents,
 	treeOf,
+	WORKSTREAM_PATH,
 	workstreamDto,
 	WORKSTREAMS,
 	type DemoRun,
@@ -47,13 +48,103 @@ type StarterScript = Readonly<{
 
 const STARTER_SCRIPTS: readonly StarterScript[] = [TOUR_STARTER];
 
+type DemoFile = DemoWorkstream['files'][number];
+
+type FirstRunScript = Readonly<{
+	name: string;
+	tools: readonly (readonly [name: string, input: Record<string, unknown>, output: string])[];
+	files: readonly DemoFile[];
+	report: string;
+}>;
+
+const FIRST_RUN_SCRIPTS: ReadonlyMap<string, FirstRunScript> = new Map([
+	[
+		'Read this repository and tell me how it is built: the main parts, how they talk, and how to run it.',
+		{
+			name: 'How this repository is built',
+			tools: [
+				['Read', { file_path: 'README.md' }, 'ok'],
+				['Read', { file_path: 'package.json' }, 'ok'],
+				['Glob', { pattern: 'src/**/*.ts' }, '38 files'],
+			],
+			files: [],
+			report: [
+				'A pnpm workspace with one app and the packages it shares.',
+				'',
+				'- `src/routes` holds the pages, `src/lib` the logic they call.',
+				'- Every page reads its data through one typed client in `src/lib/api.ts`.',
+				'- `pnpm install`, then `pnpm dev` runs it and `pnpm test` checks it.',
+				'',
+				'Outcome: You know how this repository is built',
+				'Needs: nothing',
+			].join('\n'),
+		},
+	],
+	[
+		'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
+		{
+			name: 'Fix the first failing check',
+			tools: [
+				['Bash', { command: 'pnpm lint && pnpm test' }, 'FAIL src/lib/time.test.ts'],
+				['Read', { file_path: 'src/lib/time.ts' }, 'ok'],
+				['Edit', { file_path: 'src/lib/time.ts' }, 'ok'],
+				['Bash', { command: 'pnpm test' }, 'Tests 64 passed'],
+			],
+			files: [{ path: 'src/lib/time.ts', additions: 3, deletions: 1 }],
+			report: [
+				'The lint passed. One test failed: `formatDuration` rounded clips under 500 ms down to 0. It rounds to the nearest frame now.',
+				'',
+				'- Changed: `src/lib/time.ts` rounds to the nearest frame',
+				'- Verified: The lint and all 64 tests pass',
+				'',
+				'Outcome: The first failing test passes',
+				'Needs: nothing',
+			].join('\n'),
+		},
+	],
+	[
+		'Pick one small open issue in this repository and fix it.',
+		{
+			name: 'Fix a small open issue',
+			tools: [
+				[
+					'Bash',
+					{ command: 'gh issue list --limit 10' },
+					'#42  Empty search shows a spinner forever',
+				],
+				['Read', { file_path: 'src/lib/search.ts' }, 'ok'],
+				['Edit', { file_path: 'src/lib/search.ts' }, 'ok'],
+				['Write', { file_path: 'src/lib/search.test.ts' }, 'ok'],
+				['Bash', { command: 'pnpm test' }, 'Tests 65 passed'],
+			],
+			files: [
+				{ path: 'src/lib/search.ts', additions: 4, deletions: 0 },
+				{ path: 'src/lib/search.test.ts', additions: 9, deletions: 0 },
+			],
+			report: [
+				'I took #42, "Empty search shows a spinner forever". An empty query returns no results at once now.',
+				'',
+				'- Changed: `src/lib/search.ts` returns early on an empty query',
+				'- Verified: A new test covers the empty query, and all 65 tests pass',
+				'',
+				'Outcome: Issue #42 is fixed on this branch',
+				'Needs: nothing',
+			].join('\n'),
+		},
+	],
+]);
+
 const REPLIES: ReadonlyMap<string, string> = new Map([[TOUR_FEEDBACK, TOUR_THREAD_REPORT]]);
 
-const listed: DemoWorkstream[] = [
-	...(DEMO_PLAY === 'setup' ? [SETUP_WORKSTREAM] : []),
-	...WORKSTREAMS,
-	...(DEMO_PLAY === 'docs' ? DOCS_WORKSTREAMS : []),
-];
+const listed: DemoWorkstream[] =
+	DEMO_PLAY === 'first-run'
+		? []
+		: [
+				...(DEMO_PLAY === 'setup' ? [SETUP_WORKSTREAM] : []),
+				...WORKSTREAMS,
+				...(DEMO_PLAY === 'docs' ? DOCS_WORKSTREAMS : []),
+			];
+const archived: ArchivedWorkstreamDto[] = [];
 const threads = new Map<string, Readonly<{ workstreamId: string; model: string; name: string }>>();
 const statuses = new Map<string, AgentSessionSummary['status']>();
 const transcripts = new Map<string, AgentEventEnvelope[]>();
@@ -265,12 +356,73 @@ export function createWorkstream(args: CreateWorkstreamArgs): string {
 		branch: `malini/${args.workstreamId}`,
 		activeAt: new Date().toISOString(),
 		files: [],
-		tree: treeOf(args.projectId),
+		tree: treeOf(demoProjectName(args.projectId)),
 		runs: [],
 		ship: null,
 	};
 	listed.push(workstream);
 	return workstreamDto(workstream).path;
+}
+
+function demoProjectName(projectId: string): string {
+	return projectId.split('__').at(-1) ?? projectId;
+}
+
+function changeFiles(emit: DemoEmit, workstreamId: string, files: readonly DemoFile[]): void {
+	const index = listed.findIndex((workstream) => workstream.id === workstreamId);
+	const workstream = listed[index];
+	if (!workstream || files.length === 0) return;
+	listed[index] = { ...workstream, files };
+	emit('repositories:workstream-files-changed', {
+		workstreamId,
+		changedAt: new Date().toISOString(),
+		paths: files.map((file) => file.path),
+	});
+}
+
+export function archivedWorkstreams(): ArchivedWorkstreamDto[] {
+	return archived;
+}
+
+export function archiveWorkstream(emit: DemoEmit, workstreamId: string): void {
+	const index = listed.findIndex((workstream) => workstream.id === workstreamId);
+	const workstream = listed[index];
+	if (!workstream) return;
+	const number = merged.get(workstreamId) ?? null;
+	archived.push({
+		id: workstream.id,
+		projectId: workstream.projectId,
+		name: workstream.name,
+		baseBranch: 'main',
+		archivedAt: new Date().toISOString(),
+		mergedPullRequest:
+			number === null ? null : { number, url: pullRequestUrl(workstreamId, number) },
+		savedForLater: false,
+		startedBy: workstream.startedBy ?? null,
+	});
+	listed.splice(index, 1);
+	emit('repositories:workstream-removed', {
+		workstreamId,
+		worktreePath: WORKSTREAM_PATH(workstreamId),
+		archived: true,
+	});
+}
+
+function firstRunSteps(
+	emit: DemoEmit,
+	workstreamId: string,
+	id: string,
+	runId: string,
+	script: FirstRunScript,
+): Step[] {
+	return [
+		[100, () => rename(emit, workstreamId, script.name)],
+		...script.tools.flatMap(([name, input, output], index) =>
+			tool(emit, id, runId, `${runId}-${index}`, name, input, output, 900),
+		),
+		[0, () => changeFiles(emit, workstreamId, script.files)],
+		...reply(emit, id, runId, script.report, true),
+	];
 }
 
 function rename(emit: DemoEmit, workstreamId: string, name: string): void {
@@ -450,51 +602,54 @@ export function sendPrompt(
 			? STARTER_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
 			: undefined;
 	const answer = REPLIES.get(prompt.trim());
+	const firstRun = DEMO_PLAY === 'first-run' ? FIRST_RUN_SCRIPTS.get(prompt.trim()) : undefined;
 	const steps =
 		scene && script
 			? starterSteps(emit, scene.id, id, runId, script)
-			: scene && docsReply
-				? [
-						...work(emit, scene.id, { ...docsReply, id: runId }, null, docsReply.workMs),
-						...reply(emit, id, runId, docsReply.report, true),
-					]
-				: answer
+			: scene && firstRun
+				? firstRunSteps(emit, scene.id, id, runId, firstRun)
+				: scene && docsReply
 					? [
-							...tool(
-								emit,
-								id,
-								runId,
-								`${runId}-read`,
-								'Read',
-								{ file_path: 'site/src/lib/Footer.svelte' },
-								'ok',
-								700,
-							),
-							...tool(
-								emit,
-								id,
-								runId,
-								`${runId}-edit`,
-								'Edit',
-								{ file_path: 'site/src/lib/Footer.svelte' },
-								'ok',
-								1_100,
-							),
-							...reply(emit, id, runId, answer, true),
+							...work(emit, scene.id, { ...docsReply, id: runId }, null, docsReply.workMs),
+							...reply(emit, id, runId, docsReply.report, true),
 						]
-					: [
-							...tool(
-								emit,
-								id,
-								runId,
-								`${runId}-read`,
-								'Read',
-								{ file_path: 'AGENTS.md' },
-								'ok',
-								900,
-							),
-							...reply(emit, id, runId, DEMO_REPLY, true),
-						];
+					: answer
+						? [
+								...tool(
+									emit,
+									id,
+									runId,
+									`${runId}-read`,
+									'Read',
+									{ file_path: 'site/src/lib/Footer.svelte' },
+									'ok',
+									700,
+								),
+								...tool(
+									emit,
+									id,
+									runId,
+									`${runId}-edit`,
+									'Edit',
+									{ file_path: 'site/src/lib/Footer.svelte' },
+									'ok',
+									1_100,
+								),
+								...reply(emit, id, runId, answer, true),
+							]
+						: [
+								...tool(
+									emit,
+									id,
+									runId,
+									`${runId}-read`,
+									'Read',
+									{ file_path: 'AGENTS.md' },
+									'ok',
+									900,
+								),
+								...reply(emit, id, runId, DEMO_REPLY, true),
+							];
 	running.set(id, runId);
 	play(
 		[...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...steps],
@@ -550,7 +705,8 @@ const ships = new Map<string, ShipStateRecord>(
 );
 
 export function pullRequestUrl(workstreamId: string, number: number): string {
-	return `https://github.com/${OWNER}/${workstreamOf(workstreamId)?.projectId ?? 'malini'}/pull/${number}`;
+	const projectId = workstreamOf(workstreamId)?.projectId ?? 'malini';
+	return `https://github.com/${OWNER}/${demoProjectName(projectId)}/pull/${number}`;
 }
 
 function shipState(
@@ -617,6 +773,7 @@ function land(emit: DemoEmit, workstreamId: string, number: number): void {
 			state: null,
 			merged: { pullRequestNumber: number, pullRequestUrl: pullRequestUrl(workstreamId, number) },
 		});
+		if (DEMO_PLAY === 'first-run') archiveWorkstream(emit, workstreamId);
 	}, MERGED_MS);
 }
 

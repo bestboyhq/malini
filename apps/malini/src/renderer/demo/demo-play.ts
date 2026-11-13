@@ -1,6 +1,6 @@
-export type DemoPlayMode = 'tour' | 'setup' | 'docs';
+export type DemoPlayMode = 'tour' | 'setup' | 'docs' | 'first-run';
 
-const PLAYS: readonly DemoPlayMode[] = ['tour', 'setup', 'docs'];
+const PLAYS: readonly DemoPlayMode[] = ['tour', 'setup', 'docs', 'first-run'];
 
 const play = new URLSearchParams(location.search).get('play');
 

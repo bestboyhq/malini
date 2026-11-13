@@ -3,28 +3,23 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
-import { CLAUDE_INSTALL_COMMAND } from '../../src/contract/agent';
-import type { BrainStatus } from '../../src/contract/brain';
-import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
 import {
 	CREATED_GITHUB_REPOSITORY_FIXTURE,
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
+	expectPicker,
 	invoke,
 	launchMalini,
 	openWorkstream,
-	passDefaults,
-	passSidebar,
-	passSetup,
 	seedWorkstream,
 	sendPrompt,
 	type WorkstreamRow,
 	withoutConsoleErrors,
 } from './harness';
 
-test('a new Mac without Claude Code cannot pass setup, installs it in place, and says why an install failed', async () => {
+test('a new Mac without Claude Code installs it on its own, holds the first prompt, and says why the install failed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
@@ -32,33 +27,36 @@ test('a new Mac without Claude Code cannot pass setup, installs it in place, and
 	});
 	try {
 		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		await expect(
-			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
-		).toBeVisible();
-		await expect(
-			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(5);
-		const claude = setup.getByTestId('claude-code-setup');
-		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
-		await expect(claude.getByRole('status')).toHaveText('Not installed on this Mac yet.');
-		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
-		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
-		await expect(claude.getByText(CLAUDE_INSTALL_COMMAND)).toHaveCount(0);
-		await captureFlow(app, 'first-run-install-claude');
-
-		await claude.getByRole('button', { name: 'Install Claude Code' }).click();
-
-		await expect(
-			claude.getByRole('button', { name: 'Try installing Claude Code again' }),
-		).toBeVisible({ timeout: 20_000 });
-		await expect(claude.getByRole('status')).toHaveText(
+		await expectPicker(page);
+		const failed = page.getByTestId('claude-code-install-status');
+		await expect(failed).toHaveRole('alert', { timeout: 20_000 });
+		await expect(failed).toContainText(
 			'Could not download Claude Code: net::ERR_NAME_NOT_RESOLVED',
 		);
-		await expect(claude.getByText(CLAUDE_INSTALL_COMMAND)).toBeVisible();
-		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
-		await expect(setup.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0);
-		await captureFlow(app, 'first-run-install-claude-failed');
+		await expect(page.getByTestId('claude-code-setup')).toHaveCount(0);
+		await captureFlow(app, 'first-run-claude-install-failed');
+
+		await failed.getByRole('button', { name: 'Try again' }).click();
+		await expect(failed).toHaveRole('alert', { timeout: 20_000 });
+		await expect(failed.getByRole('button', { name: 'Try again' })).toBeVisible();
+
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-held-ws', 'Held');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		const strip = page.getByTestId('provider-connect-strip');
+		await expect(strip).toHaveAttribute('data-access', 'claude-code-missing');
+		await expect(strip.getByRole('alert')).toHaveText(
+			'Could not download Claude Code: net::ERR_NAME_NOT_RESOLVED',
+		);
+		const again = strip.getByRole('button', { name: 'Try again' });
+		await expect(again).toBeVisible();
+		await captureFlow(app, 'composer-claude-install-failed');
+
+		await again.click();
+		await expect(strip.getByRole('alert')).toBeVisible({ timeout: 20_000 });
+		await expect(again).toBeVisible();
+		await expect(strip).toHaveAttribute('data-access', 'claude-code-missing');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -138,21 +136,15 @@ test('Check again shows Malini is checking Claude Code until the check answers',
 	}
 });
 
-test('a signed-out Claude Code passes setup, and only a Claude send asks to sign in', async () => {
+test('a signed-out Claude Code opens on the picker, and only a Claude send asks to sign in', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_CLAUDE_STATE: 'needs_auth' } });
 	try {
 		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		const tools = setup.getByRole('list', { name: 'Tools' });
-		await expect(tools).toContainText('Installed on this Mac', { timeout: 20_000 });
-		await expect(tools.getByRole('button', { name: /^Claude Code/u })).toHaveCount(0);
-		await expect(setup.getByRole('button', { name: 'Sign in to Claude Code' })).toHaveCount(0);
-		const proceed = setup.getByTestId('onboarding-continue');
-		await expect(proceed).toBeEnabled();
-		await captureFlow(app, 'first-run-claude-installed');
-		await proceed.click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await expectPicker(page);
+		await expect(page.getByTestId('claude-code-install-status')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Sign in to Claude Code' })).toHaveCount(0);
+		await captureFlow(app, 'first-run-claude-signed-out');
 
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-sign-in-ws', 'Sign in');
@@ -188,246 +180,7 @@ test('a signed-out Claude Code passes setup, and only a Claude send asks to sign
 	}
 });
 
-type RehearsalCopy = { hidden: string | null; inert: boolean; named: number };
-
-const REHEARSAL_COPY = ':has(> * > #onboarding-heading) > :not(:has(#onboarding-heading))';
-
-test('onboarding rehearses its step transition on copies nobody can reach, and drops them on a step change', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini();
-	try {
-		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		const copiesOnStage = (): Promise<number> =>
-			setup.evaluate(
-				(onboarding, copySelector) => onboarding.querySelectorAll(copySelector).length,
-				REHEARSAL_COPY,
-			);
-		await expect(
-			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
-		).toBeVisible();
-		await setup.evaluate((onboarding, copySelector) => {
-			const view = onboarding.ownerDocument.defaultView;
-			const copies: RehearsalCopy[] = [];
-			const seen = new WeakSet();
-			new view.MutationObserver(() => {
-				for (const copy of onboarding.querySelectorAll(copySelector)) {
-					if (seen.has(copy)) continue;
-					seen.add(copy);
-					copies.push({
-						hidden: copy.getAttribute('aria-hidden'),
-						inert: copy.hasAttribute('inert'),
-						named: copy.querySelectorAll('[id], [data-testid]').length,
-					});
-				}
-			}).observe(onboarding, { childList: true, subtree: true });
-			Reflect.set(view, 'rehearsalCopies', copies);
-			view.dispatchEvent(new view.FocusEvent('focus'));
-		}, REHEARSAL_COPY);
-		const rehearsalCopies = (): Promise<RehearsalCopy[]> =>
-			page.evaluate(() => Reflect.get(globalThis, 'rehearsalCopies'));
-
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await setup.evaluate(
-			(onboarding, copySelector) =>
-				new Promise<void>((resolve) => {
-					const look = (): void => {
-						if (onboarding.querySelector(copySelector)) resolve();
-						else onboarding.ownerDocument.defaultView.requestAnimationFrame(look);
-					};
-					look();
-				}),
-			REHEARSAL_COPY,
-		);
-		const continueOnCopies = await setup
-			.getByRole('button', { name: 'Continue' })
-			.evaluate((button, copySelector) => {
-				const onboarding = button.closest('[data-testid="onboarding"]');
-				const before = onboarding.querySelectorAll(copySelector).length;
-				button.click();
-				return { before, after: onboarding.querySelectorAll(copySelector).length };
-			}, REHEARSAL_COPY);
-		expect(continueOnCopies.before).toBeGreaterThan(0);
-		expect(continueOnCopies.after).toBe(0);
-
-		const sidebarStep = setup.getByRole('heading', { name: 'Set up your sidebar' });
-		await expect(sidebarStep).toBeVisible();
-		const copiedBefore = (await rehearsalCopies()).length;
-		await expect.poll(async () => (await rehearsalCopies()).length).toBeGreaterThan(copiedBefore);
-		await expect.poll(copiesOnStage, { timeout: 20_000 }).toBe(0);
-		await expect(sidebarStep).toHaveCount(1);
-		await expect(page.locator('#onboarding-heading')).toHaveCount(1);
-
-		const copies = await rehearsalCopies();
-		expect(copies).toEqual(copies.map(() => ({ hidden: 'true', inert: true, named: 0 })));
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('setup asks where you heard about Malini last, keeps your answer while you go back, and opens a chat with it saved', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini();
-	try {
-		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		const next = setup.getByRole('button', { name: 'Continue' });
-		await next.click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await next.click();
-		await passSidebar(page);
-		await passDefaults(page);
-		await expect(
-			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
-		).toBeVisible();
-		await expect(next).toBeDisabled();
-
-		const channels = setup.getByRole('group', { name: 'Where you heard about Malini' });
-		const hackerNews = channels.getByRole('button', { name: 'Hacker News' });
-		await hackerNews.click();
-		await expect(hackerNews).toHaveAttribute('aria-pressed', 'true');
-		await expect(next).toBeEnabled();
-		await captureFlow(app, 'setup-heard-about-hacker-news');
-
-		await channels.getByRole('button', { name: 'Somewhere else' }).click();
-		await expect(hackerNews).toHaveAttribute('aria-pressed', 'false');
-		const where = setup.getByRole('textbox', { name: 'Where you heard about Malini' });
-		await expect(where).toBeFocused();
-		await where.fill('@syntaxfm podcast');
-		await captureFlow(app, 'setup-heard-about-somewhere-else');
-		await setup.getByRole('button', { name: 'Back' }).click();
-		await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
-		await next.click();
-		await expect(where).toHaveValue('@syntaxfm podcast');
-
-		await next.click();
-		await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
-		await expect
-			.poll(async () => (await storedSettings(page))['heard-about'])
-			.toBe('syntaxfm podcast');
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('Recommended defaults turn on every default automation and set up a private brain on GitHub', async () => {
-	test.setTimeout(180_000);
-	const app = await launchMalini();
-	try {
-		const { page } = app;
-		await brainOnGithub(app, 'missing');
-		const setup = page.getByTestId('onboarding');
-		const next = setup.getByRole('button', { name: 'Continue' });
-		await next.click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await next.click();
-		await passSidebar(page);
-		await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
-		await expect(setup.getByText('Step 4 of 5')).toBeVisible();
-		const recommended = setup.getByRole('radio', { name: /^Recommended/u });
-		await expect(recommended).toHaveAttribute('aria-checked', 'true');
-		await expect(
-			setup.getByRole('list', { name: 'Recommended defaults' }).getByRole('listitem'),
-		).toHaveText([
-			/Resolve merge conflicts/u,
-			/Address review comments/u,
-			/Keep a second brain/u,
-			/Update from main when it touches your files/u,
-		]);
-		await expect(next).toBeEnabled();
-		await captureFlow(app, 'setup-defaults');
-
-		await setup.getByRole('radio', { name: /^Customize/u }).click();
-		await expect(setup.getByRole('checkbox', { name: /^Keep a second brain/u })).toBeChecked();
-		await expect(
-			setup.getByRole('group', { name: 'Update from main' }).getByRole('button', {
-				name: 'Touches my files',
-			}),
-		).toHaveAttribute('aria-pressed', 'true');
-		await captureFlow(app, 'setup-defaults-customize');
-		await recommended.click();
-		await next.click();
-		await expect(
-			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
-		).toBeVisible();
-
-		await expect
-			.poll(async () => triggers(page), { timeout: 60_000 })
-			.toEqual({
-				'resolve-conflicts': 'auto',
-				'address-review': 'auto',
-				'update-from-main':
-					'auto on repositories:workstream-base-overlapped where overlapping is true',
-				'capture-brain': 'auto',
-				'write-brain-notes': 'auto',
-			});
-		expect(await invoke<BrainStatus>(page, 'brain.status', undefined)).toMatchObject({
-			set: true,
-			repository: FAKE_BRAIN,
-			sync: true,
-		});
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('Customize with Address review unchecked turns it off, and it stays off across a reload', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini();
-	try {
-		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		const next = setup.getByRole('button', { name: 'Continue' });
-		await next.click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await next.click();
-		await passSidebar(page);
-		await setup.getByRole('radio', { name: /^Customize/u }).click();
-		await setup.getByRole('checkbox', { name: /^Address review comments/u }).uncheck();
-		await setup.getByRole('checkbox', { name: /^Keep a second brain/u }).uncheck();
-		await expect(setup.getByText(/^The log holds/u)).toHaveCount(0);
-		await next.click();
-		await expect(
-			setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
-		).toBeVisible();
-		await expect
-			.poll(async () => triggers(page))
-			.toMatchObject({ 'resolve-conflicts': 'auto', 'address-review': 'off' });
-
-		await page.reload();
-		await expect
-			.poll(async () => triggers(page), { timeout: 20_000 })
-			.toEqual({
-				'resolve-conflicts': 'auto',
-				'address-review': 'off',
-				'update-from-main':
-					'auto on repositories:workstream-base-overlapped where overlapping is true',
-				'capture-brain': 'off',
-				'write-brain-notes': 'off',
-			});
-		await page.evaluate(() => {
-			location.hash = '#/settings/automations';
-		});
-		await page.reload();
-		await expect(page.getByRole('switch', { name: 'Address review comments' })).toHaveAttribute(
-			'aria-checked',
-			'false',
-			{ timeout: 20_000 },
-		);
-		await expect(
-			page.getByRole('group', { name: 'Defaults' }).getByRole('button', { name: 'Custom' }),
-		).toHaveAttribute('aria-pressed', 'true');
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('setup ends on a picker of your GitHub repositories with no chat, across a reload, and a pick starts a workstream in it', async () => {
+test('a new install opens on a picker of your GitHub repositories with no chat, across a reload, and a pick starts a workstream with starters', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -452,22 +205,9 @@ test('setup ends on a picker of your GitHub repositories with no chat, across a 
 				},
 			]),
 		);
-		const setup = page.getByTestId('onboarding');
 		const center = page.getByRole('dialog', { name: 'Command center' });
-		await expect(setup).toBeVisible();
-		await page.keyboard.press('ControlOrMeta+k');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await expect(center).toHaveCount(0);
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await passSidebar(page);
-		await passDefaults(page);
-		await setup
-			.getByRole('group', { name: 'Where you heard about Malini' })
-			.getByRole('button', { name: 'Hacker News' })
-			.click();
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-
+		await page.reload();
+		await expectPicker(page);
 		const chooser = page.getByRole('region', { name: 'Your repositories' });
 		const repositories = chooser.getByRole('list', { name: 'Your GitHub repositories' });
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -481,7 +221,7 @@ test('setup ends on a picker of your GitHub repositories with no chat, across a 
 		await expect(sidebar).toHaveCount(0);
 		await expect(tabs).toHaveCount(0);
 		await expect(prompt).toHaveCount(0);
-		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
+		expect((await storedSettings(page))['heard-about']).toBeUndefined();
 		expect(await workstreams(page)).toEqual([]);
 		await captureFlow(app, 'first-repository-picker');
 
@@ -521,7 +261,17 @@ test('setup ends on a picker of your GitHub repositories with no chat, across a 
 		await expect
 			.poll(async () => (await workstreams(page)).map(({ projectId }) => projectId))
 			.toEqual([expect.stringContaining('hutch')]);
+		const starters = page.getByRole('region', { name: 'Start with something small' });
+		await expect(starters.getByRole('button')).toHaveText([
+			/Explain how this repository works/u,
+			/Fix the first failing test or lint/u,
+		]);
 		await captureFlow(app, 'first-repository-picked');
+		await starters.getByRole('button', { name: /^Fix the first failing test or lint/u }).click();
+		await expect(page.getByTestId('chat-composer-input')).toHaveText(
+			'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
+		);
+		await expect(prompt).toBeFocused();
 
 		await page.reload();
 		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
@@ -542,7 +292,7 @@ test('New repository on the first-run picker makes one on GitHub under the owner
 	});
 	try {
 		const { page } = app;
-		await passSetup(page);
+		await expectPicker(page);
 		const chooser = page.getByRole('region', { name: 'Your repositories' });
 		await chooser.getByRole('button', { name: 'New repository' }).click();
 
@@ -606,7 +356,8 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 			join(first.home, GITHUB_REPOSITORIES_FIXTURE),
 			JSON.stringify([{ full_name: 'e2e/hutch', clone_url: `file://${hutch}`, description: null }]),
 		);
-		await passSetup(page);
+		await page.reload();
+		await expectPicker(page);
 		slowClone(join(first.home, '.local/bin'));
 		await page
 			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
@@ -635,13 +386,13 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 	}
 });
 
-test('a finished setup that cannot be read opens the repository picker, not the setup again', async () => {
+test('settings that cannot be read still open the repository picker', async () => {
 	test.setTimeout(120_000);
 	const unreadable = /no such table: settings/u;
 	const app = await launchMalini({ allowedDiagnostics: [unreadable] });
 	try {
 		const { page } = app;
-		await passSetup(page);
+		await expectPicker(page);
 		const settingsTable = (statement: string): void => {
 			const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
 			try {
@@ -653,8 +404,7 @@ test('a finished setup that cannot be read opens the repository picker, not the 
 		settingsTable('ALTER TABLE settings RENAME TO settings_unreadable');
 		try {
 			await page.reload();
-			await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
-			await expect(page.getByTestId('onboarding')).toHaveCount(0);
+			await expectPicker(page);
 		} finally {
 			settingsTable('ALTER TABLE settings_unreadable RENAME TO settings');
 		}
@@ -677,30 +427,6 @@ function slowClone(binFolder: string): void {
 
 async function workstreams(page: Page): Promise<WorkstreamRow[]> {
 	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);
-}
-
-async function triggers(page: Page): Promise<Record<string, string>> {
-	const definitions = await invoke<
-		{ builtin: string | null; trigger: { when: string; mode: string } | null }[]
-	>(page, 'automations.list-definitions', undefined);
-	return Object.fromEntries(
-		definitions
-			.filter(({ builtin }) =>
-				[
-					'resolve-conflicts',
-					'address-review',
-					'update-from-main',
-					'capture-brain',
-					'write-brain-notes',
-				].includes(builtin ?? ''),
-			)
-			.map(({ builtin, trigger }) => [
-				builtin,
-				builtin === 'update-from-main' && trigger
-					? `${trigger.mode} ${trigger.when}`
-					: (trigger?.mode ?? 'off'),
-			]),
-	);
 }
 
 async function storedSettings(page: Page): Promise<Record<string, string>> {

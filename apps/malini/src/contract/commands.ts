@@ -404,20 +404,6 @@ export type SetSettingArgs = Readonly<{ key: string; value: string }>;
 
 export type ShareUsageDataArgs = Readonly<{ shared: boolean }>;
 
-export const SETUP_STEPS = ['tools', 'sounds', 'sidebar', 'defaults', 'heard-about'] as const;
-
-export type SetupStep = (typeof SETUP_STEPS)[number];
-
-export const SETUP_TOOL_STATES = ['missing', 'signed-out', 'ready', 'unknown'] as const;
-
-export type SetupToolState = (typeof SETUP_TOOL_STATES)[number];
-
-export type ReportSetupStepArgs = Readonly<{
-	step: SetupStep;
-	claudeCode?: SetupToolState;
-	github?: SetupToolState;
-}>;
-
 export type HoldLidArgs = Readonly<{ on: boolean }>;
 
 export type StageAttachmentBytesArgs = Readonly<{
@@ -569,7 +555,6 @@ export interface ContractCommands {
 	'app.list-settings': { args: undefined; result: Record<string, string> };
 	'app.usage-data': { args: undefined; result: UsageDataState };
 	'app.share-usage-data': { args: ShareUsageDataArgs; result: void };
-	'app.report-setup-step': { args: ReportSetupStepArgs; result: void };
 	'app.hold-lid': { args: HoldLidArgs; result: boolean };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
@@ -942,7 +927,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
-	'app.report-setup-step',
 	'app.hold-lid',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',

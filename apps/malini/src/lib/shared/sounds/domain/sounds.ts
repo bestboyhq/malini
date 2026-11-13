@@ -23,7 +23,19 @@ export type SoundRecorderState = Readonly<{
 	levels: readonly number[];
 }>;
 
-export type LoadedSounds = Readonly<{ choices: SoundChoices; custom: readonly CustomSound[] }>;
+export type LoadedSounds = Readonly<{
+	choices: SoundChoices;
+	custom: readonly CustomSound[];
+	noted: boolean;
+}>;
+
+export const SOUNDS_NOTED_SETTING = 'sounds.noted';
+
+const PASSED_OLD_SETUP_SETTING = 'onboarding.finished-at';
+
+export function soundsNoted(settings: Readonly<Record<string, string>>): boolean {
+	return SOUNDS_NOTED_SETTING in settings || PASSED_OLD_SETUP_SETTING in settings;
+}
 
 export const BUILT_IN_SOUNDS: readonly SoundOption[] = [
 	{ id: 'chime', label: 'Malini chime', custom: false },

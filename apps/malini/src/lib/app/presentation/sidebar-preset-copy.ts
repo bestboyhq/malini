@@ -1,4 +1,4 @@
-import type { SidebarRepositories } from '$lib/app/domain/onboarding';
+import type { SidebarRepositories } from '$lib/app/domain/sidebar-preset';
 import type { SidebarShow } from '$lib/app/domain/sidebar-arrangement';
 import type { SidebarDensity } from '$lib/app/domain/sidebar-density';
 

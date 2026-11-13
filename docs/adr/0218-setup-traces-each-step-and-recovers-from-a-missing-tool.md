@@ -1,6 +1,6 @@
 # 0218 - Setup traces each step and recovers from a missing tool
 
-Status: accepted
+Status: superseded by 0242
 
 ## Context
 
