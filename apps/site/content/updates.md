@@ -14,6 +14,7 @@ Once an update is ready, **Restart to update** there installs the newest release
 
 Malini must run from an Applications folder to update itself; started anywhere else, it offers to move itself there.
 Every merged `feat`, `fix`, or `perf` change ships as a release, so updates are small and frequent.
+Malini is in beta, and the bottom of the sidebar shows **Beta** with the version you run.
 
 ## Claude Code
 
