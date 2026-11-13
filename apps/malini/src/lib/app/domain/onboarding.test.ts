@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
 	DEFAULT_ONBOARDING_SIDEBAR,
 	claudeCodeOnboardingStatus,
+	customArrangement,
 	onboardingSidebarArrangement,
 	onboardingToolsSettled,
+	presetArranged,
+	sidebarPreset,
 } from './onboarding';
-import { DEFAULT_SIDEBAR_ARRANGEMENT } from './sidebar-arrangement';
+import { DEFAULT_SIDEBAR_ARRANGEMENT, type SidebarArrangement } from './sidebar-arrangement';
 
 describe('onboarding tools', () => {
 	it('settles once every tool is ready', () => {
@@ -53,5 +56,44 @@ describe('onboarding sidebar', () => {
 				show: 'attention',
 			}),
 		).toMatchObject({ grouping: 'status', subgrouping: 'none', show: 'attention' });
+	});
+});
+
+describe('sidebar options', () => {
+	const flat = onboardingSidebarArrangement({ where: 'one', show: 'everything' });
+
+	it('works in one project only when a status or day list is flat', () => {
+		expect(sidebarPreset(DEFAULT_SIDEBAR_ARRANGEMENT).where).toBe('many');
+		expect(sidebarPreset({ ...flat, grouping: 'repository' }).where).toBe('many');
+		expect(sidebarPreset({ ...flat, subgrouping: 'owner' }).where).toBe('many');
+		expect(sidebarPreset(flat).where).toBe('one');
+		expect(sidebarPreset({ ...flat, grouping: 'day' }).where).toBe('one');
+	});
+
+	it('applies the preset of a new where or show and keeps the ordering', () => {
+		const byName: SidebarArrangement = { ...DEFAULT_SIDEBAR_ARRANGEMENT, ordering: 'name' };
+		expect(presetArranged(byName, { where: 'one' })).toEqual({ ...flat, ordering: 'name' });
+		expect(presetArranged({ ...flat, ordering: 'name' }, { show: 'attention' })).toEqual({
+			...flat,
+			show: 'attention',
+			ordering: 'name',
+		});
+	});
+
+	it('lands Show all on the preset of where you work', () => {
+		const attention = onboardingSidebarArrangement({ where: 'many', show: 'attention' });
+		const shown = presetArranged(attention, { show: 'everything' });
+		expect(shown).toEqual(DEFAULT_SIDEBAR_ARRANGEMENT);
+		expect(customArrangement(shown)).toBe(false);
+	});
+
+	it('is custom once the grouping or ordering leaves the preset', () => {
+		expect(customArrangement(DEFAULT_SIDEBAR_ARRANGEMENT)).toBe(false);
+		expect(customArrangement(flat)).toBe(false);
+		expect(customArrangement({ ...flat, grouping: 'day' })).toBe(true);
+		expect(customArrangement({ ...DEFAULT_SIDEBAR_ARRANGEMENT, grouping: 'repository' })).toBe(
+			true,
+		);
+		expect(customArrangement({ ...DEFAULT_SIDEBAR_ARRANGEMENT, ordering: 'active' })).toBe(true);
 	});
 });

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	connectFolder,
@@ -109,17 +109,25 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		await expect(quiet).toBeVisible();
 		await expect(sidebar(page).getByText('Nothing needs you.')).toHaveCount(0);
 
-		await page.getByRole('button', { name: 'Group and sort' }).click();
-		const panel = page.getByRole('group', { name: 'Group and sort' });
-		await expect(panel.getByRole('button', { name: 'Show: Everything' })).toBeVisible();
-		await expect(panel.getByRole('button', { name: 'Grouping: Status' })).toBeVisible();
+		await page.getByRole('button', { name: 'Sidebar options' }).click();
+		const panel = page.getByRole('group', { name: 'Sidebar options' });
+		const option = (group: string, name: string): Locator =>
+			panel
+				.getByRole('group', { name: group, exact: true })
+				.getByRole('button', { name, exact: true });
+		await expect(option('Where you work', 'One project')).toHaveAttribute('aria-pressed', 'true');
+		await expect(option('Show', 'Everything')).toHaveAttribute('aria-pressed', 'true');
+		await expect(option('Row height', 'Comfortable')).toHaveAttribute('aria-pressed', 'true');
+		await expect(panel.getByRole('button', { name: 'Advanced', exact: true })).toHaveAttribute(
+			'aria-expanded',
+			'false',
+		);
 		await captureFlow(app, 'sidebar-recent-arrange-show');
-		await panel.getByRole('button', { name: 'Show: Everything' }).click();
-		await page
-			.getByRole('menu', { name: 'Show' })
-			.getByRole('menuitemradio', { name: 'Attention' })
-			.click();
+		await option('Show', 'Only what needs me').click();
 		await expect(sidebar(page).getByText('Nothing needs you.')).toBeVisible();
+		await expect(option('Show', 'Only what needs me')).toHaveAttribute('aria-pressed', 'true');
+		await option('Row height', 'Compact').click();
+		await expect(option('Row height', 'Compact')).toHaveAttribute('aria-pressed', 'true');
 		await page.keyboard.press('Escape');
 		expectCleanConsole(app);
 	} finally {

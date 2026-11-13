@@ -25,6 +25,8 @@
 		showsAttentionOnly,
 	} from '$lib/app/domain/sidebar-arrangement';
 	import { arrangeSidebarCommand } from '$lib/app/application/commands/arrange-sidebar.command';
+	import { chooseSidebarDensityCommand } from '$lib/app/application/commands/choose-sidebar-density.command';
+	import { chooseSidebarPresetCommand } from '$lib/app/application/commands/choose-sidebar-preset.command';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
@@ -135,7 +137,8 @@
 	);
 	const sidebarOrder = $derived(sidebarOrderQuery.data);
 	const collapsedGroupIds = $derived(collapsedGroupsQuery.data);
-	const compact = $derived(sidebarDensityQuery.data === 'compact');
+	const density = $derived(sidebarDensityQuery.data);
+	const compact = $derived(density === 'compact');
 	const arrangement = $derived(sidebarArrangementQuery.data);
 	const manualOrder = $derived(arrangement.ordering === 'manual');
 	const sectioned = $derived(sectionedGrouping(arrangement.grouping));
@@ -1668,9 +1671,12 @@
 			repositories={repositoryChoices}
 			attention={focusNeedsYou}
 			{arrangement}
+			{density}
 			onchoose={chooseSidebarFocusCommand}
 			ontogglepin={toggleSidebarPinCommand}
 			onarrange={arrangeSidebarCommand}
+			onpreset={chooseSidebarPresetCommand}
+			ondensity={chooseSidebarDensityCommand}
 		/>
 	{/snippet}
 	<nav
@@ -1767,7 +1773,7 @@
 									compact ? 'h-7 text-xs' : 'h-8 text-sm',
 								]}
 								data-testid="sidebar-show-hidden"
-								onclick={() => arrangeSidebarCommand({ show: 'everything' })}
+								onclick={() => chooseSidebarPresetCommand({ show: 'everything' })}
 							>
 								<span class="min-w-0 flex-1 truncate text-left leading-relaxed">
 									{tree.hidden} hidden

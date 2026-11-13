@@ -3,6 +3,7 @@ import type { ClaudeCodeStatus } from '$shared/providers/domain/claude-code-stat
 import type { GitHubSetupStatus } from '$shared/repositories/domain/github-auth';
 import {
 	DEFAULT_SIDEBAR_ARRANGEMENT,
+	sectionedGrouping,
 	type SidebarArrangement,
 	type SidebarShow,
 } from './sidebar-arrangement';
@@ -28,10 +29,9 @@ export const DEFAULT_ONBOARDING_SIDEBAR: OnboardingSidebar = {
 	density: 'compact',
 };
 
-export function onboardingSidebarArrangement({
-	where,
-	show,
-}: OnboardingSidebar): SidebarArrangement {
+export type SidebarPreset = Pick<OnboardingSidebar, 'where' | 'show'>;
+
+export function onboardingSidebarArrangement({ where, show }: SidebarPreset): SidebarArrangement {
 	if (where === 'many' && show === 'everything') return DEFAULT_SIDEBAR_ARRANGEMENT;
 	return {
 		...DEFAULT_SIDEBAR_ARRANGEMENT,
@@ -39,6 +39,32 @@ export function onboardingSidebarArrangement({
 		subgrouping: where === 'many' ? 'repository' : 'none',
 		show,
 	};
+}
+
+export function sidebarPreset({ grouping, subgrouping, show }: SidebarArrangement): SidebarPreset {
+	return {
+		where: sectionedGrouping(grouping) && subgrouping === 'none' ? 'one' : 'many',
+		show,
+	};
+}
+
+export function presetArranged(
+	current: SidebarArrangement,
+	change: Partial<SidebarPreset>,
+): SidebarArrangement {
+	return {
+		...onboardingSidebarArrangement({ ...sidebarPreset(current), ...change }),
+		ordering: current.ordering,
+	};
+}
+
+export function customArrangement(arrangement: SidebarArrangement): boolean {
+	const preset = onboardingSidebarArrangement(sidebarPreset(arrangement));
+	return (
+		arrangement.grouping !== preset.grouping ||
+		arrangement.subgrouping !== preset.subgrouping ||
+		arrangement.ordering !== 'manual'
+	);
 }
 
 export type OnboardingScreen = 'setup' | 'picker';

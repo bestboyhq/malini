@@ -11,30 +11,23 @@
 		reloadGithubRepositoriesOnSignInHook,
 	} from '$shared/repositories/repositories.api';
 	import ChoiceSwitch from '../settings/ChoiceSwitch.svelte';
+	import {
+		DENSITY_CHOICES,
+		DENSITY_LABELS,
+		SHOW_CHOICES,
+		SHOW_LABELS,
+		WHERE_CHOICES,
+		WHERE_LABELS,
+	} from '../sidebar-preset-copy';
 	import SidebarPreview from './SidebarPreview.svelte';
 
-	const WHERE: readonly OnboardingWhere[] = ['many', 'one'];
-	const WHERE_LABELS: Readonly<Record<OnboardingWhere, string>> = {
-		many: 'Many repositories',
-		one: 'One project',
-	};
 	const WHERE_HINTS: Readonly<Record<OnboardingWhere, string>> = {
 		many: 'Grouped by organization and repository.',
 		one: 'One flat list, grouped by status.',
 	};
-	const SHOW: readonly SidebarShow[] = ['everything', 'attention'];
-	const SHOW_LABELS: Readonly<Record<SidebarShow, string>> = {
-		everything: 'Everything',
-		attention: 'Only what needs me',
-	};
 	const SHOW_HINTS: Readonly<Record<SidebarShow, string>> = {
 		everything: 'Every workstream, in every status.',
 		attention: 'Questions, failures and open reviews. The rest hides until you ask.',
-	};
-	const DENSITY: readonly SidebarDensity[] = ['compact', 'comfortable'];
-	const DENSITY_LABELS: Readonly<Record<SidebarDensity, string>> = {
-		compact: 'Compact',
-		comfortable: 'Comfortable',
 	};
 	const DENSITY_HINTS: Readonly<Record<SidebarDensity, string>> = {
 		compact: 'Tighter rows. More fit.',
@@ -64,7 +57,7 @@
 			<h2 class="text-fg-default text-[15px] font-medium">Where do you work?</h2>
 			<ChoiceSwitch
 				label="Where you work"
-				choices={WHERE}
+				choices={WHERE_CHOICES}
 				labels={WHERE_LABELS}
 				selected={choice.where}
 				onchoose={(where) => chooseOnboardingSidebarCommand({ where })}
@@ -75,7 +68,7 @@
 			<h2 class="text-fg-default text-[15px] font-medium">What should it show?</h2>
 			<ChoiceSwitch
 				label="What it shows"
-				choices={SHOW}
+				choices={SHOW_CHOICES}
 				labels={SHOW_LABELS}
 				selected={choice.show}
 				onchoose={(show) => chooseOnboardingSidebarCommand({ show })}
@@ -86,7 +79,7 @@
 			<h2 class="text-fg-default text-[15px] font-medium">How tall should rows be?</h2>
 			<ChoiceSwitch
 				label="Row height"
-				choices={DENSITY}
+				choices={DENSITY_CHOICES}
 				labels={DENSITY_LABELS}
 				selected={choice.density}
 				onchoose={(density) => chooseOnboardingSidebarCommand({ density })}

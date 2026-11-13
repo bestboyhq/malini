@@ -61,8 +61,14 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   **All** shows everything, and **+** pins an organization or a repository beside it.
   Click a pin to see only its chats and workstreams, and right-click it to unpin it.
   A dot on a pin means something in it needs you.
-- The sliders button beside it groups and sorts the sidebar, and Malini remembers.
+- The sliders button beside it, **Sidebar options**, sets up the sidebar, and Malini remembers.
   Its panel opens beside the sidebar, so the rows stay in view while you change them.
+  It asks setup's three questions again.
+  **Where you work** picks **Many repositories**, grouped by organization and repository, or **One project**, one flat list grouped by Status.
+  **Show** picks **Everything** or **Only what needs me**.
+  **Only what needs me** groups by Status and lists only **Needs you** and **In review**, with **Nothing needs you.** when both are empty and an **N hidden** row at the bottom whose **Show all** lists everything again.
+  **Row height** picks **Compact** or **Comfortable**, the same setting as Settings, Appearance.
+- **Advanced**, under the three questions, opens the grouping and the order, and reads **Custom** once they differ from what your answers make.
   **Grouping** picks **Organization**, an owner row above its repositories, **Repository**, every repository on its own, **Status** or **Day**.
   **Status** splits your work into **Needs you**, **In progress**, **In review**, **Idle**, **Stale** and **Merged**.
   Stale work has had no agent run for a week.
@@ -72,12 +78,10 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   **Ordering** picks **Manual**, the order you drag, **Last active**, **Created**, newest first, or **Name**.
   A repository or an owner sorts by the newest work in it.
   Rows drag only in Manual order, grouped by organization or repository.
-  **Show** picks **Everything** or **Attention**.
-  **Attention** groups by Status and lists only **Needs you** and **In review**, with **Nothing needs you.** when both are empty and an **N hidden** row at the bottom whose **Show all** lists everything again.
-  **Reset** goes back to Organization, Manual and Everything.
+  **Reset** goes back to what your answers make, in Manual order.
 - Setup's **Set up your sidebar** step asks **Where do you work?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make, built from your most recent GitHub repositories and their avatars.
   Without GitHub, the preview uses sample repositories.
-  **Many repositories** keeps Organization grouping, **One project** lists your work flat by Status, **Only what needs me** is **Show** set to **Attention**, and **Compact** or **Comfortable** is the density below.
+  The answers work as they do in **Sidebar options**, which asks them again later.
   **Skip** keeps Organization grouping, Everything and Compact.
 - **New chat** opens the command center on your repositories, connected ones first, and a pick starts a workstream in that repository.
   Nothing starts without a repository.
