@@ -182,7 +182,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'app.take-notification-target': () => null,
 	'app.take-menu-command': () => null,
 	'app.runtime-info': () => ({
-		app: '1.0.0',
+		app: '0.116.0',
 		electron: '',
 		node: '',
 		chrome: '',

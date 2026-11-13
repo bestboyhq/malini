@@ -282,6 +282,7 @@
 				<img class="app-icon" src={asset('/icons/malini.webp')} width="22" height="22" alt="" />
 				Malini{@render chevron()}
 			</button>
+			<span class="stage">beta</span>
 			{#if open === APPS.id}
 				<div bind:this={panes[APPS.id]} id="bar-{APPS.id}" class="pane apps" transition:fall>
 					{@render contents(APPS)}
@@ -471,6 +472,21 @@
 		margin: 0 0 0 -3px;
 	}
 
+	.stage {
+		display: inline-flex;
+		align-items: center;
+		height: 20px;
+		margin-left: 10px;
+		padding: 0 6px;
+		border-radius: 6px;
+		box-shadow: inset 0 0 0 1px var(--border-subtle);
+		color: var(--fg-muted);
+		font-family: var(--mono);
+		font-size: 11px;
+		line-height: 1;
+		white-space: nowrap;
+	}
+
 	.switch:active,
 	.switch[aria-expanded='true'] {
 		background: var(--surface-hover);
@@ -526,6 +542,7 @@
 	}
 
 	.chev {
+		flex: none;
 		width: 12px;
 		height: 12px;
 		margin-right: -2px;
@@ -946,6 +963,12 @@
 
 	@media (max-width: 559px) {
 		.org {
+			display: none;
+		}
+	}
+
+	@media (max-width: 379px) {
+		.stage {
 			display: none;
 		}
 	}
