@@ -16,12 +16,12 @@ Turned down: the Discord invite in the app, since invites expire and the server 
 
 - **Help and feedback** in the sidebar footer opens a menu of two items.
 - **Report a problem**, "Files a GitHub issue. You approve it first", opens the **Report a problem** dialog, where the user writes what broke.
-  Below the text sit the facts, each ticked and each one the user can untick:
+  Below the text sit the facts, each switched on and each one the user can switch off:
   - `Malini <version> · macOS <version> <arch>`.
   - `<n> repositories · <n> prompts · <n> merges`.
   - The last command that failed in the past day, as `<command> failed: <error name> (<kind>)`: names and kinds only, never messages, paths, code or chats.
 - The main process reads the facts with `app.problem-report`.
-  **File issue** runs `app.report-problem`, which runs the user's own `gh issue create -R bestboyhq/malini` with the text and the ticked facts.
+  **File issue** runs `app.report-problem`, which runs the user's own `gh issue create -R bestboyhq/malini` with the text and the facts left on.
   Nothing goes before **File issue**.
 - **Join the Discord**, "Other Malini people. Some helpful", opens `https://bestboy.dev/malini/discord` in the browser.
   `apps/site/worker/index.ts` answers that path with a 302 to the Bestboy Discord invite, `https://discord.com/invite/9qNqXSHm7b`.
@@ -33,4 +33,4 @@ Turned down: the Discord invite in the app, since invites expire and the server 
 - The facts must stay names, counts and versions.
   A fact that could carry a message, a path, code or a chat needs a new decision.
 - The invite changes with a site deploy and no app release; the redirect is a 302 so browsers do not cache it.
-- Enforced by `src/lib/app/domain/problem-report.test.ts` (the issue holds your words, then only the facts you kept, and names a failure without its message), `apps/malini/tests/e2e/report-a-problem.spec.ts` (the menu opens the Discord link, and **File issue** runs `gh issue create` with the text and only the ticked facts) and `apps/site/tests/site.test.ts` (the Worker sends `/malini/discord` to the invite with a 302).
+- Enforced by `src/lib/app/domain/problem-report.test.ts` (the issue holds your words, then only the facts you kept, and names a failure without its message), `apps/malini/tests/e2e/report-a-problem.spec.ts` (the menu opens the Discord link, and **File issue** runs `gh issue create` with the text and only the facts left on) and `apps/site/tests/site.test.ts` (the Worker sends `/malini/discord` to the invite with a 302).

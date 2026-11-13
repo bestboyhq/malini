@@ -33,10 +33,10 @@ test('Help and feedback opens the Discord and files a problem with only the fact
 		await help.click();
 		await menu.getByRole('menuitem', { name: /^Report a problem/ }).click();
 		const dialog = page.getByRole('dialog', { name: 'Report a problem' });
-		const facts = dialog.getByRole('group', { name: 'Goes with it' });
-		const system = facts.getByRole('checkbox', { name: /^Malini .+ · macOS / });
-		const journey = facts.getByRole('checkbox', {
-			name: /^\d+ repositor\w+ · \d+ prompts? · \d+ merges?$/,
+		const facts = dialog.getByRole('region', { name: 'Goes with it' });
+		const system = facts.getByRole('switch', { name: /^Versions Malini .+ · macOS / });
+		const journey = facts.getByRole('switch', {
+			name: /^So far \d+ repositor\w+ · \d+ prompts? · \d+ merges?$/,
 		});
 		await expect(system).toBeChecked();
 		await expect(journey).toBeChecked();
@@ -47,11 +47,13 @@ test('Help and feedback opens the Discord and files a problem with only the fact
 		await dialog
 			.getByRole('textbox', { name: 'What broke' })
 			.fill('Nothing ran when I pressed Enter\nNo error either');
-		await journey.uncheck();
-		await captureFlow(app, 'report-a-problem');
+		await journey.click();
+		await expect(journey).not.toBeChecked();
+		await captureFlow(app, 'report-a-problem-form');
 		await fileIssue.click();
 
 		await expect(dialog).toContainText('Filed as #214');
+		await captureFlow(app, 'report-a-problem-filed');
 		const args = readFileSync(join(app.home, ISSUE_CREATE_FIXTURE), 'utf8').split('\0');
 		expect(args.slice(0, 6)).toEqual([
 			'issue',

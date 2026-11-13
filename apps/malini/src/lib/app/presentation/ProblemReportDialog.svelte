@@ -10,12 +10,13 @@
 <Modal
 	open={problem.open}
 	placement="top"
-	title="Report a problem"
-	description="Simon reads every one. Usually the same day"
+	ariaLabel="Report a problem"
 	closeDisabled={problem.filing}
 	closeOnBackdrop={!problem.filing}
 	onclose={closeProblemReportCommand}
 	navigationTarget="problem-report"
+	class="w-[min(540px,calc(100vw_-_4rem))] overflow-hidden rounded-[32px]"
+	contentClass="bg-surface-root p-2"
 >
 	{#snippet children(dismiss)}
 		<ProblemReportForm ondismiss={dismiss} />

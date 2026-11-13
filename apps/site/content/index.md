@@ -59,9 +59,9 @@ Turning the switch off sends one last count that says so, with no account and no
 
 **Help and feedback** at the bottom of the sidebar holds **Report a problem**, which files an issue on [bestboyhq/malini](https://github.com/bestboyhq/malini/issues) through your GitHub CLI, under your own GitHub account.
 The issue is public, so anyone can read it, and you can follow up on it on GitHub.
-It holds what you write and the facts you leave ticked below it: the Malini and macOS versions, how many repositories, prompts and merges you have, and the last command that failed in the past day, with the name and kind of its error.
+It holds what you write and the facts you leave on below it: the Malini and macOS versions, how many repositories, prompts and merges you have, and the last command that failed in the past day, with the name and kind of its error.
 It never holds error messages, paths, code or chats.
-You can untick any fact, and nothing goes until you press **File issue**.
+You can switch off any fact, and nothing goes until you press **File issue**.
 **Join the Discord** only opens bestboy.dev/malini/discord in your browser, which sends you on to the Bestboy Discord.
 
 ## For agents reading this
