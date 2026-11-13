@@ -25,7 +25,7 @@
 		onruntimeretry: () => void;
 		builtInPanels?: readonly ExtensionPanelRegistration[];
 		panelActions?: readonly InspectorPanelAction[];
-		gutterFooter?: Snippet | undefined;
+		belowGutter?: Snippet | undefined;
 	}
 
 	let {
@@ -38,7 +38,7 @@
 		onruntimeretry,
 		builtInPanels = [],
 		panelActions = [],
-		gutterFooter,
+		belowGutter,
 	}: Props = $props();
 
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
@@ -88,7 +88,7 @@
 	{runtimeError}
 	onruntimeretry={onRuntimeRetry}
 	{panelActions}
-	{gutterFooter}
+	{belowGutter}
 	{workstreamPanelIds}
 	requestedPanelId={routePanelId}
 />

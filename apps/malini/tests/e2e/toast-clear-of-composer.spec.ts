@@ -11,6 +11,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showInspector,
 	showToastsTogether,
 } from './harness';
 
@@ -179,7 +180,7 @@ async function setLayout(page: Page, layout: Layout): Promise<void> {
 		await page.getByRole('button', { name: 'Hide inspector' }).click();
 	}
 	if (layout.inspector === 'open' && !open) {
-		await page.getByRole('button', { name: 'Show inspector' }).click();
+		await showInspector(page);
 	}
 	await expect(inspector).toHaveAttribute(
 		'data-inspector-drawer-open',

@@ -114,16 +114,6 @@ describe('inspector drawer state', () => {
 		expect(loadInspectorDrawerOpen('workstream-1', opened)).toBe(true);
 	});
 
-	it('toggles from whatever is written down', () => {
-		const storage = memoryStorage();
-
-		inspectorDrawer.toggle('workstream-1', storage);
-		expect(inspectorDrawer.isOpen('workstream-1', storage)).toBe(true);
-
-		inspectorDrawer.toggle('workstream-1', storage);
-		expect(inspectorDrawer.isOpen('workstream-1', storage)).toBe(false);
-	});
-
 	it('stays usable when persistence is unavailable', () => {
 		const failing = {
 			getItem: () => {

@@ -651,9 +651,15 @@ export async function openWorkstream(
 export async function showInspector(page: Page): Promise<void> {
 	await page
 		.getByTestId('extension-inspector-gutter')
-		.getByRole('button', { name: 'Show inspector' })
+		.getByRole('button', { name: /^Changes/u })
 		.click({ timeout: 20_000 });
 	await expect(page.getByRole('button', { name: 'Hide inspector' })).toBeVisible();
+	await page
+		.getByRole('button', { name: 'Remove the changed files filter' })
+		.click({ timeout: 20_000 });
+	await expect(
+		page.getByRole('button', { name: 'Filter to files changed in this workstream' }),
+	).toHaveAttribute('aria-pressed', 'false');
 }
 
 export async function openSettingsFromMenu(page: Page): Promise<void> {

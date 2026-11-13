@@ -135,7 +135,6 @@ test('the X closes Files in its workstream, and the right-click menu hides or sh
 		await page.getByRole('menuitem', { name: 'Hide Files in every workstream' }).click();
 		await expect(changesRow).toBeFocused();
 		await expect(panels(page)).toHaveCount(0);
-		await expect(inspector.getByRole('button', { name: 'Show inspector' })).toHaveCount(0);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'inspector-files-hidden-everywhere');
 

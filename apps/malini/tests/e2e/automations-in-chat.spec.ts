@@ -64,12 +64,13 @@ test('an automation run from the slash list waits in the composer tray instead o
 				name: 'Fix checks automation, Queued. The transcript opens once the automation starts',
 			}),
 		).toBeVisible({ timeout: 20_000 });
-		const lines = page
-			.getByRole('region', { name: 'Inspector', exact: true })
-			.getByRole('list', { name: 'Automations', exact: true });
+		const lines = page.getByRole('list', { name: 'Automations', exact: true });
 		await expect(
 			lines.getByRole('link', { name: 'Fix checks, Queued', exact: true }),
 		).toBeVisible();
+		await expect(
+			page.getByRole('region', { name: 'Inspector', exact: true }).getByRole('list'),
+		).toHaveCount(0);
 		await expect(input).toHaveText('');
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
 		await captureFlow(app, 'automations-in-chat-queued');

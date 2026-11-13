@@ -154,7 +154,7 @@
 	onruntimeretry={retryRepositoryScope}
 	{builtInPanels}
 	{panelActions}
-	gutterFooter={automations.length > 0 ? automationsHere : undefined}
+	belowGutter={automations.length > 0 ? automationsHere : undefined}
 />
 
 {#snippet automationsHere()}

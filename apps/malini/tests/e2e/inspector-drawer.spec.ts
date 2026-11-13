@@ -120,6 +120,7 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 		await expect(page.getByRole('region', { name: 'Inspector' }).getByRole('tab')).toHaveCount(0);
 		const changesRow = gutter(page).getByRole('button', { name: /^Changes/u });
 		await expect(changesRow).toHaveCount(1);
+		await expect(gutter(page).getByRole('button')).toHaveCount(2);
 		await expect(gutter(page).getByRole('button', { name: /^Files/u })).toHaveCount(0);
 		await expect(changesRow.getByLabel('1 additions, 0 deletions')).toBeVisible({
 			timeout: 20_000,
@@ -131,16 +132,16 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 		await captureFlow(app, 'inspector-drawer-gutter');
 
 		await visit(page, beta.workstreamId);
-		await gutter(page).getByRole('button', { name: 'Show inspector' }).click();
+		await changesRow.click();
 		await expect(gutter(page)).toHaveCount(0);
 		await expect(inspectorTab(page, 'Files')).toHaveAttribute('aria-selected', 'true');
 		await expect(page.getByRole('treeitem', { name: 'Open beta-only.txt' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(page.getByRole('treeitem', { name: 'Open alpha-only.txt' })).toHaveCount(0);
-		await expect(
-			page.getByRole('button', { name: 'Filter to files changed in this workstream' }),
-		).toHaveAttribute('aria-pressed', 'false');
+		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toHaveCount(0);
+		await page.getByRole('button', { name: 'Remove the changed files filter' }).click();
+		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toBeVisible();
 		await page.getByRole('button', { name: 'Open inspector panel' }).click();
 		await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
 		await expect(inspectorTab(page, 'New tab')).toHaveAttribute('aria-selected', 'true');
@@ -154,7 +155,7 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 			page.getByRole('button', { name: 'Remove the changed files filter' }),
 		).toHaveAttribute('aria-pressed', 'true');
 		await expect(page.getByRole('treeitem', { name: 'Open alpha-only.txt' })).toBeVisible();
-		await expect(page.getByRole('treeitem', { name: 'Open README.md' })).toHaveCount(0);
+		await expect(page.getByRole('treeitem', { name: 'Open seed.txt' })).toHaveCount(0);
 		await expect(page.getByRole('treeitem', { name: 'Open beta-only.txt' })).toHaveCount(0);
 		await captureFlow(app, 'inspector-drawer-changes');
 

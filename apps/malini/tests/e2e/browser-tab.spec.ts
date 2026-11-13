@@ -630,7 +630,6 @@ test('picking an element on a page that is still loading waits for the page inst
 async function closedInspector(page: Page): Promise<void> {
 	const gutter = page.getByTestId('extension-inspector-gutter');
 	await expect(gutter.getByRole('button', { name: /^Changes/u })).toBeEnabled({ timeout: 20_000 });
-	await expect(gutter.getByRole('button', { name: 'Show inspector' })).toBeVisible();
 	await expect(page.getByRole('region', { name: 'Inspector' }).getByRole('tab')).toHaveCount(0);
 }
 

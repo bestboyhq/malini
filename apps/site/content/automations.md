@@ -212,7 +212,7 @@ A workstream an agent just started counts as busy until the turn of its first pr
 
 An automation shows where it runs.
 Above the composer, a chat lists its workstream's live automations, one line each: first the ones that need you, then the running ones, then the queue, oldest first.
-The closed inspector beside it lists them too, as one line each that opens its transcript, or the chat where it asks you.
+Under the closed inspector beside it, each gets one line too, which opens its transcript, or the chat where it asks you.
 A finished automation leaves the list.
 An automation that has no workstream yet, such as the first run of a schedule in a repository, shows under **In progress** on the Automations page.
 The **Automations** icon at the top, beside the sidebar icon, opens that page.

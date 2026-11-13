@@ -425,7 +425,7 @@
 				</button>
 			</Tooltip>
 		{/each}
-		{#if githubStatus || connection}
+		{#if githubHeadline || githubStatus?.reference || githubPrimary || githubSecondary}
 			<div
 				bind:this={githubZoneElement}
 				class="topbar-git"

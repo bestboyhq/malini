@@ -149,11 +149,6 @@ export class InspectorDrawer {
 			: loadInspectorDrawerState(workstreamId, resolved) === 'folded';
 		if (folded) this.setOpen(workstreamId, true, resolved);
 	}
-
-	toggle(workstreamId: string, storage?: InspectorPreferenceStorage | null): void {
-		const resolved = storage === undefined ? browserStorage() : storage;
-		this.setOpen(workstreamId, !this.isOpen(workstreamId, resolved), resolved);
-	}
 }
 
 export const inspectorDrawer = new InspectorDrawer();

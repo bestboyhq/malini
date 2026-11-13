@@ -70,9 +70,10 @@ async function seedBadgeVariants(page: Page, root: string, name: string): Promis
 }
 
 async function openBrowserTab(page: Page, address: string): Promise<Locator> {
-	await page.getByRole('button', { name: 'Show inspector' }).click();
-	await page.getByRole('button', { name: 'Open inspector panel' }).click();
-	await page.getByRole('menuitem', { name: 'Browser', exact: true }).click();
+	await page
+		.getByTestId('extension-inspector-gutter')
+		.getByRole('button', { name: 'Browser', exact: true })
+		.click();
 	const field = page.getByRole('textbox', { name: 'Page address' }).last();
 	await field.fill(address);
 	await field.press('Enter');
