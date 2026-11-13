@@ -32,7 +32,7 @@ async function storedSettings(page: Page): Promise<Record<string, string>> {
 }
 
 function card(page: Page) {
-	return page.getByRole('region', { name: 'First merge. Where did you hear about Malini?' });
+	return page.getByRole('region', { name: 'Where did you hear about Malini?' });
 }
 
 test('the first merged and archived workstream asks once where you heard about Malini before the list, and Somewhere else takes your words', async () => {

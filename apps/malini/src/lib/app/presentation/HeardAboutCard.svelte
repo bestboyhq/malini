@@ -68,7 +68,7 @@
 		<header class="flex items-start gap-3">
 			<div class="min-w-0 flex-1">
 				<h2 id="heard-about-title" class="text-fg-default text-sm font-medium">
-					First merge. Where did you hear about Malini?
+					Where did you hear about Malini?
 				</h2>
 				<p class="text-fg-tertiary text-xs leading-5" role="status">
 					{onboarding.heardAboutSent
