@@ -38,6 +38,7 @@ test('the sidebar reads out what malini uses and opens stats on its runs, tabs a
 
 		const readout = page.getByRole('button', { name: /^Stats: \d+(\.\d)? (MB|GB) · \S+% CPU$/u });
 		await expect(readout).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText('Beta 0.1.0', { exact: true })).toBeVisible();
 		await readout.click();
 
 		const stats = page.getByRole('dialog', { name: 'Stats' });
