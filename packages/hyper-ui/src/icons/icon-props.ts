@@ -1,7 +1,15 @@
 import type { ClassValue } from 'svelte/elements';
 
 export type Brand =
-	'claude' | 'github' | 'google' | 'hacker-news' | 'openai' | 'reddit' | 'x' | 'youtube';
+	| 'claude'
+	| 'discord'
+	| 'github'
+	| 'google'
+	| 'hacker-news'
+	| 'openai'
+	| 'reddit'
+	| 'x'
+	| 'youtube';
 
 export interface IconProps {
 	class?: ClassValue;

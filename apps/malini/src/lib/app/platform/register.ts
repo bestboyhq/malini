@@ -43,6 +43,7 @@ import { RendererErrorLog } from './renderer-errors';
 import { bundleIdentifierFor, createRuntimeIdentityProvider } from './runtime-identity';
 import { RendererSecretStore } from './secrets';
 import { applicationMenu } from './menu';
+import { readProblemReport, reportProblem } from './problem-report';
 import { getSetting, listSettings, setSetting } from './settings.repository';
 import { createElectronShellHost, type ShellHost } from './shell-host';
 import { StreamingDetector } from './streaming';
@@ -77,6 +78,8 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	context.commands.define('app.share-usage-data', (args: unknown): void =>
 		usageData.share(requireBoolean(args, 'shared')),
 	);
+	context.commands.define('app.problem-report', () => readProblemReport(context, new Date()));
+	context.commands.define('app.report-problem', (args: unknown) => reportProblem(args));
 	const lid = startLidHold(
 		context,
 		deps.runner ?? createNodeProcessRunner(),

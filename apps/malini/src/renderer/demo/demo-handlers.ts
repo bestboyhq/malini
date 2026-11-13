@@ -203,6 +203,12 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	}),
 	'app.list-settings': () => ({ 'sounds.finished': 'none', 'sounds.needs-you': 'none' }),
 	'app.set-setting': () => undefined,
+	'app.problem-report': () => ({
+		repository: 'bestboyhq/malini',
+		system: 'Malini 1.0.0 · macOS 26.1 arm64',
+		journey: '3 repositories · 41 prompts · 12 merges',
+		lastError: null,
+	}),
 	'stats.record-frames': () => undefined,
 	'repositories.github-reach': () => 'ok',
 	'repositories.github-auth-status': () => ({

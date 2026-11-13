@@ -64,6 +64,8 @@ export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
 export const KEYCHAIN_FIXTURE = '.e2e-keychain';
 
+export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
+
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
@@ -93,6 +95,7 @@ case "$1 $2" in
   "repo list") echo "[]"; exit 0 ;;
   "pr list") if [ -f "$PULL_REQUEST" ]; then printf '['; cat "$PULL_REQUEST"; echo ']'; else echo "[]"; fi; exit 0 ;;
   "pr view") if [ -f "$PULL_REQUEST" ]; then cat "$PULL_REQUEST"; exit 0; fi; echo "no pull requests found for branch" 1>&2; exit 1 ;;
+  "issue create") printf '%s\\0' "$@" > "$HOME/${ISSUE_CREATE_FIXTURE}"; echo "https://github.com/bestboyhq/malini/issues/214"; exit 0 ;;
 esac
 exit 0
 `;

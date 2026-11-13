@@ -170,9 +170,12 @@ import type {
 	InstallOutcomeResult,
 	LogicalViewport,
 	NotificationPermissionResult,
+	FiledProblem,
 	OwnedContainer,
+	ProblemReport,
 	RendererErrorPayload,
 	RendererErrorReceipt,
+	ReportProblemArgs,
 	ShutdownImpact,
 	ShutdownOutcome,
 	StartedContainerInput,
@@ -818,6 +821,8 @@ export interface ContractCommands {
 	'app.get-secret': { args: SecretKeyArgs; result: string | null };
 	'app.set-secret': { args: SetSecretArgs; result: void };
 	'app.open-external-url': { args: OpenExternalUrlArgs; result: void };
+	'app.problem-report': { args: undefined; result: ProblemReport };
+	'app.report-problem': { args: ReportProblemArgs; result: FiledProblem };
 	'app.notification-permission-granted': { args: undefined; result: boolean | null };
 	'app.notify': { args: NotifyArgs; result: void };
 	'app.take-notification-target': { args: undefined; result: NotificationTarget | null };
@@ -1093,6 +1098,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.get-secret',
 	'app.set-secret',
 	'app.open-external-url',
+	'app.problem-report',
+	'app.report-problem',
 	'app.notification-permission-granted',
 	'app.notify',
 	'app.take-notification-target',

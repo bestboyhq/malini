@@ -9,6 +9,8 @@ const PAGE = 'public, max-age=0, stale-while-revalidate=86400';
 const LOGDASH_SCRIPT = '/malini/_ld/script.js';
 const LOGDASH_EVENTS = '/malini/_ld/events';
 const MAX_EVENTS_BYTES = 32768;
+const DISCORD = '/malini/discord';
+const DISCORD_INVITE = 'https://discord.com/invite/9qNqXSHm7b';
 const MOVED: Readonly<Partial<Record<string, string>>> = {
 	'/malini/docs/jobs': '/malini/docs/automations',
 	'/malini/docs/jobs.md': '/malini/docs/automations.md',
@@ -119,6 +121,7 @@ export default {
 		const url = new URL(request.url);
 		if (url.pathname === LOGDASH_SCRIPT) return logdashScript();
 		if (url.pathname === LOGDASH_EVENTS) return logdashEvents(request);
+		if (url.pathname === DISCORD) return Response.redirect(DISCORD_INVITE, 302);
 		if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
 			return redirect(url, url.pathname.replace(/\/+$/u, '') || '/');
 		}

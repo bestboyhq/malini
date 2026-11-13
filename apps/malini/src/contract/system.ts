@@ -59,6 +59,20 @@ export interface UsageDataState {
 	report: UsageReport | null;
 }
 
+export interface ProblemReport {
+	repository: string;
+	system: string;
+	journey: string;
+	lastError: string | null;
+}
+
+export type ReportProblemArgs = Readonly<{ text: string; facts: readonly string[] }>;
+
+export interface FiledProblem {
+	number: number;
+	url: string;
+}
+
 export interface LogicalViewport {
 	width: number;
 	height: number;

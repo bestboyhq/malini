@@ -13,6 +13,7 @@
 	import { bootRoute, readLastRoute, rememberLastRoute } from '$shared/router/last-route';
 	import AppShell from './AppShell.svelte';
 	import CloseConfirmationDialog from './CloseConfirmationDialog.svelte';
+	import ProblemReportDialog from './ProblemReportDialog.svelte';
 	import CommandCenter from './CommandCenter.svelte';
 	import SettingsModal from './settings/SettingsModal.svelte';
 	import { openSettingsOverPage } from './settings/settings-links';
@@ -49,6 +50,7 @@
 </AppShell>
 
 <CloseConfirmationDialog />
+<ProblemReportDialog />
 
 <SettingsModal />
 
