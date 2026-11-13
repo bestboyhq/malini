@@ -178,7 +178,7 @@ test('a workstream with nothing in .context shows no Media row until an agent sa
 		placeInContext(seeded.worktree, 'run.log', 'not media', 0);
 		await openWorkstream(page, seeded.workstreamId);
 
-		await expect(gutter(page).getByRole('button', { name: 'Show inspector' })).toBeVisible({
+		await expect(gutter(page).getByRole('button', { name: /^Changes/u })).toBeVisible({
 			timeout: 20_000,
 		});
 		const media = gutter(page).getByRole('button', { name: /^Media/u });

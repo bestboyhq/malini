@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AutomationRunRecord, ReconcilerDecisionRecord } from '$contract/automations';
-import { liveAutomationCounts, liveAutomations } from './live-automations';
+import { liveAutomationCounts, liveAutomations, liveAutomationsHere } from './live-automations';
 
 function run(id: string, patch: Partial<AutomationRunRecord>): AutomationRunRecord {
 	return {
@@ -102,5 +102,26 @@ describe('the automations gutter', () => {
 			['on-a-merge', null, 'on-a-merge', 'ws-4'],
 		]);
 		expect(liveAutomationCounts(entries)).toEqual({ running: 0, queued: 0, needsYou: 3 });
+	});
+
+	it('shows a workstream what runs in it and what its chat started elsewhere', () => {
+		const entries = liveAutomations(
+			[
+				run('here', { status: 'running' }),
+				run('started-here', { status: 'queued', workstreamId: 'ws-2', chatSessionId: 'chat-1' }),
+				run('elsewhere', { status: 'running', workstreamId: 'ws-2' }),
+			],
+			[question('asks-here', { workstreamId: 'ws-1' })],
+		);
+
+		expect(liveAutomationsHere(entries, 'ws-1', 'chat-1').map(({ key }) => key)).toEqual([
+			'asks-here',
+			'here',
+			'started-here',
+		]);
+		expect(liveAutomationsHere(entries, 'ws-1', null).map(({ key }) => key)).toEqual([
+			'asks-here',
+			'here',
+		]);
 	});
 });

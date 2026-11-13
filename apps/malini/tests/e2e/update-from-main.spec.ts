@@ -82,7 +82,7 @@ test('with Update from main off, a workstream that conflicts with main stays as 
 				parentRunId: null,
 			},
 		]);
-		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Automations', exact: true })).toHaveCount(0);
 		expect(await invoke(page, 'automations.list-decisions', undefined)).toEqual([]);
 		const timeline = await invoke<TimelineRecord>(page, 'automations.list-timeline', {
 			since: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),

@@ -209,7 +209,7 @@
 	{#if asks.length > 0}
 		<Well title="Needs you">
 			<div class={[ROWS, 'p-1']}>
-				<AutomationRunList entries={asks} {nowMs} asksHere />
+				<AutomationRunList entries={asks} {nowMs} />
 			</div>
 		</Well>
 	{/if}

@@ -1,7 +1,7 @@
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { sidebarStatus } from './fake-github';
+import { seedWorkstreamOnFakeGithub, sidebarStatus, topBarStatus } from './fake-github';
 import {
 	createSourceRepo,
 	expectCleanConsole,
@@ -58,6 +58,30 @@ test('a chat you answered still shows it runs after a reload', async () => {
 		await expect(page.getByTestId('agent-question-panel')).toHaveCount(0);
 		writeFileSync(release, '');
 		await expect(status).toHaveAccessibleName('Workstream status: Ready', { timeout: 20_000 });
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the top bar says a chat waiting for your approval needs you, and that the agent runs once you allow it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = await seedWorkstreamOnFakeGithub(app, 'e2e-top-bar-approval', null);
+		await openWorkstream(page, 'e2e-top-bar-approval');
+		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 30_000 });
+
+		await sendPrompt(page, 'APPROVAL_HOLD');
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+		await expect(decision).toBeVisible({ timeout: 30_000 });
+		await expect(topBarStatus(page, 'Needs you')).toBeVisible();
+		await expect(topBarStatus(page, 'Agent running')).toHaveCount(0);
+		await decision.getByRole('button', { name: 'Allow once' }).click();
+		await expect(topBarStatus(page, 'Agent running')).toBeVisible();
+		writeFileSync(join(app.home, 'release-approval'), '');
+		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 20_000 });
 
 		expectCleanConsole(app);
 	} finally {

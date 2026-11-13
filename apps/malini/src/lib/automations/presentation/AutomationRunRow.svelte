@@ -20,21 +20,12 @@
 		run: AutomationRunRecord;
 		nowMs: number;
 		placeFirst?: boolean;
-		shownIn?: string | null;
 		kind?: string;
 		origin?: string | null;
 		trailing?: Snippet | undefined;
 	}
 
-	let {
-		run,
-		nowMs,
-		placeFirst = false,
-		shownIn = null,
-		kind,
-		origin = null,
-		trailing,
-	}: Props = $props();
+	let { run, nowMs, placeFirst = false, kind, origin = null, trailing }: Props = $props();
 
 	let armed = $state(false);
 
@@ -45,18 +36,7 @@
 	);
 	const look = $derived(AUTOMATION_RUN_STATUS[run.status]);
 	const place = $derived(automationPlace(run, run.workstreamId));
-	const where = $derived(
-		shownIn !== null && run.workstreamId !== shownIn && place ? ` in ${place}` : '',
-	);
-	const placeName = $derived(shownIn === null ? place : `Automation${where} · ${look.label}`);
-	const subject = $derived(
-		(shownIn === null
-			? [run.title, place, followed]
-			: [`${run.title} automation${where}`, followed]
-		)
-			.filter(Boolean)
-			.join(' · '),
-	);
+	const subject = $derived([run.title, place, followed].filter(Boolean).join(' · '));
 	const transcriptHref = $derived(
 		run.workstreamId && run.sessionId
 			? workstreamHref(run.workstreamId, { agentSessionId: run.sessionId })
@@ -95,11 +75,11 @@
 	{/if}
 	<span class="min-w-0 flex-1 truncate">
 		{#if placeFirst}
-			<span class="text-fg-default font-medium">{placeName ?? 'Closed workstream'}</span>
+			<span class="text-fg-default font-medium">{place ?? 'Closed workstream'}</span>
 		{:else}
 			<span class="text-fg-default font-medium">{run.title}</span>
-			{#if placeName}
-				<span class="text-fg-tertiary">· {placeName}</span>
+			{#if place}
+				<span class="text-fg-tertiary">· {place}</span>
 			{/if}
 		{/if}
 		{#if followed}

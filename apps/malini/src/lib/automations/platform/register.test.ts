@@ -721,7 +721,7 @@ describe('automation definitions', () => {
 		expect(await context.commands.call('automations.list-runs', undefined)).toEqual([]);
 	});
 
-	it("keeps the chat an automation was run from, for that chat's composer tray", async () => {
+	it("keeps the chat an automation was run from, for that chat's automation lines", async () => {
 		const fixChecks = await builtin('fix-checks');
 		const fromChat = await context.commands.call('automations.run', {
 			definitionId: fixChecks.id,
@@ -1313,7 +1313,7 @@ describe('tracking', () => {
 });
 
 describe('restart', () => {
-	it('keeps tracking runs malini resumed or a limit paused, and fails the ones it could not', async () => {
+	it('keeps tracking runs malini resumed, paused to quit or a limit paused, and fails the ones whose chat ended', async () => {
 		automations.dispose();
 		const definition = await builtin('fix-checks');
 		const left = (
@@ -1348,6 +1348,7 @@ describe('restart', () => {
 		};
 		left('resumed', 'ws-a', 's-resumed', 'running');
 		left('lost', 'ws-b', 's-lost', 'running');
+		left('quit', 'ws-d', 's-quit', 'running');
 		left('paused', 'ws-c', 's-paused', 'running');
 		left('finished', 'ws-c', 's-finished', 'needs-you');
 		left('never', 'ws-d', null, 'running');
@@ -1364,7 +1365,11 @@ describe('restart', () => {
 		]);
 		sessionEvents.set('s-lost', [
 			envelope('s-lost', 'r3', { type: 'run.started' }),
-			envelope('s-lost', 'r3', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR }),
+			envelope('s-lost', 'r3', { type: 'run.failed', error: 'The agent bridge exited.' }),
+		]);
+		sessionEvents.set('s-quit', [
+			envelope('s-quit', 'r6', { type: 'run.started' }),
+			envelope('s-quit', 'r6', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR }),
 		]);
 		sessionEvents.set('s-paused', [
 			envelope('s-paused', 'r5', { type: 'run.started' }),
@@ -1380,6 +1385,7 @@ describe('restart', () => {
 			envelope('s-finished', 'r4', { type: 'run.completed', summary: 'All green.' }),
 		]);
 
+		settings[AUTOMATIONS_MAX_CONCURRENT_SETTING] = '4';
 		context = harness(db);
 		automations = registerAutomations(context, { log: () => {} });
 		automations.start();
@@ -1397,6 +1403,7 @@ describe('restart', () => {
 		expect(await automationRun('resumed')).toMatchObject({ status: 'running', agentRunId: 'r2' });
 		expect((await automationRun('held')).status).toBe('waiting');
 		expect((await automationRun('paused')).status).toBe('running');
+		expect((await automationRun('quit')).status).toBe('running');
 
 		agentEvent('s-resumed', 'r2', { type: 'run.started', sessionId: 's-resumed' });
 		agentEvent('s-resumed', 'r2', { type: 'run.completed', summary: 'Picked up where it left.' });

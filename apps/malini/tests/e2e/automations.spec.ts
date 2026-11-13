@@ -134,7 +134,7 @@ test('the Automations page lists your automations then the built-in ones, drafts
 	}
 });
 
-test('a workstream lists only its live automations above the composer, asks its question there, holds a queued automation closed until it starts and drops it once cancelled, and the top bar counts them', async () => {
+test('a workstream lists only its live automations as lines beside the inspector, a queued line opens its automation to cancel it, a question line opens its chat, and the top bar counts them', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -147,8 +147,9 @@ test('a workstream lists only its live automations above the composer, asks its 
 		);
 		await openWorkstream(page, seeded.workstreamId);
 		const topBarAutomations = page.getByTestId('global-topbar-automations');
+		const lines = page.getByRole('list', { name: 'Automations', exact: true });
 		await expect(topBarAutomations).toHaveAccessibleName('Automations', { timeout: 20_000 });
-		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
+		await expect(lines).toHaveCount(0);
 
 		await topBarAutomations.click();
 		await expect(page.getByRole('navigation', { name: 'Automations' })).toBeVisible();
@@ -161,29 +162,30 @@ test('a workstream lists only its live automations above the composer, asks its 
 		await expect(topBarAutomations).toHaveAccessibleName(/^Automations, .*1 needs you$/u, {
 			timeout: 30_000,
 		});
-		const center = page.getByRole('region', { name: /^Automations \(\d+\)$/u });
-		await expect(center).toBeVisible({ timeout: 30_000 });
-		const inProgress = center.getByRole('list', { name: 'Automations in progress' });
-		const question = inProgress.getByRole('link', { name: `Ask first in ${WORKSTREAM}: Asks you` });
-		await expect(inProgress.getByRole('listitem').first().getByRole('link')).toHaveAccessibleName(
-			`Ask first in ${WORKSTREAM}: Asks you`,
+		const question = lines.getByRole('link', { name: 'Ask first, Asks you', exact: true });
+		await expect(question).toBeVisible({ timeout: 30_000 });
+		await expect(lines.getByRole('listitem').first().getByRole('link')).toHaveAccessibleName(
+			'Ask first, Asks you',
 		);
-		await expect(center.getByRole('button', { name: 'Cancel Ask first' })).toHaveCount(0);
+		await expect(
+			page.getByTestId('chat-composer-tray').getByText(/Ask first|Keep going/u),
+		).toHaveCount(0);
 		await captureFlow(app, 'automations-in-workstream');
 
-		const queued = center.getByRole('button', {
-			name: /^Keep going automation.*, Queued\. The transcript opens once the automation starts$/u,
-		});
-		await expect(queued).toBeDisabled();
-
-		await center.getByRole('button', { name: 'Cancel Keep going' }).click();
-		const confirm = center.getByRole('button', { name: 'Confirm cancelling Keep going' });
+		const queued = lines.getByRole('link', { name: 'Keep going, Queued', exact: true });
+		await queued.click();
+		const recent = page.getByRole('list', { name: 'Recent runs' });
+		await recent.getByRole('button', { name: 'Cancel Keep going' }).click();
+		const confirm = recent.getByRole('button', { name: 'Confirm cancelling Keep going' });
 		await expect(confirm).toHaveText('Cancel automation');
-		await expect(queued).toBeVisible();
 		await confirm.click();
-		await expect(queued).toHaveCount(0, { timeout: 30_000 });
+		await expect(recent.getByRole('button', { name: 'Cancel Keep going' })).toHaveCount(0, {
+			timeout: 30_000,
+		});
 		await expect(topBarAutomations).toHaveAccessibleName('Automations, 1 needs you');
 
+		await openWorkstream(page, seeded.workstreamId);
+		await expect(queued).toHaveCount(0);
 		await question.click();
 		await expect(page).toHaveURL(/agent=sess-/u);
 		expectCleanConsole(app);

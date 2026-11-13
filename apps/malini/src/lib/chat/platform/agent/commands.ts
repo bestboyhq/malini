@@ -1504,13 +1504,15 @@ export async function continuePausedRuns(
 	log: (line: string) => void = defaultLog,
 ): Promise<void> {
 	await Promise.all(
-		listPausedRuns(db).map(async (paused) => {
-			try {
-				await sendContinuation(db, sendPrompt, paused, causeEventId, CONTINUE_AFTER_PAUSE_PROMPT);
-			} catch (error) {
-				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
-			}
-		}),
+		listPausedRuns(db)
+			.filter((paused) => !automationOver(db, paused.sessionId))
+			.map(async (paused) => {
+				try {
+					await sendContinuation(db, sendPrompt, paused, causeEventId, CONTINUE_AFTER_PAUSE_PROMPT);
+				} catch (error) {
+					log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
+				}
+			}),
 	);
 }
 
@@ -1522,10 +1524,16 @@ export async function continuePausedRun(
 ): Promise<boolean> {
 	const stopped = continuableRun(db, paused.sessionId);
 	if (stopped?.runId !== paused.runId || stopped.resumeAt === null) return false;
-	const automation = userSessionWorkstreamId(db, paused.sessionId) === null;
-	if (automation && activeAutomationRunForSession(db, paused.sessionId) === null) return false;
+	if (automationOver(db, paused.sessionId)) return false;
 	await sendContinuation(db, sendPrompt, stopped, causeEventId, CONTINUE_AFTER_STOP_PROMPT);
 	return true;
+}
+
+function automationOver(db: MaliniDatabase, sessionId: string): boolean {
+	return (
+		userSessionWorkstreamId(db, sessionId) === null &&
+		activeAutomationRunForSession(db, sessionId) === null
+	);
 }
 
 export async function continueStoppedRun(

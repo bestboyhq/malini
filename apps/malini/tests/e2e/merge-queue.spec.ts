@@ -270,12 +270,9 @@ test('a failing check starts a Fix checks automation whose transcript opens from
 			timeout: 30_000,
 		});
 		expect(rerunCalls(github)).toEqual([]);
-		const automations = page.getByRole('region', { name: 'Automations (1)', exact: true });
-		await expect(automations).toBeVisible({ timeout: 30_000 });
-		const transcript = automations.getByRole('link', {
-			name: 'Open transcript: Fix checks automation, Running',
-		});
-		await expect(transcript).toBeVisible();
+		const automations = page.getByRole('list', { name: 'Automations', exact: true });
+		const transcript = automations.getByRole('link', { name: 'Fix checks, Running', exact: true });
+		await expect(transcript).toBeVisible({ timeout: 30_000 });
 		await captureFlow(app, 'merge-queue-automation-in-workstream');
 		await transcript.click();
 
@@ -298,7 +295,7 @@ test('a failing check starts a Fix checks automation whose transcript opens from
 		await expectMergedAndArchived(page, 'e2e-fix-checks');
 		expect(github.pushedSubjects()[0]).toBe('Fix failing checks');
 		expect(mergeCalls(github)).toHaveLength(1);
-		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
+		await expect(automations).toHaveCount(0);
 
 		await openAutomations(page, '#/automations/explorer');
 		const explorer = page.getByTestId('automations-explorer');
@@ -396,8 +393,8 @@ test('a re-run that fails again starts Fix checks, which hears the failure repea
 		expect(rerunCalls(github)).toHaveLength(1);
 		await captureFlow(app, 'merge-queue-fixing-after-rerun');
 		await page
-			.getByRole('region', { name: 'Automations (1)', exact: true })
-			.getByRole('link', { name: 'Open transcript: Fix checks automation, Running' })
+			.getByRole('list', { name: 'Automations', exact: true })
+			.getByRole('link', { name: 'Fix checks, Running', exact: true })
 			.click();
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBeNull();
 		await expect(

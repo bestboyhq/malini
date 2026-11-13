@@ -1,12 +1,15 @@
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
 	import { worktreePageUrl } from '$contract/browser';
+	import { workstreamLiveAutomationsQuery } from '$lib/automations/application/queries/workstream-live-automations.query.svelte';
+	import { AutomationGutterRows } from '$lib/automations/automations.api';
 	import { loadBrowserTabsCommand } from '$lib/browser/application/commands/load-browser-tabs.command';
 	import { openBrowserTabCommand } from '$lib/browser/application/commands/open-browser-tab.command';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
+	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { keepContextMediaFreshHook } from '$lib/chat/application/hooks/keep-context-media-fresh.hook';
 	import { contextMediaCountQuery } from '$lib/chat/application/queries/context-media-count.query.svelte';
 	import { MediaGallery, WorkstreamChatBridge } from '$lib/chat/chat.api';
@@ -61,6 +64,10 @@
 			run: (): void => openBrowserTabCommand(workstreamId),
 		},
 	]);
+
+	const automations = $derived(
+		workstreamLiveAutomationsQuery.data(workstreamId, activeSessionQuery.data),
+	);
 
 	$effect.pre(() => loadBrowserTabsCommand(workstreamId));
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
@@ -129,7 +136,7 @@
 			{repositoryScopeReady}
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
-			agentWorking={chat.agentWorking}
+			agentStatus={chat.agentStatus}
 			overrideStatus={provisioningStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
@@ -147,7 +154,12 @@
 	onruntimeretry={retryRepositoryScope}
 	{builtInPanels}
 	{panelActions}
+	belowGutter={automations.length > 0 ? automationsHere : undefined}
 />
+
+{#snippet automationsHere()}
+	<AutomationGutterRows entries={automations} {workstreamId} />
+{/snippet}
 
 <WorkstreamPathContextMenu {workstreamId} />
 

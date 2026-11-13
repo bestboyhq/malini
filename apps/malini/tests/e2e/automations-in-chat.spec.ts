@@ -14,7 +14,7 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('an automation run from the slash list waits in the composer tray instead of the chat, and its transcript opens and closes as a tab of its own', async () => {
+test('an automation run from the slash list shows as a line beside the inspector instead of in the chat or the composer, and its transcript opens from there and closes as a tab of its own', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -58,21 +58,21 @@ test('an automation run from the slash list waits in the composer tray instead o
 		).toBeVisible();
 		await page.keyboard.press('Enter');
 
-		const tray = page.getByRole('region', { name: 'Automations (1)', exact: true });
+		const lines = page.getByRole('list', { name: 'Automations', exact: true });
+		await expect(lines.getByRole('link', { name: 'Fix checks, Queued', exact: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(page.getByTestId('chat-composer-tray').getByText(/Fix checks/u)).toHaveCount(0);
 		await expect(
-			tray.getByRole('button', {
-				name: 'Fix checks automation, Queued. The transcript opens once the automation starts',
-			}),
-		).toBeVisible({ timeout: 20_000 });
+			page.getByRole('region', { name: 'Inspector', exact: true }).getByRole('list'),
+		).toHaveCount(0);
 		await expect(input).toHaveText('');
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
 		await captureFlow(app, 'automations-in-chat-queued');
 
 		holdAgentRuns(app, true);
 		await submit.click();
-		const opener = tray.getByRole('link', {
-			name: 'Open transcript: Fix checks automation, Running',
-		});
+		const opener = lines.getByRole('link', { name: 'Fix checks, Running', exact: true });
 		await expect(opener).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByTestId('chat-agent-tab')).toHaveCount(1);
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
@@ -83,12 +83,11 @@ test('an automation run from the slash list waits in the composer tray instead o
 		const automation = currentSessionId(page);
 
 		holdAgentRuns(app, false);
-		await expect(tray).toHaveCount(0, { timeout: 30_000 });
+		await expect(lines).toHaveCount(0, { timeout: 30_000 });
 		await page.getByRole('button', { name: 'Close Automation: Fix checks' }).click();
 		await expect(automationTab).toHaveCount(0);
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).toBe(chat);
 		expect((await listSessions(page, workstreamId)).map(({ id }) => id)).toContain(automation);
-		await expect(page.getByRole('region', { name: /^Automations \(/u })).toHaveCount(0);
 		await expect(page.getByRole('article', { name: 'Automation Fix checks' })).toHaveCount(0);
 		await captureFlow(app, 'automations-in-chat-done');
 		expectCleanConsole(app);

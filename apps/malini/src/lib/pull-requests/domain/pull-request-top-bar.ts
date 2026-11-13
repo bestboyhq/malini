@@ -1,3 +1,8 @@
+import {
+	isAgentWorking,
+	isWaitingForUser,
+	type SessionStatus,
+} from '$contract/agent-state-machine';
 import { githubFailure } from '$contract/github-failure';
 import type { ShipFailure, ShipStep } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
@@ -31,12 +36,12 @@ export function pullRequestTopBar(
 	ship: PullRequestShip | null,
 	surface: RepositorySurface | null,
 	availability: PullRequestAvailability,
-	agentWorking = false,
+	agentStatus: SessionStatus | null = null,
 ): PullRequestTopBar {
 	const read = surface !== null && repositorySurfaceHasBeenRead(surface) ? surface : null;
 	const remoteFailure = surface === null ? null : surfaceFailure(surface);
 	const url = read?.pullRequest?.url ?? ship?.pullRequestUrl ?? null;
-	const status = workstreamStatus(ship, read, availability, surface, url, agentWorking);
+	const status = workstreamStatus(ship, read, availability, surface, url, agentStatus);
 	return {
 		status,
 		menu: topBarMenu(ship, surface, remoteFailure).filter(
@@ -54,10 +59,10 @@ function workstreamStatus(
 	availability: PullRequestAvailability,
 	surface: RepositorySurface | null,
 	url: string | null,
-	agentWorking: boolean,
+	agentStatus: SessionStatus | null,
 ): WorkstreamStatus | null {
 	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null =>
-		agentWorking ? whileAgentWorks(settled) : settled;
+		isAgentWorking(agentStatus) ? whileAgentWorks(settled, agentStatus) : settled;
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
 	if (ship?.phase === 'needs-you' && !mergedOnGithub) return needsYou(ship, read, url);
 	const failure = mergedOnGithub ? null : shipFailure(ship);
@@ -182,9 +187,14 @@ function clearingBlockers(settled: WorkstreamStatus | null): WorkstreamStatus {
 	return working('Clearing blockers', settled);
 }
 
-function whileAgentWorks(settled: WorkstreamStatus | null): WorkstreamStatus | null {
+function whileAgentWorks(
+	settled: WorkstreamStatus | null,
+	agentStatus: SessionStatus | null,
+): WorkstreamStatus | null {
 	if (settled?.tone !== 'idle' && settled?.tone !== 'ready') return settled;
-	return working('Agent running', settled);
+	return isWaitingForUser(agentStatus)
+		? { ...working('Needs you', settled), busy: false }
+		: working('Agent running', settled);
 }
 
 function working(label: string, settled: WorkstreamStatus | null): WorkstreamStatus {

@@ -1,3 +1,4 @@
+import type { SessionStatus } from '$contract/agent-state-machine';
 import {
 	pullRequestAvailabilityOf,
 	type PullRequestTopBar,
@@ -10,13 +11,13 @@ import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/
 export { pullRequestTopBarQuery };
 
 class PullRequestTopBarQuery {
-	public readonly data: (agentWorking: boolean) => PullRequestTopBar = $derived(
-		(agentWorking: boolean) =>
+	public readonly data: (agentStatus: SessionStatus | null) => PullRequestTopBar = $derived(
+		(agentStatus: SessionStatus | null) =>
 			pullRequestTopBar(
 				pullRequestShipAggregate.shipFor(pullRequestScopeStore.workstreamId),
 				repositorySurfaceAggregate.presentedSurfaceFor(pullRequestScopeStore.workstreamId),
 				pullRequestAvailabilityOf(pullRequestScopeStore),
-				agentWorking,
+				agentStatus,
 			),
 	);
 }

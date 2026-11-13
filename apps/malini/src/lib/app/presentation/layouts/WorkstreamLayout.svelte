@@ -7,13 +7,10 @@
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
 	import { loadAutomationsCommand } from '$lib/automations/application/commands/load-automations.command';
 	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
-	import { liveAutomationsQuery } from '$lib/automations/application/queries/live-automations.query.svelte';
 	import { automationRunByIdQuery } from '$lib/automations/application/queries/automation-run-by-id.query.svelte';
 	import { automationSuggestionsQuery } from '$lib/automations/application/queries/automation-suggestions.query.svelte';
-	import {
-		AutomationSuggestionCard,
-		WorkstreamAutomationRuns,
-	} from '$lib/automations/automations.api';
+	import { workstreamLiveAutomationsQuery } from '$lib/automations/application/queries/workstream-live-automations.query.svelte';
+	import { AutomationSuggestionCard } from '$lib/automations/automations.api';
 	import { mergeStoppedOnAutomationQuery } from '$lib/pull-requests/application/queries/merge-stopped-on-automation.query.svelte';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { shipFailureQuery } from '$lib/pull-requests/application/queries/ship-failure.query.svelte';
@@ -52,13 +49,7 @@
 			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
 	);
 	const chatSessionId = $derived(activeSessionQuery.data);
-	const automations = $derived(
-		liveAutomationsQuery.data.filter(
-			(entry) =>
-				entry.workstreamId === workstreamId ||
-				(chatSessionId !== null && entry.run?.chatSessionId === chatSessionId),
-		),
-	);
+	const automations = $derived(workstreamLiveAutomationsQuery.data(workstreamId, chatSessionId));
 	const automationRuns = $derived(automations.flatMap((entry) => (entry.run ? [entry.run] : [])));
 
 	onMount(() => {
@@ -95,7 +86,6 @@
 			{workstreamId}
 			{pullRequestShipped}
 			{automationRuns}
-			automations={automations.length > 0 ? automationsInProgress : undefined}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
@@ -121,10 +111,6 @@
 		</div>
 	{/snippet}
 </InspectorSplit>
-
-{#snippet automationsInProgress()}
-	<WorkstreamAutomationRuns entries={automations} {workstreamId} />
-{/snippet}
 
 {#snippet workstreamNotice()}
 	{#if stoppedHere && mergeStop}

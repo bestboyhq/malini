@@ -52,6 +52,18 @@ export function liveAutomations(
 		.map(({ entry }) => entry);
 }
 
+export function liveAutomationsHere(
+	entries: readonly LiveAutomation[],
+	workstreamId: string,
+	chatSessionId: string | null,
+): LiveAutomation[] {
+	return entries.filter(
+		(entry) =>
+			entry.workstreamId === workstreamId ||
+			(chatSessionId !== null && entry.run?.chatSessionId === chatSessionId),
+	);
+}
+
 export function asksYou(entry: LiveAutomation): boolean {
 	return (
 		entry.question !== null || entry.run?.status === 'waiting' || entry.run?.status === 'needs-you'

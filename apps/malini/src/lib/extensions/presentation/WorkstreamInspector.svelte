@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import type { ExtensionPanelRegistration, ExtensionWorkstream } from '@malini/extension-api';
 	import type { WorkstreamChangeTotals } from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
@@ -25,6 +25,7 @@
 		onruntimeretry: () => void;
 		builtInPanels?: readonly ExtensionPanelRegistration[];
 		panelActions?: readonly InspectorPanelAction[];
+		belowGutter?: Snippet | undefined;
 	}
 
 	let {
@@ -37,6 +38,7 @@
 		onruntimeretry,
 		builtInPanels = [],
 		panelActions = [],
+		belowGutter,
 	}: Props = $props();
 
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
@@ -86,6 +88,7 @@
 	{runtimeError}
 	onruntimeretry={onRuntimeRetry}
 	{panelActions}
+	{belowGutter}
 	{workstreamPanelIds}
 	requestedPanelId={routePanelId}
 />

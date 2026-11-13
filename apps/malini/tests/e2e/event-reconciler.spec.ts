@@ -225,10 +225,14 @@ test('Malini asks before it acts on a failed automation when the model says so, 
 			{ timeout: 20_000 },
 		);
 		await openWorkstream(page, workstreamId);
+		await page
+			.getByRole('list', { name: 'Automations', exact: true })
+			.getByRole('button', { name: `${AUTOMATION}, Failed`, exact: true })
+			.click({ timeout: 20_000 });
 		const ask = page
-			.getByRole('region', { name: /^Automations \(\d+\)$/u })
+			.getByRole('dialog', { name: `${AUTOMATION}, Failed` })
 			.getByRole('group', { name: new RegExp(`^${AUTOMATION} in Api work: Failed`, 'u') });
-		await expect(ask).toBeVisible({ timeout: 20_000 });
+		await expect(ask).toBeVisible();
 		const choices = ask.getByRole('button');
 		await expect(choices).toHaveCount(3);
 		await expect(choices.nth(0)).toHaveAccessibleName(`Run ${AUTOMATION} again`);
@@ -276,7 +280,7 @@ test('a question on an automation goes away with its workstream', async () => {
 			.poll(async () => (await decisions(page)).map(({ status }) => status), { timeout: 30_000 })
 			.toEqual(['dismissed']);
 		await expect(ask).toHaveAccessibleName('Automations');
-		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Automations', exact: true })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -426,6 +430,63 @@ test('a turn a restart cut short goes on once the Resume rule hears Malini start
 				.getByRole('button', { name: /^HANG until Malini restarts, Resume work, /u }),
 		).toBeVisible();
 		await captureFlow(app, 'malini-started-resume');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('an automation a restart cut short goes on with its chat as the same run, and nothing asks to run it again', async () => {
+	test.setTimeout(240_000);
+	const workstreamId = 'e2e-resume-automation-ws';
+	const runOf = async (page: Page, id: string): Promise<AutomationRunRecord | undefined> =>
+		(await invoke<AutomationRunRecord[]>(page, 'automations.list-runs', undefined)).find(
+			(run) => run.id === id,
+		);
+	const first = await launchMalini();
+	let runId = '';
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root, 'acme/resume-automation');
+		await seedWorkstream(page, `file://${source}`, workstreamId, 'Resume automation');
+		const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
+			name: 'Long check',
+			instructions: 'HANG until Malini restarts',
+			model: 'opus',
+			effort: 'low',
+			runsIn: 'workstream',
+		});
+		runId = (
+			await invoke<{ id: string }>(page, 'automations.run', {
+				definitionId: automation.id,
+				workstreamId,
+			})
+		).id;
+		await expect
+			.poll(
+				async () => {
+					const sessionId = (await runOf(page, runId))?.sessionId;
+					return sessionId
+						? (await listEvents(page, sessionId)).some(({ event }) => event.type === 'run.started')
+						: false;
+				},
+				{ timeout: 20_000 },
+			)
+			.toBe(true);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await expect
+			.poll(async () => (await runOf(page, runId))?.status, { timeout: 30_000 })
+			.toBe('succeeded');
+		expect(await runOf(page, runId)).toMatchObject({ interrupted: false });
+		expect((await decisions(page)).filter(({ status }) => status === 'asking')).toEqual([]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

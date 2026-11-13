@@ -93,7 +93,7 @@
 	{#if unplaced.length > 0}
 		<Well title="In progress" note={`${unplaced.length}`}>
 			<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] p-1">
-				<AutomationRunList entries={unplaced} {nowMs} asksHere />
+				<AutomationRunList entries={unplaced} {nowMs} />
 			</div>
 		</Well>
 	{/if}

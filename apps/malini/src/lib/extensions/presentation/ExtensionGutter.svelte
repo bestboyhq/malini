@@ -3,12 +3,10 @@
 	import { formatCount } from '@malini/extension-api';
 
 	import { Button } from '$hyper-ui/components/button';
-	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
-	import type { GutterRow } from '$shared/extensions/inspector-gutter-row';
+	import { GUTTER_ROW_CLASS, type GutterRow } from '$shared/extensions/inspector-gutter-row';
 
 	interface Props {
 		workstreamId: string;
@@ -18,7 +16,6 @@
 		onopen: (panelId: string) => void;
 		onaction?: ((actionId: string) => void) | undefined;
 		oncontextmenu?: ((event: MouseEvent, panelId: string) => void) | undefined;
-		onshow?: (() => void) | undefined;
 	}
 
 	let {
@@ -29,11 +26,7 @@
 		onopen,
 		onaction,
 		oncontextmenu,
-		onshow,
 	}: Props = $props();
-
-	const rowClass =
-		'hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-2 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40';
 </script>
 
 <div
@@ -41,23 +34,6 @@
 	data-testid="extension-inspector-gutter"
 	data-navigation-workstream-id={workstreamId}
 >
-	{#if onshow}
-		<div class="flex h-7 shrink-0 items-center justify-end pr-0.5">
-			<Tooltip content="Show inspector" placement="left">
-				<IconButton
-					ariaLabel="Show inspector"
-					variant="ghost"
-					size="sm"
-					ariaExpanded={false}
-					data-testid="extension-inspector-show"
-					onclick={onshow}
-				>
-					<Icon name="chevron-left" size={12} />
-				</IconButton>
-			</Tooltip>
-		</div>
-	{/if}
-
 	{#snippet rowIcon(icon: string)}
 		<span class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center" aria-hidden="true">
 			{#if renderIcon}{@render renderIcon(icon, 13)}{:else}<ExtensionPanelIcon
@@ -71,7 +47,7 @@
 		{#if row.kind === 'action'}
 			<Button
 				bare
-				class={[rowClass, 'text-fg-secondary']}
+				class={[GUTTER_ROW_CLASS, 'text-fg-secondary']}
 				{disabled}
 				data-testid="extension-inspector-gutter-action"
 				data-action-id={row.id}
@@ -95,7 +71,7 @@
 		{:else}
 			<Button
 				bare
-				class={[rowClass, row.closed ? 'text-fg-tertiary' : 'text-fg-secondary']}
+				class={[GUTTER_ROW_CLASS, row.closed ? 'text-fg-tertiary' : 'text-fg-secondary']}
 				{disabled}
 				data-testid="extension-inspector-gutter-row"
 				data-panel-id={row.id}

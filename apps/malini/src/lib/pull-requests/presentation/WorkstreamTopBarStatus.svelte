@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import type { ExtensionWorkstream } from '@malini/extension-api';
+	import { isAgentWorking, type SessionStatus } from '$contract/agent-state-machine';
 	import {
 		globalTopBarGithubStatus,
 		type GlobalTopBarGithubStatus,
@@ -34,7 +35,7 @@
 		repositoryScopeReady: boolean;
 		remotePullRequestsSupported: boolean;
 		repositoryExtensionRegistered: boolean;
-		agentWorking: boolean;
+		agentStatus: SessionStatus | null;
 		overrideStatus: GlobalTopBarGithubStatus | null;
 		ongitstatusstale: () => void;
 		onarchive: () => void;
@@ -49,7 +50,7 @@
 		repositoryScopeReady,
 		remotePullRequestsSupported,
 		repositoryExtensionRegistered,
-		agentWorking,
+		agentStatus,
 		overrideStatus,
 		ongitstatusstale,
 		onarchive,
@@ -57,7 +58,7 @@
 
 	const surface = $derived(repositorySurfaceQuery.data);
 	const githubStatus = $derived(pullRequestGithubStatusQuery.data);
-	const topBar = $derived(pullRequestTopBarQuery.data(agentWorking));
+	const topBar = $derived(pullRequestTopBarQuery.data(agentStatus));
 	const status = $derived(topBar.status);
 	const continuing = $derived(workstreamBusyActionQuery.data(workstreamId) === 'continue');
 	const busy = $derived(pullRequestBusyQuery.data || continuing);
@@ -144,7 +145,7 @@
 			id: item.id,
 			label: item.label,
 			confirmLabel: item.confirmLabel,
-			disabled: busy || (item.id === 'abort-operation' && agentWorking),
+			disabled: busy || (item.id === 'abort-operation' && isAgentWorking(agentStatus)),
 			onInvoke: () => onMenuItem(item.id),
 		};
 	}
