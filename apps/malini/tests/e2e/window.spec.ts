@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { invoke, launchMalini, type RuntimeInfo } from './harness';
+import { expectPicker, invoke, launchMalini, type RuntimeInfo } from './harness';
 
 test('the built app opens a window on a runtime whose SQLite is the bundled one', async () => {
 	const app = await launchMalini();
@@ -8,9 +8,7 @@ test('the built app opens a window on a runtime whose SQLite is the bundled one'
 		const { page, electronApp } = app;
 
 		await expect(page).toHaveTitle('Malini · Repositories');
-		await expect(
-			page.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
-		).toBeVisible();
+		await expectPicker(page);
 
 		const runtime = await invoke<RuntimeInfo>(page, 'app.runtime-info', undefined);
 		expect(runtime.app).toBe('0.1.0');
