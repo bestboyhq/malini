@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	connectFolder,
@@ -52,11 +52,11 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		const setup = await reachSidebarStep(page);
 		await expect(setup.getByText('Step 3 of 5')).toBeVisible();
 
-		const where = setup.getByRole('group', { name: 'Where you work' });
+		const where = setup.getByRole('group', { name: 'Repositories' });
 		const shows = setup.getByRole('group', { name: 'What it shows' });
 		const rows = setup.getByRole('group', { name: 'Row height' });
 		const preview = setup.getByTestId('onboarding-sidebar-preview');
-		await expect(where.getByRole('button', { name: 'Many repositories' })).toHaveAttribute(
+		await expect(where.getByRole('button', { name: 'Separate' })).toHaveAttribute(
 			'aria-pressed',
 			'true',
 		);
@@ -76,7 +76,7 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		);
 		await captureFlow(app, 'setup-sidebar-recent-default');
 
-		await where.getByRole('button', { name: 'One project' }).click();
+		await where.getByRole('button', { name: 'Mixed' }).click();
 		await shows.getByRole('button', { name: 'Only what needs me' }).click();
 		await rows.getByRole('button', { name: 'Comfortable' }).click();
 		await expect(shows.getByRole('button', { name: 'Only what needs me' })).toHaveAttribute(
@@ -109,17 +109,25 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		await expect(quiet).toBeVisible();
 		await expect(sidebar(page).getByText('Nothing needs you.')).toHaveCount(0);
 
-		await page.getByRole('button', { name: 'Group and sort' }).click();
-		const panel = page.getByRole('group', { name: 'Group and sort' });
-		await expect(panel.getByRole('button', { name: 'Show: Everything' })).toBeVisible();
-		await expect(panel.getByRole('button', { name: 'Grouping: Status' })).toBeVisible();
+		await page.getByRole('button', { name: 'Sidebar options' }).click();
+		const panel = page.getByRole('group', { name: 'Sidebar options' });
+		const option = (group: string, name: string): Locator =>
+			panel
+				.getByRole('group', { name: group, exact: true })
+				.getByRole('button', { name, exact: true });
+		await expect(option('Repositories', 'Mixed')).toHaveAttribute('aria-pressed', 'true');
+		await expect(option('Show', 'Everything')).toHaveAttribute('aria-pressed', 'true');
+		await expect(option('Row height', 'Comfortable')).toHaveAttribute('aria-pressed', 'true');
+		await expect(panel.getByRole('button', { name: 'Advanced', exact: true })).toHaveAttribute(
+			'aria-expanded',
+			'false',
+		);
 		await captureFlow(app, 'sidebar-recent-arrange-show');
-		await panel.getByRole('button', { name: 'Show: Everything' }).click();
-		await page
-			.getByRole('menu', { name: 'Show' })
-			.getByRole('menuitemradio', { name: 'Attention' })
-			.click();
+		await option('Show', 'Only what needs me').click();
 		await expect(sidebar(page).getByText('Nothing needs you.')).toBeVisible();
+		await expect(option('Show', 'Only what needs me')).toHaveAttribute('aria-pressed', 'true');
+		await option('Row height', 'Compact').click();
+		await expect(option('Row height', 'Compact')).toHaveAttribute('aria-pressed', 'true');
 		await page.keyboard.press('Escape');
 		expectCleanConsole(app);
 	} finally {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	arranged,
 	DEFAULT_SIDEBAR_ARRANGEMENT,
-	isDefaultArrangement,
 	readSidebarArrangement,
 	showsAttentionOnly,
 } from './sidebar-arrangement';
@@ -31,11 +30,5 @@ describe('readSidebarArrangement', () => {
 	it('reads an arrangement saved before the filter existed as showing everything', () => {
 		const saved = { grouping: 'status', subgrouping: 'none', ordering: 'manual' };
 		expect(readSidebarArrangement(saved)).toEqual({ ...saved, show: 'everything' });
-	});
-
-	it('is not the default once the filter is on', () => {
-		expect(isDefaultArrangement(arranged(DEFAULT_SIDEBAR_ARRANGEMENT, { show: 'attention' }))).toBe(
-			false,
-		);
 	});
 });

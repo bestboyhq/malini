@@ -51,15 +51,6 @@ export function sectionedGrouping(grouping: SidebarGrouping): grouping is 'statu
 	return grouping === 'status' || grouping === 'day';
 }
 
-export function isDefaultArrangement(arrangement: SidebarArrangement): boolean {
-	return (
-		arrangement.grouping === DEFAULT_SIDEBAR_ARRANGEMENT.grouping &&
-		arrangement.subgrouping === DEFAULT_SIDEBAR_ARRANGEMENT.subgrouping &&
-		arrangement.ordering === DEFAULT_SIDEBAR_ARRANGEMENT.ordering &&
-		arrangement.show === DEFAULT_SIDEBAR_ARRANGEMENT.show
-	);
-}
-
 export function showsAttentionOnly(arrangement: SidebarArrangement): boolean {
 	return arrangement.show === 'attention' && arrangement.grouping === 'status';
 }

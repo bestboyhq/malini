@@ -2,7 +2,10 @@
 	import { onMount } from 'svelte';
 	import { chooseOnboardingSidebarCommand } from '$lib/app/application/commands/choose-onboarding-sidebar.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { onboardingSidebarArrangement, type OnboardingWhere } from '$lib/app/domain/onboarding';
+	import {
+		onboardingSidebarArrangement,
+		type SidebarRepositories,
+	} from '$lib/app/domain/onboarding';
 	import type { SidebarShow } from '$lib/app/domain/sidebar-arrangement';
 	import type { SidebarDensity } from '$lib/app/domain/sidebar-density';
 	import {
@@ -11,30 +14,23 @@
 		reloadGithubRepositoriesOnSignInHook,
 	} from '$shared/repositories/repositories.api';
 	import ChoiceSwitch from '../settings/ChoiceSwitch.svelte';
+	import {
+		DENSITY_CHOICES,
+		DENSITY_LABELS,
+		SHOW_CHOICES,
+		SHOW_LABELS,
+		REPOSITORIES_CHOICES,
+		REPOSITORIES_LABELS,
+	} from '../sidebar-preset-copy';
 	import SidebarPreview from './SidebarPreview.svelte';
 
-	const WHERE: readonly OnboardingWhere[] = ['many', 'one'];
-	const WHERE_LABELS: Readonly<Record<OnboardingWhere, string>> = {
-		many: 'Many repositories',
-		one: 'One project',
-	};
-	const WHERE_HINTS: Readonly<Record<OnboardingWhere, string>> = {
-		many: 'Grouped by organization and repository.',
-		one: 'One flat list, grouped by status.',
-	};
-	const SHOW: readonly SidebarShow[] = ['everything', 'attention'];
-	const SHOW_LABELS: Readonly<Record<SidebarShow, string>> = {
-		everything: 'Everything',
-		attention: 'Only what needs me',
+	const REPOSITORIES_HINTS: Readonly<Record<SidebarRepositories, string>> = {
+		separate: 'Grouped by organization and repository.',
+		mixed: 'One flat list, grouped by status.',
 	};
 	const SHOW_HINTS: Readonly<Record<SidebarShow, string>> = {
 		everything: 'Every workstream, in every status.',
 		attention: 'Questions, failures and open reviews. The rest hides until you ask.',
-	};
-	const DENSITY: readonly SidebarDensity[] = ['compact', 'comfortable'];
-	const DENSITY_LABELS: Readonly<Record<SidebarDensity, string>> = {
-		compact: 'Compact',
-		comfortable: 'Comfortable',
 	};
 	const DENSITY_HINTS: Readonly<Record<SidebarDensity, string>> = {
 		compact: 'Tighter rows. More fit.',
@@ -61,21 +57,23 @@
 <div class="flex gap-6">
 	<div class="flex min-w-0 flex-1 flex-col gap-5">
 		<section class="flex flex-col items-start gap-2">
-			<h2 class="text-fg-default text-[15px] font-medium">Where do you work?</h2>
+			<h2 class="text-fg-default text-[15px] font-medium">Keep repositories separate?</h2>
 			<ChoiceSwitch
-				label="Where you work"
-				choices={WHERE}
-				labels={WHERE_LABELS}
-				selected={choice.where}
-				onchoose={(where) => chooseOnboardingSidebarCommand({ where })}
+				label="Repositories"
+				choices={REPOSITORIES_CHOICES}
+				labels={REPOSITORIES_LABELS}
+				selected={choice.repositories}
+				onchoose={(repositories) => chooseOnboardingSidebarCommand({ repositories })}
 			/>
-			<p class="text-fg-tertiary text-[13px] leading-[18px]">{WHERE_HINTS[choice.where]}</p>
+			<p class="text-fg-tertiary text-[13px] leading-[18px]">
+				{REPOSITORIES_HINTS[choice.repositories]}
+			</p>
 		</section>
 		<section class="flex flex-col items-start gap-2">
 			<h2 class="text-fg-default text-[15px] font-medium">What should it show?</h2>
 			<ChoiceSwitch
 				label="What it shows"
-				choices={SHOW}
+				choices={SHOW_CHOICES}
 				labels={SHOW_LABELS}
 				selected={choice.show}
 				onchoose={(show) => chooseOnboardingSidebarCommand({ show })}
@@ -86,7 +84,7 @@
 			<h2 class="text-fg-default text-[15px] font-medium">How tall should rows be?</h2>
 			<ChoiceSwitch
 				label="Row height"
-				choices={DENSITY}
+				choices={DENSITY_CHOICES}
 				labels={DENSITY_LABELS}
 				selected={choice.density}
 				onchoose={(density) => chooseOnboardingSidebarCommand({ density })}

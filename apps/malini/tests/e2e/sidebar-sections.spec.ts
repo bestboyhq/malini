@@ -19,8 +19,21 @@ function section(page: Page, label: string) {
 		.filter({ has: page.getByRole('button', { name: new RegExp(`^${label}, `, 'u') }) });
 }
 
+async function openAdvanced(page: Page): Promise<void> {
+	await page
+		.getByRole('group', { name: 'Focus' })
+		.getByRole('button', { name: 'Sidebar options' })
+		.click();
+	const advanced = page
+		.getByRole('group', { name: 'Sidebar options' })
+		.getByRole('button', { name: /^Advanced/u });
+	await expect(advanced).toHaveAttribute('aria-expanded', 'false');
+	await advanced.click();
+	await expect(advanced).toHaveAttribute('aria-expanded', 'true');
+}
+
 async function choose(page: Page, setting: string, choice: string): Promise<void> {
-	const panel = page.getByRole('group', { name: 'Group and sort' });
+	const panel = page.getByRole('group', { name: 'Sidebar options' });
 	await panel.getByRole('button', { name: new RegExp(`^${setting}: `, 'u') }).click();
 	const menu = page.getByRole('menu', { name: setting, exact: true });
 	await menu.getByRole('menuitemradio', { name: choice }).click();
@@ -42,8 +55,14 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 		await sendPrompt(page, 'HANG');
 
 		const focus = page.getByRole('group', { name: 'Focus' });
-		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await openAdvanced(page);
 		const panel = page.getByTestId('sidebar-arrange-panel');
+		const where = panel.getByRole('group', { name: 'Repositories' });
+		await expect(where.getByRole('button', { name: 'Separate' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(panel.getByRole('button', { name: 'Advanced', exact: true })).toBeVisible();
 		await expect(panel.getByRole('button', { name: 'Grouping: Organization' })).toBeVisible();
 		const [nav, box] = await Promise.all([sidebar(page).boundingBox(), panel.boundingBox()]);
 		if (!nav || !box) throw new Error('expected the sidebar and the panel on screen');
@@ -65,6 +84,7 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 			0,
 		);
 		await expect(panel).toContainText('Group by organization or repository to drag rows.');
+		await expect(panel.getByRole('button', { name: 'Advanced, custom' })).toBeVisible();
 		await captureFlow(app, 'sidebar-sections-status');
 
 		await choose(page, 'Sub-grouping', 'Organization');
@@ -77,6 +97,11 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 				.filter({ hasText: 'Api docs' })
 				.getByTestId('sidebar-row-repository'),
 		).toHaveText('api');
+		await expect(where.getByRole('button', { name: 'Mixed' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(panel.getByRole('button', { name: 'Advanced', exact: true })).toBeVisible();
 
 		await choose(page, 'Grouping', 'Day');
 		await choose(page, 'Ordering', 'Last active');
@@ -94,11 +119,18 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 		await expect(today).toHaveAttribute('aria-expanded', 'false', { timeout: 20_000 });
 		await today.click();
 		await expect(sidebar(page).getByText('Api docs')).toBeVisible();
-		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await openAdvanced(page);
 		await expect(panel.getByRole('button', { name: 'Ordering: Last active' })).toBeVisible();
 		await panel.getByRole('button', { name: 'Reset' }).click();
-		await expect(panel.getByRole('button', { name: 'Grouping: Organization' })).toBeVisible();
+		await expect(panel.getByRole('button', { name: 'Grouping: Status' })).toBeVisible();
+		await expect(panel.getByRole('button', { name: 'Ordering: Manual' })).toBeVisible();
 		await expect(panel.getByRole('button', { name: 'Reset' })).toHaveCount(0);
+		await expect(where.getByRole('button', { name: 'Mixed' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await where.getByRole('button', { name: 'Separate' }).click();
+		await expect(panel.getByRole('button', { name: 'Grouping: Organization' })).toBeVisible();
 		await expect(sidebar(page).getByRole('button', { name: 'acme, 1 repository' })).toBeVisible();
 		await expect(sidebar(page).getByTestId('sidebar-section')).toHaveCount(0);
 
@@ -169,12 +201,12 @@ test('focus narrows the sidebar to one organization, and a flat list orders repo
 			sidebar(page)
 				.getByTestId('sidebar-connected-repository')
 				.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-full-name')));
-		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await openAdvanced(page);
 		await choose(page, 'Grouping', 'Repository');
 		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
 		await choose(page, 'Ordering', 'Name');
 		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
-		await expect(page.getByRole('group', { name: 'Group and sort' })).toContainText(
+		await expect(page.getByRole('group', { name: 'Sidebar options' })).toContainText(
 			'Order manually to drag rows.',
 		);
 		await captureFlow(app, 'sidebar-group-and-sort');
@@ -185,7 +217,7 @@ test('focus narrows the sidebar to one organization, and a flat list orders repo
 		});
 		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
 		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
-		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await openAdvanced(page);
 		await choose(page, 'Grouping', 'Organization');
 		await choose(page, 'Ordering', 'Manual');
 		await expect(sidebar(page).getByRole('button', { name: 'acme, 2 repositories' })).toBeVisible();

@@ -77,7 +77,7 @@ async function lastReply(page: Page, text: string): Promise<void> {
 }
 
 async function choose(page: Page, setting: string, choice: string): Promise<void> {
-	const panel = page.getByRole('group', { name: 'Group and sort' });
+	const panel = page.getByRole('group', { name: 'Sidebar options' });
 	await panel.getByRole('button', { name: new RegExp(`^${setting}: `, 'u') }).click();
 	await page
 		.getByRole('menu', { name: setting, exact: true })
@@ -233,7 +233,11 @@ test('a workstream a chat started needs you in its own row, and its turn reaches
 
 		await page
 			.getByRole('group', { name: 'Focus' })
-			.getByRole('button', { name: 'Group and sort' })
+			.getByRole('button', { name: 'Sidebar options' })
+			.click();
+		await page
+			.getByRole('group', { name: 'Sidebar options' })
+			.getByRole('button', { name: /^Advanced/u })
 			.click();
 		await choose(page, 'Grouping', 'Status');
 		await page.keyboard.press('Escape');
