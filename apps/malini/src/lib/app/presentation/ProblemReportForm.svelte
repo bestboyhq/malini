@@ -84,7 +84,12 @@
 						<h3 class="text-fg-default text-sm font-medium">Filed as #{filed.number}</h3>
 						<p class="text-fg-tertiary text-xs">Replies show up on GitHub</p>
 					</div>
-					<Button variant="secondary" bordered onclick={() => openExternalUrlCommand(filed.url)}>
+					<Button
+						variant="secondary"
+						radius="full"
+						bordered
+						onclick={() => openExternalUrlCommand(filed.url)}
+					>
 						Open on GitHub
 					</Button>
 				</div>
@@ -152,7 +157,7 @@
 
 <div class="flex items-center gap-2 pt-2 pr-1 pb-1 pl-3">
 	{#if problem.filed}
-		<Button variant="primary" class="ml-auto" onclick={ondismiss}>Done</Button>
+		<Button variant="primary" radius="full" class="ml-auto" onclick={ondismiss}>Done</Button>
 	{:else}
 		<p class="text-fg-tertiary mr-auto text-xs">
 			Rather talk?
@@ -164,11 +169,18 @@
 				Join the Discord
 			</Button>
 		</p>
-		<Button variant="secondary" bordered disabled={problem.filing} onclick={ondismiss}>
+		<Button
+			variant="secondary"
+			radius="full"
+			bordered
+			disabled={problem.filing}
+			onclick={ondismiss}
+		>
 			Cancel
 		</Button>
 		<Button
 			variant="primary"
+			radius="full"
 			disabled={empty || problem.filing}
 			ariaBusy={problem.filing}
 			onclick={() => fileProblemCommand(text, kept)}
