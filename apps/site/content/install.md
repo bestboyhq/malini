@@ -48,6 +48,7 @@ Malini opens on **What are we working on?**, with nothing to set up first.
 - **Defaults.** A new install starts with **Resolve merge conflicts**, **Address review comments** and **Update from main** on **Touches my files**, and the [second brain](/malini/docs/brain.md) off.
   Settings, Automations has the [same switches](/malini/docs/automations.md#defaults).
 - **Where you heard about Malini.** Once you archive your first merged workstream, the Repositories page asks, once: Hacker News, YouTube, Twitter, GitHub, Reddit, ChatGPT, Claude, Google, a friend or somewhere else.
+  Until you pick one or close it, that question is all the page shows.
   The option you pick rides along with the usage data, so we can tell which places bring builders who stick around; what you type for somewhere else stays on your Mac.
   The × closes it for good.
 

@@ -33,6 +33,7 @@ This supersedes 0163, 0179, 0197 and 0218, moves 0151's heard-about question out
   Settings, Automations and Settings, Brain keep their switches (0179), and Sidebar options keeps its questions (0240).
 - **Heard about, after the first merge.** `HeardAboutCard.svelte` shows on the Repositories page once an archived workstream has a merged pull request and the `heard-about` setting is still unset.
   A chip answers at once, **Somewhere else** opens a field, and × stores the setting empty so it never asks again; after an answer it reads "Noted. Thanks".
+  While it asks, `RepositoriesPage.svelte` shows the card alone, and the search and the list return once it is answered or closed.
   The answer tags usage counts as `heard_about` the way 0136 and 0151 had it.
   An install with `onboarding.finished-at` met the question in the old setup, or predates it, and is never asked, by `heardAboutAsked` in `src/lib/app/domain/heard-about.ts`.
 - **Usage data.** The `setup_*` markers and `usage-data.setup-started` are gone.
@@ -49,4 +50,4 @@ This supersedes 0163, 0179, 0197 and 0218, moves 0151's heard-about question out
 - An install that keeps its first merged workstream and never archives one is never asked.
 - An install from before this decision that never answered is not asked either, so `heard_about` stays empty for it.
 - `src/lib/app/platform/usage-data.test.ts` fails when `first_repository` loses its source, and `src/lib/app/platform/register.test.ts` fails if `app.report-setup-step` comes back.
-- The e2e specs under `apps/malini/tests/e2e` cover the picker, the held prompt with a failed install and **Try again**, the starters and the heard-about card against the fake bridge.
+- The e2e specs under `apps/malini/tests/e2e` cover the picker, the held prompt with a failed install and **Try again**, the starters, and the heard-about card alone before the list, against the fake bridge.
