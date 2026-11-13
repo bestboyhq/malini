@@ -119,6 +119,7 @@
 								<p id="{id}-value" class="text-fg-tertiary text-xs break-words">{fact.value}</p>
 							</div>
 							<Switch
+								size="sm"
 								checked={!dropped.includes(fact.value)}
 								disabled={problem.filing}
 								labelledBy="{id}-label {id}-value"
