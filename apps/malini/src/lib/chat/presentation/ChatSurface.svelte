@@ -93,7 +93,6 @@
 		workstreamsCard: Snippet<[readonly string[]]>;
 		afterRun: Snippet<[string]>;
 		notice?: Snippet | undefined;
-		automations?: Snippet | undefined;
 	}
 
 	let {
@@ -105,7 +104,6 @@
 		workstreamsCard,
 		afterRun,
 		notice,
-		automations,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -502,7 +500,7 @@
 							<div class="chat-stage-inset flex flex-col">
 								<AgentProcessDiedBanner />
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || automationRequestsWaiting || uncheckedCallsWaiting || backgroundTray || automations || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || automationRequestsWaiting || uncheckedCallsWaiting || backgroundTray || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -540,12 +538,6 @@
 															openingPath={openingChangedFilePath}
 															onopen={onOpenChangedFile}
 														/>
-													</div>
-												{/if}
-
-												{#if automations}
-													<div transition:slide={foldMotion()}>
-														{@render automations()}
 													</div>
 												{/if}
 

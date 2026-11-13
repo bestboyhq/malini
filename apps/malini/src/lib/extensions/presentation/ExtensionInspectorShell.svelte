@@ -1085,8 +1085,8 @@
 	{/each}
 </section>
 
-{#if belowGutter && !drawerOpen}
-	<div class="relative z-10 mr-3 w-72 shrink-0 px-1.5">
+{#if belowGutter && !floating}
+	<div class={['relative z-10 mr-3 shrink-0', drawerOpen ? 'mb-2' : 'w-72']}>
 		{@render belowGutter()}
 	</div>
 {/if}

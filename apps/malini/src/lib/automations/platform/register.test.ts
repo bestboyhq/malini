@@ -721,7 +721,7 @@ describe('automation definitions', () => {
 		expect(await context.commands.call('automations.list-runs', undefined)).toEqual([]);
 	});
 
-	it("keeps the chat an automation was run from, for that chat's composer tray", async () => {
+	it("keeps the chat an automation was run from, for that chat's automation lines", async () => {
 		const fixChecks = await builtin('fix-checks');
 		const fromChat = await context.commands.call('automations.run', {
 			definitionId: fixChecks.id,

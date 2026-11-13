@@ -90,7 +90,7 @@ describe('the automations gutter', () => {
 });
 
 describe("a fresh chat's automations", () => {
-	it('are the runs of its workstream the composer tray does not hold: finished in the last ten minutes', () => {
+	it('are the runs of its workstream its automation lines do not hold: finished in the last ten minutes', () => {
 		automationRunsAggregate.runs = [
 			run('queued', { status: 'queued' }),
 			run('running', { status: 'running' }),

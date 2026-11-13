@@ -17,22 +17,14 @@
 
 	interface Props {
 		entry: LiveAutomation;
-		shownIn?: string | null;
 	}
 
-	let { entry, shownIn = null }: Props = $props();
+	let { entry }: Props = $props();
 
 	const run = $derived(entry.run);
 	const decision = $derived(entry.question);
 	const title = $derived(run?.title ?? UNRUN_QUESTION_TITLE);
 	const place = $derived(automationPlace(run, entry.workstreamId));
-	const placeName = $derived(
-		shownIn === null
-			? place
-			: entry.workstreamId !== shownIn && place
-				? `Automation in ${place}`
-				: 'Automation',
-	);
 	const reason = $derived(automationQuestionReason(entry));
 	const look = $derived(
 		run?.status === 'failed' || run?.status === 'needs-you'
@@ -77,8 +69,8 @@
 		</span>
 		<span class="min-w-0 flex-1 truncate">
 			<span class="text-fg-default font-medium">{title}</span>
-			{#if placeName}
-				<span class="text-fg-tertiary">· {placeName}</span>
+			{#if place}
+				<span class="text-fg-tertiary">· {place}</span>
 			{/if}
 		</span>
 		<span class="text-brand-foreground text-2xs shrink-0">{reason}</span>

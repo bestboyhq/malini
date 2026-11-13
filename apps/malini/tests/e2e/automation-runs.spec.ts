@@ -190,10 +190,14 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 			timeout: 30_000,
 		});
 		await openWorkstream(page, workstreamId);
+		const line = page
+			.getByRole('list', { name: 'Automations', exact: true })
+			.getByRole('button', { name: 'Note it, Wants to run', exact: true });
+		await line.click({ timeout: 30_000 });
 		const waiting = page
-			.getByRole('region', { name: /^Automations \(\d+\)$/u })
+			.getByRole('dialog', { name: 'Note it, Wants to run' })
 			.getByRole('group', { name: 'Note it in Waiting workstream: Wants to run' });
-		await expect(waiting).toBeVisible({ timeout: 30_000 });
+		await expect(waiting).toBeVisible();
 		await expect(waiting).toContainText('After Poke');
 		await expect(waiting).not.toContainText('Last run');
 		await captureFlow(app, 'automation-waiting-run');
@@ -204,7 +208,8 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 			.toBe('succeeded');
 
 		await invoke(page, 'automations.run', { definitionId: poke.id, workstreamId });
-		await expect(waiting).toBeVisible({ timeout: 60_000 });
+		await line.click({ timeout: 60_000 });
+		await expect(waiting).toBeVisible();
 		await expect(waiting).toContainText('Last run');
 		await waiting.getByRole('button', { name: 'Skip Note it' }).click();
 		await expect(waiting).toHaveCount(0);

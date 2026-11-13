@@ -225,10 +225,14 @@ test('Malini asks before it acts on a failed automation when the model says so, 
 			{ timeout: 20_000 },
 		);
 		await openWorkstream(page, workstreamId);
+		await page
+			.getByRole('list', { name: 'Automations', exact: true })
+			.getByRole('button', { name: `${AUTOMATION}, Failed`, exact: true })
+			.click({ timeout: 20_000 });
 		const ask = page
-			.getByRole('region', { name: /^Automations \(\d+\)$/u })
+			.getByRole('dialog', { name: `${AUTOMATION}, Failed` })
 			.getByRole('group', { name: new RegExp(`^${AUTOMATION} in Api work: Failed`, 'u') });
-		await expect(ask).toBeVisible({ timeout: 20_000 });
+		await expect(ask).toBeVisible();
 		const choices = ask.getByRole('button');
 		await expect(choices).toHaveCount(3);
 		await expect(choices.nth(0)).toHaveAccessibleName(`Run ${AUTOMATION} again`);
@@ -276,7 +280,7 @@ test('a question on an automation goes away with its workstream', async () => {
 			.poll(async () => (await decisions(page)).map(({ status }) => status), { timeout: 30_000 })
 			.toEqual(['dismissed']);
 		await expect(ask).toHaveAccessibleName('Automations');
-		await expect(page.getByRole('list', { name: 'Automations in progress' })).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Automations', exact: true })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

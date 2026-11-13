@@ -6,7 +6,6 @@ import {
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
-	invoke,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -336,31 +335,18 @@ async function expectStatusClosesRunAboveTray(page: Page, when: string): Promise
 	).toBe(0);
 }
 
-async function chatWithAutomationInTray(
-	app: LaunchedApp,
-	workstreamId: string,
-): Promise<Readonly<{ automations: Locator; automationRunId: string }>> {
+async function chatWithCommandInTray(app: LaunchedApp, workstreamId: string): Promise<Locator> {
 	const { page } = app;
 	await longChat(app, workstreamId);
-	const automation = await invoke<{ id: string }>(page, 'automations.save-definition', {
-		name: 'Watch the deploy',
-		instructions: 'HANG',
-		model: 'opus',
-		effort: 'medium',
-		runsIn: 'workstream',
-	});
-	holdAgentRuns(app, true);
-	await sendPrompt(page, 'Wait for the deploy automation');
-	const automationRun = await invoke<{ id: string }>(page, 'automations.run', {
-		definitionId: automation.id,
-		workstreamId,
-	});
-	const automations = page.getByRole('region', { name: 'Automations (1)', exact: true });
-	await expect(automations).toContainText('Watch the deploy', { timeout: 20_000 });
-	holdAgentRuns(app, false);
-	await expectRunFinished(page, 'Hello from the fake bridge');
+	await sendPrompt(page, 'BACKGROUND_COMMAND');
+	const commands = page.getByRole('region', { name: '1 background command running' });
+	await expect(commands).toContainText('Run the e2e suite', { timeout: 20_000 });
+	await expect(page.getByTestId('chat-message-bubble').last()).toContainText(
+		'Started the e2e suite in the background.',
+	);
+	await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
 	await untilStill(page);
-	return { automations, automationRunId: automationRun.id };
+	return commands;
 }
 
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
@@ -574,27 +560,24 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 	}
 });
 
-test('an automation leaving the composer tray leaves the transcript where it is', async () => {
+test('a background command leaving the composer tray leaves the transcript where it is', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { automations, automationRunId } = await chatWithAutomationInTray(
-			app,
-			'e2e-streaming-follow-tray-ws',
-		);
+		const commands = await chatWithCommandInTray(app, 'e2e-streaming-follow-tray-ws');
 
 		await startSampling(page, [LATEST_PROMPT]);
-		await invoke(page, 'automations.cancel-run', { automationRunId });
-		await expect(automations).toHaveCount(0, { timeout: 20_000 });
+		await commands.getByRole('button', { name: 'Stop Run the e2e suite' }).click();
+		await expect(commands).toHaveCount(0, { timeout: 20_000 });
 		await untilStill(page);
 		const samples = await stopSampling(page);
 
 		expect(
 			drift(samples, 1),
-			'px the transcript moved when the automation left the tray',
+			'px the transcript moved when the command left the tray',
 		).toBeLessThanOrEqual(STILL_PX);
-		await captureFlow(app, 'transcript-streaming-follow-automation-left-tray');
+		await captureFlow(app, 'transcript-streaming-follow-command-left-tray');
 
 		await sendPrompt(page, 'Carry on');
 		await expectRunFinished(page, 'Hello from the fake bridge');
@@ -612,31 +595,28 @@ test('an automation leaving the composer tray leaves the transcript where it is'
 	}
 });
 
-test('an automation leaving the composer tray while the wheel scrolls at the end neither moves the transcript nor stretches it', async () => {
+test('a background command leaving the composer tray while the wheel scrolls at the end neither moves the transcript nor stretches it', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { automations, automationRunId } = await chatWithAutomationInTray(
-			app,
-			'e2e-streaming-follow-tray-wheel-ws',
-		);
-		const rangeWithAutomation = await scrollRange(page);
+		const commands = await chatWithCommandInTray(app, 'e2e-streaming-follow-tray-wheel-ws');
+		const rangeWithCommand = await scrollRange(page);
 
 		await startSampling(page, [LATEST_PROMPT]);
-		await invoke(page, 'automations.cancel-run', { automationRunId });
+		await commands.getByRole('button', { name: 'Stop Run the e2e suite' }).click();
 		await wheel(page, 40);
-		await expect(automations).toHaveCount(0);
+		await expect(commands).toHaveCount(0);
 		await untilStill(page);
 		const samples = await stopSampling(page);
 
 		expect(
 			drift(samples, 1),
-			'px the transcript moved while the automation left the tray under the wheel',
+			'px the transcript moved while the command left the tray under the wheel',
 		).toBeLessThanOrEqual(STILL_PX);
 		expect(
-			(await scrollRange(page)) - rangeWithAutomation,
-			'px the wheel stretched the transcript past the space the automation left',
+			(await scrollRange(page)) - rangeWithCommand,
+			'px the wheel stretched the transcript past the space the command left',
 		).toBeLessThanOrEqual(STILL_PX);
 
 		expectCleanConsole(app);
