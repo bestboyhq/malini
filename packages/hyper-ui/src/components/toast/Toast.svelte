@@ -17,7 +17,7 @@
 		success: 'bg-success-content/12',
 		error: 'bg-error-content/12',
 		warning: 'bg-warning-content/12',
-		info: 'bg-fg-tertiary/12',
+		info: 'bg-brand-icon/12',
 		loading: 'bg-fg-tertiary/12',
 	};
 
@@ -25,7 +25,7 @@
 		success: 'text-success-content',
 		error: 'text-error-content',
 		warning: 'text-warning-content',
-		info: 'text-fg-secondary',
+		info: 'text-brand-icon',
 		loading: 'text-fg-tertiary',
 	};
 

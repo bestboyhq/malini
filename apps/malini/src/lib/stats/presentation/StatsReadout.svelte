@@ -24,8 +24,8 @@
 		latest ? `${formatMemory(latest.memoryBytes)} · ${formatCpu(latest.cpuPercent)}` : null,
 	);
 
-	let readoutRect: DOMRectReadOnly | undefined = $state();
-	const readoutWidth = Tween.of(() => readoutRect?.width ?? 0, {
+	let widestReadout = $state(0);
+	const readoutWidth = Tween.of(() => widestReadout, {
 		duration: (from) => (from === 0 || prefersReducedMotion.current ? 0 : 200),
 		easing: cubicOut,
 	});
@@ -35,6 +35,10 @@
 		loadResourcesCommand();
 		return watchResourcesHook();
 	});
+
+	function keepWidest(rect: DOMRectReadOnly | undefined): void {
+		widestReadout = Math.max(widestReadout, rect?.width ?? 0);
+	}
 
 	function onToggle(): void {
 		open = !open;
@@ -55,22 +59,16 @@
 		onclick={onToggle}
 		data-testid="sidebar-open-stats"
 	>
-		<span class="flex items-center gap-1">
-			<Icon name="signal" size={14} />
-			{#if readout}
-				<span
-					class="flex justify-end overflow-hidden"
-					style:width={readoutWidth.current ? `${readoutWidth.current}px` : undefined}
-				>
-					<span
-						class="w-max shrink-0"
-						bind:contentRect={readoutRect}
-						data-testid="sidebar-stats-readout"
-					>
-						{readout}
-					</span>
-				</span>
-			{/if}
+		<span
+			class="flex justify-end overflow-hidden"
+			style:width={readoutWidth.current ? `${readoutWidth.current}px` : undefined}
+		>
+			<span class="flex w-max shrink-0 items-center gap-1" bind:contentRect={null, keepWidest}>
+				<Icon name="signal" size={14} />
+				{#if readout}
+					<span data-testid="sidebar-stats-readout">{readout}</span>
+				{/if}
+			</span>
 		</span>
 	</Button>
 </Tooltip>
