@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { repositoryHref } from '$shared/router/routes-hrefs';
+	import { navigating } from '$shared/router/state';
 	import { onMount } from 'svelte';
 	import { GitHubIcon, Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
@@ -125,6 +126,7 @@
 
 	$effect.pre(() => {
 		if (firstRun) picking = true;
+		else if (connecting === null && navigating.to === null) picking = false;
 	});
 
 	function workstreamsFor(repo: Repository): Workstream[] {

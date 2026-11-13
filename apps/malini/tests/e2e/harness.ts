@@ -573,9 +573,6 @@ export async function seedWorkstream(
 		name,
 		...(startedBy === null ? {} : { startedBy }),
 	});
-	if (await page.evaluate(() => ['', '#', '#/'].includes(globalThis.location.hash))) {
-		await page.reload();
-	}
 	return { workstreamId, projectId: project.id, basePath, worktree };
 }
 
