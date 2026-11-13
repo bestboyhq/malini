@@ -1,6 +1,6 @@
 # 0179 - Setup asks for your defaults, and their triggers hold them
 
-Status: accepted
+Status: superseded by 0242
 
 ## Context
 

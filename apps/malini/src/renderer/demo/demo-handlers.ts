@@ -5,16 +5,23 @@ import type {
 } from '$contract/agent';
 import type { ExtensionListing, InstalledExtension } from '$contract/marketplace';
 import type {
+	ConnectedRepositoryDto,
 	GithubRepositoryDto,
+	ImportSource,
 	OwnerAvatar,
+	ProjectDto,
 	PullRequestStatusDto,
+	RepositoryConnectionDto,
 	WorkstreamImageRead,
 } from '$contract/repositories';
-import type { DemoEmit, DemoHandlers } from './demo-bridge';
+import { DEMO_REFUSAL, type DemoEmit, type DemoHandlers } from './demo-bridge';
 import { browserHandlers } from './demo-browser';
 import { demoMediaUrl } from './demo-media';
+import { DEMO_PLAY } from './demo-play';
 import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
 import {
+	archivedWorkstreams,
+	archiveWorkstream,
 	cancelRun,
 	clickShipButton,
 	createWorkstream,
@@ -114,6 +121,114 @@ const CLAUDE: ProviderCapability = {
 	message: '',
 };
 
+const CLAUDE_MISSING: ProviderCapability = {
+	...CLAUDE,
+	state: 'missing',
+	installed: false,
+	authenticated: null,
+	version: null,
+	account: null,
+};
+
+const CLAUDE_CODE_BYTES = 320_000_000;
+const CLAUDE_CODE_INSTALL_MS = 40_000;
+const CLAUDE_CODE_INSTALL_TICKS = 80;
+const GITHUB_SIGN_IN_MS = 3_000;
+
+type FirstRunState = {
+	claudeCodeInstalled: boolean;
+	signedIn: boolean;
+	signInAttempt: number;
+	connected: ProjectDto[];
+	settings: Record<string, string>;
+};
+
+const firstRun: FirstRunState = {
+	claudeCodeInstalled: false,
+	signedIn: false,
+	signInAttempt: 0,
+	connected: [],
+	settings: {},
+};
+
+function installClaudeCode(emit: DemoEmit): Promise<void> {
+	return new Promise((resolve) => {
+		let tick = 0;
+		const timer = setInterval(() => {
+			tick += 1;
+			emit('providers:claude-code-install-progress', {
+				received: Math.round((CLAUDE_CODE_BYTES * tick) / CLAUDE_CODE_INSTALL_TICKS),
+				total: CLAUDE_CODE_BYTES,
+			});
+			if (tick < CLAUDE_CODE_INSTALL_TICKS) return;
+			clearInterval(timer);
+			firstRun.claudeCodeInstalled = true;
+			resolve();
+		}, CLAUDE_CODE_INSTALL_MS / CLAUDE_CODE_INSTALL_TICKS);
+	});
+}
+
+async function finishGithubSignIn(): Promise<'signed-in' | 'cancelled'> {
+	const attempt = firstRun.signInAttempt;
+	await new Promise((resolve) => setTimeout(resolve, GITHUB_SIGN_IN_MS));
+	if (attempt !== firstRun.signInAttempt) return 'cancelled';
+	firstRun.signedIn = true;
+	return 'signed-in';
+}
+
+function connectedRepository(project: ProjectDto): ConnectedRepositoryDto {
+	return {
+		id: `repo-${project.name}`,
+		fullName: `${OWNER}/${project.name}`,
+		defaultBranch: project.defaultBranch,
+		localPath: null,
+		remoteUrl: project.remoteUrl ?? null,
+		createdAt: project.createdAt,
+	};
+}
+
+function connect(source: ImportSource): RepositoryConnectionDto {
+	const project = PROJECTS.find((candidate) => candidate.remoteUrl === source.url);
+	if (!project) throw new Error(DEMO_REFUSAL);
+	if (!firstRun.connected.includes(project)) firstRun.connected.push(project);
+	return { repository: connectedRepository(project), created: false };
+}
+
+const firstRunHandlers = (emit: DemoEmit): DemoHandlers => ({
+	'app.list-settings': () => ({ ...firstRun.settings }),
+	'app.set-setting': ({ key, value }) => {
+		firstRun.settings[key] = value;
+	},
+	'app.usage-data': () => ({ doNotTrack: false, report: null }),
+	'app.copy-text': () => undefined,
+	'app.open-external-url': () => undefined,
+	'chat.agent-capabilities': () => [firstRun.claudeCodeInstalled ? CLAUDE : CLAUDE_MISSING],
+	'providers.install-claude-code': () => installClaudeCode(emit),
+	'repositories.github-auth-status': () => ({
+		authenticated: firstRun.signedIn,
+		installed: true,
+		login: firstRun.signedIn ? 'you' : null,
+		host: 'github.com',
+		message: null,
+	}),
+	'repositories.start-github-sign-in': () => ({
+		userCode: 'B0E5-7A11',
+		verificationUri: 'https://github.com/login/device',
+	}),
+	'repositories.finish-github-sign-in': finishGithubSignIn,
+	'repositories.cancel-github-sign-in': () => {
+		firstRun.signInAttempt += 1;
+	},
+	'repositories.list-repositories': () => firstRun.connected,
+	'repositories.list-clones': () => firstRun.connected.map(connectedRepository),
+	'repositories.connect': ({ source }) => connect(source),
+	'repositories.list-archived-workstreams': () => archivedWorkstreams(),
+	'repositories.archive-workstream': ({ workstreamId }) => {
+		archiveWorkstream(emit, workstreamId);
+		return { savedWork: null };
+	},
+});
+
 function sessionChanges(workstreamId: string, id: string): AgentSessionChanges {
 	const workstream = workstreamOf(workstreamId);
 	const runIds = workstream?.runs.map((run) => run.id) ?? [];
@@ -174,7 +289,9 @@ function totals(workstreamId: string): { additions: number; deletions: number; f
 
 export const demoHandlers = (emit: DemoEmit): DemoHandlers => {
 	playDocsScenes(emit);
-	return demoHandlersFor(emit);
+	return DEMO_PLAY === 'first-run'
+		? { ...demoHandlersFor(emit), ...firstRunHandlers(emit) }
+		: demoHandlersFor(emit);
 };
 
 const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
@@ -203,6 +320,12 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	}),
 	'app.list-settings': () => ({ 'sounds.finished': 'none', 'sounds.needs-you': 'none' }),
 	'app.set-setting': () => undefined,
+	'app.problem-report': () => ({
+		repository: 'bestboyhq/malini',
+		system: 'Malini 1.0.0 · macOS 26.1 arm64',
+		journey: '3 repositories · 41 prompts · 12 merges',
+		lastError: null,
+	}),
 	'stats.record-frames': () => undefined,
 	'repositories.github-reach': () => 'ok',
 	'repositories.github-auth-status': () => ({

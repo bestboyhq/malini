@@ -9,6 +9,7 @@
 		labelledBy?: string;
 		id?: string;
 		element?: HTMLButtonElement | null;
+		size?: 'sm' | 'md';
 		class?: ClassValue;
 		onchange: (checked: boolean) => void;
 	}
@@ -20,6 +21,7 @@
 		labelledBy,
 		id,
 		element = $bindable(null),
+		size = 'md',
 		class: className,
 		onchange,
 	}: Props = $props();
@@ -51,8 +53,10 @@
 	bind:this={element}
 	{disabled}
 	data-dimmed={dimmed || undefined}
+	data-size={size}
 	class={[
-		'switch focus-visible:ring-border-default/50 bg-button-secondary-border relative inline-flex h-6 w-10 shrink-0 rounded-full inset-shadow-[0_1px_2px_rgb(0_0_0/0.35)] focus-visible:ring-2',
+		'switch focus-visible:ring-border-default/50 bg-button-secondary-border relative inline-flex shrink-0 rounded-full inset-shadow-[0_1px_2px_rgb(0_0_0/0.35)] focus-visible:ring-2',
+		size === 'sm' ? 'h-4 w-7' : 'h-6 w-10',
 		className,
 	]}
 	onclick={() => onchange(!checked)}
@@ -68,9 +72,20 @@
 <style>
 	.switch {
 		--switch-motion: 380ms cubic-bezier(0.32, 0.72, 0, 1);
+		--switch-thumb: 20px;
+		--switch-reach: 16px;
+		--switch-give: 6px;
+		--switch-glyph: 10px;
 		isolation: isolate;
 		cursor: pointer;
 		transition: opacity 150ms ease;
+	}
+
+	.switch[data-size='sm'] {
+		--switch-thumb: 12px;
+		--switch-reach: 12px;
+		--switch-give: 4px;
+		--switch-glyph: 6px;
 	}
 
 	.switch[data-dimmed] {
@@ -133,22 +148,26 @@
 	}
 
 	.thumb {
-		--switch-stretch: calc(6px * min(1, var(--switch-press) + sin(var(--switch-travel) * 180deg)));
+		--switch-stretch: calc(
+			var(--switch-give) * min(1, var(--switch-press) + sin(var(--switch-travel) * 180deg))
+		);
 		position: absolute;
 		top: 2px;
 		left: 2px;
 		z-index: 1;
 		display: grid;
 		place-items: center;
-		width: calc(20px + var(--switch-stretch));
-		height: 20px;
+		width: calc(var(--switch-thumb) + var(--switch-stretch));
+		height: var(--switch-thumb);
 		border-radius: 9999px;
 		background: var(--color-grey-50);
 		box-shadow:
 			0 0 0 0.5px rgb(0 0 0 / 0.12),
 			0 1px 1px rgb(0 0 0 / 0.18),
 			0 2px 6px rgb(0 0 0 / 0.28);
-		transform: translateX(calc(var(--switch-travel) * (16px - var(--switch-stretch))));
+		transform: translateX(
+			calc(var(--switch-travel) * (var(--switch-reach) - var(--switch-stretch)))
+		);
 		transition:
 			--switch-travel var(--switch-motion),
 			--switch-press var(--switch-motion);
@@ -163,8 +182,8 @@
 	}
 
 	svg {
-		width: 10px;
-		height: 10px;
+		width: var(--switch-glyph);
+		height: var(--switch-glyph);
 		overflow: visible;
 	}
 

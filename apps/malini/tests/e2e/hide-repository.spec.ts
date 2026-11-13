@@ -10,7 +10,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	openRepositoriesPage,
-	passSetup,
+	expectPicker,
 	listProjects,
 	seedWorkstream,
 } from './harness';
@@ -92,7 +92,7 @@ test('cloning a hidden repository again brings it back', async () => {
 				{ full_name: 'e2e/hutch', clone_url: `file://${source}`, description: null },
 			]),
 		);
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await cloneHutch(page);

@@ -9,10 +9,12 @@
 	import { watchRepositorySurfaceHook } from '$lib/pull-requests/application/hooks/watch-repository-surface.hook';
 	import { notFound, routes } from '$lib/app/routes';
 	import { bootAppHook } from '$lib/app/application/hooks/boot-app.hook';
+	import { installMissingToolsHook } from '$lib/app/application/hooks/install-missing-tools.hook.svelte';
 	import { hydrateStreamerModeCommand } from '$lib/app/application/commands/hydrate-streamer-mode.command';
 	import { bootRoute, readLastRoute, rememberLastRoute } from '$shared/router/last-route';
 	import AppShell from './AppShell.svelte';
 	import CloseConfirmationDialog from './CloseConfirmationDialog.svelte';
+	import ProblemReportDialog from './ProblemReportDialog.svelte';
 	import CommandCenter from './CommandCenter.svelte';
 	import SettingsModal from './settings/SettingsModal.svelte';
 	import { openSettingsOverPage } from './settings/settings-links';
@@ -32,7 +34,9 @@
 
 	onMount(() => {
 		const stopBoot = bootAppHook();
+		const stopInstalling = installMissingToolsHook();
 		return () => {
+			stopInstalling();
 			stopBoot();
 			stopRemembering();
 			stopRouter();
@@ -49,6 +53,7 @@
 </AppShell>
 
 <CloseConfirmationDialog />
+<ProblemReportDialog />
 
 <SettingsModal />
 

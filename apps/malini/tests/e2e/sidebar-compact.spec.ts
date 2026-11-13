@@ -9,7 +9,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	openRepositoriesPage,
-	passSetup,
+	expectPicker,
 	seedWorkstream,
 	openSettingsFromMenu,
 } from './harness';
@@ -168,7 +168,7 @@ test('a repository without open work stays in the sidebar until you hide it', as
 				{ full_name: 'e2e/hutch', clone_url: `file://${source}`, description: null },
 			]),
 		);
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Find a repository' }).first().click();

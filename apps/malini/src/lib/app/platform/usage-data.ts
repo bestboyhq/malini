@@ -1,5 +1,6 @@
 import { app, net } from 'electron';
 import { createHash, randomUUID } from 'node:crypto';
+import type { ImportSource } from '$contract/repositories';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
@@ -12,13 +13,13 @@ import type { UsageReport } from '$contract/system';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
+import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { currentEnvironment } from '$main/process/environment';
 import { localDate, shiftDate, type UsageAccount } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
-import { ONBOARDING_FINISHED_SETTING, type OnboardingStep } from '../domain/onboarding';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
@@ -27,12 +28,6 @@ import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-to
 
 export type UsageJourney =
 	| 'first_open'
-	| 'setup_tools'
-	| 'setup_sounds'
-	| 'setup_sidebar'
-	| 'setup_defaults'
-	| 'setup_heard_about'
-	| 'setup_finished'
 	| 'first_repository'
 	| 'first_workstream'
 	| 'first_prompt'
@@ -40,11 +35,6 @@ export type UsageJourney =
 	| 'first_profile_published'
 	| 'returned_week_1'
 	| 'returned_month_1';
-
-export type UsageJourneyMarker = Exclude<
-	UsageJourney,
-	'first_open' | 'returned_week_1' | 'returned_month_1'
->;
 
 export type UsageActivity =
 	| UsageJourney
@@ -69,20 +59,17 @@ export interface UsageSink {
 
 export interface UsageData {
 	share(shared: boolean): void;
-	journey(marker: UsageJourneyMarker, details?: Readonly<Record<string, string | number>>): void;
 	shutdown(): Promise<void>;
 }
 
-const SETUP_STEP_MARKERS: Readonly<Record<OnboardingStep, UsageJourneyMarker>> = {
-	tools: 'setup_tools',
-	sounds: 'setup_sounds',
-	sidebar: 'setup_sidebar',
-	defaults: 'setup_defaults',
-	'heard-about': 'setup_heard_about',
-};
+export type RepositorySource = 'github' | 'folder' | 'new';
 
-export function setupStepMarker(step: OnboardingStep): UsageJourneyMarker {
-	return SETUP_STEP_MARKERS[step];
+export function repositorySource(
+	source: ImportSource,
+	createdCloneUrl: string | null,
+): RepositorySource {
+	if (source.kind === 'local-folder') return 'folder';
+	return source.url !== undefined && source.url === createdCloneUrl ? 'new' : 'github';
 }
 
 export interface UsageDataDeps {
@@ -109,7 +96,7 @@ const JOURNEY_SETTING = 'usage-data.journey';
 const LAST_ACTIVE_DAY_SETTING = 'usage-data.last-active-day';
 const ACTIVE_DAYS_SETTING = 'usage-data.active-days';
 const REPORTED_MONTH_SETTING = 'usage-data.reported-month';
-const SETUP_STARTED_SETTING = 'usage-data.setup-started';
+const FIRST_REPOSITORY_SOURCE_SETTING = 'usage-data.first-repository-source';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
 const ANONYMOUS: UsageAccount = { state: 'anonymous' };
@@ -121,8 +108,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const setShare = (next: boolean): void => {
 		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
 	};
-	if (!sink)
-		return { share: setShare, journey: () => undefined, shutdown: () => Promise.resolve() };
+	if (!sink) return { share: setShare, shutdown: () => Promise.resolve() };
 	const storedFirstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
 	if (storedFirstOpen === null && deps.freshInstall === true)
 		setSetting(context.db, FIRST_OPEN_SETTING, localDate(now()));
@@ -171,18 +157,6 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		};
 		void send((userId) => sink.activity(name, props, userId));
 	};
-	const setupSeconds = (marker: UsageJourney): Readonly<Record<string, number>> => {
-		if (!marker.startsWith('setup_')) return {};
-		if (marker === 'setup_tools' && getSetting(context.db, SETUP_STARTED_SETTING) === null)
-			setSetting(context.db, SETUP_STARTED_SETTING, now().toISOString());
-		const started = Date.parse(getSetting(context.db, SETUP_STARTED_SETTING) ?? '');
-		const finished =
-			marker === 'setup_finished' ? getSetting(context.db, ONBOARDING_FINISHED_SETTING) : null;
-		const end = finished === null ? now().getTime() : Date.parse(finished);
-		return Number.isNaN(started) || Number.isNaN(end)
-			? {}
-			: { setup_seconds: Math.max(0, Math.round((end - started) / 1000)) };
-	};
 	const journeySent = (): string[] => stringList(getSetting(context.db, JOURNEY_SETTING));
 	const sendJourney = (
 		marker: UsageJourney,
@@ -190,14 +164,13 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	): void => {
 		const cohort = firstOpen;
 		if (cohort === null || journeySent().includes(marker)) return;
-		const timing = setupSeconds(marker);
 		sendOnce(
 			marker,
 			() => journeySent().includes(marker),
 			(userId) =>
 				sink.activity(
 					marker,
-					{ cohort, days: daysBetween(cohort, localDate(now())), ...timing, ...extra },
+					{ cohort, days: daysBetween(cohort, localDate(now())), ...extra },
 					userId,
 				),
 			() => setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...journeySent(), marker])),
@@ -254,7 +227,6 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			if (days >= 1 && days <= 7) sendJourney('returned_week_1');
 			if (days >= 8 && days <= 30) sendJourney('returned_month_1');
 		}
-		if (getSetting(context.db, ONBOARDING_FINISHED_SETTING) !== null) sendJourney('setup_finished');
 		sendMonth();
 		sendDay();
 		void firstRepository();
@@ -275,7 +247,9 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		if (firstOpen === null || journeySent().includes('first_repository')) return;
 		try {
 			const repositories = await listRepositoryCatalog(context.db);
-			if (repositories.length > 0) sendJourney('first_repository');
+			const source = getSetting(context.db, FIRST_REPOSITORY_SOURCE_SETTING);
+			if (repositories.length > 0)
+				sendJourney('first_repository', source === null ? {} : { source });
 		} catch {
 			return;
 		}
@@ -330,13 +304,32 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const tools = createToolTracker();
 	const countTool = (event: ToolEvent | null): void => {
 		if (event === null) return;
-		const phase = getSetting(context.db, ONBOARDING_FINISHED_SETTING) === null ? 'setup' : 'later';
+		const phase = hasPromptRun(context.db, now()) ? 'later' : 'setup';
 		count(event.name, { ...event.props, phase });
 	};
-	const stopToolStarts = context.commands.observeStarts((started) =>
-		countTool(tools.begin(started)),
-	);
-	const stopTools = context.commands.observe((outcome) => countTool(tools.end(outcome)));
+	let createdCloneUrl: string | null = null;
+	const rememberSource = ({ command, args }: StartedCommand): void => {
+		if (command !== 'repositories.connect' || journeySent().includes('first_repository')) return;
+		const source = importSource(args);
+		if (source)
+			setSetting(
+				context.db,
+				FIRST_REPOSITORY_SOURCE_SETTING,
+				repositorySource(source, createdCloneUrl),
+			);
+	};
+	const rememberCreated = (outcome: CommandOutcome): void => {
+		if (outcome.ok && outcome.command === 'repositories.create-github-repository')
+			createdCloneUrl = cloneUrlOf(outcome.result);
+	};
+	const stopToolStarts = context.commands.observeStarts((started) => {
+		rememberSource(started);
+		countTool(tools.begin(started));
+	});
+	const stopTools = context.commands.observe((outcome) => {
+		rememberCreated(outcome);
+		countTool(tools.end(outcome));
+	});
 
 	count('app_active');
 	launch();
@@ -357,7 +350,6 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 
 	return {
 		share,
-		journey: (marker, details) => sendJourney(marker, details),
 		shutdown: async () => {
 			clearInterval(reportTimer);
 			stopStarted();
@@ -374,6 +366,22 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};
+}
+
+function importSource(args: unknown): ImportSource | null {
+	const source = typeof args === 'object' && args !== null ? Reflect.get(args, 'source') : null;
+	if (typeof source !== 'object' || source === null) return null;
+	const kind: unknown = Reflect.get(source, 'kind');
+	const url: unknown = Reflect.get(source, 'url');
+	if (kind === 'local-folder') return { kind };
+	if (kind === 'clone-url') return typeof url === 'string' ? { kind, url } : { kind };
+	return null;
+}
+
+function cloneUrlOf(result: unknown): string | null {
+	const url =
+		typeof result === 'object' && result !== null ? Reflect.get(result, 'cloneUrl') : null;
+	return typeof url === 'string' ? url : null;
 }
 
 function stringList(raw: string | null): string[] {

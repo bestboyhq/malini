@@ -26,8 +26,8 @@ The layout says nothing about what you work on.
 
 ## Set it up
 
-Setup's **Pick your defaults** step turns it on with **Recommended**, or with **Keep a second brain** under **Customize**.
-Past setup, turn it on under Settings, Brain, **Second brain**, or Settings, Automations, or press **Set up the brain** on the Brain page.
+It starts off.
+Turn it on under Settings, Brain, **Second brain**, or Settings, Automations, or press **Set up the brain** on the Brain page.
 
 Signed in to GitHub, Malini creates the private repository `<you>/brain` through the GitHub CLI, the way **New repository** does, or uses yours when it already exists and is private.
 It refuses a `brain` repository that is public.

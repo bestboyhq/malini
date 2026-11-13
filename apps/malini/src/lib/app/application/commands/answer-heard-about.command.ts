@@ -4,6 +4,8 @@ import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store
 
 export function answerHeardAboutCommand(answer: HeardAbout | null): void {
 	onboardingStore.heardAbout = answer;
+	onboardingStore.heardAboutAsked = true;
+	onboardingStore.heardAboutSent = answer !== null;
 	void (async () => {
 		try {
 			await onboardingService.answerHeardAbout(answer);

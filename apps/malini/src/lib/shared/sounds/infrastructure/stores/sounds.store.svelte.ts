@@ -4,11 +4,13 @@ import type { LoadedSounds, SoundChoices, SoundSignal } from '$shared/sounds/dom
 class SoundsStore {
 	choices = $state<SoundChoices | null>(null);
 	custom = $state.raw<readonly CustomSound[]>([]);
+	noted = true;
 	#urls = new Map<string, string>();
 
 	loaded(sounds: LoadedSounds): void {
 		this.choices = sounds.choices;
 		this.custom = sounds.custom;
+		this.noted = sounds.noted;
 	}
 
 	choose(signal: SoundSignal, id: string): void {

@@ -63,7 +63,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   A dot on a pin means something in it needs you.
 - The sliders button beside it, **Sidebar options**, sets up the sidebar, and Malini remembers.
   Its panel opens beside the sidebar, so the rows stay in view while you change them.
-  It asks setup's three questions again.
+  It asks three questions.
   **Repositories** picks **Separate**, grouped by organization and repository, or **Mixed**, one flat list grouped by Status, where each row names its repository.
   **Show** picks **Everything** or **Only what needs me**.
   **Only what needs me** groups by Status and lists only **Needs you** and **In review**, with **Nothing needs you.** when both are empty and an **N hidden** row at the bottom whose **Show all** lists everything again.
@@ -79,10 +79,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   A repository or an owner sorts by the newest work in it.
   Rows drag only in Manual order, grouped by organization or repository.
   **Reset** goes back to what your answers make, in Manual order.
-- Setup's **Set up your sidebar** step asks **Keep repositories separate?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make, built from your most recent GitHub repositories and their avatars.
-  Without GitHub, the preview uses sample repositories.
-  The answers work as they do in **Sidebar options**, which asks them again later.
-  **Skip** keeps Organization grouping, Everything and Compact.
+- A new install starts on Organization grouping, Everything and Compact.
 - **New chat** opens the command center on your repositories, connected ones first, and a pick starts a workstream in that repository.
   Nothing starts without a repository.
   Grouped by Status or Day with a repository's pin open, **New chat** stays on top and starts a workstream in that repository.
@@ -194,7 +191,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   A note above the composer says why, how many times Malini tried and when it tries next, and **What GitHub said** when GitHub refused the push; the strip under it names what failed, with **Retry now**, and **Cancel draft** while it opens a draft.
   The agent reads the same note with your next prompt, so asking it why the pull request is not open gets the real reason.
 - **A workflow refusal waits for you.** GitHub refuses a push that adds or changes a file under `.github/workflows/` when the sign-in that pushes lacks the `workflow` scope, and no retry fixes that, so Malini stops trying and the note says **waits for you**.
-  When your `gh` sign-in lacks the scope, **Allow workflow changes** in the note shows a one-time code and opens GitHub, the same way setup signs you in, and once you approve it every workstream waiting on it pushes again on its own.
+  When your `gh` sign-in lacks the scope, **Allow workflow changes** in the note shows a one-time code and opens GitHub, the same way **Sign in to GitHub** does, and once you approve it every workstream waiting on it pushes again on its own.
   Running `gh auth refresh -s workflow` in a terminal works too; then press **Retry now**.
   When a personal access token or a GitHub App pushes instead, give it the workflow permission on GitHub, then press **Retry now**.
 - **A push without write access waits for you.** When your GitHub account can read a repository but not push to it, GitHub refuses every push, so the note names the account and the repository, such as **`octocat` can't push to acme/app**, and waits for you.

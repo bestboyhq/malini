@@ -14,6 +14,7 @@
 		PROFILE_SETTINGS_HREF,
 		PROVIDER_SETTINGS_HREF,
 		SKILL_SETTINGS_HREF,
+		SOUND_SETTINGS_HREF,
 	} from '$shared/router/routes-hrefs';
 	import { page } from '$shared/router/state';
 	import { loadRuntimeInfoCommand } from '$lib/app/application/commands/load-runtime-info.command';
@@ -76,7 +77,7 @@
 		APPEARANCE,
 		{ href: '/settings/storage', label: 'Storage', icon: 'folder-open', content: StorageSection },
 		{ href: '/settings/power', label: 'Power', icon: 'bolt', content: PowerSection },
-		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
+		{ href: SOUND_SETTINGS_HREF, label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{
 			href: '/settings/automations',
 			label: 'Automations',

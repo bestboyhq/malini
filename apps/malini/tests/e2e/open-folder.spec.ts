@@ -10,7 +10,7 @@ import {
 	git,
 	launchMalini,
 	openRepositoriesPage,
-	passSetup,
+	expectPicker,
 	listProjects,
 	type LaunchedApp,
 } from './harness';
@@ -26,7 +26,7 @@ test('the first folder you open starts a workstream in it, and a later one lands
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await passSetup(page);
+		await expectPicker(page);
 
 		await pickFolder(app, await createSourceRepo(app.root, 'meadow'));
 		await recordBusyLabels(page);
@@ -66,7 +66,7 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 	});
 	try {
 		const { page } = app;
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 
@@ -98,7 +98,7 @@ test('a repository cannot be removed while it clones, and can once the clone fai
 	const app = await launchMalini({ allowedDiagnostics: [/repositories\.create-repository/u] });
 	try {
 		const { page } = app;
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 

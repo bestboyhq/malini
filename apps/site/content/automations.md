@@ -340,7 +340,7 @@ The ones that run without an agent also keep their instructions, model, effort, 
 ## Defaults
 
 Four built-in automations decide what Malini does without asking you.
-Setup asks about them once, on **Pick your defaults**, and Settings, Automations keeps the same switches above its limits.
+Settings, Automations keeps their switches above its limits.
 
 | Default                     | On                                                                                                                                  | Off                                                  |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -350,9 +350,10 @@ Setup asks about them once, on **Pick your defaults**, and Settings, Automations
 | **Update from main**        | **Touches my files** merges main in when it reaches your files; **Always** merges it into every workstream you worked in this week. | **Never** leaves your commits alone until **Merge**. |
 
 **Recommended** turns the first three on and sets Update from main to **Touches my files**.
+A new install starts the same, with the second brain off.
 Malini stores no defaults: each switch is its automation's trigger, so a switch and the automation's page always agree.
 Settings shows **Recommended** while every trigger matches it, and **Custom** once one does not, including **Ask me first** or a When you wrote yourself; press **Recommended** to put them back.
-An install that finished setup before these existed keeps every trigger as it was.
+An install from before these existed keeps every trigger as it was.
 
 ## Improve Name chats and Name services
 

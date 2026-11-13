@@ -83,6 +83,7 @@ export { cancelChatGptSignInCommand } from './application/commands/cancel-chatgp
 export { cancelClaudeSignInCommand } from './application/commands/cancel-claude-sign-in.command';
 export { checkProviderPlanCommand } from './application/commands/check-provider-plan.command';
 export { deleteProviderKeyCommand } from './application/commands/delete-provider-key.command';
+export { installClaudeCodeCommand } from './application/commands/install-claude-code.command';
 export { loadModelDefaultsCommand } from './application/commands/load-model-defaults.command';
 export { loadModelProvidersCommand } from './application/commands/load-model-providers.command';
 export { loadProviderCapabilitiesCommand } from './application/commands/load-provider-capabilities.command';
@@ -98,6 +99,7 @@ export { signOutOfChatGptCommand } from './application/commands/sign-out-of-chat
 
 export { agentAccessDefaultQuery } from './application/queries/agent-access-default.query.svelte';
 export { chatGptSignInQuery } from './application/queries/chatgpt-sign-in.query.svelte';
+export { claudeCodeInstallQuery } from './application/queries/claude-code-install.query.svelte';
 export { claudeCodeStatusQuery } from './application/queries/claude-code-status.query.svelte';
 export { claudeSignInQuery } from './application/queries/claude-sign-in.query.svelte';
 export { modelAccessQuery } from './application/queries/model-access.query.svelte';

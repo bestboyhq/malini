@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fillComposerCommand } from '$lib/chat/application/commands/fill-composer.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
 	import { preparedPlansQuery } from '$lib/chat/application/queries/prepared-plans.query.svelte';
 	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
@@ -10,8 +11,16 @@
 		type AgentTranscriptReference,
 	} from '$lib/chat/domain/transcript-reference';
 	import { Button } from '$hyper-ui/components/button';
-	import { Icon } from '$hyper-ui/icons';
+	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { WorkstreamAutomations } from '$lib/automations/automations.api';
+	import {
+		activeWorkstreamsQuery,
+		archivedWorkstreamsQuery,
+		repositoryContextQuery,
+		repositoryWebUrl,
+	} from '$shared/repositories/repositories.api';
+
+	type Starter = Readonly<{ icon: IconName; title: string; detail: string; prompt: string }>;
 
 	interface Props {
 		workstreamId: string;
@@ -30,6 +39,36 @@
 	const recentChats = $derived(recentChatsQuery.data(workstreamId));
 	const plans = $derived(preparedPlansQuery.data(workstreamId));
 	const referencesFull = $derived(transcriptReferences.length >= MAX_AGENT_TRANSCRIPT_REFERENCES);
+	const firstWorkstream = $derived(
+		activeWorkstreamsQuery.data.length === 1 && archivedWorkstreamsQuery.data.length === 0,
+	);
+	const repository = $derived(repositoryContextQuery.data(workstreamId)?.repo ?? null);
+	const starters = $derived<readonly Starter[]>([
+		{
+			icon: 'book',
+			title: 'Explain how this repository works',
+			detail: 'Reads the code. Changes nothing.',
+			prompt:
+				'Read this repository and tell me how it is built: the main parts, how they talk, and how to run it.',
+		},
+		{
+			icon: 'bug',
+			title: 'Fix the first failing test or lint',
+			detail: 'One small diff you can read in a minute.',
+			prompt:
+				'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
+		},
+		...(repository && repositoryWebUrl(repository.remoteUrl)
+			? [
+					{
+						icon: 'circle-dot' as const,
+						title: 'Take one open issue',
+						detail: `From ${repository.fullName} on GitHub.`,
+						prompt: 'Pick one small open issue in this repository and fix it.',
+					},
+				]
+			: []),
+	]);
 
 	function selected(sessionId: SessionId): boolean {
 		return transcriptReferences.some((reference) => reference.sessionId === sessionId);
@@ -53,6 +92,36 @@
 	aria-label="New agent chat. The next message starts a separate context."
 >
 	<div class="w-full max-w-xl text-left">
+		{#if firstWorkstream && recentChats.length === 0 && plans.length === 0}
+			<section aria-labelledby="chat-starters-title" data-testid="chat-starters">
+				<h2 id="chat-starters-title" class="text-fg-secondary text-sm">
+					Start with something small
+				</h2>
+				<p class="text-fg-tertiary mt-1 text-xs leading-5">
+					It runs on this workstream's own branch. Nothing reaches main until you merge.
+				</p>
+				<ul class="mt-4 flex flex-col gap-2">
+					{#each starters as starter (starter.title)}
+						<li>
+							<Button
+								bare
+								class="border-surface-50-border bg-surface-50 hover:bg-surface-100-hover focus-visible:bg-surface-100-hover flex w-full cursor-pointer items-start gap-3 rounded-xl border-[0.5px] px-3.5 py-3 text-left outline-none"
+								onclick={() => fillComposerCommand(draftScope, starter.prompt)}
+							>
+								<span class="text-fg-secondary mt-0.5 grid size-4 shrink-0 place-items-center">
+									<Icon name={starter.icon} size={14} />
+								</span>
+								<span class="flex min-w-0 flex-col">
+									<span class="text-fg-default text-sm font-medium">{starter.title}</span>
+									<span class="text-fg-tertiary text-xs leading-5">{starter.detail}</span>
+								</span>
+							</Button>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
 		{#if recentChats.length > 0 || plans.length > 0}
 			<p class="text-fg-secondary text-sm">Bring useful context with you</p>
 			<p class="text-fg-tertiary mt-1 text-xs leading-5">

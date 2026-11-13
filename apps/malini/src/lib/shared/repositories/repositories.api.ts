@@ -159,6 +159,7 @@ export { consumeWorkstreamCreationCommand } from './application/commands/consume
 export { createWorkstreamForRepositoryCommand } from './application/commands/create-workstream-for-repository.command';
 export { createWorkstreamHereCommand } from './application/commands/create-workstream-here.command';
 export { deleteWorkstreamCommand } from './application/commands/delete-workstream.command';
+export { installGithubCliCommand } from './application/commands/install-github-cli.command';
 export { dismissDependencyInstallCommand } from './application/commands/dismiss-dependency-install.command';
 export { ensureWorkstreamChangeTotalsCommand } from './application/commands/ensure-workstream-change-totals.command';
 export { loadGithubAuthCommand } from './application/commands/load-github-auth.command';
@@ -215,6 +216,7 @@ export { connectedRepositoriesQuery } from './application/queries/connected-repo
 export { dependencyInstallQuery } from './application/queries/dependency-install.query.svelte';
 export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
 export { mergedHeadQuery } from './application/queries/merged-head.query.svelte';
+export { githubCliInstallQuery } from './application/queries/github-cli-install.query.svelte';
 export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
 export { githubSignInQuery } from './application/queries/github-sign-in.query.svelte';

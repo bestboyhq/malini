@@ -13,7 +13,7 @@ import {
 	invoke,
 	launchMalini,
 	openRepositoriesPage,
-	passSetup,
+	expectPicker,
 	listProjects,
 	type WorkstreamRow,
 } from './harness';
@@ -40,7 +40,7 @@ test('cloning searches your GitHub repositories in the command center and opens 
 			]),
 		);
 
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Find a repository' }).click();
@@ -106,7 +106,7 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 			]),
 		);
 
-		await passSetup(page);
+		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
 		await page.getByRole('button', { name: 'Find a repository' }).click();

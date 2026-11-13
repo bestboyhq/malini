@@ -121,7 +121,7 @@ export const MENUS: readonly Menu[] = [
 					{
 						title: 'Install',
 						href: docHref('/docs/install'),
-						line: 'Connect Claude Code and GitHub',
+						line: 'Pick a repository, nothing to set up',
 					},
 					{
 						title: 'Agent tools',

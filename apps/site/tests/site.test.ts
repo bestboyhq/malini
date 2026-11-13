@@ -101,6 +101,12 @@ test('the worker sends the old Jobs docs to Automations', async () => {
 	assert.equal(markdown.headers.get('Location'), 'https://bestboy.dev/malini/docs/automations.md');
 });
 
+test('the worker sends /discord to the Bestboy Discord invite with a temporary redirect', async () => {
+	const response = await get(`${SITE}/discord`);
+	assert.equal(response.status, 302);
+	assert.equal(response.headers.get('Location'), 'https://discord.com/invite/9qNqXSHm7b');
+});
+
 test('the worker caches immutable assets for a year and lets pages revalidate in the background', async () => {
 	for (const path of ['/_app/immutable/assets/0.abc.css', '/demo/assets/main-abc.js']) {
 		const asset = await get(`${SITE}${path}`);

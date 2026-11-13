@@ -11,10 +11,10 @@ import {
 	invoke,
 	launchMalini,
 	openedUrls,
-	passDefaults,
-	passSidebar,
+	openWorkstream,
 	recordBrowser,
 	seedWorkstream,
+	sendPrompt,
 	type LaunchedApp,
 } from './harness';
 
@@ -44,61 +44,40 @@ async function pickFileWith(app: LaunchedApp, path: string): Promise<void> {
 	}, path);
 }
 
-test('setup asks which sound plays when an agent finishes and when it needs you, and lets you try an afternoon', async () => {
+test('the first agent that finishes says what its sound means once, and Change sounds opens Settings → Sounds', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini();
+	const app = await launchMalini({ soundsNote: true });
 	try {
 		const { page } = app;
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-		await expect(setup.getByText('Step 2 of 5')).toBeVisible();
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-sounds-note', 'Sounds note');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Say hello');
+		const note = page
+			.getByRole('status')
+			.filter({ hasText: 'That sound means an agent finished. Another plays when one needs you.' });
+		await expect(note).toBeVisible({ timeout: 30_000 });
+		await expect.poll(async () => (await storedSettings(page))['sounds.noted']).toBeDefined();
+		await captureFlow(app, 'sounds-first-finish-note');
 
-		const finished = setup.getByRole('button', { name: /^Finished sound:/u });
-		const needsYou = setup.getByRole('button', { name: /^Needs you sound:/u });
-		await expect(finished).toHaveAccessibleName('Finished sound: Malini chime');
-		await expect(needsYou).toHaveAccessibleName('Needs you sound: Tethys');
-
-		await needsYou.click();
-		const menu = page.getByRole('menu', { name: 'Needs you sound' });
-		await menu.getByRole('menuitemradio', { name: 'Ariel' }).click();
-		await expect(menu).toBeVisible();
-		await menu.getByRole('menuitemradio', { name: 'Shaula' }).click();
-		await expect(menu.getByRole('menuitemradio', { name: 'Shaula' })).toHaveAttribute(
-			'aria-checked',
-			'true',
+		await note.getByRole('button', { name: 'Change sounds' }).click();
+		await expect(
+			page
+				.getByRole('navigation', { name: 'Settings' })
+				.getByRole('link', { name: 'Sounds', exact: true }),
+		).toHaveAttribute('aria-current', 'page');
+		await expect(page.getByRole('button', { name: /^Finished sound:/u })).toHaveAccessibleName(
+			'Finished sound: Malini chime',
 		);
-		await expect(menu.getByRole('menuitemradio', { name: 'Ariel' })).toHaveAttribute(
-			'aria-checked',
-			'false',
-		);
-		await page.keyboard.press('Escape');
-		await expect(menu).toHaveCount(0);
-		await expect(needsYou).toHaveAccessibleName('Needs you sound: Shaula');
-		await expect.poll(async () => (await storedSettings(page))['sounds.needs-you']).toBe('shaula');
 
-		await finished.click();
-		await page
-			.getByRole('menu', { name: 'Finished sound' })
-			.getByRole('menuitemradio', { name: 'No sound' })
-			.click();
-		await page.keyboard.press('Escape');
-		await expect(setup.getByRole('button', { name: 'Play the finished sound' })).toBeDisabled();
-		await expect.poll(async () => (await storedSettings(page))['sounds.finished']).toBe('none');
-
-		const tryIt = setup.getByRole('button', { name: 'Try it' });
-		await tryIt.click();
-		const stop = setup.getByRole('button', { name: 'Stop' });
-		await expect(stop).toHaveAttribute('aria-pressed', 'true');
-		await captureFlow(app, 'sounds-onboarding-try-it');
-		await stop.click();
-		await expect(tryIt).toHaveAttribute('aria-pressed', 'false');
-
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await passSidebar(page);
-		await passDefaults(page);
-		await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-		await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
+		await page.reload();
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Say hello again');
+		await expect(
+			page.getByTestId('chat-message-bubble').filter({ hasText: 'Hello from the fake bridge' }),
+		).toHaveCount(2, { timeout: 30_000 });
+		await page.waitForTimeout(1_000);
+		await expect(note).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

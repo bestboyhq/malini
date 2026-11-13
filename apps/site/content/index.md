@@ -41,21 +41,27 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
 Malini makes eight calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it or point at the composer's gauge, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
-For a new install, it marks each first step once: the first open, setup finished, the first repository, workstream, prompt, merge and published profile, and the first return in the following week and month.
+For a new install, it marks each first step once: the first open, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
-Each setup step you reach is marked too, with the seconds since the first step opened and whether Claude Code and the GitHub CLI were on your Mac.
-When you install Claude Code or the GitHub CLI, or sign in to either, Malini counts the start and the finish, cancel or failure, with the tool, which try it was, and the seconds it took.
+When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.
 For a failure it adds the step that failed and the name of the error, never the message.
 On the first launch of a new month, it also sends how many days Malini ran in the last month you used it.
 While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
 Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.
-Each count carries the option you picked in setup for where you heard about Malini, if you answered, never the words you typed for another place.
+Once you answer where you heard about Malini, after your first merge, each count carries the option you picked, never the words you typed for somewhere else.
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
 Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
 It never contains your code, what your prompts say, paths, keys, or error messages, and Logdash stores no IP address.
-The first setup step says so.
+**What are we working on?** says so.
 Turn it off under Settings, Privacy, **Share usage stats**, or set `DO_NOT_TRACK=1` in your shell.
 Turning the switch off sends one last count that says so, with no account and nothing else, so we know how many people the numbers leave out; after that, nothing.
+
+**Help and feedback** at the bottom of the sidebar holds **Report a problem**, which files an issue on [bestboyhq/malini](https://github.com/bestboyhq/malini/issues) through your GitHub CLI, under your own GitHub account.
+The issue is public, so anyone can read it, and you can follow up on it on GitHub.
+It holds what you write and the facts you leave on below it: the Malini and macOS versions, how many repositories, prompts and merges you have, and the last command that failed in the past day, with the name and kind of its error.
+It never holds error messages, paths, code or chats.
+You can switch off any fact, and nothing goes until you press **File issue**.
+**Join the Discord** only opens bestboy.dev/malini/discord in your browser, which sends you on to the Bestboy Discord.
 
 ## For agents reading this
 

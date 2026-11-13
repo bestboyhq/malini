@@ -1,6 +1,6 @@
 # 0163 - Setup ends on a repository picker, and a pick opens a workstream
 
-Status: accepted
+Status: superseded by 0242
 
 ## Context
 

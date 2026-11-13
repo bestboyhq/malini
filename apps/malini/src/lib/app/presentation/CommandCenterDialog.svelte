@@ -112,7 +112,7 @@
 	const connectingKey = $derived(repositoryConnectingKeyQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
 	const workstreamId = $derived(page.params.workstreamId ?? '');
-	const startsWorkstream = $derived(mode === 'start' || onboardingQuery.data.shown === 'picker');
+	const startsWorkstream = $derived(mode === 'start' || onboardingQuery.data.picking);
 	const connectOptions: RepositoryConnectOptions = $derived({
 		open: startsWorkstream ? 'workstream' : 'repository',
 		onConnected: closeCommandCenterCommand,

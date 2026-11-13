@@ -78,7 +78,7 @@
 	const pullRequestBadge = pullRequestBadgesQuery.data;
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
-	const chromeHidden = $derived(onboardingQuery.data.shown !== null);
+	const chromeHidden = $derived(onboardingQuery.data.picking);
 	const inAutomations = $derived(page.route.id?.startsWith(AUTOMATIONS_HREF) ?? false);
 	const inBrain = $derived(page.route.id?.startsWith(BRAIN_HREF) ?? false);
 	let lastWorkstreamId = $state<string | null>(null);

@@ -1,4 +1,4 @@
-import { presetArranged, type SidebarPreset } from '$lib/app/domain/onboarding';
+import { presetArranged, type SidebarPreset } from '$lib/app/domain/sidebar-preset';
 import { sidebarArrangementStore } from '$lib/app/infrastructure/stores/sidebar-arrangement.store.svelte';
 
 export function chooseSidebarPresetCommand(change: Partial<SidebarPreset>): void {

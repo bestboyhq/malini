@@ -64,6 +64,8 @@ export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
 export const KEYCHAIN_FIXTURE = '.e2e-keychain';
 
+export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
+
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
@@ -93,6 +95,7 @@ case "$1 $2" in
   "repo list") echo "[]"; exit 0 ;;
   "pr list") if [ -f "$PULL_REQUEST" ]; then printf '['; cat "$PULL_REQUEST"; echo ']'; else echo "[]"; fi; exit 0 ;;
   "pr view") if [ -f "$PULL_REQUEST" ]; then cat "$PULL_REQUEST"; exit 0; fi; echo "no pull requests found for branch" 1>&2; exit 1 ;;
+  "issue create") printf '%s\\0' "$@" > "$HOME/${ISSUE_CREATE_FIXTURE}"; echo "https://github.com/bestboyhq/malini/issues/214"; exit 0 ;;
 esac
 exit 0
 `;
@@ -175,6 +178,7 @@ export interface LaunchOptions {
 	readonly profile?: string;
 	readonly env?: Readonly<Record<string, string>>;
 	readonly shellProfile?: string;
+	readonly soundsNote?: boolean;
 }
 
 export interface LaunchedApp {
@@ -294,6 +298,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	electronApp.context().on('dialog', leaveDialogsToMalini);
 	await keepTheClipboardInMemory(electronApp);
 	const page = await electronApp.firstWindow();
+	if (!options.soundsNote) await markSoundsNoted(page);
 
 	const consoleErrors: string[] = [];
 	const pageErrors: string[] = [];
@@ -341,6 +346,11 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		},
 	};
 	return handle;
+}
+
+async function markSoundsNoted(page: Page): Promise<void> {
+	await page.waitForFunction(() => 'malini' in globalThis);
+	await invoke(page, 'app.set-setting', { key: 'sounds.noted', value: 'e2e' });
 }
 
 const QUIT_BUDGET_MS = 15_000;
@@ -721,34 +731,10 @@ export async function openOverview(page: Page): Promise<void> {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 }
 
-export async function passDefaults(page: Page): Promise<void> {
-	const setup = page.getByTestId('onboarding');
-	await expect(setup.getByRole('heading', { name: 'Pick your defaults' })).toBeVisible();
-	await setup.getByRole('radio', { name: /^Customize/u }).click();
-	await setup.getByRole('checkbox', { name: /^Keep a second brain/u }).uncheck();
-	const proceed = setup.getByRole('button', { name: 'Continue' });
-	await expect(proceed).toBeEnabled();
-	await proceed.click();
-	await expect(
-		setup.getByRole('heading', { name: 'Where did you hear about Malini?' }),
-	).toBeVisible();
-}
-
-export async function passSidebar(page: Page): Promise<void> {
-	const setup = page.getByTestId('onboarding');
-	await expect(setup.getByRole('heading', { name: 'Set up your sidebar' })).toBeVisible();
-	await setup.getByRole('button', { name: 'Continue' }).click();
-}
-
-export async function passSetup(page: Page): Promise<void> {
-	const setup = page.getByTestId('onboarding');
-	await setup.getByRole('button', { name: 'Continue' }).click();
-	await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
-	await setup.getByRole('button', { name: 'Continue' }).click();
-	await passSidebar(page);
-	await passDefaults(page);
-	await setup.getByRole('button', { name: 'Skip', exact: true }).click();
-	await expect(page.getByTestId('first-repository-picker')).toBeVisible({ timeout: 20_000 });
+export async function expectPicker(page: Page): Promise<void> {
+	await expect(page.getByRole('heading', { name: 'What are we working on?' })).toBeVisible({
+		timeout: 20_000,
+	});
 }
 
 export async function connectFolder(app: LaunchedApp, name: string): Promise<void> {

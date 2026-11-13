@@ -32,6 +32,8 @@ export const PROFILE_SETTINGS_HREF = '/settings/profile';
 
 export const BRAIN_SETTINGS_HREF = '/settings/brain';
 
+export const SOUND_SETTINGS_HREF = '/settings/sounds';
+
 export function brainHref(path: string): string {
 	return `${BRAIN_HREF}/${encodeURIComponent(path)}`;
 }

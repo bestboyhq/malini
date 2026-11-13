@@ -22,16 +22,12 @@ The [README](../README.md) has the short version.
 
 ## First launch
 
-<p align="center">
-  <img src="../.github/readme/setup.webp" width="100%" alt="The first-run setup, step 1 of 4, Connect Claude Code and GitHub: both rows show a green check and Signed in as, with the Claude email blurred, and a Continue button.">
-</p>
-
-- **Both accounts, side by side.** Setup connects Claude Code and GitHub one at a time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
+- **Straight to your repositories.** Malini opens on your five latest GitHub repositories under **What are we working on?**, and a pick clones the repository and starts a workstream in it.
+  Signed out, the card offers **Sign in to GitHub**, a one-time code in your browser; **Open a folder** takes a repository already on your Mac, and **New repository** makes one on GitHub.
+- **Nothing to install.** Malini ships the GitHub CLI, and installs Claude Code on its own when this Mac lacks it, while you pick a repository.
+  A prompt you send before it lands waits, and sends once it is in.
   The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
-  Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
-- **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you.
-- **Then your repositories.** Setup ends on your five latest GitHub repositories under **What are we working on?**, and a pick clones the repository and starts a workstream in it.
-  **New repository** makes one on GitHub.
+- **Something small to start.** The first workstream offers three starter prompts: explain the repository, fix the first failing test or lint, or take one open issue.
 
 ## Workstreams, side by side
 

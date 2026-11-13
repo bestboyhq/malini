@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heardAbout, heardAboutProps, heardAboutSetting } from './heard-about';
+import { heardAbout, heardAboutAsked, heardAboutProps, heardAboutSetting } from './heard-about';
 
 describe('where you heard about Malini', () => {
 	it('keeps a channel you picked and reads it back', () => {
@@ -26,5 +26,11 @@ describe('where you heard about Malini', () => {
 	it('sends somewhere else alone when you typed nothing', () => {
 		const setting = heardAboutSetting({ channel: 'somewhere-else', detail: ' @ ' });
 		expect(heardAboutProps(heardAbout(setting))).toEqual({ heard_about: 'somewhere-else' });
+	});
+
+	it('asks once, and never an install that passed the old setup', () => {
+		expect(heardAboutAsked({})).toBe(false);
+		expect(heardAboutAsked({ 'heard-about': '' })).toBe(true);
+		expect(heardAboutAsked({ 'onboarding.finished-at': '2026-10-01T09:00:00.000Z' })).toBe(true);
 	});
 });

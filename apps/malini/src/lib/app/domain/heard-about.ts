@@ -1,5 +1,7 @@
 export const HEARD_ABOUT_SETTING = 'heard-about';
 
+const PASSED_OLD_SETUP_SETTING = 'onboarding.finished-at';
+
 export const HEARD_ABOUT_CHANNELS = [
 	'hacker-news',
 	'youtube',
@@ -43,4 +45,8 @@ export function heardAbout(setting: string | null | undefined): HeardAbout | nul
 
 export function heardAboutProps(answer: HeardAbout | null): Readonly<Record<string, string>> {
 	return answer ? { heard_about: answer.channel } : {};
+}
+
+export function heardAboutAsked(settings: Readonly<Record<string, string>>): boolean {
+	return HEARD_ABOUT_SETTING in settings || PASSED_OLD_SETUP_SETTING in settings;
 }

@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Download Malini for macOS, connect Claude Code and GitHub in setup, and add your first repository.
+description: Download Malini for macOS, pick a GitHub repository, and start. Claude Code installs itself.
 ---
 
 ## Requirements
@@ -8,42 +8,49 @@ description: Download Malini for macOS, connect Claude Code and GitHub in setup,
 - macOS 13 or later on Apple silicon.
 - git.
 
-Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it.
+Malini ships the GitHub CLI, and installs Claude Code on its own if you don't have it.
 
 ## Install
 
 1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
 2. Open it.
-3. Add a repository.
-   It opens on its scratchpad right away while Malini clones it in the background, and lists your open pull requests beside it, for you to continue the ones you want here.
+3. Pick a repository under **What are we working on?**.
+   Malini clones it, starts a workstream in it and opens that workstream.
 
 ## First launch
 
-- **Claude Code and GitHub, side by side.** Setup lists Claude Code and GitHub together, so both install and connect at the same time: **Install** for Claude Code if this Mac lacks it, and a one-time code in your browser for GitHub.
-  **Install** downloads the latest Claude Code from Anthropic, checks it against the checksum Anthropic publishes, and sets it up in `~/.local/bin`, the same place `install.sh` puts it.
-  A bar shows the download as it arrives, and a failed install says why and offers **Try again**, plus the `install.sh` command to run in Terminal instead.
-  Setup never asks you to sign in to Claude: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.
-  Malini ships the GitHub CLI, so you don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
-  If it cannot run, the GitHub row offers **Install**, which downloads the same `gh` from GitHub with a bar, checks it, and puts it in place.
-  If GitHub does not answer in 15 seconds, the row says so and offers **Check again**.
-  Malini needs both tools, so this step has no **Skip**: **Continue** opens once Claude Code is installed and GitHub is signed in.
-  A check that fails outright still lets you continue, and Settings, Providers and Settings, Accounts offer the same rows later.
-  The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
-  The step also says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
-- **Hear your afternoon.** Pick the sound for when an agent finishes and the one for when it needs you, then **Try it** plays an afternoon of workstreams so you hear how it feels.
-- **Pick your defaults.** What Malini does without asking.
-  **Recommended** turns on all four: **Resolve merge conflicts**, **Address review comments**, **Keep a second brain**, and **Update from main** when main touches your files.
-  **Customize** lets you untick any of them, and set Update from main to **Touches my files**, **Always** or **Never**.
-  Each one is the trigger of a [built-in automation](/malini/docs/automations.md#built-in-automations), and the same switches live in Settings, Automations.
-  The [second brain](/malini/docs/brain.md) keeps what you typed in archived chats, with secrets taken out, in a private GitHub repository, and nowhere else.
-- **Where you heard about Malini.** Pick Hacker News, YouTube, Twitter, a friend or another place, or **Skip**.
-  The option you picked rides along with the usage data, so we can tell which places bring builders who stick around; what you type for another place stays on your Mac.
-- **Then your repositories.** Setup ends on your five GitHub repositories pushed to last, under **What are we working on?**, and nothing to type.
-  Pick one and Malini clones it, starts a workstream in it and opens that workstream.
+Malini opens on **What are we working on?**, with nothing to set up first.
+
+- **Your GitHub repositories.** The card lists your five GitHub repositories pushed to last.
+  Pick one and Malini clones its own copy, starts a workstream in it and opens that workstream.
+  Your own checkouts stay as they are.
   **More repositories** opens **Find a repository** in the command center (**⌘K**), where you type to search the rest, and a pick there starts a workstream too.
-  **Open a folder** (**⌘O**) does the same for a repository already on your Mac.
   **New repository** makes one on GitHub under you or one of your organizations, private unless you untick it, and starts a workstream in it.
   The sidebar comes back with that workstream.
+- **Signed out of GitHub.** The card reads **Sign in to GitHub to list your repositories**, and **Sign in** shows a one-time code and opens GitHub in your browser.
+  A `gh` you already signed in to on this Mac counts, so you may never see this card.
+  The sign-in asks for the `workflow` scope too, so agents can change your GitHub Actions workflows.
+  If GitHub does not answer in 15 seconds, the card says so and offers **Check again**.
+- **Not on GitHub?** **Open a folder** (**⌘O**), under the card, starts a workstream in a repository already on your Mac.
+- **Claude Code installs itself.** If this Mac lacks Claude Code, Malini downloads the latest release from Anthropic as it opens, checks it against the checksum Anthropic publishes, and sets it up in `~/.local/bin`, the same place `install.sh` puts it.
+  A line under the picker shows the download as it arrives.
+  It installs only when Claude Code is missing, never when the check itself fails, so it does not put a second copy beside one from Homebrew or npm.
+  A prompt you send before it lands waits above the composer under **Installing Claude Code. Your prompt sends once it is in**, and sends on its own once it is.
+  A failed install says why and offers **Try again**, and Settings, Providers has the `install.sh` command to run in Terminal instead.
+  Malini never asks you to sign in to Claude up front: the first prompt you send on a Claude model asks for the sign-in, and a DeepSeek or OpenCode model asks for its API key instead.
+- **The GitHub CLI ships inside Malini.** You don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
+  If the bundled one cannot run, Malini downloads the same `gh` from GitHub on its own, checks it, and puts it in place.
+- **Usage stats.** The picker says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
+- **Something small to start.** Your first workstream opens on **Start with something small**: **Explain how this repository works**, **Fix the first failing test or lint**, and, for a GitHub repository, **Take one open issue**.
+  Each one fills the composer with its prompt, for you to edit or send.
+  The agent works on the workstream's own branch, so nothing reaches main until you merge.
+- **Sounds.** The first time an agent finishes, a note says what that sound means, and **Change sounds** opens Settings, Sounds.
+- **Defaults.** A new install starts with **Resolve merge conflicts**, **Address review comments** and **Update from main** on **Touches my files**, and the [second brain](/malini/docs/brain.md) off.
+  Settings, Automations has the [same switches](/malini/docs/automations.md#defaults).
+- **Where you heard about Malini.** Once you archive your first merged workstream, the Repositories page asks, once: Hacker News, YouTube, Twitter, GitHub, Reddit, ChatGPT, Claude, Google, a friend or somewhere else.
+  Until you pick one or close it, that question is all the page shows.
+  The option you pick rides along with the usage data, so we can tell which places bring builders who stick around; what you type for somewhere else stays on your Mac.
+  The × closes it for good.
 
 ## Updates
 
