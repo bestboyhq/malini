@@ -35,7 +35,7 @@ function card(page: Page) {
 	return page.getByRole('region', { name: 'First merge. Where did you hear about Malini?' });
 }
 
-test('the first merged and archived workstream asks once where you heard about Malini, and Somewhere else takes your words', async () => {
+test('the first merged and archived workstream asks once where you heard about Malini before the list, and Somewhere else takes your words', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -51,6 +51,7 @@ test('the first merged and archived workstream asks once where you heard about M
 		await openRepositoriesPage(page);
 		const ask = card(page);
 		await expect(ask).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('repository-search')).toHaveCount(0);
 		const channels = ask.getByRole('group', { name: 'Where you heard about Malini' });
 		await expect(channels.getByRole('button')).toHaveCount(10);
 		await captureFlow(app, 'heard-about-after-first-merge');
@@ -60,8 +61,10 @@ test('the first merged and archived workstream asks once where you heard about M
 		await expect(where).toBeFocused();
 		await expect(ask.getByRole('button', { name: 'Send' })).toBeDisabled();
 		await where.fill('@syntaxfm podcast');
+		await expect(page.getByTestId('repository-search')).toHaveCount(0);
 		await ask.getByRole('button', { name: 'Send' }).click();
 		await expect(ask.getByRole('status')).toHaveText('Noted. Thanks');
+		await expect(page.getByTestId('repository-search')).toBeVisible();
 		await expect(channels).toHaveCount(0);
 		await expect
 			.poll(async () => (await storedSettings(page))['heard-about'])
@@ -78,7 +81,7 @@ test('the first merged and archived workstream asks once where you heard about M
 	}
 });
 
-test('a chip answers where you heard about Malini in one click, and neither a dismissal nor the old setup asks again', async () => {
+test('a chip answers where you heard about Malini in one click and brings the list back, and neither a dismissal nor the old setup asks again', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -93,6 +96,7 @@ test('a chip answers where you heard about Malini in one click, and neither a di
 			.getByRole('button', { name: 'Hacker News' })
 			.click();
 		await expect(ask.getByRole('status')).toHaveText('Noted. Thanks');
+		await expect(page.getByTestId('repository-search')).toBeVisible();
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('hacker-news');
 
 		const db = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
@@ -104,8 +108,10 @@ test('a chip answers where you heard about Malini in one click, and neither a di
 		await page.reload();
 		await openRepositoriesPage(page);
 		await expect(ask).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('repository-search')).toHaveCount(0);
 		await ask.getByRole('button', { name: 'Dismiss where you heard about Malini' }).click();
 		await expect(ask).toHaveCount(0);
+		await expect(page.getByTestId('repository-search')).toBeVisible();
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
 
 		await page.reload();

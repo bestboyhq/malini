@@ -41,6 +41,7 @@
 	} from '$shared/repositories/repositories.api';
 	import { ClaudeCodeSetup, claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import { loadOnboardingCommand } from '$lib/app/application/commands/load-onboarding.command';
+	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
@@ -112,6 +113,9 @@
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
 	);
 	let picking = $state(false);
+	const askingHeardAbout = $derived(
+		onboardingQuery.data.firstMerge && onboardingQuery.data.heardAboutUnanswered,
+	);
 
 	onMount(() => {
 		loadOnboardingCommand();
@@ -268,311 +272,317 @@
 
 			<HeardAboutCard />
 
-			{#if claudeNeedsSetup}
-				<ClaudeCodeSetup nested />
-			{/if}
-			{#if githubSignedOut}
-				<GitHubSetup nested />
-			{/if}
+			{#if !askingHeardAbout}
+				{#if claudeNeedsSetup}
+					<ClaudeCodeSetup nested />
+				{/if}
+				{#if githubSignedOut}
+					<GitHubSetup nested />
+				{/if}
 
-			<ComposerShell>
-				<div class="flex h-10 items-center gap-3 pr-1.5 pl-3.5">
-					<label class="flex min-w-0 flex-1 items-center gap-3 self-stretch">
-						<Icon name="search" size={16} class="text-fg-tertiary shrink-0" />
-						<TextInput
-							bind:value={query}
-							bare
-							type="search"
-							ariaLabel="Search repositories"
-							placeholder={`Search ${repositoryCountLabel(repositories.length)}`}
-							autocomplete="off"
-							disabled={!workstreamScopeReady || workstreamScopeFailure !== null}
-							class="min-w-0 flex-1"
-							inputClass="text-sm [&::-webkit-search-cancel-button]:hidden"
-							data-testid="repository-search"
-						/>
-					</label>
-					<span class="flex shrink-0 items-center gap-0.5">
-						<Tooltip content="Find a repository ⌘K" placement="top">
-							<Button
-								variant="ghost"
-								size="md"
-								iconOnly
-								disabled={connecting === 'folder'}
-								loading={connecting === 'clone'}
-								ariaLabel="Find a repository"
-								ariaHasPopup="dialog"
-								ariaKeyshortcuts="Meta+K"
-								data-testid="repository-clone-open"
-								onclick={() => openCommandCenterCommand('find')}
-							>
-								{#snippet leading()}
-									<GitHubIcon size={14} />
-								{/snippet}
-							</Button>
-						</Tooltip>
-						<Tooltip content="Open a folder ⌘O" placement="top">
-							<Button
-								variant="ghost"
-								size="md"
-								iconOnly
-								disabled={connecting === 'clone'}
-								loading={connecting === 'folder'}
-								ariaLabel="Open a local repository folder"
-								ariaKeyshortcuts="Meta+O"
-								data-testid="repository-open-folder"
-								onclick={() => openRepositoryFolderCommand()}
-							>
-								{#snippet leading()}
-									<Icon name="folder-open" size={16} />
-								{/snippet}
-							</Button>
-						</Tooltip>
-						{#if !githubSignedOut}
-							<Tooltip content="New repository" placement="top">
-								<IconButton
+				<ComposerShell>
+					<div class="flex h-10 items-center gap-3 pr-1.5 pl-3.5">
+						<label class="flex min-w-0 flex-1 items-center gap-3 self-stretch">
+							<Icon name="search" size={16} class="text-fg-tertiary shrink-0" />
+							<TextInput
+								bind:value={query}
+								bare
+								type="search"
+								ariaLabel="Search repositories"
+								placeholder={`Search ${repositoryCountLabel(repositories.length)}`}
+								autocomplete="off"
+								disabled={!workstreamScopeReady || workstreamScopeFailure !== null}
+								class="min-w-0 flex-1"
+								inputClass="text-sm [&::-webkit-search-cancel-button]:hidden"
+								data-testid="repository-search"
+							/>
+						</label>
+						<span class="flex shrink-0 items-center gap-0.5">
+							<Tooltip content="Find a repository ⌘K" placement="top">
+								<Button
 									variant="ghost"
 									size="md"
-									ariaLabel="New repository"
+									iconOnly
+									disabled={connecting === 'folder'}
+									loading={connecting === 'clone'}
+									ariaLabel="Find a repository"
 									ariaHasPopup="dialog"
-									onclick={() => openCommandCenterCommand('new-repository')}
+									ariaKeyshortcuts="Meta+K"
+									data-testid="repository-clone-open"
+									onclick={() => openCommandCenterCommand('find')}
 								>
-									<Icon name="plus" size={16} />
-								</IconButton>
+									{#snippet leading()}
+										<GitHubIcon size={14} />
+									{/snippet}
+								</Button>
 							</Tooltip>
-						{/if}
-					</span>
-				</div>
-			</ComposerShell>
-
-			{#if workstreamScopeFailure}
-				<ComposerShell class="flex items-center justify-center">
-					<StateBlock
-						live="alert"
-						tone={workstreamScopeFailure.tone}
-						heading={workstreamScopeFailure.heading}
-						detail={workstreamScopeFailure.detail}
-						remedy={workstreamScopeFailure.remedy}
-						technical={workstreamScopeFailure.technical}
-						testId="repositories-scope-error"
-					>
-						{#snippet icon()}
-							<Icon name="plug" size={22} />
-						{/snippet}
-						{#snippet action()}
-							<Button
-								variant="secondary"
-								size="md"
-								disabled={retryingScope}
-								ariaBusy={retryingScope}
-								ariaLabel="Retry loading repositories"
-								data-testid="repositories-scope-retry"
-								onclick={retryRepositoriesScopeCommand}
-							>
-								{#snippet leading()}
-									<Icon name="refresh" size={16} />
-								{/snippet}
-								{retryingScope ? 'Retrying…' : 'Retry'}
-							</Button>
-						{/snippet}
-					</StateBlock>
+							<Tooltip content="Open a folder ⌘O" placement="top">
+								<Button
+									variant="ghost"
+									size="md"
+									iconOnly
+									disabled={connecting === 'clone'}
+									loading={connecting === 'folder'}
+									ariaLabel="Open a local repository folder"
+									ariaKeyshortcuts="Meta+O"
+									data-testid="repository-open-folder"
+									onclick={() => openRepositoryFolderCommand()}
+								>
+									{#snippet leading()}
+										<Icon name="folder-open" size={16} />
+									{/snippet}
+								</Button>
+							</Tooltip>
+							{#if !githubSignedOut}
+								<Tooltip content="New repository" placement="top">
+									<IconButton
+										variant="ghost"
+										size="md"
+										ariaLabel="New repository"
+										ariaHasPopup="dialog"
+										onclick={() => openCommandCenterCommand('new-repository')}
+									>
+										<Icon name="plus" size={16} />
+									</IconButton>
+								</Tooltip>
+							{/if}
+						</span>
+					</div>
 				</ComposerShell>
-			{:else if !workstreamScopeReady}
-				<section
-					data-testid="repository-cold-shell"
-					data-navigation-cold-shell="true"
-					aria-label="Repositories unavailable until their local scope is verified"
-				>
-					<RepositoryListSkeleton />
-				</section>
-			{:else}
-				<section class="flex flex-col gap-5" aria-label="Repositories">
-					{#if connectError}
-						<ComposerShell class="px-2" testId="repository-connect-error">
-							<StateBlock
-								layout="inline"
-								live="alert"
-								tone="critical"
-								heading="Could not connect repository"
-								detail={connectError.detail}
-								remedy={connectError.remedy}
-								technical={connectError.technical}
-								testId="repository-connect-error-state"
-							>
-								{#snippet icon()}
-									<Icon name="alert" size={14} />
-								{/snippet}
-							</StateBlock>
-						</ComposerShell>
-					{/if}
 
-					{#if filteredRepositories.length === 0 && (hiddenRepositories.length === 0 || allHidden)}
-						<ComposerShell
-							class="flex items-center justify-center"
-							testId="repositories-empty-state"
+				{#if workstreamScopeFailure}
+					<ComposerShell class="flex items-center justify-center">
+						<StateBlock
+							live="alert"
+							tone={workstreamScopeFailure.tone}
+							heading={workstreamScopeFailure.heading}
+							detail={workstreamScopeFailure.detail}
+							remedy={workstreamScopeFailure.remedy}
+							technical={workstreamScopeFailure.technical}
+							testId="repositories-scope-error"
 						>
-							<StateBlock
-								heading={searching ? 'No matching repositories' : 'Every repository is hidden'}
-								detail={searching
-									? `Nothing connected matches “${query.trim()}”.`
-									: 'Hidden repositories keep their workstreams.'}
-								remedy={searching
-									? 'Clear the search, or connect the repository first.'
-									: 'Unhide one below, or open another folder.'}
-								testId="repositories-empty-block"
+							{#snippet icon()}
+								<Icon name="plug" size={22} />
+							{/snippet}
+							{#snippet action()}
+								<Button
+									variant="secondary"
+									size="md"
+									disabled={retryingScope}
+									ariaBusy={retryingScope}
+									ariaLabel="Retry loading repositories"
+									data-testid="repositories-scope-retry"
+									onclick={retryRepositoriesScopeCommand}
+								>
+									{#snippet leading()}
+										<Icon name="refresh" size={16} />
+									{/snippet}
+									{retryingScope ? 'Retrying…' : 'Retry'}
+								</Button>
+							{/snippet}
+						</StateBlock>
+					</ComposerShell>
+				{:else if !workstreamScopeReady}
+					<section
+						data-testid="repository-cold-shell"
+						data-navigation-cold-shell="true"
+						aria-label="Repositories unavailable until their local scope is verified"
+					>
+						<RepositoryListSkeleton />
+					</section>
+				{:else}
+					<section class="flex flex-col gap-5" aria-label="Repositories">
+						{#if connectError}
+							<ComposerShell class="px-2" testId="repository-connect-error">
+								<StateBlock
+									layout="inline"
+									live="alert"
+									tone="critical"
+									heading="Could not connect repository"
+									detail={connectError.detail}
+									remedy={connectError.remedy}
+									technical={connectError.technical}
+									testId="repository-connect-error-state"
+								>
+									{#snippet icon()}
+										<Icon name="alert" size={14} />
+									{/snippet}
+								</StateBlock>
+							</ComposerShell>
+						{/if}
+
+						{#if filteredRepositories.length === 0 && (hiddenRepositories.length === 0 || allHidden)}
+							<ComposerShell
+								class="flex items-center justify-center"
+								testId="repositories-empty-state"
 							>
-								{#snippet icon()}
-									<Icon name={searching ? 'search' : 'folder-open'} size={20} />
-								{/snippet}
-								{#snippet action()}
-									{#if searching}
-										<Button
-											variant="secondary"
-											size="md"
-											ariaLabel="Clear repository search"
-											onclick={() => (query = '')}
-										>
-											Clear search
-										</Button>
-									{:else}
-										{@render openFolderButton()}
-									{/if}
-								{/snippet}
-							</StateBlock>
-						</ComposerShell>
-					{:else if filteredRepositories.length > 0}
-						<div class="flex flex-col gap-5" data-testid="repository-list">
-							{#each ownerGroups as group (group.id)}
-								{@const open = searching || !collapsedGroupIds.has(group.id)}
-								{@const first = group.items[0]}
-								<div>
-									<div class="px-[15px]">
-										<Button
-											bare
-											class={[TRAY, open ? TRAY_OPEN : TRAY_CLOSED, !searching && TRAY_INTERACTIVE]}
-											disabled={searching}
-											ariaLabel={`${group.owner}, ${repositoryCountLabel(group.items.length)}`}
-											ariaExpanded={open}
-											ariaControls={`owner-list-${group.id}`}
-											onclick={() => toggleGroupCollapsedCommand(group.id)}
-										>
-											{#if first}
-												<RepositoryAvatar fullName={first.fullName} size={14} />
-											{/if}
-											<span class="font-medium">{group.owner}</span>
-											<span class="text-fg-tertiary">
-												{repositoryCountLabel(group.items.length)}
-											</span>
-											<Icon
-												name="chevron-down"
-												size={12}
-												class={`text-fg-tertiary ml-auto transition-transform duration-100 ${open ? '' : '-rotate-90'}`}
-											/>
-										</Button>
+								<StateBlock
+									heading={searching ? 'No matching repositories' : 'Every repository is hidden'}
+									detail={searching
+										? `Nothing connected matches “${query.trim()}”.`
+										: 'Hidden repositories keep their workstreams.'}
+									remedy={searching
+										? 'Clear the search, or connect the repository first.'
+										: 'Unhide one below, or open another folder.'}
+									testId="repositories-empty-block"
+								>
+									{#snippet icon()}
+										<Icon name={searching ? 'search' : 'folder-open'} size={20} />
+									{/snippet}
+									{#snippet action()}
+										{#if searching}
+											<Button
+												variant="secondary"
+												size="md"
+												ariaLabel="Clear repository search"
+												onclick={() => (query = '')}
+											>
+												Clear search
+											</Button>
+										{:else}
+											{@render openFolderButton()}
+										{/if}
+									{/snippet}
+								</StateBlock>
+							</ComposerShell>
+						{:else if filteredRepositories.length > 0}
+							<div class="flex flex-col gap-5" data-testid="repository-list">
+								{#each ownerGroups as group (group.id)}
+									{@const open = searching || !collapsedGroupIds.has(group.id)}
+									{@const first = group.items[0]}
+									<div>
+										<div class="px-[15px]">
+											<Button
+												bare
+												class={[
+													TRAY,
+													open ? TRAY_OPEN : TRAY_CLOSED,
+													!searching && TRAY_INTERACTIVE,
+												]}
+												disabled={searching}
+												ariaLabel={`${group.owner}, ${repositoryCountLabel(group.items.length)}`}
+												ariaExpanded={open}
+												ariaControls={`owner-list-${group.id}`}
+												onclick={() => toggleGroupCollapsedCommand(group.id)}
+											>
+												{#if first}
+													<RepositoryAvatar fullName={first.fullName} size={14} />
+												{/if}
+												<span class="font-medium">{group.owner}</span>
+												<span class="text-fg-tertiary">
+													{repositoryCountLabel(group.items.length)}
+												</span>
+												<Icon
+													name="chevron-down"
+													size={12}
+													class={`text-fg-tertiary ml-auto transition-transform duration-100 ${open ? '' : '-rotate-90'}`}
+												/>
+											</Button>
+										</div>
+										<ComposerShell class={[!open && 'hidden']}>
+											<ul id={`owner-list-${group.id}`} class="flex flex-col p-1">
+												{#each group.items as repo (repo.id)}
+													{@render repositoryRow(repo, null)}
+												{/each}
+											</ul>
+										</ComposerShell>
 									</div>
-									<ComposerShell class={[!open && 'hidden']}>
-										<ul id={`owner-list-${group.id}`} class="flex flex-col p-1">
-											{#each group.items as repo (repo.id)}
-												{@render repositoryRow(repo, null)}
+								{/each}
+								{#if loneRepositories.length > 0}
+									<ComposerShell>
+										<ul class="flex flex-col p-1">
+											{#each loneRepositories as repo (repo.id)}
+												{@render repositoryRow(repo, repositoryOwner(repo.fullName))}
 											{/each}
 										</ul>
 									</ComposerShell>
+								{/if}
+							</div>
+						{/if}
+
+						{#if hiddenRepositories.length > 0}
+							<div>
+								<div class="px-[15px]">
+									<Button
+										bare
+										class={[
+											TRAY,
+											hiddenShown ? TRAY_OPEN : TRAY_CLOSED,
+											!searching && TRAY_INTERACTIVE,
+										]}
+										disabled={searching}
+										ariaLabel={`Hidden, ${repositoryCountLabel(hiddenRepositories.length)}`}
+										ariaExpanded={hiddenShown}
+										ariaControls="hidden-repository-list"
+										onclick={() => (hiddenOpen = !hiddenOpen)}
+									>
+										<span class="text-fg-tertiary grid w-3.5 place-items-center">
+											<Icon name="eye-off" size={13} />
+										</span>
+										<span class="font-medium">Hidden</span>
+										<span class="text-fg-tertiary tabular-nums">{hiddenRepositories.length}</span>
+										<Icon
+											name="chevron-down"
+											size={12}
+											class={`text-fg-tertiary ml-auto transition-transform duration-100 ${hiddenShown ? '' : '-rotate-90'}`}
+										/>
+									</Button>
 								</div>
-							{/each}
-							{#if loneRepositories.length > 0}
-								<ComposerShell>
-									<ul class="flex flex-col p-1">
-										{#each loneRepositories as repo (repo.id)}
-											{@render repositoryRow(repo, repositoryOwner(repo.fullName))}
+								<ComposerShell class={[!hiddenShown && 'hidden']}>
+									<ul
+										id="hidden-repository-list"
+										class="flex flex-col p-1"
+										aria-label="Hidden repositories"
+										data-testid="hidden-repository-list"
+									>
+										{#each hiddenRepositories as repo (repo.id)}
+											<li
+												data-testid="hidden-repository-row"
+												data-repository-id={repo.id}
+												data-full-name={repo.fullName}
+												class={ROW}
+											>
+												<span class="opacity-60">
+													<RepositoryAvatar fullName={repo.fullName} size={16} />
+												</span>
+												<span class="flex min-w-0 flex-1">
+													{@render repositoryLabel(
+														repo,
+														repositoryOwner(repo.fullName),
+														'text-fg-secondary',
+													)}
+												</span>
+												<span class="-mr-1.5 flex shrink-0 items-center gap-0.5">
+													<RemoveRepositoryButton
+														repository={repo}
+														workstreams={workstreamsFor(repo)}
+														onremove={removeRepositoryCommand}
+														placement="top"
+														restingClass={REVEAL_ON_ROW_HOVER}
+														testId="repository-remove-button"
+													/>
+													<Button
+														variant="ghost"
+														size="sm"
+														class={REVEAL_ON_ROW_HOVER}
+														ariaLabel={`Unhide ${repo.fullName}`}
+														data-testid="repository-unhide-button"
+														onclick={() => setRepositoryHiddenCommand(repo, false)}
+													>
+														{#snippet leading()}
+															<Icon name="eye" size={14} />
+														{/snippet}
+														Unhide
+													</Button>
+												</span>
+											</li>
 										{/each}
 									</ul>
 								</ComposerShell>
-							{/if}
-						</div>
-					{/if}
-
-					{#if hiddenRepositories.length > 0}
-						<div>
-							<div class="px-[15px]">
-								<Button
-									bare
-									class={[
-										TRAY,
-										hiddenShown ? TRAY_OPEN : TRAY_CLOSED,
-										!searching && TRAY_INTERACTIVE,
-									]}
-									disabled={searching}
-									ariaLabel={`Hidden, ${repositoryCountLabel(hiddenRepositories.length)}`}
-									ariaExpanded={hiddenShown}
-									ariaControls="hidden-repository-list"
-									onclick={() => (hiddenOpen = !hiddenOpen)}
-								>
-									<span class="text-fg-tertiary grid w-3.5 place-items-center">
-										<Icon name="eye-off" size={13} />
-									</span>
-									<span class="font-medium">Hidden</span>
-									<span class="text-fg-tertiary tabular-nums">{hiddenRepositories.length}</span>
-									<Icon
-										name="chevron-down"
-										size={12}
-										class={`text-fg-tertiary ml-auto transition-transform duration-100 ${hiddenShown ? '' : '-rotate-90'}`}
-									/>
-								</Button>
 							</div>
-							<ComposerShell class={[!hiddenShown && 'hidden']}>
-								<ul
-									id="hidden-repository-list"
-									class="flex flex-col p-1"
-									aria-label="Hidden repositories"
-									data-testid="hidden-repository-list"
-								>
-									{#each hiddenRepositories as repo (repo.id)}
-										<li
-											data-testid="hidden-repository-row"
-											data-repository-id={repo.id}
-											data-full-name={repo.fullName}
-											class={ROW}
-										>
-											<span class="opacity-60">
-												<RepositoryAvatar fullName={repo.fullName} size={16} />
-											</span>
-											<span class="flex min-w-0 flex-1">
-												{@render repositoryLabel(
-													repo,
-													repositoryOwner(repo.fullName),
-													'text-fg-secondary',
-												)}
-											</span>
-											<span class="-mr-1.5 flex shrink-0 items-center gap-0.5">
-												<RemoveRepositoryButton
-													repository={repo}
-													workstreams={workstreamsFor(repo)}
-													onremove={removeRepositoryCommand}
-													placement="top"
-													restingClass={REVEAL_ON_ROW_HOVER}
-													testId="repository-remove-button"
-												/>
-												<Button
-													variant="ghost"
-													size="sm"
-													class={REVEAL_ON_ROW_HOVER}
-													ariaLabel={`Unhide ${repo.fullName}`}
-													data-testid="repository-unhide-button"
-													onclick={() => setRepositoryHiddenCommand(repo, false)}
-												>
-													{#snippet leading()}
-														<Icon name="eye" size={14} />
-													{/snippet}
-													Unhide
-												</Button>
-											</span>
-										</li>
-									{/each}
-								</ul>
-							</ComposerShell>
-						</div>
-					{/if}
-				</section>
+						{/if}
+					</section>
+				{/if}
 			{/if}
 		</div>
 	{/if}

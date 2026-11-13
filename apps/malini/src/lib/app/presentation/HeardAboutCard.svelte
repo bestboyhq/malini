@@ -4,7 +4,6 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { BrandIcon, Icon, SmileyIcon, type Brand } from '$hyper-ui/icons';
-	import { archivedWorkstreamsQuery } from '$shared/repositories/repositories.api';
 	import { answerHeardAboutCommand } from '$lib/app/application/commands/answer-heard-about.command';
 	import { chooseHeardAboutCommand } from '$lib/app/application/commands/choose-heard-about.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
@@ -39,9 +38,6 @@
 	};
 
 	const onboarding = $derived(onboardingQuery.data);
-	const merged = $derived(
-		archivedWorkstreamsQuery.data.some((workstream) => workstream.mergedPullRequest !== null),
-	);
 	const answer = $derived(onboarding.heardAbout);
 	const describing = $derived(answer?.channel === 'somewhere-else' && !onboarding.heardAboutSent);
 	let detail = $state('');
@@ -63,7 +59,7 @@
 	}
 </script>
 
-{#if merged && (onboarding.heardAboutUnanswered || onboarding.heardAboutSent)}
+{#if onboarding.firstMerge && (onboarding.heardAboutUnanswered || onboarding.heardAboutSent)}
 	<section
 		class="border-surface-50-border bg-surface-50 rounded-2xl border-[0.5px] px-4 py-3.5"
 		aria-labelledby="heard-about-title"
