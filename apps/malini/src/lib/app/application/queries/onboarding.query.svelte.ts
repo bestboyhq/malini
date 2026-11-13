@@ -11,7 +11,7 @@ type Onboarding = Readonly<{
 class OnboardingQuery {
 	public readonly data: Onboarding = $derived({
 		picking: onboardingStore.picking,
-		heardAboutUnanswered: onboardingStore.heardAboutSetting === null,
+		heardAboutUnanswered: onboardingStore.heardAboutAsked === false,
 		heardAbout: onboardingStore.heardAbout,
 		heardAboutSent: onboardingStore.heardAboutSent,
 	});

@@ -1,14 +1,14 @@
 import { invoke } from '$shared/port/invoke';
 import {
 	HEARD_ABOUT_SETTING,
+	heardAboutAsked,
 	heardAboutSetting,
 	type HeardAbout,
 } from '$lib/app/domain/heard-about';
 
 class OnboardingService {
-	async heardAboutSetting(): Promise<string | null> {
-		const settings = await invoke('app.list-settings', undefined);
-		return settings[HEARD_ABOUT_SETTING] ?? null;
+	async askedHeardAbout(): Promise<boolean> {
+		return heardAboutAsked(await invoke('app.list-settings', undefined));
 	}
 
 	answerHeardAbout(answer: HeardAbout | null): Promise<void> {

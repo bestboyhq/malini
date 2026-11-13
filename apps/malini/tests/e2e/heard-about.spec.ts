@@ -78,7 +78,7 @@ test('the first merged and archived workstream asks once where you heard about M
 	}
 });
 
-test('a chip answers where you heard about Malini in one click, and dismissing it never asks again', async () => {
+test('a chip answers where you heard about Malini in one click, and neither a dismissal nor the old setup asks again', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -108,6 +108,20 @@ test('a chip answers where you heard about Malini in one click, and dismissing i
 		await expect(ask).toHaveCount(0);
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
 
+		await page.reload();
+		await openRepositoriesPage(page);
+		await expect(page.getByTestId('repository-row').first()).toBeVisible({ timeout: 20_000 });
+		await expect(ask).toHaveCount(0);
+
+		const upgraded = new DatabaseSync(join(app.userDataDir, 'malini.sqlite'));
+		try {
+			upgraded.prepare("DELETE FROM settings WHERE key = 'heard-about'").run();
+			upgraded
+				.prepare("INSERT INTO settings (key, value) VALUES ('onboarding.finished-at', ?)")
+				.run('2026-10-01T09:00:00.000Z');
+		} finally {
+			upgraded.close();
+		}
 		await page.reload();
 		await openRepositoriesPage(page);
 		await expect(page.getByTestId('repository-row').first()).toBeVisible({ timeout: 20_000 });

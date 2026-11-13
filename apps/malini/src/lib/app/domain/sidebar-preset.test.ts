@@ -12,21 +12,23 @@ const SEPARATE_EVERYTHING: SidebarPreset = { repositories: 'separate', show: 'ev
 
 describe('sidebar preset', () => {
 	it('keeps the default sidebar for separate repositories showing everything', () => {
-		expect(presetArrangement(SEPARATE_EVERYTHING)).toEqual(
-			DEFAULT_SIDEBAR_ARRANGEMENT,
-		);
+		expect(presetArrangement(SEPARATE_EVERYTHING)).toEqual(DEFAULT_SIDEBAR_ARRANGEMENT);
 	});
 
 	it('lists mixed repositories flat, grouped by status', () => {
-		expect(
-			presetArrangement({ ...SEPARATE_EVERYTHING, repositories: 'mixed' }),
-		).toMatchObject({ grouping: 'status', subgrouping: 'none', show: 'everything' });
+		expect(presetArrangement({ ...SEPARATE_EVERYTHING, repositories: 'mixed' })).toMatchObject({
+			grouping: 'status',
+			subgrouping: 'none',
+			show: 'everything',
+		});
 	});
 
 	it('nests repositories under the statuses that need you when repositories stay separate', () => {
-		expect(
-			presetArrangement({ ...SEPARATE_EVERYTHING, show: 'attention' }),
-		).toMatchObject({ grouping: 'status', subgrouping: 'repository', show: 'attention' });
+		expect(presetArrangement({ ...SEPARATE_EVERYTHING, show: 'attention' })).toMatchObject({
+			grouping: 'status',
+			subgrouping: 'repository',
+			show: 'attention',
+		});
 	});
 
 	it('lists mixed repositories flat when only what needs you shows', () => {

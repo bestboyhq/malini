@@ -9,10 +9,7 @@ export type SidebarRepositories = 'separate' | 'mixed';
 
 export type SidebarPreset = Readonly<{ repositories: SidebarRepositories; show: SidebarShow }>;
 
-export function presetArrangement({
-	repositories,
-	show,
-}: SidebarPreset): SidebarArrangement {
+export function presetArrangement({ repositories, show }: SidebarPreset): SidebarArrangement {
 	if (repositories === 'separate' && show === 'everything') return DEFAULT_SIDEBAR_ARRANGEMENT;
 	return {
 		...DEFAULT_SIDEBAR_ARRANGEMENT,

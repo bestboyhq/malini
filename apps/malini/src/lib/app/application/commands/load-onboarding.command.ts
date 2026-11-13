@@ -4,7 +4,7 @@ import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store
 export function loadOnboardingCommand(): void {
 	void (async () => {
 		try {
-			onboardingStore.heardAboutSetting = await onboardingService.heardAboutSetting();
+			onboardingStore.heardAboutAsked = await onboardingService.askedHeardAbout();
 		} catch (error) {
 			console.error('[malini app] could not read where you heard about Malini', error);
 		}
