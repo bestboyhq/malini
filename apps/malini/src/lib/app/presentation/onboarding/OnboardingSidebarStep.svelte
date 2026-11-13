@@ -2,7 +2,10 @@
 	import { onMount } from 'svelte';
 	import { chooseOnboardingSidebarCommand } from '$lib/app/application/commands/choose-onboarding-sidebar.command';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { onboardingSidebarArrangement, type OnboardingWhere } from '$lib/app/domain/onboarding';
+	import {
+		onboardingSidebarArrangement,
+		type SidebarRepositories,
+	} from '$lib/app/domain/onboarding';
 	import type { SidebarShow } from '$lib/app/domain/sidebar-arrangement';
 	import type { SidebarDensity } from '$lib/app/domain/sidebar-density';
 	import {
@@ -16,14 +19,14 @@
 		DENSITY_LABELS,
 		SHOW_CHOICES,
 		SHOW_LABELS,
-		WHERE_CHOICES,
-		WHERE_LABELS,
+		REPOSITORIES_CHOICES,
+		REPOSITORIES_LABELS,
 	} from '../sidebar-preset-copy';
 	import SidebarPreview from './SidebarPreview.svelte';
 
-	const WHERE_HINTS: Readonly<Record<OnboardingWhere, string>> = {
-		many: 'Grouped by organization and repository.',
-		one: 'One flat list, grouped by status.',
+	const REPOSITORIES_HINTS: Readonly<Record<SidebarRepositories, string>> = {
+		separate: 'Grouped by organization and repository.',
+		mixed: 'One flat list, grouped by status.',
 	};
 	const SHOW_HINTS: Readonly<Record<SidebarShow, string>> = {
 		everything: 'Every workstream, in every status.',
@@ -54,15 +57,17 @@
 <div class="flex gap-6">
 	<div class="flex min-w-0 flex-1 flex-col gap-5">
 		<section class="flex flex-col items-start gap-2">
-			<h2 class="text-fg-default text-[15px] font-medium">Where do you work?</h2>
+			<h2 class="text-fg-default text-[15px] font-medium">Keep repositories separate?</h2>
 			<ChoiceSwitch
-				label="Where you work"
-				choices={WHERE_CHOICES}
-				labels={WHERE_LABELS}
-				selected={choice.where}
-				onchoose={(where) => chooseOnboardingSidebarCommand({ where })}
+				label="Repositories"
+				choices={REPOSITORIES_CHOICES}
+				labels={REPOSITORIES_LABELS}
+				selected={choice.repositories}
+				onchoose={(repositories) => chooseOnboardingSidebarCommand({ repositories })}
 			/>
-			<p class="text-fg-tertiary text-[13px] leading-[18px]">{WHERE_HINTS[choice.where]}</p>
+			<p class="text-fg-tertiary text-[13px] leading-[18px]">
+				{REPOSITORIES_HINTS[choice.repositories]}
+			</p>
 		</section>
 		<section class="flex flex-col items-start gap-2">
 			<h2 class="text-fg-default text-[15px] font-medium">What should it show?</h2>

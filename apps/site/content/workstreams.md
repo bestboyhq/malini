@@ -64,7 +64,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
 - The sliders button beside it, **Sidebar options**, sets up the sidebar, and Malini remembers.
   Its panel opens beside the sidebar, so the rows stay in view while you change them.
   It asks setup's three questions again.
-  **Where you work** picks **Many repositories**, grouped by organization and repository, or **One project**, one flat list grouped by Status.
+  **Repositories** picks **Separate**, grouped by organization and repository, or **Mixed**, one flat list grouped by Status, where each row names its repository.
   **Show** picks **Everything** or **Only what needs me**.
   **Only what needs me** groups by Status and lists only **Needs you** and **In review**, with **Nothing needs you.** when both are empty and an **N hidden** row at the bottom whose **Show all** lists everything again.
   **Row height** picks **Compact** or **Comfortable**, the same setting as Settings, Appearance.
@@ -79,7 +79,7 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
   A repository or an owner sorts by the newest work in it.
   Rows drag only in Manual order, grouped by organization or repository.
   **Reset** goes back to what your answers make, in Manual order.
-- Setup's **Set up your sidebar** step asks **Where do you work?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make, built from your most recent GitHub repositories and their avatars.
+- Setup's **Set up your sidebar** step asks **Keep repositories separate?**, **What should it show?** and **How tall should rows be?**, beside a preview of the sidebar your answers make, built from your most recent GitHub repositories and their avatars.
   Without GitHub, the preview uses sample repositories.
   The answers work as they do in **Sidebar options**, which asks them again later.
   **Skip** keeps Organization grouping, Everything and Compact.

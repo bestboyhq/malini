@@ -38,8 +38,8 @@
 		DENSITY_LABELS,
 		SHOW_CHOICES,
 		SHOW_LABELS,
-		WHERE_CHOICES,
-		WHERE_LABELS,
+		REPOSITORIES_CHOICES,
+		REPOSITORIES_LABELS,
 	} from './sidebar-preset-copy';
 
 	interface Props {
@@ -139,14 +139,14 @@
 		{#snippet content()}
 			<div class="flex flex-col" role="group" aria-label="Sidebar options">
 				<div class="flex flex-col gap-1.5 px-1.5 pt-1.5 pb-2">
-					<p class="text-fg-tertiary text-2xs pl-0.5" aria-hidden="true">Where you work</p>
+					<p class="text-fg-tertiary text-2xs pl-0.5" aria-hidden="true">Repositories</p>
 					<ChoiceSwitch
 						fill
-						label="Where you work"
-						choices={WHERE_CHOICES}
-						labels={WHERE_LABELS}
-						selected={preset.where}
-						onchoose={(where) => onpreset({ where })}
+						label="Repositories"
+						choices={REPOSITORIES_CHOICES}
+						labels={REPOSITORIES_LABELS}
+						selected={preset.repositories}
+						onchoose={(repositories) => onpreset({ repositories })}
 					/>
 				</div>
 				<div class="flex flex-col gap-1.5 px-1.5 pt-0.5 pb-2">

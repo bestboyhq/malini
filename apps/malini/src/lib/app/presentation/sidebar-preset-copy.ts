@@ -1,12 +1,12 @@
-import type { OnboardingWhere } from '$lib/app/domain/onboarding';
+import type { SidebarRepositories } from '$lib/app/domain/onboarding';
 import type { SidebarShow } from '$lib/app/domain/sidebar-arrangement';
 import type { SidebarDensity } from '$lib/app/domain/sidebar-density';
 
-export const WHERE_CHOICES: readonly OnboardingWhere[] = ['many', 'one'];
+export const REPOSITORIES_CHOICES: readonly SidebarRepositories[] = ['separate', 'mixed'];
 
-export const WHERE_LABELS: Readonly<Record<OnboardingWhere, string>> = {
-	many: 'Many repositories',
-	one: 'One project',
+export const REPOSITORIES_LABELS: Readonly<Record<SidebarRepositories, string>> = {
+	separate: 'Separate',
+	mixed: 'Mixed',
 };
 
 export const SHOW_CHOICES: readonly SidebarShow[] = ['everything', 'attention'];

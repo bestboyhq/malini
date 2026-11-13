@@ -52,11 +52,11 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		const setup = await reachSidebarStep(page);
 		await expect(setup.getByText('Step 3 of 5')).toBeVisible();
 
-		const where = setup.getByRole('group', { name: 'Where you work' });
+		const where = setup.getByRole('group', { name: 'Repositories' });
 		const shows = setup.getByRole('group', { name: 'What it shows' });
 		const rows = setup.getByRole('group', { name: 'Row height' });
 		const preview = setup.getByTestId('onboarding-sidebar-preview');
-		await expect(where.getByRole('button', { name: 'Many repositories' })).toHaveAttribute(
+		await expect(where.getByRole('button', { name: 'Separate' })).toHaveAttribute(
 			'aria-pressed',
 			'true',
 		);
@@ -76,7 +76,7 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 		);
 		await captureFlow(app, 'setup-sidebar-recent-default');
 
-		await where.getByRole('button', { name: 'One project' }).click();
+		await where.getByRole('button', { name: 'Mixed' }).click();
 		await shows.getByRole('button', { name: 'Only what needs me' }).click();
 		await rows.getByRole('button', { name: 'Comfortable' }).click();
 		await expect(shows.getByRole('button', { name: 'Only what needs me' })).toHaveAttribute(
@@ -115,7 +115,7 @@ test('setup asks how you want your sidebar, and the sidebar opens that way', asy
 			panel
 				.getByRole('group', { name: group, exact: true })
 				.getByRole('button', { name, exact: true });
-		await expect(option('Where you work', 'One project')).toHaveAttribute('aria-pressed', 'true');
+		await expect(option('Repositories', 'Mixed')).toHaveAttribute('aria-pressed', 'true');
 		await expect(option('Show', 'Everything')).toHaveAttribute('aria-pressed', 'true');
 		await expect(option('Row height', 'Comfortable')).toHaveAttribute('aria-pressed', 'true');
 		await expect(panel.getByRole('button', { name: 'Advanced', exact: true })).toHaveAttribute(

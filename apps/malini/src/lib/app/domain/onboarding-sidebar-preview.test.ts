@@ -19,14 +19,14 @@ function ownersOf(blocks: readonly SidebarBlock[]): string[] {
 }
 
 describe('onboardingSidebarPreview', () => {
-	it('groups the sample work by organization for many repositories', () => {
+	it('groups the sample work by organization for separate repositories', () => {
 		const { tree } = preview({});
 		expect(tree.sections).toEqual([]);
 		expect(tree.blocks.map((block) => block.kind)).toEqual(['owner', 'owner']);
 	});
 
-	it('lists the sample work by status for one project', () => {
-		const { tree } = preview({ where: 'one' });
+	it('lists the sample work by status for mixed repositories', () => {
+		const { tree } = preview({ repositories: 'mixed' });
 		expect(tree.sections.map((section) => section.key)).toEqual([
 			'needs-you',
 			'in-progress',
@@ -41,7 +41,7 @@ describe('onboardingSidebarPreview', () => {
 		expect(tree.sections.map((section) => section.key)).toEqual(['needs-you', 'in-review']);
 		expect(tree.hidden).toBeGreaterThan(0);
 		expect(sidebarWorkstreamIds(tree).length + tree.hidden).toBe(
-			sidebarWorkstreamIds(preview({ where: 'one' }).tree).length,
+			sidebarWorkstreamIds(preview({ repositories: 'mixed' }).tree).length,
 		);
 	});
 
@@ -51,13 +51,16 @@ describe('onboardingSidebarPreview', () => {
 	});
 
 	it('names the repository of each row after your repository', () => {
-		const { tree, repositoryNames } = preview({ where: 'one' }, RECENT);
+		const { tree, repositoryNames } = preview({ repositories: 'mixed' }, RECENT);
 		const names = sidebarWorkstreamIds(tree).map((id) => repositoryNames.get(id));
 		expect(new Set(names)).toEqual(new Set(['malini', 'platform', 'brand', 'dotfiles']));
 	});
 
 	it('spreads the work over fewer repositories than four', () => {
-		const { tree, repositoryNames } = preview({ where: 'one' }, ['szymeo/malini', 'szymeo/malini']);
+		const { tree, repositoryNames } = preview({ repositories: 'mixed' }, [
+			'szymeo/malini',
+			'szymeo/malini',
+		]);
 		expect(new Set(sidebarWorkstreamIds(tree).map((id) => repositoryNames.get(id)))).toEqual(
 			new Set(['malini']),
 		);
@@ -65,7 +68,7 @@ describe('onboardingSidebarPreview', () => {
 	});
 
 	it('names dotted and uppercase repositories', () => {
-		const { tree } = preview({ where: 'one' }, ['Acme-Inc/site.v2']);
+		const { tree } = preview({ repositories: 'mixed' }, ['Acme-Inc/site.v2']);
 		expect(sidebarWorkstreamIds(tree)).toHaveLength(7);
 	});
 });

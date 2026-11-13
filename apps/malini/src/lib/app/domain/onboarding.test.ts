@@ -30,29 +30,29 @@ describe('onboarding tools', () => {
 });
 
 describe('onboarding sidebar', () => {
-	it('keeps the default sidebar for many repositories showing everything', () => {
+	it('keeps the default sidebar for separate repositories showing everything', () => {
 		expect(onboardingSidebarArrangement(DEFAULT_ONBOARDING_SIDEBAR)).toEqual(
 			DEFAULT_SIDEBAR_ARRANGEMENT,
 		);
 	});
 
-	it('lists one project flat, grouped by status', () => {
+	it('lists mixed repositories flat, grouped by status', () => {
 		expect(
-			onboardingSidebarArrangement({ ...DEFAULT_ONBOARDING_SIDEBAR, where: 'one' }),
+			onboardingSidebarArrangement({ ...DEFAULT_ONBOARDING_SIDEBAR, repositories: 'mixed' }),
 		).toMatchObject({ grouping: 'status', subgrouping: 'none', show: 'everything' });
 	});
 
-	it('nests repositories under the statuses that need you across many repositories', () => {
+	it('nests repositories under the statuses that need you when repositories stay separate', () => {
 		expect(
 			onboardingSidebarArrangement({ ...DEFAULT_ONBOARDING_SIDEBAR, show: 'attention' }),
 		).toMatchObject({ grouping: 'status', subgrouping: 'repository', show: 'attention' });
 	});
 
-	it('lists one project flat when only what needs you shows', () => {
+	it('lists mixed repositories flat when only what needs you shows', () => {
 		expect(
 			onboardingSidebarArrangement({
 				...DEFAULT_ONBOARDING_SIDEBAR,
-				where: 'one',
+				repositories: 'mixed',
 				show: 'attention',
 			}),
 		).toMatchObject({ grouping: 'status', subgrouping: 'none', show: 'attention' });
@@ -60,19 +60,22 @@ describe('onboarding sidebar', () => {
 });
 
 describe('sidebar options', () => {
-	const flat = onboardingSidebarArrangement({ where: 'one', show: 'everything' });
+	const flat = onboardingSidebarArrangement({ repositories: 'mixed', show: 'everything' });
 
-	it('works in one project only when a status or day list is flat', () => {
-		expect(sidebarPreset(DEFAULT_SIDEBAR_ARRANGEMENT).where).toBe('many');
-		expect(sidebarPreset({ ...flat, grouping: 'repository' }).where).toBe('many');
-		expect(sidebarPreset({ ...flat, subgrouping: 'owner' }).where).toBe('many');
-		expect(sidebarPreset(flat).where).toBe('one');
-		expect(sidebarPreset({ ...flat, grouping: 'day' }).where).toBe('one');
+	it('reads repositories as mixed only when a status or day list is flat', () => {
+		expect(sidebarPreset(DEFAULT_SIDEBAR_ARRANGEMENT).repositories).toBe('separate');
+		expect(sidebarPreset({ ...flat, grouping: 'repository' }).repositories).toBe('separate');
+		expect(sidebarPreset({ ...flat, subgrouping: 'owner' }).repositories).toBe('separate');
+		expect(sidebarPreset(flat).repositories).toBe('mixed');
+		expect(sidebarPreset({ ...flat, grouping: 'day' }).repositories).toBe('mixed');
 	});
 
-	it('applies the preset of a new where or show and keeps the ordering', () => {
+	it('applies the preset of a new repositories or show answer and keeps the ordering', () => {
 		const byName: SidebarArrangement = { ...DEFAULT_SIDEBAR_ARRANGEMENT, ordering: 'name' };
-		expect(presetArranged(byName, { where: 'one' })).toEqual({ ...flat, ordering: 'name' });
+		expect(presetArranged(byName, { repositories: 'mixed' })).toEqual({
+			...flat,
+			ordering: 'name',
+		});
 		expect(presetArranged({ ...flat, ordering: 'name' }, { show: 'attention' })).toEqual({
 			...flat,
 			show: 'attention',
@@ -80,8 +83,8 @@ describe('sidebar options', () => {
 		});
 	});
 
-	it('lands Show all on the preset of where you work', () => {
-		const attention = onboardingSidebarArrangement({ where: 'many', show: 'attention' });
+	it('lands Show all on the preset of the repositories answer', () => {
+		const attention = onboardingSidebarArrangement({ repositories: 'separate', show: 'attention' });
 		const shown = presetArranged(attention, { show: 'everything' });
 		expect(shown).toEqual(DEFAULT_SIDEBAR_ARRANGEMENT);
 		expect(customArrangement(shown)).toBe(false);

@@ -57,8 +57,8 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 		const focus = page.getByRole('group', { name: 'Focus' });
 		await openAdvanced(page);
 		const panel = page.getByTestId('sidebar-arrange-panel');
-		const where = panel.getByRole('group', { name: 'Where you work' });
-		await expect(where.getByRole('button', { name: 'Many repositories' })).toHaveAttribute(
+		const where = panel.getByRole('group', { name: 'Repositories' });
+		await expect(where.getByRole('button', { name: 'Separate' })).toHaveAttribute(
 			'aria-pressed',
 			'true',
 		);
@@ -97,7 +97,7 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 				.filter({ hasText: 'Api docs' })
 				.getByTestId('sidebar-row-repository'),
 		).toHaveText('api');
-		await expect(where.getByRole('button', { name: 'One project' })).toHaveAttribute(
+		await expect(where.getByRole('button', { name: 'Mixed' })).toHaveAttribute(
 			'aria-pressed',
 			'true',
 		);
@@ -125,11 +125,11 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 		await expect(panel.getByRole('button', { name: 'Grouping: Status' })).toBeVisible();
 		await expect(panel.getByRole('button', { name: 'Ordering: Manual' })).toBeVisible();
 		await expect(panel.getByRole('button', { name: 'Reset' })).toHaveCount(0);
-		await expect(where.getByRole('button', { name: 'One project' })).toHaveAttribute(
+		await expect(where.getByRole('button', { name: 'Mixed' })).toHaveAttribute(
 			'aria-pressed',
 			'true',
 		);
-		await where.getByRole('button', { name: 'Many repositories' }).click();
+		await where.getByRole('button', { name: 'Separate' }).click();
 		await expect(panel.getByRole('button', { name: 'Grouping: Organization' })).toBeVisible();
 		await expect(sidebar(page).getByRole('button', { name: 'acme, 1 repository' })).toBeVisible();
 		await expect(sidebar(page).getByTestId('sidebar-section')).toHaveCount(0);

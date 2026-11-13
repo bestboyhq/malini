@@ -15,35 +15,38 @@ export type OnboardingStep = SetupStep;
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = SETUP_STEPS;
 
-export type OnboardingWhere = 'many' | 'one';
+export type SidebarRepositories = 'separate' | 'mixed';
 
 export type OnboardingSidebar = Readonly<{
-	where: OnboardingWhere;
+	repositories: SidebarRepositories;
 	show: SidebarShow;
 	density: SidebarDensity;
 }>;
 
 export const DEFAULT_ONBOARDING_SIDEBAR: OnboardingSidebar = {
-	where: 'many',
+	repositories: 'separate',
 	show: 'everything',
 	density: 'compact',
 };
 
-export type SidebarPreset = Pick<OnboardingSidebar, 'where' | 'show'>;
+export type SidebarPreset = Pick<OnboardingSidebar, 'repositories' | 'show'>;
 
-export function onboardingSidebarArrangement({ where, show }: SidebarPreset): SidebarArrangement {
-	if (where === 'many' && show === 'everything') return DEFAULT_SIDEBAR_ARRANGEMENT;
+export function onboardingSidebarArrangement({
+	repositories,
+	show,
+}: SidebarPreset): SidebarArrangement {
+	if (repositories === 'separate' && show === 'everything') return DEFAULT_SIDEBAR_ARRANGEMENT;
 	return {
 		...DEFAULT_SIDEBAR_ARRANGEMENT,
 		grouping: 'status',
-		subgrouping: where === 'many' ? 'repository' : 'none',
+		subgrouping: repositories === 'separate' ? 'repository' : 'none',
 		show,
 	};
 }
 
 export function sidebarPreset({ grouping, subgrouping, show }: SidebarArrangement): SidebarPreset {
 	return {
-		where: sectionedGrouping(grouping) && subgrouping === 'none' ? 'one' : 'many',
+		repositories: sectionedGrouping(grouping) && subgrouping === 'none' ? 'mixed' : 'separate',
 		show,
 	};
 }
