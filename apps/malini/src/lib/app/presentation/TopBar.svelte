@@ -1108,7 +1108,7 @@
 	.topbar-git__meta {
 		display: flex;
 		min-width: 0;
-		flex: 0 1 auto;
+		flex: 0 1 100%;
 		gap: 4px;
 		color: color-mix(in srgb, var(--zone-ink) 64%, transparent);
 	}
