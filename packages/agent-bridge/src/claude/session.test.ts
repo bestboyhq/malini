@@ -200,6 +200,13 @@ function recordedSuccess(script: readonly ScriptStep[]): SDKResultSuccess {
 	return result;
 }
 
+const REPORTED = 'launched\n\nOutcome: The command runs\nNeeds: nothing';
+
+function reported(script: readonly ScriptStep[]): ScriptStep[] {
+	const first = recordedSuccess(script);
+	return script.map((step) => (step === first ? { ...first, result: REPORTED } : step));
+}
+
 function initOf(script: readonly ScriptStep[]): SDKMessage {
 	const [init] = script;
 	if (!init || typeof init === 'string' || !('type' in init)) {
@@ -2173,7 +2180,7 @@ describe('ClaudeSession', () => {
 		);
 	});
 
-	it('keeps the run open while a background command runs, through the turn Claude Code starts when it ends', async () => {
+	it('keeps the run working while its turn waits on the background command it started, through the turn Claude Code starts when it ends', async () => {
 		const { session, events } = harness([recordedScript('backgroundCommand')]);
 
 		await session.sendPrompt('Run a command in the background', 'run-1', profile());
@@ -2191,13 +2198,38 @@ describe('ClaudeSession', () => {
 		);
 		expect(settled).toBeGreaterThan(waiting);
 		expect(runDone).toBeGreaterThan(settled);
-		expect(events[waiting]).toMatchObject({ summary: 'launched' });
 		expect(
 			ofType(events, 'background.updated').filter((event) => event.summary !== undefined),
-		).toHaveLength(1);
+		).toEqual([]);
 		expect(ofType(events, 'run.completed')).toEqual([
 			expect.objectContaining({ runId: 'run-1', summary: 'bg-done' }),
 		]);
+		const types = events.map(({ type }) => type);
+		expect(types.filter((type) => type.startsWith('turn.'))).toEqual([
+			'turn.answered',
+			'turn.answered',
+		]);
+		expect(types.indexOf('turn.answered')).toBeGreaterThan(types.indexOf('assistant.message'));
+		expect(types.lastIndexOf('turn.answered')).toBeGreaterThan(
+			types.lastIndexOf('assistant.message'),
+		);
+	});
+
+	it('ends the turn whose report leaves its background command running, and goes on with the turn Claude Code starts when it ends', async () => {
+		const { session, events } = harness([reported(recordedScript('backgroundCommand'))]);
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		const waiting = events.findIndex(
+			(event) => event.type === 'background.updated' && event.waiting,
+		);
+		const settled = events.findIndex(
+			(event) => event.type === 'background.updated' && event.tasks.length === 0,
+		);
+		expect(events[waiting]).toMatchObject({ summary: REPORTED });
+		expect(
+			ofType(events, 'background.updated').filter((event) => event.summary !== undefined),
+		).toHaveLength(1);
 		const types = events.map(({ type }) => type);
 		expect(types.filter((type) => type.startsWith('turn.'))).toEqual([
 			'turn.answered',
@@ -2205,10 +2237,6 @@ describe('ClaudeSession', () => {
 			'turn.resumed',
 			'turn.answered',
 		]);
-		expect(types.indexOf('turn.answered')).toBeGreaterThan(types.indexOf('assistant.message'));
-		expect(types.lastIndexOf('turn.answered')).toBeGreaterThan(
-			types.lastIndexOf('assistant.message'),
-		);
 		expect(types.indexOf('turn.ended')).toBe(waiting + 1);
 		expect(types.indexOf('turn.resumed')).toBeGreaterThan(settled);
 		expect(types.indexOf('turn.resumed')).toBeLessThan(
@@ -2244,7 +2272,6 @@ describe('ClaudeSession', () => {
 		expect(ofType(events, 'background.updated').at(-1)?.tasks).toEqual([]);
 		expect(events.filter(({ type }) => type.startsWith('turn.'))).toEqual([
 			{ type: 'turn.answered', runId: 'run-1' },
-			{ type: 'turn.ended', runId: 'run-1' },
 		]);
 		expect(events.at(-1)).toEqual(
 			expect.objectContaining({ type: 'run.completed', runId: 'run-1', summary: 'launched' }),
@@ -2252,7 +2279,7 @@ describe('ClaudeSession', () => {
 	});
 
 	it('hands the open conversation and its background command to a prompt sent while the run waits', async () => {
-		const script = recordedScript('backgroundCommand');
+		const script = reported(recordedScript('backgroundCommand'));
 		const firstIdle = script.findIndex(
 			(step) =>
 				typeof step !== 'string' &&
@@ -2301,7 +2328,7 @@ describe('ClaudeSession', () => {
 		expect(
 			ofType(events, 'run.completed').map(({ summary, handedOff }) => [summary, handedOff]),
 		).toEqual([
-			['launched', true],
+			[REPORTED, true],
 			['bg-done', undefined],
 		]);
 		const handedOver = ofType(events, 'background.updated').filter(
@@ -2375,8 +2402,6 @@ describe('ClaudeSession', () => {
 		const turns = events.filter(({ type }) => type.startsWith('turn.'));
 		expect(turns).toEqual([
 			{ type: 'turn.answered', runId: 'run-2' },
-			{ type: 'turn.ended', runId: 'run-2' },
-			{ type: 'turn.resumed', runId: 'run-2' },
 			{ type: 'turn.answered', runId: 'run-2' },
 		]);
 		expect(events.findIndex(({ type }) => type.startsWith('turn.'))).toBeGreaterThan(

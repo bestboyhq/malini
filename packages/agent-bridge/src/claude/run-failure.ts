@@ -20,7 +20,7 @@ const ERROR_KINDS: Readonly<Record<SDKAssistantMessageError, RunFailureKind | nu
 	invalid_request: 'request',
 	max_output_tokens: 'request',
 	server_error: null,
-	unknown: 'unknown',
+	unknown: null,
 };
 
 export const SIGNED_OUT_TEXT = /not logged in|\/login|authentication|invalid api key|oauth/iu;

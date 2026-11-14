@@ -43,6 +43,22 @@ describe('RunFailureSignals', () => {
 		expect(failureOf(withoutReset)).toEqual({ kind: 'billing', status: 429 });
 	});
 
+	it('reads the status of an error Claude Code could not name, such as a provider out of credit', () => {
+		const outOfCredit = (status: number | null) =>
+			recordedMessages('serverError')
+				.filter((message) => !(message.type === 'system' && message.subtype === 'api_retry'))
+				.map((message) => {
+					if (message.type === 'assistant') return { ...message, error: 'unknown' as const };
+					if (message.type !== 'result' || message.subtype !== 'success') return message;
+					const text =
+						status === null ? 'Something broke' : `API Error: ${status} Insufficient Balance`;
+					return { ...message, api_error_status: status, result: text };
+				});
+
+		expect(failureOf(outOfCredit(402))).toEqual({ kind: 'billing', status: 402 });
+		expect(failureOf(outOfCredit(null))).toEqual({ kind: 'unknown' });
+	});
+
 	it('names the error a turn ended on, even after a rejected limit earlier in it', () => {
 		const limit = recordedMessages('usageLimit').filter(
 			(message) => message.type === 'rate_limit_event',

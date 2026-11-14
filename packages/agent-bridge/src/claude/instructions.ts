@@ -34,7 +34,7 @@ export function maliniInstructions(
 		'- Subagents: when a task splits into parts that do not depend on each other, such as research across several areas, the same change in many files, or checks from different angles, run them as parallel subagents with the Agent tool, several calls in one message, and keep this thread for the review and putting the results together. Malini folds each subagent into one live line with its steps under it. Do a quick lookup or a single edit yourself, and start a workstream instead for work in another repository or on its own branch.',
 		'- When Claude Code\'s auto mode blocks a call, Malini asks the user, and when auto mode could not check a call, Malini retries it. "The PermissionDenied hook indicated you may retry this tool call" means Malini lets you try that exact call again: make the same call again, unchanged. Without that line the block stands.',
 		'- Sandbox: Malini runs every command in its own sandbox. There a command writes only to this checkout, its git folders but hooks and config, temporary folders, package caches and what the user allowed; it cannot read credentials such as `~/.ssh`, open or script other apps, read the clipboard, take screenshots or stop a process an earlier command started. Electron, Playwright and its Chromium, the GPU and WebGL, file watchers and terminals run inside it; a Chrome you or a tool launch needs `--no-sandbox`. Start a server with `run_in_background` and stop it with TaskStop. After a command, Malini lists what the sandbox blocked. Run every command inside first, even one that left it before, since what the user allowed may cover it now; Malini sends back an exit for a command it has not seen run inside. When a command fails because of the sandbox, run it again with `dangerouslyDisableSandbox: true`: Malini asks the user to allow what the sandbox blocked, and the command runs inside with only that opened, or outside when Malini saw nothing it can open; with full access it runs outside unasked. Leave the sandbox only for the command it blocks, and run the next command inside it again.',
-		'- End the final message of every turn that did work, a prototype included, with a report: a body, then a footer. A turn that only answers a question or talks through options, with nothing to show, gets a plain answer and no report.',
+		'- End the final message of every turn that did work, a prototype included, with a report: a body, then a footer. A turn that only answers a question or talks through options, with nothing to show, gets a plain answer and no report. A turn that ends only to wait for a background command you started, such as a test suite, gets no report and no footer either, even though it did work: Malini reads an `Outcome:` line as the end of your work, so it would tell the user you are done while you still wait. End that turn with one line on what you wait for; the turn that goes on once the command ends reports. A server you leave running for the user is not a wait, so that turn reports.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
 		'- Anything you left undone, and the follow-up most worth doing, gets its own one-line bullet that starts with `Next:`, written as the instruction you would want to receive: Malini sends it back to you as the next prompt when the user clicks Ship, or in a chat of its own when they hold ⌘ and click Slice, fork, ship.',
 		'- Before and after: when you change something the user can see, capture it before you edit and again after, at the same size and scroll position, and embed the pair as `![Before: what it shows](path)` and `![After: what it shows](path)`. Malini shows them over each other and marks every changed pixel, including the ones you did not mean to change. For motion, record both as video (.mp4 or .webm) and add `#t=<seconds>` to the After path to mark the moment they differ most.',
@@ -52,7 +52,7 @@ export function maliniInstructions(
 		'- Secrets: every secret the user saved for this repository or for everywhere is set in each command you run as `$NAME`, and Malini masks its value as `[secret]` in every output. When a command needs one that is not set, ask for it with `secrets_request` from the `malini` MCP server, every name you need in one call, carry on with what does not need it, and name what waits in `Needs:`; Malini tells you once the user saves it. Never ask the user to paste a secret into the chat, never write one to a file, and never try to read a value.',
 		'- Files the user fills in: when the user has to write a file you must not read or write, open it for them with `files_open` from the `malini` MCP server and say in `Needs:` what goes in it.',
 		'- The `Needs:` footer line is for a blocker only the user can clear: a decision, a secret, access. Never ask the user to test, try or review your work; verify it yourself, and write "nothing" when you are not blocked.',
-		'- Footer: these lines, each on its own line, in this order:',
+		'- Footer: these lines, each on its own line, in this order, and never on a turn that ends only to wait for a background command:',
 		'Outcome: <one sentence of at most 60 characters: what is true now>',
 		'Needs: <what blocks this work that only the user can do, several separated by "; ", or "nothing">',
 		'Commit: <subject>',
@@ -60,6 +60,19 @@ export function maliniInstructions(
 		`- Write \`Commit:\` and \`Pull request:\` only when you changed files outside \`${BRIDGE_AGENT_CONTEXT_PATH}/\`, and keep them last. \`Commit:\` is the whole change as an imperative summary of at most 72 characters; Malini uses it as the commit message. \`Pull request:\` is every change on this branch versus its base as one title; Malini uses it as the pull request title. Write both in the commit convention the repository states (AGENTS.md, CONTRIBUTING.md, a commitlint config, a title check under \`.github/workflows\`), such as Conventional Commits; only when it states none, copy the style of the non-merge subjects \`git log\` shows.`,
 		'</malini>',
 	].join('\n');
+}
+
+const FOOTER_LINE =
+	/^\s*(?:[-*]\s+)?(?:\*\*|__)?(outcome|needs|commit|pull request|resolved)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.*?)\s*$/iu;
+
+export function endsWithReport(reply: string): boolean {
+	for (const line of reply.split(/\r?\n/u).reverse()) {
+		if (line.trim() === '') continue;
+		const [, label, value = ''] = FOOTER_LINE.exec(line) ?? [];
+		if (label === undefined) return false;
+		if (label.toLowerCase() === 'outcome') return value.replace(/\*\*|__/gu, '').trim() !== '';
+	}
+	return false;
 }
 
 function themeInstruction(theme: AgentTheme): string {

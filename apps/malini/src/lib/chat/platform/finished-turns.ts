@@ -31,6 +31,7 @@ export class FinishedTurns {
 		if (type !== 'run.completed' && type !== 'run.failed' && backgroundCommands === null) {
 			return null;
 		}
+		if (type === 'run.completed' && event['handedOff'] === true) return null;
 		const error = typeof event['error'] === 'string' ? event['error'] : null;
 		if (error === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(event) || this.#announced.has(runId)) {
 			return null;

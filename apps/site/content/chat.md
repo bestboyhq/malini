@@ -36,8 +36,11 @@ Each is a [workstream](/malini/docs/workstreams.md) with one repository and one 
 
 A run stays open while its background commands and subagents run, and you can stop each one.
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
-A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
+A turn that ends with its report while only background commands run, such as a dev server, shows that report at once and ships its commit.
 Its chat, tab, top bar and sidebar row then read as done, not running, while the commands go on.
+A turn that ends with no report while a command it started runs, such as a test suite the agent waits for, is not done: the chat keeps working and tells you nothing until the agent goes on and reports.
+A prompt you send during that wait gets its answer, and the chat still works until a turn reports, then tells you once.
+A command that an earlier turn reported and left running never keeps a later turn working, so a question about a running dev server gets its answer as done.
 When the agent goes on once one of them ends, the end of that turn counts as a turn too: it reports, ships its commit, and hands the chat what waited for it.
 Whatever closes that run later, stopping it, quitting, a crash, merging main into the workstream or archiving it, leaves it done, and Malini does not resume it on the next start.
 
@@ -45,8 +48,9 @@ Whatever closes that run later, stopping it, quitting, a crash, merging main int
 
 Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
 When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat shows the reason with a **Paused until** strip under it that says the time.
+The reason names the chat's provider, such as Claude or DeepSeek, and so do the divider and the error below.
 
-- A usage limit on your Claude plan waits until the limit resets.
+- A usage limit on your plan waits until the limit resets.
 - A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
 - An error Malini does not recognize tries again once, after a minute.
 

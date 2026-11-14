@@ -31,6 +31,21 @@ describe('draftFromWords', () => {
 			'Run the tests near the changed files',
 		]);
 	});
+
+	it('ends the trigger clause at a colon and reads each sentence as a step', () => {
+		expect(
+			draftFromWords(
+				'When I run it: run `sleep 60 && echo suite-done` in the background. Wait for it to finish, then report what it printed.',
+			),
+		).toMatchObject({
+			lead: 'When I run it',
+			steps: [
+				'Run `sleep 60 && echo suite-done` in the background',
+				'Wait for it to finish',
+				'Report what it printed',
+			],
+		});
+	});
 });
 
 describe('recipe steps', () => {

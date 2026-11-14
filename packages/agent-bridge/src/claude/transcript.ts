@@ -11,6 +11,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent, BackgroundTask, BackgroundTaskKind } from '../types.js';
 import { isRecord } from '../type-guards.js';
+import { endsWithReport } from './instructions.js';
 import { AUTO_MODE_UNAVAILABLE, autoModeCategory } from './permissions.js';
 import { rejectsReply } from './reply-check.js';
 
@@ -45,6 +46,7 @@ export class ClaudeTranscript {
 	readonly #blockCounts = new Map<string, number>();
 	readonly #backgroundAgents = new Set<string>();
 	readonly #backgroundTasks = new Map<string, BackgroundTask>();
+	readonly #leftRunning = new Set<string>();
 	readonly #taskToolCalls = new Map<string, string>();
 	readonly #outputFiles = new Map<string, string>();
 	readonly #openTools = new Set<string>();
@@ -52,6 +54,8 @@ export class ClaudeTranscript {
 	readonly #interruptedTools = new Set<string>();
 	#idle = false;
 	#answered = false;
+	#reported = false;
+	#awaitsItsCommands = false;
 	#turnEnded = false;
 	#lastBackground = '';
 	#turnSummary: string | undefined;
@@ -100,6 +104,8 @@ export class ClaudeTranscript {
 		this.#runId = runId;
 		this.#idle = false;
 		this.#answered = false;
+		this.#reported = false;
+		this.#awaitsItsCommands = false;
 		this.#turnEnded = false;
 		this.#lastBackground = '';
 		this.#turnSummary = undefined;
@@ -110,6 +116,7 @@ export class ClaudeTranscript {
 		this.#answered = true;
 		this.#turnSummary =
 			result.subtype === 'success' && !result.is_error ? result.result : undefined;
+		this.#reported = this.#turnSummary !== undefined && endsWithReport(this.#turnSummary);
 		this.#emit({ type: 'turn.answered', runId: this.#runId });
 	}
 
@@ -181,6 +188,7 @@ export class ClaudeTranscript {
 				}
 				if (message.subtype === 'session_state_changed') {
 					this.#idle = message.state === 'idle';
+					this.#followWait();
 					this.#emitBackground();
 					this.#moveTurn();
 				}
@@ -261,8 +269,18 @@ export class ClaudeTranscript {
 				...(known?.detail ? { detail: known.detail } : {}),
 			});
 		}
+		this.#followWait();
 		this.#emitBackground();
 		this.#moveTurn();
+	}
+
+	#followWait(): void {
+		if (!this.#idle) this.#awaitsItsCommands = false;
+		else if (this.#answered && !this.#reported) {
+			this.#awaitsItsCommands ||= [...this.#backgroundTasks.values()].some(
+				(task) => task.kind === 'command' && !this.#leftRunning.has(task.taskId),
+			);
+		}
 	}
 
 	#moveTurn(): void {
@@ -270,10 +288,12 @@ export class ClaudeTranscript {
 		const overCommands =
 			this.#answered &&
 			this.#idle &&
+			!this.#awaitsItsCommands &&
 			tasks.length > 0 &&
 			tasks.every((task) => task.kind === 'command');
 		if (overCommands && !this.#turnEnded) {
 			this.#turnEnded = true;
+			for (const task of tasks) this.#leftRunning.add(task.taskId);
 			this.#emit({ type: 'turn.ended', runId: this.#runId });
 		} else if (this.#turnEnded && !this.#idle) {
 			this.#turnEnded = false;
@@ -291,7 +311,7 @@ export class ClaudeTranscript {
 		if (snapshot === this.#lastBackground) return;
 		this.#lastBackground = snapshot;
 		const waiting = this.#idle && tasks.length > 0;
-		const summary = waiting && !interim ? this.#turnSummary : undefined;
+		const summary = waiting && !interim && !this.#awaitsItsCommands ? this.#turnSummary : undefined;
 		if (summary !== undefined) this.#turnSummary = undefined;
 		this.#emit({
 			type: 'background.updated',
