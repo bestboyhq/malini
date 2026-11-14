@@ -151,21 +151,6 @@ async function expectClearOfFooter(page: Page, toasts: number): Promise<void> {
 		.toEqual({ toasts, overFooter: [], sendOnTop: true });
 }
 
-async function expandStack(page: Page): Promise<void> {
-	await expect(async () => {
-		const boxes = await Promise.all(
-			(await page.getByTestId('toast').all()).map((toast) => toast.boundingBox()),
-		);
-		const lowest = Math.max(...boxes.map((box) => (box ? box.y + box.height : 0)));
-		const front = boxes.find((box) => box && box.y + box.height === lowest);
-		if (!front) throw new Error('no toast is on screen to hover');
-		await page.mouse.move(front.x + front.width - 8, front.y + front.height / 2);
-		const tops = boxes.map((box) => (box ? box.y : 0)).sort((a, b) => a - b);
-		const spread = (tops.at(-1) ?? 0) - (tops[0] ?? 0);
-		expect(spread).toBeGreaterThan(front.height);
-	}).toPass({ timeout: 20_000 });
-}
-
 async function setLayout(page: Page, layout: Layout): Promise<void> {
 	const hideSidebar = page.getByRole('button', { name: 'Hide sidebar' });
 	if (layout.sidebar === 'hidden' && (await hideSidebar.isVisible())) await hideSidebar.click();
@@ -189,7 +174,7 @@ async function setLayout(page: Page, layout: Layout): Promise<void> {
 }
 
 for (const layout of LAYOUTS) {
-	test(`toasts never cover the composer or the changed files above it, alone, stacked or expanded (${layout.name})`, async () => {
+	test(`toasts never cover the composer or the changed files above it, alone or stacked (${layout.name})`, async () => {
 		test.setTimeout(120_000);
 		const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
 		let lockedDirectory: string | null = null;
@@ -246,13 +231,6 @@ for (const layout of LAYOUTS) {
 			});
 			await expectClearOfFooter(page, 3);
 			await captureFlow(app, `toast-clear-${layout.name}-stack`);
-
-			await expandStack(page);
-			await expectClearOfFooter(page, 3);
-			await captureFlow(app, `toast-clear-${layout.name}-expanded`);
-
-			await page.mouse.move(4, 4);
-			await expectClearOfFooter(page, 3);
 			expect(await page.evaluate(() => globalThis.footerCoverage)).toEqual([]);
 			expectCleanConsole(app);
 		} finally {

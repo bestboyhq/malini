@@ -516,6 +516,28 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('forgets the launch days the month count kept, and keeps the other usage settings', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const boundary = MIGRATIONS.findIndex((migration) =>
+			migration.includes('usage-data.active-days'),
+		);
+		for (const migration of MIGRATIONS.slice(0, boundary)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + boundary};`);
+		db.exec(`
+			INSERT INTO settings (key, value) VALUES
+			  ('usage-data.active-days', '["2026-11-01"]'), ('usage-data.reported-month', '2026-10'),
+			  ('usage-data.last-active-day', '2026-11-01');
+		`);
+
+		migrate(db);
+
+		expect(all(db, "SELECT key FROM settings WHERE key LIKE 'usage-data.%'")).toEqual([
+			{ key: 'usage-data.last-active-day' },
+		]);
+		db.close();
+	});
+
 	it('turns the internet off for every job you made, and keeps it on for the built-in ones', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);

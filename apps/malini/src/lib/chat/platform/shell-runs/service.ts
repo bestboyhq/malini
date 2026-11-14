@@ -176,7 +176,7 @@ export class ShellRuns {
 		return this.#terminate(() => true);
 	}
 
-	#register(args: RunShellCommandArgs): Entry {
+	#register({ workstreamId, sessionId, anchor, command }: RunShellCommandArgs): Entry {
 		let end: () => void = () => undefined;
 		const ended = new Promise<void>((resolve) => {
 			end = resolve;
@@ -184,7 +184,10 @@ export class ShellRuns {
 		const entry: Entry = {
 			run: {
 				id: randomUUID(),
-				...args,
+				workstreamId,
+				sessionId,
+				anchor,
+				command,
 				state: 'running',
 				exitCode: null,
 				output: '',

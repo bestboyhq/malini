@@ -13,7 +13,8 @@ The same account puts the projects you build with Malini on bestboy.dev; see [Pr
 Settings, Profile shows your Bestboy account.
 Signed out, it says **Not signed in to Bestboy**, and **Sign in** opens your browser to sign in with Google or an email code.
 Signing in publishes nothing; it only tells Malini who you are on bestboy.dev.
-While you are signed in and have accepted Bestboy's current Terms and Privacy Policy, Malini's usage stats carry your account, as a hash made on your Mac; you turn them off in Settings, Privacy, **Share usage stats**.
+While you are signed in, Malini's usage stats carry your account, as a hash made on your Mac; signed out, they carry a random ID made for this install, linked to nothing else.
+You turn them off in Settings, Privacy, **Share usage stats**.
 Signed in, it shows your name and email, and **Sign out**.
 
 Your picture and handle sit at the bottom of the sidebar, or a plain figure while Malini knows neither.
@@ -35,7 +36,6 @@ When Bestboy's Terms and Privacy Policy change after you accepted them, **Publis
 Publishing then sends the date of the ones you saw with your handle, which accepts them, and the line goes away.
 Signing in to Bestboy accepts them too.
 If you already publish, Malini shows nothing and keeps publishing as before; the new ones apply to you only once you accept them, by signing in again or publishing anew.
-Until then, Malini sends no usage stats at all.
 
 While it stays on, Malini sends your numbers once a day, and again when you change your public repositories or what your profile shows.
 bestboy.dev publishes changes once a day at 03:00 UTC, for everyone at the same moment, so your profile never shows when you work.

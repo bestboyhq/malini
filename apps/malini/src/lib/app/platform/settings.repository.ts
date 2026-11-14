@@ -16,6 +16,10 @@ export function setSetting(db: MaliniDatabase, key: string, value: string): void
 	);
 }
 
+export function deleteSetting(db: MaliniDatabase, key: string): void {
+	run(db, 'DELETE FROM settings WHERE key = ?', key);
+}
+
 export function listSettings(db: MaliniDatabase): Record<string, string> {
 	const settings: Record<string, string> = {};
 	for (const row of all<{ key: string; value: string }>(

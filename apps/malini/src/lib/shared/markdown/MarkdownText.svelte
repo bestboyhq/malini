@@ -768,7 +768,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string, block: number) => void) | undefined;
+		onruncommand?: ((command: string, block: number, language: string | null) => void) | undefined;
 		coderuns?: ReadonlyMap<number, ShellRun> | undefined;
 		coderuncard?: Component<{ run: ShellRun }> | undefined;
 		onopenwikilink?: ((target: string) => void) | undefined;
@@ -861,7 +861,7 @@
 		const code = block?.querySelector(CODE_BLOCK_SELECTOR);
 		if (!block || !code) return false;
 		const index = [...container.querySelectorAll(CODE_BLOCK_ROOT_SELECTOR)].indexOf(block);
-		onruncommand?.(code.textContent ?? '', index);
+		onruncommand?.(code.textContent ?? '', index, codeLanguage(code));
 		return true;
 	}
 

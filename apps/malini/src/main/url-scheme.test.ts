@@ -36,9 +36,9 @@ describe('urlsIn', () => {
 
 describe('linuxUrlHandler', () => {
 	it('points links at the installed malini.desktop of a deb or rpm, and writes its own entry for an AppImage or a dogfood checkout', () => {
-		expect(linuxUrlHandler(true, {}, '/opt/Malini/malini', '/opt/Malini/resources/app.asar')).toEqual(
-			{ name: 'malini.desktop', entry: null },
-		);
+		expect(
+			linuxUrlHandler(true, {}, '/opt/Malini/malini', '/opt/Malini/resources/app.asar'),
+		).toEqual({ name: 'malini.desktop', entry: null });
 		expect(
 			linuxUrlHandler(true, { APPIMAGE: '/home/a/Malini.AppImage' }, '/tmp/.mount_x/malini', ''),
 		).toEqual({

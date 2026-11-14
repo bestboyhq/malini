@@ -17,7 +17,7 @@
 		success: 'bg-success-content/12',
 		error: 'bg-error-content/12',
 		warning: 'bg-warning-content/12',
-		info: 'bg-fg-tertiary/12',
+		info: 'bg-brand-icon/12',
 		loading: 'bg-fg-tertiary/12',
 	};
 
@@ -25,11 +25,9 @@
 		success: 'text-success-content',
 		error: 'text-error-content',
 		warning: 'text-warning-content',
-		info: 'text-fg-secondary',
+		info: 'text-brand-icon',
 		loading: 'text-fg-tertiary',
 	};
-
-	let contentWidth = $state<number>();
 
 	function onActionClick(): void {
 		action?.onclick();
@@ -43,37 +41,30 @@
 	use:overlaySurface={{ anchored: true }}
 	data-testid="toast"
 	data-level={level}
-	class="toast-pill border-surface-toast-border bg-surface-toast text-fg-default pointer-events-auto flex overflow-hidden rounded-xl border-[0.5px] text-sm antialiased shadow-lg"
-	style:--toast-content-width={contentWidth === undefined ? undefined : `${contentWidth + 1}px`}
+	class="border-surface-elevated-border bg-surface-elevated text-fg-default shadow-popup pointer-events-auto flex w-full items-start gap-2.5 rounded-xl border-[0.5px] p-2.5 text-[13px] leading-5 antialiased"
 >
 	<div
-		class="toast-content flex w-max max-w-[calc(var(--width)-2px)] shrink-0 items-center gap-3 p-2"
-		bind:clientWidth={contentWidth}
+		class={['flex size-6 shrink-0 items-center justify-center rounded-md', iconSurfaceClass[level]]}
 	>
-		<div
-			class={[
-				'flex size-8 shrink-0 items-center justify-center rounded-lg',
-				iconSurfaceClass[level],
-			]}
-		>
-			{#if level === 'loading'}
-				<BusyIcon size={16} class={iconClass[level]} />
-			{:else if level === 'success'}
-				<Icon name="check" size={16} class={iconClass[level]} />
-			{:else if level === 'error'}
-				<Icon name="close" size={14} class={iconClass[level]} />
-			{:else if level === 'warning'}
-				<Icon name="warning" size={16} class={iconClass[level]} />
-			{:else}
-				<Icon name="info" size={16} class={iconClass[level]} />
-			{/if}
-		</div>
-		<span class="min-w-0 break-words whitespace-normal"><SensitiveText text={message} /></span>
+		{#if level === 'loading'}
+			<BusyIcon size={14} class={iconClass[level]} />
+		{:else if level === 'success'}
+			<Icon name="check" size={14} class={iconClass[level]} />
+		{:else if level === 'error'}
+			<Icon name="close" size={12} class={iconClass[level]} />
+		{:else if level === 'warning'}
+			<Icon name="warning" size={14} class={iconClass[level]} />
+		{:else}
+			<Icon name="info" size={14} class={iconClass[level]} />
+		{/if}
+	</div>
+	<div class="flex min-w-0 flex-1 flex-col items-start gap-2 pt-0.5">
+		<span class="max-w-full break-words"><SensitiveText text={message} /></span>
 		{#if action}
 			<button
 				type="button"
 				data-testid="toast-action"
-				class="bg-surface-150 text-fg-default hover:bg-surface-150-hover focus-visible:ring-border-default/50 shrink-0 cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+				class="border-surface-150-border bg-surface-150 text-fg-default hover:bg-surface-150-hover focus-visible:ring-border-default/50 cursor-pointer rounded-lg border-[0.5px] px-2.5 py-1 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
 				onclick={onActionClick}
 			>
 				{action.label}
@@ -81,34 +72,3 @@
 		{/if}
 	</div>
 </div>
-
-<style>
-	.toast-pill {
-		width: var(--toast-content-width, auto);
-		transition: width 130ms cubic-bezier(0, 0, 0.2, 1);
-	}
-
-	:global(
-			[data-sonner-toaster]:has(
-				[data-sonner-toast][data-removed='false'] ~ [data-sonner-toast][data-removed='false']
-			)
-		)
-		.toast-pill {
-		width: 100%;
-	}
-
-	.toast-content {
-		transition: opacity 400ms ease;
-	}
-
-	:global([data-sonner-toast][data-expanded='false'][data-front='false']) .toast-content {
-		opacity: 0;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.toast-pill,
-		.toast-content {
-			transition: none;
-		}
-	}
-</style>

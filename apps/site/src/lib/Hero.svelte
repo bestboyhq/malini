@@ -17,9 +17,10 @@
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
 			<span>
-				Free and open source <span data-for="darwin">macOS</span><span data-for="win32"
-					>Windows</span
-				><span data-for="linux">Linux</span> app
+				Free and open source <span data-for="darwin">macOS</span>
+				<span data-for="win32">Windows</span>
+				<span data-for="linux">Linux</span>
+				app
 			</span>
 			<Arrow class="ahead" />
 		</a>

@@ -57,13 +57,14 @@
 	);
 	const wake = $derived(item.kind === 'user' ? savedSecretsWake(item.text) : null);
 
-	function runCommand(command: string, block: number): void {
+	function runCommand(command: string, block: number, language: string | null): void {
 		if (message === null) return;
 		runShellCommandCommand({
 			workstreamId: transcript.workstreamId,
 			sessionId: transcript.sessionId,
 			anchor: { message, block },
 			command,
+			language,
 		});
 	}
 </script>

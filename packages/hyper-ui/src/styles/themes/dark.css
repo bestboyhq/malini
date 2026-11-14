@@ -128,8 +128,6 @@
 	--themed-color-surface-elevated-border: var(--color-surface-elevated-border-dark);
 	--themed-color-surface-tooltip: var(--color-surface-tooltip-dark);
 	--themed-color-surface-tooltip-border: var(--color-surface-tooltip-border-dark);
-	--themed-color-surface-toast: var(--color-surface-toast-dark);
-	--themed-color-surface-toast-border: var(--color-surface-toast-border-dark);
 	--themed-color-surface-invert: var(--color-surface-invert-dark);
 	--themed-color-status-idle: var(--color-status-idle-dark);
 	--themed-color-surface-input: var(--color-surface-input-dark);

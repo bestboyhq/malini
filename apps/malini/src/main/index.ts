@@ -170,7 +170,12 @@ function assertContractIsRegistered(registered: readonly CommandName[]): void {
 
 function claimUrlScheme(): void {
 	if (process.platform === 'linux') {
-		const handler = linuxUrlHandler(app.isPackaged, process.env, process.execPath, app.getAppPath());
+		const handler = linuxUrlHandler(
+			app.isPackaged,
+			process.env,
+			process.execPath,
+			app.getAppPath(),
+		);
 		if (!handler) return;
 		claimLinuxUrlScheme(handler, process.env).catch((error: unknown) => {
 			console.error('malini: could not claim malini:// links', error);

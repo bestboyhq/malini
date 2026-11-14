@@ -20,7 +20,7 @@ export type BestboyMe = Readonly<{
 	account: BestboyAccount;
 	profile: BestboyProfile;
 	unacceptedTerms: string | null;
-	acceptedUserId: string | null;
+	userId: string | null;
 }>;
 
 export type ProfileChange = Readonly<{ handle?: string; public?: boolean; terms?: string }>;
@@ -118,10 +118,7 @@ export class Bestboy {
 			account: { name: typeof name === 'string' && name.length > 0 ? name : email, email },
 			profile: this.#profile(isRecord(reply) ? reply['profile'] : null),
 			unacceptedTerms: current !== null && current !== accepted ? current : null,
-			acceptedUserId:
-				current !== null && current === accepted && typeof id === 'string' && id.length > 0
-					? id
-					: null,
+			userId: typeof id === 'string' && id.length > 0 ? id : null,
 		};
 	}
 

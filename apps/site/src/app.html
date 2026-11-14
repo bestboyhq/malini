@@ -35,9 +35,10 @@
 							: 'darwin';
 				const arm = () => (root.dataset.arch = 'arm64');
 				if (/aarch64|arm64/i.test(ua)) arm();
-				navigator.userAgentData
-					?.getHighEntropyValues(['architecture'])
-					.then((values) => values.architecture === 'arm' && arm(), () => {});
+				navigator.userAgentData?.getHighEntropyValues(['architecture']).then(
+					(values) => values.architecture === 'arm' && arm(),
+					() => {},
+				);
 			}
 		</script>
 		<link rel="icon" type="image/png" href="%sveltekit.assets%/favicon.png" />

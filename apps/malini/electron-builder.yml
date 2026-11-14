@@ -82,7 +82,7 @@ nsis:
   artifactName: malini-setup.${ext}
 linux:
   icon: build/icon.png
-  maintainer: Szymon Grącki
+  maintainer: Bestboy <hey@bestboy.dev>
   artifactName: malini-${arch}.${ext}
   target:
     - AppImage

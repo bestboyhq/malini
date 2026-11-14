@@ -1961,6 +1961,7 @@ UPDATE automation_runs SET interrupted = 1
   );
 `,
 	`ALTER TABLE agent_deliveries ADD COLUMN wake INTEGER NOT NULL DEFAULT 0 CHECK (wake IN (0, 1));`,
+	`DELETE FROM settings WHERE key IN ('usage-data.active-days', 'usage-data.reported-month');`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
