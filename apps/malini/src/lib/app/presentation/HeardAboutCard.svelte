@@ -39,7 +39,7 @@
 
 	const onboarding = $derived(onboardingQuery.data);
 	const answer = $derived(onboarding.heardAbout);
-	const describing = $derived(answer?.channel === 'somewhere-else' && !onboarding.heardAboutSent);
+	const describing = $derived(answer?.channel === 'somewhere-else');
 	let detail = $state('');
 	let detailField = $state<HTMLInputElement | null>(null);
 
@@ -59,7 +59,7 @@
 	}
 </script>
 
-{#if onboarding.firstMerge && (onboarding.heardAboutUnanswered || onboarding.heardAboutSent)}
+{#if onboarding.firstMerge && onboarding.heardAboutUnanswered}
 	<section
 		class="border-surface-50-border bg-surface-50 rounded-2xl border-[0.5px] px-4 py-3.5"
 		aria-labelledby="heard-about-title"
@@ -70,71 +70,59 @@
 				<h2 id="heard-about-title" class="text-fg-default text-sm font-medium">
 					Where did you hear about Malini?
 				</h2>
-				<p class="text-fg-tertiary text-xs leading-5" role="status">
-					{onboarding.heardAboutSent
-						? 'Noted. Thanks'
-						: 'One click. It tells us where to post next'}
-				</p>
+				<p class="text-fg-tertiary text-xs leading-5">One click. It tells us where to post next</p>
 			</div>
-			{#if !onboarding.heardAboutSent}
-				<IconButton
-					variant="ghost"
-					size="sm"
-					class="text-fg-tertiary -mt-0.5 -mr-1.5"
-					ariaLabel="Dismiss where you heard about Malini"
-					onclick={() => answerHeardAboutCommand(null)}
-				>
-					<Icon name="close" size={14} />
-				</IconButton>
-			{/if}
-		</header>
-		{#if !onboarding.heardAboutSent}
-			<div
-				class="mt-3 flex flex-wrap gap-1.5"
-				role="group"
-				aria-label="Where you heard about Malini"
+			<IconButton
+				variant="ghost"
+				size="sm"
+				class="text-fg-tertiary -mt-0.5 -mr-1.5"
+				ariaLabel="Dismiss where you heard about Malini"
+				onclick={() => answerHeardAboutCommand(null)}
 			>
-				{#each HEARD_ABOUT_CHANNELS as channel (channel)}
-					{@const brand = BRANDS[channel]}
-					{@const chosen = answer?.channel === channel}
-					<Button
-						variant="ghost"
-						size="auto"
-						radius="full"
-						bordered
-						active={chosen}
-						ariaPressed={chosen}
-						class="data-[active=true]:border-button-primary/50 h-8 pr-3 pl-2 text-sm font-normal"
-						onclick={() => choose(channel)}
-					>
-						{#snippet leading()}
-							{#if brand}
-								<BrandIcon {brand} />
-							{:else if channel === 'friend'}
-								<SmileyIcon />
-							{:else}
-								<Icon name="more" />
-							{/if}
-						{/snippet}
-						{LABELS[channel]}
-					</Button>
-				{/each}
-			</div>
-			{#if describing}
-				<form class="mt-3 flex items-center gap-2" onsubmit={send}>
-					<TextInput
-						class="min-w-0 flex-1"
-						ariaLabel="Where you heard about Malini"
-						placeholder="A podcast, a newsletter, a video…"
-						maxlength={100}
-						bind:value={detail}
-						bind:element={detailField}
-					/>
-					<Button type="submit" variant="primary" size="sm" disabled={detail.trim().length === 0}>
-						Send
-					</Button>
-				</form>
-			{/if}
+				<Icon name="close" size={14} />
+			</IconButton>
+		</header>
+		<div class="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Where you heard about Malini">
+			{#each HEARD_ABOUT_CHANNELS as channel (channel)}
+				{@const brand = BRANDS[channel]}
+				{@const chosen = answer?.channel === channel}
+				<Button
+					variant="ghost"
+					size="auto"
+					radius="full"
+					bordered
+					active={chosen}
+					ariaPressed={chosen}
+					class="data-[active=true]:border-button-primary/50 h-8 pr-3 pl-2 text-sm font-normal"
+					onclick={() => choose(channel)}
+				>
+					{#snippet leading()}
+						{#if brand}
+							<BrandIcon {brand} />
+						{:else if channel === 'friend'}
+							<SmileyIcon />
+						{:else}
+							<Icon name="more" />
+						{/if}
+					{/snippet}
+					{LABELS[channel]}
+				</Button>
+			{/each}
+		</div>
+		{#if describing}
+			<form class="mt-3 flex items-center gap-2" onsubmit={send}>
+				<TextInput
+					class="min-w-0 flex-1"
+					ariaLabel="Where you heard about Malini"
+					placeholder="A podcast, a newsletter, a video…"
+					maxlength={100}
+					bind:value={detail}
+					bind:element={detailField}
+				/>
+				<Button type="submit" variant="primary" size="sm" disabled={detail.trim().length === 0}>
+					Send
+				</Button>
+			</form>
 		{/if}
 	</section>
 {/if}

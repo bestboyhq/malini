@@ -63,9 +63,9 @@ test('the first merged and archived workstream asks once where you heard about M
 		await where.fill('@syntaxfm podcast');
 		await expect(page.getByTestId('repository-search')).toHaveCount(0);
 		await ask.getByRole('button', { name: 'Send' }).click();
-		await expect(ask.getByRole('status')).toHaveText('Noted. Thanks');
+		await expect(ask).toHaveCount(0);
+		await expect(page.getByText('Noted. Thanks')).toBeVisible();
 		await expect(page.getByTestId('repository-search')).toBeVisible();
-		await expect(channels).toHaveCount(0);
 		await expect
 			.poll(async () => (await storedSettings(page))['heard-about'])
 			.toBe('syntaxfm podcast');
@@ -95,7 +95,8 @@ test('a chip answers where you heard about Malini in one click and brings the li
 			.getByRole('group', { name: 'Where you heard about Malini' })
 			.getByRole('button', { name: 'Hacker News' })
 			.click();
-		await expect(ask.getByRole('status')).toHaveText('Noted. Thanks');
+		await expect(ask).toHaveCount(0);
+		await expect(page.getByText('Noted. Thanks')).toBeVisible();
 		await expect(page.getByTestId('repository-search')).toBeVisible();
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('hacker-news');
 
@@ -111,6 +112,7 @@ test('a chip answers where you heard about Malini in one click and brings the li
 		await expect(page.getByTestId('repository-search')).toHaveCount(0);
 		await ask.getByRole('button', { name: 'Dismiss where you heard about Malini' }).click();
 		await expect(ask).toHaveCount(0);
+		await expect(page.getByText('Noted. Thanks')).toHaveCount(0);
 		await expect(page.getByTestId('repository-search')).toBeVisible();
 		await expect.poll(async () => (await storedSettings(page))['heard-about']).toBe('');
 
