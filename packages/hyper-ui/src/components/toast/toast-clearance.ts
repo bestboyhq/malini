@@ -5,11 +5,11 @@ export interface ToastLane {
 	right: number;
 }
 
+export const TOAST_GAP_PX = 8;
 const VISIBLE_TOASTS = 3;
-const TALLEST_TOAST_PX = 76;
-const STACK_GAP_PX = 14;
-// ponytail: assumes an expanded stack of three toasts of up to three lines; measure sonner's toast heights if a taller stack reaches an avoided element.
-const STACK_REACH_PX = VISIBLE_TOASTS * TALLEST_TOAST_PX + (VISIBLE_TOASTS - 1) * STACK_GAP_PX;
+const TALLEST_TOAST_PX = 124;
+// ponytail: assumes three toasts of up to four lines with an action; measure sonner's toast heights if a taller stack reaches an avoided element.
+const STACK_REACH_PX = VISIBLE_TOASTS * TALLEST_TOAST_PX + (VISIBLE_TOASTS - 1) * TOAST_GAP_PX;
 
 const avoided = new Set<Element>();
 

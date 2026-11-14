@@ -25,6 +25,8 @@ test('Help and feedback opens the Discord and files a problem with only the fact
 		const help = page.getByRole('button', { name: 'Help and feedback' });
 		const menu = page.getByRole('menu', { name: 'Help and feedback' });
 		await help.click();
+		await expect(menu.getByText('Beta 0.1.0', { exact: true })).toBeVisible();
+		await expect(menu.getByText('Ships about five times a day')).toBeVisible();
 		await captureFlow(app, 'help-menu');
 		await menu.getByRole('menuitem', { name: /^Join the Discord/ }).click();
 		await expect(menu).toHaveCount(0);
