@@ -23,7 +23,6 @@ import type { DockerOwnership } from '$main/docker/ownership';
 import { DockerCliReaper, type ContainerReaper } from '$main/docker/reclaim';
 import { currentEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
-import type { UsageAccount } from '$lib/stats/stats.platform';
 import type { AppPlatform } from '../app.platform';
 import {
 	ConfirmedShutdown,
@@ -55,7 +54,7 @@ export interface AppDeps {
 	readonly reaper?: ContainerReaper;
 	readonly cancelAgentRuns?: () => Promise<number> | number;
 	readonly containerCount?: () => number;
-	readonly usageAccount?: () => Promise<UsageAccount>;
+	readonly usageAccount?: () => Promise<string | null>;
 	readonly profilePublished?: () => boolean;
 	readonly freshInstall?: boolean;
 }

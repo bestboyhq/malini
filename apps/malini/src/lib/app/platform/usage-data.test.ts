@@ -20,7 +20,6 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
-import type { UsageAccount } from '$lib/stats/stats.platform';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
@@ -44,7 +43,7 @@ interface HarnessOptions {
 
 function harness(
 	context: MainContext = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') }),
-	account: () => UsageAccount = () => ({ state: 'anonymous' }),
+	account: () => string | null = () => null,
 	options: HarnessOptions = {},
 ) {
 	const activity: UsageActivity[] = [];
@@ -287,10 +286,10 @@ describe('usage data', () => {
 		expect(reports).toEqual([]);
 	});
 
-	it('carries the account when lent one, this install id otherwise, and nothing once sharing is off', async () => {
+	it('carries the signed-in account, this install id signed out, and nothing once sharing is off', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		seedLoop(context.db);
-		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
+		let lent: string | null = 'u1';
 		let asked = 0;
 		const { activity, reports, accounts, errors, start, throwUncaught } = harness(context, () => {
 			asked += 1;
@@ -303,14 +302,14 @@ describe('usage data', () => {
 		expect(accounts).toEqual(['u1', 'u1', 'u1']);
 		expect(getSetting(context.db, INSTALL_ID)).toBeNull();
 
-		lent = { state: 'anonymous' };
+		lent = null;
 		finishRun(context, 'run.completed');
 		await settled();
 		const install = `install:${getSetting(context.db, INSTALL_ID)}`;
 		expect(accounts).toEqual(['u1', 'u1', 'u1', install]);
 
 		setSetting(context.db, USAGE_DATA_SETTING, 'off');
-		lent = { state: 'accepted', userId: 'u1' };
+		lent = 'u1';
 		const askedBefore = asked;
 		finishRun(context, 'run.completed');
 		publishProfile(context);
@@ -354,7 +353,7 @@ describe('usage data', () => {
 
 	it('says once that usage stats went off, with no id, and nothing after', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
+		let lent: string | null = 'u1';
 		const { activity, tags, accounts, share } = harness(context, () => lent);
 		await settled();
 		share(false);
@@ -365,7 +364,7 @@ describe('usage data', () => {
 		expect(tags.at(-1)).toEqual({});
 		expect(accounts).toEqual(['u1', 'u1', null]);
 
-		lent = { state: 'accepted', userId: 'u1' };
+		lent = 'u1';
 		share(true);
 		await settled();
 		expect(activity).toEqual(['app_active', 'day', 'stats_off']);
@@ -724,7 +723,7 @@ describe('the Logdash sink', () => {
 		fetchMock.mockClear();
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		const usageData = startUsageData(context, {
-			account: () => Promise.resolve({ state: 'accepted', userId: 'u1' }),
+			account: () => Promise.resolve('u1'),
 			hooks: noHooks,
 			processGone: () => undefined,
 			now: () => NOW,
@@ -840,7 +839,7 @@ describe('the Logdash sink', () => {
 		fetchMock.mockClear();
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		const usageData = startUsageData(context, {
-			account: () => Promise.resolve({ state: 'anonymous' }),
+			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
 			now: () => NOW,
@@ -859,7 +858,7 @@ describe('the Logdash sink', () => {
 		fetchMock.mockClear();
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		const usageData = startUsageData(context, {
-			account: () => Promise.resolve({ state: 'anonymous' }),
+			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
 			now: () => NOW,

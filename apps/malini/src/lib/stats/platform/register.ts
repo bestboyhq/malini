@@ -51,7 +51,7 @@ import {
 	visibilityOf,
 } from './published-stats';
 import { ResourceSampler, type BrowserTab } from './resource-sampler';
-import { StatsProfile, type UsageAccount } from './stats-profile';
+import { StatsProfile } from './stats-profile';
 import type { WorkstreamFolder } from './running-docker';
 import { WorkstreamRunningMonitor } from './workstream-running';
 
@@ -74,7 +74,7 @@ export interface StatsPlatform {
 	stop(): void;
 	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
 	openUrl(url: string): void;
-	usageAccount(): Promise<UsageAccount>;
+	usageAccount(): Promise<string | null>;
 	published(): boolean;
 	chef(): Promise<PullRequestChef | null>;
 }

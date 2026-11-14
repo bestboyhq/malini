@@ -45,8 +45,8 @@ For a new install, it marks each first step once: the first open, the first repo
 Each mark says the day you first opened Malini and how many days have passed.
 When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.
 For a failure it adds the step that failed and the name of the error, never the message.
-While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
-Signed out, or signed in on terms you have not accepted, each count carries a random ID made for this install instead, also as a hash, so we can count the days Malini is used.
+While you are signed in to Bestboy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
+Signed out, each count carries a random ID made for this install instead, also as a hash, so we can count the days Malini is used.
 That ID is not linked to you, your Mac or your account, and turning the switch off deletes it, so turning it back on starts a new one.
 Once you answer where you heard about Malini, after your first merge, each count carries the option you picked, never the words you typed for somewhere else.
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.

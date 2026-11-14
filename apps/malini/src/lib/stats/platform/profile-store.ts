@@ -19,7 +19,7 @@ export type SavedProfile = Readonly<{
 	account: BestboyAccount | null;
 	profile: BestboyProfile | null;
 	unacceptedTerms: string | null;
-	acceptedUserId: string | null;
+	userId: string | null;
 	publishing: StatsPublishing;
 	publishedThrough: string | null;
 	picked: readonly string[];
@@ -31,7 +31,7 @@ export const SIGNED_OUT: SavedProfile = {
 	account: null,
 	profile: null,
 	unacceptedTerms: null,
-	acceptedUserId: null,
+	userId: null,
 	publishing: 'off',
 	publishedThrough: null,
 	picked: [],
@@ -63,8 +63,7 @@ export class ProfileStore {
 			profile: token ? profile(saved['profile']) : null,
 			unacceptedTerms:
 				token && typeof saved['unacceptedTerms'] === 'string' ? saved['unacceptedTerms'] : null,
-			acceptedUserId:
-				token && typeof saved['acceptedUserId'] === 'string' ? saved['acceptedUserId'] : null,
+			userId: token && typeof saved['userId'] === 'string' ? saved['userId'] : null,
 			publishing: publishing(saved['publishing']),
 			publishedThrough:
 				typeof saved['publishedThrough'] === 'string' ? saved['publishedThrough'] : null,

@@ -17,7 +17,7 @@ import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { currentEnvironment } from '$main/process/environment';
-import { localDate, shiftDate, type UsageAccount } from '$lib/stats/stats.platform';
+import { localDate, shiftDate } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
@@ -73,7 +73,7 @@ export function repositorySource(
 
 export interface UsageDataDeps {
 	readonly sink?: UsageSink | null;
-	readonly account?: () => Promise<UsageAccount>;
+	readonly account?: () => Promise<string | null>;
 	readonly published?: () => boolean;
 	readonly hooks?: Pick<MainProcessHooks, 'onUncaughtException' | 'onUnhandledRejection'>;
 	readonly processGone?: (
@@ -97,7 +97,6 @@ const INSTALL_ID_SETTING = 'usage-data.install-id';
 const FIRST_REPOSITORY_SOURCE_SETTING = 'usage-data.first-repository-source';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
-const ANONYMOUS: UsageAccount = { state: 'anonymous' };
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
 	const now = deps.now ?? ((): Date => new Date());
@@ -112,7 +111,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	if (storedFirstOpen === null && deps.freshInstall === true)
 		setSetting(context.db, FIRST_OPEN_SETTING, localDate(now()));
 	const firstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
-	const account = deps.account ?? ((): Promise<UsageAccount> => Promise.resolve(ANONYMOUS));
+	const account = deps.account ?? ((): Promise<string | null> => Promise.resolve(null));
 	const installId = (): string => {
 		const stored = getSetting(context.db, INSTALL_ID_SETTING);
 		if (stored !== null) return stored;
@@ -122,9 +121,9 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	};
 	const send = async (deliver: (userId: string) => Promise<boolean>): Promise<boolean> => {
 		if (!shared()) return false;
-		const counted = await account();
+		const signedIn = await account();
 		if (!shared()) return false;
-		return deliver(counted.state === 'accepted' ? counted.userId : `install:${installId()}`);
+		return deliver(signedIn ?? `install:${installId()}`);
 	};
 	const sending = new Map<string, Promise<void>>();
 	const sendOnce = (
