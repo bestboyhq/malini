@@ -93,7 +93,7 @@ describe('StatsProfile', () => {
 		expect(profile.state()).toMatchObject({ account: null, publishing: 'on' });
 	});
 
-	it('lends usage counts the account on current terms, and none on old terms or signed out', async () => {
+	it('lends usage counts the account whatever its terms, and none signed out', async () => {
 		vi.useFakeTimers({ toFake: ['Date'] });
 		vi.setSystemTime(NOW);
 		const { profile, platform } = await signedInProfile();
@@ -101,24 +101,24 @@ describe('StatsProfile', () => {
 			vi.setSystemTime(Date.now() + 61 * 60_000);
 		};
 
-		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
-		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		expect(await profile.usageAccount()).toBe('u1');
+		expect(await profile.usageAccount()).toBe('u1');
 
 		platform.changeTerms('2026-11-09');
-		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		expect(await profile.usageAccount()).toBe('u1');
 		anHourLater();
 		const [first, second] = await Promise.all([profile.usageAccount(), profile.usageAccount()]);
-		expect([first, second]).toEqual([{ state: 'anonymous' }, { state: 'anonymous' }]);
+		expect([first, second]).toEqual(['u1', 'u1']);
 		expect(profile.state().unacceptedTerms?.date).toBe('2026-11-09');
 
 		platform.accept();
 		anHourLater();
-		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		expect(await profile.usageAccount()).toBe('u1');
 
 		await profile.signOut();
-		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(await profile.usageAccount()).toBeNull();
 		anHourLater();
-		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(await profile.usageAccount()).toBeNull();
 		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(3);
 	});
 
@@ -131,13 +131,13 @@ describe('StatsProfile', () => {
 		};
 		platform.fail('/api/me', 503);
 
-		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(await profile.usageAccount()).toBeNull();
 		later(4);
-		expect(await profile.usageAccount()).toEqual({ state: 'anonymous' });
+		expect(await profile.usageAccount()).toBeNull();
 		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(1);
 
 		later(2);
-		expect(await profile.usageAccount()).toEqual({ state: 'accepted', userId: 'u1' });
+		expect(await profile.usageAccount()).toBe('u1');
 		expect(platform.calls().filter((call) => call === 'GET /api/me')).toHaveLength(2);
 	});
 
@@ -209,7 +209,7 @@ async function signedInProfile(): Promise<{
 		account: { name: 'Simon', email: 'simon@test' },
 		profile: { handle: null, public: false, url: null },
 		unacceptedTerms: null,
-		acceptedUserId: null,
+		userId: null,
 		publishing: 'off',
 		publishedThrough: null,
 		picked: [],

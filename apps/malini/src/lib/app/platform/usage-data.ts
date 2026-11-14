@@ -17,12 +17,12 @@ import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { currentEnvironment } from '$main/process/environment';
-import { localDate, shiftDate, type UsageAccount } from '$lib/stats/stats.platform';
+import { localDate, shiftDate } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
-import { getSetting, setSetting } from './settings.repository';
+import { deleteSetting, getSetting, setSetting } from './settings.repository';
 import { hasPromptRun, readUsageReport, userWorkstreams } from './usage-report';
 import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-tools';
 
@@ -43,7 +43,6 @@ export type UsageActivity =
 	| 'profile_published'
 	| 'stats_off'
 	| 'day'
-	| 'month'
 	| ToolActivity;
 
 export interface UsageSink {
@@ -74,7 +73,7 @@ export function repositorySource(
 
 export interface UsageDataDeps {
 	readonly sink?: UsageSink | null;
-	readonly account?: () => Promise<UsageAccount>;
+	readonly account?: () => Promise<string | null>;
 	readonly published?: () => boolean;
 	readonly hooks?: Pick<MainProcessHooks, 'onUncaughtException' | 'onUnhandledRejection'>;
 	readonly processGone?: (
@@ -94,12 +93,10 @@ const REPORTED_DAY_SETTING = 'usage-data.reported-day';
 const FIRST_OPEN_SETTING = 'usage-data.first-open';
 const JOURNEY_SETTING = 'usage-data.journey';
 const LAST_ACTIVE_DAY_SETTING = 'usage-data.last-active-day';
-const ACTIVE_DAYS_SETTING = 'usage-data.active-days';
-const REPORTED_MONTH_SETTING = 'usage-data.reported-month';
+const INSTALL_ID_SETTING = 'usage-data.install-id';
 const FIRST_REPOSITORY_SOURCE_SETTING = 'usage-data.first-repository-source';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
-const ANONYMOUS: UsageAccount = { state: 'anonymous' };
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
 	const now = deps.now ?? ((): Date => new Date());
@@ -107,31 +104,32 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const shared = (): boolean => usageDataShared(getSetting(context.db, USAGE_DATA_SETTING));
 	const setShare = (next: boolean): void => {
 		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
+		if (!next) deleteSetting(context.db, INSTALL_ID_SETTING);
 	};
 	if (!sink) return { share: setShare, shutdown: () => Promise.resolve() };
 	const storedFirstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
 	if (storedFirstOpen === null && deps.freshInstall === true)
 		setSetting(context.db, FIRST_OPEN_SETTING, localDate(now()));
 	const firstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
-	const rememberActiveDay = (): void => {
-		const today = localDate(now());
-		const days = stringList(getSetting(context.db, ACTIVE_DAYS_SETTING));
-		if (days.includes(today)) return;
-		setSetting(context.db, ACTIVE_DAYS_SETTING, JSON.stringify([...days, today].sort()));
+	const account = deps.account ?? ((): Promise<string | null> => Promise.resolve(null));
+	const installId = (): string => {
+		const stored = getSetting(context.db, INSTALL_ID_SETTING);
+		if (stored !== null) return stored;
+		const made = randomUUID();
+		setSetting(context.db, INSTALL_ID_SETTING, made);
+		return made;
 	};
-	rememberActiveDay();
-	const account = deps.account ?? ((): Promise<UsageAccount> => Promise.resolve(ANONYMOUS));
-	const send = async (deliver: (userId: string | null) => Promise<boolean>): Promise<boolean> => {
+	const send = async (deliver: (userId: string) => Promise<boolean>): Promise<boolean> => {
 		if (!shared()) return false;
-		const counted = await account();
+		const signedIn = await account();
 		if (!shared()) return false;
-		return deliver(counted.state === 'accepted' ? counted.userId : null);
+		return deliver(signedIn ?? `install:${installId()}`);
 	};
 	const sending = new Map<string, Promise<void>>();
 	const sendOnce = (
 		key: string,
 		sent: () => boolean,
-		deliver: (userId: string | null) => Promise<boolean>,
+		deliver: (userId: string) => Promise<boolean>,
 		record: () => void,
 	): void => {
 		if (sent()) return;
@@ -176,34 +174,6 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			() => setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...journeySent(), marker])),
 		);
 	};
-	const sendMonth = (): void => {
-		const today = localDate(now());
-		const current = monthOf(today);
-		const earlier = stringList(getSetting(context.db, ACTIVE_DAYS_SETTING)).filter(
-			(day) => monthOf(day) < current,
-		);
-		const last = earlier.sort().at(-1);
-		if (last === undefined) return;
-		const month = monthOf(last);
-		const activeDays = new Set(earlier.filter((day) => monthOf(day) === month)).size;
-		sendOnce(
-			`month:${month}`,
-			() => getSetting(context.db, REPORTED_MONTH_SETTING) === month,
-			(userId) => sink.activity('month', { month, active_days: activeDays }, userId),
-			() => {
-				setSetting(context.db, REPORTED_MONTH_SETTING, month);
-				setSetting(
-					context.db,
-					ACTIVE_DAYS_SETTING,
-					JSON.stringify(
-						stringList(getSetting(context.db, ACTIVE_DAYS_SETTING)).filter(
-							(day) => monthOf(day) >= current,
-						),
-					),
-				);
-			},
-		);
-	};
 	const sendDay = (): void => {
 		const today = localDate(now());
 		const previous = getSetting(context.db, LAST_ACTIVE_DAY_SETTING);
@@ -227,7 +197,6 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			if (days >= 1 && days <= 7) sendJourney('returned_week_1');
 			if (days >= 8 && days <= 30) sendJourney('returned_month_1');
 		}
-		sendMonth();
 		sendDay();
 		void firstRepository();
 		if (hasPromptRun(context.db, now())) sendJourney('first_prompt');
@@ -239,7 +208,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	};
 	const share = (next: boolean): void => {
 		const was = shared();
-		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
+		setShare(next);
 		if (next && !was) launch();
 		if (was && !next) void sink.activity('stats_off', {}, null);
 	};
