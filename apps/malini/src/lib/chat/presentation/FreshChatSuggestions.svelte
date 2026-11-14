@@ -16,15 +16,7 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { WorkstreamAutomations } from '$lib/automations/automations.api';
 	import type { AgentRunMode } from '$shared/providers/providers.api';
-	import {
-		WorkstreamSetupSteps,
-		lastMergedPullRequest,
-		repositoryContextQuery,
-		repositoryName,
-		repositoryWebUrl,
-		workstreamByIdQuery,
-		workstreamHeadQuery,
-	} from '$shared/repositories/repositories.api';
+	import { WorkstreamSetupSteps, workstreamByIdQuery } from '$shared/repositories/repositories.api';
 
 	type Starter = Readonly<{
 		icon: IconName;
@@ -52,13 +44,9 @@
 	const plans = $derived(preparedPlansQuery.data(workstreamId));
 	const untouched = $derived(recentChats.length === 0);
 	const referencesFull = $derived(transcriptReferences.length >= MAX_AGENT_TRANSCRIPT_REFERENCES);
-	const repository = $derived(repositoryContextQuery.data(workstreamId)?.repo ?? null);
-	const onGithub = $derived(repository !== null && repositoryWebUrl(repository.remoteUrl) !== null);
 	const baseBranch = $derived(workstreamByIdQuery.data(workstreamId)?.baseBranch ?? 'main');
-	const head = $derived(workstreamHeadQuery.data(workstreamId));
 	const startedByAgent = $derived(workstreamByIdQuery.data(workstreamId)?.startedBy != null);
-	const lastMerge = $derived(onGithub ? lastMergedPullRequest(head?.subject ?? null) : null);
-	const starters = $derived<readonly Starter[]>([
+	const starters: readonly Starter[] = [
 		{
 			icon: 'globe',
 			title: 'Run it in the browser',
@@ -68,11 +56,19 @@
 			mode: 'agent',
 		},
 		{
-			icon: 'book',
-			title: `Explain how ${repository ? repositoryName(repository.fullName) : 'it'} works`,
-			detail: 'Reads the code. Changes nothing',
+			icon: 'bolt',
+			title: 'Find the biggest CI/CD pipeline optimizations',
+			detail: 'A ranked list. No edits yet',
 			prompt:
-				'Read this repository and tell me how it is built: the main parts, how they talk, and how to run it.',
+				'Read the CI/CD pipelines of this repository: the workflow files, the scripts they run and their caches. When gh can read the recent runs, use their times to measure. Find the biggest ways to make the pipelines faster or cheaper, such as missing caches, work done twice, jobs that could run in parallel, and jobs that run when nothing they cover changed. List them biggest saving first, with where each one is and what it saves. Change nothing until I pick one.',
+			mode: 'agent',
+		},
+		{
+			icon: 'workflow',
+			title: 'Find all implicit state machines',
+			detail: 'Flags that are secretly states',
+			prompt:
+				'Find every implicit state machine in this code: booleans, enums, status strings and nullable fields that together track what state something is in. For each one, list its states, the transitions and where they happen, and the combinations the code allows that should be impossible. Put the riskiest first. Change nothing until I pick one.',
 			mode: 'agent',
 		},
 		{
@@ -83,26 +79,7 @@
 				'I want to change something here. Ask me what it is, then plan it with me before you write any code.',
 			mode: 'plan',
 		},
-		...(lastMerge !== null && head?.subject
-			? [
-					{
-						icon: 'pr-merged' as const,
-						title: `Review #${lastMerge}, the last merge`,
-						detail: 'Fresh eyes. Fixes the worst find',
-						prompt: `Review pull request #${lastMerge}, "${head.subject}". Look for bugs and loose ends, and fix the worst one you find.`,
-						mode: 'agent' as const,
-					},
-				]
-			: []),
-		{
-			icon: 'bug',
-			title: 'Fix the first failing test',
-			detail: 'One small diff. Reads in a minute',
-			prompt:
-				'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
-			mode: 'agent',
-		},
-	]);
+	];
 
 	function start(starter: Starter): void {
 		const profile = runProfileQuery.data;

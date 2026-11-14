@@ -80,8 +80,3 @@ function installStep(install: WorkstreamInstallRecord): WorkstreamSetupStep {
 			};
 	}
 }
-
-export function lastMergedPullRequest(subject: string | null): number | null {
-	const number = subject?.match(/\(#(\d+)\)$/u)?.[1];
-	return number ? Number(number) : null;
-}

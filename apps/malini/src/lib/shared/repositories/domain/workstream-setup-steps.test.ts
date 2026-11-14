@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { planWorkstreamProvisioning, type WorkstreamProvisioningRecord } from './provisioning';
-import {
-	lastMergedPullRequest,
-	workstreamSetupSteps,
-	type WorkstreamSetupInput,
-} from './workstream-setup-steps';
+import { workstreamSetupSteps, type WorkstreamSetupInput } from './workstream-setup-steps';
 
 const plan = planWorkstreamProvisioning({
 	repo: {
@@ -78,11 +74,5 @@ describe('workstream setup steps', () => {
 		expect(labels({ ...settled, branch: 'fix/burrow', head: null })).toEqual([
 			'done | Picked up your branch | fix/burrow',
 		]);
-	});
-
-	it('reads the pull request a squash merge names at the end of its subject', () => {
-		expect(lastMergedPullRequest('feat: dig a second exit (#45)')).toBe(45);
-		expect(lastMergedPullRequest('Merge (#45) into main')).toBeNull();
-		expect(lastMergedPullRequest(null)).toBeNull();
 	});
 });

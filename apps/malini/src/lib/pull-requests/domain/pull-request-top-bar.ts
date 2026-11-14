@@ -61,8 +61,10 @@ function workstreamStatus(
 	url: string | null,
 	agentStatus: SessionStatus | null,
 ): WorkstreamStatus | null {
-	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null =>
-		isAgentWorking(agentStatus) ? whileAgentWorks(settled, agentStatus) : settled;
+	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null => {
+		if (!isAgentWorking(agentStatus) || (settled === null && read === null)) return settled;
+		return whileAgentWorks(settled, agentStatus);
+	};
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
 	if (ship?.phase === 'needs-you' && !mergedOnGithub) return needsYou(ship, read, url);
 	const failure = mergedOnGithub ? null : shipFailure(ship);
@@ -191,7 +193,7 @@ function whileAgentWorks(
 	settled: WorkstreamStatus | null,
 	agentStatus: SessionStatus | null,
 ): WorkstreamStatus | null {
-	if (settled?.tone !== 'idle' && settled?.tone !== 'ready') return settled;
+	if (settled && settled.tone !== 'idle' && settled.tone !== 'ready') return settled;
 	return isWaitingForUser(agentStatus)
 		? { ...working('Needs you', settled), busy: false }
 		: working('Agent running', settled);
@@ -214,15 +216,6 @@ function neutral(action: PullRequestTopBarAction): PullRequestTopBarAction {
 	return { ...action, tone: 'secondary' };
 }
 
-const NOTHING_YET: WorkstreamStatus = {
-	tone: 'idle',
-	busy: false,
-	label: 'Build something great',
-	detail: null,
-	tooltip: null,
-	action: null,
-};
-
 const EXTENSION_OFF: WorkstreamStatus = {
 	tone: 'idle',
 	busy: false,
@@ -232,9 +225,9 @@ const EXTENSION_OFF: WorkstreamStatus = {
 	action: null,
 };
 
-function withoutGithub(read: RepositorySurface): WorkstreamStatus {
+function withoutGithub(read: RepositorySurface): WorkstreamStatus | null {
 	const changed = changedFileCount(read);
-	if (changed === 0) return NOTHING_YET;
+	if (changed === 0) return null;
 	return { ...line('idle', filesChanged(changed), 'No GitHub remote'), action: null };
 }
 
@@ -310,9 +303,9 @@ function closed(pullRequest: SurfacePullRequest, ship: PullRequestShip | null): 
 	};
 }
 
-function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
+function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus | null {
 	const changed = changedFileCount(read);
-	if (changed === 0) return NOTHING_YET;
+	if (changed === 0) return null;
 	return {
 		...line('idle', filesChanged(changed), null),
 		tooltip: ship?.lastError ?? null,

@@ -139,8 +139,6 @@ export {
 
 export { type WorkstreamGitStatus } from './domain/workstream-git-status';
 
-export { lastMergedPullRequest } from './domain/workstream-setup-steps';
-
 export { type WorkstreamDiff } from './domain/workstream-diff';
 
 export { workstreamCount } from './domain/workstream-retirement';
@@ -256,7 +254,6 @@ export { worktreePendingQuery } from './application/queries/worktree-pending.que
 export { checkedOutWorkstreamsQuery } from './application/queries/checked-out-workstreams.query.svelte';
 export { workstreamCheckedOutQuery } from './application/queries/workstream-checked-out.query.svelte';
 export { workstreamReadyForPromptsQuery } from './application/queries/workstream-ready-for-prompts.query.svelte';
-export { workstreamHeadQuery } from './application/queries/workstream-head.query.svelte';
 
 export {
 	default as ConnectRepositoryContextMenu,

@@ -21,10 +21,9 @@ A step still running shows a spinner, and a failed install has **Retry** on its 
 Under it, **Ways to start** lists prompts an agent can take from there:
 
 - **Run it in the browser** starts the project the way its README or scripts say, and opens it in the browser beside the chat.
-- **Explain how <repository> works** reads the code and changes nothing.
+- **Find the biggest CI/CD pipeline optimizations** reads the pipelines and their recent runs, and lists the biggest savings first, without changing anything.
+- **Find all implicit state machines** finds the flags, enums and status fields that track state, and lists their states, transitions and the combinations that should be impossible, without changing anything.
 - **Plan a change with me** turns on Plan mode, so the agent asks what you want before it writes any code.
-- **Review #<number>, the last merge** shows for a GitHub repository whose latest commit names its pull request, and fixes the worst thing the review finds.
-- **Fix the first failing test** runs the lint and the tests, and fixes the first failure.
 
 Each one fills the composer, for you to edit or send.
 A workstream another chat started ends its steps on **Prompt from** that chat instead, and lists no starters: that prompt goes first, once setup is done.

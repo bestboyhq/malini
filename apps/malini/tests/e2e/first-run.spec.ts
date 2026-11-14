@@ -269,9 +269,9 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 		await expect(starters.getByRole('button')).toHaveCount(4);
 		for (const [index, name] of [
 			/^Run it in the browser/u,
-			/^Explain how hutch works/u,
+			/^Find the biggest CI\/CD pipeline optimizations/u,
+			/^Find all implicit state machines/u,
 			/^Plan a change with me/u,
-			/^Fix the first failing test/u,
 		].entries()) {
 			await expect(starters.getByRole('button').nth(index)).toHaveAccessibleName(name);
 		}
@@ -279,9 +279,9 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 		await starters.getByRole('button', { name: /^Plan a change with me/u }).click();
 		const planMode = page.getByRole('button', { name: 'Plan mode' });
 		await expect(planMode).toHaveAttribute('aria-pressed', 'true');
-		await starters.getByRole('button', { name: /^Fix the first failing test/u }).click();
+		await starters.getByRole('button', { name: /^Find all implicit state machines/u }).click();
 		await expect(page.getByTestId('chat-composer-input')).toHaveText(
-			'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
+			/^Find every implicit state machine in this code: .+ Change nothing until I pick one\.$/u,
 		);
 		await expect(planMode).toBeHidden();
 		await expect(prompt).toBeFocused();
