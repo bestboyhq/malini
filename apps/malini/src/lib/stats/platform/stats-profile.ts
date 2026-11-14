@@ -39,9 +39,6 @@ const ACCOUNT_RETRY_MS = 5 * 60_000;
 const MAX_PICKS = 10;
 const REPOSITORY_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/u;
 
-export type UsageAccount =
-	Readonly<{ state: 'anonymous' }> | Readonly<{ state: 'accepted'; userId: string }>;
-
 export class StatsProfile {
 	readonly #deps: StatsProfileDeps;
 	#saved: SavedProfile;
@@ -138,13 +135,11 @@ export class StatsProfile {
 		return this.#emit();
 	}
 
-	async usageAccount(): Promise<UsageAccount> {
-		// ponytail: up to an hour of counts carry the account after new terms; check /api/me per count.
+	async usageAccount(): Promise<string | null> {
+		// ponytail: a token revoked elsewhere carries the account for up to an hour; check /api/me per count.
 		if (await this.#checkAccount(USAGE_ACCOUNT_FRESH_MS)) this.#emit();
-		const { token, unacceptedTerms, acceptedUserId } = this.#saved;
-		return token && !unacceptedTerms && acceptedUserId
-			? { state: 'accepted', userId: acceptedUserId }
-			: { state: 'anonymous' };
+		const { token, userId } = this.#saved;
+		return token && userId ? userId : null;
 	}
 
 	session(): BestboySession | null {
@@ -378,7 +373,7 @@ export class StatsProfile {
 	}
 
 	async #forgetToken(): Promise<void> {
-		await this.#save({ ...this.#saved, token: '', account: null, acceptedUserId: null });
+		await this.#save({ ...this.#saved, token: '', account: null, userId: null });
 	}
 
 	#endSignIn(): Promise<void> {
