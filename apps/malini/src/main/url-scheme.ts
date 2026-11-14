@@ -1,10 +1,14 @@
 export const URL_SCHEME = 'malini';
 
+export function isDogfoodWindow(env: Readonly<Record<string, string | undefined>>): boolean {
+	return env['MALINI_DOGFOOD'] === '1' && env['MALINI_BACKGROUND_WINDOW'] !== '1';
+}
+
 export function claimsUrlScheme(
 	packaged: boolean,
 	env: Readonly<Record<string, string | undefined>>,
 ): boolean {
-	return !packaged && env['MALINI_DOGFOOD'] === '1' && env['MALINI_BACKGROUND_WINDOW'] !== '1';
+	return !packaged && isDogfoodWindow(env);
 }
 
 export interface UrlInbox {
