@@ -57,7 +57,7 @@
 				onSelect={openProblemReportCommand}
 			>
 				<Icon name="bug" size={15} class="mt-0.5 shrink-0" />
-				{@render lines('Report a problem', 'Files a GitHub issue. You approve it first')}
+				{@render lines('Report a problem', 'Goes to GitHub once you give it a look')}
 			</DropdownItem>
 			<DropdownItem
 				role="menuitem"
@@ -65,7 +65,7 @@
 				onSelect={() => openExternalUrlCommand(DISCORD_URL)}
 			>
 				<BrandIcon brand="discord" size={15} class="mt-0.5 shrink-0" />
-				{@render lines('Join the Discord', 'Other Malini people. Some helpful')}
+				{@render lines('Join the Discord', 'Malini people, helpful ones included')}
 			</DropdownItem>
 		</div>
 	{/snippet}
