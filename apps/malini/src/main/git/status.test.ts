@@ -35,7 +35,6 @@ describe('parseStatus', () => {
 			ahead: 3,
 			behind: 1,
 			headSha: null,
-			headSubject: null,
 			dirtyPaths: ['src/lib.rs', 'untracked.txt', 'new_file.rs'],
 			conflictedPaths: [],
 			conflictMarkerPaths: [],
@@ -122,7 +121,7 @@ function porcelain(...records: string[]): string {
 }
 
 describe('statusCollector', () => {
-	it('reads a real checkout: branch, head commit, dirty paths, no upstream', async () => {
+	it('reads a real checkout: branch, head sha, dirty paths, no upstream', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const repo = join(dir, 'repo');
@@ -132,7 +131,6 @@ describe('statusCollector', () => {
 		const status = await statusCollector(repo);
 		expect(status.branch).toMatch(/^(main|master)$/);
 		expect(status.headSha).toMatch(/^[0-9a-f]{40}$/);
-		expect(status.headSubject).toBe('seed');
 		expect(status.dirtyPaths).toEqual(['seed.txt', 'new.txt']);
 		expect(status.hasUpstream).toBe(false);
 		expect(status.mergeInProgress).toBe(false);

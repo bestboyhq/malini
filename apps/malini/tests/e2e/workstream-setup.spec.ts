@@ -248,21 +248,20 @@ test('a dependency install that fails says why and retries, and an unknown proje
 		const steps = page.getByRole('list', { name: 'Workstream setup' }).getByRole('listitem');
 		const failed = steps.filter({ hasText: 'Install failed' });
 		await expect(failed).toContainText('e2e install failure', { timeout: 30_000 });
-		await expect(failed).toContainText('npm ci');
 		await expect(page.getByTestId('workstream-dependency-install')).toHaveCount(0);
 		await captureFlow(app, 'workstream-dependency-install-failed');
 
 		writeFileSync(succeeds, '');
 		await failed.getByRole('button', { name: 'Retry' }).click();
-		await expect(steps.filter({ hasText: 'Dependencies installed' })).toContainText('npm ci', {
+		await expect(steps.filter({ hasText: 'Checked dependencies' })).toContainText('All in place', {
 			timeout: 30_000,
 		});
 		await expect(failed).toHaveCount(0);
 		await expect(workstreamRow(page, installing)).toHaveAttribute('aria-current', 'page');
 
 		await newWorkstream(page, 'unknown');
-		const skipped = steps.filter({ hasText: 'Installed nothing' });
-		await expect(skipped).toContainText('No lockfile to go on', { timeout: 30_000 });
+		const skipped = steps.filter({ hasText: 'Checked dependencies' });
+		await expect(skipped).toContainText('No lockfile. Installed nothing', { timeout: 30_000 });
 		await expect(skipped.getByRole('button', { name: 'Retry' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {

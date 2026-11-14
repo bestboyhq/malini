@@ -1,82 +1,51 @@
 import { workstreamBranch } from './project-identity';
-import {
-	provisioningStepLabel,
-	type WorkstreamInstallRecord,
-	type WorkstreamProvisioningRecord,
-} from './provisioning';
+import type { WorkstreamInstallRecord, WorkstreamProvisioningRecord } from './provisioning';
 
 export type WorkstreamSetupStep = Readonly<{
-	key: 'checkout' | 'head' | 'install';
+	key: 'copy' | 'install';
 	state: 'done' | 'busy' | 'failed' | 'skipped';
 	label: string;
-	code: string | null;
 	detail: string | null;
 }>;
 
 export type WorkstreamSetupInput = Readonly<{
 	workstreamId: string;
 	branch: string;
-	baseBranch: string;
 	provisioning: WorkstreamProvisioningRecord | null;
-	head: Readonly<{ sha: string; subject: string | null }> | null;
 	install: WorkstreamInstallRecord | null;
 }>;
 
 export function workstreamSetupSteps(input: WorkstreamSetupInput): readonly WorkstreamSetupStep[] {
-	if (input.provisioning) return [provisioningStep(input.provisioning)];
-	return [
-		checkoutStep(input),
-		...(input.head ? [headStep(input.head)] : []),
-		...(input.install ? [installStep(input.install)] : []),
-	];
+	if (input.provisioning) return [copyStepInProgress(input.provisioning)];
+	return [copyStep(input), ...(input.install ? [installStep(input.install)] : [])];
 }
 
-function provisioningStep(record: WorkstreamProvisioningRecord): WorkstreamSetupStep {
-	const label = provisioningStepLabel(record);
-	if (record.failure) {
-		return { key: 'checkout', state: 'failed', label, code: null, detail: 'Did not finish' };
-	}
+function copyStepInProgress(record: WorkstreamProvisioningRecord): WorkstreamSetupStep {
+	const step = { key: 'copy', label: 'Making a fresh copy' } as const;
+	if (record.failure) return { ...step, state: 'failed', detail: 'Did not finish' };
 	const percent =
 		record.phase === 'cloning' && record.clonePercent !== null ? `${record.clonePercent}%` : null;
-	return { key: 'checkout', state: 'busy', label, code: null, detail: percent };
+	return { ...step, state: 'busy', detail: percent };
 }
 
-function checkoutStep(input: WorkstreamSetupInput): WorkstreamSetupStep {
-	const made = input.branch === workstreamBranch(input.workstreamId);
-	return {
-		key: 'checkout',
-		state: 'done',
-		label: made ? `Branch made from ${input.baseBranch}` : 'Picked up your branch',
-		code: input.branch,
-		detail: null,
-	};
-}
-
-function headStep(head: NonNullable<WorkstreamSetupInput['head']>): WorkstreamSetupStep {
-	return {
-		key: 'head',
-		state: 'done',
-		label: 'Starts at',
-		code: head.sha.slice(0, 7),
-		detail: head.subject,
-	};
+function copyStep(input: WorkstreamSetupInput): WorkstreamSetupStep {
+	return input.branch === workstreamBranch(input.workstreamId)
+		? { key: 'copy', state: 'done', label: 'Made a fresh copy', detail: 'Main won’t notice' }
+		: { key: 'copy', state: 'done', label: 'Picked up your branch', detail: null };
 }
 
 function installStep(install: WorkstreamInstallRecord): WorkstreamSetupStep {
-	const step = { key: 'install', code: install.command, detail: null } as const;
+	const step = { key: 'install', label: 'Checked dependencies' } as const;
 	switch (install.status) {
 		case 'running':
-			return { ...step, state: 'busy', label: 'Installing dependencies' };
+			return { ...step, state: 'busy', label: 'Checking dependencies', detail: null };
 		case 'installed':
-			return { ...step, state: 'done', label: 'Dependencies installed' };
+			return { ...step, state: 'done', detail: 'All in place' };
+		case 'none':
+			return { ...step, state: 'done', detail: 'Nothing to install' };
+		case 'unavailable':
+			return { ...step, state: 'skipped', detail: 'No lockfile. Installed nothing' };
 		case 'failed':
 			return { ...step, state: 'failed', label: 'Install failed', detail: install.detail };
-		case 'unavailable':
-			return {
-				...step,
-				state: 'skipped',
-				label: 'Installed nothing',
-				detail: 'No lockfile to go on',
-			};
 	}
 }

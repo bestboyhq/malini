@@ -13,7 +13,9 @@
 	let { workstreamId }: Props = $props();
 
 	const record = $derived(dependencyInstallQuery.data(workstreamId));
-	const installRecord = $derived(record?.status === 'installed' ? null : record);
+	const installRecord = $derived(
+		record?.status === 'installed' || record?.status === 'none' ? null : record,
+	);
 	let revealedRecord = $state.raw<WorkstreamInstallRecord | null>(null);
 	const dependencyInstall = $derived(
 		installRecord && (revealedRecord === installRecord || installRecord.noticeAt <= Date.now())

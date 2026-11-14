@@ -262,10 +262,14 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 			.poll(async () => (await workstreams(page)).map(({ projectId }) => projectId))
 			.toEqual([expect.stringContaining('hutch')]);
 		const setup = page.getByRole('list', { name: 'Workstream setup' });
-		await expect(setup.getByRole('listitem').first()).toHaveText(/^\s*Branch made from main/u);
-		await expect(setup.getByRole('listitem').last()).toHaveText(/^\s*Your turn/u);
+		await expect(setup.getByRole('listitem').first()).toHaveText(
+			/^\s*Made a fresh copy\s*Main won’t notice\s*$/u,
+		);
+		await expect(setup.getByText('Your turn')).toHaveCount(0);
 		await expect(page.getByTestId('extension-inspector-gutter')).toBeHidden();
-		const starters = page.getByRole('region', { name: 'Ways to start' });
+		const starters = page
+			.getByRole('group', { name: /^Your turn/u })
+			.getByRole('list', { name: 'Ways to start' });
 		await expect(starters.getByRole('button')).toHaveCount(4);
 		for (const [index, name] of [
 			/^Run it in the browser/u,

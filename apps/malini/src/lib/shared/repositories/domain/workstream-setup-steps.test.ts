@@ -16,9 +16,7 @@ const plan = planWorkstreamProvisioning({
 const settled: WorkstreamSetupInput = {
 	workstreamId: plan.workstreamId,
 	branch: plan.branch,
-	baseBranch: 'main',
 	provisioning: null,
-	head: { sha: 'e2eacb3f00d', subject: 'feat: dig a second exit (#45)' },
 	install: null,
 };
 
@@ -29,50 +27,51 @@ function provisioning(
 }
 
 function labels(input: WorkstreamSetupInput): string[] {
-	return workstreamSetupSteps(input).map(({ state, label, code, detail }) =>
-		[state, label, code, detail].filter(Boolean).join(' | '),
+	return workstreamSetupSteps(input).map(({ state, label, detail }) =>
+		[state, label, detail].filter(Boolean).join(' | '),
 	);
 }
 
 describe('workstream setup steps', () => {
-	it('shows the one step setup is on, with the clone percent, and where it stopped', () => {
+	it('makes a fresh copy while setup runs, with the clone percent, and says when it stopped', () => {
 		expect(labels({ ...settled, provisioning: provisioning({}) })).toEqual([
-			'busy | Cloning rabbits/hutch | 42%',
+			'busy | Making a fresh copy | 42%',
 		]);
 		expect(labels({ ...settled, provisioning: provisioning({ phase: 'syncing' }) })).toEqual([
-			'busy | Updating main from origin',
+			'busy | Making a fresh copy',
 		]);
 		expect(labels({ ...settled, provisioning: provisioning({ failure: 'clone died' }) })).toEqual([
-			'failed | Cloning rabbits/hutch | Did not finish',
+			'failed | Making a fresh copy | Did not finish',
 		]);
 	});
 
-	it('tells the branch, the commit it starts at, and the install once setup settles', () => {
-		const install = { workstreamId: plan.workstreamId, detail: null, noticeAt: 0 };
-		expect(labels(settled)).toEqual([
-			`done | Branch made from main | ${plan.branch}`,
-			'done | Starts at | e2eacb3 | feat: dig a second exit (#45)',
+	it('tells the copy, then what the dependency check found, never a branch or a command', () => {
+		const install = {
+			workstreamId: plan.workstreamId,
+			command: 'npm ci',
+			detail: null,
+			noticeAt: 0,
+		};
+		expect(labels(settled)).toEqual(['done | Made a fresh copy | Main won’t notice']);
+		expect(labels({ ...settled, install: { ...install, status: 'running' } })).toEqual([
+			'done | Made a fresh copy | Main won’t notice',
+			'busy | Checking dependencies',
 		]);
+		expect(labels({ ...settled, install: { ...install, status: 'installed' } })).toContain(
+			'done | Checked dependencies | All in place',
+		);
+		expect(labels({ ...settled, install: { ...install, status: 'none' } })).toContain(
+			'done | Checked dependencies | Nothing to install',
+		);
+		expect(labels({ ...settled, install: { ...install, status: 'unavailable' } })).toContain(
+			'skipped | Checked dependencies | No lockfile. Installed nothing',
+		);
 		expect(
-			labels({ ...settled, install: { ...install, status: 'running', command: 'pnpm install' } }),
-		).toContain('busy | Installing dependencies | pnpm install');
-		expect(
-			labels({ ...settled, install: { ...install, status: 'installed', command: 'pnpm install' } }),
-		).toContain('done | Dependencies installed | pnpm install');
-		expect(
-			labels({
-				...settled,
-				install: { ...install, status: 'failed', command: 'npm ci', detail: 'ENOENT' },
-			}),
-		).toContain('failed | Install failed | npm ci | ENOENT');
-		expect(
-			labels({ ...settled, install: { ...install, status: 'unavailable', command: null } }),
-		).toContain('skipped | Installed nothing | No lockfile to go on');
+			labels({ ...settled, install: { ...install, status: 'failed', detail: 'ENOENT' } }),
+		).toContain('failed | Install failed | ENOENT');
 	});
 
-	it('says a branch it did not make was picked up, and leaves out a head it has not read', () => {
-		expect(labels({ ...settled, branch: 'fix/burrow', head: null })).toEqual([
-			'done | Picked up your branch | fix/burrow',
-		]);
+	it('says a branch it did not make was picked up', () => {
+		expect(labels({ ...settled, branch: 'fix/burrow' })).toEqual(['done | Picked up your branch']);
 	});
 });

@@ -123,13 +123,14 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).toBe(sessions[0]?.id);
 		await expect(page.getByTestId('chat-agent-tab')).toHaveCount(1);
 		const setup = page.getByRole('list', { name: 'Workstream setup' });
-		const install = setup.getByRole('listitem').filter({ hasText: 'Installing dependencies' });
-		await expect(install).toContainText('npm ci', { timeout: 20_000 });
+		await expect(
+			setup.getByRole('listitem').filter({ hasText: 'Checking dependencies' }),
+		).toBeVisible({ timeout: 20_000 });
 		await expect(setup.getByRole('listitem').last()).toHaveText(
 			/^\s*Prompt from Planner\s*Sends once setup is done\s*$/u,
 		);
-		await expect(setup.getByText('Your turn')).toHaveCount(0);
-		await expect(page.getByRole('region', { name: 'Ways to start' })).toHaveCount(0);
+		await expect(page.getByRole('group', { name: /^Your turn/u })).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Ways to start' })).toHaveCount(0);
 		await captureFlow(app, 'agent-workstream-opened');
 
 		const transcript = page.getByTestId('transcript-pane');

@@ -7,7 +7,6 @@ import {
 	workstreamProvisioning,
 } from '$shared/repositories/infrastructure/aggregates/workstream-provisioning.aggregate.svelte';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
-import { workstreamHeadQuery } from '$shared/repositories/application/queries/workstream-head.query.svelte';
 
 export { workstreamSetupStepsQuery };
 
@@ -19,9 +18,7 @@ class WorkstreamSetupStepsQuery {
 			return workstreamSetupSteps({
 				workstreamId,
 				branch: workstream.branch,
-				baseBranch: workstream.baseBranch,
 				provisioning: workstreamProvisioning.get(workstreamId),
-				head: workstreamHeadQuery.data(workstreamId),
 				install: workstreamDependencyInstall.get(workstreamId),
 			});
 		},

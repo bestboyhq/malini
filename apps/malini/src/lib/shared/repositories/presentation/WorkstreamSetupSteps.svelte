@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { retryDependencyInstallCommand } from '$shared/repositories/application/commands/retry-dependency-install.command';
@@ -8,9 +9,10 @@
 
 	interface Props {
 		workstreamId: string;
+		children: Snippet;
 	}
 
-	let { workstreamId }: Props = $props();
+	let { workstreamId, children }: Props = $props();
 
 	const steps = $derived(workstreamSetupStepsQuery.data(workstreamId));
 	const settled = $derived(provisioningRecordQuery.data(workstreamId) === null);
@@ -18,11 +20,15 @@
 	const starterName = $derived(
 		startedBy ? (workstreamByIdQuery.data(startedBy)?.name ?? null) : null,
 	);
+	const yourTurn = $derived(settled && !startedBy);
 </script>
 
-<ol class="relative" aria-label="Workstream setup" data-testid="workstream-setup-steps">
+<ol class="relative pl-4.5" aria-label="Workstream setup" data-testid="workstream-setup-steps">
 	<span
-		class="border-surface-100-border absolute top-4 bottom-4 left-2.5 w-px -translate-x-1/2 border-l-[1px]"
+		class={[
+			'border-surface-100-border absolute top-4 left-7 w-px -translate-x-1/2 border-l-[1px]',
+			yourTurn ? '-bottom-5.5' : 'bottom-4',
+		]}
 		aria-hidden="true"
 	></span>
 	{#each steps as step (step.key)}
@@ -46,11 +52,7 @@
 				{/if}
 			</span>
 			<span class="shrink-0">{step.label}</span>
-			<span class="text-fg-tertiary min-w-0 flex-1 truncate">
-				{#if step.code}<code class="text-2xs font-mono">{step.code}</code>{/if}
-				{#if step.code && step.detail}<span aria-hidden="true">·</span>{/if}
-				{step.detail ?? ''}
-			</span>
+			<span class="text-fg-tertiary min-w-0 flex-1 truncate">{step.detail ?? ''}</span>
 			{#if step.key === 'install' && step.state === 'failed'}
 				<Button
 					variant="inherit"
@@ -74,21 +76,22 @@
 			<span class="min-w-0 truncate">Prompt from {starterName ?? 'the chat that started it'}</span>
 			<span class="text-fg-tertiary shrink-0">Sends once setup is done</span>
 		</li>
-	{:else if settled}
-		<li
-			class="text-fg-default relative flex h-8 items-center gap-2.5 text-sm font-medium"
-			data-step="your-turn"
-		>
-			<span
-				class="bg-surface-root grid size-5 shrink-0 place-items-center rounded-full"
-				aria-hidden="true"
-			>
+	{/if}
+</ol>
+{#if yourTurn}
+	<fieldset
+		class="border-surface-100-border mt-3 min-w-0 rounded-xl border-[0.5px] px-1.5 pt-0.5 pb-1.5"
+		data-testid="workstream-your-turn"
+	>
+		<legend class="text-fg-default ml-2 flex items-center gap-2.5 px-1 text-sm font-medium">
+			<span class="grid size-5 place-items-center" aria-hidden="true">
 				<span
 					class="size-2.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
 				></span>
 			</span>
 			Your turn
 			<span class="text-fg-tertiary font-normal">Agents are stretching</span>
-		</li>
-	{/if}
-</ol>
+		</legend>
+		{@render children()}
+	</fieldset>
+{/if}

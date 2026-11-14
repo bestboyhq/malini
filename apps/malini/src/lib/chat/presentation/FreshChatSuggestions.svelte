@@ -16,7 +16,7 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { WorkstreamAutomations } from '$lib/automations/automations.api';
 	import type { AgentRunMode } from '$shared/providers/providers.api';
-	import { WorkstreamSetupSteps, workstreamByIdQuery } from '$shared/repositories/repositories.api';
+	import { WorkstreamSetupSteps } from '$shared/repositories/repositories.api';
 
 	type Starter = Readonly<{
 		icon: IconName;
@@ -44,8 +44,6 @@
 	const plans = $derived(preparedPlansQuery.data(workstreamId));
 	const untouched = $derived(recentChats.length === 0);
 	const referencesFull = $derived(transcriptReferences.length >= MAX_AGENT_TRANSCRIPT_REFERENCES);
-	const baseBranch = $derived(workstreamByIdQuery.data(workstreamId)?.baseBranch ?? 'main');
-	const startedByAgent = $derived(workstreamByIdQuery.data(workstreamId)?.startedBy != null);
 	const starters: readonly Starter[] = [
 		{
 			icon: 'globe',
@@ -108,43 +106,35 @@
 	role="region"
 	aria-label="New agent chat. The next message starts a separate context."
 >
-	<div class="w-full max-w-xl text-left">
+	<div class="w-full max-w-[50rem] text-left">
 		{#if untouched}
-			<WorkstreamSetupSteps {workstreamId} />
-			{#if !startedByAgent}
-				<section class="mt-5" aria-label="Ways to start" data-testid="chat-starters">
-					<ul
-						class="border-surface-50-border bg-surface-50 divide-surface-50-border flex flex-col divide-y-[0.5px] overflow-hidden rounded-xl border-[0.5px]"
-					>
-						{#each starters as starter (starter.title)}
-							<li>
-								<Button
-									bare
-									class="group hover:bg-surface-100-hover focus-visible:bg-surface-100-hover flex h-11 w-full cursor-pointer items-center gap-2.5 px-3.5 text-left outline-none"
-									onclick={() => start(starter)}
+			<WorkstreamSetupSteps {workstreamId}>
+				<ul class="flex flex-col" aria-label="Ways to start" data-testid="chat-starters">
+					{#each starters as starter (starter.title)}
+						<li>
+							<Button
+								bare
+								class="group hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 text-left outline-none"
+								onclick={() => start(starter)}
+							>
+								<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
+									<Icon name={starter.icon} size={14} />
+								</span>
+								<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
+								<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
+									{starter.detail}
+								</span>
+								<span
+									class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+									aria-hidden="true"
 								>
-									<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
-										<Icon name={starter.icon} size={14} />
-									</span>
-									<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
-									<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
-										{starter.detail}
-									</span>
-									<span
-										class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-										aria-hidden="true"
-									>
-										<Icon name="arrow-right" size={13} />
-									</span>
-								</Button>
-							</li>
-						{/each}
-					</ul>
-					<p class="text-fg-tertiary mt-3 text-xs leading-5">
-						Own branch. Nothing reaches {baseBranch} until you merge
-					</p>
-				</section>
-			{/if}
+									<Icon name="arrow-right" size={13} />
+								</span>
+							</Button>
+						</li>
+					{/each}
+				</ul>
+			</WorkstreamSetupSteps>
 		{:else}
 			<p class="text-fg-secondary text-sm">Bring useful context with you</p>
 			<p class="text-fg-tertiary mt-1 text-xs leading-5">

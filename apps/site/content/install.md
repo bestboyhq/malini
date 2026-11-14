@@ -41,7 +41,7 @@ Malini opens on **What are we working on?**, with nothing to set up first.
 - **The GitHub CLI ships inside Malini.** You don't install it or run `gh auth login` yourself, and a `gh` you installed still comes first.
   If the bundled one cannot run, Malini downloads the same `gh` from GitHub on its own, checks it, and puts it in place.
 - **Usage stats.** The picker says that Malini shares usage stats, never your code or chats, and that you turn it off in Settings.
-- **Somewhere to start.** A new workstream opens on the steps Malini took to set it up, then **Your turn** and [Ways to start](/malini/docs/workstreams.md#before-the-first-message), such as **Run it in the browser** and **Plan a change with me**.
+- **Somewhere to start.** A new workstream opens on the steps Malini took to set it up, then [prompts to start from](/malini/docs/workstreams.md#before-the-first-message) under **Your turn**, such as **Run it in the browser** and **Plan a change with me**.
   Each one fills the composer with its prompt, for you to edit or send.
   The agent works on the workstream's own branch, so nothing reaches main until you merge.
 - **Sounds.** The first time an agent finishes, a note says what that sound means, and **Change sounds** opens Settings, Sounds.
