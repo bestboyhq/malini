@@ -214,18 +214,6 @@
 		};
 	}
 
-	function unfold(node: HTMLElement): TransitionConfig {
-		if (document.hidden) return {};
-		if (prefersReducedMotion()) return fadeOnly(160);
-		const width = node.offsetWidth;
-		const gap = Number.parseFloat(getComputedStyle(node.parentElement ?? node).columnGap) || 0;
-		return {
-			duration: 260,
-			easing: quartOut,
-			css: (t, u) => `width: ${t * width}px; margin-right: ${u * -gap}px; opacity: ${t};`,
-		};
-	}
-
 	function statusText(headline: GlobalTopBarStatusHeadline): string {
 		return headline.detail ? `${headline.label} · ${headline.detail}` : headline.label;
 	}
@@ -283,25 +271,43 @@
 	</Tooltip>
 {/snippet}
 
-{#snippet githubDisclosure(reference: string)}
-	<Tooltip content={githubRemoteFailure ?? githubDisclosureLabel} placement="bottom">
-		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__pill-part` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-		<button
-			bind:this={githubDisclosureElement}
-			type="button"
-			class="topbar-git__pill-part"
-			data-stale={githubRemoteFailure ? '' : undefined}
-			data-testid="global-topbar-github-status"
-			aria-label={githubRemoteFailure
-				? `${githubDisclosureLabel}, remote status is stale`
-				: githubDisclosureLabel}
-			aria-haspopup="dialog"
-			aria-expanded={githubPopoverOpen}
-			onclick={toggleGithubPopover}
+{#snippet githubDisclosure(label: string)}
+	<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__disclosure` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+	<button
+		bind:this={githubDisclosureElement}
+		type="button"
+		class="topbar-git__disclosure"
+		data-stale={githubRemoteFailure ? '' : undefined}
+		data-testid="global-topbar-github-status"
+		aria-label={[
+			label === githubStatus?.reference ? null : label,
+			githubDisclosureLabel,
+			githubRemoteFailure ? 'remote status is stale' : null,
+		]
+			.filter(Boolean)
+			.join(', ')}
+		aria-haspopup="dialog"
+		aria-expanded={githubPopoverOpen}
+		onclick={toggleGithubPopover}
+	>
+		<span class="topbar-git__label">{label}</span>
+	</button>
+{/snippet}
+
+{#snippet githubReference(reference: string, url: string | null)}
+	{#if url}
+		<a
+			href={url}
+			class="topbar-git__reference"
+			aria-label={`Open pull request ${reference} on GitHub`}
+			data-testid="global-topbar-github-reference"
+			onclick={closeGithubPopover}
 		>
 			{reference}
-		</button>
-	</Tooltip>
+		</a>
+	{:else}
+		<span class="topbar-git__reference">{reference}</span>
+	{/if}
 {/snippet}
 
 <nav
@@ -424,32 +430,13 @@
 				data-testid="global-topbar-github"
 			>
 				{#key githubOwner}
-					{#if githubStatus?.reference}
-						<div class="topbar-git__pill" transition:unfold>
-							{@render githubDisclosure(githubStatus.reference)}
-							{#if githubStatus.url}
-								{@const url = githubStatus.url}
-								<Tooltip content="Open on GitHub" placement="bottom">
-									<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__pill-part` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-									<button
-										type="button"
-										class="topbar-git__pill-part topbar-git__pill-link"
-										aria-label={`Open pull request ${githubStatus.reference} on GitHub`}
-										data-testid="global-topbar-github-reference"
-										onclick={() => openPullRequestUrl(url)}
-									>
-										<Icon name="external-link" size={12} />
-									</button>
-								</Tooltip>
-							{/if}
-						</div>
-					{/if}
 					{#if githubHeadline}
 						{@const text = statusText(githubHeadline)}
+						{@const reference = githubStatus?.reference ?? null}
 						<Tooltip
-							content={githubHeadline.tooltip ?? text}
+							content={githubRemoteFailure ?? githubHeadline.tooltip ?? text}
 							placement="bottom"
-							onlyWhenTruncated={!githubHeadline.tooltip}
+							onlyWhenTruncated={!githubRemoteFailure && !githubHeadline.tooltip}
 							class="min-w-0 flex-1"
 						>
 							<span
@@ -465,12 +452,26 @@
 											<BusyIcon size={12} />
 										{/if}
 										<span class="topbar-git__text">
-											<span class="topbar-git__label">{githubHeadline.label}</span>
-											{#if githubHeadline.detail}
-												<span class="topbar-git__detail">
-													{#key githubHeadline.detail}
-														<span in:textIn out:textOut>{githubHeadline.detail}</span>
-													{/key}
+											{#if reference}
+												{@render githubDisclosure(githubHeadline.label)}
+											{:else}
+												<span class="topbar-git__label">{githubHeadline.label}</span>
+											{/if}
+											{#if reference || githubHeadline.detail}
+												<span class="topbar-git__meta">
+													{#if reference}
+														{@render githubReference(reference, githubStatus?.url ?? null)}
+													{/if}
+													{#if reference && githubHeadline.detail}
+														<span aria-hidden="true">·</span>
+													{/if}
+													{#if githubHeadline.detail}
+														<span class="topbar-git__detail">
+															{#key githubHeadline.detail}
+																<span in:textIn out:textOut>{githubHeadline.detail}</span>
+															{/key}
+														</span>
+													{/if}
 												</span>
 											{/if}
 										</span>
@@ -478,6 +479,10 @@
 								{/key}
 							</span>
 						</Tooltip>
+					{:else if githubStatus?.reference}
+						<span class="topbar-git__line">
+							{@render githubDisclosure(githubStatus.reference)}
+						</span>
 					{/if}
 					{#if githubPrimary || githubSecondary}
 						<span class="topbar-git__action-slot" in:actionIn out:actionOut>
@@ -1004,44 +1009,6 @@
 		margin-right: 6px;
 	}
 
-	.topbar-git__pill {
-		display: flex;
-		height: var(--topbar-control-height);
-		flex-shrink: 0;
-		overflow: hidden;
-		border: 0.5px solid var(--zone-edge);
-		border-radius: var(--topbar-control-radius);
-		font-size: var(--text-2xs);
-		font-weight: 500;
-		font-variant-numeric: tabular-nums;
-		color: var(--zone-ink);
-	}
-
-	.topbar-git__pill-part {
-		display: inline-flex;
-		cursor: pointer;
-		align-items: center;
-		border: 0;
-		background: transparent;
-		padding: 0 8px;
-		color: inherit;
-	}
-
-	.topbar-git__pill-part:hover,
-	.topbar-git__pill-part[aria-expanded='true'] {
-		background: var(--zone-hover);
-	}
-
-	.topbar-git__pill-part:focus-visible {
-		outline: 2px solid color-mix(in srgb, var(--color-button-primary) 40%, transparent);
-		outline-offset: -2px;
-	}
-
-	.topbar-git__pill-link {
-		border-left: 0.5px solid var(--zone-edge);
-		padding: 0 6px;
-	}
-
 	.topbar-git__status,
 	.topbar-git__detail {
 		display: grid;
@@ -1086,7 +1053,8 @@
 		flex-wrap: wrap;
 		align-content: flex-start;
 		column-gap: 6px;
-		overflow: hidden;
+		overflow: clip;
+		overflow-clip-margin: 4px;
 	}
 
 	.topbar-git__label,
@@ -1100,13 +1068,67 @@
 		font-weight: 500;
 	}
 
-	.topbar-git__detail {
+	.topbar-git__disclosure {
+		display: flex;
+		min-width: 0;
+		cursor: pointer;
+		margin: -2px -4px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		padding: 2px 4px;
+		text-align: left;
+		color: inherit;
+	}
+
+	.topbar-git__disclosure:hover,
+	.topbar-git__disclosure[aria-expanded='true'] {
+		background: var(--zone-hover);
+	}
+
+	.topbar-git__disclosure:focus-visible,
+	.topbar-git__reference:focus-visible {
+		outline: 2px solid color-mix(in srgb, var(--color-button-primary) 40%, transparent);
+		outline-offset: -2px;
+	}
+
+	.topbar-git__reference:focus-visible {
+		outline-offset: 1px;
+	}
+
+	.topbar-git__disclosure[data-stale] {
+		padding-right: 10px;
+	}
+
+	.topbar-git .topbar-git__disclosure[data-stale]::after {
+		top: 2px;
+		right: 2px;
+	}
+
+	.topbar-git__meta {
+		display: flex;
+		min-width: 0;
 		flex: 0 1 auto;
+		gap: 4px;
 		color: color-mix(in srgb, var(--zone-ink) 64%, transparent);
 	}
 
-	.topbar-git[data-zone='asks'] .topbar-git__detail {
+	.topbar-git[data-zone='asks'] .topbar-git__meta {
 		color: var(--color-brand-foreground);
+	}
+
+	.topbar-git__reference {
+		flex-shrink: 0;
+		border-radius: 2px;
+		color: inherit;
+		font-variant-numeric: tabular-nums;
+		text-decoration: none;
+		text-underline-offset: 2px;
+	}
+
+	a.topbar-git__reference:hover {
+		color: var(--zone-ink);
+		text-decoration: underline;
 	}
 
 	.topbar-git__action-slot {

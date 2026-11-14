@@ -150,6 +150,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 
 - **Draft** opens a draft pull request.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
+  From then on, the top bar puts its number after the status, such as **Checks running #203 · 2 of 5 pending**: the number opens it on GitHub, and the status opens its checks, review and notes.
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the branch or the files changed, never your prompt, the chat's name or the agent's reply.
   An [automation](/malini/docs/automations.md)'s edits commit under the `Commit:` line its agent ended with, but that line never titles the pull request; **Fix checks** and **Address review** fall back to "Fix failing checks" and "Address review feedback" only when their agent wrote none, and a merge keeps its merge message.
   While **Sign contributions** is on, the description ends with **🧑‍🍳 Cooked with Malini**, which opens into a table: **Chef** links your [Bestboy profile](/malini/docs/profile.md) once it is public, and your GitHub profile until then, **Kitchen** counts the agents that worked in the workstream, and **Dishes** says who did them.
@@ -201,8 +202,8 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, your GitHub sign-in expired, or a git operation stopped part-way.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own: when GitHub shows a change, its branch moves, a turn in the chat ends, a git operation you aborted or finished leaves the checkout, or a retry comes due.
-  There is no **Retry** in the top bar for these, because a retry without the details does nothing new; **Retry now** shows only beside a failure whose reason is on screen.
-  When a fix gave up, **Open automation** shows that automation's chat and why the merge stopped, with **Retry merge**, which queues it again.
+  There is no **Retry** in the top bar for these, because a retry without the details does nothing new; **Retry** shows only beside a failure whose reason is on screen.
+  When a fix gave up, **See why** shows that automation's chat and why the merge stopped, with **Retry merge**, which queues it again.
 - **A limit doesn't stop it.** A fix automation whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.

@@ -1,6 +1,38 @@
 import { expect, test } from '@playwright/test';
-import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
+import {
+	captureFlow,
+	expectCleanConsole,
+	launchMalini,
+	openedUrls,
+	openWorkstream,
+	recordBrowser,
+} from './harness';
 import { openPullRequestDetail, seedWorkstreamOnFakeGithub } from './fake-github';
+
+test('the pull request number in the top bar opens it on GitHub', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = await seedWorkstreamOnFakeGithub(app, 'e2e-number', {
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+		});
+		await recordBrowser(app);
+		await openWorkstream(page, 'e2e-number');
+		const number = page
+			.getByRole('navigation', { name: 'Global actions' })
+			.getByRole('link', { name: 'Open pull request #7 on GitHub' });
+		await expect(number).toHaveText('#7', { timeout: 30_000 });
+
+		await number.click();
+
+		await expect.poll(() => openedUrls(app)).toEqual(['https://github.com/e2e/hutch/pull/7']);
+		await expect(page.getByRole('dialog', { name: 'Pull request #7 detail' })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
 
 test('the pull request detail is a labelled dialog that Escape leaves', async () => {
 	test.setTimeout(120_000);

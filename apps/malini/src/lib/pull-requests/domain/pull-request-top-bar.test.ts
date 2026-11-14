@@ -554,7 +554,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Fix gave up',
 				detail: null,
-				action: 'Open automation',
+				action: 'See why',
 			},
 		],
 		[
@@ -606,7 +606,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Rebase stopped part-way',
 				detail: null,
-				action: 'Abort rebase',
+				action: 'Abort',
 			},
 		],
 		[
@@ -619,7 +619,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Rebase stopped part-way',
 				detail: null,
-				action: 'Abort rebase',
+				action: 'Abort',
 			},
 		],
 		[
@@ -632,7 +632,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Merge has conflicts',
 				detail: null,
-				action: 'Abort merge',
+				action: 'Abort',
 			},
 		],
 		[
@@ -781,7 +781,7 @@ describe('the workstream status', () => {
 		});
 		expect(status(null, surface({ operationInProgress: 'cherry-pick' }))?.action).toMatchObject({
 			kind: 'abort-operation',
-			label: 'Abort cherry-pick',
+			label: 'Abort',
 			confirmLabel: 'Confirm abort',
 		});
 	});
@@ -944,7 +944,7 @@ describe('the workstream status', () => {
 		});
 	});
 
-	it('names what failed and since when while malini retries it, with Retry now', () => {
+	it('names what failed and since when while malini retries it, with Retry', () => {
 		const retrying = {
 			lastError: "Couldn't reach github.com.",
 			failures: 5,
@@ -961,7 +961,7 @@ describe('the workstream status', () => {
 			tooltip: "Couldn't reach github.com.",
 			action: {
 				kind: 'retry-now',
-				label: 'Retry now',
+				label: 'Retry',
 				ariaLabel: 'Retry now instead of waiting',
 				tone: 'primary',
 				confirmLabel: null,
