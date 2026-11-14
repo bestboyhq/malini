@@ -29,6 +29,9 @@ import { logdashUserId, startUsageData, type UsageActivity } from './usage-data'
 
 const NOW = new Date(2026, 9, 15, 10);
 
+const INSTALL_ID = 'usage-data.install-id';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 const LATER_DAY = { week_first: 'yes', month_first: 'yes', age: 'later' };
 const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1' };
 
@@ -284,7 +287,7 @@ describe('usage data', () => {
 		expect(reports).toEqual([]);
 	});
 
-	it('carries the account when lent one, no id otherwise, and nothing once sharing is off', async () => {
+	it('carries the account when lent one, this install id otherwise, and nothing once sharing is off', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		seedLoop(context.db);
 		let lent: UsageAccount = { state: 'accepted', userId: 'u1' };
@@ -298,11 +301,13 @@ describe('usage data', () => {
 		expect(activity).toEqual(['app_active', 'day']);
 		expect(reports).toHaveLength(1);
 		expect(accounts).toEqual(['u1', 'u1', 'u1']);
+		expect(getSetting(context.db, INSTALL_ID)).toBeNull();
 
 		lent = { state: 'anonymous' };
 		finishRun(context, 'run.completed');
 		await settled();
-		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
+		const install = `install:${getSetting(context.db, INSTALL_ID)}`;
+		expect(accounts).toEqual(['u1', 'u1', 'u1', install]);
 
 		setSetting(context.db, USAGE_DATA_SETTING, 'off');
 		lent = { state: 'accepted', userId: 'u1' };
@@ -311,9 +316,40 @@ describe('usage data', () => {
 		publishProfile(context);
 		throwUncaught(new TypeError('x is undefined'));
 		await settled();
-		expect(accounts).toEqual(['u1', 'u1', 'u1', null]);
+		expect(accounts).toEqual(['u1', 'u1', 'u1', install]);
 		expect(errors).toEqual([]);
 		expect(asked).toBe(askedBefore);
+	});
+
+	it('carries one install id signed out across launches, none on stats_off, and a new one after', async () => {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		seedLoop(context.db);
+		const first = harness(context);
+		first.start();
+		await settled();
+		const id = getSetting(context.db, INSTALL_ID);
+		expect(id).toMatch(UUID);
+		expect(first.activity).toEqual(['app_active', 'day']);
+		expect(first.reports).toHaveLength(1);
+
+		const second = harness(context, undefined, { now: () => new Date(2026, 9, 16, 10) });
+		await settled();
+		expect(second.activity).toEqual(['app_active', 'day']);
+		expect(new Set([...first.accounts, ...second.accounts])).toEqual(new Set([`install:${id}`]));
+
+		second.share(false);
+		await settled();
+		expect(second.activity.at(-1)).toBe('stats_off');
+		expect(second.accounts.at(-1)).toBeNull();
+		expect(getSetting(context.db, INSTALL_ID)).toBeNull();
+
+		second.share(true);
+		finishRun(context, 'run.completed');
+		await settled();
+		const next = getSetting(context.db, INSTALL_ID);
+		expect(next).toMatch(UUID);
+		expect(next).not.toBe(id);
+		expect(second.accounts.at(-1)).toBe(`install:${next}`);
 	});
 
 	it('says once that usage stats went off, with no id, and nothing after', async () => {
@@ -355,6 +391,7 @@ describe('usage data', () => {
 		await failCommand(context, new Error('disk gone'));
 		await settled();
 		expect([...activity, ...reports, ...errors]).toEqual([]);
+		expect(getSetting(context.db, INSTALL_ID)).toBeNull();
 	});
 });
 
@@ -563,7 +600,7 @@ describe('usage journeys', () => {
 	});
 });
 
-describe('usage days and months', () => {
+describe('usage days', () => {
 	it('marks each local day once with the week and month it starts', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		let clock = NOW;
@@ -597,51 +634,11 @@ describe('usage days and months', () => {
 		clock = new Date(2026, 10, 1, 9);
 		const november = harness(context, undefined, { now: () => clock });
 		await settled();
-		expect(november.activity).toEqual(['app_active', 'returned_month_1', 'month', 'day']);
+		expect(november.activity).toEqual(['app_active', 'returned_month_1', 'day']);
 		expect(november.tags[november.activity.indexOf('day')]).toEqual({
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'month_1',
-		});
-	});
-
-	it('reports the last active month once, with its active days, then forgets them', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		let clock = NOW;
-		const firstDay = harness(context, undefined, { freshInstall: true, now: () => clock });
-		await settled();
-		expect(firstDay.activity).toEqual(['app_active', 'first_open', 'day']);
-
-		clock = new Date(2026, 9, 16, 9);
-		harness(context, undefined, { now: () => clock });
-		await settled();
-
-		clock = new Date(2026, 10, 1, 9);
-		const november = harness(context, undefined, { now: () => clock });
-		await settled();
-		expect(november.activity).toEqual(['app_active', 'returned_month_1', 'month', 'day']);
-		expect(november.tags[november.activity.indexOf('month')]).toEqual({
-			month: '2026-10',
-			active_days: 2,
-		});
-		expect(getSetting(context.db, 'usage-data.active-days')).toBe('["2026-11-01"]');
-
-		const again = harness(context, undefined, { now: () => clock });
-		await settled();
-		expect(again.activity).toEqual(['app_active']);
-
-		clock = new Date(2026, 10, 2, 9);
-		const nextDay = harness(context, undefined, { now: () => clock });
-		await settled();
-		expect(nextDay.activity).toEqual(['app_active', 'day']);
-
-		clock = new Date(2026, 11, 1, 9);
-		const december = harness(context, undefined, { now: () => clock });
-		await settled();
-		expect(december.activity).toEqual(['app_active', 'month', 'day']);
-		expect(december.tags[december.activity.indexOf('month')]).toEqual({
-			month: '2026-11',
-			active_days: 2,
 		});
 	});
 
@@ -666,9 +663,7 @@ describe('usage days and months', () => {
 		});
 
 		await dayTags(launch(new Date(2026, 9, 29, 9)));
-		const november = launch(new Date(2026, 10, 1, 9), (name) => name !== 'day');
-		await settled();
-		expect(november.activity).toContain('month');
+		await dayTags(launch(new Date(2026, 10, 1, 9), (name) => name !== 'day'));
 		expect(await dayTags(launch(new Date(2026, 10, 1, 10)))).toEqual({
 			week_first: 'no',
 			month_first: 'yes',
@@ -679,24 +674,6 @@ describe('usage days and months', () => {
 			week_first: 'no',
 			month_first: 'yes',
 		});
-	});
-
-	it('keeps a month a failed post did not deliver, with its days', async () => {
-		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
-		let clock = NOW;
-		harness(context, undefined, { freshInstall: true, now: () => clock });
-		await settled();
-
-		clock = new Date(2026, 10, 1, 9);
-		harness(context, undefined, { now: () => clock, delivered: (name) => name !== 'month' });
-		await settled();
-		expect(getSetting(context.db, 'usage-data.active-days')).toBe('["2026-10-15","2026-11-01"]');
-
-		clock = new Date(2026, 10, 2, 9);
-		const back = harness(context, undefined, { now: () => clock });
-		await settled();
-		expect(back.tags[back.activity.indexOf('month')]).toEqual({ month: '2026-10', active_days: 1 });
-		expect(getSetting(context.db, 'usage-data.active-days')).toBe('["2026-11-01","2026-11-02"]');
 	});
 
 	it('ages an existing install from its earliest project', async () => {
@@ -826,6 +803,33 @@ describe('the Logdash sink', () => {
 			'malini_desktop_day',
 			'malini_desktop_first_open',
 			'malini_desktop_day',
+		]);
+		context.db.close();
+	});
+
+	it('posts signed-out counts with the hash of this install id, and stats_off with none', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		fetchMock.mockClear();
+		fetchMock.mockImplementation(() => Promise.resolve(new Response('{}')));
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			hooks: noHooks,
+			processGone: () => undefined,
+			now: () => NOW,
+			system: 'malini 1.0.0',
+		});
+		await settled();
+		const install = `install:${getSetting(context.db, INSTALL_ID)}`;
+		usageData.share(false);
+		await usageData.shutdown();
+		const events = fetchMock.mock.calls.map(
+			([, init]) =>
+				(JSON.parse(String(init.body)) as { events: Array<Record<string, unknown>> }).events[0],
+		);
+		expect(events.map((event) => [event?.['name'], event?.['userId']])).toEqual([
+			['malini_desktop_app_active', logdashUserId('malini-site', install)],
+			['malini_desktop_day', logdashUserId('malini-site', install)],
+			['malini_desktop_stats_off', undefined],
 		]);
 		context.db.close();
 	});

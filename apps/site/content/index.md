@@ -45,16 +45,16 @@ For a new install, it marks each first step once: the first open, the first repo
 Each mark says the day you first opened Malini and how many days have passed.
 When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.
 For a failure it adds the step that failed and the name of the error, never the message.
-On the first launch of a new month, it also sends how many days Malini ran in the last month you used it.
 While you are signed in to Bestboy and have accepted its current Terms and Privacy Policy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
-Signed out, a count carries no id, and signed in on terms you have not accepted, Malini sends no usage data at all.
+Signed out, or signed in on terms you have not accepted, each count carries a random ID made for this install instead, also as a hash, so we can count the days Malini is used.
+That ID is not linked to you, your Mac or your account, and turning the switch off deletes it, so turning it back on starts a new one.
 Once you answer where you heard about Malini, after your first merge, each count carries the option you picked, never the words you typed for somewhere else.
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
 Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
 It never contains your code, what your prompts say, paths, keys, or error messages, and Logdash stores no IP address.
 **What are we working on?** says so.
 Turn it off under Settings, Privacy, **Share usage stats**, or set `DO_NOT_TRACK=1` in your shell.
-Turning the switch off sends one last count that says so, with no account and nothing else, so we know how many people the numbers leave out; after that, nothing.
+Turning the switch off sends one last count that says so, with no account, no ID and nothing else, so we know how many people the numbers leave out; after that, nothing.
 
 **Help and feedback** at the bottom of the sidebar holds **Report a problem**, which files an issue on [bestboyhq/malini](https://github.com/bestboyhq/malini/issues) through your GitHub CLI, under your own GitHub account.
 The issue is public, so anyone can read it, and you can follow up on it on GitHub.
