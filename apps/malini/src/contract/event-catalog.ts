@@ -72,7 +72,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'chat:turn-finished': {
 		description:
-			"Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended. A turn that Malini quitting, an agent restart or a reset cut short ends `interrupted`, not `failed`, so `where status is failed` skips it.",
+			"Fires when a turn of one of your chats ends, not an automation's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends with its report while only background commands run, such as a dev server, fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended. A turn that ends without its report while a command it started runs, such as a test suite the agent waits for, fires nothing until the agent goes on and ends, and a prompt sent during that wait carries the turn, so only its run fires. A turn that Malini quitting, an agent restart or a reset cut short ends `interrupted`, not `failed`, so `where status is failed` skips it.",
 		facts: ['workstreamId', 'sessionId', 'runId', 'status'],
 	},
 	'chat:delivery-changed': {

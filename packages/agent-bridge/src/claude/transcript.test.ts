@@ -77,8 +77,10 @@ function replayAnswered(messages: readonly SDKMessage[]): ReturnType<typeof repl
 	return { events, transcript };
 }
 
-function turnEvents(events: readonly AgentEvent[]): AgentEvent[] {
-	return events.filter(({ type }) => type.startsWith('turn.'));
+type TurnEvent = Extract<AgentEvent, { type: `turn.${string}` }>;
+
+function turnEvents(events: readonly AgentEvent[]): TurnEvent[] {
+	return events.filter((event): event is TurnEvent => event.type.startsWith('turn.'));
 }
 
 function summaries(events: readonly AgentEvent[]): (string | undefined)[] {
@@ -695,6 +697,38 @@ describe('ClaudeTranscript', () => {
 			{ type: 'turn.ended', runId: 'run-2' },
 		]);
 		expect(summaries(events)).toEqual([REPORT, 'Port 5173.']);
+	});
+
+	it('keeps waiting through a prompt sent during the wait, until a turn reports', () => {
+		const messages = recordedMessages('backgroundCommand');
+		const firstIdle = messages.findIndex(
+			(message) =>
+				message.type === 'system' &&
+				message.subtype === 'session_state_changed' &&
+				message.state === 'idle',
+		);
+		const [running] = messages;
+		const result = messages.find(isSuccess);
+		const idle = messages[firstIdle];
+		if (!running || !result || !idle) throw new Error('no turn to replay');
+		const { events, transcript } = replayAnswered(messages.slice(0, firstIdle + 1));
+
+		transcript.handOff('run-2');
+		answer(transcript, [running, { ...result, result: 'Yes, it still runs.' }, idle]);
+
+		expect(turnEvents(events).filter(({ runId }) => runId === 'run-2')).toEqual([
+			{ type: 'turn.answered', runId: 'run-2' },
+		]);
+		expect(transcript.waiting).toBe(true);
+
+		answer(transcript, [running, { ...result, result: REPORT }, idle]);
+
+		expect(turnEvents(events).filter(({ runId }) => runId === 'run-2')).toEqual([
+			{ type: 'turn.answered', runId: 'run-2' },
+			{ type: 'turn.answered', runId: 'run-2' },
+			{ type: 'turn.ended', runId: 'run-2' },
+		]);
+		expect(summaries(events)).toEqual([REPORT]);
 	});
 
 	it('keeps waiting when the awaited command ends before Claude Code goes on, beside a server an earlier turn left running', () => {

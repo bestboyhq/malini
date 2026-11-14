@@ -796,6 +796,33 @@ const goesOnAfterBackgroundCommand = (sessionId, runId) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
 };
+const waitsOnItsCommandRun = (sessionId, runId) => {
+	startBackgroundCommand(sessionId, runId);
+	const { startedAt } = backgroundCommands.get(sessionId);
+	pendingRuns.set(runId, sessionId);
+	const reply = 'The e2e suite runs. I wait for it.';
+	event({ type: 'assistant.message', runId, contentId: 'reply-' + runId, text: reply });
+	event({ type: 'turn.answered', runId });
+	event({
+		type: 'background.updated',
+		runId,
+		waiting: true,
+		tasks: [backgroundCommandTask(startedAt)],
+	});
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!released(BACKGROUND_COMMAND_ENDS)) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		backgroundCommands.delete(sessionId);
+		event({ type: 'background.updated', runId, waiting: false, tasks: [] });
+		const report = 'The suite printed suite-done.\n\nOutcome: The e2e suite passes\nNeeds: nothing';
+		event({ type: 'assistant.message', runId, contentId: 'report-' + runId, text: report });
+		event({ type: 'turn.answered', runId });
+		event({ type: 'run.completed', runId, summary: report });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+	}, 50);
+};
 const busyBackgroundCommandRun = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	pendingRuns.set(runId, sessionId);
@@ -1357,6 +1384,7 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	if (prompt.includes('BACKGROUND_GOES_ON')) return goesOnAfterBackgroundCommand(sessionId, runId);
 	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
+	if (prompt.includes('BACKGROUND_WAIT')) return waitsOnItsCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}

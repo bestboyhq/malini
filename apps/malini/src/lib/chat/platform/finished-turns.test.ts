@@ -165,6 +165,33 @@ describe('FinishedTurns', () => {
 		expect(after('chat', 'run-2', { type: 'run.completed', summary: 'Stopped CI.' })).toBeNull();
 	});
 
+	it('stays quiet for a run a prompt takes over while its agent waits, and tells of the run that carries the turn', () => {
+		const suite = [{ taskId: 'e2e', kind: 'command', description: 'E2E suite', startedAt: 1 }];
+		expect(
+			after('chat', 'run-1', { type: 'background.updated', waiting: true, tasks: suite }),
+		).toBeNull();
+		expect(
+			after('chat', 'run-1', {
+				type: 'background.updated',
+				waiting: false,
+				tasks: [],
+				handedOff: true,
+			}),
+		).toBeNull();
+		expect(
+			after('chat', 'run-1', {
+				type: 'run.completed',
+				summary: 'The suite runs. I report when it ends.',
+				handedOff: true,
+			}),
+		).toBeNull();
+		expect(after('chat', 'run-2', { type: 'run.completed', summary: REPORT })).toMatchObject({
+			runId: 'run-2',
+			outcome: 'The endpoint answers',
+			backgroundCommands: null,
+		});
+	});
+
 	it('stays quiet for automation sessions, for turns Malini paused to quit, and mid-turn', () => {
 		expect(after('automation', 'run-1', { type: 'run.completed', summary: REPORT })).toBeNull();
 		expect(after('chat', 'run-2', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR })).toBeNull();
