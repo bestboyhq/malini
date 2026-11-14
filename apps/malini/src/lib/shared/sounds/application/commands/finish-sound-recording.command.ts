@@ -32,7 +32,7 @@ async function keepRecording(signal: SoundSignal, recording: Blob): Promise<void
 	} catch (error) {
 		toast.error(couldNotKeep(error), {
 			ttlMs: null,
-			action: { label: 'Try again', onclick: () => void keepRecording(signal, recording) },
+			actions: [{ label: 'Try again', onclick: () => void keepRecording(signal, recording) }],
 		});
 	}
 }

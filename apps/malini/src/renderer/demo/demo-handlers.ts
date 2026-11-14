@@ -311,6 +311,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'app.full-screen': () => false,
 	'app.update-status': () => ({ state: 'idle' }),
 	'app.close-guard': () => undefined,
+	'app.unread-chats': () => undefined,
 	'app.report-toast': () => ({ path: '', persistedAt: NOW, sizeBytes: 0, rotated: false }),
 	'app.report-renderer-error': () => ({
 		path: '',

@@ -13,6 +13,7 @@ import type {
 	SetSecretArgs,
 	SetThemeModeArgs,
 	ThemeMode,
+	UnreadChatsArgs,
 } from '$contract/commands';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import { APP_STARTED_CHANNEL } from '$contract/events';
@@ -202,13 +203,21 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));
 	commands.define('app.take-notification-target', () => window.takeNotificationTarget());
 	commands.define('app.take-menu-command', () => window.takeMenuCommand());
-	host.showTray(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'), [
-		{ label: 'Open Folder…', click: () => window.chooseMenuCommand('open-folder') },
-		{ label: 'Find Repository…', click: () => window.chooseMenuCommand('find-repository') },
-		{ type: 'separator' },
-		{ label: 'Accounts…', click: () => window.chooseMenuCommand('accounts') },
-		{ label: 'Settings…', click: () => window.chooseMenuCommand('settings') },
-	]);
+	host.showTray(
+		join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'),
+		[
+			{ label: 'Open Folder…', click: () => window.chooseMenuCommand('open-folder') },
+			{ label: 'Find Repository…', click: () => window.chooseMenuCommand('find-repository') },
+			{ type: 'separator' },
+			{ label: 'Accounts…', click: () => window.chooseMenuCommand('accounts') },
+			{ label: 'Settings…', click: () => window.chooseMenuCommand('settings') },
+		],
+		() => window.focusMainWindow(),
+	);
+	commands.define('app.unread-chats', (args: UnreadChatsArgs) =>
+		host.showTrayCount(unreadCount(args?.count)),
+	);
+	host.onWindowCreated((created) => created.on('closed', () => host.showTrayCount(0)));
 	commands.define('app.notification-permission-granted', () =>
 		window.isNotificationPermissionGranted(),
 	);
@@ -275,6 +284,13 @@ function recentDiagnosticsLimit(requested: unknown): number {
 		throw new Error('invalid args: `limit` must be a positive integer');
 	}
 	return Math.min(requested, MAX_RECENT_DIAGNOSTICS);
+}
+
+function unreadCount(count: unknown): number {
+	if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+		throw new Error('invalid args: `count` must be a whole number, 0 or more');
+	}
+	return count;
 }
 
 function requireString(args: unknown, key: string): string {
