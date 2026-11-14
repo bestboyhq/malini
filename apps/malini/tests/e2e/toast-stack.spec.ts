@@ -111,7 +111,7 @@ async function show(
 			globalThis.toast.info(message, {
 				ttlMs,
 				...(id === undefined ? {} : { id }),
-				...(undo ? { action: { label: 'Undo', onclick: () => undefined } } : {}),
+				...(undo ? { actions: [{ label: 'Undo', onclick: () => undefined }] } : {}),
 			});
 		},
 		{ message, id, undo, ttlMs },
