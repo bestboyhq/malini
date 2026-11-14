@@ -579,7 +579,7 @@ test('a rebase stopped part-way needs you, and Abort rebase takes a confirming c
 		await git(worktree, [...AUTHOR, 'rebase', 'main']).catch(() => undefined);
 		expect(await output(worktree, ['status'])).toContain('rebase');
 		await openWorkstream(page, 'e2e-abort-rebase');
-		await expect(topBarStatus(page, 'Rebase stopped part-way')).toBeVisible({
+		await expect(topBarStatus(page, 'Rebase stuck')).toBeVisible({
 			timeout: 30_000,
 		});
 
