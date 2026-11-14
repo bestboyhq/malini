@@ -48,8 +48,9 @@ Whatever closes that run later, stopping it, quitting, a crash, merging main int
 
 Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
 When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat shows the reason with a **Paused until** strip under it that says the time.
+The reason names the chat's provider, such as Claude or DeepSeek, and so do the divider and the error below.
 
-- A usage limit on your Claude plan waits until the limit resets.
+- A usage limit on your plan waits until the limit resets.
 - A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
 - An error Malini does not recognize tries again once, after a minute.
 

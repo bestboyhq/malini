@@ -52,6 +52,7 @@ export type TranscriptContext = {
 	copyErrorText(key: string, error: string): void;
 	readonly expandedActivityGroups: Record<string, boolean>;
 	readonly implementationModelLabel: string;
+	readonly providerName: string;
 	readonly latestImplementablePlanKey: string | null;
 	readonly implementingPlanKey: string | null;
 	implementPlan(runId: string, itemKey: string, plan: string): void;
