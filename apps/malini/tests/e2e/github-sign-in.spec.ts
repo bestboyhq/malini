@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
@@ -69,7 +70,10 @@ test('the picker signs in to GitHub with a one-time code, without a terminal, th
 test('a missing GitHub CLI and Claude Code install on their own at launch, and each says why it failed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
-		env: { MALINI_GH_PATH: '/usr/bin:/bin', FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
+		env: {
+			MALINI_GH_PATH: join(tmpdir(), 'malini-e2e-no-gh'),
+			FAKE_BRIDGE_CLAUDE_STATE: 'missing',
+		},
 		allowedDiagnostics: [
 			/repositories\.install-github-cli GhInstallError/u,
 			/providers\.install-claude-code ClaudeInstallError/u,

@@ -1,5 +1,3 @@
-import { rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -7,16 +5,15 @@ import {
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
+	finishTurnWithHeldSnapshot,
 	launchMalini,
 	listEvents,
 	listSessions,
 	openWorkstream,
-	REAL_GIT,
 	seedTwoChats,
 	seedWorkstream,
 	selectChat,
 	sendPrompt,
-	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 
@@ -297,30 +294,4 @@ async function userMessages(page: Page, sessionId: string): Promise<string[]> {
 	return (await listEvents(page, sessionId)).flatMap(({ event }) =>
 		event.type === 'user.message' ? [String(event['text'])] : [],
 	);
-}
-
-async function finishTurnWithHeldSnapshot(app: LaunchedApp, prompt: string): Promise<() => void> {
-	const heldRuns = join(app.home, 'hold-agent-runs');
-	writeFileSync(heldRuns, '');
-	await sendPrompt(app.page, prompt);
-	await expect(app.page.getByTestId('chat-composer-submit')).toHaveAccessibleName(
-		'Stop current run',
-	);
-	const releaseSnapshots = holdRunSnapshots(app);
-	rmSync(heldRuns);
-	return releaseSnapshots;
-}
-
-function holdRunSnapshots(app: LaunchedApp): () => void {
-	const gate = join(app.root, 'hold-run-snapshots');
-	const stub = join(app.bin, 'git');
-	writeFileSync(gate, '');
-	writeExecutable(
-		stub,
-		`#!/bin/sh
-case "$*" in *commit-tree*"malini run snapshot"*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac
-exec '${REAL_GIT}' "$@"
-`,
-	);
-	return () => rmSync(gate, { force: true });
 }

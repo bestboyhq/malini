@@ -44,11 +44,6 @@ export function showImages(
 	}
 }
 
-export function workstreamImageFilePath(root: string | null, path: string): string {
-	if (root === null || path.startsWith('/')) return path;
-	return `${root.replace(/\/+$/u, '')}/${path.replace(/^(?:\.\/)+/u, '')}`;
-}
-
 export const GALLERY_IMAGE_ATTRIBUTE = 'data-gallery-image';
 
 export type GalleryMedia = 'image' | 'video';

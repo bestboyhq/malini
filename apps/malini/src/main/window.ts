@@ -5,13 +5,14 @@ export const BACKGROUND_WINDOW = process.env['MALINI_BACKGROUND_WINDOW'] === '1'
 const DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
 const DEFAULT_MAX_WIDTH = 1600;
 const DEFAULT_MAX_HEIGHT = 1000;
+const LARGER_THAN_ANY_SCREEN = 16_384;
 Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL');
 
 export function createMainWindow(): BrowserWindow {
+	const background = BACKGROUND_WINDOW ? behindEverythingAtTheScreenEdge() : null;
 	const window = new BrowserWindow({
-		...(BACKGROUND_WINDOW
-			? behindEverythingAtTheScreenEdge()
-			: defaultWindowBounds(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea)),
+		...(background ??
+			defaultWindowBounds(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea)),
 		minWidth: 900,
 		minHeight: 600,
 		show: false,
@@ -29,7 +30,7 @@ export function createMainWindow(): BrowserWindow {
 		},
 	});
 	guardVisibilityListeners(window);
-	if (BACKGROUND_WINDOW) stayInBackground(window);
+	if (background) stayInBackground(window, background);
 
 	window.once('ready-to-show', () => {
 		if (window.isDestroyed() || window.webContents.isDestroyed()) return;
@@ -72,6 +73,8 @@ function isWebLink(url: string): boolean {
 
 function behindEverythingAtTheScreenEdge(): Rectangle & {
 	type: 'desktop';
+	maxWidth: number;
+	maxHeight: number;
 	enableLargerThanScreen: true;
 } {
 	const { bounds } = screen
@@ -87,14 +90,21 @@ function behindEverythingAtTheScreenEdge(): Rectangle & {
 		y: bounds.y,
 		width: 1280,
 		height: 800,
+		maxWidth: LARGER_THAN_ANY_SCREEN,
+		maxHeight: LARGER_THAN_ANY_SCREEN,
 		enableLargerThanScreen: true,
 	};
 }
 
-function stayInBackground(window: BrowserWindow): void {
+function stayInBackground(window: BrowserWindow, bounds: Rectangle): void {
+	growPastTheScreenWindowsFitItTo(window, bounds);
 	window.webContents.setAudioMuted(true);
 	window.show = () => window.showInactive();
 	window.focus = () => {};
+}
+
+function growPastTheScreenWindowsFitItTo(window: BrowserWindow, bounds: Rectangle): void {
+	window.setBounds(bounds);
 }
 
 const VISIBILITY_EVENTS = ['show', 'hide', 'minimize', 'maximize', 'restore'] as const;

@@ -10,7 +10,7 @@ import {
 	writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { stubHome } from '$main/process/test-support';
 import type { FileOpenRequestedPayload } from '$contract/events';
@@ -97,6 +97,16 @@ describe('opening a file for the user', () => {
 		expect(await readFile(secrets, 'utf8')).toBe('TOKEN=new\n');
 		expect(await mode(secrets)).toBe(before);
 		expect(await statOpenedFile(db, 'ws-1', secrets)).toEqual({ kind: 'file', size: 10 });
+	});
+
+	it('finds a granted file by its path written with other separators, as Windows paths come back', async () => {
+		const keys = join(root, 'malini.keys');
+		await writeFile(keys, 'TOKEN=old\n');
+		await open(keys);
+		const written = `${root.replaceAll(sep, '/')}/./malini.keys`;
+
+		expect(await readOpenedFile(db, 'ws-1', written)).toBe('TOKEN=old\n');
+		expect(await statOpenedFile(db, 'ws-1', written)).toEqual({ kind: 'file', size: 10 });
 	});
 
 	it('refuses to read, save or stat a path outside the worktree no agent opened', async () => {

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -805,6 +805,36 @@ test('tabs shrink to share the strip, and hovering a shrunk tab reveals its whol
 
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'open-file-8-shrink');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a file with Windows line endings keeps every byte once its tab opens and closes', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const windowsLines = 'export const alpha = 1;\r\nexport const omega = 2;\r\n';
+		const worktree = await workstreamWithFiles(app, 'e2e-crlf-file-ws', {
+			...FILES,
+			'alpha.ts': windowsLines,
+		});
+		await sendPrompt(page, 'MENTION:alpha.ts');
+		await expectAssistantReply(page);
+
+		await openMention(page, 'alpha.ts');
+		await expect(page.getByRole('tabpanel', { name: 'alpha.ts' })).toContainText(
+			'export const omega = 2;',
+			{ timeout: 20_000 },
+		);
+		await fileTab(page, 'alpha.ts').hover();
+		await page.getByRole('button', { name: 'Close alpha.ts' }).click();
+		await expect(fileTab(page, 'alpha.ts')).toHaveCount(0);
+		await page.waitForTimeout(1_000);
+
+		expect(readFileSync(join(worktree, 'alpha.ts'), 'utf8')).toBe(windowsLines);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

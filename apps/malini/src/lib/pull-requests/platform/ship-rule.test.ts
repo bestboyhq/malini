@@ -864,7 +864,7 @@ afterEach(() => {
 	reconciler?.dispose();
 	platform?.dispose();
 	db.close();
-	rmSync(root, { recursive: true, force: true });
+	rmSync(root, { recursive: true, force: true, maxRetries: 10 });
 });
 
 describe('opening a draft', () => {

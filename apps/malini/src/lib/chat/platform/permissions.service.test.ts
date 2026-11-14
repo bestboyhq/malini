@@ -24,6 +24,7 @@ import {
 } from './permissions.repository';
 import {
 	approvalDecisionResult,
+	canonicalizeAllowMissing,
 	isSensitivePathForHome,
 	maliniActionFingerprint,
 	normalizeRememberablePermission,
@@ -197,7 +198,13 @@ describe('normalizeRememberablePermission', () => {
 			workstream,
 		);
 		expect(normalized.canonicalJson).toBe(
-			`{"capability":"sandbox","resources":[{"kind":"path","value":"${cache}","boundary":"external"},{"kind":"socket","value":"${socket}","boundary":"external"}]}`,
+			JSON.stringify({
+				capability: 'sandbox',
+				resources: [
+					{ kind: 'path', value: cache, boundary: 'external' },
+					{ kind: 'socket', value: socket, boundary: 'external' },
+				],
+			}),
 		);
 		expect(
 			normalizeRememberablePermission(grant(['path', cache], ['socket', socket]), workstream),
@@ -264,14 +271,22 @@ describe('isSensitivePathForHome', () => {
 			'.config/agent-cli/credentials.json',
 			'.ssh/id_ed25519',
 			'.config/gh/hosts.yml',
+			'AppData/Roaming/agent-cli/auth.json',
+			'appdata/roaming/agent-cli/auth.json',
+			'AppData/Roaming/gnupg/pubring.kbx',
+			'Library/Application Support/agent-cli/credentials.json',
+			'library/Application Support/agent-cli/credentials.json',
 		]) {
 			expect(isSensitivePathForHome(join(home, relative), home)).toBe(true);
 		}
 		expect(isSensitivePathForHome(join(home, '.agent-cli/config.toml'), home)).toBe(false);
+		expect(isSensitivePathForHome(join(home, 'AppData/Roaming/agent-cli/config.json'), home)).toBe(
+			false,
+		);
 		expect(isSensitivePathForHome(join(home, 'project/auth.json'), home)).toBe(false);
 		expect(isSensitivePathForHome(join(home, 'project/.env.example'), home)).toBe(false);
 		expect(isSensitivePathForHome(join(home, 'project/.env.production'), home)).toBe(true);
-		expect(isSensitivePathForHome(`${realpathSync.native('/etc')}/sudoers`, null)).toBe(true);
+		expect(isSensitivePathForHome(canonicalizeAllowMissing('/etc/sudoers'), null)).toBe(true);
 	});
 });
 

@@ -1,5 +1,5 @@
 import { chmodSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, win32 } from 'node:path';
 import { vi } from 'vitest';
 import { SANDBOX_EXEC } from '@malini/agent-bridge/sandbox';
 import { gitBash } from './environment';
@@ -94,6 +94,12 @@ export type ScriptedBehavior =
 
 export type SpawnMatcher = (file: string, args: readonly string[]) => boolean;
 
+const WINDOWS_PROGRAM_EXTENSION = /\.(?:com|exe|bat|cmd)$/iu;
+
+function programName(file: string): string {
+	return win32.basename(file).replace(WINDOWS_PROGRAM_EXTENSION, '');
+}
+
 export class ScriptedRunner implements ProcessRunner {
 	readonly spawns: RecordedSpawn[] = [];
 	readonly aliveGroups = new Set<number>();
@@ -110,7 +116,7 @@ export class ScriptedRunner implements ProcessRunner {
 	onCommand(name: string, prefix: readonly string[] = [], behavior: ScriptedBehavior): this {
 		return this.on(
 			(file, args) =>
-				(file === name || file.endsWith(`/${name}`) || file.endsWith(`\\${name}`)) &&
+				programName(file) === programName(name) &&
 				prefix.every((part, index) => args[index] === part),
 			behavior,
 		);
@@ -173,7 +179,7 @@ export class ScriptedRunner implements ProcessRunner {
 	last(name: string): RecordedSpawn {
 		const found = [...this.spawns]
 			.reverse()
-			.find((spawn) => spawn.file === name || spawn.file.endsWith(`/${name}`));
+			.find((spawn) => programName(spawn.file) === programName(name));
 		if (!found) throw new Error(`no spawn of ${name} recorded`);
 		return found;
 	}

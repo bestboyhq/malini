@@ -1,5 +1,5 @@
 import { lstat, mkdir, readFile as readFileBytes, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { describeError, errorCode } from '$main/errors';
 import { atomicReplaceFile } from '$main/fs/atomic';
 import { isAtOrInsideDirectory, SKIPPED_DIRECTORIES } from '$main/fs/paths';
@@ -8,6 +8,8 @@ import type { CheckoutResolver } from '$shared/repositories/repositories.platfor
 import type { ExtensionFileKind, ExtensionFileStat } from '$contract/system';
 
 export type { ExtensionFileKind, ExtensionFileStat };
+
+const WINDOWS = process.platform === 'win32';
 
 export function validateOwner(extensionId: string, workstreamId: string): void {
 	if (typeof extensionId !== 'string' || extensionId.trim() === '') {
@@ -35,11 +37,11 @@ export function normalizedRelativePath(path: string, allowEmpty: boolean): strin
 	if (path.includes('\0')) {
 		throw new Error('Extension workstream path contains a null byte');
 	}
-	if (path.startsWith('/')) {
+	if (isAbsolute(path) || (WINDOWS && path.includes(':'))) {
 		throw new Error(`Extension workstream path must stay relative to its workstream: ${path}`);
 	}
 	const segments: string[] = [];
-	for (const segment of path.split('/')) {
+	for (const segment of path.split(WINDOWS ? /[\\/]/u : '/')) {
 		if (segment === '' || segment === '.') continue;
 		if (segment === '..') {
 			throw new Error(`Extension workstream path must stay relative to its workstream: ${path}`);

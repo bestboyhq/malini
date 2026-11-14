@@ -252,6 +252,13 @@ describe('reportForStarter', () => {
 		);
 	});
 
+	it('points a picture at a Windows checkout with forward slashes, which Markdown keeps whole', () => {
+		const summary = 'See ![shot](.context/a.png), ![abs](C:\\tmp\\c.png) and ![d](D:/tmp/d.png).';
+		expect(reportForStarter(summary, 'C:\\work\\site')).toBe(
+			'See ![shot](C:/work/site/.context/a.png), ![abs](C:\\tmp\\c.png) and ![d](D:/tmp/d.png).',
+		);
+	});
+
 	it('keeps a short report whole and cuts a long one to its head and its footer', () => {
 		const short = 'Built it.\n\nOutcome: Built it';
 		expect(reportForStarter(short, '/work/site')).toBe(short);

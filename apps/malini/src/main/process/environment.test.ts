@@ -331,13 +331,17 @@ describe('preferredShell', () => {
 		expect(preferredShell({})).toMatch(/\\bin\\bash\.exe$/u);
 	});
 
-	it.skipIf(WINDOWS)('takes an absolute existing $SHELL, else /bin/zsh, else /bin/sh', () => {
-		const fallback = existsSync('/bin/zsh') ? '/bin/zsh' : '/bin/sh';
-		expect(preferredShell({ SHELL: '/bin/sh' })).toBe('/bin/sh');
-		expect(preferredShell({ SHELL: 'zsh' })).toBe(fallback);
-		expect(preferredShell({ SHELL: '/does/not/exist' })).toBe(fallback);
-		expect(preferredShell({})).toBe(fallback);
-	});
+	it.skipIf(WINDOWS)(
+		'takes an absolute existing $SHELL, else bash on Linux or zsh on macOS, else /bin/sh',
+		() => {
+			const shell = process.platform === 'linux' ? '/bin/bash' : '/bin/zsh';
+			const fallback = existsSync(shell) ? shell : '/bin/sh';
+			expect(preferredShell({ SHELL: '/bin/sh' })).toBe('/bin/sh');
+			expect(preferredShell({ SHELL: 'zsh' })).toBe(fallback);
+			expect(preferredShell({ SHELL: '/does/not/exist' })).toBe(fallback);
+			expect(preferredShell({})).toBe(fallback);
+		},
+	);
 });
 
 describe('writeEnvironmentDiagnostics', () => {

@@ -3,7 +3,9 @@ export const WORKSTREAM_IMAGE_SCHEME = 'malini-image';
 const WORKSTREAM_IMAGE_HOST = 'workstream';
 const VIDEO_PATH = /\.(?:mp4|m4v|mov|webm)$/iu;
 const IMAGE_PATH = /\.(?:png|jpe?g|gif|webp)$/iu;
-const NOT_A_WORKSTREAM_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/|[#?])/iu;
+const NOT_A_WORKSTREAM_FILE = /^(?:[a-z][a-z\d+.-]+:|\/\/|[#?])/iu;
+const ABSOLUTE_FILE_PATH = /^(?:[\\/]|[a-z]:[\\/])/iu;
+const WINDOWS_FILE_PATH = /^(?:[a-z]:[\\/]|\\\\)/iu;
 
 export type MediaKind = 'image' | 'video' | 'page';
 
@@ -83,4 +85,20 @@ export function mediaKind(src: string): MediaKind {
 export function mediaPath(src: string): string {
 	const hash = src.indexOf('#');
 	return hash === -1 ? src : src.slice(0, hash);
+}
+
+export function isAbsoluteFilePath(path: string): boolean {
+	return ABSOLUTE_FILE_PATH.test(path);
+}
+
+export function forwardSlashed(path: string): string {
+	return WINDOWS_FILE_PATH.test(path) ? path.replaceAll('\\', '/') : path;
+}
+
+export function workstreamImageFilePath(root: string | null, path: string): string {
+	const asWritten = root === null || isAbsoluteFilePath(path);
+	const file = asWritten
+		? path
+		: `${root.replace(/[\\/]+$/u, '')}/${path.replace(/^(?:\.[\\/])+/u, '')}`;
+	return WINDOWS_FILE_PATH.test(asWritten ? path : root) ? file.replaceAll('/', '\\') : file;
 }

@@ -24,23 +24,27 @@ test('the built app opens a window on a runtime whose SQLite is the bundled one'
 	}
 });
 
-test('a test run keeps the app off the screen of whoever is using the machine', async () => {
+test('a test run keeps the app off the screen of whoever is using the machine, at full size on any screen', async () => {
 	const app = await launchMalini();
 	try {
 		await expect(app.page).toHaveTitle('Malini · Repositories');
-		const onScreen = await app.electronApp.evaluate(({ BrowserWindow, screen }) => {
+		const { size, onScreen } = await app.electronApp.evaluate(({ BrowserWindow, screen }) => {
 			const [window] = BrowserWindow.getAllWindows();
 			if (!window) throw new Error('malini opened no window');
 			const bounds = window.getBounds();
-			return screen.getAllDisplays().map(({ bounds: display }) => {
-				const width = Math.min(bounds.x + bounds.width, display.x + display.width);
-				const height = Math.min(bounds.y + bounds.height, display.y + display.height);
-				return (
-					Math.max(0, width - Math.max(bounds.x, display.x)) *
-					Math.max(0, height - Math.max(bounds.y, display.y))
-				);
-			});
+			return {
+				size: { width: bounds.width, height: bounds.height },
+				onScreen: screen.getAllDisplays().map(({ bounds: display }) => {
+					const width = Math.min(bounds.x + bounds.width, display.x + display.width);
+					const height = Math.min(bounds.y + bounds.height, display.y + display.height);
+					return (
+						Math.max(0, width - Math.max(bounds.x, display.x)) *
+						Math.max(0, height - Math.max(bounds.y, display.y))
+					);
+				}),
+			};
 		});
+		expect(size).toEqual({ width: 1280, height: 800 });
 		expect(Math.max(...onScreen)).toBeLessThanOrEqual(800);
 	} finally {
 		await app.close();

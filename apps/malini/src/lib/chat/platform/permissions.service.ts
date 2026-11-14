@@ -371,7 +371,11 @@ export function isSensitivePathForHome(candidate: string, home: string | null): 
 	) {
 		return true;
 	}
-	if (home !== null && CREDENTIAL_FILE_NAMES.has(name) && isInHomeDotDirectory(candidate, home)) {
+	if (
+		home !== null &&
+		CREDENTIAL_FILE_NAMES.has(name) &&
+		isInHomeConfigDirectory(candidate, home)
+	) {
 		return true;
 	}
 	const roots = ['/etc/shadow', '/etc/sudoers', '/private/etc/shadow', '/private/etc/sudoers'];
@@ -393,6 +397,10 @@ export function isSensitivePathForHome(candidate: string, home: string | null): 
 				'_netrc',
 				'AppData/Roaming/GitHub CLI',
 				'AppData/Roaming/gcloud',
+				'AppData/Roaming/gnupg',
+				'AppData/Roaming/Microsoft/Credentials',
+				'AppData/Roaming/Microsoft/Protect',
+				'AppData/Local/Microsoft/Credentials',
 			].map((inHome) => join(home, inHome)),
 		);
 	}
@@ -409,7 +417,9 @@ export function isSensitivePathForHome(candidate: string, home: string | null): 
 
 const CREDENTIAL_FILE_NAMES = new Set(['auth.json', 'credentials.json', '.credentials.json']);
 
-function isInHomeDotDirectory(candidate: string, home: string): boolean {
+const HOME_CONFIG_DIRECTORIES = new Set(['appdata', 'library']);
+
+function isInHomeConfigDirectory(candidate: string, home: string): boolean {
 	let between: string;
 	try {
 		between = relative(canonicalizeAllowMissing(home), candidate);
@@ -417,7 +427,7 @@ function isInHomeDotDirectory(candidate: string, home: string): boolean {
 		return true;
 	}
 	const top = between.split(PATH_SEPARATORS)[0] ?? '';
-	return top.startsWith('.') && top !== '..';
+	return (top.startsWith('.') && top !== '..') || HOME_CONFIG_DIRECTORIES.has(top.toLowerCase());
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -188,6 +188,23 @@ describe('gitFailureVerdict', () => {
 
 	it.each([
 		[
+			"fatal: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\e2e\\upstream' does not appear to be a git repository",
+			"'upstream' does not appear to be a git repository",
+		],
+		[
+			"fatal: '\\\\server\\share\\upstream' does not appear to be a git repository",
+			"'upstream' does not appear to be a git repository",
+		],
+		[
+			'fatal: could not write the commit graph at C:/Users/me/AppData/Local/Temp/objects/info',
+			'could not write the commit graph at info',
+		],
+	])('drops the folders of a Windows path in %s', (stderr, message) => {
+		expect(gitFailureVerdict(`${stderr}\n`).message).toBe(message);
+	});
+
+	it.each([
+		[
 			'OAuth App',
 			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and your gh sign-in can't change workflows. Run `gh auth refresh -s workflow` once, then retry.",
 		],

@@ -67,7 +67,9 @@ CI ran unit tests on Linux and e2e on macOS only, so nothing proved a Windows pa
 ## Consequences
 
 - Intel Macs, Windows and Linux download from the site and update in place, from the same release.
-- Windows builds are unsigned until a code-signing service and its secrets exist, so SmartScreen warns on the first start.
+- Windows builds ship unsigned on purpose, so SmartScreen warns on the first download and Smart App Control blocks Malini.
+  Azure Artifact Signing takes individuals only in the US and Canada, and SignPath Foundation needs a hand approval for each release, while Malini ships about 25 a week.
+  Certum's Open Source code signing in the cloud, about €49 a year, is the route once Windows users ask for a signed build.
 - An AppImage cannot set up Chromium's sandbox helper on Ubuntu 24.04 and later, while the deb and rpm install scripts load an AppArmor profile for it, so the site leads with the deb.
 - Sandboxed access does not confine commands on Linux and Windows, and its description still says it does; a sandbox for each of them is the next step to parity.
 - What must stay true: every word that names an OS thing comes from `osFor`, every spawn goes through `command.ts`, and every git call that writes a checkout passes `core.autocrlf=false`.

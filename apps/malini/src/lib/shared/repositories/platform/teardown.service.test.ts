@@ -16,6 +16,7 @@ import { get, run } from '$main/db/rows';
 import { currentLogPath, diagnosticsDirectory } from '$main/diagnostics/diagnostics-files';
 import { MainDiagnosticsLog } from '$main/diagnostics/main-diagnostics';
 import { createEventBus } from '$main/events';
+import { DENIED, lockFolder, lockTree, unlock } from '$main/fs/test-support';
 import { realGit, removeDir, tempDir, workstreamFixture } from '$main/git/fixtures.test-support';
 import { installGitRunnerForTests } from '$main/git/run';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -172,17 +173,17 @@ describe('archiving a workstream', () => {
 		const repo = await harness();
 		const checkout = await createWorkstream(repo, 'ws-kept');
 		await mkdir(checkoutTrashRoot(repo.dir), { recursive: true });
-		await chmod(checkoutTrashRoot(repo.dir), 0o555);
-		cleanups.push(() => chmod(checkoutTrashRoot(repo.dir), 0o755));
+		lockFolder(checkoutTrashRoot(repo.dir));
+		cleanups.push(async () => unlock(checkoutTrashRoot(repo.dir)));
 		await expect(
 			repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-kept' }),
 		).rejects.toThrow(
-			/^Its checkout could not be moved aside \(permission denied\), so nothing was removed$/,
+			new Error(`Its checkout could not be moved aside (${DENIED.reason}), so nothing was removed`),
 		);
 
 		expect(
 			await repo.failureCode('repositories.archive-workstream', { workstreamId: 'ws-kept' }),
-		).toBe('EACCES');
+		).toBe(DENIED.code);
 		expect(getWorkstream(repo.db, 'ws-kept')).not.toBeNull();
 		expect(await isIntactCheckout(checkout, 'ws-kept')).toBe(true);
 		expect(await realGit(repo.base, ['worktree', 'list', '--porcelain'])).toContain('ws-kept');
@@ -245,7 +246,7 @@ describe('archiving a workstream', () => {
 
 		await repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-stuck' });
 		await prune.reached;
-		await chmod(checkoutTrashRoot(repo.dir), 0o555);
+		lockFolder(checkoutTrashRoot(repo.dir));
 		prune.release();
 
 		expect(getWorkstream(repo.db, 'ws-stuck')?.status).toBe('archived');
@@ -258,7 +259,7 @@ describe('archiving a workstream', () => {
 			expect.stringContaining('`ws-stuck` stays in the trash until the next start'),
 		);
 
-		await chmod(checkoutTrashRoot(repo.dir), 0o755);
+		unlock(checkoutTrashRoot(repo.dir));
 		await repo.restart();
 
 		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 20_000 });
@@ -433,7 +434,7 @@ describe('what archiving keeps of a workstream branch', () => {
 		const repo = await harness();
 		const checkout = await createWorkstream(repo, 'ws-unsaved');
 		const before = await realGit(checkout, ['status', '--porcelain']);
-		await execFileAsync('chmod', ['-R', 'a-w', join(repo.base, '.git', 'objects')]);
+		lockTree(join(repo.base, '.git', 'objects'));
 
 		await expect(
 			repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-unsaved' }),
@@ -451,7 +452,7 @@ describe('what archiving keeps of a workstream branch', () => {
 		expect(JSON.stringify(record?.['error'])).toMatch(
 			/caused by: Error: git .+ exited with code \d+\\n.*insufficient permission/u,
 		);
-		await execFileAsync('chmod', ['-R', 'u+w', join(repo.base, '.git', 'objects')]);
+		unlock(join(repo.base, '.git', 'objects'));
 		expect(getWorkstream(repo.db, 'ws-unsaved')).not.toBeNull();
 		expect(await isIntactCheckout(checkout, 'ws-unsaved')).toBe(true);
 		expect(await realGit(checkout, ['status', '--porcelain'])).toBe(before);
@@ -462,7 +463,7 @@ describe('what archiving keeps of a workstream branch', () => {
 	it('sweeps orphan workstream branches at start, keeping their work and every live branch', async () => {
 		const repo = await harness();
 		const live = await createWorkstream(repo, 'ws-live');
-		await execFileAsync('rm', ['-rf', live]);
+		await removeDir(live);
 		await realGit(repo.base, ['worktree', 'prune']);
 		await realGit(repo.base, ['branch', 'malini/ws-orphan', 'origin/main']);
 		await realGit(repo.base, ['branch', 'malini/ws-orphan-work', 'origin/main']);

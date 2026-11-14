@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createNodeProcessRunner, runBounded } from './runner';
+import { ScriptedRunner } from './test-support';
 
 const GRANDCHILD =
 	"require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'], { stdio: 'inherit' })";
@@ -45,5 +46,20 @@ describe('the node process runner', () => {
 		);
 		expect(run).toMatchObject({ exitCode: 0, stdout: 'out\n' });
 		expect(Date.now() - started).toBeLessThan(5_000);
+	});
+});
+
+describe('the scripted runner', () => {
+	it('knows a program by its name wherever PATH found it, on every OS', () => {
+		const runner = new ScriptedRunner()
+			.onCommand('docker', ['ps'], { kind: 'exit', code: 0 })
+			.onCommand('pnpm', [], { kind: 'exit', code: 0 });
+		for (const file of ['docker', '/usr/local/bin/docker', 'C:\\Windows\\system32\\docker.exe']) {
+			runner.spawn(file, ['ps']);
+		}
+		runner.spawn('C:\\Program Files\\nodejs\\pnpm.cmd', ['install']);
+		expect(runner.last('docker').file).toBe('C:\\Windows\\system32\\docker.exe');
+		expect(runner.last('pnpm').args).toEqual(['install']);
+		expect(() => runner.spawn('/usr/bin/dockerd', ['ps'])).toThrow('unscripted spawn');
 	});
 });

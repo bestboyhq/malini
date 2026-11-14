@@ -1,8 +1,7 @@
-import { constants } from 'node:fs';
 import {
-	access,
 	lstat,
 	mkdir,
+	mkdtemp,
 	readdir,
 	readFile,
 	readlink,
@@ -188,7 +187,7 @@ async function folderProblem(
 
 async function writable(folder: string): Promise<boolean> {
 	try {
-		await access(await existingAncestor(folder), constants.W_OK);
+		await rmdir(await mkdtemp(join(await existingAncestor(folder), '.malini-')));
 		return true;
 	} catch {
 		return false;
@@ -230,7 +229,7 @@ async function unlinkLinkTo(link: string, folder: string, undo: Undo[]): Promise
 	if (resolved === null || resolved !== target) return;
 	const pointsAt = await readlink(link);
 	await unlink(link);
-	undo.push(() => symlink(pointsAt, link));
+	undo.push(() => symlink(pointsAt, link, 'junction'));
 }
 
 export async function reinstallMovedCheckouts(
@@ -346,7 +345,7 @@ async function linkMovedFolders(from: string, to: string): Promise<void> {
 		const [old, moved] = [join(from, name), join(to, name)];
 		await settle(`link the old ${name} folder`, async () => {
 			if (!(await lstat(old).catch(() => null)) && (await isFolder(moved))) {
-				await symlink(moved, old);
+				await symlink(moved, old, 'junction');
 			}
 		});
 	}

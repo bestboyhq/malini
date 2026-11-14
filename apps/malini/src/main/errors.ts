@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, win32 } from 'node:path';
 import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
 import type { ShipWaitsFor } from '$contract/pull-requests';
 
@@ -334,10 +334,17 @@ function gitVerdictLine(output: string): string {
 	return cleaned.length > 0 ? cleaned : 'Git stopped without giving a reason.';
 }
 
+const QUOTED_PATH = /'((?:\/|[a-z]:[\\/]|\\\\)[^']+)'/giu;
+const BARE_PATH = /(?<![\w:/\\.~-])(?:\/|[a-z]:[\\/]|\\\\)[^\s'",;]+/giu;
+
 function withoutAbsolutePaths(line: string): string {
 	return line
-		.replace(/'(\/[^']+)'/gu, (_, path: string) => `'${basename(path)}'`)
-		.replace(/(?<![\w:/.~-])\/[^\s'",;]+/gu, (path) => basename(path));
+		.replace(QUOTED_PATH, (_, path: string) => `'${pathName(path)}'`)
+		.replace(BARE_PATH, pathName);
+}
+
+function pathName(path: string): string {
+	return /^(?:[a-z]:|\\\\)/iu.test(path) ? win32.basename(path) : basename(path);
 }
 
 const CREDENTIAL_CONFIG = /^((?:credential\b[^=]*|http\.[^=]*extraheader)=)(.+)$/iu;

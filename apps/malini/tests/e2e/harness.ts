@@ -1,7 +1,9 @@
 import { execFile, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
 	accessSync,
 	chmodSync,
+	copyFileSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -12,6 +14,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, join, resolve } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import {
 	_electron as electron,
@@ -42,11 +45,50 @@ const GIT_BASH =
 
 export function writeExecutable(path: string, script: string): void {
 	replaceExecutable(path, script);
-	if (!WINDOWS) return;
-	const runner = script.startsWith(`#!${process.execPath}\n`) ? process.execPath : GIT_BASH;
-	const launcher = `@echo off\r\nset MSYS_NO_PATHCONV=1\r\n"${runner}" "%~dp0${basename(path)}" %*\r\n`;
-	const cmd = `${path}.cmd`;
-	if (!existsSync(cmd) || readFileSync(cmd, 'utf8') !== launcher) replaceExecutable(cmd, launcher);
+	if (WINDOWS && !existsSync(`${path}.exe`)) {
+		copyFileSync(
+			windowsTool('stub-launcher.cs', (source) =>
+				source.replace('"GIT_BASH"', JSON.stringify(GIT_BASH)),
+			),
+			`${path}.exe`,
+		);
+	}
+}
+
+export async function suspendWindowsProcess(pid: number, ms: number): Promise<void> {
+	await execFileAsync(windowsTool('suspend-process.cs'), [String(pid), String(ms)], {
+		windowsHide: true,
+	});
+}
+
+function windowsTool(file: string, prepare = (source: string): string => source): string {
+	const source = prepare(readFileSync(join(__dirname, file), 'utf8'));
+	const hash = createHash('sha256').update(source).digest('hex').slice(0, 16);
+	const tool = join(tmpdir(), `malini-e2e-${basename(file, '.cs')}-${hash}.exe`);
+	if (!existsSync(tool)) compileWindowsTool(source, tool);
+	return tool;
+}
+
+function compileWindowsTool(source: string, tool: string): void {
+	const staged = mkdtempSync(join(tmpdir(), 'malini-e2e-tool-'));
+	writeFileSync(join(staged, 'tool.cs'), source);
+	const csc = join(
+		process.env['SystemRoot'] ?? 'C:\\Windows',
+		'Microsoft.NET',
+		'Framework64',
+		'v4.0.30319',
+		'csc.exe',
+	);
+	execFileSync(csc, ['/nologo', '/target:exe', '/out:tool.exe', 'tool.cs'], {
+		cwd: staged,
+		stdio: 'pipe',
+	});
+	try {
+		renameSync(join(staged, 'tool.exe'), tool);
+	} catch (error) {
+		if (!existsSync(tool)) throw error;
+	}
+	rmSync(staged, { recursive: true, force: true });
 }
 
 const PAUSE = new Int32Array(new SharedArrayBuffer(4));
@@ -271,8 +313,12 @@ export const STREAMING_STAND_IN = `e2e${process.pid}`;
 const KEEP_ROOTS = process.env['MALINI_E2E_KEEP'] === '1';
 const temporaryRoots = new Set<string>();
 process.once('exit', () => {
-	for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
+	for (const root of temporaryRoots) removeRoot(root);
 });
+
+function removeRoot(root: string): void {
+	rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+}
 
 export function temporaryRoot(prefix = 'malini-e2e-'): string {
 	const root = mkdtempSync(join(tmpdir(), prefix));
@@ -363,6 +409,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	electronApp.process().stderr?.on('data', keepOutput);
 	electronApp.context().on('dialog', leaveDialogsToMalini);
 	await keepTheClipboardInMemory(electronApp);
+	const mainPid = await electronApp.evaluate(() => process.pid);
 	const page = await electronApp.firstWindow();
 	if (!options.soundsNote) await markSoundsNoted(page);
 
@@ -388,7 +435,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		quit() {
 			quitting ??= (async () => {
 				await waitForQuietDiagnostics(userDataDir);
-				await closeOrExplain(electronApp, userDataDir, output);
+				await closeOrExplain(electronApp, { mainPid, root, userDataDir }, output);
 				const unexpected = unexpectedDiagnostics(userDataDir, handle.allowedDiagnostics);
 				expect
 					.soft(
@@ -406,7 +453,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 				if (KEEP_ROOTS) {
 					console.error(`malini-e2e kept profile at ${root}`);
 				} else {
-					rmSync(root, { recursive: true, force: true });
+					removeRoot(root);
 				}
 			}
 		},
@@ -423,7 +470,7 @@ const QUIT_BUDGET_MS = 15_000;
 
 async function closeOrExplain(
 	electronApp: ElectronApplication,
-	userDataDir: string,
+	places: Readonly<{ mainPid: number; root: string; userDataDir: string }>,
 	output: readonly string[],
 ): Promise<void> {
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -434,23 +481,25 @@ async function closeOrExplain(
 		await electronApp.close();
 		return 'closed';
 	};
-	const outcome = await Promise.race([closed(), stalled]);
+	const closing = closed();
+	const outcome = await Promise.race([closing, stalled]);
 	clearTimeout(timer);
 	if (outcome === 'closed') return;
 	const child = electronApp.process();
-	const table = await processTable();
-	const tree = processTree(table, child.pid ?? -1);
+	const roots = [child.pid ?? -1, places.mainPid];
+	const tree = processTree(await processTable(), roots, basename(places.root));
 	const pids = treePids(tree);
-	const [{ mainThread, everyThread }, helperSamples] = await Promise.all([
-		sampleThreads(child.pid ?? -1),
-		sampleHelpers(pids.filter((pid) => pid !== child.pid)),
-	]);
+	const samples = await sampleStall(
+		places.mainPid,
+		pids.filter((pid) => !roots.includes(pid)),
+	);
 	for (const pid of pids) {
 		try {
 			process.kill(pid, 'SIGKILL');
 		} catch {}
 	}
-	const diagnostics = diagnosticsLogFiles(userDataDir)
+	await Promise.race([closing.catch(() => {}), sleep(5_000)]);
+	const diagnostics = diagnosticsLogFiles(places.userDataDir)
 		.filter(fileExists)
 		.flatMap((path) => readFileSync(path, 'utf8').split('\n'))
 		.filter((line) => line.includes('"level":"error"'))
@@ -458,18 +507,29 @@ async function closeOrExplain(
 		.map((line) => line.slice(0, 4_000));
 	throw new Error(
 		[
-			`the app did not quit within ${QUIT_BUDGET_MS} ms (exit code ${String(child.exitCode)}, signal ${String(child.signalCode)})`,
-			'process tree:',
+			`the app did not quit within ${QUIT_BUDGET_MS} ms (exit code ${String(child.exitCode)}, signal ${String(child.signalCode)}, main process ${places.mainPid} ${pids.includes(places.mainPid) ? 'still running' : 'gone'})`,
+			'process tree, and every process naming the test profile:',
 			...tree,
-			`main thread (every thread, with addresses to symbolicate: ${everyThread}):`,
-			...mainThread,
-			...(helperSamples.length > 0 ? ['helper processes sampled to:', ...helperSamples] : []),
+			...samples,
 			'last output:',
 			output.join('').split('\n').slice(-60).join('\n'),
 			'last diagnostics:',
 			...diagnostics,
 		].join('\n'),
 	);
+}
+
+async function sampleStall(mainPid: number, helpers: readonly number[]): Promise<string[]> {
+	if (process.platform !== 'darwin') return [];
+	const [{ mainThread, everyThread }, helperSamples] = await Promise.all([
+		sampleThreads(mainPid),
+		sampleHelpers(helpers),
+	]);
+	return [
+		`main thread (every thread, with addresses to symbolicate: ${everyThread}):`,
+		...mainThread,
+		...(helperSamples.length > 0 ? ['helper processes sampled to:', ...helperSamples] : []),
+	];
 }
 
 function treePids(tree: readonly string[]): number[] {
@@ -493,9 +553,24 @@ async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
 	);
 }
 
+const WINDOWS_PROCESS_TABLE = [
+	'Get-CimInstance Win32_Process | ForEach-Object {',
+	"'{0} {1} - {2}' -f $_.ProcessId, $_.ParentProcessId,",
+	'$(if ($_.CommandLine) { $_.CommandLine } else { $_.Name })',
+	'}',
+].join(' ');
+
 async function processTable(): Promise<string> {
+	const options = { maxBuffer: 64 * 1024 * 1024, windowsHide: true };
 	try {
-		return (await execFileAsync('ps', ['-A', '-o', 'pid=,ppid=,stat=,command='])).stdout;
+		const { stdout } = WINDOWS
+			? await execFileAsync(
+					'powershell.exe',
+					['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PROCESS_TABLE],
+					options,
+				)
+			: await execFileAsync('ps', ['-A', '-o', 'pid=,ppid=,stat=,command='], options);
+		return stdout;
 	} catch (error) {
 		return String(error);
 	}
@@ -524,15 +599,18 @@ async function sampleThreads(pid: number): Promise<{ mainThread: string[]; every
 	}
 }
 
-function processTree(table: string, rootPid: number): string[] {
+function processTree(table: string, roots: readonly number[], marker: string): string[] {
 	const rows = table
-		.split('\n')
+		.split(/\r?\n/u)
 		.filter(Boolean)
 		.map((line) => {
 			const [pid = '', ppid = ''] = line.trim().split(/\s+/u);
 			return { pid: Number(pid), ppid: Number(ppid), line };
 		});
-	const members = new Set([rootPid]);
+	const members = new Set([
+		...roots,
+		...rows.filter((row) => row.line.includes(marker)).map((row) => row.pid),
+	]);
 	for (let grew = true; grew;) {
 		grew = false;
 		for (const row of rows) {
@@ -829,6 +907,35 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
 	const submit = page.getByTestId('chat-composer-submit');
 	await expect(submit).toBeEnabled({ timeout: 15_000 });
 	await submit.click();
+}
+
+export async function finishTurnWithHeldSnapshot(
+	app: LaunchedApp,
+	prompt: string,
+): Promise<() => void> {
+	const heldRuns = join(app.home, 'hold-agent-runs');
+	writeFileSync(heldRuns, '');
+	await sendPrompt(app.page, prompt);
+	await expect(app.page.getByTestId('chat-composer-submit')).toHaveAccessibleName(
+		'Stop current run',
+	);
+	const releaseSnapshots = holdRunSnapshots(app);
+	rmSync(heldRuns);
+	return releaseSnapshots;
+}
+
+function holdRunSnapshots(app: LaunchedApp): () => void {
+	const gate = join(app.root, 'hold-run-snapshots');
+	const stub = join(app.bin, 'git');
+	writeFileSync(gate, '');
+	writeExecutable(
+		stub,
+		`#!/bin/sh
+case "$*" in *commit-tree*"malini run snapshot"*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac
+exec '${REAL_GIT}' "$@"
+`,
+	);
+	return () => rmSync(gate, { force: true });
 }
 
 export async function typeDraft(page: Page, lines: readonly string[]): Promise<void> {

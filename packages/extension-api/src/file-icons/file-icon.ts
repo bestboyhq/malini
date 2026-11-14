@@ -28,6 +28,10 @@ export function basename(path: string): string {
 	return cut === -1 ? trimmed : trimmed.slice(cut + 1);
 }
 
+export function isAbsolutePath(path: string): boolean {
+	return /^(?:[\\/]|[A-Za-z]:[\\/])/u.test(path);
+}
+
 export function fileIconIdFor(path: string): FileIconId {
 	const name = basename(path).toLowerCase();
 	if (!name) return DEFAULT_FILE_ICON;

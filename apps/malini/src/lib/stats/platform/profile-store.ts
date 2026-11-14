@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { rename, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { BestboyAccount, BestboyProfile, StatsPublishing } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
+import { renameWhenFree } from '$main/fs/atomic';
 
 export const PROFILE_FILE = 'bestboy-profile.json';
 
@@ -90,7 +91,7 @@ export class ProfileStore {
 		this.#writes = (async () => {
 			await settled(previous);
 			await writeFile(temporary, text, { mode: 0o600 });
-			await rename(temporary, this.#path);
+			await renameWhenFree(temporary, this.#path);
 		})();
 		return this.#writes;
 	}

@@ -207,6 +207,31 @@ describe('workstream files', () => {
 		);
 	});
 
+	it.runIf(process.platform === 'win32')(
+		'rejects Windows separators, drives and streams that would leave the workstream',
+		async () => {
+			const parent = await tempdir('parent');
+			const root = join(parent, 'ws');
+			await mkdir(root);
+			for (const path of [
+				'..\\escaped.txt',
+				'a\\..\\..\\escaped.txt',
+				'C:\\escaped.txt',
+				'C:escaped.txt',
+				'\\\\server\\share\\escaped.txt',
+				'notes.txt:hidden',
+			]) {
+				await expect(writeFile(root, path, 'nope')).rejects.toThrow(
+					`Extension workstream path must stay relative to its workstream: ${path}`,
+				);
+			}
+			await writeFile(root, 'docs\\notes.md', 'kept');
+
+			expect(await readdir(parent)).toEqual(['ws']);
+			expect(await readBytes(join(root, 'docs', 'notes.md'), 'utf8')).toBe('kept');
+		},
+	);
+
 	it('rejects symlink escapes for reads, stats and writes', async () => {
 		const root = await workstreamRoot();
 		const outside = await tempdir('outside');

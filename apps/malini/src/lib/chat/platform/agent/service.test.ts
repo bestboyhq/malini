@@ -989,7 +989,7 @@ describe('platform requests from the agent', () => {
 		bridge.send(platformRequest('p-3', 'files_open', { path: 'notes.md', line: 0 }));
 		expect(await answer('p-3')).toBe('`line` must be a line number from 1.');
 
-		expect(statSync(outside).mode & 0o777).toBe(0o600);
+		expect(statSync(outside).mode & 0o777).toBe(process.platform === 'win32' ? 0o666 : 0o600);
 		expect(JSON.stringify(results())).not.toContain('the plan');
 		expect(
 			test.events.frames

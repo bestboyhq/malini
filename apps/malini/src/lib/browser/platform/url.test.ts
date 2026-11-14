@@ -1,4 +1,4 @@
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -51,7 +51,14 @@ describe('worktree files', () => {
 	const fileUrl = (...path: string[]): string => pathToFileURL(join(...path)).href;
 
 	it('treats paths and file URLs as files, and everything else as web addresses', () => {
-		for (const input of [join(worktree, 'a.html'), './a.html', '../a.html', ' file:///a.html']) {
+		for (const input of [
+			join(worktree, 'a.html'),
+			'./a.html',
+			'../a.html',
+			`.${sep}a.html`,
+			`..${sep}a.html`,
+			' file:///a.html',
+		]) {
 			expect(isFileAddress(input)).toBe(true);
 		}
 		for (const input of ['localhost:5173', 'example.com/a.html', 'a.html', 'about:blank']) {

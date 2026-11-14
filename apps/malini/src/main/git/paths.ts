@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { basename, join, sep } from 'node:path';
 import { GitError } from '$main/errors';
 import { isInsideDirectory } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
@@ -111,9 +111,7 @@ export function deriveProjectId(repoPath: string): string {
 }
 
 export function deriveLocalProjectId(repoPath: string): string {
-	const trimmed = trimRepoPath(repoPath);
-	const last = trimmed.split('/').pop() || 'repo';
-	return sanitizeSegment(last);
+	return sanitizeSegment(basename(repoPath).replace(/\.git$/u, '') || 'repo');
 }
 
 export const LOCAL_PROJECT_ID_PREFIX = 'local__';

@@ -1,17 +1,19 @@
 import {
-	chmodSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
 	realpathSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, normalize } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { lockFolder, unlock } from '$main/fs/test-support';
 import { initRealRepo, realGit, tempDir, workstreamFixture } from '$main/git/fixtures.test-support';
 import { workstreamBranchName } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -32,12 +34,30 @@ let appData: string;
 let home: string;
 let claude: string;
 let db: MaliniDatabase;
-let locked: string[] = [];
+const locked: string[] = [];
 
 function lock(folder: string): void {
-	chmodSync(folder, 0o555);
+	lockFolder(folder);
 	locked.push(folder);
 }
+
+function unlockAll(): void {
+	for (const folder of locked.splice(0)) unlock(folder);
+}
+
+function diskOf(folder: string): number | null {
+	try {
+		return statSync(folder).dev;
+	} catch {
+		return null;
+	}
+}
+
+const otherDisk =
+	['/dev', ...[...'CDEFGHIJKLMNOPQRSTUVWXYZ'].map((drive) => `${drive}:\\`)].find((folder) => {
+		const disk = diskOf(folder);
+		return disk !== null && disk !== diskOf(tmpdir());
+	}) ?? '';
 
 function chatRecords(cwd: string): string {
 	return join(claude, 'projects', cwd.replace(/[^a-zA-Z0-9]/gu, '-'));
@@ -74,8 +94,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-	for (const folder of locked) chmodSync(folder, 0o755);
-	locked = [];
+	unlockAll();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });
@@ -299,7 +318,7 @@ describe('moveCheckoutsHome', () => {
 			next: chosen,
 			problem: { folder: chosen, reason: 'move-failed' },
 		});
-		chmodSync(join(malini, 'workstreams'), 0o755);
+		unlockAll();
 
 		expect(await move()).toBe(chosen);
 
@@ -326,9 +345,18 @@ describe('moveCheckoutsHome', () => {
 		expect(await refusal(full)).toBe('not-empty');
 		expect(await refusal(join(current, 'workstreams'))).toBe('inside-checkouts');
 		expect(await refusal(locked)).toBe('not-writable');
-		expect(await refusal('/dev')).toBe('other-disk');
 		expect(checkoutsFolder(db, appData, current).next).toBe(empty);
 		expect((await chooseCheckoutsFolder(db, appData, current, current)).next).toBeNull();
+	});
+
+	it.runIf(otherDisk)('refuses a folder on another disk', async () => {
+		const current = join(home, 'malini');
+		mkdirSync(current, { recursive: true });
+
+		const chosen = await chooseCheckoutsFolder(db, appData, current, otherDisk);
+
+		expect(chosen.problem?.reason).toBe('other-disk');
+		expect(chosen.next).toBeNull();
 	});
 
 	it('puts back what it moved when a move fails, and keeps checkouts where they were', async () => {

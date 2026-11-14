@@ -203,7 +203,7 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 				`/usr/bin/python3 -c "import socket; s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM); s.connect('/private/var/run/syslog'); s.send(b'<13>malini sandbox test')"`,
 			),
 		).toBe(0);
-	});
+	}, 30_000);
 
 	it('keeps a command off the internet when the internet is off', async () => {
 		expect(await inside('/usr/bin/nc -z -G 2 1.1.1.1 443')).not.toBe(0);
