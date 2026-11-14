@@ -24,6 +24,10 @@ class NotificationService {
 		}
 	}
 
+	showUnreadCount(count: number): Promise<void> {
+		return invoke('app.unread-chats', { count });
+	}
+
 	onOpen(listener: NotificationOpenListener): () => void {
 		let listening = true;
 		const openClicked = async (): Promise<void> => {

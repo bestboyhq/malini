@@ -27,6 +27,10 @@ export class AgentActivity {
 		return this.#attentionByChat[sessionId] ?? null;
 	}
 
+	unreadChatCount(): number {
+		return Object.keys(this.#attentionByChat).length;
+	}
+
 	unreadChatsIn(workstreamId: string): readonly string[] {
 		return this.#chatsIn(workstreamId).map(({ sessionId }) => sessionId);
 	}
