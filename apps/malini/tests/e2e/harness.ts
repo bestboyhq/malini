@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import {
 	accessSync,
 	chmodSync,
-	copyFileSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -46,12 +45,10 @@ const GIT_BASH =
 export function writeExecutable(path: string, script: string): void {
 	replaceExecutable(path, script);
 	if (WINDOWS && !existsSync(`${path}.exe`)) {
-		copyFileSync(
-			windowsTool('stub-launcher.cs', (source) =>
-				source.replace('"GIT_BASH"', JSON.stringify(GIT_BASH)),
-			),
-			`${path}.exe`,
+		const launcher = windowsTool('stub-launcher.cs', (source) =>
+			source.replace('"GIT_BASH"', JSON.stringify(GIT_BASH)),
 		);
+		replaceExecutable(`${path}.exe`, readFileSync(launcher));
 	}
 }
 
@@ -93,7 +90,7 @@ function compileWindowsTool(source: string, tool: string): void {
 
 const PAUSE = new Int32Array(new SharedArrayBuffer(4));
 
-function replaceExecutable(path: string, content: string): void {
+function replaceExecutable(path: string, content: string | Buffer): void {
 	const staged = `${path}.${process.pid}.staged`;
 	writeFileSync(staged, content);
 	chmodSync(staged, 0o755);

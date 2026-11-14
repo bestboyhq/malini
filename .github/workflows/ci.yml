@@ -53,7 +53,8 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm --filter "malini^..." build
       - if: matrix.part != 'packages'
-        run: pnpm --filter malini exec vitest run --shard=${{ matrix.part }}
+        name: Run the part, on Windows with only the file rights a desktop user has
+        run: ${{ runner.os == 'Windows' && 'sh apps/malini/tests/windows/desktop-user.sh' || '' }} pnpm --filter malini exec vitest run --shard=${{ matrix.part }}
       - if: matrix.part == 'packages'
         run: pnpm -r --filter '!malini' --filter '!@malini/site' --reporter-hide-prefix --if-present test
 
@@ -133,8 +134,8 @@ jobs:
             echo "::error::Playwright finds fewer tests than this shard dealt; a test title holding › splits in --test-list and would run nowhere."
             exit 1
           }
-      - name: Run the shard, on Linux inside a session bus with an unlocked keyring as a desktop has
-        run: ${{ runner.os == 'Linux' && 'sh apps/malini/tests/linux/keyring.sh' || '' }} pnpm --filter malini exec playwright test --test-list "$RUNNER_TEMP/tests.txt"
+      - name: Run the shard as a desktop runs it, on Linux with an unlocked keyring, on Windows with only a user's file rights
+        run: ${{ runner.os == 'Linux' && 'sh apps/malini/tests/linux/keyring.sh' || runner.os == 'Windows' && 'sh apps/malini/tests/windows/desktop-user.sh' || '' }} pnpm --filter malini exec playwright test --test-list "$RUNNER_TEMP/tests.txt"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

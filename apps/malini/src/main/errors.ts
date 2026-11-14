@@ -1,6 +1,7 @@
 import { basename, win32 } from 'node:path';
 import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
 import type { ShipWaitsFor } from '$contract/pull-requests';
+import { osFor } from '$shared/os/os.platform';
 
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return (
@@ -184,7 +185,7 @@ const REMOTE_REJECTED = /^\s*!\s+\[remote rejected\][^\n(]*\((.+)\)[ \t]*$/mu;
 const WORKFLOW_REFUSED =
 	/refusing to allow an? (OAuth App|Personal Access Token|GitHub App) to create or update workflow `([^`]+)` without `workflows?` (?:scope|permission)/u;
 const REMOTE_LINE = /^remote:[ \t]?(.*)$/gmu;
-const PUSHED_TO_FOLDER = /^To (\/.*?)\/?$/mu;
+const PUSHED_TO_FOLDER = /^To ((?:\/|[A-Za-z]:[\\/]|\\\\).*?)[\\/]?$/mu;
 const REMOTE_PROGRESS = /^(?:Enumerating|Counting|Compressing|Resolving|Total|Writing)\b/u;
 const REMOTE_SAID_MAX_CHARS = 2_000;
 const MERGE_CONFLICT = /^CONFLICT \(/mu;
@@ -226,14 +227,14 @@ function refusedPush(output: string, reason: string): string {
 	const fix = workflow?.[1] === undefined ? undefined : WORKFLOW_FIXES[workflow[1]];
 	if (!workflow || fix === undefined) {
 		const folder = PUSHED_TO_FOLDER.exec(output)?.[1];
-		const refuser = folder === undefined ? 'GitHub' : `The folder ${basename(folder)}`;
+		const refuser = folder === undefined ? 'GitHub' : `The folder ${pathName(folder)}`;
 		return `${refuser} refused the push: ${/[.!?]$/u.test(reason) ? reason : `${reason}.`}`;
 	}
 	return `GitHub refused the push: this change edits \`${workflow[2] ?? 'a workflow'}\`, and ${fix}`;
 }
 
 function folderMissing(folder: string): GitFailureVerdict {
-	return { kind: 'io', message: `The folder ${basename(folder)} is missing.`, code: 'ENOENT' };
+	return { kind: 'io', message: `The folder ${pathName(folder)} is missing.`, code: 'ENOENT' };
 }
 
 export function gitFailureVerdict(output: string): GitFailureVerdict {
@@ -419,7 +420,7 @@ export class GhError extends Error {
 	static notInstalled(): GhError {
 		return new GhError(
 			'not-installed',
-			'The GitHub CLI (`gh`) is not on this Mac. Install it in Settings, Accounts.',
+			`The GitHub CLI (\`gh\`) is not on this ${osFor(process.platform).machine}. Install it in Settings, Accounts.`,
 			{ code: null },
 		);
 	}

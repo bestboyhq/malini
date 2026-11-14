@@ -1,11 +1,12 @@
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { vi } from 'vitest';
 import { captureMainProcess, nodeProcessHooks } from './capture';
 import { currentLogPath, diagnosticsDirectory } from './diagnostics-files';
 import { MainDiagnosticsLog } from './main-diagnostics';
+import { removeAll } from '../fs/test-support';
 
 export function diagnosticsRecordedDuring(run: () => void): unknown[] {
 	const root = mkdtempSync(join(tmpdir(), 'malini-diagnostics-'));
@@ -25,6 +26,6 @@ export function diagnosticsRecordedDuring(run: () => void): unknown[] {
 	}
 	const path = currentLogPath(diagnosticsDirectory(root), 'main');
 	const lines = existsSync(path) ? readFileSync(path, 'utf8').trim().split('\n') : [];
-	rmSync(root, { recursive: true, force: true });
+	removeAll([root]);
 	return lines.map((line): unknown => JSON.parse(line));
 }

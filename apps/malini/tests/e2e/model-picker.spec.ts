@@ -15,6 +15,9 @@ import {
 	temporaryRoot,
 	writeExecutable,
 } from './harness';
+import { osFor } from '../../src/lib/shared/os/domain/os';
+
+const { machine } = osFor(process.platform);
 
 test('the model picker is one button that opens and closes its list from the keyboard', async () => {
 	test.setTimeout(120_000);
@@ -296,9 +299,12 @@ test('Malini runs the upgrade Homebrew asks for, and only a failed one shows, un
 		await expect(card.getByRole('status')).toHaveText(/^Could not update .*to v2\.1\.311$/u);
 		rmSync(brewFails);
 		await retry.click();
-		await expect(card.getByRole('status')).toHaveText(/^Installed on this Mac/u, {
-			timeout: 20_000,
-		});
+		await expect(card.getByRole('status')).toHaveText(
+			new RegExp(`^Installed on this ${machine}`, 'u'),
+			{
+				timeout: 20_000,
+			},
+		);
 		await expect(retry).toHaveCount(0);
 
 		await page.keyboard.press('Escape');

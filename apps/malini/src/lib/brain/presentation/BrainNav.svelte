@@ -7,6 +7,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
+	import { osQuery } from '$shared/os/os.api';
 	import { brainHref } from '$shared/router/routes-hrefs';
 	import { retryBrainSyncCommand } from '$lib/brain/application/commands/set-brain-sync.command';
 	import { brainQuery } from '$lib/brain/application/queries/brain.query.svelte';
@@ -100,12 +101,14 @@
 		<div class="text-fg-tertiary flex shrink-0 items-center gap-2 px-4.5 py-3 text-xs">
 			<span class={['size-1.5 shrink-0 rounded-full', DOT[sync.kind]]} aria-hidden="true"></span>
 			<Tooltip
-				content={brainSyncLine(sync, now)}
+				content={brainSyncLine(sync, now, osQuery.data.machine)}
 				placement="top"
 				onlyWhenTruncated
 				class="min-w-0 flex-1"
 			>
-				<span class="min-w-0 flex-1 truncate" role="status">{brainSyncLine(sync, now)}</span>
+				<span class="min-w-0 flex-1 truncate" role="status">
+					{brainSyncLine(sync, now, osQuery.data.machine)}
+				</span>
 			</Tooltip>
 			{#if sync.kind === 'problem'}
 				<Button variant="ghost" size="xs" loading={brain.syncing} onclick={retryBrainSyncCommand}>

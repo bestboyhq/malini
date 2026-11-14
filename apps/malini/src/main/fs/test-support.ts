@@ -10,7 +10,7 @@ export const DENIED = WINDOWS
 	: { code: 'EACCES', reason: 'permission denied' };
 
 export function removeAll(dirs: string[]): void {
-	for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+	for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
 }
 
 function icacls(path: string, ...change: string[]): void {

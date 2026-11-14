@@ -38,7 +38,7 @@ export function createMainWindow(): BrowserWindow {
 	});
 
 	window.webContents.setWindowOpenHandler(({ url }) => {
-		void shell.openExternal(url);
+		if (isWebLink(url)) void shell.openExternal(url);
 		return { action: 'deny' };
 	});
 	window.webContents.on('will-navigate', (event, url) => {

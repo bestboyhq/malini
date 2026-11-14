@@ -186,8 +186,11 @@
 		return marked.parse(source, { async: false, breaks: renderMode !== 'prose', gfm: true });
 	}
 
+	const ALLOWED_URI_REGEXP =
+		/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[a-z]:(?:[\\/]|%5c)|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/iu;
+
 	export function renderSanitizedHtml(source: string, renderMode: MarkdownRenderMode): string {
-		return DOMPurify.sanitize(unsanitizedHtml(source, renderMode));
+		return DOMPurify.sanitize(unsanitizedHtml(source, renderMode), { ALLOWED_URI_REGEXP });
 	}
 
 	type CodeBlockButtons = Readonly<{ copy: string; run: string }>;
@@ -201,6 +204,7 @@
 		buttons: SegmentOptions,
 	): DocumentFragment {
 		const fragment = DOMPurify.sanitize(unsanitizedHtml(source, mode), {
+			ALLOWED_URI_REGEXP,
 			RETURN_DOM_FRAGMENT: true,
 		});
 		holdWorkstreamImagesIn(fragment);

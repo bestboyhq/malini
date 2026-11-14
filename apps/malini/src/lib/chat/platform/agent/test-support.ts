@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { removeAll } from '$main/fs/test-support';
 import { run } from '$main/db/rows';
 import { createEventBus, type EventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -280,7 +281,7 @@ export function writeFakeBridge(): FakeBridge {
 			};
 		},
 		cleanup() {
-			rmSync(dir, { recursive: true, force: true });
+			removeAll([dir]);
 		},
 	};
 }
@@ -330,7 +331,7 @@ export function createTestContext(): TestContext {
 		appDataRoot,
 		cleanup() {
 			db.close();
-			rmSync(appDataRoot, { recursive: true, force: true });
+			removeAll([appDataRoot]);
 		},
 	};
 }

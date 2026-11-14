@@ -16,6 +16,7 @@ import {
 } from './paths';
 import { attributeCredentials, failureOutput, GitError } from '$main/errors';
 import { runGh } from '$main/process/gh';
+import { osFor } from '$shared/os/os.platform';
 import {
 	ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG,
 	DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG,
@@ -251,8 +252,7 @@ export async function commitPaths(
 	return true;
 }
 
-export const MAIN_DIVERGED =
-	'GitHub has brain changes this Mac lacks, and they clash with its own. Pull them into the Brain workstream, then retry.';
+export const MAIN_DIVERGED = `GitHub has brain changes this ${osFor(process.platform).machine} lacks, and they clash with its own. Pull them into the Brain workstream, then retry.`;
 
 const MAIN_PUSH_ROUNDS = 3;
 

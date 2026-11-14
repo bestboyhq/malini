@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { measureProcessTree, parseProcessTable } from './process-tree';
+import { measureProcessTree, parseProcessTable, parseWindowsProcessTable } from './process-tree';
 import {
 	describeBreakdown,
 	parseCommandLines,
@@ -157,5 +157,43 @@ describe('describeBreakdown', () => {
 		expect(malini?.items[0]?.label).toBe('git');
 		expect(malini?.unlisted).toBe(3);
 		expect(malini?.unlistedMemoryBytes).toBe(4 * MIB);
+	});
+
+	it('names Windows processes from command lines that start with a quoted path', () => {
+		const roots = { app: 100, browserTabs: new Set<number>(), agentHost: 110 };
+		const { rows } = parseWindowsProcessTable(
+			[
+				'100 8 209715200 0 Malini.exe',
+				'101 100 104857600 0 Malini.exe',
+				'110 100 52428800 0 Malini.exe',
+				'120 110 419430400 0 claude.exe',
+				'130 120 314572800 0 node.exe',
+			].join('\r\n'),
+			0,
+			null,
+		);
+		const commandLines = parseCommandLines(
+			[
+				'101 "C:\\Program Files\\Malini\\Malini.exe" --type=gpu-process --gpu-preferences=AAAA',
+				'130 "C:\\Program Files\\nodejs\\node.exe" server.js --port 5231',
+				'',
+			].join('\r\n'),
+		);
+
+		const breakdown = describeBreakdown(
+			unitsByKind(measureProcessTree(rows, roots, 4).units),
+			{ roots, commandLines, tabTitles: new Map(), workingDirectories: new Map(), workstreams: [] },
+			[],
+		);
+
+		expect(
+			Object.fromEntries(
+				breakdown.map(({ kind, items }) => [kind, items.map((item) => item.label)]),
+			),
+		).toEqual({
+			agents: ['Claude Code', 'Agent bridge'],
+			tools: ['node.exe server.js --port 5231'],
+			malini: ['Main process', 'Graphics'],
+		});
 	});
 });

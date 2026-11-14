@@ -1,5 +1,13 @@
+import { spawn } from 'node:child_process';
+import { spawn as spawnTerminal } from 'node-pty';
 import { describe, expect, it } from 'vitest';
-import { leftoverContainers, leftoverProcesses, parseProcessList } from './leftovers';
+import { createNodeProcessRunner } from '$main/process/runner';
+import {
+	leftoverContainers,
+	leftoverProcesses,
+	parseProcessList,
+	windowsTerminalProcesses,
+} from './leftovers';
 import type { DockerContainer } from './running-docker';
 
 const ROOT = '/Users/me/Library/Application Support/malini/workstreams';
@@ -43,6 +51,42 @@ describe('leftoverProcesses', () => {
 			].join('\n'),
 		);
 		expect(leftoverProcesses(dogfood, { folders: [ARCHIVED], live: [] }, 200)).toEqual([]);
+	});
+
+	it('reads the Windows list and finds the checkout whatever the case and slashes of its path', () => {
+		const root = 'C:\\Users\\Me\\AppData\\Roaming\\malini\\workstreams';
+		const place = {
+			folders: [{ id: 'ws-1', path: `${root}\\ws-1` }],
+			live: [{ id: 'ws-10', path: `${root}\\ws-10` }],
+		};
+		const windows = parseProcessList(
+			[
+				'4 0 ? System',
+				'200 100 ? "C:\\Program Files\\Malini\\Malini.exe"',
+				'300 0 ? node.exe c:/users/me/appdata/roaming/malini/workstreams/ws-1/server.js',
+				'310 300 ? C:\\Windows\\System32\\conhost.exe 0xffffffff -ForceV1',
+				`500 0 ? node.exe ${root}\\ws-10\\server.js`,
+			].join('\r\n'),
+		);
+		expect(leftoverProcesses(windows, place, 200, 'win32').sort()).toEqual([300, 310]);
+	});
+});
+
+describe.runIf(process.platform === 'win32')('windowsTerminalProcesses', () => {
+	it('finds a process in a terminal, never one started hidden or detached', async () => {
+		const idle = ['-e', 'setInterval(() => {}, 1000)'];
+		const hidden = spawn(process.execPath, idle, { stdio: 'pipe', windowsHide: true });
+		const detached = spawn(process.execPath, idle, { detached: true, stdio: 'ignore' });
+		const terminal = spawnTerminal(process.execPath, idle, {});
+		try {
+			const pids = [hidden.pid, detached.pid, terminal.pid].flatMap((pid) => pid ?? []);
+			const terminals = await windowsTerminalProcesses(createNodeProcessRunner(), pids);
+			expect([...terminals]).toEqual([terminal.pid]);
+		} finally {
+			hidden.kill();
+			detached.kill();
+			terminal.kill();
+		}
 	});
 });
 

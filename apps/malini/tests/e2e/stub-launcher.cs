@@ -64,14 +64,19 @@ static class StubLauncher
 	[DllImport("kernel32.dll")]
 	static extern bool GetExitCodeProcess(IntPtr process, out int exitCode);
 
-	static int Main()
+	const string ShellBoot =
+		@"IFS=$' \t\n'; set +f; i=0; while [ ""$i"" -lt ""$MALINI_STUB_ARGC"" ]; do " +
+		@"name=MALINI_STUB_ARG_$i; set -- ""$@"" ""${!name}""; unset ""$name""; i=$((i + 1)); done; " +
+		@"unset i name MALINI_STUB_ARGC MALINI_STUB_BOOT; . ""$0""";
+
+	static int Main(string[] args)
 	{
 		string self = Assembly.GetEntryAssembly().Location;
 		string script = self.Substring(0, self.Length - ".exe".Length);
 		string runner = Runner(script);
 		Environment.SetEnvironmentVariable("MSYS_NO_PATHCONV", "1");
 		StringBuilder commandLine = new StringBuilder(
-			"\"" + runner + "\" \"" + script + "\"" + ArgumentsAfterProgram(Environment.CommandLine));
+			runner == GitBash ? ShellCommandLine(script, args) : NodeCommandLine(runner, script));
 		StartupInfo startup = new StartupInfo();
 		startup.size = Marshal.SizeOf(typeof(StartupInfo));
 		startup.flags = UseStandardHandles;
@@ -97,6 +102,19 @@ static class StubLauncher
 		string shebang = firstLine.StartsWith("#!") ? firstLine.Substring(2).Trim() : "";
 		bool windowsProgram = shebang.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(shebang);
 		return windowsProgram ? shebang : GitBash;
+	}
+
+	static string ShellCommandLine(string script, string[] args)
+	{
+		Environment.SetEnvironmentVariable("MALINI_STUB_BOOT", ShellBoot);
+		Environment.SetEnvironmentVariable("MALINI_STUB_ARGC", args.Length.ToString());
+		for (int i = 0; i < args.Length; i++) Environment.SetEnvironmentVariable("MALINI_STUB_ARG_" + i, args[i]);
+		return "\"" + GitBash + "\" -c \"set -f; IFS=; eval $MALINI_STUB_BOOT\" \"" + script + "\"";
+	}
+
+	static string NodeCommandLine(string runner, string script)
+	{
+		return "\"" + runner + "\" \"" + script + "\"" + ArgumentsAfterProgram(Environment.CommandLine);
 	}
 
 	static string ArgumentsAfterProgram(string commandLine)

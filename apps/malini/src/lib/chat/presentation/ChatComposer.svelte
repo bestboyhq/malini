@@ -821,6 +821,18 @@
 		untrack(() => continueTodoSubmission(resolution));
 	});
 
+	$effect(() => {
+		void workstreamId;
+		return abandonTodoSubmission;
+	});
+
+	function abandonTodoSubmission(): void {
+		const pending = pendingTodoSubmission;
+		if (!pending) return;
+		pendingTodoSubmission = null;
+		clearWorkstreamTodosResolutionCommand(pending.requestId);
+	}
+
 	function continueTodoSubmission(resolution: WorkstreamTodosResolution | null): void {
 		const pending = pendingTodoSubmission;
 		if (!pending || resolution?.requestId !== pending.requestId) return;

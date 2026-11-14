@@ -42,6 +42,10 @@ async function workstreamWithFile(app: LaunchedApp, workstreamId: string): Promi
 	return seeded.worktree;
 }
 
+function expectOwnerOnlyMode(path: string): void {
+	if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
+}
+
 async function streamerMode(page: Page, mode: 'On' | 'Off', workstreamId: string): Promise<void> {
 	await page.evaluate(() => {
 		location.hash = '#/settings/privacy';
@@ -59,6 +63,9 @@ test('a file tab is an editor that saves what the user types into the worktree, 
 	try {
 		const { page } = app;
 		const worktree = await workstreamWithFile(app, 'e2e-edit-file-ws');
+		const original = readFileSync(join(worktree, 'alpha.ts'), 'utf8');
+		const withComment = (comment: string): string =>
+			original.replace('alpha = 1;', `alpha = 1; // ${comment}`);
 
 		await page.getByRole('treeitem', { name: 'Open alpha.ts' }).click();
 		await expect(fileTab(page, 'alpha.ts')).toHaveAccessibleDescription('Preview');
@@ -71,20 +78,18 @@ test('a file tab is an editor that saves what the user types into the worktree, 
 		const panel = page.getByRole('tabpanel', { name: 'alpha.ts' });
 		await expect
 			.poll(() => readFileSync(join(worktree, 'alpha.ts'), 'utf8'), { timeout: 20_000 })
-			.toBe('export const alpha = 1; // checked by hand\n');
+			.toBe(withComment('checked by hand'));
 		await expect(panel.getByRole('alert')).toBeHidden();
 		await expect(fileTab(page, 'alpha.ts')).not.toHaveAccessibleDescription('Preview');
 		await expect(panel).toContainText('Removed: export const alpha = 1;', { timeout: 20_000 });
 		await expect(panel).toContainText('Added: export const alpha = 1; // checked by hand');
 
 		await page.keyboard.press('ControlOrMeta+z');
-		await expect
-			.poll(() => readFileSync(join(worktree, 'alpha.ts'), 'utf8'))
-			.toBe('export const alpha = 1;\n');
+		await expect.poll(() => readFileSync(join(worktree, 'alpha.ts'), 'utf8')).toBe(original);
 		await page.keyboard.type(' // kept');
 		await expect
 			.poll(() => readFileSync(join(worktree, 'alpha.ts'), 'utf8'))
-			.toBe('export const alpha = 1; // kept\n');
+			.toBe(withComment('kept'));
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'file-editing-1-saved');
 		expectCleanConsole(app);
@@ -123,7 +128,7 @@ test('a markdown file opens Raw to edit, Rich renders it, and its links open the
 		await page.keyboard.type(' for 1.0');
 		await expect
 			.poll(() => readFileSync(join(seeded.worktree, 'NOTES.md'), 'utf8'), { timeout: 20_000 })
-			.toMatch(/^# Release notes for 1\.0\n/u);
+			.toMatch(/^# Release notes for 1\.0\r?\n/u);
 
 		await view.getByRole('button', { name: 'Rich' }).click();
 		await expect(
@@ -262,7 +267,7 @@ test('an agent opens a private file outside the worktree for the user, who fills
 		await expect(tab).not.toHaveAccessibleDescription('Preview');
 		await expect(secretsEditor).toBeVisible({ timeout: 20_000 });
 		expect(readFileSync(secrets, 'utf8')).toBe('');
-		expect(statSync(secrets).mode & 0o777).toBe(0o600);
+		expectOwnerOnlyMode(secrets);
 		const actions = await invoke<AgentActionRecord[]>(page, 'automations.list-agent-actions');
 		expect(actions.find(({ tool }) => tool === 'files_open')).toMatchObject({
 			status: 'succeeded',
@@ -277,7 +282,7 @@ test('an agent opens a private file outside the worktree for the user, who fills
 			.poll(() => readFileSync(secrets, 'utf8').trimEnd(), { timeout: 20_000 })
 			.toBe('KENNEL_TOKEN=pasted-by-the-user');
 		await expect(panel.getByRole('alert')).toBeHidden();
-		expect(statSync(secrets).mode & 0o777).toBe(0o600);
+		expectOwnerOnlyMode(secrets);
 		await page.mouse.move(0, 0);
 		await captureFlow(first, 'file-editing-2-secrets-filled-in');
 

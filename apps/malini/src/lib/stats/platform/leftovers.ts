@@ -1,10 +1,35 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { childrenByParent } from './process-tree';
+import { boundedRunSucceeded, runBounded, type ProcessRunner } from '$main/process/runner';
+import { childrenByParent, powerShellArgs, WINDOWS_POWERSHELL } from './process-tree';
 import { containerWorkstream, type DockerContainer, type WorkstreamFolder } from './running-docker';
 import { withDescendants } from './running-ports';
 
 export const PROCESS_LIST_ARGS = ['-A', '-ww', '-o', 'pid=,ppid=,tty=,args='] as const;
 
+export const WINDOWS_PROCESS_LIST_ARGS = powerShellArgs(
+	[
+		'[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)',
+		'$all = @{}',
+		'Get-CimInstance Win32_Process | ForEach-Object { $all[$_.ProcessId] = $_ }',
+		'foreach ($p in $all.Values) {',
+		'$up = $all[$p.ParentProcessId]',
+		'$ppid = if ($up -and $up.CreationDate -le $p.CreationDate) { $p.ParentProcessId } else { 0 }',
+		'$line = if ($p.CommandLine) { $p.CommandLine } else { $p.Name }',
+		"'{0} {1} ? {2}' -f $p.ProcessId, $ppid, ($line -replace '[\\r\\n]+', ' ')",
+		'}',
+	].join('\n'),
+);
+
+const CONSOLE_API = [
+	'[DllImport("kernel32.dll")] public static extern bool FreeConsole();',
+	'[DllImport("kernel32.dll")] public static extern bool AttachConsole(uint processId);',
+	'[DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();',
+	'[DllImport("kernel32.dll")] public static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);',
+	'[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);',
+	'[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);',
+];
+const TERMINALS_LINE = /^terminals:(.*)$/mu;
+const WINDOWS_PROBE_TIMEOUT_MS = 10_000;
 const STOP_GRACE_MS = 3_000;
 const STOP_POLL_MS = 100;
 const ROW = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+)$/u;
@@ -24,7 +49,7 @@ export interface ListedProcess {
 }
 
 export function parseProcessList(output: string): ListedProcess[] {
-	return output.split('\n').flatMap((line) => {
+	return output.split(/\r?\n/u).flatMap((line) => {
 		const [, pid, ppid, tty, command] = ROW.exec(line) ?? [];
 		if (!pid || !ppid || !tty || !command) return [];
 		return [
@@ -42,6 +67,7 @@ export function leftoverProcesses(
 	listed: readonly ListedProcess[],
 	place: LeftoverPlace,
 	appPid: number,
+	platform: NodeJS.Platform = process.platform,
 ): number[] {
 	const children = childrenByParent(listed);
 	const app = withDescendants([appPid], children);
@@ -53,10 +79,49 @@ export function leftoverProcesses(
 	const roots = listed
 		.filter(
 			({ pid, terminal, command }) =>
-				pid > 1 && !app.has(pid) && !terminal && runsIn(command, place),
+				pid > 1 && !app.has(pid) && !terminal && runsIn(command, place, platform),
 		)
 		.map(({ pid }) => pid);
 	return [...withDescendants(roots, children)].filter((pid) => !app.has(pid));
+}
+
+export async function windowsTerminalProcesses(
+	runner: ProcessRunner,
+	pids: readonly number[],
+): Promise<ReadonlySet<number>> {
+	if (pids.length === 0) return new Set();
+	try {
+		const run = await runBounded(runner, WINDOWS_POWERSHELL, terminalProbeArgs(pids), {
+			deadline: Date.now() + WINDOWS_PROBE_TIMEOUT_MS,
+		});
+		const seen = boundedRunSucceeded(run) ? TERMINALS_LINE.exec(run.stdout)?.[1] : undefined;
+		if (seen === undefined) return new Set(pids);
+		return new Set(seen.split(' ').filter(Boolean).map(Number));
+	} catch {
+		return new Set(pids);
+	}
+}
+
+function terminalProbeArgs(pids: readonly number[]): readonly string[] {
+	return powerShellArgs(
+		[
+			"$ErrorActionPreference = 'Stop'",
+			"Add-Type -Namespace Malini -Name Console -MemberDefinition @'",
+			...CONSOLE_API,
+			"'@",
+			'[void][Malini.Console]::SetConsoleCtrlHandler([IntPtr]::Zero, $true)',
+			`$seen = foreach ($id in @(${pids.join(', ')})) {`,
+			'[void][Malini.Console]::FreeConsole()',
+			'if (-not [Malini.Console]::AttachConsole($id)) { continue }',
+			'$window = [Malini.Console]::GetConsoleWindow()',
+			'$class = [Text.StringBuilder]::new(64)',
+			'[void][Malini.Console]::GetClassName($window, $class, $class.Capacity)',
+			"if ($class.ToString() -eq 'PseudoConsoleWindow' -or [Malini.Console]::IsWindowVisible($window)) { $id }",
+			'}',
+			'[void][Malini.Console]::FreeConsole()',
+			'"terminals:$seen"',
+		].join('\n'),
+	);
 }
 
 export function leftoverContainers(
@@ -96,11 +161,15 @@ function signal(pid: number, name: NodeJS.Signals): boolean {
 	}
 }
 
-function runsIn(command: string, place: LeftoverPlace): boolean {
-	return (
-		place.folders.some(({ path }) => mentions(command, path)) &&
-		!place.live.some(({ path }) => mentions(command, path))
-	);
+function runsIn(command: string, place: LeftoverPlace, platform: NodeJS.Platform): boolean {
+	const text = comparablePath(command, platform);
+	const mentioned = ({ path }: WorkstreamFolder): boolean =>
+		mentions(text, comparablePath(path, platform));
+	return place.folders.some(mentioned) && !place.live.some(mentioned);
+}
+
+function comparablePath(text: string, platform: NodeJS.Platform): string {
+	return platform === 'win32' ? text.replaceAll('/', '\\').toLowerCase() : text;
 }
 
 function mentions(command: string, folder: string): boolean {

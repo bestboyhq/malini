@@ -72,7 +72,7 @@ export function approvalShortTarget(
 	);
 	if (!resource) return toolName ?? 'tool';
 	if (resource.kind !== 'path') return resource.value;
-	return resource.value.split('/').filter(Boolean).at(-1) ?? resource.value;
+	return resource.value.split(/[\\/]/u).filter(Boolean).at(-1) ?? resource.value;
 }
 
 export type SandboxGrantRow = Readonly<{
@@ -92,7 +92,7 @@ export function sandboxGrantRows(
 			return [{ kind: 'folder', name: 'Write', path, risk: 'Commands can change anything in it.' }];
 		}
 		if (kind !== 'socket') return [];
-		return value.endsWith('/docker.sock')
+		return /[\\/]docker\.sock$/u.test(value)
 			? [
 					{
 						kind: 'docker',

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { osQuery } from '$shared/os/os.api';
 	import {
 		SCHEDULE_CADENCES,
 		parseAutomationTrigger,
@@ -50,6 +51,7 @@
 	let cadence = $state<ScheduleCadence>(current?.cadence ?? 'weekday');
 	let time = $state(current ? scheduleTime(current) : '09:00');
 
+	const { machine } = $derived(osQuery.data);
 	const terms = $derived(search.trim().toLowerCase().split(/\s+/u).filter(Boolean));
 	const matches = $derived(
 		TRIGGERS.filter((trigger) =>
@@ -195,8 +197,8 @@
 					<TextInput bind:value={time} type="time" label="At" />
 				</div>
 				<p class="text-fg-tertiary -mt-1 text-xs leading-5">
-					Runs by this Mac's clock. If Malini is closed or the Mac sleeps, it runs once when they
-					are back. Pick where under Runs in.
+					Runs by this {machine}'s clock. If Malini is closed or the {machine} sleeps, it runs once when
+					they are back. Pick where under Runs in.
 				</p>
 				{@render phraseBox(schedulePhrase ?? 'every …')}
 				{#if schedulePhrase === null}

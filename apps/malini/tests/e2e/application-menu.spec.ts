@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { sidebarStatus } from './fake-github';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -69,9 +70,13 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 			.poll(() => openedWorkstreamId(page), { timeout: 20_000 })
 			.not.toBe('e2e-menu-alpha');
 		const created = openedWorkstreamId(page);
+		if (!created) throw new Error('the new workstream did not open');
 		await expect(
 			page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${created}"]`),
 		).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+		await expect(sidebarStatus(page, created)).toHaveAccessibleName(/^Workstream status: Idle/u, {
+			timeout: 30_000,
+		});
 		await captureFlow(app, 'application-menu-new-workstream');
 
 		await choose(app, 'settings');

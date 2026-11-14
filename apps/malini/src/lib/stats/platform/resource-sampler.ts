@@ -32,6 +32,7 @@ import {
 	unitsByKind,
 	type WorkstreamPlace,
 } from './resource-breakdown';
+import { WindowsProcessTable } from './windows-process-table';
 
 const DOCKER_INTERVAL_MS = 30_000;
 const PS_TIMEOUT_MS = 4_000;
@@ -65,6 +66,7 @@ interface Measured {
 export class ResourceSampler {
 	readonly #deps: ResourceSamplerDeps;
 	readonly #cores = Math.max(1, cpus().length);
+	readonly #windows: WindowsProcessTable | null;
 	#samples: ResourceSample[] = [];
 	#timer: NodeJS.Timeout | null = null;
 	#journalTimer: NodeJS.Timeout | null = null;
@@ -78,6 +80,10 @@ export class ResourceSampler {
 
 	constructor(deps: ResourceSamplerDeps) {
 		this.#deps = deps;
+		this.#windows =
+			process.platform === 'win32'
+				? new WindowsProcessTable(deps.runner, deps.appProcessId, RESOURCE_SAMPLE_INTERVAL_MS)
+				: null;
 	}
 
 	start(): void {
@@ -95,6 +101,7 @@ export class ResourceSampler {
 		if (this.#journalTimer) clearInterval(this.#journalTimer);
 		this.#timer = null;
 		this.#journalTimer = null;
+		this.#windows?.stop();
 	}
 
 	history(): ResourceHistory {
@@ -106,13 +113,15 @@ export class ResourceSampler {
 	}
 
 	async #journalEntry(): Promise<MemoryJournalEntry | null> {
-		const [table, footprintTable] = await Promise.all([
-			this.#readProcessTable(),
-			this.#readBounded(resolveToolPath('top') ?? '/usr/bin/top', FOOTPRINT_TABLE_ARGS),
+		const [listed, footprintTable] = await Promise.all([
+			this.#readProcessRows(),
+			this.#windows
+				? ''
+				: this.#readBounded(resolveToolPath('top') ?? '/usr/bin/top', FOOTPRINT_TABLE_ARGS),
 		]);
-		if (table === null) return null;
+		if (listed === null) return null;
 		const footprints = parseFootprints(footprintTable);
-		const rows = parseProcessTable(table).map((row) => ({
+		const rows = listed.map((row) => ({
 			...row,
 			memoryBytes: footprints.byProcess.get(row.pid) ?? row.memoryBytes,
 		}));
@@ -206,9 +215,9 @@ export class ResourceSampler {
 	}
 
 	async #measure(): Promise<ResourceSample | null> {
-		const table = await this.#readProcessTable();
-		if (table === null) return null;
-		const measured = this.#measureRows(parseProcessTable(table));
+		const rows = await this.#readProcessRows();
+		if (rows === null) return null;
+		const measured = this.#measureRows(rows);
 		const { tree } = measured;
 		if (tree.processes === 0) return null;
 		this.#measured = measured;
@@ -232,6 +241,12 @@ export class ResourceSampler {
 		return { tree: measureProcessTree(rows, roots, this.#cores), roots, tabs };
 	}
 
+	async #readProcessRows(): Promise<ProcessRow[] | null> {
+		if (this.#windows) return await this.#windows.rows();
+		const table = await this.#readProcessTable();
+		return table === null ? null : parseProcessTable(table);
+	}
+
 	async #readProcessTable(): Promise<string | null> {
 		try {
 			const run = await runBounded(
@@ -247,6 +262,7 @@ export class ResourceSampler {
 	}
 
 	async #readCommandLines(pids: readonly number[]): Promise<ReadonlyMap<number, string>> {
+		if (this.#windows) return this.#windows.commandLines;
 		if (pids.length === 0) return new Map();
 		const run = await this.#readBounded(resolveToolPath('ps') ?? '/bin/ps', [
 			'-ww',
@@ -262,6 +278,7 @@ export class ResourceSampler {
 		live: readonly number[],
 		wanted: readonly number[],
 	): Promise<ReadonlyMap<number, string>> {
+		if (this.#windows) return this.#windows.workingDirectories;
 		const alive = new Set(live);
 		for (const pid of this.#workingDirectories.keys()) {
 			if (!alive.has(pid)) this.#workingDirectories.delete(pid);

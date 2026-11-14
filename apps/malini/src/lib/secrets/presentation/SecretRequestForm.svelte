@@ -7,6 +7,7 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import type { SecretRequest } from '$contract/secrets';
 	import { dismissSecretRequestCommand } from '$lib/secrets/application/commands/dismiss-secret-request.command';
 	import { saveRequestedSecretsCommand } from '$lib/secrets/application/commands/save-requested-secrets.command';
@@ -212,7 +213,7 @@
 		<div class="flex h-11 items-center justify-between gap-3 px-3 pb-2">
 			<span class="text-fg-tertiary text-3xs inline-flex items-center gap-1.5 pl-0.5">
 				<Icon name="lock" size={12} />
-				Sealed in your keychain
+				Sealed in your {osQuery.data.keychain}
 			</span>
 			<Button
 				bind:element={saveButton}

@@ -11,6 +11,9 @@ import {
 	openAutomations,
 	openOverview,
 } from './harness';
+import { osFor } from '../../src/lib/shared/os/domain/os';
+
+const { machine } = osFor(process.platform);
 
 type AutomationRow = Readonly<{
 	id: string;
@@ -353,7 +356,7 @@ test('an automation sees and reaches only what you set on its page, and says whe
 		await leak.getByRole('button', { name: 'Turn off the internet' }).click();
 		await expect(leak).toHaveCount(0);
 		await expect(sees).toContainText(
-			'It sees your words, and nothing it does leaves your Mac except through Claude.',
+			`It sees your words, and nothing it does leaves your ${machine} except through Claude.`,
 		);
 		await expect(reaches.getByRole('switch', { name: 'The internet' })).not.toBeChecked();
 		await expect(reaches).not.toContainText('GitHub');

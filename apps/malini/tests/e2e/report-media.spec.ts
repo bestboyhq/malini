@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
@@ -205,7 +205,10 @@ test('two recordings play on one timeline, step a frame at a time and jump to th
 		await expect(speed).toHaveText('0.5×');
 		const after = player.locator('video').nth(1);
 		const rewrite = () =>
-			copyFileSync(join(MEDIA, 'after.mp4'), join(worktree, '.context', 'after.mp4'));
+			writeFileSync(
+				join(worktree, '.context', 'after.mp4'),
+				readFileSync(join(MEDIA, 'after.mp4')),
+			);
 		const pausedSrc = (await playbackOf(after)).src;
 		rewrite();
 		await expect.poll(async () => (await playbackOf(after)).src).not.toBe(pausedSrc);
@@ -597,7 +600,10 @@ test('a recording keeps its place and keeps playing or paused when its file chan
 		const recording = offer.getByLabel('Variant B · Motion', { exact: true });
 		const controls = offer.getByRole('group', { name: 'Video controls' });
 		const rewrite = () =>
-			copyFileSync(join(MEDIA, 'after.mp4'), join(worktree, '.context', 'after.mp4'));
+			writeFileSync(
+				join(worktree, '.context', 'after.mp4'),
+				readFileSync(join(MEDIA, 'after.mp4')),
+			);
 		await expect
 			.poll(async () => (await playbackOf(recording)).at, { timeout: 20_000 })
 			.toBeGreaterThan(0);

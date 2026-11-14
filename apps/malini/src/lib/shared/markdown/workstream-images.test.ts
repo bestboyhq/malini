@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderSanitizedHtml } from './MarkdownText.svelte';
-import { holdWorkstreamImages, showWorkstreamImages } from './workstream-images';
+import { holdWorkstreamImages, markdownImageName, showWorkstreamImages } from './workstream-images';
 
 function render(markdown: string): HTMLElement {
 	const host = document.createElement('div');
@@ -38,6 +38,13 @@ describe('workstream images in transcript markdown', () => {
 			const kept = image(render(`![x](${src})`));
 			expect(kept.getAttribute('src')).toBe(src);
 			expect(kept.dataset.workstreamImage).toBeUndefined();
+		}
+	});
+
+	it('names an image without alt text by its file name, whichever separator its path uses', () => {
+		for (const path of ['shots/a.png', 'C:\\Users\\me\\shots\\a.png']) {
+			const held = image(render(`![](${path})`));
+			expect(markdownImageName(held, held.dataset.workstreamImage ?? '')).toBe('a.png');
 		}
 	});
 

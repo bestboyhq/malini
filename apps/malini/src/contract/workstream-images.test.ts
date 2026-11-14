@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	contextMediaCategory,
 	mediaKind,
-	workstreamImageFilePath,
+	workstreamFilePath,
 	workstreamImagePath,
 } from './workstream-images';
 
@@ -68,7 +68,7 @@ describe('workstreamImagePath', () => {
 	);
 });
 
-describe('workstreamImageFilePath', () => {
+describe('workstreamFilePath', () => {
 	it.each([
 		['/ws/root/', './.context/shot.png', '/ws/root/.context/shot.png'],
 		['/ws/root', '/elsewhere/shot.png', '/elsewhere/shot.png'],
@@ -78,6 +78,6 @@ describe('workstreamImageFilePath', () => {
 		['C:\\ws\\root', 'D:/elsewhere/shot.png', 'D:\\elsewhere\\shot.png'],
 		['\\\\server\\share\\root', '.context/shot.png', '\\\\server\\share\\root\\.context\\shot.png'],
 	] as const)('puts %s and %s together as %s', (root, path, file) => {
-		expect(workstreamImageFilePath(root, path)).toBe(file);
+		expect(workstreamFilePath(root, path)).toBe(file);
 	});
 });

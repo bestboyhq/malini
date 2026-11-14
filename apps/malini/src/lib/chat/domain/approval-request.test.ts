@@ -68,6 +68,12 @@ describe('approval request', () => {
 		expect(approvalShortTarget('Read', externalRead)).toBe('README.md');
 		expect(approvalShortTarget('Bash', command)).toBe('touch /opt/probe');
 		expect(approvalShortTarget('Task', undefined)).toBe('Task');
+		expect(
+			approvalShortTarget('Read', {
+				capability: 'read',
+				resources: [{ kind: 'path', value: 'C:\\Users\\me\\README.md', boundary: 'external' }],
+			}),
+		).toBe('README.md');
 	});
 
 	it('names each thing the sandbox blocked with what allowing it lets a command do', () => {
@@ -97,6 +103,12 @@ describe('approval request', () => {
 			'~/.docker/run/docker.sock, ~/.cache/tool, /tmp/agent.sock',
 		);
 		expect(sandboxGrantRows(externalRead)).toEqual([]);
+		expect(
+			sandboxGrantRows({
+				capability: 'sandbox',
+				resources: [{ kind: 'socket', value: 'C:\\Temp\\docker.sock', boundary: 'external' }],
+			}).map(({ kind }) => kind),
+		).toEqual(['docker']);
 	});
 
 	it('keeps the reason only when it says why rather than repeating the prompt', () => {

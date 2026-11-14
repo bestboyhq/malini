@@ -4,6 +4,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Switch } from '$hyper-ui/components/switch';
 	import { Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { shareUsageDataCommand } from '$lib/app/application/commands/share-usage-data.command';
 	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
@@ -49,7 +50,7 @@
 		{#if usage.doNotTrack}
 			<p class="text-fg-default mt-0.5 text-xs">
 				<span class="font-mono">DO_NOT_TRACK</span>
-				is set in your shell, so Malini sends nothing.
+				is set in {osQuery.data.environment}, so Malini sends nothing.
 			</p>
 		{:else if usage.shared}
 			<Button

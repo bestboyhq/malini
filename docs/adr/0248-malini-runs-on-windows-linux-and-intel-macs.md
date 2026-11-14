@@ -60,6 +60,18 @@ CI ran unit tests on Linux and e2e on macOS only, so nothing proved a Windows pa
   Copy-on-write uses `fs.cp` with `COPYFILE_FICLONE` on Windows, and atomic writes skip the directory fsync Windows refuses.
   Open folder uses Electron's `shell.openPath`.
   Streaming detection lists programs with `ps` or `tasklist`, and the system label reads `/etc/os-release` on Linux.
+- **Leftovers stop on Windows too (amends 0082).**
+  `stopLeftovers` lists Windows processes with PowerShell's `Get-CimInstance Win32_Process` in place of `ps`, and counts a process as orphaned when its parent is gone or started after it, since Windows reuses process IDs.
+  A path there matches without case and with either separator.
+  A Windows process has no tty, so a second PowerShell asks each candidate's console for its window with `AttachConsole` and `GetConsoleWindow`: a window the user sees, or the `PseudoConsoleWindow` of a pseudoconsole terminal, keeps the process running, as a tty does on macOS, while Malini's own consoles are hidden and have none.
+  When that check fails, nothing is stopped.
+  `process.kill` ends a Windows process with exit code 1 and no signal, which `archive-restore.spec.ts` expects there.
+- **Stats read one process table on Windows.**
+  Windows has no `ps`, `top` or `lsof`, so one PowerShell, started with the first sample and stopped with the sampler, compiles `Malini.ProcessTable` with `Add-Type` and writes the whole process table every 5 seconds (`src/lib/stats/platform/windows-process-table.ts`).
+  One `NtQuerySystemInformation` call gives each process its parent, its private working set, which is the memory Task Manager shows, and its CPU time, from which Malini takes CPU as the share of one core since the last table.
+  For each new process it adds the command line, and for Malini's own processes the working directory from the process's PEB, so the breakdown names Electron helpers and places each agent in its workstream, as `ps` and `lsof` do on macOS.
+  Between tables it waits on Malini's process, so it ends with Malini even though Windows lets a write to a closed pipe succeed.
+  A PowerShell started for each sample would cost its start-up CPU every 5 seconds.
 - **The sandbox stays on macOS for now (amends 0167).**
   `canSandbox()` is still darwin with `sandbox-exec`, so Linux and Windows run agent commands and installs unconfined, as 0167 describes for Linux CI.
   There Sandboxed access falls back to Claude Code's `acceptEdits` and asks before every command, Auto is Claude Code's auto mode, and Full access runs everything unasked, as on macOS.
@@ -72,5 +84,7 @@ CI ran unit tests on Linux and e2e on macOS only, so nothing proved a Windows pa
   Certum's Open Source code signing in the cloud, about €49 a year, is the route once Windows users ask for a signed build.
 - An AppImage cannot set up Chromium's sandbox helper on Ubuntu 24.04 and later, while the deb and rpm install scripts load an AppArmor profile for it, so the site leads with the deb.
 - Sandboxed access does not confine commands on Linux and Windows, and its description still says it does; a sandbox for each of them is the next step to parity.
+- A command the user runs from the checkout in their own terminal keeps running on every OS, and a terminal still working inside the checkout on Windows makes archive report the checkout in use, since Windows does not move a folder in use.
+- Stats on Windows keep one hidden PowerShell for as long as Malini runs, and where PowerShell runs in Constrained Language mode, `Add-Type` fails and Stats stays empty.
 - What must stay true: every word that names an OS thing comes from `osFor`, every spawn goes through `command.ts`, and every git call that writes a checkout passes `core.autocrlf=false`.
-- Enforced by the unit and e2e matrices on macOS, Linux and Windows and the `package` job (0246), and by `os.test.ts`, `command.test.ts`, `gh-install.test.ts`, `claude-install.test.ts`, `password-store.test.ts`, `url-scheme.test.ts`, `system-label.test.ts`, `updates.test.ts`, `views.test.ts`, `snapshots.test.ts` and `worktree-files.test.ts`.
+- Enforced by the unit and e2e matrices on macOS, Linux and Windows and the `package` job (0246), and by `os.test.ts`, `command.test.ts`, `gh-install.test.ts`, `claude-install.test.ts`, `leftovers.test.ts`, `windows-process-table.test.ts`, `password-store.test.ts`, `url-scheme.test.ts`, `system-label.test.ts`, `updates.test.ts`, `views.test.ts`, `snapshots.test.ts` and `worktree-files.test.ts`.

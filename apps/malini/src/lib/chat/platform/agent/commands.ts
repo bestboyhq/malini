@@ -808,6 +808,11 @@ async function sendAgentPromptLeased(
 		},
 		userMessageSeq,
 	);
+	if (hooks.closing()) {
+		handleSendPromptHandoffFailure(db, sessionId, runId, PAUSED_FOR_EXIT_ERROR, emit);
+		await hooks.captureRunFinish(runId);
+		return runId;
+	}
 
 	let turn: PreparedTurn;
 	try {

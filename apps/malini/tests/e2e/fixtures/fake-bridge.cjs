@@ -1733,13 +1733,16 @@ const respond = async (sessionId, runId, prompt) => {
 				: ''),
 		mention ? mention[1].split(',') : [],
 		[...prompt.matchAll(/SHOW_IMAGE:([^\s]+)/g)].map((match) => match[1]),
-		prompt.includes('RICH_MARKDOWN')
+		(prompt.includes('RICH_MARKDOWN')
 			? RICH_MARKDOWN
 			: prompt.includes('WIDE_CODE')
 				? '\n\n```sh\n' + 'echo wide '.repeat(60) + '\n```'
 				: prompt.includes('CODE')
 					? '\n\n```sh\npnpm --filter malini test\n```'
-					: '',
+					: '') +
+			[...prompt.matchAll(/LINK:([^\s]+)/g)]
+				.map((match) => '\n\n[' + match[1] + '](' + match[1] + ')')
+				.join(''),
 	);
 };
 let mcpServers = env.FAKE_BRIDGE_MCP_SERVERS

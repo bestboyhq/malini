@@ -5,6 +5,7 @@
 	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { BusyIcon, GitHubIcon, Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { cancelGithubSignInCommand } from '$shared/repositories/application/commands/cancel-github-sign-in.command';
 	import { installGithubCliCommand } from '$shared/repositories/application/commands/install-github-cli.command';
 	import { loadGithubAuthCommand } from '$shared/repositories/application/commands/load-github-auth.command';
@@ -70,7 +71,7 @@
 			case 'failed':
 				return install.message;
 			case 'idle':
-				return 'The GitHub CLI is not on this Mac.';
+				return `The GitHub CLI is not on this ${osQuery.data.machine}.`;
 		}
 	}
 

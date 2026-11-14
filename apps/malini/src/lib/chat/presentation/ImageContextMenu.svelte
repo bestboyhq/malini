@@ -5,7 +5,7 @@
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { Icon } from '$hyper-ui/icons';
-	import { workstreamImageFilePath } from '$contract/workstream-images';
+	import { workstreamFilePath } from '$contract/workstream-images';
 	import { workstreamByIdQuery } from '$shared/repositories/repositories.api';
 	import { WORKSTREAM_IMAGE_ATTRIBUTE } from '$shared/markdown/workstream-images';
 
@@ -59,7 +59,7 @@
 		if (path) {
 			copyTextCommand({
 				requestId: newChatRequestId(),
-				text: workstreamImageFilePath(workstreamRoot, path),
+				text: workstreamFilePath(workstreamRoot, path),
 			});
 		}
 	}

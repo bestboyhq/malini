@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
@@ -24,6 +24,7 @@ test('removing a repository from the sidebar deletes its workstreams and keeps t
 		await seedWorkstream(page, alpha, 'e2e-remove-alpha-clean', 'Alpha clean');
 		await seedWorkstream(page, beta, 'e2e-remove-beta', 'Beta work');
 		appendFileSync(join(edited.worktree, 'seed.txt'), 'unsaved edit\n');
+		const unsaved = readFileSync(join(edited.worktree, 'seed.txt'), 'utf8');
 		await openWorkstream(page, edited.workstreamId);
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -60,7 +61,7 @@ test('removing a repository from the sidebar deletes its workstreams and keeps t
 			['show', 'refs/malini/archived/e2e-remove-alpha-edited:seed.txt'],
 			{ cwd: edited.basePath, encoding: 'utf8' },
 		);
-		expect(saved).toBe('seed\nunsaved edit\n');
+		expect(saved).toBe(unsaved);
 		expect(fileExists(join(edited.basePath, '.git'))).toBe(true);
 		await captureFlow(app, 'remove-repository-result');
 		expectCleanConsole(app);

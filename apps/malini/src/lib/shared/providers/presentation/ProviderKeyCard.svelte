@@ -2,6 +2,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { checkProviderPlanCommand } from '$shared/providers/application/commands/check-provider-plan.command';
 	import { deleteProviderKeyCommand } from '$shared/providers/application/commands/delete-provider-key.command';
 	import { saveProviderKeyCommand } from '$shared/providers/application/commands/save-provider-key.command';
@@ -92,7 +93,7 @@
 				{#if keySaved && provider.plan === 'go'}
 					Key saved. Your Go plan.
 				{:else if keySaved}
-					API key saved on this Mac.
+					API key saved on this {osQuery.data.machine}.
 				{:else}
 					Add an API key to use {name} models.
 				{/if}

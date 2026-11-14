@@ -95,7 +95,7 @@ export function forwardSlashed(path: string): string {
 	return WINDOWS_FILE_PATH.test(path) ? path.replaceAll('\\', '/') : path;
 }
 
-export function workstreamImageFilePath(root: string | null, path: string): string {
+export function workstreamFilePath(root: string | null, path: string): string {
 	const asWritten = root === null || isAbsoluteFilePath(path);
 	const file = asWritten
 		? path

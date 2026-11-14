@@ -19,12 +19,23 @@ describe('toolImageRead', () => {
 			'/tmp/refscripts/hero.png',
 			'/Users/simon/malini/workstreams/ws-2/docs/shot.png',
 			'/Users/simon/malini/repositories/app/base/.claude/worktrees/agent-a1/shot.png',
+			'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\scratch\\frames.png',
+			'C:/Users/simon/malini/workstreams/ws-2/docs/shot.png',
 		]) {
 			expect(toolImageRead('Read', { file_path: path }, '[image]', 'ws-1')).toMatchObject({
 				path,
-				fileName: path.split('/').pop(),
+				fileName: path.split(/[\\/]/u).pop(),
 			});
 		}
+	});
+
+	it('addresses an image a Windows agent read in this worktree by its path in the worktree', () => {
+		const input = { file_path: 'C:\\Users\\simon\\malini\\workstreams\\ws-1\\docs\\shot.png' };
+
+		expect(toolImageRead('Read', input, '[image]', 'ws-1')).toMatchObject({
+			path: 'docs/shot.png',
+			fileName: 'shot.png',
+		});
 	});
 
 	it("keeps a background agent's worktree inside this one addressable from this worktree", () => {

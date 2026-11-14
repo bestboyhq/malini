@@ -5,6 +5,7 @@
 	import { Strip } from '$hyper-ui/components/strip';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
 	import { withdrawHeldPromptCommand } from '$lib/chat/application/commands/withdraw-held-prompt.command';
 	import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
@@ -184,7 +185,7 @@
 					{:else if access.kind === 'chatgpt-model-missing'}
 						Not on your ChatGPT plan
 					{:else if access.kind === 'claude-code-missing'}
-						Claude Code is not on this Mac
+						Claude Code is not on this {osQuery.data.machine}
 					{/if}
 				</span>
 			</span>

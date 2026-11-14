@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import { dayStreak, runsOn } from '$lib/stats/domain/activity';
 	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
@@ -34,6 +35,7 @@
 	const latest = $derived(latestResourceSampleQuery.data);
 	const history = $derived(resourceHistoryQuery.data);
 	const machineMemory = $derived(machineMemoryQuery.data);
+	const { machine } = $derived(osQuery.data);
 	const breakdown = $derived(resourceBreakdownQuery.data);
 	const profileState = $derived(profileStateQuery.data);
 	const published = $derived(publishedProfileUrl(profileState) !== null);
@@ -235,7 +237,8 @@
 			{/if}
 
 			<p class="text-fg-tertiary px-1 text-xs">
-				{plural(activity.automationRuns, 'run', 'runs')} from automations · Counted on this Mac only
+				{plural(activity.automationRuns, 'run', 'runs')} from automations · Counted on this {machine}
+				only
 			</p>
 		</section>
 	{/if}

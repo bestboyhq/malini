@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { Modal } from '$hyper-ui/components/modal';
+	import { osQuery } from '$shared/os/os.api';
 	import { cancelCloseCommand } from '$lib/app/application/commands/cancel-close.command';
 	import { confirmCloseCommand } from '$lib/app/application/commands/confirm-close.command';
 	import { closeConfirmationQuery } from '$lib/app/application/queries/close-confirmation.query.svelte';
@@ -55,7 +56,8 @@
 
 		{#if confirmation.destroyFailed}
 			<p class="text-error-content text-sm" role="alert">
-				Malini could not close the window. Quit from the menu bar if this keeps happening.
+				Malini could not close the window. {osQuery.data.quit} from {osQuery.data.appMenu} if this keeps
+				happening.
 			</p>
 		{/if}
 

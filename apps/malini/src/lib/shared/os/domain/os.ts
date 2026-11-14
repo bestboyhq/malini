@@ -17,6 +17,7 @@ export type Os = Readonly<{
 	systemSettings: string;
 	trash: string;
 	terminal: string;
+	environment: string;
 	claudeInstallCommand: string;
 	quit: string;
 	appMenu: string;
@@ -57,6 +58,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		systemSettings: 'System Settings',
 		trash: 'Trash',
 		terminal: 'Terminal',
+		environment: 'your shell',
 		claudeInstallCommand: SH_INSTALL,
 		quit: 'Quit',
 		appMenu: 'the menu bar',
@@ -83,6 +85,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		systemSettings: 'Settings',
 		trash: 'Recycle Bin',
 		terminal: 'Windows Terminal',
+		environment: 'your environment variables',
 		claudeInstallCommand: 'irm https://claude.ai/install.ps1 | iex',
 		quit: 'Exit',
 		appMenu: 'the menu',
@@ -103,6 +106,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		systemSettings: 'system settings',
 		trash: 'Trash',
 		terminal: 'a terminal',
+		environment: 'your shell',
 		claudeInstallCommand: SH_INSTALL,
 		quit: 'Quit',
 		appMenu: 'the menu',

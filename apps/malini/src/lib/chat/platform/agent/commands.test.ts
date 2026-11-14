@@ -785,19 +785,20 @@ describe('prompt round trips', () => {
 		});
 	});
 
-	it('pauses a prompt a quit cut before it reached the agent, and sends it again once Malini started', async () => {
+	it('pauses a prompt a quit cut before it reached the agent before Malini closes the runs left open, and sends it again once Malini started', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
-		let capturing = false;
+		let cut = '';
 		let finishCapture = (): void => {};
 		const captured = new Promise<void>((resolve) => {
 			finishCapture = resolve;
 		});
+		test.context.commands.define('app.list-settings', () => new Promise<never>(() => undefined));
 		await boot(
 			{},
 			{
 				hooks: {
 					captureCheckpoint: async (input) => {
-						capturing = true;
+						cut = input.runId;
 						await captured;
 						return recordCheckpoint(input);
 					},
@@ -811,10 +812,12 @@ describe('prompt round trips', () => {
 			prompt: 'Ship the fix',
 			profile,
 		});
-		await waitFor(() => capturing, 2_000, 'the checkpoint before the prompt');
+		await waitFor(() => cut !== '', 2_000, 'the checkpoint before the prompt');
 
 		await service.stop();
 		finishCapture();
+		await waitFor(() => getRun(test.db, cut) !== null, 2_000, 'the cut prompt to be recorded');
+		expect(await service.closeOpenRunsForExit()).toBe(0);
 		const runId = await sending;
 		expect(getRun(test.db, runId)).toMatchObject({ error: PAUSED_FOR_EXIT_ERROR });
 		expect(

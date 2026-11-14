@@ -17,6 +17,7 @@ import {
 	sendPrompt,
 	withoutConsoleErrors,
 	writeExecutable,
+	type LaunchedApp,
 	type WorkstreamRow,
 } from './harness';
 
@@ -359,7 +360,7 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 		);
 		await page.reload();
 		await expectPicker(page);
-		slowClone(join(first.home, '.local/bin'));
+		slowClone(first);
 		await page
 			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
 			.getByRole('button', { name: 'e2e/hutch' })
@@ -416,12 +417,13 @@ test('settings that cannot be read still open the repository picker', async () =
 	}
 });
 
-function slowClone(binFolder: string): void {
-	const stub = join(binFolder, 'git');
-	writeExecutable(
-		stub,
-		`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
-	);
+function slowClone(app: LaunchedApp): void {
+	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
+		writeExecutable(
+			join(dir, 'git'),
+			`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
+		);
+	}
 }
 
 async function workstreams(page: Page): Promise<WorkstreamRow[]> {

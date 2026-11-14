@@ -228,13 +228,16 @@ describe('gitFailureVerdict', () => {
 		);
 	});
 
-	it('names a folder on this Mac, not GitHub, when the folder refused the push', () => {
-		expect(
-			gitFailureVerdict(
-				"To /Users/me/malini/brain\n ! [remote rejected] HEAD -> main (Working directory has unstaged changes)\nerror: failed to push some refs to '/Users/me/malini/brain'\n",
-			).message,
-		).toBe('The folder brain refused the push: Working directory has unstaged changes.');
-	});
+	it.each(['/Users/me/malini/brain', 'C:\\Users\\me\\malini\\brain\\', '\\\\server\\share\\brain'])(
+		'names the folder %s, not GitHub, when the folder refused the push',
+		(folder) => {
+			expect(
+				gitFailureVerdict(
+					`To ${folder}\n ! [remote rejected] HEAD -> main (Working directory has unstaged changes)\nerror: failed to push some refs to '${folder}'\n`,
+				).message,
+			).toBe('The folder brain refused the push: Working directory has unstaged changes.');
+		},
+	);
 
 	it('falls back to the last line when git printed no verdict, and admits silence', () => {
 		expect(

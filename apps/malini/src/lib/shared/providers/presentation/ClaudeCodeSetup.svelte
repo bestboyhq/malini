@@ -57,7 +57,8 @@
 	function installedDetail(current: ClaudeCodeStatus): string {
 		const version = current.kind === 'ready' ? current.version : null;
 		if (failedUpdate) return failedUpdateDetail(version, failedUpdate.version);
-		return version ? `Installed on this Mac · v${version}` : 'Installed on this Mac';
+		const installed = `Installed on this ${osQuery.data.machine}`;
+		return version ? `${installed} · v${version}` : installed;
 	}
 
 	function failedUpdateDetail(from: string | null, to: string | null): string {
@@ -93,7 +94,7 @@
 			case 'failed':
 				return install.message;
 			case 'idle':
-				return 'Not installed on this Mac yet.';
+				return `Not installed on this ${osQuery.data.machine} yet.`;
 		}
 	}
 
