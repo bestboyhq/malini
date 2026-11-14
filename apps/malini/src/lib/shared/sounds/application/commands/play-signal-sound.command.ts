@@ -26,7 +26,7 @@ const NOTE_MS = 12_000;
 
 function noteSounds(sound: string): void {
 	soundsStore.noted = true;
-	toast.info('That sound means an agent finished. Another plays when one needs you.', {
+	toast.info('Wait, you also heard it? Sounded like an agent finishing its work…', {
 		ttlMs: NOTE_MS,
 		actions: [
 			{ label: 'Play again', keepOpen: true, onclick: () => playSoundCommand(sound) },

@@ -55,7 +55,7 @@ test('the first agent that finishes says what its sound means once, Play again p
 		await sendPrompt(page, 'Say hello');
 		const note = page
 			.getByRole('status')
-			.filter({ hasText: 'That sound means an agent finished. Another plays when one needs you.' });
+			.filter({ hasText: 'Wait, you also heard it? Sounded like an agent finishing its work…' });
 		await expect(note).toBeVisible({ timeout: 30_000 });
 		await expect.poll(async () => (await storedSettings(page))['sounds.noted']).toBeDefined();
 		await captureFlow(app, 'sounds-first-finish-note');
