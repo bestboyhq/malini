@@ -19,4 +19,14 @@ describe('inspector dock', () => {
 		second.release();
 		expect(docked()).toEqual([null, false]);
 	});
+
+	it('docks nothing while the inspector takes no width, and docks again once it shows', () => {
+		const dock = inspectorDock.claim(true);
+		dock.measure(0);
+		expect(inspectorDock.width).toBeNull();
+
+		dock.measure(288);
+		expect(inspectorDock.width).toBe(288);
+		dock.release();
+	});
 });

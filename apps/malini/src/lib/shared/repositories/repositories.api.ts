@@ -139,6 +139,8 @@ export {
 
 export { type WorkstreamGitStatus } from './domain/workstream-git-status';
 
+export { lastMergedPullRequest } from './domain/workstream-setup-steps';
+
 export { type WorkstreamDiff } from './domain/workstream-diff';
 
 export { workstreamCount } from './domain/workstream-retirement';
@@ -254,6 +256,7 @@ export { worktreePendingQuery } from './application/queries/worktree-pending.que
 export { checkedOutWorkstreamsQuery } from './application/queries/checked-out-workstreams.query.svelte';
 export { workstreamCheckedOutQuery } from './application/queries/workstream-checked-out.query.svelte';
 export { workstreamReadyForPromptsQuery } from './application/queries/workstream-ready-for-prompts.query.svelte';
+export { workstreamHeadQuery } from './application/queries/workstream-head.query.svelte';
 
 export {
 	default as ConnectRepositoryContextMenu,
@@ -276,5 +279,6 @@ export {
 export { default as WorkstreamPathContextMenu } from './presentation/WorkstreamPathContextMenu.svelte';
 export { default as WorkstreamProvisioningBanner } from './presentation/WorkstreamProvisioningBanner.svelte';
 export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
+export { default as WorkstreamSetupSteps } from './presentation/WorkstreamSetupSteps.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
 export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';

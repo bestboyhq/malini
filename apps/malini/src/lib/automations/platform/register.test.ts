@@ -196,6 +196,7 @@ function worktree(overrides: Partial<WorktreeStatus> = {}): WorktreeStatus {
 		mergeInProgress: false,
 		operationInProgress: null,
 		headSha: 'a'.repeat(40),
+		headSubject: null,
 		...overrides,
 	};
 }

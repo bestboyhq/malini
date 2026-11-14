@@ -45,7 +45,7 @@ export type WorkstreamProvisioningRecord = Readonly<{
 
 export const WORKSTREAM_INSTALL_STATUS_EVENT = 'repositories:workstream-install-status';
 
-export type WorkstreamInstallStatus = 'running' | 'unavailable' | 'failed';
+export type WorkstreamInstallStatus = 'running' | 'installed' | 'unavailable' | 'failed';
 
 export type WorkstreamInstallRecord = Readonly<{
 	workstreamId: string;
@@ -79,6 +79,7 @@ export function visibleInstallStatus(
 	event: WorkstreamInstallStatusEvent,
 ): WorkstreamInstallStatus | null {
 	if (event.status === 'running') return 'running';
+	if (event.status === 'succeeded') return 'installed';
 	if (event.status === 'failed') return 'failed';
 	if (event.status === 'skipped' && event.reason === 'unrecognized-project') return 'unavailable';
 	return null;

@@ -11,4 +11,5 @@ export type WorkstreamGitStatus = Readonly<{
 	mergeInProgress: boolean;
 	operationInProgress: WorktreeOperation | null;
 	headSha: string | null;
+	headSubject: string | null;
 }>;

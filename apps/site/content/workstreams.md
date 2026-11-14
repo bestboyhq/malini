@@ -12,6 +12,26 @@ Malini installs dependencies for you from the lockfile: pnpm, npm, yarn, or bun.
 
 Two agents never edit one checkout, so they never clobber each other.
 
+## Before the first message
+
+A new workstream opens on what Malini did to set it up, one step a line: the branch it made, the commit it starts at, and the dependencies it installed.
+A step still running shows a spinner, and a failed install has **Retry** on its line.
+**Your turn** comes last, once the checkout is ready.
+
+Under it, **Ways to start** lists prompts an agent can take from there:
+
+- **Run it in the browser** starts the project the way its README or scripts say, and opens it in the browser beside the chat.
+- **Explain how <repository> works** reads the code and changes nothing.
+- **Plan a change with me** turns on Plan mode, so the agent asks what you want before it writes any code.
+- **Review #<number>, the last merge** shows for a GitHub repository whose latest commit names its pull request, and fixes the worst thing the review finds.
+- **Fix the first failing test** runs the lint and the tests, and fixes the first failure.
+
+Each one fills the composer, for you to edit or send.
+A workstream another chat started ends its steps on **Prompt from** that chat instead, and lists no starters: that prompt goes first, once setup is done.
+
+In a workstream you just made, the inspector on the right stays hidden until the first message, unless there is already something to show there: changes, a browser tab or a running automation.
+A workstream on one of your pull requests, or one Malini had open before it started, shows it from the start.
+
 ## Where checkouts live
 
 Checkouts live in `~/malini` unless you pick another folder, where Finder, your editor and your terminal find them:

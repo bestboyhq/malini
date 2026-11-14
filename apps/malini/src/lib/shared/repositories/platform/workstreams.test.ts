@@ -287,6 +287,7 @@ describe('the workstream commands', () => {
 			mergeInProgress: false,
 			operationInProgress: null,
 			headSha: expect.stringMatching(/^[0-9a-f]{40}$/),
+			headSubject: expect.any(String),
 		});
 		expect(await invoke('repositories.workstream-files', { workstreamId: 'ws-1' })).toEqual([
 			{ path: 'new.txt' },

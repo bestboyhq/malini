@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import type { InstallOutcomeResult } from '$contract/system';
 import {
 	installNoticeAt,
@@ -14,7 +15,10 @@ import {
 export class WorkstreamProvisioningAggregate {
 	records = $state<Readonly<Record<string, WorkstreamProvisioningRecord>>>({});
 
+	readonly #madeHere = new SvelteSet<string>();
+
 	begin(plan: WorkstreamProvisioningPlan): void {
+		this.#madeHere.add(plan.workstreamId);
 		const existing = this.records[plan.workstreamId];
 		this.#write(plan.workstreamId, {
 			plan,
@@ -74,6 +78,10 @@ export class WorkstreamProvisioningAggregate {
 		return workstreamNativeExistence(this.get(workstreamId)) !== 'platform';
 	}
 
+	madeHere(workstreamId: string): boolean {
+		return this.#madeHere.has(workstreamId);
+	}
+
 	isProvisioning(workstreamId: string): boolean {
 		return this.get(workstreamId)?.failure === null;
 	}
@@ -97,6 +105,7 @@ export class WorkstreamProvisioningAggregate {
 
 	reset(): void {
 		this.records = {};
+		this.#madeHere.clear();
 	}
 
 	#write(workstreamId: string, record: WorkstreamProvisioningRecord): void {
@@ -132,7 +141,8 @@ export class WorkstreamDependencyInstallAggregate {
 			[workstreamId]: {
 				workstreamId,
 				status,
-				command: typeof event.command === 'string' ? event.command : null,
+				command:
+					typeof event.command === 'string' ? event.command : this.#keptCommand(workstreamId),
 				detail: typeof event.detail === 'string' && event.detail.trim() ? event.detail : null,
 				noticeAt: installNoticeAt(this.get(workstreamId), status, Date.now()),
 			},
@@ -144,15 +154,15 @@ export class WorkstreamDependencyInstallAggregate {
 	}
 
 	settleFromOutcome(workstreamId: string, outcome: InstallOutcomeResult): void {
-		if (outcome.status === 'failed' || outcome.status === 'skipped') {
-			this.report({ ...outcome, workstreamId });
-			return;
-		}
-		if (this.get(workstreamId)?.status === 'running') this.clear(workstreamId);
+		if (outcome.status !== 'already-running') this.report({ ...outcome, workstreamId });
 	}
 
 	get(workstreamId: string): WorkstreamInstallRecord | null {
 		return this.records[workstreamId] ?? null;
+	}
+
+	#keptCommand(workstreamId: string): string | null {
+		return this.get(workstreamId)?.command ?? null;
 	}
 
 	clear(workstreamId: string): void {

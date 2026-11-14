@@ -366,6 +366,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 		mergeInProgress: false,
 		operationInProgress: null,
 		headSha: null,
+		headSubject: null,
 	}),
 	'pull-requests.ship-states': () => shipStates(),
 	'pull-requests.button-clicked': (args) =>

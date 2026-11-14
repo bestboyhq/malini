@@ -11,7 +11,7 @@ class InspectorDock {
 		this.compact = compact;
 		return {
 			measure: (width) => {
-				if (this.#owner === owner) this.width = width;
+				if (this.#owner === owner) this.width = width > 0 ? width : null;
 			},
 			release: () => {
 				if (this.#owner !== owner) return;

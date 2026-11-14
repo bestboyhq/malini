@@ -67,6 +67,7 @@ export function parseStatus(output: string): WorktreeStatus {
 		mergeInProgress: false,
 		operationInProgress: null,
 		headSha: null,
+		headSubject: null,
 	};
 }
 
@@ -87,10 +88,24 @@ export async function statusCollector(worktreePath: string): Promise<WorktreeSta
 	const status = parseStatus(output);
 	status.dirtyPaths.push(...oversized);
 	try {
-		const head = (await runGit(['-C', worktreePath, 'rev-parse', '--verify', 'HEAD'])).trim();
-		status.headSha = head.length > 0 ? head : null;
+		const [sha, subject] = (
+			await runGit([
+				'-C',
+				worktreePath,
+				'show',
+				'-s',
+				'--no-show-signature',
+				'--format=%H%x00%s',
+				'HEAD',
+			])
+		)
+			.trim()
+			.split('\0');
+		status.headSha = sha || null;
+		status.headSubject = subject || null;
 	} catch {
 		status.headSha = null;
+		status.headSubject = null;
 	}
 	status.conflictMarkerPaths = await conflictMarkerPaths(worktreePath, status.conflictedPaths);
 	const gitDir = await resolvedGitDir(worktreePath);

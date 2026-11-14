@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { fillComposerCommand } from '$lib/chat/application/commands/fill-composer.command';
+	import { selectRunProfileCommand } from '$lib/chat/application/commands/select-run-profile.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
 	import { preparedPlansQuery } from '$lib/chat/application/queries/prepared-plans.query.svelte';
 	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
+	import { runProfileQuery } from '$lib/chat/application/queries/run-profile.query.svelte';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { SessionRecord } from '$lib/chat/domain/session-record';
 	import {
@@ -13,14 +15,24 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { WorkstreamAutomations } from '$lib/automations/automations.api';
+	import type { AgentRunMode } from '$shared/providers/providers.api';
 	import {
-		activeWorkstreamsQuery,
-		archivedWorkstreamsQuery,
+		WorkstreamSetupSteps,
+		lastMergedPullRequest,
 		repositoryContextQuery,
+		repositoryName,
 		repositoryWebUrl,
+		workstreamByIdQuery,
+		workstreamHeadQuery,
 	} from '$shared/repositories/repositories.api';
 
-	type Starter = Readonly<{ icon: IconName; title: string; detail: string; prompt: string }>;
+	type Starter = Readonly<{
+		icon: IconName;
+		title: string;
+		detail: string;
+		prompt: string;
+		mode: AgentRunMode;
+	}>;
 
 	interface Props {
 		workstreamId: string;
@@ -38,37 +50,65 @@
 
 	const recentChats = $derived(recentChatsQuery.data(workstreamId));
 	const plans = $derived(preparedPlansQuery.data(workstreamId));
+	const untouched = $derived(recentChats.length === 0);
 	const referencesFull = $derived(transcriptReferences.length >= MAX_AGENT_TRANSCRIPT_REFERENCES);
-	const firstWorkstream = $derived(
-		activeWorkstreamsQuery.data.length === 1 && archivedWorkstreamsQuery.data.length === 0,
-	);
 	const repository = $derived(repositoryContextQuery.data(workstreamId)?.repo ?? null);
+	const onGithub = $derived(repository !== null && repositoryWebUrl(repository.remoteUrl) !== null);
+	const baseBranch = $derived(workstreamByIdQuery.data(workstreamId)?.baseBranch ?? 'main');
+	const head = $derived(workstreamHeadQuery.data(workstreamId));
+	const startedByAgent = $derived(workstreamByIdQuery.data(workstreamId)?.startedBy != null);
+	const lastMerge = $derived(onGithub ? lastMergedPullRequest(head?.subject ?? null) : null);
 	const starters = $derived<readonly Starter[]>([
 		{
-			icon: 'book',
-			title: 'Explain how this repository works',
-			detail: 'Reads the code. Changes nothing.',
+			icon: 'globe',
+			title: 'Run it in the browser',
+			detail: 'Starts it. Opens it beside the chat',
 			prompt:
-				'Read this repository and tell me how it is built: the main parts, how they talk, and how to run it.',
+				'Install what this project needs and start it the way its README or scripts say. Open it in the browser beside this chat and leave it running. If it has no page to open, run it and show me what it prints.',
+			mode: 'agent',
 		},
 		{
-			icon: 'bug',
-			title: 'Fix the first failing test or lint',
-			detail: 'One small diff you can read in a minute.',
+			icon: 'book',
+			title: `Explain how ${repository ? repositoryName(repository.fullName) : 'it'} works`,
+			detail: 'Reads the code. Changes nothing',
 			prompt:
-				'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
+				'Read this repository and tell me how it is built: the main parts, how they talk, and how to run it.',
+			mode: 'agent',
 		},
-		...(repository && repositoryWebUrl(repository.remoteUrl)
+		{
+			icon: 'route',
+			title: 'Plan a change with me',
+			detail: 'Asks first. Writes no code',
+			prompt:
+				'I want to change something here. Ask me what it is, then plan it with me before you write any code.',
+			mode: 'plan',
+		},
+		...(lastMerge !== null && head?.subject
 			? [
 					{
-						icon: 'circle-dot' as const,
-						title: 'Take one open issue',
-						detail: `From ${repository.fullName} on GitHub.`,
-						prompt: 'Pick one small open issue in this repository and fix it.',
+						icon: 'pr-merged' as const,
+						title: `Review #${lastMerge}, the last merge`,
+						detail: 'Fresh eyes. Fixes the worst find',
+						prompt: `Review pull request #${lastMerge}, "${head.subject}". Look for bugs and loose ends, and fix the worst one you find.`,
+						mode: 'agent' as const,
 					},
 				]
 			: []),
+		{
+			icon: 'bug',
+			title: 'Fix the first failing test',
+			detail: 'One small diff. Reads in a minute',
+			prompt:
+				'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
+			mode: 'agent',
+		},
 	]);
+
+	function start(starter: Starter): void {
+		const profile = runProfileQuery.data;
+		if (profile.mode !== starter.mode) selectRunProfileCommand({ ...profile, mode: starter.mode });
+		fillComposerCommand(draftScope, starter.prompt);
+	}
 
 	function selected(sessionId: SessionId): boolean {
 		return transcriptReferences.some((reference) => reference.sessionId === sessionId);
@@ -92,37 +132,43 @@
 	aria-label="New agent chat. The next message starts a separate context."
 >
 	<div class="w-full max-w-xl text-left">
-		{#if firstWorkstream && recentChats.length === 0 && plans.length === 0}
-			<section aria-labelledby="chat-starters-title" data-testid="chat-starters">
-				<h2 id="chat-starters-title" class="text-fg-secondary text-sm">
-					Start with something small
-				</h2>
-				<p class="text-fg-tertiary mt-1 text-xs leading-5">
-					It runs on this workstream's own branch. Nothing reaches main until you merge.
-				</p>
-				<ul class="mt-4 flex flex-col gap-2">
-					{#each starters as starter (starter.title)}
-						<li>
-							<Button
-								bare
-								class="border-surface-50-border bg-surface-50 hover:bg-surface-100-hover focus-visible:bg-surface-100-hover flex w-full cursor-pointer items-start gap-3 rounded-xl border-[0.5px] px-3.5 py-3 text-left outline-none"
-								onclick={() => fillComposerCommand(draftScope, starter.prompt)}
-							>
-								<span class="text-fg-secondary mt-0.5 grid size-4 shrink-0 place-items-center">
-									<Icon name={starter.icon} size={14} />
-								</span>
-								<span class="flex min-w-0 flex-col">
-									<span class="text-fg-default text-sm font-medium">{starter.title}</span>
-									<span class="text-fg-tertiary text-xs leading-5">{starter.detail}</span>
-								</span>
-							</Button>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
-
-		{#if recentChats.length > 0 || plans.length > 0}
+		{#if untouched}
+			<WorkstreamSetupSteps {workstreamId} />
+			{#if !startedByAgent}
+				<section class="mt-5" aria-label="Ways to start" data-testid="chat-starters">
+					<ul
+						class="border-surface-50-border bg-surface-50 divide-surface-50-border flex flex-col divide-y-[0.5px] overflow-hidden rounded-xl border-[0.5px]"
+					>
+						{#each starters as starter (starter.title)}
+							<li>
+								<Button
+									bare
+									class="group hover:bg-surface-100-hover focus-visible:bg-surface-100-hover flex h-11 w-full cursor-pointer items-center gap-2.5 px-3.5 text-left outline-none"
+									onclick={() => start(starter)}
+								>
+									<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
+										<Icon name={starter.icon} size={14} />
+									</span>
+									<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
+									<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
+										{starter.detail}
+									</span>
+									<span
+										class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+										aria-hidden="true"
+									>
+										<Icon name="arrow-right" size={13} />
+									</span>
+								</Button>
+							</li>
+						{/each}
+					</ul>
+					<p class="text-fg-tertiary mt-3 text-xs leading-5">
+						Own branch. Nothing reaches {baseBranch} until you merge
+					</p>
+				</section>
+			{/if}
+		{:else}
 			<p class="text-fg-secondary text-sm">Bring useful context with you</p>
 			<p class="text-fg-tertiary mt-1 text-xs leading-5">
 				Start clean, or revisit a transcript or plan already prepared here.

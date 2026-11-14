@@ -245,24 +245,25 @@ test('a dependency install that fails says why and retries, and an unknown proje
 		await expect(workstreamRow(page, 'e2e-install-locked')).toBeVisible({ timeout: 20_000 });
 
 		const installing = await newWorkstream(page, 'locked');
-		const install = page.getByTestId('workstream-dependency-install');
-		await expect(install).toContainText('failed · e2e install failure', { timeout: 30_000 });
-		await expect(install).toContainText('npm ci');
+		const steps = page.getByRole('list', { name: 'Workstream setup' }).getByRole('listitem');
+		const failed = steps.filter({ hasText: 'Install failed' });
+		await expect(failed).toContainText('e2e install failure', { timeout: 30_000 });
+		await expect(failed).toContainText('npm ci');
+		await expect(page.getByTestId('workstream-dependency-install')).toHaveCount(0);
 		await captureFlow(app, 'workstream-dependency-install-failed');
 
 		writeFileSync(succeeds, '');
-		await install.getByRole('button', { name: 'Retry' }).click();
-		await expect(install).toHaveCount(0, { timeout: 30_000 });
+		await failed.getByRole('button', { name: 'Retry' }).click();
+		await expect(steps.filter({ hasText: 'Dependencies installed' })).toContainText('npm ci', {
+			timeout: 30_000,
+		});
+		await expect(failed).toHaveCount(0);
 		await expect(workstreamRow(page, installing)).toHaveAttribute('aria-current', 'page');
 
 		await newWorkstream(page, 'unknown');
-		await expect(install).toContainText(
-			'Nothing here says how to install dependencies, so none were installed.',
-			{ timeout: 30_000 },
-		);
-		await expect(install.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-		await install.getByRole('button', { name: 'Dismiss' }).click();
-		await expect(install).toHaveCount(0);
+		const skipped = steps.filter({ hasText: 'Installed nothing' });
+		await expect(skipped).toContainText('No lockfile to go on', { timeout: 30_000 });
+		await expect(skipped.getByRole('button', { name: 'Retry' })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

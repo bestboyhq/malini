@@ -128,6 +128,7 @@ export interface WorktreeStatus {
 	mergeInProgress: boolean;
 	operationInProgress: WorktreeOperation | null;
 	headSha: string | null;
+	headSubject: string | null;
 }
 
 export interface WorkstreamImageBytes {

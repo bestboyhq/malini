@@ -45,7 +45,7 @@ describe('workstream provisioning rules', () => {
 		);
 		expect(visibleInstallStatus({ status: 'skipped', reason: 'already-installed' })).toBeNull();
 		expect(visibleInstallStatus({ status: 'skipped', reason: 'no-manifest' })).toBeNull();
-		expect(visibleInstallStatus({ status: 'succeeded' })).toBeNull();
+		expect(visibleInstallStatus({ status: 'succeeded' })).toBe('installed');
 	});
 
 	it('classifies a workstream by whether the control plane already owns it', () => {

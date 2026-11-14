@@ -3,7 +3,10 @@ import {
 	provisioningClonePercent,
 	type WorkstreamProvisioningPlan,
 } from '$shared/repositories/domain/provisioning';
-import { WorkstreamProvisioningAggregate } from './workstream-provisioning.aggregate.svelte';
+import {
+	WorkstreamDependencyInstallAggregate,
+	WorkstreamProvisioningAggregate,
+} from './workstream-provisioning.aggregate.svelte';
 
 function plan(overrides: Partial<WorkstreamProvisioningPlan> = {}): WorkstreamProvisioningPlan {
 	return {
@@ -50,6 +53,7 @@ describe('WorkstreamProvisioningAggregate', () => {
 		expect(aggregate.get('01JWORKSTREAMA')).toBeNull();
 		expect(aggregate.hasPendingWorktree('01JWORKSTREAMA')).toBe(false);
 		expect(aggregate.isProvisioning('01JWORKSTREAMA')).toBe(false);
+		expect(aggregate.madeHere('01JWORKSTREAMA')).toBe(true);
 	});
 
 	it('has its worktree while it syncs the base, though setup is still running', () => {
@@ -125,6 +129,7 @@ describe('WorkstreamProvisioningAggregate', () => {
 
 		aggregate.reset();
 		expect(aggregate.listPending()).toEqual([]);
+		expect(aggregate.madeHere('01JWORKSTREAMB')).toBe(false);
 	});
 
 	it('clamps clone fractions into whole percent', () => {
@@ -132,5 +137,21 @@ describe('WorkstreamProvisioningAggregate', () => {
 		expect(provisioningClonePercent(-1)).toBe(0);
 		expect(provisioningClonePercent(0.005)).toBe(1);
 		expect(provisioningClonePercent(1.7)).toBe(100);
+	});
+});
+
+describe('WorkstreamDependencyInstallAggregate', () => {
+	it('keeps a finished install, with the command it ran, until an abort clears it', () => {
+		const install = new WorkstreamDependencyInstallAggregate();
+		install.report({ workstreamId: '01JWORKSTREAMA', status: 'running', command: 'pnpm install' });
+		install.settleFromOutcome('01JWORKSTREAMA', { status: 'succeeded' });
+
+		expect(install.get('01JWORKSTREAMA')).toMatchObject({
+			status: 'installed',
+			command: 'pnpm install',
+		});
+
+		install.settleFromOutcome('01JWORKSTREAMA', { status: 'aborted' });
+		expect(install.get('01JWORKSTREAMA')).toBeNull();
 	});
 });

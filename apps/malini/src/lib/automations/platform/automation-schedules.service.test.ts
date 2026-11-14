@@ -76,6 +76,7 @@ function worktree(): WorktreeStatus {
 		mergeInProgress: false,
 		operationInProgress: null,
 		headSha: 'a'.repeat(40),
+		headSubject: null,
 	};
 }
 

@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
@@ -209,6 +210,13 @@ const temporaryRoots = new Set<string>();
 process.once('exit', () => {
 	for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
+
+export function installExecutable(path: string, script: string): void {
+	const staged = `${path}.staged`;
+	writeFileSync(staged, script);
+	chmodSync(staged, 0o755);
+	renameSync(staged, path);
+}
 
 export function temporaryRoot(prefix = 'malini-e2e-'): string {
 	const root = mkdtempSync(join(tmpdir(), prefix));

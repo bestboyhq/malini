@@ -2,6 +2,7 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
+	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
@@ -22,10 +23,14 @@
 	import {
 		WorkstreamTitle,
 		archiveWorkstreamCommand,
+		changeTotalsQuery,
 		leaveMissingWorkstreamCommand,
+		provisioningRecordQuery,
 		repositoryContextQuery,
+		workstreamBranch,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
+	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { page } from '$shared/router/state';
 	import {
 		WORKSTREAM_BROWSER_RATIO_KEY,
@@ -51,6 +56,15 @@
 	const chatSessionId = $derived(activeSessionQuery.data);
 	const automations = $derived(workstreamLiveAutomationsQuery.data(workstreamId, chatSessionId));
 	const automationRuns = $derived(automations.flatMap((entry) => (entry.run ? [entry.run] : [])));
+	const gutterWaits = $derived(
+		provisioningRecordQuery.madeHere(workstreamId) &&
+			recentChatsQuery.data(workstreamId).length === 0 &&
+			workstream?.branch === workstreamBranch(workstreamId) &&
+			!changeTotalsQuery.data[workstreamId]?.files &&
+			!hostsBrowser &&
+			automations.length === 0 &&
+			!inspectorDrawer.isOpen(workstreamId),
+	);
 
 	onMount(() => {
 		loadAutomationsCommand();
@@ -106,7 +120,12 @@
 		</ChatSurface>
 	{/snippet}
 	{#snippet secondary()}
-		<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+		<div
+			class={[
+				'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden',
+				gutterWaits && 'hidden',
+			]}
+		>
 			{@render children()}
 		</div>
 	{/snippet}

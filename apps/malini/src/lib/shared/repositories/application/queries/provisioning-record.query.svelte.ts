@@ -7,6 +7,10 @@ class ProvisioningRecordQuery {
 	public readonly data: (workstreamId: string) => WorkstreamProvisioningRecord | null = $derived(
 		(workstreamId: string) => workstreamProvisioning.records[workstreamId] ?? null,
 	);
+
+	public readonly madeHere: (workstreamId: string) => boolean = $derived((workstreamId: string) =>
+		workstreamProvisioning.madeHere(workstreamId),
+	);
 }
 
 const provisioningRecordQuery = new ProvisioningRecordQuery();

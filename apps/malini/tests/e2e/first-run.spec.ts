@@ -261,16 +261,29 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 		await expect
 			.poll(async () => (await workstreams(page)).map(({ projectId }) => projectId))
 			.toEqual([expect.stringContaining('hutch')]);
-		const starters = page.getByRole('region', { name: 'Start with something small' });
-		await expect(starters.getByRole('button')).toHaveText([
-			/Explain how this repository works/u,
-			/Fix the first failing test or lint/u,
-		]);
+		const setup = page.getByRole('list', { name: 'Workstream setup' });
+		await expect(setup.getByRole('listitem').first()).toHaveText(/^\s*Branch made from main/u);
+		await expect(setup.getByRole('listitem').last()).toHaveText(/^\s*Your turn/u);
+		await expect(page.getByTestId('extension-inspector-gutter')).toBeHidden();
+		const starters = page.getByRole('region', { name: 'Ways to start' });
+		await expect(starters.getByRole('button')).toHaveCount(4);
+		for (const [index, name] of [
+			/^Run it in the browser/u,
+			/^Explain how hutch works/u,
+			/^Plan a change with me/u,
+			/^Fix the first failing test/u,
+		].entries()) {
+			await expect(starters.getByRole('button').nth(index)).toHaveAccessibleName(name);
+		}
 		await captureFlow(app, 'first-repository-picked');
-		await starters.getByRole('button', { name: /^Fix the first failing test or lint/u }).click();
+		await starters.getByRole('button', { name: /^Plan a change with me/u }).click();
+		const planMode = page.getByRole('button', { name: 'Plan mode' });
+		await expect(planMode).toHaveAttribute('aria-pressed', 'true');
+		await starters.getByRole('button', { name: /^Fix the first failing test/u }).click();
 		await expect(page.getByTestId('chat-composer-input')).toHaveText(
 			'Run the lint and the tests. Fix the first failure you find, and tell me what it was.',
 		);
+		await expect(planMode).toBeHidden();
 		await expect(prompt).toBeFocused();
 
 		await page.reload();

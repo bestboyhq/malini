@@ -27,7 +27,7 @@ The [README](../README.md) has the short version.
 - **Nothing to install.** Malini ships the GitHub CLI, and installs Claude Code on its own when this Mac lacks it, while you pick a repository.
   A prompt you send before it lands waits, and sends once it is in.
   The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
-- **Something small to start.** The first workstream offers three starter prompts: explain the repository, fix the first failing test or lint, or take one open issue.
+- **Somewhere to start.** A new workstream shows how Malini set it up, then **Your turn** and starter prompts: run it in the browser, explain the repository, plan a change, review the last merge, or fix the first failing test.
 
 ## Workstreams, side by side
 

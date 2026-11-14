@@ -426,6 +426,7 @@ function seedWorkstream(workstreamId: string, overrides: Partial<WorktreeStatus>
 		mergeInProgress: false,
 		operationInProgress: null,
 		headSha,
+		headSubject: null,
 		...overrides,
 	});
 }
