@@ -20,14 +20,14 @@
 	const starterName = $derived(
 		startedBy ? (workstreamByIdQuery.data(startedBy)?.name ?? null) : null,
 	);
-	const yourTurn = $derived(settled && !startedBy);
+	const suggesting = $derived(settled && !startedBy);
 </script>
 
 <ol class="relative pl-4.5" aria-label="Workstream setup" data-testid="workstream-setup-steps">
 	<span
 		class={[
 			'border-surface-100-border absolute top-4 left-7 w-px -translate-x-1/2 border-l-[1px]',
-			yourTurn ? '-bottom-5.5' : 'bottom-4',
+			suggesting ? '-bottom-5.5' : 'bottom-4',
 		]}
 		aria-hidden="true"
 	></span>
@@ -78,19 +78,16 @@
 		</li>
 	{/if}
 </ol>
-{#if yourTurn}
+{#if suggesting}
 	<fieldset
 		class="border-surface-100-border mt-3 min-w-0 rounded-xl border-[0.5px] px-1.5 pt-0.5 pb-1.5"
-		data-testid="workstream-your-turn"
+		data-testid="workstream-suggestions"
 	>
-		<legend class="text-fg-default ml-2 flex items-center gap-2.5 px-1 text-sm font-medium">
+		<legend class="text-fg-tertiary ml-2 flex items-center gap-2.5 px-1 text-sm">
 			<span class="grid size-5 place-items-center" aria-hidden="true">
-				<span
-					class="size-2.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
-				></span>
+				<span class="bg-surface-root size-2.5 rounded-full border-[1px] border-current"></span>
 			</span>
-			Your turn
-			<span class="text-fg-tertiary font-normal">Agents are stretching</span>
+			Quick suggestions
 		</legend>
 		{@render children()}
 	</fieldset>

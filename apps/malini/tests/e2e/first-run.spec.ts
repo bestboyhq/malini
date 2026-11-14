@@ -265,11 +265,8 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 		await expect(setup.getByRole('listitem').first()).toHaveText(
 			/^\s*Made a fresh copy\s*Main won’t notice\s*$/u,
 		);
-		await expect(setup.getByText('Your turn')).toHaveCount(0);
 		await expect(page.getByTestId('extension-inspector-gutter')).toBeHidden();
-		const starters = page
-			.getByRole('group', { name: /^Your turn/u })
-			.getByRole('list', { name: 'Ways to start' });
+		const starters = page.getByRole('group', { name: 'Quick suggestions' }).getByRole('list');
 		await expect(starters.getByRole('button')).toHaveCount(4);
 		for (const [index, name] of [
 			/^Run it in the browser/u,

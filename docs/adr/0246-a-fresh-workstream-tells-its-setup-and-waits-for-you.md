@@ -12,6 +12,7 @@ Of three prototypes he picked the timeline, asked for the starters as a list rat
 On the build he named the four starters, "And I think that's it", and asked about the top bar's **Build something great**: "I don't know why would you still have built something great in top right corner?"
 The first steps named the branch and the head commit, and he found them "too technical": "It should be maybe creating a fresh copy, then the second one should be checking dependencies or something like that, and then it should be your turn."
 **Your turn** as the last row looked like a row you could click, so he asked for it as "a label on top of the border of ... this whole container", without a border around each starter: "too many borders is not good".
+He then asked to "replace your turn agents are stretching with quick suggestions", in a "dimmed out text color", and to make "this big white dot like an empty circle".
 
 ## Decision
 
@@ -19,13 +20,13 @@ The first steps named the branch and the head commit, and he found them "too tec
   While setup runs, it shows **Making a fresh copy**, with the clone percent, or **Did not finish** where it stopped.
   Once setup settles: **Made a fresh copy**, **Main won’t notice**, or **Picked up your branch** for a branch Malini did not name `malini/<id>`; then **Checking dependencies**, which ends as **Checked dependencies** with **All in place**, **Nothing to install** or **No lockfile. Installed nothing**, or as **Install failed** with the reason and **Retry**.
   A workstream another chat started (`startedBy`) ends instead on **Prompt from <that workstream>**, **Sends once setup is done**, and lists no starters: its first prompt is already waiting.
-- **Your turn labels the starters.** Once setup settles, the steps end in a `<fieldset>` whose `<legend>` is **Your turn**, **Agents are stretching**, on its top border, and the rail runs into the legend's dot.
+- **Quick suggestions labels the starters.** Once setup settles, the steps end in a `<fieldset>` whose `<legend>`, **Quick suggestions** in the dimmed text color, sits on its top border, and the rail runs into the legend's empty circle.
   The starters sit inside, the composer's width, with no fill and no line between them; a row shows a background only on hover or focus.
   The fieldset is a group named by its legend, so the label is no row to click.
 - **No sync claim.** There is no "Caught up with main" step: a failed base sync only toasts and nothing records it, so the row would claim what nobody checked.
 - **A finished install stays.** `visibleInstallStatus` maps `succeeded` and `already-installed` to `installed`, and `no-manifest` to `none`, in memory for the session, so a project with nothing to install says so.
   `DependencyInstallBanner` ignores `installed` and `none`, and `ChatSurface` hides the banner while the steps show.
-- **Ways to start.** `FreshChatSuggestions.svelte` lists four starters under **Your turn** in every workstream with no chats: **Run it in the browser**, **Find the biggest CI/CD pipeline optimizations**, **Find all implicit state machines** and **Plan a change with me**.
+- **Ways to start.** `FreshChatSuggestions.svelte` lists four starters under **Quick suggestions** in every workstream with no chats: **Run it in the browser**, **Find the biggest CI/CD pipeline optimizations**, **Find all implicit state machines** and **Plan a change with me**.
   Each fills the composer through `fillComposerCommand`; **Plan a change with me** also sets the run profile to plan mode, and every other starter sets it back to agent.
   The two finders list what they find, biggest or riskiest first, and change nothing until the user picks one.
   **Take one open issue** is gone: on a repository without open issues it sent the agent looking for nothing.
@@ -43,5 +44,5 @@ The first steps named the branch and the head commit, and he found them "too tec
 - After a relaunch, setup and install records are gone, so an untouched workstream shows **Made a fresh copy** only, with its gutter.
 - In a workstream just made, Files and Browser have no gutter row until the first message; a change, a browser tab, an agent's reveal or an automation brings the gutter back.
 - `src/lib/shared/repositories/domain/workstream-setup-steps.test.ts` fails when a step's wording or state drifts, `provisioning.test.ts` when an install outcome stops mapping to a step, and `workstream-provisioning.aggregate.svelte.test.ts` when a finished install loses its record or its command, or a settled workstream loses its made-here mark.
-- `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Your turn** group, plan mode on **Plan a change with me**, or the hidden gutter go.
+- `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Quick suggestions** group, plan mode on **Plan a change with me**, or the hidden gutter go.
 - `pull-request-top-bar.test.ts` and `tests/e2e/pull-request-nothing-to-ship.spec.ts` fail when a workstream with nothing to ship shows a status again.

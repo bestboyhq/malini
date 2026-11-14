@@ -129,8 +129,7 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		await expect(setup.getByRole('listitem').last()).toHaveText(
 			/^\s*Prompt from Planner\s*Sends once setup is done\s*$/u,
 		);
-		await expect(page.getByRole('group', { name: /^Your turn/u })).toHaveCount(0);
-		await expect(page.getByRole('list', { name: 'Ways to start' })).toHaveCount(0);
+		await expect(page.getByRole('group', { name: 'Quick suggestions' })).toHaveCount(0);
 		await captureFlow(app, 'agent-workstream-opened');
 
 		const transcript = page.getByTestId('transcript-pane');

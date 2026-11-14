@@ -17,7 +17,7 @@ Two agents never edit one checkout, so they never clobber each other.
 A new workstream opens on what Malini did to set it up, one step a line: **Made a fresh copy**, then **Checked dependencies** with what it found.
 A step still running shows a spinner, and a failed install has **Retry** on its line.
 
-Once the copy is ready, **Your turn** labels a box of prompts an agent can take from there:
+Once the copy is ready, **Quick suggestions** labels a box of prompts an agent can take from there:
 
 - **Run it in the browser** starts the project the way its README or scripts say, and opens it in the browser beside the chat.
 - **Find the biggest CI/CD pipeline optimizations** reads the pipelines and their recent runs, and lists the biggest savings first, without changing anything.

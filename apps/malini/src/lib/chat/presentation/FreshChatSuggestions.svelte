@@ -109,7 +109,7 @@
 	<div class="w-full max-w-[50rem] text-left">
 		{#if untouched}
 			<WorkstreamSetupSteps {workstreamId}>
-				<ul class="flex flex-col" aria-label="Ways to start" data-testid="chat-starters">
+				<ul class="flex flex-col" data-testid="chat-starters">
 					{#each starters as starter (starter.title)}
 						<li>
 							<Button
