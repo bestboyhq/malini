@@ -115,7 +115,13 @@ import type {
 	SaveSecretsArgs,
 	SecretRequest,
 } from './secrets';
-import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from './shell-runs';
+import type {
+	RunShellCommandArgs,
+	ShellInputArgs,
+	ShellRun,
+	ShellRunArgs,
+	ShellRunSizeArgs,
+} from './shell-runs';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
@@ -787,6 +793,7 @@ export interface ContractCommands {
 	'chat.run-shell-command': { args: RunShellCommandArgs; result: ShellRun };
 	'chat.shell-runs': { args: undefined; result: ShellRun[] };
 	'chat.write-shell-input': { args: ShellInputArgs; result: void };
+	'chat.resize-shell-run': { args: ShellRunSizeArgs; result: void };
 	'chat.stop-shell-run': { args: ShellRunArgs; result: void };
 	'chat.dismiss-shell-run': { args: ShellRunArgs; result: void };
 	'chat.start-session': { args: StartAgentSessionArgs; result: string };
@@ -1072,6 +1079,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.run-shell-command',
 	'chat.shell-runs',
 	'chat.write-shell-input',
+	'chat.resize-shell-run',
 	'chat.stop-shell-run',
 	'chat.dismiss-shell-run',
 	'extensions.stat-workstream-file',

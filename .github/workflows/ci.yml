@@ -20,20 +20,48 @@ jobs:
       - run: pnpm build
       - run: pnpm check
       - run: pnpm lint
-      - run: pnpm -r --filter '!malini' --reporter-hide-prefix --if-present test
+      - run: pnpm --filter @malini/site test
 
   unit:
-    name: unit tests ${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    name: unit tests on ${{ matrix.os }} ${{ matrix.part }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/3, 2/3, 3/3]
+        os: [Linux, Linux arm64, macOS, Windows, Windows arm64]
+        part: [1/3, 2/3, 3/3, packages]
+        include:
+          - os: Linux
+            runner: ubuntu-24.04
+          - os: Linux arm64
+            runner: ubuntu-24.04-arm
+          - os: macOS
+            runner: macos-latest
+          - os: Windows
+            runner: windows-latest
+          - os: Windows arm64
+            runner: windows-11-arm
+    defaults:
+      run:
+        shell: bash
     steps:
+      - &windows-long-paths
+        if: runner.os == 'Windows'
+        name: Let git check out paths longer than 260 characters
+        run: git config --system core.longpaths true
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+      - if: runner.os == 'Linux'
+        name: Install bubblewrap and let it use user namespaces
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm --filter "malini^..." build
-      - run: pnpm --filter malini exec vitest run --shard=${{ matrix.shard }}
+      - if: matrix.part != 'packages'
+        run: pnpm --filter malini exec vitest run --shard=${{ matrix.part }}
+      - if: matrix.part == 'packages'
+        run: pnpm -r --filter '!malini' --filter '!@malini/site' --reporter-hide-prefix --if-present test
 
   reuse:
     name: what the pull request already proved
@@ -65,25 +93,46 @@ jobs:
           echo "needed=$needed" >> "$GITHUB_OUTPUT"
 
   app:
-    name: e2e on macOS ${{ matrix.shard }}/${{ strategy.job-total }}
+    name: e2e on ${{ matrix.os }} ${{ matrix.shard }}/${{ github.event_name == 'push' && 3 || 5 }}
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.e2e != 'false' }}
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        os: [macOS, Linux, Windows]
         shard: ${{ fromJSON(github.event_name == 'push' && '[1, 2, 3]' || '[1, 2, 3, 4, 5]') }}
+        include:
+          - os: macOS
+            runner: macos-latest
+          - os: Linux
+            runner: ubuntu-24.04
+          - os: Windows
+            runner: windows-latest
+    env:
+      SHARDS: ${{ github.event_name == 'push' && 3 || 5 }}
+    defaults:
+      run:
+        shell: bash
     steps:
+      - *windows-long-paths
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+      - if: runner.os == 'Linux'
+        name: Start a virtual display, and let Electron's sandbox and bubblewrap use user namespaces
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap dbus-daemon dbus-x11 gnome-keyring libasound2t64 libgbm1 libgtk-3-0t64 libnotify4 libnss3 libsecret-1-0 libxss1 libxtst6 xdg-utils xvfb
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo DISPLAY=:99 >> "$GITHUB_ENV"
       - run: pnpm --filter "malini..." build
       - name: Download Electron
         run: for _ in 1 2 3; do pnpm --filter malini exec install-electron && exit 0; sleep 10; done; exit 1
       - name: Deal the tests round robin, so slow specs spread over every shard
         working-directory: apps/malini
-        shell: bash
         run: |
-          pnpm exec playwright test --list | grep ' › ' | awk -v n=${{ strategy.job-total }} -v i=${{ matrix.shard }} 'NR % n == i % n' > "$RUNNER_TEMP/tests.txt"
+          pnpm exec playwright test --list | grep ' › ' | awk -v n="$SHARDS" -v i=${{ matrix.shard }} 'NR % n == i % n' > "$RUNNER_TEMP/tests.txt"
           test -s "$RUNNER_TEMP/tests.txt"
           test "$(pnpm exec playwright test --list --test-list "$RUNNER_TEMP/tests.txt" | grep -c ' › ')" -eq "$(wc -l < "$RUNNER_TEMP/tests.txt")" || {
             echo "::error::Playwright finds fewer tests than this shard dealt; a test title holding › splits in --test-list and would run nowhere."
@@ -93,7 +142,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report-${{ strategy.job-index }}
+          name: playwright-report-${{ matrix.os }}-${{ matrix.shard }}
           path: apps/malini/test-results
 
   proof:
@@ -111,7 +160,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          counts=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name | startswith("e2e on macOS"))] | [(map(select(.conclusion != "success")) | length), length] | @tsv')
+          counts=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name | startswith("e2e on "))] | [(map(select(.conclusion != "success")) | length), length] | @tsv')
           read -r failed total <<< "$counts"
           if [ "$total" -eq 0 ]; then
             echo "::error::this run has no e2e job to remember"

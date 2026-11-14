@@ -6,6 +6,7 @@ import type {
 	PublishStatsResult,
 	StatsUpload,
 } from '$contract/stats';
+import { osFor } from '$shared/os/os.platform';
 import { localDate, shiftDate } from '../domain/activity';
 import { handleProblem, normalizedHandle } from '../domain/handle';
 import { BestboyError, type Bestboy, type BestboySession } from './bestboy';
@@ -115,8 +116,8 @@ export class StatsProfile {
 	signIn(): ProfileState {
 		if (!this.#deps.store.canSeal()) {
 			void settled(this.#endSignIn());
-			this.#signInProblem =
-				'Malini cannot keep a Bestboy sign-in safe on this Mac: its keychain is not available.';
+			const os = osFor(process.platform);
+			this.#signInProblem = `Malini cannot keep a Bestboy sign-in safe on this ${os.machine}: its ${os.keychain} is not available.`;
 			return this.#emit();
 		}
 		const verifier = randomBytes(32).toString('base64url');

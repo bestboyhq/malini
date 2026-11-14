@@ -116,6 +116,7 @@ pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
 pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge as it lands; Resume continues the turns a restart cuts
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
+sh apps/malini/tests/linux/run.sh unit|e2e|flow|exec [args]   # the same on Ubuntu 24.04 in Docker, under Xvfb; results in $MALINI_LINUX_OUT
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed
 pnpm --filter @malini/site build   # the static site under apps/site/build/malini

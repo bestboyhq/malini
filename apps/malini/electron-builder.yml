@@ -1,12 +1,16 @@
 appId: app.malini.desktop
 copyright: Copyright (C) 2026 Szymon Grącki and Malini contributors
-forceCodeSigning: true
+toolsets:
+  appimage: 1.0.3
 directories:
   output: release
   buildResources: build
 files:
   - out/**
   - package.json
+  - node_modules/**
+  - '!node_modules/node-pty/{binding.gyp,scripts,src,third_party,typings}{,/**}'
+  - '!node_modules/node-pty/prebuilds/!(${platform}-*){,/**}'
 extraResources:
   - from: ../../packages/agent-bridge/dist
     to: agent-bridge
@@ -18,7 +22,7 @@ extraResources:
     to: LICENSE
   - from: ../../NOTICE
     to: NOTICE
-  - from: vendor/gh
+  - from: vendor/gh/${os}-${arch}
     to: vendor/gh
   - from: build/tray
     to: build/tray
@@ -30,6 +34,7 @@ protocols:
 npmRebuild: false
 nodeGypRebuild: false
 mac:
+  forceCodeSigning: true
   category: public.app-category.developer-tools
   icon: build/Malini.icon
   entitlements: build/entitlements.mac.plist
@@ -37,11 +42,16 @@ mac:
   extendInfo:
     NSMicrophoneUsageDescription: Malini records the sound you choose for when an agent finishes or needs you, and lets a page in its browser use the microphone when you allow it.
   artifactName: malini-${version}-${arch}-mac.${ext}
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/*
   target:
     - target: dmg
-      arch: arm64
+      arch:
+        - arm64
+        - universal
     - target: zip
-      arch: arm64
+      arch:
+        - arm64
+        - x64
 dmg:
   sign: true
   title: Malini
@@ -61,6 +71,50 @@ dmg:
       y: 1000
       type: position
       path: .VolumeIcon.icns
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+nsis:
+  artifactName: malini-setup.${ext}
+linux:
+  icon: build/icon.png
+  maintainer: Szymon Grącki
+  artifactName: malini-${arch}.${ext}
+  target:
+    - AppImage
+    - deb
+    - rpm
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libasound2
+    - git
+    - bubblewrap
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - (libXtst or libXtst6)
+    - xdg-utils
+    - at-spi2-core
+    - (libuuid or libuuid1)
+    - alsa-lib
+    - git
+    - bubblewrap
 publish:
   provider: github
   owner: bestboyhq

@@ -24,6 +24,20 @@
 				};
 				paint();
 				new MutationObserver(paint).observe(root, { attributeFilter: ['data-theme'] });
+				const ua = navigator.userAgent;
+				const asked = new URLSearchParams(location.search).get('os');
+				root.dataset.os = ['darwin', 'win32', 'linux'].includes(asked)
+					? asked
+					: /Windows/.test(ua)
+						? 'win32'
+						: /Linux|CrOS|X11/.test(ua) && !/Android/.test(ua)
+							? 'linux'
+							: 'darwin';
+				const arm = () => (root.dataset.arch = 'arm64');
+				if (/aarch64|arm64/i.test(ua)) arm();
+				navigator.userAgentData
+					?.getHighEntropyValues(['architecture'])
+					.then((values) => values.architecture === 'arm' && arm(), () => {});
 			}
 		</script>
 		<link rel="icon" type="image/png" href="%sveltekit.assets%/favicon.png" />

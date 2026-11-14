@@ -24,7 +24,7 @@
 					<h2>{column.label}</h2>
 					<ul>
 						{#each column.links as link (link.href)}
-							<li>
+							<li data-for={link.for}>
 								<a
 									href={link.href}
 									data-sveltekit-reload={link.reload || isExternal(link) ? true : undefined}

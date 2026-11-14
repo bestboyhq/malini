@@ -16,7 +16,11 @@
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
-			<span>Free and open source macOS app</span>
+			<span>
+				Free and open source <span data-for="darwin">macOS</span><span data-for="win32"
+					>Windows</span
+				><span data-for="linux">Linux</span> app
+			</span>
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">

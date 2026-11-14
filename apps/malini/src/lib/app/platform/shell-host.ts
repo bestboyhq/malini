@@ -24,7 +24,9 @@ const liveNotifications = new Set<Notification>();
 
 let tray: Tray | null = null;
 
-export type TrayItem = Readonly<{ label: string; click: () => void } | { type: 'separator' }>;
+export type TrayItem = Readonly<
+	{ label: string; click: () => void } | { label: string; role: 'quit' } | { type: 'separator' }
+>;
 
 function holdUntilSettled(notification: Notification): void {
 	const release = (): void => {
@@ -40,6 +42,10 @@ function holdUntilSettled(notification: Notification): void {
 	}
 }
 
+function keepsPlainText(): boolean {
+	return process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text';
+}
+
 export interface ShellHost {
 	readonly productName: string;
 	readonly executablePath: string;
@@ -52,7 +58,7 @@ export interface ShellHost {
 	notificationsSupported(): boolean;
 	showNotification(options: { title: string; body: string; onClick?: () => void }): void;
 	openMainWindow(): void;
-	showTray(icon: string, items: readonly TrayItem[]): void;
+	showTray(icon: string, items: readonly TrayItem[], open?: () => void): void;
 	showApplicationMenu(template: readonly MenuItemConstructorOptions[]): void;
 	onWindowCreated(listener: (window: BrowserWindow) => void): void;
 	onBeforeQuit(listener: () => void): void;
@@ -73,7 +79,7 @@ export function createElectronShellHost(): ShellHost {
 				: clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })]),
 		clipboardWriteImage: (png) =>
 			clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]),
-		isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+		isEncryptionAvailable: () => safeStorage.isEncryptionAvailable() && !keepsPlainText(),
 		encryptString: (plainText) => safeStorage.encryptString(plainText),
 		decryptString: (encrypted) => safeStorage.decryptString(encrypted),
 		notificationsSupported: () => Notification.isSupported(),
@@ -91,11 +97,12 @@ export function createElectronShellHost(): ShellHost {
 		openMainWindow: () => {
 			createMainWindow();
 		},
-		showTray: (icon, items) => {
+		showTray: (icon, items, open) => {
 			if (BACKGROUND_WINDOW) return;
 			tray = new Tray(icon);
 			tray.setToolTip(app.getName());
 			tray.setContextMenu(Menu.buildFromTemplate([...items]));
+			if (open) tray.on('click', () => open());
 		},
 		showApplicationMenu: (template) => {
 			app.setAboutPanelOptions(aboutPanel(app.getName(), app.getVersion()));

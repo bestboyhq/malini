@@ -33,7 +33,7 @@ const BOUNDARY_OPTIONS = {
 	domainPackages: ['ts-pattern'],
 	compositionRoots: ['src/main/modules.ts', 'src/main/index.ts'],
 	consumerDomains: ['app'],
-	sharedDomains: ['repositories', 'providers', 'sounds'],
+	sharedDomains: ['repositories', 'providers', 'sounds', 'os'],
 };
 
 const PRODUCT_SOURCE = ['src/renderer/**/*.{svelte,ts}', 'src/lib/**/*.{svelte,ts}'];

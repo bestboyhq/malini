@@ -14,6 +14,11 @@ export function onPlatformEvent<Channel extends EventChannel>(
 	return platformBridge().on(channel, listener);
 }
 
+export function platformOs(): string | null {
+	if (typeof window === 'undefined') return null;
+	return window.malini?.platform ?? null;
+}
+
 export function platformZoomFactor(): number | null {
 	if (typeof window === 'undefined') return null;
 	const zoomFactor = window.malini?.windowChrome?.zoomFactor;

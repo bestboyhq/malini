@@ -13,6 +13,7 @@
 	import BrowserMock from '$lib/BrowserMock.svelte';
 	import DemoCard from '$lib/DemoCard.svelte';
 	import DemoTour from '$lib/DemoTour.svelte';
+	import Download from '$lib/Download.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
 	import Glow, { within, type Box, type Layer } from '$lib/Glow.svelte';
 	import HarnessStack from '$lib/HarnessStack.svelte';
@@ -22,7 +23,7 @@
 	import Problem from '$lib/Problem.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
 	import SoldCard from '$lib/SoldCard.svelte';
-	import { docHref, DOWNLOAD_URL, SITE_DESCRIPTION } from '$lib/links';
+	import { docHref, DOWNLOADS, OTHER_DOWNLOADS, SITE_DESCRIPTION } from '$lib/links';
 	import { GITHUB_URL } from '$lib/urls';
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
@@ -132,7 +133,7 @@
 		{
 			icon: 'lock',
 			title: 'No server, account optional',
-			body: 'Your code leaves your Mac only through the agent you run, Claude Code today, and the GitHub CLI. An account is only for a public profile or publishing an extension.',
+			body: 'Your code leaves your computer only through the agent you run, Claude Code today, and the GitHub CLI. An account is only for a public profile or publishing an extension.',
 		},
 		{
 			icon: 'eye',
@@ -159,12 +160,12 @@
 		{
 			question: 'What do I need?',
 			answer:
-				'macOS 13 or later on Apple silicon, and git. Malini ships the GitHub CLI, and setup installs Claude Code if you don’t have it.',
+				'macOS 13 or later, Windows 10 or later, or Linux, on x64 or Arm64. Git too, except on Windows, where Malini brings its own if you have none. Malini ships the GitHub CLI, and setup installs Claude Code if you don’t have it.',
 		},
 		{
-			question: 'Will Malini run on Windows?',
+			question: 'Does Malini run on Windows and Linux?',
 			answer:
-				'We want it to, but none of us use Windows every day. Windows support needs a power user who lives there to lead it. If that is you, open an issue on GitHub and it is yours to shape.',
+				'Yes. Windows 10 and 11, and Linux, on x64 or Arm64. Both are new, so if something feels off, open an issue on GitHub.',
 		},
 		{
 			question: 'Where does my code go?',
@@ -212,15 +213,28 @@
 		the gains compound.
 	</p>
 	<div class="actions">
-		<a class="button primary" href={DOWNLOAD_URL}>
-			{@render apple()}
-			Download for macOS
-		</a>
+		<Download />
 		<a class="button secondary" href={docHref('/docs')}>Read the docs</a>
 	</div>
 	<p class="fine">
-		macOS 13 or later on Apple silicon · No&nbsp;account&nbsp;needed · No&nbsp;subscription
+		{#each DOWNLOADS as download (download.href)}
+			<span data-for={download.for}>{download.note} ·</span>
+		{/each}
+		No&nbsp;account&nbsp;needed · No&nbsp;subscription
 	</p>
+	<details class="other">
+		<summary><Icon name="chevron-right" size={12} />Other downloads</summary>
+		<dl>
+			{#each OTHER_DOWNLOADS as group (group.label)}
+				<dt>{group.label}</dt>
+				<dd>
+					{#each group.links as link (link.href)}
+						<a href={link.href}>{link.title}</a>
+					{/each}
+				</dd>
+			{/each}
+		</dl>
+	</details>
 </Hero>
 
 <Problem beat={beat('problem', 'Problem')} />
@@ -469,10 +483,7 @@
 				</div>
 				<div class="close-actions rise">
 					<div class="actions">
-						<a class="button primary" href={DOWNLOAD_URL}>
-							{@render apple()}
-							Download for macOS
-						</a>
+						<Download />
 						<a class="button secondary" href={docHref('/docs/install')}>Install guide</a>
 					</div>
 					<p class="fine">Free and open source · AGPL-3.0</p>
@@ -481,21 +492,6 @@
 		</div>
 	</div>
 </section>
-
-{#snippet apple()}
-	<svg
-		class="apple"
-		viewBox="4 3.1 14.8 18.2"
-		width="13"
-		height="16"
-		aria-hidden="true"
-		fill="currentColor"
-	>
-		<path
-			d="M16.37 12.73c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.82-.81-3-.79-1.54.02-2.97.9-3.76 2.28-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74s1.78.74 3 .72c1.24-.02 2.02-1.12 2.78-2.23.88-1.28 1.24-2.52 1.26-2.58-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.89-.91.04-2.02.61-2.67 1.37-.58.67-1.1 1.76-.96 2.8 1.02.08 2.06-.52 2.69-1.28Z"
-		/>
-	</svg>
-{/snippet}
 
 {#snippet reportPanel()}
 	<DemoCard
@@ -536,10 +532,6 @@
 {/snippet}
 
 <style>
-	.apple {
-		translate: 0 -1.5px;
-	}
-
 	.lede {
 		--rise: 3px;
 		--blur: 10px;
@@ -573,6 +565,61 @@
 		color: var(--fg-muted);
 		font-size: 13px;
 		line-height: 1.55;
+	}
+
+	.other {
+		--rise: 3px;
+		--blur: 8px;
+		--duration: 1300ms;
+		--delay: 300ms;
+		margin-top: 4px;
+		color: var(--fg-muted);
+		font-size: 13px;
+		line-height: 1.55;
+	}
+
+	.other summary {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+		list-style: none;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.other summary :global(svg) {
+		transition: rotate 200ms var(--ease);
+	}
+
+	.other[open] summary :global(svg) {
+		rotate: 90deg;
+	}
+
+	.other dl {
+		display: grid;
+		grid-template-columns: max-content auto;
+		gap: 6px 20px;
+		margin-top: 10px;
+		padding-left: 16px;
+	}
+
+	.other dt {
+		color: var(--fg-faint);
+		font-family: var(--mono);
+		font-size: 12px;
+		line-height: 20px;
+	}
+
+	.other dd {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 16px;
+	}
+
+	.other a {
+		color: var(--fg-secondary);
+		text-decoration: none;
 	}
 
 	.cells {
@@ -778,7 +825,7 @@
 		border-top: 1px solid var(--border-default);
 	}
 
-	summary {
+	.answers summary {
 		display: grid;
 		grid-template-columns: 24px minmax(0, 1fr) 16px;
 		gap: 16px;
@@ -910,6 +957,11 @@
 	}
 
 	@media (hover: hover) and (pointer: fine) {
+		.other summary:hover,
+		.other a:hover {
+			color: var(--fg-default);
+		}
+
 		summary:hover .plus::before,
 		summary:hover .plus::after {
 			background: var(--fg-default);
@@ -978,7 +1030,7 @@
 			border-left: 0;
 		}
 
-		summary {
+		.answers summary {
 			grid-template-columns: minmax(0, 1fr) 16px;
 		}
 

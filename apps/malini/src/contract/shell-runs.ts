@@ -20,8 +20,11 @@ export type RunShellCommandArgs = Readonly<{
 	sessionId: string;
 	anchor: ShellRunAnchor;
 	command: string;
+	language: string | null;
 }>;
 
 export type ShellRunArgs = Readonly<{ runId: string }>;
 
 export type ShellInputArgs = Readonly<{ runId: string; text: string }>;
+
+export type ShellRunSizeArgs = Readonly<{ runId: string; cols: number; rows: number }>;

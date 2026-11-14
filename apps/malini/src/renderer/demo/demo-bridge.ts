@@ -23,6 +23,7 @@ export function demoBridge(handlersFor: (emit: DemoEmit) => DemoHandlers): Malin
 	};
 	const handlers = handlersFor(emit);
 	return {
+		platform: 'darwin',
 		windowChrome: { zoomFactor: () => 1 },
 		async invoke<Name extends CommandName>(
 			command: Name,

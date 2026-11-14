@@ -5,6 +5,7 @@ import type {
 	ProviderPlan,
 } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
+import { osFor } from '$shared/os/os.platform';
 import {
 	CLAUDE_PROVIDER,
 	CLAUDE_PROVIDER_ID,
@@ -105,8 +106,9 @@ export class ProviderKeys {
 		}
 		const cipher = await this.#cipher();
 		if (!cipher.isEncryptionAvailable()) {
+			const os = osFor(process.platform);
 			throw new Error(
-				'Malini cannot reach the macOS keychain to seal the API key. Unlock it, then save again.',
+				`Malini cannot reach ${os.secretStore} to seal the API key. ${os.unlockSecretStore}, then save again.`,
 			);
 		}
 		const plan = provider.id === OPENCODE_PROVIDER_ID ? await this.#askPlan(key) : null;
@@ -221,7 +223,7 @@ export class ProviderKeys {
 		const cipher = await this.#cipher();
 		if (!cipher.isEncryptionAvailable()) {
 			throw new Error(
-				`The ${provider.name} API key cannot be read because the macOS keychain is locked.`,
+				`The ${provider.name} API key cannot be read because ${osFor(process.platform).secretStore} is locked.`,
 			);
 		}
 		try {

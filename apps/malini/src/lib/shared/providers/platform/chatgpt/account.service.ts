@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AgentModelInfo, ChatGptSignInOutcome, ProviderAccount } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
 import { get, nowIso8601, run } from '$main/db/rows';
+import { osFor } from '$shared/os/os.platform';
 import { isValidAgentModel } from '$shared/providers/domain/model-id';
 import { modelDescription } from '$shared/providers/domain/models-dev';
 import { AGENT_REASONING_EFFORTS } from '$shared/providers/domain/run-profile';
@@ -282,8 +283,9 @@ export class ChatGptAccount {
 	async #readyCipher(): Promise<SecretCipher> {
 		const cipher = await this.#deps.cipher();
 		if (!cipher.isEncryptionAvailable()) {
+			const os = osFor(process.platform);
 			throw new Error(
-				'Malini cannot reach the macOS keychain to keep your ChatGPT sign-in. Unlock it, then try again.',
+				`Malini cannot reach ${os.secretStore} to keep your ChatGPT sign-in. ${os.unlockSecretStore}, then try again.`,
 			);
 		}
 		return cipher;

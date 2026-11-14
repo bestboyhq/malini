@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { app, BrowserWindow, dialog } from 'electron';
-import { bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
+import { BUNDLE_IDENTIFIER, bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
 import { declareWorktreeScheme } from '$lib/browser/platform/worktree-files';
 import {
 	checkoutsHome,
@@ -27,7 +27,14 @@ import { CommandRegistry } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
-import { claimsUrlScheme, URL_SCHEME, urlInbox } from './url-scheme';
+import {
+	claimLinuxUrlScheme,
+	claimsUrlScheme,
+	linuxUrlHandler,
+	URL_SCHEME,
+	urlInbox,
+	urlsIn,
+} from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
 const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DIPS'];
@@ -37,6 +44,18 @@ app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QU
 if (BACKGROUND_WINDOW) {
 	app.dock?.hide();
 	app.disableHardwareAcceleration();
+}
+if (process.platform === 'win32') {
+	app.setAppUserModelId(app.isPackaged ? BUNDLE_IDENTIFIER : process.execPath);
+}
+if (
+	process.platform === 'linux' &&
+	!BACKGROUND_WINDOW &&
+	process.env['DBUS_SESSION_BUS_ADDRESS'] &&
+	!/KDE/iu.test(process.env['XDG_CURRENT_DESKTOP'] ?? '') &&
+	!app.commandLine.hasSwitch('password-store')
+) {
+	app.commandLine.appendSwitch('password-store', 'gnome-libsecret');
 }
 declareWorktreeScheme([WORKSTREAM_IMAGE_SCHEME_PRIVILEGES]);
 
@@ -61,6 +80,8 @@ const COMMANDS_CLOSE_BUDGET_MS = 5_000;
 let db: MaliniDatabase | undefined;
 let modules: Modules | undefined;
 const urls = urlInbox();
+const launchUrls = urlsIn(process.argv);
+for (const url of launchUrls) urls.receive(url);
 
 app.on('open-url', (event, url) => {
 	event.preventDefault();
@@ -68,23 +89,26 @@ app.on('open-url', (event, url) => {
 });
 
 app.on('second-instance', (_event, argv) => {
-	for (const url of argv.filter((argument) => argument.startsWith(`${URL_SCHEME}://`))) {
-		urls.receive(url);
-	}
+	for (const url of urlsIn(argv)) urls.receive(url);
 	const [window] = BrowserWindow.getAllWindows();
-	if (!window) return;
+	if (!window) {
+		if (modules) createMainWindow();
+		return;
+	}
 	if (window.isMinimized()) window.restore();
 	window.focus();
 });
 
 async function boot(): Promise<void> {
-	if (!app.isPackaged) await waitForPreviousInstanceToExit(app.getPath('userData'));
+	if (!app.isPackaged && launchUrls.length === 0) {
+		await waitForPreviousInstanceToExit(app.getPath('userData'));
+	}
 	if (!app.requestSingleInstanceLock()) {
 		app.quit();
 		return;
 	}
 	await app.whenReady();
-	if (claimsUrlScheme(app.isPackaged, process.env)) app.setAsDefaultProtocolClient(URL_SCHEME);
+	if (claimsUrlScheme(app.isPackaged, process.env)) claimUrlScheme();
 	void removeStaleTemporaryIndexes();
 	const appDataRoot = app.getPath('userData');
 	const databasePath = join(appDataRoot, 'malini.sqlite');
@@ -144,15 +168,28 @@ function assertContractIsRegistered(registered: readonly CommandName[]): void {
 	);
 }
 
+function claimUrlScheme(): void {
+	if (process.platform === 'linux') {
+		const handler = linuxUrlHandler(app.isPackaged, process.env, process.execPath, app.getAppPath());
+		if (!handler) return;
+		claimLinuxUrlScheme(handler, process.env).catch((error: unknown) => {
+			console.error('malini: could not claim malini:// links', error);
+		});
+	} else if (process.platform === 'win32' && !app.isPackaged) {
+		app.setAsDefaultProtocolClient(URL_SCHEME, process.execPath, [app.getAppPath()]);
+	} else {
+		app.setAsDefaultProtocolClient(URL_SCHEME);
+	}
+}
+
 function testBridgeScript(): string | undefined {
 	return app.isPackaged ? undefined : process.env['MALINI_BRIDGE_SCRIPT'];
 }
 
 void boot();
 
-app.on('window-all-closed', () => {
-	if (process.platform !== 'darwin') app.quit();
-});
+const keepRunningWithoutWindows = (): void => undefined;
+app.on('window-all-closed', keepRunningWithoutWindows);
 
 app.on('will-quit', (event) => {
 	if (shuttingDown || !modules) {

@@ -23,6 +23,7 @@ import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/hear
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
 import { getSetting, setSetting } from './settings.repository';
+import { currentSystemLabel } from './system-label';
 import { hasPromptRun, readUsageReport, userWorkstreams } from './usage-report';
 import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-tools';
 
@@ -254,9 +255,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			return;
 		}
 	};
-	const system =
-		deps.system ??
-		`malini ${context.appVersion} · macOS ${process.getSystemVersion()} ${process.arch}`;
+	const system = deps.system ?? `malini ${context.appVersion} · ${currentSystemLabel()}`;
 	// ponytail: each distinct error is logged once per launch; add a count when frequency matters.
 	const reported = new Set<string>();
 	const report = (what: string): void => {

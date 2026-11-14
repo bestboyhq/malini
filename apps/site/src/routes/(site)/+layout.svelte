@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import Bar from '$lib/Bar.svelte';
 	import Footer from '$lib/Footer.svelte';
-	import { docHref, DOWNLOAD_URL, HOME } from '$lib/links';
+	import { docHref, DOWNLOADS_URL, HOME } from '$lib/links';
 	import { LOGDASH_SITE } from '$lib/logdash';
 	import type { Snippet } from 'svelte';
 
@@ -15,7 +15,7 @@
 
 	function trackDownload(event: MouseEvent) {
 		if (!(event.target instanceof Element)) return;
-		const link = event.target.closest(`a[href="${DOWNLOAD_URL}"]`);
+		const link = event.target.closest(`a[href^="${DOWNLOADS_URL}"]`);
 		if (!link) return;
 		const place = link.closest<HTMLElement>('[data-place]')?.dataset.place ?? 'page';
 		window.logdash?.track('malini_web_download_started', {

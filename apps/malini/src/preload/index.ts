@@ -9,6 +9,7 @@ import {
 	type InvokeReply,
 	type InvokeRequest,
 } from '../contract/ipc';
+import { osPlatform } from '../lib/shared/os/domain/os';
 
 type AnyEventCallback = { bivarianceHack(payload: unknown): void }['bivarianceHack'];
 
@@ -71,6 +72,8 @@ function subscribe(channel: string, callback: AnyEventCallback): () => void {
 }
 
 const api = {
+	platform: osPlatform(process.platform),
+
 	windowChrome: {
 		zoomFactor: (): number => webFrame.getZoomFactor(),
 	},

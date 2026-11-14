@@ -22,6 +22,10 @@
 		}
 	} catch (error) {}
 	document.documentElement.setAttribute('data-native-shell', 'true');
+	document.documentElement.setAttribute(
+		'data-platform',
+		(window.malini && window.malini.platform) || 'darwin',
+	);
 	try {
 		var zoom =
 			window.malini && window.malini.windowChrome ? window.malini.windowChrome.zoomFactor() : 1;

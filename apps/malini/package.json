@@ -7,6 +7,8 @@
 	"license": "AGPL-3.0-only",
 	"main": "./out/main/index.js",
 	"author": "Szymon Grącki",
+	"homepage": "https://bestboy.dev/malini",
+	"desktopName": "malini.desktop",
 	"scripts": {
 		"dev": "node scripts/generate-contract-reference.mjs && install-electron && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-bundle.mjs electron-vite dev --watch",
 		"dogfood": "node scripts/dogfood.mjs",
@@ -26,6 +28,9 @@
 		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
 		"release": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && electron-builder --mac --publish never",
 		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && node scripts/update-e2e.mjs"
+	},
+	"dependencies": {
+		"node-pty": "^1.2.0-beta.18"
 	},
 	"devDependencies": {
 		"@anthropic-ai/sdk": "^1.4.0",
@@ -59,6 +64,7 @@
 		"@tiptap/extensions": "^3.32.0",
 		"@tiptap/pm": "^3.32.0",
 		"@types/node": "catalog:",
+		"@xterm/headless": "^6.0.0",
 		"daisyui": "catalog:",
 		"dompurify": "^3.4.15",
 		"electron": "catalog:",

@@ -16,6 +16,7 @@ import {
 	problemBody,
 	problemTitle,
 } from '../domain/problem-report';
+import { currentSystemLabel } from './system-label';
 import { isPromptRun, userWorkstreams } from './usage-report';
 
 export type IssueRunner = (args: readonly string[]) => Promise<GhResult>;
@@ -31,7 +32,7 @@ export async function readProblemReport(context: MainContext, now: Date): Promis
 		.at(-1);
 	return {
 		repository: ISSUES_REPOSITORY,
-		system: `Malini ${context.appVersion} · macOS ${process.getSystemVersion()} ${process.arch}`,
+		system: `Malini ${context.appVersion} · ${currentSystemLabel()}`,
 		journey: journeyLine({
 			repositories: (await listRepositoryCatalog(context.db)).length,
 			prompts: listRunFacts(context.db, now.toISOString()).filter(isPromptRun).length,

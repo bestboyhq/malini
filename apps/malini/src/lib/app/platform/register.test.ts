@@ -416,8 +416,9 @@ describe('registerApp', () => {
 	});
 
 	it('puts Open Folder, Find Repository, Accounts and Settings in the menu bar icon, each handed to the window once', async () => {
-		boot(context);
+		boot(context, { platform: 'darwin' });
 		expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'));
+		expect(host.tray?.open).toBeNull();
 		const items = host.tray?.items ?? [];
 		expect(items.map((item) => ('label' in item ? item.label : item.type))).toEqual([
 			'Open Folder…',
@@ -438,6 +439,35 @@ describe('registerApp', () => {
 		}
 		expect(host.openedWindows).toBe(2);
 	});
+
+	it.each([
+		['win32', 'tray.ico', 'Exit Malini'],
+		['linux', 'tray.png', 'Quit Malini'],
+	] as const)(
+		'keeps Malini a click away in the %s tray once its window closes, and quits from there',
+		(platform, icon, quit) => {
+			boot(context, { platform });
+			expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', icon));
+			const items = host.tray?.items ?? [];
+			expect(items.map((item) => ('label' in item ? item.label : item.type))).toEqual([
+				'Open Malini',
+				'separator',
+				'Open Folder…',
+				'Find Repository…',
+				'separator',
+				'Accounts…',
+				'Settings…',
+				'separator',
+				quit,
+			]);
+			expect(items.at(-1)).toEqual({ label: quit, role: 'quit' });
+
+			host.tray?.open?.();
+			const first = items[0];
+			if (first && 'click' in first) first.click();
+			expect(host.openedWindows).toBe(2);
+		},
+	);
 
 	it('shows a File menu that starts workstreams and chats and adds repositories, outside a packaged build too', () => {
 		boot(context);
