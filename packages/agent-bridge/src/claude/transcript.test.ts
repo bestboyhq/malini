@@ -1,5 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent } from '../types.js';
 import { recordedMessages, type RecordedScenario } from './fixtures/fake-claude.js';
 import { ClaudeTranscript, COMPACTION_TOOL } from './transcript.js';
@@ -48,6 +48,43 @@ function replay(
 
 function replayRecorded(scenario: RecordedScenario): ReturnType<typeof replay> {
 	return replay(recordedMessages(scenario));
+}
+
+const REPORT = 'launched\n\nOutcome: The command runs\nNeeds: nothing';
+
+function replied(messages: readonly SDKMessage[], reply: string): SDKMessage[] {
+	const first = messages.findIndex(isSuccess);
+	return messages.map((message, index) =>
+		index === first && isSuccess(message) ? { ...message, result: reply } : message,
+	);
+}
+
+function isSuccess(message: SDKMessage): message is SDKResultSuccess {
+	return message.type === 'result' && message.subtype === 'success';
+}
+
+function answer(transcript: ClaudeTranscript, messages: readonly SDKMessage[]): void {
+	for (const message of messages) {
+		transcript.accept(message);
+		if (message.type === 'result') transcript.recordTurnResult(message);
+	}
+}
+
+function replayAnswered(messages: readonly SDKMessage[]): ReturnType<typeof replay> {
+	const events: AgentEvent[] = [];
+	const transcript = new ClaudeTranscript('run-1', (event) => events.push(event));
+	answer(transcript, messages);
+	return { events, transcript };
+}
+
+function turnEvents(events: readonly AgentEvent[]): AgentEvent[] {
+	return events.filter(({ type }) => type.startsWith('turn.'));
+}
+
+function summaries(events: readonly AgentEvent[]): (string | undefined)[] {
+	return ofType(events, 'background.updated')
+		.filter(({ summary }) => summary !== undefined)
+		.map(({ summary }) => summary);
 }
 
 function streamEndings(events: readonly AgentEvent[]): Map<string, string[]> {
@@ -613,8 +650,104 @@ describe('ClaudeTranscript', () => {
 		]);
 	});
 
+	it('keeps the turn going while its reply has no report and the command it started runs, until a later turn reports', () => {
+		const { events } = replayAnswered(recordedMessages('backgroundCommand'));
+
+		expect(turnEvents(events)).toEqual([
+			{ type: 'turn.answered', runId: 'run-1' },
+			{ type: 'turn.answered', runId: 'run-1' },
+		]);
+		expect(summaries(events)).toEqual([]);
+		expect(ofType(events, 'background.updated').filter(({ waiting }) => waiting)).toHaveLength(1);
+	});
+
+	it('ends the turn whose report leaves its command running, and goes on when Claude Code does', () => {
+		const { events } = replayAnswered(replied(recordedMessages('backgroundCommand'), REPORT));
+
+		expect(turnEvents(events)).toEqual([
+			{ type: 'turn.answered', runId: 'run-1' },
+			{ type: 'turn.ended', runId: 'run-1' },
+			{ type: 'turn.resumed', runId: 'run-1' },
+			{ type: 'turn.answered', runId: 'run-1' },
+		]);
+		expect(summaries(events)).toEqual([REPORT]);
+	});
+
+	it('ends a plain answer over a command an earlier turn reported and left running', () => {
+		const messages = replied(recordedMessages('backgroundCommand'), REPORT);
+		const firstIdle = messages.findIndex(
+			(message) =>
+				message.type === 'system' &&
+				message.subtype === 'session_state_changed' &&
+				message.state === 'idle',
+		);
+		const [running] = messages;
+		const result = messages.find(isSuccess);
+		const idle = messages[firstIdle];
+		if (!running || !result || !idle) throw new Error('no turn to replay');
+		const { events, transcript } = replayAnswered(messages.slice(0, firstIdle + 1));
+
+		transcript.handOff('run-2');
+		answer(transcript, [running, { ...result, result: 'Port 5173.' }, idle]);
+
+		expect(turnEvents(events).filter(({ runId }) => runId === 'run-2')).toEqual([
+			{ type: 'turn.answered', runId: 'run-2' },
+			{ type: 'turn.ended', runId: 'run-2' },
+		]);
+		expect(summaries(events)).toEqual([REPORT, 'Port 5173.']);
+	});
+
+	it('keeps waiting when the awaited command ends before Claude Code goes on, beside a server an earlier turn left running', () => {
+		const messages = replied(recordedMessages('backgroundCommand'), REPORT);
+		const firstIdle = messages.findIndex(
+			(message) =>
+				message.type === 'system' &&
+				message.subtype === 'session_state_changed' &&
+				message.state === 'idle',
+		);
+		const [running] = messages;
+		const result = messages.find(isSuccess);
+		const tasksChanged = messages.find(
+			(message) => message.type === 'system' && message.subtype === 'background_tasks_changed',
+		);
+		const idle = messages[firstIdle];
+		if (
+			!running ||
+			!result ||
+			tasksChanged?.type !== 'system' ||
+			tasksChanged.subtype !== 'background_tasks_changed' ||
+			!idle
+		) {
+			throw new Error('no turn to replay');
+		}
+		const [server] = tasksChanged.tasks;
+		if (!server) throw new Error('no background command to replay');
+		const suite = { ...server, task_id: 'e2e-suite', description: 'Run the e2e suite' };
+		const { events, transcript } = replayAnswered(messages.slice(0, firstIdle + 1));
+		const report = 'All green.\n\nOutcome: The suite passes\nNeeds: nothing';
+
+		transcript.handOff('run-2');
+		answer(transcript, [
+			running,
+			{ ...tasksChanged, tasks: [server, suite] },
+			{ ...result, result: 'The suite runs. I report when it finishes.' },
+			idle,
+			{ ...tasksChanged, tasks: [server] },
+			running,
+			{ ...result, result: report },
+			idle,
+		]);
+
+		expect(turnEvents(events).filter(({ runId }) => runId === 'run-2')).toEqual([
+			{ type: 'turn.answered', runId: 'run-2' },
+			{ type: 'turn.answered', runId: 'run-2' },
+			{ type: 'turn.ended', runId: 'run-2' },
+		]);
+		expect(summaries(events)).toEqual([REPORT, report]);
+	});
+
 	it('carries the turn summary and its resume point on the first wait after a successful result, and only there', () => {
-		const messages = recordedMessages('backgroundCommand');
+		const messages = replied(recordedMessages('backgroundCommand'), REPORT);
 		const firstIdle = messages.findIndex(
 			(message) =>
 				message.type === 'system' &&
@@ -642,7 +775,7 @@ describe('ClaudeTranscript', () => {
 				.filter(({ waiting }) => waiting)
 				.map(({ summary, providerCursor, interim }) => ({ summary, providerCursor, interim })),
 		).toEqual([
-			{ summary: 'launched', providerCursor: transcript.cursor, interim: undefined },
+			{ summary: REPORT, providerCursor: transcript.cursor, interim: undefined },
 			{ summary: undefined, providerCursor: undefined, interim: true },
 			{ summary: undefined, providerCursor: undefined, interim: undefined },
 		]);
