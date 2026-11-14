@@ -26,7 +26,7 @@ function acceptShipChangeCommand(change: PullRequestShipChange, workstreamName: 
 	toast.warning(
 		announcement,
 		aboutWorkstream(workstreamId, {
-			action: { label: 'Open', onclick: () => void goto(workstreamHref(workstreamId)) },
+			actions: [{ label: 'Open', onclick: () => void goto(workstreamHref(workstreamId)) }],
 		}),
 	);
 }

@@ -242,6 +242,8 @@ A note the agent adds after its report, when a background command ends or anothe
 A report shows the moment its turn answers, while a background agent still runs, and the run's status line stays under it.
 When the agent goes on in that run and reports again, the new report takes the card, and the earlier one moves into the card's list of earlier turns.
 A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, [the ones a chat started](#work-a-chat-starts) included.
+Malini's menu bar icon counts the chats you have not read yet, and shows nothing when you are caught up.
+Click it to open Malini, and right-click it for its menu.
 
 ### Next steps
 

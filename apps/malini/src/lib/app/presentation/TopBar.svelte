@@ -9,6 +9,7 @@
 		navigationHistoryTargetLedger,
 	} from '$shared/router/history-ledger';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { Button } from '$hyper-ui/components/button';
 	import { Popover } from '$hyper-ui/components/popover';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import ForegroundActivityIndicator from './ForegroundActivityIndicator.svelte';
@@ -271,24 +272,26 @@
 	{@const iconOnly = dockCompact && !armed}
 	{@const tooltip = iconOnly ? action.label : action.tooltip}
 	<Tooltip content={tooltip ?? ''} placement="bottom" suppressed={!tooltip}>
-		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-		<button
-			type="button"
-			class="topbar-action topbar-git__action"
-			class:topbar-action--icon={iconOnly}
+		<Button
+			variant={action.tone}
+			size="sm"
+			radius="md"
+			bordered={action.tone === 'secondary'}
+			{iconOnly}
+			class="topbar-git__action"
 			data-tone={action.tone}
-			data-armed={armed || undefined}
+			data-armed={armed ? 'true' : undefined}
 			disabled={action.disabled || routeTransitionPending}
-			aria-label={armed && action.confirmLabel ? action.confirmLabel : action.ariaLabel}
+			ariaLabel={armed && action.confirmLabel ? action.confirmLabel : action.ariaLabel}
 			data-testid={testId}
 			onclick={() => onStatusActionClicked(action, armId)}
 		>
 			{#if iconOnly}
 				<Icon name={action.icon} size={13} />
 			{:else}
-				<span>{armed && action.confirmLabel ? action.confirmLabel : action.label}</span>
+				{armed && action.confirmLabel ? action.confirmLabel : action.label}
 			{/if}
-		</button>
+		</Button>
 	</Tooltip>
 {/snippet}
 
@@ -960,7 +963,7 @@
 		--zone-hover: var(--color-button-secondary-hover);
 		--zone-stripe: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
 		--topbar-control-height: 24px;
-		--topbar-control-radius: 5px;
+		--topbar-control-radius: var(--radius-md);
 		display: flex;
 		height: 32px;
 		min-width: 0;
@@ -1126,33 +1129,22 @@
 		transform-origin: right center;
 	}
 
-	.topbar-git__action {
-		gap: 4px;
-		padding: 0 8px;
-	}
-
-	.topbar-git .topbar-action[data-tone='secondary'] {
+	.topbar-git:not([data-zone='idle'], [data-zone='asks'])
+		:global(.topbar-git__action[data-tone='secondary']:not(:disabled)) {
 		border-color: var(--zone-edge);
 		background: color-mix(in srgb, var(--zone-ink) 8%, transparent);
 		color: var(--zone-ink);
 	}
 
-	.topbar-git .topbar-action[data-tone='secondary']:hover:not(:disabled) {
+	.topbar-git:not([data-zone='idle'], [data-zone='asks'])
+		:global(.topbar-git__action[data-tone='secondary']:hover:not(:disabled)) {
 		background: var(--zone-hover);
-		color: var(--zone-ink);
 	}
 
-	.topbar-git .topbar-action[data-armed],
-	.topbar-git .topbar-action[data-armed]:hover:not(:disabled) {
+	.topbar-git :global(.topbar-git__action[data-armed]:not(:disabled)) {
 		border-color: transparent;
 		background: var(--color-error);
 		color: var(--color-error-content);
-	}
-
-	.topbar-git .topbar-action.topbar-action--icon {
-		width: var(--topbar-control-height);
-		justify-content: center;
-		padding: 0;
 	}
 
 	.topbar-git [data-stale] {

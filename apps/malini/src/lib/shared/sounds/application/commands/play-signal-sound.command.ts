@@ -15,7 +15,7 @@ export function playSignalSoundCommand(signal: SoundSignal): void {
 			const sound = playableSound(choices[signal], signal, soundsStore.custom);
 			if (!sound) return;
 			playSoundCommand(sound);
-			if (signal === 'finished' && !soundsStore.noted) noteSounds();
+			if (signal === 'finished' && !soundsStore.noted) noteSounds(sound);
 		} catch (error) {
 			console.error('[malini sounds] could not play the sound for this moment', error);
 		}
@@ -24,11 +24,14 @@ export function playSignalSoundCommand(signal: SoundSignal): void {
 
 const NOTE_MS = 12_000;
 
-function noteSounds(): void {
+function noteSounds(sound: string): void {
 	soundsStore.noted = true;
-	toast.info('That sound means an agent finished. Another plays when one needs you.', {
+	toast.info('Wait, you also heard it? Sounded like an agent finishing its work…', {
 		ttlMs: NOTE_MS,
-		action: { label: 'Change sounds', onclick: () => void goto(SOUND_SETTINGS_HREF) },
+		actions: [
+			{ label: 'Play again', keepOpen: true, onclick: () => playSoundCommand(sound) },
+			{ label: 'Change', onclick: () => void goto(SOUND_SETTINGS_HREF) },
+		],
 	});
 	void soundsService.note().catch((error: unknown) => {
 		console.error('[malini sounds] could not remember the sounds note', error);

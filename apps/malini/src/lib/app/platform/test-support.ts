@@ -16,7 +16,7 @@ export interface FakeHost extends Omit<ShellHost, 'executablePath'> {
 	clipboardImages: Buffer[];
 	notifications: { title: string; body: string; onClick?: () => void }[];
 	openedWindows: number;
-	tray: { icon: string; items: readonly TrayItem[] } | null;
+	tray: { icon: string; items: readonly TrayItem[]; open: () => void; count: number } | null;
 	applicationMenu: readonly MenuItemConstructorOptions[];
 	encryptionAvailable: boolean;
 	notificationsAvailable: boolean;
@@ -79,8 +79,11 @@ export function createFakeHost(): FakeHost {
 		openMainWindow: () => {
 			host.openedWindows += 1;
 		},
-		showTray: (icon, items) => {
-			host.tray = { icon, items };
+		showTray: (icon, items, open) => {
+			host.tray = { icon, items, open, count: 0 };
+		},
+		showTrayCount: (count) => {
+			if (host.tray) host.tray.count = count;
 		},
 		showApplicationMenu: (template) => {
 			host.applicationMenu = template;

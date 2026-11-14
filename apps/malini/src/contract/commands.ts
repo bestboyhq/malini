@@ -462,6 +462,8 @@ export type SetThemeModeArgs = Readonly<{ mode: ThemeMode }>;
 
 export type CloseGuardArgs = Readonly<{ armed: boolean }>;
 
+export type UnreadChatsArgs = Readonly<{ count: number }>;
+
 export type NotifyArgs = Readonly<{
 	options: Readonly<{ title: string; body: string; opens?: NotificationTarget }>;
 }>;
@@ -820,6 +822,7 @@ export interface ContractCommands {
 		result: NotificationPermissionResult;
 	};
 	'app.close-guard': { args: CloseGuardArgs; result: void };
+	'app.unread-chats': { args: UnreadChatsArgs; result: void };
 	'app.destroy-window': { args: undefined; result: void };
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
 	'app.full-screen': { args: undefined; result: boolean };
@@ -1090,6 +1093,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.take-menu-command',
 	'app.request-notification-permission',
 	'app.close-guard',
+	'app.unread-chats',
 	'app.destroy-window',
 	'app.logical-viewport',
 	'app.full-screen',
