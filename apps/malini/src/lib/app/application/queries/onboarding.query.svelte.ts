@@ -7,7 +7,6 @@ type Onboarding = Readonly<{
 	heardAboutUnanswered: boolean;
 	firstMerge: boolean;
 	heardAbout: HeardAbout | null;
-	heardAboutSent: boolean;
 }>;
 
 class OnboardingQuery {
@@ -18,7 +17,6 @@ class OnboardingQuery {
 			(workstream) => workstream.mergedPullRequest !== null,
 		),
 		heardAbout: onboardingStore.heardAbout,
-		heardAboutSent: onboardingStore.heardAboutSent,
 	});
 }
 
