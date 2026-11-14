@@ -826,6 +826,20 @@ describe('restoring an archived workstream', () => {
 		expect(await repo.invoke('repositories.list-archived-workstreams', undefined)).toEqual([]);
 	});
 
+	it('brings back the line endings of its uncommitted work when git converts them', async () => {
+		const repo = await harness();
+		await realGit(repo.base, ['config', 'core.autocrlf', 'true']);
+		const checkout = await createWorkstream(repo, 'ws-eol');
+		await writeFile(join(checkout, 'seed.txt'), 'seed\nedited\n');
+
+		await archiveReceipt(repo, 'ws-eol');
+		await archivedLeftoversCleared();
+		await repo.invoke('repositories.restore-workstream', { workstreamId: 'ws-eol' });
+
+		expect(await readFile(join(checkout, 'seed.txt'), 'utf8')).toBe('seed\nedited\n');
+		expect(await readFile(join(checkout, 'uncommitted.txt'), 'utf8')).toBe('work in progress\n');
+	});
+
 	it('starts a workstream that held nothing of its own from its base again', async () => {
 		const repo = await harness();
 		const checkout = await createWorkstream(repo, 'ws-empty');

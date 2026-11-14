@@ -94,7 +94,7 @@ function meaningful(value: unknown): unknown {
 
 function realFolder(cwd: string): string {
 	try {
-		return realpathSync(cwd);
+		return realpathSync.native(cwd);
 	} catch {
 		return cwd;
 	}

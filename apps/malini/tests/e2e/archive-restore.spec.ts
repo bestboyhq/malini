@@ -11,10 +11,10 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { ArchivedWorkstreamDto } from '../../src/contract/repositories';
 import {
-	APP_ROOT,
 	captureFlow,
 	clickRevealedOnHover,
 	createSourceRepo,
+	ELECTRON_DEFAULT_APP,
 	expectAssistantReply,
 	expectCleanConsole,
 	git,
@@ -24,11 +24,6 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
-
-const ELECTRON_DEFAULT_APP = join(
-	APP_ROOT,
-	'node_modules/electron/dist/Electron.app/Contents/Resources/default_app.asar',
-);
 
 test('an archived workstream comes back from its repository in the sidebar with its chat, commits and uncommitted work', async () => {
 	test.setTimeout(180_000);

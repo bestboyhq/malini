@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { GitError } from '$main/errors';
+import { spawnable } from '$main/process/command';
 
 export const MAX_GIT_STDERR_BYTES = 64 * 1024;
 
@@ -48,9 +49,12 @@ function spawnGit(
 	return new Promise((resolve, reject) => {
 		let child;
 		try {
-			child = spawn('git', [...args], {
-				env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...env },
+			const environment = { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...env };
+			const command = spawnable('git', args, environment);
+			child = spawn(command.file, command.args, {
+				env: environment,
 				stdio: ['pipe', 'pipe', 'pipe'],
+				...command.options,
 			});
 		} catch (error) {
 			reject(GitError.fromNodeError(error));
@@ -212,6 +216,7 @@ export async function runGitBoundedStdout(
 }
 
 export const DISABLED_GIT_HOOKS_CONFIG = 'core.hooksPath=/dev/null';
+export const EXACT_CONTENT_CONFIG = 'core.autocrlf=false';
 export const DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG = 'protocol.allow=never';
 export const ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG = 'protocol.https.allow=always';
 export const REQUIRE_TLS_VERIFICATION_CONFIG = 'http.sslVerify=true';

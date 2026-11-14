@@ -109,8 +109,8 @@ function greeting(): Reply {
 export async function fakeOpenAi(): Promise<FakeOpenAi> {
 	const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 	const server = createServer();
-	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
-	const url = `http://localhost:${(server.address() as AddressInfo).port}`;
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 	const resource = `${url}/v1`;
 	const codes = new Map<string, Authorization>();
 	const responses: UpstreamResponse[] = [];

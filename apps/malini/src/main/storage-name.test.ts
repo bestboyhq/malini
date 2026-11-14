@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { pinStorageName, type NamedApp } from './storage-name';
 
@@ -34,7 +35,7 @@ it.each(['Malini', 'malini'])(
 
 		expect(pinStorageName(app)).toBe(productName);
 		expect(name()).toBe('malini');
-		expect(paths.get('userData')).toBe(`${APP_DATA}/malini`);
+		expect(paths.get('userData')).toBe(join(APP_DATA, 'malini'));
 
 		events.emit('will-finish-launching');
 		expect(defaultMenuName).toBe(productName);

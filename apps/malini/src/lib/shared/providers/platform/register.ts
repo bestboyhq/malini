@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { CLAUDE_INSTALL_COMMAND, type AgentPlanUsage } from '$contract/agent';
+import { delimiter, join } from 'node:path';
+import type { AgentPlanUsage } from '$contract/agent';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import {
@@ -77,9 +77,6 @@ export function registerProviders(
 	const fetch = deps.fetch ?? electronFetch;
 	let claudeInstall: Promise<void> | null = null;
 	context.commands.define('providers.install-claude-code', () => {
-		if (platform !== 'darwin') {
-			throw new Error(`Run \`${CLAUDE_INSTALL_COMMAND}\` in a terminal, then check again.`);
-		}
 		claudeInstall ??= installClaudeCode({
 			fetch,
 			directory: join(context.appDataRoot, 'claude-setup'),
@@ -239,7 +236,7 @@ function claudeExecutable(): string | null {
 	const environment = currentEnvironment();
 	const home = homedir();
 	const path = [join(home, '.local', 'bin'), environment.path, join(home, '.claude', 'local')];
-	return resolveToolPath('claude', { ...environment, path: path.join(':') });
+	return resolveToolPath('claude', { ...environment, path: path.join(delimiter) });
 }
 
 async function openExternalWithElectron(url: string): Promise<void> {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubHome } from '$main/process/test-support';
 import type { AgentBackgroundTask } from '$contract/agent';
 import { listEventRowsForSession } from '../events.repository';
 import { getInteraction } from '../interactions.repository';
@@ -35,7 +36,7 @@ const cleanups: Array<() => Promise<void> | void> = [];
 
 beforeEach(() => {
 	test = createTestContext();
-	vi.stubEnv('HOME', test.appDataRoot);
+	stubHome(test.appDataRoot);
 	fake = writeFakeBridge();
 });
 
@@ -435,11 +436,11 @@ describe('BridgeRuntime with the fake bridge', () => {
 	});
 
 	it('auto-approves a remembered read without emitting the request, and audits it', async () => {
-		vi.stubEnv('HOME', test.appDataRoot);
+		stubHome(test.appDataRoot);
 		const checkout = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const approvalPath = externalReadPath();
-		vi.stubEnv('HOME', emptyHome());
+		stubHome(emptyHome());
 		const permission = {
 			capability: 'read',
 			resources: [

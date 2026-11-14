@@ -116,9 +116,9 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 		await page.keyboard.press('0');
 		await expect(zoom.getByRole('button', { name: 'Fit to screen', exact: true })).toBeDisabled();
 
-		await page.keyboard.down('Meta');
+		await page.keyboard.down('ControlOrMeta');
 		await page.mouse.wheel(0, -100);
-		await page.keyboard.up('Meta');
+		await page.keyboard.up('ControlOrMeta');
 		await expect(zoom.getByRole('button', { name: /^Fit to screen from / })).toBeEnabled();
 		await page.keyboard.press('0');
 		await expect.poll(width).toBeLessThan(shown.width * 1.1);

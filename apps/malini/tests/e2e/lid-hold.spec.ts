@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -14,7 +14,13 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	temporaryRoot,
+	writeExecutable,
 } from './harness';
+
+test.skip(
+	process.platform !== 'darwin',
+	'Close My Lid drives pmset and launchd, which only macOS has',
+);
 
 const SUDO = `#!/bin/sh
 tools="$(dirname "$0")"
@@ -58,8 +64,7 @@ function fakeLidTools(root: string): string {
 		['osascript', OSASCRIPT],
 		['launchctl', LAUNCHCTL],
 	] as const) {
-		writeFileSync(join(tools, name), script);
-		chmodSync(join(tools, name), 0o755);
+		writeExecutable(join(tools, name), script);
 	}
 	return tools;
 }

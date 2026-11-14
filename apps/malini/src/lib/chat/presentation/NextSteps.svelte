@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
@@ -38,11 +39,11 @@
 	}
 
 	function trackCommand(event: KeyboardEvent | PointerEvent): void {
-		commandHeld = event.metaKey;
+		commandHeld = osQuery.data.primaryHeld(event);
 	}
 
 	function ship(index: number, step: string, event: MouseEvent): void {
-		if (event.metaKey && onfork) {
+		if (osQuery.data.primaryHeld(event) && onfork) {
 			onfork(step);
 			mark(index, 'Shipped in a new chat');
 			return;
@@ -92,7 +93,7 @@
 					{/if}
 					{#if onsend}
 						<Tooltip
-							content="Hold ⌘ to slice, fork and ship it in a new chat"
+							content={`Hold ${osQuery.data.primaryKey} to slice, fork and ship it in a new chat`}
 							placement="top"
 							suppressed={!onfork || forking}
 						>

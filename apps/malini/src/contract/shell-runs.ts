@@ -26,5 +26,3 @@ export type RunShellCommandArgs = Readonly<{
 export type ShellRunArgs = Readonly<{ runId: string }>;
 
 export type ShellInputArgs = Readonly<{ runId: string; text: string }>;
-
-export type ShellRunSizeArgs = Readonly<{ runId: string; cols: number; rows: number }>;

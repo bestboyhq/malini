@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from 'node:fs';
-import { basename, join, sep } from 'node:path';
+import { join, sep } from 'node:path';
 import { GitError } from '$main/errors';
 import { isInsideDirectory } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
@@ -227,12 +227,12 @@ export function pathCanonicalizeDeleteGuard(worktreePath: string, worktreesRoot:
 	let canonical: string;
 	let canonicalRoot: string;
 	try {
-		canonical = realpathSync(worktreePath);
+		canonical = realpathSync.native(worktreePath);
 	} catch (error) {
 		throw GitError.fromNodeError(error);
 	}
 	try {
-		canonicalRoot = realpathSync(worktreesRoot);
+		canonicalRoot = realpathSync.native(worktreesRoot);
 	} catch (error) {
 		throw GitError.fromNodeError(error);
 	}
@@ -331,7 +331,7 @@ export function assessWorkstreamCheckout(
 	}
 	let canonicalRecorded: string;
 	try {
-		canonicalRecorded = realpathSync(recorded);
+		canonicalRecorded = realpathSync.native(recorded);
 	} catch {
 		return health(
 			'path-diverged',
@@ -347,9 +347,4 @@ export function assessWorkstreamCheckout(
 		canonical,
 		`the recorded checkout path \`${canonicalRecorded}\` is not the checkout in use \`${canonical}\``,
 	);
-}
-
-export function deriveBranchFromPath(worktreePath: string): string {
-	const name = basename(worktreePath);
-	return name.length > 0 ? `${WORKSTREAM_BRANCH_PREFIX}${name}` : '';
 }

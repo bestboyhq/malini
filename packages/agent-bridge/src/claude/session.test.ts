@@ -23,6 +23,7 @@ import { sentBack, type ReplyChecker } from './reply-check.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, claudeEnvironment } from './session.js';
 
+const WINDOWS = process.platform === 'win32';
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
 const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
 const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
@@ -402,72 +403,75 @@ describe('ClaudeSession', () => {
 		]);
 	});
 
-	it('runs an automation inside its boundary and relaunches Claude Code when the boundary changes', async () => {
-		const script = recordedScript('readAndBash');
-		const { session, claude } = harness([script, script]);
-		const inside = (boundary: AgentBoundary) =>
-			[
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				[],
-				undefined,
-				boundary,
-			] as const;
-		const sealed: AgentBoundary = {
-			hidden: ['/data/malini/malini.sqlite', '/work/repo/.malini/agent-attachments'],
-			chatRecords: false,
-			internet: false,
-		};
-		const sandboxOf = (run: number) =>
-			readFile(
-				join(
-					dirname(claude.runs[run]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? ''),
-					'sandbox.sb',
-				),
-				'utf8',
+	it.skipIf(WINDOWS)(
+		'runs an automation inside its boundary and relaunches Claude Code when the boundary changes',
+		async () => {
+			const script = recordedScript('readAndBash');
+			const { session, claude } = harness([script, script]);
+			const inside = (boundary: AgentBoundary) =>
+				[
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					[],
+					undefined,
+					boundary,
+				] as const;
+			const sealed: AgentBoundary = {
+				hidden: ['/data/malini/malini.sqlite', '/work/repo/.malini/agent-attachments'],
+				chatRecords: false,
+				internet: false,
+			};
+			const sandboxOf = (run: number) =>
+				readFile(
+					join(
+						dirname(claude.runs[run]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? ''),
+						'sandbox.sb',
+					),
+					'utf8',
+				);
+
+			await session.sendPrompt(
+				'Write the docs',
+				'run-1',
+				profile('agent', 'auto'),
+				...inside(sealed),
 			);
+			const sealedSandbox = await sandboxOf(0);
+			await session.sendPrompt(
+				'And again',
+				'run-2',
+				profile('agent', 'auto'),
+				...inside({ hidden: [], chatRecords: true, internet: true }),
+			);
+			const openSandbox = await sandboxOf(1);
 
-		await session.sendPrompt(
-			'Write the docs',
-			'run-1',
-			profile('agent', 'auto'),
-			...inside(sealed),
-		);
-		const sealedSandbox = await sandboxOf(0);
-		await session.sendPrompt(
-			'And again',
-			'run-2',
-			profile('agent', 'auto'),
-			...inside({ hidden: [], chatRecords: true, internet: true }),
-		);
-		const openSandbox = await sandboxOf(1);
-
-		const [first, second] = claude.runs.map(({ options }) => options);
-		expect(first?.sandbox).toEqual({ enabled: false });
-		for (const path of [...sealed.hidden, '/projects"']) {
-			expect(sealedSandbox).toContain(path);
-			expect(openSandbox).not.toContain(path);
-		}
-		expect(sealedSandbox).not.toContain('(remote ip "*:*")');
-		expect(openSandbox).toContain('(remote ip "*:*")');
-		expect(first?.disallowedTools).toEqual(
-			expect.arrayContaining([
-				'Read(//data/malini/malini.sqlite/**)',
-				'Read(//work/repo/.malini/agent-attachments)',
-				'WebFetch',
-				'WebSearch',
-			]),
-		);
-		expect(first?.strictMcpConfig).toBe(true);
-		expect(first?.env?.['CLAUDE_CODE_DISABLE_AUTO_MEMORY']).toBe('1');
-		expect(second?.disallowedTools).not.toContain('WebFetch');
-		expect(second).not.toHaveProperty('strictMcpConfig');
-		expect(second?.env).not.toHaveProperty('CLAUDE_CODE_DISABLE_AUTO_MEMORY');
-	});
+			const [first, second] = claude.runs.map(({ options }) => options);
+			expect(first?.sandbox).toEqual({ enabled: false });
+			for (const path of [...sealed.hidden, '/projects"']) {
+				expect(sealedSandbox).toContain(path);
+				expect(openSandbox).not.toContain(path);
+			}
+			expect(sealedSandbox).not.toContain('(remote ip "*:*")');
+			expect(openSandbox).toContain('(remote ip "*:*")');
+			expect(first?.disallowedTools).toEqual(
+				expect.arrayContaining([
+					'Read(//data/malini/malini.sqlite/**)',
+					'Read(//work/repo/.malini/agent-attachments)',
+					'WebFetch',
+					'WebSearch',
+				]),
+			);
+			expect(first?.strictMcpConfig).toBe(true);
+			expect(first?.env?.['CLAUDE_CODE_DISABLE_AUTO_MEMORY']).toBe('1');
+			expect(second?.disallowedTools).not.toContain('WebFetch');
+			expect(second).not.toHaveProperty('strictMcpConfig');
+			expect(second?.env).not.toHaveProperty('CLAUDE_CODE_DISABLE_AUTO_MEMORY');
+		},
+	);
 
 	it('hands a started workstream its starter and the folders of its siblings', async () => {
 		const script = recordedScript('readAndBash');
@@ -504,8 +508,10 @@ describe('ClaudeSession', () => {
 		await session.sendPrompt('Run echo hi and read package.json', 'run-1', profile());
 
 		const environment = claude.runs[0]?.options.env ?? {};
-		expect(environment['CLAUDE_CODE_SHELL_PREFIX']).toMatch(/\/run$/u);
-		expect(environment['CLAUDE_CODE_SHELL']).toMatch(/(?:bash|zsh)$/u);
+		expect(environment['CLAUDE_CODE_SHELL_PREFIX']).toMatch(/^[^\\]+\/run$/u);
+		expect(environment['CLAUDE_CODE_SHELL']).toEqual(
+			WINDOWS ? undefined : expect.stringMatching(/(?:bash|zsh)$/u),
+		);
 	});
 
 	it('masks a saved secret in a tool output before Claude reads it', async () => {
@@ -1350,7 +1356,7 @@ describe('ClaudeSession', () => {
 		expect(requests).toMatchObject([{ approvalId: 'approval-toolu_unseen_again' }]);
 	});
 
-	describe('a command that needs what the sandbox blocked', () => {
+	describe.skipIf(WINDOWS)('a command that needs what the sandbox blocked', () => {
 		const socket = '/Users/someone/.docker/run/docker.sock';
 		const asked = askedToLeave('pnpm test', 'toolu_grant');
 

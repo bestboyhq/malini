@@ -15,7 +15,7 @@ import {
 	unlink,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, sep } from 'node:path';
+import { dirname, join, normalize, sep } from 'node:path';
 import type { CheckoutsFolder, CheckoutsFolderProblem } from '$contract/repositories';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, isRecord, run } from '$main/db/rows';
@@ -390,11 +390,13 @@ async function repairWorktrees(from: string, to: string): Promise<void> {
 	const stale = new Map<string, string[]>();
 	for (const checkout of checkouts) {
 		const linked = await readFile(join(checkout, '.git'), 'utf8').catch(() => '');
-		const gitdir = /^gitdir:\s*(.+)$/mu.exec(linked)?.[1]?.trim() ?? '';
+		const gitdir = normalize(/^gitdir:\s*(.+)$/mu.exec(linked)?.[1]?.trim() ?? '');
 		const admin = movedPath(gitdir, from, to) ?? gitdir;
 		const at = admin.lastIndexOf(WORKTREE_ADMIN);
 		if (at < 0) continue;
-		const backlink = (await readFile(join(admin, 'gitdir'), 'utf8').catch(() => '')).trim();
+		const backlink = normalize(
+			(await readFile(join(admin, 'gitdir'), 'utf8').catch(() => '')).trim(),
+		);
 		if (admin === gitdir && !movedPath(backlink, from, to)) continue;
 		const base = admin.slice(0, at);
 		stale.set(base, [...(stale.get(base) ?? []), checkout]);

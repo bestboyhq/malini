@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -8,7 +7,11 @@ import {
 	expectCleanConsole,
 	git,
 	launchMalini,
+	lockFolder,
+	REAL_GIT,
 	seedWorkstream,
+	unlockFolder,
+	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 
@@ -89,23 +92,20 @@ async function commitFiles(repo: string, files: Readonly<Record<string, string>>
 }
 
 function slowWorktreeAdd(app: LaunchedApp): void {
-	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 	const stub = join(app.bin, 'git');
-	writeFileSync(
+	writeExecutable(
 		stub,
-		`#!/bin/sh\ncase " $* " in *" worktree add "*) sleep 4 ;; esac\nexec "${git}" "$@"\n`,
+		`#!/bin/sh\ncase " $* " in *" worktree add "*) sleep 4 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
 	);
-	chmodSync(stub, 0o755);
 }
 
 function installNpmStub(app: LaunchedApp): string {
 	const succeeds = join(app.home, 'npm-succeeds');
 	const stub = join(app.bin, 'npm');
-	writeFileSync(
+	writeExecutable(
 		stub,
 		`#!/bin/sh\nif [ -f "${succeeds}" ]; then exit 0; fi\necho "e2e install failure" 1>&2\nexit 1\n`,
 	);
-	chmodSync(stub, 0o755);
 	return succeeds;
 }
 
@@ -177,7 +177,7 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		await expect(workstreamRow(page, seeded.workstreamId)).toBeVisible({ timeout: 20_000 });
 		lockedDirectory = dirname(seeded.worktree);
 
-		chmodSync(lockedDirectory, 0o555);
+		lockFolder(lockedDirectory);
 		const headlineOverlaps = await watchHeadlineOverlaps(page);
 		const retried = await newWorkstream(page, 'alpha');
 		const failure = page.getByRole('alert').filter({ hasText: 'has no worktree yet' });
@@ -201,16 +201,16 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		expect(label && detail && label.x + label.width <= detail.x).toBe(true);
 		await captureFlow(app, 'workstream-setup-failed');
 
-		chmodSync(lockedDirectory, 0o755);
+		unlockFolder(lockedDirectory);
 		await failure.getByRole('button', { name: /^Retry setting up / }).click();
 		await expect(failure).toHaveCount(0, { timeout: 30_000 });
 		await expect(composerReady(page)).toBeVisible({ timeout: 30_000 });
 		await expect(workstreamRow(page, retried)).toHaveAttribute('aria-current', 'page');
 
-		chmodSync(lockedDirectory, 0o555);
+		lockFolder(lockedDirectory);
 		const removed = await newWorkstream(page, 'alpha');
 		await expect(failure).toBeVisible({ timeout: 30_000 });
-		chmodSync(lockedDirectory, 0o755);
+		unlockFolder(lockedDirectory);
 		await failure.getByRole('button', { name: /^Remove / }).click();
 
 		await expect(workstreamRow(page, removed)).toHaveCount(0, { timeout: 30_000 });
@@ -221,7 +221,7 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		await expect(failure).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
-		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
+		if (lockedDirectory) unlockFolder(lockedDirectory);
 		await app.close();
 	}
 });

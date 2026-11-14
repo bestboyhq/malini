@@ -133,7 +133,7 @@ async function watchSettled(id: string): Promise<void> {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-watcher-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-watcher-')));
 	db = openMigratedDatabase(':memory:');
 	events = createEventBus({ forwardToWindows: false });
 	emitted = [];

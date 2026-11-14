@@ -153,8 +153,6 @@ export interface ProviderCapability {
 	message: string;
 }
 
-export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh | bash';
-
 export interface ClaudeCodeFailedUpdate {
 	version: string | null;
 }

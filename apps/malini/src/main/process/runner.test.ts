@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { createNodeProcessRunner, runBounded } from './runner';
 
+const GRANDCHILD =
+	"require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'], { stdio: 'inherit' })";
+
 describe('the node process runner', () => {
 	const runner = createNodeProcessRunner();
 
 	it('reports exit codes and both streams', async () => {
-		const run = await runBounded(runner, '/bin/sh', ['-c', 'echo out; echo err 1>&2; exit 3'], {
-			deadline: Date.now() + 5_000,
-		});
+		const run = await runBounded(
+			runner,
+			process.execPath,
+			['-e', "console.log('out'); console.error('err'); process.exitCode = 3"],
+			{ deadline: Date.now() + 5_000 },
+		);
 		expect(run).toMatchObject({ exitCode: 3, stdout: 'out\n', stderr: 'err\n' });
 	});
 
 	it('kills a child that outlives the deadline, whole group included', async () => {
 		const started = Date.now();
-		const run = await runBounded(runner, '/bin/sh', ['-c', 'sleep 30 & wait'], {
+		const run = await runBounded(runner, process.execPath, ['-e', GRANDCHILD], {
 			deadline: started + 200,
 		});
 		expect(run.exitCode).toBeNull();
@@ -31,9 +37,12 @@ describe('the node process runner', () => {
 
 	it('settles once the child exits even when a background child keeps its pipes open', async () => {
 		const started = Date.now();
-		const run = await runBounded(runner, '/bin/sh', ['-c', 'sleep 30 & echo out; exit 0'], {
-			deadline: started + 10_000,
-		});
+		const run = await runBounded(
+			runner,
+			process.execPath,
+			['-e', `${GRANDCHILD}.unref(); console.log('out')`],
+			{ deadline: started + 10_000 },
+		);
 		expect(run).toMatchObject({ exitCode: 0, stdout: 'out\n' });
 		expect(Date.now() - started).toBeLessThan(5_000);
 	});

@@ -1,5 +1,26 @@
+import { chmodSync, writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
+import { vi } from 'vitest';
 import { SANDBOX_EXEC } from '@malini/agent-bridge/sandbox';
+import { gitBash } from './environment';
 import type { ProcessExit, ProcessHandle, ProcessRunner, ProcessSpawnOptions } from './runner';
+
+export function stubHome(path: string): void {
+	vi.stubEnv('HOME', path);
+	vi.stubEnv('USERPROFILE', path);
+}
+
+export function fakeTool(path: string, script: string): string {
+	writeFileSync(path, script);
+	chmodSync(path, 0o755);
+	if (process.platform === 'win32') {
+		const interpreter = script.startsWith(`#!${process.execPath}`)
+			? process.execPath
+			: (gitBash() ?? 'bash');
+		writeFileSync(`${path}.cmd`, `@"${interpreter}" "%~dp0${basename(path)}" %*\r\n`);
+	}
+	return path;
+}
 
 export interface RecordedSpawn {
 	readonly file: string;
@@ -89,7 +110,7 @@ export class ScriptedRunner implements ProcessRunner {
 	onCommand(name: string, prefix: readonly string[] = [], behavior: ScriptedBehavior): this {
 		return this.on(
 			(file, args) =>
-				(file === name || file.endsWith(`/${name}`)) &&
+				(file === name || file.endsWith(`/${name}`) || file.endsWith(`\\${name}`)) &&
 				prefix.every((part, index) => args[index] === part),
 			behavior,
 		);

@@ -17,6 +17,7 @@ export type Os = Readonly<{
 	systemSettings: string;
 	trash: string;
 	terminal: string;
+	claudeInstallCommand: string;
 	quit: string;
 	appMenu: string;
 	primaryKey: string;
@@ -27,6 +28,8 @@ export type Os = Readonly<{
 	ariaShortcut: (key: string) => string;
 	primaryHeld: (event: ModifierKeys) => boolean;
 }>;
+
+const SH_INSTALL = 'curl -fsSL https://claude.ai/install.sh | bash';
 
 const CTRL_KEYBOARD = {
 	primaryKey: 'Ctrl',
@@ -54,6 +57,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		systemSettings: 'System Settings',
 		trash: 'Trash',
 		terminal: 'Terminal',
+		claudeInstallCommand: SH_INSTALL,
 		quit: 'Quit',
 		appMenu: 'the menu bar',
 		primaryKey: '⌘',
@@ -79,6 +83,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		systemSettings: 'Settings',
 		trash: 'Recycle Bin',
 		terminal: 'Windows Terminal',
+		claudeInstallCommand: 'irm https://claude.ai/install.ps1 | iex',
 		quit: 'Exit',
 		appMenu: 'the menu',
 		...CTRL_KEYBOARD,
@@ -98,6 +103,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		systemSettings: 'system settings',
 		trash: 'Trash',
 		terminal: 'a terminal',
+		claudeInstallCommand: SH_INSTALL,
 		quit: 'Quit',
 		appMenu: 'the menu',
 		...CTRL_KEYBOARD,

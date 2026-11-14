@@ -8,7 +8,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -61,11 +61,11 @@ function seed(id: string, projectId: string, repoPath: string, path: string): vo
 
 async function worktreePaths(repo: string): Promise<string[]> {
 	const listed = await realGit(repo, ['worktree', 'list', '--porcelain']);
-	return [...listed.matchAll(/^worktree (.+)$/gmu)].map((match) => match[1] ?? '');
+	return [...listed.matchAll(/^worktree (.+)$/gmu)].map((match) => normalize(match[1] ?? ''));
 }
 
 beforeEach(async () => {
-	root = realpathSync(await tempDir('malini-checkouts-home-'));
+	root = realpathSync.native(await tempDir('malini-checkouts-home-'));
 	appData = join(root, 'Application Support', 'malini');
 	home = join(root, 'home');
 	claude = join(root, 'claude');
@@ -115,7 +115,7 @@ describe('moveCheckoutsHome', () => {
 		expect(pendingReinstalls(db)).toEqual(['ws-1']);
 		for (const name of ['repositories', 'workstreams']) {
 			expect(lstatSync(join(appData, name)).isSymbolicLink()).toBe(true);
-			expect(realpathSync(join(appData, name))).toBe(join(checkoutsRoot, name));
+			expect(realpathSync.native(join(appData, name))).toBe(join(checkoutsRoot, name));
 			rmSync(join(appData, name));
 		}
 		await realGit(moved(base), ['worktree', 'prune']);
@@ -219,12 +219,12 @@ describe('moveCheckoutsHome', () => {
 		expect(await move()).toBe(chosen);
 		expect(checkoutsFolder(db, appData, chosen)).toMatchObject({ folder: chosen, next: null });
 		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(chosen));
-		expect(realpathSync(join(malini, 'workstreams'))).toBe(join(chosen, 'workstreams'));
+		expect(realpathSync.native(join(malini, 'workstreams'))).toBe(join(chosen, 'workstreams'));
 		expect((await chooseCheckoutsFolder(db, appData, chosen, malini)).problem).toBeNull();
 		expect(await move()).toBe(malini);
 
 		expect(lstatSync(join(malini, 'workstreams')).isDirectory()).toBe(true);
-		expect(realpathSync(join(chosen, 'workstreams'))).toBe(join(malini, 'workstreams'));
+		expect(realpathSync.native(join(chosen, 'workstreams'))).toBe(join(malini, 'workstreams'));
 		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(malini));
 		expect(getProject(db, 'proj')?.repoPath).toBe(at(malini, base));
 		for (const folder of [appData, chosen]) {
@@ -263,7 +263,7 @@ describe('moveCheckoutsHome', () => {
 		expect(pendingReinstalls(db)).toEqual(['ws-1']);
 		expect(existsSync(join(at(chosen), INSTALL_COMPLETION_PATH))).toBe(false);
 		for (const name of ['repositories', 'workstreams']) {
-			expect(realpathSync(join(malini, name))).toBe(join(chosen, name));
+			expect(realpathSync.native(join(malini, name))).toBe(join(chosen, name));
 			rmSync(join(malini, name));
 			rmSync(join(appData, name));
 		}
@@ -291,7 +291,7 @@ describe('moveCheckoutsHome', () => {
 
 		expect(await move()).toBe(malini);
 
-		expect(realpathSync(at(malini, base))).toBe(at(chosen, base));
+		expect(realpathSync.native(at(malini, base))).toBe(at(chosen, base));
 		expect((await realGit(at(malini), ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe(
 			workstreamBranchName('ws-1'),
 		);

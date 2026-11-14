@@ -11,6 +11,7 @@ files:
   - node_modules/**
   - '!node_modules/node-pty/{binding.gyp,scripts,src,third_party,typings}{,/**}'
   - '!node_modules/node-pty/prebuilds/!(${platform}-*){,/**}'
+  - '!node_modules/node-pty/**/*.pdb'
 extraResources:
   - from: ../../packages/agent-bridge/dist
     to: agent-bridge
@@ -85,9 +86,14 @@ linux:
   maintainer: Bestboy <hey@bestboy.dev>
   artifactName: malini-${arch}.${ext}
   target:
-    - AppImage
-    - deb
-    - rpm
+    - target: AppImage
+      arch: &linux-arches
+        - x64
+        - arm64
+    - target: deb
+      arch: *linux-arches
+    - target: rpm
+      arch: *linux-arches
 deb:
   depends:
     - libgtk-3-0
@@ -101,7 +107,6 @@ deb:
     - libsecret-1-0
     - libasound2
     - git
-    - bubblewrap
 rpm:
   depends:
     - gtk3
@@ -114,7 +119,6 @@ rpm:
     - (libuuid or libuuid1)
     - alsa-lib
     - git
-    - bubblewrap
 publish:
   provider: github
   owner: bestboyhq

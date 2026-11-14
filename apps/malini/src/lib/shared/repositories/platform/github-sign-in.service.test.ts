@@ -1,8 +1,9 @@
-import { chmod, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GhError } from '$main/errors';
+import { fakeTool } from '$main/process/test-support';
 import { GitHubSignIn, parseDeviceCode } from './github-sign-in.service';
 
 const FAKE_GH = `#!/bin/sh
@@ -22,7 +23,8 @@ const directories: string[] = [];
 
 afterEach(async () => {
 	for (const signIn of signIns.splice(0)) signIn.cancel();
-	for (const directory of directories.splice(0)) await rm(directory, { recursive: true });
+	for (const directory of directories.splice(0))
+		await rm(directory, { recursive: true, force: true, maxRetries: 10 });
 });
 
 async function fakeGh(
@@ -31,12 +33,10 @@ async function fakeGh(
 ): Promise<{ signIn: GitHubSignIn; state: string }> {
 	const state = await mkdtemp(join(tmpdir(), 'malini-gh-sign-in-'));
 	directories.push(state);
-	const command = join(state, 'gh');
-	await writeFile(command, FAKE_GH);
-	await chmod(command, 0o755);
+	const command = fakeTool(join(state, 'gh'), FAKE_GH);
 	const signIn = new GitHubSignIn({
 		command,
-		environment: () => ({ PATH: '/usr/bin:/bin', STATE: state, MODE: mode }),
+		environment: () => ({ ...process.env, STATE: state, MODE: mode }),
 		codeTimeoutMs,
 	});
 	signIns.push(signIn);

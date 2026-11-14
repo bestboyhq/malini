@@ -54,7 +54,7 @@ async function invoke(command: string, args: unknown = {}): Promise<unknown> {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-pull-requests-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-pull-requests-')));
 	db = openMigratedDatabase(':memory:');
 	context = {
 		db,
@@ -1358,7 +1358,7 @@ describe('resolving the review threads a fix run addressed', () => {
 				 VALUES ('ws-1', 'run-fix', ?, '2026-10-02T00:00:10Z')`,
 			).run(commitSha);
 		}
-		return realpathSync(checkout);
+		return realpathSync.native(checkout);
 	}
 
 	function mutation(args: readonly string[]): readonly (string | undefined)[] {

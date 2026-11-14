@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { claudeLoginStorage, parseClaudeLogin, refreshTokenEnvironment } from './claude-logins';
 
@@ -6,14 +7,14 @@ describe('Claude Code sign-in storage', () => {
 		expect(claudeLoginStorage({ USER: 'me' }, '/Users/me')).toEqual({
 			service: 'Claude Code-credentials',
 			account: 'me',
-			file: '/Users/me/.claude/.credentials.json',
+			file: join('/Users/me', '.claude', '.credentials.json'),
 		});
 		expect(
 			claudeLoginStorage({ USER: 'me', CLAUDE_CONFIG_DIR: '/Users/me/.claude-work' }, '/Users/me'),
 		).toEqual({
 			service: 'Claude Code-credentials-1e91dd84',
 			account: 'me',
-			file: '/Users/me/.claude-work/.credentials.json',
+			file: join('/Users/me/.claude-work', '.credentials.json'),
 		});
 		expect(claudeLoginStorage({ USER: 'me@corp' }, '/Users/me').account).toBe('claude-code-user');
 	});

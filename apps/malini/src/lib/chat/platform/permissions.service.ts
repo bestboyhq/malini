@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, posix } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, parse, relative, sep } from 'node:path';
 import { errorCode } from '$main/errors';
 import type { MaliniDatabase } from '$main/db/driver';
 import { grantProblem, type SandboxGrant } from '@malini/agent-bridge/sandbox';
 import { activePermissionsForSession, listPermissionRules } from './permissions.repository';
 import { leavesTheSandbox } from '../domain/approval-request';
 
-import { isAtOrInsideDirectory } from '$main/fs/paths';
+import { isAtOrInsideDirectory, PATH_SEPARATORS } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
 import {
 	isAgentApprovalScope,
@@ -311,13 +311,15 @@ function isUsablePathValue(value: string): boolean {
 
 export function strictlyNormalizedAbsolutePath(value: string): string {
 	if (!isAbsolute(value)) throw new Error(`external path \`${value}\` is not absolute`);
-	for (const segment of value.split('/')) {
+	for (const segment of value.split(PATH_SEPARATORS)) {
 		if (segment === '.' || segment === '..') {
 			throw new Error(`external path \`${value}\` is not normalized`);
 		}
 	}
-	const normalized = posix.normalize(value);
-	return normalized.length > 1 && normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+	const normalized = normalize(value);
+	return normalized !== parse(normalized).root && normalized.endsWith(sep)
+		? normalized.slice(0, -1)
+		: normalized;
 }
 
 export function canonicalizeAllowMissing(path: string): string {
@@ -331,7 +333,7 @@ export function canonicalizeAllowMissing(path: string): string {
 					`permission path \`${path}\` has a missing tail below a non-directory ancestor`,
 				);
 			}
-			return missing.length === 0 ? canonical : posix.join(canonical, ...missing.reverse());
+			return missing.length === 0 ? canonical : join(canonical, ...missing.reverse());
 		} catch (error) {
 			const code = errorCode(error);
 			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
@@ -353,22 +355,12 @@ function isSensitivePath(candidate: string): boolean {
 	return isSensitivePathForHome(candidate, homeDirectory());
 }
 
-export function homeDirectory(): string | null {
-	return resolveHomeDirectory(process.env['HOME'], () => {
-		try {
-			return homedir();
-		} catch {
-			return null;
-		}
-	});
-}
-
-export function resolveHomeDirectory(
-	homeEnv: string | undefined,
-	fallback: () => string | null,
-): string | null {
-	if (homeEnv !== undefined && homeEnv.length > 0) return homeEnv;
-	return fallback();
+function homeDirectory(): string | null {
+	try {
+		return homedir() || null;
+	} catch {
+		return null;
+	}
 }
 
 export function isSensitivePathForHome(candidate: string, home: string | null): boolean {
@@ -398,7 +390,10 @@ export function isSensitivePathForHome(candidate: string, home: string | null): 
 				'.netrc',
 				'.npmrc',
 				'.git-credentials',
-			].map((relative) => posix.join(home, relative)),
+				'_netrc',
+				'AppData/Roaming/GitHub CLI',
+				'AppData/Roaming/gcloud',
+			].map((inHome) => join(home, inHome)),
 		);
 	}
 	return roots.some((root) => {
@@ -415,13 +410,13 @@ export function isSensitivePathForHome(candidate: string, home: string | null): 
 const CREDENTIAL_FILE_NAMES = new Set(['auth.json', 'credentials.json', '.credentials.json']);
 
 function isInHomeDotDirectory(candidate: string, home: string): boolean {
-	let relative: string;
+	let between: string;
 	try {
-		relative = posix.relative(canonicalizeAllowMissing(home), candidate);
+		between = relative(canonicalizeAllowMissing(home), candidate);
 	} catch {
 		return true;
 	}
-	const top = relative.split('/')[0] ?? '';
+	const top = between.split(PATH_SEPARATORS)[0] ?? '';
 	return top.startsWith('.') && top !== '..';
 }
 

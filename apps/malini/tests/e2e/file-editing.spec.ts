@@ -267,7 +267,7 @@ test('an agent opens a private file outside the worktree for the user, who fills
 		expect(actions.find(({ tool }) => tool === 'files_open')).toMatchObject({
 			status: 'succeeded',
 			approval: 'not-needed',
-			output: JSON.stringify({ path: realpathSync(secrets), created: true }),
+			output: JSON.stringify({ path: realpathSync.native(secrets), created: true }),
 		});
 
 		await secretsEditor.click();

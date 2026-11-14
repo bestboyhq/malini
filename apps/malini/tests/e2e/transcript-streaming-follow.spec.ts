@@ -642,7 +642,7 @@ test('steering a streaming reply keeps what it streamed above the new prompt, an
 
 		await startSampling(page, []);
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(steeredRun).toHaveAttribute('data-run-terminal', 'cancelled', {
 			timeout: 20_000,
 		});
@@ -689,7 +689,7 @@ test('a steered run keeps its height from the steer to Run cancelled, which take
 			sample();
 		}, steeredRunId);
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(steeredRun.getByText('Run cancelled')).toBeVisible({ timeout: 20_000 });
 		await expectRunFinished(page, 'Hello from the fake bridge');
 		await untilStill(page);

@@ -850,12 +850,12 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 		const parent = currentSessionId(page);
 		if (!parent) throw new Error('the report chat did not commit a session id');
 
-		await page.keyboard.down('Meta');
+		await page.keyboard.down('ControlOrMeta');
 		const forks = steps.getByRole('button', { name: 'Slice, fork, ship' });
 		await expect(forks).toHaveCount(3);
 		await captureFlow(app, 'report-next-steps-command');
-		await forks.last().click({ modifiers: ['Meta'] });
-		await page.keyboard.up('Meta');
+		await forks.last().click({ modifiers: ['ControlOrMeta'] });
+		await page.keyboard.up('ControlOrMeta');
 		await expect(steps).toContainText('Shipped in a new chat');
 		await expect(steps.getByRole('button', { name: 'Ship', exact: true })).toHaveCount(2);
 		expect(currentSessionId(page)).toBe(parent);

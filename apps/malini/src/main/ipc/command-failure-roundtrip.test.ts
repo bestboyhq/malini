@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -42,12 +42,11 @@ import { GitError } from '../errors';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit } from '../git/run';
 import { CommandRegistry } from './registry';
 
-let lockedRoot: string;
+let existingFolder: string;
 let unpushedRepo: string;
 
 beforeAll(async () => {
-	lockedRoot = await mkdtemp(join(tmpdir(), 'malini-command-failure-'));
-	await chmod(lockedRoot, 0o500);
+	existingFolder = await mkdtemp(join(tmpdir(), 'malini-command-failure-'));
 	unpushedRepo = await mkdtemp(join(tmpdir(), 'malini-unpushed-'));
 	await runGit(['init', '-q', unpushedRepo]);
 	await runGit([
@@ -68,7 +67,7 @@ beforeAll(async () => {
 		throw GitError.worktreeBusy('`ws-7` is checked out in another worktree');
 	});
 	registry.define('repositories.delete-workstream', async () => {
-		await mkdir(join(lockedRoot, 'checkout'));
+		await mkdir(existingFolder);
 		return { savedWork: null };
 	});
 	registry.define('repositories.push-workstream', () =>
@@ -101,8 +100,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await chmod(lockedRoot, 0o700);
-	await rm(lockedRoot, { recursive: true, force: true });
+	await rm(existingFolder, { recursive: true, force: true });
 	await rm(unpushedRepo, { recursive: true, force: true });
 });
 
@@ -147,7 +145,7 @@ describe('a command failure seen from the renderer', () => {
 		}
 	});
 
-	it('arrives as the node errno error with its EACCES code', async () => {
+	it('arrives as the node errno error with its code', async () => {
 		const error = await rejectionOf(
 			invoke('repositories.delete-workstream', { workstreamId: 'w' }),
 		);
@@ -155,11 +153,11 @@ describe('a command failure seen from the renderer', () => {
 		expect(error).toBeInstanceOf(CommandError);
 		expect(error).toMatchObject({
 			name: 'Error',
-			code: 'EACCES',
+			code: 'EEXIST',
 			command: 'repositories.delete-workstream',
 		});
 		expect(retirementFailureMessage(error)).toBe(
-			`EACCES: permission denied, mkdir '${join(lockedRoot, 'checkout')}'`,
+			`EEXIST: file already exists, mkdir '${existingFolder}'`,
 		);
 	});
 

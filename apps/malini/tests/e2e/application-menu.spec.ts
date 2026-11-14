@@ -39,14 +39,19 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		expect(await menuLabels(app, 'File')).toEqual([
-			'New Workstream',
-			'New Chat',
-			'Open Folder…',
-			'Find Repository…',
-			'Close Window',
-		]);
-		expect(await menuLabels(app, 'Malini')).toContain('Settings…');
+		const starts = ['New Workstream', 'New Chat', 'Open Folder…', 'Find Repository…'];
+		if (process.platform === 'darwin') {
+			expect(await menuLabels(app, 'File')).toEqual([...starts, 'Close Window']);
+			expect(await menuLabels(app, 'Malini')).toContain('Settings…');
+		} else {
+			expect(await menuLabels(app, 'File')).toEqual([
+				...starts,
+				'Settings…',
+				'Close Window',
+				process.platform === 'win32' ? 'Exit' : 'Quit',
+			]);
+			expect(await menuLabels(app, 'Help')).toEqual(['About Malini']);
+		}
 
 		const alpha = await createSourceRepo(app.root, 'alpha');
 		const beta = await createSourceRepo(app.root, 'beta');

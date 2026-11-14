@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
 	administratorScript,
@@ -35,13 +36,13 @@ describe('the lid hold', () => {
 
 	it('takes fake tools only in an unpackaged build', () => {
 		const env = { MALINI_LID_TOOLS: '/tmp/tools' };
-		expect(lidTools(false, env).sudo).toBe('/tmp/tools/sudo');
+		expect(lidTools(false, env).sudo).toBe(join('/tmp/tools', 'sudo'));
 		expect(lidTools(true, env)).toEqual({
 			sudo: '/usr/bin/sudo',
 			pmset: '/usr/bin/pmset',
 			osascript: '/usr/bin/osascript',
 			launchctl: '/bin/launchctl',
-			agents: `${homedir()}/Library/LaunchAgents`,
+			agents: join(homedir(), 'Library', 'LaunchAgents'),
 		});
 	});
 

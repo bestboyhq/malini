@@ -191,7 +191,7 @@ const MERGE_CONFLICT = /^CONFLICT \(/mu;
 const MERGE_CONFLICT_PATH = /^CONFLICT \([^)]*\): Merge conflict in (.+)$/gmu;
 const INDEX_LOCKED = /index\.lock'?: File exists/u;
 const FOLDER_GONE = /cannot change to '([^']+)': No such file or directory/u;
-const GENERIC_REMOTE_FAILURE = /could not read from remote repository/iu;
+const GENERIC_FAILURE = /could not read from remote repository|adding files failed/iu;
 const LISTED_CONFLICT_PATHS = 3;
 
 const WORKFLOW_FIXES: Readonly<Record<string, string>> = {
@@ -327,7 +327,7 @@ function gitVerdictLine(output: string): string {
 		.filter((line) => line.length > 0 && !/^hint:/iu.test(line));
 	const verdicts = lines.filter((line) => /^(?:fatal|error):/iu.test(line));
 	const verdict =
-		verdicts.filter((line) => !GENERIC_REMOTE_FAILURE.test(line)).at(-1) ??
+		verdicts.filter((line) => !GENERIC_FAILURE.test(line)).at(-1) ??
 		verdicts.at(-1) ??
 		lines.at(-1);
 	const cleaned = withoutAbsolutePaths(verdict?.replace(/^(?:fatal|error):\s*/iu, '') ?? '');

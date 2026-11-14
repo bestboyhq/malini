@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -10,6 +10,7 @@ import {
 	recordBrowserAndClipboard,
 	recordedBrowserAndClipboard,
 	sendPrompt,
+	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 import {
@@ -146,8 +147,7 @@ async function refuseTheDraft(
 		},
 	);
 	const hook = join(github.remote, 'hooks/pre-receive');
-	writeFileSync(hook, `#!/bin/sh\necho '${GITHUB_SAID}' >&2\nexit 1\n`);
-	chmodSync(hook, 0o755);
+	writeExecutable(hook, `#!/bin/sh\necho '${GITHUB_SAID}' >&2\nexit 1\n`);
 	await openWorkstream(page, workstreamId);
 	await sendPrompt(page, `EDIT:${WORKFLOW}`);
 	await expectAssistantReply(page);

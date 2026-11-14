@@ -116,7 +116,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 export function attachmentsRoot(worktree: string): string {
 	let canonicalWorktree: string;
 	try {
-		canonicalWorktree = realpathSync(worktree);
+		canonicalWorktree = realpathSync.native(worktree);
 	} catch (error) {
 		throw new Error(`canonicalize worktree: ${describe(error)}`);
 	}
@@ -145,7 +145,7 @@ export function attachmentsRoot(worktree: string): string {
 	}
 	let canonicalRoot: string;
 	try {
-		canonicalRoot = realpathSync(current);
+		canonicalRoot = realpathSync.native(current);
 	} catch (error) {
 		throw new Error(`canonicalize attachment staging directory: ${describe(error)}`);
 	}
@@ -173,7 +173,7 @@ export function deleteAttachmentDirectory(worktree: string, id: string): void {
 	}
 	let canonical: string;
 	try {
-		canonical = realpathSync(directory);
+		canonical = realpathSync.native(directory);
 	} catch (error) {
 		throw new Error(`canonicalize staged attachment directory: ${describe(error)}`);
 	}

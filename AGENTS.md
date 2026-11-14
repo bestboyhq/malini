@@ -24,7 +24,7 @@ Saving an OpenCode key sends one-token messages to opencode.ai's Go endpoint, fr
 That Go key's usage is read from `https://opencode.ai/zen/go/v1/usage`, from `src/lib/shared/providers/platform/opencode-usage.ts`, when a chat opens with an OpenCode model picked or its usage panel opens, at most once a minute, and only on the Go plan; the same `MALINI_OPENCODE_PROBE_URL` covers it (ADR 0195, ADR 0196).
 A ChatGPT plan reaches `auth.openai.com` and `api.openai.com`, from `src/lib/shared/providers/platform/chatgpt/`, only after you press **Continue with ChatGPT**, and the token never leaves the main process, whose proxy on `127.0.0.1` Claude Code calls; `MALINI_CHATGPT_ISSUER` and `MALINI_CHATGPT_RESOURCE` point an unpackaged build at a fake (ADR 0166).
 A DeepSeek or OpenCode chat reaches its provider from the main process too, through `src/lib/shared/providers/platform/key-proxy.ts` on `127.0.0.1`, which swaps in the saved key on each request, so Claude Code and its commands hold only that proxy's launch secret (ADR 0217).
-A GitHub CLI that is missing or cannot run makes Malini download the pinned `gh` release zip from `github.com/cli/cli` at launch, from `src/main/process/gh-install.ts`, check its sha256 and put it in `<appData>/vendor/gh`, once per launch, and **Try again** repeats it (ADR 0218, ADR 0242).
+A GitHub CLI that is missing or cannot run makes Malini download the pinned `gh` release archive for its OS and chip from `github.com/cli/cli` at launch, from `src/main/process/gh-install.ts`, check its sha256 and put it in `<appData>/vendor/gh`, once per launch, and **Try again** repeats it (ADR 0218, ADR 0242).
 A Claude Code the check finds missing, never one it cannot check, makes Malini download the latest release from `downloads.claude.ai/claude-code-releases` at launch, from `src/lib/shared/providers/platform/claude-install.ts`, check its sha256 against the release manifest and run its `claude install`, once per launch, and **Try again** repeats it (ADR 0218, ADR 0242).
 Everything else on GitHub is reached through the `gh` CLI.
 
@@ -117,7 +117,7 @@ pnpm dev                       # electron-vite dev: main, preload and renderer w
 pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge as it lands; Resume continues the turns a restart cuts
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 sh apps/malini/tests/linux/run.sh unit|e2e|flow|exec [args]   # the same on Ubuntu 24.04 in Docker, under Xvfb; results in $MALINI_LINUX_OUT
-pnpm dist                      # unsigned .app under apps/malini/release/
+pnpm dist                      # the unsigned, unpacked app for this OS and chip under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed
 pnpm --filter @malini/site build   # the static site under apps/site/build/malini
 pnpm --filter malini dev:demo   # the renderer in a browser on demo data, as the landing page embeds it

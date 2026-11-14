@@ -1,15 +1,17 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import {
 	accessSync,
 	chmodSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
 	_electron as electron,
@@ -26,8 +28,59 @@ import {
 	BRIDGE_PROTOCOL_VERSION,
 } from '../../src/contract/protocol-contract.generated';
 import { diagnosticsLogFiles, readDiagnostics } from '../../src/main/diagnostics/diagnostics-files';
+import { environmentVariable, findExecutable } from '../../src/main/process/command';
 
 const execFileAsync = promisify(execFile);
+const WINDOWS = process.platform === 'win32';
+
+export const REAL_GIT =
+	findExecutable('git', environmentVariable(process.env, 'PATH') ?? '') ?? 'git';
+const GIT_IDENTITY = '[user]\n\tname = e2e\n\temail = e2e@example.com\n';
+const GIT_BASH =
+	process.env['CLAUDE_CODE_GIT_BASH_PATH'] ??
+	join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe');
+
+export function writeExecutable(path: string, script: string): void {
+	replaceExecutable(path, script);
+	if (!WINDOWS) return;
+	const runner = script.startsWith(`#!${process.execPath}\n`) ? process.execPath : GIT_BASH;
+	const launcher = `@echo off\r\nset MSYS_NO_PATHCONV=1\r\n"${runner}" "%~dp0${basename(path)}" %*\r\n`;
+	const cmd = `${path}.cmd`;
+	if (!existsSync(cmd) || readFileSync(cmd, 'utf8') !== launcher) replaceExecutable(cmd, launcher);
+}
+
+const PAUSE = new Int32Array(new SharedArrayBuffer(4));
+
+function replaceExecutable(path: string, content: string): void {
+	const staged = `${path}.${process.pid}.staged`;
+	writeFileSync(staged, content);
+	chmodSync(staged, 0o755);
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return renameSync(staged, path);
+		} catch (error) {
+			if (!WINDOWS || attempt === 50) throw error;
+			Atomics.wait(PAUSE, 0, 0, 20);
+		}
+	}
+}
+
+const EVERYONE = '*S-1-1-0';
+
+export const DENIED = WINDOWS
+	? { code: 'EPERM', reason: 'operation not permitted' }
+	: { code: 'EACCES', reason: 'permission denied' };
+
+export function lockFolder(folder: string): void {
+	if (!WINDOWS) return chmodSync(folder, 0o555);
+	execFileSync('icacls', [folder, '/deny', `${EVERYONE}:(WD,AD,DC)`], { stdio: 'ignore' });
+	execFileSync('icacls', [folder, '/deny', `${EVERYONE}:(CI)(NP)(DE)`], { stdio: 'ignore' });
+}
+
+export function unlockFolder(folder: string): void {
+	if (!WINDOWS) return chmodSync(folder, 0o755);
+	execFileSync('icacls', [folder, '/remove:d', EVERYONE], { stdio: 'ignore' });
+}
 
 export interface RuntimeInfo {
 	app: string;
@@ -50,6 +103,12 @@ declare global {
 
 export const APP_ROOT = resolve(__dirname, '../..');
 export const E2E_ROOT = resolve(APP_ROOT, 'tests/e2e');
+export const ELECTRON_DEFAULT_APP = join(
+	APP_ROOT,
+	'node_modules/electron/dist',
+	process.platform === 'darwin' ? 'Electron.app/Contents/Resources' : 'resources',
+	'default_app.asar',
+);
 export const CONTEXT_ROOT = resolve(
 	process.env['MALINI_E2E_CAPTURES'] ?? join(APP_ROOT, '../..', '.context'),
 );
@@ -63,6 +122,10 @@ export const DOCKER_CONTAINERS_FIXTURE = '.e2e-docker-containers';
 export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
 export const KEYCHAIN_FIXTURE = '.e2e-keychain';
+export const CLAUDE_CREDENTIALS =
+	process.platform === 'darwin'
+		? `${KEYCHAIN_FIXTURE}/Claude Code-credentials`
+		: '.claude/.credentials.json';
 
 export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
 
@@ -204,6 +267,7 @@ function stringEnv(base: NodeJS.ProcessEnv): Record<string, string> {
 	return out;
 }
 
+export const STREAMING_STAND_IN = `e2e${process.pid}`;
 const KEEP_ROOTS = process.env['MALINI_E2E_KEEP'] === '1';
 const temporaryRoots = new Set<string>();
 process.once('exit', () => {
@@ -235,11 +299,10 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			['docker', DOCKER_STUB],
 			['security', SECURITY_STUB],
 		] as const) {
-			const stub = join(dir, name);
-			writeFileSync(stub, script);
-			chmodSync(stub, 0o755);
+			writeExecutable(join(dir, name), script);
 		}
 	}
+	writeFileSync(join(home, '.gitconfig'), GIT_IDENTITY);
 
 	writeFileSync(
 		join(home, '.profile'),
@@ -265,7 +328,9 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	}
 	env['SHELL'] = '/bin/sh';
 	env['HOME'] = home;
-	env['PATH'] = `${bin}:${env['PATH'] ?? '/usr/bin:/bin'}`;
+	if (WINDOWS) env['USERPROFILE'] = home;
+	const path = Object.keys(env).find((name) => name.toUpperCase() === 'PATH') ?? 'PATH';
+	env[path] = [bin, env[path] ?? '/usr/bin:/bin'].join(delimiter);
 	env['MALINI_BRIDGE_SCRIPT'] = bridgeScript;
 	env['FAKE_BRIDGE_REVERSE_ACKS'] = '0';
 	env['MALINI_USAGE_DATA'] = 'off';
@@ -273,7 +338,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	delete env['DO_NOT_TRACK'];
 	env['MALINI_BACKGROUND_WINDOW'] = '1';
 	env['MALINI_SHIP_DELAY_SCALE'] = '0.1';
-	env['MALINI_STREAMING_APP_ROOT'] = root;
+	env['MALINI_STREAMING_APPS'] = STREAMING_STAND_IN;
 	Object.assign(env, options.env);
 
 	const electronApp = await electron.launch({
@@ -283,6 +348,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
 			'--use-mock-keychain',
 			'--use-fake-device-for-media-stream',
+			...(process.env['MALINI_E2E_KEYRING'] ? ['--password-store=gnome-libsecret'] : []),
 		],
 		cwd: APP_ROOT,
 		env,

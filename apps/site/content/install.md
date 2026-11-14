@@ -12,7 +12,7 @@ Malini ships the GitHub CLI, and installs Claude Code on its own if you don't ha
 
 ## Install
 
-1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
+1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-universal.dmg) and drag it to Applications.
 2. Open it.
 3. Pick a repository under **What are we working on?**.
    Malini clones it, starts a workstream in it and opens that workstream.

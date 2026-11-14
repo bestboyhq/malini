@@ -19,7 +19,7 @@ import {
 	steerToMalini,
 } from './permissions.js';
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-permissions-')));
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-permissions-')));
 const worktree = join(root, 'worktree');
 const linkedWorktree = join(root, 'linked-worktree');
 mkdirSync(join(worktree, 'src'), { recursive: true });

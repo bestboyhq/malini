@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import type { CustomSound } from '../../src/contract/sounds';
+import { osFor } from '../../src/lib/shared/os/domain/os';
 import {
 	APP_ROOT,
 	captureFlow,
@@ -145,7 +146,14 @@ test('Settings → Sounds adds a sound file you choose to both lists, refuses on
 	}
 });
 
+const MICROPHONE_SETTINGS: Partial<Record<NodeJS.Platform, string>> = {
+	darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+	win32: 'ms-settings:privacy-microphone',
+};
+
 test('recording a sound asks for the microphone first, and points you to System Settings when it is off', async () => {
+	const settingsUrl = MICROPHONE_SETTINGS[process.platform];
+	test.skip(!settingsUrl, 'Linux has no microphone switch in its settings');
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -161,10 +169,10 @@ test('recording a sound asks for the microphone first, and points you to System 
 		await expect(page.getByText('Malini can’t use your microphone.')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Start recording' })).toHaveCount(0);
 
-		await page.getByRole('button', { name: 'Open System Settings' }).click();
-		await expect
-			.poll(() => openedUrls(app))
-			.toEqual(['x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone']);
+		await page
+			.getByRole('button', { name: `Open ${osFor(process.platform).systemSettings}` })
+			.click();
+		await expect.poll(() => openedUrls(app)).toEqual([settingsUrl]);
 
 		await page.getByRole('button', { name: 'Cancel recording' }).click();
 		await expect(page.getByText('Malini can’t use your microphone.')).toHaveCount(0);

@@ -38,14 +38,37 @@ export function applicationMenu(
 	update: MenuItemConstructorOptions | null,
 	choose: Choose,
 ): MenuItemConstructorOptions[] {
+	const updates = update ? [update] : [];
+	const settings = command(choose, 'settings', 'Settings…', 'CommandOrControl+,');
+	const file: MenuItemConstructorOptions[] = [
+		command(choose, 'new-workstream', 'New Workstream', 'CommandOrControl+N'),
+		command(choose, 'new-chat', 'New Chat', 'CommandOrControl+T'),
+		SEPARATOR,
+		command(choose, 'open-folder', 'Open Folder…', 'CommandOrControl+O'),
+		command(choose, 'find-repository', 'Find Repository…'),
+		SEPARATOR,
+	];
+	const closeWindow: MenuItemConstructorOptions = { role: 'close', label: 'Close Window' };
+	const standard: MenuItemConstructorOptions[] = [
+		{ role: 'editMenu' },
+		{ role: 'viewMenu' },
+		{ role: 'windowMenu' },
+	];
+	if (process.platform !== 'darwin') {
+		return [
+			{ label: 'File', submenu: [...file, settings, SEPARATOR, closeWindow, { role: 'quit' }] },
+			...standard,
+			{ role: 'help', submenu: [...updates, { role: 'about', label: `About ${appName}` }] },
+		];
+	}
 	return [
 		{
 			label: appName,
 			submenu: [
 				{ role: 'about' },
-				...(update ? [update] : []),
+				...updates,
 				SEPARATOR,
-				command(choose, 'settings', 'Settings…', 'CommandOrControl+,'),
+				settings,
 				SEPARATOR,
 				{ role: 'services' },
 				SEPARATOR,
@@ -56,20 +79,7 @@ export function applicationMenu(
 				{ role: 'quit' },
 			],
 		},
-		{
-			label: 'File',
-			submenu: [
-				command(choose, 'new-workstream', 'New Workstream', 'CommandOrControl+N'),
-				command(choose, 'new-chat', 'New Chat', 'CommandOrControl+T'),
-				SEPARATOR,
-				command(choose, 'open-folder', 'Open Folder…', 'CommandOrControl+O'),
-				command(choose, 'find-repository', 'Find Repository…'),
-				SEPARATOR,
-				{ role: 'close' },
-			],
-		},
-		{ role: 'editMenu' },
-		{ role: 'viewMenu' },
-		{ role: 'windowMenu' },
+		{ label: 'File', submenu: [...file, closeWindow] },
+		...standard,
 	];
 }

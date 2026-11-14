@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { rename, rm, writeFile } from 'node:fs/promises';
 import { constants as osConstants, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import {
 	INSIDE_THE_SANDBOX,
 	OUTSIDE_THE_SANDBOX,
@@ -33,7 +33,7 @@ const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 
 const RUN_SCRIPT = `#!/bin/bash
 folder=\${0%/*}
-shell=\${CLAUDE_CODE_SHELL:-/bin/zsh}
+shell=\${CLAUDE_CODE_SHELL:-$BASH}
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
 run=("$shell" -c "$1")
 profile=(-f "$folder/sandbox.sb")
@@ -80,7 +80,7 @@ export class SessionSecrets {
 
 	constructor(folder: string) {
 		this.#folder = folder;
-		this.runScript = join(folder, 'run');
+		this.runScript = join(folder, 'run').replaceAll(sep, '/');
 		writeFileSync(this.runScript, RUN_SCRIPT, { mode: 0o700 });
 	}
 

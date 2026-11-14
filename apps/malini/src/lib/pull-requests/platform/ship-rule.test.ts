@@ -812,7 +812,7 @@ function activeAutomation(): AutomationRunRecord {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-merge-queue-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-merge-queue-')));
 	db = openMigratedDatabase(':memory:');
 	context = {
 		db,

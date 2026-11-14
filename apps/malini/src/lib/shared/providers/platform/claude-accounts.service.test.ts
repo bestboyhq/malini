@@ -1,8 +1,9 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { isRecord } from '$main/db/rows';
+import { fakeTool } from '$main/process/test-support';
 import { ClaudeAccounts, type SecretCipher } from './claude-accounts.service';
 
 const PRIVATE = 'me@private.example';
@@ -67,10 +68,13 @@ else if (server.tokens[refreshToken]) {
 process.stdout.write('Login successful.\\n');
 `;
 
+const WINDOWS_BASICS: Record<string, string> =
+	process.platform === 'win32' ? { SystemRoot: process.env['SystemRoot'] ?? 'C:\\Windows' } : {};
 const roots: string[] = [];
 
 afterEach(() => {
-	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+	for (const root of roots.splice(0))
+		rmSync(root, { recursive: true, force: true, maxRetries: 10 });
 });
 
 const reversing: SecretCipher = {
@@ -86,19 +90,15 @@ function readJson(file: string): unknown {
 function fakeClaudeCode(cipher: SecretCipher = reversing) {
 	const root = mkdtempSync(join(tmpdir(), 'malini-claude-accounts-'));
 	roots.push(root);
-	const tool = (name: string, body: string): string => {
-		const file = join(root, name);
-		writeFileSync(file, `#!${process.execPath}\n${body}`);
-		chmodSync(file, 0o755);
-		return file;
-	};
+	const tool = (name: string, body: string): string =>
+		fakeTool(join(root, name), `#!${process.execPath}\n${body}`);
 	const claude = tool('claude', FAKE_CLAUDE);
 	const security = tool('security', FAKE_SECURITY);
 	const directory = join(root, 'malini');
 	const accounts = new ClaudeAccounts({
 		directory,
 		executable: () => claude,
-		environment: () => ({ PATH: '/usr/bin:/bin', USER: 'tester' }),
+		environment: () => ({ ...WINDOWS_BASICS, PATH: '/usr/bin:/bin', USER: 'tester' }),
 		security: () => security,
 		cipher: async () => cipher,
 	});

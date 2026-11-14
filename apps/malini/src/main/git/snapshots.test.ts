@@ -72,6 +72,23 @@ describe('private snapshots', () => {
 		).rejects.toThrow();
 	});
 
+	it('a checkpoint brings back every line ending byte for byte when git converts them', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const repo = join(dir, 'repo');
+		await initRealRepo(repo);
+		await realGit(repo, ['config', 'core.autocrlf', 'true']);
+		await writeFile(join(repo, 'seed.txt'), 'seed\nedited\n');
+		await writeFile(join(repo, 'windows.txt'), 'windows\r\nline\r\n');
+		const commit = await createCheckpointSnapshot(repo, 'refs/malini/checkpoints/cp-eol', 'cp-eol');
+
+		await writeFile(join(repo, 'seed.txt'), 'seed\nlater\n');
+		await writeFile(join(repo, 'windows.txt'), 'later\n');
+		await restoreCheckpointSnapshot(repo, commit);
+		expect(await readFile(join(repo, 'seed.txt'), 'utf8')).toBe('seed\nedited\n');
+		expect(await readFile(join(repo, 'windows.txt'), 'utf8')).toBe('windows\r\nline\r\n');
+	});
+
 	it('a user baseline is authored as itself and every helper refuses a foreign namespace', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

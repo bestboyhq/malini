@@ -22,4 +22,4 @@ case $mode in
 		;;
 esac
 pnpm --filter malini exec install-electron
-exec xvfb-run -a -s '-screen 0 1920x1080x24' "$@"
+exec sh "$ROOT/apps/malini/tests/linux/keyring.sh" xvfb-run -a -s '-screen 0 1920x1080x24' "$@"

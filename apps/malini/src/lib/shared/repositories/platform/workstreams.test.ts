@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
@@ -82,7 +83,7 @@ async function contextFiles(root: string): Promise<string[]> {
 	const entries = await readdir(context, { recursive: true, withFileTypes: true });
 	return entries
 		.filter((entry) => entry.isFile())
-		.map((entry) => relative(context, join(entry.parentPath, entry.name)))
+		.map((entry) => relative(context, join(entry.parentPath, entry.name)).split(sep).join('/'))
 		.sort();
 }
 
@@ -164,7 +165,7 @@ async function cloneAcmeApi(dir: string, invoke: Invoke): Promise<string> {
 	await initRealRepo(source);
 	await realGit(source, ['branch', '-M', 'main']);
 	return invoke<string>('repositories.create-repository', {
-		repoUrl: `file://${source}`,
+		repoUrl: pathToFileURL(source).href,
 		defaultBranch: 'main',
 	});
 }

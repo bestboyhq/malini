@@ -10,13 +10,16 @@ const ackDelay = Number(env.FAKE_BRIDGE_ACK_DELAY_MS || 0);
 const reverse = Number(env.FAKE_BRIDGE_REVERSE_ACKS || 0);
 const approvalPath =
 	env.FAKE_BRIDGE_APPROVAL_PATH ||
-	nodePath.join(fs.realpathSync(require('node:os').tmpdir()), 'outside.txt');
+	nodePath.join(fs.realpathSync.native(require('node:os').tmpdir()), 'outside.txt');
 const dockerSocket = nodePath.join(
-	fs.realpathSync(require('node:os').tmpdir()),
+	fs.realpathSync.native(require('node:os').tmpdir()),
 	'malini-e2e-docker',
 	'docker.sock',
 );
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\n');
+const runningBridges = nodePath.join(env.HOME || '/tmp', 'fake-bridges');
+fs.mkdirSync(runningBridges, { recursive: true });
+fs.writeFileSync(nodePath.join(runningBridges, String(process.pid)), '');
 const signedInEmail = () => {
 	if (!env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE) return null;
 	try {
@@ -1284,7 +1287,10 @@ const respond = async (sessionId, runId, prompt) => {
 			process: 'rtk',
 			grant: {
 				kind: 'path',
-				path: nodePath.join(fs.realpathSync(require('node:os').homedir()), 'Library/Logs/rtk'),
+				path: nodePath.join(
+					fs.realpathSync.native(require('node:os').homedir()),
+					'Library/Logs/rtk',
+				),
 			},
 		});
 		return completeRun(sessionId, runId, 'tool state');

@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -8,10 +7,12 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
+	REAL_GIT,
 	seedWorkstream,
 	sendPrompt,
-	type LaunchedApp,
 	untilStill,
+	writeExecutable,
+	type LaunchedApp,
 } from './harness';
 
 type SampledAnimation = Readonly<{
@@ -269,18 +270,16 @@ test('a chat opened right after launch shows its changed files and every turn in
 });
 
 function holdRawDiffs(bin: string, gate: string): () => void {
-	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
 	const held = join(bin, 'git');
-	writeFileSync(
+	writeExecutable(
 		held,
 		[
 			'#!/bin/sh',
 			`case " $* " in *" --raw "*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac`,
-			`exec '${git}' "$@"`,
+			`exec '${REAL_GIT}' "$@"`,
 			'',
 		].join('\n'),
 	);
-	chmodSync(held, 0o755);
 	writeFileSync(gate, '');
 	return () => rmSync(gate, { force: true });
 }

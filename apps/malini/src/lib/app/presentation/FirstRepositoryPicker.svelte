@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
@@ -158,7 +159,7 @@
 					<Button
 						bare
 						ariaHasPopup="dialog"
-						ariaKeyshortcuts="Meta+K"
+						ariaKeyshortcuts={osQuery.data.ariaShortcut('K')}
 						class={[ROW, ACTION_ROW]}
 						onclick={() => openCommandCenterCommand('find')}
 					>
@@ -166,7 +167,7 @@
 							<Icon name="search" size={14} />
 						</span>
 						<span class="flex-1">More repositories</span>
-						<kbd class={KEY}>⌘K</kbd>
+						<kbd class={KEY}>{osQuery.data.shortcut('K')}</kbd>
 					</Button>
 					<Button
 						bare
@@ -186,7 +187,7 @@
 			Not on GitHub?
 			<Button
 				bare
-				ariaKeyshortcuts="Meta+O"
+				ariaKeyshortcuts={osQuery.data.ariaShortcut('O')}
 				disabled={connecting !== null}
 				ariaBusy={connecting === 'folder'}
 				class="text-fg-secondary hover:text-fg-default focus-visible:text-fg-default cursor-pointer underline-offset-2 hover:underline disabled:cursor-default"
@@ -194,7 +195,7 @@
 			>
 				{connecting === 'folder' ? 'Opening…' : 'Open a folder'}
 			</Button>
-			<kbd class={KEY}>⌘O</kbd>
+			<kbd class={KEY}>{osQuery.data.shortcut('O')}</kbd>
 		</p>
 		{#if claudeInstall.kind === 'installing'}
 			<div

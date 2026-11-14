@@ -25,6 +25,7 @@ import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
 import { CommandRegistry } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
+import { linuxPasswordStore } from './password-store';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
 import {
@@ -48,15 +49,9 @@ if (BACKGROUND_WINDOW) {
 if (process.platform === 'win32') {
 	app.setAppUserModelId(app.isPackaged ? BUNDLE_IDENTIFIER : process.execPath);
 }
-if (
-	process.platform === 'linux' &&
-	!BACKGROUND_WINDOW &&
-	process.env['DBUS_SESSION_BUS_ADDRESS'] &&
-	!/KDE/iu.test(process.env['XDG_CURRENT_DESKTOP'] ?? '') &&
-	!app.commandLine.hasSwitch('password-store')
-) {
-	app.commandLine.appendSwitch('password-store', 'gnome-libsecret');
-}
+const passwordStore =
+	process.platform === 'linux' ? linuxPasswordStore(process.argv, process.env) : null;
+if (passwordStore) app.commandLine.appendSwitch('password-store', passwordStore);
 declareWorktreeScheme([WORKSTREAM_IMAGE_SCHEME_PRIVILEGES]);
 
 const diagnostics = new MainDiagnosticsLog({

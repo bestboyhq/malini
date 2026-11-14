@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -12,10 +11,12 @@ import {
 	listEvents,
 	listSessions,
 	openWorkstream,
+	REAL_GIT,
 	seedTwoChats,
 	seedWorkstream,
 	selectChat,
 	sendPrompt,
+	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 
@@ -68,7 +69,7 @@ test('⌘↵ sends a prompt ahead of one still waiting for the last turn to fini
 
 		await page.getByTestId('chat-composer-input').click();
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
 		releaseSnapshots();
 
@@ -96,7 +97,7 @@ test('a prompt sent ahead of a turn that keeps saving its changes runs once the 
 
 		await page.getByTestId('chat-composer-input').click();
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
 		await page.waitForTimeout(30_000);
 		await expect(page.getByTestId('prompt-queue-item')).toHaveCount(0);
@@ -201,7 +202,7 @@ test('a prompt the agent refuses goes back into the composer, and a refused queu
 		await captureFlow(app, 'prompt-refused-restored');
 
 		await input.click();
-		await page.keyboard.press('Meta+A');
+		await page.keyboard.press('ControlOrMeta+A');
 		await page.keyboard.press('Backspace');
 		await expect(input).toHaveText('');
 		await startHangingRun(page);
@@ -312,16 +313,14 @@ async function finishTurnWithHeldSnapshot(app: LaunchedApp, prompt: string): Pro
 
 function holdRunSnapshots(app: LaunchedApp): () => void {
 	const gate = join(app.root, 'hold-run-snapshots');
-	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	const stub = join(app.bin, 'git');
 	writeFileSync(gate, '');
-	writeFileSync(
+	writeExecutable(
 		stub,
 		`#!/bin/sh
 case "$*" in *commit-tree*"malini run snapshot"*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac
-exec '${realGit}' "$@"
+exec '${REAL_GIT}' "$@"
 `,
 	);
-	chmodSync(stub, 0o755);
 	return () => rmSync(gate, { force: true });
 }

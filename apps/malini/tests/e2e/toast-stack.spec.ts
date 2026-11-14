@@ -1,4 +1,3 @@
-import { chmodSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte';
@@ -6,14 +5,17 @@ import tailwindcss from '@tailwindcss/vite';
 import { createServer, type ViteDevServer } from 'vite';
 import {
 	APP_ROOT,
-	E2E_ROOT,
 	captureFlow,
 	clickRevealedOnHover,
 	createSourceRepo,
+	DENIED,
+	E2E_ROOT,
 	expectCleanConsole,
 	launchMalini,
+	lockFolder,
 	seedWorkstream,
 	showToastsTogether,
+	unlockFolder,
 } from './harness';
 
 interface ToastOptions {
@@ -31,8 +33,7 @@ const OLDER_NAME = 'Short one';
 const NEWER_NAME = 'Short two';
 const OLDER_ARCHIVED = `Archived ${OLDER_NAME}`;
 const NEWER_ARCHIVED = `Archived ${NEWER_NAME}`;
-const KEPT_REASON =
-	'Its checkout could not be moved aside (permission denied), so nothing was removed.';
+const KEPT_REASON = `Its checkout could not be moved aside (${DENIED.reason}), so nothing was removed.`;
 const archiveFailure = (name: string): string => `Could not archive ${name} · ${KEPT_REASON}`;
 
 interface ToastText {
@@ -133,7 +134,7 @@ async function leave(page: Page): Promise<void> {
 
 test('a long toast behind newer short ones shows its whole text inside its box without a hover', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
+	const app = await launchMalini({ allowedDiagnostics: [new RegExp(DENIED.reason, 'u')] });
 	let lockedDirectory: string | null = null;
 	try {
 		const { page } = app;
@@ -144,7 +145,7 @@ test('a long toast behind newer short ones shows its whole text inside its box w
 		}
 		await page.reload();
 		lockedDirectory = dirname(archived.worktree);
-		chmodSync(lockedDirectory, 0o555);
+		lockFolder(lockedDirectory);
 
 		const messages = [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME].map(archiveFailure);
 		const failures = page.getByTestId('toast').filter({ hasText: 'Could not archive' });
@@ -157,7 +158,7 @@ test('a long toast behind newer short ones shows its whole text inside its box w
 		await captureFlow(app, 'toast-stack-expanded');
 		expectCleanConsole(app);
 	} finally {
-		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
+		if (lockedDirectory) unlockFolder(lockedDirectory);
 		await app.close();
 	}
 });

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -12,7 +12,11 @@ export async function tempDir(prefix = 'malini-git-'): Promise<string> {
 }
 
 export function removeDir(path: string): Promise<void> {
-	return rm(path, { recursive: true, force: true });
+	return rm(path, { recursive: true, force: true, maxRetries: 10 });
+}
+
+export async function readCheckedOutText(path: string): Promise<string> {
+	return (await readFile(path, 'utf8')).replaceAll('\r\n', '\n');
 }
 
 export async function realGit(repo: string, args: readonly string[]): Promise<string> {

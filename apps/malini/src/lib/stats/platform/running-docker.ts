@@ -1,4 +1,5 @@
-import { basename, sep } from 'node:path';
+import { basename } from 'node:path';
+import { isAtOrInsideDirectory } from '$main/fs/paths';
 import type { RunningItem } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
 import { LABEL_WORKSTREAM } from '$main/docker/labels';
@@ -91,12 +92,9 @@ export function containerWorkstream(
 	}
 	const directory = container.labels[COMPOSE_WORKING_DIR];
 	if (directory === undefined) return null;
-	return workstreams.find((workstream) => isInside(directory, workstream.path))?.id ?? null;
-}
-
-function isInside(directory: string, folder: string): boolean {
-	const root = folder.endsWith(sep) ? folder.slice(0, -sep.length) : folder;
-	return directory === root || directory.startsWith(`${root}${sep}`);
+	return (
+		workstreams.find((workstream) => isAtOrInsideDirectory(workstream.path, directory))?.id ?? null
+	);
 }
 
 export function dockerRunning(

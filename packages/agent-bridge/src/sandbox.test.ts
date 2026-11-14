@@ -185,18 +185,10 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		const tag = `malini-sandbox-test${process.pid}`;
 		const denials = new SandboxDenials();
 		const seen: SandboxDenial[] = [];
-		const blocked = new Promise<void>((resolve) => {
-			const unwatch = denials.watch(tag, (denial) => {
-				seen.push(denial);
-				unwatch();
-				resolve();
-			});
-		});
-		const release = await denials.hold();
-		onTestFinished(release);
+		onTestFinished(denials.watch(tag, (denial) => seen.push(denial)));
+		onTestFinished(await denials.hold());
 
-		await inside(`touch ${IN_HOME}`, { tag });
-		await blocked;
+		while (seen.length === 0) await inside(`touch ${IN_HOME}`, { tag });
 
 		expect(seen[0]).toMatchObject({ tag, operation: 'file-write-create', target: IN_HOME });
 	}, 10_000);
@@ -218,7 +210,7 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 	});
 });
 
-describe('sandbox grants', () => {
+describe.skipIf(process.platform === 'win32')('sandbox grants', () => {
 	const home = '/Users/someone';
 	const places = { checkout: `${home}/malini/workstreams/a`, hidden: [`${home}/.private`] };
 	const denial = (operation: string, target: string): SandboxDenial => ({

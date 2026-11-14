@@ -8,7 +8,7 @@ import { claudeStateFile } from './user-settings.js';
 let folder: string;
 
 beforeEach(() => {
-	const root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-config-')));
+	const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-config-')));
 	vi.stubEnv('CLAUDE_CONFIG_DIR', join(root, 'claude'));
 	mkdirSync(join(root, 'claude'));
 	folder = join(root, 'work');

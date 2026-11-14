@@ -198,7 +198,7 @@ describe('provisioning command', () => {
 			workstreamId: 'ws-1',
 		});
 		expect(outcome).toEqual({ status: 'succeeded' });
-		expect(runner.last('npm').cwd).toBe(realpathSync(checkout));
+		expect(runner.last('npm').cwd).toBe(realpathSync.native(checkout));
 		expect(runner.last('npm').env?.['PATH']).toBeTruthy();
 		expect(runner.last('npm').sandbox !== null).toBe(canSandbox());
 		const frames = test.events.frames.filter(

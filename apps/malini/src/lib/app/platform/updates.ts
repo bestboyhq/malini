@@ -29,6 +29,7 @@ export interface Updates {
 export function startUpdates(
 	{ commands, events }: Pick<MainContext, 'commands' | 'events'>,
 	showUpdateItem: (item: MenuItemConstructorOptions) => void,
+	platform: NodeJS.Platform = process.platform,
 ): Updates {
 	let relaunching = false;
 	const exitNow = (): void => {
@@ -52,7 +53,12 @@ export function startUpdates(
 	if (!app.isPackaged || !existsSync(join(process.resourcesPath, 'app-update.yml'))) {
 		return { exit: exitNow };
 	}
-	if (!BACKGROUND_WINDOW && !app.isInApplicationsFolder() && offerMoveToApplications()) {
+	if (
+		platform === 'darwin' &&
+		!BACKGROUND_WINDOW &&
+		!app.isInApplicationsFolder() &&
+		offerMoveToApplications()
+	) {
 		return { exit: exitNow };
 	}
 
@@ -154,12 +160,14 @@ export function startUpdates(
 	autoUpdater.on('download-progress', () => {
 		if (activity?.state === 'downloading') watch();
 	});
-	squirrel.on('update-downloaded', () => {
+	const stage = (): void => {
 		if (activity?.state !== 'downloading') return;
 		staged = activity.version;
 		events.emit(APP_UPDATE_STAGED_CHANNEL, { version: staged });
 		settle(null);
-	});
+	};
+	if (platform === 'darwin') squirrel.on('update-downloaded', stage);
+	else autoUpdater.on('update-downloaded', stage);
 
 	showUpdateItem({ label: 'Check for Updates…', click: checkNow });
 	void check();

@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
@@ -9,26 +8,26 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	listProjects,
+	REAL_GIT,
 	seedWorkstream,
+	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 
 function holdCheckouts(app: LaunchedApp): string {
-	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
 	const held = join(app.root, 'checkouts-held');
 	const stub = join(app.bin, 'git');
-	writeFileSync(
+	writeExecutable(
 		stub,
 		[
 			'#!/bin/sh',
 			'case "$*" in *"worktree add "*)',
 			`\twhile [ -e '${held}' ]; do sleep 0.05; done ;;`,
 			'esac',
-			`exec '${git}' "$@"`,
+			`exec '${REAL_GIT}' "$@"`,
 			'',
 		].join('\n'),
 	);
-	chmodSync(stub, 0o755);
 	writeFileSync(held, '');
 	return held;
 }
@@ -82,10 +81,10 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 		await expect(page).toHaveURL(/#\/repositories\//u);
 
 		await pad.getByText('Then say goodbye').click();
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(pad.getByRole('listitem')).toHaveCount(0);
 		await expect(workstreams).toHaveCount(3);
-		await page.keyboard.press('Meta+z');
+		await page.keyboard.press('ControlOrMeta+z');
 		await expect(pad.getByRole('listitem')).toHaveText('Then say goodbye');
 		await expect(workstreams).toHaveCount(3);
 		await captureFlow(app, 'scratchpad-moved');
@@ -147,7 +146,7 @@ test('an idea written as a heading moves into a new workstream with what sits un
 		await expect(repository).toHaveAccessibleDescription('1 idea in the scratchpad');
 
 		await pad.getByRole('heading', { name: 'Say hello to the fake bridge' }).click();
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(pad.getByRole('heading')).toHaveCount(0);
 		await expect(pad.getByText('Keep it short')).toHaveCount(0);
 		await expect(sidebar.getByTestId('sidebar-workstream')).toHaveCount(2);
@@ -180,11 +179,11 @@ test('two ideas moved while the first still sets up each start a workstream', as
 		const held = holdCheckouts(app);
 		const workstreams = sidebar.getByTestId('sidebar-workstream');
 		await pad.getByText('Say hello to the fake bridge').click();
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(pad.getByText('Say hello to the fake bridge')).toHaveCount(0);
 		await expect(workstreams).toHaveCount(2);
 		await pad.getByText('Say goodbye to the fake bridge').click();
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(pad.getByText('Say goodbye to the fake bridge')).toHaveCount(0);
 		await expect(workstreams).toHaveCount(3);
 		await expect(repository).toHaveAccessibleDescription('');

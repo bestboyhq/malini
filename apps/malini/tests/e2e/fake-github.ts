@@ -1,12 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
 	git,
 	invoke,
+	REAL_GIT,
 	seedWorkstream,
+	writeExecutable,
 	type LaunchedApp,
 	type SeededWorkstream,
 } from './harness';
@@ -231,8 +233,8 @@ async function fakeGithubFor(
 	writeFileSync(join(state, 'seed.json'), JSON.stringify(seed));
 	writeFileSync(callsFile, '');
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
-		installStub(join(dir, 'gh'), ghStub(state, remote, revParse(seeded.basePath, 'main')));
-		installStub(join(dir, 'git'), gitShim(remote, offline));
+		writeExecutable(join(dir, 'gh'), ghStub(state, remote, revParse(seeded.basePath, 'main')));
+		writeExecutable(join(dir, 'git'), gitShim(remote, offline));
 	}
 
 	const mergeOnGithub = (pullRequest: FakePullRequest, head: string): void => {
@@ -320,15 +322,9 @@ function writeAtomically(path: string, contents: string): void {
 	renameSync(`${path}.tmp`, path);
 }
 
-function installStub(path: string, script: string): void {
-	writeFileSync(path, script);
-	chmodSync(path, 0o755);
-}
-
 function gitShim(remote: string, offline: string): string {
-	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	return `#!/bin/sh
-[ -f "${offline}" ] && exec "${realGit}" "$@"
+[ -f "${offline}" ] && exec '${REAL_GIT}' "$@"
 fetching=
 for arg do
   shift
@@ -337,7 +333,7 @@ for arg do
   [ -n "$fetching" ] && [ "$arg" = "origin" ] && arg="${remote}"
   set -- "$@" "$arg"
 done
-exec "${realGit}" -c protocol.file.allow=always "$@"
+exec '${REAL_GIT}' -c protocol.file.allow=always "$@"
 `;
 }
 

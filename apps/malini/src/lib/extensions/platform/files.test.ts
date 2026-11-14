@@ -153,10 +153,13 @@ describe('workstream files', () => {
 	it('keeps the mode of a replaced file and gives a new one 0644', async () => {
 		const root = await tempdir('ws');
 		await writeBytes(join(root, 'run.sh'), '#!/bin/sh\n', { mode: 0o755 });
+		const before = (await stat(join(root, 'run.sh'))).mode;
 		await writeFile(root, 'run.sh', '#!/bin/sh\necho hi\n');
-		expect((await stat(join(root, 'run.sh'))).mode & 0o777).toBe(0o755);
+		expect((await stat(join(root, 'run.sh'))).mode).toBe(before);
 		await writeFile(root, 'plain.txt', 'x');
-		expect((await stat(join(root, 'plain.txt'))).mode & 0o777).toBe(0o644);
+		expect((await stat(join(root, 'plain.txt'))).mode & 0o777).toBe(
+			process.platform === 'win32' ? 0o666 : 0o644,
+		);
 	});
 
 	it('listing skips generated, dependency, build, ignored and agent scratch trees', async () => {

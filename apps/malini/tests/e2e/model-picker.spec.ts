@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -13,6 +13,7 @@ import {
 	sendPrompt,
 	startFreshChat,
 	temporaryRoot,
+	writeExecutable,
 } from './harness';
 
 test('the model picker is one button that opens and closes its list from the keyboard', async () => {
@@ -183,17 +184,17 @@ test('the picker lists a model that a Claude Code update brings while it is open
 	const release = join(root, 'release');
 	const models = join(root, 'released-models.json');
 	mkdirSync(bin, { recursive: true });
-	writeFileSync(
+	writeExecutable(
 		join(bin, 'claude'),
 		[
 			'#!/bin/sh',
 			'[ "$1" = update ] || exit 0',
 			`while [ ! -f '${release}' ]; do sleep 0.05; done`,
 			`cp "$0" "$0.next" && echo '# 2.0.0' >> "$0.next" && mv "$0.next" "$0"`,
+			'[ ! -f "$0.cmd" ] || touch "$0.cmd"',
 			`cp '${release}' '${models}'`,
 		].join('\n'),
 	);
-	chmodSync(join(bin, 'claude'), 0o755);
 	const app = await launchMalini({
 		profile: root,
 		env: { MALINI_CLAUDE_UPDATES: 'on', FAKE_BRIDGE_CLAUDE_MODELS_FILE: models },
@@ -238,6 +239,7 @@ test('the picker lists a model that a Claude Code update brings while it is open
 });
 
 test('Malini runs the upgrade Homebrew asks for, and only a failed one shows, until Try again works', async () => {
+	test.skip(process.platform === 'win32', 'Homebrew does not run on Windows');
 	test.setTimeout(120_000);
 	const root = temporaryRoot();
 	const bin = join(root, 'bin');
@@ -245,7 +247,7 @@ test('Malini runs the upgrade Homebrew asks for, and only a failed one shows, un
 	const models = join(root, 'released-models.json');
 	mkdirSync(bin, { recursive: true });
 	writeFileSync(brewFails, '');
-	writeFileSync(
+	writeExecutable(
 		join(bin, 'claude'),
 		[
 			'#!/bin/sh',
@@ -256,7 +258,7 @@ test('Malini runs the upgrade Homebrew asks for, and only a failed one shows, un
 			'echo "  brew upgrade claude-code"',
 		].join('\n'),
 	);
-	writeFileSync(
+	writeExecutable(
 		join(bin, 'brew'),
 		[
 			'#!/bin/sh',
@@ -267,8 +269,6 @@ test('Malini runs the upgrade Homebrew asks for, and only a failed one shows, un
 			`echo '[{"id":"claude-mythos-1","label":"Mythos 1","description":"Fixture release","efforts":["low","medium","high","xhigh","max"]}]' > '${models}'`,
 		].join('\n'),
 	);
-	chmodSync(join(bin, 'claude'), 0o755);
-	chmodSync(join(bin, 'brew'), 0o755);
 	const app = await launchMalini({
 		profile: root,
 		env: { MALINI_CLAUDE_UPDATES: 'on', FAKE_BRIDGE_CLAUDE_MODELS_FILE: models },

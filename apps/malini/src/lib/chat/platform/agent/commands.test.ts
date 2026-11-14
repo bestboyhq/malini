@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { stubHome } from '$main/process/test-support';
 import { WORKSTREAM_FOLDER_MISSING } from '$main/errors';
 
 vi.mock('electron', () => ({
@@ -57,7 +58,7 @@ let service: AgentService;
 
 beforeEach(async () => {
 	test = createTestContext();
-	vi.stubEnv('HOME', test.appDataRoot);
+	stubHome(test.appDataRoot);
 	fake = writeFakeBridge();
 });
 
@@ -1211,7 +1212,9 @@ describe('prompt round trips', () => {
 		expect(() => promptWithWorkstreamContext('p', ['../x'])).toThrow(
 			'invalid prompt context: `../x` must be a normalized workstream-relative path',
 		);
-		expect(() => promptWithWorkstreamContext('p', ['/abs'])).toThrow('invalid prompt context');
+		for (const outside of ['/abs', 'C:\\Users\\me\\x', 'C:x', 'a\\..\\..\\x']) {
+			expect(() => promptWithWorkstreamContext('p', [outside])).toThrow('invalid prompt context');
+		}
 		expect(() =>
 			promptWithWorkstreamContext(
 				'p',
@@ -1403,7 +1406,7 @@ describe('interactions', () => {
 	});
 
 	it('remembers a session-scoped allow as a rule and reports its id', async () => {
-		vi.stubEnv('HOME', emptyHome());
+		stubHome(emptyHome());
 		const { sessionId, runId } = await pendingApproval();
 		const permission = permissionFor(approvalPath);
 		expect(

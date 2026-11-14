@@ -41,7 +41,10 @@ export async function atomicReplaceFile(
 	syncDirectory(parent);
 }
 
+const DIRECTORIES_SYNC = process.platform !== 'win32';
+
 export function syncDirectory(path: string): void {
+	if (!DIRECTORIES_SYNC) return;
 	const fd = openSync(path, 'r');
 	try {
 		fsyncSync(fd);

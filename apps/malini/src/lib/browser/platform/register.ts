@@ -44,6 +44,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		onScreen: (window) =>
 			(process.platform === 'darwin' ? !app.isHidden() : window.isVisible()) &&
 			!window.isMinimized(),
+		detachedViewsPaint: process.platform === 'darwin',
 		createView: createElectronView,
 		imageFromPng: (png) => nativeImage.createFromBuffer(png),
 		watchRendererReset,

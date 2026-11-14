@@ -12,6 +12,8 @@ import {
 	expectPicker,
 } from './harness';
 
+const PRIMARY = process.platform === 'darwin' ? '⌘' : 'Ctrl\\+';
+
 test('⌘K runs a command or finds any repository you work on, on GitHub or only on this Mac, and opens it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -43,8 +45,8 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 		await expect(options).toHaveText([
 			/^\s*Find a repository\s*$/u,
 			/^\s*New repository\s*$/u,
-			/^\s*Open a folder\s*⌘O\s*$/u,
-			/^\s*Settings\s*⌘,\s*$/u,
+			new RegExp(`^\\s*Open a folder\\s*${PRIMARY}O\\s*$`, 'u'),
+			new RegExp(`^\\s*Settings\\s*${PRIMARY},\\s*$`, 'u'),
 		]);
 		const second = await options.nth(1).boundingBox();
 		if (!second) throw new Error('New repository has no box');

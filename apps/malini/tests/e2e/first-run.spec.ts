@@ -1,22 +1,23 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import {
-	CREATED_GITHUB_REPOSITORY_FIXTURE,
-	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	CREATED_GITHUB_REPOSITORY_FIXTURE,
 	createSourceRepo,
 	expectCleanConsole,
 	expectPicker,
+	GITHUB_REPOSITORIES_FIXTURE,
 	invoke,
 	launchMalini,
 	openWorkstream,
+	REAL_GIT,
 	seedWorkstream,
 	sendPrompt,
-	type WorkstreamRow,
 	withoutConsoleErrors,
+	writeExecutable,
+	type WorkstreamRow,
 } from './harness';
 
 test('a new Mac without Claude Code installs it on its own, holds the first prompt, and says why the install failed', async () => {
@@ -416,13 +417,11 @@ test('settings that cannot be read still open the repository picker', async () =
 });
 
 function slowClone(binFolder: string): void {
-	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 	const stub = join(binFolder, 'git');
-	writeFileSync(
+	writeExecutable(
 		stub,
-		`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${git}" "$@"\n`,
+		`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
 	);
-	chmodSync(stub, 0o755);
 }
 
 async function workstreams(page: Page): Promise<WorkstreamRow[]> {

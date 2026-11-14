@@ -409,7 +409,7 @@ function pathResource(path: string, cwd: string): PermissionResourceDescriptor {
 
 function canonicalPath(path: string): string {
 	try {
-		return realpathSync(path);
+		return realpathSync.native(path);
 	} catch {
 		const parent = dirname(path);
 		return parent === path ? path : join(canonicalPath(parent), basename(path));

@@ -303,7 +303,7 @@ describe('browser requests from the agent', () => {
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
-		const worktree = realpathSync(checkout);
+		const worktree = realpathSync.native(checkout);
 		expect(calls).toEqual([
 			'open ws-1 chat-sess-1 localhost:5173',
 			`screenshot ws-1 ${worktree} {"fullPage":false}`,
@@ -960,7 +960,7 @@ describe('platform requests from the agent', () => {
 		const worktree = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		writeFileSync(join(worktree, 'notes.md'), 'the plan\n');
-		const outside = join(realpathSync(test.appDataRoot), 'secrets', 'malini.keys');
+		const outside = join(realpathSync.native(test.appDataRoot), 'secrets', 'malini.keys');
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
 			processFactory: bridge.factory,

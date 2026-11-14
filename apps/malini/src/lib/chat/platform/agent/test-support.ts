@@ -403,11 +403,11 @@ export function seedOpenRun(
 }
 
 export function emptyHome(): string {
-	return realpathSync(mkdtempSync(join(tmpdir(), 'malini-home-')));
+	return realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-home-')));
 }
 
 export function externalReadPath(): string {
-	const dir = realpathSync(mkdtempSync(join(tmpdir(), 'malini-external-')));
+	const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-external-')));
 	return join(dir, 'outside.txt');
 }
 

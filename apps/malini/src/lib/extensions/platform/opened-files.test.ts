@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { stubHome } from '$main/process/test-support';
 import type { FileOpenRequestedPayload } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -25,7 +26,7 @@ let worktree: string;
 let db: MaliniDatabase;
 let events: EventBus;
 let opened: FileOpenRequestedPayload[];
-const home = process.env['HOME'];
+const POSIX_MODES = process.platform !== 'win32';
 
 beforeEach(async () => {
 	root = await realpath(await mkdtemp(join(tmpdir(), 'malini-opened-files-')));
@@ -41,7 +42,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	process.env['HOME'] = home;
 	db.close();
 	await rm(root, { recursive: true, force: true });
 });
@@ -75,8 +75,10 @@ describe('opening a file for the user', () => {
 
 		expect(await open(secrets)).toEqual({ path: secrets, created: true });
 
-		expect(await mode(secrets)).toBe(0o600);
-		expect(await mode(join(root, 'home', '.secrets'))).toBe(0o700);
+		if (POSIX_MODES) {
+			expect(await mode(secrets)).toBe(0o600);
+			expect(await mode(join(root, 'home', '.secrets'))).toBe(0o700);
+		}
 		expect(grants()).toEqual([{ workstream_id: 'ws-1', path: secrets }]);
 		expect(opened).toEqual([{ workstreamId: 'ws-1', path: secrets, line: null }]);
 		expect(await readOpenedFile(db, 'ws-1', secrets)).toBe('');
@@ -86,13 +88,14 @@ describe('opening a file for the user', () => {
 	it('reads, saves and stats a granted file, keeping its mode', async () => {
 		const secrets = join(root, 'malini.keys');
 		await writeFile(secrets, 'TOKEN=old\n', { mode: 0o600 });
+		const before = await mode(secrets);
 		expect(await open(secrets)).toEqual({ path: secrets, created: false });
 
 		expect(await readOpenedFile(db, 'ws-1', secrets)).toBe('TOKEN=old\n');
 		await writeOpenedFile(db, 'ws-1', secrets, 'TOKEN=new\n');
 
 		expect(await readFile(secrets, 'utf8')).toBe('TOKEN=new\n');
-		expect(await mode(secrets)).toBe(0o600);
+		expect(await mode(secrets)).toBe(before);
 		expect(await statOpenedFile(db, 'ws-1', secrets)).toEqual({ kind: 'file', size: 10 });
 	});
 
@@ -123,7 +126,7 @@ describe('opening a file for the user', () => {
 	});
 
 	it('reads ~/ as the home folder and a path that leaves the worktree as outside it', async () => {
-		process.env['HOME'] = join(root, 'home');
+		stubHome(join(root, 'home'));
 		await mkdir(join(root, 'home'));
 
 		expect(await open('~/.secrets/app.keys')).toEqual({

@@ -850,7 +850,7 @@ export class ClaudeSession implements ProviderHandle {
 			env: {
 				...claudeEnvironment(this.#context.env),
 				CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
-				CLAUDE_CODE_SHELL: claudeShell(),
+				...(process.platform === 'win32' ? {} : { CLAUDE_CODE_SHELL: claudeShell() }),
 				CLAUDE_CODE_SHELL_PREFIX: this.#secrets.runScript,
 				...(theme ? { MALINI_THEME: theme } : {}),
 				...(boundary ? boundaryEnvironment(boundary) : {}),

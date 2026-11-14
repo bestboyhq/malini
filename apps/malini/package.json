@@ -25,11 +25,12 @@
 		"generate:dmg-background": "electron scripts/generate-dmg-background.mjs",
 		"diagnostics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/diagnostics.mjs",
 		"test:e2e": "install-electron && electron-vite build && playwright test",
-		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
-		"release": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && electron-builder --mac --publish never",
+		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && node scripts/dist.mjs",
+		"release": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && electron-builder --publish never",
 		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && node scripts/update-e2e.mjs"
 	},
 	"dependencies": {
+		"@xterm/headless": "^6.0.0",
 		"node-pty": "^1.2.0-beta.18"
 	},
 	"devDependencies": {
@@ -64,7 +65,6 @@
 		"@tiptap/extensions": "^3.32.0",
 		"@tiptap/pm": "^3.32.0",
 		"@types/node": "catalog:",
-		"@xterm/headless": "^6.0.0",
 		"daisyui": "catalog:",
 		"dompurify": "^3.4.15",
 		"electron": "catalog:",

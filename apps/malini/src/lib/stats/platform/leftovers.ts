@@ -1,4 +1,3 @@
-import { sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { childrenByParent } from './process-tree';
 import { containerWorkstream, type DockerContainer, type WorkstreamFolder } from './running-docker';
@@ -10,7 +9,7 @@ const STOP_GRACE_MS = 3_000;
 const STOP_POLL_MS = 100;
 const ROW = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+)$/u;
 const NO_TERMINAL = new Set(['??', '?', '-']);
-const PATH_ENDS = new Set(['', sep, ' ', '"', "'"]);
+const PATH_ENDS = new Set(['', '/', '\\', ' ', '"', "'"]);
 
 export interface LeftoverPlace {
 	readonly folders: readonly WorkstreamFolder[];
@@ -105,7 +104,7 @@ function runsIn(command: string, place: LeftoverPlace): boolean {
 }
 
 function mentions(command: string, folder: string): boolean {
-	const root = folder.endsWith(sep) ? folder.slice(0, -sep.length) : folder;
+	const root = folder.replace(/[\\/]+$/u, '');
 	for (let at = command.indexOf(root); at !== -1; at = command.indexOf(root, at + 1)) {
 		if (PATH_ENDS.has(command[at + root.length] ?? '')) return true;
 	}

@@ -33,6 +33,7 @@ import {
 import { run } from '$main/db/rows';
 import { realGit, workstreamFixture } from '$main/git/fixtures.test-support';
 import { workstreamBranchName } from '$main/git/paths';
+import { OWN_PROCESS_GROUP } from '$main/process/process-group';
 import { registerModules, type Modules } from './modules';
 import { RETIRED_CHATS_PROJECT_ID } from '$shared/repositories/domain/retired-chats';
 import { upsertProject } from '$shared/repositories/platform/projects.repository';
@@ -183,7 +184,10 @@ describe('the main module graph', () => {
 
 	it('stops a dependency install when Malini quits', async () => {
 		const { modules } = await bootModules();
-		const install = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+		const install = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60_000)'], {
+			stdio: 'ignore',
+			...OWN_PROCESS_GROUP,
+		});
 		cleanups.push(() => {
 			if (install.exitCode === null && install.signalCode === null) install.kill('SIGKILL');
 		});
@@ -193,7 +197,9 @@ describe('the main module graph', () => {
 
 		await modules.shutdown();
 
-		expect(install.signalCode).toBe('SIGTERM');
+		expect([install.signalCode, install.exitCode]).toEqual(
+			process.platform === 'win32' ? [null, 1] : ['SIGTERM', null],
+		);
 	});
 
 	it('archives retired chats once boot has registered the modules teardown needs', async () => {

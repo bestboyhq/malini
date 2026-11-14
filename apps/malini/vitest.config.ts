@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,7 @@ const libSrc = fileURLToPath(new URL('./src/lib', import.meta.url));
 const sharedSrc = fileURLToPath(new URL('./src/lib/shared', import.meta.url));
 const contractSrc = fileURLToPath(new URL('./src/contract', import.meta.url));
 const hyperUi = fileURLToPath(new URL('../../packages/hyper-ui/src', import.meta.url));
-const TEMP = mkdtempSync(join(tmpdir(), 'malini-unit-tests-'));
+const TEMP = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-unit-tests-')));
 process.once('exit', () => rmSync(TEMP, { recursive: true, force: true }));
 
 /**
@@ -57,6 +57,9 @@ export default defineConfig({
 						ELECTRON_OVERRIDE_DIST_PATH: '/unit-tests-never-launch-electron',
 						MALINI_CLAUDE_UPDATES: 'off',
 						TMPDIR: TEMP,
+						TEMP,
+						TMP: TEMP,
+						GIT_CONFIG_NOSYSTEM: '1',
 					},
 				},
 			},
@@ -74,7 +77,7 @@ export default defineConfig({
 					environment: 'node',
 					pool: 'threads',
 					maxWorkers: 1,
-					env: { TMPDIR: TEMP },
+					env: { TMPDIR: TEMP, TEMP, TMP: TEMP },
 				},
 			},
 			'../../packages/hyper-ui/vitest.config.ts',

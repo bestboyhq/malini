@@ -255,6 +255,9 @@ importers:
 
   apps/malini:
     dependencies:
+      '@xterm/headless':
+        specifier: ^6.0.0
+        version: 6.0.0
       node-pty:
         specifier: ^1.2.0-beta.18
         version: 1.2.0-beta.18
@@ -352,9 +355,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.5
-      '@xterm/headless':
-        specifier: ^6.0.0
-        version: 6.0.0
       daisyui:
         specifier: 'catalog:'
         version: 5.7.38

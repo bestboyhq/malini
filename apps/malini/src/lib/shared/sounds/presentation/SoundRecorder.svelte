@@ -3,6 +3,7 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { closeSoundRecorderCommand } from '$shared/sounds/application/commands/close-sound-recorder.command';
 	import { finishSoundRecordingCommand } from '$shared/sounds/application/commands/finish-sound-recording.command';
 	import { openMicrophoneSettingsCommand } from '$shared/sounds/application/commands/open-microphone-settings.command';
@@ -58,9 +59,11 @@
 			<span class="text-fg-secondary min-w-0 flex-1 pl-2 text-xs leading-5">
 				Malini can’t use your microphone.
 			</span>
-			<Button variant="secondary" size="sm" bordered onclick={openMicrophoneSettingsCommand}>
-				Open System Settings
-			</Button>
+			{#if osQuery.data.platform !== 'linux'}
+				<Button variant="secondary" size="sm" bordered onclick={openMicrophoneSettingsCommand}>
+					Open {osQuery.data.systemSettings}
+				</Button>
+			{/if}
 		{:else if recording}
 			<span class="text-fg-default w-10 shrink-0 text-sm tabular-nums">{seconds}</span>
 			<span class="flex h-6 min-w-0 flex-1 items-center gap-0.5" aria-hidden="true">

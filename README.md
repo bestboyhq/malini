@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg"><img src="https://img.shields.io/badge/Download_for_macOS-000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40"></a>
+  <a href="https://github.com/bestboyhq/malini/releases/latest/download/malini-universal.dmg"><img src="https://img.shields.io/badge/Download_for_macOS-000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40"></a>
 </p>
 
 <p align="center">
@@ -104,7 +104,7 @@ Malini ranks them by how often your agents use them, so you turn off the ones no
 
 ## Install
 
-1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
+1. [Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-universal.dmg) and drag it to Applications.
 2. Open it.
    Setup installs Claude Code if this Mac lacks it, and signs you in to GitHub with a one-time code in your browser.
 3. Setup ends on your five latest GitHub repositories, under **What are we working on?**

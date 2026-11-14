@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { onMount, tick } from 'svelte';
 	import { Checkbox } from '$hyper-ui/components/checkbox';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
@@ -354,8 +355,8 @@
 									<Icon name={COMMAND_ICONS[entry.command.id]} size={16} />
 								</span>
 								<span class="text-fg-default flex-1">{entry.command.label}</span>
-								{#if entry.command.keys.length > 0}
-									<kbd class={KEY}>{entry.command.keys.join('')}</kbd>
+								{#if entry.command.shortcut}
+									<kbd class={KEY}>{osQuery.data.shortcut(entry.command.shortcut)}</kbd>
 								{/if}
 							{:else if entry.kind === 'repository'}
 								<GithubRepositoryLabel
