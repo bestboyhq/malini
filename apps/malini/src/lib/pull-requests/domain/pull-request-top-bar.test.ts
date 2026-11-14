@@ -604,7 +604,7 @@ describe('the workstream status', () => {
 			{
 				tone: 'needs-you',
 				busy: false,
-				label: 'Rebase stopped part-way',
+				label: 'Rebase stuck',
 				detail: null,
 				action: 'Abort',
 			},
@@ -617,7 +617,7 @@ describe('the workstream status', () => {
 			{
 				tone: 'needs-you',
 				busy: false,
-				label: 'Rebase stopped part-way',
+				label: 'Rebase stuck',
 				detail: null,
 				action: 'Abort',
 			},
