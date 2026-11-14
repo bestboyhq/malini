@@ -17,6 +17,7 @@ import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { currentEnvironment } from '$main/process/environment';
+import { isDogfoodWindow } from '$main/url-scheme';
 import { localDate, shiftDate } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
@@ -89,6 +90,7 @@ type ErrorShape = Readonly<{ name: string; code: string | null; kind: string | n
 
 const LOGDASH_API = 'https://api.logdash.io';
 const LOGDASH_ORIGIN = 'https://app.malini';
+const LOGDASH_SITE = '6ad7c3d3d519015fcd43194b';
 const SHUTDOWN_FLUSH_MS = 2000;
 const REPORTED_DAY_SETTING = 'usage-data.reported-day';
 const FIRST_OPEN_SETTING = 'usage-data.first-open';
@@ -101,7 +103,8 @@ const DAY_MS = 86_400_000;
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
 	const now = deps.now ?? ((): Date => new Date());
-	const sink = deps.sink === undefined ? logdashSink(context.appVersion) : deps.sink;
+	const sink =
+		deps.sink === undefined ? logdashSink(context.appVersion, !context.isDev) : deps.sink;
 	const shared = (): boolean => usageDataShared(getSetting(context.db, USAGE_DATA_SETTING));
 	const setShare = (next: boolean): void => {
 		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
@@ -403,10 +406,11 @@ export function logdashUserId(site: string, account: string): string {
 	return createHash('sha256').update(`${site}:${account}`).digest('hex');
 }
 
-function logdashSink(appVersion: string): UsageSink | null {
+function logdashSink(appVersion: string, packaged: boolean): UsageSink | null {
 	if (process.env['MALINI_USAGE_DATA'] === 'off') return null;
 	if (currentEnvironment().doNotTrack) return null;
-	const site = import.meta.env.MAIN_VITE_LOGDASH_SITE;
+	const sendsByDefault = packaged || isDogfoodWindow(process.env);
+	const site = import.meta.env.MAIN_VITE_LOGDASH_SITE || (sendsByDefault ? LOGDASH_SITE : '');
 	const key = import.meta.env.MAIN_VITE_LOGDASH_API_KEY;
 	if (!site && !key) return null;
 	const pending = new Set<Promise<unknown>>();

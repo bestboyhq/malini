@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { fetchMock } = vi.hoisted(() => ({
 	fetchMock: vi.fn((_url: string, _init: RequestInit) => Promise.resolve(new Response('{}'))),
@@ -712,6 +712,10 @@ describe('usage days', () => {
 });
 
 describe('the Logdash sink', () => {
+	beforeEach(() => {
+		vi.stubEnv('MALINI_USAGE_DATA', '');
+	});
+
 	const noHooks = {
 		onUncaughtException: () => () => undefined,
 		onUnhandledRejection: () => () => undefined,
@@ -831,6 +835,32 @@ describe('the Logdash sink', () => {
 			['malini_desktop_stats_off', undefined],
 		]);
 		context.db.close();
+	});
+
+	it('posts to the public site from a packaged or dogfood build with no site configured, never from a plain dev run', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', '');
+		vi.stubEnv('MALINI_BACKGROUND_WINDOW', '');
+		const sites = async (isDev: boolean, dogfood: string): Promise<string[]> => {
+			vi.stubEnv('MALINI_DOGFOOD', dogfood);
+			fetchMock.mockClear();
+			const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:'), isDev });
+			const usageData = startUsageData(context, {
+				hooks: noHooks,
+				processGone: () => undefined,
+				now: () => NOW,
+				system: 'malini 1.0.0',
+			});
+			await settled();
+			await usageData.shutdown();
+			context.db.close();
+			return fetchMock.mock.calls.map(
+				([, init]) => (JSON.parse(String(init.body)) as { siteId: string }).siteId,
+			);
+		};
+		const site = '6ad7c3d3d519015fcd43194b';
+		expect(await sites(true, '')).toEqual([]);
+		expect(await sites(true, '1')).toEqual([site, site]);
+		expect(await sites(false, '')).toEqual([site, site]);
 	});
 
 	it('sends nothing with MALINI_USAGE_DATA=off', async () => {

@@ -6,7 +6,7 @@ Status: accepted
 
 0105 gave **Run** a terminal without a native addon: `/bin/bash` ran the command under macOS `script(1)`, and `terminalText` guessed what a terminal would show from the escape sequences.
 It said what that cost: "The runner depends on macOS `script(1)` and `/bin/bash`; another platform needs its own terminal", and named "`node-pty` with xterm.js" as the upgrade.
-Malini now ships for Windows and Linux (0245): Linux's `script(1)` takes other options, and Windows has neither `script(1)` nor a POSIX shell.
+Malini now ships for Windows and Linux (0248): Linux's `script(1)` takes other options, and Windows has neither `script(1)` nor a POSIX shell.
 
 ## Decision
 

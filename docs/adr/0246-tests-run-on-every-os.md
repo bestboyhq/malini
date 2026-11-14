@@ -4,7 +4,7 @@ Status: accepted
 
 ## Context
 
-Malini ships for macOS, Windows and Linux on x64 and arm64 (0245), but CI ran unit tests on Linux x64 and e2e on macOS only.
+Malini ships for macOS, Windows and Linux on x64 and arm64 (0248), but CI ran unit tests on Linux x64 and e2e on macOS only.
 The first CI run of the port on Windows failed in every unit shard and never started e2e: the tests assumed `/` paths, `/bin/sh` stubs, LF checkouts, `HOME` as the home folder and `chmod` to lock a folder.
 On Windows a test that set only `HOME` wrote into the runner's real profile, and Git for Windows' system `core.autocrlf=true` turned fixtures into CRLF.
 On Linux the e2e had no display and no keyring, so every secret and Claude account test failed.

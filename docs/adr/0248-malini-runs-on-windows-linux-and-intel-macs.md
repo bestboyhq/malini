@@ -1,4 +1,4 @@
-# 0245 - Malini runs on Windows, Linux and Intel Macs
+# 0248 - Malini runs on Windows, Linux and Intel Macs
 
 Status: accepted
 

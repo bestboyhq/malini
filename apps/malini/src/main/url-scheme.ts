@@ -15,13 +15,17 @@ export interface LinuxUrlHandler {
 	readonly entry: string | null;
 }
 
+export function isDogfoodWindow(env: Environment): boolean {
+	return env['MALINI_DOGFOOD'] === '1' && env['MALINI_BACKGROUND_WINDOW'] !== '1';
+}
+
 export function claimsUrlScheme(
 	packaged: boolean,
 	env: Environment,
 	platform: NodeJS.Platform = process.platform,
 ): boolean {
 	if (env['MALINI_BACKGROUND_WINDOW'] === '1') return false;
-	return packaged ? platform !== 'darwin' : env['MALINI_DOGFOOD'] === '1';
+	return packaged ? platform !== 'darwin' : isDogfoodWindow(env);
 }
 
 export function urlsIn(argv: readonly string[]): string[] {
