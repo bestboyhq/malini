@@ -1209,6 +1209,25 @@
 			</p>
 		{/if}
 		{#snippet footer()}
+			<Tooltip
+				content="Add files, context, or run an automation"
+				placement="top"
+				suppressed={addMenuOpen || contextOpen || automationPickerShown}
+			>
+				<IconButton
+					bind:element={contextTriggerEl}
+					variant="ghost"
+					size="md"
+					{disabled}
+					ariaLabel="Add to prompt"
+					active={addMenuOpen}
+					class="text-fg-tertiary ml-0.5"
+					data-testid="chat-context-open"
+					onclick={toggleAddMenu}
+				>
+					<Icon name="plus" size={16} />
+				</IconButton>
+			</Tooltip>
 			<div class="ml-auto flex shrink-0 items-center gap-1 pr-0.5">
 				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
 					<IconButton
@@ -1240,25 +1259,6 @@
 			data-testid="chat-composer-toolbar"
 		>
 			<div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
-				<Tooltip
-					content="Add files, context, or run an automation"
-					placement="top"
-					suppressed={addMenuOpen || contextOpen || automationPickerShown}
-				>
-					<IconButton
-						bind:element={contextTriggerEl}
-						variant="ghost"
-						size="sm"
-						{disabled}
-						ariaLabel="Add to prompt"
-						active={addMenuOpen}
-						class="text-fg-tertiary hover:bg-surface-50 rounded-lg"
-						data-testid="chat-context-open"
-						onclick={toggleAddMenu}
-					>
-						<Icon name="plus" size={15} />
-					</IconButton>
-				</Tooltip>
 				<ModelProfilePicker
 					{selection}
 					effort={profile.effort}
