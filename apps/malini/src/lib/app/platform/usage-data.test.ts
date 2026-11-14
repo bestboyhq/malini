@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { fetchMock } = vi.hoisted(() => ({
 	fetchMock: vi.fn((_url: string, _init: RequestInit) => Promise.resolve(new Response('{}'))),
@@ -712,6 +712,10 @@ describe('usage days', () => {
 });
 
 describe('the Logdash sink', () => {
+	beforeEach(() => {
+		vi.stubEnv('MALINI_USAGE_DATA', '');
+	});
+
 	const noHooks = {
 		onUncaughtException: () => () => undefined,
 		onUnhandledRejection: () => () => undefined,
