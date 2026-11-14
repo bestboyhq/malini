@@ -8,17 +8,19 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'num
 
 const DAY_MS = 86_400_000;
 
+const PROVIDER = '{provider}';
+
 const STOP_REASONS: Readonly<Record<RunFailureKind, string>> = {
-	'usage-limit': 'You hit your Claude usage limit. Malini goes on when it resets.',
-	'rate-limit': "Claude's API is limiting requests. Malini tries again then.",
-	overloaded: 'Claude is overloaded. Malini tries again then.',
-	'server-error': "Claude's API returned an error. Malini tries again then.",
-	network: "Malini couldn't reach Claude's API. It tries again then.",
+	'usage-limit': 'You hit your {provider} usage limit. Malini goes on when it resets.',
+	'rate-limit': "{provider}'s API is limiting requests. Malini tries again then.",
+	overloaded: '{provider} is overloaded. Malini tries again then.',
+	'server-error': "{provider}'s API returned an error. Malini tries again then.",
+	network: "Malini couldn't reach {provider}'s API. It tries again then.",
 	unknown: 'The turn stopped on an unexpected error. Malini tries once more then.',
 	'sign-in': 'Claude Code is signed out.',
-	billing: 'Your Claude plan or billing stopped the turn.',
+	billing: 'Your {provider} plan or billing stopped the turn.',
 	model: 'The model is not available to your account.',
-	request: 'Claude could not take the request.',
+	request: '{provider} could not take the request.',
 };
 
 const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, readonly [string, ...string[]]>> = {
@@ -27,7 +29,7 @@ const CONTINUATION_NOTICES: Readonly<Record<ContinuationCause, readonly [string,
 		'Malini restarted. Now with upgrades',
 		'Malini restarted. Feeling brand new',
 	],
-	outage: ['Claude is back. Well rested', 'Claude is back. Coffee break over'],
+	outage: ['{provider} is back. Well rested', '{provider} is back. Coffee break over'],
 };
 
 const RETRIED = 'Malini stopped trying again.';
@@ -40,7 +42,7 @@ const NEXT_STEPS: Readonly<Record<RunFailureKind, string | null>> = {
 	network: RETRIED,
 	unknown: 'Malini tried once more.',
 	'sign-in': null,
-	billing: 'Check your Claude plan or billing, then try again.',
+	billing: 'Check your {provider} plan or billing, then try again.',
 	model: 'Pick another model, then try again.',
 	request: 'Compact the chat or start a new one, then try again.',
 };
@@ -54,19 +56,19 @@ export function pauseTitle(resumeAt: string, now: Date): string {
 	return `Paused until ${DATE_FORMAT.format(at)}, ${time}`;
 }
 
-export function pauseReason(kind: RunFailureKind): string {
-	return STOP_REASONS[kind];
+export function pauseReason(kind: RunFailureKind, provider: string): string {
+	return STOP_REASONS[kind].replace(PROVIDER, provider);
 }
 
-export function failedRunNextStep(kind: RunFailureKind): string | null {
-	return NEXT_STEPS[kind];
+export function failedRunNextStep(kind: RunFailureKind, provider: string): string | null {
+	return NEXT_STEPS[kind]?.replace(PROVIDER, provider) ?? null;
 }
 
-export function continuationNotice(prompt: string, roll: number): string | null {
+export function continuationNotice(prompt: string, roll: number, provider: string): string | null {
 	const cause = continuationCause(prompt);
 	if (cause === null) return null;
 	const notices = CONTINUATION_NOTICES[cause];
-	return notices[roll % notices.length] ?? notices[0];
+	return (notices[roll % notices.length] ?? notices[0]).replace(PROVIDER, provider);
 }
 
 function startOfDay(date: Date): number {

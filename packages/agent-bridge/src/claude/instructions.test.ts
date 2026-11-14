@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AGENT_REPORTS, type AgentReport } from '../agent-profile.js';
-import { systemPromptAppend } from './instructions.js';
+import { endsWithReport, systemPromptAppend } from './instructions.js';
 
 const BODY_RULES: Record<AgentReport, string> = {
 	low: 'show, do not tell',
@@ -26,6 +26,10 @@ describe('systemPromptAppend', () => {
 		);
 		expect(prompt).toContain(
 			'only answers a question or talks through options, with nothing to show, gets a plain answer',
+		);
+		expect(prompt).toContain('gets no report and no footer either, even though it did work');
+		expect(prompt).toContain(
+			'in this order, and never on a turn that ends only to wait for a background command:',
 		);
 		expect(prompt).toContain(
 			'build the prototype in that same turn, even when the user only asked a question',
@@ -137,5 +141,21 @@ describe('systemPromptAppend', () => {
 			'The chat “Fix the footer” started this workstream.\n</malini_lineage>',
 		);
 		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('<malini_lineage>');
+	});
+});
+
+describe('endsWithReport', () => {
+	it.each([
+		['Done.\n\nOutcome: It works\nNeeds: nothing\nCommit: fix: it\nPull request: fix: it', true],
+		['Done.\n\n**Outcome:** It works\n**Needs:** nothing\n\n', true],
+		['Done.\r\n\r\n- Outcome: It works\r\n- Needs: nothing', true],
+		['The suite runs. I report when it finishes.', false],
+		['Outcome: It works\nNeeds: nothing\n\nI keep watching the server.', false],
+		['Done.\n\nOutcome:\nNeeds: nothing', false],
+		['Done.\n\nOutcome: **  **\nNeeds: nothing', false],
+		['Done.\n\nNeeds: nothing', false],
+		['', false],
+	])('reads %j as a reply that ends with its report: %s', (reply, reported) => {
+		expect(endsWithReport(reply)).toBe(reported);
 	});
 });

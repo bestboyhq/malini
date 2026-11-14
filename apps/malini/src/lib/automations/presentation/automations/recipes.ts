@@ -117,10 +117,14 @@ export function guessTriggerId(text: string): string {
 	return best.id;
 }
 
-const LEAD = /^(when|whenever|after|once|if|every)\b[^,]*,?\s*/iu;
+const LEAD = /^(when|whenever|after|once|if|every)\b(?:[^,:]|:(?!\s))*[,:]?\s*/iu;
+
+function leadOf(text: string): string {
+	return LEAD.exec(text)?.[0]?.trim().replace(/[,:]$/u, '') ?? '';
+}
 
 export function guessWhen(text: string, place: SchedulePlace): string | null {
-	const lead = LEAD.exec(text.trim())?.[0]?.trim().replace(/,$/u, '') ?? '';
+	const lead = leadOf(text.trim());
 	const schedule = scheduleOf(lead);
 	if (!schedule) return triggerById(guessTriggerId(text)).when;
 	return scheduleWhen({
@@ -147,10 +151,10 @@ function capitalized(text: string): string {
 
 export function draftFromWords(text: string): WordsDraft {
 	const trimmed = text.trim();
-	const lead = LEAD.exec(trimmed)?.[0]?.trim().replace(/,$/u, '') ?? '';
+	const lead = leadOf(trimmed);
 	const clauses = trimmed
 		.slice(LEAD.exec(trimmed)?.[0]?.length ?? 0)
-		.split(/\s*(?:,\s*(?:and\s+)?then|,\s*and|\band then|\bthen|\band)\s+/iu)
+		.split(/(?<=[.!?])\s+|\s*(?:,\s*(?:and\s+)?then|,\s*and|\band then|\bthen|\band)\s+/iu)
 		.map((clause) => clause.trim().replace(/[.!]+$/u, ''))
 		.filter(Boolean);
 	const then = THEN_STEPS.find(({ pattern }) => clauses.some((clause) => pattern.test(clause)));

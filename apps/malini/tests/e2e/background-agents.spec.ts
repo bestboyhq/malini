@@ -178,6 +178,48 @@ test('a turn that ends over a background command reads as done, lets the user ke
 	}
 });
 
+test('a reply without its report over its own background command keeps the turn working until the report', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		await seedWorkstream(page, source, 'e2e-background-wait-ws', 'Background wait workstream');
+		await openWorkstream(page, 'e2e-background-wait-ws');
+
+		await sendPrompt(page, 'BACKGROUND_WAIT');
+
+		const waiting = page.getByRole('status').filter({ hasText: 'Waiting on 1 background command' });
+		const card = page.getByRole('article', { name: 'Turn result' });
+		await expect(waiting).toBeVisible({ timeout: 20_000 });
+		await expect(
+			page.getByTestId('markdown-text').getByText('The e2e suite runs. I wait for it.'),
+		).toBeVisible();
+		await expect(card).toHaveCount(0);
+		await expect(sidebarStatus(page, 'e2e-background-wait-ws')).toHaveAccessibleName(
+			/^Workstream status: Running/u,
+		);
+		await expect(sidebarLoader(page, 'e2e-background-wait-ws')).toBeVisible();
+		await captureFlow(app, 'background-command-wait');
+
+		writeFileSync(join(app.home, 'end-background-command'), '');
+
+		await expect(card.getByTestId('turn-report-outcome')).toHaveText('The e2e suite passes', {
+			timeout: 20_000,
+		});
+		await expect(waiting).toHaveCount(0);
+		await expect(sidebarStatus(page, 'e2e-background-wait-ws')).toHaveAccessibleName(
+			/^Workstream status: Ready/u,
+		);
+		await expect(sidebarLoader(page, 'e2e-background-wait-ws')).toHaveCount(0);
+		await captureFlow(app, 'background-command-wait-reported');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a turn that ends while its background command keeps running shows its result and pushes its own commit', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

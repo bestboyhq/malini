@@ -31,10 +31,10 @@ export class ChatNamer {
 	readonly #suggest: SuggestWithAutomation;
 	readonly #renamed: ChatRenamed;
 	readonly #log: (line: string) => void;
-	readonly #fromMessage = new Map<string, string>();
+	readonly #fromMessage = new Map<string, Readonly<{ name: string; message: string }>>();
 	readonly #workstreamsFromMessage = new Map<
 		string,
-		Readonly<{ sessionId: string; name: string }>
+		Readonly<{ sessionId: string; name: string; message: string }>
 	>();
 	readonly #naming = new Map<string, Promise<void>>();
 
@@ -110,28 +110,30 @@ export class ChatNamer {
 		if (chat === null) return;
 		const workstream = getWorkstream(this.#db, workstreamId)?.name ?? '';
 		const refines = reply !== null && reply.trim() !== '';
-		const fromMessage = this.#workstreamsFromMessage.get(workstreamId);
-		const namesChat =
-			isPlaceholderChatName(chat) || (refines && this.#fromMessage.get(sessionId) === chat);
+		const chatFromMessage = this.#fromMessage.get(sessionId);
+		const workstreamFromMessage = this.#workstreamsFromMessage.get(workstreamId);
+		const fromMessage =
+			workstreamFromMessage?.sessionId === sessionId ? workstreamFromMessage : undefined;
+		const namesChat = isPlaceholderChatName(chat) || (refines && chatFromMessage?.name === chat);
 		const namesWorkstream =
-			isPlaceholderWorkstreamName(workstream) ||
-			(refines && fromMessage?.sessionId === sessionId && fromMessage.name === workstream);
+			isPlaceholderWorkstreamName(workstream) || (refines && fromMessage?.name === workstream);
 		if (reply !== null) {
 			this.#fromMessage.delete(sessionId);
-			if (fromMessage?.sessionId === sessionId) this.#workstreamsFromMessage.delete(workstreamId);
+			if (fromMessage) this.#workstreamsFromMessage.delete(workstreamId);
 		}
 		if (!namesChat && !namesWorkstream) return;
-		const name = await this.#suggestion(namerTask(message, reply));
+		const asked = refines ? (chatFromMessage ?? fromMessage)?.message : undefined;
+		const name = await this.#suggestion(namerTask(asked ?? message, reply));
 		if (name === null) return;
 		if (namesChat && namedChatName(this.#db, sessionId) === chat) {
 			const named = nameSession(this.#db, sessionId, workstreamId, name);
-			if (reply === null) this.#fromMessage.set(sessionId, named);
+			if (reply === null) this.#fromMessage.set(sessionId, { name: named, message });
 			if (named !== chat) this.#renamed.chat(workstreamId, sessionId, named);
 		}
 		if (!namesWorkstream) return;
 		const named = this.#renameWorkstream(workstreamId, workstream, name);
 		if (reply === null && named !== null) {
-			this.#workstreamsFromMessage.set(workstreamId, { sessionId, name: named });
+			this.#workstreamsFromMessage.set(workstreamId, { sessionId, name: named, message });
 		}
 	}
 

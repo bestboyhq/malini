@@ -53,7 +53,7 @@
 	);
 	const codeRuns = $derived(message === null ? undefined : shellRunsQuery.data(message));
 	const continuation = $derived(
-		item.kind === 'user' ? continuationNotice(item.text, item.seq) : null,
+		item.kind === 'user' ? continuationNotice(item.text, item.seq, transcript.providerName) : null,
 	);
 	const wake = $derived(item.kind === 'user' ? savedSecretsWake(item.text) : null);
 

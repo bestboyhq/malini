@@ -805,7 +805,7 @@ describe('scheduling', () => {
 		]);
 	});
 
-	it('finishes an automation whose turn ends with only a background command left running', async () => {
+	it('finishes an automation whose turn ends with only a background command left running, and not while its agent waits without a reply', async () => {
 		const queued = await runFixChecks('ws-a');
 		const automationSession = await session(queued.id);
 		const server = { taskId: 'b-dev', kind: 'command', description: 'Dev server', startedAt: 1 };
@@ -813,6 +813,14 @@ describe('scheduling', () => {
 		agentEvent(automationSession, 'agent-run-1', {
 			type: 'background.updated',
 			waiting: false,
+			tasks: [server],
+		});
+		await settle();
+		expect((await automationRun(queued.id)).status).toBe('running');
+
+		agentEvent(automationSession, 'agent-run-1', {
+			type: 'background.updated',
+			waiting: true,
 			tasks: [server],
 		});
 		await settle();

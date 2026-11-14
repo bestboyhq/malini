@@ -349,7 +349,11 @@ export function sessionHasWorkingRun(db: MaliniDatabase, sessionId: string): boo
 }
 
 export function turnEndedOverBackgroundCommands(event: Readonly<Record<string, unknown>>): boolean {
-	return event['type'] === 'background.updated' && waitsOnlyOnBackgroundCommands(event);
+	return (
+		event['type'] === 'background.updated' &&
+		typeof event['summary'] === 'string' &&
+		waitsOnlyOnBackgroundCommands(event)
+	);
 }
 
 function waitsOnlyOnBackgroundCommands(background: unknown): boolean {

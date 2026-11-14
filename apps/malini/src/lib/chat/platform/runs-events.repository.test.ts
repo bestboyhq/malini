@@ -541,13 +541,22 @@ describe('what keeps running in a workstream', () => {
 				type: 'background.updated',
 				waiting: true,
 				tasks: [server],
+				summary: 'Started the server.',
 			}),
 		).toBe(true);
 		expect(
 			turnEndedOverBackgroundCommands({
 				type: 'background.updated',
 				waiting: true,
+				tasks: [server],
+			}),
+		).toBe(false);
+		expect(
+			turnEndedOverBackgroundCommands({
+				type: 'background.updated',
+				waiting: true,
 				tasks: [server, helper],
+				summary: 'Started the server.',
 			}),
 		).toBe(false);
 		expect(

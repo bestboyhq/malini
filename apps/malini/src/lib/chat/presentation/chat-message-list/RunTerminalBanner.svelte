@@ -24,7 +24,9 @@
 	const errorDisplay = $derived(splitRunErrorText(run.terminalText));
 	const interrupted = $derived(interruptedRun(run));
 	const failureKind = $derived(run.failure?.kind ?? null);
-	const nextStep = $derived(failureKind === null ? null : failedRunNextStep(failureKind));
+	const nextStep = $derived(
+		failureKind === null ? null : failedRunNextStep(failureKind, transcript.providerName),
+	);
 	const continuing = $derived(runContinuationQuery.continuing);
 	const signingIn = $derived(claudeSignInQuery.data !== 'idle');
 	const canContinue = $derived(latest && !transcript.chatRunInFlight);
@@ -60,7 +62,9 @@
 		data-testid="chat-run-paused"
 	>
 		<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] px-3 py-3">
-			<p class="text-fg-default text-sm leading-6">{pauseReason(failureKind ?? 'unknown')}</p>
+			<p class="text-fg-default text-sm leading-6">
+				{pauseReason(failureKind ?? 'unknown', transcript.providerName)}
+			</p>
 			{#if errorDisplay.primary}
 				<p
 					class="text-2xs text-fg-tertiary mt-0.5 line-clamp-2 break-words select-text"

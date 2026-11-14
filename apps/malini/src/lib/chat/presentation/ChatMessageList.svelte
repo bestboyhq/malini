@@ -18,6 +18,11 @@
 	import { finalizeStreamingHook } from '$lib/chat/application/hooks/finalize-streaming.hook';
 	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
 	import { implementationModelLabelQuery } from '$lib/chat/application/queries/implementation-model-label.query.svelte';
+	import {
+		CLAUDE_PROVIDER,
+		providerGroupFor,
+		providerGroupsQuery,
+	} from '$shared/providers/providers.api';
 	import { liveToolInputQuery } from '$lib/chat/application/queries/live-tool-input.query.svelte';
 	import { liveToolInputsQuery } from '$lib/chat/application/queries/live-tool-inputs.query.svelte';
 	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
@@ -124,6 +129,12 @@
 
 	const requestOutcome = $derived(chatRequestQuery.data);
 	const implementationModelLabel = $derived(implementationModelLabelQuery.data);
+	const providerName = $derived(
+		providerGroupFor(
+			providerGroupsQuery.data,
+			composerControls?.selection.provider ?? CLAUDE_PROVIDER.id,
+		)?.name ?? CLAUDE_PROVIDER.name,
+	);
 
 	const sessionProjectors = $derived(sessionProjectorCache.acquire(sessionId));
 	const renderState = $derived<RenderState>(sessionProjectors.render.project(envelopes));
@@ -585,6 +596,9 @@
 		},
 		get implementationModelLabel() {
 			return implementationModelLabel;
+		},
+		get providerName() {
+			return providerName;
 		},
 		get latestImplementablePlanKey() {
 			return latestImplementablePlanKey;
