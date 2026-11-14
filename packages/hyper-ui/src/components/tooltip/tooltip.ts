@@ -114,7 +114,7 @@ function outerW(element: HTMLElement): number {
 }
 
 function outerH(element: HTMLElement): number {
-	return Math.ceil(element.getBoundingClientRect().height);
+	return element.getBoundingClientRect().height;
 }
 
 function keyOf(request: TooltipRequest): string | HTMLElement {

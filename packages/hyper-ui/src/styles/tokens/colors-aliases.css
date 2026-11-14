@@ -107,8 +107,6 @@
 	--color-surface-elevated-border: var(--themed-color-surface-elevated-border);
 	--color-surface-tooltip: var(--themed-color-surface-tooltip);
 	--color-surface-tooltip-border: var(--themed-color-surface-tooltip-border);
-	--color-surface-toast: var(--themed-color-surface-toast);
-	--color-surface-toast-border: var(--themed-color-surface-toast-border);
 	--color-surface-invert: var(--themed-color-surface-invert);
 	--color-status-idle: var(--themed-color-status-idle);
 	--color-surface-input: var(--themed-color-surface-input);
