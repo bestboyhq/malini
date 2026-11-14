@@ -439,6 +439,26 @@ describe('registerApp', () => {
 		expect(host.openedWindows).toBe(2);
 	});
 
+	it('focuses the window on a click of the menu bar icon and shows how many chats are unread beside it', async () => {
+		const main = createFakeWindow();
+		boot(context, { getMainWindow: () => asBrowserWindow(main.window) });
+
+		host.tray?.open();
+		expect(main.calls).toEqual(['show', 'focus']);
+		expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: null });
+
+		expect(await invoke('app.unread-chats', { count: 3 })).toEqual({ ok: true, value: null });
+		expect(host.tray?.count).toBe(3);
+		for (const count of [-1, 1.5, '2']) {
+			expect(await invoke('app.unread-chats', { count })).toMatchObject({ ok: false });
+		}
+		expect(host.tray?.count).toBe(3);
+
+		for (const created of host.windowCreated) created(asBrowserWindow(main.window));
+		main.emit('closed');
+		expect(host.tray?.count).toBe(0);
+	});
+
 	it('shows a File menu that starts workstreams and chats and adds repositories, outside a packaged build too', () => {
 		boot(context);
 		const file = host.applicationMenu.find((menu) => menu.label === 'File');

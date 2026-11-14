@@ -317,6 +317,14 @@
 		typeKey(event: KeyboardEvent): void;
 		paste(event: ClipboardEvent): void;
 	} | null = $state(null);
+	const DRAFT_KEYS: ReadonlySet<string> = new Set([
+		'Enter',
+		'Backspace',
+		'Delete',
+		'ArrowLeft',
+		'ArrowRight',
+	]);
+	let pointerTarget: Node | null = null;
 	const presentationKey = $derived(`${workstreamId}::${presentedSessionId ?? 'fresh'}`);
 	let focusedPresentationKey: string | null = null;
 	const sessionChangesLoaded = $derived(sessionChanges !== null);
@@ -353,10 +361,28 @@
 	}
 
 	function onWindowKeydown(event: KeyboardEvent): void {
-		if (event.defaultPrevented || event.metaKey || event.ctrlKey || !/^\S$/u.test(event.key)) {
-			return;
+		if (event.defaultPrevented || !composerMayClaimInput()) return;
+		if (typesCharacter(event) || (DRAFT_KEYS.has(event.key) && focusFollowsPointer())) {
+			composer?.typeKey(event);
 		}
-		if (composerMayClaimInput()) composer?.typeKey(event);
+	}
+
+	function typesCharacter(event: KeyboardEvent): boolean {
+		return !event.metaKey && !event.ctrlKey && /^\S$/u.test(event.key);
+	}
+
+	function focusFollowsPointer(): boolean {
+		const active = document.activeElement;
+		return active === null || active === document.body || active.contains(pointerTarget);
+	}
+
+	function onWindowPointerdown(event: PointerEvent): void {
+		pointerTarget = event.target instanceof Node ? event.target : null;
+	}
+
+	function onWindowFocusin(event: FocusEvent): void {
+		const focused = event.target;
+		if (!(focused instanceof Node) || !focused.contains(pointerTarget)) pointerTarget = null;
 	}
 
 	function onWindowPaste(event: ClipboardEvent): void {
@@ -372,7 +398,12 @@
 	}
 </script>
 
-<svelte:window onkeydown={onWindowKeydown} onpaste={onWindowPaste} />
+<svelte:window
+	onkeydown={onWindowKeydown}
+	onpaste={onWindowPaste}
+	onpointerdowncapture={onWindowPointerdown}
+	onfocusincapture={onWindowFocusin}
+/>
 
 <div
 	data-testid="chat-surface"
