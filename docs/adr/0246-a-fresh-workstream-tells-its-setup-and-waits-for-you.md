@@ -5,14 +5,15 @@ Status: accepted
 ## Context
 
 A new workstream opened on an empty center and the inspector's gutter (0228), and Simon found it "quite poor experience": "they see the gutter on the right and one huge empty space in the middle."
-He asked for the middle to show "that we did some step, then we did some another step, and now it's time for the user", with prompts to pick from, because "people are clearly getting lost in this new work stream situation."
+They asked for the middle to show "that we did some step, then we did some another step, and now it's time for the user", with prompts to pick from, because "people are clearly getting lost in this new work stream situation."
 Starters showed only while a workstream was the only one (0242), so the second workstream got nothing.
 Setup progress lived in memory, in the gutter's provisioning card, and a finished install cleared its record, so nothing was left to tell once setup ended.
-Of three prototypes he picked the timeline, asked for the starters as a list rather than a grid, and asked for one that runs the workstream and opens it in the browser.
-On the build he named the four starters, "And I think that's it", and asked about the top bar's **Build something great**: "I don't know why would you still have built something great in top right corner?"
-The first steps named the branch and the head commit, and he found them "too technical": "It should be maybe creating a fresh copy, then the second one should be checking dependencies or something like that, and then it should be your turn."
-**Your turn** as the last row looked like a row you could click, so he asked for it as "a label on top of the border of ... this whole container", without a border around each starter: "too many borders is not good".
-He then asked to "replace your turn agents are stretching with quick suggestions", in a "dimmed out text color", and to make "this big white dot like an empty circle".
+Of three prototypes they picked the timeline, asked for the starters as a list rather than a grid, and asked for one that runs the workstream and opens it in the browser.
+On the build they named the four starters, "And I think that's it", and asked about the top bar's **Build something great**: "I don't know why would you still have built something great in top right corner?"
+The first steps named the branch and the head commit, and they found them "too technical": "It should be maybe creating a fresh copy, then the second one should be checking dependencies or something like that, and then it should be your turn."
+**Your turn** as the last row looked like a row you could click, so they asked for it as "a label on top of the border of ... this whole container", without a border around each starter: "too many borders is not good".
+They then asked to "replace your turn agents are stretching with quick suggestions", in a "dimmed out text color", and to make "this big white dot like an empty circle".
+A failed setup showed **Needs you · Setup failed** with a retry in the top bar above the failure banner, and they asked to "get rid of this fucking cheap status topbar pls, dear god we should never have it".
 
 ## Decision
 
@@ -32,6 +33,9 @@ He then asked to "replace your turn agents are stretching with quick suggestions
   **Take one open issue** is gone: on a repository without open issues it sent the agent looking for nothing.
 - **No status with nothing to ship.** `pullRequestTopBar` returns no status for a workstream with no changed files, so the top bar shows nothing where it said **Build something great**, and the empty docked header hides itself.
   The setup steps already say whose turn it is.
+- **No setup status in the top bar.** Setup says where it stands in the steps, the sidebar row's **Setting up** or **Setup failed**, and `WorkstreamProvisioningFailure`'s banner with **Retry setup** and **Remove**, so `WorkstreamTopBarStatus` takes no override and the top bar shows only the pull request.
+  The banner also says **Sign in to GitHub in Settings, then retry** when git could not authenticate and the failure does not say so itself, from `provisioningSignInRemedy`.
+  A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
 - **The gutter waits.** `WorkstreamLayout.svelte` hides the inspector's column in a workstream made in this session, on its `malini/<id>` branch, with no chats, no changed files, no browser tab, no live automation and the drawer closed.
   Made in this session is `provisioningRecordQuery.madeHere`: `WorkstreamProvisioningAggregate.begin` marks the id, and settling keeps the mark.
   A workstream that already existed at launch keeps its gutter, so an empty one never flashes it away while its chats load, and Files and Browser stay one click away in it.
@@ -43,6 +47,7 @@ He then asked to "replace your turn agents are stretching with quick suggestions
 - A new workstream reads as what Malini did and ends on the user, and each row comes from state Malini already holds.
 - After a relaunch, setup and install records are gone, so an untouched workstream shows **Made a fresh copy** only, with its gutter.
 - In a workstream just made, Files and Browser have no gutter row until the first message; a change, a browser tab, an agent's reveal or an automation brings the gutter back.
+- `tests/e2e/workstream-setup.spec.ts` fails when any top-bar status shows while a new workstream sets up or after its setup fails, and `provisioning.test.ts` when the sign-in line goes or repeats what the failure says.
 - `src/lib/shared/repositories/domain/workstream-setup-steps.test.ts` fails when a step's wording or state drifts, `provisioning.test.ts` when an install outcome stops mapping to a step, and `workstream-provisioning.aggregate.svelte.test.ts` when a finished install loses its record or its command, or a settled workstream loses its made-here mark.
 - `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Quick suggestions** group, plan mode on **Plan a change with me**, or the hidden gutter go.
 - `pull-request-top-bar.test.ts` and `tests/e2e/pull-request-nothing-to-ship.spec.ts` fail when a workstream with nothing to ship shows a status again.

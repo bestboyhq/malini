@@ -3,6 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import {
+		provisioningSignInRemedy,
 		provisioningStepLabel,
 		type WorkstreamProvisioningRecord,
 	} from '$shared/repositories/domain/provisioning';
@@ -24,6 +25,7 @@
 			record.plan.repositoryFullName,
 		),
 	);
+	const signInRemedy = $derived(provisioningSignInRemedy(failure));
 </script>
 
 <div
@@ -47,6 +49,9 @@
 				{failure}
 			</span>
 		</Tooltip>
+		{#if signInRemedy}
+			<p class="text-2xs text-fg-default leading-4">{signInRemedy}</p>
+		{/if}
 	</div>
 	<Button
 		variant="secondary"

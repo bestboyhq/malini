@@ -35,7 +35,6 @@
 		remotePullRequestsSupported: boolean;
 		repositoryExtensionRegistered: boolean;
 		agentStatus: SessionStatus | null;
-		overrideStatus: GlobalTopBarGithubStatus | null;
 		ongitstatusstale: () => void;
 		onarchive: () => void;
 	}
@@ -50,7 +49,6 @@
 		remotePullRequestsSupported,
 		repositoryExtensionRegistered,
 		agentStatus,
-		overrideStatus,
 		ongitstatusstale,
 		onarchive,
 	}: Props = $props();
@@ -90,7 +88,6 @@
 	});
 
 	function publishedStatus(): GlobalTopBarGithubStatus {
-		if (overrideStatus) return overrideStatus;
 		return {
 			reference,
 			title: githubStatus?.title ?? null,

@@ -793,7 +793,7 @@
 		chat: ChatSummary,
 	): WorkstreamVisualState {
 		if (provisioning?.failure) {
-			return { label: 'Setup failed', icon: 'text-error-content', tone: 'failed' };
+			return { label: 'Setup failed', icon: 'text-error-content', tone: 'broken' };
 		}
 		if (provisioning) {
 			return { label: 'Creating', icon: 'text-fg-secondary', tone: 'provisioning' };

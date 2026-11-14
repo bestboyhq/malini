@@ -80,7 +80,7 @@
 </ol>
 {#if suggesting}
 	<fieldset
-		class="border-surface-100-border mt-3 min-w-0 rounded-xl border-[0.5px] px-1.5 pt-0.5 pb-1.5"
+		class="border-surface-100-border mt-3 min-w-0 rounded-xl border-[1px] border-dashed px-1.5 pt-0.5 pb-1.5"
 		data-testid="workstream-suggestions"
 	>
 		<legend class="text-fg-tertiary ml-2 flex items-center gap-2.5 px-1 text-sm">

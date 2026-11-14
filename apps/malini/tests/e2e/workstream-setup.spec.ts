@@ -43,39 +43,19 @@ async function newWorkstream(page: Page, repository: string): Promise<string> {
 	return opened;
 }
 
-async function watchHeadlineOverlaps(
-	page: Page,
-): Promise<() => Promise<{ texts: string[]; overlaps: string[] }>> {
+async function watchHeadlines(page: Page): Promise<() => Promise<string[]>> {
 	const watch = await page.locator('body').evaluateHandle((body) => {
 		const doc = body.ownerDocument;
 		const texts = new Set<string>();
-		const overlaps = new Set<string>();
 		const sample = () => {
 			const headline = doc.querySelector('[data-testid="global-topbar-github-headline"]');
-			if (headline) {
-				texts.add(headline.getAttribute('aria-label') ?? '');
-				for (const parent of [headline, ...headline.querySelectorAll('*')]) {
-					const children = [...parent.children].filter((child) =>
-						child.checkVisibility({ opacityProperty: true }),
-					);
-					children.forEach((child, index) => {
-						const a = child.getBoundingClientRect();
-						for (const other of children.slice(index + 1)) {
-							const b = other.getBoundingClientRect();
-							if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) {
-								overlaps.add(`${child.textContent} over ${other.textContent}`);
-							}
-						}
-					});
-				}
-			}
+			if (headline) texts.add(headline.getAttribute('aria-label') ?? '');
 			doc.defaultView?.requestAnimationFrame(sample);
 		};
 		sample();
-		return { texts, overlaps };
+		return texts;
 	});
-	return () =>
-		watch.evaluate(({ texts, overlaps }) => ({ texts: [...texts], overlaps: [...overlaps] }));
+	return () => watch.evaluate((texts) => [...texts]);
 }
 
 function composerReady(page: Page) {
@@ -178,27 +158,18 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		lockedDirectory = dirname(seeded.worktree);
 
 		chmodSync(lockedDirectory, 0o555);
-		const headlineOverlaps = await watchHeadlineOverlaps(page);
+		const headlines = await watchHeadlines(page);
 		const retried = await newWorkstream(page, 'alpha');
 		const failure = page.getByRole('alert').filter({ hasText: 'has no worktree yet' });
 		await expect(failure).toBeVisible({ timeout: 30_000 });
 		await expect(failure).toContainText(/permission denied/iu);
-		const headline = page
-			.getByRole('navigation', { name: 'Global actions' })
-			.getByRole('status', { name: 'Needs you · Setup failed' });
-		await expect(headline).toBeVisible({ timeout: 30_000 });
+		await expect(
+			workstreamRow(page, retried).getByRole('status', {
+				name: 'Workstream status: Setup failed',
+			}),
+		).toBeVisible();
 		await page.waitForTimeout(1_000);
-		const watched = await headlineOverlaps();
-		expect(watched.texts).toContain('Needs you · Setup failed');
-		expect(watched.texts.some((text) => text.startsWith('Setting up'))).toBe(true);
-		expect(watched.overlaps).toEqual([]);
-		const labelText = headline.getByText('Needs you', { exact: true });
-		const detailText = headline.getByText('Setup failed', { exact: true });
-		await expect(labelText).toBeVisible();
-		await expect(detailText).toBeVisible();
-		const label = await labelText.boundingBox();
-		const detail = await detailText.boundingBox();
-		expect(label && detail && label.y + label.height <= detail.y).toBe(true);
+		expect(await headlines()).toEqual([]);
 		await captureFlow(app, 'workstream-setup-failed');
 
 		chmodSync(lockedDirectory, 0o755);

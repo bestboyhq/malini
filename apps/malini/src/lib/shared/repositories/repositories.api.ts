@@ -278,4 +278,3 @@ export { default as WorkstreamProvisioningBanner } from './presentation/Workstre
 export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
 export { default as WorkstreamSetupSteps } from './presentation/WorkstreamSetupSteps.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
-export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';

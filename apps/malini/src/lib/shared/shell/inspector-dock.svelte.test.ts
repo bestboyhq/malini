@@ -17,7 +17,7 @@ describe('inspector dock', () => {
 	});
 
 	it('docks nothing while the inspector takes no width, and docks again once it shows', () => {
-		const dock = inspectorDock.claim(true);
+		const dock = inspectorDock.claim();
 		dock.measure(0);
 		expect(inspectorDock.width).toBeNull();
 
