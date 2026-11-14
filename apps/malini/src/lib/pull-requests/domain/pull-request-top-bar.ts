@@ -492,7 +492,7 @@ const OPEN_PULL_REQUEST: PullRequestTopBarAction = {
 
 const RETRY_NOW: PullRequestTopBarAction = {
 	kind: 'retry-now',
-	label: 'Retry now',
+	label: 'Retry',
 	ariaLabel: 'Retry now instead of waiting',
 	tone: 'primary',
 	confirmLabel: null,
@@ -500,7 +500,7 @@ const RETRY_NOW: PullRequestTopBarAction = {
 
 const OPEN_AUTOMATION: PullRequestTopBarAction = {
 	kind: 'open-automation',
-	label: 'Open automation',
+	label: 'See why',
 	ariaLabel: 'Open the transcript of the automation that stopped',
 	tone: 'primary',
 	confirmLabel: null,
@@ -533,7 +533,7 @@ const RETRY: PullRequestTopBarAction = {
 function abortOperation(operation: WorktreeOperation): PullRequestTopBarAction {
 	return {
 		kind: 'abort-operation',
-		label: `Abort ${operation}`,
+		label: 'Abort',
 		ariaLabel: `Abort the ${operation} in this workstream`,
 		tone: 'primary',
 		confirmLabel: 'Confirm abort',

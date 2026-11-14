@@ -198,7 +198,7 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		await expect(detailText).toBeVisible();
 		const label = await labelText.boundingBox();
 		const detail = await detailText.boundingBox();
-		expect(label && detail && label.x + label.width <= detail.x).toBe(true);
+		expect(label && detail && label.y + label.height <= detail.y).toBe(true);
 		await captureFlow(app, 'workstream-setup-failed');
 
 		chmodSync(lockedDirectory, 0o755);

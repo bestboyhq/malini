@@ -2,13 +2,11 @@ type DockClaim = Readonly<{ measure(width: number): void; release(): void }>;
 
 class InspectorDock {
 	width: number | null = $state(null);
-	compact = $state(false);
 	#owner: object | null = null;
 
-	claim(compact: boolean): DockClaim {
+	claim(): DockClaim {
 		const owner = {};
 		this.#owner = owner;
-		this.compact = compact;
 		return {
 			measure: (width) => {
 				if (this.#owner === owner) this.width = width > 0 ? width : null;
@@ -17,7 +15,6 @@ class InspectorDock {
 				if (this.#owner !== owner) return;
 				this.#owner = null;
 				this.width = null;
-				this.compact = false;
 			},
 		};
 	}
@@ -25,16 +22,14 @@ class InspectorDock {
 
 export const inspectorDock = new InspectorDock();
 
-export function dockInspector(compact: boolean) {
-	return (element: HTMLElement): (() => void) => {
-		const dock = inspectorDock.claim(compact);
-		const measure = (): void => dock.measure(element.getBoundingClientRect().width);
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		return () => {
-			observer.disconnect();
-			dock.release();
-		};
+export function dockInspector(element: HTMLElement): () => void {
+	const dock = inspectorDock.claim();
+	const measure = (): void => dock.measure(element.getBoundingClientRect().width);
+	measure();
+	const observer = new ResizeObserver(measure);
+	observer.observe(element);
+	return () => {
+		observer.disconnect();
+		dock.release();
 	};
 }
