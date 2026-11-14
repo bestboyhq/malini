@@ -1,3 +1,4 @@
+import { toast } from '$hyper-ui/components/toast';
 import type { HeardAbout } from '$lib/app/domain/heard-about';
 import { onboardingService } from '$lib/app/infrastructure/services/onboarding.service';
 import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store.svelte';
@@ -5,7 +6,7 @@ import { onboardingStore } from '$lib/app/infrastructure/stores/onboarding.store
 export function answerHeardAboutCommand(answer: HeardAbout | null): void {
 	onboardingStore.heardAbout = answer;
 	onboardingStore.heardAboutAsked = true;
-	onboardingStore.heardAboutSent = answer !== null;
+	if (answer !== null) toast.success('Noted. Thanks');
 	void (async () => {
 		try {
 			await onboardingService.answerHeardAbout(answer);
