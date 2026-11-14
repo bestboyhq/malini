@@ -44,8 +44,7 @@
 		<h3 id="usage-data-label" class="text-fg-default text-sm font-medium">Share usage stats</h3>
 		<p class="text-fg-tertiary text-xs">
 			Once a day, Malini sends a few counts, like how many workstreams you started and merged, with
-			your Bestboy account when signed in, or a random install ID when not. Never your code or
-			chats.
+			your Bestboy account or a random install ID. Never your code or chats.
 		</p>
 		{#if usage.doNotTrack}
 			<p class="text-fg-default mt-0.5 text-xs">

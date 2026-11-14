@@ -28,7 +28,7 @@ This record replaces 0194's statements on `month`, `usage-data.active-days`, `us
 - `month` is gone, with `usage-data.active-days`, `usage-data.reported-month` and the code that kept them.
   A migration in `src/main/db/migrations.ts` deletes both settings from existing databases.
 - `day`, `loop`, `app_active`, `run_finished`, the tool counts and the journey markers keep their names and properties.
-- Settings, Privacy describes **Share usage stats** as "Once a day, Malini sends a few counts, like how many workstreams you started and merged, with your Bestboy account when signed in, or a random install ID when not. Never your code or chats.", still two lines at the Settings width.
+- Settings, Privacy describes **Share usage stats** as "Once a day, Malini sends a few counts, like how many workstreams you started and merged, with your Bestboy account or a random install ID. Never your code or chats.", still two lines at the Settings width.
 
 ## Consequences
 
