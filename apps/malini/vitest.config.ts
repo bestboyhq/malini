@@ -56,6 +56,7 @@ export default defineConfig({
 					env: {
 						ELECTRON_OVERRIDE_DIST_PATH: '/unit-tests-never-launch-electron',
 						MALINI_CLAUDE_UPDATES: 'off',
+						MALINI_USAGE_DATA: 'off',
 						TMPDIR: TEMP,
 					},
 				},
