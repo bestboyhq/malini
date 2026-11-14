@@ -44,7 +44,7 @@ Malini opens on **What are we working on?**, with nothing to set up first.
 - **Something small to start.** Your first workstream opens on **Start with something small**: **Explain how this repository works**, **Fix the first failing test or lint**, and, for a GitHub repository, **Take one open issue**.
   Each one fills the composer with its prompt, for you to edit or send.
   The agent works on the workstream's own branch, so nothing reaches main until you merge.
-- **Sounds.** The first time an agent finishes, a note says what that sound means, and **Change sounds** opens Settings, Sounds.
+- **Sounds.** The first time an agent finishes, a note says what that sound means, **Play again** plays it again, and **Change** opens Settings, Sounds.
 - **Defaults.** A new install starts with **Resolve merge conflicts**, **Address review comments** and **Update from main** on **Touches my files**, and the [second brain](/malini/docs/brain.md) off.
   Settings, Automations has the [same switches](/malini/docs/automations.md#defaults).
 - **Where you heard about Malini.** Once you archive your first merged workstream, the Repositories page asks, once: Hacker News, YouTube, Twitter, GitHub, Reddit, ChatGPT, Claude, Google, a friend or somewhere else.

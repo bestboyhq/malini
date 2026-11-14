@@ -21,7 +21,7 @@ import {
 interface ToastOptions {
 	id?: string;
 	ttlMs?: number | null;
-	action?: { label: string; onclick: () => void };
+	actions?: readonly { label: string; onclick: () => void }[];
 }
 
 declare global {
@@ -112,7 +112,7 @@ async function show(
 			globalThis.toast.info(message, {
 				ttlMs,
 				...(id === undefined ? {} : { id }),
-				...(undo ? { action: { label: 'Undo', onclick: () => undefined } } : {}),
+				...(undo ? { actions: [{ label: 'Undo', onclick: () => undefined }] } : {}),
 			});
 		},
 		{ message, id, undo, ttlMs },
@@ -220,6 +220,23 @@ test.describe('a hyper-ui toast in the app window', () => {
 			}
 		});
 	}
+
+	test('a toast that waits for you closes with its Close button and leaves the others', async () => {
+		const app = await launchMalini({ env: { ELECTRON_RENDERER_URL: url } });
+		try {
+			const { page } = app;
+			await expect.poll(() => page.evaluate(() => typeof globalThis.toast)).toBe('object');
+			await show(page, OLDER_ARCHIVED, { undo: true });
+			await show(page, NEWER_ARCHIVED);
+			const older = page.getByTestId('toast').filter({ hasText: OLDER_ARCHIVED });
+			await older.getByRole('button', { name: 'Close' }).click();
+			await expect(older).toHaveCount(0);
+			await expect(page.getByTestId('toast').filter({ hasText: NEWER_ARCHIVED })).toBeVisible();
+			expectCleanConsole(app);
+		} finally {
+			await app.close();
+		}
+	});
 
 	test('a stack whose hovered toast is dismissed under a still pointer lets the rest time out once the pointer leaves', async () => {
 		const app = await launchMalini({ env: { ELECTRON_RENDERER_URL: url } });

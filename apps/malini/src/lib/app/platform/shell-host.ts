@@ -58,7 +58,8 @@ export interface ShellHost {
 	notificationsSupported(): boolean;
 	showNotification(options: { title: string; body: string; onClick?: () => void }): void;
 	openMainWindow(): void;
-	showTray(icon: string, items: readonly TrayItem[], open?: () => void): void;
+	showTray(icon: string, items: readonly TrayItem[], open: () => void): void;
+	showTrayCount(count: number): void;
 	showApplicationMenu(template: readonly MenuItemConstructorOptions[]): void;
 	onWindowCreated(listener: (window: BrowserWindow) => void): void;
 	onBeforeQuit(listener: () => void): void;
@@ -99,10 +100,21 @@ export function createElectronShellHost(): ShellHost {
 		},
 		showTray: (icon, items, open) => {
 			if (BACKGROUND_WINDOW) return;
-			tray = new Tray(icon);
-			tray.setToolTip(app.getName());
-			tray.setContextMenu(Menu.buildFromTemplate([...items]));
-			if (open) tray.on('click', () => open());
+			const shown = new Tray(icon);
+			const menu = Menu.buildFromTemplate([...items]);
+			shown.setToolTip(app.getName());
+			if (process.platform === 'darwin') {
+				const popUpMenu = (): void => shown.popUpContextMenu(menu);
+				shown.on('click', (event) => (event.ctrlKey ? popUpMenu() : open()));
+				shown.on('right-click', popUpMenu);
+			} else {
+				shown.setContextMenu(menu);
+				shown.on('click', () => open());
+			}
+			tray = shown;
+		},
+		showTrayCount: (count) => {
+			tray?.setTitle(count > 0 ? String(count) : '', { fontType: 'monospacedDigit' });
 		},
 		showApplicationMenu: (template) => {
 			app.setAboutPanelOptions(aboutPanel(app.getName(), app.getVersion()));

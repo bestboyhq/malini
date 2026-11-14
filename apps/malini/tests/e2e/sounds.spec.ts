@@ -45,7 +45,7 @@ async function pickFileWith(app: LaunchedApp, path: string): Promise<void> {
 	}, path);
 }
 
-test('the first agent that finishes says what its sound means once, and Change sounds opens Settings → Sounds', async () => {
+test('the first agent that finishes says what its sound means once, Play again plays it again, and Change opens Settings → Sounds', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ soundsNote: true });
 	try {
@@ -56,12 +56,24 @@ test('the first agent that finishes says what its sound means once, and Change s
 		await sendPrompt(page, 'Say hello');
 		const note = page
 			.getByRole('status')
-			.filter({ hasText: 'That sound means an agent finished. Another plays when one needs you.' });
+			.filter({ hasText: 'Wait, you also heard it? Sounded like an agent finishing its work…' });
 		await expect(note).toBeVisible({ timeout: 30_000 });
 		await expect.poll(async () => (await storedSettings(page))['sounds.noted']).toBeDefined();
 		await captureFlow(app, 'sounds-first-finish-note');
 
-		await note.getByRole('button', { name: 'Change sounds' }).click();
+		await page.evaluate(`(() => {
+			const play = HTMLMediaElement.prototype.play;
+			HTMLMediaElement.prototype.play = function () {
+				document.documentElement.dataset.soundPlayed = this.src;
+				return play.call(this);
+			};
+		})()`);
+		await note.getByRole('button', { name: 'Play again' }).click();
+		await expect(page.locator('html')).toHaveAttribute('data-sound-played', /\/sounds\//u);
+		await expect(note).toBeVisible();
+
+		await note.getByRole('button', { name: 'Change', exact: true }).click();
+		await expect(note).toHaveCount(0);
 		await expect(
 			page
 				.getByRole('navigation', { name: 'Settings' })

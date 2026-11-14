@@ -9,13 +9,14 @@ export type ToastId = string | number;
 export interface ToastAction {
 	label: string;
 	onclick: () => void;
+	keepOpen?: boolean;
 }
 
 export type ToastContext = Readonly<Record<string, string>>;
 
 export interface ToastOptions {
 	ttlMs?: number | null;
-	action?: ToastAction;
+	actions?: readonly ToastAction[];
 	id?: ToastId;
 	context?: ToastContext;
 }
@@ -39,7 +40,7 @@ class ToastStore {
 	}
 
 	show(level: ToastLevel, message: string, options?: ToastOptions): ToastId {
-		const { action, ttlMs, id, context } = options ?? {};
+		const { actions = [], ttlMs, id, context } = options ?? {};
 
 		let assignedId: ToastId | undefined = id;
 		const dismiss = (): void => {
@@ -49,7 +50,7 @@ class ToastStore {
 		assignedId = sonner.custom(Toast, {
 			...(id === undefined ? {} : { id }),
 			duration: toastDuration(message, ttlMs, id !== undefined),
-			componentProps: { level, message, action, onDismiss: dismiss },
+			componentProps: { level, message, actions, onDismiss: dismiss },
 		});
 
 		this.#announce({ level, message, context: context ?? {} });
