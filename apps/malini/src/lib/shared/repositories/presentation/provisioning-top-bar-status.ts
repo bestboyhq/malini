@@ -59,7 +59,6 @@ function failedSetupStatus(
 				? 'Retry this workstream’s setup after signing in to GitHub'
 				: 'Retry this workstream’s setup',
 			tone: 'primary',
-			icon: 'refresh',
 			disabled: retrying,
 			onInvoke: onRetry,
 		},

@@ -80,7 +80,6 @@
 		actions.filter((action) => globalTopBarActionMatchesPathname(action, targetPathname)),
 	);
 	const dockWidth = $derived(inspectorDock.width);
-	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubOwner = $derived(globalTopBarGithubStatus.owner);
 	const githubPanelHeadline = $derived(
@@ -99,7 +98,6 @@
 		label: 'Status',
 		ariaLabel: 'Open GitHub Status',
 		tone: 'secondary',
-		icon: 'external-link',
 		disabled: false,
 		onInvoke: () => openExternalUrlCommand(GITHUB_STATUS_URL),
 	};
@@ -268,14 +266,11 @@
 
 {#snippet statusAction(action: GlobalTopBarStatusAction, armId: string, testId: string)}
 	{@const armed = armedDetailId === armId}
-	{@const iconOnly = dockCompact && !armed}
-	{@const tooltip = iconOnly ? action.label : action.tooltip}
-	<Tooltip content={tooltip ?? ''} placement="bottom" suppressed={!tooltip}>
+	<Tooltip content={action.tooltip ?? ''} placement="bottom" suppressed={!action.tooltip}>
 		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 		<button
 			type="button"
 			class="topbar-action topbar-git__action"
-			class:topbar-action--icon={iconOnly}
 			data-tone={action.tone}
 			data-armed={armed || undefined}
 			disabled={action.disabled || routeTransitionPending}
@@ -283,11 +278,7 @@
 			data-testid={testId}
 			onclick={() => onStatusActionClicked(action, armId)}
 		>
-			{#if iconOnly}
-				<Icon name={action.icon} size={13} />
-			{:else}
-				<span>{armed && action.confirmLabel ? action.confirmLabel : action.label}</span>
-			{/if}
+			<span>{armed && action.confirmLabel ? action.confirmLabel : action.label}</span>
 		</button>
 	</Tooltip>
 {/snippet}
@@ -1147,12 +1138,6 @@
 		border-color: transparent;
 		background: var(--color-error);
 		color: var(--color-error-content);
-	}
-
-	.topbar-git .topbar-action.topbar-action--icon {
-		width: var(--topbar-control-height);
-		justify-content: center;
-		padding: 0;
 	}
 
 	.topbar-git [data-stale] {

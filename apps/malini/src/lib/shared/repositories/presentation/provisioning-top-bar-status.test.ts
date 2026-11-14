@@ -71,7 +71,6 @@ describe('the provisioning top bar status', () => {
 			action: {
 				label: 'Retry',
 				ariaLabel: 'Retry this workstream’s setup',
-				icon: 'refresh',
 				disabled: false,
 			},
 		});
