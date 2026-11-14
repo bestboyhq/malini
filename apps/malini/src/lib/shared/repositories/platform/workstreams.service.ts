@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import {
+	REPOSITORIES_CHANGED_CHANNEL,
 	REPOSITORIES_CLONE_PROGRESS_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
@@ -23,6 +24,7 @@ import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
 import { releaseRestoredWork, restoreArchivedWork } from '$main/git/archived-work';
 import type { GitCredentialEnv } from '$main/git/credentials';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
+import { readOriginHead, type OriginHead } from '$main/git/remote';
 import {
 	deriveProjectId,
 	localProjectId,
@@ -53,6 +55,7 @@ import { cleanupCreatedBaseClone, ensureBaseCloneWithOutcome } from './clone.ser
 import {
 	deleteConnectedRepository,
 	listConnectedRepositories,
+	upsertConnectedRepository,
 } from './connected-repositories.repository';
 import {
 	deleteProjectWithoutWorkstreams,
@@ -62,6 +65,7 @@ import {
 } from './projects.repository';
 import { recordedBaseRepository } from './checkout-resolver';
 import { restoreKeptFolders } from './kept-folders';
+import { managedProjectIdForRepository, readDefaultBranch } from './repository.service';
 import {
 	archivedLeftoversCleared,
 	slimKeptContext,
@@ -95,7 +99,6 @@ export interface WorkstreamsDeps {
 export interface CreateRepositoryInput {
 	readonly repoUrl: string;
 	readonly githubToken: string | null;
-	readonly defaultBranch: string | null;
 	readonly seedFolder?: string | null;
 	readonly sizeBytes?: number | null;
 }
@@ -129,8 +132,7 @@ export async function createRepository(
 		checkoutsRoot,
 		githubToken: input.githubToken,
 		credentials,
-		seed:
-			seedFolder === null ? null : { folder: seedFolder, branch: input.defaultBranch ?? 'main' },
+		seedFolder,
 		blobless,
 		requiredFreeBytes: MINIMUM_FREE_BYTES + (blobless ? 0 : sizeBytes),
 		onProgress: (progress) => {
@@ -147,11 +149,13 @@ export async function createRepository(
 		},
 	});
 	try {
+		const id = localProjectId(repoId);
 		upsertProject(db, {
-			id: localProjectId(repoId),
+			id,
 			name: repoId,
 			repoPath: outcome.path,
-			defaultBranch: input.defaultBranch ?? 'main',
+			defaultBranch:
+				getProject(db, id)?.defaultBranch || (await readDefaultBranch(outcome.path, '')),
 			createdAt: nowIso8601(),
 		});
 	} catch (error) {
@@ -159,6 +163,48 @@ export async function createRepository(
 		throw new Error(describeError(error));
 	}
 	return outcome.path;
+}
+
+const EMPTY_REPOSITORY = 'Empty repository. Push a first commit, then retry';
+const NO_DEFAULT_BRANCH = 'Origin names no default branch. Set one, then retry';
+
+export async function readBaseBranch(
+	deps: Pick<WorkstreamsDeps, 'db' | 'events' | 'credentials'>,
+	input: Readonly<{ projectRepoPath: string; projectId: string }>,
+): Promise<string> {
+	const { db, credentials } = deps;
+	const known = getProject(db, input.projectId)?.defaultBranch ?? '';
+	let head: OriginHead;
+	try {
+		head = await readOriginHead(input.projectRepoPath, null, credentials);
+	} catch (error) {
+		if (known) return known;
+		throw error;
+	}
+	if (head.branch === null && head.empty) throw new Error(EMPTY_REPOSITORY);
+	const branch = head.branch ?? known;
+	if (!branch) throw new Error(NO_DEFAULT_BRANCH);
+	recordDefaultBranch(deps, input.projectId, branch);
+	return branch;
+}
+
+function recordDefaultBranch(
+	{ db, events }: Pick<WorkstreamsDeps, 'db' | 'events'>,
+	projectId: string,
+	defaultBranch: string,
+): void {
+	const project = getProject(db, projectId);
+	const staleProjects = project && project.defaultBranch !== defaultBranch ? [project] : [];
+	const staleRepositories = listConnectedRepositories(db).filter(
+		(repository) =>
+			managedProjectIdForRepository(repository) === projectId &&
+			repository.defaultBranch !== defaultBranch,
+	);
+	for (const stale of staleProjects) upsertProject(db, { ...stale, defaultBranch });
+	for (const stale of staleRepositories) upsertConnectedRepository(db, { ...stale, defaultBranch });
+	if (staleProjects.length + staleRepositories.length > 0) {
+		events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
+	}
 }
 
 export async function createWorkstream(
@@ -191,7 +237,7 @@ export async function createWorkstream(
 		id: projectId,
 		name: projectId,
 		repoPath: projectRepoPath,
-		defaultBranch: baseBranch,
+		defaultBranch: getProject(db, projectId)?.defaultBranch || baseBranch,
 		createdAt: now,
 	};
 	const workstream: Workstream = {

@@ -425,7 +425,7 @@ describe('repositories.connect', () => {
 			'repositories.connect',
 			{ source: { kind: 'local-folder', path: repoPath } },
 		);
-		expect(cloned).toMatchObject({ fullName: 'bestboyhq/malini', defaultBranch: 'main' });
+		expect(cloned).toMatchObject({ fullName: 'bestboyhq/malini', defaultBranch: '' });
 		expect(folder.fullName).toBe('rabbits/hutch');
 		expect(calls.some((call) => call.args[0] === 'repo')).toBe(false);
 	});

@@ -178,7 +178,7 @@ describe('ensureBaseClone', () => {
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
-			seed: { folder, branch: 'main' },
+			seedFolder: folder,
 		});
 
 		expect((await realGit(path, ['remote', 'get-url', 'origin'])).trim()).toBe(remote);
@@ -215,7 +215,7 @@ describe('ensureBaseClone', () => {
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
-			seed: { folder, branch: 'main' },
+			seedFolder: folder,
 		};
 		let quit: () => void = () => undefined;
 		const quitting = new Promise<void>((resolve) => {
@@ -259,7 +259,7 @@ describe('ensureBaseClone', () => {
 				githubToken: null,
 				credentials: noPromptCredentialEnv,
 				onProgress: () => undefined,
-				seed: { folder, branch: 'main' },
+				seedFolder: folder,
 			}),
 		).rejects.toMatchObject({ kind: 'git' });
 		expect(clones).toHaveLength(1);
@@ -279,7 +279,7 @@ describe('ensureBaseClone', () => {
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
-			seed: { folder, branch: 'main' },
+			seedFolder: folder,
 		});
 
 		expect((await realGit(path, ['rev-parse', '--is-shallow-repository'])).trim()).toBe('false');

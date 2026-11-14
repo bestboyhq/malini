@@ -110,6 +110,7 @@ import {
 	createRepository,
 	createWorkstream,
 	listArchived,
+	readBaseBranch,
 	removeRepository,
 	restoreWorkstream,
 	retireWorkstream,
@@ -255,20 +256,24 @@ export function registerRepositories(
 	const repositoriesChanged = (): void => events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
 
 	commands.define('repositories.create-repository', async (args: unknown) => {
-		const defaultBranch = optionalString(args, 'defaultBranch');
-		if (defaultBranch !== null) validateBaseBranch(defaultBranch);
 		const repoUrl = requireString(args, 'repoUrl');
 		const seedFolder = cloneSeedFolder(db, repoUrl);
 		const repoPath = await createRepository(workstreams, {
 			repoUrl,
 			githubToken: optionalString(args, 'githubToken'),
-			defaultBranch,
 			seedFolder,
 			sizeBytes: seedFolder === null ? await githubRepositorySize(gh, repoUrl) : null,
 		});
 		repositoriesChanged();
 		return repoPath;
 	});
+
+	commands.define('repositories.read-base-branch', (args: unknown) =>
+		readBaseBranch(workstreams, {
+			projectRepoPath: requireString(args, 'projectRepoPath'),
+			projectId: requireString(args, 'projectId'),
+		}),
+	);
 
 	commands.define('repositories.create-workstream', async (args: unknown) => {
 		const projectRepoPath = requireString(args, 'projectRepoPath');

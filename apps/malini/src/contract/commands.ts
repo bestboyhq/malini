@@ -302,8 +302,9 @@ export type CreateGithubRepositoryArgs = Readonly<{
 export type CreateProjectArgs = Readonly<{
 	repoUrl: string;
 	githubToken?: string | null;
-	defaultBranch?: string;
 }>;
+
+export type ReadBaseBranchArgs = Readonly<{ projectRepoPath: string; projectId: string }>;
 
 export type CreateWorkstreamArgs = Readonly<{
 	projectRepoPath: string;
@@ -536,6 +537,7 @@ export interface ContractCommands {
 	'repositories.commit-workstream': { args: CommitWorkstreamArgs; result: string };
 	'repositories.create-repository': { args: CreateProjectArgs; result: string };
 	'repositories.create-workstream': { args: CreateWorkstreamArgs; result: string };
+	'repositories.read-base-branch': { args: ReadBaseBranchArgs; result: string };
 	'chat.decide-approval': {
 		args: DecideAgentApprovalArgs;
 		result: AgentApprovalDecisionResult;
@@ -918,6 +920,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.commit-workstream',
 	'repositories.create-repository',
 	'repositories.create-workstream',
+	'repositories.read-base-branch',
 	'chat.decide-approval',
 	'chat.list-permission-grants',
 	'chat.revoke-permission-grant',

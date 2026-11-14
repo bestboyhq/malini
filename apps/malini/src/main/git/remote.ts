@@ -612,6 +612,38 @@ export async function recordedRemoteBase(
 	return remoteRef;
 }
 
+export type OriginHead = Readonly<{ branch: string } | { branch: null; empty: boolean }>;
+
+export async function readOriginHead(
+	basePath: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<OriginHead> {
+	const token = normalizeGithubToken(githubToken);
+	const env = await credentials.prepare(token);
+	const listOrigin = async (pattern: string): Promise<string> => {
+		try {
+			return await runGit(
+				[
+					'-C',
+					basePath,
+					...GH_CREDENTIAL_HELPER_CONFIG,
+					'ls-remote',
+					'--symref',
+					'origin',
+					pattern,
+				],
+				env,
+			);
+		} catch (error) {
+			throw error instanceof GitError ? attributeCredentials(error, token) : error;
+		}
+	};
+	const branch = /^ref: refs\/heads\/(\S+)\tHEAD$/mu.exec(await listOrigin('HEAD'))?.[1];
+	if (branch) return { branch };
+	return { branch: null, empty: (await listOrigin('refs/heads/*')).trim().length === 0 };
+}
+
 export type CheckoutFastForward = 'current' | 'advanced' | 'diverged';
 
 export async function fastForwardCheckout(

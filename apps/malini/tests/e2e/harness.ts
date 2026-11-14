@@ -541,10 +541,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
 
-export async function createSourceRepo(root: string, name = 'source'): Promise<string> {
+export async function createSourceRepo(
+	root: string,
+	name = 'source',
+	branch = 'main',
+): Promise<string> {
 	const repo = join(root, name);
 	mkdirSync(repo, { recursive: true });
-	await git(repo, ['init', '-b', 'main']);
+	await git(repo, ['init', '-b', branch]);
 	await git(repo, ['config', 'user.email', 'e2e@example.com']);
 	await git(repo, ['config', 'user.name', 'e2e']);
 	writeFileSync(join(repo, 'seed.txt'), 'seed\n');

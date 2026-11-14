@@ -43,14 +43,13 @@ export class WorkstreamProvisioningAggregate {
 		this.#write(workstreamId, { ...existing, clonePercent });
 	}
 
-	resolveProjectRepoPath(workstreamId: string, projectRepoPath: string): void {
+	resolvePlan(
+		workstreamId: string,
+		resolved: Partial<Pick<WorkstreamProvisioningPlan, 'projectRepoPath' | 'baseBranch'>>,
+	): void {
 		const existing = this.records[workstreamId];
 		if (!existing) return;
-		if (existing.plan.projectRepoPath === projectRepoPath) return;
-		this.#write(workstreamId, {
-			...existing,
-			plan: { ...existing.plan, projectRepoPath },
-		});
+		this.#write(workstreamId, { ...existing, plan: { ...existing.plan, ...resolved } });
 	}
 
 	fail(workstreamId: string, failure: string): void {

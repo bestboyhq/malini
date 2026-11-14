@@ -10,6 +10,7 @@ import {
 import { deriveProjectId, repositoryBaseDir } from '$main/git/paths';
 import { describeError, GitError } from '$main/errors';
 import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
+import { readOriginHead } from '$main/git/remote';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from '$main/git/run';
 import { branchList, withProjectLock } from '$main/git/worktrees';
 
@@ -45,18 +46,13 @@ export function classifyCloneError(error: GitError): GitError {
 	return error;
 }
 
-export interface CloneSeed {
-	readonly folder: string;
-	readonly branch: string;
-}
-
 export interface EnsureBaseCloneInput {
 	repoPath: string;
 	checkoutsRoot: string;
 	githubToken: string | null | undefined;
 	credentials: GitCredentialEnv;
 	onProgress: (progress: Progress) => void;
-	seed?: CloneSeed | null;
+	seedFolder?: string | null;
 	blobless?: boolean;
 	requiredFreeBytes?: number;
 }
@@ -103,7 +99,7 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 		const staging = `${baseDir}.cloning`;
 		try {
 			await originalFs.rm(staging, { recursive: true, force: true });
-			const seed = input.seed ? await usableSeed(input.seed.folder) : null;
+			const seed = input.seedFolder ? await usableSeed(input.seedFolder) : null;
 			if (seed === null || !(await clonedFromSeed(seed, input, staging, env))) {
 				await runGit(
 					[
@@ -167,7 +163,6 @@ async function clonedFromSeed(
 	baseDir: string,
 	env: GitEnv,
 ): Promise<boolean> {
-	const branch = input.seed?.branch ?? '';
 	try {
 		await runGit([
 			'-c',
@@ -199,6 +194,8 @@ async function clonedFromSeed(
 		env,
 	);
 	try {
+		const { branch } = await readOriginHead(baseDir, input.githubToken, input.credentials);
+		if (branch === null) throw new Error('origin names no default branch');
 		await runGit([
 			'-C',
 			baseDir,
@@ -213,6 +210,7 @@ async function clonedFromSeed(
 		for (const local of await branchList(baseDir)) {
 			if (local !== branch) await runGit(['-C', baseDir, 'branch', '-D', local]);
 		}
+		await runGit(['-C', baseDir, 'remote', 'set-head', 'origin', branch]);
 	} catch (error) {
 		return abandonSeed(seed, input.repoPath, baseDir, error);
 	}

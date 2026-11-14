@@ -92,12 +92,14 @@ describe('WorkstreamProvisioningAggregate', () => {
 		expect(aggregate.isFailed('01JWORKSTREAMA')).toBe(false);
 	});
 
-	it('remembers a resolved base clone so a retry skips the clone phase', () => {
+	it('remembers a resolved base clone and the base branch origin named, so a retry skips the clone phase', () => {
 		aggregate.begin(plan());
-		aggregate.resolveProjectRepoPath('01JWORKSTREAMA', '/tmp/base/hutch');
+		aggregate.resolvePlan('01JWORKSTREAMA', { projectRepoPath: '/tmp/base/hutch' });
+		aggregate.resolvePlan('01JWORKSTREAMA', { baseBranch: 'trunk' });
 
 		expect(aggregate.get('01JWORKSTREAMA')?.plan).toMatchObject({
 			projectRepoPath: '/tmp/base/hutch',
+			baseBranch: 'trunk',
 		});
 	});
 

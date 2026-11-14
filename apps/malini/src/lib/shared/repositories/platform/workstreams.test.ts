@@ -163,10 +163,7 @@ async function cloneAcmeApi(dir: string, invoke: Invoke): Promise<string> {
 	const source = join(dir, 'acme', 'api');
 	await initRealRepo(source);
 	await realGit(source, ['branch', '-M', 'main']);
-	return invoke<string>('repositories.create-repository', {
-		repoUrl: `file://${source}`,
-		defaultBranch: 'main',
-	});
+	return invoke<string>('repositories.create-repository', { repoUrl: `file://${source}` });
 }
 
 function startWorkstream(
@@ -724,6 +721,26 @@ describe('the workstream commands', () => {
 		});
 		expect(progress[0]).toEqual({ repo_id: 'acme-source', stage: 'fetch', fraction: 0.05 });
 		expect(progress.at(-1)).toEqual({ repo_id: 'acme-source', stage: 'done', fraction: 1 });
+	});
+
+	it('reads the base branch origin names at each new workstream, and keeps the last one offline', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const source = join(dir, 'acme-source');
+		await initRealRepo(source);
+		await realGit(source, ['branch', '-M', 'trunk']);
+		const { invoke, db } = harness(join(dir, 'app-data'));
+		const projectRepoPath = await invoke<string>('repositories.create-repository', {
+			repoUrl: source,
+		});
+		const read = { projectRepoPath, projectId: 'local__acme-source' };
+
+		expect(await invoke('repositories.read-base-branch', read)).toBe('trunk');
+		await realGit(source, ['branch', '-m', 'trunk', 'stable']);
+		expect(await invoke('repositories.read-base-branch', read)).toBe('stable');
+		expect(getProject(db, read.projectId)?.defaultBranch).toBe('stable');
+		await rm(source, { recursive: true, force: true });
+		expect(await invoke('repositories.read-base-branch', read)).toBe('stable');
 	});
 
 	it('lets a start share a clone in progress after that clone took the free space', async () => {

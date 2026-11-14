@@ -82,6 +82,7 @@ function createFakes() {
 		cancelRun: vi.fn((_args: unknown): undefined => undefined),
 		openDraft: vi.fn((_args: unknown): Promise<ShipStateRecord> => Promise.resolve(shipState())),
 		queueMerge: vi.fn((_args: unknown): Promise<ShipStateRecord> => Promise.resolve(shipState())),
+		readBaseBranch: vi.fn((_args: unknown): string => 'trunk'),
 		createWorkstream: vi.fn((_args: unknown): string => '/tmp/new-workstream'),
 		syncBase: vi.fn((_args: unknown) => 'current' as const),
 		provision: vi.fn((_args: unknown) => ({ status: 'succeeded' as const })),
@@ -118,6 +119,7 @@ function harness(database: MaliniDatabase): MainContext {
 	commands.define('chat.answer-question', () => undefined);
 	commands.define('pull-requests.open-draft', fakes.openDraft);
 	commands.define('pull-requests.queue-merge', fakes.queueMerge);
+	commands.define('repositories.read-base-branch', fakes.readBaseBranch);
 	commands.define('repositories.create-workstream', fakes.createWorkstream);
 	commands.define('repositories.sync-workstream-base', fakes.syncBase);
 	commands.define('repositories.provision-dependencies', fakes.provision);
@@ -982,7 +984,7 @@ describe('scheduling', () => {
 		});
 	});
 
-	it('creates a fresh workstream for an automation that runs in a new one', async () => {
+	it('creates a fresh workstream for an automation that runs in a new one, on the branch origin names', async () => {
 		upsertProject(db, {
 			id: 'local__acme__app',
 			name: 'acme__app',
@@ -993,7 +995,7 @@ describe('scheduling', () => {
 		upsertConnectedRepository(db, {
 			id: 'repo-1',
 			fullName: 'acme/app',
-			defaultBranch: 'trunk',
+			defaultBranch: 'main',
 			localPath: null,
 			remoteUrl: 'https://github.com/acme/app.git',
 			createdAt: NOW,
@@ -1005,6 +1007,10 @@ describe('scheduling', () => {
 		});
 
 		await session(queued.id);
+		expect(fakes.readBaseBranch).toHaveBeenCalledWith({
+			projectRepoPath: '/tmp/acme-app',
+			projectId: 'local__acme__app',
+		});
 		const created = fakes.createWorkstream.mock.calls[0]?.[0];
 		expect(created).toMatchObject({
 			projectRepoPath: '/tmp/acme-app',

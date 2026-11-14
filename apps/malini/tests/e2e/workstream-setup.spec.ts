@@ -1,12 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
 	git,
+	invoke,
 	launchMalini,
 	seedWorkstream,
 	type LaunchedApp,
@@ -88,6 +90,34 @@ function setupStep(page: Page, label: string) {
 		.getByRole('list', { name: 'Workstream setup' })
 		.getByRole('listitem')
 		.filter({ hasText: label });
+}
+
+async function connectCloneUrl(page: Page, source: string): Promise<void> {
+	await invoke(page, 'repositories.connect', {
+		source: { kind: 'clone-url', url: pathToFileURL(source).href },
+	});
+	await page.reload();
+}
+
+async function baseBranches(page: Page): Promise<Record<string, string>> {
+	const listed = await invoke<{ id: string; baseBranch: string }[]>(
+		page,
+		'repositories.list-workstreams',
+	);
+	return Object.fromEntries(listed.map(({ id, baseBranch }) => [id, baseBranch]));
+}
+
+async function storedDefaultBranch(page: Page, fullName: string): Promise<string | undefined> {
+	const clones = await invoke<{ fullName: string; defaultBranch: string }[]>(
+		page,
+		'repositories.list-clones',
+	);
+	return clones.find((clone) => clone.fullName === fullName)?.defaultBranch;
+}
+
+async function expectFreshCopy(page: Page): Promise<void> {
+	await expect(setupStep(page, 'Made a fresh copy')).toBeVisible({ timeout: 30_000 });
+	await expect(composerReady(page)).toBeVisible({ timeout: 30_000 });
 }
 
 function composerReady(page: Page) {
@@ -240,6 +270,72 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 		expectCleanConsole(app);
 	} finally {
 		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
+		await app.close();
+	}
+});
+
+test('a repository with only a master branch starts a workstream on master', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root, 'e2e/legacy', 'master');
+		await connectCloneUrl(page, source);
+		const opened = await newWorkstream(page, 'e2e/legacy');
+		await expectFreshCopy(page);
+		expect((await baseBranches(page))[opened]).toBe('master');
+		expect(await storedDefaultBranch(page, 'e2e/legacy')).toBe('master');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a default branch renamed on origin after connecting starts the next workstream on the new name', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root, 'e2e/moved');
+		await connectCloneUrl(page, source);
+		const before = await newWorkstream(page, 'e2e/moved');
+		await expectFreshCopy(page);
+		expect((await baseBranches(page))[before]).toBe('main');
+
+		await git(source, ['branch', '-m', 'main', 'trunk']);
+		const after = await newWorkstream(page, 'e2e/moved');
+		await expectFreshCopy(page);
+		expect((await baseBranches(page))[after]).toBe('trunk');
+		expect(await storedDefaultBranch(page, 'e2e/moved')).toBe('trunk');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('an empty repository says so in the copy step and starts once it has a commit', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ allowedDiagnostics: [/Empty repository/u] });
+	try {
+		const { page } = app;
+		const origin = join(app.root, 'e2e', 'blank');
+		mkdirSync(origin, { recursive: true });
+		await git(origin, ['init', '--bare', '-b', 'trunk']);
+		await connectCloneUrl(page, origin);
+		const opened = await newWorkstream(page, 'e2e/blank');
+		const failure = setupStep(page, 'Copy failed');
+		await expect(failure).toContainText('Empty repository. Push a first commit, then retry', {
+			timeout: 30_000,
+		});
+		await captureFlow(app, 'workstream-setup-empty-repository');
+
+		const firstCommit = await createSourceRepo(app.root, 'blank-first-commit');
+		await git(firstCommit, ['push', origin, 'HEAD:refs/heads/trunk']);
+		await failure.getByRole('button', { name: 'Retry setup' }).click();
+		await expectFreshCopy(page);
+		expect((await baseBranches(page))[opened]).toBe('trunk');
+		expectCleanConsole(app);
+	} finally {
 		await app.close();
 	}
 });

@@ -82,7 +82,12 @@ class ExtensionNavigationBindingService implements ExtensionNavigationBinding {
 			projectRepoPath: project.repoPath,
 			workstreamId,
 			name,
-			baseBranch: anchor.baseBranch || project.defaultBranch,
+			baseBranch:
+				anchor.baseBranch ||
+				(await workstreamsService.readBaseBranch({
+					projectRepoPath: project.repoPath,
+					projectId: project.id,
+				})),
 			creationContext: {
 				task,
 				source: {
