@@ -674,7 +674,7 @@
 		!drawerOpen && 'w-72',
 	]}
 	style:width={floating ? `min(calc(100% - 3rem), max(${minWidth}px, 50%))` : undefined}
-	{@attach dockInspector(!drawerOpen)}
+	{@attach dockInspector}
 	{@attach floating && dismissOnOutside(closeDrawer, '[data-inspector-dock]')}
 	aria-label="Inspector"
 	aria-busy={drawerOpen && !inspectorRuntimeReady && !presentsMountedPanel && !runtimeError}

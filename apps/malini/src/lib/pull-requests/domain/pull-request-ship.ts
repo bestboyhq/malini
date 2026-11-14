@@ -95,9 +95,7 @@ export function needsYouReasonLabel(
 	operation: WorktreeOperation | null,
 ): string {
 	if (reason === 'operation-in-progress') {
-		return operation
-			? `${worktreeOperationNoun(operation)} stopped part-way`
-			: 'Git stopped part-way';
+		return operation ? `${worktreeOperationNoun(operation)} stuck` : 'Git stuck';
 	}
 	return REASON_LABELS[reason];
 }

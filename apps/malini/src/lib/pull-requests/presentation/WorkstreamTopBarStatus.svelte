@@ -24,7 +24,6 @@
 		PullRequestTopBarAction,
 	} from '$lib/pull-requests/domain/pull-request-action';
 	import { workstreamBusyActionQuery } from '$shared/repositories/repositories.api';
-	import { pullRequestActionIcon } from './pull-request-action-icon';
 
 	interface Props {
 		workstreamId: string;
@@ -128,7 +127,6 @@
 			label: action.label,
 			ariaLabel: action.ariaLabel,
 			tone: action.tone,
-			icon: pullRequestActionIcon(action.kind),
 			confirmLabel: action.confirmLabel,
 			tooltip: action.tooltip ?? null,
 			disabled: false,

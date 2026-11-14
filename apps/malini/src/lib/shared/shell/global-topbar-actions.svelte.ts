@@ -1,5 +1,4 @@
 import { getContext, setContext } from 'svelte';
-import type { IconName } from '$hyper-ui/icons';
 
 export type GlobalTopBarAction = Readonly<{
 	id: string;
@@ -10,8 +9,6 @@ export type GlobalTopBarAction = Readonly<{
 	disabled?: boolean;
 	busy?: boolean;
 	tone?: 'primary' | 'secondary';
-	icon?: IconName | null;
-	compactIcon?: IconName | null;
 	testId?: string;
 	onInvoke(): void | Promise<void>;
 }>;
@@ -117,7 +114,6 @@ export type GlobalTopBarStatusAction = Readonly<{
 	label: string;
 	ariaLabel: string;
 	tone: 'primary' | 'secondary';
-	icon: IconName;
 	confirmLabel?: string | null;
 	tooltip?: string | null;
 	disabled: boolean;

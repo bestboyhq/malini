@@ -57,16 +57,18 @@
 
 {#if kind === 'page' && hero && playing}
 	<span class="absolute inset-0 block overflow-hidden" bind:clientWidth={pageWidth}>
-		<iframe
-			src={worktreePageUrl(workstreamId, src)}
-			title={label}
-			sandbox="allow-scripts allow-same-origin"
-			loading="lazy"
-			width={PAGE_WIDTH}
-			height={PAGE_HEIGHT}
-			class="absolute top-0 left-0 origin-top-left border-0"
-			style:transform="scale({pageWidth / PAGE_WIDTH})"
-		></iframe>
+		{#if pageWidth > 0}
+			<iframe
+				src={worktreePageUrl(workstreamId, src)}
+				title={label}
+				sandbox="allow-scripts allow-same-origin"
+				loading="lazy"
+				width={PAGE_WIDTH}
+				height={PAGE_HEIGHT}
+				class="absolute top-0 left-0 origin-top-left border-0"
+				style:transform="scale({pageWidth / PAGE_WIDTH})"
+			></iframe>
+		{/if}
 	</span>
 {:else}
 	{@const source =
