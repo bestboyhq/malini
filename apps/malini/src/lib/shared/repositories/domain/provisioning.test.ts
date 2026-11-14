@@ -6,7 +6,6 @@ import {
 	planWorkstreamProvisioning,
 	provisioningFailureIsAuth,
 	provisioningFailureMessage,
-	provisioningSignInRemedy,
 	provisioningStepLabel,
 	visibleInstallStatus,
 	workstreamNativeExistence,
@@ -100,18 +99,6 @@ describe('workstream provisioning rules', () => {
 			),
 		).toBe(true);
 		expect(provisioningFailureIsAuth('base branch main is missing')).toBe(false);
-	});
-
-	it('tells the user to sign in to GitHub only when the failure does not say so already', () => {
-		expect(provisioningSignInRemedy('Authentication failed for repo')).toBe(
-			'Sign in to GitHub in Settings, then retry',
-		);
-		expect(
-			provisioningSignInRemedy(
-				'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.',
-			),
-		).toBeNull();
-		expect(provisioningSignInRemedy('disk full')).toBeNull();
 	});
 
 	it('states the real failure, falling back to a generic line', () => {

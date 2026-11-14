@@ -1012,6 +1012,14 @@
 		margin-right: 6px;
 	}
 
+	.topbar-right:not([data-docked]) .topbar-git__text {
+		flex-wrap: nowrap;
+	}
+
+	.topbar-right:not([data-docked]) .topbar-git__meta {
+		flex-basis: auto;
+	}
+
 	.topbar-git__status,
 	.topbar-git__detail {
 		display: grid;

@@ -15,7 +15,8 @@ Two agents never edit one checkout, so they never clobber each other.
 ## Before the first message
 
 A new workstream opens on what Malini did to set it up, one step a line: **Made a fresh copy**, then **Checked dependencies** with what it found.
-A step still running shows a spinner, and a failed install has **Retry** on its line.
+A step still running shows a spinner.
+A failed install has **Retry** on its line, and a copy that fails says **Copy failed** with the reason, **Retry** and **Remove**.
 
 Once the copy is ready, **Quick suggestions** labels a box of prompts an agent can take from there:
 

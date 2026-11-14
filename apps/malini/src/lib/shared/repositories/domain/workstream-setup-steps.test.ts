@@ -33,7 +33,7 @@ function labels(input: WorkstreamSetupInput): string[] {
 }
 
 describe('workstream setup steps', () => {
-	it('makes a fresh copy while setup runs, with the clone percent, and says when it stopped', () => {
+	it('makes a fresh copy while setup runs, with the clone percent, and says why it failed', () => {
 		expect(labels({ ...settled, provisioning: provisioning({}) })).toEqual([
 			'busy | Making a fresh copy | 42%',
 		]);
@@ -41,7 +41,7 @@ describe('workstream setup steps', () => {
 			'busy | Making a fresh copy',
 		]);
 		expect(labels({ ...settled, provisioning: provisioning({ failure: 'clone died' }) })).toEqual([
-			'failed | Making a fresh copy | Did not finish',
+			'failed | Copy failed | clone died',
 		]);
 	});
 

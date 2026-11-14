@@ -22,7 +22,8 @@ export function workstreamSetupSteps(input: WorkstreamSetupInput): readonly Work
 
 function copyStepInProgress(record: WorkstreamProvisioningRecord): WorkstreamSetupStep {
 	const step = { key: 'copy', label: 'Making a fresh copy' } as const;
-	if (record.failure) return { ...step, state: 'failed', detail: 'Did not finish' };
+	if (record.failure)
+		return { ...step, state: 'failed', label: 'Copy failed', detail: record.failure };
 	const percent =
 		record.phase === 'cloning' && record.clonePercent !== null ? `${record.clonePercent}%` : null;
 	return { ...step, state: 'busy', detail: percent };

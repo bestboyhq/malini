@@ -1,9 +1,13 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { removeFailedWorkstreamCommand } from '$shared/repositories/application/commands/remove-failed-workstream.command';
 	import { retryDependencyInstallCommand } from '$shared/repositories/application/commands/retry-dependency-install.command';
+	import { retryProvisioningCommand } from '$shared/repositories/application/commands/retry-provisioning.command';
 	import { provisioningRecordQuery } from '$shared/repositories/application/queries/provisioning-record.query.svelte';
+	import { provisioningRetryingQuery } from '$shared/repositories/application/queries/provisioning-retrying.query.svelte';
 	import { workstreamByIdQuery } from '$shared/repositories/application/queries/workstream-by-id.query.svelte';
 	import { workstreamSetupStepsQuery } from '$shared/repositories/application/queries/workstream-setup-steps.query.svelte';
 
@@ -21,7 +25,21 @@
 		startedBy ? (workstreamByIdQuery.data(startedBy)?.name ?? null) : null,
 	);
 	const suggesting = $derived(settled && !startedBy);
+	const retrying = $derived(provisioningRetryingQuery.data(workstreamId));
 </script>
+
+{#snippet stepAction(label: string, ariaLabel: string, onclick: () => void, disabled = false)}
+	<Button
+		variant="inherit"
+		size="auto"
+		class="text-2xs text-fg-default shrink-0 px-2 py-1"
+		{ariaLabel}
+		{disabled}
+		{onclick}
+	>
+		{label}
+	</Button>
+{/snippet}
 
 <ol class="relative pl-4.5" aria-label="Workstream setup" data-testid="workstream-setup-steps">
 	<span
@@ -52,16 +70,29 @@
 				{/if}
 			</span>
 			<span class="shrink-0">{step.label}</span>
-			<span class="text-fg-tertiary min-w-0 flex-1 truncate">{step.detail ?? ''}</span>
-			{#if step.key === 'install' && step.state === 'failed'}
-				<Button
-					variant="inherit"
-					size="auto"
-					class="text-2xs text-fg-default shrink-0 px-2 py-1"
-					onclick={() => retryDependencyInstallCommand(workstreamId)}
-				>
-					Retry
-				</Button>
+			<Tooltip
+				content={step.detail ?? ''}
+				placement="bottom"
+				onlyWhenTruncated
+				class="min-w-0 flex-1"
+			>
+				<span class="text-fg-tertiary block truncate">{step.detail ?? ''}</span>
+			</Tooltip>
+			{#if step.state === 'failed' && step.key === 'install'}
+				{@render stepAction('Retry', 'Retry', () => retryDependencyInstallCommand(workstreamId))}
+			{:else if step.state === 'failed'}
+				{@render stepAction(
+					retrying ? 'Retrying…' : 'Retry',
+					'Retry setup',
+					() => retryProvisioningCommand(workstreamId),
+					retrying,
+				)}
+				{@render stepAction(
+					'Remove',
+					'Remove this workstream',
+					() => removeFailedWorkstreamCommand(workstreamId),
+					retrying,
+				)}
 			{/if}
 		</li>
 	{/each}

@@ -176,8 +176,3 @@ export function provisioningFailureIsAuth(failure: string): boolean {
 		normalized.includes('sign in to github')
 	);
 }
-
-export function provisioningSignInRemedy(failure: string): string | null {
-	if (!provisioningFailureIsAuth(failure) || /sign in to github/iu.test(failure)) return null;
-	return 'Sign in to GitHub in Settings, then retry';
-}

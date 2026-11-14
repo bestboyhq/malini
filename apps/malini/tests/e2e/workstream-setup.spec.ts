@@ -43,19 +43,51 @@ async function newWorkstream(page: Page, repository: string): Promise<string> {
 	return opened;
 }
 
-async function watchHeadlines(page: Page): Promise<() => Promise<string[]>> {
+async function watchHeadlineOverlaps(
+	page: Page,
+): Promise<() => Promise<{ texts: string[]; overlaps: string[] }>> {
 	const watch = await page.locator('body').evaluateHandle((body) => {
 		const doc = body.ownerDocument;
 		const texts = new Set<string>();
+		const overlaps = new Set<string>();
 		const sample = () => {
 			const headline = doc.querySelector('[data-testid="global-topbar-github-headline"]');
-			if (headline) texts.add(headline.getAttribute('aria-label') ?? '');
+			if (headline) {
+				texts.add(headline.getAttribute('aria-label') ?? '');
+				for (const parent of [headline, ...headline.querySelectorAll('*')]) {
+					const children = [...parent.children].filter((child) =>
+						child.checkVisibility({ opacityProperty: true }),
+					);
+					children.forEach((child, index) => {
+						const a = child.getBoundingClientRect();
+						for (const other of children.slice(index + 1)) {
+							const b = other.getBoundingClientRect();
+							if (
+								a.left < b.right - 1 &&
+								b.left < a.right - 1 &&
+								a.top < b.bottom - 1 &&
+								b.top < a.bottom - 1
+							) {
+								overlaps.add(`${child.textContent} over ${other.textContent}`);
+							}
+						}
+					});
+				}
+			}
 			doc.defaultView?.requestAnimationFrame(sample);
 		};
 		sample();
-		return texts;
+		return { texts, overlaps };
 	});
-	return () => watch.evaluate((texts) => [...texts]);
+	return () =>
+		watch.evaluate(({ texts, overlaps }) => ({ texts: [...texts], overlaps: [...overlaps] }));
+}
+
+function setupStep(page: Page, label: string) {
+	return page
+		.getByRole('list', { name: 'Workstream setup' })
+		.getByRole('listitem')
+		.filter({ hasText: label });
 }
 
 function composerReady(page: Page) {
@@ -104,7 +136,7 @@ test('a new workstream opens at once, sets itself up, and every new workstream j
 
 		const created = await newWorkstream(page, 'alpha');
 		await expect(composerReady(page)).toBeVisible({ timeout: 30_000 });
-		await expect(page.getByTestId('workstream-provisioning-failure')).toHaveCount(0);
+		await expect(setupStep(page, 'Copy failed')).toHaveCount(0);
 		await expect(sidebar(page).getByTestId('sidebar-workstream')).toHaveCount(3);
 		await expect(workstreamRow(page, created)).toHaveAttribute('aria-current', 'page');
 		await captureFlow(app, 'workstream-setup-ready');
@@ -145,7 +177,7 @@ test('a file pasted into a new workstream before its worktree exists attaches on
 	}
 });
 
-test('a failed setup says why above the workstream, retries in place, and removes a failed one', async () => {
+test('a failed setup says why in its steps, retries in place, and removes a failed one', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini({ allowedDiagnostics: [/permission denied/iu] });
 	let lockedDirectory: string | null = null;
@@ -158,23 +190,38 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		lockedDirectory = dirname(seeded.worktree);
 
 		chmodSync(lockedDirectory, 0o555);
-		const headlines = await watchHeadlines(page);
+		const headlineOverlaps = await watchHeadlineOverlaps(page);
 		const retried = await newWorkstream(page, 'alpha');
-		const failure = page.getByRole('alert').filter({ hasText: 'has no worktree yet' });
-		await expect(failure).toBeVisible({ timeout: 30_000 });
-		await expect(failure).toContainText(/permission denied/iu);
+		const failure = setupStep(page, 'Copy failed');
+		await expect(failure).toContainText(/permission denied/iu, { timeout: 30_000 });
+		await expect(page.getByRole('alert')).toHaveCount(0);
 		await expect(
 			workstreamRow(page, retried).getByRole('status', {
 				name: 'Workstream status: Setup failed',
 			}),
 		).toBeVisible();
+		const headline = page
+			.getByRole('navigation', { name: 'Global actions' })
+			.getByRole('status', { name: 'Needs you · Setup failed' });
+		await expect(headline).toBeVisible({ timeout: 30_000 });
 		await page.waitForTimeout(1_000);
-		expect(await headlines()).toEqual([]);
+		const watched = await headlineOverlaps();
+		expect(watched.texts).toContain('Needs you · Setup failed');
+		expect(watched.texts.some((text) => text.startsWith('Setting up'))).toBe(true);
+		expect(watched.overlaps).toEqual([]);
+		const labelText = headline.getByText('Needs you', { exact: true });
+		const detailText = headline.getByText('Setup failed', { exact: true });
+		await expect(labelText).toBeVisible();
+		await expect(detailText).toBeVisible();
+		const label = await labelText.boundingBox();
+		const detail = await detailText.boundingBox();
+		expect(label && detail && label.x + label.width <= detail.x).toBe(true);
 		await captureFlow(app, 'workstream-setup-failed');
 
 		chmodSync(lockedDirectory, 0o755);
-		await failure.getByRole('button', { name: /^Retry setting up / }).click();
+		await failure.getByRole('button', { name: 'Retry setup' }).click();
 		await expect(failure).toHaveCount(0, { timeout: 30_000 });
+		await expect(setupStep(page, 'Made a fresh copy')).toBeVisible({ timeout: 30_000 });
 		await expect(composerReady(page)).toBeVisible({ timeout: 30_000 });
 		await expect(workstreamRow(page, retried)).toHaveAttribute('aria-current', 'page');
 
@@ -182,7 +229,7 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		const removed = await newWorkstream(page, 'alpha');
 		await expect(failure).toBeVisible({ timeout: 30_000 });
 		chmodSync(lockedDirectory, 0o755);
-		await failure.getByRole('button', { name: /^Remove / }).click();
+		await failure.getByRole('button', { name: 'Remove this workstream' }).click();
 
 		await expect(workstreamRow(page, removed)).toHaveCount(0, { timeout: 30_000 });
 		await expect.poll(() => openedWorkstreamId(page), { timeout: 20_000 }).not.toBe(removed);

@@ -25,10 +25,14 @@
 		changeTotalsQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
+		provisioningRecordQuery,
+		provisioningRetryingQuery,
+		provisioningTopBarStatus,
 		refreshRepositoriesCommand,
 		refreshWorkstreamsCommand,
 		repositoryContextQuery,
 		WorkstreamPathContextMenu,
+		retryProvisioningCommand,
 		supportsRemotePullRequests,
 		workstreamByIdQuery,
 		workstreamCreationContextQuery,
@@ -75,6 +79,8 @@
 	const checkoutReady = $derived(repositoryScopeReady && !worktreePending);
 	const mediaReady = $derived(checkoutReady && workstream !== null);
 	const changeTotals = $derived(changeTotalsQuery.data[workstreamId] ?? null);
+	const provisioning = $derived(provisioningRecordQuery.data(workstreamId));
+	const provisioningRetrying = $derived(provisioningRetryingQuery.data(workstreamId));
 	const creationPending = $derived(workstreamCreationPendingQuery.data);
 	const creationContext = $derived(workstreamCreationContextQuery.data);
 	const extensionWorkstream = $derived(extensionWorkstreamQuery.data);
@@ -85,6 +91,11 @@
 	);
 	const remotePullRequestsSupported = $derived(
 		repositoryContext !== null && supportsRemotePullRequests(repositoryContext.repo),
+	);
+	const provisioningStatus = $derived(
+		provisioningTopBarStatus(provisioning, provisioningRetrying, () =>
+			retryProvisioningCommand(workstreamId),
+		),
 	);
 	const inspectedWorkstream = $derived<ExtensionWorkstream | null>(
 		workstream
@@ -126,6 +137,7 @@
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
 			agentStatus={chat.agentStatus}
+			overrideStatus={provisioningStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
 		/>

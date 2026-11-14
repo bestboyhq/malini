@@ -13,12 +13,12 @@ On the build they named the four starters, "And I think that's it", and asked ab
 The first steps named the branch and the head commit, and they found them "too technical": "It should be maybe creating a fresh copy, then the second one should be checking dependencies or something like that, and then it should be your turn."
 **Your turn** as the last row looked like a row you could click, so they asked for it as "a label on top of the border of ... this whole container", without a border around each starter: "too many borders is not good".
 They then asked to "replace your turn agents are stretching with quick suggestions", in a "dimmed out text color", and to make "this big white dot like an empty circle".
-A failed setup showed **Needs you · Setup failed** with a retry in the top bar above the failure banner, and they asked to "get rid of this fucking cheap status topbar pls, dear god we should never have it".
+A failed setup showed a full-width banner above the chat, with the failure in mono and **Retry setup** and **Remove**, and they asked to "get rid of this fucking cheap status topbar pls, dear god we should never have it", then said they meant "only ... this middle bar": "Completely mismatched design".
 
 ## Decision
 
 - **Setup steps.** `WorkstreamSetupSteps.svelte` in `$shared/repositories/presentation` draws `workstreamSetupSteps` from `domain/workstream-setup-steps.ts`, one row a step on a rail, in plain words and never a branch, a commit or a command.
-  While setup runs, it shows **Making a fresh copy**, with the clone percent, or **Did not finish** where it stopped.
+  While setup runs, it shows **Making a fresh copy**, with the clone percent.
   Once setup settles: **Made a fresh copy**, **Main won’t notice**, or **Picked up your branch** for a branch Malini did not name `malini/<id>`; then **Checking dependencies**, which ends as **Checked dependencies** with **All in place**, **Nothing to install** or **No lockfile. Installed nothing**, or as **Install failed** with the reason and **Retry**.
   A workstream another chat started (`startedBy`) ends instead on **Prompt from <that workstream>**, **Sends once setup is done**, and lists no starters: its first prompt is already waiting.
 - **Quick suggestions labels the starters.** Once setup settles, the steps end in a `<fieldset>` whose `<legend>`, **Quick suggestions** in the dimmed text color, sits on its top border, and the rail runs into the legend's empty circle.
@@ -33,8 +33,9 @@ A failed setup showed **Needs you · Setup failed** with a retry in the top bar 
   **Take one open issue** is gone: on a repository without open issues it sent the agent looking for nothing.
 - **No status with nothing to ship.** `pullRequestTopBar` returns no status for a workstream with no changed files, so the top bar shows nothing where it said **Build something great**, and the empty docked header hides itself.
   The setup steps already say whose turn it is.
-- **No setup status in the top bar.** Setup says where it stands in the steps, the sidebar row's **Setting up** or **Setup failed**, and `WorkstreamProvisioningFailure`'s banner with **Retry setup** and **Remove**, so `WorkstreamTopBarStatus` takes no override and the top bar shows only the pull request.
-  The banner also says **Sign in to GitHub in Settings, then retry** when git could not authenticate and the failure does not say so itself, from `provisioningSignInRemedy`.
+- **A failed setup says so in its steps.** The copy step turns into **Copy failed** with the reason, as **Install failed** does, and the row holds **Retry** and **Remove**; the full-width banner, `WorkstreamProvisioningFailure.svelte`, is gone, which amends 0073's setup banner.
+  The top bar keeps **Setting up** and **Needs you · Setup failed** with **Retry**, and its tooltip keeps the GitHub sign-in remedy.
+  With no gutter to dock on, that status sits in its pill, its label and detail on one line, so both fit its height.
   A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
 - **The gutter waits.** `WorkstreamLayout.svelte` hides the inspector's column in a workstream made in this session, on its `malini/<id>` branch, with no chats, no changed files, no browser tab, no live automation and the drawer closed.
   Made in this session is `provisioningRecordQuery.madeHere`: `WorkstreamProvisioningAggregate.begin` marks the id, and settling keeps the mark.
@@ -47,7 +48,7 @@ A failed setup showed **Needs you · Setup failed** with a retry in the top bar 
 - A new workstream reads as what Malini did and ends on the user, and each row comes from state Malini already holds.
 - After a relaunch, setup and install records are gone, so an untouched workstream shows **Made a fresh copy** only, with its gutter.
 - In a workstream just made, Files and Browser have no gutter row until the first message; a change, a browser tab, an agent's reveal or an automation brings the gutter back.
-- `tests/e2e/workstream-setup.spec.ts` fails when any top-bar status shows while a new workstream sets up or after its setup fails, and `provisioning.test.ts` when the sign-in line goes or repeats what the failure says.
+- `tests/e2e/workstream-setup.spec.ts` fails when a failed setup shows an alert banner, loses **Copy failed** with its reason, **Retry** or **Remove** in its steps, or when the top bar's label and detail overlap.
 - `src/lib/shared/repositories/domain/workstream-setup-steps.test.ts` fails when a step's wording or state drifts, `provisioning.test.ts` when an install outcome stops mapping to a step, and `workstream-provisioning.aggregate.svelte.test.ts` when a finished install loses its record or its command, or a settled workstream loses its made-here mark.
 - `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Quick suggestions** group, plan mode on **Plan a change with me**, or the hidden gutter go.
 - `pull-request-top-bar.test.ts` and `tests/e2e/pull-request-nothing-to-ship.spec.ts` fail when a workstream with nothing to ship shows a status again.
