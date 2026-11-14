@@ -833,6 +833,32 @@ describe('the Logdash sink', () => {
 		context.db.close();
 	});
 
+	it('posts to the public site from a packaged or dogfood build with no site configured, never from a plain dev run', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', '');
+		vi.stubEnv('MALINI_BACKGROUND_WINDOW', '');
+		const sites = async (isDev: boolean, dogfood: string): Promise<string[]> => {
+			vi.stubEnv('MALINI_DOGFOOD', dogfood);
+			fetchMock.mockClear();
+			const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:'), isDev });
+			const usageData = startUsageData(context, {
+				hooks: noHooks,
+				processGone: () => undefined,
+				now: () => NOW,
+				system: 'malini 1.0.0',
+			});
+			await settled();
+			await usageData.shutdown();
+			context.db.close();
+			return fetchMock.mock.calls.map(
+				([, init]) => (JSON.parse(String(init.body)) as { siteId: string }).siteId,
+			);
+		};
+		const site = '6ad7c3d3d519015fcd43194b';
+		expect(await sites(true, '')).toEqual([]);
+		expect(await sites(true, '1')).toEqual([site, site]);
+		expect(await sites(false, '')).toEqual([site, site]);
+	});
+
 	it('sends nothing with MALINI_USAGE_DATA=off', async () => {
 		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
 		vi.stubEnv('MALINI_USAGE_DATA', 'off');
