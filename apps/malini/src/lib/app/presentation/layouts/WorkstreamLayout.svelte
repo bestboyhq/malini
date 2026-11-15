@@ -73,6 +73,9 @@
 		{ easing: cubicOut },
 	);
 	let gutterAwayFor = untrack(() => workstreamId);
+	let gutterWidth = $state(0);
+	const gutterOffset = $derived(gutterAway.current * gutterWidth);
+	const gutterGone = $derived(gutterAway.current === 1);
 
 	$effect(() => {
 		const away = gutterWaits ? 1 : 0;
@@ -84,7 +87,7 @@
 	onMount(() => {
 		loadAutomationsCommand();
 		const stopWatching = watchAutomationsHook();
-		const letGo = inspectorDock.holdWhile(() => gutterAway.current > 0);
+		const letGo = inspectorDock.slideWith(() => ({ offset: gutterOffset, gone: gutterGone }));
 		return () => {
 			stopWatching();
 			letGo();
@@ -144,9 +147,10 @@
 		<div
 			class={[
 				'relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden',
-				gutterAway.current === 1 && 'invisible',
+				gutterGone && 'invisible',
 			]}
-			style:left={gutterAway.current > 0 ? `${gutterAway.current * 100}%` : undefined}
+			style:left={gutterOffset > 0 ? `${gutterOffset}px` : undefined}
+			bind:clientWidth={gutterWidth}
 		>
 			{@render children()}
 		</div>

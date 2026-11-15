@@ -1,20 +1,27 @@
 type DockClaim = Readonly<{ measure(width: number): void; release(): void }>;
 
-const NEVER_HELD = (): boolean => false;
+export type DockAway = Readonly<{ offset: number; gone: boolean }>;
+
+const IN_PLACE: DockAway = { offset: 0, gone: false };
+const STAYS_IN_PLACE = (): DockAway => IN_PLACE;
 
 class InspectorDock {
 	#measured: number | null = $state(null);
-	#held = $state.raw<() => boolean>(NEVER_HELD);
+	#away = $state.raw<() => DockAway>(STAYS_IN_PLACE);
 	#owner: object | null = null;
 
 	get width(): number | null {
-		return this.#held() ? null : this.#measured;
+		return this.#measured;
 	}
 
-	holdWhile(held: () => boolean): () => void {
-		this.#held = held;
+	get away(): DockAway {
+		return this.#away();
+	}
+
+	slideWith(away: () => DockAway): () => void {
+		this.#away = away;
 		return () => {
-			if (this.#held === held) this.#held = NEVER_HELD;
+			if (this.#away === away) this.#away = STAYS_IN_PLACE;
 		};
 	}
 

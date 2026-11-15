@@ -17,6 +17,7 @@ A failed setup showed a full-width banner above the chat, with the failure in mo
 The hidden gutter gave its column to the chat, which grew to the full width and then jumped left at the first message: "why is this center panel so fucking wide?"
 They wanted the gutter to wait all the same: it "shouldn't be there until someone sent a message ... but it doesn't mean that our chat width should go bananas."
 With the column kept, the chat sat left of an empty space, and they asked that it be "centered, and then when we add right gutter, it should push the chat column."
+The gutter's card then slid in alone while the top bar's status sat as a loose pill in the corner: "The right gutter was always supposed to be just a single element always."
 
 ## Decision
 
@@ -37,8 +38,8 @@ With the column kept, the chat sat left of an empty space, and they asked that i
 - **No status with nothing to ship.** `pullRequestTopBar` returns no status for a workstream with no changed files, so the top bar shows nothing where it said **Build something great**, and the empty docked header hides itself.
   The setup steps already say whose turn it is.
 - **A failed setup says so in its steps.** The copy step turns into **Copy failed** with the reason, as **Install failed** does, and the row holds **Retry** and **Remove**; the full-width banner, `WorkstreamProvisioningFailure.svelte`, is gone, which amends 0073's setup banner.
-  The top bar keeps **Setting up** and **Needs you · Setup failed** with **Retry**, and its tooltip keeps the GitHub sign-in remedy.
-  While the gutter waits, that status stays off the dock, in its pill, its label and detail on one line, so both fit its height.
+  **Copy failed** adds the GitHub sign-in remedy when the failure is a sign-in, as the top bar's tooltip does.
+  The top bar keeps **Setting up** and **Needs you · Setup failed** with **Retry** on the gutter's card, so they wait with the gutter, and the steps say it meanwhile.
   A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
 - **The gutter waits, its width kept.** `WorkstreamLayout.svelte` makes the inspector's column `invisible` in a workstream made in this session, on its `malini/<id>` branch, with no chats, no changed files, no browser tab, no live automation and the drawer closed.
   No chats is `workstreamChatsQuery`, never `recentChatsQuery`: a new chat drops out of the recent ones while its loaded transcript is still empty, and the gutter came in, went out and came in again at the first message.
@@ -50,7 +51,8 @@ With the column kept, the chat sat left of an empty space, and they asked that i
   Moving to another workstream, or reduced motion, sets both at once.
   Both move with `left`, never `transform`, so a popover with `position: fixed` inside the composer still opens at its trigger.
   `visibility: hidden` also takes the gutter out of the tab order and the accessibility tree.
-  `inspectorDock.holdWhile` keeps the dock empty until the gutter has slid all the way in, so the top-bar status never docks onto a card nobody can see.
+- **The top bar's status and the gutter are one card.** `inspectorDock.slideWith` hands the top bar the gutter's offset, so the docked header moves with the gutter's card on every frame and hides while the card is out of view; there is never a loose pill beside a sliding card.
+  A header that arrives with the sliding gutter has no entrance of its own: its fade and rise are a `@starting-style` that applies only on a dock in place, so a status that appears on a gutter already in view still fades in.
 - This amends 0242's starters and 0228's gutter, which now shows from the first message, or earlier once there is something in it to see.
 
 ## Consequences
@@ -58,8 +60,8 @@ With the column kept, the chat sat left of an empty space, and they asked that i
 - A new workstream reads as what Malini did and ends on the user, and each row comes from state Malini already holds.
 - After a relaunch, setup and install records are gone, so an untouched workstream shows **Made a fresh copy** only, with its gutter.
 - In a workstream just made, Files and Browser have no gutter row until the first message; a change, a browser tab, an agent's reveal or an automation brings the gutter back.
-- `tests/e2e/workstream-setup.spec.ts` fails when a failed setup shows an alert banner, loses **Copy failed** with its reason, **Retry** or **Remove** in its steps, or when the top bar's label and detail overlap.
+- `tests/e2e/workstream-setup.spec.ts` fails when a failed setup shows an alert banner, loses **Copy failed** with its reason, **Retry** or **Remove** in its steps, or when the top bar shows its status while the gutter waits, or its label and detail overlap.
 - `src/lib/shared/repositories/domain/workstream-setup-steps.test.ts` fails when a step's wording or state drifts, `provisioning.test.ts` when an install outcome stops mapping to a step, and `workstream-provisioning.aggregate.svelte.test.ts` when a finished install loses its record or its command, or a settled workstream loses its made-here mark.
 - `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Quick suggestions** group, plan mode on **Plan a change with me**, or the hidden gutter go.
-- `inspector-dock.svelte.test.ts` fails when a held dock still docks, or stays empty once let go.
+- `inspector-dock.svelte.test.ts` fails when the dock stops reporting the gutter's offset, or keeps it once the gutter lets go.
 - `pull-request-top-bar.test.ts` and `tests/e2e/pull-request-nothing-to-ship.spec.ts` fail when a workstream with nothing to ship shows a status again.

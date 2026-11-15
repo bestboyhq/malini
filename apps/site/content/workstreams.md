@@ -32,7 +32,8 @@ Each one fills the composer, for you to edit or send.
 A workstream another chat started ends its steps on **Prompt from** that chat instead, and lists no starters: that prompt goes first, once setup is done.
 
 In a workstream you just made, the inspector on the right stays hidden until the first message, unless there is already something to show there: changes, a browser tab or a running automation.
-Until then the chat sits in the middle, as wide as it is beside the inspector, and the inspector slides in and moves it left.
+Until then the chat sits in the middle, as wide as it is beside the inspector, and the top bar shows no status.
+Then the inspector slides in with its status on top and moves the chat left.
 A workstream on one of your pull requests, or one Malini had open before it started, shows it from the start.
 
 ## Where checkouts live

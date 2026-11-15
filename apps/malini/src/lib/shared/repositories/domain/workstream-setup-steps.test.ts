@@ -43,6 +43,10 @@ describe('workstream setup steps', () => {
 		expect(labels({ ...settled, provisioning: provisioning({ failure: 'clone died' }) })).toEqual([
 			'failed | Copy failed | clone died',
 		]);
+		const unsigned = provisioning({ failure: 'Authentication failed for github.com' });
+		expect(labels({ ...settled, provisioning: unsigned })).toEqual([
+			'failed | Copy failed | Authentication failed for github.com. Sign in to GitHub in Settings, then retry',
+		]);
 	});
 
 	it('tells the copy, then what the dependency check found, never a branch or a command', () => {

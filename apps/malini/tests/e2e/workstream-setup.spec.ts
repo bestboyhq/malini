@@ -270,22 +270,14 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 				name: 'Workstream status: Setup failed',
 			}),
 		).toBeVisible();
-		const headline = page
-			.getByRole('navigation', { name: 'Global actions' })
-			.getByRole('status', { name: 'Needs you · Setup failed' });
-		await expect(headline).toBeVisible({ timeout: 30_000 });
-		await page.waitForTimeout(1_000);
+		await expect
+			.poll(async () => (await headlineOverlaps()).texts, { timeout: 30_000 })
+			.toContain('Needs you · Setup failed');
 		const watched = await headlineOverlaps();
-		expect(watched.texts).toContain('Needs you · Setup failed');
 		expect(watched.texts.some((text) => text.startsWith('Setting up'))).toBe(true);
 		expect(watched.overlaps).toEqual([]);
-		const labelText = headline.getByText('Needs you', { exact: true });
-		const detailText = headline.getByText('Setup failed', { exact: true });
-		await expect(labelText).toBeVisible();
-		await expect(detailText).toBeVisible();
-		const label = await labelText.boundingBox();
-		const detail = await detailText.boundingBox();
-		expect(label && detail && label.x + label.width <= detail.x).toBe(true);
+		await expect(page.getByTestId('extension-inspector-gutter')).toBeHidden();
+		await expect(page.getByTestId('global-topbar-github-headline')).toBeHidden();
 		await captureFlow(app, 'workstream-setup-failed');
 
 		chmodSync(lockedDirectory, 0o755);

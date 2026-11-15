@@ -1,5 +1,10 @@
 import { workstreamBranch } from './project-identity';
-import type { WorkstreamInstallRecord, WorkstreamProvisioningRecord } from './provisioning';
+import {
+	provisioningFailureSentence,
+	provisioningSignInRemedy,
+	type WorkstreamInstallRecord,
+	type WorkstreamProvisioningRecord,
+} from './provisioning';
 
 export type WorkstreamSetupStep = Readonly<{
 	key: 'copy' | 'install';
@@ -23,7 +28,12 @@ export function workstreamSetupSteps(input: WorkstreamSetupInput): readonly Work
 function copyStepInProgress(record: WorkstreamProvisioningRecord): WorkstreamSetupStep {
 	const step = { key: 'copy', label: 'Making a fresh copy' } as const;
 	if (record.failure)
-		return { ...step, state: 'failed', label: 'Copy failed', detail: record.failure };
+		return {
+			...step,
+			state: 'failed',
+			label: 'Copy failed',
+			detail: failureWithRemedy(record.failure),
+		};
 	const percent =
 		record.phase === 'cloning' && record.clonePercent !== null ? `${record.clonePercent}%` : null;
 	return { ...step, state: 'busy', detail: percent };
@@ -49,4 +59,9 @@ function installStep(install: WorkstreamInstallRecord): WorkstreamSetupStep {
 		case 'failed':
 			return { ...step, state: 'failed', label: 'Install failed', detail: install.detail };
 	}
+}
+
+function failureWithRemedy(failure: string): string {
+	const remedy = provisioningSignInRemedy(failure);
+	return remedy ? `${provisioningFailureSentence(failure)} ${remedy}` : failure;
 }
