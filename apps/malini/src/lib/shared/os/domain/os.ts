@@ -13,6 +13,7 @@ export type Os = Readonly<{
 	secretStore: string;
 	unlockSecretStore: string;
 	tray: string;
+	menu: string;
 	dock: string;
 	systemSettings: string;
 	trash: string;
@@ -24,6 +25,7 @@ export type Os = Readonly<{
 	primaryKey: string;
 	primaryReturn: string;
 	returnKey: string;
+	backspaceKey: string;
 	interrupt: string;
 	shortcut: (key: string) => string;
 	ariaShortcut: (key: string) => string;
@@ -36,6 +38,7 @@ const CTRL_KEYBOARD = {
 	primaryKey: 'Ctrl',
 	primaryReturn: 'Ctrl+Enter',
 	returnKey: 'Enter',
+	backspaceKey: 'Backspace',
 	interrupt: 'Ctrl+C',
 	shortcut: (key: string): string => `Ctrl+${key}`,
 	ariaShortcut: (key: string): string => `Control+${key}`,
@@ -54,6 +57,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		secretStore: 'the macOS keychain',
 		unlockSecretStore: 'Unlock it',
 		tray: 'menu bar',
+		menu: 'menu bar',
 		dock: 'Dock',
 		systemSettings: 'System Settings',
 		trash: 'Trash',
@@ -65,6 +69,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		primaryKey: '⌘',
 		primaryReturn: 'Command Return',
 		returnKey: 'Return',
+		backspaceKey: '⌫',
 		interrupt: 'Control-C',
 		shortcut: (key) => `⌘${key}`,
 		ariaShortcut: (key) => `Meta+${key}`,
@@ -81,10 +86,11 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		secretStore: 'your Windows account',
 		unlockSecretStore: 'Restart Malini',
 		tray: 'taskbar corner',
+		menu: 'menu',
 		dock: 'taskbar',
 		systemSettings: 'Settings',
 		trash: 'Recycle Bin',
-		terminal: 'Windows Terminal',
+		terminal: 'PowerShell',
 		environment: 'your environment variables',
 		claudeInstallCommand: 'irm https://claude.ai/install.ps1 | iex',
 		quit: 'Exit',
@@ -102,6 +108,7 @@ const OS: Readonly<Record<OsPlatform, Os>> = {
 		secretStore: 'your keyring',
 		unlockSecretStore: 'Start or unlock it',
 		tray: 'tray',
+		menu: 'menu',
 		dock: 'taskbar',
 		systemSettings: 'system settings',
 		trash: 'Trash',
@@ -120,4 +127,10 @@ export function osPlatform(value: string): OsPlatform {
 
 export function osFor(platform: string): Os {
 	return OS[osPlatform(platform)];
+}
+
+const TEXT_WORDS = ['machine', 'tray', 'menu'] as const;
+
+export function osText(text: string, os: Os): string {
+	return TEXT_WORDS.reduce((filled, word) => filled.replaceAll(`{${word}}`, os[word]), text);
 }

@@ -47,6 +47,7 @@ export {
 	type GitHubSetupStatus,
 	type RepositoryImportSource,
 } from './domain/github-auth';
+export { gitHoldsPrompts, type GitSetup } from './domain/git-setup';
 
 export {
 	connectedRepositoryContexts,
@@ -160,6 +161,8 @@ export { createWorkstreamForRepositoryCommand } from './application/commands/cre
 export { createWorkstreamHereCommand } from './application/commands/create-workstream-here.command';
 export { deleteWorkstreamCommand } from './application/commands/delete-workstream.command';
 export { installGithubCliCommand } from './application/commands/install-github-cli.command';
+export { installGitCommand } from './application/commands/install-git.command';
+export { loadGitSetupCommand } from './application/commands/load-git-setup.command';
 export { dismissDependencyInstallCommand } from './application/commands/dismiss-dependency-install.command';
 export { ensureWorkstreamChangeTotalsCommand } from './application/commands/ensure-workstream-change-totals.command';
 export { loadGithubAuthCommand } from './application/commands/load-github-auth.command';
@@ -217,6 +220,7 @@ export { dependencyInstallQuery } from './application/queries/dependency-install
 export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
 export { mergedHeadQuery } from './application/queries/merged-head.query.svelte';
 export { githubCliInstallQuery } from './application/queries/github-cli-install.query.svelte';
+export { gitSetupQuery } from './application/queries/git-setup.query.svelte';
 export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
 export { githubSignInQuery } from './application/queries/github-sign-in.query.svelte';
@@ -261,6 +265,7 @@ export {
 } from './presentation/ConnectRepositoryContextMenu.svelte';
 export { default as GitHubDeviceCode } from './presentation/GitHubDeviceCode.svelte';
 export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
+export { default as GitInstallStatus } from './presentation/GitInstallStatus.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export {

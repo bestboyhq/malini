@@ -1,4 +1,12 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -11,9 +19,12 @@ import {
 	resolveEnvironment,
 	resolveEnvironmentFrom,
 	resolveToolPath,
+	gitForWindowsNeeds,
 	runWithTimeout,
+	useGitForWindows,
 	writeEnvironmentDiagnostics,
 } from './environment';
+import { gitHome } from './git-install';
 
 const WINDOWS = process.platform === 'win32';
 const tempDirs: string[] = [];
@@ -342,6 +353,102 @@ describe('preferredShell', () => {
 			expect(preferredShell({})).toBe(fallback);
 		},
 	);
+});
+
+describe('useGitForWindows', () => {
+	function gitForWindows(root: string): string {
+		mkdirSync(join(root, 'cmd'), { recursive: true });
+		mkdirSync(join(root, 'bin'), { recursive: true });
+		for (const name of ['git', 'git.exe']) {
+			writeFileSync(join(root, 'cmd', name), '');
+			chmodSync(join(root, 'cmd', name), 0o755);
+		}
+		writeFileSync(join(root, 'bin', 'bash.exe'), '');
+		return join(root, 'bin', 'bash.exe');
+	}
+
+	it('keeps the git on PATH and points Claude Code at the Git Bash beside it', () => {
+		const system = join(tempDir(), 'Git');
+		const bash = gitForWindows(system);
+		const vendor = tempDir();
+		gitForWindows(gitHome(vendor));
+		const env = { PATH: searchPath(tempDir(), join(system, 'cmd')) };
+		const path = env.PATH;
+
+		useGitForWindows(vendor, env);
+
+		expect(env).toEqual({ PATH: path, CLAUDE_CODE_GIT_BASH_PATH: bash });
+	});
+
+	it('adds a Git for Windows that is off PATH before the one Malini installs', () => {
+		const programs = tempDir();
+		const bash = gitForWindows(join(programs, 'Git'));
+		const vendor = tempDir();
+		gitForWindows(gitHome(vendor));
+		const empty = tempDir();
+		const env = { PATH: empty, ProgramFiles: programs };
+
+		useGitForWindows(vendor, env);
+
+		expect(env).toEqual({
+			PATH: searchPath(empty, join(programs, 'Git', 'cmd')),
+			ProgramFiles: programs,
+			CLAUDE_CODE_GIT_BASH_PATH: bash,
+		});
+	});
+
+	it('adds the Git Malini installs, then an older one it installed, when no other Git exists', () => {
+		const vendor = tempDir();
+		const older = join(vendor, '2.40.0');
+		const olderBash = gitForWindows(older);
+		const empty = tempDir();
+		const env: Record<string, string> = { PATH: empty };
+
+		useGitForWindows(vendor, env);
+		expect(env).toEqual({
+			PATH: searchPath(empty, join(gitHome(vendor), 'cmd'), join(older, 'cmd')),
+			CLAUDE_CODE_GIT_BASH_PATH: olderBash,
+		});
+
+		rmSync(older, { recursive: true });
+		const fresh = { PATH: empty };
+		useGitForWindows(vendor, fresh);
+		expect(fresh).toEqual({
+			PATH: searchPath(empty, join(gitHome(vendor), 'cmd')),
+			CLAUDE_CODE_GIT_BASH_PATH: join(gitHome(vendor), 'bin', 'bash.exe'),
+		});
+	});
+
+	it('asks for the pinned Git when git or Git Bash is missing, or only an older one it installed is in use', () => {
+		const vendor = tempDir();
+		const older = join(vendor, '2.40.0');
+		gitForWindows(older);
+		const system = join(tempDir(), 'Git');
+		gitForWindows(system);
+		const empty = tempDir();
+		const withOlder = { PATH: empty };
+		useGitForWindows(vendor, withOlder);
+
+		expect(gitForWindowsNeeds(vendor, { PATH: empty })).toBe('install');
+		expect(gitForWindowsNeeds(vendor, withOlder)).toBe('upgrade');
+		expect(gitForWindowsNeeds(vendor, { PATH: join(system, 'cmd') })).toBe('nothing');
+		gitForWindows(gitHome(vendor));
+		expect(gitForWindowsNeeds(vendor, withOlder)).toBe('nothing');
+	});
+
+	it('keeps a Git Bash the user set that exists, and replaces one that does not', () => {
+		const vendor = tempDir();
+		const chosen = join(tempDir(), 'bash.exe');
+		writeFileSync(chosen, '');
+		const kept = { PATH: tempDir(), CLAUDE_CODE_GIT_BASH_PATH: chosen };
+		const replaced = { PATH: tempDir(), CLAUDE_CODE_GIT_BASH_PATH: join(vendor, 'gone.exe') };
+
+		useGitForWindows(vendor, kept);
+		useGitForWindows(vendor, replaced);
+
+		expect(kept.CLAUDE_CODE_GIT_BASH_PATH).toBe(chosen);
+		expect(replaced.CLAUDE_CODE_GIT_BASH_PATH).toBe(join(gitHome(vendor), 'bin', 'bash.exe'));
+	});
 });
 
 describe('writeEnvironmentDiagnostics', () => {

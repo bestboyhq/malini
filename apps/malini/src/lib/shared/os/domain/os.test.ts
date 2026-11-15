@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { osFor, osPlatform } from './os';
+import { osFor, osPlatform, osText } from './os';
 
 const held = (metaKey: boolean, ctrlKey: boolean) => ({ metaKey, ctrlKey });
 
@@ -19,18 +19,37 @@ describe('the OS words', () => {
 			'Command Return',
 			'Control-C',
 		]);
-		expect([mac.shortcut('K'), mac.ariaShortcut('K')]).toEqual(['⌘K', 'Meta+K']);
+		expect([mac.shortcut('K'), mac.ariaShortcut('K'), mac.backspaceKey]).toEqual([
+			'⌘K',
+			'Meta+K',
+			'⌫',
+		]);
 	});
 
 	it('writes shortcuts as words joined by plus off the Mac', () => {
 		for (const platform of ['win32', 'linux']) {
 			const os = osFor(platform);
-			expect([os.shortcut('K'), os.ariaShortcut('Enter'), os.primaryReturn]).toEqual([
-				'Ctrl+K',
-				'Control+Enter',
-				'Ctrl+Enter',
-			]);
+			expect([
+				os.shortcut('K'),
+				os.ariaShortcut('Enter'),
+				os.primaryReturn,
+				os.backspaceKey,
+			]).toEqual(['Ctrl+K', 'Control+Enter', 'Ctrl+Enter', 'Backspace']);
 		}
+	});
+
+	it('fills the OS words into a text and leaves every other brace alone', () => {
+		const text =
+			"while the {machine} slept, from Malini's {menu} or its {tray} icon, {machine}. {quit}";
+		expect(osText(text, osFor('darwin'))).toBe(
+			"while the Mac slept, from Malini's menu bar or its menu bar icon, Mac. {quit}",
+		);
+		expect(osText(text, osFor('win32'))).toBe(
+			"while the PC slept, from Malini's menu or its taskbar corner icon, PC. {quit}",
+		);
+		expect(osText(text, osFor('linux'))).toBe(
+			"while the computer slept, from Malini's menu or its tray icon, computer. {quit}",
+		);
 	});
 
 	it('holds the primary modifier only without the other one', () => {

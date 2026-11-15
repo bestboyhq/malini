@@ -15,6 +15,7 @@
 	} from '$shared/providers/providers.api';
 	import {
 		GitHubSetup,
+		GitInstallStatus,
 		connectedRepositoriesQuery,
 		githubAuthQuery,
 		githubRepositoriesQuery,
@@ -231,6 +232,7 @@
 				</Button>
 			</div>
 		{/if}
+		<GitInstallStatus class="px-[15px]" />
 		{#if connectError}
 			<ComposerShell class="px-2" testId="repository-connect-error">
 				<StateBlock

@@ -19,7 +19,9 @@ import type { MaliniDatabase } from './db/driver';
 import { openMigratedDatabase } from './db/open';
 import { DbInvariantError } from './errors';
 import { removeStaleTemporaryIndexes } from './git/diff';
+import { useGitForWindows } from './process/environment';
 import { withBundledGh } from './process/gh';
+import { gitVendor } from './process/git-install';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
@@ -134,6 +136,7 @@ async function boot(): Promise<void> {
 		appVersion: app.getVersion(),
 	};
 	process.env.PATH = withBundledGh(process.env.PATH, context.resourcesRoot, context.appDataRoot);
+	if (process.platform === 'win32') useGitForWindows(gitVendor(appDataRoot));
 	const bridgeScriptPath = testBridgeScript();
 	modules = await registerModules(context, {
 		getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,

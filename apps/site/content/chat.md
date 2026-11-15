@@ -115,8 +115,8 @@ An automation's chat shows the model, effort and plan mode its automation ran wi
 Send with a model that is not connected and the prompt still lands in the chat, with a strip under it that asks for what it needs: a DeepSeek or OpenCode API key, with a link to get one, a Claude sign-in, or a ChatGPT sign-in.
 Connecting runs the prompt, and **Cancel** or Escape puts it back in the composer.
 It waits under its strip while you switch chats or restart Malini, the sidebar marks its workstream **Needs you**, and an edited prompt rewinds its checkpoint, then waits the same way.
-You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain and never shows it again.
-The key never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server adds the key and talks to DeepSeek or OpenCode.
+You can also save either key in **Settings → Providers**; Malini seals it with your Mac's keychain, your Windows account or your Linux keyring, and never shows it again.
+The key never leaves Malini: Claude Code talks to a server Malini runs on your computer that only Malini's own runs can call, and that server adds the key and talks to DeepSeek or OpenCode.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
 DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
@@ -131,7 +131,7 @@ Go, Plus and Pro plans can sign in; on a Free plan, OpenAI's page offers **Upgra
 **Settings → Providers** signs in and out too, and lists the models your plan runs, which Malini reads from OpenAI after you sign in and at most once an hour after that.
 A read that fails goes again the next time you open the picker or **Settings → Providers**.
 A plan does not run every GPT model: send with one it lacks and Malini keeps your prompt and says "Your ChatGPT plan does not include this model." until you pick another.
-Malini keeps your ChatGPT sign-in encrypted on your Mac, and it never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server talks to OpenAI.
+Malini keeps your ChatGPT sign-in encrypted on your computer, and it never leaves Malini: Claude Code talks to a server Malini runs on your computer that only Malini's own runs can call, and that server talks to OpenAI.
 With a GPT model picked, the context card shows your ChatGPT account with "Using ChatGPT plan" and **Manage usage**, which opens your usage on chatgpt.com, since ChatGPT does not tell apps how much of the plan is left.
 When you hit the limit, the turn [pauses](#limits-and-outages) the way a rate limit does, since ChatGPT does not say when the limit resets, and the context card says "You hit your ChatGPT usage limit." until a run goes through again.
 Each run counts against your ChatGPT plan, not an API bill, so the context card shows no cost for it.
@@ -142,7 +142,7 @@ The thinking you see is OpenAI's summary of the model's reasoning.
 ## Claude accounts
 
 Point at the gauge in the composer for the usage of the provider your model runs on, with **Manage providers** next to its name.
-For Claude, that is the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this Mac, each with its highest usage next to **Switch**.
+For Claude, that is the account Claude Code is signed in to, with its plan and its five-hour and weekly usage, then every other Claude account you used on this computer, each with its highest usage next to **Switch**.
 Every other provider you connected sits on one line below, with its highest usage, such as "Weekly · 99%", or its plan: Claude when Claude Code is signed in, each account on its own line and the one in use checked, ChatGPT once you sign in to it, and DeepSeek or OpenCode once its key is saved.
 Usage comes from the account's runs, so a fresh account shows it after its next run.
 OpenCode's usage, five-hour, weekly, and monthly, shows once the key is on the Go plan with Usage: Read allowed, read from OpenCode while its model is picked or when you point at the gauge, at most once a minute.
@@ -150,7 +150,7 @@ With an OpenCode Go model picked, the composer shows that same reading as the "X
 A key without Go, or without Usage: Read, shows nothing.
 The same accounts sit in **Settings → Providers**, and **Accounts…** in Malini's menu bar icon opens it.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
-After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
+After that, Malini keeps the account you leave signed in, encrypted on your computer, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
 Until then, pointing at the chat's gauge names the account it last ran on.
 
@@ -190,14 +190,15 @@ A request takes the composer slot right away, even over a draft, which waits und
 
 ### The sandbox
 
-Every command an agent runs, in a chat or an automation, runs in a macOS sandbox Malini writes for it, and so does the install Malini runs when it sets up a workstream.
-A package that turns out to be malicious gets the sandbox, not your Mac.
+Every command an agent runs, in a chat or an automation, runs in a sandbox Malini writes for it, and so does the install Malini runs when it sets up a workstream.
+A package that turns out to be malicious gets the sandbox, not your computer.
+macOS, Linux and Windows each have one; [the sandbox on Linux](#the-sandbox-on-linux) and [the sandbox on Windows](#the-sandbox-on-windows) name what differs there.
 
 In the sandbox, a command:
 
 - writes only to the workstream, its git folders, temporary folders, package caches, and the folders you open for it;
 - cannot read or write your files in Documents, Desktop, Downloads, Pictures, Movies, Music, Mail, Messages, iCloud Drive, Photos, Safari, Calendars, Reminders, Contacts and other apps' containers;
-- never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
+- never writes git hooks, the git config, the files that point git at another folder, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
 - reaches localhost, the sockets you open for it and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
@@ -221,6 +222,52 @@ When Malini sees nothing it can open, the chat asks to run the command outside i
 **Allow for this chat** runs every later one in that chat outside without asking, after a restart too, until you revoke it in Settings, Agent access, and a new chat asks again.
 **Full access** runs it outside without asking.
 An approval lets out that one call: a command inside the sandbox cannot let itself out.
+
+### The sandbox on Linux
+
+On Linux the sandbox is [bubblewrap](https://github.com/containers/bubblewrap), 0.8 or later, which the deb and the rpm install with Malini.
+It holds the same line as the macOS one.
+The workstream, the caches and the temporary folders are writable, git hooks, git config, `.claude` and `.mcp.json` stay read-only, and your credentials, keys, keyring, browser profiles and documents are not in the sandbox at all.
+A command there also reaches no key agent, session bus, secret service, display server or container daemon, and it cannot signal a process outside its own command.
+
+Three things work differently from macOS:
+
+- An automation with the internet off reaches nothing over the network, its own localhost included, since Linux gives Malini one switch for both.
+- A process a command leaves in the background ends with that command, so a server has to run in the command that uses it.
+- Malini reads what the sandbox refused from the command's own output, which carries refused writes, so a card offers the folder a command could not write.
+  A read or a socket the sandbox blocked asks to run the command outside instead.
+
+When Malini cannot open a sandbox on a computer, it says so rather than running commands outside one.
+**Settings → Agent access** gives the reason and the fix under **Sandboxed**, and Sandboxed asks before every command until then.
+The AppImage and the tarball meet this on Ubuntu 23.10 and later, which holds back the user namespaces bubblewrap needs: install the deb, which ships the AppArmor profile that allows them, or run `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`.
+
+### The sandbox on Windows
+
+On Windows the sandbox is srt-win, from Anthropic's [sandbox runtime](https://github.com/anthropics/sandbox-runtime), which ships with Malini.
+Commands run in Git Bash as `srt-sandbox`, a hidden Windows account, so a command gets only what that account may touch.
+The workstream and the folders you open for it are writable, git hooks, git config, `.claude` and `.mcp.json` stay read-only, and your credentials and documents stay closed.
+A command there cannot stop a process of yours.
+
+The sandbox needs setting up once on each PC, in **Settings → Agent access → Sandbox**.
+**Set up** asks Windows for your permission once, then adds:
+
+- `srt-sandbox`, a hidden Windows account that runs the commands;
+- firewall rules that keep that account off the internet unless a chat allows it;
+- read access for it to the tool folders in your profile, never Documents, Desktop, Downloads or sign-ins;
+- write access for it to each checkout a chat runs commands in.
+
+The first setup makes the tool folders in your profile readable one by one, and the card counts them.
+Until it is done, and when the card says the sandbox needs **Update** or cannot open, Sandboxed asks before every command.
+**Remove** takes it all off again, and uninstalling Malini takes off the folder access it gave.
+
+Five things work differently from macOS:
+
+- Every app on the PC that uses Anthropic's sandbox runtime shares the `srt-sandbox` account. **Replace** shows when another app set it up with other settings, and it and **Remove** change it for that app too.
+- With the internet on, a command reaches sites through a proxy Malini runs on this PC. A tool that goes through Windows' own networking instead, such as the `curl` in System32 or cargo, cannot get out, and a proxy your PC needs is not used.
+- The first command in a big workstream waits while Windows opens the workstream to the account.
+- A repository without `.claude` or `.mcp.json` shows an empty folder of that name while chats run commands in it.
+- Malini reads what the sandbox refused from the command's own output, as on Linux, so a card offers the folder a command could not write.
+  A read or a socket the sandbox blocked asks to run the command outside instead.
 
 ## Reports
 
@@ -294,8 +341,12 @@ It is off until you turn it on, and the next prompt of every chat follows it.
 
 ## The lid closed
 
-**Settings → Power → Keep working with the lid closed** keeps your Mac awake with its lid closed while an agent works, so a turn goes on in your bag.
+**Settings → Power → Keep working with the lid closed** keeps your computer awake with its lid closed while an agent works, so a turn goes on in your bag.
 It is off until you turn it on.
+It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12), and each OS holds the lid its own way.
+
+### macOS
+
 Turning it on asks for your password once: Malini adds `/etc/sudoers.d/malini`, which lets your account run `pmset -a disablesleep 1` and `pmset -a disablesleep 0` as root without a password, and nothing else.
 If `/etc/sudoers.d/close-my-lid` already allows those two commands, Malini asks for nothing.
 It also adds a background item, `app.malini.desktop.lid.<id>.plist` in `~/Library/LaunchAgents`, and macOS tells you so once.
@@ -307,12 +358,36 @@ Every 30 seconds it checks that the Malini that turned sleep off still runs, and
 - When something else already turned sleep off, such as Close My Lid, Malini leaves it alone.
 
 Turning the switch off removes the background item, and `sudo rm /etc/sudoers.d/malini` removes the rule.
-It comes from [Close My Lid](https://github.com/krishkalaria12/close-my-lid) by [Krish Kalaria](https://github.com/krishkalaria12).
+
+### Windows
+
+Turning it on asks for nothing: Malini writes your power plan's lid setting back as it is, to check that your account may change it.
+When it may not, the reason shows under the switch.
+
+- While any turn runs, Malini sets the active power plan's lid close action to **Do nothing**, plugged in and on battery, and puts your own values back once no turn runs, when you turn the switch off, and when Malini quits.
+- Before it changes them, Malini saves your values to `lid-held` in its data folder.
+- If Malini crashes or is ended in Task Manager, a hidden PowerShell process it started puts your values back once Malini is gone; if that was ended too, or the PC lost power, the next launch does.
+- While a turn runs, Windows does not sleep on its idle timer either; once agents finish, a closed PC sleeps on that timer.
+- If your plan already does nothing when the lid closes, Malini leaves the setting alone.
+- Malini has no battery floor here: Windows runs its own critical battery action.
+- A change you make to the lid close action while Malini holds it is undone when Malini lets go.
+
+### Linux
+
+Malini asks systemd-logind for a `handle-lid-switch` inhibitor lock through `systemd-inhibit`, which a local desktop session gets with no password.
+Turning it on takes the lock once to check; outside a local session, logind refuses it, and the reason shows under the switch.
+
+- While any turn runs, Malini holds the lock, which `systemd-inhibit --list` shows as Malini, "An agent is working", and lets go once no turn runs, when you turn the switch off, and when Malini quits.
+- The lock ends with Malini, so a crash or a kill gives the lid back at once.
+- While a turn runs, the desktop does not suspend on its idle timer either.
+- On battery at 5% or less, Malini lets go even while a turn runs.
+- Without systemd-logind, as in a container or on a system with elogind, the page says so and the switch stays off.
+- KDE Plasma handles the lid itself and follows its own power settings.
 
 ## Sounds
 
 Malini plays one sound when an agent finishes and another when it needs you: a question, an approval, or a failed run.
-**Settings → Sounds** picks each one from the same list: the Malini chime and 16 more that ship with Malini, the same on every Mac.
+**Settings → Sounds** picks each one from the same list: the Malini chime and 16 more that ship with Malini, the same on every computer.
 Play one before you pick it, and the menu stays open while you try others.
 **Record a sound…** records up to 3 seconds from your microphone, after macOS asks you to allow it, and **Choose a file…** adds a sound file of up to 5 MB.
 Your own sounds join both lists, and **No sound** turns one off.

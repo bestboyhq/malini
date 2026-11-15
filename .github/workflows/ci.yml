@@ -51,7 +51,21 @@ jobs:
         run: git config --system core.longpaths true
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+      - if: runner.os == 'Linux'
+        name: Install bubblewrap and allow user namespaces, so the sandbox tests run
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm --filter "malini^..." build
+      - if: runner.os == 'Windows' && matrix.part != 'packages'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/portable-git
+          key: portable-git-${{ runner.arch }}-${{ hashFiles('apps/malini/src/main/process/git-install.ts') }}
+      - if: runner.os == 'Windows' && matrix.part != 'packages'
+        name: Download the pinned PortableGit for the Git for Windows install test
+        run: echo "MALINI_TEST_PORTABLE_GIT=$(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON apps/malini/scripts/fetch-portable-git.mjs "$RUNNER_TEMP/portable-git")" >> "$GITHUB_ENV"
       - if: matrix.part != 'packages'
         name: Run the part, on Windows with only the file rights a desktop user has
         run: ${{ runner.os == 'Windows' && 'sh apps/malini/tests/windows/desktop-user.sh' || '' }} pnpm --filter malini exec vitest run --shard=${{ matrix.part }}
@@ -118,7 +132,7 @@ jobs:
         name: Start a virtual display, and let Electron's sandbox use user namespaces
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends dbus-daemon dbus-x11 gnome-keyring libasound2t64 libgbm1 libgtk-3-0t64 libnotify4 libnss3 libsecret-1-0 libxss1 libxtst6 xdg-utils xvfb
+          sudo apt-get install -y --no-install-recommends bubblewrap dbus-daemon dbus-x11 gnome-keyring libasound2t64 libgbm1 libgtk-3-0t64 libnotify4 libnss3 libsecret-1-0 libxss1 libxtst6 xdg-utils xvfb
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           Xvfb :99 -screen 0 1920x1080x24 &
           echo DISPLAY=:99 >> "$GITHUB_ENV"

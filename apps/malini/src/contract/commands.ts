@@ -26,6 +26,9 @@ import type {
 	RestoreCheckpointResult,
 	StagedAgentAttachment,
 	StagedAgentAttachmentBytes,
+	SandboxProblem,
+	SandboxSetupArgs,
+	SandboxSetupOutcome,
 } from './agent';
 import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
 import type { WorkstreamReport } from './deliveries';
@@ -139,6 +142,7 @@ import type {
 	ArchivedWorkstreamDto,
 	AuthStatusDto,
 	CheckoutsFolder,
+	GitSetupStatus,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
 	GitHubDeviceCodeDto,
@@ -406,6 +410,8 @@ export type ShareUsageDataArgs = Readonly<{ shared: boolean }>;
 
 export type HoldLidArgs = Readonly<{ on: boolean }>;
 
+export type LidHoldState = Readonly<{ on: boolean; available: boolean }>;
+
 export type StageAttachmentBytesArgs = Readonly<{
 	workstreamId: string;
 	fileName: string;
@@ -460,6 +466,10 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 
 export type SetThemeModeArgs = Readonly<{ mode: ThemeMode }>;
 
+export type WindowControlsTint = Readonly<{ background: string; symbol: string }>;
+
+export type PopUpMenuArgs = Readonly<{ x: number; y: number }>;
+
 export type CloseGuardArgs = Readonly<{ armed: boolean }>;
 
 export type UnreadChatsArgs = Readonly<{ count: number }>;
@@ -500,6 +510,9 @@ export interface ContractCommands {
 	'providers.sign-in-to-chatgpt': { args: undefined; result: ChatGptSignInOutcome };
 	'providers.cancel-chatgpt-sign-in': { args: undefined; result: void };
 	'providers.sign-out-of-chatgpt': { args: undefined; result: void };
+	'providers.sandbox-problem': { args: undefined; result: SandboxProblem | null };
+	'providers.set-up-sandbox': { args: SandboxSetupArgs; result: SandboxSetupOutcome };
+	'providers.remove-sandbox': { args: undefined; result: SandboxSetupOutcome };
 	'providers.list': { args: undefined; result: ModelProviderRecord[] };
 	'providers.refresh-models': { args: undefined; result: ModelProviderRecord[] };
 	'providers.save-key': { args: ProviderKeyArgs; result: void };
@@ -557,6 +570,7 @@ export interface ContractCommands {
 	'app.list-settings': { args: undefined; result: Record<string, string> };
 	'app.usage-data': { args: undefined; result: UsageDataState };
 	'app.share-usage-data': { args: ShareUsageDataArgs; result: void };
+	'app.lid-hold': { args: undefined; result: LidHoldState };
 	'app.hold-lid': { args: HoldLidArgs; result: boolean };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
@@ -571,6 +585,8 @@ export interface ContractCommands {
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
 	'repositories.install-github-cli': { args: undefined; result: void };
+	'repositories.git-setup-status': { args: undefined; result: GitSetupStatus };
+	'repositories.install-git': { args: undefined; result: void };
 	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.start-github-workflow-access': { args: undefined; result: GitHubDeviceCodeDto };
@@ -828,6 +844,8 @@ export interface ContractCommands {
 	'app.full-screen': { args: undefined; result: boolean };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
+	'app.tint-window-controls': { args: WindowControlsTint; result: void };
+	'app.pop-up-menu': { args: PopUpMenuArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
 	'app.streaming': { args: undefined; result: boolean };
 	'app.update-status': { args: undefined; result: UpdateStatus };
@@ -894,6 +912,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'providers.sign-in-to-chatgpt',
 	'providers.cancel-chatgpt-sign-in',
 	'providers.sign-out-of-chatgpt',
+	'providers.sandbox-problem',
+	'providers.set-up-sandbox',
+	'providers.remove-sandbox',
 	'providers.list',
 	'providers.refresh-models',
 	'providers.save-key',
@@ -930,6 +951,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
+	'app.lid-hold',
 	'app.hold-lid',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',
@@ -938,6 +960,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
 	'repositories.install-github-cli',
+	'repositories.git-setup-status',
+	'repositories.install-git',
 	'repositories.github-reach',
 	'repositories.start-github-sign-in',
 	'repositories.start-github-workflow-access',
@@ -1099,6 +1123,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.full-screen',
 	'app.interface-scale',
 	'app.theme-mode',
+	'app.tint-window-controls',
+	'app.pop-up-menu',
 	'app.runtime-info',
 	'app.streaming',
 	'app.update-status',

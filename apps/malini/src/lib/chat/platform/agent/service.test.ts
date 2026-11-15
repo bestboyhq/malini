@@ -9,6 +9,7 @@ import {
 } from '$contract/automations';
 import { all, run } from '$main/db/rows';
 import { BrowserDialogOpen, type BrowserDialog } from '$lib/browser/browser.platform';
+import { osFor } from '$shared/os/os.platform';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
 import {
@@ -760,6 +761,12 @@ describe('platform requests from the agent', () => {
 		});
 		expect(answer('p-8')).toContainEqual(
 			expect.objectContaining({ channel: 'chat:session-renamed', description: expect.any(String) }),
+		);
+		expect(answer('p-8')).toContainEqual(
+			expect.objectContaining({
+				channel: 'automations:time-reached',
+				description: expect.stringContaining(`while the ${osFor(process.platform).machine} slept`),
+			}),
 		);
 		expect(answer('p-9')).toMatchObject({
 			ok: false,

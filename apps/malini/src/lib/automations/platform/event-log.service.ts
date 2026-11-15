@@ -147,7 +147,7 @@ export function startEventLog(
 	};
 
 	const dispatch = (event: DispatchedEvent): void => {
-		work.add(handleAndMark(event));
+		work.add(handleAndMark(event), `handling ${event.channel}`);
 	};
 
 	const replay = (): void => {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { osQuery } from '$shared/os/os.api';
+	import { osQuery, osText } from '$shared/os/os.api';
 	import {
 		SCHEDULE_CADENCES,
 		parseAutomationTrigger,
@@ -79,7 +79,7 @@
 	});
 	const channelDescription = $derived(
 		channel in EVENT_CATALOG
-			? EVENT_CATALOG[channel as keyof typeof EVENT_CATALOG].description
+			? osText(EVENT_CATALOG[channel as keyof typeof EVENT_CATALOG].description, osQuery.data)
 			: '',
 	);
 	const clock = $derived(TIME.exec(time));

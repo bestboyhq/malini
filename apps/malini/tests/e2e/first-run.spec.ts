@@ -21,7 +21,7 @@ import {
 	type WorkstreamRow,
 } from './harness';
 
-test('a new Mac without Claude Code installs it on its own, holds the first prompt, and says why the install failed', async () => {
+test('a new computer without Claude Code installs it on its own, holds the first prompt, and says why the install failed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' },

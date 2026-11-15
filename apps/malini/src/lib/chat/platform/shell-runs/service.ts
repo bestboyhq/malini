@@ -40,7 +40,8 @@ const POWERSHELL_FENCES = new Set(['powershell', 'pwsh', 'ps1', 'psm1']);
 const COMMAND_PROMPT_FENCES = new Set(['cmd', 'bat', 'batch']);
 const POWERSHELL_EXIT_ON_FAILURE = '\r\nif (-not $?) { exit 1 }\r\n';
 const POWERSHELL_QUOTES = /['\u2018-\u201b]/gu;
-const GIT_BASH_MISSING = 'Run needs Git Bash. Install Git for Windows, then run it again.';
+const GIT_BASH_MISSING =
+	'Run needs Git Bash. Malini installs Git for Windows, and the line above the composer says where that stands.';
 
 export type ReportedShellRun = Readonly<
 	Pick<ShellRun, 'command' | 'state' | 'exitCode' | 'output'>

@@ -21,12 +21,17 @@ export const WINDOWS_PROCESS_LIST_ARGS = powerShellArgs(
 );
 
 const CONSOLE_API = [
-	'[DllImport("kernel32.dll")] public static extern bool FreeConsole();',
-	'[DllImport("kernel32.dll")] public static extern bool AttachConsole(uint processId);',
-	'[DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();',
-	'[DllImport("kernel32.dll")] public static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);',
-	'[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);',
-	'[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);',
+	"$api = [Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly([Reflection.AssemblyName]::new('Malini'), 'Run').DefineDynamicModule('Malini').DefineType('Console', 'Public, Abstract, Sealed')",
+	'function Import-Api([string] $dll, [string] $name, [Type] $returns, [Type[]] $takes = @()) {',
+	"$api.DefinePInvokeMethod($name, $dll, 'Public, Static, PinvokeImpl', 'Standard', $returns, $takes, 'Winapi', 'Unicode').SetImplementationFlags('PreserveSig')",
+	'}',
+	'Import-Api kernel32.dll FreeConsole ([bool])',
+	'Import-Api kernel32.dll AttachConsole ([bool]) ([uint32])',
+	'Import-Api kernel32.dll GetConsoleWindow ([IntPtr])',
+	'Import-Api kernel32.dll SetConsoleCtrlHandler ([bool]) ([IntPtr], [bool])',
+	'Import-Api user32.dll IsWindowVisible ([bool]) ([IntPtr])',
+	'Import-Api user32.dll GetClassName ([int]) ([IntPtr], [Text.StringBuilder], [int])',
+	'$console = $api.CreateType()',
 ];
 const TERMINALS_LINE = /^terminals:(.*)$/mu;
 const WINDOWS_PROBE_TIMEOUT_MS = 10_000;
@@ -106,19 +111,17 @@ function terminalProbeArgs(pids: readonly number[]): readonly string[] {
 	return powerShellArgs(
 		[
 			"$ErrorActionPreference = 'Stop'",
-			"Add-Type -Namespace Malini -Name Console -MemberDefinition @'",
 			...CONSOLE_API,
-			"'@",
-			'[void][Malini.Console]::SetConsoleCtrlHandler([IntPtr]::Zero, $true)',
+			'[void]$console::SetConsoleCtrlHandler([IntPtr]::Zero, $true)',
 			`$seen = foreach ($id in @(${pids.join(', ')})) {`,
-			'[void][Malini.Console]::FreeConsole()',
-			'if (-not [Malini.Console]::AttachConsole($id)) { continue }',
-			'$window = [Malini.Console]::GetConsoleWindow()',
+			'[void]$console::FreeConsole()',
+			'if (-not $console::AttachConsole($id)) { continue }',
+			'$window = $console::GetConsoleWindow()',
 			'$class = [Text.StringBuilder]::new(64)',
-			'[void][Malini.Console]::GetClassName($window, $class, $class.Capacity)',
-			"if ($class.ToString() -eq 'PseudoConsoleWindow' -or [Malini.Console]::IsWindowVisible($window)) { $id }",
+			'[void]$console::GetClassName($window, $class, $class.Capacity)',
+			"if ($class.ToString() -eq 'PseudoConsoleWindow' -or $console::IsWindowVisible($window)) { $id }",
 			'}',
-			'[void][Malini.Console]::FreeConsole()',
+			'[void]$console::FreeConsole()',
 			'"terminals:$seen"',
 		].join('\n'),
 	);

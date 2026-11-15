@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { format, resolveConfig } from 'prettier';
 import ts from 'typescript';
+import { osFor, osText } from '../src/lib/shared/os/domain/os.ts';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const contractRoot = resolve(appRoot, 'src/contract');
@@ -199,7 +200,7 @@ export async function formatPage(events) {
 		[
 			`## \`${channel}\``,
 			'',
-			description,
+			osText(description, osFor('darwin')),
 			'',
 			facts.length > 0
 				? `An automation sees: ${facts.map((fact) => `\`${fact}\``).join(', ')}`

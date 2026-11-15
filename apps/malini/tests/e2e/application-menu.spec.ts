@@ -17,7 +17,7 @@ async function menuLabels(app: LaunchedApp, menu: string): Promise<string[]> {
 		({ Menu }, label) =>
 			Menu.getApplicationMenu()
 				?.items.find((item) => item.label === label)
-				?.submenu?.items.filter((item) => item.type !== 'separator')
+				?.submenu?.items.filter((item) => item.type !== 'separator' && item.visible)
 				.map((item) => item.label) ?? [],
 		menu,
 	);

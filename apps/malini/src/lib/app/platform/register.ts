@@ -46,6 +46,7 @@ import { startUpdates } from './updates';
 import { startUsageData } from './usage-data';
 import { readUsageReport } from './usage-report';
 import { createWindowCommands, type WindowCommands } from './window';
+import { defineWindowControlsCommands } from './window-controls';
 import { lidTools, startLidHold } from './lid-hold';
 
 export interface AppDeps {
@@ -80,7 +81,9 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		context,
 		deps.runner ?? createNodeProcessRunner(),
 		lidTools(!context.isDev, process.env),
+		deps.platform ?? process.platform,
 	);
+	context.commands.define('app.lid-hold', () => lid.state());
 	context.commands.define('app.hold-lid', (args: unknown) => lid.hold(requireBoolean(args, 'on')));
 	const showMenu = (update: MenuItemConstructorOptions | null): void =>
 		host.showApplicationMenu(
@@ -194,6 +197,11 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		events,
 		appDataRoot: context.appDataRoot,
 	});
+	defineWindowControlsCommands(
+		commands,
+		() => deps.getMainWindow(),
+		deps.platform ?? process.platform,
+	);
 	commands.define('app.focus-window', () => window.focusMainWindow());
 	commands.define('app.interface-scale', (args: SetInterfaceScaleArgs) =>
 		window.setInterfaceScale(args),

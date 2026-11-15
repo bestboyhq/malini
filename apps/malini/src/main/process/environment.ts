@@ -7,6 +7,7 @@ import {
 	spawnable,
 	type EnvironmentVariables,
 } from './command';
+import { gitHome, gitHomes } from './git-install';
 import { killProcessGroup, OWN_PROCESS_GROUP } from './process-group';
 import { StringDecoder } from 'node:string_decoder';
 
@@ -194,23 +195,48 @@ export function preferredShell(env: EnvironmentVariables = process.env): string 
 export function gitBash(env: EnvironmentVariables = process.env): string | null {
 	const configured = environmentVariable(env, 'CLAUDE_CODE_GIT_BASH_PATH');
 	if (configured && isAbsolute(configured) && existsSync(configured)) return configured;
-	const git = resolveToolPath('git');
+	const git = findExecutable('git', environmentVariable(env, 'PATH') ?? currentEnvironment().path);
+	const roots = [git && dirname(dirname(git)), git && dirname(dirname(dirname(git)))];
+	return (
+		[...roots.filter((root) => typeof root === 'string'), ...systemGitRoots(env)]
+			.map((root) => join(root, 'bin', 'bash.exe'))
+			.find((bash) => existsSync(bash)) ?? null
+	);
+}
+
+export function useGitForWindows(
+	vendor: string,
+	env: Record<string, string | undefined> = process.env,
+): void {
+	const path = environmentVariable(env, 'PATH') ?? '';
+	if (findExecutable('git', path) === null) {
+		const system = systemGitRoots(env).find((root) => existsSync(join(root, 'cmd', 'git.exe')));
+		const roots = system === undefined ? gitHomes(vendor) : [system];
+		const folders = [path, ...roots.map((root) => join(root, 'cmd'))];
+		setVariable(env, 'PATH', folders.filter(Boolean).join(delimiter));
+	}
+	const bash = gitBash(env) ?? join(gitHome(vendor), 'bin', 'bash.exe');
+	setVariable(env, 'CLAUDE_CODE_GIT_BASH_PATH', bash);
+}
+
+export function gitForWindowsNeeds(
+	vendor: string,
+	env: EnvironmentVariables = process.env,
+): 'nothing' | 'install' | 'upgrade' {
+	const git = findExecutable('git', environmentVariable(env, 'PATH') ?? '');
+	if (git === null || gitBash(env) === null) return 'install';
+	return git.startsWith(vendor) && !existsSync(gitHome(vendor)) ? 'upgrade' : 'nothing';
+}
+
+function systemGitRoots(env: EnvironmentVariables): string[] {
 	const local = environmentVariable(env, 'LOCALAPPDATA');
-	const roots = [
-		git && dirname(dirname(git)),
-		git && dirname(dirname(dirname(git))),
+	return [
 		...['ProgramFiles', 'ProgramW6432', 'ProgramFiles(x86)'].map((name) => {
 			const folder = environmentVariable(env, name);
 			return folder && join(folder, 'Git');
 		}),
 		local && join(local, 'Programs', 'Git'),
-	];
-	return (
-		roots
-			.filter((root): root is string => typeof root === 'string' && root.length > 0)
-			.map((root) => join(root, 'bin', 'bash.exe'))
-			.find((bash) => existsSync(bash)) ?? null
-	);
+	].filter((root): root is string => typeof root === 'string' && root.length > 0);
 }
 
 export async function captureLoginShellEnvironment(

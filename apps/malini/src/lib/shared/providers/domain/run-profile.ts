@@ -1,3 +1,5 @@
+import type { SandboxProblem } from '$contract/agent';
+import { WINDOWS_SANDBOX_PROBLEM_LINES } from './windows-sandbox';
 export const AGENT_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 export const AGENT_RUN_MODES = ['agent', 'plan'] as const;
 export const AGENT_ACCESS_LEVELS = ['sandboxed', 'auto', 'full'] as const;
@@ -32,6 +34,28 @@ export const AGENT_ACCESS_DETAILS: Record<AgentAccess, { label: string; descript
 		description: 'Claude Code runs every command and edit without asking.',
 	},
 };
+
+export const SANDBOX_PROBLEM_LINES: Record<SandboxProblem, string> = {
+	missing:
+		"Malini's sandbox needs bubblewrap, so every command asks first. Install bubblewrap, then restart Malini.",
+	outdated:
+		"This computer's bubblewrap is too old for Malini's sandbox, so every command asks first. Update it to 0.8 or later, then restart Malini.",
+	blocked:
+		'This computer does not let Malini open a sandbox, so every command asks first. Install the .deb, or run sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0.',
+	nested:
+		'Malini already runs in a sandbox, so it cannot open another one, and every command asks first.',
+	unsupported: 'Malini has no sandbox for this computer yet, so every command asks first.',
+	'not-set-up': "Malini's sandbox is not set up yet, so every command asks first.",
+};
+
+export function sandboxProblemLine(
+	problem: SandboxProblem | null,
+	platform: string,
+): string | null {
+	if (problem === null) return null;
+	const windowsLine = platform === 'win32' ? WINDOWS_SANDBOX_PROBLEM_LINES[problem] : undefined;
+	return windowsLine ?? SANDBOX_PROBLEM_LINES[problem];
+}
 
 export const DEFAULT_AGENT_REPORT: AgentReport = 'medium';
 

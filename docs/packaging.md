@@ -30,6 +30,23 @@ Malini reaches GitHub through `gh` (ADR 0014), and a machine may not have it, so
 At boot the main process appends `Resources/vendor/gh/bin` to `PATH`, so a `gh` the user installed still comes first.
 To move to a newer `gh`, change `GH_VERSION` and all six hashes in `GH_SHA256` together, taking them from the release's `checksums.txt`.
 
+## Git for Windows
+
+Git for Windows is not bundled.
+Malini downloads the pinned PortableGit at runtime, only on a Windows PC without git or Git Bash (ADR 0252).
+To bump it, change `GIT_VERSION` and both `GIT_SHA256` entries in `apps/malini/src/main/process/git-install.ts`, with the SHA-256 lines from the release notes on `github.com/git-for-windows/git/releases`.
+
+## The commands sandbox on Windows
+
+On Windows, the commands sandbox is `srt-win.exe` from the pinned `@anthropic-ai/sandbox-runtime` in the bridge's `node_modules`.
+Only a Windows build keeps it, for its own chip, at `resources/agent-bridge/node_modules/@anthropic-ai/sandbox-runtime/vendor/srt-win/<arch>/srt-win.exe`.
+Every build drops the rest of that package's `vendor` folder, because Malini does not use it.
+srt-win.exe is unsigned, as the rest of the Windows build is.
+Its Apache-2.0 `LICENSE` ships beside it in `agent-bridge/node_modules`.
+The uninstaller runs `srt-win acl forget --all`, from `build/installer.nsh`, which removes the write grants the sandbox kept on checkouts, and an update skips it.
+It leaves the shared srt-win install in place: the `srt-sandbox` account, its network filters and the profile read grant.
+Another app can use that install, so only Settings, Agent access removes it (ADR 0250).
+
 ## Licenses
 
 `extraResources` ships Malini's `LICENSE` and the root `NOTICE`, which names every third-party component with its license and copyright line.

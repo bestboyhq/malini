@@ -92,7 +92,8 @@ import {
 	OUTSIDE_THE_SANDBOX,
 	SANDBOX_TAG_PREFIX,
 	sandboxGrant,
-	sandboxProfile,
+	sandboxDenialsIn,
+	sandboxPrefix,
 	toolStateGrant,
 	type SandboxDenial,
 	type SandboxGrant,
@@ -577,11 +578,11 @@ export class ClaudeSession implements ProviderHandle {
 
 	#confine(): void {
 		const places = this.#places;
-		this.#secrets.confine(places ? this.#profile(places, this.#grants) : null);
+		this.#secrets.confine(places ? this.#prefix(places, this.#grants) : null);
 	}
 
-	#profile(places: SandboxPlaces, grants: readonly SandboxGrant[]): string {
-		return sandboxProfile({ ...places, tag: this.#tag, grants });
+	#prefix(places: SandboxPlaces, grants: readonly SandboxGrant[]): string[] {
+		return sandboxPrefix({ ...places, tag: this.#tag, grants });
 	}
 
 	#record(denial: SandboxDenial): void {
@@ -1005,7 +1006,7 @@ export class ClaudeSession implements ProviderHandle {
 							resolution.scope === 'once'
 								? this.#secrets.passInside(
 										command,
-										this.#profile(places, [...this.#grants, ...blocked]),
+										this.#prefix(places, [...this.#grants, ...blocked]),
 									)
 								: command,
 					},
@@ -1165,6 +1166,10 @@ export class ClaudeSession implements ProviderHandle {
 			if (running === undefined || String(command).includes(OUTSIDE_THE_SANDBOX)) return {};
 			const { started } = running;
 			if (event === 'PostToolUseFailure') await delay(SANDBOX_REPORT_SETTLE_MS);
+			const output = event === 'PostToolUse' ? input.tool_response : input.error;
+			for (const denial of sandboxDenialsIn(commandOutput(output))) {
+				this.#record({ ...denial, tag: this.#tag });
+			}
 			const blocked = [...this.#blocked.values()].filter(({ at }) => at >= started);
 			if (inside !== null) {
 				this.#need(
@@ -1421,6 +1426,15 @@ function canContinue(
 		JSON.stringify(plugins) === JSON.stringify(active.plugins) &&
 		JSON.stringify(boundary ?? null) === JSON.stringify(active.boundary ?? null)
 	);
+}
+
+function commandOutput(response: unknown): string {
+	if (typeof response === 'string') return response;
+	if (!isRecord(response)) return '';
+	return ['stdout', 'stderr']
+		.map((stream) => response[stream])
+		.filter((text) => typeof text === 'string')
+		.join('\n');
 }
 
 function grantKey({ kind, path }: SandboxGrant): string {

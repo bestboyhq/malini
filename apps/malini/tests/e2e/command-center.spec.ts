@@ -14,7 +14,7 @@ import {
 
 const PRIMARY = process.platform === 'darwin' ? '⌘' : 'Ctrl\\+';
 
-test('⌘K runs a command or finds any repository you work on, on GitHub or only on this Mac, and opens it', async () => {
+test('⌘K runs a command or finds any repository you work on, on GitHub or only on this computer, and opens it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {

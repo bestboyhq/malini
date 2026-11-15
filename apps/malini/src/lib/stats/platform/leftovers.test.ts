@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
-import { spawn as spawnTerminal } from 'node-pty';
 import { describe, expect, it } from 'vitest';
-import { createNodeProcessRunner } from '$main/process/runner';
+import type { ProcessExit, ProcessRunner } from '$main/process/runner';
 import {
 	leftoverContainers,
 	leftoverProcesses,
@@ -72,21 +70,31 @@ describe('leftoverProcesses', () => {
 	});
 });
 
-describe.runIf(process.platform === 'win32')('windowsTerminalProcesses', () => {
-	it('finds a process in a terminal, never one started hidden or detached', async () => {
-		const idle = ['-e', 'setInterval(() => {}, 1000)'];
-		const hidden = spawn(process.execPath, idle, { stdio: 'pipe', windowsHide: true });
-		const detached = spawn(process.execPath, idle, { detached: true, stdio: 'ignore' });
-		const terminal = spawnTerminal(process.execPath, idle, {});
-		try {
-			const pids = [hidden.pid, detached.pid, terminal.pid].flatMap((pid) => pid ?? []);
-			const terminals = await windowsTerminalProcesses(createNodeProcessRunner(), pids);
-			expect([...terminals]).toEqual([terminal.pid]);
-		} finally {
-			hidden.kill();
-			detached.kill();
-			terminal.kill();
-		}
+describe('windowsTerminalProcesses', () => {
+	function probe(stdout: string, code = 0): ProcessRunner {
+		return {
+			spawn: (_file, _args, options = {}) => {
+				options.onStdout?.(stdout);
+				return { pid: 1, exit: Promise.resolve<ProcessExit>({ kind: 'exited', code }) };
+			},
+			signalProcessGroup: () => {},
+			processGroupIsAlive: () => false,
+			processIsAlive: () => false,
+		};
+	}
+
+	it('keeps only the pids the console probe saw', async () => {
+		const seen = await windowsTerminalProcesses(probe('terminals:220 400\n'), [220, 300, 400]);
+		const none = await windowsTerminalProcesses(probe('terminals:\n'), [220, 300]);
+
+		expect([...seen]).toEqual([220, 400]);
+		expect([...none]).toEqual([]);
+	});
+
+	it('leaves every pid alone when the probe cannot answer', async () => {
+		const seen = await windowsTerminalProcesses(probe('', 1), [220, 300]);
+
+		expect([...seen]).toEqual([220, 300]);
 	});
 });
 

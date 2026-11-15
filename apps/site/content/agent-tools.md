@@ -94,7 +94,7 @@ It never sees the value, and you never deal with a file or a path.
   Paste a value and **Save**.
   Paste `NAME=value` lines, from a `.env` file for example, anywhere in the chat, and they fill every field they name instead of landing in the composer.
   A value of several lines, such as a private key, keeps its line breaks.
-- Malini seals the value with your Mac's keychain, for the chat's repository.
+- Malini seals the value with your Mac's keychain, your Windows account or your Linux keyring, for the chat's repository.
   From then on `$NAME` is set in every command the agent runs there, including workstreams you start later and after you archive this one.
 - Malini tells the agent what you saved, and which names you left empty, which wakes it when it waits.
 - Every output the agent sees, a failing or background command's included, shows the value as `[secret]`, and so does the transcript.

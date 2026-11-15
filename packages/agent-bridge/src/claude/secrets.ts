@@ -16,7 +16,6 @@ import {
 	INSIDE_THE_SANDBOX,
 	OUTSIDE_THE_SANDBOX,
 	SANDBOX_ENVIRONMENT,
-	SANDBOX_EXEC,
 	SECRETS_FOLDER_PREFIX,
 } from '../sandbox.js';
 import { errnoCode, isRecord } from '../type-guards.js';
@@ -24,6 +23,9 @@ import { errnoCode, isRecord } from '../type-guards.js';
 export const SECRET_MASK = '[secret]';
 export const MASKED_LENGTH = 8;
 
+const DEFAULT_SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
+const SANDBOX_FILE = 'sandbox';
+const SANDBOX_UNREADY = 'malini: the sandbox is not ready, so this command did not run';
 const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
@@ -36,15 +38,17 @@ folder=\${0%/*}
 shell=\${CLAUDE_CODE_SHELL:-$BASH}
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
 run=("$shell" -c "$1")
-profile=(-f "$folder/sandbox.sb")
-if [[ $1 =~ ${INSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && once="$folder/passes/\${BASH_REMATCH[1]}.sb" &&
-	granted=$(/bin/cat "$once" 2>/dev/null) && /bin/rm "$once"; then
-	profile=(-p "$granted")
-fi
-if [ -r "$folder/sandbox.sb" ] && ! {
+words() { local word; words=(); while IFS= read -r -d '' word; do words+=("$word"); done <"$1"; }
+if [ -r "$folder/${SANDBOX_FILE}" ] && ! {
 	[[ $1 =~ ${OUTSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && /bin/rm "$folder/passes/\${BASH_REMATCH[1]}" 2>/dev/null
 }; then
-	run=(/usr/bin/env ${sandboxEnvironment} ${SANDBOX_EXEC} "\${profile[@]}" "\${run[@]}")
+	words "$folder/${SANDBOX_FILE}"
+	if [[ $1 =~ ${INSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] &&
+		once="$folder/passes/\${BASH_REMATCH[1]}.${SANDBOX_FILE}" && [ -r "$once" ]; then
+		words "$once" && /bin/rm "$once"
+	fi
+	[ \${#words[@]} -gt 0 ] || { echo "${SANDBOX_UNREADY}" >&2; exit 1; }
+	run=(/usr/bin/env ${sandboxEnvironment} "\${words[@]}" "\${run[@]}")
 fi
 [ -s "$folder/masks" ] || exec "\${run[@]}"
 mask() {
@@ -84,15 +88,15 @@ export class SessionSecrets {
 		writeFileSync(this.runScript, RUN_SCRIPT, { mode: 0o700 });
 	}
 
-	confine(profile: string | null): void {
-		this.#confined = profile !== null;
-		const path = join(this.#folder, 'sandbox.sb');
-		if (profile === null) {
+	confine(prefix: readonly string[] | null): void {
+		this.#confined = prefix !== null;
+		const path = join(this.#folder, SANDBOX_FILE);
+		if (prefix === null) {
 			rmSync(path, { force: true });
 			return;
 		}
 		const next = `${path}.${randomUUID()}`;
-		writeFileSync(next, profile, { mode: 0o600 });
+		writeFileSync(next, words(prefix), { mode: 0o600 });
 		renameSync(next, path);
 	}
 
@@ -101,9 +105,9 @@ export class SessionSecrets {
 		return `: ${OUTSIDE_THE_SANDBOX}${this.#pass('', '')}; ${command}`;
 	}
 
-	passInside(command: string, profile: string): string {
+	passInside(command: string, prefix: readonly string[]): string {
 		if (!this.#confined) return command;
-		return `: ${INSIDE_THE_SANDBOX}${this.#pass('.sb', profile)}; ${command}`;
+		return `: ${INSIDE_THE_SANDBOX}${this.#pass(`.${SANDBOX_FILE}`, words(prefix))}; ${command}`;
 	}
 
 	#pass(extension: string, contents: string): string {
@@ -156,8 +160,12 @@ export function claudeShell(env: NodeJS.ProcessEnv = process.env): string {
 	const candidates = [env['CLAUDE_CODE_SHELL'], env['SHELL']];
 	return (
 		candidates.find((shell) => shell && /bash|zsh/u.test(shell) && isExecutable(shell)) ??
-		'/bin/zsh'
+		DEFAULT_SHELL
 	);
+}
+
+function words(prefix: readonly string[]): string {
+	return prefix.map((word) => `${word}\0`).join('');
 }
 
 function masksOf(values: readonly string[]): string[] {

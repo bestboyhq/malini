@@ -167,6 +167,8 @@ export interface GithubRepositoryDto {
 	pushedAt: string | null;
 }
 
+export type GitSetupStatus = 'ready' | 'missing';
+
 export interface AuthStatusDto {
 	authenticated: boolean;
 	installed: boolean;

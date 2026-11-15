@@ -55,6 +55,7 @@ export function suggestAutomationsAfterMerges(
 			noticeAsk(context, answer, sessionId, runId).catch((error: unknown) => {
 				log(`automations: could not look for a habit after \`${runId}\`: ${describeError(error)}`);
 			}),
+			`looking for a habit after ${runId}`,
 		);
 	});
 }

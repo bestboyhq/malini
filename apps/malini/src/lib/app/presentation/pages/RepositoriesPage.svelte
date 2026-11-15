@@ -16,6 +16,7 @@
 		clearRepositoryConnectErrorCommand,
 		connectedRepositoriesQuery,
 		GitHubSetup,
+		GitInstallStatus,
 		githubAuthQuery,
 		hiddenRepositoriesQuery,
 		loadGithubAuthCommand,
@@ -280,6 +281,7 @@
 				{#if githubSignedOut}
 					<GitHubSetup nested />
 				{/if}
+				<GitInstallStatus class="px-3.5" />
 
 				<ComposerShell>
 					<div class="flex h-10 items-center gap-3 pr-1.5 pl-3.5">

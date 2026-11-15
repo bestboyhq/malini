@@ -13,7 +13,7 @@ import {
 	writeAttachmentFixture,
 	writeSandboxScratchFixture,
 } from './fixtures.test-support';
-import { parseStatus, statusCollector } from './status';
+import { conflictMarkerPaths, parseStatus, statusCollector } from './status';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -216,6 +216,22 @@ describe('statusCollector', () => {
 		const settled = await statusCollector(repo);
 		expect(settled.mergeInProgress).toBe(false);
 		expect(settled.conflictedPaths).toEqual([]);
+	});
+
+	it('t13u reads a marker a checkout wrote with carriage returns, or longer than seven', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		await writeFile(
+			join(dir, 'crlf.txt'),
+			'<<<<<<< ours\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> theirs\r\n',
+		);
+		await writeFile(join(dir, 'double-cr.txt'), '<<<<<<<\r\r\nours\r\r\n>>>>>>>\r\r\n');
+		await writeFile(join(dir, 'longer.txt'), '<<<<<<<<< ours\nours\n>>>>>>>>> theirs\n');
+		await writeFile(join(dir, 'plain.txt'), 'no markers here\r\n');
+
+		expect(
+			await conflictMarkerPaths(dir, ['crlf.txt', 'double-cr.txt', 'longer.txt', 'plain.txt']),
+		).toEqual(['crlf.txt', 'double-cr.txt', 'longer.txt']);
 	});
 
 	it('t13u sees a real conflicted rebase and names the branch it is rebasing', async () => {

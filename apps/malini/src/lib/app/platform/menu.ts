@@ -5,6 +5,12 @@ type Choose = (command: MenuCommand) => void;
 
 const SEPARATOR: MenuItemConstructorOptions = { type: 'separator' };
 
+const ZOOM_IN_WITHOUT_SHIFT: MenuItemConstructorOptions = {
+	role: 'zoomIn',
+	accelerator: 'CommandOrControl+=',
+	visible: false,
+};
+
 const SOURCE_URL = 'https://github.com/bestboyhq/malini';
 
 const CREDITS = [
@@ -56,7 +62,17 @@ export function applicationMenu(
 	];
 	if (process.platform !== 'darwin') {
 		return [
-			{ label: 'File', submenu: [...file, settings, SEPARATOR, closeWindow, { role: 'quit' }] },
+			{
+				label: 'File',
+				submenu: [
+					...file,
+					settings,
+					SEPARATOR,
+					closeWindow,
+					{ role: 'quit' },
+					ZOOM_IN_WITHOUT_SHIFT,
+				],
+			},
 			...standard,
 			{ role: 'help', submenu: [...updates, { role: 'about', label: `About ${appName}` }] },
 		];

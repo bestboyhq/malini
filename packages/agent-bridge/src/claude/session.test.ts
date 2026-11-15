@@ -24,6 +24,7 @@ import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, claudeEnvironment } from './session.js';
 
 const WINDOWS = process.platform === 'win32';
+const LINUX = process.platform === 'linux';
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
 const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
 const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
@@ -429,7 +430,7 @@ describe('ClaudeSession', () => {
 				readFile(
 					join(
 						dirname(claude.runs[run]?.options.env?.['CLAUDE_CODE_SHELL_PREFIX'] ?? ''),
-						'sandbox.sb',
+						'sandbox',
 					),
 					'utf8',
 				);
@@ -452,11 +453,16 @@ describe('ClaudeSession', () => {
 			const [first, second] = claude.runs.map(({ options }) => options);
 			expect(first?.sandbox).toEqual({ enabled: false });
 			for (const path of [...sealed.hidden, '/projects"']) {
-				expect(sealedSandbox).toContain(path);
+				if (!LINUX) expect(sealedSandbox).toContain(path);
 				expect(openSandbox).not.toContain(path);
 			}
-			expect(sealedSandbox).not.toContain('(remote ip "*:*")');
-			expect(openSandbox).toContain('(remote ip "*:*")');
+			if (LINUX) {
+				expect(sealedSandbox).toContain('--unshare-net');
+				expect(openSandbox).not.toContain('--unshare-net');
+			} else {
+				expect(sealedSandbox).not.toContain('(remote ip "*:*")');
+				expect(openSandbox).toContain('(remote ip "*:*")');
+			}
 			expect(first?.disallowedTools).toEqual(
 				expect.arrayContaining([
 					'Read(//data/malini/malini.sqlite/**)',
@@ -1412,10 +1418,10 @@ describe('ClaudeSession', () => {
 					},
 				},
 			]);
-			expect(await readFile(join(folderOf(claude), 'passes', `${pass}.sb`), 'utf8')).toContain(
+			expect(await readFile(join(folderOf(claude), 'passes', `${pass}.sandbox`), 'utf8')).toContain(
 				socket,
 			);
-			expect(await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8')).not.toContain(socket);
+			expect(await readFile(join(folderOf(claude), 'sandbox'), 'utf8')).not.toContain(socket);
 		});
 
 		it('offers the same again when that command asks to leave after Allow once', async () => {
@@ -1454,7 +1460,7 @@ describe('ClaudeSession', () => {
 			const { session, claude } = grantRun('repository');
 
 			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
-			const kept = await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8');
+			const kept = await readFile(join(folderOf(claude), 'sandbox'), 'utf8');
 			await session.sendPrompt(
 				'Run them again',
 				'run-2',
@@ -1474,7 +1480,7 @@ describe('ClaudeSession', () => {
 
 			expect(approvedCommand(claude)).toBe('pnpm test');
 			expect(kept).toContain(socket);
-			expect(await readFile(join(folderOf(claude), 'sandbox.sb'), 'utf8')).not.toContain(socket);
+			expect(await readFile(join(folderOf(claude), 'sandbox'), 'utf8')).not.toContain(socket);
 		});
 
 		it('opens a folder a tool keeps its state in without a card', async () => {
@@ -1500,7 +1506,7 @@ describe('ClaudeSession', () => {
 					grant: { kind: 'path', path: state },
 				},
 			]);
-			expect(await readFile(join(folder, 'sandbox.sb'), 'utf8')).toContain(state);
+			expect(await readFile(join(folder, 'sandbox'), 'utf8')).toContain(state);
 		});
 
 		it('tells the agent what the sandbox blocked while a command ran', async () => {
@@ -1538,6 +1544,45 @@ describe('ClaudeSession', () => {
 				hookSpecificOutput: {
 					hookEventName: 'PostToolUseFailure',
 					additionalContext: expect.stringContaining(`- docker: network-outbound ${socket}`),
+				},
+			});
+		});
+
+		it.runIf(LINUX)('reads what it refused from the output of the command', async () => {
+			const script = recordedScript('readAndBash');
+			const command = {
+				session_id: READ_AND_BASH_SESSION,
+				transcript_path: '/tmp/transcript.jsonl',
+				cwd: '/work/repo',
+				tool_name: 'Bash',
+				tool_input: { command: 'pnpm test' },
+				tool_use_id: 'toolu_blocked',
+			};
+			const { session, claude } = harness([
+				[
+					...script.slice(0, 1),
+					{ hook: { ...command, hook_event_name: 'PreToolUse' } },
+					...script.slice(1, 10),
+					{
+						hook: {
+							...command,
+							hook_event_name: 'PostToolUse',
+							tool_response: {
+								stdout: '',
+								stderr: "touch: cannot touch '/etc/malini-probe': Read-only file system",
+							},
+						},
+					},
+					...script.slice(10),
+				],
+			]);
+
+			await session.sendPrompt('Run the tests', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.hookOutputs).toContainEqual({
+				hookSpecificOutput: {
+					hookEventName: 'PostToolUse',
+					additionalContext: expect.stringContaining('touch: file-write-create /etc/malini-probe'),
 				},
 			});
 		});

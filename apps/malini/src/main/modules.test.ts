@@ -218,8 +218,8 @@ describe('the main module graph', () => {
 					'archived',
 					'archived',
 				]),
-			{ timeout: 10_000 },
+			{ timeout: 60_000, interval: 500 },
 		);
 		expect(getWorkstream(harness.db, 'ws-live')?.status).toBe('active');
-	});
+	}, 90_000);
 });

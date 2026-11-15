@@ -296,6 +296,10 @@ export class AgentRunLeases {
 		});
 	}
 
+	savingChanges(workstreamId: string): boolean {
+		return this.capturing.has(workstreamId);
+	}
+
 	async runChangeCaptureSettled(workstreamId: string): Promise<void> {
 		while (this.capturing.has(workstreamId)) await this.capturing.get(workstreamId)?.settled;
 	}

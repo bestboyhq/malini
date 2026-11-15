@@ -1117,8 +1117,9 @@ const respond = async (sessionId, runId, prompt) => {
 			const file = nodePath.join(worktree, path);
 			const kept = fs
 				.readFileSync(file, 'utf8')
-				.split('\n')
-				.filter((line) => !/^(?:<{7}|={7}|>{7})(?: |$)/.test(line));
+				.split(/\r?\n/)
+				.map((line) => line.replace(/\r+$/, ''))
+				.filter((line) => !/^(?:<{7,}|={7,}|>{7,}|\|{7,})(?: |$)/.test(line));
 			fs.writeFileSync(file, kept.join('\n'));
 			event({ type: 'file.changed', runId, path });
 		}

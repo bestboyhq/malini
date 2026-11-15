@@ -14,7 +14,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
-import { canSandbox, sandboxProfile } from '../sandbox.js';
+import { canSandbox, sandboxPrefix } from '../sandbox.js';
 import {
 	bridgeSecretsFolder,
 	claudeShell,
@@ -161,7 +161,7 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		const hidden = mkdtempSync(join(ROOT, 'hidden-'));
 		writeFileSync(join(hidden, 'token'), 'hidden-token');
 		const secrets = session();
-		secrets.confine(sandboxProfile({ checkout: ROOT, hidden: [hidden], internet: false }));
+		secrets.confine(sandboxPrefix({ checkout: ROOT, hidden: [hidden], internet: false }));
 		return { secrets, read: `cat ${join(hidden, 'token')}` };
 	}
 
@@ -189,7 +189,7 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		const write = `touch ${join(granted, 'state')}`;
 		const once = secrets.passInside(
 			write,
-			sandboxProfile({
+			sandboxPrefix({
 				checkout: ROOT,
 				hidden: [],
 				internet: false,
@@ -255,10 +255,12 @@ describe('bridgeSecretsFolder', () => {
 });
 
 describe.skipIf(WINDOWS)('claudeShell', () => {
-	it('takes the shell Claude Code would pick', () => {
+	it('takes the shell Claude Code would pick, and the one this computer has otherwise', () => {
+		const own = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
+
 		expect(claudeShell({ CLAUDE_CODE_SHELL: '/bin/bash', SHELL: '/bin/zsh' })).toBe('/bin/bash');
 		expect(claudeShell({ SHELL: '/bin/bash' })).toBe('/bin/bash');
-		expect(claudeShell({ SHELL: '/opt/homebrew/bin/fish' })).toBe('/bin/zsh');
-		expect(claudeShell({ CLAUDE_CODE_SHELL: '/nowhere/zsh' })).toBe('/bin/zsh');
+		expect(claudeShell({ SHELL: '/opt/homebrew/bin/fish' })).toBe(own);
+		expect(claudeShell({ CLAUDE_CODE_SHELL: '/nowhere/zsh' })).toBe(own);
 	});
 });

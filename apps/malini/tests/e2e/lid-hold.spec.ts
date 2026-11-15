@@ -14,13 +14,12 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	temporaryRoot,
+	withoutConsoleErrors,
 	writeExecutable,
 } from './harness';
 
-test.skip(
-	process.platform !== 'darwin',
-	'Close My Lid drives pmset and launchd, which only macOS has',
-);
+const MAC_ONLY = 'Close My Lid drives pmset and launchd, which only macOS has';
+const LINUX_ONLY = 'systemd-logind holds the lid switch only on Linux';
 
 const SUDO = `#!/bin/sh
 tools="$(dirname "$0")"
@@ -69,6 +68,36 @@ function fakeLidTools(root: string): string {
 	return tools;
 }
 
+const SYSTEMD_INHIBIT = `#!/bin/sh
+tools="$(dirname "$0")"
+if [ "$1" = --list ]; then
+	[ -f "$tools/no-logind" ] && { echo 'Failed to list inhibitors: Could not activate remote peer.' >&2; exit 1; }
+	exit 0
+fi
+echo "$1" >> "$tools/inhibits"
+[ -f "$tools/denied" ] && { echo 'Failed to inhibit: Access denied' >&2; exit 1; }
+shift 4
+echo 1 > "$tools/held"
+"$@"
+echo 0 > "$tools/held"
+`;
+
+function fakeInhibitor(root: string): string {
+	const tools = join(root, 'lid-tools');
+	mkdirSync(tools);
+	writeExecutable(join(tools, 'systemd-inhibit'), SYSTEMD_INHIBIT);
+	return tools;
+}
+
+function held(tools: string): string {
+	return fileExists(join(tools, 'held')) ? readFileSync(join(tools, 'held'), 'utf8').trim() : '';
+}
+
+function inhibits(tools: string): string[] {
+	if (!fileExists(join(tools, 'inhibits'))) return [];
+	return readFileSync(join(tools, 'inhibits'), 'utf8').split('\n').filter(Boolean);
+}
+
 function sleepDisabled(tools: string): string {
 	return fileExists(join(tools, 'sleep-disabled'))
 		? readFileSync(join(tools, 'sleep-disabled'), 'utf8')
@@ -109,6 +138,7 @@ async function openPowerSettings(page: Page) {
 }
 
 test('with the lid switch on, the Mac stays awake while an agent works and sleeps once it stops', async () => {
+	test.skip(process.platform !== 'darwin', MAC_ONLY);
 	test.setTimeout(120_000);
 	const root = temporaryRoot('malini-lid-');
 	const tools = fakeLidTools(root);
@@ -184,6 +214,7 @@ test('with the lid switch on, the Mac stays awake while an agent works and sleep
 });
 
 test('once the Malini that holds the lid is gone, launchd or its next launch lets the Mac sleep again', async () => {
+	test.skip(process.platform !== 'darwin', MAC_ONLY);
 	test.setTimeout(180_000);
 	const root = temporaryRoot('malini-lid-');
 	const tools = fakeLidTools(root);
@@ -231,6 +262,122 @@ test('once the Malini that holds the lid is gone, launchd or its next launch let
 		}
 	} finally {
 		await app.close().catch(() => undefined);
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('with the lid switch on, logind holds the lid while an agent works and lets go once it stops', async () => {
+	test.skip(process.platform !== 'linux', LINUX_ONLY);
+	test.setTimeout(120_000);
+	const root = temporaryRoot('malini-lid-');
+	const tools = fakeInhibitor(root);
+	writeFileSync(join(tools, 'denied'), '');
+	const app = await launchMalini({
+		env: { MALINI_LID_TOOLS: tools },
+		allowedDiagnostics: [/Failed to inhibit: Access denied/u],
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-lid-ws', 'Lid workstream');
+		const settings = await openPowerSettings(page);
+		const lid = settings.getByRole('switch', { name: 'Keep working with the lid closed' });
+		await expect(lid).not.toBeChecked();
+
+		await lid.click();
+		await expect(settings.getByRole('alert')).toHaveText(
+			"Linux didn't allow it. Malini needs a local desktop session to hold the lid.",
+		);
+		await expect(lid).not.toBeChecked();
+		await expect(lid).toBeEnabled();
+		const denied = /could not save the lid setting/u;
+		await expect.poll(() => app.consoleErrors.some((line) => denied.test(line))).toBe(true);
+		withoutConsoleErrors(app, denied);
+
+		rmSync(join(tools, 'denied'));
+		await lid.click();
+		await expect(lid).toBeChecked();
+		await expect(settings.getByRole('alert')).toBeHidden();
+		expect(inhibits(tools)).toEqual(['--what=handle-lid-switch', '--what=handle-lid-switch']);
+		expect(held(tools)).toBe('0');
+		await captureFlow(app, 'lid-hold-settings-linux');
+		const closed = page.evaluate(
+			"new Promise((resolve) => addEventListener('popstate', resolve, { once: true }))",
+		);
+		await page.keyboard.press('Escape');
+		await closed;
+		await expect(settings).toBeHidden();
+
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'HANG');
+		const submit = page.getByTestId('chat-composer-submit');
+		await expect(submit).toHaveAccessibleName('Stop current run', { timeout: 20_000 });
+		await expect.poll(() => held(tools)).toBe('1');
+
+		await submit.click();
+		await expect(submit).toHaveAccessibleName('Send prompt');
+		await expect.poll(() => held(tools)).toBe('0');
+
+		await sendPrompt(page, 'HANG');
+		await expect.poll(() => held(tools)).toBe('1');
+		expect(await invoke<boolean>(page, 'app.hold-lid', { on: false })).toBe(false);
+		await expect.poll(() => held(tools)).toBe('0');
+		expect(await invoke<boolean>(page, 'app.hold-lid', { on: true })).toBe(true);
+		await expect.poll(() => held(tools)).toBe('1');
+
+		expectCleanConsole(app);
+		await app.quit();
+		expect(held(tools)).toBe('0');
+	} finally {
+		await app.close();
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('once the Malini that holds the lid is gone, logind lets the computer sleep again', async () => {
+	test.skip(process.platform !== 'linux', LINUX_ONLY);
+	test.setTimeout(120_000);
+	const root = temporaryRoot('malini-lid-');
+	const tools = fakeInhibitor(root);
+	const app = await launchMalini({ env: { MALINI_LID_TOOLS: tools } });
+	try {
+		const { page } = app;
+		expect(await invoke<boolean>(page, 'app.hold-lid', { on: true })).toBe(true);
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-lid-crash-ws', 'Lid crash');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'HANG');
+		await expect.poll(() => held(tools)).toBe('1');
+		expectCleanConsole(app);
+
+		app.electronApp.process().kill('SIGKILL');
+		await expect.poll(() => held(tools)).toBe('0');
+	} finally {
+		await app.close().catch(() => undefined);
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('without systemd-logind, the lid switch says so and stays off', async () => {
+	test.skip(process.platform !== 'linux', LINUX_ONLY);
+	const root = temporaryRoot('malini-lid-');
+	const tools = fakeInhibitor(root);
+	writeFileSync(join(tools, 'no-logind'), '');
+	const app = await launchMalini({ env: { MALINI_LID_TOOLS: tools } });
+	try {
+		const source = await createSourceRepo(app.root);
+		await seedWorkstream(app.page, source, 'e2e-lid-off-ws', 'Lid off');
+		const settings = await openPowerSettings(app.page);
+		await expect(
+			settings.getByText('No systemd-logind here, so the lid does what it always does.'),
+		).toBeVisible();
+		await expect(
+			settings.getByRole('switch', { name: 'Keep working with the lid closed' }),
+		).toBeDisabled();
+		expect(inhibits(tools)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
 		rmSync(root, { recursive: true, force: true });
 	}
 });

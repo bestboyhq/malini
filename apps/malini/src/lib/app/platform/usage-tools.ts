@@ -15,7 +15,7 @@ export interface ToolEvent {
 }
 
 interface ToolStep {
-	readonly tool: 'claude_code' | 'github';
+	readonly tool: 'claude_code' | 'github' | 'git';
 	readonly action: 'install' | 'sign_in';
 }
 
@@ -24,6 +24,7 @@ const GITHUB_SIGN_IN_START = 'repositories.start-github-sign-in';
 const BEGINS: Readonly<Record<string, ToolStep>> = {
 	'providers.install-claude-code': { tool: 'claude_code', action: 'install' },
 	'repositories.install-github-cli': { tool: 'github', action: 'install' },
+	'repositories.install-git': { tool: 'git', action: 'install' },
 	'providers.sign-in-to-claude': { tool: 'claude_code', action: 'sign_in' },
 	[GITHUB_SIGN_IN_START]: { tool: 'github', action: 'sign_in' },
 };

@@ -1,3 +1,6 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { githubFailure } from '$contract/github-failure';
 import {
@@ -5,6 +8,7 @@ import {
 	GhError,
 	GitError,
 	gitFailureVerdict,
+	gitMissingMessage,
 	isNotFoundError,
 	remoteRefusal,
 	waitsForYou,
@@ -156,6 +160,35 @@ describe('gitFailureVerdict', () => {
 			gitFailureVerdict('CONFLICT (modify/delete): a.txt deleted in HEAD and modified in x.')
 				.message,
 		).toBe('Merge conflict. Resolve the conflicts and try again.');
+	});
+
+	it('says how to get git on each OS when it is missing', () => {
+		const bin = mkdtempSync(join(tmpdir(), 'malini-package-manager-'));
+		const tool = join(bin, process.platform === 'win32' ? 'dnf.exe' : 'dnf');
+		writeFileSync(tool, '');
+		chmodSync(tool, 0o755);
+		try {
+			expect(gitMissingMessage('win32')).toBe(
+				'Git for Windows is not on this PC. Press Try again on the Repositories page.',
+			);
+			expect(gitMissingMessage('linux', bin)).toBe(
+				'Git is not installed. Run sudo dnf install git in a terminal, then try again.',
+			);
+			expect(gitMissingMessage('linux', '')).toBe(
+				'Git is not installed. Install it with your package manager, then try again.',
+			);
+			expect(
+				gitFailureVerdict(
+					'xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun\n',
+				),
+			).toEqual({
+				kind: 'git-unavailable',
+				message:
+					'Git needs the Command Line Tools. Run xcode-select --install in Terminal, then try again.',
+			});
+		} finally {
+			rmSync(bin, { recursive: true, force: true });
+		}
 	});
 
 	it('says git is busy when another process holds index.lock', () => {

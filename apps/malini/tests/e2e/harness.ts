@@ -52,6 +52,10 @@ export function writeExecutable(path: string, script: string): void {
 	}
 }
 
+export function removeExecutable(path: string): void {
+	for (const file of WINDOWS ? [path, `${path}.exe`] : [path]) rmSync(file, { force: true });
+}
+
 export async function suspendWindowsProcess(pid: number, ms: number): Promise<void> {
 	await execFileAsync(windowsTool('suspend-process.cs'), [String(pid), String(ms)], {
 		windowsHide: true,

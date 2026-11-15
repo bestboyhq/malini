@@ -3,6 +3,7 @@ import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-que
 import { claudeCodeStatusQuery, providerGroupsQuery } from '$shared/providers/providers.api';
 import {
 	activeWorkstreamsQuery,
+	gitSetupQuery,
 	workstreamReadyForPromptsQuery,
 } from '$shared/repositories/repositories.api';
 import { untrack } from 'svelte';
@@ -13,6 +14,7 @@ export function releaseWaitingPromptQueuesHook(): () => void {
 			void activeWorkstreamsQuery.data;
 			void providerGroupsQuery.data;
 			void claudeCodeStatusQuery.data;
+			void gitSetupQuery.data;
 			const ready = workstreamReadyForPromptsQuery.data;
 			untrack(() => {
 				for (const workstreamId of agentPromptQueue.workstreamsWithEntries()) {

@@ -15,6 +15,7 @@ import {
 } from 'electron';
 import type { AgentTheme } from '$contract/agent';
 import type { ThemeMode } from '$contract/commands';
+import { describeError } from '$main/errors';
 import { BACKGROUND_WINDOW, createMainWindow } from '$main/window';
 import { aboutPanel } from './menu';
 
@@ -100,18 +101,22 @@ export function createElectronShellHost(): ShellHost {
 		},
 		showTray: (icon, items, open) => {
 			if (BACKGROUND_WINDOW) return;
-			const shown = new Tray(icon);
-			const menu = Menu.buildFromTemplate([...items]);
-			shown.setToolTip(app.getName());
-			if (process.platform === 'darwin') {
-				const popUpMenu = (): void => shown.popUpContextMenu(menu);
-				shown.on('click', (event) => (event.ctrlKey ? popUpMenu() : open()));
-				shown.on('right-click', popUpMenu);
-			} else {
-				shown.setContextMenu(menu);
-				shown.on('click', () => open());
+			try {
+				const shown = new Tray(icon);
+				const menu = Menu.buildFromTemplate([...items]);
+				shown.setToolTip(app.getName());
+				if (process.platform === 'darwin') {
+					const popUpMenu = (): void => shown.popUpContextMenu(menu);
+					shown.on('click', (event) => (event.ctrlKey ? popUpMenu() : open()));
+					shown.on('right-click', popUpMenu);
+				} else {
+					shown.setContextMenu(menu);
+					shown.on('click', () => open());
+				}
+				tray = shown;
+			} catch (error) {
+				console.warn(`malini: no tray from \`${icon}\`: ${describeError(error)}`);
 			}
-			tray = shown;
 		},
 		showTrayCount: (count) => {
 			tray?.setTitle(count > 0 ? String(count) : '', { fontType: 'monospacedDigit' });

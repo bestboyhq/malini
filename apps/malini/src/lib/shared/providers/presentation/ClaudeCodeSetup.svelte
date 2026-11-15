@@ -278,7 +278,7 @@
 				</Tooltip>
 			</div>
 			<p class="text-fg-tertiary mt-2 text-xs leading-5">
-				Or run this in Terminal. Malini notices when it’s done.
+				Or run this in {osQuery.data.terminal}. Malini notices when it’s done.
 			</p>
 		{:else if setupStep === 'sign-in' && signIn === 'idle'}
 			<p class="text-fg-tertiary mt-2 text-xs leading-5">

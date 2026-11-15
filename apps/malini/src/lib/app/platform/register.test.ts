@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -58,6 +59,7 @@ const KEPT_COMMANDS = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
+	'app.lid-hold',
 	'app.hold-lid',
 	'app.set-setting',
 	'app.shutdown-gracefully',
@@ -467,6 +469,16 @@ describe('registerApp', () => {
 			expect(host.openedWindows).toBe(2);
 		},
 	);
+
+	it.each([
+		'trayTemplate.png',
+		'trayTemplate@2x.png',
+		'tray.png',
+		'tray@2x.png',
+		'tray.ico',
+	] as const)('ships %s, so the tray never stops a launch', (icon) => {
+		expect(existsSync(join(import.meta.dirname, '../../../../build/tray', icon))).toBe(true);
+	});
 
 	it('focuses the window on a click of the menu bar icon and shows how many chats are unread beside it', async () => {
 		const main = createFakeWindow();

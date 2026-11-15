@@ -17,6 +17,9 @@ extraResources:
     to: agent-bridge
   - from: ../../packages/agent-bridge/dist/node_modules
     to: agent-bridge/node_modules
+    filter:
+      - '**/*'
+      - '!@anthropic-ai/sandbox-runtime/vendor{,/**}'
   - from: ../../packages/agent-bridge/package.json
     to: agent-bridge/package.json
   - from: ../../LICENSE
@@ -74,6 +77,9 @@ dmg:
       path: .VolumeIcon.icns
 win:
   icon: build/icon.png
+  extraResources:
+    - from: ../../packages/agent-bridge/dist/node_modules/@anthropic-ai/sandbox-runtime/vendor/srt-win/${arch}
+      to: agent-bridge/node_modules/@anthropic-ai/sandbox-runtime/vendor/srt-win/${arch}
   target:
     - target: nsis
       arch:
@@ -107,6 +113,7 @@ deb:
     - libsecret-1-0
     - libasound2
     - git
+    - bubblewrap
 rpm:
   depends:
     - gtk3
@@ -119,6 +126,7 @@ rpm:
     - (libuuid or libuuid1)
     - alsa-lib
     - git
+    - bubblewrap
 publish:
   provider: github
   owner: bestboyhq

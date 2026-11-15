@@ -2,6 +2,7 @@ import { basename, win32 } from 'node:path';
 import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
 import type { ShipWaitsFor } from '$contract/pull-requests';
 import { osFor } from '$shared/os/os.platform';
+import { findExecutable } from './process/command';
 
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return (
@@ -124,7 +125,7 @@ export class GitError extends Error {
 	}
 
 	static gitUnavailable(detail: string): GitError {
-		return new GitError('git-unavailable', `git unavailable: ${detail}`);
+		return new GitError('git-unavailable', gitMissingMessage(), { detail });
 	}
 
 	static git(detail: string): GitError {
@@ -193,6 +194,14 @@ const MERGE_CONFLICT_PATH = /^CONFLICT \([^)]*\): Merge conflict in (.+)$/gmu;
 const INDEX_LOCKED = /index\.lock'?: File exists/u;
 const FOLDER_GONE = /cannot change to '([^']+)': No such file or directory/u;
 const GENERIC_FAILURE = /could not read from remote repository|adding files failed/iu;
+const DEVELOPER_TOOLS_MISSING =
+	/xcrun: error: invalid active developer path|xcode-select: note: no developer tools were found/iu;
+const LINUX_GIT_INSTALLS = [
+	['apt-get', 'sudo apt install git'],
+	['dnf', 'sudo dnf install git'],
+	['pacman', 'sudo pacman -S git'],
+	['zypper', 'sudo zypper install git'],
+] as const;
 const LISTED_CONFLICT_PATHS = 3;
 
 const WORKFLOW_FIXES: Readonly<Record<string, string>> = {
@@ -237,7 +246,27 @@ function folderMissing(folder: string): GitFailureVerdict {
 	return { kind: 'io', message: `The folder ${pathName(folder)} is missing.`, code: 'ENOENT' };
 }
 
+export function gitMissingMessage(
+	platform: string = process.platform,
+	path: string = process.env['PATH'] ?? '',
+): string {
+	if (platform === 'win32') {
+		return 'Git for Windows is not on this PC. Press Try again on the Repositories page.';
+	}
+	const { terminal } = osFor(platform);
+	if (platform === 'darwin') {
+		return `Git needs the Command Line Tools. Run xcode-select --install in ${terminal}, then try again.`;
+	}
+	const install = LINUX_GIT_INSTALLS.find(([tool]) => findExecutable(tool, path) !== null);
+	return install
+		? `Git is not installed. Run ${install[1]} in ${terminal}, then try again.`
+		: 'Git is not installed. Install it with your package manager, then try again.';
+}
+
 export function gitFailureVerdict(output: string): GitFailureVerdict {
+	if (DEVELOPER_TOOLS_MISSING.test(output)) {
+		return { kind: 'git-unavailable', message: gitMissingMessage('darwin') };
+	}
 	const gone = FOLDER_GONE.exec(output)?.[1];
 	if (gone) return folderMissing(gone);
 	const denied = PUSH_DENIED.exec(output);

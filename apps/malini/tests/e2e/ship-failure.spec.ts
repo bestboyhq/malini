@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -9,6 +9,7 @@ import {
 	openWorkstream,
 	recordBrowserAndClipboard,
 	recordedBrowserAndClipboard,
+	removeExecutable,
 	sendPrompt,
 	writeExecutable,
 	type LaunchedApp,
@@ -156,5 +157,5 @@ async function refuseTheDraft(
 }
 
 function acceptPushes(github: FakeGithub): void {
-	rmSync(join(github.remote, 'hooks/pre-receive'), { force: true });
+	removeExecutable(join(github.remote, 'hooks/pre-receive'));
 }

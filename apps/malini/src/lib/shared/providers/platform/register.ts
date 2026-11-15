@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { sandboxProblem } from '@malini/agent-bridge/sandbox';
 import type { AgentPlanUsage } from '$contract/agent';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
@@ -29,6 +30,7 @@ import { KeyProxy } from './key-proxy';
 import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
 import { loadOpencodeUsage } from './opencode-usage';
 import { ProviderKeys } from './provider-keys.service';
+import { registerWindowsSandbox } from './windows-sandbox';
 
 const MAX_EMAIL_LENGTH = 320;
 const USAGE_CACHE_MS = 60_000;
@@ -138,6 +140,9 @@ export function registerProviders(
 	});
 	void catalog.refresh();
 	void chatgpt.refreshModels().catch(() => undefined);
+
+	context.commands.define('providers.sandbox-problem', () => sandboxProblem());
+	registerWindowsSandbox(context, platform);
 
 	context.commands.define('providers.list', () => keys.list());
 

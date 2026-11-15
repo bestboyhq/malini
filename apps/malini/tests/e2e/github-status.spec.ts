@@ -10,6 +10,7 @@ import {
 import { openPullRequestDetail, seedWorkstreamOnFakeGithub, topBarStatus } from './fake-github';
 
 const OPEN = 'Open · No checks configured';
+const SOONER_THAN_THE_IDLE_POLL_BACKOFF_MS = 15_000;
 const SERVICE_UNAVAILABLE =
 	'HTTP 503: No server is currently available to service your request. Sorry about that. (https://api.github.com/graphql)\n';
 
@@ -41,7 +42,7 @@ test('the top bar says GitHub is down on every page while GitHub answers 503, li
 	}
 });
 
-test('the top bar says Offline on every page while this Mac is offline and reads GitHub again the moment it is back', async () => {
+test('the top bar says Offline on every page while this computer is offline and reads GitHub again the moment it is back', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -61,7 +62,9 @@ test('the top bar says Offline on every page while this Mac is offline and reads
 			statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
 		});
 		await page.context().setOffline(false);
-		await expect(topBarStatus(page, 'Ready to merge')).toBeVisible({ timeout: 5_000 });
+		await expect(topBarStatus(page, 'Ready to merge')).toBeVisible({
+			timeout: SOONER_THAN_THE_IDLE_POLL_BACKOFF_MS,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

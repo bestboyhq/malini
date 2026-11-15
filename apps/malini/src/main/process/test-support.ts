@@ -100,6 +100,25 @@ function programName(file: string): string {
 	return win32.basename(file).replace(WINDOWS_PROGRAM_EXTENSION, '');
 }
 
+interface Confinement {
+	readonly sandbox: string;
+	readonly file: string;
+	readonly args: readonly string[];
+}
+
+function confinement(wrapper: string, args: readonly string[]): Confinement | null {
+	if (wrapper === SANDBOX_EXEC && args[0] === '-p') {
+		return { sandbox: args[1] ?? '', file: args[2] ?? '', args: args.slice(3) };
+	}
+	const separator = args.lastIndexOf('--');
+	if (!/(^|\/)bwrap$/u.test(wrapper) || separator < 0) return null;
+	return {
+		sandbox: args.slice(0, separator).join(' '),
+		file: args[separator + 1] ?? '',
+		args: args.slice(separator + 2),
+	};
+}
+
 export class ScriptedRunner implements ProcessRunner {
 	readonly spawns: RecordedSpawn[] = [];
 	readonly aliveGroups = new Set<number>();
@@ -127,10 +146,9 @@ export class ScriptedRunner implements ProcessRunner {
 		wrapperArgs: readonly string[],
 		options: ProcessSpawnOptions = {},
 	): ProcessHandle {
-		const sandbox =
-			wrapper === SANDBOX_EXEC && wrapperArgs[0] === '-p' ? wrapperArgs[1] : undefined;
-		const [file, args] =
-			sandbox === undefined ? [wrapper, wrapperArgs] : [wrapperArgs[2] ?? '', wrapperArgs.slice(3)];
+		const confined = confinement(wrapper, wrapperArgs);
+		const sandbox = confined?.sandbox;
+		const [file, args] = confined ? [confined.file, confined.args] : [wrapper, wrapperArgs];
 		const script = this.scripts.find((candidate) => candidate.match(file, args));
 		if (!script) throw new Error(`unscripted spawn: ${file} ${args.join(' ')}`);
 		const behavior = script.behavior;

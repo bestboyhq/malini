@@ -60,6 +60,7 @@ import { listBaseFiles } from './base-files.service';
 import { BASE_FETCH_EVERY_MS, BASE_QUIET_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
+import { registerGitForWindows } from './git-for-windows';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
@@ -125,6 +126,7 @@ export interface RepositoriesDeps {
 	readonly shell?: CheckoutShell;
 	readonly ghRunner?: GhRunner;
 	readonly downloadGh?: Fetch;
+	readonly downloadGit?: Fetch;
 	readonly isOnline?: () => boolean;
 	readonly githubSignIn?: GitHubSignIn;
 	readonly folderPicker?: FolderPicker;
@@ -519,6 +521,7 @@ export function registerRepositories(
 		});
 		return ghInstall;
 	});
+	registerGitForWindows(context, deps.downloadGit);
 	commands.define('repositories.github-reach', () => githubReach.reach);
 
 	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());

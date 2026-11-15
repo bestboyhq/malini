@@ -75,11 +75,14 @@ import {
 	hasTurnReport,
 	resumesTurn,
 	turnEndedOverBackgroundCommands,
+	type AgentRunLeases,
 } from '$lib/chat/chat.platform';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
 import { BackgroundWork } from './background-work';
 
 const SAFETY_INTERVAL_MS = 15_000;
+// ponytail: a prompt main handed back to the composer during a save gets this long to claim the chat first; a main-side prompt queue would make it exact
+const HANDED_BACK_PROMPT_GRACE_MS = 1_000;
 
 const SHIPPING = {
 	'open-draft': {
@@ -100,6 +103,8 @@ const SHIPPING = {
 export const BUSY_RETRY_MS = 3_000;
 
 export const WORKSTREAM_CLOSED = 'Its workstream was closed.';
+
+export type ChangeSaves = Pick<AgentRunLeases, 'savingChanges' | 'runChangeCaptureSettled'>;
 
 type SessionState = Readonly<{
 	status: SessionStatus;
@@ -122,11 +127,19 @@ export class AutomationRunner {
 	#stopped = false;
 
 	readonly #work: BackgroundWork;
+	readonly #saves: ChangeSaves;
+	readonly #awaitingSaves = new Set<string>();
 
-	constructor(context: MainContext, log: (line: string) => void, work = new BackgroundWork(log)) {
+	constructor(
+		context: MainContext,
+		log: (line: string) => void,
+		work: BackgroundWork,
+		saves: ChangeSaves,
+	) {
 		this.#context = context;
 		this.#log = log;
 		this.#work = work;
+		this.#saves = saves;
 	}
 
 	start(): void {
@@ -135,7 +148,10 @@ export class AutomationRunner {
 			events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => this.#onAgentEvent(envelope)),
 			commands.observe((outcome) => this.#onCommand(outcome)),
 		);
-		this.#background(this.#recover().finally(() => this.#markRecovered()));
+		this.#background(
+			this.#recover().finally(() => this.#markRecovered()),
+			'recovering runs',
+		);
 	}
 
 	recovered(): Promise<void> {
@@ -226,7 +242,7 @@ export class AutomationRunner {
 				this.#pass = null;
 				if (this.#again) this.kick();
 			});
-		this.#work.add(this.#pass);
+		this.#work.add(this.#pass, 'scheduling runs');
 	}
 
 	async #schedule(): Promise<void> {
@@ -271,7 +287,7 @@ export class AutomationRunner {
 			if (!started) continue;
 			running += 1;
 			this.#retryAt.delete(started.id);
-			this.#background(this.#dispatch(started));
+			this.#background(this.#dispatch(started), `the run ${started.id} (${started.title})`);
 		}
 	}
 
@@ -286,6 +302,10 @@ export class AutomationRunner {
 	}
 
 	async #agentWorking(workstreamId: string): Promise<boolean> {
+		if (this.#saves.savingChanges(workstreamId)) {
+			this.#kickOnceSaved(workstreamId);
+			return true;
+		}
 		try {
 			return await this.#context.commands.call('chat.workstream-has-working-run', { workstreamId });
 		} catch (error) {
@@ -798,6 +818,16 @@ export class AutomationRunner {
 		}, SAFETY_INTERVAL_MS);
 	}
 
+	#kickOnceSaved(workstreamId: string): void {
+		if (this.#awaitingSaves.has(workstreamId)) return;
+		this.#awaitingSaves.add(workstreamId);
+		void (async () => {
+			await this.#saves.runChangeCaptureSettled(workstreamId);
+			this.#awaitingSaves.delete(workstreamId);
+			if (!this.#stopped) this.#later(HANDED_BACK_PROMPT_GRACE_MS);
+		})();
+	}
+
 	#later(delayMs: number): void {
 		const timer = setTimeout(() => {
 			this.#timers.delete(timer);
@@ -806,8 +836,8 @@ export class AutomationRunner {
 		this.#timers.add(timer);
 	}
 
-	#background(work: Promise<void>): void {
-		this.#work.add(work);
+	#background(work: Promise<void>, label: string): void {
+		this.#work.add(work, label);
 	}
 }
 

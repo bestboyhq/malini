@@ -54,6 +54,12 @@ describe('the level of a platform log line', () => {
 		expect(
 			platformLineLevel('malini: stopped watching workstream `ws-1`: the watcher closed'),
 		).toBe('warn');
+		expect(
+			platformLineLevel(
+				'automations: Malini closed before its work finished: handling repositories:workstream-pushed',
+			),
+		).toBe('warn');
+		expect(platformLineLevel('automations: could not reconcile `e-1`: db locked')).toBe('error');
 	});
 
 	it('reads bridge stderr: failures and their stack as errors, anything else as a warning', () => {

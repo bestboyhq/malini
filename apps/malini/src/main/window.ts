@@ -1,12 +1,37 @@
 import { join } from 'node:path';
-import { BrowserWindow, screen, shell, type Rectangle } from 'electron';
+import {
+	BrowserWindow,
+	nativeImage,
+	nativeTheme,
+	screen,
+	shell,
+	type BrowserWindowConstructorOptions,
+	type Rectangle,
+	type TitleBarOverlayOptions,
+} from 'electron';
+import type { WindowControlsTint } from '$contract/commands';
+import appIcon from '../../build/icon.png?asset';
 
 export const BACKGROUND_WINDOW = process.env['MALINI_BACKGROUND_WINDOW'] === '1';
 const DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
 const DEFAULT_MAX_WIDTH = 1600;
 const DEFAULT_MAX_HEIGHT = 1000;
 const LARGER_THAN_ANY_SCREEN = 16_384;
+const TOP_BAR_HEIGHT = 40;
+const WINDOW_ICON_SIZE = 256;
+const DEFAULT_TINT = {
+	light: { background: '#ede9e7', symbol: '#42403f' },
+	dark: { background: '#161413', symbol: '#b8b5b2' },
+} as const satisfies Record<'light' | 'dark', WindowControlsTint>;
 Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL');
+
+export function windowControlsOverlay({
+	background,
+	symbol,
+}: WindowControlsTint): TitleBarOverlayOptions {
+	const rgb = [1, 3, 5].map((at) => Number.parseInt(background.slice(at, at + 2), 16));
+	return { color: `rgba(${rgb.join(', ')}, 0)`, symbolColor: symbol };
+}
 
 export function createMainWindow(): BrowserWindow {
 	const background = BACKGROUND_WINDOW ? behindEverythingAtTheScreenEdge() : null;
@@ -17,8 +42,7 @@ export function createMainWindow(): BrowserWindow {
 		minHeight: 600,
 		show: false,
 		title: 'Malini',
-		titleBarStyle: 'hiddenInset',
-		trafficLightPosition: { x: 12, y: 13 },
+		...titleBar(process.platform),
 		webPreferences: {
 			preload: join(__dirname, '../preload/index.js'),
 			contextIsolation: true,
@@ -54,6 +78,24 @@ export function createMainWindow(): BrowserWindow {
 	}
 
 	return window;
+}
+
+function titleBar(platform: NodeJS.Platform): BrowserWindowConstructorOptions {
+	if (platform === 'darwin') {
+		return { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 13 } };
+	}
+	const tint = DEFAULT_TINT[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
+	return {
+		titleBarStyle: 'hidden',
+		titleBarOverlay: { ...windowControlsOverlay(tint), height: TOP_BAR_HEIGHT },
+		...(platform === 'linux'
+			? {
+					icon: nativeImage
+						.createFromPath(appIcon)
+						.resize({ width: WINDOW_ICON_SIZE, quality: 'best' }),
+				}
+			: {}),
+	};
 }
 
 function defaultWindowBounds(workArea: Rectangle): Rectangle {

@@ -1,9 +1,10 @@
-import { readFile, utimes } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { initRealRepo, removeDir, tempDir } from './fixtures.test-support';
-import { attributeCredentials, GitError, isNotFoundError } from '$main/errors';
+import { initRealRepo, realGit, removeDir, tempDir } from './fixtures.test-support';
+import { attributeCredentials, GitError, gitMissingMessage, isNotFoundError } from '$main/errors';
 import { installGitRunnerForTests, runGit, runGitBoundedStdout } from './run';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -47,7 +48,10 @@ describe('GitError', () => {
 		expect(GitError.outputTooLarge('patch', 10).message).toBe(
 			'patch output is over 10 bytes, too large to read safely',
 		);
-		expect(GitError.gitUnavailable('nope').message).toBe('git unavailable: nope');
+		expect(GitError.gitUnavailable('nope')).toMatchObject({
+			message: gitMissingMessage(),
+			detail: 'nope',
+		});
 		expect(GitError.git('boom').message).toBe('git error: boom');
 		expect(GitError.io('gone', 'ENOENT').message).toBe('io error: gone');
 		expect(isNotFoundError(GitError.io('gone', 'ENOENT'))).toBe(true);
@@ -150,6 +154,35 @@ describe('runGit', () => {
 			detail: expect.stringContaining('could not read Username'),
 		});
 	}, 30_000);
+
+	it('keeps a repository planted in the checkout from running its own fsmonitor', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		await initRealRepo(dir);
+		const marker = join(dir, 'fsmonitor-ran').replaceAll('\\', '/');
+		const planted = join(dir, 'planted', '.git');
+		await mkdir(join(planted, 'objects'), { recursive: true });
+		await mkdir(join(planted, 'refs'), { recursive: true });
+		await writeFile(join(planted, 'HEAD'), 'ref: refs/heads/main\n');
+		await writeFile(
+			join(planted, 'config'),
+			`[core]\n\trepositoryformatversion = 0\n\tfsmonitor = "echo ran > ${marker}; false"\n`,
+		);
+		await realGit(dir, [
+			'update-index',
+			'--add',
+			'--cacheinfo',
+			`160000,${'1'.repeat(40)},planted`,
+		]);
+		await realGit(dir, ['status', '--porcelain']);
+		expect(existsSync(marker)).toBe(true);
+		await rm(marker);
+
+		await runGit(['-C', dir, 'status', '--porcelain']);
+		await runGit(['-C', dir, 'add', '-A']);
+
+		expect(existsSync(marker)).toBe(false);
+	});
 });
 
 describe('runGitBoundedStdout', () => {

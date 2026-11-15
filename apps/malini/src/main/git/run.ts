@@ -32,6 +32,12 @@ export function runGit(args: readonly string[], env: GitEnv = {}): Promise<strin
 	return runner(args, env);
 }
 
+let gitInstall: Promise<unknown> = Promise.resolve();
+
+export function holdGitUntil(install: Promise<unknown>): void {
+	gitInstall = install.catch(() => {});
+}
+
 interface SpawnedGit {
 	stdout: Buffer;
 	stderr: Buffer;
@@ -41,15 +47,31 @@ interface SpawnedGit {
 	signal: NodeJS.Signals | null;
 }
 
-function spawnGit(
+function withoutFsmonitor(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	const given = Number.parseInt(environment['GIT_CONFIG_COUNT'] ?? '0', 10);
+	const next = Number.isSafeInteger(given) && given > 0 ? given : 0;
+	return {
+		...environment,
+		GIT_CONFIG_COUNT: String(next + 1),
+		[`GIT_CONFIG_KEY_${next}`]: 'core.fsmonitor',
+		[`GIT_CONFIG_VALUE_${next}`]: 'false',
+	};
+}
+
+async function spawnGit(
 	args: readonly string[],
 	env: GitEnv,
 	limits: { maxStdoutBytes?: number; input?: string },
 ): Promise<SpawnedGit> {
+	await gitInstall;
 	return new Promise((resolve, reject) => {
 		let child;
 		try {
-			const environment = { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...env };
+			const environment = withoutFsmonitor({
+				...process.env,
+				GIT_OPTIONAL_LOCKS: '0',
+				...env,
+			});
 			const command = spawnable('git', args, environment);
 			child = spawn(command.file, command.args, {
 				env: environment,
