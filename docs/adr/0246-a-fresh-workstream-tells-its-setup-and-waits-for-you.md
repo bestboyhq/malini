@@ -42,7 +42,8 @@ They found the gutter's fill too vivid and asked for "the background of the back
   A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
 - **The gutter is there from the start.** A fresh workstream shows the inspector's gutter as every other workstream does, so nothing moves when the first message goes.
   The top bar's docked header is the top of the gutter's card in every state: with no status it keeps its stripes and no text, where it used to hide itself, and a status that appears fades in on it.
-  The card and its header take the page's own fill, `surface-root` with its `border-default` edge, so the gutter shows by its edge and not as a brighter block beside the chat.
+  The card and its header take the page's own fill, `surface-root`, so the gutter shows by its edge and not as a brighter block beside the chat.
+  Their edge is `border-default` at 60%, the line the card had on `surface-50`: the full `border-default` that `surface-root` pairs with read too strong around a whole card.
 - This amends 0242's starters.
 
 ## Consequences

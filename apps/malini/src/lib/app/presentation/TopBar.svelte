@@ -778,7 +778,7 @@
 	.topbar-right[data-docked] {
 		--dock-ink: var(--color-fg-secondary);
 		--dock-tint: transparent;
-		--dock-edge: var(--color-border-default);
+		--dock-edge: color-mix(in srgb, var(--color-border-default) 60%, transparent);
 		--dock-stripe: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
 		align-self: end;
 		width: var(--dock-width);
