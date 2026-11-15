@@ -21,6 +21,36 @@ export interface Progress {
 	fraction: number;
 }
 
+const CLONE_PHASES = {
+	'Receiving objects': { stage: 'fetch', from: 0.05, to: 0.8 },
+	'Resolving deltas': { stage: 'fetch', from: 0.8, to: 0.9 },
+	'Updating files': { stage: 'checkout', from: 0.9, to: 0.99 },
+} as const satisfies Record<string, { stage: ProgressStage; from: number; to: number }>;
+
+const CLONE_PROGRESS_LINE = /^(Receiving objects|Resolving deltas|Updating files):\s+(\d{1,3})%/u;
+
+export function cloneProgress(line: string): Progress | null {
+	const match = CLONE_PROGRESS_LINE.exec(line);
+	if (!match) return null;
+	const phase = CLONE_PHASES[match[1] as keyof typeof CLONE_PHASES];
+	const done = Math.min(Number(match[2]), 100) / 100;
+	return { stage: phase.stage, fraction: phase.from + (phase.to - phase.from) * done };
+}
+
+export function cloneProgressReader(
+	onProgress: (progress: Progress) => void,
+): (text: string) => void {
+	let pending = '';
+	return (text) => {
+		const lines = `${pending}${text}`.split(/[\r\n]/u);
+		pending = lines.pop() ?? '';
+		for (const line of lines) {
+			const progress = cloneProgress(line);
+			if (progress) onProgress(progress);
+		}
+	};
+}
+
 export interface BaseCloneOutcome {
 	path: string;
 	repoDir: string;
@@ -112,7 +142,8 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 						input.repoPath,
 						staging,
 					],
-					env,
+					{ ...env, LC_ALL: 'C' },
+					cloneProgressReader(onProgress),
 				);
 			}
 			await originalFs.rename(staging, baseDir);
@@ -121,8 +152,6 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 			throw classifyCloneError(error instanceof GitError ? error : GitError.fromNodeError(error));
 		}
 
-		onProgress({ stage: 'fetch', fraction: 0.6 });
-		onProgress({ stage: 'checkout', fraction: 0.85 });
 		onProgress({ stage: 'done', fraction: 1.0 });
 
 		return { path: baseDir, repoDir, repoDirExistedBeforeClone, baseDirExistedBeforeClone };
