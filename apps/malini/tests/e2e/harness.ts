@@ -26,7 +26,11 @@ import {
 	BRIDGE_HEARTBEAT_INTERVAL_MS,
 	BRIDGE_PROTOCOL_VERSION,
 } from '../../src/contract/protocol-contract.generated';
-import { diagnosticsLogFiles, readDiagnostics } from '../../src/main/diagnostics/diagnostics-files';
+import {
+	diagnosticEntryFrom,
+	diagnosticsLogFiles,
+	readDiagnostics,
+} from '../../src/main/diagnostics/diagnostics-files';
 
 const execFileAsync = promisify(execFile);
 
@@ -335,7 +339,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 				expect
 					.soft(
 						unexpected.map(diagnosticText),
-						'error diagnostics or error toasts appeared during this test; fix them, or allow the intentional ones with launchMalini({ allowedDiagnostics })',
+						`error diagnostics or error toasts appeared during this test; fix them, or allow the intentional ones with launchMalini({ allowedDiagnostics })${diagnosticStacks(userDataDir, unexpected)}`,
 					)
 					.toEqual([]);
 			})();
@@ -1029,6 +1033,21 @@ export function unexpectedDiagnostics(
 	return readDiagnostics(userDataDir, { minimumLevel: 'error' }).filter(
 		(entry) => !allowed.some((pattern) => pattern.test(diagnosticText(entry))),
 	);
+}
+
+function diagnosticStacks(userDataDir: string, entries: readonly DiagnosticEntry[]): string {
+	const wanted = new Set(entries.map(({ occurredAt, message }) => `${occurredAt} ${message}`));
+	const stacks = diagnosticsLogFiles(userDataDir)
+		.filter(fileExists)
+		.flatMap((path) => readFileSync(path, 'utf8').split('\n'))
+		.flatMap((line) => {
+			const entry = diagnosticEntryFrom(line, 'main');
+			if (entry === null || !wanted.has(`${entry.occurredAt} ${entry.message}`)) return [];
+			const error: unknown = Reflect.get(Object(JSON.parse(line)), 'error');
+			const stack: unknown = Reflect.get(Object(error), 'stack');
+			return typeof stack === 'string' ? [stack] : [];
+		});
+	return stacks.length === 0 ? '' : `\n\n${stacks.join('\n\n')}`;
 }
 
 export function diagnosticText(entry: DiagnosticEntry): string {
