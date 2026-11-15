@@ -25,7 +25,7 @@ export const PRE_APPROVED_PLATFORM_TOOLS = [
 ] as const satisfies readonly PlatformTool[];
 
 const SHIP_ONLY_WHEN_ASKED =
-	'Open draft and Merge ship work: use them only when the user explicitly asked in this chat to open a pull request or to merge, never on your own.';
+	'Open draft and Merge ship work: open the first draft or merge only when the user explicitly asked in this chat to open a pull request or to merge, never on your own.';
 
 const ASKS = 'The user approves it in the chat unless they always allow it.';
 
@@ -114,7 +114,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'automations_run',
-			`Start an automation now. A \`workstream\` automation runs in this chat's workstream, or in \`workstream\` when you pass one, such as a workstream you started; a \`new-workstream\` automation gets a fresh workstream of that workstream's repository. It starts once that workstream's chat is idle, so Merge right after workstreams_create merges what its first turn makes, as the Merge button in its top bar does. The run shows in this chat. Automations are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} In this chat's workstream or one it started, an automation runs without asking unless it is Open draft or Merge or its Then leads to one; the user approves those, and every automation elsewhere, in the chat unless they always allow it. Returns the queued run as JSON.`,
+			`Start an automation now. A \`workstream\` automation runs in this chat's workstream, or in \`workstream\` when you pass one, such as a workstream you started; a \`new-workstream\` automation gets a fresh workstream of that workstream's repository. It starts once that workstream's chat is idle, so Merge right after workstreams_create merges what its first turn makes, as the Merge button in its top bar does. The run shows in this chat. Automations are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} Once a workstream has an open draft, run Open draft there again after each round of follow-up work, without waiting for the user: Malini pushes it to that draft. In this chat's workstream or one it started, an automation runs without asking unless it is Merge, Open draft with no open draft to push to, or one whose Then leads to Open draft or Merge; the user approves those, and every automation elsewhere, in the chat unless they always allow it. Returns the queued run as JSON.`,
 			{
 				automation: z
 					.string()

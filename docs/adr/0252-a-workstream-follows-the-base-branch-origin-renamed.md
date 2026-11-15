@@ -1,10 +1,10 @@
-# 0248 - A workstream follows the base branch origin renamed
+# 0252 - A workstream follows the base branch origin renamed
 
 Status: accepted
 
 ## Context
 
-0247 made each new workstream ask origin for its default branch, and left one gap in its consequences: "Workstreams that already exist keep the base branch they started on, even after origin renames it."
+0251 made each new workstream ask origin for its default branch, and left one gap in its consequences: "Workstreams that already exist keep the base branch they started on, even after origin renames it."
 `workstreams.base_branch` was written once, so after a rename every fetch of that workstream's base failed with "couldn't find remote ref refs/heads/<old>".
 The overlap watch logged the failure and went quiet, and **Update from main** failed with "Could not start the automation: couldn't find remote ref refs/heads/main".
 The user wants Malini to be "error resistant" and to "get out of people's way", so a rename on origin must not strand the workstreams that started before it.

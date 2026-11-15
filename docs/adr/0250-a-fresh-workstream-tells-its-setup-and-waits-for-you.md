@@ -1,4 +1,4 @@
-# 0246 - A fresh workstream tells its setup and waits for you
+# 0250 - A fresh workstream tells its setup and waits for you
 
 Status: accepted
 

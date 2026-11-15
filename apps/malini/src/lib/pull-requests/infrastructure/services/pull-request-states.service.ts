@@ -1,4 +1,6 @@
+import { PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL } from '$contract/events';
 import { extensionBindings } from '$shared/extensions/bindings';
+import { onPlatformEvent } from '$shared/port/events';
 import {
 	PULL_REQUEST_STATE_REUSE_MS,
 	type PullRequestState,
@@ -23,5 +25,13 @@ export async function loadPullRequestStates(
 	);
 	return Object.fromEntries(
 		settled.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+	);
+}
+
+export function onPullRequestRead(
+	listener: (workstreamId: string, state: PullRequestState) => void,
+): () => void {
+	return onPlatformEvent(PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, ({ workstreamId, state }) =>
+		listener(workstreamId, state),
 	);
 }

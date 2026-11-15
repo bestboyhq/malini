@@ -12,12 +12,13 @@ import { PullRequestReader } from './pull-request-reader.service';
 import { clickShip, openDraft, queueMerge } from './ship-intents';
 import { getShip, listShips, shipRecord } from './ship.repository';
 import { createShippingRule } from './ship-rule';
-import { dropDraftShip, type ShipDeps } from './ship-store';
+import { dropDraftShip, type ShipDeps, type ShipWake } from './ship-store';
 
 export interface ShippingOptions {
 	delays?: Partial<ShipDelays>;
 	now?: () => number;
 	chef?: () => Promise<PullRequestChef | null>;
+	deliver?: (wake: ShipWake) => Promise<void>;
 }
 
 export type ShipPlatform = PullRequestsPlatform &
@@ -45,6 +46,7 @@ export function registerShip(
 		running: () => running,
 		starting: new Map(),
 		...(options.chef ? { chef: options.chef } : {}),
+		...(options.deliver ? { deliver: options.deliver } : {}),
 		reader: new PullRequestReader(context, operations, delays, now, (id) => {
 			dropDraftShip(deps, id);
 		}),

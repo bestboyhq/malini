@@ -193,13 +193,18 @@ So the agent clones, hides, starts and archives with tools, and opens drafts and
 ## Shipping is your call
 
 Malini owns commits, pushes, and pull requests, so the agent cannot commit, push, open a pull request or merge one from its shell.
-The agent runs **Open draft** or **Merge**, or sets either as an automation's `then`, only when you explicitly asked for it in the chat.
+The agent opens the first draft or runs **Merge**, or sets either as an automation's `then`, only when you explicitly asked for it in the chat.
 Finished work, passing tests and green checks are never a reason for it to ship on its own.
 
 When you ask it to ship, it runs **Open draft** and goes on with its turn.
 Once the turn ends, Malini commits with the turn's `Commit:` line, pushes the branch, and opens the draft under its `Pull request:` title, the same way **Draft** in the top bar does.
 When the workstream already has an open pull request, Malini pushes the new work to it instead.
 A failure shows in the top bar, where pull request problems always do.
+
+Once the draft is open, pushing to it is the agent's call.
+After each round of follow-up work it runs **Open draft** again without asking you, Malini pushes the work to the draft, and GitHub runs its checks on it.
+A draft reaches no reviewer and merges nothing.
+Mark the pull request ready on GitHub and the next push asks you again, since a ready pull request reaches reviewers.
 
 ### Workstreams it starts
 
@@ -215,7 +220,8 @@ Merge still waits for checks, fixes what fails and resolves conflicts first, and
 
 - The read tools, `automations_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `secrets_request`, which only asks you, `workstreams_create` and `workstreams_send`.
 - Nothing inside the chat's own work asks: archiving a workstream it started, or one those started in turn, and running an automation in its own workstream or in one it started go through without asking.
-- **Open draft** and **Merge**, and any automation whose Thens reach them, always ask, since [shipping is your call](#shipping-is-your-call).
+- **Merge**, **Open draft** that opens a pull request, and any automation whose Thens reach either always ask, since [shipping is your call](#shipping-is-your-call).
+  **Open draft** that pushes to the open draft of a workstream in the chat's own work runs without asking.
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
 - **Always allow** remembers one action: cloning repositories, hiding them, archiving workstreams, saving automations, or running one automation.
   Always allowing **Release notes** to run never lets the agent run any other automation.

@@ -8,6 +8,7 @@ import {
 	recordAgentAction,
 	type AgentActionContext,
 } from '$lib/automations/automations.platform';
+import { hasOpenDraft } from '$lib/pull-requests/pull-requests.platform';
 import { listWorkstreams } from '$shared/repositories/repositories.platform';
 import { descendantWorkstreamIds } from '../../domain/workstream-tree';
 import { getInteraction } from '../interactions.repository';
@@ -112,10 +113,12 @@ export function allowedInTree(
 		case 'automations_run': {
 			const definitions = automationDefinitions(db);
 			const [automation, ...others] = automationsNamed(definitions, field('automation') ?? '');
-			if (!automation || others.length > 0 || shipsWork(definitions, automation)) return false;
+			if (!automation || others.length > 0) return false;
 			const runsIn =
 				field('workstream') === undefined ? callerWorkstreamId : target(field('workstream'));
-			return runsIn === callerWorkstreamId || (runsIn !== null && tree.has(runsIn));
+			if (runsIn === null || (runsIn !== callerWorkstreamId && !tree.has(runsIn))) return false;
+			const pushesToDraft = automation.builtin === 'open-draft' && hasOpenDraft(db, runsIn);
+			return !shipsWork(definitions, automation, pushesToDraft);
 		}
 		default:
 			return false;
@@ -125,13 +128,16 @@ export function allowedInTree(
 function shipsWork(
 	definitions: readonly AutomationDefinitionRecord[],
 	automation: AutomationDefinitionRecord,
+	pushesToDraft = false,
 	visited = new Set<string>(),
 ): boolean {
-	if (automation.builtin === 'open-draft' || automation.builtin === 'merge') return true;
+	if (automation.builtin === 'merge' || (automation.builtin === 'open-draft' && !pushesToDraft)) {
+		return true;
+	}
 	if (automation.thenAutomationId === null || visited.has(automation.id)) return false;
 	visited.add(automation.id);
 	const next = definitions.find((definition) => definition.id === automation.thenAutomationId);
-	return next !== undefined && shipsWork(definitions, next, visited);
+	return next !== undefined && shipsWork(definitions, next, false, visited);
 }
 
 export function automationsNamed(

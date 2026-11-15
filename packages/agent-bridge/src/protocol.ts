@@ -86,6 +86,7 @@ export interface SendPromptCommand {
 	readonly steReplies?: boolean;
 	readonly sandboxGrants?: readonly SandboxGrant[];
 	readonly outsideAllowed?: boolean;
+	readonly compactOutput?: boolean;
 }
 
 export type Secrets = Readonly<Record<string, string>>;
@@ -926,6 +927,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const steReplies = obj.steReplies;
 	const sandboxGrants = obj.sandboxGrants;
 	const outsideAllowed = obj.outsideAllowed;
+	const compactOutput = obj.compactOutput;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -997,6 +999,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (outsideAllowed !== undefined && typeof outsideAllowed !== 'boolean') {
 		return err('INVALID_PAYLOAD', 'send_prompt: outsideAllowed must be a boolean', obj);
 	}
+	if (compactOutput !== undefined && typeof compactOutput !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'send_prompt: compactOutput must be a boolean', obj);
+	}
 	return {
 		ok: true,
 		command: {
@@ -1019,6 +1024,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(steReplies === true ? { steReplies } : {}),
 			...(sandboxGrants !== undefined ? { sandboxGrants } : {}),
 			...(outsideAllowed === true ? { outsideAllowed } : {}),
+			...(compactOutput === false ? { compactOutput } : {}),
 		},
 	};
 }

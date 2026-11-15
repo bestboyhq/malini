@@ -20,6 +20,7 @@ jobs:
       - run: pnpm build
       - run: pnpm check
       - run: pnpm lint
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON apps/malini/scripts/fetch-rtk.mjs
       - run: pnpm -r --filter '!malini' --reporter-hide-prefix --if-present test
 
   unit:

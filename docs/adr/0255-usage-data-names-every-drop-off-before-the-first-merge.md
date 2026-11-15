@@ -1,10 +1,10 @@
-# 0251 - Usage data names every drop-off before the first merge
+# 0255 - Usage data names every drop-off before the first merge
 
 Status: accepted
 
 ## Context
 
-0242 removed setup and its `setup_*` markers, and 0249 made the picker three ways in, but nothing marked the steps between them and the first merge.
+0242 removed setup and its `setup_*` markers, and 0253 made the picker three ways in, but nothing marked the steps between them and the first merge.
 From 9 to 12 Nov 2026, 7 fresh installs opened Malini, 3 added a repository and a workstream, 1 finished a prompt run, none merged and none came back on a later day.
 The data could not say why: a click on **GitHub**, the sign-in code, an empty list, a failed clone, a prompt held for Claude Code, a failed run, a run that changed nothing and a ship stopped by GitHub all looked the same, as a missing next marker.
 Simon asked to know "everything about every single drop off" and "why some people haven't started merging with Malini yet".

@@ -1,4 +1,4 @@
-# 0250 - GitHub clones skip big files below 1 GB
+# 0254 - GitHub clones skip big files below 1 GB
 
 Status: accepted
 

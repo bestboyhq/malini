@@ -35,7 +35,7 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<AutomationBuiltin, string>> = {
 	'name-services':
 		'Runs on its own when an agent leaves a command running in the background. It names what keeps running in the sidebar.',
 	'fix-checks':
-		'Malini runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
+		'Its trigger runs it when checks fail on a draft pull request Malini opened. It fixes what fails, and Shipping commits and pushes the fix to the draft, then watches the checks again. It never marks the draft ready and never merges. With it off, Merge still runs it for the pull request it merges. Run it yourself from any chat with /.',
 	'update-from-main':
 		'Its trigger runs it when main conflicts with a workstream or changes a file that workstream changed too, or, set to Always, whenever main moves past a workstream worked in this week, once no agent or service runs there and its changes are committed. A workstream with no commits of its own fast-forwards instead, in every mode. Malini also runs it before a scheduled automation works in its workstream. Run it yourself from any chat with /.',
 	'resolve-conflicts':

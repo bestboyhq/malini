@@ -589,6 +589,31 @@ describe('the event reconciler', () => {
 		expect(asked).toHaveLength(1);
 	});
 
+	it('wakes no chat when Open draft succeeds, since its push comes after it, and tells the chat when it fails', async () => {
+		const openDraft = getBuiltinAutomationDefinition(db, 'open-draft');
+		if (!openDraft) throw new Error('the built-in automations are missing');
+		const drafted = (id: string, fields: Partial<AutomationRunRecord>) =>
+			finishAutomation(openDraft.id, id, { title: 'Open draft', ...fields });
+
+		drafted('draft-1', { status: 'succeeded', detail: 'Malini pushes to malini/api.' });
+		await settle();
+		expect(asked).toEqual([]);
+		expect(await decisions()).toEqual([]);
+
+		drafted('draft-2', { detail: 'GitHub refused the push.' });
+		const [decision] = await decided(1);
+		expect(decision?.candidates.map((candidate) => candidate.label)).toContain(
+			'Tell “Move apps to Logdash” that Open draft failed',
+		);
+		expect(delivered).toEqual([
+			expect.objectContaining({
+				sessionId: 'starter-chat',
+				prompt:
+					'Open draft, the automation you ran in “Api analytics”, failed.\n\nGitHub refused the push.',
+			}),
+		]);
+	});
+
 	it('starts Resolve conflicts on a merge that stopped on conflicts through its trigger, and wakes no chat', async () => {
 		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
 			workstreamId: 'api',
