@@ -1,15 +1,19 @@
 import { app, net } from 'electron';
 import { createHash, randomUUID } from 'node:crypto';
 import type { ImportSource } from '$contract/repositories';
+import { RUN_FAILURE_KINDS } from '$contract/agent';
+import { isPausedRunEvent, runEnding } from '$contract/agent-state-machine';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
+	CHAT_RUN_CHANGES_CAPTURED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
-import type { UsageReport } from '$contract/system';
+import type { UsageReport, UsageStep } from '$contract/system';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
@@ -25,14 +29,25 @@ import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain
 import { reportAge, reportDay } from '../domain/usage-report';
 import { deleteSetting, getSetting, setSetting } from './settings.repository';
 import { currentSystemLabel } from './system-label';
-import { hasPromptRun, readUsageReport, userWorkstreams } from './usage-report';
+import {
+	hasChangedPromptRun,
+	hasPromptRun,
+	readUsageReport,
+	userWorkstreams,
+} from './usage-report';
+import { setupStep, shipBlock, type UsageProps } from './usage-steps';
 import { createToolTracker, type ToolActivity, type ToolEvent } from './usage-tools';
 
 export type UsageJourney =
 	| 'first_open'
+	| 'first_choice'
 	| 'first_repository'
 	| 'first_workstream'
+	| 'first_prompt_sent'
 	| 'first_prompt'
+	| 'first_changes'
+	| 'first_ship'
+	| 'first_pull_request'
 	| 'first_merge'
 	| 'first_profile_published'
 	| 'returned_week_1'
@@ -41,7 +56,14 @@ export type UsageJourney =
 export type UsageActivity =
 	| UsageJourney
 	| 'app_active'
+	| 'picked'
+	| 'github_view'
+	| 'github_back'
+	| 'prompt_held'
+	| 'setup_step'
 	| 'run_finished'
+	| 'ship_button'
+	| 'ship_blocked'
 	| 'profile_published'
 	| 'stats_off'
 	| 'day'
@@ -60,6 +82,7 @@ export interface UsageSink {
 
 export interface UsageData {
 	share(shared: boolean): void;
+	step(step: UsageStep): void;
 	shutdown(): Promise<void>;
 }
 
@@ -110,7 +133,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		setSetting(context.db, USAGE_DATA_SETTING, usageDataSetting(next));
 		if (!next) deleteSetting(context.db, INSTALL_ID_SETTING);
 	};
-	if (!sink) return { share: setShare, shutdown: () => Promise.resolve() };
+	if (!sink) return { share: setShare, step: () => undefined, shutdown: () => Promise.resolve() };
 	const storedFirstOpen = getSetting(context.db, FIRST_OPEN_SETTING);
 	if (storedFirstOpen === null && deps.freshInstall === true)
 		setSetting(context.db, FIRST_OPEN_SETTING, localDate(now()));
@@ -160,6 +183,13 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		void send((userId) => sink.activity(name, props, userId));
 	};
 	const journeySent = (): string[] => stringList(getSetting(context.db, JOURNEY_SETTING));
+	const awaits = (marker: UsageJourney): boolean =>
+		firstOpen !== null && !journeySent().includes(marker);
+	let promptRan = false;
+	const phase = (): 'setup' | 'later' => {
+		promptRan ||= hasPromptRun(context.db, now());
+		return promptRan ? 'later' : 'setup';
+	};
 	const sendJourney = (
 		marker: UsageJourney,
 		extra: Readonly<Record<string, string | number>> = {},
@@ -177,6 +207,10 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 				),
 			() => setSetting(context.db, JOURNEY_SETTING, JSON.stringify([...journeySent(), marker])),
 		);
+	};
+	const firstChanges = (): void => {
+		if (awaits('first_changes') && hasChangedPromptRun(context.db, now()))
+			sendJourney('first_changes');
 	};
 	const sendDay = (): void => {
 		const today = localDate(now());
@@ -203,8 +237,9 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		}
 		sendDay();
 		void firstRepository();
-		if (hasPromptRun(context.db, now())) sendJourney('first_prompt');
+		if (phase() === 'later') sendJourney('first_prompt');
 		if (firstOpen === null) return;
+		firstChanges();
 		const workstreams = userWorkstreams(context.db);
 		if (workstreams.length > 0) sendJourney('first_workstream');
 		if (workstreams.some(({ merged }) => merged)) sendJourney('first_merge');
@@ -256,9 +291,10 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopRuns = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => {
 		const type = envelope.event.type;
 		if (envelope.ephemeral || (type !== 'run.completed' && type !== 'run.failed')) return;
-		count('run_finished');
-		if (hasPromptRun(context.db, now())) sendJourney('first_prompt');
+		count('run_finished', runFinish(envelope.event));
+		if (phase() === 'later') sendJourney('first_prompt');
 	});
+	const stopChanges = context.events.subscribe(CHAT_RUN_CHANGES_CAPTURED_CHANNEL, firstChanges);
 	const stopPublished = context.events.subscribe(STATS_PROFILE_PUBLISHED_CHANNEL, () => {
 		count('profile_published');
 		sendJourney('first_profile_published');
@@ -269,14 +305,31 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopWorkstreams = context.events.subscribe(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, () =>
 		sendJourney('first_workstream'),
 	);
+	const blocks = new Map<string, string>();
 	const stopShips = context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (changed) => {
 		if (changed.merged) sendJourney('first_merge');
+		if (typeof changed.state?.pullRequestNumber === 'number') sendJourney('first_pull_request');
+		const block = shipBlock(changed.state);
+		const key = block === null ? '' : `${block['by']}:${block['reason']}`;
+		if ((blocks.get(changed.workstreamId) ?? '') === key) return;
+		blocks.set(changed.workstreamId, key);
+		if (block !== null) count('ship_blocked', { ...block, phase: phase() });
+	});
+	const stopButtons = context.events.subscribe(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, (clicked) => {
+		count('ship_button', { button: clicked.button, phase: phase() });
+		if (clicked.button === 'draft' || clicked.button === 'merge')
+			sendJourney('first_ship', { button: clicked.button });
 	});
 	const tools = createToolTracker();
 	const countTool = (event: ToolEvent | null): void => {
-		if (event === null) return;
-		const phase = hasPromptRun(context.db, now()) ? 'later' : 'setup';
-		count(event.name, { ...event.props, phase });
+		if (event !== null) count(event.name, { ...event.props, phase: phase() });
+	};
+	const countSetupStep = (outcome: CommandOutcome): void => {
+		const props = setupStep(outcome);
+		if (props === null) return;
+		const at = phase();
+		if (at === 'setup' || props['outcome'] === 'failed')
+			count('setup_step', { ...props, phase: at });
 	};
 	let createdCloneUrl: string | null = null;
 	const rememberSource = ({ command, args }: StartedCommand): void => {
@@ -300,6 +353,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopTools = context.commands.observe((outcome) => {
 		rememberCreated(outcome);
 		countTool(tools.end(outcome));
+		countSetupStep(outcome);
 	});
 
 	count('app_active');
@@ -319,8 +373,25 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const reportTimer = setInterval(reportYesterday, REPORT_CHECK_MS);
 	reportTimer.unref();
 
+	const step = ({ step, value }: UsageStep): void => {
+		switch (step) {
+			case 'picked':
+				count('picked', { choice: value, phase: phase() });
+				if (value !== 'more') sendJourney('first_choice', { choice: value });
+				return;
+			case 'github_view':
+			case 'github_back':
+				count(step, { view: value, phase: phase() });
+				return;
+			case 'prompt_sent':
+				sendJourney('first_prompt_sent', { waits: value });
+				if (value !== 'none') count('prompt_held', { waits: value, phase: phase() });
+		}
+	};
+
 	return {
 		share,
+		step,
 		shutdown: async () => {
 			clearInterval(reportTimer);
 			stopStarted();
@@ -328,15 +399,28 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopExceptions();
 			stopRejections();
 			stopRuns();
+			stopChanges();
 			stopPublished();
 			stopRepositories();
 			stopWorkstreams();
 			stopShips();
+			stopButtons();
 			stopToolStarts();
 			stopTools();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};
+}
+
+function runFinish(event: Readonly<Record<string, unknown>>): UsageProps {
+	if (event['type'] === 'run.completed') return { ending: 'succeeded' };
+	const error = typeof event['error'] === 'string' ? event['error'] : '';
+	const ending = runEnding(error, isPausedRunEvent(event));
+	if (ending !== 'failed') return { ending };
+	const failure = event['failure'];
+	const kind: unknown =
+		typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'kind') : undefined;
+	return { ending, failure: RUN_FAILURE_KINDS.find((known) => known === kind) ?? 'unknown' };
 }
 
 function importSource(args: unknown): ImportSource | null {

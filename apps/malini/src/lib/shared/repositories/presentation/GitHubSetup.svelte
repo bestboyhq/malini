@@ -20,10 +20,9 @@
 
 	interface Props {
 		nested?: boolean;
-		pitch?: boolean;
 	}
 
-	let { nested = false, pitch = false }: Props = $props();
+	let { nested = false }: Props = $props();
 
 	const auth = $derived(githubAuthQuery.data);
 	const authError = $derived(githubAuthErrorQuery.data);
@@ -36,7 +35,6 @@
 	const downloaded = $derived(
 		download !== null && download.total !== null && download.received >= download.total,
 	);
-	const pitching = $derived(pitch && status === 'signed-out' && signIn.kind === 'idle');
 	const detail = $derived.by(() => {
 		switch (signIn.kind) {
 			case 'starting':
@@ -56,9 +54,7 @@
 			case 'unknown':
 				return `Could not check GitHub. ${authError ?? ''}`.trim();
 			case 'signed-out':
-				return pitch
-					? 'Malini clones its own copy. Your checkouts stay as they are.'
-					: 'Sign in to work on your repositories.';
+				return 'Sign in to work on your repositories.';
 			case 'ready':
 				return auth?.login ? `Signed in as ${auth.login}` : 'Signed in';
 		}
@@ -181,9 +177,7 @@
 			<GitHubIcon size={17} />
 		</div>
 		<div class="min-w-0 flex-1">
-			<h3 class="text-fg-default text-sm font-medium">
-				{pitching ? 'Sign in to GitHub to list your repositories' : 'GitHub'}
-			</h3>
+			<h3 class="text-fg-default text-sm font-medium">GitHub</h3>
 			{@render statusLine('text-fg-tertiary text-xs leading-5')}
 		</div>
 		{@render action()}

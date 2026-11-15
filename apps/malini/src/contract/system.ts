@@ -59,6 +59,40 @@ export interface UsageDataState {
 	report: UsageReport | null;
 }
 
+const GITHUB_VIEWS = [
+	'list',
+	'empty',
+	'list_failed',
+	'code',
+	'sign_in',
+	'install_failed',
+	'unknown',
+] as const;
+
+export const USAGE_STEPS = {
+	picked: ['github', 'folder', 'new', 'more'],
+	github_view: GITHUB_VIEWS,
+	github_back: ['loading', ...GITHUB_VIEWS],
+	prompt_sent: [
+		'none',
+		'setup',
+		'claude_code',
+		'git',
+		'claude_sign_in',
+		'chatgpt_sign_in',
+		'chatgpt_model',
+		'key',
+	],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+export type UsageStepName = keyof typeof USAGE_STEPS;
+
+export type UsageStepValue<Step extends UsageStepName> = (typeof USAGE_STEPS)[Step][number];
+
+export type UsageStep = {
+	[Step in UsageStepName]: Readonly<{ step: Step; value: UsageStepValue<Step> }>;
+}[UsageStepName];
+
 export interface ProblemReport {
 	repository: string;
 	system: string;

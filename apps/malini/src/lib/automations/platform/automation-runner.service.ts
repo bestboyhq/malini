@@ -477,19 +477,22 @@ export class AutomationRunner {
 			this.#finish(automationRunId, 'failed', blocker);
 			return null;
 		}
-		const args = { workstreamId, baseBranch };
-		const behind = await commands.call('repositories.count-behind-base', args);
+		const behind = await commands.call('repositories.count-behind-base', {
+			workstreamId,
+			baseBranch,
+		});
 		if (!this.#dispatching(automationRunId)) return null;
+		const liveBase = (await this.#baseBranch(this.#workstream(workstreamId))) ?? baseBranch;
 		if (behind === 0) {
-			this.#succeed(automationRunId, `Already up to date with ${baseBranch}`);
+			this.#succeed(automationRunId, `Already up to date with ${liveBase}`);
 			return null;
 		}
-		await commands.call('repositories.pull-workstream', args);
+		await commands.call('repositories.pull-workstream', { workstreamId, baseBranch: liveBase });
 		const merged = await commands.call('repositories.workstream-status', { workstreamId });
 		if (merged.operationInProgress === 'merge') return merged;
 		this.#succeed(
 			automationRunId,
-			`Merged ${behind} ${behind === 1 ? 'commit' : 'commits'} from ${baseBranch}`,
+			`Merged ${behind} ${behind === 1 ? 'commit' : 'commits'} from ${liveBase}`,
 		);
 		return null;
 	}

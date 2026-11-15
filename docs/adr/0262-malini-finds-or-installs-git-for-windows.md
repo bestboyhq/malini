@@ -1,15 +1,15 @@
-# 0256 - Malini finds or installs Git for Windows
+# 0262 - Malini finds or installs Git for Windows
 
 Status: accepted
 
 ## Context
 
 Malini runs git for every repository and workstream, and Claude Code on Windows runs its commands through Git Bash, which it finds through `CLAUDE_CODE_GIT_BASH_PATH`.
-Windows ships neither, and the NSIS installer of 0252 cannot depend on a package the way its deb and rpm depend on `git`.
+Windows ships neither, and the NSIS installer of 0258 cannot depend on a package the way its deb and rpm depend on `git`.
 On a PC without Git for Windows nothing worked and nothing said why, and Malini did not pass the Git Bash it found to Claude Code.
 Claude Code without Git Bash runs commands in PowerShell, outside Malini's run script, so outside its sandbox and its secret masking.
 On macOS git comes with the Command Line Tools, whose `/usr/bin/git` shim opens Apple's install dialog when they are missing, and on Linux it comes from the package manager.
-0242 has Malini install a missing Claude Code or `gh` on its own, once per launch, and this decision adds Git for Windows to them, amending 0242 and 0252.
+0242 has Malini install a missing Claude Code or `gh` on its own, once per launch, and this decision adds Git for Windows to them, amending 0242 and 0258.
 
 ## Decision
 
@@ -21,7 +21,7 @@ On macOS git comes with the Command Line Tools, whose `/usr/bin/git` shim opens 
   A failure is a `GitInstallError` whose `kind` names the stage: `download`, `checksum` or `unpack`.
   An unpack failure names the exit code or the system error code, such as `EPERM`, and never the paths it ran with.
   An older copy stays usable until the pinned one is in, and `pruneGitHomes` deletes the rest at the next launch.
-- **Every spawn finds git, and a system Git wins (amends 0252).**
+- **Every spawn finds git, and a system Git wins (amends 0258).**
   On Windows, `useGitForWindows` in `src/main/process/environment.ts` runs at boot in `src/main/index.ts`, before any module registers.
   With no git on `PATH`, it appends the `cmd` folder of a system Git for Windows under `ProgramFiles`, `ProgramW6432`, `ProgramFiles(x86)` or `LOCALAPPDATA\Programs\Git`, or else Malini's own copies, newest first.
   It keeps a `CLAUDE_CODE_GIT_BASH_PATH` whose file exists, else sets the `bin\bash.exe` beside the git it finds or in a system Git, else Malini's own.

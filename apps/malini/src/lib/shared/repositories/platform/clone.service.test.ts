@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	classifyCloneError,
 	cleanupCreatedBaseClone,
+	cloneProgressReader,
 	ensureBaseClone,
 	ensureBaseCloneWithOutcome,
 	type Progress,
@@ -49,7 +50,43 @@ describe('ensureBaseClone', () => {
 		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
 		expect(events[0]).toEqual({ stage: 'fetch', fraction: 0.05 });
 		expect(events.at(-1)).toEqual({ stage: 'done', fraction: 1 });
-		expect(events.some((event) => event.stage === 'checkout')).toBe(true);
+	});
+
+	it('reports what git receives while it clones', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const source = await seedRemote(dir);
+		const events: Progress[] = [];
+
+		await ensureBaseClone({
+			repoPath: pathToFileURL(source).href,
+			checkoutsRoot: join(dir, 'app-data'),
+			githubToken: null,
+			credentials: noPromptCredentialEnv,
+			onProgress: (progress) => events.push(progress),
+		});
+
+		expect(events).toContainEqual({ stage: 'fetch', fraction: 0.8 });
+		const fractions = events.map((event) => event.fraction);
+		expect(fractions).toEqual([...fractions].sort((a, b) => a - b));
+	});
+
+	it('reads progress lines that git splits across chunks and redraws with a carriage return', () => {
+		const events: Progress[] = [];
+		const read = cloneProgressReader((progress) => events.push(progress));
+
+		read('Cloning into base...\nremote: Counting objects: 100% (9/9), done.\nReceiving obj');
+		read('ects:  40% (4/10)\rReceiving objects: 100% (10/10), 1.2 MiB | 3 MiB/s, done.\n');
+		read('Resolving deltas: 100% (2/2), done.\nUpdating files:  50% (1/2)\r');
+
+		expect(
+			events.map(({ stage, fraction }) => [stage, Math.round(fraction * 1000) / 1000]),
+		).toEqual([
+			['fetch', 0.35],
+			['fetch', 0.8],
+			['fetch', 0.9],
+			['checkout', 0.945],
+		]);
 	});
 
 	it('reuses an existing base and reports it as pre-existing', async () => {
@@ -108,7 +145,11 @@ describe('ensureBaseClone', () => {
 			'--progress',
 		]);
 		expect(seen[0]?.args).not.toContain('ghs_live');
-		expect(seen[0]?.env).toEqual({ GIT_TERMINAL_PROMPT: '0', MALINI_TEST_TOKEN: 'ghs_live' });
+		expect(seen[0]?.env).toEqual({
+			GIT_TERMINAL_PROMPT: '0',
+			MALINI_TEST_TOKEN: 'ghs_live',
+			LC_ALL: 'C',
+		});
 	});
 
 	it('t9d cleans the partial repository directory on a failed clone', async () => {
@@ -179,7 +220,7 @@ describe('ensureBaseClone', () => {
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
-			seed: { folder, branch: 'main' },
+			seedFolder: folder,
 		});
 
 		expect((await realGit(path, ['remote', 'get-url', 'origin'])).trim()).toBe(remote);
@@ -216,7 +257,7 @@ describe('ensureBaseClone', () => {
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
-			seed: { folder, branch: 'main' },
+			seedFolder: folder,
 		};
 		let quit: () => void = () => undefined;
 		const quitting = new Promise<void>((resolve) => {
@@ -260,7 +301,7 @@ describe('ensureBaseClone', () => {
 				githubToken: null,
 				credentials: noPromptCredentialEnv,
 				onProgress: () => undefined,
-				seed: { folder, branch: 'main' },
+				seedFolder: folder,
 			}),
 		).rejects.toMatchObject({ kind: 'git' });
 		expect(clones).toHaveLength(1);
@@ -280,43 +321,49 @@ describe('ensureBaseClone', () => {
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
 			onProgress: () => undefined,
-			seed: { folder, branch: 'main' },
+			seedFolder: folder,
 		});
 
 		expect((await realGit(path, ['rev-parse', '--is-shallow-repository'])).trim()).toBe('false');
 		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
 	});
 
-	it('clones blobless with GitHub sign-in kept for the blobs it fetches later', async () => {
-		const dir = await tempDir();
-		cleanups.push(() => removeDir(dir));
-		const remote = await seedRemote(dir);
-		await realGit(remote, ['config', 'uploadpack.allowFilter', 'true']);
+	it.each([
+		['blob:none', 'blob:none'],
+		['blob:limit=1m', 'blob:limit=1048576'],
+	])(
+		'clones with %s and GitHub sign-in kept for the blobs it fetches later',
+		async (blobFilter, stored) => {
+			const dir = await tempDir();
+			cleanups.push(() => removeDir(dir));
+			const remote = await seedRemote(dir);
+			await realGit(remote, ['config', 'uploadpack.allowFilter', 'true']);
 
-		const { path } = await ensureBaseCloneWithOutcome({
-			repoPath: pathToFileURL(remote).href,
-			checkoutsRoot: join(dir, 'app-data'),
-			githubToken: null,
-			credentials: noPromptCredentialEnv,
-			onProgress: () => undefined,
-			blobless: true,
-		});
+			const { path } = await ensureBaseCloneWithOutcome({
+				repoPath: pathToFileURL(remote).href,
+				checkoutsRoot: join(dir, 'app-data'),
+				githubToken: null,
+				credentials: noPromptCredentialEnv,
+				onProgress: () => undefined,
+				blobFilter,
+			});
 
-		expect((await realGit(path, ['config', 'remote.origin.partialclonefilter'])).trim()).toBe(
-			'blob:none',
-		);
-		expect(
-			(
-				await realGit(path, [
-					'config',
-					'--local',
-					'--get-all',
-					'credential.https://github.com.helper',
-				])
-			).split('\n'),
-		).toEqual(['', '!gh auth git-credential', '']);
-		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
-	});
+			expect((await realGit(path, ['config', 'remote.origin.partialclonefilter'])).trim()).toBe(
+				stored,
+			);
+			expect(
+				(
+					await realGit(path, [
+						'config',
+						'--local',
+						'--get-all',
+						'credential.https://github.com.helper',
+					])
+				).split('\n'),
+			).toEqual(['', '!gh auth git-credential', '']);
+			expect(existsSync(join(path, 'seed.txt'))).toBe(true);
+		},
+	);
 });
 
 describe('syncRemoteBase', () => {

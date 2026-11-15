@@ -184,6 +184,7 @@ import type {
 	ShutdownOutcome,
 	StartedContainerInput,
 	UsageDataState,
+	UsageStep,
 } from './system';
 
 export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
@@ -306,8 +307,9 @@ export type CreateGithubRepositoryArgs = Readonly<{
 export type CreateProjectArgs = Readonly<{
 	repoUrl: string;
 	githubToken?: string | null;
-	defaultBranch?: string;
 }>;
+
+export type ReadBaseBranchArgs = Readonly<{ projectRepoPath: string; projectId: string }>;
 
 export type CreateWorkstreamArgs = Readonly<{
 	projectRepoPath: string;
@@ -549,6 +551,7 @@ export interface ContractCommands {
 	'repositories.commit-workstream': { args: CommitWorkstreamArgs; result: string };
 	'repositories.create-repository': { args: CreateProjectArgs; result: string };
 	'repositories.create-workstream': { args: CreateWorkstreamArgs; result: string };
+	'repositories.read-base-branch': { args: ReadBaseBranchArgs; result: string };
 	'chat.decide-approval': {
 		args: DecideAgentApprovalArgs;
 		result: AgentApprovalDecisionResult;
@@ -571,6 +574,7 @@ export interface ContractCommands {
 	'app.usage-data': { args: undefined; result: UsageDataState };
 	'app.share-usage-data': { args: ShareUsageDataArgs; result: void };
 	'app.lid-hold': { args: undefined; result: LidHoldState };
+	'app.count-usage-step': { args: UsageStep; result: void };
 	'app.hold-lid': { args: HoldLidArgs; result: boolean };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
@@ -642,6 +646,7 @@ export interface ContractCommands {
 		result: AutomationDefinitionRecord;
 	};
 	'automations.list-runs': { args: undefined; result: AutomationRunRecord[] };
+	'automations.workstream-has-running-run': { args: WorkstreamIdArgs; result: boolean };
 	'automations.run': { args: RunAutomationArgs; result: AutomationRunRecord };
 	'automations.confirm-run': { args: AutomationRunIdArgs; result: AutomationRunRecord };
 	'automations.cancel-run': { args: AutomationRunIdArgs; result: AutomationRunRecord };
@@ -939,6 +944,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.commit-workstream',
 	'repositories.create-repository',
 	'repositories.create-workstream',
+	'repositories.read-base-branch',
 	'chat.decide-approval',
 	'chat.list-permission-grants',
 	'chat.revoke-permission-grant',
@@ -952,6 +958,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.usage-data',
 	'app.share-usage-data',
 	'app.lid-hold',
+	'app.count-usage-step',
 	'app.hold-lid',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',
@@ -993,6 +1000,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'automations.delete-definition',
 	'automations.reset-definition',
 	'automations.list-runs',
+	'automations.workstream-has-running-run',
 	'automations.run',
 	'automations.confirm-run',
 	'automations.cancel-run',

@@ -1,4 +1,5 @@
 import { tick } from 'svelte';
+import type { UsageStepValue } from '$contract/system';
 import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
 import { enqueuePromptCommand } from '$lib/chat/application/commands/enqueue-prompt.command';
 import { sendQueuedPromptCommand } from '$lib/chat/application/commands/send-queued-prompt.command';
@@ -25,14 +26,27 @@ import {
 	isValidAgentRunProfile,
 	modelAccessQuery,
 	roleForAgentMode,
+	type ModelAccess,
 } from '$shared/providers/providers.api';
 import {
 	mergedHeadQuery,
 	restartWorkstreamOnBaseCommand,
 	workstreamReadyForPromptsQuery,
 } from '$shared/repositories/repositories.api';
+import { usageStepsService } from '$shared/system/usage-steps.service';
 
 export { submitPromptCommand };
+
+const ACCESS_WAITS = {
+	ready: null,
+	checking: null,
+	'claude-code-missing': 'claude_code',
+	'git-missing': 'git',
+	'claude-signed-out': 'claude_sign_in',
+	'chatgpt-signed-out': 'chatgpt_sign_in',
+	'chatgpt-model-missing': 'chatgpt_model',
+	'needs-key': 'key',
+} as const satisfies Record<ModelAccess['kind'], UsageStepValue<'prompt_sent'> | null>;
 
 function submitPromptCommand(request: PromptRequest): void {
 	chatRequestsStore.begin(request.requestId);
@@ -55,7 +69,14 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	if (!isValidAgentRunProfile(input.profile)) throw new Error('Invalid prompt run profile');
 	const optimisticRunId = runIdForPromptRequest(requestId);
 	const requestedSelection = { provider: input.provider, model: input.model };
-	const waitsForAccess = !isModelAccessReady(modelAccessQuery.data(requestedSelection));
+	const access = modelAccessQuery.data(requestedSelection);
+	const waitsForAccess = !isModelAccessReady(access);
+	const setupDone = workstreamReadyForPromptsQuery.data(workstreamId);
+	if (input.automated !== true)
+		usageStepsService.count({
+			step: 'prompt_sent',
+			value: ACCESS_WAITS[access.kind] ?? (setupDone ? 'none' : 'setup'),
+		});
 	agentPromptQueue.hydrate(workstreamId);
 	const previousQueuedTurn =
 		agentPromptQueue.entriesForSession(workstreamId, input.sessionId).at(-1) ?? null;
@@ -85,7 +106,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 		forceFreshSession,
 		candidates: chatOccupancy.submissionCandidates(role, requestedSelection),
 	});
-	if (!workstreamReadyForPromptsQuery.data(workstreamId)) {
+	if (!setupDone) {
 		enqueuePromptCommand({ ...turn, sessionId: target.queueTargetSessionId });
 		consumeFreshSessionIntent(workstreamId, forceFreshSession);
 		return;

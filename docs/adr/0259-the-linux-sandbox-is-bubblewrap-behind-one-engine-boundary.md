@@ -1,15 +1,15 @@
-# 0253 - The Linux sandbox is bubblewrap, behind one engine boundary
+# 0259 - The Linux sandbox is bubblewrap, behind one engine boundary
 
 Status: accepted
 
 ## Context
 
-0167 put every agent command and every workstream install in a Seatbelt profile Malini writes, and 0252 shipped Malini for Linux and Windows with that sandbox still macOS only.
+0167 put every agent command and every workstream install in a Seatbelt profile Malini writes, and 0258 shipped Malini for Linux and Windows with that sandbox still macOS only.
 On Linux, `canSandbox()` was false, so Sandboxed, Auto and Full all ran commands as the user, with nothing between a package an agent installs and `~/.ssh`.
 A second OS needs a second mechanism, not a second policy: what counts as a credential, a cache or a protected git file is the same decision on every OS, and only the way to enforce it differs.
 `@anthropic-ai/sandbox-runtime` was read and rejected: its Linux engine is a per-command async library with in-process state, its seccomp helper always blocks AF_UNIX sockets, and its network layer swaps localhost for proxies, so it cannot sit behind the `CLAUDE_CODE_SHELL_PREFIX` run script that masks secrets and mints one-time passes.
 Its bubblewrap flags are good, so Malini uses them and adds no dependency.
-This amends 0167, 0172, 0191, 0193 and 0252; Seatbelt's profile and every macOS behavior stay as they were, byte for byte.
+This amends 0167, 0172, 0191, 0193 and 0258; Seatbelt's profile and every macOS behavior stay as they were, byte for byte.
 
 ## Decision
 

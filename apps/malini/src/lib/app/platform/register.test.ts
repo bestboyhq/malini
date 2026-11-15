@@ -60,6 +60,7 @@ const KEPT_COMMANDS = [
 	'app.usage-data',
 	'app.share-usage-data',
 	'app.lid-hold',
+	'app.count-usage-step',
 	'app.hold-lid',
 	'app.set-setting',
 	'app.shutdown-gracefully',

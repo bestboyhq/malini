@@ -180,15 +180,15 @@ describe('the workstream status', () => {
 	>([
 		['waits silently for the first read', null, null, 'ready', null],
 		[
-			'invites work on a fresh workstream',
+			'says there is nothing yet on a workstream with nothing to ship',
 			null,
 			surface({ changedFiles: 0 }),
 			'ready',
 			{
 				tone: 'idle',
 				busy: false,
-				label: 'Build something great',
-				detail: null,
+				label: 'No changes',
+				detail: 'Build something great',
 				action: null,
 			},
 		],
@@ -877,6 +877,18 @@ describe('the workstream status', () => {
 			expect(whileAgentRuns(shipState, read)).toEqual(status(shipState, read));
 		}
 		expect(whileAgentRuns(null, null)).toBeNull();
+	});
+
+	it('shows the agent at work on a workstream with nothing to ship yet', () => {
+		const empty = surface({ changedFiles: 0 });
+		expect(lineOf(whileAgentRuns(null, empty))).toMatchObject({ label: 'Agent running' });
+		expect(lineOf(status(null, empty, 'ready', 'waiting_for_approval'))).toMatchObject({
+			label: 'Needs you',
+			busy: false,
+		});
+		expect(lineOf(status(null, empty, 'github-unavailable', 'running'))).toMatchObject({
+			label: 'Agent running',
+		});
 	});
 
 	it('says a chat waiting for your approval needs you, not that the agent runs', () => {

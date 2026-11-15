@@ -27,13 +27,13 @@ function provisionWorkstreamCommand(
 	workstreamProvisioning.begin(plan);
 	void (async () => {
 		try {
-			const fresh = await createCheckout(plan);
-			const baseSync = await settledBaseSync(plan, fresh);
+			const checkout = await createCheckout(plan);
+			const baseSync = await settledBaseSync(checkout.plan, checkout.cloned);
 			if (baseSync === 'gone') {
 				abandonWorkstreamProvisioningCommand(plan.workstreamId);
 				return;
 			}
-			if (baseSync !== 'fresh') reportBaseSync(plan, baseSync);
+			if (baseSync !== 'fresh') reportBaseSync(checkout.plan, baseSync);
 			workstreamProvisioning.settle(plan.workstreamId);
 			workstreamSetupEvents.announce({ workstreamId: plan.workstreamId, status: 'ready' });
 			seedWorkstreamDependenciesCommand(plan.workstreamId);
@@ -45,19 +45,26 @@ function provisionWorkstreamCommand(
 	})();
 }
 
-async function createCheckout(plan: WorkstreamProvisioningPlan): Promise<boolean> {
+async function createCheckout(
+	plan: WorkstreamProvisioningPlan,
+): Promise<Readonly<{ plan: WorkstreamProvisioningPlan; cloned: boolean }>> {
 	const cloned = plan.projectRepoPath === null;
 	const projectRepoPath = plan.projectRepoPath ?? (await cloneRepository(plan));
+	const baseBranch = await workstreamsService.readBaseBranch({
+		projectRepoPath,
+		projectId: plan.projectId,
+	});
+	workstreamProvisioning.resolvePlan(plan.workstreamId, { baseBranch });
 	workstreamProvisioning.advance(plan.workstreamId, 'worktree');
 	const created = await workstreamsService.createWorkstream({
 		projectId: plan.projectId,
 		projectRepoPath,
 		workstreamId: plan.workstreamId,
 		name: plan.name,
-		baseBranch: plan.baseBranch,
+		baseBranch,
 	});
 	workstreamsAggregate.settlePendingWorkstream(workstreamFromCreated(created));
-	return cloned;
+	return { plan: { ...plan, projectRepoPath, baseBranch }, cloned };
 }
 
 async function cloneRepository(plan: WorkstreamProvisioningPlan): Promise<string> {
@@ -67,11 +74,8 @@ async function cloneRepository(plan: WorkstreamProvisioningPlan): Promise<string
 		(fraction) => workstreamProvisioning.reportCloneProgress(plan.workstreamId, fraction),
 	);
 	try {
-		const projectRepoPath = await workstreamsService.createProject({
-			repoUrl: plan.repoUrl,
-			defaultBranch: plan.baseBranch,
-		});
-		workstreamProvisioning.resolveProjectRepoPath(plan.workstreamId, projectRepoPath);
+		const projectRepoPath = await workstreamsService.createProject({ repoUrl: plan.repoUrl });
+		workstreamProvisioning.resolvePlan(plan.workstreamId, { projectRepoPath });
 		return projectRepoPath;
 	} finally {
 		stopCloneProgress();

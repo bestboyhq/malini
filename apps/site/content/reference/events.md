@@ -441,7 +441,7 @@ interface InstallProgressPayload {
 
 ## `repositories:changed`
 
-Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.
+Fires when a repository is added, cloned, hidden or shown again, or origin renames its default branch, so every list of repositories and workstreams reloads.
 
 An automation sees none of its fields.
 

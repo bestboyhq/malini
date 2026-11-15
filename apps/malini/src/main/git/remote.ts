@@ -609,6 +609,68 @@ export async function recordedRemoteBase(
 	return remoteRef;
 }
 
+export type OriginHead = Readonly<{ branch: string } | { branch: null; empty: boolean }>;
+
+export async function readOriginHead(
+	basePath: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<OriginHead> {
+	const listOrigin = await originLister(basePath, githubToken, credentials);
+	const branch = headBranchOf(await listOrigin('HEAD'));
+	if (branch) return { branch };
+	return { branch: null, empty: (await listOrigin('refs/heads/*')).trim().length === 0 };
+}
+
+export async function renamedOnOrigin(
+	basePath: string,
+	branch: string,
+	credentials: GitCredentialEnv,
+): Promise<string | null> {
+	validateBaseBranch(branch);
+	const listing = await (
+		await originLister(basePath, null, credentials)
+	)('HEAD', `refs/heads/${branch}`);
+	const head = headBranchOf(listing);
+	const kept = listing.split('\n').some((line) => line.endsWith(`\trefs/heads/${branch}`));
+	if (!head || head === branch || kept) return null;
+	const lastKnown = await recordedRemoteBase(basePath, branch);
+	if (lastKnown === null) return null;
+	const headRef = await syncRemoteBase(basePath, head, null, credentials);
+	return (await isAncestor(basePath, lastKnown, headRef)) ? head : null;
+}
+
+async function originLister(
+	basePath: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<(...patterns: string[]) => Promise<string>> {
+	const token = normalizeGithubToken(githubToken);
+	const env = await credentials.prepare(token);
+	return async (...patterns) => {
+		try {
+			return await runGit(
+				[
+					'-C',
+					basePath,
+					...GH_CREDENTIAL_HELPER_CONFIG,
+					'ls-remote',
+					'--symref',
+					'origin',
+					...patterns,
+				],
+				env,
+			);
+		} catch (error) {
+			throw error instanceof GitError ? attributeCredentials(error, token) : error;
+		}
+	};
+}
+
+function headBranchOf(listing: string): string | undefined {
+	return /^ref: refs\/heads\/(\S+)\tHEAD$/mu.exec(listing)?.[1];
+}
+
 export type CheckoutFastForward = 'current' | 'advanced' | 'diverged';
 
 export async function fastForwardCheckout(

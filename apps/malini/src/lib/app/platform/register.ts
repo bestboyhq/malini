@@ -45,6 +45,7 @@ import { StreamingDetector } from './streaming';
 import { startUpdates } from './updates';
 import { startUsageData } from './usage-data';
 import { readUsageReport } from './usage-report';
+import { isUsageStep } from './usage-steps';
 import { createWindowCommands, type WindowCommands } from './window';
 import { defineWindowControlsCommands } from './window-controls';
 import { lidTools, startLidHold } from './lid-hold';
@@ -75,6 +76,10 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	context.commands.define('app.share-usage-data', (args: unknown): void =>
 		usageData.share(requireBoolean(args, 'shared')),
 	);
+	context.commands.define('app.count-usage-step', (args: unknown): void => {
+		if (!isUsageStep(args)) throw new Error('invalid args: not a usage step');
+		usageData.step(args);
+	});
 	context.commands.define('app.problem-report', () => readProblemReport(context, new Date()));
 	context.commands.define('app.report-problem', (args: unknown) => reportProblem(args));
 	const lid = startLidHold(

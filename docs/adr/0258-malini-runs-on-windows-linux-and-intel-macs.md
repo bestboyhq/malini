@@ -1,4 +1,4 @@
-# 0252 - Malini runs on Windows, Linux and Intel Macs
+# 0258 - Malini runs on Windows, Linux and Intel Macs
 
 Status: accepted
 
@@ -8,7 +8,7 @@ Malini shipped one build, for Apple silicon: a dmg, a zip and `latest-mac.yml`, 
 In 90 days bestboy.dev/malini had 170 macOS desktop visitors, 29 on Windows and 11 on Linux, while the page offered only the Mac download.
 The user: "We have to support all the platforms … our users expect to have the same experience as they have on macOS on all the other platforms."
 Electron draws the window on every OS, so the work is in Malini's shell layer: spawning commands, paths and line endings, installs, secrets, links, menus, the browser's hidden views, updates and packaging.
-CI ran unit tests on Linux and e2e on macOS only, so nothing proved a Windows path, a CRLF checkout or a `.cmd` shim (0250).
+CI ran unit tests on Linux and e2e on macOS only, so nothing proved a Windows path, a CRLF checkout or a `.cmd` shim (0256).
 
 ## Decision
 
@@ -87,4 +87,4 @@ CI ran unit tests on Linux and e2e on macOS only, so nothing proved a Windows pa
 - A command the user runs from the checkout in their own terminal keeps running on every OS, and a terminal still working inside the checkout on Windows makes archive report the checkout in use, since Windows does not move a folder in use.
 - Stats on Windows keep one hidden PowerShell for as long as Malini runs, and where PowerShell runs in Constrained Language mode, `Add-Type` fails and Stats stays empty.
 - What must stay true: every word that names an OS thing comes from `osFor`, every spawn goes through `command.ts`, and every git call that writes a checkout passes `core.autocrlf=false`.
-- Enforced by the unit and e2e matrices on macOS, Linux and Windows and the `package` job (0250), and by `os.test.ts`, `command.test.ts`, `gh-install.test.ts`, `claude-install.test.ts`, `leftovers.test.ts`, `windows-process-table.test.ts`, `password-store.test.ts`, `url-scheme.test.ts`, `system-label.test.ts`, `updates.test.ts`, `views.test.ts`, `snapshots.test.ts` and `worktree-files.test.ts`.
+- Enforced by the unit and e2e matrices on macOS, Linux and Windows and the `package` job (0256), and by `os.test.ts`, `command.test.ts`, `gh-install.test.ts`, `claude-install.test.ts`, `leftovers.test.ts`, `windows-process-table.test.ts`, `password-store.test.ts`, `url-scheme.test.ts`, `system-label.test.ts`, `updates.test.ts`, `views.test.ts`, `snapshots.test.ts` and `worktree-files.test.ts`.

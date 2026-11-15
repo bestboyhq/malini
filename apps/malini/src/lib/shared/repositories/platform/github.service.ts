@@ -13,6 +13,7 @@ import { field, requireNonEmptyString } from './args';
 import { validateOwner } from './avatars.service';
 import {
 	findConnectedRepositoryByFullName,
+	getConnectedRepository,
 	listConnectedRepositories,
 	upsertConnectedRepository,
 	type ConnectedRepository,
@@ -211,14 +212,16 @@ function githubErrorReason(body: string): string | null {
 }
 
 export async function listClones(db: MaliniDatabase): Promise<ConnectedRepositoryDto[]> {
-	const repositories = listConnectedRepositories(db);
 	const refreshed = await Promise.all(
-		repositories.map((repository) => refreshIdentity(repository)),
+		listConnectedRepositories(db).map((repository) => refreshIdentity(repository)),
 	);
-	for (const repository of refreshed) {
+	return refreshed.flatMap(({ id, fullName, remoteUrl }) => {
+		const current = getConnectedRepository(db, id);
+		if (!current) return [];
+		const repository = { ...current, fullName, remoteUrl };
 		upsertConnectedRepository(db, repository);
-	}
-	return refreshed.map(connectedRepositoryDto);
+		return [connectedRepositoryDto(repository)];
+	});
 }
 
 export async function connectRepository(
@@ -274,7 +277,7 @@ async function resolveIdentity(source: ImportSource, run: GhRunner): Promise<Rep
 		const fullName = remoteUrl ? repositoryFullNameFromRemoteUrl(remoteUrl) : null;
 		return {
 			fullName: fullName ?? folderName(path),
-			defaultBranch: isCheckout ? await readDefaultBranch(path) : 'main',
+			defaultBranch: isCheckout ? await readDefaultBranch(path, '') : '',
 			localPath: path,
 			remoteUrl,
 		};
@@ -283,7 +286,7 @@ async function resolveIdentity(source: ImportSource, run: GhRunner): Promise<Rep
 	const githubFullName = githubFullNameFromRemote(url);
 	return {
 		fullName: repositoryFullNameFromRemoteUrl(url) ?? folderName(url),
-		defaultBranch: githubFullName ? await remoteDefaultBranch(run, githubFullName) : 'main',
+		defaultBranch: githubFullName ? await remoteDefaultBranch(run, githubFullName) : '',
 		localPath: null,
 		remoteUrl: url,
 	};
@@ -318,14 +321,11 @@ async function remoteDefaultBranch(run: GhRunner, fullName: string): Promise<str
 			'--json',
 			'defaultBranchRef',
 			'--jq',
-			'.defaultBranchRef.name',
+			'.defaultBranchRef.name // ""',
 		]);
-		if (result.code === 0) {
-			const branch = result.stdout.trim();
-			if (branch.length > 0) return branch;
-		}
+		if (result.code === 0) return result.stdout.trim();
 	} catch {}
-	return 'main';
+	return '';
 }
 
 async function refreshIdentity(repository: ConnectedRepository): Promise<ConnectedRepository> {
@@ -341,7 +341,6 @@ async function refreshIdentity(repository: ConnectedRepository): Promise<Connect
 		...repository,
 		remoteUrl,
 		fullName: fullName ?? repository.fullName,
-		defaultBranch: await readDefaultBranch(repository.localPath, repository.defaultBranch),
 	};
 }
 

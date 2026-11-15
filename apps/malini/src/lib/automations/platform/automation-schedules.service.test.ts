@@ -97,6 +97,7 @@ function harness(): MainContext {
 		prompts.push(String(Reflect.get(Object(args), 'prompt')));
 		return `agent-run-${sessions}`;
 	});
+	commands.define('repositories.read-base-branch', () => 'main');
 	commands.define('repositories.create-workstream', (args: unknown) => {
 		seedWorkstream(field(args, 'workstreamId'), 'local__acme__app', field(args, 'name'));
 		return '/tmp/new-workstream';

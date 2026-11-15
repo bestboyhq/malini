@@ -10,10 +10,12 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus, type EventBus } from '$main/events';
 import { initRealRepo, realGit, removeDir, tempDir } from '$main/git/fixtures.test-support';
+import { noPromptCredentialEnv } from '$main/git/credentials';
 import { fastForwardCheckout } from '$main/git/remote';
 import { BaseOverlapWatch, type BaseOverlapWatchDeps } from './base-overlap.service';
 import { upsertProject } from './projects.repository';
-import { recordMergedPullRequest, upsertWorkstream } from './workstreams.repository';
+import { getWorkstream, recordMergedPullRequest, upsertWorkstream } from './workstreams.repository';
+import { retargetRenamedBase } from './workstreams.service';
 
 const NOW = Date.parse('2026-11-01T00:00:00.000Z');
 const DAY_MS = 24 * 60 * 60_000;
@@ -46,6 +48,8 @@ function watching(overrides: Partial<BaseOverlapWatchDeps> = {}): BaseOverlapWat
 			await realGit(repoPath, ['fetch', '-q', 'origin', baseBranch]);
 			return `refs/remotes/origin/${baseBranch}`;
 		},
+		retargetRenamedBase: (renamed) =>
+			retargetRenamedBase({ db, events, credentials: noPromptCredentialEnv }, renamed),
 		busy: async () => busy,
 		merging: async () => merging,
 		pullRequestEnded: async () => ended,
@@ -277,6 +281,40 @@ describe('BaseOverlapWatch', () => {
 		expect(await headOf(worktree)).toBe(baseHead);
 		expect(await realGit(worktree, ['rev-list', '--merges', '--count', 'HEAD'])).toBe('0\n');
 		expect(overlaps).toEqual([]);
+	});
+
+	it('fast-forwards a workstream with no commits of its own to the name origin renamed its base to', async () => {
+		await realGit(origin, ['branch', '-m', 'main', 'trunk']);
+		const baseHead = await commit(origin, { 'shared.txt': 'trunk\n' });
+
+		await watch.fetchAndCompare();
+		await watch.compare('ws');
+
+		expect(getWorkstream(db, 'ws')?.baseBranch).toBe('trunk');
+		expect(await headOf(worktree)).toBe(baseHead);
+		expect(overlaps).toEqual([]);
+	});
+
+	it('looks for the renamed base again at the next fetch when the first look finds nothing', async () => {
+		const logged: string[] = [];
+		let looks = 0;
+		await watch.dispose();
+		watch = watching({
+			retargetRenamedBase: async (renamed) => {
+				looks += 1;
+				return looks === 1
+					? null
+					: retargetRenamedBase({ db, events, credentials: noPromptCredentialEnv }, renamed);
+			},
+			log: (line) => logged.push(line),
+		});
+		await realGit(origin, ['branch', '-m', 'main', 'trunk']);
+
+		await watch.fetchAndCompare();
+		await watch.fetchAndCompare();
+
+		expect(getWorkstream(db, 'ws')?.baseBranch).toBe('trunk');
+		expect(logged).toHaveLength(1);
 	});
 
 	it('leaves a workstream started from a release where it started', async () => {

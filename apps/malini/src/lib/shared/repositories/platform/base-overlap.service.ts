@@ -16,6 +16,7 @@ import {
 	getWorkstream,
 	listWorkstreams,
 	mergedPullRequestOf,
+	startedOnBaseOf,
 	workstreamActiveTimes,
 	type Workstream,
 } from './workstreams.repository';
@@ -30,6 +31,7 @@ export interface BaseOverlapWatchDeps {
 	readonly events: EventBus;
 	readonly checkouts: CheckoutResolver;
 	fetchBase(repoPath: string, baseBranch: string): Promise<string>;
+	retargetRenamedBase(base: Pick<Workstream, 'projectId' | 'baseBranch'>): Promise<string | null>;
 	busy(workstreamId: string): Promise<boolean>;
 	merging(workstreamId: string): Promise<boolean>;
 	pullRequestEnded(workstream: Workstream): Promise<boolean>;
@@ -150,7 +152,7 @@ export class BaseOverlapWatch {
 		if ((await busy(workstreamId)) || (await merging(workstreamId))) return;
 		const overlap = await baseOverlap(checkout, head, baseHead);
 		if (overlap?.pristine) {
-			if (await startedFromBase(checkout, workstream)) {
+			if (await startedFromBase(checkout, workstream, startedOnBaseOf(db, workstreamId))) {
 				await this.#deps.fastForward(workstreamId, checkout, baseRef);
 			}
 			this.#compared.set(workstreamId, pair);
@@ -225,7 +227,9 @@ export class BaseOverlapWatch {
 			await this.#deps.fetchBase(project.repoPath, workstream.baseBranch);
 			this.#failingFetches.delete(key);
 		} catch (error) {
-			if (this.#disposed || this.#failingFetches.has(key) || unreachable(error)) return;
+			if (this.#disposed || unreachable(error)) return;
+			if ((await this.#deps.retargetRenamedBase(workstream)) !== null) return;
+			if (this.#failingFetches.has(key)) return;
 			this.#failingFetches.add(key);
 			this.#deps.log(
 				`malini: could not fetch ${workstream.baseBranch} of ${project.repoPath}: ${describeError(error)}`,
@@ -241,11 +245,14 @@ function sameBase(
 	return workstream.projectId === base.projectId && workstream.baseBranch === base.baseBranch;
 }
 
-async function startedFromBase(checkout: string, workstream: Workstream): Promise<boolean> {
+async function startedFromBase(
+	checkout: string,
+	workstream: Workstream,
+	startedOn: string | null,
+): Promise<boolean> {
 	const start = await branchStart(checkout, workstream.branch);
-	return (
-		start === `origin/${workstream.baseBranch}` ||
-		start === `refs/remotes/origin/${workstream.baseBranch}`
+	return [workstream.baseBranch, startedOn ?? workstream.baseBranch].some(
+		(branch) => start === `origin/${branch}` || start === `refs/remotes/origin/${branch}`,
 	);
 }
 

@@ -1,11 +1,11 @@
-# 0257 - Lid hold on Windows and Linux, and OS words for agents
+# 0263 - Lid hold on Windows and Linux, and OS words for agents
 
 Status: accepted
 
 ## Context
 
 0177 keeps a MacBook awake with the lid closed through `pmset -a disablesleep`, which only macOS has.
-Since 0252 Malini runs on Windows and Linux, where the same switch ran `pmset`, failed, and showed the Mac's refusal.
+Since 0258 Malini runs on Windows and Linux, where the same switch ran `pmset`, failed, and showed the Mac's refusal.
 Each OS keeps the lid in its own place: Windows in the power plan's lid close action (`LIDACTION`, on mains and on battery), Linux in systemd-logind, which always honors a `handle-lid-switch` inhibitor lock.
 The round 2 brief asked for each OS's own mechanism with the least privilege, the user's own setting back after a crash or kill, and one plain line where an OS cannot do it, never a silent failure.
 The text agents read named the Mac on every OS: the event descriptions `events_list` returns, the automation trigger grammar, the sandbox refusal and the `browser_press` example, so an agent on Windows told its user about their Mac.
@@ -62,4 +62,4 @@ The text agents read named the Mac on every OS: the event descriptions `events_l
 - Enforced by `lid-hold.test.ts`: the parsers, the marker, the watchdog quoting and the read-back check on every OS; a fake `powercfg` with no lid close action making `available` false on every OS; on Linux CI, a real `systemd-inhibit` lock in Malini's name and its release, and the lid lock held or refused with logind's reason; on a Windows CI runner whose active plan has a lid close action, a real `powercfg` round trip, a write from a Basic User token (`runas /trustlevel:0x20000`), and the watchdog restoring the values once the holder dies.
 - Enforced by `lid-hold.spec.ts` on Linux with a fake `systemd-inhibit`: the refusal under the switch, holding only while a turn runs, letting go when the switch turns off, at quit and when Malini is `SIGKILL`ed, and the line and disabled switch without logind; its Mac tests stay 0177's.
 - Enforced by `os.test.ts` (`osText`), `service.test.ts` (`events_list` words), `permissions.test.ts` (the bridge words) and `pnpm check`, which fails when the generated reference is stale.
-- Amends 0177; 0252's rule that every OS word comes from `osFor` now reaches agent text.
+- Amends 0177; 0258's rule that every OS word comes from `osFor` now reaches agent text.

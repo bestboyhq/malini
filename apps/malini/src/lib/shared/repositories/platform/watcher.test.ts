@@ -132,6 +132,21 @@ async function watchSettled(id: string): Promise<void> {
 	emitted.length = 0;
 }
 
+function startWatchers(debounceMs = DEBOUNCE_MS, maxWaitMs = MAX_WAIT_MS): WorkstreamWatchers {
+	return createWorkstreamWatchers({
+		db,
+		events,
+		resolveWorktree: async (workstreamId) => {
+			const path = worktrees.get(workstreamId);
+			if (!path) throw new Error(`no checkout for ${workstreamId}`);
+			return path;
+		},
+		debounceMs,
+		maxWaitMs,
+		log: (line) => logged.push(line),
+	});
+}
+
 beforeEach(() => {
 	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-watcher-')));
 	db = openMigratedDatabase(':memory:');
@@ -150,18 +165,7 @@ beforeEach(() => {
 	] as const) {
 		events.subscribe(channel, (payload: unknown) => facts.push({ channel, payload }));
 	}
-	watchers = createWorkstreamWatchers({
-		db,
-		events,
-		resolveWorktree: async (workstreamId) => {
-			const path = worktrees.get(workstreamId);
-			if (!path) throw new Error(`no checkout for ${workstreamId}`);
-			return path;
-		},
-		debounceMs: DEBOUNCE_MS,
-		maxWaitMs: MAX_WAIT_MS,
-		log: (line) => logged.push(line),
-	});
+	watchers = startWatchers();
 });
 
 afterEach(() => {
@@ -209,12 +213,14 @@ describe('createWorkstreamWatchers', () => {
 		await initRepo(path);
 		mkdirSync(join(path, '.context'));
 		seedRow('ws-1', path, 'active');
+		watchers.dispose();
+		watchers = startWatchers(1_000, 10_000);
 		await watchSettled('ws-1');
 
 		for (let index = 0; index <= MAX_RECORDED_CHANGED_PATHS; index += 1) {
 			writeFileSync(join(path, '.context', `copy-${index}.txt`), `${index}\n`);
 		}
-		await waitFor(() => emitted.length > 0);
+		await waitFor(() => emitted.length > 0, 15_000);
 		await sleep(SETTLE_MS);
 
 		expect(emitted.some((frame) => frame.paths === null)).toBe(true);

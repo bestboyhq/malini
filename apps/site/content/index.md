@@ -46,10 +46,14 @@ Nine reach a service: update checks to GitHub Releases, usage data to Logdash, s
 One carries a DeepSeek or OpenCode chat to that provider, with your key added on the way, so Claude Code never holds it.
 Three download a tool you do not have: the GitHub CLI from GitHub, Claude Code from Anthropic, and, on Windows, Git from the Git for Windows releases, each checked against a pinned checksum.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
-For a new install, it marks each first step once: the first open, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt, merge and published profile, and the first return in the following week and month.
+For a new install, it marks each first step once: the first open, the first way in you pick, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt sent, prompt run, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
 When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.
 For a failure it adds the step that failed and the name of the error, never the message.
+Until your first prompt runs, it counts each step on the way: the way in you pick, what the GitHub list shows, each clone, workstream and dependency install with its outcome and seconds, and what your first prompt waits for, such as the Claude Code sign-in.
+After that, it counts only the steps that fail.
+For every agent run it counts whether it finished, failed, was cancelled or was cut short, and for a failure the kind, such as a usage limit.
+It marks the first run that changed a file, your first **Draft** or **Merge** press and your first pull request, and counts each press and each time a ship stops on something, such as a missing GitHub permission.
 While you are signed in to Bestboy, each count carries your Bestboy account, as a hash Malini makes on your computer, so we see which accounts use Malini on which days.
 Signed out, each count carries a random ID made for this install instead, also as a hash, so we can count the days Malini is used.
 That ID is not linked to you, your computer or your account, and turning the switch off deletes it, so turning it back on starts a new one.

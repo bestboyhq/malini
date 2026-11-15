@@ -1,15 +1,15 @@
-# 0254 - The Windows sandbox is srt-win, behind the engine boundary
+# 0260 - The Windows sandbox is srt-win, behind the engine boundary
 
 Status: accepted
 
 ## Context
 
-0252 shipped Malini for Windows with the sandbox on macOS only, and 0253 put Linux behind a per-OS `SandboxEngine`, so on Windows `canSandbox()` stayed false and Sandboxed asked before every command.
+0258 shipped Malini for Windows with the sandbox on macOS only, and 0259 put Linux behind a per-OS `SandboxEngine`, so on Windows `canSandbox()` stayed false and Sandboxed asked before every command.
 Windows gives an unprivileged process nothing like Seatbelt or bubblewrap: confining a command takes a second account, file ACLs, Windows Filtering Platform filters and a secondary logon, and setting those up takes one elevated install.
 `@anthropic-ai/sandbox-runtime` 0.0.83 ships that whole boundary for Windows as `srt-win`, a native helper per chip, and a library that drives it.
 The brief for the Windows port said not to hand-roll a security boundary that srt already ships, and to write Malini code only for the mapping and for what srt cannot express.
-0253 rejected srt on Linux because its engine is async with in-process state and the run script needs a synchronous prefix; on Windows a forwarder script closes that gap, and the state stays in the bridge.
-This amends 0167, 0252 and 0253; the macOS and Linux engines and their lines stay as they were, byte for byte.
+0259 rejected srt on Linux because its engine is async with in-process state and the run script needs a synchronous prefix; on Windows a forwarder script closes that gap, and the state stays in the bridge.
+This amends 0167, 0258 and 0259; the macOS and Linux engines and their lines stay as they were, byte for byte.
 
 ## Decision
 
@@ -17,7 +17,7 @@ This amends 0167, 0252 and 0253; the macOS and Linux engines and their lines sta
   Malini adds the mapping from `SandboxRules`, the forwarder, the problem mapping, the denial parser and the setup flow in Settings.
 - `packages/agent-bridge/src/sandbox/windows.ts` is the `win32` row of `ENGINES`.
   It loads srt from `MALINI_SANDBOX_RUNTIME`, which the main process sets to the packaged `resources/agent-bridge/node_modules/@anthropic-ai/sandbox-runtime` (`src/lib/shared/providers/platform/windows-sandbox.ts`), or else from the bridge's own `node_modules`.
-  It runs `vendor/srt-win/<x64|arm64>/srt-win.exe` and the Git Bash that 0256 provides.
+  It runs `vendor/srt-win/<x64|arm64>/srt-win.exe` and the Git Bash that 0262 provides.
 - `prefix(rules)` hashes the rules into a key, starts preparing that key once in the background, and returns `[<Git>/usr/bin/bash.exe, <temp>/malini-srt-<pid>/forwarder.sh, <key>, <checkout>/.malini/sandbox/tmp, --]`.
   Preparing grants the ACLs, checks the egress fence once per bridge, opens the proxy when the internet is on, and writes srt's command line to `<key>.ready`, or the reason to `<key>.failed`.
 - The forwarder waits for one of the two.

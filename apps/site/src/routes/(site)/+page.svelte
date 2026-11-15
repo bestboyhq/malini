@@ -137,8 +137,8 @@
 		},
 		{
 			icon: 'eye',
-			title: 'Seven calls of its own',
-			body: 'Update checks, usage stats you can turn off, model lists from models.dev, a plan check when you save an OpenCode key, the extension marketplace while you use it, OpenAI only after you sign in with ChatGPT, and your stats only if you publish them. Every big decision is written down.',
+			title: 'Twelve calls of its own',
+			body: 'Update checks, usage stats you can turn off, the GitHub CLI and Claude Code if your Mac lacks them, model lists from models.dev, a plan check and usage reads for an OpenCode key, DeepSeek and OpenCode chats passed to their provider, the extension marketplace while you use it, OpenAI only after you sign in with ChatGPT, and your stats and projects only if you publish them. Every big decision is written down.',
 		},
 	] as const;
 
@@ -160,7 +160,7 @@
 		{
 			question: 'What do I need?',
 			answer:
-				'macOS 13 or later, Windows 10 or later, or Linux, on x64 or Arm64. Git too, except on Windows, where Malini brings its own if you have none. Malini ships the GitHub CLI, and setup installs Claude Code if you don’t have it.',
+				'macOS 13 or later, Windows 10 or later, or Linux, on x64 or Arm64. Git too, except on Windows, where Malini brings its own if you have none. Malini ships the GitHub CLI and installs Claude Code if you don’t have it.',
 		},
 		{
 			question: 'Does Malini run on Windows and Linux?',
@@ -170,7 +170,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic, or to the provider you pick. A Bestboy account is optional, only to publish your stats or an extension, and there is no Malini server. Malini makes seven calls of its own: update checks to GitHub Releases, usage stats that never include your code, prompts, paths, or keys, which carry your Bestboy account while you are signed in and which you can turn off under Settings, Privacy, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic, or to the provider you pick. A Bestboy account is optional, only to publish your stats or an extension, and there is no Malini server. Malini makes twelve calls of its own: update checks to GitHub Releases, usage stats that never include your code, prompts, paths, or keys, which carry your Bestboy account while you are signed in and which you can turn off under Settings, Privacy, the GitHub CLI from GitHub and Claude Code from Anthropic when your Mac lacks a working one, each checked against its published checksum, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it, the chats you run on a DeepSeek or OpenCode key, which Malini passes to that provider with your key, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev, the projects you turn on in Settings, Profile, to bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',

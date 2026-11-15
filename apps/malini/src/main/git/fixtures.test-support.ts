@@ -39,7 +39,7 @@ export async function tryRealGit(repo: string, args: readonly string[]): Promise
 
 export async function initRealRepo(repo: string): Promise<void> {
 	await mkdir(repo, { recursive: true });
-	await realGit(repo, ['init', '-q']);
+	await realGit(repo, ['init', '-q', '-b', 'main']);
 	await realGit(repo, ['config', 'user.email', 't@example.com']);
 	await realGit(repo, ['config', 'user.name', 't']);
 	await writeFile(join(repo, 'seed.txt'), 'seed\n');

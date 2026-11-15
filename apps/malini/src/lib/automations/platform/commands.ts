@@ -329,6 +329,13 @@ export function defineAutomationCommands(
 		),
 	);
 
+	commands.define('automations.workstream-has-running-run', (args: unknown) => {
+		const workstreamId = requireString(args, 'workstreamId');
+		return listUnfinishedAutomationRuns(db).some(
+			(run) => run.workstreamId === workstreamId && run.status === 'running',
+		);
+	});
+
 	commands.define('automations.list-runs', () => {
 		const askedAbout = listAskingDecisions(db).flatMap(({ subjectRunId }) => {
 			const run = subjectRunId === null ? null : getAutomationRun(db, subjectRunId);

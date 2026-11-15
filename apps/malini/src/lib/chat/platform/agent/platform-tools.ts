@@ -305,7 +305,13 @@ async function createWorkstream(
 			`Malini is still cloning ${repository.fullName}. Call repositories_clone to wait for it, then workstreams_create again.`,
 		);
 	}
-	await createPlannedWorkstream(commands, plan, projectRepoPath, base, source.workstreamId);
+	const baseBranch = await createPlannedWorkstream(
+		commands,
+		plan,
+		projectRepoPath,
+		base,
+		source.workstreamId,
+	);
 	const { workstreamId } = plan;
 	const naming = deps.nameWorkstream?.(workstreamId, prompt).catch((error: unknown) => {
 		log(`agent: could not name \`${workstreamId}\`: ${describeError(error)}`);
@@ -350,7 +356,7 @@ async function createWorkstream(
 		name: getWorkstream(db, workstreamId)?.name ?? plan.name,
 		repository: repository.fullName,
 		branch: plan.branch,
-		baseBranch: plan.baseBranch,
+		baseBranch,
 		...(base === null ? {} : { base }),
 		chat,
 	};

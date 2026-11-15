@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createSourceRepo, git, REAL_GIT, writeExecutable, type LaunchedApp } from './harness';
 
@@ -35,7 +35,7 @@ export async function brainOnGithub(
 		}),
 	);
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
-		renameSync(join(dir, 'gh'), join(dir, 'gh-harness'));
+		copyFileSync(join(dir, 'gh'), join(dir, 'gh-harness'));
 		writeExecutable(
 			join(dir, 'gh'),
 			`#!/bin/sh

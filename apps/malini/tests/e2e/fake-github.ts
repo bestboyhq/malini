@@ -232,8 +232,10 @@ async function fakeGithubFor(
 	writeFileSync(pullRequestFile, JSON.stringify(pullRequest && { ...seed, ...pullRequest }));
 	writeFileSync(join(state, 'seed.json'), JSON.stringify(seed));
 	writeFileSync(callsFile, '');
+	const ghProgram = join(state, 'gh.cjs');
+	writeFileSync(ghProgram, ghStub(state, remote, revParse(seeded.basePath, 'main')));
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
-		writeExecutable(join(dir, 'gh'), ghStub(state, remote, revParse(seeded.basePath, 'main')));
+		writeExecutable(join(dir, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghProgram}" "$@"\n`);
 		writeExecutable(join(dir, 'git'), gitShim(remote, offline));
 	}
 
@@ -338,8 +340,7 @@ exec '${REAL_GIT}' -c protocol.file.allow=always "$@"
 }
 
 function ghStub(state: string, remote: string, baseOid: string): string {
-	return `#!${process.execPath}
-const fs = require('node:fs');
+	return `const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const state = ${JSON.stringify(state)};
@@ -401,6 +402,8 @@ if (command === 'auth' && sub === 'status') {
 	waitForApproval();
 } else if (command === 'api' && sub === 'user') {
 	out('e2e-user\\n');
+} else if (command === 'api' && sub.startsWith('user/repos')) {
+	out('[]');
 } else if (command === 'api' && sub === 'graphql') {
 	const fields = {};
 	args.forEach((arg, index) => {

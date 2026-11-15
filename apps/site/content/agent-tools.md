@@ -164,7 +164,7 @@ It never wakes a chat only because the chat works in the workstream where someth
 Other Malini chats are reachable only through these tools, since Claude Code's own `ListAgents` and `SendMessage` see only its own agents.
 
 To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
-The workstream starts from the default branch, or from the tag, branch or commit the agent names in `base`, such as the release you run, `v0.17.5`.
+The workstream starts from the default branch origin names at that moment, or from the tag, branch or commit the agent names in `base`, such as the release you run, `v0.17.5`.
 Malini fetches that from the repository's origin, and the workstream's pull request still targets the default branch.
 When it reaches for `git checkout` or `git worktree` instead, Malini refuses the command and names those tools.
 A `git clone` still runs, for reading code, and Malini reminds the agent to start a workstream before it changes any.
