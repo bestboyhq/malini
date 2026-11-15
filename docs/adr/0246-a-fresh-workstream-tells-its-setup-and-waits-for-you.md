@@ -17,6 +17,8 @@ A failed setup showed a full-width banner above the chat, with the failure in mo
 The gutter then waited for the first message, hidden: the chat grew to the full width and jumped left as the first message went ("why is this center panel so fucking wide?"), and once centered, it was pushed aside under the user's eyes as they sent, the top bar's status apart from the gutter's card ("The right gutter was always supposed to be just a single element always").
 Simon agreed to "have gutter from the start", and to keep "this top part with dashed strip from the very beginning. I don't like when it's gone. It looks weird."
 They found the gutter's fill too vivid and asked for "the background of the background", with the containers as they were: "Just reduce the fucking background."
+The stripes then sat empty, and they asked for the line back: "this pull request status bar shouldn't be empty. We should put something cool in there. Like build something great".
+Of four drafts they picked **No changes** with **Build something great** under it: "Nothing yet/make something you'll be proud of".
 
 ## Decision
 
@@ -34,14 +36,13 @@ They found the gutter's fill too vivid and asked for "the background of the back
   Each fills the composer through `fillComposerCommand`; **Plan a change with me** also sets the run profile to plan mode, and every other starter sets it back to agent.
   The two finders list what they find, biggest or riskiest first, and change nothing until the user picks one.
   **Take one open issue** is gone: on a repository without open issues it sent the agent looking for nothing.
-- **No status with nothing to ship.** `pullRequestTopBar` returns no status for a workstream with no changed files, so the top bar shows nothing where it said **Build something great**, and the docked header keeps only its stripes.
-  The setup steps already say whose turn it is.
+- **Nothing to ship says so.** `pullRequestTopBar` returns **No changes** with **Build something great** as its detail for a workstream with no changed files, where it said **Build something great** alone, and **Agent running** or **Needs you** takes its place while a chat works.
 - **A failed setup says so in its steps.** The copy step turns into **Copy failed** with the reason, as **Install failed** does, and the row holds **Retry** and **Remove**; the full-width banner, `WorkstreamProvisioningFailure.svelte`, is gone, which amends 0073's setup banner.
   **Copy failed** adds the GitHub sign-in remedy when the failure is a sign-in, as the top bar's tooltip does.
   The top bar keeps **Setting up** and **Needs you · Setup failed** with **Retry**.
   A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
 - **The gutter is there from the start.** A fresh workstream shows the inspector's gutter as every other workstream does, so nothing moves when the first message goes.
-  The top bar's docked header is the top of the gutter's card in every state: with no status it keeps its stripes and no text, where it used to hide itself, and a status that appears fades in on it.
+  The top bar's docked header is the top of the gutter's card in every state, where it used to hide itself with no status, and a status that appears fades in on it.
   The card and its header take the page's own fill, `surface-root`, so the gutter shows by its edge and not as a brighter block beside the chat.
   Their edge is `border-default` at 60%, the line the card had on `surface-50`: the full `border-default` that `surface-root` pairs with read too strong around a whole card.
 - This amends 0242's starters.
@@ -53,4 +54,4 @@ They found the gutter's fill too vivid and asked for "the background of the back
 - `tests/e2e/workstream-setup.spec.ts` fails when a failed setup shows an alert banner, loses **Copy failed** with its reason, **Retry** or **Remove** in its steps, or when the gutter or the top bar's status is missing, or the status's label and detail overlap.
 - `src/lib/shared/repositories/domain/workstream-setup-steps.test.ts` fails when a step's wording or state drifts, `provisioning.test.ts` when an install outcome stops mapping to a step, and `workstream-provisioning.aggregate.svelte.test.ts` when a finished install loses its record or its command.
 - `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Quick suggestions** group, plan mode on **Plan a change with me**, or the gutter go.
-- `pull-request-top-bar.test.ts` and `tests/e2e/pull-request-nothing-to-ship.spec.ts` fail when a workstream with nothing to ship shows a status again.
+- `pull-request-top-bar.test.ts`, `tests/e2e/pull-request-nothing-to-ship.spec.ts` and `tests/e2e/chat-session-status.spec.ts` fail when a workstream with nothing to ship stops saying **No changes**.

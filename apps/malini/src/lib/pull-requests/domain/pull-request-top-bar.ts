@@ -216,6 +216,15 @@ function neutral(action: PullRequestTopBarAction): PullRequestTopBarAction {
 	return { ...action, tone: 'secondary' };
 }
 
+const NOTHING_YET: WorkstreamStatus = {
+	tone: 'idle',
+	busy: false,
+	label: 'No changes',
+	detail: 'Build something great',
+	tooltip: null,
+	action: null,
+};
+
 const EXTENSION_OFF: WorkstreamStatus = {
 	tone: 'idle',
 	busy: false,
@@ -225,9 +234,9 @@ const EXTENSION_OFF: WorkstreamStatus = {
 	action: null,
 };
 
-function withoutGithub(read: RepositorySurface): WorkstreamStatus | null {
+function withoutGithub(read: RepositorySurface): WorkstreamStatus {
 	const changed = changedFileCount(read);
-	if (changed === 0) return null;
+	if (changed === 0) return NOTHING_YET;
 	return { ...line('idle', filesChanged(changed), 'No GitHub remote'), action: null };
 }
 
@@ -303,9 +312,9 @@ function closed(pullRequest: SurfacePullRequest, ship: PullRequestShip | null): 
 	};
 }
 
-function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus | null {
+function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
 	const changed = changedFileCount(read);
-	if (changed === 0) return null;
+	if (changed === 0) return NOTHING_YET;
 	return {
 		...line('idle', filesChanged(changed), null),
 		tooltip: ship?.lastError ?? null,

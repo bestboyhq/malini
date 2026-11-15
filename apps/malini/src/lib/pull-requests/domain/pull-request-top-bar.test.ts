@@ -180,11 +180,17 @@ describe('the workstream status', () => {
 	>([
 		['waits silently for the first read', null, null, 'ready', null],
 		[
-			'says nothing on a workstream with nothing to ship yet',
+			'says there is nothing yet on a workstream with nothing to ship',
 			null,
 			surface({ changedFiles: 0 }),
 			'ready',
-			null,
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'No changes',
+				detail: 'Build something great',
+				action: null,
+			},
 		],
 		[
 			'counts local changes and offers Merge',

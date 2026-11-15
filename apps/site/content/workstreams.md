@@ -31,7 +31,7 @@ Once the copy is ready, **Quick suggestions** labels a box of prompts an agent c
 Each one fills the composer, for you to edit or send.
 A workstream another chat started ends its steps on **Prompt from** that chat instead, and lists no starters: that prompt goes first, once setup is done.
 
-The inspector is on the right from the start, its striped top empty until there is a status to show.
+The inspector is on the right from the start, its striped top reading **No changes · Build something great** until the workstream has a change.
 
 ## Where checkouts live
 
