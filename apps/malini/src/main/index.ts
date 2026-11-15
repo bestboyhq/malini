@@ -20,6 +20,7 @@ import { openMigratedDatabase } from './db/open';
 import { DbInvariantError } from './errors';
 import { removeStaleTemporaryIndexes } from './git/diff';
 import { withBundledGh } from './process/gh';
+import { startReaper } from './process/reaper';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
@@ -31,14 +32,13 @@ import { claimsUrlScheme, URL_SCHEME, urlInbox } from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
 const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DIPS'];
-const LAUNCHER_CHECK_MS = 1_000;
 
 const productName = pinStorageName(app);
+startReaper(app, { watchLauncher: BACKGROUND_WINDOW });
 app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));
 if (BACKGROUND_WINDOW) {
 	app.dock?.hide();
 	app.disableHardwareAcceleration();
-	quitOnceTheLauncherIsGone();
 }
 declareWorktreeScheme([WORKSTREAM_IMAGE_SCHEME_PRIVILEGES]);
 
@@ -144,15 +144,6 @@ function assertContractIsRegistered(registered: readonly CommandName[]): void {
 	throw new Error(
 		`the command registry does not match the contract: ${missing.length} declared but not registered (${missing.join(', ')}), ${unexpected.length} registered but not declared (${unexpected.join(', ')})`,
 	);
-}
-
-function quitOnceTheLauncherIsGone(): void {
-	const launcher = process.ppid;
-	const check = setInterval(() => {
-		if (process.ppid === launcher) return;
-		clearInterval(check);
-		app.quit();
-	}, LAUNCHER_CHECK_MS);
 }
 
 function testBridgeScript(): string | undefined {

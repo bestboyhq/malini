@@ -7,10 +7,11 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	type LaunchedApp,
 	launchMalini,
 	listProjects,
 	seedWorkstream,
-	type LaunchedApp,
+	waitWhile,
 } from './harness';
 
 function holdCheckouts(app: LaunchedApp): string {
@@ -22,7 +23,7 @@ function holdCheckouts(app: LaunchedApp): string {
 		[
 			'#!/bin/sh',
 			'case "$*" in *"worktree add "*)',
-			`\twhile [ -e '${held}' ]; do sleep 0.05; done ;;`,
+			`\t${waitWhile(`[ -e '${held}' ]`, 0.05)} ;;`,
 			'esac',
 			`exec '${git}' "$@"`,
 			'',

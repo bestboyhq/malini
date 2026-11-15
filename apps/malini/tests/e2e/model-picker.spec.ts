@@ -13,6 +13,7 @@ import {
 	sendPrompt,
 	startFreshChat,
 	temporaryRoot,
+	waitWhile,
 } from './harness';
 
 test('the model picker is one button that opens and closes its list from the keyboard', async () => {
@@ -188,7 +189,7 @@ test('the picker lists a model that a Claude Code update brings while it is open
 		[
 			'#!/bin/sh',
 			'[ "$1" = update ] || exit 0',
-			`while [ ! -f '${release}' ]; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep 0.05; done`,
+			waitWhile(`[ ! -f '${release}' ]`, 0.05),
 			`cp "$0" "$0.next" && echo '# 2.0.0' >> "$0.next" && mv "$0.next" "$0"`,
 			`cp '${release}' '${models}'`,
 		].join('\n'),

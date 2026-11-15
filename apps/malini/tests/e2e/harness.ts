@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import {
 	_electron as electron,
@@ -66,6 +67,10 @@ export const KEYCHAIN_FIXTURE = '.e2e-keychain';
 
 export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
 
+export function waitWhile(condition: string, seconds = 0.1): string {
+	return `while ${condition}; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep ${seconds}; done`;
+}
+
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
@@ -74,7 +79,7 @@ APPROVED="$HOME/${GITHUB_DEVICE_APPROVED}"
 if [ "$1 $2" = "auth login" ]; then
   echo "! First copy your one-time code: E2E0-C0DE" 1>&2
   echo "Open this URL to continue in your web browser: https://github.com/login/device" 1>&2
-  while [ ! -f "$APPROVED" ]; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep 0.1; done
+  ${waitWhile('[ ! -f "$APPROVED" ]')}
   exit 0
 fi
 if [ -n "$E2E_GITHUB_SIGNED_OUT" ] && [ ! -f "$APPROVED" ]; then
@@ -338,7 +343,14 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		quit() {
 			quitting ??= (async () => {
 				await waitForQuietDiagnostics(userDataDir);
+				const started = processTree(await processTable(), electronApp.process().pid ?? -1);
 				await closeOrExplain(electronApp, userDataDir, output);
+				expect
+					.soft(
+						(await outlived(started)).map((entry) => entry.line.trim()),
+						'processes the app started kept running after it quit; make each one end with the app',
+					)
+					.toEqual([]);
 				const unexpected = unexpectedDiagnostics(userDataDir, handle.allowedDiagnostics);
 				expect
 					.soft(
@@ -388,9 +400,8 @@ async function closeOrExplain(
 	clearTimeout(timer);
 	if (outcome === 'closed') return;
 	const child = electronApp.process();
-	const table = await processTable();
-	const tree = processTree(table, child.pid ?? -1);
-	const pids = treePids(tree);
+	const tree = processTree(await processTable(), child.pid ?? -1);
+	const pids = tree.map((entry) => entry.pid);
 	const [{ mainThread, everyThread }, helperSamples] = await Promise.all([
 		sampleThreads(child.pid ?? -1),
 		sampleHelpers(pids.filter((pid) => pid !== child.pid)),
@@ -410,7 +421,7 @@ async function closeOrExplain(
 		[
 			`the app did not quit within ${QUIT_BUDGET_MS} ms (exit code ${String(child.exitCode)}, signal ${String(child.signalCode)})`,
 			'process tree:',
-			...tree,
+			...tree.map((entry) => entry.line),
 			`main thread (every thread, with addresses to symbolicate: ${everyThread}):`,
 			...mainThread,
 			...(helperSamples.length > 0 ? ['helper processes sampled to:', ...helperSamples] : []),
@@ -420,12 +431,6 @@ async function closeOrExplain(
 			...diagnostics,
 		].join('\n'),
 	);
-}
-
-function treePids(tree: readonly string[]): number[] {
-	return tree
-		.map((line) => Number(line.trim().split(/\s+/u)[0]))
-		.filter((pid) => Number.isSafeInteger(pid) && pid > 0);
 }
 
 async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
@@ -443,11 +448,54 @@ async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
 	);
 }
 
-async function processTable(): Promise<string> {
+export interface ProcessEntry {
+	readonly pid: number;
+	readonly ppid: number;
+	readonly started: string;
+	readonly line: string;
+}
+
+export async function processTable(): Promise<ProcessEntry[]> {
+	const { stdout } = await execFileAsync('ps', ['-A', '-o', 'pid=,ppid=,stat=,lstart=,command='], {
+		maxBuffer: 16 * 1024 * 1024,
+	});
+	return stdout.split('\n').flatMap((line) => {
+		const [pid, ppid, , ...rest] = line.trim().split(/\s+/u);
+		if (!pid || !ppid) return [];
+		return [{ pid: Number(pid), ppid: Number(ppid), started: rest.slice(0, 5).join(' '), line }];
+	});
+}
+
+export async function stillRunning(
+	entries: readonly ProcessEntry[],
+	table?: readonly ProcessEntry[],
+): Promise<ProcessEntry[]> {
+	const now = table ?? (await processTable());
+	return entries.filter((entry) =>
+		now.some((current) => current.pid === entry.pid && current.started === entry.started),
+	);
+}
+
+export function stopProcess(pid: number): void {
 	try {
-		return (await execFileAsync('ps', ['-A', '-o', 'pid=,ppid=,stat=,command='])).stdout;
-	} catch (error) {
-		return String(error);
+		process.kill(pid, 'SIGKILL');
+	} catch {
+		return;
+	}
+}
+
+const OUTLIVE_BUDGET_MS = 5_000;
+
+async function outlived(started: readonly ProcessEntry[]): Promise<ProcessEntry[]> {
+	const deadline = Date.now() + OUTLIVE_BUDGET_MS;
+	for (;;) {
+		const left = await stillRunning(started);
+		if (left.length === 0) return [];
+		if (Date.now() > deadline) {
+			for (const entry of left) stopProcess(entry.pid);
+			return left;
+		}
+		await delay(100);
 	}
 }
 
@@ -474,25 +522,18 @@ async function sampleThreads(pid: number): Promise<{ mainThread: string[]; every
 	}
 }
 
-function processTree(table: string, rootPid: number): string[] {
-	const rows = table
-		.split('\n')
-		.filter(Boolean)
-		.map((line) => {
-			const [pid = '', ppid = ''] = line.trim().split(/\s+/u);
-			return { pid: Number(pid), ppid: Number(ppid), line };
-		});
+export function processTree(table: readonly ProcessEntry[], rootPid: number): ProcessEntry[] {
 	const members = new Set([rootPid]);
 	for (let grew = true; grew;) {
 		grew = false;
-		for (const row of rows) {
+		for (const row of table) {
 			if (members.has(row.ppid) && !members.has(row.pid)) {
 				members.add(row.pid);
 				grew = true;
 			}
 		}
 	}
-	return rows.filter((row) => members.has(row.pid)).map((row) => row.line);
+	return table.filter((row) => members.has(row.pid));
 }
 
 export async function invoke<T = unknown>(page: Page, command: string, args?: unknown): Promise<T>;

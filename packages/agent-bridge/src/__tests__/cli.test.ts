@@ -295,7 +295,52 @@ describe('cli: JSONL over stdio (subprocess)', () => {
 		},
 		SPI_TIMEOUT_MS + 5_000,
 	);
+
+	it(
+		'ends the process group it leads once its stdin closes',
+		async () => {
+			const cliPath = resolve(__dirname, '..', '..', 'dist', 'cli.js');
+			const home = mkdtempSync(join(tmpdir(), 'malini-bridge-home-'));
+			const bridge = spawn(
+				'/bin/sh',
+				['-c', '/bin/sleep 600 & echo $! && exec "$0" "$1"', process.execPath, cliPath],
+				{ stdio: ['pipe', 'pipe', 'ignore'], env: { PATH: '', HOME: home }, detached: true },
+			);
+			try {
+				const lines = createInterface({ input: bridge.stdout });
+				const groupMate = new Promise<number>((resolveP) =>
+					lines.once('line', (line) => resolveP(Number(line))),
+				);
+				const ready = new Promise<void>((resolveP) =>
+					lines.on('line', (line) => line.includes('"bridge.ready"') && resolveP()),
+				);
+				const sleeper = await groupMate;
+				await ready;
+				const exited = new Promise((resolveP) => bridge.once('exit', resolveP));
+
+				bridge.stdin.end();
+
+				await exited;
+				await vi.waitFor(() => expect(running(sleeper)).toBe(false), { timeout: 5_000 });
+			} finally {
+				try {
+					if (bridge.pid !== undefined) process.kill(-bridge.pid, 'SIGKILL');
+				} catch {}
+				rmSync(home, { recursive: true, force: true });
+			}
+		},
+		SPI_TIMEOUT_MS + 5_000,
+	);
 });
+
+function running(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return error instanceof Error && 'code' in error && error.code === 'EPERM';
+	}
+}
 
 describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 	it('sanitizes every error-bearing event before it reaches stdout', async () => {

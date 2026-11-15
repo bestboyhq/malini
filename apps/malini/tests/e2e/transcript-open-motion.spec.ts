@@ -6,12 +6,13 @@ import {
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
+	type LaunchedApp,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	type LaunchedApp,
 	untilStill,
+	waitWhile,
 } from './harness';
 
 type SampledAnimation = Readonly<{
@@ -275,7 +276,7 @@ function holdRawDiffs(bin: string, gate: string): () => void {
 		held,
 		[
 			'#!/bin/sh',
-			`case " $* " in *" --raw "*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac`,
+			`case " $* " in *" --raw "*) ${waitWhile(`[ -e '${gate}' ]`, 0.05)} ;; esac`,
 			`exec '${git}' "$@"`,
 			'',
 		].join('\n'),

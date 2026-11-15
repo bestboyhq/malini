@@ -10,11 +10,12 @@ import {
 	expectCleanConsole,
 	git,
 	invoke,
+	type LaunchedApp,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	type LaunchedApp,
+	waitWhile,
 } from './harness';
 
 function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
@@ -70,7 +71,7 @@ function holdNpmInstall(app: LaunchedApp): string {
 	const stub = join(app.bin, 'npm');
 	writeFileSync(
 		stub,
-		`#!/bin/sh\nwhile [ ! -f "${release}" ] && [ -d "${app.home}" ]; do sleep 0.1; done\nmkdir -p node_modules\n`,
+		`#!/bin/sh\n${waitWhile(`[ ! -f "${release}" ] && [ -d "${app.home}" ]`)}\nmkdir -p node_modules\n`,
 	);
 	chmodSync(stub, 0o755);
 	return release;
@@ -166,7 +167,10 @@ test('a workstream an agent starts from a release tag stays on that release once
 		);
 		const kennel = await createSourceRepo(app.root, 'kennel');
 		await git(kennel, ['tag', '-a', 'v0.17.5', '-m', 'release']);
-		const release = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: kennel }).toString().trim();
+		const release = execFileSync('git', ['rev-parse', 'HEAD'], {
+			cwd: kennel,
+			encoding: 'utf8',
+		}).trim();
 		writeFileSync(join(kennel, 'unreleased.txt'), 'unreleased\n');
 		await git(kennel, ['add', '.']);
 		await git(kennel, ['commit', '-m', 'unreleased work']);
@@ -197,7 +201,7 @@ test('a workstream an agent starts from a release tag stays on that release once
 		const checkout = workstreams.find(({ id }) => id === startedId);
 		expect(checkout?.baseBranch).toBe('main');
 		expect(
-			execFileSync('git', ['rev-parse', 'HEAD'], { cwd: checkout?.path }).toString().trim(),
+			execFileSync('git', ['rev-parse', 'HEAD'], { cwd: checkout?.path, encoding: 'utf8' }).trim(),
 		).toBe(release);
 		expectCleanConsole(app);
 	} finally {

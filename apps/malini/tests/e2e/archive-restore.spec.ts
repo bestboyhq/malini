@@ -200,7 +200,11 @@ test('archiving a workstream stops what was left running detached from its folde
 		const seeded = await seedWorkstream(page, source, 'e2e-archive-leftover', 'Leftover work');
 		const detached = spawn(
 			process.execPath,
-			['-e', 'setInterval(() => {}, 1000)', join(seeded.worktree, 'server.js')],
+			[
+				'-e',
+				'const parent = process.ppid; setInterval(() => process.ppid !== parent && process.exit(), 1000)',
+				join(seeded.worktree, 'server.js'),
+			],
 			{ detached: true, stdio: 'ignore' },
 		);
 		server = detached;

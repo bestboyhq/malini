@@ -1200,7 +1200,14 @@ function isMainEntrypoint(): boolean {
 	}
 }
 
+function endTheProcessGroupItLeads(): void {
+	try {
+		process.kill(-process.pid, 'SIGTERM');
+	} catch {}
+}
+
 if (isMainEntrypoint()) {
+	process.stdin.once('close', endTheProcessGroupItLeads);
 	void runCli().catch((err: unknown) => {
 		process.stderr.write(`FATAL: ${err instanceof Error ? err.stack : String(err)}\n`);
 		process.exit(1);

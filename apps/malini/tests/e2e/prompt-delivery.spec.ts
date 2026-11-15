@@ -8,6 +8,7 @@ import {
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
+	type LaunchedApp,
 	launchMalini,
 	listEvents,
 	listSessions,
@@ -16,7 +17,7 @@ import {
 	seedWorkstream,
 	selectChat,
 	sendPrompt,
-	type LaunchedApp,
+	waitWhile,
 } from './harness';
 
 test('a queued prompt sent ahead interrupts the running reply, and the rest of the queue runs after it', async () => {
@@ -318,7 +319,7 @@ function holdRunSnapshots(app: LaunchedApp): () => void {
 	writeFileSync(
 		stub,
 		`#!/bin/sh
-case "$*" in *commit-tree*"malini run snapshot"*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac
+case "$*" in *commit-tree*"malini run snapshot"*) ${waitWhile(`[ -e '${gate}' ]`, 0.05)} ;; esac
 exec '${realGit}' "$@"
 `,
 	);

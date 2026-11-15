@@ -11,6 +11,7 @@ import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { preferredShell } from '$main/process/environment';
 import { killProcessGroup } from '$main/process/process-group';
+import { endWithMalini } from '$main/process/reaper';
 import { terminalText } from '$lib/chat/domain/terminal-text';
 import {
 	deleteShellRun,
@@ -95,15 +96,13 @@ export class ShellRuns {
 		const entry = this.#register(args);
 		let child: ChildProcessWithoutNullStreams;
 		try {
-			child = spawn(
-				'/bin/bash',
-				['-c', PSEUDO_TERMINAL, preferredShell(env) ?? '/bin/sh', command],
-				{
+			child = endWithMalini(
+				spawn('/bin/bash', ['-c', PSEUDO_TERMINAL, preferredShell(env) ?? '/bin/sh', command], {
 					cwd,
 					env,
 					stdio: 'pipe',
 					detached: true,
-				},
+				}),
 			);
 		} catch (error) {
 			this.#fail(entry, error);
