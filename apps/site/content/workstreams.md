@@ -151,6 +151,10 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Draft** opens a draft pull request.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
   From then on, the top bar shows its number under the status, such as **#203 · 2 of 5 pending** under **Checks running**: the number opens it on GitHub, and the status opens its checks, review and notes.
+  Malini then watches the checks of what it pushed until they pass or fail, for an hour at most.
+  A check that fails gets one re-run of its GitHub Actions jobs, then **Fix checks** fixes it and Malini pushes the fix to the draft, never marking it ready or merging it.
+  When the same failure outlasts **Fix attempts before asking you**, the top bar says **Fix gave up**, and the chat that opened the draft hears which checks failed, with their links and the head.
+  Turn off **Fix failing checks on drafts** in [Defaults](/malini/docs/automations.md#defaults) to leave a failing draft to you until you press **Merge**.
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the branch or the files changed, never your prompt, the chat's name or the agent's reply.
   An [automation](/malini/docs/automations.md)'s edits commit under the `Commit:` line its agent ended with, but that line never titles the pull request; **Fix checks** and **Address review** fall back to "Fix failing checks" and "Address review feedback" only when their agent wrote none, and a merge keeps its merge message.
   While **Sign contributions** is on, the description ends with **🧑‍🍳 Cooked with Malini**, which opens into a table: **Chef** links your [Bestboy profile](/malini/docs/profile.md) once it is public, and your GitHub profile until then, **Kitchen** counts the agents that worked in the workstream, and **Dishes** says who did them.
@@ -174,7 +178,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   When the re-run passes, the merge goes on with no agent.
   When it fails again, **Fix checks** starts, the top bar says **Fixing e2e on macOS 3/5**, and its agent hears that the failure repeated, so it fixes the cause instead of re-running it.
   A check outside GitHub Actions, or one GitHub will not re-run, goes straight to **Fix checks**.
-- **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, and every 2 minutes while it waits for a review or for you, never while an agent or an automation works.
+- **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, on a draft too after Malini pushes to it, and every 2 minutes while it waits for a review or for you, never while an agent or an automation works.
   Each read that finds something new is a `pull-requests:pull-request-changed` event: its checks, its review with each change request and open thread, how far it is behind its base, whether it conflicts, and whether you may merge it.
   Every automation Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/automations.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own, and the top bar says **Clearing blockers**.

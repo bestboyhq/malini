@@ -16,7 +16,8 @@ Each bundle in app.asar (out/main, out/renderer) carries THIRD_PARTY_NOTICES.txt
 with the full license text of every npm package in that bundle, generated at
 build time by apps/malini/scripts/third-party-notices.mjs.
 The agent bridge in Resources/agent-bridge/node_modules keeps each package's own
-license file, and Resources/vendor/gh keeps the GitHub CLI's LICENSE.
+license file, Resources/vendor/gh keeps the GitHub CLI's LICENSE, and
+Resources/vendor/rtk keeps the LICENSE of RTK.
 In the source, the sounds' licenses are in apps/malini/src/renderer/public/sounds
 and the file icons' license is in apps/malini/src/renderer/public/file-icons/LICENSE.
 The standard license texts named below are at https://spdx.org/licenses/.
@@ -31,6 +32,7 @@ Node.js (MIT and others): Copyright Node.js contributors; see LICENSES.chromium.
 @anthropic-ai/sandbox-runtime (Apache-2.0): Copyright Anthropic PBC
 zod (MIT): Copyright (c) 2025 Colin McDonnell
 GitHub CLI (MIT): Copyright (c) 2019 GitHub Inc.
+RTK (Apache-2.0): Copyright 2026 RTK AI Labs
 
 Main process bundle
 -------------------

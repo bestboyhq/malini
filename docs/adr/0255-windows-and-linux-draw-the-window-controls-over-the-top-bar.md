@@ -1,10 +1,10 @@
-# 0251 - Windows and Linux draw the window controls over the top bar, and the menu opens from one button
+# 0255 - Windows and Linux draw the window controls over the top bar, and the menu opens from one button
 
 Status: accepted
 
 ## Context
 
-Since 0248 Malini opened on Windows and Linux in the OS's own frame, with Electron's 27 px menu bar under the title bar, so two bars sat above Malini's 40 px top bar.
+Since 0252 Malini opened on Windows and Linux in the OS's own frame, with Electron's 27 px menu bar under the title bar, so two bars sat above Malini's 40 px top bar.
 macOS has one bar: `hiddenInset` puts the traffic lights inside the top bar, and the menu lives in the screen's menu bar.
 The user: "our users expect to have the same experience as they have on macOS on all the other platforms", and the round 2 brief asked for window controls overlay with the theme's colors, a menu button where the traffic lights sit, Alt for the menu, every shortcut with the menu bar hidden, a draggable top bar and a Linux window icon.
 Electron 44.4.0 to 44.4.3 never fired `ready-to-show` for a `show: false` window with `titleBarOverlay` on Windows (electron/electron#54025, fixed in 44.4.4), and Malini shows its window on that event.
@@ -28,7 +28,7 @@ Electron before 44.5.0 drew a grey border around a frameless window on a Linux d
   The padding already moves the dock clear of the caption buttons, so giving up the caption width a second time took it away twice.
   A closed inspector docks at 288 px, and Windows's three caption buttons cut that to about 150 px, too little for the status and a button beside it, so the status collapsed to zero width.
   `dockWidth` in `TopBar.svelte` is the inspector's width on macOS and `null` everywhere else, so off macOS the status stays the pill the top bar shows with no inspector.
-- **The menu opens from one button (amends 0248).**
+- **The menu opens from one button (amends 0252).**
   Off macOS the window has no menu bar, and `applicationMenu()` in `src/lib/app/platform/menu.ts` stays the application menu, so its accelerators stay registered.
   `AppMenuButton.svelte` sits at the top bar's left end, where macOS has its traffic lights: an icon button named **Menu**, with the same tooltip and `aria-haspopup="menu"`.
   A click sends `app.pop-up-menu` `{ x, y }`, the button's bottom left plus 6 px in CSS pixels, and the main process scales them by the zoom factor and calls `Menu.popup` there.

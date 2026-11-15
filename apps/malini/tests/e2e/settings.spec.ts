@@ -1,7 +1,11 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
-import { CONTEXT_WINDOW_SETTING, STE_REPLIES_SETTING } from '../../src/contract/agent';
+import {
+	COMPACT_OUTPUT_SETTING,
+	CONTEXT_WINDOW_SETTING,
+	STE_REPLIES_SETTING,
+} from '../../src/contract/agent';
 import { AUTOMATIONS_MAX_CONCURRENT_SETTING } from '../../src/contract/automations';
 import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
@@ -409,6 +413,49 @@ test('Settings → Models turns on plain replies for the next prompt of every ch
 
 		await sendPrompt(page, 'WHICH_STYLE');
 		await expect(page.getByText('Replies in STE')).toBeVisible({ timeout: 30_000 });
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Settings → Models trims command output until the user turns it off, and the next prompt of every chat gets it as printed', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-compact-output-ws',
+			'Compact output',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'WHICH_OUTPUT');
+		await expect(page.getByText('Command output compact')).toBeVisible({ timeout: 30_000 });
+
+		await openSettingsFromMenu(page);
+		await settingsSection(page, 'Models').click();
+		const trim = page.getByRole('switch', { name: 'Trim command output' });
+		await expect(trim).toBeChecked();
+		await trim.click();
+		await expect(trim).not.toBeChecked();
+		await expect.poll(async () => (await storedSettings(page))[COMPACT_OUTPUT_SETTING]).toBe('off');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+		await page.reload();
+		await expect(page.getByText('Command output compact')).toBeVisible({ timeout: 20_000 });
+		await openSettingsFromMenu(page);
+		await settingsSection(page, 'Models').click();
+		await expect(page.getByRole('switch', { name: 'Trim command output' })).not.toBeChecked();
+		await captureFlow(app, 'settings-compact-output');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+		await sendPrompt(page, 'WHICH_OUTPUT');
+		await expect(page.getByText('Command output as printed')).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

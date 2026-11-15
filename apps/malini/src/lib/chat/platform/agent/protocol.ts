@@ -120,6 +120,7 @@ export type BridgeCommand =
 			compactWindow?: number;
 			boundary?: AgentBoundary;
 			steReplies?: true;
+			compactOutput?: false;
 	  }
 	| { cmd: 'set_secrets'; id: string; sessionId: string; secrets: Readonly<Record<string, string>> }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }

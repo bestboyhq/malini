@@ -54,7 +54,9 @@ const GIT_OPTIONS_TAKING_A_VALUE = new Set([
 ]);
 const COMMAND_PREFIXES = new Set(['env', 'command', 'exec', 'sudo', 'nohup', 'time']);
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
-const SHELL_TOKEN = /"[^"]*"|'[^']*'|&&|\|\||[;|&\n`(){}]|[^\s"';|&`(){}]+/gu;
+const SHELL_TOKEN =
+	/<<(?!<)(-?)[ \t]*(?:'([^'\n]*)'|"([^"\n]*)"|(\\?)([^\s"'\\;|&<>`(){}]+))(?=[\s;|&<>`(){}]|$)|"[^"]*"|'[^']*'|&&|\|\||[;|&\n`(){}]|[^\s"';|&`(){}]+/gu;
+const EXPANSION = /\$\(|`/u;
 const SHELL_OPERATOR = /^(?:&&|\|\||[;|&\n`(){}])$/u;
 const BRANCH_COMMANDS = new Set(['git checkout', 'git switch', 'git worktree']);
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx', 'pnpx', 'uvx']);
@@ -157,18 +159,48 @@ function clonesRepository(command: string): boolean {
 	);
 }
 
-// ponytail: tokenizes quotes and operators, not a shell grammar; eval, aliases, scripts and $(…) inside double quotes still pass. Parse a real shell grammar if agents reach for those.
+type Heredoc = {
+	readonly delimiter: string;
+	readonly stripsTabs: boolean;
+	readonly expands: boolean;
+};
+
+// ponytail: tokenizes quotes, operators and heredocs, not a shell grammar; eval, aliases, scripts and $(…) inside double quotes still pass, and a heredoc body with $(…) or a backtick is read as commands. Parse a real shell grammar if agents reach for those.
 function programCalls(command: string): (readonly [program: string, args: string[]])[] {
 	const segments: string[][] = [[]];
-	for (const [token] of command.matchAll(SHELL_TOKEN)) {
-		if (SHELL_OPERATOR.test(token)) segments.push([]);
-		else segments.at(-1)?.push(token.replace(/^(["'])(.*)\1$/su, '$2'));
+	const heredocs: Heredoc[] = [];
+	const tokens = new RegExp(SHELL_TOKEN);
+	for (let match = tokens.exec(command); match !== null; match = tokens.exec(command)) {
+		const [token, dash, single, double, escape, bare] = match;
+		const delimiter = single ?? double ?? bare;
+		if (delimiter !== undefined) {
+			heredocs.push({ delimiter, stripsTabs: dash === '-', expands: escape === '' });
+		} else if (SHELL_OPERATOR.test(token)) {
+			segments.push([]);
+			if (token === '\n' && heredocs.length > 0) {
+				tokens.lastIndex = heredocBodiesEnd(command, tokens.lastIndex, heredocs.splice(0));
+			}
+		} else segments.at(-1)?.push(token.replace(/^(["'])(.*)\1$/su, '$2'));
 	}
 	return segments.map((words) => {
 		let at = 0;
 		while (at < words.length && isCommandPrefix(words[at] ?? '', at)) at += 1;
 		return [basename(words[at] ?? ''), words.slice(at + 1)] as const;
 	});
+}
+
+function heredocBodiesEnd(command: string, start: number, heredocs: readonly Heredoc[]): number {
+	const lines = command.slice(start).split('\n');
+	let at = 0;
+	for (const { delimiter, stripsTabs, expands } of heredocs) {
+		const end = lines.findIndex(
+			(line, index) => index >= at && (stripsTabs ? line.replace(/^\t+/u, '') : line) === delimiter,
+		);
+		const body = lines.slice(at, end);
+		if (end === -1 || (expands && body.some((line) => EXPANSION.test(line)))) return start;
+		at = end + 1;
+	}
+	return start + lines.slice(0, at).join('\n').length;
 }
 
 function isCommandPrefix(word: string, at: number): boolean {

@@ -70,6 +70,8 @@ jobs:
         name: Run the part, on Windows with only the file rights a desktop user has
         run: ${{ runner.os == 'Windows' && 'sh apps/malini/tests/windows/desktop-user.sh' || '' }} pnpm --filter malini exec vitest run --shard=${{ matrix.part }}
       - if: matrix.part == 'packages'
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON apps/malini/scripts/fetch-rtk.mjs
+      - if: matrix.part == 'packages'
         run: pnpm -r --filter '!malini' --filter '!@malini/site' --reporter-hide-prefix --if-present test
 
   reuse:

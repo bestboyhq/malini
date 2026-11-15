@@ -15,6 +15,12 @@ export const DEFAULT_SWITCHES: readonly DefaultSwitchCopy[] = [
 		off: 'Off waits for you to press Merge.',
 	},
 	{
+		key: 'fixChecks',
+		title: 'Fix failing checks on drafts',
+		detail: 'An agent fixes what fails and pushes to the draft, never merges.',
+		off: 'Off waits for you to press Merge.',
+	},
+	{
 		key: 'addressReview',
 		title: 'Address review comments',
 		detail: 'An agent answers each requested change and pushes to the branch, never merges.',

@@ -16,6 +16,8 @@ import {
 
 const TOUCHES = 'on repositories:workstream-base-overlapped where overlapping is true';
 const ALWAYS = 'on repositories:workstream-base-overlapped';
+const FAILED_DRAFT =
+	'on pull-requests:pull-request-changed where state is draft and checks is failed';
 
 function builtin(
 	key: AutomationBuiltin,
@@ -50,6 +52,7 @@ function installed(
 			'on repositories:workstream-merge-conflicted',
 			modes['resolve-conflicts'] ?? 'auto',
 		),
+		builtin('fix-checks', FAILED_DRAFT, modes['fix-checks'] ?? 'auto'),
 		builtin(
 			'address-review',
 			'on pull-requests:pull-request-changed where reviewDecision is changes_requested',
@@ -77,6 +80,7 @@ describe('automation defaults', () => {
 		expect(liveDefaults(installed())).toEqual(RECOMMENDED);
 		expect(defaultsChoice(installed())).toBe('recommended');
 		expect(defaultsChoice(installed({ 'address-review': 'off' }))).toBe('custom');
+		expect(defaultsChoice(installed({ 'fix-checks': 'off' }))).toBe('custom');
 		expect(defaultsChoice(installed({}, ALWAYS))).toBe('custom');
 	});
 
@@ -92,6 +96,7 @@ describe('automation defaults', () => {
 
 		const changes = defaultsTriggerChanges(installed(), {
 			resolveConflicts: true,
+			fixChecks: false,
 			addressReview: false,
 			brain: false,
 			updateFromMain: 'always',
@@ -99,6 +104,7 @@ describe('automation defaults', () => {
 		expect(
 			changes.map(({ definition, trigger }) => [definition.builtin, trigger.mode, trigger.when]),
 		).toEqual([
+			['fix-checks', 'off', FAILED_DRAFT],
 			[
 				'address-review',
 				'off',

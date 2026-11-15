@@ -8100,6 +8100,443 @@
 			"session_id": "f7a98af6-a5c5-49f5-9e0c-ede84d415dbe"
 		}
 	],
+	"hookRewrite": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "71a441b2-116e-46d3-bcbc-503dbc8c3a8d",
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"model": "claude-sonnet-5-5",
+			"permissionMode": "auto",
+			"mcp_servers": [],
+			"uuid": "e2d9bdca-8d9f-4ddc-b6d2-224fb86f39ee"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011Ch4zR6kf9PmTqosgnSEZp",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01W12UDPcELKDHRmebkcE855",
+						"name": "Bash",
+						"input": {
+							"command": "ls -la && wc -l probe.txt",
+							"description": "List files and count lines in probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 4029,
+					"cache_read_input_tokens": 12301,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 4029
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"uuid": "2613ebb7-804e-4f4d-90a8-b902ab69487c",
+			"timestamp": "2026-11-15T15:59:04.457Z",
+			"request_id": "req_011Ch4zR6WmeqYigDFacuvv3",
+			"user_message_uuid": "1f8e882b-4c91-4f74-803e-d047114fddba",
+			"user_message_uuids": ["1f8e882b-4c91-4f74-803e-d047114fddba"]
+		},
+		{
+			"hook": {
+				"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+				"transcript_path": "/Users/ada/.claude/projects/-private-var-folders-zn--wx1b-mx5jj5nz3wyj77cpd00000gn-T-tmp-Cao9dD8KnJ-cwd/ca0863ea-e631-47d2-8c20-78621f623b9e.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "45fa8d6d-f7ef-4733-95da-662b227bf9f9",
+				"permission_mode": "auto",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "ls -la && wc -l probe.txt",
+					"description": "List files and count lines in probe.txt"
+				},
+				"tool_use_id": "toolu_01W12UDPcELKDHRmebkcE855"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "permission_denied",
+			"tool_name": "Bash",
+			"tool_use_id": "toolu_01W12UDPcELKDHRmebkcE855",
+			"decision_reason_type": "classifier",
+			"decision_reason": "Classifier unavailable",
+			"message": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command ls -la && wc -l probe.txt\",\"description\":\"List files and count lines in probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"uuid": "0a6b351b-e59f-42cf-920b-4e8f63c57937",
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e"
+		},
+		{
+			"hook": {
+				"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+				"transcript_path": "/Users/ada/.claude/projects/-private-var-folders-zn--wx1b-mx5jj5nz3wyj77cpd00000gn-T-tmp-Cao9dD8KnJ-cwd/ca0863ea-e631-47d2-8c20-78621f623b9e.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "45fa8d6d-f7ef-4733-95da-662b227bf9f9",
+				"permission_mode": "auto",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PermissionDenied",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command ls -la && wc -l probe.txt",
+					"description": "List files and count lines in probe.txt"
+				},
+				"tool_use_id": "toolu_01W12UDPcELKDHRmebkcE855",
+				"reason": "Classifier unavailable"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "tool_result",
+						"content": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command ls -la && wc -l probe.txt\",\"description\":\"List files and count lines in probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+						"is_error": true,
+						"tool_use_id": "toolu_01W12UDPcELKDHRmebkcE855"
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"uuid": "0b5324d4-3200-460f-a12a-5bf46298537e",
+			"timestamp": "2026-11-15T15:59:04.770Z",
+			"tool_use_result": "Error: The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command ls -la && wc -l probe.txt\",\"description\":\"List files and count lines in probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01W12UDPcELKDHRmebkcE855",
+					"non_execution_kind": "automode-unavailable",
+					"permission_decision": {
+						"decision": "reject",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			]
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "text",
+						"text": "The PermissionDenied hook indicated you may retry this tool call."
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"uuid": "c96f2d60-a2bb-463b-aad5-528255808532",
+			"timestamp": "2026-11-15T15:59:04.771Z",
+			"isSynthetic": true
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011Ch4zRDZgagdc1Wn7d93K6",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_0142g63iW2boWhQ1UKLE4tHy",
+						"name": "Bash",
+						"input": {
+							"command": "command ls -la && wc -l probe.txt",
+							"description": "List files and count lines in probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 2630,
+					"cache_read_input_tokens": 16330,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 2630
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"uuid": "b5c806dd-c875-4c68-bd02-efc73dc3758a",
+			"timestamp": "2026-11-15T15:59:06.048Z",
+			"request_id": "req_011Ch4zRDMmi8vRLj5PxCYZs"
+		},
+		{
+			"hook": {
+				"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+				"transcript_path": "/Users/ada/.claude/projects/-private-var-folders-zn--wx1b-mx5jj5nz3wyj77cpd00000gn-T-tmp-Cao9dD8KnJ-cwd/ca0863ea-e631-47d2-8c20-78621f623b9e.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "45fa8d6d-f7ef-4733-95da-662b227bf9f9",
+				"permission_mode": "auto",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command ls -la && wc -l probe.txt",
+					"description": "List files and count lines in probe.txt"
+				},
+				"tool_use_id": "toolu_0142g63iW2boWhQ1UKLE4tHy"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_0142g63iW2boWhQ1UKLE4tHy",
+						"type": "tool_result",
+						"content": "total 8\ndrwxr-xr-x@ 3 ada  staff   96 Nov 15 16:55 .\ndrwx------@ 8 ada  staff  256 Nov 15 16:59 ..\n-rw-r--r--@ 1 ada  staff    2 Nov 15 16:55 probe.txt\n       1 probe.txt",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"uuid": "b2bdde82-93fa-4a88-bc8a-be508155dc82",
+			"timestamp": "2026-11-15T15:59:06.913Z",
+			"tool_use_result": {
+				"stdout": "total 8\ndrwxr-xr-x@ 3 ada  staff   96 Nov 15 16:55 .\ndrwx------@ 8 ada  staff  256 Nov 15 16:59 ..\n-rw-r--r--@ 1 ada  staff    2 Nov 15 16:55 probe.txt\n       1 probe.txt",
+				"stderr": "",
+				"interrupted": false,
+				"isImage": false,
+				"noOutputExpected": false
+			},
+			"tool_result_meta": [
+				{
+					"id": "toolu_0142g63iW2boWhQ1UKLE4tHy",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011Ch4zRNhMcjw4u82JCmAu3",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "The command ran. The directory contains one file, `probe.txt`. It is 2 bytes and has 1 line."
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 217,
+					"cache_read_input_tokens": 18960,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 217
+					},
+					"output_tokens": 38,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"uuid": "d6430c17-2a55-4d3f-83c7-ec05ad38add3",
+			"timestamp": "2026-11-15T15:59:07.900Z",
+			"request_id": "req_011Ch4zRNVx49e37Pvc1qw3y"
+		},
+		{
+			"duration_api_ms": 4219,
+			"stop_reason": "end_turn",
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e",
+			"total_cost_usd": 0.0345051,
+			"usage": {
+				"input_tokens": 6,
+				"cache_creation_input_tokens": 6876,
+				"cache_read_input_tokens": 47591,
+				"output_tokens": 223,
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 6876,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "global",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {
+				"claude-sonnet-5-5": {
+					"inputTokens": 6,
+					"outputTokens": 223,
+					"cacheReadInputTokens": 47591,
+					"cacheCreationInputTokens": 6876,
+					"webSearchRequests": 0,
+					"costUSD": 0.0345051,
+					"contextWindow": 1000000,
+					"maxOutputTokens": 128000,
+					"thinkingTokens": 0,
+					"cacheCreationEphemeral5mInputTokens": 0,
+					"cacheCreationEphemeral1hInputTokens": 6876,
+					"canonicalModel": "claude-sonnet-5-5",
+					"provider": "firstParty",
+					"costBasis": "list"
+				}
+			},
+			"permission_denials": [
+				{
+					"tool_name": "Bash",
+					"tool_use_id": "toolu_01W12UDPcELKDHRmebkcE855",
+					"tool_input": {
+						"command": "command ls -la && wc -l probe.txt",
+						"description": "List files and count lines in probe.txt"
+					}
+				}
+			],
+			"terminal_reason": "completed",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": false,
+			"num_turns": 4,
+			"subtype": "success",
+			"api_error_status": null,
+			"result": "The command ran. The directory contains one file, `probe.txt`. It is 2 bytes and has 1 line.",
+			"ttft_ms": 1370,
+			"type": "result",
+			"duration_ms": 4816,
+			"uuid": "62cf91c0-3933-4a0e-8c36-d29613b8efc1",
+			"ttft_stream_ms": 892,
+			"time_to_request_ms": 26,
+			"first_content_frame_ms": 892,
+			"user_message_uuid": "1f8e882b-4c91-4f74-803e-d047114fddba",
+			"user_message_uuids": ["1f8e882b-4c91-4f74-803e-d047114fddba"],
+			"request_sent_wall_ms": 1794758343114,
+			"first_request_input_tokens": 16332,
+			"first_request_cache_read_input_tokens": 12301,
+			"queued_turn_count": 0,
+			"result_index": 0,
+			"model_usage_since_last_result": {
+				"claude-sonnet-5-5": {
+					"inputTokens": 6,
+					"outputTokens": 223,
+					"cacheReadInputTokens": 47591,
+					"cacheCreationInputTokens": 6876,
+					"webSearchRequests": 0,
+					"costUSD": 0.0345051,
+					"contextWindow": 1000000,
+					"maxOutputTokens": 128000,
+					"thinkingTokens": 0,
+					"cacheCreationEphemeral5mInputTokens": 0,
+					"cacheCreationEphemeral1hInputTokens": 6876,
+					"canonicalModel": "claude-sonnet-5-5",
+					"provider": "firstParty",
+					"costBasis": "list"
+				}
+			},
+			"credential_expires_at": "2026-12-05T22:23:45.076Z"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "e257f547-5c68-4dce-954d-b8cb9675034d",
+			"session_id": "ca0863ea-e631-47d2-8c20-78621f623b9e"
+		}
+	],
 	"usageLimit": [
 		{
 			"type": "system",

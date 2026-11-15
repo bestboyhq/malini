@@ -6,7 +6,7 @@
 ## What ships
 
 `electron-vite` bundles the main process, the preload and the renderer into `out/`, every dependency inlined but the two in the `dependencies` block of `apps/malini/package.json`.
-Those two, `node-pty` and `@xterm/headless`, run **Run**'s terminal (ADR 0247): electron-vite keeps them external, and electron-builder packs them from `node_modules`, with node-pty unpacked from the asar.
+Those two, `node-pty` and `@xterm/headless`, run **Run**'s terminal (ADR 0251): electron-vite keeps them external, and electron-builder packs them from `node_modules`, with node-pty unpacked from the asar.
 node-pty ships prebuilt N-API builds for every OS and chip, so `npmRebuild: false` keeps them, and `files` drops its sources, its Windows debug symbols and the builds for other OSes.
 A universal Mac app keeps node-pty's arm64 and x64 builds side by side, which `x64ArchFiles` allows.
 Any other dependency belongs in `devDependencies`, inlined by the bundle.
@@ -33,7 +33,7 @@ To move to a newer `gh`, change `GH_VERSION` and all six hashes in `GH_SHA256` t
 ## Git for Windows
 
 Git for Windows is not bundled.
-Malini downloads the pinned PortableGit at runtime, only on a Windows PC without git or Git Bash (ADR 0252).
+Malini downloads the pinned PortableGit at runtime, only on a Windows PC without git or Git Bash (ADR 0256).
 To bump it, change `GIT_VERSION` and both `GIT_SHA256` entries in `apps/malini/src/main/process/git-install.ts`, with the SHA-256 lines from the release notes on `github.com/git-for-windows/git/releases`.
 
 ## The commands sandbox on Windows
@@ -45,7 +45,16 @@ srt-win.exe is unsigned, as the rest of the Windows build is.
 Its Apache-2.0 `LICENSE` ships beside it in `agent-bridge/node_modules`.
 The uninstaller runs `srt-win acl forget --all`, from `build/installer.nsh`, which removes the write grants the sandbox kept on checkouts, and an update skips it.
 It leaves the shared srt-win install in place: the `srt-sandbox` account, its network filters and the profile read grant.
-Another app can use that install, so only Settings, Agent access removes it (ADR 0250).
+Another app can use that install, so only Settings, Agent access removes it (ADR 0254).
+
+## RTK
+
+Malini shortens what an agent's commands print with RTK, in the Apache-2.0 `rtk-oss` build (ADR 0248).
+`scripts/fetch-rtk.mjs` downloads the build pinned by `RTK_VERSION` for this machine, refuses it unless its sha256 matches its row in `RTK_BUILDS`, and puts `bin/rtk`, its `LICENSE` and a `VERSION` file into `apps/malini/vendor/rtk`, which git ignores.
+`pnpm dist`, `release` and `test:update` run it before electron-builder, `pnpm dogfood` runs it after `pnpm install`, CI runs it before the package tests, and `extraResources` copies the folder to `Resources/vendor/rtk`.
+The bridge gets that path in `MALINI_RTK_BINARY`, and a missing binary only means commands print in full.
+Malini never downloads RTK at run time, and never ships the default `rtk` build or `rtk-proxy`, which are BUSL-1.1.
+To move to a newer RTK, change `RTK_VERSION` and every sha256 in `RTK_BUILDS` together, taking each hash from the release's `checksums.txt`.
 
 ## Licenses
 
@@ -54,7 +63,7 @@ Each bundle in `out/` carries a `THIRD_PARTY_NOTICES.txt` with the license of ev
 The build fails when a bundled package declares no license, or when `NOTICE` has no line starting with its name: add the package there with its license and copyright line.
 electron-builder ships Electron's `LICENSE.electron.txt` and Chromium's `LICENSES.chromium.html` with every build, in `Contents/Resources` on macOS.
 The About panel shows the copyright, the AGPL notice, the source link, and these credits, from `aboutPanel` in `src/lib/app/platform/menu.ts`.
-The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, and `gh` its MIT `LICENSE` inside `vendor/gh`.
+The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, `gh` its MIT `LICENSE` inside `vendor/gh`, and RTK its Apache-2.0 `LICENSE` inside `vendor/rtk`.
 The sounds in `src/renderer/public/sounds` ship with their `LICENSE.md`, which credits each file and links its license, and the Apache 2.0 text beside it.
 `pnpm licenses list -r` lists every dependency in the workspace with its license; anything copyleft, non-commercial, or unlicensed needs a decision before it ships.
 
@@ -78,7 +87,7 @@ Windows gets `malini-setup.exe`, one installer for x64 and arm64, with `latest.y
 Linux gets `malini-<arch>.AppImage`, `.deb` and `.rpm` for x64 and arm64, with electron-builder's arch names (`x86_64`, `amd64`, `aarch64`, `arm64`), and `latest-linux.yml` and `latest-linux-arm64.yml`.
 `pnpm --filter malini release` builds the host OS's artifacts locally; on macOS they are signed with the keychain's Developer ID, and notarized only when `APPLE_KEYCHAIN_PROFILE` is set.
 
-Every pull request runs the `package` job on macOS, Linux and Windows (ADR 0246).
+Every pull request runs the `package` job on macOS, Linux and Windows (ADR 0250).
 It builds the app with `pnpm dist` on macOS, where signing needs the release secrets, and the installers with `pnpm release` on Linux and Windows, then opens each build with `scripts/packaged-smoke.mjs`.
 The Linux and Windows installers stay on the run as a seven-day artifact, to try on a real machine.
 

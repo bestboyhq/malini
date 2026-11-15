@@ -12,6 +12,7 @@ export const INSIDE_THE_SANDBOX = 'malini-inside-';
 export const SANDBOX_TAG_PREFIX = 'malini-sandbox-';
 export const SANDBOX_ENVIRONMENT = { ELECTRON_DISABLE_SANDBOX: '1' } as const;
 export const APP_DATA_ROOT = 'MALINI_APP_DATA_ROOT';
+export const RTK_BINARY = 'MALINI_RTK_BINARY';
 
 const CLAUDE_CHAT_RECORDS = [
 	'projects',

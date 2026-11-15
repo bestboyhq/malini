@@ -31,5 +31,6 @@ test('a build config change needs a fresh dev server', () => {
 test('a launcher change needs a fresh dev server', () => {
 	assert.equal(needsFreshDevServer(['apps/malini/scripts/dogfood.mjs']), true);
 	assert.equal(needsFreshDevServer(['apps/malini/scripts/dev-bundle.mjs']), true);
+	assert.equal(needsFreshDevServer(['apps/malini/scripts/fetch-rtk.mjs']), true);
 	assert.equal(needsFreshDevServer(['apps/malini/scripts/version.mjs']), false);
 });

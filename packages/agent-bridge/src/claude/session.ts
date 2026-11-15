@@ -185,6 +185,7 @@ interface RunSettings {
 	readonly compactWindow: number | undefined;
 	readonly boundary: AgentBoundary | undefined;
 	readonly steReplies: boolean;
+	readonly compactOutput: boolean;
 }
 
 interface ActiveRun {
@@ -199,6 +200,7 @@ interface ActiveRun {
 	readonly compactWindow: number | undefined;
 	readonly boundary: AgentBoundary | undefined;
 	readonly steReplies: boolean;
+	readonly compactOutput: boolean;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -221,6 +223,8 @@ interface ActiveRun {
 	readonly hiddenMcp: Set<string>;
 	readonly uncheckedRetries: Map<string, number>;
 	readonly uncheckedFallbacks: Set<string>;
+	readonly askedInputs: Map<string, unknown>;
+	readonly rewrittenRetries: Set<string>;
 	fallback: NodeJS.Timeout | null;
 }
 
@@ -295,9 +299,11 @@ export class ClaudeSession implements ProviderHandle {
 		steReplies = false,
 		sandboxGrants: readonly SandboxGrant[] = [],
 		outsideAllowed = false,
+		compactOutput = true,
 	): Promise<void> {
 		this.#grants = sandboxGrants;
 		this.#outsideAllowed = outsideAllowed;
+		this.#secrets.compactOutput(compactOutput);
 		if (this.#places) this.#confine();
 		const run: RunSettings = {
 			profile,
@@ -308,6 +314,7 @@ export class ClaudeSession implements ProviderHandle {
 			compactWindow,
 			boundary,
 			steReplies,
+			compactOutput,
 		};
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
@@ -400,6 +407,7 @@ export class ClaudeSession implements ProviderHandle {
 			compactWindow: run.compactWindow,
 			boundary: run.boundary,
 			steReplies: run.steReplies,
+			compactOutput: run.compactOutput,
 			results: [],
 			costBefore: 0,
 			query,
@@ -422,6 +430,8 @@ export class ClaudeSession implements ProviderHandle {
 			hiddenMcp: new Set(),
 			uncheckedRetries: new Map(),
 			uncheckedFallbacks: new Set(),
+			askedInputs: new Map(),
+			rewrittenRetries: new Set(),
 			fallback: null,
 		};
 		this.#active = active;
@@ -512,6 +522,8 @@ export class ClaudeSession implements ProviderHandle {
 			active.approvedRetries.clear();
 			active.uncheckedRetries.clear();
 			active.uncheckedFallbacks.clear();
+			active.askedInputs.clear();
+			active.rewrittenRetries.clear();
 			if (keepWarm) void this.#rest(active);
 			else this.#retire(active);
 			endTurn();
@@ -831,7 +843,17 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme, lineage, plugins, compactWindow, boundary, steReplies }: RunSettings,
+		{
+			profile,
+			skills,
+			theme,
+			lineage,
+			plugins,
+			compactWindow,
+			boundary,
+			steReplies,
+			compactOutput,
+		}: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -864,7 +886,14 @@ export class ClaudeSession implements ProviderHandle {
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(this.#context.cwd, report, theme, lineage, steReplies),
+				append: systemPromptAppend(
+					this.#context.cwd,
+					report,
+					theme,
+					lineage,
+					steReplies,
+					compactOutput,
+				),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },
@@ -893,6 +922,7 @@ export class ClaudeSession implements ProviderHandle {
 							: [steerToMalini],
 					},
 					{ hooks: [this.#allowApprovedRetry()] },
+					{ hooks: [this.#noteAskedInput()] },
 					{ hooks: [this.#refuseBrowserMcp()] },
 					...(this.#sandbox ? [{ matcher: 'Bash', hooks: [this.#noteCommandStart()] }] : []),
 				],
@@ -1051,6 +1081,14 @@ export class ClaudeSession implements ProviderHandle {
 			}
 			const unchecked = category === AUTO_MODE_UNAVAILABLE;
 			const key = retryKey(input.tool_name, input.tool_input);
+			const asked = active.askedInputs.has(input.tool_use_id)
+				? retryKey(input.tool_name, active.askedInputs.get(input.tool_use_id))
+				: key;
+			if (unchecked && asked !== key) {
+				if (active.rewrittenRetries.has(asked)) return {};
+				active.rewrittenRetries.add(key);
+				return RETRY_BLOCKED_CALL;
+			}
 			if (unchecked && (await this.#retriedUnchecked(active, key, signal))) {
 				return RETRY_BLOCKED_CALL;
 			}
@@ -1189,6 +1227,15 @@ export class ClaudeSession implements ProviderHandle {
 						? { hookEventName: event, additionalContext }
 						: { hookEventName: event, additionalContext },
 			};
+		};
+	}
+
+	#noteAskedInput(): HookCallback {
+		return async (input) => {
+			if (input.hook_event_name === 'PreToolUse') {
+				this.#active?.askedInputs.set(input.tool_use_id, input.tool_input);
+			}
+			return {};
 		};
 	}
 
@@ -1412,7 +1459,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canContinue(
 	active: ActiveRun,
-	{ profile, skills, theme, lineage, plugins, boundary, steReplies }: RunSettings,
+	{ profile, skills, theme, lineage, plugins, boundary, steReplies, compactOutput }: RunSettings,
 	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -1425,6 +1472,7 @@ function canContinue(
 		profile?.report === active.profile?.report &&
 		theme === active.theme &&
 		steReplies === active.steReplies &&
+		compactOutput === active.compactOutput &&
 		skills?.join('\n') === active.skills?.join('\n') &&
 		JSON.stringify(lineage ?? null) === JSON.stringify(active.lineage ?? null) &&
 		JSON.stringify(plugins) === JSON.stringify(active.plugins) &&

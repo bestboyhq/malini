@@ -542,7 +542,9 @@ export class Reconciler {
 		const definition = getAutomationDefinition(db, run.definitionId);
 		if (!definition || isOneShotAutomationBuiltin(definition.builtin)) return null;
 		const chat = this.#chat(run.chatSessionId);
-		if (run.status === 'succeeded' && chat === null) return null;
+		if (run.status === 'succeeded' && (chat === null || definition.builtin === 'open-draft')) {
+			return null;
+		}
 		const workstream = run.workstreamId === null ? null : getWorkstream(db, run.workstreamId);
 		const merging = run.workstreamId !== null && this.#rules.shipping.merging(run.workstreamId);
 		const shipped =

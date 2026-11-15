@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	APP_STARTED_CHANNEL,
+	AUTOMATIONS_TIME_REACHED_CHANNEL,
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
@@ -55,6 +56,7 @@ import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
 import { getShip, insertShip, updateShip } from './ship.repository';
+import type { ShipWake } from './ship-store';
 
 const DELAYS = {
 	idleDebounceMs: 40,
@@ -108,6 +110,7 @@ class FakeGithub {
 	outage = 0;
 	authRejected = false;
 	branchListHeld: Promise<void> | null = null;
+	viewHeld: Promise<void> | null = null;
 
 	readonly run: GhRunner = async (args) => {
 		this.calls.push([...args]);
@@ -127,6 +130,11 @@ class FakeGithub {
 		if (held && args[0] === 'pr' && args[1] === 'list') {
 			this.branchListHeld = null;
 			await held;
+		}
+		const view = this.viewHeld;
+		if (view && args[0] === 'pr' && args[1] === 'view') {
+			this.viewHeld = null;
+			await view;
 		}
 		return answer;
 	};
@@ -365,10 +373,12 @@ let settings: Record<string, string>;
 let shipEvents: ShipChangedEvent[];
 let commits: { workstreamId: string; message: string; runId: string | null; sha: string }[];
 let pushes: string[];
+let wakes: ShipWake[];
 let pulls: string[];
 let archived: string[];
 let pullConflicts: string[];
 let pushRefusal: GitError | null;
+let statusHeld: Promise<void> | null;
 let shaCounter: number;
 let clockOffsetMs: number;
 
@@ -497,8 +507,11 @@ function ended(run: AutomationRunRecord): void {
 
 function defineFakes(): void {
 	const { commands, events } = context;
-	commands.define('repositories.workstream-status', (args: unknown) => {
+	commands.define('repositories.workstream-status', async (args: unknown) => {
 		const id = String(Reflect.get(Object(args), 'workstreamId'));
+		const held = statusHeld;
+		statusHeld = null;
+		await held;
 		return { ...worktree(id) };
 	});
 	commands.define('repositories.commit-workstream', (args: unknown) => {
@@ -685,6 +698,14 @@ function armAddressReview(): void {
 	).run();
 }
 
+function armFixChecks(mode: 'auto' | 'ask' = 'auto'): void {
+	db.prepare(
+		`UPDATE automation_definitions SET trigger_mode = ?,
+		 trigger_when = 'on pull-requests:pull-request-changed where state is draft and checks is failed'
+		 WHERE id = 'def-fix-checks'`,
+	).run(mode);
+}
+
 function requestChanges(...ids: string[]): FakePullRequest {
 	return Object.assign(github.only(), {
 		reviewDecision: 'CHANGES_REQUESTED',
@@ -702,6 +723,9 @@ function start(delays: typeof DELAYS = DELAYS): void {
 	platform = registerPullRequests(context, {
 		runner: github.run,
 		ship: { delays, now },
+		deliver: async (wake) => {
+			wakes.push(wake);
+		},
 	});
 	clock = createAutomationSchedules(context, () => {}, { alarmCheckMs: 10, now });
 	triggers = startAutomationTriggers(context, () => {}, platform.shipping);
@@ -842,10 +866,12 @@ beforeEach(() => {
 	shipEvents = [];
 	commits = [];
 	pushes = [];
+	wakes = [];
 	pulls = [];
 	archived = [];
 	pullConflicts = [];
 	pushRefusal = null;
+	statusHeld = null;
 	shaCounter = 0;
 	eventLog = null;
 	clock = null;
@@ -1432,6 +1458,213 @@ describe('before you merge', () => {
 
 		expect(reviewRuns()).toHaveLength(1);
 	});
+});
+
+describe("a draft's checks", () => {
+	const FAILED: FakeCheck = { name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' };
+	const PASSED: FakeCheck = { name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' };
+
+	async function openDraft(delays = DELAYS): Promise<void> {
+		seedWorkstream('ws-1');
+		start(delays);
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
+	}
+
+	function openedFromChat(): void {
+		const definition = getBuiltinAutomationDefinition(db, 'open-draft');
+		if (!definition) throw new Error('the Open draft automation is missing');
+		insertAutomationRun(
+			db,
+			{
+				id: 'open-draft-run',
+				definitionId: definition.id,
+				title: 'Open draft',
+				workstreamId: 'ws-1',
+				repositoryId: null,
+				sessionId: null,
+				agentRunId: null,
+				origin: 'manual',
+				status: 'succeeded',
+				interrupted: false,
+				detail: null,
+				parentRunId: null,
+				chatSessionId: 'session-ws-1',
+				chatAfterRunId: null,
+				chainId: 'open-draft-run',
+				requests: 1,
+				createdAt: '2026-10-01T00:00:00Z',
+				startedAt: '2026-10-01T00:00:00Z',
+				finishedAt: '2026-10-01T00:00:01Z',
+			},
+			null,
+		);
+	}
+
+	function fixRuns(): AutomationRunRecord[] {
+		return [...automationRuns.values()].filter((run) => run.definitionId === 'def-fix-checks');
+	}
+
+	function readiedOrMerged(): string[][] {
+		return github.calls.filter(
+			([group, verb]) => group === 'pr' && (verb === 'ready' || verb === 'merge'),
+		);
+	}
+
+	it('watches the checks of what it pushed to a draft until they settle, and leaves a failure to you while Fix checks is off', async () => {
+		await openDraft();
+		github.ciOutcomes = ['PENDING', 'FAILURE'];
+		finishUserRun('ws-1', 'Commit: Add fuzzy matching to search', ['src/fuzzy.ts']);
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: 'waiting-for-checks' }),
+		);
+		github.only().checks = [PASSED];
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
+		expect(getShip(db, 'ws-1')?.checksWatchedSince).toBeNull();
+
+		finishUserRun('ws-1', 'Commit: Rank exact matches first', ['src/rank.ts']);
+		await until(() => expect(pushes).toHaveLength(3));
+		await settle();
+
+		expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null, needsYou: null });
+		expect(getShip(db, 'ws-1')?.checksWatchedSince).toBeNull();
+		expect(fixRuns()).toHaveLength(0);
+		expect(readiedOrMerged()).toEqual([]);
+	});
+
+	it('fixes failing checks on a draft when Fix checks runs on its own, pushes the fix and watches it pass, never marking it ready', async () => {
+		armFixChecks();
+		await openDraft();
+		github.ciOutcomes = ['PENDING'];
+		github.only().checks = [FAILED];
+
+		await readPullRequest();
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: 'fixing-checks' }),
+		);
+		const automation = activeAutomation();
+		expect(automation).toMatchObject({ definitionId: 'def-fix-checks', origin: 'merge-queue' });
+		expect(automationContexts.get(automation.id)).toContain(
+			'Blocking check details: test: FAILURE',
+		);
+		finishAutomation(automation.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+
+		await until(() =>
+			expect(commits.at(-1)).toMatchObject({
+				message: 'Fix failing checks',
+				runId: automation.agentRunId,
+			}),
+		);
+		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-checks'));
+		github.only().checks = [PASSED];
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
+		await settle();
+
+		expect(fixRuns()).toHaveLength(1);
+		expect(pushes).toHaveLength(2);
+		expect(github.only()).toMatchObject({ isDraft: true, state: 'OPEN' });
+		expect(readiedOrMerged()).toEqual([]);
+		expect(wakes).toEqual([]);
+	});
+
+	it('stops after the fix attempts you set, tells the chat that opened the draft once, and clears once the checks pass', async () => {
+		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '1';
+		armFixChecks();
+		await openDraft();
+		openedFromChat();
+		github.ciOutcomes = ['FAILURE'];
+		github.only().checks = [FAILED];
+		await readPullRequest();
+		await until(() => expect(fixRuns()).toHaveLength(1));
+
+		finishAutomation(activeAutomation().id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({
+				phase: 'draft',
+				step: null,
+				needsYou: { reason: 'fix-gave-up' },
+			}),
+		);
+		await until(() => expect(wakes).toHaveLength(1));
+		const [wake] = wakes;
+		expect(wake?.sessionId).toBe('session-ws-1');
+		expect(wake?.prompt).toContain('Malini stopped fixing the checks on draft pull request #40.');
+		expect(wake?.prompt).toContain(`Head: ${github.only().headRefOid}`);
+		expect(wake?.prompt).toContain('\n- test\n');
+
+		github.only().checks = [FAILED, { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await readPullRequest();
+		await settle();
+		expect(fixRuns()).toHaveLength(1);
+		expect(wakes).toHaveLength(1);
+
+		github.only().checks = [PASSED];
+		await readPullRequest();
+		await until(() => expect(getShip(db, 'ws-1')?.needsYou ?? null).toBeNull());
+		expect(github.only().isDraft).toBe(true);
+		expect(readiedOrMerged()).toEqual([]);
+	});
+
+	it('leaves a Fix checks its trigger asks about to you, and pushes what it fixed to the draft', async () => {
+		armFixChecks('ask');
+		await openDraft();
+		github.only().checks = [FAILED];
+
+		await readPullRequest();
+
+		await until(() => expect(fixRuns()).toHaveLength(1));
+		const automation = activeAutomation();
+		expect(automation.origin).toBe('trigger');
+		expect(ship('ws-1')?.activeAutomationRunId ?? null).toBeNull();
+		finishAutomation(automation.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+
+		await until(() => expect(pushes).toHaveLength(2));
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
+		await settle();
+		expect(fixRuns()).toHaveLength(1);
+		expect(readiedOrMerged()).toEqual([]);
+	});
+
+	it.each(['before', 'while'] as const)(
+		'marks the draft ready before the queue waits when you click Merge %s it reads the checks',
+		async (when) => {
+			await openDraft({ ...DELAYS, checksPollMs: 60_000 });
+			github.ciOutcomes = ['PENDING'];
+			finishUserRun('ws-1', 'Commit: Add fuzzy matching to search', ['src/fuzzy.ts']);
+			await until(() =>
+				expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: 'waiting-for-checks' }),
+			);
+			await settle();
+			const draftWhileQueuedWaits: boolean[] = [];
+			context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, ({ state }) => {
+				if (state?.phase === 'queued' && state.step !== null && state.step !== 'marking-ready') {
+					draftWhileQueuedWaits.push(github.only().isDraft);
+				}
+			});
+			let answer = (): void => {};
+			const held = new Promise<void>((resolve) => (answer = resolve));
+			if (when === 'before') statusHeld = held;
+			else github.viewHeld = held;
+			clockOffsetMs = 3_000;
+			context.events.emit(AUTOMATIONS_TIME_REACHED_CHANNEL, {
+				workstreamId: 'ws-1',
+				wait: 'checks',
+				due: new Date().toISOString(),
+			});
+			await until(() => expect(statusHeld ?? github.viewHeld).toBeNull());
+
+			await click('ws-1', 'merge');
+			answer();
+
+			await until(() => expect(draftWhileQueuedWaits).toContain(false));
+			await settle();
+			expect(draftWhileQueuedWaits).toEqual([false]);
+		},
+	);
 });
 
 describe('shipping a queued merge', () => {

@@ -29,6 +29,12 @@ export function optimizesContext(setting: string | null | undefined): boolean {
 	return setting !== 'off';
 }
 
+export const COMPACT_OUTPUT_SETTING = 'chat.compact-output';
+
+export function compactsOutput(setting: string | null | undefined): boolean {
+	return setting !== 'off';
+}
+
 export const STE_REPLIES_SETTING = 'chat.ste-replies';
 
 export function writesSte(setting: string | null | undefined): boolean {

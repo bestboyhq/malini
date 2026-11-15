@@ -29,6 +29,9 @@ const SANDBOX_UNREADY = 'malini: the sandbox is not ready, so this command did n
 const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
+// ponytail: a hung rtk rewrite outlives its command; kill it through $! once bash is 4.4+.
+const REWRITE_SECONDS = 2;
+const COMPACT_OUTPUT_DATA = join(tmpdir(), 'malini-rtk');
 const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 	.map(([name, value]) => `${name}=${value}`)
 	.join(' ');
@@ -37,8 +40,9 @@ const RUN_SCRIPT = `#!/bin/bash
 folder=\${0%/*}
 shell=\${CLAUDE_CODE_SHELL:-$BASH}
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
-run=("$shell" -c "$1")
+command=$1
 words() { local word; words=(); while IFS= read -r -d '' word; do words+=("$word"); done <"$1"; }
+confine=()
 if [ -r "$folder/${SANDBOX_FILE}" ] && ! {
 	[[ $1 =~ ${OUTSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && /bin/rm "$folder/passes/\${BASH_REMATCH[1]}" 2>/dev/null
 }; then
@@ -48,8 +52,34 @@ if [ -r "$folder/${SANDBOX_FILE}" ] && ! {
 		words "$once" && /bin/rm "$once"
 	fi
 	[ \${#words[@]} -gt 0 ] || { echo "${SANDBOX_UNREADY}" >&2; exit 1; }
-	run=(/usr/bin/env ${sandboxEnvironment} "\${words[@]}" "\${run[@]}")
+	confine=(/usr/bin/env ${sandboxEnvironment} "\${words[@]}")
 fi
+compact() {
+	local quote="'\\"'\\"'" before body tail original rewritten reply
+	[[ $command == *" && eval '"* && $command != *$'\\1'* ]] || return 0
+	before=\${command%%" && eval '"*}
+	tail=\${command#*" && eval '"}
+	tail=\${tail//"$quote"/$'\\1'}
+	body=\${tail%%\\'*}
+	tail=\${tail#"$body"}
+	[[ $tail == "' < /dev/null && pwd -P >| "* || $tail == "' && pwd -P >| "* ]] || return 0
+	original=\${body//$'\\1'/\\'}
+	rewritten=$original
+	if [[ $original != *rtk* ]]; then
+		IFS= read -r -d '' -t ${REWRITE_SECONDS} reply < <(
+			exec 2>/dev/null
+			reply=$("\${confine[@]}" "$rtk" rewrite "$original")
+			printf '%s %s\\0' $? "$reply"
+		)
+		rewritten=\${reply#* }
+		[[ (\${reply%% *} == 0 || \${reply%% *} == 3) && \${rewritten//rtk /} == "$original" ]] ||
+			rewritten=$original
+	fi
+	local bin=\${rtk%/*}
+	command="$before && PATH='\${bin//\\'/$quote}':\\$PATH && eval '\${rewritten//\\'/$quote}\${tail//$'\\1'/$quote}"
+}
+[ -r "$folder/compact.sh" ] && . "$folder/compact.sh" && [ -x "$rtk" ] && compact
+run=("\${confine[@]}" "$shell" -c "$command")
 [ -s "$folder/masks" ] || exec "\${run[@]}"
 mask() {
 	/usr/bin/awk -v masks="$folder/masks" '
@@ -79,24 +109,34 @@ fi
 export class SessionSecrets {
 	readonly runScript: string;
 	readonly #folder: string;
+	readonly #rtk: string | null;
 	#masks: readonly string[] = [];
 	#confined = false;
 
-	constructor(folder: string) {
+	constructor(folder: string, rtk: string | null = null) {
 		this.#folder = folder;
+		this.#rtk = rtk;
 		this.runScript = join(folder, 'run').replaceAll(sep, '/');
 		writeFileSync(this.runScript, RUN_SCRIPT, { mode: 0o700 });
 	}
 
+	compactOutput(on: boolean): void {
+		this.#place('compact.sh', on && this.#rtk !== null ? compactSettings(this.#rtk) : null);
+	}
+
 	confine(prefix: readonly string[] | null): void {
 		this.#confined = prefix !== null;
-		const path = join(this.#folder, SANDBOX_FILE);
-		if (prefix === null) {
+		this.#place(SANDBOX_FILE, prefix === null ? null : words(prefix));
+	}
+
+	#place(name: string, contents: string | null): void {
+		const path = join(this.#folder, name);
+		if (contents === null) {
 			rmSync(path, { force: true });
 			return;
 		}
 		const next = `${path}.${randomUUID()}`;
-		writeFileSync(next, words(prefix), { mode: 0o600 });
+		writeFileSync(next, contents, { mode: 0o600 });
 		renameSync(next, path);
 	}
 
@@ -175,6 +215,11 @@ function masksOf(values: readonly string[]): string[] {
 	return [...new Set(parts.filter((part) => part.length >= MASKED_LENGTH))].sort(
 		(a, b) => b.length - a.length,
 	);
+}
+
+function compactSettings(rtk: string): string {
+	const data = (name: string) => shellQuoted(join(COMPACT_OUTPUT_DATA, name));
+	return `rtk=${shellQuoted(rtk)}\nexport RTK_TELEMETRY_DISABLED=1 RTK_DB_PATH=${data('history.db')} RTK_RECALL_DB=${data('recall.db')} RTK_TEE_DIR=${data('tee')}\n`;
 }
 
 function exportLines(secrets: Readonly<Record<string, string>>): string {

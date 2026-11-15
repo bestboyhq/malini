@@ -327,6 +327,36 @@ describe('maliniOwnedCommand', () => {
 		expect(maliniOwnedCommand('git worktree list')).toBeNull();
 	});
 
+	it('reads a heredoc body as data, not as commands', () => {
+		for (const command of [
+			'cat > cases.txt <<\'EOF\'\ngit commit -m "x"\ngit push origin HEAD\nEOF',
+			'cat <<EOF > cases.txt\ngit commit -m "x"\nEOF\npnpm test',
+			'cat <<"EOF" | node check.mjs\ngit checkout main\nEOF',
+			'cat <<\\EOF\ngit reset --hard\nEOF',
+			'cat <<-EOF\n\tgit commit -m x\n\tEOF\necho done',
+			"cat <<'A' <<'B'\ngit commit -m a\nA\ngit push\nB",
+		]) {
+			expect(maliniOwnedCommand(command), command).toBeNull();
+		}
+	});
+
+	it('still finds a real command next to a heredoc', () => {
+		for (const [command, owned] of [
+			["git commit -m x && cat <<'EOF'\nnotes\nEOF", 'git commit'],
+			["cat <<'EOF' && git push\nnotes\nEOF", 'git push'],
+			["cat <<'EOF' > notes.txt\nnotes\nEOF\ngit commit -F notes.txt", 'git commit'],
+			['git commit -m "$(cat <<\'EOF\'\nmessage\nEOF\n)"', 'git commit'],
+			['git commit -m $(cat <<EOF\nmessage\nEOF\n)', 'git commit'],
+			['cat <<EOF\n$(git commit -m x)\nEOF', 'git commit'],
+			['cat <<EOF\n`git push`\nEOF', 'git push'],
+			['cat <<EOF\ngit commit -m x', 'git commit'],
+			['echo $((1<<2))\ngit commit -m x', 'git commit'],
+			['cat <<<"git commit -m x"\ngit push', 'git push'],
+		] as const) {
+			expect(maliniOwnedCommand(command), command).toBe(owned);
+		}
+	});
+
 	it('owns every worktree change', () => {
 		expect(maliniOwnedCommand('git worktree add -q --detach ../fork v0.17.5 && cd ../fork')).toBe(
 			'git worktree',

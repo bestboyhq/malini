@@ -11,7 +11,11 @@ import {
 	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
-import { automationRunInterrupted, type AutomationRunRecord } from '$contract/automations';
+import {
+	automationRunInterrupted,
+	type AutomationBuiltin,
+	type AutomationRunRecord,
+} from '$contract/automations';
 import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '$contract/pull-requests';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
@@ -69,6 +73,7 @@ import {
 	shippingBuiltin,
 	startingAlone,
 	trackShip,
+	watchDraftChecks,
 	type ShipDeps,
 } from './ship-store';
 import { shipTarget } from './ship-target';
@@ -141,15 +146,23 @@ async function pullRequestChanged(
 	if (facts === null) return [];
 	if (facts.state === 'merged' && dropDraftShip(deps, workstreamId)) return [];
 	const open = facts.state === 'open' || facts.state === 'draft';
-	if (open && facts.reviewDecision === 'changes_requested' && reviewsOnItsOwn(deps)) {
+	if (
+		open &&
+		facts.reviewDecision === 'changes_requested' &&
+		runsOnItsOwn(deps, 'address-review')
+	) {
 		await request(deps, workstreamId, 'review');
 	}
-	return getShip(deps.context.db, workstreamId) ? [workstreamId] : [];
+	const row = getShip(deps.context.db, workstreamId);
+	if (row?.phase === 'draft' && row.needsYou !== null && facts.failingChecks.length === 0) {
+		saveShip(deps, workstreamId, { needsYou: null }, 'draft');
+	}
+	return row ? [workstreamId] : [];
 }
 
-function reviewsOnItsOwn(deps: ShipDeps): boolean {
+function runsOnItsOwn(deps: ShipDeps, builtin: AutomationBuiltin): boolean {
 	return automationDefinitions(deps.context.db).some(
-		(definition) => definition.builtin === 'address-review' && definition.trigger?.mode === 'auto',
+		(definition) => definition.builtin === builtin && definition.trigger?.mode === 'auto',
 	);
 }
 
@@ -182,9 +195,20 @@ async function triggered(
 	deps: ShipDeps,
 	{ builtin, event, start }: ShippingTrigger,
 ): Promise<boolean> {
+	if (builtin === 'fix-checks') return watchFailingDraft(deps, event);
 	const facts = builtin === 'address-review' ? pullRequestFacts(event.payload) : null;
 	if (facts === null || !deps.running()) return false;
 	await startingAlone(deps, facts.workstreamId, () => startReview(deps, facts, start));
+	return true;
+}
+
+function watchFailingDraft(deps: ShipDeps, event: DispatchedEvent): boolean {
+	if (!deps.running() || !runsOnItsOwn(deps, 'fix-checks')) return false;
+	const facts = pullRequestFacts(event.payload);
+	const row = facts === null ? null : getShip(deps.context.db, facts.workstreamId);
+	if (row?.phase === 'draft' && row.pullRequestNumber !== null && row.needsYou === null) {
+		watchDraftChecks(deps, row.workstreamId);
+	}
 	return true;
 }
 
@@ -253,7 +277,8 @@ async function decideFromState(
 		working &&
 		requests.push === 0 &&
 		requests.review === 0 &&
-		row.activeAutomationRunId === null
+		row.activeAutomationRunId === null &&
+		row.checksWatchedSince === null
 	) {
 		return decision(deps, workstreamId, 'idle', () => {
 			saveShip(deps, workstreamId, { step: null });
@@ -292,6 +317,8 @@ async function decideFromState(
 				: null,
 		fixAttempts: row.fixAttempts,
 		fixAttemptLimit: await fixAttemptLimit(deps),
+		checksWatchedSince: row.checksWatchedSince === null ? null : Date.parse(row.checksWatchedSince),
+		fixesDraftChecks: row.phase === 'draft' && runsOnItsOwn(deps, 'fix-checks'),
 		backoffUntil: row.nextAttemptAt === null ? null : Date.parse(row.nextAttemptAt),
 		waitsForYou: row.waitsFor !== null,
 		now: deps.now(),
@@ -311,6 +338,7 @@ async function decideFromState(
 	let move = nextShippingMove(snapshot);
 	if (move.kind === 'read-pull-request') {
 		const read = await deps.reader.read(workstreamId, FRESH_READ_MS);
+		if (movedOn(deps, row)) return null;
 		if (!read.read) {
 			const step = row.phase === 'queued' ? 'waiting-for-checks' : 'waiting-for-github';
 			return decision(deps, workstreamId, move.kind, () => {
@@ -407,7 +435,8 @@ async function automationSucceeded(deps: ShipDeps, row: ShipRow): Promise<void> 
 function movedOn(deps: ShipDeps, row: ShipRow): boolean {
 	const { db } = deps.context;
 	const current = getShip(db, row.workstreamId);
-	if (current?.activeAutomationRunId !== row.activeAutomationRunId) return true;
+	if (current?.phase !== row.phase) return true;
+	if (current.activeAutomationRunId !== row.activeAutomationRunId) return true;
 	if (row.activeAutomationRunId === null) return false;
 	const automation = automationRun(db, row.activeAutomationRunId);
 	return !automation || !automationIsActive({ builtin: null, status: automation.status });
