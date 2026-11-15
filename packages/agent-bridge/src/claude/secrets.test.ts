@@ -23,7 +23,7 @@ import {
 } from './secrets.js';
 
 const WINDOWS = process.platform === 'win32';
-const ROOT = mkdtempSync(join(tmpdir(), 'malini-secrets-test-'));
+const ROOT = mkdtempSync(join(tmpdir(), 'malini-session-test-'));
 
 afterAll(() => rm(ROOT, { recursive: true, force: true }));
 
