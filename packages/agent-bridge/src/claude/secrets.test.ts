@@ -225,11 +225,10 @@ describe('SessionSecrets compact output', () => {
 	});
 
 	it('takes only a rewrite that puts rtk in front of commands, so cat stays cat', async () => {
-		const file = join(ROOT, 'whole.txt');
-		writeFileSync(file, 'whole file\n');
+		writeFileSync(join(ROOT, 'whole.txt'), 'whole file\n');
 
-		const ran = await run(compacting(fakeRtk()), claudeCommand(`cat ${file}`), {
-			env: { FAKE_REWRITE: `rtk read ${file}` },
+		const ran = await run(compacting(fakeRtk()), claudeCommand('cat whole.txt'), {
+			env: { FAKE_REWRITE: 'rtk read whole.txt' },
 		});
 
 		expect(ran.stdout).toBe('whole file\n');
