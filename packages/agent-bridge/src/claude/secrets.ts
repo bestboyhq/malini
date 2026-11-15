@@ -75,7 +75,8 @@ compact() {
 		[[ (\${reply%% *} == 0 || \${reply%% *} == 3) && \${rewritten//rtk /} == "$original" ]] ||
 			rewritten=$original
 	fi
-	local bin=\${rtk%/*}
+	local bin
+	bin=$(cd -- "\${rtk%[/\\\\]*}" && pwd) || return 0
 	command="$before && PATH='\${bin//\\'/$quote}':\\$PATH && eval '\${rewritten//\\'/$quote}\${tail//$'\\1'/$quote}"
 }
 [ -r "$folder/compact.sh" ] && . "$folder/compact.sh" && [ -x "$rtk" ] && compact
