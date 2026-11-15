@@ -25,6 +25,7 @@ import {
 	archivedLeftoversCleared,
 	checkoutTrashRoot,
 	restoreStrandedCheckouts,
+	WorkstreamTeardowns,
 } from './teardown.service';
 import { getWorkstream } from './workstreams.repository';
 
@@ -874,5 +875,22 @@ describe('restoring an archived workstream', () => {
 		expect(await readFile(join(checkout, 'in-the-way.txt'), 'utf8')).toBe('in the way\n');
 		expect(await branchExists(repo, 'malini/ws-blocked')).toBe(false);
 		expect(await keeps(repo, 'refs/malini/archived/ws-blocked', tip)).toBe(true);
+	});
+});
+
+describe('what a teardown marks a workstream as', () => {
+	it('answers for the workstream while its teardown runs and after it ends', () => {
+		const teardowns = new WorkstreamTeardowns();
+
+		expect(teardowns.tearingDown('ws-1')).toBe(false);
+		expect(teardowns.retired('ws-1')).toBe(false);
+
+		const finished = teardowns.start('ws-1');
+		expect(teardowns.tearingDown('ws-1')).toBe(true);
+
+		finished();
+		expect(teardowns.tearingDown('ws-1')).toBe(false);
+		expect(teardowns.retired('ws-1')).toBe(true);
+		expect(teardowns.retired('ws-2')).toBe(false);
 	});
 });

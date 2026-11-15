@@ -369,6 +369,7 @@ When it may not, the reason shows under the switch.
 - If Malini crashes or is ended in Task Manager, a hidden PowerShell process it started puts your values back once Malini is gone; if that was ended too, or the PC lost power, the next launch does.
 - While a turn runs, Windows does not sleep on its idle timer either; once agents finish, a closed PC sleeps on that timer.
 - If your plan already does nothing when the lid closes, Malini leaves the setting alone.
+- On a PC whose power plan has no lid close action, such as a desktop or a VM, the page says so and the switch stays off.
 - Malini has no battery floor here: Windows runs its own critical battery action.
 - A change you make to the lid close action while Malini holds it is undone when Malini lets go.
 

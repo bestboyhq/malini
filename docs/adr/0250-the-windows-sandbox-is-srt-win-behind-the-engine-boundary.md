@@ -39,6 +39,8 @@ This amends 0167, 0248 and 0249; the macOS and Linux engines and their lines sta
 - `sandbox.ts` carries a `win32` policy beside the macOS and Linux ones.
   It names the Windows credentials, user data, shell and startup files, the folders every app shares, the caches and the tool-state folders under `AppData`.
   It also names the path separator, so every grant check splits, compares and walks Windows paths as Windows paths.
+- A sandboxed session on Windows runs Claude Code with `CLAUDE_CODE_TMPDIR` at `<checkout>\.malini\sandbox\tmp`, the folder the forwarder makes before every command.
+  Claude Code writes its cwd file and its task output there from inside the command, and the user's own temp is closed to the `srt-sandbox` account, so without it every command reports a failure.
 
 ## Consequences
 
@@ -55,4 +57,4 @@ This amends 0167, 0248 and 0249; the macOS and Linux engines and their lines sta
 - Enforced by `packages/agent-bridge/src/sandbox.test.ts`, whose Windows grant suite runs on the Windows CI job, and by `packages/agent-bridge/src/sandbox/windows.test.ts`: its denial parser tests run on every OS.
   Its Windows suite, under `describe.runIf(process.platform === 'win32' && canSandbox())`, runs real commands through the run script and Git Bash: a write in the checkout and none outside, a hidden folder it cannot read, git hooks and config it cannot change, localhost with the internet off and no internet, the internet through the proxy, and a process of the user it cannot stop.
   That suite runs only where the sandbox is set up, and CI's Windows jobs do not set it up yet, so nothing in CI proves the confinement.
-  `src/main/modules.test.ts` fails when either command has no handler, and `pnpm check` fails when the contract reference is stale.
+  `session.test.ts` fails when a sandboxed Windows session does not point `CLAUDE_CODE_TMPDIR` into the checkout, `src/main/modules.test.ts` fails when either command has no handler, and `pnpm check` fails when the contract reference is stale.

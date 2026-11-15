@@ -82,7 +82,7 @@
 	const visibleActions = $derived(
 		actions.filter((action) => globalTopBarActionMatchesPathname(action, targetPathname)),
 	);
-	const dockWidth = $derived(inspectorDock.width);
+	const dockWidth = $derived(osQuery.data.platform === 'darwin' ? inspectorDock.width : null);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubOwner = $derived(globalTopBarGithubStatus.owner);
 	const githubPanelHeadline = $derived(
@@ -801,10 +801,6 @@
 		padding: 0 16px 24px;
 		position: relative;
 		isolation: isolate;
-	}
-
-	:global(html[data-native-shell='true']:not([data-platform='darwin'])) .topbar-right[data-docked] {
-		width: calc(var(--dock-width) - var(--native-caption-clearance));
 	}
 
 	.topbar-right[data-docked]::before {

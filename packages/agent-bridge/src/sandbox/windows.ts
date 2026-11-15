@@ -207,8 +207,12 @@ function prefix(rules: SandboxRules): string[] {
 		rmSync(`${key}.failed`, { force: true });
 		void prepare(runtime, rules, key);
 	}
-	const scratch = join(rules.places.checkout, BRIDGE_SANDBOX_SCRATCH_PATH, 'tmp');
+	const scratch = windowsSandboxTemp(rules.places.checkout);
 	return [...[runtime.bash, join(folder, 'forwarder.sh'), key, scratch].map(mixed), '--'];
+}
+
+export function windowsSandboxTemp(checkout: string): string {
+	return join(checkout, BRIDGE_SANDBOX_SCRATCH_PATH, 'tmp');
 }
 
 function preparationFolder(runtime: Runtime): string {

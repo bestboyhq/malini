@@ -14,6 +14,7 @@ import {
 	openAutomations,
 	openWorkstream,
 	REAL_GIT,
+	removeExecutable,
 	reportsHeardBy,
 	seedWorkstream,
 	sendPrompt,
@@ -600,6 +601,7 @@ for (const cut of ['before Claude Code got it', 'before Claude replied'] as cons
 			throw error;
 		}
 		rmSync(hold);
+		removeExecutable(join(first.bin, 'git'));
 
 		const app = await launchMalini({ profile: first.root });
 		try {

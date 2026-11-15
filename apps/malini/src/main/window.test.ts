@@ -50,7 +50,15 @@ const screen = {
 	getCursorScreenPoint: () => ({ x: 2400, y: 400 }),
 	getDisplayNearestPoint: () => cursorDisplay,
 };
-vi.mock('electron', () => ({ BrowserWindow: FakeBrowserWindow, screen, shell: { openExternal } }));
+const nativeTheme = { shouldUseDarkColors: true };
+const nativeImage = { createFromPath: () => ({ resize: () => ({}) }) };
+vi.mock('electron', () => ({
+	BrowserWindow: FakeBrowserWindow,
+	nativeImage,
+	nativeTheme,
+	screen,
+	shell: { openExternal },
+}));
 
 const { createMainWindow } = await import('./window');
 

@@ -605,17 +605,18 @@ export function registerRepositories(
 		workstreamId: string,
 		read: (worktree: string) => Promise<T>,
 	): Promise<T> {
-		const torndown = teardowns.watch(workstreamId);
 		try {
 			return await read(await checkouts.resolveCheckout(workstreamId));
 		} catch (error) {
-			if (!torndown() && !isArchived(workstreamId)) throw error;
+			if (!isRetired(workstreamId)) throw error;
 			throw new WorkstreamRetiredError(workstreamId, error);
 		}
 	}
 
-	function isArchived(workstreamId: string): boolean {
-		return getWorkstream(db, workstreamId)?.status === 'archived';
+	function isRetired(workstreamId: string): boolean {
+		if (teardowns.tearingDown(workstreamId)) return true;
+		const workstream = getWorkstream(db, workstreamId);
+		return workstream === null ? teardowns.retired(workstreamId) : workstream.status === 'archived';
 	}
 
 	function checkedWorkstreamId(args: unknown): string {

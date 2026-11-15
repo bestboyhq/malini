@@ -20,6 +20,7 @@ import {
 test.skip(process.platform !== 'win32', 'Malini installs Git for Windows only on Windows');
 
 const DOWNLOAD_FAILED = 'Could not download Git for Windows: net::ERR_NAME_NOT_RESOLVED';
+const ARCH_FOLDERS = ['ucrt64', 'mingw64', 'mingw32'];
 const HIDDEN = new Set([
 	'PROGRAMFILES',
 	'PROGRAMW6432',
@@ -28,14 +29,14 @@ const HIDDEN = new Set([
 	'CLAUDE_CODE_GIT_BASH_PATH',
 ]);
 
-function systemGit(): string {
-	const root = [dirname(dirname(REAL_GIT)), dirname(dirname(dirname(REAL_GIT)))].find(
-		(folder) =>
-			existsSync(join(folder, 'mingw64', 'bin', 'git.exe')) &&
-			existsSync(join(folder, 'bin', 'bash.exe')),
-	);
-	if (!root) throw new Error(`${REAL_GIT} is not part of a Git for Windows`);
-	return root;
+function systemGit(): { root: string; arch: string } {
+	for (const root of [dirname(dirname(REAL_GIT)), dirname(dirname(dirname(REAL_GIT)))]) {
+		const arch = ARCH_FOLDERS.find((folder) => existsSync(join(root, folder, 'bin', 'git.exe')));
+		if (arch !== undefined && existsSync(join(root, 'bin', 'bash.exe'))) {
+			return { root, arch: join(root, arch) };
+		}
+	}
+	throw new Error(`${REAL_GIT} is not part of a Git for Windows`);
 }
 
 function pcWithoutGit(root: string, laterGit: string): Record<string, string> {
@@ -64,7 +65,7 @@ function unlink(path: string): void {
 test('a PC without Git for Windows installs it at launch, holds the first prompt until it is in, and says why the install failed', async () => {
 	test.setTimeout(240_000);
 	const root = temporaryRoot();
-	const minGit = join(root, 'mingit', 'mingw64');
+	const minGit = join(root, 'mingit');
 	const app = await launchMalini({
 		profile: root,
 		env: pcWithoutGit(root, join(minGit, 'bin')),
@@ -94,7 +95,8 @@ test('a PC without Git for Windows installs it at launch, holds the first prompt
 		await expect(status).toHaveRole('alert', { timeout: 30_000 });
 		await expect(status).toContainText(DOWNLOAD_FAILED);
 
-		link(join(systemGit(), 'mingw64'), minGit);
+		const git = systemGit();
+		link(git.arch, minGit);
 		const source = await createSourceRepo(root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-git-held-ws', 'Held for Git');
 		await openWorkstream(page, workstreamId);
@@ -104,7 +106,7 @@ test('a PC without Git for Windows installs it at launch, holds the first prompt
 		await expect(strip.getByRole('alert')).toHaveText(DOWNLOAD_FAILED, { timeout: 30_000 });
 		await captureFlow(app, 'composer-git-install-failed');
 
-		link(systemGit(), home);
+		link(git.root, home);
 		unlink(minGit);
 		await strip.getByRole('button', { name: 'Try again' }).click();
 		await expectAssistantReply(page);

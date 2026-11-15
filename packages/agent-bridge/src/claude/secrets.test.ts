@@ -162,7 +162,7 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		writeFileSync(join(hidden, 'token'), 'hidden-token');
 		const secrets = session();
 		secrets.confine(sandboxPrefix({ checkout: ROOT, hidden: [hidden], internet: false }));
-		return { secrets, read: `cat ${join(hidden, 'token')}` };
+		return { secrets, read: `cat '${join(hidden, 'token').replaceAll('\\', '/')}'` };
 	}
 
 	it('runs every command inside the sandbox, with its secrets', async () => {

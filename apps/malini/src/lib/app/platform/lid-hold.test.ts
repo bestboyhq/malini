@@ -4,6 +4,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it, vi } from 'vitest';
+import { openMigratedDatabase } from '$main/db/open';
 import { describeError } from '$main/errors';
 import { createNodeProcessRunner, runBounded, type BoundedRun } from '$main/process/runner';
 import {
@@ -21,14 +22,28 @@ import {
 	powerSupplies,
 	readLidAction,
 	sleepDisabled,
+	startLidHold,
 	startLidWatchdog,
 	writeLidAction,
 	type LidAction,
 } from './lid-hold';
+import { createTestContext } from './test-support';
 
 const BALANCED = '381b4222-f694-41f0-9685-ff5bb260df2e';
 const LOGIND = spawnSync('systemd-inhibit', ['--list', '--no-pager']).status === 0;
 const WINDOWS_CI = process.platform === 'win32' && process.env['CI'] === 'true';
+
+function windowsLidAction(): boolean {
+	const { powercfg } = lidTools(true, process.env);
+	const query = (args: readonly string[]): string =>
+		spawnSync(powercfg, args, { encoding: 'utf8' }).stdout ?? '';
+	const scheme = activeScheme(query(['/getactivescheme']));
+	return (
+		scheme !== null && lidActionValues(query(['/q', scheme, 'SUB_BUTTONS', 'LIDACTION'])) !== null
+	);
+}
+
+const WINDOWS_LID = WINDOWS_CI && windowsLidAction();
 
 function lidQuery({ ac, dc }: Readonly<{ ac: number; dc: number }>): string {
 	const index = (value: number): string => `0x${value.toString(16).padStart(8, '0')}`;
@@ -231,6 +246,43 @@ describe('the lid hold on Windows', () => {
 		expect(script).toContain("$saved[0] -eq '7'");
 	});
 
+	it.skipIf(process.platform === 'win32')(
+		'offers no lid hold while the active plan has no lid close action',
+		async () => {
+			const root = mkdtempSync(join(tmpdir(), 'malini-lid-plan-'));
+			const tools = lidTools(false, { MALINI_LID_TOOLS: root });
+			const plan = (query: string): void =>
+				writeFileSync(
+					tools.powercfg,
+					`#!/bin/sh\nif [ "$1" = /getactivescheme ]; then\n\techo 'Power Scheme GUID: ${BALANCED}  (Balanced)'\nelse\n\tcat <<'QUERY'\n${query}\nQUERY\nfi\n`,
+					{ mode: 0o755 },
+				);
+			const available = async (): Promise<boolean> => {
+				const hold = startLidHold(
+					createTestContext(root, { db: openMigratedDatabase(':memory:') }),
+					createNodeProcessRunner(),
+					tools,
+					'win32',
+				);
+				try {
+					return (await hold.state()).available;
+				} finally {
+					await hold.stop();
+				}
+			};
+
+			try {
+				plan('Current AC Power Setting Index: 0x00000001');
+				expect(await available()).toBe(false);
+
+				plan(lidQuery({ ac: 1, dc: 2 }));
+				expect(await available()).toBe(true);
+			} finally {
+				rmSync(root, { recursive: true, force: true });
+			}
+		},
+	);
+
 	it('writes the lid close action, checks it and applies it to the active plan', async () => {
 		const powercfg = fakePowercfg(false);
 		await writeLidAction(powercfg.run, { scheme: BALANCED, ac: 0, dc: 0 });
@@ -245,7 +297,7 @@ describe('the lid hold on Windows', () => {
 	});
 });
 
-describe.runIf(WINDOWS_CI)('the lid hold with the real powercfg', () => {
+describe.runIf(WINDOWS_LID)('the lid hold with the real powercfg', () => {
 	const tools = lidTools(true, process.env);
 	const runner = createNodeProcessRunner();
 	const powercfg = (args: readonly string[]): Promise<BoundedRun> =>

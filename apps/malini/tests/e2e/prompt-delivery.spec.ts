@@ -54,8 +54,10 @@ test('⌘↵ sends a prompt ahead of one still waiting for the last turn to fini
 		const sessionId = await chatWithOneReply(app, 'e2e-steer-waiting-ws');
 		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
 		await expect
-			.poll(async () =>
-				(await listEvents(page, sessionId)).filter(({ event }) => event.type === 'run.completed'),
+			.poll(
+				async () =>
+					(await listEvents(page, sessionId)).filter(({ event }) => event.type === 'run.completed'),
+				{ timeout: 30_000 },
 			)
 			.toHaveLength(2);
 		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
@@ -123,8 +125,10 @@ test('a prompt sent ahead of a reply that keeps running says it waits, then runs
 		await selectChat(page, chatA);
 		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
 		await expect
-			.poll(async () =>
-				(await listEvents(page, chatA)).filter(({ event }) => event.type === 'run.completed'),
+			.poll(
+				async () =>
+					(await listEvents(page, chatA)).filter(({ event }) => event.type === 'run.completed'),
+				{ timeout: 30_000 },
 			)
 			.toHaveLength(2);
 

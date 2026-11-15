@@ -23,7 +23,11 @@ Electron before 44.5.0 drew a grey border around a frameless window on a Linux d
   `DEFAULT_TINT` in `window.ts` paints the first frame before the renderer reports: `#161413` and `#b8b5b2` dark, `#ede9e7` and `#42403f` light.
 - **Nothing sits under the controls.**
   `base.css` sets `--native-traffic-light-clearance` to `env(titlebar-area-x)` plus 12 px, and `--native-caption-clearance` to the width right of `env(titlebar-area-width)`, off macOS only.
-  `TopBar.svelte` pads its right end by the caption clearance, and the docked inspector's top bar part gives up the same width.
+  `TopBar.svelte` pads its right end by the caption clearance, which clears every control in the bar at once.
+  Off macOS the GitHub status also stops docking over the inspector, because that corner belongs to the OS.
+  The padding already moves the dock clear of the caption buttons, so giving up the caption width a second time took it away twice.
+  A closed inspector docks at 288 px, and Windows's three caption buttons cut that to about 150 px, too little for the status and a button beside it, so the status collapsed to zero width.
+  `dockWidth` in `TopBar.svelte` is the inspector's width on macOS and `null` everywhere else, so off macOS the status stays the pill the top bar shows with no inspector.
 - **The menu opens from one button (amends 0248).**
   Off macOS the window has no menu bar, and `applicationMenu()` in `src/lib/app/platform/menu.ts` stays the application menu, so its accelerators stay registered.
   `AppMenuButton.svelte` sits at the top bar's left end, where macOS has its traffic lights: an icon button named **Menu**, with the same tooltip and `aria-haspopup="menu"`.
@@ -45,6 +49,7 @@ Electron before 44.5.0 drew a grey border around a frameless window on a Linux d
 - Windows and Linux show one bar like macOS, and the controls follow the theme.
 - A menu bar's mnemonics are gone: **Alt+F** opens nothing, and Alt alone opens the whole menu, where the arrow keys move.
 - A new top bar control must stay clear of the caption buttons.
+- Off macOS the inspector gets no dock above it, and the GitHub status sits in the top bar as it does with the inspector closed.
 - macOS keeps every option, pixel and menu it had.
 - On Linux the popup menu takes the desktop's GTK colors, not Malini's theme.
   `nativeTheme.themeSource` reaches the page and the window controls but not GTK, so a dark Malini on a light desktop opens a light menu, and a dark desktop opens a dark one.

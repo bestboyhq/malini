@@ -100,6 +100,7 @@ import {
 	type SandboxPlaces,
 } from '../sandbox.js';
 import { sandboxDenials, type SandboxDenialSource } from '../sandbox-denials.js';
+import { windowsSandboxTemp } from '../sandbox/windows.js';
 import { isRecord } from '../type-guards.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
@@ -840,6 +841,8 @@ export class ClaudeSession implements ProviderHandle {
 			? { checkout: this.#context.cwd, hidden, internet: boundary?.internet ?? true }
 			: null;
 		this.#confine();
+		const windowsTemp =
+			process.platform === 'win32' && this.#places ? windowsSandboxTemp(this.#context.cwd) : null;
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
@@ -852,6 +855,7 @@ export class ClaudeSession implements ProviderHandle {
 				...claudeEnvironment(this.#context.env),
 				CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
 				...(process.platform === 'win32' ? {} : { CLAUDE_CODE_SHELL: claudeShell() }),
+				...(windowsTemp ? { CLAUDE_CODE_TMPDIR: windowsTemp } : {}),
 				CLAUDE_CODE_SHELL_PREFIX: this.#secrets.runScript,
 				...(theme ? { MALINI_THEME: theme } : {}),
 				...(boundary ? boundaryEnvironment(boundary) : {}),

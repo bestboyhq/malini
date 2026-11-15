@@ -475,8 +475,18 @@ function linuxLid({ tool, tools, lost }: DriverContext): LidDriver {
 
 function windowsLid({ tool, tools, marker }: DriverContext): LidDriver {
 	const powercfg = (args: readonly string[]): Promise<BoundedRun> => tool(tools.powercfg, args);
+	let lid: Promise<boolean> | undefined;
 	let watching = false;
 	let unblock: (() => void) | null = null;
+	const listed = async (): Promise<boolean> => {
+		try {
+			await readLidAction(powercfg);
+			return true;
+		} catch {
+			return false;
+		}
+	};
+	const available = (): Promise<boolean> => (lid ??= listed());
 	const watch = (): void => {
 		if (watching) return;
 		watching = true;
@@ -487,8 +497,9 @@ function windowsLid({ tool, tools, marker }: DriverContext): LidDriver {
 	};
 
 	return {
-		available: async () => true,
+		available,
 		switchOn: async () => {
+			if (!(await available())) throw new Error('this power plan has no lid close action');
 			await writeLidAction(powercfg, await readLidAction(powercfg));
 			return true;
 		},

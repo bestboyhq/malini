@@ -1030,6 +1030,34 @@ describe('reading a workstream while its files change', () => {
 			['warn', 'repositories.workstream-snapshot'],
 		]);
 	});
+
+	it('records a read of a deleted workstream as a warning', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-deleted');
+		const { commands, db, invoke } = harness(dir);
+		const diagnostics = new MainDiagnosticsLog({
+			appDataRoot: dir,
+			runtime: { productName: 'Malini', bundleIdentifier: 'test', version: '0.0.0', pid: 1 },
+		});
+		commands.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+		seed(db, 'ws-deleted', base, checkout);
+
+		await invoke('repositories.delete-workstream', { workstreamId: 'ws-deleted' });
+		const read = await commands.invoke({
+			command: 'repositories.workstream-status',
+			args: { workstreamId: 'ws-deleted' },
+		});
+
+		expect(read.ok).toBe(false);
+		const recorded = (await readFile(currentLogPath(diagnosticsDirectory(dir), 'main'), 'utf8'))
+			.trim()
+			.split('\n')
+			.map((line) => JSON.parse(line) as { level: string; command: string });
+		expect(recorded.map(({ level, command }) => [level, command])).toEqual([
+			['warn', 'repositories.workstream-status'],
+		]);
+	});
 });
 
 describe('your open pull requests from another Mac', () => {

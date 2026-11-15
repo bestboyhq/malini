@@ -518,6 +518,9 @@ describe('ClaudeSession', () => {
 		expect(environment['CLAUDE_CODE_SHELL']).toEqual(
 			WINDOWS ? undefined : expect.stringMatching(/(?:bash|zsh)$/u),
 		);
+		expect(environment['CLAUDE_CODE_TMPDIR']).toEqual(
+			WINDOWS ? join(CONTEXT.cwd, '.malini', 'sandbox', 'tmp') : undefined,
+		);
 	});
 
 	it('masks a saved secret in a tool output before Claude reads it', async () => {
@@ -1484,7 +1487,11 @@ describe('ClaudeSession', () => {
 		});
 
 		it('opens a folder a tool keeps its state in without a card', async () => {
-			const state = join(homedir(), 'Library/Application Support/docker');
+			const roots: Partial<Record<typeof process.platform, string>> = {
+				darwin: 'Library/Application Support',
+				win32: 'AppData/Roaming',
+			};
+			const state = join(homedir(), roots[process.platform] ?? '.local/state', 'docker');
 			const feed = denialFeed();
 			const { session, claude, events } = harness([[...recordedScript('readAndBash')]], {
 				denials: feed,

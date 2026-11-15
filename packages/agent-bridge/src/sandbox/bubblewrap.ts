@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import type { SandboxDenial, SandboxEngine, SandboxProblem, SandboxRules } from '../sandbox.js';
 
 const BWRAP = 'bwrap';
@@ -57,14 +57,26 @@ function prefix(rules: SandboxRules): string[] {
 		BWRAP,
 		...BASE,
 		...(rules.internet ? [] : ['--unshare-net']),
-		...rules.write.flatMap((path) => ['--bind-try', path, path]),
-		...rules.readOnly.flatMap((path) => ['--ro-bind-try', path, path]),
-		...[...rules.closed, ...DISPLAY_FOLDERS].flatMap(hide),
-		...SERVICE_SOCKETS.flatMap(cover),
-		...(runtime && existsSync(runtime) ? ['--tmpfs', runtime] : []),
-		...rules.sockets.flatMap((path) => ['--bind-try', path, path]),
+		...resolved(rules.write).flatMap((path) => ['--bind-try', path, path]),
+		...resolved(rules.readOnly).flatMap((path) => ['--ro-bind-try', path, path]),
+		...resolved([...rules.closed, ...DISPLAY_FOLDERS]).flatMap(hide),
+		...resolved(SERVICE_SOCKETS).flatMap(cover),
+		...(runtime && existsSync(runtime) ? ['--tmpfs', real(runtime)] : []),
+		...resolved(rules.sockets).flatMap((path) => ['--bind-try', path, path]),
 		'--',
 	];
+}
+
+function resolved(paths: readonly string[]): string[] {
+	return [...new Set(paths.map(real))];
+}
+
+function real(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
+	}
 }
 
 function hide(path: string): string[] {

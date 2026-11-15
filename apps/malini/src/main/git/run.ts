@@ -58,12 +58,32 @@ function withoutFsmonitor(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 	};
 }
 
+const CONFIG_FILE_RACE_ATTEMPTS = 3;
+const CONFIG_FILE_RACE_SETTLE_MS = 50;
+const CONFIG_FILES_UNREADABLE = /unknown error occurred while reading the configuration files/u;
+
+function lostTheConfigFileRace(result: SpawnedGit): boolean {
+	return result.exitCode !== 0 && CONFIG_FILES_UNREADABLE.test(result.stderr.toString('utf8'));
+}
+
 async function spawnGit(
 	args: readonly string[],
 	env: GitEnv,
 	limits: { maxStdoutBytes?: number; input?: string },
 ): Promise<SpawnedGit> {
 	await gitInstall;
+	for (let attempt = 1; ; attempt += 1) {
+		const result = await spawnGitOnce(args, env, limits);
+		if (attempt >= CONFIG_FILE_RACE_ATTEMPTS || !lostTheConfigFileRace(result)) return result;
+		await new Promise((settled) => setTimeout(settled, CONFIG_FILE_RACE_SETTLE_MS * attempt));
+	}
+}
+
+function spawnGitOnce(
+	args: readonly string[],
+	env: GitEnv,
+	limits: { maxStdoutBytes?: number; input?: string },
+): Promise<SpawnedGit> {
 	return new Promise((resolve, reject) => {
 		let child;
 		try {

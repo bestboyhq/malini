@@ -155,6 +155,33 @@ describe('runGit', () => {
 		});
 	}, 30_000);
 
+	it('runs git again when a config file could not be read, and reports one that never can', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		await initRealRepo(dir);
+		const aside = await tempDir();
+		cleanups.push(() => removeDir(aside));
+		const unreadable = join(aside, 'config-is-a-directory');
+		await mkdir(unreadable, { recursive: true });
+		const trace = join(aside, 'git-trace.log');
+
+		const failure = await runGit(['-C', dir, 'rev-parse', '--git-dir'], {
+			GIT_CONFIG_GLOBAL: unreadable,
+			GIT_TRACE: trace,
+		}).catch((error: unknown) => error);
+
+		expect(failure).toMatchObject({
+			kind: 'git',
+			exitCode: 128,
+			cause: {
+				message: expect.stringContaining(
+					'unknown error occurred while reading the configuration files',
+				),
+			},
+		});
+		expect((await readFile(trace, 'utf8')).match(/built-in: git rev-parse/gu)).toHaveLength(3);
+	});
+
 	it('keeps a repository planted in the checkout from running its own fsmonitor', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

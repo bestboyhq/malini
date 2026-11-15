@@ -31,6 +31,7 @@ The text agents read named the Mac on every OS: the event descriptions `events_l
   - The floor reads `/sys/class/power_supply`: a system battery, not a `Device` one, discharging, with a mean capacity of 5% or less.
 - Windows:
   - `powercfg /getactivescheme` names the active plan by GUID, which no language changes, and `powercfg /q <plan> SUB_BUTTONS LIDACTION` gives the lid close action as its last two `0x` values, mains then battery.
+  - A plan with no lid close action, which is every desktop PC and every VM, means no lid to hold: that read, checked once per launch, makes `available` false, and the page reads "No lid setting in this power plan, so the lid does what it always does."
   - Turning the switch on writes the current values back, so an account that may not change the plan sees the refusal under the switch.
   - Holding, when the plan does not already do nothing on lid close, writes `lid-held` in the data folder (Malini's pid, the plan, both values), sets both to 0 with `/setacvalueindex` and `/setdcvalueindex`, reads them back, and applies them with `/setactive` while the plan is active.
     Releasing writes the saved values back and deletes `lid-held`.
@@ -58,7 +59,7 @@ The text agents read named the Mac on every OS: the event descriptions `events_l
 - On Linux the hold needs systemd-logind and a local session.
   KDE Plasma's PowerDevil takes the lid itself and follows its own setting, which Malini leaves alone.
 - Agent text says Mac, PC or computer by OS, and a new description that names an OS thing uses a placeholder.
-- Enforced by `lid-hold.test.ts`: the parsers, the marker, the watchdog quoting and the read-back check on every OS; on Linux CI, a real `systemd-inhibit` lock in Malini's name and its release, and the lid lock held or refused with logind's reason; on Windows CI, a real `powercfg` round trip, a write from a Basic User token (`runas /trustlevel:0x20000`), and the watchdog restoring the values once the holder dies.
+- Enforced by `lid-hold.test.ts`: the parsers, the marker, the watchdog quoting and the read-back check on every OS; a fake `powercfg` with no lid close action making `available` false on every OS; on Linux CI, a real `systemd-inhibit` lock in Malini's name and its release, and the lid lock held or refused with logind's reason; on a Windows CI runner whose active plan has a lid close action, a real `powercfg` round trip, a write from a Basic User token (`runas /trustlevel:0x20000`), and the watchdog restoring the values once the holder dies.
 - Enforced by `lid-hold.spec.ts` on Linux with a fake `systemd-inhibit`: the refusal under the switch, holding only while a turn runs, letting go when the switch turns off, at quit and when Malini is `SIGKILL`ed, and the line and disabled switch without logind; its Mac tests stay 0177's.
 - Enforced by `os.test.ts` (`osText`), `service.test.ts` (`events_list` words), `permissions.test.ts` (the bridge words) and `pnpm check`, which fails when the generated reference is stale.
 - Amends 0177; 0248's rule that every OS word comes from `osFor` now reaches agent text.

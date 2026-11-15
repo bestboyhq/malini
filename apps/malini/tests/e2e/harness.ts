@@ -467,7 +467,9 @@ async function markSoundsNoted(page: Page): Promise<void> {
 	await invoke(page, 'app.set-setting', { key: 'sounds.noted', value: 'e2e' });
 }
 
-const QUIT_BUDGET_MS = 15_000;
+const APP_SHUTDOWN_BUDGET_MS = 20_000;
+const APP_COMMANDS_CLOSE_BUDGET_MS = 5_000;
+const QUIT_BUDGET_MS = APP_SHUTDOWN_BUDGET_MS + APP_COMMANDS_CLOSE_BUDGET_MS + 5_000;
 
 async function closeOrExplain(
 	electronApp: ElectronApplication,
@@ -897,6 +899,8 @@ function composer(page: Page) {
 	return page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 }
 
+const TYPED_PROMPT_CHARS = 100;
+
 export async function sendPrompt(page: Page, text: string): Promise<void> {
 	const input = composer(page);
 	await expect(input).toBeVisible({ timeout: 20_000 });
@@ -904,7 +908,8 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
 	const box = await input.boundingBox();
 	if (!box) throw new Error('the composer is not laid out');
 	await input.click({ position: { x: box.width - 4, y: box.height / 2 } });
-	await page.keyboard.type(text, { delay: 10 });
+	if (text.length > TYPED_PROMPT_CHARS) await page.keyboard.insertText(text);
+	else await page.keyboard.type(text, { delay: 10 });
 	const submit = page.getByTestId('chat-composer-submit');
 	await expect(submit).toBeEnabled({ timeout: 15_000 });
 	await submit.click();

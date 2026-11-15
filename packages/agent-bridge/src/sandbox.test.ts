@@ -1,5 +1,5 @@
 import { execFile, execFileSync, spawn } from 'node:child_process';
-import { globSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { globSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
@@ -269,6 +269,18 @@ describe.runIf(canSandbox() && LINUX)('bubblewrap', () => {
 		expect(await run(`touch ${granted}/state`)).not.toBe(0);
 		expect(await run(`touch ${granted}/state`, { grants })).toBe(0);
 		expect(await run(`touch ${granted}/.git/hooks/pre-commit`, { grants })).not.toBe(0);
+	});
+
+	it('hides a folder reached through a symlinked parent', async () => {
+		const target = join(LINUX_HOME, '.real/keys');
+		const link = join(LINUX_HOME, 'link');
+		mkdirSync(target, { recursive: true });
+		writeFileSync(join(target, 'id_ed25519'), 'key');
+		symlinkSync(join(LINUX_HOME, '.real'), link);
+		const hidden = [join(link, 'keys')];
+
+		expect(await run('true', { hidden })).toBe(0);
+		expect(await run(`cat '${join(link, 'keys/id_ed25519')}'`, { hidden })).not.toBe(0);
 	});
 
 	it('reaches only the processes of its own sandbox', async () => {
