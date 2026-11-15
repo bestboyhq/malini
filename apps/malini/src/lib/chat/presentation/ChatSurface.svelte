@@ -94,7 +94,6 @@
 		workstreamsCard: Snippet<[readonly string[]]>;
 		afterRun: Snippet<[string]>;
 		notice?: Snippet | undefined;
-		gutterAway?: number;
 	}
 
 	let {
@@ -106,7 +105,6 @@
 		workstreamsCard,
 		afterRun,
 		notice,
-		gutterAway = 0,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -452,9 +450,6 @@
 
 					<div
 						class="transcript-stage relative min-h-0 flex-1"
-						style:left={gutterAway > 0
-							? `${(gutterAway * splitInset.secondarySize) / 2}px`
-							: undefined}
 						aria-busy={presentationPending}
 						data-session-switching={presentationPending ? 'true' : undefined}
 					>

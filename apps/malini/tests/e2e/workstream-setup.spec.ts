@@ -276,8 +276,8 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 		const watched = await headlineOverlaps();
 		expect(watched.texts.some((text) => text.startsWith('Setting up'))).toBe(true);
 		expect(watched.overlaps).toEqual([]);
-		await expect(page.getByTestId('extension-inspector-gutter')).toBeHidden();
-		await expect(page.getByTestId('global-topbar-github-headline')).toBeHidden();
+		await expect(page.getByTestId('extension-inspector-gutter')).toBeVisible();
+		await expect(page.getByTestId('global-topbar-github-headline')).toBeVisible();
 		await captureFlow(app, 'workstream-setup-failed');
 
 		chmodSync(lockedDirectory, 0o755);

@@ -53,7 +53,6 @@ describe('WorkstreamProvisioningAggregate', () => {
 		expect(aggregate.get('01JWORKSTREAMA')).toBeNull();
 		expect(aggregate.hasPendingWorktree('01JWORKSTREAMA')).toBe(false);
 		expect(aggregate.isProvisioning('01JWORKSTREAMA')).toBe(false);
-		expect(aggregate.madeHere('01JWORKSTREAMA')).toBe(true);
 	});
 
 	it('has its worktree while it syncs the base, though setup is still running', () => {
@@ -131,7 +130,6 @@ describe('WorkstreamProvisioningAggregate', () => {
 
 		aggregate.reset();
 		expect(aggregate.listPending()).toEqual([]);
-		expect(aggregate.madeHere('01JWORKSTREAMB')).toBe(false);
 	});
 
 	it('clamps clone fractions into whole percent', () => {

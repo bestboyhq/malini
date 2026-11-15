@@ -1,4 +1,3 @@
-import { SvelteSet } from 'svelte/reactivity';
 import type { InstallOutcomeResult } from '$contract/system';
 import {
 	installNoticeAt,
@@ -15,10 +14,7 @@ import {
 export class WorkstreamProvisioningAggregate {
 	records = $state<Readonly<Record<string, WorkstreamProvisioningRecord>>>({});
 
-	readonly #madeHere = new SvelteSet<string>();
-
 	begin(plan: WorkstreamProvisioningPlan): void {
-		this.#madeHere.add(plan.workstreamId);
 		const existing = this.records[plan.workstreamId];
 		this.#write(plan.workstreamId, {
 			plan,
@@ -77,10 +73,6 @@ export class WorkstreamProvisioningAggregate {
 		return workstreamNativeExistence(this.get(workstreamId)) !== 'platform';
 	}
 
-	madeHere(workstreamId: string): boolean {
-		return this.#madeHere.has(workstreamId);
-	}
-
 	isProvisioning(workstreamId: string): boolean {
 		return this.get(workstreamId)?.failure === null;
 	}
@@ -104,7 +96,6 @@ export class WorkstreamProvisioningAggregate {
 
 	reset(): void {
 		this.records = {};
-		this.#madeHere.clear();
 	}
 
 	#write(workstreamId: string, record: WorkstreamProvisioningRecord): void {

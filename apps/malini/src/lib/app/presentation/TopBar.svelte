@@ -81,7 +81,6 @@
 		actions.filter((action) => globalTopBarActionMatchesPathname(action, targetPathname)),
 	);
 	const dockWidth = $derived(inspectorDock.width);
-	const dockAway = $derived(inspectorDock.away);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubOwner = $derived(globalTopBarGithubStatus.owner);
 	const githubPanelHeadline = $derived(
@@ -402,12 +401,8 @@
 	<div
 		class="topbar-right"
 		data-docked={dockWidth === null ? undefined : ''}
-		data-dock-away={dockWidth !== null && (dockAway.gone || dockAway.offset > 0) ? '' : undefined}
-		data-dock-gone={dockWidth !== null && dockAway.gone ? '' : undefined}
 		data-inspector-dock
-		style={dockWidth === null
-			? undefined
-			: `--dock-width: ${dockWidth}px; --dock-away: ${dockAway.offset}px;`}
+		style={dockWidth === null ? undefined : `--dock-width: ${dockWidth}px;`}
 		data-testid="global-topbar-right"
 	>
 		{#each visibleActions as action (action.id)}
@@ -796,12 +791,7 @@
 		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-50);
 		padding: 0 16px 24px;
 		position: relative;
-		left: var(--dock-away);
 		isolation: isolate;
-	}
-
-	.topbar-right[data-dock-gone] {
-		visibility: hidden;
 	}
 
 	.topbar-right[data-docked]::before {
@@ -820,24 +810,7 @@
 		pointer-events: none;
 	}
 
-	.topbar-right[data-docked]:not(:has(> *)) {
-		display: none;
-	}
-
-	.topbar-right[data-docked] {
-		transition-property: opacity, translate;
-		transition-duration: 240ms;
-		transition-timing-function: var(--ease-out);
-	}
-
-	@starting-style {
-		.topbar-right[data-docked]:not([data-dock-away]) {
-			opacity: 0;
-			translate: 0 8px;
-		}
-	}
-
-	.topbar-right:not([data-docked]) .topbar-git {
+	.topbar-git {
 		animation: topbar-status-enter 240ms var(--ease-out);
 	}
 
@@ -849,10 +822,6 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.topbar-right[data-docked] {
-			transition-property: opacity;
-		}
-
 		@keyframes topbar-status-enter {
 			from {
 				opacity: 0;
@@ -1036,14 +1005,6 @@
 		.topbar-git
 		> :global(:last-child:not(.topbar-git__action-slot)) {
 		margin-right: 6px;
-	}
-
-	.topbar-right:not([data-docked]) .topbar-git__text {
-		flex-wrap: nowrap;
-	}
-
-	.topbar-right:not([data-docked]) .topbar-git__meta {
-		flex-basis: auto;
 	}
 
 	.topbar-git__status,
