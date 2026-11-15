@@ -114,8 +114,11 @@
 		class="border-surface-100-border mt-3 min-w-0 rounded-xl border-[1px] border-dashed px-1.5 pt-0.5 pb-1.5"
 		data-testid="workstream-suggestions"
 	>
-		<legend class="text-fg-tertiary ml-2 flex items-center gap-2.5 px-1 text-sm">
-			<span class="grid size-5 place-items-center" aria-hidden="true">
+		<legend class="text-fg-tertiary ml-1.75 flex items-center gap-2.5 px-1 text-sm">
+			<span
+				class="bg-surface-root relative grid size-5 place-items-center rounded-full"
+				aria-hidden="true"
+			>
 				<span class="bg-surface-root size-2.5 rounded-full border-[1px] border-current"></span>
 			</span>
 			Quick suggestions

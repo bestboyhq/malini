@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { onMount, type Snippet } from 'svelte';
+	import { onMount, untrack, type Snippet } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion, Tween } from 'svelte/motion';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
-	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
+	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
@@ -59,18 +61,30 @@
 	const automationRuns = $derived(automations.flatMap((entry) => (entry.run ? [entry.run] : [])));
 	const gutterWaits = $derived(
 		provisioningRecordQuery.madeHere(workstreamId) &&
-			recentChatsQuery.data(workstreamId).length === 0 &&
+			workstreamChatsQuery.data(workstreamId).length === 0 &&
 			workstream?.branch === workstreamBranch(workstreamId) &&
 			!changeTotalsQuery.data[workstreamId]?.files &&
 			!hostsBrowser &&
 			automations.length === 0 &&
 			!inspectorDrawer.isOpen(workstreamId),
 	);
+	const gutterAway = new Tween(
+		untrack(() => (gutterWaits ? 1 : 0)),
+		{ easing: cubicOut },
+	);
+	let gutterAwayFor = untrack(() => workstreamId);
+
+	$effect(() => {
+		const away = gutterWaits ? 1 : 0;
+		const pushes = workstreamId === gutterAwayFor && !prefersReducedMotion.current;
+		gutterAwayFor = workstreamId;
+		void gutterAway.set(away, { duration: pushes ? 240 : 0 });
+	});
 
 	onMount(() => {
 		loadAutomationsCommand();
 		const stopWatching = watchAutomationsHook();
-		const letGo = inspectorDock.holdWhile(() => gutterWaits);
+		const letGo = inspectorDock.holdWhile(() => gutterAway.current > 0);
 		return () => {
 			stopWatching();
 			letGo();
@@ -106,6 +120,7 @@
 			{workstreamId}
 			{pullRequestShipped}
 			{automationRuns}
+			gutterAway={gutterAway.current}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
@@ -128,9 +143,10 @@
 	{#snippet secondary()}
 		<div
 			class={[
-				'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden',
-				gutterWaits && 'invisible',
+				'relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden',
+				gutterAway.current === 1 && 'invisible',
 			]}
+			style:left={gutterAway.current > 0 ? `${gutterAway.current * 100}%` : undefined}
 		>
 			{@render children()}
 		</div>
