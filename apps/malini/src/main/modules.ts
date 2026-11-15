@@ -112,6 +112,9 @@ export async function registerModules(
 	const pullRequests = registerPullRequests(context, {
 		runner: repositories.gh,
 		chef: () => stats.chef(),
+		deliver: async (wake) => {
+			await chat.deliver({ ...wake, kind: 'report' });
+		},
 	});
 
 	registerScratchpad(context);

@@ -16,7 +16,7 @@ const OUTSIDE_THE_WATCH = [
 	/(^|\/)tsconfig[^/]*\.json$/,
 	/^apps\/malini\/(electron\.vite\.config\.ts|svelte\.config\.mjs)$/,
 	/^packages\/agent-bridge\/scripts\//,
-	/^apps\/malini\/scripts\/(dogfood|dev-bundle)\.mjs$/,
+	/^apps\/malini\/scripts\/(dogfood|dev-bundle|fetch-rtk)\.mjs$/,
 ];
 
 /**
@@ -80,9 +80,17 @@ function start() {
 	if (dependenciesStale) {
 		try {
 			execFileSync('pnpm', ['install'], { cwd: appRoot, stdio: 'inherit' });
+			execFileSync(
+				process.execPath,
+				['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', 'scripts/fetch-rtk.mjs'],
+				{
+					cwd: appRoot,
+					stdio: 'inherit',
+				},
+			);
 			dependenciesStale = false;
 		} catch (error) {
-			say(`pnpm install failed: ${describe(error)}`);
+			say(`could not install the dependencies: ${describe(error)}`);
 		}
 	}
 	const child = spawn('pnpm', ['dev'], {

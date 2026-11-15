@@ -6,6 +6,8 @@ import type {
 	ReviewThreadDto,
 } from '$contract/repositories';
 import {
+	CHECKS_RERUN_GRACE_MS,
+	CHECKS_WATCH_MS,
 	DEFAULT_SHIP_DELAYS,
 	addressedChangeRequests,
 	clampedFixAttempts,
@@ -149,6 +151,8 @@ function queued(overrides: Fixture = {}): ShippingSnapshot {
 		fixSucceededAt: null,
 		fixAttempts: new Map(),
 		fixAttemptLimit: 3,
+		checksWatchedSince: null,
+		fixesDraftChecks: false,
 		backoffUntil: null,
 		waitsForYou: false,
 		now: 1_000,
@@ -191,9 +195,15 @@ describe('a draft workstream', () => {
 		expect(nextShippingMove(draft())).toEqual({ kind: 'idle', problem: null });
 	});
 
-	it('never fixes anything: a failing pull request in a draft only gets pushes', () => {
+	it('fixes nothing while no push of its own is in flight, even with Fix checks on', () => {
+		const failing = pullRequest({ draft: true, checksState: 'failed' });
 		expect(
-			nextShippingMove(draft({ pullRequest: pullRequest({ checks: [check('test', 'FAILURE')] }) })),
+			nextShippingMove(
+				draft({
+					fixesDraftChecks: true,
+					pullRequest: { ...failing, checks: [check('test', 'FAILURE')] },
+				}),
+			),
 		).toEqual({ kind: 'idle', problem: null });
 	});
 
@@ -218,6 +228,163 @@ describe('a draft workstream', () => {
 		).toEqual({
 			kind: 'idle',
 			problem: 'A rebase is in progress in this workstream. Finish or abort it, then try again.',
+		});
+	});
+});
+
+describe("a draft's checks after Malini pushes to it", () => {
+	const PUSHED = 1_000;
+	const UNTIL = PUSHED + CHECKS_WATCH_MS;
+	const IDLE = { kind: 'idle', problem: null };
+	const running = [check('test', null, 'IN_PROGRESS')];
+	const onDraft = (overrides: Partial<PullRequestStatusDto> = {}) =>
+		pullRequest({ draft: true, checksState: 'pending', checks: running, ...overrides });
+	const watching = (overrides: Fixture = {}): ShippingSnapshot =>
+		queued({
+			phase: 'draft',
+			checksWatchedSince: PUSHED,
+			now: PUSHED + 1_000,
+			pullRequest: onDraft(),
+			...overrides,
+		});
+
+	it('reads the pull request before it decides anything', () => {
+		expect(nextShippingMove(watching({ pullRequest: null }))).toEqual({
+			kind: 'read-pull-request',
+		});
+	});
+
+	it('waits for the pushed head to report, for at most an hour', () => {
+		expect(nextShippingMove(watching())).toEqual({
+			kind: 'wait',
+			step: 'waiting-for-checks',
+			until: UNTIL,
+		});
+		expect(nextShippingMove(watching({ pushRequested: true }))).toEqual({
+			kind: 'wait',
+			step: 'waiting-for-checks',
+			until: UNTIL,
+		});
+		expect(nextShippingMove(watching({ now: UNTIL }))).toEqual(IDLE);
+	});
+
+	it('names a wait on checks it re-ran as a re-run', () => {
+		expect(
+			nextShippingMove(
+				watching({
+					failureSignature: 'checks:["test"]',
+					checksRerun: { headSha: 'a'.repeat(40), at: PUSHED },
+				}),
+			),
+		).toEqual({ kind: 'wait', step: 'rerunning-checks', until: UNTIL });
+	});
+
+	it('stops once the checks settle, the draft is no longer a draft, or a new commit waits', () => {
+		expect(
+			nextShippingMove(
+				watching({
+					pullRequest: onDraft({ checksState: 'success', checks: [check('test', 'SUCCESS')] }),
+				}),
+			),
+		).toEqual(IDLE);
+		expect(nextShippingMove(watching({ pullRequest: onDraft({ draft: false }) }))).toEqual(IDLE);
+		expect(nextShippingMove(watching({ worktree: { ...worktree, ahead: 1 } }))).toEqual(IDLE);
+	});
+
+	it('leaves failing checks to you while Fix checks does not run on its own', () => {
+		expect(
+			nextShippingMove(
+				watching({
+					pullRequest: onDraft({ checksState: 'failed', checks: [check('test', 'FAILURE')] }),
+				}),
+			),
+		).toEqual(IDLE);
+	});
+});
+
+describe('failing checks on a draft, with Fix checks on its own', () => {
+	const PUSHED = 1_000;
+	const SIGNATURE = 'checks:["test"]';
+	const job = {
+		...check('test', 'FAILURE'),
+		url: 'https://github.com/acme/app/actions/runs/42/job/7',
+		completedAt: new Date(5_000).toISOString(),
+	};
+	const failing = (overrides: Fixture = {}): ShippingSnapshot =>
+		queued({
+			phase: 'draft',
+			checksWatchedSince: PUSHED,
+			fixesDraftChecks: true,
+			now: PUSHED + 1_000,
+			pullRequest: pullRequest({ draft: true, checksState: 'failed', checks: [job] }),
+			...overrides,
+		});
+
+	it('re-runs the failed Actions job once, then starts Fix checks', () => {
+		expect(nextShippingMove(failing())).toEqual({
+			kind: 'rerun-checks',
+			signature: SIGNATURE,
+			headSha: 'a'.repeat(40),
+			runIds: ['42'],
+		});
+		expect(
+			nextShippingMove(
+				failing({
+					failureSignature: SIGNATURE,
+					checksRerun: { headSha: 'a'.repeat(40), at: 2_000 },
+					now: 2_000 + CHECKS_RERUN_GRACE_MS,
+				}),
+			),
+		).toEqual({ kind: 'run-automation', builtin: 'fix-checks', signature: SIGNATURE, attempt: 1 });
+	});
+
+	it('fixes again when the fix did not hold, and never while a chat is on a turn', () => {
+		const fixed = { failureSignature: SIGNATURE, fixAttempts: new Map([[SIGNATURE, 1]]) };
+		expect(nextShippingMove(failing({ ...fixed, fixSucceededAt: 3_000 }))).toEqual({
+			kind: 'run-automation',
+			builtin: 'fix-checks',
+			signature: SIGNATURE,
+			attempt: 2,
+		});
+		expect(nextShippingMove(failing({ ...fixed, idle: false }))).toEqual({
+			kind: 'wait',
+			step: 'waiting-for-agent',
+		});
+	});
+
+	it('never fixes over uncommitted work, nor a check that never started', () => {
+		expect(nextShippingMove(failing({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } }))).toEqual({
+			kind: 'idle',
+			problem: null,
+		});
+		expect(
+			nextShippingMove(
+				failing({
+					pullRequest: pullRequest({
+						draft: true,
+						checksState: 'failed',
+						checks: [{ ...job, notStartedReason: 'billing' }],
+					}),
+				}),
+			),
+		).toEqual({ kind: 'idle', problem: null });
+	});
+
+	it('gives up at the cap for the same failure, and never marks the draft ready', () => {
+		expect(
+			nextShippingMove(
+				failing({
+					failureSignature: SIGNATURE,
+					fixAttempts: new Map([[SIGNATURE, 3]]),
+					fixSucceededAt: 3_000,
+				}),
+			),
+		).toEqual({
+			kind: 'needs-you',
+			reason: 'fix-gave-up',
+			detail: 'Fixing the checks did not work. Malini tried 3 times.',
+			automationRunId: 'automation-last',
+			signature: SIGNATURE,
 		});
 	});
 });
@@ -1070,6 +1237,9 @@ describe('when Malini reads GitHub on its own', () => {
 		expect(ship('local')).toBeNull();
 		expect(ship('draft')).toBeNull();
 		expect(ship('draft', 'waiting-for-github')).toBe(15_000);
+		expect(ship('draft', 'waiting-for-checks')).toBe(45_000);
+		expect(ship('draft', 'rerunning-checks')).toBe(45_000);
+		expect(ship('draft', 'fixing-checks')).toBeNull();
 		expect(ship('queued')).toBe(15_000);
 		expect(ship('queued', 'waiting-for-checks')).toBe(45_000);
 		expect(ship('queued', 'rerunning-checks')).toBe(45_000);

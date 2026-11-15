@@ -9,6 +9,7 @@ import {
 	invoke,
 	launchMalini,
 	listEvents,
+	openActivityGroups,
 	openAutomations,
 	openWorkstream,
 	seedWorkstream,
@@ -33,7 +34,7 @@ function settled(page: Page, text: string) {
 	return page.getByRole('status').filter({ hasText: text });
 }
 
-test('an agent runs the Open draft automation once the user allows it, and the draft opens after its turn ends', async () => {
+test('an agent runs the Open draft automation once the user allows it, the draft opens after its turn ends, and the next run pushes to it unasked', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -58,18 +59,39 @@ test('an agent runs the Open draft automation once the user allows it, and the d
 		expect(github.pullRequest()).toMatchObject({ isDraft: true, title: 'feat: add alpha' });
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
 
+		await sendPrompt(page, 'EDIT:beta.txt MALINI_TOOL COMMIT=fix: add beta');
+		await expect
+			.poll(() => github.pushedSubjects(), { timeout: 30_000 })
+			.toEqual(['fix: add beta', 'feat: add alpha', 'seed']);
+		await expect(decision(page)).toHaveCount(0);
+		await expect(settled(page, 'Allowed once')).toHaveCount(1);
+		expect(github.pullRequest()).toMatchObject({ isDraft: true });
+		await expect(page.getByLabel('Edited alpha.txt', { exact: true })).toBeVisible();
+		await expect(page.getByLabel('Edited beta.txt', { exact: true })).toBeVisible();
+		await captureFlow(app, 'agent-open-draft-pushes-unasked');
+		await openActivityGroups(page);
+		await expect(
+			page.getByLabel('Show input and output for Malini · Automations Run', { exact: true }),
+		).toHaveCount(2);
+		await captureFlow(app, 'agent-open-draft-calls-shown');
+
 		await openAutomations(page, '#/automations/activity');
 		const activity = page.getByTestId('automations-activity');
-		await expect(
-			activity.getByTestId('automation-run-row').filter({ hasText: 'Open draft' }),
-		).toContainText('Started by an agent', { timeout: 20_000 });
-		const turn = activity.getByTestId('chat-turn-row');
-		await expect(turn).toHaveCount(1);
-		await expect(turn).toContainText('Chat');
-		await turn.getByRole('button', { name: /^Show 1 call in / }).click();
-		await expect(activity.getByRole('list', { name: /^Calls in / })).toContainText(
-			'Run automation ‘Open draft’',
-		);
+		const draftRuns = activity.getByTestId('automation-run-row').filter({ hasText: 'Open draft' });
+		await expect(draftRuns).toHaveCount(2, { timeout: 20_000 });
+		await expect(draftRuns.first()).toContainText('Started by an agent');
+		const turns = activity.getByTestId('chat-turn-row');
+		await expect(turns).toHaveCount(2);
+		await expect(turns.first()).toContainText('Chat');
+		for (const turn of await turns.all()) {
+			await turn.getByRole('button', { name: /^Show 1 call in / }).click();
+		}
+		const calls = activity.getByTestId('agent-action-row');
+		await expect(calls).toHaveCount(2);
+		await expect(calls.nth(0)).toContainText('Run automation ‘Open draft’');
+		await expect(calls.nth(0)).not.toContainText('You ');
+		await expect(calls.nth(1)).toContainText('Run automation ‘Open draft’');
+		await expect(calls.nth(1)).toContainText('You allowed it');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

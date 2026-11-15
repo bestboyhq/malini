@@ -34,6 +34,7 @@ async function* turn() {
 
 const approvedRetries = new Set();
 const uncheckedRetries = new Map();
+const askedInputs = new Map();
 const retryKey = (name, input) =>
 	`${name}\u0000${name === 'Bash' ? input.command : JSON.stringify(input)}`;
 const RETRY = { hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true } };
@@ -78,12 +79,32 @@ const run = query({
 		env: { ...process.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' },
 		...(process.env.RESUME ? { resume: process.env.RESUME } : {}),
 		...(process.env.OPS_TOOL ? { mcpServers: { ops } } : {}),
+		...(process.env.REWRITE_HOOK
+			? {
+					settings: {
+						hooks: {
+							PreToolUse: [
+								{
+									matcher: 'Bash',
+									hooks: [
+										{
+											type: 'command',
+											command: `node ${JSON.stringify(join(dirname(fileURLToPath(import.meta.url)), 'rewrite-hook.mjs'))}`,
+										},
+									],
+								},
+							],
+						},
+					},
+				}
+			: {}),
 		hooks: {
 			PreToolUse: [
 				{
 					hooks: [
 						async (input) => {
 							steps.push({ hook: input });
+							askedInputs.set(input.tool_use_id, retryKey(input.tool_name, input.tool_input));
 							if (!approvedRetries.delete(retryKey(input.tool_name, input.tool_input))) return {};
 							return {
 								hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' },
@@ -119,6 +140,9 @@ const run = query({
 					hooks: [
 						async (input) => {
 							steps.push({ hook: input });
+							const rewritten =
+								askedInputs.get(input.tool_use_id) !== retryKey(input.tool_name, input.tool_input);
+							if (input.reason === 'Classifier unavailable' && rewritten) return RETRY;
 							if (input.reason === 'Classifier unavailable') return retryUnchecked(input);
 							if (process.env.DECISION === 'deny') return {};
 							approvedRetries.add(retryKey(input.tool_name, input.tool_input));

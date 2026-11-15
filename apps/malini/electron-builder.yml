@@ -20,6 +20,8 @@ extraResources:
     to: NOTICE
   - from: vendor/gh
     to: vendor/gh
+  - from: vendor/rtk
+    to: vendor/rtk
   - from: build/tray
     to: build/tray
 asar: true

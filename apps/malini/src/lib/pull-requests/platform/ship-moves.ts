@@ -13,9 +13,11 @@ import { describeError, isGhError, isGitError, remoteRefusal, waitsForYou } from
 import { commitLine, workstreamAgentCount, workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	activeShippingAutomationRun,
+	handledEvent,
 	heardBack,
 	automationDefinitions,
 	automationRun,
+	latestAutomationRunOf,
 	latestLoggedEvent,
 	type DispatchedEvent,
 } from '$lib/automations/automations.platform';
@@ -28,6 +30,7 @@ import {
 } from '$shared/repositories/repositories.platform';
 import {
 	checkFixAutomationContext,
+	draftChecksGaveUpReport,
 	reviewFixAutomationContext,
 } from '../domain/pull-request-fix-prompt';
 import {
@@ -56,6 +59,7 @@ import {
 	settleShipRequests,
 	shippingBuiltin,
 	startingAlone,
+	watchDraftChecks,
 	type ShipDeps,
 } from './ship-store';
 import type { ShipTarget } from './ship-target';
@@ -127,7 +131,12 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 	switch (move.kind) {
 		case 'idle':
 			settleShipRequests(deps, row);
-			saveShip(deps, workstreamId, { step: null, ...NO_SHIP_FAILURE, lastError: move.problem });
+			saveShip(deps, workstreamId, {
+				step: null,
+				checksWatchedSince: null,
+				...NO_SHIP_FAILURE,
+				lastError: move.problem,
+			});
 			return;
 		case 'wait':
 			saveShip(deps, workstreamId, { step: move.step });
@@ -143,6 +152,10 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 			saveShip(deps, workstreamId, { step: 'waiting-for-github' });
 			return;
 		case 'needs-you':
+			if (row.phase === 'draft') {
+				await draftNeedsYou(deps, state, move);
+				return;
+			}
 			saveShip(
 				deps,
 				workstreamId,
@@ -192,11 +205,13 @@ async function act(
 		case 'push':
 			saveShip(deps, workstreamId, { step: 'pushing' });
 			await commitAndPush(deps, state, true);
+			if (row.phase === 'draft') watchDraftChecks(deps, workstreamId);
 			deps.reader.forget(workstreamId);
 			break;
 		case 'open-draft':
 			saveShip(deps, workstreamId, { step: 'opening-draft' });
 			await openPullRequest(deps, state);
+			if (row.phase === 'draft') watchDraftChecks(deps, workstreamId);
 			await readAgain(deps, workstreamId);
 			break;
 		case 'mark-ready':
@@ -254,6 +269,38 @@ async function act(
 	if (!heardBack(db, event.id, SHIPPING_RESULTS)) {
 		setShipAlarm(deps, workstreamId, 'retry', deps.now() + deps.delays.githubPollMs);
 	}
+}
+
+async function draftNeedsYou(
+	deps: ShipDeps,
+	state: ShipState,
+	move: Extract<ShippingMove, { kind: 'needs-you' }>,
+): Promise<void> {
+	const { row, snapshot } = state;
+	const { db } = deps.context;
+	settleShipRequests(deps, row);
+	const stopped = saveShip(
+		deps,
+		row.workstreamId,
+		{
+			step: null,
+			checksWatchedSince: null,
+			needsYou: { reason: move.reason, detail: move.detail, automationRunId: move.automationRunId },
+			...(move.signature === undefined ? {} : { failureSignature: move.signature }),
+		},
+		'draft',
+	);
+	const pullRequest = snapshot.pullRequest;
+	const sessionId = latestAutomationRunOf(db, row.workstreamId, 'open-draft')?.chatSessionId;
+	if (!stopped || row.needsYou !== null || !pullRequest || !sessionId || !deps.deliver) return;
+	const causeEventId = handledEvent();
+	await deps
+		.deliver({
+			sessionId,
+			prompt: draftChecksGaveUpReport(pullRequest, move.detail),
+			...(causeEventId === null ? {} : { causeEventId }),
+		})
+		.catch(() => undefined);
 }
 
 async function readAgain(deps: ShipDeps, workstreamId: string): Promise<void> {

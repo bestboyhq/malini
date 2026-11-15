@@ -290,7 +290,37 @@ describe('allowedInTree', () => {
 		db.close();
 	});
 
-	it('never lets Open draft or Merge run unasked, nor an automation whose Thens reach them', () => {
+	function shipRow(db: MaliniDatabase, workstreamId: string, phase: string, pullRequest: number) {
+		run(
+			db,
+			`INSERT INTO workstream_ship (workstream_id, phase, pull_request_number, updated_at)
+			 VALUES (?, ?, ?, ?)
+			 ON CONFLICT(workstream_id) DO UPDATE SET phase = excluded.phase,
+			   pull_request_number = excluded.pull_request_number`,
+			workstreamId,
+			phase,
+			pullRequest,
+			NOW,
+		);
+	}
+
+	function githubSays(
+		db: MaliniDatabase,
+		workstreamId: string,
+		state: string,
+		pullRequestNumber: number,
+	) {
+		run(
+			db,
+			`INSERT INTO event_log (channel, payload, workstream_id, chain_id, emitted_at)
+			 VALUES ('pull-requests:pull-request-changed', ?, ?, 'chain', ?)`,
+			JSON.stringify({ workstreamId, pullRequestNumber, state }),
+			workstreamId,
+			NOW,
+		);
+	}
+
+	it('never lets the first Open draft or Merge run unasked, nor an automation whose Thens reach them', () => {
 		const db = tree();
 		seedAutomation(db, 'then-draft', 'Then draft', { then: builtinId(db, 'open-draft') });
 		seedAutomation(db, 'then-merge', 'Then merge', { then: builtinId(db, 'merge') });
@@ -299,6 +329,45 @@ describe('allowedInTree', () => {
 		expect(inTree(db, 'automations_run', { automation: 'Merge', workstream: 'api' })).toBe(false);
 		expect(inTree(db, 'automations_run', { automation: 'Then draft' })).toBe(false);
 		expect(inTree(db, 'automations_run', { automation: 'Via merge' })).toBe(false);
+		db.close();
+	});
+
+	it('lets Open draft push to a draft already open in the tree, and asks once GitHub says it is not one', () => {
+		const db = tree();
+		const draft = { automation: 'Open draft' };
+		shipRow(db, 'root', 'draft', 7);
+		expect(inTree(db, 'automations_run', draft)).toBe(false);
+		githubSays(db, 'root', 'draft', 7);
+		expect(inTree(db, 'automations_run', draft)).toBe(true);
+		expect(inTree(db, 'automations_run', { ...draft, workstream: 'api' })).toBe(false);
+
+		shipRow(db, 'api', 'draft', 8);
+		githubSays(db, 'api', 'draft', 8);
+		expect(inTree(db, 'automations_run', { ...draft, workstream: 'api' })).toBe(true);
+		shipRow(db, 'other', 'draft', 9);
+		githubSays(db, 'other', 'draft', 9);
+		expect(inTree(db, 'automations_run', { ...draft, workstream: 'other' })).toBe(false);
+
+		githubSays(db, 'root', 'open', 7);
+		expect(inTree(db, 'automations_run', draft)).toBe(false);
+		githubSays(db, 'root', 'draft', 6);
+		expect(inTree(db, 'automations_run', draft)).toBe(false);
+		githubSays(db, 'root', 'draft', 7);
+		shipRow(db, 'root', 'queued', 7);
+		expect(inTree(db, 'automations_run', draft)).toBe(false);
+		shipRow(db, 'root', 'draft', 7);
+		expect(inTree(db, 'automations_run', draft)).toBe(true);
+
+		seedAutomation(db, 'then-draft', 'Then draft', { then: builtinId(db, 'open-draft') });
+		expect(inTree(db, 'automations_run', { automation: 'Then draft' })).toBe(false);
+		expect(inTree(db, 'automations_run', { automation: 'Merge' })).toBe(false);
+		run(
+			db,
+			'UPDATE automation_definitions SET then_automation_id = ? WHERE id = ?',
+			builtinId(db, 'merge'),
+			builtinId(db, 'open-draft'),
+		);
+		expect(inTree(db, 'automations_run', draft)).toBe(false);
 		db.close();
 	});
 

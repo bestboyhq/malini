@@ -133,6 +133,40 @@ describe('Malini calls inside the chat’s own tree', () => {
 		});
 	}, 15_000);
 
+	it('pushes to the draft a workstream the chat started already has with Open draft, without asking', async () => {
+		const openDraft = get<{ id: string }>(
+			test.db,
+			`SELECT id FROM automation_definitions WHERE builtin = 'open-draft'`,
+		)?.id;
+		run(
+			test.db,
+			`INSERT INTO workstream_ship (workstream_id, phase, pull_request_number, updated_at)
+			 VALUES ('api', 'draft', 7, ?)`,
+			NOW,
+		);
+		run(
+			test.db,
+			`INSERT INTO event_log (channel, payload, workstream_id, chain_id, emitted_at)
+			 VALUES ('pull-requests:pull-request-changed', ?, 'api', 'chain', ?)`,
+			JSON.stringify({ workstreamId: 'api', pullRequestNumber: 7, state: 'draft' }),
+			NOW,
+		);
+		await call('automations_run', { automation: 'Open draft', workstream: 'Api analytics' });
+		await answered();
+
+		expect(getRun(test.db, 'run-1')?.summary).toBe('approved:allow:once');
+		expect(asked()).toBe(false);
+		expect(approval()).toMatchObject({
+			scope: 'once',
+			source: 'auto',
+			response: {
+				tree: true,
+				permission: { resources: [{ kind: 'action', value: `automations.run:${openDraft}` }] },
+			},
+		});
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_permission_rules')).toBe(0);
+	}, 15_000);
+
 	it('asks the user about a workstream the chat did not start', async () => {
 		await call('workstreams_archive', { workstream: 'Other work' });
 		await waitFor(() => approval() !== null, 10_000, 'the approval request');

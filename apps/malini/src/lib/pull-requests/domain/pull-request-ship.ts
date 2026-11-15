@@ -125,12 +125,16 @@ export function needsYouDestination(needsYou: ShipNeedsYou): PullRequestNeedsYou
 	return 'pull-request';
 }
 
+export function shipNeedsYou(ship: PullRequestShip | null): boolean {
+	return ship?.phase === 'needs-you' || (ship?.phase === 'draft' && ship.needsYou !== null);
+}
+
 export function pullRequestNeedsYouAnnouncement(
 	previous: PullRequestShip | null,
 	change: PullRequestShipChange,
 	workstreamName: string,
 ): string | null {
-	if (change.ship?.phase !== 'needs-you' || previous?.phase === 'needs-you') return null;
+	if (!change.ship || !shipNeedsYou(change.ship) || shipNeedsYou(previous)) return null;
 	const reason = change.ship.needsYou?.reason;
 	return reason
 		? `${workstreamName} needs you · ${needsYouReasonLabel(reason, null)}`

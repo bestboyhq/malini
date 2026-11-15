@@ -58,6 +58,7 @@ export type RecordedScenario =
 	| 'blockedRetry'
 	| 'classifierBlip'
 	| 'classifierOutage'
+	| 'hookRewrite'
 	| 'compact'
 	| 'usageLimit'
 	| 'rateLimit'

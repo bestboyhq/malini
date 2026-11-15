@@ -48,6 +48,7 @@ export interface ProviderHandle {
 		steReplies?: boolean,
 		sandboxGrants?: readonly SandboxGrant[],
 		outsideAllowed?: boolean,
+		compactOutput?: boolean,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

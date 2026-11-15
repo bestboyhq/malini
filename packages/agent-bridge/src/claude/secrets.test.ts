@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 import {
 	closeSync,
 	existsSync,
@@ -32,20 +32,62 @@ interface Ran {
 	readonly stderr: string;
 }
 
-function run(secrets: SessionSecrets, command: string): Promise<Ran> {
+function run(
+	secrets: SessionSecrets,
+	command: string,
+	{ cwd = ROOT, env = {} }: { cwd?: string; env?: Readonly<Record<string, string>> } = {},
+): Promise<Ran> {
 	return new Promise((resolve) => {
 		execFile(
 			secrets.runScript,
 			[command],
-			{ env: { PATH: process.env['PATH'], CLAUDE_CODE_SHELL: '/bin/bash' } },
+			{ cwd, env: { PATH: process.env['PATH'], CLAUDE_CODE_SHELL: '/bin/bash', ...env } },
 			(error, stdout, stderr) =>
 				resolve({ status: typeof error?.code === 'number' ? error.code : 0, stdout, stderr }),
 		);
 	});
 }
 
-function session(): SessionSecrets {
-	return new SessionSecrets(sessionSecretsFolder(ROOT));
+function session(rtk: string | null = null): SessionSecrets {
+	return new SessionSecrets(sessionSecretsFolder(ROOT), rtk);
+}
+
+const BUNDLED_RTK = resolve(__dirname, '../../../../apps/malini/vendor/rtk/bin/rtk');
+
+function claudeCommand(command: string): string {
+	const quoted = command.replaceAll("'", `'"'"'`);
+	return `{ \\builtin shopt -u extglob || \\builtin setopt NO_EXTENDED_GLOB; } >/dev/null 2>&1 || true && eval '${quoted}' < /dev/null && pwd -P >| ${join(ROOT, 'cwd')}`;
+}
+
+function fakeRtk(): string {
+	const rtk = join(mkdtempSync(join(ROOT, 'fake-rtk-')), 'rtk');
+	writeFileSync(
+		rtk,
+		[
+			'#!/bin/sh',
+			'if [ "$1" = rewrite ]; then',
+			'	sleep "${FAKE_SLEEP:-0}"',
+			'	printf "%s" "${FAKE_REWRITE-rtk $2}"',
+			'	exit "${FAKE_CODE:-3}"',
+			'fi',
+			'printf "compact: %s\\n" "$*"',
+		].join('\n'),
+		{ mode: 0o755 },
+	);
+	return rtk;
+}
+
+function compacting(rtk: string): SessionSecrets {
+	const secrets = session(rtk);
+	secrets.compactOutput(true);
+	return secrets;
+}
+
+function gitRepository(): { cwd: string; env: Record<string, string> } {
+	const cwd = mkdtempSync(join(ROOT, 'repository-'));
+	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd });
+	writeFileSync(join(cwd, 'notes.txt'), 'notes\n');
+	return { cwd, env: { HOME: mkdtempSync(join(ROOT, 'home-')) } };
 }
 
 describe('SessionSecrets', () => {
@@ -137,11 +179,90 @@ describe('SessionSecrets', () => {
 	});
 });
 
+describe('SessionSecrets compact output', () => {
+	const quoted = claudeCommand(`printf '%s\\n' "it's"`);
+
+	it.each([0, 3])('runs the rewrite rtk answers with exit %i, its quotes whole', async (code) => {
+		const ran = await run(compacting(fakeRtk()), quoted, { env: { FAKE_CODE: String(code) } });
+
+		expect(ran).toEqual({ status: 0, stdout: "compact: printf %s\\n it's\n", stderr: '' });
+	});
+
+	it.each([1, 2, 5])('runs the command as written when rtk answers with exit %i', async (code) => {
+		const ran = await run(compacting(fakeRtk()), quoted, { env: { FAKE_CODE: String(code) } });
+
+		expect(ran).toEqual({ status: 0, stdout: "it's\n", stderr: '' });
+	});
+
+	it('runs the command as written when rtk does not answer within two seconds', async () => {
+		const started = Date.now();
+
+		const ran = await run(compacting(fakeRtk()), claudeCommand('echo hi'), {
+			env: { FAKE_SLEEP: '5' },
+		});
+
+		expect(ran.stdout).toBe('hi\n');
+		expect(Date.now() - started).toBeLessThan(4000);
+	});
+
+	it('takes only a rewrite that puts rtk in front of commands, so cat stays cat', async () => {
+		const file = join(ROOT, 'whole.txt');
+		writeFileSync(file, 'whole file\n');
+
+		const ran = await run(compacting(fakeRtk()), claudeCommand(`cat ${file}`), {
+			env: { FAKE_REWRITE: `rtk read ${file}` },
+		});
+
+		expect(ran.stdout).toBe('whole file\n');
+	});
+
+	it('leaves a hook or MCP server command alone, since Claude Code does not wrap it', async () => {
+		expect((await run(compacting(fakeRtk()), 'echo hook')).stdout).toBe('hook\n');
+	});
+
+	it('runs every command as written once the switch is off, or when rtk is missing', async () => {
+		const off = compacting(fakeRtk());
+		off.compactOutput(false);
+		const missing = compacting(join(ROOT, 'nowhere', 'rtk'));
+
+		expect((await run(off, claudeCommand('echo hi'))).stdout).toBe('hi\n');
+		expect((await run(missing, claudeCommand('echo hi'))).stdout).toBe('hi\n');
+	});
+
+	it('keeps the exit code of a rewritten command and masks its secrets', async () => {
+		const secrets = compacting(fakeRtk());
+		await secrets.set({ TOKEN: 'secret-token-value' });
+
+		const ran = await run(secrets, claudeCommand('echo "$TOKEN"; exit 4'));
+
+		expect(ran).toEqual({ status: 4, stdout: 'compact: echo [secret]\n', stderr: '' });
+	});
+});
+
+describe.runIf(existsSync(BUNDLED_RTK) || process.env['CI'] !== undefined)(
+	'SessionSecrets with the rtk that scripts/fetch-rtk.mjs puts in apps/malini/vendor',
+	() => {
+		it('shortens git status, and keeps the exit code of a git command that fails', async () => {
+			const repository = gitRepository();
+
+			const raw = await run(session(), claudeCommand('git status'), repository);
+			const compact = await run(compacting(BUNDLED_RTK), claudeCommand('git status'), repository);
+			const failed = await run(compacting(BUNDLED_RTK), claudeCommand('git log'), repository);
+
+			expect(raw.stdout).toContain('Untracked files:');
+			expect(compact).toMatchObject({ status: 0, stderr: '' });
+			expect(compact.stdout).toContain('?? notes.txt');
+			expect(compact.stdout.length).toBeLessThan(raw.stdout.length / 2);
+			expect(failed.status).toBe(128);
+		});
+	},
+);
+
 describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
-	function confined(): { secrets: SessionSecrets; read: string } {
+	function confined(rtk: string | null = null): { secrets: SessionSecrets; read: string } {
 		const hidden = mkdtempSync(join(ROOT, 'hidden-'));
 		writeFileSync(join(hidden, 'token'), 'hidden-token');
-		const secrets = session();
+		const secrets = session(rtk);
 		secrets.confine(sandboxProfile({ checkout: ROOT, hidden: [hidden], internet: false }));
 		return { secrets, read: `cat ${join(hidden, 'token')}` };
 	}
@@ -183,6 +304,23 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		expect((await run(secrets, once)).status).toBe(0);
 		expect((await run(secrets, once)).status).not.toBe(0);
 	});
+
+	it.runIf(existsSync(BUNDLED_RTK))(
+		'shortens git status inside the sandbox, and still runs a pass outside it',
+		async () => {
+			const { secrets, read } = confined(BUNDLED_RTK);
+			secrets.compactOutput(true);
+			const repository = gitRepository();
+
+			const compact = await run(secrets, claudeCommand('git status'), repository);
+			const outside = await run(secrets, claudeCommand(secrets.passOutside(read)));
+
+			expect(compact).toMatchObject({ status: 0, stderr: '' });
+			expect(compact.stdout).toContain('?? notes.txt');
+			expect(compact.stdout).not.toContain('Untracked files:');
+			expect(outside).toMatchObject({ status: 0, stdout: 'hidden-token' });
+		},
+	);
 
 	it('leaves commands alone once the sandbox is lifted', async () => {
 		const { secrets, read } = confined();

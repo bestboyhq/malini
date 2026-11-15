@@ -187,6 +187,7 @@ export interface CheckpointCaptureInput {
 export interface TurnSettings {
 	readonly compactWindow: number | null;
 	readonly steReplies: boolean;
+	readonly compactOutput: boolean;
 }
 
 export interface SendPromptHooks {
@@ -822,9 +823,10 @@ async function sendAgentPromptLeased(
 	const secrets = await secretsForRun(hooks, workstreamId, log);
 	const sandboxGrants = sandboxGrantsFor(db, workstreamId, sessionId);
 	const outsideAllowed = outsideAllowedFor(db, workstreamId, sessionId);
-	const { compactWindow, steReplies } = (await hooks.turnSettings?.()) ?? {
+	const { compactWindow, steReplies, compactOutput } = (await hooks.turnSettings?.()) ?? {
 		compactWindow: null,
 		steReplies: false,
+		compactOutput: true,
 	};
 	const command: BridgeCommand = {
 		cmd: 'send_prompt',
@@ -845,6 +847,7 @@ async function sendAgentPromptLeased(
 		...(steReplies ? { steReplies } : {}),
 		...(sandboxGrants.length > 0 ? { sandboxGrants } : {}),
 		...(outsideAllowed ? { outsideAllowed } : {}),
+		...(compactOutput ? {} : { compactOutput }),
 	};
 	if (leases.takeDispatchCancel(sessionId, runId)) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, CANCELLED_BEFORE_START, emit);

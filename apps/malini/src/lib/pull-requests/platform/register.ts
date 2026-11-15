@@ -76,6 +76,7 @@ export interface PullRequestsDeps {
 	runner?: GhRunner;
 	ship?: ShippingOptions;
 	chef?: () => Promise<PullRequestChef | null>;
+	deliver?: ShippingOptions['deliver'];
 }
 
 function testShipOptions(context: MainContext): ShippingOptions {
@@ -321,7 +322,11 @@ export function registerPullRequests(
 			reviewFeedback,
 			resolveAddressedReviewThreads,
 		},
-		{ ...(deps.ship ?? testShipOptions(context)), ...(deps.chef ? { chef: deps.chef } : {}) },
+		{
+			...(deps.ship ?? testShipOptions(context)),
+			...(deps.chef ? { chef: deps.chef } : {}),
+			...(deps.deliver ? { deliver: deps.deliver } : {}),
+		},
 	);
 	commands.define('pull-requests.status', (args: unknown) => {
 		const workstreamId = optionalString(args, 'workstreamId');

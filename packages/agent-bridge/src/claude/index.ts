@@ -1,5 +1,6 @@
 import { defaultProviderRegistry, type ProviderRegistry } from '../providers/registry.js';
 import type { ProviderFactory } from '../providers/types.js';
+import { RTK_BINARY } from '../sandbox.js';
 import { findClaudeExecutable } from './installation.js';
 import { AutoModeOutage } from './permissions.js';
 import { bridgeSecretsFolder, SessionSecrets, sessionSecretsFolder } from './secrets.js';
@@ -21,7 +22,10 @@ export function createClaudeProviderFactory(options: ClaudeProviderOptions = {})
 			emit,
 			executable: findExecutable(),
 			outage,
-			secrets: new SessionSecrets(sessionSecretsFolder(secretsFolder)),
+			secrets: new SessionSecrets(
+				sessionSecretsFolder(secretsFolder),
+				process.env[RTK_BINARY] ?? null,
+			),
 			...(options.query ? { query: options.query } : {}),
 		});
 	};

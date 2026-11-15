@@ -97,7 +97,7 @@
 					<dd
 						class="text-fg-secondary max-h-48 overflow-y-auto font-mono break-words whitespace-pre-wrap select-text"
 					>
-						<CodeTokens code={output} language={action.status === 'failed' ? null : 'json'} />
+						<CodeTokens code={output} language={action.status === 'failed' ? 'text' : 'json'} />
 					</dd>
 				{/if}
 			</dl>

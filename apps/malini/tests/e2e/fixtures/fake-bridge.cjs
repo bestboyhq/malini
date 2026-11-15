@@ -424,6 +424,22 @@ const bigBashRun = (sessionId, runId, lines) => {
 	});
 	completeRun(sessionId, runId, 'done');
 };
+const JQ_CUT_OUTPUT = [
+	...JSON.stringify(
+		Array.from({ length: 8 }, (_, index) => ({
+			id: index + 1,
+			name: 'item ' + (index + 1),
+			tags: ['alpha', 'beta'],
+			owner: { login: 'user' + (index % 3), site: 'https://example.com/u/' + (index % 3) },
+		})),
+		null,
+		2,
+	)
+		.split('\n')
+		.slice(0, 40),
+	'... (109 lines truncated)',
+	'[see remaining: tail -n +41 /private/var/folders/zn/_wx1b_mx5jj5nz3wyj77cpd00000gn/T/malini-rtk/tee/1763224587_jq.log]',
+].join('\n');
 const RICH_MARKDOWN =
 	'\n\n## Rendering check\n\nI changed `src/app.ts` and kept notes in /Users/ada/notes.md for **it**.\n\n' +
 	'- First point\n- Second point with a [link](https://example.com)\n\n' +
@@ -963,9 +979,21 @@ const FIXTURE_SKILLS = [
 ];
 const skillsOfRun = new Map();
 const maliniCalls = new Map();
+const startMaliniCall = (sessionId, runId, call, commit) => {
+	const toolCallId = 'malini-call-' + runId;
+	maliniCalls.set(runId, { sessionId, ...call, commit, toolCallId });
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'mcp__malini__' + call.tool,
+		input: call.input,
+		toolCallId,
+	});
+};
 const themeOfRun = new Map();
 const windowOfRun = new Map();
 const steRuns = new Set();
+const rawOutputRuns = new Set();
 
 const lineageOfRun = new Map();
 const toolCalls = new Map();
@@ -1055,6 +1083,17 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			contentId: 'c1',
 			text: steRuns.has(runId) ? 'Replies in STE' : 'Replies as they come',
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('WHICH_OUTPUT')) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: rawOutputRuns.has(runId) ? 'Command output as printed' : 'Command output compact',
 		});
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
@@ -1207,7 +1246,7 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('MALINI_UNASKED_TOOL')) {
 		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
 		pendingRuns.set(runId, sessionId);
-		maliniCalls.set(runId, { sessionId, ...call, commit: null });
+		startMaliniCall(sessionId, runId, call, null);
 		const request = () =>
 			write({
 				type: 'bridge.platform_request',
@@ -1231,7 +1270,7 @@ const respond = async (sessionId, runId, prompt) => {
 		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
 		const commitLine = /COMMIT=([^"\n]+?)(?:"|$)/.exec(prompt);
 		pendingRuns.set(runId, sessionId);
-		maliniCalls.set(runId, { sessionId, ...call, commit: commitLine ? commitLine[1] : null });
+		startMaliniCall(sessionId, runId, call, commitLine ? commitLine[1] : null);
 		if (PRE_APPROVED_TOOLS.has(call.tool)) {
 			write({
 				type: 'bridge.platform_request',
@@ -1612,6 +1651,12 @@ const respond = async (sessionId, runId, prompt) => {
 			error: 'Exit code 1\n1 test failed',
 		});
 	}
+	if (prompt.includes('CHAT_BASH_JQ')) {
+		const toolCallId = 'bash-jq-' + runId;
+		const input = { command: 'jq . data.json', description: 'Pretty-print data.json' };
+		event({ type: 'tool.started', runId, name: 'Bash', toolCallId, input });
+		event({ type: 'tool.completed', runId, name: 'Bash', toolCallId, output: JQ_CUT_OUTPUT });
+	}
 	if (prompt.includes('CHAT_HANDOFF')) {
 		event({
 			type: 'assistant.message',
@@ -1832,6 +1877,7 @@ const handle = (command) => {
 			if (command.theme) themeOfRun.set(runId, command.theme);
 			if (command.compactWindow) windowOfRun.set(runId, command.compactWindow);
 			if (command.steReplies) steRuns.add(runId);
+			if (command.compactOutput === false) rawOutputRuns.add(runId);
 			if (command.lineage) lineageOfRun.set(runId, command.lineage);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
@@ -1959,6 +2005,13 @@ const handle = (command) => {
 				if (command.decision === 'deny') {
 					maliniCalls.delete(command.runId);
 					pendingRuns.delete(command.runId);
+					event({
+						type: 'tool.failed',
+						runId: command.runId,
+						name: 'mcp__malini__' + malini.tool,
+						toolCallId: malini.toolCallId,
+						error: 'The user denied this action.',
+					});
 					return completeRun(command.sessionId, command.runId, 'malini:denied');
 				}
 				write({
@@ -2201,6 +2254,7 @@ const handle = (command) => {
 				runId,
 				name: 'mcp__malini__' + malini.tool,
 				output: result,
+				toolCallId: malini.toolCallId,
 			});
 			return completeRun(
 				malini.sessionId,

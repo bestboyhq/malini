@@ -18,6 +18,7 @@ import {
 	needsYouDestination,
 	needsYouReasonDescription,
 	needsYouReasonLabel,
+	shipNeedsYou,
 	shipStepDetail,
 	type PullRequestShip,
 } from './pull-request-ship';
@@ -64,7 +65,7 @@ function workstreamStatus(
 	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null =>
 		isAgentWorking(agentStatus) ? whileAgentWorks(settled, agentStatus) : settled;
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
-	if (ship?.phase === 'needs-you' && !mergedOnGithub) return needsYou(ship, read, url);
+	if (ship && shipNeedsYou(ship) && !mergedOnGithub) return needsYou(ship, read, url);
 	const failure = mergedOnGithub ? null : shipFailure(ship);
 	if (failure) return failing(failure);
 	if (ship?.phase === 'queued') return queued(ship);
@@ -121,18 +122,25 @@ function needsYou(
 	const operation = read?.operationInProgress ?? null;
 	const explanation =
 		ship.needsYou?.detail.trim() || (reason ? needsYouReasonDescription(reason) : '');
-	const nextStep =
-		reason === 'fix-gave-up' && ship.needsYou?.automationRunId
+	const draft = ship.phase === 'draft';
+	const nextStep = draft
+		? DRAFT_NEXT_STEP
+		: reason === 'fix-gave-up' && ship.needsYou?.automationRunId
 			? RETRY_IN_AUTOMATION
 			: NEEDS_YOU_NEXT_STEP;
-	return attention(
+	const status = attention(
 		reason ? needsYouReasonLabel(reason, operation) : null,
 		[sentence(explanation), nextStep].filter(Boolean).join(' '),
 		needsYouAction(ship, operation, url),
 	);
+	return draft
+		? { ...status, secondaryAction: neutral(queueMerge(ship.pullRequestNumber)) }
+		: status;
 }
 
 const NEEDS_YOU_NEXT_STEP = 'The merge picks up again on its own once this is resolved.';
+
+const DRAFT_NEXT_STEP = 'Push a fix, or press Merge to have Malini try again.';
 
 const RETRY_IN_AUTOMATION = 'Open the automation to see why, and retry the merge from there.';
 
