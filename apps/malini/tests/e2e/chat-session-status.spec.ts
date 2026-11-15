@@ -71,7 +71,7 @@ test('the top bar says a chat waiting for your approval needs you, and that the 
 	try {
 		const { page } = await seedWorkstreamOnFakeGithub(app, 'e2e-top-bar-approval', null);
 		await openWorkstream(page, 'e2e-top-bar-approval');
-		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 30_000 });
+		await expect(topBarStatus(page, 'No changes')).toBeVisible({ timeout: 30_000 });
 
 		await sendPrompt(page, 'APPROVAL_HOLD');
 		const decision = page.getByRole('group', { name: 'Permission decision' });
@@ -81,7 +81,7 @@ test('the top bar says a chat waiting for your approval needs you, and that the 
 		await decision.getByRole('button', { name: 'Allow once' }).click();
 		await expect(topBarStatus(page, 'Agent running')).toBeVisible();
 		writeFileSync(join(app.home, 'release-approval'), '');
-		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 20_000 });
+		await expect(topBarStatus(page, 'No changes')).toBeVisible({ timeout: 20_000 });
 
 		expectCleanConsole(app);
 	} finally {

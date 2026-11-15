@@ -3,7 +3,10 @@ import {
 	provisioningClonePercent,
 	type WorkstreamProvisioningPlan,
 } from '$shared/repositories/domain/provisioning';
-import { WorkstreamProvisioningAggregate } from './workstream-provisioning.aggregate.svelte';
+import {
+	WorkstreamDependencyInstallAggregate,
+	WorkstreamProvisioningAggregate,
+} from './workstream-provisioning.aggregate.svelte';
 
 function plan(overrides: Partial<WorkstreamProvisioningPlan> = {}): WorkstreamProvisioningPlan {
 	return {
@@ -88,12 +91,14 @@ describe('WorkstreamProvisioningAggregate', () => {
 		expect(aggregate.isFailed('01JWORKSTREAMA')).toBe(false);
 	});
 
-	it('remembers a resolved base clone so a retry skips the clone phase', () => {
+	it('remembers a resolved base clone and the base branch origin named, so a retry skips the clone phase', () => {
 		aggregate.begin(plan());
-		aggregate.resolveProjectRepoPath('01JWORKSTREAMA', '/tmp/base/hutch');
+		aggregate.resolvePlan('01JWORKSTREAMA', { projectRepoPath: '/tmp/base/hutch' });
+		aggregate.resolvePlan('01JWORKSTREAMA', { baseBranch: 'trunk' });
 
 		expect(aggregate.get('01JWORKSTREAMA')?.plan).toMatchObject({
 			projectRepoPath: '/tmp/base/hutch',
+			baseBranch: 'trunk',
 		});
 	});
 
@@ -132,5 +137,21 @@ describe('WorkstreamProvisioningAggregate', () => {
 		expect(provisioningClonePercent(-1)).toBe(0);
 		expect(provisioningClonePercent(0.005)).toBe(1);
 		expect(provisioningClonePercent(1.7)).toBe(100);
+	});
+});
+
+describe('WorkstreamDependencyInstallAggregate', () => {
+	it('keeps a finished install, with the command it ran, until an abort clears it', () => {
+		const install = new WorkstreamDependencyInstallAggregate();
+		install.report({ workstreamId: '01JWORKSTREAMA', status: 'running', command: 'pnpm install' });
+		install.settleFromOutcome('01JWORKSTREAMA', { status: 'succeeded' });
+
+		expect(install.get('01JWORKSTREAMA')).toMatchObject({
+			status: 'installed',
+			command: 'pnpm install',
+		});
+
+		install.settleFromOutcome('01JWORKSTREAMA', { status: 'aborted' });
+		expect(install.get('01JWORKSTREAMA')).toBeNull();
 	});
 });

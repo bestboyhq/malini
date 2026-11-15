@@ -186,6 +186,7 @@ export { loadOwnPullRequestsCommand } from './application/commands/load-own-pull
 export { ownPullRequestsQuery } from './application/queries/own-pull-requests.query.svelte';
 export type { OwnPullRequest } from './domain/own-pull-requests';
 export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
+export { signInToGithubCommand } from './application/commands/sign-in-to-github.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';
 export { retryProvisioningCommand } from './application/commands/retry-provisioning.command';
@@ -202,6 +203,7 @@ export { reloadGithubRepositoriesOnSignInHook } from './application/hooks/reload
 export { resumeProvisioningOnGithubCredentialHook } from './application/hooks/resume-provisioning-on-github-credential.hook';
 export { syncWorkstreamsHook } from './application/hooks/sync-workstreams.hook';
 export { trackWorkstreamChangeTotalsHook } from './application/hooks/track-workstream-change-totals.hook';
+export { watchGithubAuthHook } from './application/hooks/watch-github-auth.hook';
 export { watchGithubReachHook } from './application/hooks/watch-github-reach.hook';
 export { watchWorkstreamFilesChangedHook } from './application/hooks/watch-workstream-files-changed.hook';
 export { workstreamSnapshotsHook } from './application/hooks/workstream-snapshots.hook';
@@ -277,5 +279,6 @@ export {
 export { default as WorkstreamPathContextMenu } from './presentation/WorkstreamPathContextMenu.svelte';
 export { default as WorkstreamProvisioningBanner } from './presentation/WorkstreamProvisioningBanner.svelte';
 export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
+export { default as WorkstreamSetupSteps } from './presentation/WorkstreamSetupSteps.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
 export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';

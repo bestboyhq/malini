@@ -17,7 +17,7 @@ function prepareRepositoryCommand(repo: Repository): void {
 	void (async () => {
 		let failure: RepositoryConnectFailure | null = null;
 		try {
-			await recordProject(repositoryCloneSource(repo), repo.defaultBranch || 'main');
+			await recordProject(repositoryCloneSource(repo));
 			await Promise.all([repositoriesAggregate.refresh(), workstreamsAggregate.refresh()]);
 		} catch (caught) {
 			failure = repositoryConnectFailure(caught, 'Failed to clone repository', repo.fullName);
@@ -27,7 +27,7 @@ function prepareRepositoryCommand(repo: Repository): void {
 	})();
 }
 
-async function recordProject(repoUrl: string, defaultBranch: string): Promise<void> {
+async function recordProject(repoUrl: string): Promise<void> {
 	const projects = await workstreamsService.listProjects();
 	const candidateIds = new Set(
 		projectIdentityCandidatesForRepoUrl(repoUrl).map((identity) => identity.id),
@@ -35,5 +35,5 @@ async function recordProject(repoUrl: string, defaultBranch: string): Promise<vo
 	const recorded = projects.some(
 		(project) => candidateIds.has(project.id) && project.repoPath.trim().length > 0,
 	);
-	if (!recorded) await workstreamsService.createProject({ repoUrl, defaultBranch });
+	if (!recorded) await workstreamsService.createProject({ repoUrl });
 }

@@ -1,6 +1,6 @@
 import type { UsageReport } from '$contract/system';
 import type { MaliniDatabase } from '$main/db/driver';
-import { listRunFacts, type RunFact } from '$lib/chat/chat.platform';
+import { listRunChangedFiles, listRunFacts, type RunFact } from '$lib/chat/chat.platform';
 import {
 	isRetiredChat,
 	listArchivedWorkstreams,
@@ -15,6 +15,15 @@ export function isPromptRun(run: RunFact): boolean {
 
 export function hasPromptRun(db: MaliniDatabase, now: Date): boolean {
 	return listRunFacts(db, now.toISOString()).some(isPromptRun);
+}
+
+export function hasChangedPromptRun(db: MaliniDatabase, now: Date): boolean {
+	const before = now.toISOString();
+	const changed = new Set(listRunChangedFiles(db, before).map(({ runId }) => runId));
+	return (
+		changed.size > 0 &&
+		listRunFacts(db, before).some((run) => changed.has(run.id) && isPromptRun(run))
+	);
 }
 
 export function userWorkstreams(db: MaliniDatabase): ReportedWorkstream[] {

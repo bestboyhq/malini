@@ -1,4 +1,5 @@
 import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
+import { clip } from './usage-steps';
 
 export type ToolActivity =
 	| 'tool_install_started'
@@ -32,8 +33,6 @@ const ENDS: Readonly<Record<string, ToolStep>> = {
 	...BEGINS,
 	'repositories.finish-github-sign-in': { tool: 'github', action: 'sign_in' },
 };
-
-const MAX_VALUE_CHARS = 60;
 
 export interface ToolTracker {
 	begin(started: StartedCommand): ToolEvent | null;
@@ -90,8 +89,4 @@ export function createToolTracker(clock: () => number = () => performance.now())
 			};
 		},
 	};
-}
-
-function clip(value: string): string {
-	return value.slice(0, MAX_VALUE_CHARS);
 }

@@ -12,6 +12,27 @@ Malini installs dependencies for you from the lockfile: pnpm, npm, yarn, or bun.
 
 Two agents never edit one checkout, so they never clobber each other.
 
+## Before the first message
+
+A new workstream opens on what Malini did to set it up, one step a line: **Made a fresh copy**, then **Checked dependencies** with what it found.
+A step still running shows a spinner.
+A failed install has **Retry** on its line, and a copy that fails says **Copy failed** with the reason, **Retry** and **Remove**.
+The copy starts from the default branch origin names at that moment, so a `master` repository or a renamed branch needs nothing from you.
+A workstream started before origin renamed its default branch moves to the new name the next time Malini fetches it, as long as the new branch holds every commit of the old one.
+An empty repository says so in the copy step, and **Retry** works once it has a first commit.
+
+Once the copy is ready, **Quick suggestions** labels a box of prompts an agent can take from there:
+
+- **Run it in the browser** starts the project the way its README or scripts say, and opens it in the browser beside the chat.
+- **Find the biggest CI/CD pipeline optimizations** reads the pipelines and their recent runs, and lists the biggest savings first, without changing anything.
+- **Find all implicit state machines** finds the flags, enums and status fields that track state, and lists their states, transitions and the combinations that should be impossible, without changing anything.
+- **Plan a change with me** turns on Plan mode, so the agent asks what you want before it writes any code.
+
+Each one fills the composer, for you to edit or send.
+A workstream another chat started ends its steps on **Prompt from** that chat instead, and lists no starters: that prompt goes first, once setup is done.
+
+The inspector is on the right from the start, its striped top reading **No changes · Build something great** until the workstream has a change.
+
 ## Where checkouts live
 
 Checkouts live in `~/malini` unless you pick another folder, where Finder, your editor and your terminal find them:
@@ -40,7 +61,7 @@ Workstreams share disk space, so you can keep as many as you like.
 - **Dependencies are shared.** With npm or yarn, a workstream copies `node_modules` the same way from another workstream with the same lockfile, instead of installing again.
   pnpm and bun share packages through their own store.
 - **One clone per repository.** A repository you open from a folder on your Mac is cloned from that folder and shares its git objects, then fetches the rest from its remote.
-  A GitHub repository over 1 GB is cloned without the history of its files, and git fetches an old version of a file the first time something reads it.
+  A GitHub repository is cloned without the old versions of its files of 1 MB or more, and over 1 GB without the history of any file; git fetches an old version the first time something reads it.
 - **Archives stay small.** Archiving keeps the commits, uncommitted changes, chats, attachments, every image or recording a chat showed, and the text files up to 10 MB in the `.context` folder, so an agent can still learn from the work.
   It drops the rest of `.context`, such as other screenshots, downloads, builds and dependency folders.
 - **Old chats are packed.** Closing a chat or archiving its workstream compresses the chat's tool calls, their output and the agent's thinking, most of what a chat holds, to about a fifth of their size, and Malini gives the freed space back to the disk.

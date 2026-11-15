@@ -16,7 +16,7 @@ test('a workstream equal to its base offers no Draft until a file changes', asyn
 		await openWorkstream(page, 'e2e-nothing-to-ship');
 
 		await expect(page.getByTestId('chat-composer')).toBeVisible({ timeout: 30_000 });
-		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 30_000 });
+		await expect(topBarStatus(page, 'No changes · Build something great')).toBeVisible();
 		await expect(page.getByTestId('global-topbar-github-action')).toHaveCount(0);
 		await captureFlow(app, 'pull-request-nothing-to-ship');
 

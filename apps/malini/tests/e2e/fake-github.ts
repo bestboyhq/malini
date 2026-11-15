@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
 	git,
+	installExecutable,
 	invoke,
 	seedWorkstream,
 	type LaunchedApp,
@@ -230,9 +231,14 @@ async function fakeGithubFor(
 	writeFileSync(pullRequestFile, JSON.stringify(pullRequest && { ...seed, ...pullRequest }));
 	writeFileSync(join(state, 'seed.json'), JSON.stringify(seed));
 	writeFileSync(callsFile, '');
+	const ghProgram = join(state, 'gh.cjs');
+	writeFileSync(ghProgram, ghStub(state, remote, revParse(seeded.basePath, 'main')));
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
-		installStub(join(dir, 'gh'), ghStub(state, remote, revParse(seeded.basePath, 'main')));
-		installStub(join(dir, 'git'), gitShim(remote, offline));
+		installExecutable(
+			join(dir, 'gh'),
+			`#!/bin/sh\nexec "${process.execPath}" "${ghProgram}" "$@"\n`,
+		);
+		installExecutable(join(dir, 'git'), gitShim(remote, offline));
 	}
 
 	const mergeOnGithub = (pullRequest: FakePullRequest, head: string): void => {
@@ -320,11 +326,6 @@ function writeAtomically(path: string, contents: string): void {
 	renameSync(`${path}.tmp`, path);
 }
 
-function installStub(path: string, script: string): void {
-	writeFileSync(path, script);
-	chmodSync(path, 0o755);
-}
-
 function gitShim(remote: string, offline: string): string {
 	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	return `#!/bin/sh
@@ -342,8 +343,7 @@ exec "${realGit}" -c protocol.file.allow=always "$@"
 }
 
 function ghStub(state: string, remote: string, baseOid: string): string {
-	return `#!${process.execPath}
-const fs = require('node:fs');
+	return `const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const state = ${JSON.stringify(state)};
@@ -405,6 +405,8 @@ if (command === 'auth' && sub === 'status') {
 	waitForApproval();
 } else if (command === 'api' && sub === 'user') {
 	out('e2e-user\\n');
+} else if (command === 'api' && sub.startsWith('user/repos')) {
+	out('[]');
 } else if (command === 'api' && sub === 'graphql') {
 	const fields = {};
 	args.forEach((arg, index) => {

@@ -1,6 +1,8 @@
 import type { WorkstreamProvisioningRecord } from '$shared/repositories/domain/provisioning';
 import {
 	provisioningFailureIsAuth,
+	provisioningFailureSentence,
+	provisioningSignInRemedy,
 	provisioningStepLabel,
 } from '$shared/repositories/domain/provisioning';
 import type { GlobalTopBarGithubStatus } from '$shared/shell/global-topbar-actions.svelte';
@@ -41,7 +43,7 @@ function failedSetupStatus(
 	onRetry: () => void,
 ): GlobalTopBarGithubStatus {
 	const reconnect = provisioningFailureIsAuth(failure);
-	const explanation = `${asSentence(failure)} ${failedSetupRemedy(failure, reconnect)}`;
+	const explanation = `${provisioningFailureSentence(failure)} ${failedSetupRemedy(failure, reconnect)}`;
 	return {
 		...detailless(record),
 		title: 'Workstream setup did not finish',
@@ -76,13 +78,7 @@ function detailless(record: WorkstreamProvisioningRecord) {
 	} as const;
 }
 
-function asSentence(text: string): string {
-	return /[.!?]$/u.test(text) ? text : `${text}.`;
-}
-
 function failedSetupRemedy(failure: string, reconnect: boolean): string {
 	if (!reconnect) return 'Continue this workstream’s setup from where it stopped';
-	return /sign in to github/iu.test(failure)
-		? 'Then retry this workstream’s setup'
-		: 'Sign in to GitHub in Settings, then retry';
+	return provisioningSignInRemedy(failure) ?? 'Then retry this workstream’s setup';
 }
