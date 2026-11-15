@@ -73,9 +73,12 @@ export class WorkstreamTeardowns {
 	}
 
 	watch(workstreamId: string): () => boolean {
+		const runningBefore = this.#running.has(workstreamId);
 		const startedBefore = this.#started.get(workstreamId) ?? 0;
 		return () =>
-			this.#running.has(workstreamId) || (this.#started.get(workstreamId) ?? 0) !== startedBefore;
+			runningBefore ||
+			this.#running.has(workstreamId) ||
+			(this.#started.get(workstreamId) ?? 0) !== startedBefore;
 	}
 }
 

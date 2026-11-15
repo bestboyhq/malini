@@ -24,6 +24,7 @@ import {
 	archivedLeftoversCleared,
 	checkoutTrashRoot,
 	restoreStrandedCheckouts,
+	WorkstreamTeardowns,
 } from './teardown.service';
 import { getWorkstream } from './workstreams.repository';
 
@@ -166,6 +167,18 @@ async function trashEntries(repo: Harness): Promise<string[]> {
 		return [];
 	}
 }
+
+describe('a read that a teardown overlaps', () => {
+	it('counts a teardown running when the read starts, even once it ends before the read fails', () => {
+		const teardowns = new WorkstreamTeardowns();
+		expect(teardowns.watch('ws-read')()).toBe(false);
+		const finished = teardowns.start('ws-read');
+		const torndown = teardowns.watch('ws-read');
+		finished();
+		expect(torndown()).toBe(true);
+		expect(teardowns.watch('ws-read')()).toBe(false);
+	});
+});
 
 describe('archiving a workstream', () => {
 	it('leaves the checkout and the row intact when the checkout cannot be moved aside', async () => {
