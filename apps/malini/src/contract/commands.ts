@@ -630,6 +630,7 @@ export interface ContractCommands {
 		result: AutomationDefinitionRecord;
 	};
 	'automations.list-runs': { args: undefined; result: AutomationRunRecord[] };
+	'automations.workstream-has-running-run': { args: WorkstreamIdArgs; result: boolean };
 	'automations.run': { args: RunAutomationArgs; result: AutomationRunRecord };
 	'automations.confirm-run': { args: AutomationRunIdArgs; result: AutomationRunRecord };
 	'automations.cancel-run': { args: AutomationRunIdArgs; result: AutomationRunRecord };
@@ -975,6 +976,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'automations.delete-definition',
 	'automations.reset-definition',
 	'automations.list-runs',
+	'automations.workstream-has-running-run',
 	'automations.run',
 	'automations.confirm-run',
 	'automations.cancel-run',

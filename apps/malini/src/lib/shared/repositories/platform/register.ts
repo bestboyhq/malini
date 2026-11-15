@@ -190,7 +190,9 @@ export function registerRepositories(
 		checkouts,
 		fetchBase: (repoPath, baseBranch) => baseSync.fetchBase(repoPath, baseBranch),
 		retargetRenamedBase: (base) => retargetRenamedBase({ db, events, credentials }, base),
-		busy: (workstreamId) => commands.call('chat.workstream-has-open-run', { workstreamId }),
+		busy: async (workstreamId) =>
+			(await commands.call('chat.workstream-has-open-run', { workstreamId })) ||
+			commands.call('automations.workstream-has-running-run', { workstreamId }),
 		fastForward: (workstreamId, checkout, baseRef) =>
 			guardCheckoutMove(workstreamId, () => fastForwardCheckout(checkout, baseRef)),
 		merging: async (workstreamId) =>

@@ -180,6 +180,16 @@ function slowWorktreeAdd(app: LaunchedApp): void {
 	chmodSync(stub, 0o755);
 }
 
+function slowMerge(app: LaunchedApp): void {
+	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+	const stub = join(app.bin, 'git');
+	writeFileSync(
+		stub,
+		`#!/bin/sh\ncase " $* " in *" merge --no-edit "*) sleep 3 ;; esac\nexec "${git}" "$@"\n`,
+	);
+	chmodSync(stub, 0o755);
+}
+
 function installNpmStub(app: LaunchedApp): string {
 	const succeeds = join(app.home, 'npm-succeeds');
 	const stub = join(app.bin, 'npm');
@@ -385,6 +395,39 @@ test('Update from main run right after origin renamed the base branch merges fro
 			.poll(() => updateFromMainRuns(page), { timeout: 60_000 })
 			.toEqual([['succeeded', 'Merged 1 commit from trunk']]);
 		expect((await baseBranches(page))[workstreamId]).toBe('trunk');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a commit while Update from main runs starts no second Update from main', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ env: { MALINI_BASE_QUIET_MS: '0' } });
+	try {
+		const { page } = app;
+		const { workstreamId } = await workstreamOnRenamedBase(page, app.root, 'e2e/renamed-busy');
+		slowMerge(app);
+		const listed = await invoke<{ id: string; path: string }[]>(
+			page,
+			'repositories.list-workstreams',
+		);
+		const worktree = listed.find(({ id }) => id === workstreamId)?.path;
+		if (!worktree) throw new Error(`no checkout for ${workstreamId}`);
+		const definitions = await invoke<AutomationDefinitionRecord[]>(
+			page,
+			'automations.list-definitions',
+		);
+		const update = definitions.find((definition) => definition.builtin === 'update-from-main');
+		if (!update) throw new Error('Update from main is missing');
+
+		await invoke(page, 'automations.run', { definitionId: update.id, workstreamId });
+		await expect.poll(() => updateFromMainRuns(page)).toEqual([['running', '']]);
+		await git(worktree, ['commit', '--allow-empty', '-m', 'Commit while the merge runs']);
+
+		await expect
+			.poll(() => updateFromMainRuns(page), { timeout: 60_000 })
+			.toEqual([['succeeded', 'Merged 1 commit from trunk']]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

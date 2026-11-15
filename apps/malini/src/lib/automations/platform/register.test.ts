@@ -781,6 +781,25 @@ describe('scheduling', () => {
 		expect((await automationRun(fourth.id)).status).toBe('queued');
 	});
 
+	it('says a workstream has a running automation only while one runs there', async () => {
+		const running = (workstreamId: string) =>
+			context.commands.call('automations.workstream-has-running-run', { workstreamId });
+		openRuns.add('ws-a');
+		const queued = await runFixChecks('ws-a');
+		await settle();
+		expect((await automationRun(queued.id)).status).toBe('queued');
+		expect(await running('ws-a')).toBe(false);
+
+		openRuns.delete('ws-a');
+		await context.commands.call('automations.run', {
+			definitionId: (await builtin('fix-checks')).id,
+			workstreamId: 'ws-a',
+		});
+		await session(queued.id);
+		expect(await running('ws-a')).toBe(true);
+		expect(await running('ws-b')).toBe(false);
+	});
+
 	it('says once that a run started and once that it finished, however often it changes', async () => {
 		const facts: string[] = [];
 		context.events.subscribe(AUTOMATIONS_RUN_STARTED_CHANNEL, ({ run }) =>
