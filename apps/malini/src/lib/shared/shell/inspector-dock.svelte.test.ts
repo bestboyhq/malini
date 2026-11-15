@@ -16,12 +16,17 @@ describe('inspector dock', () => {
 		expect(inspectorDock.width).toBeNull();
 	});
 
-	it('docks nothing while the inspector takes no width, and docks again once it shows', () => {
+	it('docks nothing while held, and docks the measured width again once let go', () => {
 		const dock = inspectorDock.claim();
-		dock.measure(0);
+		dock.measure(288);
+		let held = true;
+		const letGo = inspectorDock.holdWhile(() => held);
 		expect(inspectorDock.width).toBeNull();
 
-		dock.measure(288);
+		held = false;
+		expect(inspectorDock.width).toBe(288);
+		held = true;
+		letGo();
 		expect(inspectorDock.width).toBe(288);
 		dock.release();
 	});

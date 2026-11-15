@@ -100,13 +100,13 @@
 </script>
 
 <div
-	class="chat-stage-inset flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-6 pt-14"
+	class="chat-stage-inset flex min-h-0 flex-1 items-start justify-center overflow-y-auto pt-14"
 	style:padding-bottom="{footerInset}px"
 	data-testid="chat-fresh-session"
 	role="region"
 	aria-label="New agent chat. The next message starts a separate context."
 >
-	<div class="w-full max-w-[50rem] text-left">
+	<div class="chat-column px-4 text-left">
 		{#if untouched}
 			<WorkstreamSetupSteps {workstreamId}>
 				<ul class="flex flex-col" data-testid="chat-starters">

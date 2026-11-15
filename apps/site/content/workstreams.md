@@ -18,6 +18,7 @@ A new workstream opens on what Malini did to set it up, one step a line: **Made 
 A step still running shows a spinner.
 A failed install has **Retry** on its line, and a copy that fails says **Copy failed** with the reason, **Retry** and **Remove**.
 The copy starts from the default branch origin names at that moment, so a `master` repository or a renamed branch needs nothing from you.
+A workstream started before origin renamed its default branch moves to the new name the next time Malini fetches it, as long as the new branch holds every commit of the old one.
 An empty repository says so in the copy step, and **Retry** works once it has a first commit.
 
 Once the copy is ready, **Quick suggestions** labels a box of prompts an agent can take from there:
@@ -30,7 +31,8 @@ Once the copy is ready, **Quick suggestions** labels a box of prompts an agent c
 Each one fills the composer, for you to edit or send.
 A workstream another chat started ends its steps on **Prompt from** that chat instead, and lists no starters: that prompt goes first, once setup is done.
 
-In a workstream you just made, the inspector on the right stays hidden until the first message, unless there is already something to show there: changes, a browser tab or a running automation.
+In a workstream you just made, the inspector on the right stays empty until the first message, unless there is already something to show there: changes, a browser tab or a running automation.
+Its space stays, so the chat keeps its width when the inspector shows.
 A workstream on one of your pull requests, or one Malini had open before it started, shows it from the start.
 
 ## Where checkouts live

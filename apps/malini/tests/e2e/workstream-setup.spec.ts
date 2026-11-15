@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import type { AutomationDefinitionRecord } from '../../src/contract/automations';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -13,6 +14,9 @@ import {
 	seedWorkstream,
 	type LaunchedApp,
 } from './harness';
+
+const TEN_LINES = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n';
+const WATCH_BASE = { MALINI_BASE_FETCH_MS: '1000', MALINI_BASE_QUIET_MS: '0' };
 
 function sidebar(page: Page) {
 	return page.getByRole('navigation', { name: 'Connected repositories' });
@@ -128,6 +132,42 @@ async function commitFiles(repo: string, files: Readonly<Record<string, string>>
 	for (const [name, text] of Object.entries(files)) writeFileSync(join(repo, name), text);
 	await git(repo, ['add', '.']);
 	await git(repo, ['commit', '-m', 'add files']);
+}
+
+async function workstreamOnRenamedBase(
+	page: Page,
+	root: string,
+	repository: string,
+): Promise<{ workstreamId: string }> {
+	const source = await createSourceRepo(root, repository);
+	await commitFiles(source, { 'lines.txt': TEN_LINES });
+	await connectCloneUrl(page, source);
+	const workstreamId = await newWorkstream(page, repository);
+	await expectFreshCopy(page);
+	expect((await baseBranches(page))[workstreamId]).toBe('main');
+	const listed = await invoke<{ id: string; path: string }[]>(
+		page,
+		'repositories.list-workstreams',
+	);
+	const worktree = listed.find(({ id }) => id === workstreamId)?.path;
+	if (!worktree) throw new Error(`no checkout for ${workstreamId}`);
+	await git(worktree, ['config', 'user.email', 'e2e@example.com']);
+	await git(worktree, ['config', 'user.name', 'e2e']);
+	await commitFiles(worktree, { 'lines.txt': TEN_LINES.replace('1\n', 'one\n') });
+
+	await git(source, ['branch', '-m', 'main', 'trunk']);
+	await commitFiles(source, { 'lines.txt': TEN_LINES.replace('10\n', 'ten\n') });
+	return { workstreamId };
+}
+
+async function updateFromMainRuns(page: Page): Promise<string[][]> {
+	const runs = await invoke<{ title: string; status: string; detail: string | null }[]>(
+		page,
+		'automations.list-runs',
+	);
+	return runs
+		.filter(({ title }) => title === 'Update from main')
+		.map(({ status, detail }) => [status, detail ?? '']);
 }
 
 function slowWorktreeAdd(app: LaunchedApp): void {
@@ -307,6 +347,52 @@ test('a default branch renamed on origin after connecting starts the next workst
 		await expectFreshCopy(page);
 		expect((await baseBranches(page))[after]).toBe('trunk');
 		expect(await storedDefaultBranch(page, 'e2e/moved')).toBe('trunk');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a workstream started before origin renamed its base branch moves to the new name and updates from it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ env: WATCH_BASE });
+	try {
+		const { page } = app;
+		const { workstreamId } = await workstreamOnRenamedBase(page, app.root, 'e2e/renamed');
+
+		await expect
+			.poll(async () => (await baseBranches(page))[workstreamId], { timeout: 30_000 })
+			.toBe('trunk');
+		await expect
+			.poll(() => updateFromMainRuns(page), { timeout: 60_000 })
+			.toEqual([['succeeded', 'Merged 1 commit from trunk']]);
+		expect(await storedDefaultBranch(page, 'e2e/renamed')).toBe('trunk');
+		await captureFlow(app, 'workstream-base-renamed');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Update from main run right after origin renamed the base branch merges from the new name', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await workstreamOnRenamedBase(page, app.root, 'e2e/renamed-now');
+		const definitions = await invoke<AutomationDefinitionRecord[]>(
+			page,
+			'automations.list-definitions',
+		);
+		const update = definitions.find((definition) => definition.builtin === 'update-from-main');
+		if (!update) throw new Error('Update from main is missing');
+
+		await invoke(page, 'automations.run', { definitionId: update.id, workstreamId });
+
+		await expect
+			.poll(() => updateFromMainRuns(page), { timeout: 60_000 })
+			.toEqual([['succeeded', 'Merged 1 commit from trunk']]);
+		expect((await baseBranches(page))[workstreamId]).toBe('trunk');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

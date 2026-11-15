@@ -24,7 +24,7 @@ import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
 import { releaseRestoredWork, restoreArchivedWork } from '$main/git/archived-work';
 import type { GitCredentialEnv } from '$main/git/credentials';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
-import { readOriginHead, type OriginHead } from '$main/git/remote';
+import { readOriginHead, renamedOnOrigin, type OriginHead } from '$main/git/remote';
 import {
 	deriveProjectId,
 	localProjectId,
@@ -83,6 +83,7 @@ import {
 	moveArchivedWorkstream,
 	renameWorkstream,
 	restoreWorkstreamRecord,
+	retargetWorkstreams,
 	upsertWorkstreamBundle,
 } from './workstreams.repository';
 
@@ -184,15 +185,35 @@ export async function readBaseBranch(
 	if (head.branch === null && head.empty) throw new Error(EMPTY_REPOSITORY);
 	const branch = head.branch ?? known;
 	if (!branch) throw new Error(NO_DEFAULT_BRANCH);
-	recordDefaultBranch(deps, input.projectId, branch);
+	if (recordDefaultBranch(db, input.projectId, branch)) {
+		deps.events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
+	}
 	return branch;
 }
 
+export async function retargetRenamedBase(
+	deps: Pick<WorkstreamsDeps, 'db' | 'events' | 'credentials'>,
+	input: Readonly<{ projectId: string; baseBranch: string }>,
+): Promise<string | null> {
+	const { db, events, credentials } = deps;
+	const project = getProject(db, input.projectId);
+	if (!project) return null;
+	const renamed = await renamedOnOrigin(project.repoPath, input.baseBranch, credentials).catch(
+		() => null,
+	);
+	if (renamed === null) return null;
+	const moved = retargetWorkstreams(db, input.projectId, input.baseBranch, renamed);
+	if (recordDefaultBranch(db, input.projectId, renamed) || moved > 0) {
+		events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
+	}
+	return renamed;
+}
+
 function recordDefaultBranch(
-	{ db, events }: Pick<WorkstreamsDeps, 'db' | 'events'>,
+	db: MaliniDatabase,
 	projectId: string,
 	defaultBranch: string,
-): void {
+): boolean {
 	const project = getProject(db, projectId);
 	const staleProjects = project && project.defaultBranch !== defaultBranch ? [project] : [];
 	const staleRepositories = listConnectedRepositories(db).filter(
@@ -202,9 +223,7 @@ function recordDefaultBranch(
 	);
 	for (const stale of staleProjects) upsertProject(db, { ...stale, defaultBranch });
 	for (const stale of staleRepositories) upsertConnectedRepository(db, { ...stale, defaultBranch });
-	if (staleProjects.length + staleRepositories.length > 0) {
-		events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
-	}
+	return staleProjects.length + staleRepositories.length > 0;
 }
 
 export async function createWorkstream(

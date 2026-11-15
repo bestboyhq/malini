@@ -32,6 +32,7 @@
 	} from '$shared/repositories/repositories.api';
 	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { page } from '$shared/router/state';
+	import { inspectorDock } from '$shared/shell/inspector-dock.svelte';
 	import {
 		WORKSTREAM_BROWSER_RATIO_KEY,
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
@@ -68,7 +69,12 @@
 
 	onMount(() => {
 		loadAutomationsCommand();
-		return watchAutomationsHook();
+		const stopWatching = watchAutomationsHook();
+		const letGo = inspectorDock.holdWhile(() => gutterWaits);
+		return () => {
+			stopWatching();
+			letGo();
+		};
 	});
 
 	$effect(() => {
@@ -123,7 +129,7 @@
 		<div
 			class={[
 				'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden',
-				gutterWaits && 'hidden',
+				gutterWaits && 'invisible',
 			]}
 		>
 			{@render children()}

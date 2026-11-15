@@ -14,6 +14,8 @@ The first steps named the branch and the head commit, and they found them "too t
 **Your turn** as the last row looked like a row you could click, so they asked for it as "a label on top of the border of ... this whole container", without a border around each starter: "too many borders is not good".
 They then asked to "replace your turn agents are stretching with quick suggestions", in a "dimmed out text color", and to make "this big white dot like an empty circle".
 A failed setup showed a full-width banner above the chat, with the failure in mono and **Retry setup** and **Remove**, and they asked to "get rid of this fucking cheap status topbar pls, dear god we should never have it", then said they meant "only ... this middle bar": "Completely mismatched design".
+The hidden gutter gave its column to the chat, which grew to the full width and then jumped left at the first message: "why is this center panel so fucking wide?"
+They wanted the gutter to wait all the same: it "shouldn't be there until someone sent a message ... but it doesn't mean that our chat width should go bananas."
 
 ## Decision
 
@@ -35,12 +37,14 @@ A failed setup showed a full-width banner above the chat, with the failure in mo
   The setup steps already say whose turn it is.
 - **A failed setup says so in its steps.** The copy step turns into **Copy failed** with the reason, as **Install failed** does, and the row holds **Retry** and **Remove**; the full-width banner, `WorkstreamProvisioningFailure.svelte`, is gone, which amends 0073's setup banner.
   The top bar keeps **Setting up** and **Needs you · Setup failed** with **Retry**, and its tooltip keeps the GitHub sign-in remedy.
-  With no gutter to dock on, that status sits in its pill, its label and detail on one line, so both fit its height.
+  While the gutter waits, that status stays off the dock, in its pill, its label and detail on one line, so both fit its height.
   A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
-- **The gutter waits.** `WorkstreamLayout.svelte` hides the inspector's column in a workstream made in this session, on its `malini/<id>` branch, with no chats, no changed files, no browser tab, no live automation and the drawer closed.
+- **The gutter waits, its width kept.** `WorkstreamLayout.svelte` makes the inspector's column `invisible` in a workstream made in this session, on its `malini/<id>` branch, with no chats, no changed files, no browser tab, no live automation and the drawer closed.
   Made in this session is `provisioningRecordQuery.madeHere`: `WorkstreamProvisioningAggregate.begin` marks the id, and settling keeps the mark.
   A workstream that already existed at launch keeps its gutter, so an empty one never flashes it away while its chats load, and Files and Browser stay one click away in it.
-  The column stays mounted, so the top-bar status and the inspector's state keep running, and the split's `auto` column gives it no width.
+  The column stays mounted and keeps its width, so the chat is as wide before the first message as after it, and the composer stays put when the gutter shows.
+  `visibility: hidden` also takes the gutter out of the tab order and the accessibility tree.
+  `inspectorDock.holdWhile` keeps the dock empty while the column waits, so the top-bar status never docks onto a card nobody can see.
 - This amends 0242's starters and 0228's gutter, which now shows from the first message, or earlier once there is something in it to see.
 
 ## Consequences
@@ -51,4 +55,5 @@ A failed setup showed a full-width banner above the chat, with the failure in mo
 - `tests/e2e/workstream-setup.spec.ts` fails when a failed setup shows an alert banner, loses **Copy failed** with its reason, **Retry** or **Remove** in its steps, or when the top bar's label and detail overlap.
 - `src/lib/shared/repositories/domain/workstream-setup-steps.test.ts` fails when a step's wording or state drifts, `provisioning.test.ts` when an install outcome stops mapping to a step, and `workstream-provisioning.aggregate.svelte.test.ts` when a finished install loses its record or its command, or a settled workstream loses its made-here mark.
 - `tests/e2e/first-run.spec.ts` fails when the steps, the four starters inside the **Quick suggestions** group, plan mode on **Plan a change with me**, or the hidden gutter go.
+- `inspector-dock.svelte.test.ts` fails when a held dock still docks, or stays empty once let go.
 - `pull-request-top-bar.test.ts` and `tests/e2e/pull-request-nothing-to-ship.spec.ts` fail when a workstream with nothing to ship shows a status again.
