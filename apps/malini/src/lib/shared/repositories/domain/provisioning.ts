@@ -45,7 +45,7 @@ export type WorkstreamProvisioningRecord = Readonly<{
 
 export const WORKSTREAM_INSTALL_STATUS_EVENT = 'repositories:workstream-install-status';
 
-export type WorkstreamInstallStatus = 'running' | 'unavailable' | 'failed';
+export type WorkstreamInstallStatus = 'running' | 'installed' | 'none' | 'unavailable' | 'failed';
 
 export type WorkstreamInstallRecord = Readonly<{
 	workstreamId: string;
@@ -79,9 +79,12 @@ export function visibleInstallStatus(
 	event: WorkstreamInstallStatusEvent,
 ): WorkstreamInstallStatus | null {
 	if (event.status === 'running') return 'running';
+	if (event.status === 'succeeded') return 'installed';
 	if (event.status === 'failed') return 'failed';
-	if (event.status === 'skipped' && event.reason === 'unrecognized-project') return 'unavailable';
-	return null;
+	if (event.status !== 'skipped') return null;
+	if (event.reason === 'already-installed') return 'installed';
+	if (event.reason === 'no-manifest') return 'none';
+	return event.reason === 'unrecognized-project' ? 'unavailable' : null;
 }
 
 export function provisioningClonePercent(fraction: number): number {
@@ -172,4 +175,14 @@ export function provisioningFailureIsAuth(failure: string): boolean {
 		normalized.includes('gh auth login') ||
 		normalized.includes('sign in to github')
 	);
+}
+
+export function provisioningFailureSentence(failure: string): string {
+	return /[.!?]$/u.test(failure) ? failure : `${failure}.`;
+}
+
+export function provisioningSignInRemedy(failure: string): string | null {
+	return provisioningFailureIsAuth(failure) && !/sign in to github/iu.test(failure)
+		? 'Sign in to GitHub in Settings, then retry'
+		: null;
 }

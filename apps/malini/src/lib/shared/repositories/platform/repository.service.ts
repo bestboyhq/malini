@@ -65,7 +65,7 @@ export async function readOrigin(repoPath: string): Promise<string | null> {
 	}
 }
 
-export async function readDefaultBranch(repoPath: string, fallback = 'main'): Promise<string> {
+export async function readDefaultBranch(repoPath: string, fallback: string): Promise<string> {
 	try {
 		const head = (
 			await runGit(['-C', repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
@@ -73,8 +73,8 @@ export async function readDefaultBranch(repoPath: string, fallback = 'main'): Pr
 		if (head.length > 0) return head.replace(/^origin\//u, '');
 	} catch {}
 	try {
-		const branch = (await runGit(['-C', repoPath, 'rev-parse', '--abbrev-ref', 'HEAD'])).trim();
-		if (branch.length > 0 && branch !== 'HEAD') return branch;
+		const branch = (await runGit(['-C', repoPath, 'symbolic-ref', '--short', 'HEAD'])).trim();
+		if (branch.length > 0) return branch;
 	} catch {}
 	return fallback;
 }

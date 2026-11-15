@@ -110,8 +110,10 @@ import {
 	createRepository,
 	createWorkstream,
 	listArchived,
+	readBaseBranch,
 	removeRepository,
 	restoreWorkstream,
+	retargetRenamedBase,
 	retireWorkstream,
 } from './workstreams.service';
 
@@ -187,7 +189,10 @@ export function registerRepositories(
 		events,
 		checkouts,
 		fetchBase: (repoPath, baseBranch) => baseSync.fetchBase(repoPath, baseBranch),
-		busy: (workstreamId) => commands.call('chat.workstream-has-open-run', { workstreamId }),
+		retargetRenamedBase: (base) => retargetRenamedBase({ db, events, credentials }, base),
+		busy: async (workstreamId) =>
+			(await commands.call('chat.workstream-has-open-run', { workstreamId })) ||
+			commands.call('automations.workstream-has-running-run', { workstreamId }),
 		fastForward: (workstreamId, checkout, baseRef) =>
 			guardCheckoutMove(workstreamId, () => fastForwardCheckout(checkout, baseRef)),
 		merging: async (workstreamId) =>
@@ -238,6 +243,22 @@ export function registerRepositories(
 		baseSync,
 		guardTeardown,
 	};
+	const onLiveBase = async <T>(
+		workstreamId: string,
+		baseBranch: string,
+		use: (baseBranch: string) => Promise<T>,
+	): Promise<T> => {
+		try {
+			return await use(baseBranch);
+		} catch (error) {
+			const projectId = getWorkstream(db, workstreamId)?.projectId;
+			const renamed = projectId
+				? await retargetRenamedBase(workstreams, { projectId, baseBranch })
+				: null;
+			if (renamed === null) throw error;
+			return use(renamed);
+		}
+	};
 
 	commands.define('repositories.list-workstreams', () => {
 		const activeAt = workstreamActiveTimes(db);
@@ -255,20 +276,24 @@ export function registerRepositories(
 	const repositoriesChanged = (): void => events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
 
 	commands.define('repositories.create-repository', async (args: unknown) => {
-		const defaultBranch = optionalString(args, 'defaultBranch');
-		if (defaultBranch !== null) validateBaseBranch(defaultBranch);
 		const repoUrl = requireString(args, 'repoUrl');
 		const seedFolder = cloneSeedFolder(db, repoUrl);
 		const repoPath = await createRepository(workstreams, {
 			repoUrl,
 			githubToken: optionalString(args, 'githubToken'),
-			defaultBranch,
 			seedFolder,
 			sizeBytes: seedFolder === null ? await githubRepositorySize(gh, repoUrl) : null,
 		});
 		repositoriesChanged();
 		return repoPath;
 	});
+
+	commands.define('repositories.read-base-branch', (args: unknown) =>
+		readBaseBranch(workstreams, {
+			projectRepoPath: requireString(args, 'projectRepoPath'),
+			projectId: requireString(args, 'projectId'),
+		}),
+	);
 
 	commands.define('repositories.create-workstream', async (args: unknown) => {
 		const projectRepoPath = requireString(args, 'projectRepoPath');
@@ -288,9 +313,12 @@ export function registerRepositories(
 		});
 	});
 
-	commands.define('repositories.sync-workstream-base', (args: unknown) =>
-		baseSync.sync(checkedWorkstreamId(args)),
-	);
+	commands.define('repositories.sync-workstream-base', (args: unknown) => {
+		const workstreamId = checkedWorkstreamId(args);
+		const sync = () => baseSync.sync(workstreamId);
+		const baseBranch = getWorkstream(db, workstreamId)?.baseBranch;
+		return baseBranch ? onLiveBase(workstreamId, baseBranch, sync) : sync();
+	});
 
 	const ownPullRequests = {
 		workstreams,
@@ -426,55 +454,64 @@ export function registerRepositories(
 
 	commands.define('repositories.pull-workstream', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
-		const baseBranch = requireString(args, 'baseBranch');
 		const githubToken = optionalString(args, 'githubToken');
 		const worktree = await checkout(args);
-		return watchers.whilePulling(workstreamId, async () => {
-			const head = await pullWorkstreamBaseBranch(
+		return watchers.whilePulling(workstreamId, () =>
+			onLiveBase(workstreamId, requireString(args, 'baseBranch'), async (baseBranch) => {
+				const head = await pullWorkstreamBaseBranch(
+					worktree,
+					recordedBranch(workstreamId),
+					baseBranch,
+					githubToken,
+					credentials,
+					(move) => guardBranchUpdate(workstreamId, move),
+				);
+				await watchers.refresh(workstreamId);
+				const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
+				const mergeHead =
+					operationInProgress === 'merge' && conflictedPaths.length > 0
+						? await readMergeHead(worktree)
+						: null;
+				if (mergeHead !== null) {
+					watchers.reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead });
+				}
+				return head;
+			}),
+		);
+	});
+
+	commands.define('repositories.count-behind-base', async (args: unknown) => {
+		const workstreamId = requireString(args, 'workstreamId');
+		const githubToken = optionalString(args, 'githubToken');
+		const worktree = await checkout(args);
+		return onLiveBase(workstreamId, requireString(args, 'baseBranch'), (baseBranch) =>
+			countCommitsBehindBase(
 				worktree,
 				recordedBranch(workstreamId),
 				baseBranch,
 				githubToken,
 				credentials,
-				(move) => guardBranchUpdate(workstreamId, move),
-			);
-			await watchers.refresh(workstreamId);
-			const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
-			const mergeHead =
-				operationInProgress === 'merge' && conflictedPaths.length > 0
-					? await readMergeHead(worktree)
-					: null;
-			if (mergeHead !== null) {
-				watchers.reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead });
-			}
-			return head;
-		});
-	});
-
-	commands.define('repositories.count-behind-base', async (args: unknown) => {
-		const workstreamId = requireString(args, 'workstreamId');
-		const baseBranch = requireString(args, 'baseBranch');
-		const githubToken = optionalString(args, 'githubToken');
-		return countCommitsBehindBase(
-			await checkout(args),
-			recordedBranch(workstreamId),
-			baseBranch,
-			githubToken,
-			credentials,
+			),
 		);
 	});
 
 	commands.define('repositories.restart-workstream-on-base', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
-		const restartedSha = await restartWorkstreamOnBase(
-			await checkout(args),
-			recordedBranch(workstreamId),
+		const worktree = await checkout(args);
+		const restartedSha = await onLiveBase(
+			workstreamId,
 			requireString(args, 'baseBranch'),
-			requireString(args, 'mergedHeadSha'),
-			requireString(args, 'expectedRepositoryFullName'),
-			optionalString(args, 'githubToken'),
-			credentials,
-			(move) => guardCheckoutMove(workstreamId, move),
+			(baseBranch) =>
+				restartWorkstreamOnBase(
+					worktree,
+					recordedBranch(workstreamId),
+					baseBranch,
+					requireString(args, 'mergedHeadSha'),
+					requireString(args, 'expectedRepositoryFullName'),
+					optionalString(args, 'githubToken'),
+					credentials,
+					(move) => guardCheckoutMove(workstreamId, move),
+				),
 		);
 		recordMergedPullRequest(db, workstreamId, null);
 		return restartedSha;

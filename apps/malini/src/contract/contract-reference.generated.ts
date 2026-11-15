@@ -234,7 +234,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'repositories:changed',
 			description:
-				'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
+				'Fires when a repository is added, cloned, hidden or shown again, or origin renames its default branch, so every list of repositories and workstreams reloads.',
 			facts: [],
 			payloadType: 'EmptyEventPayload',
 			payload: 'type EmptyEventPayload = Readonly<Record<string, never>>;',

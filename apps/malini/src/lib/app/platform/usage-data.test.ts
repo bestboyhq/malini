@@ -6,16 +6,19 @@ const { fetchMock } = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({ app: {}, net: { fetch: fetchMock } }));
 
+import type { ShipStateRecord } from '$contract/pull-requests';
 import {
 	APP_STARTED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
+	CHAT_RUN_CHANGES_CAPTURED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
 import type { GitHubSignInOutcome } from '$contract/repositories';
-import type { UsageReport } from '$contract/system';
+import type { UsageReport, UsageStep } from '$contract/system';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -25,6 +28,7 @@ import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
 import { createTestContext } from './test-support';
 import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
+import { isUsageStep } from './usage-steps';
 
 const NOW = new Date(2026, 9, 15, 10);
 
@@ -92,6 +96,7 @@ function harness(
 	return {
 		context,
 		share: (shared: boolean) => usageData.share(shared),
+		step: (step: UsageStep) => usageData.step(step),
 		activity,
 		reports,
 		tags,
@@ -195,7 +200,7 @@ describe('usage data', () => {
 		expect(tags).toEqual([
 			{},
 			LATER_DAY,
-			{ heard_about: 'hacker-news' },
+			{ heard_about: 'hacker-news', ending: 'succeeded' },
 			{ heard_about: 'hacker-news' },
 		]);
 	});
@@ -1118,3 +1123,294 @@ describe('usage tools', () => {
 		expect(tools(launched)).toEqual([]);
 	});
 });
+
+describe('usage drop-offs', () => {
+	function sent(launched: ReturnType<typeof harness>, name: UsageActivity) {
+		return launched.activity.flatMap((activity, index) =>
+			activity === name ? [launched.tags[index]] : [],
+		);
+	}
+
+	function fresh() {
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		return harness(context, undefined, { freshInstall: true });
+	}
+
+	function emitRun(context: MainContext, event: Readonly<Record<string, unknown>>): void {
+		context.events.emit(CHAT_AGENT_EVENT_CHANNEL, { sessionId: 's1', runId: 'r1', seq: 1, event });
+	}
+
+	function ship(state: Partial<ShipStateRecord>): ShipStateRecord {
+		return {
+			workstreamId: 'ws-a',
+			phase: 'draft',
+			step: null,
+			keep: false,
+			pullRequestNumber: null,
+			pullRequestUrl: null,
+			needsYou: null,
+			queuedAt: null,
+			attempts: 0,
+			checks: [],
+			activeAutomationRunId: null,
+			lastError: null,
+			githubSaid: null,
+			failures: 0,
+			failedSince: null,
+			nextAttemptAt: null,
+			waitsFor: null,
+			updatedAt: at(15, 9),
+			...state,
+		};
+	}
+
+	it('tells how each run ended, and why a failed one failed', async () => {
+		const launched = harness();
+		emitRun(launched.context, { type: 'run.completed' });
+		emitRun(launched.context, {
+			type: 'run.failed',
+			error: 'You hit your limit',
+			failure: { kind: 'usage-limit' },
+		});
+		emitRun(launched.context, {
+			type: 'run.failed',
+			error: 'Something odd',
+			failure: { kind: 'new' },
+		});
+		emitRun(launched.context, { type: 'run.failed', error: 'cancelled' });
+		emitRun(launched.context, { type: 'run.failed', error: 'limit', resumeAt: at(15, 12) });
+		await settled();
+		expect(sent(launched, 'run_finished')).toEqual([
+			{ ending: 'succeeded' },
+			{ ending: 'failed', failure: 'usage-limit' },
+			{ ending: 'failed', failure: 'unknown' },
+			{ ending: 'cancelled' },
+			{ ending: 'interrupted' },
+		]);
+		expect(JSON.stringify(launched.tags)).not.toMatch(/hit your|odd/u);
+	});
+
+	it('marks the first way in once, and counts every pick, view and Back', async () => {
+		const launched = fresh();
+		launched.step({ step: 'picked', value: 'github' });
+		launched.step({ step: 'github_view', value: 'code' });
+		launched.step({ step: 'github_back', value: 'code' });
+		launched.step({ step: 'picked', value: 'folder' });
+		await vi.waitFor(() => expect(launched.activity).toContain('first_choice'));
+		expect(sent(launched, 'first_choice')).toEqual([
+			{ cohort: '2026-10-15', days: 0, choice: 'github' },
+		]);
+		expect(sent(launched, 'picked')).toEqual([
+			{ choice: 'github', phase: 'setup' },
+			{ choice: 'folder', phase: 'setup' },
+		]);
+		expect(sent(launched, 'github_view')).toEqual([{ view: 'code', phase: 'setup' }]);
+		expect(sent(launched, 'github_back')).toEqual([{ view: 'code', phase: 'setup' }]);
+	});
+
+	it('marks the first prompt sent with what it waits for, and counts every held one', async () => {
+		const launched = fresh();
+		launched.step({ step: 'prompt_sent', value: 'claude_sign_in' });
+		launched.step({ step: 'prompt_sent', value: 'none' });
+		launched.step({ step: 'prompt_sent', value: 'setup' });
+		await vi.waitFor(() => expect(launched.activity).toContain('first_prompt_sent'));
+		expect(sent(launched, 'first_prompt_sent')).toEqual([
+			{ cohort: '2026-10-15', days: 0, waits: 'claude_sign_in' },
+		]);
+		expect(sent(launched, 'prompt_held')).toEqual([
+			{ waits: 'claude_sign_in', phase: 'setup' },
+			{ waits: 'setup', phase: 'setup' },
+		]);
+	});
+
+	it('takes only a known step with a known value from the renderer', () => {
+		expect(isUsageStep({ step: 'picked', value: 'github' })).toBe(true);
+		expect(isUsageStep({ step: 'github_back', value: 'loading' })).toBe(true);
+		expect(isUsageStep({ step: 'github_view', value: 'loading' })).toBe(false);
+		expect(isUsageStep({ step: 'picked', value: 'my-secret-repo' })).toBe(false);
+		expect(isUsageStep({ step: 'typed', value: 'none' })).toBe(false);
+		expect(isUsageStep(null)).toBe(false);
+	});
+
+	it('follows each setup step to its outcome with no path, and only failures once a prompt ran', async () => {
+		const launched = harness();
+		const { commands } = launched.context;
+		commands.define('repositories.pick-folder', () => null);
+		commands.define('repositories.create-repository', () => {
+			throw Object.assign(new Error('clone of /Users/me/secret failed'), {
+				name: 'GitError',
+				kind: 'network',
+				code: 'ECONNRESET',
+			});
+		});
+		commands.define('repositories.create-workstream', () => '/Users/me/secret/ws');
+		commands.define('repositories.sync-workstream-base', () => 'advanced');
+		commands.define('repositories.provision-dependencies', () => ({
+			status: 'skipped',
+			reason: 'no-manifest',
+			detail: '/Users/me/secret',
+		}));
+		for (const command of [
+			'repositories.pick-folder',
+			'repositories.create-repository',
+			'repositories.create-workstream',
+			'repositories.sync-workstream-base',
+			'repositories.provision-dependencies',
+		])
+			await commands.handle({ command, args: undefined });
+		seedProject(launched.context.db);
+		seedWorkstream(launched.context.db, 'ws-a', { createdAt: at(15, 9) });
+		seedRun(launched.context.db, 'r1', 'ws-a', at(15, 9));
+		await commands.handle({ command: 'repositories.create-workstream', args: undefined });
+		await commands.handle({ command: 'repositories.create-repository', args: undefined });
+		await settled();
+		expect(sent(launched, 'setup_step')).toEqual([
+			{ step: 'pick_folder', outcome: 'cancelled', seconds: 0, phase: 'setup' },
+			{
+				step: 'clone',
+				outcome: 'failed',
+				seconds: 0,
+				error: 'GitError',
+				stage: 'network',
+				code: 'ECONNRESET',
+				phase: 'setup',
+			},
+			{ step: 'workstream', outcome: 'ok', seconds: 0, phase: 'setup' },
+			{ step: 'sync_base', outcome: 'advanced', seconds: 0, phase: 'setup' },
+			{
+				step: 'dependencies',
+				outcome: 'skipped',
+				seconds: 0,
+				reason: 'no-manifest',
+				phase: 'setup',
+			},
+			{
+				step: 'clone',
+				outcome: 'failed',
+				seconds: 0,
+				error: 'GitError',
+				stage: 'network',
+				code: 'ECONNRESET',
+				phase: 'later',
+			},
+		]);
+		expect(JSON.stringify(launched.tags)).not.toContain('secret');
+	});
+
+	it('marks the first prompt run that changed files, never one that changed nothing', async () => {
+		const launched = fresh();
+		const { db } = launched.context;
+		seedProject(db);
+		seedWorkstream(db, 'ws-a', { createdAt: at(15, 9) });
+		seedRun(db, 'r1', 'ws-a', at(15, 9));
+		seedChanges(db, 'r1', 'ws-a', []);
+		launched.context.events.emit(CHAT_RUN_CHANGES_CAPTURED_CHANNEL, {
+			sessionId: 's-r1',
+			runId: 'r1',
+		});
+		await settled();
+		expect(launched.activity).not.toContain('first_changes');
+		seedRun(db, 'r2', 'ws-a', at(15, 9, 30));
+		seedChanges(db, 'r2', 'ws-a', ['src/app.ts']);
+		launched.context.events.emit(CHAT_RUN_CHANGES_CAPTURED_CHANNEL, {
+			sessionId: 's-r2',
+			runId: 'r2',
+		});
+		launched.context.events.emit(CHAT_RUN_CHANGES_CAPTURED_CHANNEL, {
+			sessionId: 's-r2',
+			runId: 'r2',
+		});
+		await vi.waitFor(() => expect(launched.activity).toContain('first_changes'));
+		expect(sent(launched, 'first_changes')).toEqual([{ cohort: '2026-10-15', days: 0 }]);
+	});
+
+	it('follows a ship from the first press to its pull request, and each new block once', async () => {
+		const launched = fresh();
+		const { events } = launched.context;
+		events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, {
+			workstreamId: 'ws-a',
+			button: 'draft',
+			state: null,
+		});
+		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+			workstreamId: 'ws-a',
+			state: ship({ phase: 'needs-you', waitsFor: 'workflow-scope' }),
+		});
+		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+			workstreamId: 'ws-a',
+			state: ship({ phase: 'needs-you', waitsFor: 'workflow-scope' }),
+		});
+		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+			workstreamId: 'ws-a',
+			state: ship({ pullRequestNumber: 7 }),
+		});
+		events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, {
+			workstreamId: 'ws-a',
+			button: 'merge',
+			state: null,
+		});
+		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+			workstreamId: 'ws-a',
+			state: ship({
+				phase: 'needs-you',
+				pullRequestNumber: 7,
+				needsYou: { reason: 'merge-not-permitted', detail: 'secret', automationRunId: null },
+			}),
+		});
+		events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, {
+			workstreamId: 'ws-a',
+			state: ship({ phase: 'queued', step: 'fixing-checks', pullRequestNumber: 7, failures: 2 }),
+		});
+		await vi.waitFor(() => expect(launched.activity).toContain('first_pull_request'));
+		expect(sent(launched, 'ship_button')).toEqual([
+			{ button: 'draft', phase: 'setup' },
+			{ button: 'merge', phase: 'setup' },
+		]);
+		expect(sent(launched, 'first_ship')).toEqual([
+			{ cohort: '2026-10-15', days: 0, button: 'draft' },
+		]);
+		expect(sent(launched, 'first_pull_request')).toEqual([{ cohort: '2026-10-15', days: 0 }]);
+		expect(sent(launched, 'ship_blocked')).toEqual([
+			{ by: 'waits_for', reason: 'workflow-scope', phase: 'setup' },
+			{ by: 'needs_you', reason: 'merge-not-permitted', phase: 'setup' },
+			{ by: 'failing', reason: 'fixing-checks', phase: 'setup' },
+		]);
+		expect(JSON.stringify(launched.tags)).not.toContain('secret');
+	});
+});
+
+function seedChanges(
+	db: MaliniDatabase,
+	runId: string,
+	workstreamId: string,
+	paths: readonly string[],
+): void {
+	run(
+		db,
+		`INSERT INTO agent_checkpoints (id, workstream_id, session_id, run_id, git_ref, git_commit, created_at)
+		 VALUES (?, ?, ?, ?, ?, 'before', ?)`,
+		`checkpoint-${runId}`,
+		workstreamId,
+		`s-${runId}`,
+		runId,
+		`refs/malini/checkpoints/${runId}`,
+		at(15, 9),
+	);
+	run(
+		db,
+		`INSERT INTO agent_run_changes (run_id, checkpoint_id, before_commit, after_commit, after_ref, captured_at)
+		 VALUES (?, ?, 'before', 'after', ?, ?)`,
+		runId,
+		`checkpoint-${runId}`,
+		`refs/malini/changes/${runId}`,
+		at(15, 9),
+	);
+	for (const path of paths)
+		run(
+			db,
+			`INSERT INTO agent_run_change_files (run_id, path, additions, deletions, is_binary)
+			 VALUES (?, ?, 1, 0, 0)`,
+			runId,
+			path,
+		);
+}

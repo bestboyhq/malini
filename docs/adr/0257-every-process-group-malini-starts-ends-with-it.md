@@ -1,10 +1,10 @@
-# 0251 - Every process group Malini starts ends with it
+# 0257 - Every process group Malini starts ends with it
 
 Status: accepted
 
 ## Context
 
-ADR 0250 quits a background app through its normal quit once its launcher is gone, so a main thread that hangs or a quit that never ends still leaves the app running.
+ADR 0256 quits a background app through its normal quit once its launcher is gone, so a main thread that hangs or a quit that never ends still leaves the app running.
 Malini starts the agent bridge, shell runs, `runWithTimeout` commands and installs in process groups of their own, so a group kill of a crashed or killed Malini never reaches them, and the user's own app leaves them behind too.
 On a closed stdin the bridge waited for its in-flight turn, so it kept running a turn that nobody read, and resuming that session after a restart could start a second agent on it.
 macOS has no parent-death signal, and its `/bin/bash` 3.2 returns 1 from a `read -t` that times out, the same status as at end of file.
@@ -22,7 +22,7 @@ The e2e harness checked nothing about the processes an app started, so a stub th
   Every 5 seconds it drops the groups that no longer exist, so it never signals a pid that was reused.
 - With `MALINI_BACKGROUND_WINDOW=1` it also gets the launcher's pid.
   Once Malini's parent is no longer the launcher and Malini is still the reaper's parent 15 seconds later, the reaper sends SIGKILL to Malini and its group.
-  The `process.ppid` check of ADR 0250 still runs first and quits cleanly within a second.
+  The `process.ppid` check of ADR 0256 still runs first and quits cleanly within a second.
   A background app that leads its process group also has that group on the list, so its helpers and plain children end with it.
   The user's own app leaves its group alone, because the helper that `app.relaunch()` starts at exit lives there.
 - The bridge, `packages/agent-bridge/src/cli.ts`, sends SIGTERM to the process group it leads once its stdin closes, so `claude` and its tools stop with it.

@@ -10,6 +10,7 @@ import {
 import { deriveProjectId, repositoryBaseDir } from '$main/git/paths';
 import { describeError, GitError } from '$main/errors';
 import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
+import { readOriginHead } from '$main/git/remote';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from '$main/git/run';
 import { branchList, withProjectLock } from '$main/git/worktrees';
 
@@ -18,6 +19,36 @@ export type ProgressStage = 'fetch' | 'checkout' | 'done';
 export interface Progress {
 	stage: ProgressStage;
 	fraction: number;
+}
+
+const CLONE_PHASES = {
+	'Receiving objects': { stage: 'fetch', from: 0.05, to: 0.8 },
+	'Resolving deltas': { stage: 'fetch', from: 0.8, to: 0.9 },
+	'Updating files': { stage: 'checkout', from: 0.9, to: 0.99 },
+} as const satisfies Record<string, { stage: ProgressStage; from: number; to: number }>;
+
+const CLONE_PROGRESS_LINE = /^(Receiving objects|Resolving deltas|Updating files):\s+(\d{1,3})%/u;
+
+export function cloneProgress(line: string): Progress | null {
+	const match = CLONE_PROGRESS_LINE.exec(line);
+	if (!match) return null;
+	const phase = CLONE_PHASES[match[1] as keyof typeof CLONE_PHASES];
+	const done = Math.min(Number(match[2]), 100) / 100;
+	return { stage: phase.stage, fraction: phase.from + (phase.to - phase.from) * done };
+}
+
+export function cloneProgressReader(
+	onProgress: (progress: Progress) => void,
+): (text: string) => void {
+	let pending = '';
+	return (text) => {
+		const lines = `${pending}${text}`.split(/[\r\n]/u);
+		pending = lines.pop() ?? '';
+		for (const line of lines) {
+			const progress = cloneProgress(line);
+			if (progress) onProgress(progress);
+		}
+	};
 }
 
 export interface BaseCloneOutcome {
@@ -45,29 +76,24 @@ export function classifyCloneError(error: GitError): GitError {
 	return error;
 }
 
-export interface CloneSeed {
-	readonly folder: string;
-	readonly branch: string;
-}
-
 export interface EnsureBaseCloneInput {
 	repoPath: string;
 	checkoutsRoot: string;
 	githubToken: string | null | undefined;
 	credentials: GitCredentialEnv;
 	onProgress: (progress: Progress) => void;
-	seed?: CloneSeed | null;
-	blobless?: boolean;
+	seedFolder?: string | null;
+	blobFilter?: string | null;
 	requiredFreeBytes?: number;
 }
 
-const BLOBLESS_CLONE_ARGS = [
-	'--filter=blob:none',
+const blobFilterArgs = (filter: string): string[] => [
+	`--filter=${filter}`,
 	'--config',
 	'credential.https://github.com.helper=',
 	'--config',
 	'credential.https://github.com.helper=!gh auth git-credential',
-] as const;
+];
 
 const SHARED_PACK_NOTE = 'shared with the folder Malini cloned this repository from\n';
 
@@ -103,7 +129,7 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 		const staging = `${baseDir}.cloning`;
 		try {
 			await originalFs.rm(staging, { recursive: true, force: true });
-			const seed = input.seed ? await usableSeed(input.seed.folder) : null;
+			const seed = input.seedFolder ? await usableSeed(input.seedFolder) : null;
 			if (seed === null || !(await clonedFromSeed(seed, input, staging, env))) {
 				await runGit(
 					[
@@ -112,11 +138,12 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 						DISABLED_GIT_HOOKS_CONFIG,
 						'clone',
 						'--progress',
-						...(input.blobless ? BLOBLESS_CLONE_ARGS : []),
+						...(input.blobFilter ? blobFilterArgs(input.blobFilter) : []),
 						input.repoPath,
 						staging,
 					],
-					env,
+					{ ...env, LC_ALL: 'C' },
+					cloneProgressReader(onProgress),
 				);
 			}
 			await originalFs.rename(staging, baseDir);
@@ -125,8 +152,6 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 			throw classifyCloneError(error instanceof GitError ? error : GitError.fromNodeError(error));
 		}
 
-		onProgress({ stage: 'fetch', fraction: 0.6 });
-		onProgress({ stage: 'checkout', fraction: 0.85 });
 		onProgress({ stage: 'done', fraction: 1.0 });
 
 		return { path: baseDir, repoDir, repoDirExistedBeforeClone, baseDirExistedBeforeClone };
@@ -167,7 +192,6 @@ async function clonedFromSeed(
 	baseDir: string,
 	env: GitEnv,
 ): Promise<boolean> {
-	const branch = input.seed?.branch ?? '';
 	try {
 		await runGit([
 			'-c',
@@ -199,6 +223,8 @@ async function clonedFromSeed(
 		env,
 	);
 	try {
+		const { branch } = await readOriginHead(baseDir, input.githubToken, input.credentials);
+		if (branch === null) throw new Error('origin names no default branch');
 		await runGit([
 			'-C',
 			baseDir,
@@ -213,6 +239,7 @@ async function clonedFromSeed(
 		for (const local of await branchList(baseDir)) {
 			if (local !== branch) await runGit(['-C', baseDir, 'branch', '-D', local]);
 		}
+		await runGit(['-C', baseDir, 'remote', 'set-head', 'origin', branch]);
 	} catch (error) {
 		return abandonSeed(seed, input.repoPath, baseDir, error);
 	}

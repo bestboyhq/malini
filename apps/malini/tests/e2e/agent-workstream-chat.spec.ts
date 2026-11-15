@@ -123,8 +123,14 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		await started.click();
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).toBe(sessions[0]?.id);
 		await expect(page.getByTestId('chat-agent-tab')).toHaveCount(1);
-		const install = page.getByTestId('workstream-dependency-install');
-		await expect(install).toContainText('Installing dependencies · npm ci', { timeout: 20_000 });
+		const setup = page.getByRole('list', { name: 'Workstream setup' });
+		await expect(
+			setup.getByRole('listitem').filter({ hasText: 'Checking dependencies' }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(setup.getByRole('listitem').last()).toHaveText(
+			/^\s*Prompt from Planner\s*Sends once setup is done\s*$/u,
+		);
+		await expect(page.getByRole('group', { name: 'Quick suggestions' })).toHaveCount(0);
 		await captureFlow(app, 'agent-workstream-opened');
 
 		const transcript = page.getByTestId('transcript-pane');
@@ -139,7 +145,7 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		await expect(transcript.getByText('Hello from the fake bridge', { exact: true })).toBeVisible({
 			timeout: 30_000,
 		});
-		await expect(install).toHaveCount(0);
+		await expect(setup).toHaveCount(0);
 		await expect(
 			started.getByRole('status', { name: /^Workstream status: (Ready|Idle)/u }),
 		).toBeVisible({ timeout: 30_000 });

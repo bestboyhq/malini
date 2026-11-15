@@ -42,6 +42,7 @@
 	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
 	import { queueSendingQuery } from '$lib/chat/application/queries/queue-sending.query.svelte';
 	import { queuedPromptsQuery } from '$lib/chat/application/queries/queued-prompts.query.svelte';
+	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
 	import { requestsElsewhereQuery } from '$lib/chat/application/queries/requests-elsewhere.query.svelte';
 	import { requestedSessionQuery } from '$lib/chat/application/queries/requested-session.query.svelte';
 	import { restoringSessionQuery } from '$lib/chat/application/queries/restoring-session.query.svelte';
@@ -228,6 +229,10 @@
 	const stage = $derived(
 		chatStage({ freshChat, presentedSessionId, bootError, presentationPending }),
 	);
+	const setupInView = $derived(
+		(stage === 'fresh' || stage === 'transcript') &&
+			recentChatsQuery.data(workstreamId).length === 0,
+	);
 	const asking = $derived(
 		stage === 'transcript' &&
 			!presentationPending &&
@@ -412,7 +417,9 @@
 	style:padding-right="{splitInset.secondarySize}px"
 >
 	<WorkstreamProvisioningBanner {workstreamId} />
-	<DependencyInstallBanner {workstreamId} />
+	{#if !setupInView}
+		<DependencyInstallBanner {workstreamId} />
+	{/if}
 	<div class="min-h-0 flex-1">
 		<div
 			class="relative h-full min-h-0"

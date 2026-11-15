@@ -63,6 +63,4 @@
 		Open GitHub
 	</Button>
 </div>
-<p class="text-fg-tertiary mt-2 text-xs leading-5">
-	It’s on your clipboard. Then authorize GitHub CLI, which Malini uses.
-</p>
+<p class="text-fg-tertiary mt-2 text-xs leading-5">It’s on your clipboard</p>

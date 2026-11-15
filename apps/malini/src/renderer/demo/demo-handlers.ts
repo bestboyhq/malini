@@ -200,6 +200,7 @@ const firstRunHandlers = (emit: DemoEmit): DemoHandlers => ({
 		firstRun.settings[key] = value;
 	},
 	'app.usage-data': () => ({ doNotTrack: false, report: null }),
+	'app.count-usage-step': () => undefined,
 	'app.copy-text': () => undefined,
 	'app.open-external-url': () => undefined,
 	'chat.agent-capabilities': () => [firstRun.claudeCodeInstalled ? CLAUDE : CLAUDE_MISSING],
@@ -320,6 +321,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 		rotated: false,
 	}),
 	'app.list-settings': () => ({ 'sounds.finished': 'none', 'sounds.needs-you': 'none' }),
+	'app.count-usage-step': () => undefined,
 	'app.set-setting': () => undefined,
 	'app.problem-report': () => ({
 		repository: 'bestboyhq/malini',
@@ -342,6 +344,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.list-github-owners': () => [OWNER],
 	'repositories.create-repository': ({ repoUrl }) =>
 		PROJECTS.find((project) => project.remoteUrl === repoUrl)?.id ?? '',
+	'repositories.read-base-branch': () => 'main',
 	'repositories.create-workstream': (args) => createWorkstream(args),
 	'repositories.sync-workstream-base': () => 'current',
 	'repositories.provision-dependencies': () => ({ status: 'succeeded' }),
