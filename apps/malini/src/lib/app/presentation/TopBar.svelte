@@ -778,7 +778,7 @@
 	.topbar-right[data-docked] {
 		--dock-ink: var(--color-fg-secondary);
 		--dock-tint: transparent;
-		--dock-edge: var(--color-surface-50-border);
+		--dock-edge: var(--color-border-default);
 		--dock-stripe: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
 		align-self: end;
 		width: var(--dock-width);
@@ -788,7 +788,7 @@
 		border: 0.5px solid var(--dock-edge);
 		border-bottom: 0;
 		border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-50);
+		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-root);
 		padding: 0 16px 24px;
 		position: relative;
 		isolation: isolate;

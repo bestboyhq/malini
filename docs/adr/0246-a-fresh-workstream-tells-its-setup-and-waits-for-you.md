@@ -16,6 +16,7 @@ They then asked to "replace your turn agents are stretching with quick suggestio
 A failed setup showed a full-width banner above the chat, with the failure in mono and **Retry setup** and **Remove**, and they asked to "get rid of this fucking cheap status topbar pls, dear god we should never have it", then said they meant "only ... this middle bar": "Completely mismatched design".
 The gutter then waited for the first message, hidden: the chat grew to the full width and jumped left as the first message went ("why is this center panel so fucking wide?"), and once centered, it was pushed aside under the user's eyes as they sent, the top bar's status apart from the gutter's card ("The right gutter was always supposed to be just a single element always").
 Simon agreed to "have gutter from the start", and to keep "this top part with dashed strip from the very beginning. I don't like when it's gone. It looks weird."
+They found the gutter's fill too vivid and asked for "the background of the background", with the containers as they were: "Just reduce the fucking background."
 
 ## Decision
 
@@ -41,6 +42,7 @@ Simon agreed to "have gutter from the start", and to keep "this top part with da
   A failed setup takes the sidebar's `broken` tone, so its row's icon turns red as a missing checkout's does, where the pull request's gray hid it.
 - **The gutter is there from the start.** A fresh workstream shows the inspector's gutter as every other workstream does, so nothing moves when the first message goes.
   The top bar's docked header is the top of the gutter's card in every state: with no status it keeps its stripes and no text, where it used to hide itself, and a status that appears fades in on it.
+  The card and its header take the page's own fill, `surface-root` with its `border-default` edge, so the gutter shows by its edge and not as a brighter block beside the chat.
 - This amends 0242's starters.
 
 ## Consequences
