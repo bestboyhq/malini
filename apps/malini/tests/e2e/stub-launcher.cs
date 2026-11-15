@@ -67,16 +67,19 @@ static class StubLauncher
 	const string ShellBoot =
 		@"IFS=$' \t\n'; set +f; i=0; while [ ""$i"" -lt ""$MALINI_STUB_ARGC"" ]; do " +
 		@"name=MALINI_STUB_ARG_$i; set -- ""$@"" ""${!name}""; unset ""$name""; i=$((i + 1)); done; " +
-		@"unset i name MALINI_STUB_ARGC MALINI_STUB_BOOT; . ""$0""";
+		@"unset i name MALINI_STUB_ARGC MALINI_STUB_BOOT $MALINI_STUB_UNSET MALINI_STUB_UNSET; . ""$0""";
 
 	static int Main(string[] args)
 	{
 		string self = Assembly.GetEntryAssembly().Location;
 		string script = self.Substring(0, self.Length - ".exe".Length);
 		string runner = Runner(script);
+		bool callerConvertsPaths = Environment.GetEnvironmentVariable("MSYS_NO_PATHCONV") == null;
 		Environment.SetEnvironmentVariable("MSYS_NO_PATHCONV", "1");
 		StringBuilder commandLine = new StringBuilder(
-			runner == GitBash ? ShellCommandLine(script, args) : NodeCommandLine(runner, script));
+			runner == GitBash
+				? ShellCommandLine(script, args, callerConvertsPaths)
+				: NodeCommandLine(runner, script));
 		StartupInfo startup = new StartupInfo();
 		startup.size = Marshal.SizeOf(typeof(StartupInfo));
 		startup.flags = UseStandardHandles;
@@ -104,8 +107,9 @@ static class StubLauncher
 		return windowsProgram ? shebang : GitBash;
 	}
 
-	static string ShellCommandLine(string script, string[] args)
+	static string ShellCommandLine(string script, string[] args, bool callerConvertsPaths)
 	{
+		if (callerConvertsPaths) Environment.SetEnvironmentVariable("MALINI_STUB_UNSET", "MSYS_NO_PATHCONV");
 		Environment.SetEnvironmentVariable("MALINI_STUB_BOOT", ShellBoot);
 		Environment.SetEnvironmentVariable("MALINI_STUB_ARGC", args.Length.ToString());
 		for (int i = 0; i < args.Length; i++) Environment.SetEnvironmentVariable("MALINI_STUB_ARG_" + i, args[i]);

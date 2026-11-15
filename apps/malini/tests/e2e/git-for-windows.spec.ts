@@ -123,8 +123,12 @@ test('a PC without Git for Windows installs it at launch, holds the first prompt
 		expect(findExecutable('git', launched.path)).toBe(join(home, 'cmd', 'git.exe'));
 		expectCleanConsole(app);
 	} finally {
-		unlink(minGit);
-		unlink(home);
-		await app.close();
+		try {
+			await app.quit();
+		} finally {
+			unlink(minGit);
+			unlink(home);
+			await app.close();
+		}
 	}
 });
