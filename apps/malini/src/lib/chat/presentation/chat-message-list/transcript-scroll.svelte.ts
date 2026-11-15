@@ -10,6 +10,8 @@ const ANCHOR_ROWS = ':scope > :not([data-prompt-row], [data-cover-fade])';
 
 const RUNS = ':scope > [data-run-id]';
 
+const CONTINUATIONS = '[data-run-continuations]';
+
 const TOOL_ROWS = ['tool', 'bash', 'file', 'activity-group']
 	.map((kind) => `[data-message-kind="${kind}"]`)
 	.join(', ');
@@ -145,7 +147,7 @@ export function createTranscriptScroll(
 		return Math.max(0, maxScrollTop(viewport) - holdSpacePx);
 	}
 
-	function readAnchor(viewport: HTMLElement, list: HTMLElement): TranscriptAnchor | null {
+	function readAnchor(viewport: HTMLElement, list: Element): TranscriptAnchor | null {
 		const top = viewport.getBoundingClientRect().top;
 		const runs = list.querySelectorAll<HTMLElement>(RUNS);
 		const run = runs[Math.min(firstEndingBelow(runs, top), runs.length - 1)];
@@ -153,7 +155,9 @@ export function createTranscriptScroll(
 		if (!run || runId === undefined) return null;
 		const rows = run.querySelectorAll(ANCHOR_ROWS);
 		const row = Math.min(firstEndingBelow(rows, top), rows.length - 1);
-		const rowTop = rows[row]?.getBoundingClientRect().top;
+		const rowElement = rows[row];
+		if (rowElement?.matches(CONTINUATIONS)) return readAnchor(viewport, rowElement);
+		const rowTop = rowElement?.getBoundingClientRect().top;
 		if (rowTop === undefined) return null;
 		return { runId, row, offset: rowTop - top };
 	}
@@ -161,8 +165,7 @@ export function createTranscriptScroll(
 	function anchoredTop(viewport: HTMLElement, list: HTMLElement): number | null {
 		if (!anchor) return null;
 		const { runId, row, offset } = anchor;
-		const runs = list.querySelectorAll<HTMLElement>(RUNS);
-		const run = [...runs].find((candidate) => candidate.dataset['runId'] === runId);
+		const run = list.querySelector(`[data-run-id="${CSS.escape(runId)}"]`);
 		const rowTop = run?.querySelectorAll(ANCHOR_ROWS)[row]?.getBoundingClientRect().top;
 		if (rowTop === undefined) return null;
 		return Math.max(0, viewport.scrollTop + rowTop - viewport.getBoundingClientRect().top - offset);

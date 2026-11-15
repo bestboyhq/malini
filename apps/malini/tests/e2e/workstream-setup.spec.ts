@@ -226,7 +226,7 @@ test('a new workstream opens at once, sets itself up, and every new workstream j
 	}
 });
 
-test('a file pasted into a new workstream before its worktree exists attaches once it does', async () => {
+test('a file pasted into a new workstream before its worktree exists shows at once and attaches once it does', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -248,7 +248,9 @@ test('a file pasted into a new workstream before its worktree exists attaches on
 				.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
 		})()`);
 
+		await expect(input.getByLabel('Attaching early.txt')).toBeVisible({ timeout: 1_000 });
 		await expect(input.getByLabel('Attached file: early.txt')).toBeVisible({ timeout: 30_000 });
+		await expect(input.getByLabel('Attaching early.txt')).toHaveCount(0);
 		await expect(page.getByTestId('chat-attachment-error')).toHaveCount(0);
 		await captureFlow(app, 'workstream-setup-early-paste');
 		expectCleanConsole(app);

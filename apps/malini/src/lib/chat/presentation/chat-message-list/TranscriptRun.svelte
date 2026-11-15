@@ -1,10 +1,17 @@
 <script module lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { StreamingBlock } from '$lib/chat/domain/streaming-block';
 	import type { RunTimelineItem } from '../run-timeline';
 
 	export type LiveRunBlocks = Readonly<{
 		pendingItems: readonly RunTimelineItem[];
 		assistant: readonly StreamingBlock[];
+	}>;
+
+	export type RunTurn = Readonly<{
+		holdsLastRun: boolean;
+		estimate: () => number;
+		continuations: Snippet | null;
 	}>;
 </script>
 
@@ -27,12 +34,7 @@
 	import SubagentGroup from './SubagentGroup.svelte';
 	import { blockKey } from './streaming-finalization';
 	import { transcriptContext } from './transcript-context';
-	import {
-		anchoredRowStart,
-		estimateRowHeight,
-		estimateRunHeight,
-		rowsFillingDown,
-	} from './transcript-estimates';
+	import { anchoredRowStart, estimateRowHeight, rowsFillingDown } from './transcript-estimates';
 	import TranscriptRow from './TranscriptRow.svelte';
 	import { rowWindowKey, runWindowKey } from './transcript-window.svelte';
 
@@ -42,9 +44,10 @@
 		folded: boolean;
 		live: LiveRunBlocks | null;
 		copied: boolean;
+		turn?: RunTurn | undefined;
 	}
 
-	let { run, isLastRun, folded, live, copied }: Props = $props();
+	let { run, isLastRun, folded, live, copied, turn }: Props = $props();
 
 	const transcript = transcriptContext();
 	const { timelines, stageEnter, timelineKey } = transcript;
@@ -61,15 +64,22 @@
 	let rowsRendered = false;
 	let seededRows: ReadonlySet<string> | null = null;
 
-	const initiallyMounted = untrack(() => isLastRun || transcript.openingBudget(run.runId) > 0);
+	const initiallyMounted = untrack(
+		() => !turn || turn.holdsLastRun || transcript.openingBudget(run.runId) > 0,
+	);
 	const mounted = $derived(
-		isLastRun || editing || transcriptWindow.mounted(runKey, initiallyMounted || rowsRendered),
+		!turn ||
+			turn.holdsLastRun ||
+			editing ||
+			transcriptWindow.mounted(runKey, initiallyMounted || rowsRendered),
 	);
 	const placeholderHeight = $derived(
-		mounted
-			? null
-			: (transcriptWindow.heightOf(runKey) ??
-					estimateRunHeight(run, transcriptWindow.textWidth, folded)),
+		mounted || !turn ? null : (transcriptWindow.heightOf(runKey) ?? turn.estimate()),
+	);
+	const revealOnHover = $derived(
+		turn
+			? 'group-hover/run:opacity-100 group-has-[[data-run-continuations]:hover]/run:opacity-0'
+			: 'group-hover/continuation:opacity-100',
 	);
 
 	const replying = $derived(
@@ -161,7 +171,10 @@
 	<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
 		<IconButton
 			bare
-			class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+			class={[
+				'text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none',
+				revealOnHover,
+			]}
 			ariaLabel="Copy response"
 			data-testid="chat-copy-response"
 			data-copy-run-id={run.runId}
@@ -174,16 +187,17 @@
 
 <li
 	class={[
-		'group/run relative flex flex-col gap-2',
-		!isLastRun && run.terminal !== null && 'opacity-90',
-		run.superseded && 'pointer-events-none opacity-50 select-none',
+		'relative flex flex-col gap-2',
+		turn ? 'group/run' : 'group/continuation',
+		turn && !turn.holdsLastRun && run.terminal !== null && 'opacity-90',
+		turn && run.superseded && 'pointer-events-none opacity-50 select-none',
 	]}
 	style:height={placeholderHeight === null ? undefined : `${placeholderHeight}px`}
 	aria-label={mounted ? undefined : promptLabel()}
 	data-run-id={run.runId}
 	data-run-terminal={run.terminal ?? 'open'}
 	data-transcript-placeholder={mounted ? undefined : ''}
-	{@attach transcriptWindow.track(runKey)}
+	{@attach turn ? transcriptWindow.track(runKey) : undefined}
 	{@attach isLastRun ? transcript.glideRowLayout : undefined}
 >
 	{#if mounted}
@@ -263,6 +277,12 @@
 
 		{#if run.terminal !== null}
 			{@render transcript.afterRun(run.runId)}
+		{/if}
+
+		{#if turn?.continuations}
+			<ol class="flex flex-col gap-8 pt-6" data-run-continuations>
+				{@render turn.continuations()}
+			</ol>
 		{/if}
 	{/if}
 </li>

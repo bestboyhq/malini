@@ -25,8 +25,14 @@ const GLYPHS: Readonly<Record<PromptChipKind, string>> = {
 	element: '⌗',
 };
 
-const CHIP_CLASS =
-	'prompt-chip group/chip mx-0.5 -my-0.5 inline-flex h-5 max-w-56 cursor-default data-openable:cursor-zoom-in select-none items-center gap-1 rounded-md border border-chip-border bg-chip pr-1.5 pl-1 align-middle text-2xs leading-none text-fg-secondary transition-[border-color,box-shadow] duration-100 hover:border-border-default hover:bg-chip-hover hover:text-fg-default';
+const CHIP_SHAPE =
+	'mx-0.5 -my-0.5 inline-flex h-5 max-w-56 select-none items-center gap-1 rounded-md border border-chip-border bg-chip pr-1.5 pl-1 align-middle text-2xs leading-none';
+
+const CHIP_CLASS = `prompt-chip group/chip ${CHIP_SHAPE} cursor-default data-openable:cursor-zoom-in text-fg-secondary transition-[border-color,box-shadow] duration-100 hover:border-border-default hover:bg-chip-hover hover:text-fg-default`;
+
+const PENDING_CHIP_CLASS = `${CHIP_SHAPE} cursor-progress text-fg-tertiary animate-pulse motion-reduce:animate-none`;
+
+const PENDING_LEAD_CLASS = 'grid size-3.5 shrink-0 place-items-center';
 
 const LEAD_CLASS =
 	'prompt-chip__lead relative grid size-3.5 shrink-0 cursor-pointer place-items-center text-fg-tertiary';
@@ -195,6 +201,23 @@ type PromptChipNodeViewEditor = {
 	state: { doc: ChipDocument; tr: { delete(from: number, to: number): unknown } };
 	commands: { focus(): void; setTextSelection(position: number): void };
 };
+
+export function createPendingChip(label: string): HTMLElement {
+	const chip = document.createElement('span');
+	chip.contentEditable = 'false';
+	chip.className = PENDING_CHIP_CLASS;
+	chip.dataset.pendingChip = '';
+	chip.dataset.testid = 'chat-composer-pending-attachment';
+	chip.setAttribute('aria-label', `Attaching ${label}`);
+	const lead = document.createElement('span');
+	lead.className = PENDING_LEAD_CLASS;
+	lead.append(chipGlyph('attachment', label));
+	const text = document.createElement('span');
+	text.className = LABEL_CLASS;
+	text.textContent = label;
+	chip.append(lead, text);
+	return chip;
+}
 
 export function createPromptChipNodeView({
 	node,

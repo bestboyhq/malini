@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { quintOut } from 'svelte/easing';
+	import { fly } from 'svelte/transition';
 	import { fillComposerCommand } from '$lib/chat/application/commands/fill-composer.command';
 	import { selectRunProfileCommand } from '$lib/chat/application/commands/select-run-profile.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
@@ -17,6 +19,7 @@
 	import { WorkstreamAutomations } from '$lib/automations/automations.api';
 	import type { AgentRunMode } from '$shared/providers/providers.api';
 	import { WorkstreamSetupSteps } from '$shared/repositories/repositories.api';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
 
 	type Starter = Readonly<{
 		icon: IconName;
@@ -79,6 +82,16 @@
 		},
 	];
 
+	function starterArrival(node: Element, delay: number) {
+		const motion = motionOff() ? 0 : 1;
+		return fly(node, {
+			y: 4 * motion,
+			delay: delay * motion,
+			duration: 320 * motion,
+			easing: quintOut,
+		});
+	}
+
 	function start(starter: Starter): void {
 		const profile = runProfileQuery.data;
 		if (profile.mode !== starter.mode) selectRunProfileCommand({ ...profile, mode: starter.mode });
@@ -109,31 +122,33 @@
 	<div class="chat-column px-4 text-left">
 		{#if untouched}
 			<WorkstreamSetupSteps {workstreamId}>
-				<ul class="flex flex-col" data-testid="chat-starters">
-					{#each starters as starter (starter.title)}
-						<li>
-							<Button
-								bare
-								class="group hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 text-left outline-none"
-								onclick={() => start(starter)}
-							>
-								<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
-									<Icon name={starter.icon} size={14} />
-								</span>
-								<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
-								<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
-									{starter.detail}
-								</span>
-								<span
-									class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-									aria-hidden="true"
+				{#snippet children(suggestionsDelay: number)}
+					<ul class="flex flex-col" data-testid="chat-starters">
+						{#each starters as starter, index (starter.title)}
+							<li in:starterArrival|global={suggestionsDelay + 90 + index * 50}>
+								<Button
+									bare
+									class="group hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 text-left outline-none"
+									onclick={() => start(starter)}
 								>
-									<Icon name="arrow-right" size={13} />
-								</span>
-							</Button>
-						</li>
-					{/each}
-				</ul>
+									<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
+										<Icon name={starter.icon} size={14} />
+									</span>
+									<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
+									<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
+										{starter.detail}
+									</span>
+									<span
+										class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+										aria-hidden="true"
+									>
+										<Icon name="arrow-right" size={13} />
+									</span>
+								</Button>
+							</li>
+						{/each}
+					</ul>
+				{/snippet}
 			</WorkstreamSetupSteps>
 		{:else}
 			<p class="text-fg-secondary text-sm">Bring useful context with you</p>
