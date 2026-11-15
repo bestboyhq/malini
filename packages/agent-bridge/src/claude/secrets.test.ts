@@ -220,7 +220,7 @@ describe('SessionSecrets compact output', () => {
 			env: { FAKE_SLEEP: '5' },
 		});
 
-		expect(ran.stdout).toBe('hi\n');
+		expect(ran).toEqual({ status: 0, stdout: 'hi\n', stderr: '' });
 		expect(Date.now() - started).toBeLessThan(4000);
 	});
 

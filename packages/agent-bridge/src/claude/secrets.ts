@@ -29,7 +29,6 @@ const SANDBOX_UNREADY = 'malini: the sandbox is not ready, so this command did n
 const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
-// ponytail: a hung rtk rewrite outlives its command; kill it through $! once bash is 4.4+.
 const REWRITE_SECONDS = 2;
 const COMPACT_OUTPUT_DATA = join(tmpdir(), 'malini-rtk');
 const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
@@ -55,7 +54,7 @@ if [ -r "$folder/${SANDBOX_FILE}" ] && ! {
 	confine=(/usr/bin/env ${sandboxEnvironment} "\${words[@]}")
 fi
 compact() {
-	local quote="'\\"'\\"'" before body tail original rewritten reply
+	local quote="'\\"'\\"'" before body tail original rewritten reply rewriting watchdog code
 	[[ $command == *" && eval '"* && $command != *$'\\1'* ]] || return 0
 	before=\${command%%" && eval '"*}
 	tail=\${command#*" && eval '"}
@@ -66,14 +65,18 @@ compact() {
 	original=\${body//$'\\1'/\\'}
 	rewritten=$original
 	if [[ $original != *rtk* ]]; then
-		IFS= read -r -d '' -t ${REWRITE_SECONDS} reply < <(
-			exec 2>/dev/null
-			reply=$("\${confine[@]}" "$rtk" rewrite "$original")
-			printf '%s %s\\0' $? "$reply"
-		)
-		rewritten=\${reply#* }
-		[[ (\${reply%% *} == 0 || \${reply%% *} == 3) && \${rewritten//rtk /} == "$original" ]] ||
-			rewritten=$original
+		reply=$folder/rewrite.$$
+		"\${confine[@]}" "$rtk" rewrite "$original" </dev/null >"$reply" 2>/dev/null &
+		rewriting=$!
+		{ /bin/sleep ${REWRITE_SECONDS}; kill $rewriting; } </dev/null >/dev/null 2>&1 &
+		watchdog=$!
+		wait $rewriting 2>/dev/null
+		code=$?
+		kill $watchdog 2>/dev/null
+		wait $watchdog 2>/dev/null
+		rewritten=$(<"$reply")
+		/bin/rm -f "$reply"
+		[[ ($code == 0 || $code == 3) && \${rewritten//rtk /} == "$original" ]] || rewritten=$original
 	fi
 	local bin
 	bin=$(cd -- "\${rtk%[/\\\\]*}" && pwd) || return 0
