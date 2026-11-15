@@ -7,6 +7,7 @@
 		modelDefaultsQuery,
 		saveModelDefaultsCommand,
 	} from '$shared/providers/providers.api';
+	import CompactOutputSettings from './CompactOutputSettings.svelte';
 	import ContextWindowSettings from './ContextWindowSettings.svelte';
 	import SettingsSection from './SettingsSection.svelte';
 	import SteRepliesSettings from './SteRepliesSettings.svelte';
@@ -22,5 +23,6 @@
 		<ModelDefaultsSettings models={modelDefaultsQuery.data} onchange={saveModelDefaultsCommand} />
 		<ContextWindowSettings />
 		<SteRepliesSettings />
+		<CompactOutputSettings />
 	</Well>
 </SettingsSection>

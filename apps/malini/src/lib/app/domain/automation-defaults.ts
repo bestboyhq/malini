@@ -11,6 +11,7 @@ export type UpdateFromMain = 'touches' | 'always' | 'never';
 
 export type AutomationDefaults = Readonly<{
 	resolveConflicts: boolean;
+	fixChecks: boolean;
 	addressReview: boolean;
 	brain: boolean;
 	updateFromMain: UpdateFromMain;
@@ -18,7 +19,7 @@ export type AutomationDefaults = Readonly<{
 
 export type DefaultsChoice = 'recommended' | 'custom';
 
-export type DefaultSwitch = 'resolveConflicts' | 'addressReview' | 'brain';
+export type DefaultSwitch = 'resolveConflicts' | 'fixChecks' | 'addressReview' | 'brain';
 
 export type TriggerChange = Readonly<{
 	definition: AutomationDefinitionRecord;
@@ -29,6 +30,7 @@ type Definition = Pick<AutomationDefinitionRecord, 'builtin' | 'trigger'>;
 
 export const RECOMMENDED: AutomationDefaults = {
 	resolveConflicts: true,
+	fixChecks: true,
 	addressReview: true,
 	brain: true,
 	updateFromMain: 'touches',
@@ -41,6 +43,7 @@ const OVERLAPPING_FILTER = 'where overlapping is true';
 const BRAIN_BUILTINS: readonly AutomationBuiltin[] = ['capture-brain', 'write-brain-notes'];
 const DEFAULT_BUILTINS: readonly AutomationBuiltin[] = [
 	'resolve-conflicts',
+	'fix-checks',
 	'address-review',
 	'update-from-main',
 	...BRAIN_BUILTINS,
@@ -65,6 +68,7 @@ export function updateFromMainMode(trigger: AutomationTrigger | null): UpdateFro
 export function liveDefaults(definitions: readonly Definition[]): AutomationDefaults {
 	return {
 		resolveConflicts: isOn(definitions, 'resolve-conflicts'),
+		fixChecks: isOn(definitions, 'fix-checks'),
 		addressReview: isOn(definitions, 'address-review'),
 		brain: isOn(definitions, 'capture-brain'),
 		updateFromMain: updateFromMainMode(triggerOf(definitions, 'update-from-main')),
@@ -74,6 +78,7 @@ export function liveDefaults(definitions: readonly Definition[]): AutomationDefa
 export function sameDefaults(left: AutomationDefaults, right: AutomationDefaults): boolean {
 	return (
 		left.resolveConflicts === right.resolveConflicts &&
+		left.fixChecks === right.fixChecks &&
 		left.addressReview === right.addressReview &&
 		left.brain === right.brain &&
 		left.updateFromMain === right.updateFromMain
@@ -120,6 +125,7 @@ function wantedTrigger(
 	if (builtin === 'update-from-main')
 		return updateFromMainTrigger(defaults.updateFromMain, current);
 	if (builtin === 'resolve-conflicts') return switched(builtin, defaults.resolveConflicts, current);
+	if (builtin === 'fix-checks') return switched(builtin, defaults.fixChecks, current);
 	if (builtin === 'address-review') return switched(builtin, defaults.addressReview, current);
 	return defaults.brain ? null : switched(builtin, false, current);
 }

@@ -34,6 +34,7 @@ const BOTTOM_ANCHOR_HOLD_MS = 600;
 const HOVER_RELEASE_MS = 200;
 const REMEMBER_DELAY_MS = 250;
 const OPEN_SETTLE_MS = 1_000;
+const TRAY_JOINS_CONTENT_MS = 1_000;
 const RESTORE_WAIT_MS = 1_500;
 const AT_BOTTOM_PX = 2;
 const SUBPIXEL_SLACK_PX = 1;
@@ -77,6 +78,7 @@ export function createTranscriptScroll(
 	let openKey: string | null = null;
 	let opening = true;
 	let openedAt = 0;
+	let newContentAt = Number.NEGATIVE_INFINITY;
 	let heldTop = 0;
 	let shownTop = 0;
 	let holdSpacePx = 0;
@@ -580,9 +582,11 @@ export function createTranscriptScroll(
 		releaseScrollPin: becomeReader,
 
 		followSpaceBelowChange(px: number, overlayPx: number): void {
-			const joinsGlide = scrollGlide.isGliding && overlayPx > overlayBelowPx;
+			const joinsFollow =
+				overlayPx > overlayBelowPx &&
+				(scrollGlide.isGliding || performance.now() - newContentAt < TRAY_JOINS_CONTENT_MS);
 			const covered = coversWithOverlay()
-				? coveredPx + (joinsGlide ? 0 : overlayPx - overlayBelowPx)
+				? coveredPx + (joinsFollow ? 0 : overlayPx - overlayBelowPx)
 				: 0;
 			const moved = px - spaceBelowPx - (covered - coveredPx);
 			const blankGrowth = Math.min(0, coveredPx) - Math.min(0, covered);
@@ -646,6 +650,7 @@ export function createTranscriptScroll(
 		abandonRestore,
 
 		followNewContent(): void {
+			newContentAt = performance.now();
 			if (!opening && (follow === 'reader' || hovering)) newContentBelow = true;
 			opening = false;
 			uncover();

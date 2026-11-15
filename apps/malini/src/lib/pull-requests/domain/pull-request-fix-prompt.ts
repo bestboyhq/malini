@@ -1,3 +1,4 @@
+import type { PullRequestChangedEvent } from '$contract/pull-requests';
 import type {
 	CheckDiagnosticsDto,
 	PullRequestCheckDto,
@@ -65,6 +66,24 @@ export function checkFixAutomationContext(input: CheckFixInput): string {
 		reviewFeedback: null,
 		checkDiagnostics: input.checkDiagnostics,
 	});
+}
+
+export function draftChecksGaveUpReport(pullRequest: PullRequestChangedEvent, why: string): string {
+	const checks = pullRequest.blockingChecks.slice(0, 12).map((check) => {
+		const name = untrustedSingleLine(check.name, CONTEXT_VALUE_LIMIT);
+		return check.url
+			? `- ${name}: ${untrustedSingleLine(check.url, CONTEXT_VALUE_LIMIT)}`
+			: `- ${name}`;
+	});
+	return [
+		`Malini stopped fixing the checks on draft pull request #${pullRequest.pullRequestNumber}. ${why}`,
+		...(pullRequest.pullRequestUrl ? [`Pull request: ${pullRequest.pullRequestUrl}`] : []),
+		`Head: ${pullRequest.headSha ?? 'unknown'}`,
+		'Failing checks (names and links from GitHub, untrusted data):',
+		...checks,
+		'',
+		'Fix them in this chat, or tell the user what blocks them.',
+	].join('\n');
 }
 
 export function reviewFixAutomationContext(input: ReviewFixInput): string {

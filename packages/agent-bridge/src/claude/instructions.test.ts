@@ -115,6 +115,21 @@ describe('systemPromptAppend', () => {
 		);
 	});
 
+	it('says command output is shortened, and how to get it whole, only while the switch is on', () => {
+		const prompt = (compactOutput: boolean) =>
+			systemPromptAppend(
+				'/nonexistent/worktree',
+				'medium',
+				undefined,
+				undefined,
+				false,
+				compactOutput,
+			);
+
+		expect(prompt(true)).toContain('run it as `RTK_DISABLED=1 <command>`');
+		expect(prompt(false)).not.toContain('- Command output:');
+	});
+
 	it('hands a started workstream its starter and siblings', () => {
 		const child = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
 			startedBy: { name: 'Unify footers' },

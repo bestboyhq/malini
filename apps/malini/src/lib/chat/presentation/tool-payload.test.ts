@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toolInputBlocks, toolOutputBlock } from './tool-payload';
+import { outputLanguage, toolInputBlocks, toolOutputBlock } from './tool-payload';
 
 describe('tool payload blocks', () => {
 	it('lifts the code an edit carries out of its JSON, in the language of the file it edits', () => {
@@ -35,5 +35,25 @@ describe('tool payload blocks', () => {
 			code: '{\n  "ok": true\n}',
 			language: 'json',
 		});
+	});
+
+	it('guesses the language of code an input carries without a file to name it', () => {
+		expect(toolInputBlocks({ code: 'export const a = 1;' }, null)).toEqual([
+			{ label: 'code', code: 'export const a = 1;', language: 'typescript' },
+		]);
+	});
+
+	it('reads command output as plain text unless the whole of it is JSON or a diff', () => {
+		expect(outputLanguage('[\n  {\n    "id": 1\n  }\n]')).toBe('json');
+		expect(outputLanguage('diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b')).toBe(
+			'diff',
+		);
+		expect(
+			outputLanguage(
+				'[\n  {\n    "id": 1,\n... (109 lines truncated)\n[see remaining: tail -n +41 /private/var/x.log]',
+			),
+		).toBe('text');
+		expect(outputLanguage('curl: (6) Could not resolve host: example.invalid')).toBe('text');
+		expect(outputLanguage('export const a = 1;\nrun(a);')).toBe('text');
 	});
 });

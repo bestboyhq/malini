@@ -55,7 +55,7 @@ Processes:
 - `node:child_process` with an argv array, never a shell string with interpolated user input.
 - git, gh and docker are spawned by PATH-resolved binary name through `$main/git`, `$main/process` and `$main/docker`.
 - The agent bridge runs as a child process on Electron's own binary with `ELECTRON_RUN_AS_NODE=1`, never `which node`.
-- A process that gets a group of its own (`detached: true`) is wrapped in `endWithMalini` from `$main/process/reaper`, so it ends when Malini dies (ADR 0247).
+- A process that gets a group of its own (`detached: true`) is wrapped in `endWithMalini` from `$main/process/reaper`, so it ends when Malini dies (ADR 0251).
 - No native addons.
 
 No comments.

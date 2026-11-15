@@ -101,6 +101,17 @@ export function latestShippingAutomationRun(
 	return latestWorkstreamAutomationRun(db, workstreamId, shippingAutomationIds(db));
 }
 
+export function latestAutomationRunOf(
+	db: MaliniDatabase,
+	workstreamId: string,
+	builtin: AutomationBuiltin,
+): AutomationRunRecord | null {
+	const ids = listAutomationDefinitions(db)
+		.filter((definition) => definition.builtin === builtin)
+		.map(({ id }) => id);
+	return latestWorkstreamAutomationRun(db, workstreamId, ids);
+}
+
 export function activeShippingAutomationRun(
 	db: MaliniDatabase,
 	workstreamId: string,

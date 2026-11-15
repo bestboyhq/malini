@@ -1962,6 +1962,13 @@ UPDATE automation_runs SET interrupted = 1
 `,
 	`ALTER TABLE agent_deliveries ADD COLUMN wake INTEGER NOT NULL DEFAULT 0 CHECK (wake IN (0, 1));`,
 	`DELETE FROM settings WHERE key IN ('usage-data.active-days', 'usage-data.reported-month');`,
+	`ALTER TABLE workstream_ship ADD COLUMN checks_watched_since TEXT;`,
+	`
+UPDATE automation_definitions
+  SET trigger_when = 'on pull-requests:pull-request-changed where state is draft and checks is failed',
+    trigger_mode = 'auto'
+  WHERE builtin = 'fix-checks' AND trigger_when IS NULL;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

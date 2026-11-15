@@ -338,7 +338,13 @@ describe('automation definitions', () => {
 		).toEqual({
 			'name-chats': defaults('Name chats', 'low', 'haiku'),
 			'name-services': defaults('Name services', 'low', 'haiku'),
-			'fix-checks': defaults('Fix checks', 'high'),
+			'fix-checks': {
+				...defaults('Fix checks', 'high'),
+				trigger: {
+					when: 'on pull-requests:pull-request-changed where state is draft and checks is failed',
+					mode: 'auto',
+				},
+			},
 			'update-from-main': {
 				...defaults('Update from main', 'low'),
 				trigger: {
@@ -631,6 +637,7 @@ describe('automation definitions', () => {
 		};
 		const fixChecks = await builtin('fix-checks');
 		const nameChats = await builtin('name-chats');
+		const compatibility = await builtin('check-compatibility');
 		const fresh = await saveDefinition({ runsIn: 'new-workstream' });
 		const when = (text: unknown) => ({ ...valid, trigger: { when: text, mode: 'auto' } });
 		const cases: ReadonlyArray<readonly [string, unknown, string]> = [
@@ -666,12 +673,12 @@ describe('automation definitions', () => {
 			['automations.save-definition', { ...valid, thenAutomationId: '' }, 'invalid-args'],
 			[
 				'automations.save-definition',
-				{ ...valid, id: fixChecks.id, trigger: { when: 'on app:updated', mode: 'auto' } },
+				{ ...valid, id: compatibility.id, trigger: { when: 'on app:updated', mode: 'auto' } },
 				'builtin',
 			],
 			[
 				'automations.save-definition',
-				{ ...valid, id: fixChecks.id, thenAutomationId: fresh.id },
+				{ ...valid, id: compatibility.id, thenAutomationId: fresh.id },
 				'builtin',
 			],
 			[

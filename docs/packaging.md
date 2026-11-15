@@ -27,6 +27,15 @@ Malini reaches GitHub through `gh` (ADR 0014), and a Mac may not have it, so the
 At boot the main process appends `Resources/vendor/gh/bin` to `PATH`, so a `gh` the user installed still comes first.
 To move to a newer `gh`, change `GH_VERSION` and `GH_SHA256` together, taking the hash from the release's `checksums.txt`.
 
+## RTK
+
+Malini shortens what an agent's commands print with RTK, in the Apache-2.0 `rtk-oss` build (ADR 0248).
+`scripts/fetch-rtk.mjs` downloads the build pinned by `RTK_VERSION` for this machine, refuses it unless its sha256 matches its row in `RTK_BUILDS`, and puts `bin/rtk`, its `LICENSE` and a `VERSION` file into `apps/malini/vendor/rtk`, which git ignores.
+`pnpm dist`, `release` and `test:update` run it before electron-builder, `pnpm dogfood` runs it after `pnpm install`, CI runs it before the package tests, and `extraResources` copies the folder to `Resources/vendor/rtk`.
+The bridge gets that path in `MALINI_RTK_BINARY`, and a missing binary only means commands print in full.
+Malini never downloads RTK at run time, and never ships the default `rtk` build or `rtk-proxy`, which are BUSL-1.1.
+To move to a newer RTK, change `RTK_VERSION` and every sha256 in `RTK_BUILDS` together, taking each hash from the release's `checksums.txt`.
+
 ## Licenses
 
 `extraResources` ships Malini's `LICENSE` and the root `NOTICE`, which names every third-party component with its license and copyright line.
@@ -34,7 +43,7 @@ Each bundle in `out/` carries a `THIRD_PARTY_NOTICES.txt` with the license of ev
 The build fails when a bundled package declares no license, or when `NOTICE` has no line starting with its name: add the package there with its license and copyright line.
 electron-builder moves Electron's `LICENSE.electron.txt` and Chromium's `LICENSES.chromium.html` into `Contents/Resources`.
 The About panel shows the copyright, the AGPL notice, the source link, and these credits, from `aboutPanel` in `src/lib/app/platform/menu.ts`.
-The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, and `gh` its MIT `LICENSE` inside `vendor/gh`.
+The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, `gh` its MIT `LICENSE` inside `vendor/gh`, and RTK its Apache-2.0 `LICENSE` inside `vendor/rtk`.
 The sounds in `src/renderer/public/sounds` ship with their `LICENSE.md`, which credits each file and links its license, and the Apache 2.0 text beside it.
 `pnpm licenses list -r` lists every dependency in the workspace with its license; anything copyleft, non-commercial, or unlicensed needs a decision before it ships.
 

@@ -725,6 +725,19 @@ describe('protocol: parseCommandLine', () => {
 			expect(withOutside('yes')).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
 		});
 
+		it('parses whether a prompt runs commands with their output as printed', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const withOutput = (compactOutput: unknown) =>
+				parseCommandLine(`{${prompt},"compactOutput":${JSON.stringify(compactOutput)}}`);
+
+			expect(withOutput(false)).toMatchObject({ ok: true, command: { compactOutput: false } });
+			expect(withOutput(true)).toEqual({
+				ok: true,
+				command: { cmd: 'send_prompt', id: 'p1', sessionId: 's1', runId: 'r1', prompt: 'hi' },
+			});
+			expect(withOutput('no')).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+		});
+
 		it('parses what the sandbox opens for a prompt and rejects a grant that is not a plain absolute path', () => {
 			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
 			const withGrants = (grants: unknown) =>

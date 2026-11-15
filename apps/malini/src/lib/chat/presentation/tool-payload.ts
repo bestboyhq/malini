@@ -1,4 +1,9 @@
-import { languageForPath } from '@malini/extension-api';
+import {
+	detectLanguage,
+	languageForPath,
+	resolveLanguage,
+	type SupportedLanguage,
+} from '@malini/extension-api';
 
 export type ToolPayloadBlock = Readonly<{ label: string; code: string; language: string | null }>;
 
@@ -24,7 +29,11 @@ export function toolInputBlocks(input: unknown, path: string | null): readonly T
 			fields[key] = value;
 			continue;
 		}
-		code.push({ label: key, code: value, language: fieldLanguage(field, path) });
+		code.push({
+			label: key,
+			code: value,
+			language: fieldLanguage(field, path) ?? resolveLanguage(null, value),
+		});
 	}
 	if (code.length === 0) return [jsonBlock('Input', input)];
 	return Object.keys(fields).length > 0 ? [jsonBlock('Input', fields), ...code] : code;
@@ -41,6 +50,11 @@ export function toolOutputBlock(
 		code: output,
 		language: readsFile && path ? languageForPath(path) : null,
 	};
+}
+
+export function outputLanguage(output: string): SupportedLanguage {
+	const detected = detectLanguage(output);
+	return detected === 'json' || detected === 'diff' ? detected : 'text';
 }
 
 function jsonBlock(label: string, value: unknown): ToolPayloadBlock {
