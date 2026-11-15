@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { fade } from 'svelte/transition';
+	import type { UsageStepValue } from '$contract/system';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { DownloadProgress } from '$hyper-ui/components/download-progress';
@@ -33,6 +34,7 @@
 		type GithubRepository,
 		type GithubRepositoryState,
 	} from '$shared/repositories/repositories.api';
+	import { countUsageStepCommand } from '$lib/app/application/commands/count-usage-step.command';
 	import { loadUsageDataCommand } from '$lib/app/application/commands/load-usage-data.command';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { usageDataQuery } from '$lib/app/application/queries/usage-data.query.svelte';
@@ -57,6 +59,7 @@
 	let nowMs = $state(Date.now());
 	let browsing = $state(false);
 	let signInAsked = $state(false);
+	let lastShown: UsageStepValue<'github_view'> | null = null;
 
 	const listing = $derived(githubRepositoriesQuery.data);
 	const auth = $derived(githubAuthQuery.data);
@@ -72,6 +75,7 @@
 	const rows = $derived(listing.kind === 'loaded' ? listing.repositories.slice(0, ROWS) : []);
 	const view = $derived(githubView());
 	const subline = $derived(githubSubline());
+	const shown = $derived(shownView());
 
 	onMount(() => showOnboardingHook());
 
@@ -88,6 +92,12 @@
 
 	$effect(() => {
 		if (status === 'ready') untrack(loadGithubRepositoriesCommand);
+	});
+
+	$effect(() => {
+		if (!browsing || shown === null || shown === lastShown) return;
+		lastShown = shown;
+		untrack(() => countUsageStepCommand({ step: 'github_view', value: shown }));
 	});
 
 	$effect(() => {
@@ -116,6 +126,25 @@
 		}
 	}
 
+	function shownView(): UsageStepValue<'github_view'> | null {
+		switch (view) {
+			case 'list':
+				if (listing.kind === 'failed') return 'list_failed';
+				if (listing.kind === 'loaded') return rows.length > 0 ? 'list' : 'empty';
+				return null;
+			case 'code':
+				return 'code';
+			case 'sign-in':
+				return 'sign_in';
+			case 'install-failed':
+				return 'install_failed';
+			case 'unknown':
+				return 'unknown';
+			case 'loading':
+				return null;
+		}
+	}
+
 	function githubSubline(): string | null {
 		switch (view) {
 			case 'loading':
@@ -132,7 +161,14 @@
 		}
 	}
 
+	function pick(choice: UsageStepValue<'picked'>, open: () => void): void {
+		countUsageStepCommand({ step: 'picked', value: choice });
+		open();
+	}
+
 	function back(): void {
+		countUsageStepCommand({ step: 'github_back', value: shown ?? 'loading' });
+		lastShown = null;
 		if (signIn.kind === 'starting' || signIn.kind === 'waiting') cancelGithubSignInCommand();
 		browsing = false;
 		signInAsked = false;
@@ -201,7 +237,7 @@
 			ariaHasPopup="dialog"
 			ariaKeyshortcuts="Meta+K"
 			class={[ROW, 'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default text-sm']}
-			onclick={() => openCommandCenterCommand('find')}
+			onclick={() => pick('more', () => openCommandCenterCommand('find'))}
 		>
 			<span class={ICON_SLOT}>
 				<Icon name="search" size={14} />
@@ -320,7 +356,7 @@
 		{:else}
 			<ComposerShell>
 				<div class="flex flex-col p-1">
-					<Button bare class={DOOR} onclick={() => (browsing = true)}>
+					<Button bare class={DOOR} onclick={() => pick('github', () => (browsing = true))}>
 						<span class={BADGE} aria-hidden="true">
 							<GitHubIcon size={16} />
 						</span>
@@ -332,7 +368,8 @@
 						disabled={connecting !== null}
 						ariaBusy={connecting === 'folder'}
 						class={DOOR}
-						onclick={() => openRepositoryFolderCommand({ open: 'workstream' })}
+						onclick={() =>
+							pick('folder', () => openRepositoryFolderCommand({ open: 'workstream' }))}
 					>
 						<span class={BADGE} aria-hidden="true">
 							<Icon name="folder-open" size={15} />
@@ -346,7 +383,7 @@
 						bare
 						ariaHasPopup="dialog"
 						class={DOOR}
-						onclick={() => openCommandCenterCommand('new-repository')}
+						onclick={() => pick('new', () => openCommandCenterCommand('new-repository'))}
 					>
 						<span class={BADGE} aria-hidden="true">
 							<Icon name="plus" size={14} />

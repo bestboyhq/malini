@@ -180,6 +180,7 @@ import type {
 	ShutdownOutcome,
 	StartedContainerInput,
 	UsageDataState,
+	UsageStep,
 } from './system';
 
 export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
@@ -559,6 +560,7 @@ export interface ContractCommands {
 	'app.list-settings': { args: undefined; result: Record<string, string> };
 	'app.usage-data': { args: undefined; result: UsageDataState };
 	'app.share-usage-data': { args: ShareUsageDataArgs; result: void };
+	'app.count-usage-step': { args: UsageStep; result: void };
 	'app.hold-lid': { args: HoldLidArgs; result: boolean };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
@@ -933,6 +935,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
+	'app.count-usage-step',
 	'app.hold-lid',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',
