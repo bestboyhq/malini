@@ -171,6 +171,7 @@ export { noteMergedHeadCommand } from './application/commands/note-merged-head.c
 export { openRepositoryFolderCommand } from './application/commands/open-repository-folder.command';
 export { openWorkstreamInEditorCommand } from './application/commands/open-workstream-in-editor.command';
 export { loadRepositoriesScopeCommand } from './application/commands/load-repositories-scope.command';
+export { refreshActivePullRequestCommand } from './application/commands/refresh-active-pull-request.command';
 export { refreshRepositoriesCommand } from './application/commands/refresh-repositories.command';
 export { refreshWorkstreamAfterChangeCommand } from './application/commands/refresh-workstream-after-change.command';
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';

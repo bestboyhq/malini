@@ -3,6 +3,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
+	import { outputLanguage } from './tool-payload';
 
 	interface Props {
 		text: string;
@@ -32,6 +33,7 @@
 
 	const loaded = $derived(fullOutput?.status === 'ready' ? fullOutput.output : null);
 	const shown = $derived(loaded ?? text);
+	const shownLanguage = $derived(language ?? outputLanguage(shown));
 	const preview = $derived(loaded === null && fullLength !== null && onloadfull !== undefined);
 	const lines = $derived(shown.split('\n'));
 	const capped = $derived(
@@ -44,7 +46,7 @@
 
 <pre class={[className, !capped && !preview && endClass]}><CodeTokens
 		code={head}
-		{language}
+		language={shownLanguage}
 	/></pre>
 {#if tail !== null}
 	<div class="px-2 py-1">
@@ -52,7 +54,7 @@
 			Show all {lines.length} lines
 		</Button>
 	</div>
-	<pre class={[className, endClass]}><CodeTokens code={tail} {language} /></pre>
+	<pre class={[className, endClass]}><CodeTokens code={tail} language={shownLanguage} /></pre>
 {:else if preview}
 	<div class="px-2 py-1">
 		<Button

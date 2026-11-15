@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { APP_DATA_ROOT } from '@malini/agent-bridge/sandbox';
+import { APP_DATA_ROOT, RTK_BINARY } from '@malini/agent-bridge/sandbox';
 import {
 	CHAT_SESSION_RENAMED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
@@ -9,9 +9,11 @@ import {
 	type WorkstreamRenamedPayload,
 } from '$contract/events';
 import {
+	COMPACT_OUTPUT_SETTING,
 	CONTEXT_WINDOW_SETTING,
 	OPTIMIZE_CONTEXT_SETTING,
 	STE_REPLIES_SETTING,
+	compactsOutput,
 	contextWindowOf,
 	optimizesContext,
 	writesSte,
@@ -454,6 +456,7 @@ export async function startAgentService(
 					AGENT_BRIDGE_LOG: join(context.appDataRoot, 'agent-bridge.log'),
 					MALINI_AGENT_BRIDGE_PRIVATE_RUNTIME_ROOT: privateRuntimeRoot,
 					[APP_DATA_ROOT]: context.appDataRoot,
+					[RTK_BINARY]: join(context.resourcesRoot, 'vendor', 'rtk', 'bin', 'rtk'),
 				},
 			},
 			...(deps.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: deps.readyTimeoutMs }),
@@ -592,6 +595,7 @@ export async function startAgentService(
 						? contextWindowOf(settings[CONTEXT_WINDOW_SETTING])
 						: null,
 					steReplies: writesSte(settings[STE_REPLIES_SETTING]),
+					compactOutput: compactsOutput(settings[COMPACT_OUTPUT_SETTING]),
 				};
 			},
 			captureCheckpoint: deps.hooks.captureCheckpoint,

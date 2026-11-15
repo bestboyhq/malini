@@ -14,6 +14,9 @@ import {
 } from './migrations';
 import { all, get, scalar } from './rows';
 
+const FIX_FAILED_DRAFTS =
+	'on pull-requests:pull-request-changed where state is draft and checks is failed';
+
 const ALL_TABLES = [
 	'agent_actions',
 	'agent_attachments',
@@ -657,7 +660,7 @@ describe('migrate', () => {
 				"SELECT id, trigger_when, trigger_mode FROM automation_definitions WHERE id IN ('fix', 'resolve') ORDER BY id",
 			),
 		).toEqual([
-			{ id: 'fix', trigger_when: null, trigger_mode: null },
+			{ id: 'fix', trigger_when: FIX_FAILED_DRAFTS, trigger_mode: 'auto' },
 			{
 				id: 'resolve',
 				trigger_when: 'on repositories:workstream-merge-conflicted',
@@ -764,7 +767,7 @@ describe('migrate', () => {
 				"SELECT id, trigger_when, trigger_mode FROM automation_definitions WHERE id IN ('main', 'fix') ORDER BY id",
 			),
 		).toEqual([
-			{ id: 'fix', trigger_when: null, trigger_mode: null },
+			{ id: 'fix', trigger_when: FIX_FAILED_DRAFTS, trigger_mode: 'auto' },
 			{
 				id: 'main',
 				trigger_when: 'on repositories:workstream-base-overlapped where overlapping is true',
@@ -778,6 +781,39 @@ describe('migrate', () => {
 		]);
 		db.close();
 		other.close();
+	});
+
+	it('turns on Fix checks for failing drafts, keeping a trigger you set', () => {
+		const armed = MIGRATIONS.findIndex((migration) =>
+			migration.includes("builtin = 'fix-checks' AND trigger_when IS NULL"),
+		);
+		const at = '2026-11-15T00:00:00Z';
+		const before = (trigger: string): ReturnType<typeof openDatabase> => {
+			const db = openDatabase(':memory:');
+			db.exec(SCHEMA);
+			for (const migration of MIGRATIONS.slice(0, armed)) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + armed};`);
+			db.exec(`
+				INSERT INTO automation_definitions (id, name, instructions, model, effort, runs_in, builtin, trigger_when, trigger_mode, created_at, updated_at) VALUES
+				  ('fix', 'Fix checks', 'Fix.', 'opus', 'high', 'workstream', 'fix-checks', ${trigger}, '${at}', '${at}');
+			`);
+			return db;
+		};
+		const fresh = before('NULL, NULL');
+		const yours = before("'on pull-requests:pull-request-changed where checks is failed', 'ask'");
+
+		migrate(fresh);
+		migrate(yours);
+
+		const trigger =
+			"SELECT trigger_when, trigger_mode FROM automation_definitions WHERE id = 'fix'";
+		expect(get(fresh, trigger)).toEqual({ trigger_when: FIX_FAILED_DRAFTS, trigger_mode: 'auto' });
+		expect(get(yours, trigger)).toEqual({
+			trigger_when: 'on pull-requests:pull-request-changed where checks is failed',
+			trigger_mode: 'ask',
+		});
+		fresh.close();
+		yours.close();
 	});
 
 	it('keeps Update from main on files you touch once the event fires for every workstream behind', () => {
@@ -1043,7 +1079,7 @@ describe('migrate', () => {
 				id: 'fix',
 				instructions:
 					'Malini re-runs a failed GitHub Actions check once before this automation starts.',
-				trigger_when: null,
+				trigger_when: FIX_FAILED_DRAFTS,
 				then_automation_id: null,
 			},
 			{

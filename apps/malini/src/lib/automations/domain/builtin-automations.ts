@@ -110,6 +110,10 @@ export const BUILTIN_AUTOMATIONS: Readonly<Record<AutomationBuiltin, BuiltinAuto
 		name: 'Fix checks',
 		model: DEFAULT_AGENT_MODEL,
 		effort: 'high',
+		trigger: {
+			when: 'on pull-requests:pull-request-changed where state is draft and checks is failed',
+			mode: 'auto',
+		},
 		instructions: [
 			"Fix the failing checks on this workstream's pull request.",
 			'',
@@ -287,6 +291,7 @@ export const BUILTIN_AUTOMATIONS: Readonly<Record<AutomationBuiltin, BuiltinAuto
 };
 
 const TRIGGERABLE_BUILTINS: ReadonlySet<AutomationBuiltin> = new Set([
+	'fix-checks',
 	'update-from-main',
 	'resolve-conflicts',
 	'address-review',

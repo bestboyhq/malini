@@ -92,6 +92,19 @@ On 16 long chats, the 280K window with every message put back cost about 76% of 
 Turned off, Malini sets no window and puts nothing back: Claude Code compacts at its own window, or the one you pick with `/autocompact` or in your Claude Code settings, and the agent keeps only the summary.
 A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
 
+## Trim command output
+
+Command output is most of what an agent reads, so **Settings → Models → Trim command output** shortens it before the agent reads it.
+The output of common commands, such as `git status`, `git log`, `grep`, `ls` and `gh pr checks`, reaches the agent as a short summary, and the exit code stays the same.
+A chat spends fewer tokens on each command and goes further before it compacts.
+The command stays as the agent wrote it: the chat shows it, and your rules, auto mode and the approval card check it, before Malini adds the filter on its way to run.
+Malini filters a command only when it can put the filter in front and keep the rest as written, so `cat` still prints the whole file and your own `lint` script still runs.
+A command it cannot filter, or one whose filter fails, runs unfiltered.
+For one command, the agent gets the full output when it writes `RTK_DISABLED=1` in front of it.
+It applies to chats and agent automations, not to the **Run** button or to workstream installs.
+The filters are those of the open-source [RTK](https://github.com/rtk-ai/rtk) (Apache-2.0), built into Malini, so a note in the output can start with `[rtk]`.
+It is on until you turn it off, and the next prompt of every chat follows it.
+
 ## Plan first
 
 Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
@@ -164,7 +177,8 @@ Whatever the access, every command runs in [the sandbox](#the-sandbox).
 
 When the agent asks, the chat shows what it wants to do, with a **Permission request** strip under it: deny it, or approve once, or always for the chat, the workstream, or everywhere.
 The request stays in the chat, and its strip then says what you picked.
-Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens a draft or merges.
+Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running an automation in its workstream or one it started, goes through without asking, unless the automation opens the first draft or merges.
+A push to a draft that is already open goes through without asking too.
 See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
@@ -179,6 +193,9 @@ If the check stays down, the chat trusts edits the way **Sandboxed** does: edits
 Other chats skip the retries while the check is known to be down, and each chat tries auto mode again after five minutes.
 **Keep blocked** on such a call leaves it blocked, and the agent carries on without it.
 Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the automations a chat ran show.
+
+A hook of yours that rewrites a command, such as RTK's, makes auto mode refuse the call once, since its review no longer covers what runs.
+Malini lets Claude send the rewritten call again at once, and it never counts as an outage.
 
 A chat also answers for the automations it runs.
 When an automation it ran in another workstream asks for permission or asks a question, the request takes this chat's composer slot, named after the automation.

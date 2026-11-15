@@ -29,6 +29,7 @@ export type ShipRow = ShipStateRecord &
 		addressedReviews: readonly string[];
 		requests: ShipRequests;
 		settledAutomationRunId: string | null;
+		checksWatchedSince: string | null;
 	}>;
 
 export type ShipPatch = Partial<
@@ -53,6 +54,7 @@ export type ShipPatch = Partial<
 		addressedReviews: readonly string[];
 		failures: number;
 		settledAutomationRunId: string | null;
+		checksWatchedSince: string | null;
 	}>
 >;
 
@@ -85,6 +87,7 @@ interface ShipDbRow {
 	failures: number;
 	settled_automation_run_id: string | null;
 	updated_at: string;
+	checks_watched_since: string | null;
 }
 
 const PHASES: readonly ShipPhase[] = ['local', 'draft', 'queued', 'needs-you'];
@@ -119,7 +122,7 @@ const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_numbe
 	needs_you_detail, needs_you_automation_run_id, queued_at, failure_signature, fix_attempts, active_automation_run_id,
 	last_error, github_said, failed_since, next_attempt_at, waits_for, generated_title, generated_body,
 	addressed_reviews, push_requests, review_requests, failures, settled_automation_run_id, updated_at,
-	checks_rerun_at, checks_rerun_head_sha`;
+	checks_rerun_at, checks_rerun_head_sha, checks_watched_since`;
 
 const REQUEST_COLUMNS: Readonly<Record<ShipRequest, string>> = {
 	push: 'push_requests',
@@ -173,6 +176,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 			review: row.review_requests,
 		},
 		settledAutomationRunId: row.settled_automation_run_id,
+		checksWatchedSince: row.checks_watched_since,
 	};
 }
 
@@ -298,6 +302,7 @@ export function updateShip(
 	if (patch.failures !== undefined) set('failures', patch.failures);
 	if (patch.settledAutomationRunId !== undefined)
 		set('settled_automation_run_id', patch.settledAutomationRunId);
+	if (patch.checksWatchedSince !== undefined) set('checks_watched_since', patch.checksWatchedSince);
 	set('updated_at', nowIso8601());
 	const phaseGuard = move === undefined ? '' : ' AND phase = ?';
 	const { changes } = run(

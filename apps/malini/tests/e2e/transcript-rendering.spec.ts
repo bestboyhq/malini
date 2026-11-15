@@ -8,6 +8,7 @@ import {
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
+	openActivityGroups,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -115,6 +116,45 @@ test('a chat renders code, long command output, images and masked paths', async 
 		await output.getByRole('button', { name: `Show all ${BASH_LINES} lines` }).click();
 		await expect(output).toContainText(`build line ${BASH_LINES / 2}\n`);
 		await expect(output.getByRole('button', { name: /Show all/u })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a command output line wider than the chat reads whole by scrolling sideways', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-command-output-ws', 'Pretty print');
+		await openWorkstream(page, seeded.workstreamId);
+
+		await sendPrompt(page, 'CHAT_BASH_JQ');
+		await expectLatestRunCompleted(page);
+		await openActivityGroups(page);
+		await page.getByRole('button', { name: 'Expand output for Pretty-print data.json' }).click();
+		const output = page.getByLabel('Command output');
+		await expect(output).toContainText(
+			'[see remaining: tail -n +41 /private/var/folders/zn/_wx1b_mx5jj5nz3wyj77cpd00000gn/T/malini-rtk/tee/1763224587_jq.log]',
+		);
+		await output.evaluate((viewport) => viewport.scrollTo({ top: viewport.scrollHeight }));
+		await untilStill(page);
+		await captureFlow(app, 'transcript-rendering-command-output');
+
+		const box = await output.boundingBox();
+		if (!box) throw new Error('the command output is not laid out');
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.wheel(2_000, 0);
+		await expect
+			.poll(() =>
+				output.evaluate(
+					(viewport) => viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1,
+				),
+			)
+			.toBe(true);
+		await captureFlow(app, 'transcript-rendering-command-output-scrolled');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

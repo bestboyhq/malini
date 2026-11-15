@@ -17,7 +17,7 @@ import {
 	setAlarm,
 } from '$lib/automations/automations.platform';
 import { getWorkstream, type PullRequestChef } from '$shared/repositories/repositories.platform';
-import type { ShipDelays } from '../domain/shipping';
+import { watchesChecks, type ShipDelays } from '../domain/shipping';
 import type { PullRequestOperations } from './pull-request-operations';
 import type { PullRequestReader } from './pull-request-reader.service';
 import {
@@ -42,7 +42,10 @@ export type ShipDeps = Readonly<{
 	running: () => boolean;
 	starting: Map<string, Promise<void>>;
 	chef?: () => Promise<PullRequestChef | null>;
+	deliver?: (wake: ShipWake) => Promise<void>;
 }>;
+
+export type ShipWake = Readonly<{ sessionId: string; prompt: string; causeEventId?: number }>;
 
 export const NO_SHIP_FAILURE = {
 	lastError: null,
@@ -115,10 +118,16 @@ export function dropShip(deps: ShipDeps, workstreamId: string): void {
 
 export function dropDraftShip(deps: ShipDeps, workstreamId: string): boolean {
 	const row = getShip(deps.context.db, workstreamId);
-	if (row?.phase !== 'draft' || row.step !== null || row.pullRequestNumber === null) return false;
+	if (row?.phase !== 'draft' || row.pullRequestNumber === null) return false;
+	if (row.step !== null && !watchesChecks(row)) return false;
 	dropShip(deps, workstreamId);
 	deps.context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId, state: null });
 	return true;
+}
+
+export function watchDraftChecks(deps: ShipDeps, workstreamId: string): void {
+	const since = new Date(deps.now()).toISOString();
+	saveShip(deps, workstreamId, { checksWatchedSince: since, needsYou: null }, 'draft');
 }
 
 export function settleShipRequests(deps: ShipDeps, row: ShipRow): void {

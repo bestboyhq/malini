@@ -55,6 +55,8 @@ export type ShippingSnapshot = Readonly<{
 	fixSucceededAt: number | null;
 	fixAttempts: FixAttempts;
 	fixAttemptLimit: number;
+	checksWatchedSince: number | null;
+	fixesDraftChecks: boolean;
 	backoffUntil: number | null;
 	waitsForYou: boolean;
 	now: number;
@@ -183,6 +185,11 @@ const REVIEW_DECISIONS: readonly NonNullable<PullRequestFacts['reviewDecision']>
 	'review_required',
 ];
 export const CHECKS_RERUN_GRACE_MS = 60_000;
+export const CHECKS_WATCH_MS = 60 * 60_000;
+const CHECKS_WATCH_STEPS: ReadonlySet<ShipStep | null> = new Set([
+	'waiting-for-checks',
+	'rerunning-checks',
+]);
 const CHECKS_SIGNATURE = 'checks';
 const ACTIONS_JOB_URL = /\/actions\/runs\/(\d+)\/job\/\d+/u;
 const AUTOMATION_STEPS: Readonly<Record<ShippingAutomationBuiltin, ShipStep>> = {
@@ -442,7 +449,8 @@ export function pullRequestReadEvery(
 	if (state.activeAutomationRunId !== null || state.waitsFor !== null) return null;
 	if (state.phase === 'needs-you') return delays.reviewPollMs;
 	if (state.phase !== 'queued') {
-		return state.step === 'waiting-for-github' ? delays.githubPollMs : null;
+		if (state.step === 'waiting-for-github') return delays.githubPollMs;
+		return watchesChecks(state) ? delays.checksPollMs : null;
 	}
 	switch (state.step) {
 		case 'waiting-for-agent':
@@ -461,14 +469,16 @@ export function pullRequestReadEvery(
 	}
 }
 
+export function watchesChecks(state: Pick<ShipStateRecord, 'phase' | 'step'>): boolean {
+	return state.phase === 'draft' && CHECKS_WATCH_STEPS.has(state.step);
+}
+
 function workingMove(snapshot: ShippingSnapshot): ShippingMove {
 	const { worktree } = snapshot;
 	if (automationIsActive(snapshot.automation)) {
 		return { kind: 'wait', step: automationStep(snapshot.automation?.builtin ?? null) };
 	}
-	if (!snapshot.pushRequested && !snapshot.reviewRequested) {
-		return { kind: 'idle', problem: null };
-	}
+	if (!snapshot.pushRequested && !snapshot.reviewRequested) return checksWatchMove(snapshot);
 	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
 	const operation = worktree.operationInProgress;
 	if (operation === 'merge' && isUpdateAutomation(snapshot.lastAutomationBuiltin)) {
@@ -487,7 +497,41 @@ function workingMove(snapshot: ShippingSnapshot): ShippingMove {
 	if (snapshot.threadResolutionRunId !== null && snapshot.pullRequestNumber !== null) {
 		return { kind: 'resolve-threads', agentRunId: snapshot.threadResolutionRunId };
 	}
-	return snapshot.reviewRequested ? reviewMove(snapshot) : { kind: 'idle', problem: null };
+	const review = snapshot.reviewRequested ? reviewMove(snapshot) : null;
+	return review === null || (review.kind === 'idle' && review.problem === null)
+		? checksWatchMove(snapshot)
+		: review;
+}
+
+function checksWatchMove(snapshot: ShippingSnapshot): ShippingMove {
+	const since = snapshot.checksWatchedSince;
+	const until = since === null ? 0 : since + CHECKS_WATCH_MS;
+	const { phase, pullRequestNumber, worktree } = snapshot;
+	const pushed = worktree.ahead === 0 && worktree.hasUpstream;
+	const watching = phase === 'draft' && pullRequestNumber !== null && pushed;
+	if (!watching || snapshot.now >= until) return { kind: 'idle', problem: null };
+	if (!snapshot.read) return { kind: 'read-pull-request' };
+	const pullRequest = snapshot.pullRequest;
+	if (pullRequest?.state !== 'draft') return { kind: 'idle', problem: null };
+	if (snapshot.fixesDraftChecks && pullRequest.failingChecks.length > 0) {
+		return draftChecksFixMove(snapshot, pullRequest);
+	}
+	if (!pullRequest.checksPending) return { kind: 'idle', problem: null };
+	const step = checksRerunOf(snapshot, pullRequest) ? 'rerunning-checks' : 'waiting-for-checks';
+	return { kind: 'wait', step, until };
+}
+
+function draftChecksFixMove(
+	snapshot: ShippingSnapshot,
+	pullRequest: PullRequestFacts,
+): ShippingMove {
+	const { worktree } = snapshot;
+	if (pullRequest.blockingChecks.length === 0) return { kind: 'idle', problem: null };
+	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
+	if (worktree.operationInProgress !== null || worktree.dirtyPaths.length > 0) {
+		return { kind: 'idle', problem: null };
+	}
+	return failingChecksMove(snapshot, pullRequest);
 }
 
 function reviewMove(snapshot: ShippingSnapshot): ShippingMove {

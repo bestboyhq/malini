@@ -1879,6 +1879,49 @@ describe('ClaudeSession', () => {
 			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 		});
 
+		it.each([[[]], [[60_000, 60_000, 60_000]]])(
+			'retries at once, and counts no outage, when a hook changed the call after auto mode checked it (waits %o)',
+			async (retryDelaysMs) => {
+				const outage = new AutoModeOutage(retryDelaysMs);
+				const { session, claude, events } = harness([recordedScript('hookRewrite')], { outage });
+
+				await session.sendPrompt('Run ls.', 'run-1', profile('agent', 'auto'));
+
+				expect(ofType(events, 'approval.requested')).toEqual([]);
+				expect(claude.runs[0]?.hookOutputs).toEqual([RETRY]);
+				expect(claude.runs[0]?.permissionModes).toEqual([]);
+				expect(outage.down).toBe(false);
+				expect(ofType(events, 'command.completed')).toMatchObject([
+					{ command: 'command ls -la && wc -l probe.txt', exitCode: 0 },
+				]);
+				expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+			},
+		);
+
+		it('lets the block stand when the hook changes the retried call again', async () => {
+			const recorded = recordedScript('hookRewrite');
+			const denied = recorded.slice(4, 6).map((step) =>
+				typeof step !== 'string' &&
+				'hook' in step &&
+				step.hook.hook_event_name === 'PermissionDenied'
+					? {
+							hook: {
+								...step.hook,
+								tool_use_id: 'toolu_0142g63iW2boWhQ1UKLE4tHy',
+								tool_input: { command: 'command command ls -la && wc -l probe.txt' },
+							},
+						}
+					: step,
+			);
+			const script = [...recorded.slice(0, 10), ...denied, ...recorded.slice(10)];
+			const { session, claude } = harness([script], { outage: new AutoModeOutage([]) });
+
+			await session.sendPrompt('Run ls.', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.hookOutputs).toEqual([RETRY]);
+			expect(claude.runs[0]?.permissionModes).toEqual([]);
+		});
+
 		it('falls back to acceptEdits once retrying does not help, and asks for the rest', async () => {
 			const { session, claude, events } = harness([recordedScript('classifierOutage')], {
 				outage: new AutoModeOutage([0, 0, 0]),
