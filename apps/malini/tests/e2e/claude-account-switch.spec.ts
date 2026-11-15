@@ -211,7 +211,7 @@ function claudeLoginStub(paths: {
 		`  email='${paths.newAccount}'`,
 		'  case "$3" in --email=*) email="${3#--email=}" ;; esac',
 		'  echo "Opening browser to sign in…"',
-		`  while [ ! -f '${paths.browserDone}' ]; do sleep 0.1; done`,
+		`  while [ ! -f '${paths.browserDone}' ]; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep 0.1; done`,
 		'fi',
 		`printf '%s\\n' "$email" > '${paths.accountFile}'`,
 		`printf '{"claudeAiOauth":{"refreshToken":"refresh-%s","scopes":["user:inference","user:profile"]}}' "$email" > ${keychainItem}`,

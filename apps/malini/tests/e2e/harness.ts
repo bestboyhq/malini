@@ -74,7 +74,7 @@ APPROVED="$HOME/${GITHUB_DEVICE_APPROVED}"
 if [ "$1 $2" = "auth login" ]; then
   echo "! First copy your one-time code: E2E0-C0DE" 1>&2
   echo "Open this URL to continue in your web browser: https://github.com/login/device" 1>&2
-  while [ ! -f "$APPROVED" ]; do sleep 0.1; done
+  while [ ! -f "$APPROVED" ]; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep 0.1; done
   exit 0
 fi
 if [ -n "$E2E_GITHUB_SIGNED_OUT" ] && [ ! -f "$APPROVED" ]; then
@@ -181,6 +181,16 @@ export interface LaunchOptions {
 	readonly soundsNote?: boolean;
 }
 
+export interface PreparedProfile {
+	readonly root: string;
+	readonly home: string;
+	readonly bin: string;
+	readonly userDataDir: string;
+	readonly bridgeScript: string;
+	readonly env: Record<string, string>;
+	readonly args: readonly string[];
+}
+
 export interface LaunchedApp {
 	readonly electronApp: ElectronApplication;
 	readonly page: Page;
@@ -221,7 +231,7 @@ function userColorScheme(): 'light' | 'dark' | null {
 	return theme === 'light' || theme === 'dark' ? theme : null;
 }
 
-export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
+export function prepareProfile(options: LaunchOptions = {}): PreparedProfile {
 	const root = options.profile ?? temporaryRoot();
 	const home = join(root, 'home');
 	const bin = join(root, 'bin');
@@ -276,14 +286,20 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	env['MALINI_STREAMING_APP_ROOT'] = root;
 	Object.assign(env, options.env);
 
+	const args = [
+		'.',
+		`--user-data-dir=${userDataDir}`,
+		'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
+		'--use-mock-keychain',
+		'--use-fake-device-for-media-stream',
+	];
+	return { root, home, bin, userDataDir, bridgeScript, env, args };
+}
+
+export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
+	const { root, home, bin, userDataDir, bridgeScript, env, args } = prepareProfile(options);
 	const electronApp = await electron.launch({
-		args: [
-			'.',
-			`--user-data-dir=${userDataDir}`,
-			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
-			'--use-mock-keychain',
-			'--use-fake-device-for-media-stream',
-		],
+		args: [...args],
 		cwd: APP_ROOT,
 		env,
 		colorScheme: userColorScheme(),
