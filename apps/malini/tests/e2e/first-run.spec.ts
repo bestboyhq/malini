@@ -8,6 +8,7 @@ import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
 	createSourceRepo,
+	expectAssistantReply,
 	expectCleanConsole,
 	expectPicker,
 	invoke,
@@ -19,7 +20,7 @@ import {
 	withoutConsoleErrors,
 } from './harness';
 
-test('a new Mac without Claude Code installs it on its own, holds the first prompt, and says why the install failed', async () => {
+test('a new Mac without Claude Code installs it quietly, holds the first prompt, and says why the install failed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
@@ -28,17 +29,9 @@ test('a new Mac without Claude Code installs it on its own, holds the first prom
 	try {
 		const { page } = app;
 		await expectPicker(page);
-		const failed = page.getByTestId('claude-code-install-status');
-		await expect(failed).toHaveRole('alert', { timeout: 20_000 });
-		await expect(failed).toContainText(
-			'Could not download Claude Code: net::ERR_NAME_NOT_RESOLVED',
-		);
+		await expect(page.getByTestId('claude-code-install-status')).toHaveCount(0);
 		await expect(page.getByTestId('claude-code-setup')).toHaveCount(0);
-		await captureFlow(app, 'first-run-claude-install-failed');
-
-		await failed.getByRole('button', { name: 'Try again' }).click();
-		await expect(failed).toHaveRole('alert', { timeout: 20_000 });
-		await expect(failed.getByRole('button', { name: 'Try again' })).toBeVisible();
+		await captureFlow(app, 'first-run-claude-install-quiet');
 
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-held-ws', 'Held');
@@ -48,6 +41,11 @@ test('a new Mac without Claude Code installs it on its own, holds the first prom
 		await expect(strip).toHaveAttribute('data-access', 'claude-code-missing');
 		await expect(strip.getByRole('alert')).toHaveText(
 			'Could not download Claude Code: net::ERR_NAME_NOT_RESOLVED',
+			{ timeout: 20_000 },
+		);
+		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAttribute(
+			'aria-label',
+			/^Needs you/u,
 		);
 		const again = strip.getByRole('button', { name: 'Try again' });
 		await expect(again).toBeVisible();
@@ -173,6 +171,10 @@ test('a signed-out Claude Code opens on the picker, and only a Claude send asks 
 		await expect(connect).toContainText('Sign in to Claude Code to run this');
 		await expect(connect.getByRole('button', { name: 'Sign in with Claude' })).toBeVisible();
 		await expect(page.getByTestId('chat-prompt-pick')).toHaveCount(0);
+		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAttribute(
+			'aria-label',
+			/^Needs you/u,
+		);
 		await captureFlow(app, 'composer-sign-in-claude');
 		expectCleanConsole(app);
 	} finally {
@@ -180,7 +182,7 @@ test('a signed-out Claude Code opens on the picker, and only a Claude send asks 
 	}
 });
 
-test('a new install opens on a picker of your GitHub repositories with no chat, across a reload, and a pick starts a workstream with starters', async () => {
+test('a new install opens on a picker with no chat, GitHub lists your repositories across a reload, and a pick starts a workstream with starters', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -213,11 +215,15 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
 		const tabs = page.getByRole('tablist', { name: 'Chats and files' });
 		const prompt = page.getByRole('textbox', { name: 'Chat prompt' });
+		const github = chooser.getByRole('button', { name: 'GitHub', exact: true });
+		await expect(chooser.getByRole('button', { name: 'A folder on this Mac' })).toBeVisible();
+		await expect(chooser.getByRole('button', { name: 'New repository' })).toBeVisible();
+		await expect(repositories).toHaveCount(0);
+		await captureFlow(app, 'first-repository-doors');
+		await github.click();
 		await expect(repositories.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
 		await expect(repositories.getByRole('button', { name: 'e2e/hutch' })).toContainText('2h ago');
 		await expect(repositories.getByRole('img', { name: 'Private' })).toHaveCount(1);
-		await expect(chooser.getByRole('button', { name: 'Open a folder' })).toBeVisible();
-		await expect(chooser.getByRole('button', { name: 'New repository' })).toBeVisible();
 		await expect(sidebar).toHaveCount(0);
 		await expect(tabs).toHaveCount(0);
 		await expect(prompt).toHaveCount(0);
@@ -240,6 +246,7 @@ test('a new install opens on a picker of your GitHub repositories with no chat, 
 		await expect(center).toHaveCount(0);
 
 		await page.reload();
+		await github.click();
 		await expect(repositories.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
 		await expect(sidebar).toHaveCount(0);
 		await page.keyboard.press('ControlOrMeta+k');
@@ -373,6 +380,7 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 		await page.reload();
 		await expectPicker(page);
 		slowClone(join(first.home, '.local/bin'));
+		await page.getByRole('button', { name: 'GitHub', exact: true }).click();
 		await page
 			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
 			.getByRole('button', { name: 'e2e/hutch' })
@@ -394,6 +402,45 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 		await expect(page).toHaveURL(/#\/$/u);
 		await expect(page.getByTestId('repository-row').filter({ hasText: 'hutch' })).toBeVisible();
 		expect(await workstreams(page)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a message sent while the first pick copies waits for the copy, then runs', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const hutch = await createSourceRepo(app.root, 'e2e/hutch');
+		writeFileSync(
+			join(app.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify([{ full_name: 'e2e/hutch', clone_url: `file://${hutch}`, description: null }]),
+		);
+		await page.reload();
+		await expectPicker(page);
+		slowClone(join(app.home, '.local/bin'));
+		await page.getByRole('button', { name: 'GitHub', exact: true }).click();
+		await page
+			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
+			.getByRole('button', { name: 'e2e/hutch' })
+			.click();
+		await expect(page).toHaveURL(/#\/workstreams\//u);
+		const copying = page
+			.getByRole('list', { name: 'Workstream setup' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Making a fresh copy' });
+		await expect(copying).toBeVisible();
+		await expect(
+			page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]'),
+		).toBeVisible({ timeout: 3_000 });
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		expect(await workstreams(page)).toEqual([]);
+		await expect(page.locator('[data-queued-prompt-id]')).toHaveText(/SEARCH the fixture repo/u);
+		await captureFlow(app, 'first-pick-sent-during-copy');
+		await expectAssistantReply(page, 40_000);
+		await expect(page.locator('[data-queued-prompt-id]')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -22,10 +22,11 @@ The [README](../README.md) has the short version.
 
 ## First launch
 
-- **Straight to your repositories.** Malini opens on your five latest GitHub repositories under **What are we working on?**, and a pick clones the repository and starts a workstream in it.
-  Signed out, the card offers **Sign in to GitHub**, a one-time code in your browser; **Open a folder** takes a repository already on your Mac, and **New repository** makes one on GitHub.
-- **Nothing to install.** Malini ships the GitHub CLI, and installs Claude Code on its own when this Mac lacks it, while you pick a repository.
-  A prompt you send before it lands waits, and sends once it is in.
+- **Three ways in.** Malini opens on **GitHub**, **A folder on this Mac** and **New repository** under **What are we working on?**.
+  **GitHub** lists your five latest repositories in place, and a pick clones the repository and starts a workstream in it.
+  A `gh` already signed in lists them at once; signed out, **GitHub** shows a one-time code and opens your browser on its own.
+- **Nothing to install.** Malini ships the GitHub CLI, and installs Claude Code on its own when this Mac lacks it, out of sight while you pick a repository.
+  A prompt you send before it lands, or during the first copy, waits, and sends once it can; the top bar says **Needs you** while Claude Code holds it.
   The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
 - **Somewhere to start.** A new workstream shows how Malini set it up, a fresh copy and its dependencies, then starter prompts under **Quick suggestions**: run it in the browser, find the biggest CI/CD pipeline optimizations, find all implicit state machines, or plan a change.
 

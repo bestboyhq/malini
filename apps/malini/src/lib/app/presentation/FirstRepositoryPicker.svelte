@@ -1,32 +1,35 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { Skeleton } from '$hyper-ui/components/skeleton';
-	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { GitHubIcon, Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
-		claudeCodeInstallQuery,
-		installClaudeCodeCommand,
-	} from '$shared/providers/providers.api';
-	import {
-		GitHubSetup,
+		GitHubDeviceCode,
+		cancelGithubSignInCommand,
 		connectedRepositoriesQuery,
+		githubAuthErrorQuery,
 		githubAuthQuery,
+		githubCliInstallQuery,
 		githubRepositoriesQuery,
 		githubRepositoryState,
+		githubSetupStatus,
+		githubSignInQuery,
+		installGithubCliCommand,
 		loadGithubAuthCommand,
 		loadGithubRepositoriesCommand,
 		openRepositoryFolderCommand,
 		pickGithubRepositoryCommand,
-		reloadGithubRepositoriesOnSignInHook,
 		repositoryConnectErrorQuery,
 		repositoryConnectingKeyQuery,
 		repositoryConnectingQuery,
 		repositoryPreparationQuery,
+		signInToGithubCommand,
+		watchGithubAuthHook,
 		type GithubRepository,
 		type GithubRepositoryState,
 	} from '$shared/repositories/repositories.api';
@@ -36,49 +39,263 @@
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import GithubRepositoryLabel from './GithubRepositoryLabel.svelte';
 
+	type GithubView = 'loading' | 'code' | 'sign-in' | 'install-failed' | 'unknown' | 'list';
+
 	const ROWS = 5;
 	const CLOCK_MS = 30_000;
 	const SKELETON_WIDTHS = ['38%', '30%', '44%', '26%', '34%'];
 	const ROW =
 		'hover:bg-surface-100-hover focus-visible:bg-surface-100-hover flex h-8 w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 text-left outline-none disabled:cursor-default disabled:hover:bg-transparent';
-	const ACTION_ROW =
-		'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default text-sm';
+	const DOOR =
+		'hover:bg-surface-100-hover focus-visible:bg-surface-100-hover text-fg-default flex h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-2 text-left outline-none disabled:cursor-default disabled:hover:bg-transparent';
+	const BADGE =
+		'bg-surface-150 text-fg-secondary grid size-7 shrink-0 place-items-center rounded-lg';
 	const ICON_SLOT = 'text-fg-tertiary grid size-4 shrink-0 place-items-center';
 	const KEY =
 		'border-chip-border bg-chip text-2xs text-fg-tertiary rounded border px-1.5 py-0.5 font-sans';
 
 	let nowMs = $state(Date.now());
+	let browsing = $state(false);
+	let signInAsked = $state(false);
 
 	const listing = $derived(githubRepositoriesQuery.data);
-	const signedOut = $derived(githubAuthQuery.data?.authenticated === false);
+	const auth = $derived(githubAuthQuery.data);
+	const status = $derived(githubSetupStatus(auth, githubAuthErrorQuery.data));
+	const signIn = $derived(githubSignInQuery.data);
+	const install = $derived(githubCliInstallQuery.data);
+	const download = $derived(install.kind === 'installing' ? install.progress : null);
 	const connected = $derived(connectedRepositoriesQuery.data);
 	const preparationOf = $derived(repositoryPreparationQuery.data);
 	const connectingKey = $derived(repositoryConnectingKeyQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
 	const rows = $derived(listing.kind === 'loaded' ? listing.repositories.slice(0, ROWS) : []);
-	const listed = $derived(listing.kind !== 'loaded' || rows.length > 0);
-	const claudeInstall = $derived(claudeCodeInstallQuery.data);
+	const view = $derived(githubView());
+	const subline = $derived(githubSubline());
 
 	onMount(() => showOnboardingHook());
 
 	onMount(loadUsageDataCommand);
 
 	onMount(() => {
-		loadGithubAuthCommand();
-		loadGithubRepositoriesCommand();
 		const clock = setInterval(() => (nowMs = Date.now()), CLOCK_MS);
-		const stopReloading = reloadGithubRepositoriesOnSignInHook();
+		const stopWatching = watchGithubAuthHook();
 		return () => {
 			clearInterval(clock);
-			stopReloading();
+			stopWatching();
 		};
 	});
+
+	$effect(() => {
+		if (status === 'ready') untrack(loadGithubRepositoriesCommand);
+	});
+
+	$effect(() => {
+		if (!browsing) return;
+		if (status === 'missing' && install.kind === 'idle') untrack(installGithubCliCommand);
+		if (status === 'signed-out' && signIn.kind === 'idle' && !signInAsked) {
+			signInAsked = true;
+			untrack(() => signInToGithubCommand());
+		}
+	});
+
+	function githubView(): GithubView {
+		if (signIn.kind === 'waiting') return 'code';
+		if (signIn.kind !== 'idle') return 'loading';
+		switch (status) {
+			case 'ready':
+				return 'list';
+			case 'signed-out':
+				return signInAsked ? 'sign-in' : 'loading';
+			case 'unknown':
+				return 'unknown';
+			case 'missing':
+				return install.kind === 'failed' ? 'install-failed' : 'loading';
+			case 'checking':
+				return 'loading';
+		}
+	}
+
+	function githubSubline(): string | null {
+		switch (view) {
+			case 'loading':
+				return 'Loading your repositories';
+			case 'code':
+				return 'Paste this code on GitHub';
+			case 'sign-in':
+				return 'Not signed in';
+			case 'list':
+				return listing.kind === 'loading' ? 'Loading your repositories' : (auth?.login ?? null);
+			case 'install-failed':
+			case 'unknown':
+				return null;
+		}
+	}
+
+	function back(): void {
+		if (signIn.kind === 'starting' || signIn.kind === 'waiting') cancelGithubSignInCommand();
+		browsing = false;
+		signInAsked = false;
+	}
 
 	function stateOf(repository: GithubRepository): GithubRepositoryState {
 		return githubRepositoryState(repository, connectingKey, connected, preparationOf);
 	}
 </script>
+
+{#snippet skeleton()}
+	<ul class="flex flex-col p-1" aria-busy="true" aria-label="Loading your GitHub repositories">
+		{#each SKELETON_WIDTHS as width (width)}
+			<li class="flex h-8 items-center gap-3 px-2.5">
+				<Skeleton shape="rect" width="1rem" height="1rem" />
+				<Skeleton shape="text" {width} height="0.625rem" />
+			</li>
+		{/each}
+	</ul>
+{/snippet}
+
+{#snippet repositoryList()}
+	{#if listing.kind === 'loading'}
+		{@render skeleton()}
+	{:else if listing.kind === 'failed'}
+		<StateBlock
+			layout="inline"
+			tone="caution"
+			class="px-3.5"
+			heading="Could not load your GitHub repositories"
+			detail={listing.failure.detail}
+			remedy={listing.failure.remedy}
+			technical={listing.failure.technical}
+			testId="first-repository-picker-error"
+		>
+			{#snippet icon()}
+				<Icon name="alert" size={14} />
+			{/snippet}
+		</StateBlock>
+	{:else if rows.length > 0}
+		<ul class="flex flex-col p-1" aria-label="Your GitHub repositories">
+			{#each rows as repository (repository.fullName)}
+				{@const state = stateOf(repository)}
+				<li>
+					<Button
+						bare
+						ariaLabel={repository.fullName}
+						disabled={state.kind === 'cloning'}
+						ariaBusy={state.kind === 'cloning'}
+						class={ROW}
+						data-testid="first-repository"
+						onclick={() => pickGithubRepositoryCommand(repository, state, { open: 'workstream' })}
+					>
+						<GithubRepositoryLabel {repository} {state} {nowMs} compact />
+					</Button>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+	{#if listing.kind !== 'loaded' || rows.length > 0}
+		<div class="border-surface-150-border mx-3.5 border-t-[0.5px]" role="separator"></div>
+	{/if}
+	<div class="p-1">
+		<Button
+			bare
+			ariaHasPopup="dialog"
+			ariaKeyshortcuts="Meta+K"
+			class={[ROW, 'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default text-sm']}
+			onclick={() => openCommandCenterCommand('find')}
+		>
+			<span class={ICON_SLOT}>
+				<Icon name="search" size={14} />
+			</span>
+			<span class="flex-1">More repositories</span>
+			<kbd class={KEY} aria-hidden="true">⌘K</kbd>
+		</Button>
+	</div>
+{/snippet}
+
+{#snippet github()}
+	<ComposerShell testId="first-repository-github">
+		<div class="flex items-center gap-3 px-3 pt-3 pb-2">
+			<span class={BADGE} aria-hidden="true">
+				<GitHubIcon size={16} />
+			</span>
+			<hgroup class="flex min-w-0 flex-1 flex-col">
+				<h2 class="text-fg-default text-sm font-medium">GitHub</h2>
+				{#if subline}
+					<p class="text-fg-tertiary truncate text-xs leading-5" role="status">{subline}</p>
+				{/if}
+			</hgroup>
+			{#if view === 'sign-in'}
+				<Button
+					variant="primary"
+					size="sm"
+					ariaLabel="Sign in to GitHub"
+					onclick={() => signInToGithubCommand()}
+				>
+					Sign in
+				</Button>
+			{/if}
+			<Button variant="secondary" size="sm" onclick={back}>
+				{#snippet leading()}
+					<Icon name="chevron-left" size={14} />
+				{/snippet}
+				Back
+			</Button>
+		</div>
+		{#if view === 'list'}
+			{@render repositoryList()}
+		{:else if view === 'code' && signIn.kind === 'waiting'}
+			<div class="px-3 pb-3">
+				<GitHubDeviceCode userCode={signIn.userCode} />
+			</div>
+		{:else if view === 'install-failed' && install.kind === 'failed'}
+			{@render problem(
+				'Could not load your repositories',
+				install.message,
+				installGithubCliCommand,
+			)}
+		{:else if view === 'unknown'}
+			{@render problem(
+				'Could not check GitHub',
+				githubAuthErrorQuery.data ?? null,
+				loadGithubAuthCommand,
+			)}
+		{:else if view === 'loading'}
+			{#if download}
+				<DownloadProgress
+					class="px-3 pb-1"
+					received={download.received}
+					total={download.total}
+					ariaLabel="Loading your repositories"
+				/>
+			{/if}
+			{@render skeleton()}
+		{/if}
+	</ComposerShell>
+{/snippet}
+
+{#snippet problem(heading: string, technical: string | null, retry: () => void)}
+	<StateBlock
+		layout="inline"
+		live="alert"
+		tone="caution"
+		class="px-3.5 pb-3"
+		{heading}
+		{technical}
+		testId="first-repository-github-problem"
+	>
+		{#snippet icon()}
+			<Icon name="alert" size={14} />
+		{/snippet}
+		{#snippet action()}
+			<Button variant="secondary" size="sm" onclick={retry}>
+				{#snippet leading()}
+					<Icon name="refresh" size={14} />
+				{/snippet}
+				Try again
+			</Button>
+		{/snippet}
+	</StateBlock>
+{/snippet}
 
 <div
 	class="mx-auto flex w-full max-w-[640px] px-6 pt-[18vh] pb-6"
@@ -98,137 +315,46 @@
 				{/if}
 			</p>
 		</hgroup>
-		{#if signedOut}
-			<GitHubSetup pitch />
+		{#if browsing}
+			{@render github()}
 		{:else}
 			<ComposerShell>
-				{#if listed}
-					{#if listing.kind === 'loading'}
-						<ul
-							class="flex flex-col p-1"
-							aria-busy="true"
-							aria-label="Loading your GitHub repositories"
-						>
-							{#each SKELETON_WIDTHS as width (width)}
-								<li class="flex h-8 items-center gap-3 px-2.5">
-									<Skeleton shape="rect" width="1rem" height="1rem" />
-									<Skeleton shape="text" {width} height="0.625rem" />
-								</li>
-							{/each}
-						</ul>
-					{:else if listing.kind === 'failed'}
-						<StateBlock
-							layout="inline"
-							tone="caution"
-							class="px-3.5"
-							heading="Could not load your GitHub repositories"
-							detail={listing.failure.detail}
-							remedy={listing.failure.remedy}
-							technical={listing.failure.technical}
-							testId="first-repository-picker-error"
-						>
-							{#snippet icon()}
-								<Icon name="alert" size={14} />
-							{/snippet}
-						</StateBlock>
-					{:else}
-						<ul class="flex flex-col p-1" aria-label="Your GitHub repositories">
-							{#each rows as repository (repository.fullName)}
-								{@const state = stateOf(repository)}
-								<li>
-									<Button
-										bare
-										ariaLabel={repository.fullName}
-										disabled={state.kind === 'cloning'}
-										ariaBusy={state.kind === 'cloning'}
-										class={ROW}
-										data-testid="first-repository"
-										onclick={() =>
-											pickGithubRepositoryCommand(repository, state, { open: 'workstream' })}
-									>
-										<GithubRepositoryLabel {repository} {state} {nowMs} compact />
-									</Button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-					<div class="border-surface-150-border mx-3.5 border-t-[0.5px]" role="separator"></div>
-				{/if}
 				<div class="flex flex-col p-1">
+					<Button bare class={DOOR} onclick={() => (browsing = true)}>
+						<span class={BADGE} aria-hidden="true">
+							<GitHubIcon size={16} />
+						</span>
+						GitHub
+					</Button>
 					<Button
 						bare
-						ariaHasPopup="dialog"
-						ariaKeyshortcuts="Meta+K"
-						class={[ROW, ACTION_ROW]}
-						onclick={() => openCommandCenterCommand('find')}
+						ariaKeyshortcuts="Meta+O"
+						disabled={connecting !== null}
+						ariaBusy={connecting === 'folder'}
+						class={DOOR}
+						onclick={() => openRepositoryFolderCommand({ open: 'workstream' })}
 					>
-						<span class={ICON_SLOT}>
-							<Icon name="search" size={14} />
+						<span class={BADGE} aria-hidden="true">
+							<Icon name="folder-open" size={15} />
 						</span>
-						<span class="flex-1">More repositories</span>
-						<kbd class={KEY}>⌘K</kbd>
+						<span class="flex-1">
+							{connecting === 'folder' ? 'Opening…' : 'A folder on this Mac'}
+						</span>
+						<kbd class={KEY} aria-hidden="true">⌘O</kbd>
 					</Button>
 					<Button
 						bare
 						ariaHasPopup="dialog"
-						class={[ROW, ACTION_ROW]}
+						class={DOOR}
 						onclick={() => openCommandCenterCommand('new-repository')}
 					>
-						<span class={[ICON_SLOT, 'border-border-default rounded-md border border-dashed']}>
-							<Icon name="plus" size={12} />
+						<span class={BADGE} aria-hidden="true">
+							<Icon name="plus" size={14} />
 						</span>
 						New repository
 					</Button>
 				</div>
 			</ComposerShell>
-		{/if}
-		<p class="text-fg-tertiary flex items-center gap-1.5 px-[15px] text-sm">
-			Not on GitHub?
-			<Button
-				bare
-				ariaKeyshortcuts="Meta+O"
-				disabled={connecting !== null}
-				ariaBusy={connecting === 'folder'}
-				class="text-fg-secondary hover:text-fg-default focus-visible:text-fg-default cursor-pointer underline-offset-2 hover:underline disabled:cursor-default"
-				onclick={() => openRepositoryFolderCommand({ open: 'workstream' })}
-			>
-				{connecting === 'folder' ? 'Opening…' : 'Open a folder'}
-			</Button>
-			<kbd class={KEY}>⌘O</kbd>
-		</p>
-		{#if claudeInstall.kind === 'installing'}
-			<div
-				class="text-fg-tertiary flex items-center gap-2 px-[15px] text-xs"
-				role="status"
-				data-testid="claude-code-install-status"
-			>
-				<BusyIcon size={12} />
-				<span class="shrink-0">Installing Claude Code in the background</span>
-				{#if claudeInstall.progress}
-					<DownloadProgress
-						class="min-w-0 flex-1"
-						received={claudeInstall.progress.received}
-						total={claudeInstall.progress.total}
-						ariaLabel="Claude Code download"
-					/>
-				{/if}
-			</div>
-		{:else if claudeInstall.kind === 'failed'}
-			<div
-				class="text-fg-tertiary flex items-center gap-2 px-[15px] text-xs"
-				role="alert"
-				data-testid="claude-code-install-status"
-			>
-				<Icon name="warning" size={12} class="text-warning-content shrink-0" />
-				<span class="min-w-0 break-words">{claudeInstall.message}</span>
-				<Button
-					bare
-					class="text-fg-secondary hover:text-fg-default ml-auto shrink-0 cursor-pointer underline-offset-2 hover:underline"
-					onclick={installClaudeCodeCommand}
-				>
-					Try again
-				</Button>
-			</div>
 		{/if}
 		{#if connectError}
 			<ComposerShell class="px-2" testId="repository-connect-error">
