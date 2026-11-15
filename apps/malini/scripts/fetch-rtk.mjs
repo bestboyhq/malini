@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { saveDownload } from '../src/main/fs/download.ts';
+import { SYSTEM_TAR } from '../src/main/process/gh-install.ts';
 
 export const RTK_VERSION = '1.2.0';
 
@@ -73,7 +74,7 @@ export async function installRtk(
 		const unpacked = join(scratch, 'unpacked');
 		const staged = join(scratch, 'rtk');
 		await mkdir(unpacked);
-		await execFileAsync('tar', ['-xf', archive, '-C', unpacked]);
+		await execFileAsync(SYSTEM_TAR, ['-xf', archive, '-C', unpacked]);
 		await mkdir(join(staged, 'bin'), { recursive: true });
 		await copyFile(join(unpacked, BINARY), join(staged, 'bin', BINARY));
 		await chmod(join(staged, 'bin', BINARY), 0o755);
