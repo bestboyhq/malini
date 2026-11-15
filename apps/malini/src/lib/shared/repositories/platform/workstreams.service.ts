@@ -105,6 +105,7 @@ export interface CreateRepositoryInput {
 }
 
 const BLOBLESS_CLONE_MIN_BYTES = 1e9;
+const LARGE_FILES_FILTER = 'blob:limit=1m';
 
 export interface CreateWorkstreamInput {
 	readonly projectRepoPath: string;
@@ -134,7 +135,7 @@ export async function createRepository(
 		githubToken: input.githubToken,
 		credentials,
 		seedFolder,
-		blobless,
+		blobFilter: seedFolder === null ? (blobless ? 'blob:none' : LARGE_FILES_FILTER) : null,
 		requiredFreeBytes: MINIMUM_FREE_BYTES + (blobless ? 0 : sizeBytes),
 		onProgress: (progress) => {
 			const now = Date.now();

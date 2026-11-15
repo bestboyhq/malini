@@ -83,17 +83,17 @@ export interface EnsureBaseCloneInput {
 	credentials: GitCredentialEnv;
 	onProgress: (progress: Progress) => void;
 	seedFolder?: string | null;
-	blobless?: boolean;
+	blobFilter?: string | null;
 	requiredFreeBytes?: number;
 }
 
-const BLOBLESS_CLONE_ARGS = [
-	'--filter=blob:none',
+const blobFilterArgs = (filter: string): string[] => [
+	`--filter=${filter}`,
 	'--config',
 	'credential.https://github.com.helper=',
 	'--config',
 	'credential.https://github.com.helper=!gh auth git-credential',
-] as const;
+];
 
 const SHARED_PACK_NOTE = 'shared with the folder Malini cloned this repository from\n';
 
@@ -138,7 +138,7 @@ export function ensureBaseCloneWithOutcome(input: EnsureBaseCloneInput): Promise
 						DISABLED_GIT_HOOKS_CONFIG,
 						'clone',
 						'--progress',
-						...(input.blobless ? BLOBLESS_CLONE_ARGS : []),
+						...(input.blobFilter ? blobFilterArgs(input.blobFilter) : []),
 						input.repoPath,
 						staging,
 					],

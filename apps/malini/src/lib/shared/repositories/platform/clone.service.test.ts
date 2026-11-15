@@ -327,36 +327,42 @@ describe('ensureBaseClone', () => {
 		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
 	});
 
-	it('clones blobless with GitHub sign-in kept for the blobs it fetches later', async () => {
-		const dir = await tempDir();
-		cleanups.push(() => removeDir(dir));
-		const remote = await seedRemote(dir);
-		await realGit(remote, ['config', 'uploadpack.allowFilter', 'true']);
+	it.each([
+		['blob:none', 'blob:none'],
+		['blob:limit=1m', 'blob:limit=1048576'],
+	])(
+		'clones with %s and GitHub sign-in kept for the blobs it fetches later',
+		async (blobFilter, stored) => {
+			const dir = await tempDir();
+			cleanups.push(() => removeDir(dir));
+			const remote = await seedRemote(dir);
+			await realGit(remote, ['config', 'uploadpack.allowFilter', 'true']);
 
-		const { path } = await ensureBaseCloneWithOutcome({
-			repoPath: `file://${remote}`,
-			checkoutsRoot: join(dir, 'app-data'),
-			githubToken: null,
-			credentials: noPromptCredentialEnv,
-			onProgress: () => undefined,
-			blobless: true,
-		});
+			const { path } = await ensureBaseCloneWithOutcome({
+				repoPath: `file://${remote}`,
+				checkoutsRoot: join(dir, 'app-data'),
+				githubToken: null,
+				credentials: noPromptCredentialEnv,
+				onProgress: () => undefined,
+				blobFilter,
+			});
 
-		expect((await realGit(path, ['config', 'remote.origin.partialclonefilter'])).trim()).toBe(
-			'blob:none',
-		);
-		expect(
-			(
-				await realGit(path, [
-					'config',
-					'--local',
-					'--get-all',
-					'credential.https://github.com.helper',
-				])
-			).split('\n'),
-		).toEqual(['', '!gh auth git-credential', '']);
-		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
-	});
+			expect((await realGit(path, ['config', 'remote.origin.partialclonefilter'])).trim()).toBe(
+				stored,
+			);
+			expect(
+				(
+					await realGit(path, [
+						'config',
+						'--local',
+						'--get-all',
+						'credential.https://github.com.helper',
+					])
+				).split('\n'),
+			).toEqual(['', '!gh auth git-credential', '']);
+			expect(existsSync(join(path, 'seed.txt'))).toBe(true);
+		},
+	);
 });
 
 describe('syncRemoteBase', () => {

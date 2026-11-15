@@ -61,7 +61,7 @@ Workstreams share disk space, so you can keep as many as you like.
 - **Dependencies are shared.** With npm or yarn, a workstream copies `node_modules` the same way from another workstream with the same lockfile, instead of installing again.
   pnpm and bun share packages through their own store.
 - **One clone per repository.** A repository you open from a folder on your Mac is cloned from that folder and shares its git objects, then fetches the rest from its remote.
-  A GitHub repository over 1 GB is cloned without the history of its files, and git fetches an old version of a file the first time something reads it.
+  A GitHub repository is cloned without the old versions of its files of 1 MB or more, and over 1 GB without the history of any file; git fetches an old version the first time something reads it.
 - **Archives stay small.** Archiving keeps the commits, uncommitted changes, chats, attachments, every image or recording a chat showed, and the text files up to 10 MB in the `.context` folder, so an agent can still learn from the work.
   It drops the rest of `.context`, such as other screenshots, downloads, builds and dependency folders.
 - **Old chats are packed.** Closing a chat or archiving its workstream compresses the chat's tool calls, their output and the agent's thinking, most of what a chat holds, to about a fifth of their size, and Malini gives the freed space back to the disk.
