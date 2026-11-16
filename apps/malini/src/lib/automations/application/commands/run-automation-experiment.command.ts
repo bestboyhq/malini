@@ -11,17 +11,23 @@ function runAutomationExperimentCommand(
 ): void {
 	if (experiment.running) return;
 	void automationActionsStore.run(experiment.id, async () => {
+		let saved = experiment;
 		if (instructions !== undefined && instructions.trim() !== experiment.instructions) {
-			automationExperimentsAggregate.apply(
-				await automationsService.saveExperiment({
-					definitionId: experiment.definitionId,
-					experimentId: experiment.id,
-					provider: experiment.provider,
-					model: experiment.model,
-					instructions,
-				}),
-			);
+			saved = await automationsService.saveExperiment({
+				definitionId: experiment.definitionId,
+				experimentId: experiment.id,
+				provider: experiment.provider,
+				model: experiment.model,
+				instructions,
+			});
+			automationExperimentsAggregate.apply(saved);
 		}
-		automationExperimentsAggregate.apply(await automationsService.runExperiment(experiment.id));
+		automationExperimentsAggregate.apply({ ...saved, running: true, results: [] });
+		try {
+			await automationsService.runExperiment(saved.id);
+		} catch (error) {
+			automationExperimentsAggregate.apply(saved);
+			throw error;
+		}
 	});
 }
