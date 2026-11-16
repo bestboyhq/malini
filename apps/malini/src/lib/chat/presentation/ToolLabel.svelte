@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { revealFade, swapFly } from './arrival-motion';
+	import { revealFade, swapFly } from '$shared/motion/arrival-motion';
 	import UnfoldText from './UnfoldText.svelte';
 
 	interface Props {

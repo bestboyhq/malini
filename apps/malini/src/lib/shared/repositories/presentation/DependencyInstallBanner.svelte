@@ -2,7 +2,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { dismissDependencyInstallCommand } from '$shared/repositories/application/commands/dismiss-dependency-install.command';
-	import { retryDependencyInstallCommand } from '$shared/repositories/application/commands/retry-dependency-install.command';
+	import { seedWorkstreamDependenciesCommand } from '$shared/repositories/application/commands/seed-workstream-dependencies.command';
 	import { dependencyInstallQuery } from '$shared/repositories/application/queries/dependency-install.query.svelte';
 	import type { WorkstreamInstallRecord } from '$shared/repositories/domain/provisioning';
 
@@ -67,7 +67,7 @@
 				size="auto"
 				class="text-2xs text-fg-default shrink-0 px-2 py-1"
 				data-testid="workstream-dependency-install-retry"
-				onclick={() => retryDependencyInstallCommand(workstreamId)}
+				onclick={() => seedWorkstreamDependenciesCommand(workstreamId)}
 			>
 				Retry
 			</Button>

@@ -73,7 +73,7 @@
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import { attachmentGalleryImage, isGalleryAttachment } from './transcript-gallery';
-	import { arrivalMotion } from './arrival-motion';
+	import { arrivalMotion } from '$shared/motion/arrival-motion';
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';

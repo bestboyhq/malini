@@ -63,7 +63,7 @@
 		type GalleryImage,
 		type VideoHandoff,
 	} from './transcript-gallery';
-	import { exposeArrivalMotionForTuning } from './arrival-motion';
+	import { exposeArrivalMotionForTuning } from '$shared/motion/arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
 	import { isAgentTool, summarizeLiveToolInput, toolDescriptionLabel } from './tool-display-name';
 	import FileMentionChooser, {

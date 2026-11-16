@@ -7,7 +7,7 @@
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import type { SubagentGroup } from '../activity-group';
-	import { motionMs, revealFade } from '../arrival-motion';
+	import { motionMs, revealFade } from '$shared/motion/arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import type { RunGroup } from '../render-state';
 	import ToolLabel from '../ToolLabel.svelte';

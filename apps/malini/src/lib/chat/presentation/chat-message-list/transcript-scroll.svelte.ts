@@ -1,6 +1,6 @@
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 import { createScrollGlide, floorToDevicePixel, snapToDevicePixel } from '../scroll-glide';
-import { arrivalMotion } from '../arrival-motion';
+import { arrivalMotion } from '$shared/motion/arrival-motion';
 
 export type TranscriptFollow = 'bottom' | 'reader';
 
