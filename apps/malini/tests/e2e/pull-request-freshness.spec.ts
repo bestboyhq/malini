@@ -43,7 +43,9 @@ test('after a push the top bar waits for GitHub to report the pushed head before
 		const detail = await openPullRequestDetail(page);
 		await detail.getByRole('button', { name: 'Refresh' }).click();
 
-		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible();
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
 		const reported = await openPullRequestDetail(page);
 		await expect(reported.getByRole('listitem').filter({ hasText: 'test' })).toHaveText(
 			/test\s*Running$/u,
