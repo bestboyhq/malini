@@ -1,4 +1,4 @@
-# 0256 - The hero loupe rests on the sidebar's edge
+# 0257 - The hero loupe rests on the sidebar's edge
 
 Status: accepted
 

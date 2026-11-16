@@ -3,7 +3,7 @@
 	import type { HTMLAttributes } from 'svelte/elements';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
-	import { revealFade } from './arrival-motion';
+	import { revealFade } from '$shared/motion/arrival-motion';
 	import { failureSpans } from './tool-display-name';
 
 	interface Props extends HTMLAttributes<HTMLDivElement> {

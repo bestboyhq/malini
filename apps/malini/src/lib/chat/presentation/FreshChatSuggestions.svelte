@@ -108,33 +108,35 @@
 >
 	<div class="chat-column px-4 text-left">
 		{#if untouched}
-			<WorkstreamSetupSteps {workstreamId}>
-				<ul class="flex flex-col" data-testid="chat-starters">
-					{#each starters as starter (starter.title)}
-						<li>
-							<Button
-								bare
-								class="group hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 text-left outline-none"
-								onclick={() => start(starter)}
-							>
-								<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
-									<Icon name={starter.icon} size={14} />
-								</span>
-								<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
-								<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
-									{starter.detail}
-								</span>
-								<span
-									class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-									aria-hidden="true"
+			{#key workstreamId}
+				<WorkstreamSetupSteps {workstreamId}>
+					<ul class="flex flex-col" data-testid="chat-starters">
+						{#each starters as starter (starter.title)}
+							<li>
+								<Button
+									bare
+									class="group hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 text-left outline-none"
+									onclick={() => start(starter)}
 								>
-									<Icon name="arrow-right" size={13} />
-								</span>
-							</Button>
-						</li>
-					{/each}
-				</ul>
-			</WorkstreamSetupSteps>
+									<span class="text-fg-secondary grid size-5 shrink-0 place-items-center">
+										<Icon name={starter.icon} size={14} />
+									</span>
+									<span class="text-fg-default shrink-0 text-sm font-medium">{starter.title}</span>
+									<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
+										{starter.detail}
+									</span>
+									<span
+										class="text-fg-tertiary shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+										aria-hidden="true"
+									>
+										<Icon name="arrow-right" size={13} />
+									</span>
+								</Button>
+							</li>
+						{/each}
+					</ul>
+				</WorkstreamSetupSteps>
+			{/key}
 		{:else}
 			<p class="text-fg-secondary text-sm">Bring useful context with you</p>
 			<p class="text-fg-tertiary mt-1 text-xs leading-5">

@@ -1,4 +1,4 @@
-import { arrivalMotion } from '../arrival-motion';
+import { arrivalMotion } from '$shared/motion/arrival-motion';
 import {
 	ceilToDevicePixel,
 	GLIDE_KEYFRAMES_PER_SAMPLE,

@@ -63,7 +63,7 @@
 		type GalleryImage,
 		type VideoHandoff,
 	} from './transcript-gallery';
-	import { exposeArrivalMotionForTuning } from './arrival-motion';
+	import { exposeArrivalMotionForTuning } from '$shared/motion/arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
 	import { isAgentTool, summarizeLiveToolInput, toolDescriptionLabel } from './tool-display-name';
 	import FileMentionChooser, {
@@ -89,9 +89,17 @@
 	} from './chat-message-list/transcript-context';
 	import { createTranscriptScroll } from './chat-message-list/transcript-scroll.svelte';
 	import { createTranscriptSettleGate } from './chat-message-list/transcript-settle';
-	import { anchoredOpeningBudgets, openingBudgets } from './chat-message-list/transcript-estimates';
+	import {
+		anchoredOpeningBudgets,
+		estimateTurnHeight,
+		openingBudgets,
+	} from './chat-message-list/transcript-estimates';
 	import { createTranscriptWindow } from './chat-message-list/transcript-window.svelte';
-	import TranscriptRun, { type LiveRunBlocks } from './chat-message-list/TranscriptRun.svelte';
+	import TranscriptRun, {
+		type LiveRunBlocks,
+		type RunTurn,
+	} from './chat-message-list/TranscriptRun.svelte';
+	import { transcriptTurns, type TurnRun } from './chat-message-list/transcript-turns';
 
 	interface Props {
 		workstreamId: string;
@@ -188,6 +196,8 @@
 			},
 		];
 	});
+
+	const turns = $derived(transcriptTurns(runs));
 
 	const branchedFromSessionId = $derived(renderState.facts.branchedFromSessionId);
 	const branchedFrom = $derived(
@@ -943,14 +953,17 @@
 							Branched from {branchedFrom}
 						</li>
 					{/if}
-					{#each runs as run, runIndex (run.runId)}
-						<TranscriptRun
-							{run}
-							isLastRun={runIndex === runs.length - 1}
-							folded={foldsWork(runs, runIndex)}
-							live={liveBlocksFor(run)}
-							copied={copiedResponseRunId === run.runId}
-						/>
+					{#each turns as turn (turn.lead.run.runId)}
+						{#snippet continuations()}
+							{#each turn.continuations as continuation (continuation.run.runId)}
+								{@render transcriptRun(continuation)}
+							{/each}
+						{/snippet}
+						{@render transcriptRun(turn.lead, {
+							holdsLastRun: (turn.continuations.at(-1) ?? turn.lead).index === runs.length - 1,
+							estimate: () => estimateTurnHeight(runs, turn, transcriptWindow.textWidth),
+							continuations: turn.continuations.length > 0 ? continuations : null,
+						})}
 					{/each}
 				</ol>
 			</div>
@@ -973,6 +986,17 @@
 		onclose={() => (fileMentionChooserOpen = false)}
 	/>
 </div>
+
+{#snippet transcriptRun({ run, index }: TurnRun, turn?: RunTurn)}
+	<TranscriptRun
+		{run}
+		isLastRun={index === runs.length - 1}
+		folded={foldsWork(runs, index)}
+		live={liveBlocksFor(run)}
+		copied={copiedResponseRunId === run.runId}
+		{turn}
+	/>
+{/snippet}
 
 <style>
 	@property --chat-hold-space {

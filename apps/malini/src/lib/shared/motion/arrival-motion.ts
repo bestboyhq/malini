@@ -1,6 +1,7 @@
 import { cubicOut } from 'svelte/easing';
 import type { TransitionConfig } from 'svelte/transition';
-import { SCROLL_SPRING_STIFFNESS } from './scroll-glide';
+
+export const SCROLL_SPRING_STIFFNESS = 420;
 
 type SwapFly = Readonly<{ y: number; durationMs: number }>;
 

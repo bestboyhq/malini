@@ -46,6 +46,11 @@
 
 	let text = $state(untrack(() => draft.text));
 	let requests = $state<AttachmentRequest[]>([]);
+	const staging = $derived(
+		requests
+			.filter((request) => (requestOutcome(request.requestId)?.status ?? 'pending') === 'pending')
+			.map((request) => request.requestId),
+	);
 	let error = $state<string | null>(null);
 	let editor: InlinePromptEditor | null = $state(null);
 
@@ -113,13 +118,15 @@
 		}
 	}
 
-	function onAttachFiles(candidates: readonly ClipboardAttachmentCandidate[]): void {
+	function onAttachFiles(candidates: readonly ClipboardAttachmentCandidate[]): ChatRequestId {
+		const requestId = track([]);
 		stageClipboardAttachmentsCommand({
-			requestId: track([]),
+			requestId,
 			workstreamId,
 			draftScope: scope,
 			files: candidates.map(({ fileName, file }) => ({ fileName, file })),
 		});
+		return requestId;
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
@@ -149,6 +156,7 @@
 	resolvePreview={(ref) => promptChipPreview(ref, draft)}
 	onvaluechange={onValueChange}
 	onchipremove={onChipRemove}
+	{staging}
 	onattachfiles={onAttachFiles}
 	onkeydown={onKeydown}
 />

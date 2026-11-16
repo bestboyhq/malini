@@ -19,7 +19,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { announceExclusiveOverlayOpen } from '$hyper-ui/overlay';
 	import type { GalleryImage, VideoHandoff } from './transcript-gallery';
-	import { motionMs } from './arrival-motion';
+	import { motionMs } from '$shared/motion/arrival-motion';
 	import VideoPlayer from './VideoPlayer.svelte';
 
 	interface Props {
