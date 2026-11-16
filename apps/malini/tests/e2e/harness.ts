@@ -73,7 +73,7 @@ export const KEYCHAIN_FIXTURE = '.e2e-keychain';
 export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
 
 export function waitWhile(condition: string, seconds = 0.1): string {
-	return `while ${condition}; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep ${seconds}; done`;
+	return `while ${condition}; do kill -0 "$PPID" 2>&1 | grep -q 'No such process' && exit 1; sleep ${seconds}; done`;
 }
 
 const GH_STUB = `#!/bin/sh
