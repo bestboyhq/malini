@@ -31,10 +31,7 @@ export async function clonePlannedRepository(
 ): Promise<string> {
 	return (
 		plan.projectRepoPath ??
-		(await commands.call('repositories.create-repository', {
-			repoUrl: plan.repoUrl,
-			defaultBranch: plan.baseBranch,
-		}))
+		(await commands.call('repositories.create-repository', { repoUrl: plan.repoUrl }))
 	);
 }
 
@@ -44,16 +41,21 @@ export async function createPlannedWorkstream(
 	projectRepoPath: string,
 	baseRef: string | null = null,
 	startedBy: string | null = null,
-): Promise<void> {
+): Promise<string> {
+	const baseBranch = await commands.call('repositories.read-base-branch', {
+		projectRepoPath,
+		projectId: plan.projectId,
+	});
 	await commands.call('repositories.create-workstream', {
 		projectRepoPath,
 		workstreamId: plan.workstreamId,
-		baseBranch: plan.baseBranch,
+		baseBranch,
 		projectId: plan.projectId,
 		name: plan.name,
 		baseRef,
 		startedBy,
 	});
+	return baseBranch;
 }
 
 export async function prepareStartedWorkstream(

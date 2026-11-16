@@ -7,8 +7,10 @@ export const MAX_GIT_STDERR_BYTES = 64 * 1024;
 
 export type GitEnv = Readonly<Record<string, string>>;
 
+export type GitStderrListener = (text: string) => void;
+
 export interface GitRunner {
-	(args: readonly string[], env: GitEnv): Promise<string>;
+	(args: readonly string[], env: GitEnv, onStderr?: GitStderrListener): Promise<string>;
 }
 
 let runner: GitRunner = runGitReal;
@@ -21,14 +23,19 @@ export type TestGitRunner = (
 
 export function installGitRunnerForTests(replacement: TestGitRunner): () => void {
 	const previous = runner;
-	runner = (args, env) => replacement(args, env, previous);
+	runner = (args, env, onStderr) =>
+		replacement(args, env, (nextArgs, nextEnv) => previous(nextArgs, nextEnv, onStderr));
 	return () => {
 		runner = previous;
 	};
 }
 
-export function runGit(args: readonly string[], env: GitEnv = {}): Promise<string> {
-	return runner(args, env);
+export function runGit(
+	args: readonly string[],
+	env: GitEnv = {},
+	onStderr?: GitStderrListener,
+): Promise<string> {
+	return runner(args, env, onStderr);
 }
 
 interface SpawnedGit {
@@ -43,7 +50,7 @@ interface SpawnedGit {
 function spawnGit(
 	args: readonly string[],
 	env: GitEnv,
-	limits: { maxStdoutBytes?: number; input?: string },
+	limits: { maxStdoutBytes?: number; input?: string; onStderr?: GitStderrListener },
 ): Promise<SpawnedGit> {
 	return new Promise((resolve, reject) => {
 		let child;
@@ -80,6 +87,7 @@ function spawnGit(
 			stdoutBytes += chunk.length;
 		});
 		child.stderr.on('data', (chunk: Buffer) => {
+			limits.onStderr?.(chunk.toString('utf8'));
 			const available = MAX_GIT_STDERR_BYTES - stderrBytes;
 			if (available <= 0) {
 				stderrTruncated = true;
@@ -119,18 +127,24 @@ function spawnGit(
 
 export const MAX_GIT_STDOUT_BYTES = 32 * 1024 * 1024;
 
-async function runGitReal(args: readonly string[], env: GitEnv): Promise<string> {
-	return runGitWithInput(args, undefined, env);
+async function runGitReal(
+	args: readonly string[],
+	env: GitEnv,
+	onStderr?: GitStderrListener,
+): Promise<string> {
+	return runGitWithInput(args, undefined, env, onStderr);
 }
 
 export async function runGitWithInput(
 	args: readonly string[],
 	input: string | undefined,
 	env: GitEnv = {},
+	onStderr?: GitStderrListener,
 ): Promise<string> {
 	const result = await spawnGit(args, env, {
 		maxStdoutBytes: MAX_GIT_STDOUT_BYTES,
 		...(input === undefined ? {} : { input }),
+		...(onStderr === undefined ? {} : { onStderr }),
 	});
 	if (result.stdoutExceeded) {
 		throw GitError.outputTooLarge(`git ${globalOptions(args).subcommand}`, MAX_GIT_STDOUT_BYTES);

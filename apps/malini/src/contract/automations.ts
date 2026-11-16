@@ -308,6 +308,7 @@ export type AutomationCommandName =
 	| 'automations.delete-definition'
 	| 'automations.reset-definition'
 	| 'automations.list-runs'
+	| 'automations.workstream-has-running-run'
 	| 'automations.run'
 	| 'automations.confirm-run'
 	| 'automations.cancel-run'

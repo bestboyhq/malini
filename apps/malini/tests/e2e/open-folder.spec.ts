@@ -32,7 +32,7 @@ test('the first folder you open starts a workstream in it, and a later one lands
 		await recordBusyLabels(page);
 		await page
 			.getByRole('region', { name: 'Your repositories' })
-			.getByRole('button', { name: 'Open a folder' })
+			.getByRole('button', { name: 'A folder on this Mac' })
 			.click();
 		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 		await expect(

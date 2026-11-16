@@ -473,13 +473,19 @@ export function createTranscriptScroll(
 		becomeReader();
 	}
 
+	function trayFollowsUser(): void {
+		newContentAt = Number.NEGATIVE_INFINITY;
+	}
+
 	function onPointerUp(): void {
+		trayFollowsUser();
 		if (!pointerScrolling) return;
 		pointerScrolling = false;
 		userIntentUntil = performance.now() + WHEEL_INTENT_MS;
 	}
 
 	function onDocumentKeydown(event: KeyboardEvent): void {
+		trayFollowsUser();
 		const key = event.key === ' ' ? (event.shiftKey ? 'PageUp' : 'PageDown') : event.key;
 		if (!SCROLL_KEYS.has(key) || isEditable(event.target)) return;
 		const focused = document.activeElement;

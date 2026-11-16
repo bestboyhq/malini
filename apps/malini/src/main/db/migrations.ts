@@ -1969,6 +1969,7 @@ UPDATE automation_definitions
     trigger_mode = 'auto'
   WHERE builtin = 'fix-checks' AND trigger_when IS NULL;
 `,
+	`ALTER TABLE workstreams ADD COLUMN started_on_base TEXT;`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -227,6 +227,32 @@ export function archiveWorkstreamRecord(
 	});
 }
 
+export function retargetWorkstreams(
+	db: MaliniDatabase,
+	projectId: string,
+	from: string,
+	to: string,
+): number {
+	return run(
+		db,
+		`UPDATE workstreams SET started_on_base = COALESCE(started_on_base, base_branch), base_branch = ?
+		 WHERE project_id = ? AND base_branch = ?`,
+		to,
+		projectId,
+		from,
+	).changes;
+}
+
+export function startedOnBaseOf(db: MaliniDatabase, workstreamId: string): string | null {
+	return (
+		get<{ started_on_base: string | null }>(
+			db,
+			'SELECT started_on_base FROM workstreams WHERE id = ?',
+			workstreamId,
+		)?.started_on_base ?? null
+	);
+}
+
 export function moveArchivedWorkstream(
 	db: MaliniDatabase,
 	workstreamId: string,

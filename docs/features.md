@@ -22,12 +22,13 @@ The [README](../README.md) has the short version.
 
 ## First launch
 
-- **Straight to your repositories.** Malini opens on your five latest GitHub repositories under **What are we working on?**, and a pick clones the repository and starts a workstream in it.
-  Signed out, the card offers **Sign in to GitHub**, a one-time code in your browser; **Open a folder** takes a repository already on your Mac, and **New repository** makes one on GitHub.
-- **Nothing to install.** Malini ships the GitHub CLI, and installs Claude Code on its own when this Mac lacks it, while you pick a repository.
-  A prompt you send before it lands waits, and sends once it is in.
+- **Three ways in.** Malini opens on **GitHub**, **A folder on this Mac** and **New repository** under **What are we working on?**.
+  **GitHub** lists your five latest repositories in place, and a pick clones the repository and starts a workstream in it.
+  A `gh` already signed in lists them at once; signed out, **GitHub** shows a one-time code and opens your browser on its own.
+- **Nothing to install.** Malini ships the GitHub CLI, and installs Claude Code on its own when this Mac lacks it, out of sight while you pick a repository.
+  A prompt you send before it lands, or during the first copy, waits, and sends once it can; the top bar says **Needs you** while Claude Code holds it.
   The Claude sign-in waits for your first prompt on a Claude model, so you can run DeepSeek or OpenCode without a Claude plan.
-- **Something small to start.** The first workstream offers three starter prompts: explain the repository, fix the first failing test or lint, or take one open issue.
+- **Somewhere to start.** A new workstream shows how Malini set it up, a fresh copy and its dependencies, then starter prompts under **Quick suggestions**: run it in the browser, find the biggest CI/CD pipeline optimizations, find all implicit state machines, or plan a change.
 
 ## Workstreams, side by side
 
@@ -165,8 +166,8 @@ The [README](../README.md) has the short version.
 
 Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
-Malini makes seven calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.
-Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
+Malini makes twelve calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the GitHub CLI from GitHub and Claude Code from Anthropic when this Mac lacks a working one, each checked against its published checksum, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it, the chats you run on a DeepSeek or OpenCode key, which Malini passes to that provider with your key, the extension marketplace at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev, the projects you turn on in Settings, Profile, to bestboy.dev, and, only after you sign in with ChatGPT, OpenAI, which runs the GPT models your plan covers.
+Usage data counts the days Malini runs, each step from the first screen to the first merge, and the agent runs it finishes and how they end, and names the errors it hits, such as which command failed on which version.
 While you are signed in to Bestboy, each count carries your account, as a hash Malini makes on your Mac.
 Signed out, it carries a random ID made for this install, so we can count the days Malini is used; it is not linked to you, and turning stats off deletes it.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.

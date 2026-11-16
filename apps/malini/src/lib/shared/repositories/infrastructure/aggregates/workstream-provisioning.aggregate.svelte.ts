@@ -39,14 +39,13 @@ export class WorkstreamProvisioningAggregate {
 		this.#write(workstreamId, { ...existing, clonePercent });
 	}
 
-	resolveProjectRepoPath(workstreamId: string, projectRepoPath: string): void {
+	resolvePlan(
+		workstreamId: string,
+		resolved: Partial<Pick<WorkstreamProvisioningPlan, 'projectRepoPath' | 'baseBranch'>>,
+	): void {
 		const existing = this.records[workstreamId];
 		if (!existing) return;
-		if (existing.plan.projectRepoPath === projectRepoPath) return;
-		this.#write(workstreamId, {
-			...existing,
-			plan: { ...existing.plan, projectRepoPath },
-		});
+		this.#write(workstreamId, { ...existing, plan: { ...existing.plan, ...resolved } });
 	}
 
 	fail(workstreamId: string, failure: string): void {
@@ -132,7 +131,8 @@ export class WorkstreamDependencyInstallAggregate {
 			[workstreamId]: {
 				workstreamId,
 				status,
-				command: typeof event.command === 'string' ? event.command : null,
+				command:
+					typeof event.command === 'string' ? event.command : this.#keptCommand(workstreamId),
 				detail: typeof event.detail === 'string' && event.detail.trim() ? event.detail : null,
 				noticeAt: installNoticeAt(this.get(workstreamId), status, Date.now()),
 			},
@@ -144,15 +144,15 @@ export class WorkstreamDependencyInstallAggregate {
 	}
 
 	settleFromOutcome(workstreamId: string, outcome: InstallOutcomeResult): void {
-		if (outcome.status === 'failed' || outcome.status === 'skipped') {
-			this.report({ ...outcome, workstreamId });
-			return;
-		}
-		if (this.get(workstreamId)?.status === 'running') this.clear(workstreamId);
+		if (outcome.status !== 'already-running') this.report({ ...outcome, workstreamId });
 	}
 
 	get(workstreamId: string): WorkstreamInstallRecord | null {
 		return this.records[workstreamId] ?? null;
+	}
+
+	#keptCommand(workstreamId: string): string | null {
+		return this.get(workstreamId)?.command ?? null;
 	}
 
 	clear(workstreamId: string): void {

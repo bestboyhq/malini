@@ -62,8 +62,10 @@ function workstreamStatus(
 	url: string | null,
 	agentStatus: SessionStatus | null,
 ): WorkstreamStatus | null {
-	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null =>
-		isAgentWorking(agentStatus) ? whileAgentWorks(settled, agentStatus) : settled;
+	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null => {
+		if (!isAgentWorking(agentStatus) || (settled === null && read === null)) return settled;
+		return whileAgentWorks(settled, agentStatus);
+	};
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
 	if (ship && shipNeedsYou(ship) && !mergedOnGithub) return needsYou(ship, read, url);
 	const failure = mergedOnGithub ? null : shipFailure(ship);
@@ -220,7 +222,7 @@ function whileAgentWorks(
 	settled: WorkstreamStatus | null,
 	agentStatus: SessionStatus | null,
 ): WorkstreamStatus | null {
-	if (settled?.tone !== 'idle' && settled?.tone !== 'ready') return settled;
+	if (settled && settled.tone !== 'idle' && settled.tone !== 'ready') return settled;
 	return isWaitingForUser(agentStatus)
 		? { ...working('Needs you', settled), busy: false }
 		: working('Agent running', settled);
@@ -246,8 +248,8 @@ function neutral(action: PullRequestTopBarAction): PullRequestTopBarAction {
 const NOTHING_YET: WorkstreamStatus = {
 	tone: 'idle',
 	busy: false,
-	label: 'Build something great',
-	detail: null,
+	label: 'No changes',
+	detail: 'Build something great',
 	tooltip: null,
 	action: null,
 };
