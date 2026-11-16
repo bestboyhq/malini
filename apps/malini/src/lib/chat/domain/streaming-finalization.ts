@@ -27,9 +27,7 @@ export function processStreamingEnvelopes(
 						contentId: event.contentId,
 						seq: envelope.seq,
 						text,
-						durationSeconds: finalized
-							? Math.max(1, Math.round(finalized.durationMs / 1000))
-							: null,
+						durationSeconds: thoughtSeconds(event.durationMs ?? finalized?.durationMs),
 					},
 					envelope,
 				) || thoughtsChanged;
@@ -49,4 +47,8 @@ export function processStreamingEnvelopes(
 		}
 	}
 	return thoughtsChanged;
+}
+
+export function thoughtSeconds(durationMs: number | undefined): number | null {
+	return durationMs === undefined ? null : Math.max(1, Math.round(durationMs / 1000));
 }

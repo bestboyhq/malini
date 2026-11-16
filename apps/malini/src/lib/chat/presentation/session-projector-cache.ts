@@ -1,6 +1,7 @@
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
+import { thoughtSeconds } from '$lib/chat/domain/streaming-finalization';
 import { IncrementalRunTimelineProjector } from './incremental-run-timeline';
 import { IncrementalRenderProjector } from './render-projector';
 import { coalesceAdjacentThoughts } from './render-state';
@@ -218,7 +219,7 @@ export class IncrementalSessionStreamingProjector {
 					contentId: event.contentId,
 					seq: envelope.seq,
 					text: event.text,
-					durationSeconds: null,
+					durationSeconds: thoughtSeconds(event.durationMs),
 				};
 				const override = this.#finalizedThoughtOverridesByKey.get(thoughtKey(durableThought));
 				if (

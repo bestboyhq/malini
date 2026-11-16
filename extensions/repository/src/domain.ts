@@ -22,6 +22,7 @@ export type RepositoryContext = {
 	hasUpstream: boolean;
 	mergeInProgress: boolean;
 	operationInProgress: ExtensionRepositoryOperation | null;
+	headSha: string | null;
 	pullRequest: ExtensionPullRequestContext | null;
 };
 
@@ -131,6 +132,7 @@ export function contextFromWorkstream(workstream: ExtensionWorkstream): Reposito
 		hasUpstream: true,
 		mergeInProgress: false,
 		operationInProgress: null,
+		headSha: null,
 		pullRequest: null,
 	};
 }
@@ -146,6 +148,7 @@ export function repositoryLocalSignals(
 	| 'hasUpstream'
 	| 'mergeInProgress'
 	| 'operationInProgress'
+	| 'headSha'
 > {
 	return {
 		conflictedPaths: [...(status.conflictedPaths ?? [])],
@@ -155,6 +158,7 @@ export function repositoryLocalSignals(
 		hasUpstream: status.hasUpstream ?? true,
 		mergeInProgress: status.mergeInProgress ?? false,
 		operationInProgress: status.operationInProgress ?? null,
+		headSha: status.headSha ?? null,
 	};
 }
 
@@ -291,6 +295,7 @@ export function parseRepositoryContext(input: unknown): RepositoryContextResult 
 			hasUpstream: input.hasUpstream !== false,
 			mergeInProgress: input.mergeInProgress === true,
 			operationInProgress,
+			headSha: typeof input.headSha === 'string' ? input.headSha : null,
 			pullRequest,
 		},
 	};

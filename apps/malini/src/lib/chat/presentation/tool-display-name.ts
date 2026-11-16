@@ -1,6 +1,11 @@
 import { toolTarget } from '$lib/chat/domain/tool-target';
 import { mcpServerDisplayName, withoutPluginPrefix } from '$lib/chat/domain/mcp-server';
 import {
+	isMaliniAction,
+	maliniToolApproval,
+	type MaliniNames,
+} from '$lib/chat/domain/approval-request';
+import {
 	relativizeWorkstreamCommand,
 	relativizeWorkstreamPath,
 } from '$shared/markdown/workstream-path';
@@ -28,6 +33,10 @@ const LIVE_INPUT_SUMMARY_KEYS = [
 	'url',
 	'selector',
 	'description',
+	'automation',
+	'workstream',
+	'repository',
+	'name',
 ] as const;
 
 const MAX_LIVE_INPUT_SUMMARY_CHARS = 4_096;
@@ -77,8 +86,10 @@ export function compactionLabel(status: 'running' | 'completed', output: unknown
 		: 'Compacted conversation';
 }
 
-export function toolDisplayName(rawName: string, input?: unknown): string {
+export function toolDisplayName(rawName: string, input?: unknown, names?: MaliniNames): string {
 	const trimmed = rawName.trim();
+	const action = maliniToolApproval(trimmed, isRecord(input) ? input : {}, names);
+	if (action) return action.headline;
 	if (isBackgroundAgent(trimmed, input)) return 'Background agent';
 	if (isCompaction(trimmed)) return 'Compact conversation';
 	const mcpMatch = /^mcp__([^_].*?)__(.+)$/iu.exec(trimmed);
@@ -164,8 +175,9 @@ export function toolDescriptionLabel(rawName: string, input: unknown): string | 
 	return description ? short(description) : null;
 }
 
-export function toolActivityLabel(rawName: string, input: unknown): string {
-	const displayName = toolDisplayName(rawName, input);
+export function toolActivityLabel(rawName: string, input: unknown, names?: MaliniNames): string {
+	const displayName = toolDisplayName(rawName, input, names);
+	if (isMaliniAction(rawName.trim())) return displayName;
 	const kind = toolActionKind(rawName, input);
 	const path = stringAt(input, TOOL_PATH_KEYS);
 	const command = stringAt(input, ['command']);

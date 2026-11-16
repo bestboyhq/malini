@@ -451,15 +451,17 @@
 							>
 								{#key `${githubHeadline.busy} ${githubHeadline.label}`}
 									<span class="topbar-git__line" in:textIn out:textOut>
-										{#if githubHeadline.busy}
-											<BusyIcon size={12} />
-										{/if}
 										<span class="topbar-git__text">
-											{#if reference}
-												{@render githubDisclosure(githubHeadline.label)}
-											{:else}
-												<span class="topbar-git__label">{githubHeadline.label}</span>
-											{/if}
+											<span class="topbar-git__head">
+												{#if githubHeadline.busy}
+													<BusyIcon size={12} />
+												{/if}
+												{#if reference}
+													{@render githubDisclosure(githubHeadline.label)}
+												{:else}
+													<span class="topbar-git__label">{githubHeadline.label}</span>
+												{/if}
+											</span>
 											{#if reference || githubHeadline.detail}
 												<span class="topbar-git__meta">
 													{#if reference}
@@ -1039,8 +1041,11 @@
 		white-space: nowrap;
 	}
 
-	.topbar-git__line > :global(svg) {
-		flex-shrink: 0;
+	.topbar-git__head {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 6px;
 	}
 
 	.topbar-git__text {
@@ -1109,6 +1114,10 @@
 		flex: 0 1 100%;
 		gap: 4px;
 		color: color-mix(in srgb, var(--zone-ink) 64%, transparent);
+	}
+
+	.topbar-git[data-zone='idle'] .topbar-git__meta {
+		color: var(--color-fg-tertiary);
 	}
 
 	.topbar-git[data-zone='asks'] .topbar-git__meta {
