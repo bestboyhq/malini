@@ -26,6 +26,7 @@ function read(
 		hasUpstream: true,
 		mergeInProgress: false,
 		operationInProgress: null,
+		headSha: null,
 		changedFiles: 0,
 		pullRequest: pullRequest && {
 			state: 'open',

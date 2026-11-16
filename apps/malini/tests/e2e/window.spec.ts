@@ -1,4 +1,5 @@
-import { readdirSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { expectPicker, invoke, launchMalini, type RuntimeInfo } from './harness';
 
@@ -47,7 +48,7 @@ test('a test run keeps the app off the screen of whoever is using the machine', 
 	}
 });
 
-test('quitting waits on no store Chromium writes from a throttled background thread', async () => {
+test('quitting waits on no store Chromium or Electron writes from a throttled background thread', async () => {
 	const app = await launchMalini();
 	try {
 		await expect(app.page).toHaveTitle('Malini · Repositories');
@@ -57,6 +58,7 @@ test('quitting waits on no store Chromium writes from a throttled background thr
 				(name) => name.startsWith('declarative_performance_observer') || name.startsWith('DIPS'),
 			),
 		).toEqual([]);
+		expect(statSync(join(app.userDataDir, 'Code Cache', 'electron-preload')).isFile()).toBe(true);
 	} finally {
 		await app.close();
 	}

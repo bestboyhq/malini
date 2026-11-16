@@ -55,6 +55,7 @@ function surface(overrides: Partial<RepositorySurface> = {}): RepositorySurface 
 		hasUpstream: true,
 		mergeInProgress: false,
 		operationInProgress: null,
+		headSha: 'head-42',
 		pullRequest: NO_PULL_REQUEST,
 		pullRequestRefreshStatus: 'ready',
 		pullRequestRefreshedAt: 1,
@@ -284,6 +285,19 @@ describe('the workstream status', () => {
 			},
 		],
 		[
+			'shows a draft without checks as a draft',
+			null,
+			open({ state: 'draft', checks: 'none' }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Draft',
+				detail: 'No checks configured',
+				action: 'Merge',
+			},
+		],
+		[
 			'counts running checks',
 			null,
 			open({ checks: 'pending', checkItems: [passed, running] }),
@@ -463,7 +477,7 @@ describe('the workstream status', () => {
 			ship(),
 			null,
 			'ready',
-			{ tone: 'idle', busy: false, label: 'Open', detail: null, action: 'Merge' },
+			{ tone: 'idle', busy: false, label: 'Draft', detail: null, action: 'Merge' },
 		],
 		[
 			'is queued in blue with Cancel',
@@ -924,9 +938,8 @@ describe('the workstream status', () => {
 			'fixing-checks',
 			'addressing-review',
 		] as const) {
-			expect(status(ship({ step }), open(), 'ready', 'running')).toMatchObject({
+			expect(status(local({ step }), surface(), 'ready', 'running')).toMatchObject({
 				label: 'Clearing blockers',
-				action: { kind: 'queue-merge', ariaLabel: 'Merge pull request #42', tone: 'secondary' },
 			});
 		}
 		expect(
@@ -935,6 +948,50 @@ describe('the workstream status', () => {
 		expect(
 			status(ship({ step: 'updating-from-main', pullRequestNumber: null }), surface()),
 		).toMatchObject({ label: 'Opening draft', detail: null, action: null });
+	});
+
+	it('names what Malini does on a draft over its last read, keeping Merge but neutral', () => {
+		const failed = open({ state: 'draft', checks: 'failed', checkItems: [failing] });
+		for (const [step, detail] of [
+			['waiting-for-agent', 'Waiting for the agent'],
+			['pushing', 'Pushing'],
+			['rerunning-checks', 'Re-running lint'],
+			['fixing-checks', 'Fixing lint'],
+			['updating-from-main', 'Clearing blockers'],
+			['resolving-conflicts', 'Clearing blockers'],
+			['addressing-review', 'Clearing blockers'],
+		] as const) {
+			expect(status(ship({ step, checks: ['lint'] }), failed, 'ready', 'running')).toMatchObject({
+				tone: 'idle',
+				busy: true,
+				label: 'Draft',
+				detail,
+				action: { kind: 'queue-merge', ariaLabel: 'Merge pull request #42', tone: 'secondary' },
+			});
+		}
+	});
+
+	it('shows checks starting on a draft that waits for checks while its last read names an older head', () => {
+		const waiting = ship({ step: 'waiting-for-checks' });
+		const pushed = { headSha: 'head-43' };
+		const failed = { state: 'draft' as const, checks: 'failed' as const, checkItems: [failing] };
+		const green = { state: 'draft' as const, checks: 'success' as const, checkItems: [passed] };
+		for (const read of [open(failed, pushed), open(green, pushed)]) {
+			expect(status(waiting, read)).toMatchObject({
+				label: 'Checks starting',
+				busy: true,
+				action: { kind: 'queue-merge' },
+			});
+		}
+		expect(status(waiting, open(failed))).toMatchObject({ label: 'Checks failed', detail: 'lint' });
+		expect(status(waiting, open(green))).toMatchObject({ label: 'Ready to merge' });
+		expect(status(waiting, open(failed, { headSha: null }))).toMatchObject({
+			label: 'Checks failed',
+		});
+		expect(status(ship(), open(failed, pushed))).toMatchObject({ label: 'Checks failed' });
+		expect(
+			status(ship({ phase: 'local', step: 'waiting-for-checks' }), open(failed, pushed)),
+		).toMatchObject({ label: 'Checks failed' });
 	});
 
 	it('never shows a workstream kept only locally as opening a draft', () => {

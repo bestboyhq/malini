@@ -357,6 +357,9 @@ Old turns fold. Subagents get a line each. Files show their diff
 - Only the last two turns show their work.
   Older ones keep your prompt and the answer, and fold the thinking and tool calls between into one line, such as **Edited build.mjs · 79 commands**.
   Click it if you miss them.
+- An action the agent takes in Malini, such as **Run automation ‘Open draft’**, stays in view as its own line in every turn, named as its approval card names it.
+  When Malini asked you first, the approval card is that line.
+- Thinking keeps how long it took, such as **Thought for 4s**, after Malini restarts.
 - Each subagent is one line: its task, the step it is on, how many steps it took, and how long.
   While it runs, the square on its line stops it, and the tray above the composer keeps only background commands.
   Click it for its prompt, every step, and its report.

@@ -26,8 +26,7 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import AgentEditReview from './AgentEditReview.svelte';
 	import type { RenderItem } from './render-state';
-	import { automationName } from '$lib/automations/automations.api';
-	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
+	import { MALINI_NAMES } from './malini-names';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
 	interface Props {
@@ -120,12 +119,7 @@
 		grants.length > 0 ? ALWAYS_ALLOW_IN_THE_SANDBOX : ALWAYS_ALLOW,
 	);
 	const maliniTool = $derived(
-		maliniToolApproval(
-			item.toolName,
-			item.input,
-			{ automation: automationName, workstream: (id) => workstreamNameQuery.data(id) ?? id },
-			item.review,
-		),
+		maliniToolApproval(item.toolName, item.input, MALINI_NAMES, item.review),
 	);
 	const headline = $derived(
 		maliniTool?.headline ?? approvalHeadline(item.toolName, item.permission),

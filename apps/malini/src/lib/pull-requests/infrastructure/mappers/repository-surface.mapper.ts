@@ -39,6 +39,7 @@ export class RepositorySurfaceMapper {
 			hasUpstream: raw.hasUpstream,
 			mergeInProgress: raw.mergeInProgress,
 			operationInProgress: raw.operationInProgress,
+			headSha: raw.headSha,
 			pullRequest: raw.pullRequest === null ? null : this.pullRequestFromRaw(raw.pullRequest),
 			pullRequestRefreshStatus: raw.pullRequestRefreshStatus,
 			pullRequestRefreshedAt: raw.pullRequestRefreshedAt,

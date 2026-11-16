@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	expectAssistantReply,
@@ -49,12 +49,13 @@ test('a check that fails on a draft starts Fix checks on its own, Malini pushes 
 			nextChecks: RUNNING,
 		});
 
-		await expect(topBarStatus(page, /^Clearing blockers/u)).toBeVisible({ timeout: 60_000 });
+		await expect(topBarStatus(page, /^Draft · Fixing test$/u)).toBeVisible({ timeout: 60_000 });
 		const automations = page.getByRole('list', { name: 'Automations', exact: true });
 		await expect(
 			automations.getByRole('link', { name: 'Fix checks, Running', exact: true }),
 		).toBeVisible({ timeout: 30_000 });
 		await captureFlow(app, 'draft-fix-checks-running');
+		await recordTopBarStatuses(page);
 
 		holdAgentRuns(app, false);
 		await expect
@@ -78,6 +79,9 @@ test('a check that fails on a draft starts Fix checks on its own, Malini pushes 
 		await expect(topBarStatus(page, /^Ready to merge/u)).toBeVisible({
 			timeout: SOONER_THAN_THE_TOP_BAR_READS_AGAIN_MS,
 		});
+		expect(await recordedTopBarStatuses(page)).not.toContainEqual(
+			expect.stringMatching(/^Checks failed/u),
+		);
 		await captureFlow(app, 'draft-fix-checks-pushed');
 		expectCleanConsole(app);
 	} finally {
@@ -116,6 +120,27 @@ test('the top bar shows the checks Malini reads on a draft before it reads them 
 		await app.close();
 	}
 });
+
+async function recordTopBarStatuses(page: Page): Promise<void> {
+	await page.locator('body').evaluate((body) => {
+		const view = body.ownerDocument.defaultView;
+		if (!view) return;
+		const shown: string[] = [];
+		Reflect.set(body, 'topBarStatuses', shown);
+		new view.MutationObserver(() => {
+			const status = body.querySelector('[data-testid="global-topbar-github-headline"]');
+			const name = status?.getAttribute('aria-label') ?? '';
+			if (name && shown.at(-1) !== name) shown.push(name);
+		}).observe(body, { subtree: true, childList: true, attributes: true });
+	});
+}
+
+async function recordedTopBarStatuses(page: Page): Promise<string[]> {
+	const shown = await page
+		.locator('body')
+		.evaluate((body): unknown => Reflect.get(body, 'topBarStatuses'));
+	return Array.isArray(shown) ? shown.filter((name) => typeof name === 'string') : [];
+}
 
 async function commitWorkflow({ worktree }: SeededWorkstream): Promise<void> {
 	mkdirSync(join(worktree, '.github', 'workflows'), { recursive: true });

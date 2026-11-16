@@ -271,7 +271,13 @@ export type BridgeEvent =
 	| { type: 'run.started'; runId: string; sessionId: string }
 	| { type: 'user.message'; runId: string; text: string }
 	| { type: 'assistant.message'; runId: string; text: string; contentId?: string }
-	| { type: 'thinking.message'; runId: string; contentId: string; text: string }
+	| {
+			type: 'thinking.message';
+			runId: string;
+			contentId: string;
+			text: string;
+			durationMs?: number;
+	  }
 	| { type: 'plan.updated'; runId: string; text: string }
 	| {
 			type: 'tool.started';
@@ -727,6 +733,13 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('contentId', f.optionalString('contentId')),
 				});
 			case 'thinking.message':
+				return ok({
+					type: kind,
+					runId: f.string('runId'),
+					contentId: f.string('contentId'),
+					text: f.string('text'),
+					...optional('durationMs', f.optionalNumber('durationMs')),
+				});
 			case 'assistant.delta':
 			case 'thinking.delta':
 				return ok({

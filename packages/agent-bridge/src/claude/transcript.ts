@@ -41,6 +41,7 @@ export class ClaudeTranscript {
 	readonly #streamBlocks = new Map<number, StreamBlock>();
 	readonly #unsettledBlocks = new Map<string, StreamBlock>();
 	readonly #streamedText = new Map<string, string>();
+	readonly #thinkingStartedAt = new Map<string, number>();
 	readonly #settledOnInterrupt = new Set<string>();
 	readonly #finalizedByKind = new Map<StreamContentKind, number>();
 	readonly #blockCounts = new Map<string, number>();
@@ -393,6 +394,7 @@ export class ClaudeTranscript {
 					const id = contentId(this.#streamMessageId, index);
 					this.#openStreamBlock(index, { kind: block['type'], id });
 					if (block['type'] === 'thinking') {
+						this.#thinkingStartedAt.set(id, Date.now());
 						this.#emit({ type: 'thinking.delta', runId: this.#runId, contentId: id, text: '' });
 					}
 				} else if (block['type'] === 'tool_use' && typeof block['id'] === 'string') {
@@ -485,12 +487,7 @@ export class ClaudeTranscript {
 				const id = this.#finalContentId(messageId, 'thinking', index);
 				if (this.#settledOnInterrupt.has(id)) continue;
 				this.#settleBlock(id);
-				this.#emit({
-					type: 'thinking.message',
-					runId: this.#runId,
-					contentId: id,
-					text: typeof block['thinking'] === 'string' ? block['thinking'] : '',
-				});
+				this.#emitThought(id, typeof block['thinking'] === 'string' ? block['thinking'] : '');
 			}
 		}
 	}
@@ -518,6 +515,18 @@ export class ClaudeTranscript {
 		});
 	}
 
+	#emitThought(id: string, text: string): void {
+		const startedAt = this.#thinkingStartedAt.get(id);
+		this.#thinkingStartedAt.delete(id);
+		this.#emit({
+			type: 'thinking.message',
+			runId: this.#runId,
+			contentId: id,
+			text,
+			...(startedAt === undefined ? {} : { durationMs: Date.now() - startedAt }),
+		});
+	}
+
 	#openStreamBlock(index: number, block: StreamBlock): void {
 		this.#streamBlocks.set(index, block);
 		this.#unsettledBlocks.set(block.id, block);
@@ -539,7 +548,7 @@ export class ClaudeTranscript {
 			this.#settleBlock(block.id);
 			this.#settledOnInterrupt.add(block.id);
 			if (block.kind === 'thinking') {
-				this.#emit({ type: 'thinking.message', runId: this.#runId, contentId: block.id, text });
+				this.#emitThought(block.id, text);
 			} else if (text) {
 				this.#emit({ type: 'assistant.message', runId: this.#runId, contentId: block.id, text });
 			}

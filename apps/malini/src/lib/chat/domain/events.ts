@@ -31,7 +31,13 @@ export type AgentEvent =
 			reports?: WorkstreamReport[];
 	  }
 	| { type: 'assistant.message'; runId: string; text: string; contentId?: string }
-	| { type: 'thinking.message'; runId: string; contentId: string; text: string }
+	| {
+			type: 'thinking.message';
+			runId: string;
+			contentId: string;
+			text: string;
+			durationMs?: number;
+	  }
 	| { type: 'plan.updated'; runId: string; text: string }
 	| {
 			type: 'tool.started';

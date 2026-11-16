@@ -28,6 +28,7 @@ import { CommandRegistry } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
+import { blockPreloadCodeCache } from './preload-code-cache';
 import { claimsUrlScheme, URL_SCHEME, urlInbox } from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
@@ -36,6 +37,7 @@ const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DI
 const productName = pinStorageName(app);
 startReaper(app, { watchLauncher: BACKGROUND_WINDOW });
 app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));
+blockPreloadCodeCache(app.getPath('sessionData'));
 if (BACKGROUND_WINDOW) {
 	app.dock?.hide();
 	app.disableHardwareAcceleration();
