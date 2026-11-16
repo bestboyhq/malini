@@ -219,8 +219,10 @@ describe('ClaudeCodeUpdates', () => {
 		updates.start();
 		await waitFor(() => claude.calls().length >= 2);
 		updates.stop();
+		await updates.checkIfStale();
 		const stopped = claude.calls().length;
 		await new Promise((resolve) => setTimeout(resolve, 500));
+		await updates.checkIfStale();
 
 		expect(claude.calls().length).toBe(stopped);
 	});
