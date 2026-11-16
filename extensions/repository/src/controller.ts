@@ -91,6 +91,7 @@ export type RepositorySurfaceState = Readonly<{
 	hasUpstream: boolean;
 	mergeInProgress: boolean;
 	operationInProgress: ExtensionRepositoryOperation | null;
+	headSha: string | null;
 	changedFiles: number;
 	pullRequest: ExtensionPullRequestContext | null;
 	pullRequestRefreshStatus: PullRequestRefreshStatus;
@@ -1771,6 +1772,7 @@ export function repositorySurfaceState(state: RepositoryViewState): RepositorySu
 		hasUpstream: context?.hasUpstream ?? true,
 		mergeInProgress: context?.mergeInProgress ?? false,
 		operationInProgress: context?.operationInProgress ?? null,
+		headSha: context?.headSha ?? null,
 		changedFiles: state.changedFiles,
 		pullRequest: clonePullRequest(context?.pullRequest ?? null),
 		pullRequestRefreshStatus: state.pullRequestRefreshStatus,

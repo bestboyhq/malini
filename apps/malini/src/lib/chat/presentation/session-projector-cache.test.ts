@@ -243,6 +243,22 @@ describe('SessionProjectorCache', () => {
 		});
 	});
 
+	it('reads how long a thought took from its stored event, so a relaunch keeps it', () => {
+		const streaming = new SessionProjectorCache().acquire('session-a').streaming;
+		streaming.project([
+			envelope('session-a', 'run-a', 2, {
+				type: 'thinking.message',
+				runId: 'run-a',
+				contentId: 'thought-a',
+				text: 'durable thought',
+				durationMs: 2_400,
+			}),
+		]);
+		expect(streaming.finalizedThoughtsForRun('run-a')).toEqual([
+			expect.objectContaining({ text: 'durable thought', durationSeconds: 2 }),
+		]);
+	});
+
 	it('preserves rich finalized thoughts across replay rebuilds and drops them only on removal', () => {
 		const streaming = new SessionProjectorCache().acquire('session-a').streaming;
 		const thought = envelope('session-a', 'run-a', 2, {

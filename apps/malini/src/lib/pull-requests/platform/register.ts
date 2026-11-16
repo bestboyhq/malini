@@ -38,6 +38,7 @@ import {
 	fetchCheckDiagnostics,
 	fetchReviewFeedback,
 	firstLine,
+	listedCheckRuns,
 	mapPullRequestStatus,
 	notOpenStatus,
 	replyAndResolveReviewThreads,
@@ -400,13 +401,14 @@ async function openPullRequestStatus(
 	repository: ConnectedRepository,
 	view: PullRequestView,
 ): Promise<PullRequestStatusDto> {
-	const status = mapPullRequestStatus(await withSettledMergeability(run, checkout, view));
+	const settled = await withSettledMergeability(run, checkout, view);
+	const status = mapPullRequestStatus(settled);
 	if (status.state !== 'open' || status.number === null) return status;
 	if (status.headSha) await fetchHeadGithubMoved(local, status.headRef, status.headSha);
 	const [threads, merging, checksExpected, lagging, behindBase, checks] = await Promise.all([
 		unresolvedReviewThreadCount(run, checkout, repository, status.number),
 		repositoryMergeSettings(run, checkout),
-		checksStillToReport(run, checkout, local, repository, status),
+		checksStillToReport(run, checkout, local, repository, status, settled),
 		status.headSha ? pullRequestLagsPush(local, status.headRef, status.headSha) : false,
 		status.headSha && status.baseRef
 			? fetchBehindBase(run, checkout, repository, status.baseRef, status.headSha)
@@ -564,10 +566,12 @@ async function checksStillToReport(
 	local: string,
 	repository: ConnectedRepository,
 	{ headSha, baseRef, checksState }: PullRequestStatusDto,
+	{ statusCheckRollup }: PullRequestView,
 ): Promise<boolean> {
 	if (!headSha || checksState === 'pending') return false;
 	if (checksState === 'none' && (await checksAreStarting(local, headSha))) return true;
-	return checkSuitesStillToReport(run, checkout, repository, headSha, baseRef);
+	const listed = listedCheckRuns(statusCheckRollup);
+	return checkSuitesStillToReport(run, checkout, repository, headSha, baseRef, listed);
 }
 
 export const CHECKS_START_GRACE_MS = 5 * 60_000;

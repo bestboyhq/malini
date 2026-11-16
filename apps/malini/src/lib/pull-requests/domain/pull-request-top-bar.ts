@@ -74,6 +74,9 @@ function workstreamStatus(
 	if (ship?.phase === 'draft' && ship.step && ship.pullRequestNumber === null) {
 		return openingDraft(ship);
 	}
+	if (ship?.phase === 'draft' && ship.step && DRAFT_WORK_STEPS.has(ship.step)) {
+		return workingOnDraft(ship, ship.step);
+	}
 	if (ship?.step && CLEARING_BLOCKERS_STEPS.has(ship.step)) {
 		return clearingBlockers(availability === 'ready' ? shipStatus(ship, read) : null);
 	}
@@ -94,6 +97,13 @@ const CLEARING_BLOCKERS_STEPS: ReadonlySet<ShipStep> = new Set([
 	'addressing-review',
 ]);
 
+const DRAFT_WORK_STEPS: ReadonlySet<ShipStep> = new Set([
+	...CLEARING_BLOCKERS_STEPS,
+	'waiting-for-agent',
+	'pushing',
+	'rerunning-checks',
+]);
+
 function shipStatus(
 	ship: PullRequestShip | null,
 	read: RepositorySurface | null,
@@ -103,7 +113,7 @@ function shipStatus(
 	if (pullRequest?.state === 'merged') return merged(read);
 	if (pullRequest && publishedPullRequest(pullRequest)) {
 		return {
-			...openStatus(pullRequest),
+			...(readPredatesPush(ship, read, pullRequest) ? CHECKS_STARTING : openStatus(pullRequest)),
 			tooltip: ship?.lastError ?? null,
 			action: queueMerge(pullRequest.number),
 		};
@@ -179,6 +189,17 @@ function openingDraft(ship: PullRequestShip): WorkstreamStatus {
 		detail: ship.step === 'waiting-for-agent' ? 'After the agent finishes' : null,
 		tooltip: ship.lastError,
 		action: null,
+	};
+}
+
+function workingOnDraft(ship: PullRequestShip, step: ShipStep): WorkstreamStatus {
+	return {
+		tone: 'idle',
+		busy: true,
+		label: DRAFT,
+		detail: step === 'pushing' ? 'Pushing' : shipStepDetail(step, ship.checks),
+		tooltip: ship.lastError,
+		action: neutral(queueMerge(ship.pullRequestNumber)),
 	};
 }
 
@@ -333,7 +354,7 @@ function local(read: RepositorySurface, ship: PullRequestShip | null): Workstrea
 
 function openBeforeRead(pullRequestNumber: number, ship: PullRequestShip): WorkstreamStatus {
 	return {
-		...line('idle', 'Open', null),
+		...line('idle', ship.phase === 'draft' ? DRAFT : 'Open', null),
 		tooltip: ship.lastError,
 		action: queueMerge(pullRequestNumber),
 	};
@@ -383,8 +404,10 @@ function openStatus(pullRequest: SurfacePullRequest): StatusLine {
 	if (checks.length > 0 || pullRequest.checks === 'success') {
 		return line('ready', 'Ready to merge', null);
 	}
-	return line('idle', 'Open', 'No checks configured');
+	return line('idle', pullRequest.state === 'draft' ? DRAFT : 'Open', 'No checks configured');
 }
+
+const DRAFT = 'Draft';
 
 function line(tone: WorkstreamStatus['tone'], label: string, detail: string | null): StatusLine {
 	return { tone, busy: false, label, detail, tooltip: null };
@@ -561,6 +584,19 @@ function surfaceBlockingChecks(
 	checkItems: readonly SurfacePullRequestCheck[],
 ): readonly SurfacePullRequestCheck[] {
 	return checkItems.filter((check) => check.required !== false && !check.passed);
+}
+
+function readPredatesPush(
+	ship: PullRequestShip | null,
+	read: RepositorySurface,
+	pullRequest: SurfacePullRequest,
+): boolean {
+	return (
+		ship?.phase === 'draft' &&
+		ship.step === 'waiting-for-checks' &&
+		read.headSha !== null &&
+		pullRequest.headSha !== read.headSha
+	);
 }
 
 function publishedPullRequest(pullRequest: SurfacePullRequest): boolean {

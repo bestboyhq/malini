@@ -173,6 +173,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
   From then on, the top bar shows its number under the status, such as **#203 · 2 of 5 pending** under **Checks running**: the number opens it on GitHub, and the status opens its checks, review and notes.
   Malini then watches the checks of what it pushed until they pass or fail, for an hour at most.
+  While it waits on them, the top bar says **Checks starting** until GitHub lists them, never the result of the commit before.
   A check that fails gets one re-run of its GitHub Actions jobs, then **Fix checks** fixes it and Malini pushes the fix to the draft, never marking it ready or merging it.
   When the same failure outlasts **Fix attempts before asking you**, the top bar says **Fix gave up**, and the chat that opened the draft hears which checks failed, with their links and the head.
   Turn off **Fix failing checks on drafts** in [Defaults](/malini/docs/automations.md#defaults) to leave a failing draft to you until you press **Merge**.
@@ -185,7 +186,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   **Keep**, beside **Cancel** while the merge is queued, leaves it open on **Merged** instead, with **Archive**.
 - **A check that hasn't reported yet still counts.** Some checks, such as Cloudflare Workers Builds, show up on GitHub only once their build finishes.
   Malini waits while the head commit has a check suite with no check run yet, from an app that reported on the base branch's last 10 commits, for up to 20 minutes after GitHub created the suite, so the merge never lands before the build that deploys it.
-  Once such a suite changes, Malini gives GitHub 30 seconds to list its run with the pull request's checks before it merges.
+  Once such a suite posts its run, Malini gives GitHub up to 30 seconds to list that run with the pull request's checks before it merges, and stops waiting as soon as it is listed.
   An app that never reports on your repository, such as one whose suites stay queued forever, holds nothing.
 - **Your next prompt continues it.** A prompt you send in a workstream on **Merged** first moves its branch onto the latest main, and the agent works from there.
   When it cannot, because you are offline or GitHub does not answer, a toast says why and the composer keeps your prompt.

@@ -26,7 +26,13 @@ export type AgentEvent =
 	| { type: 'assistant.message'; runId: string; text: string; contentId?: string }
 	| { type: 'assistant.delta'; runId: string; contentId: string; text: string }
 	| { type: 'thinking.delta'; runId: string; contentId: string; text: string }
-	| { type: 'thinking.message'; runId: string; contentId: string; text: string }
+	| {
+			type: 'thinking.message';
+			runId: string;
+			contentId: string;
+			text: string;
+			durationMs?: number;
+	  }
 	| {
 			type: 'tool.input.delta';
 			runId: string;
