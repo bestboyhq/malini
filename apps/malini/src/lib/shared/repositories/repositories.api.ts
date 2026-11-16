@@ -154,7 +154,7 @@ export { clearRepositoryConnectErrorCommand } from './application/commands/clear
 export { answerRepositoryFolderRequestCommand } from './application/commands/answer-repository-folder-request.command';
 export { connectRepositoryCommand } from './application/commands/connect-repository.command';
 export { createGithubRepositoryCommand } from './application/commands/create-github-repository.command';
-export { loadGithubOwnersCommand } from './application/commands/load-github-owners.command';
+export { loadGithubOrganizationsCommand } from './application/commands/load-github-organizations.command';
 export { loadGithubRepositoriesCommand } from './application/commands/load-github-repositories.command';
 export { consumeWorkstreamCreationCommand } from './application/commands/consume-workstream-creation.command';
 export { createWorkstreamForRepositoryCommand } from './application/commands/create-workstream-for-repository.command';
@@ -239,7 +239,7 @@ export { repositoryAvatarQuery } from './application/queries/repository-avatar.q
 export { repositoryConnectErrorQuery } from './application/queries/repository-connect-error.query.svelte';
 export { repositoryConnectingQuery } from './application/queries/repository-connecting.query.svelte';
 export { repositoryConnectingKeyQuery } from './application/queries/repository-connecting-key.query.svelte';
-export { githubOwnersQuery } from './application/queries/github-owners.query.svelte';
+export { githubOrganizationsQuery } from './application/queries/github-organizations.query.svelte';
 export { githubRepositoriesQuery } from './application/queries/github-repositories.query.svelte';
 export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
 export { repositoryFolderRequestedQuery } from './application/queries/repository-folder-requested.query.svelte';

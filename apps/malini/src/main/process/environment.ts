@@ -9,6 +9,7 @@ import {
 } from './command';
 import { gitHome, gitHomes } from './git-install';
 import { killProcessGroup, OWN_PROCESS_GROUP } from './process-group';
+import { endWithMalini } from './reaper';
 import { StringDecoder } from 'node:string_decoder';
 
 export const TOOLCHAIN_ALLOWLIST = [
@@ -290,13 +291,15 @@ export function runWithTimeout(
 ): Promise<RunResult> {
 	return new Promise((resolve, reject) => {
 		const command = spawnable(file, args, options.env);
-		const child = spawn(command.file, command.args, {
-			cwd: options.cwd,
-			env: options.env,
-			stdio: ['ignore', 'pipe', 'pipe'],
-			...OWN_PROCESS_GROUP,
-			...command.options,
-		});
+		const child = endWithMalini(
+			spawn(command.file, command.args, {
+				cwd: options.cwd,
+				env: options.env,
+				stdio: ['ignore', 'pipe', 'pipe'],
+				...OWN_PROCESS_GROUP,
+				...command.options,
+			}),
+		);
 		const stdout = new PipeCollector(options.onStdout);
 		const stderr = new PipeCollector(options.onStderr);
 		let settled = false;

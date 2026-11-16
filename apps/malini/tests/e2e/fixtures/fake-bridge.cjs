@@ -67,6 +67,11 @@ const makeCapability = (capabilityVersion, message) => {
 };
 const CHAT_STALLED_BRIDGE = nodePath.join(env.HOME || '/tmp', 'chat-stalled-bridge');
 if (fs.existsSync(CHAT_STALLED_BRIDGE)) process.exit(1);
+if (env.FAKE_BRIDGE_GROUP_MATE) {
+	require('node:child_process').spawn('/bin/sh', ['-c', env.FAKE_BRIDGE_GROUP_MATE], {
+		stdio: 'ignore',
+	});
+}
 if (env.FAKE_BRIDGE_STDERR_EXIT) {
 	process.stderr.write(env.FAKE_BRIDGE_STDERR_EXIT + '\n');
 	process.exit(1);

@@ -1,12 +1,15 @@
+import { untrack } from 'svelte';
 import { ownPullRequestsAggregate } from '$shared/repositories/infrastructure/aggregates/own-pull-requests.aggregate.svelte';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
 
 export { loadOwnPullRequestsCommand };
 
 function loadOwnPullRequestsCommand(repoId: string): void {
-	if (ownPullRequestsAggregate.stateOf(repoId) === null) {
-		ownPullRequestsAggregate.set(repoId, { status: 'loading' });
-	}
+	untrack(() => {
+		if (ownPullRequestsAggregate.stateOf(repoId) === null) {
+			ownPullRequestsAggregate.set(repoId, { status: 'loading' });
+		}
+	});
 	void (async () => {
 		try {
 			const pullRequests = await workstreamsService.listOwnPullRequests(repoId);

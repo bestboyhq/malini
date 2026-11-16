@@ -600,7 +600,7 @@ export interface ContractCommands {
 	'repositories.connect': { args: ImportRepositoryArgs; result: RepositoryConnectionDto };
 	'repositories.list-clones': { args: undefined; result: ConnectedRepositoryDto[] };
 	'repositories.list-github-repositories': { args: undefined; result: GithubRepositoryDto[] };
-	'repositories.list-github-owners': { args: undefined; result: string[] };
+	'repositories.list-github-organizations': { args: undefined; result: string[] };
 	'repositories.create-github-repository': {
 		args: CreateGithubRepositoryArgs;
 		result: GithubRepositoryDto;
@@ -978,7 +978,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.connect',
 	'repositories.list-clones',
 	'repositories.list-github-repositories',
-	'repositories.list-github-owners',
+	'repositories.list-github-organizations',
 	'repositories.create-github-repository',
 	'pull-requests.mark-ready',
 	'pull-requests.reopen',

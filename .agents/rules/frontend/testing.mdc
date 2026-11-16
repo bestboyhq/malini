@@ -13,6 +13,7 @@ Unit tests exist only where e2e cannot enumerate the cases.
 
 - `tests/e2e/*.spec.ts`: every behavior a user or agent can observe, including wiring (which command a control runs, what a confirmation guards) and anything with effects, timers, layout or IPC.
   Extend `tests/e2e/fixtures/fake-bridge.cjs` with a directive when a scenario needs agent output; never change what an existing directive does.
+  A stub that waits in a loop waits through `waitWhile` from `tests/e2e/harness.ts`, so it exits once its parent is gone, and every process an app starts must end with its `quit()` (ADR 0268).
 - `*.test.ts`, vitest, for two kinds only:
   - Pure functions: input in, output out, no mounted component, no `$effect`, no platform.
     Projectors, tokenizers, parsers, reducers, formatting, version math.

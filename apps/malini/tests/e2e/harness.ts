@@ -166,6 +166,13 @@ export const GITHUB_REPOSITORIES_FIXTURE = '.e2e-github-repositories.json';
 export const CREATED_GITHUB_REPOSITORY_FIXTURE = '.e2e-created-github-repository.json';
 export const DOCKER_CONTAINERS_FIXTURE = '.e2e-docker-containers';
 
+const GH_CALLS_FIXTURE = '.e2e-gh-calls';
+
+export function ghCalls(home: string): string[] {
+	const log = join(home, GH_CALLS_FIXTURE);
+	return existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
+}
+
 export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
 export const KEYCHAIN_FIXTURE = '.e2e-keychain';
@@ -176,7 +183,13 @@ export const CLAUDE_CREDENTIALS =
 
 export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
 
+export function waitWhile(condition: string, seconds = 0.1): string {
+	const parentGone = WINDOWS ? '' : `kill -0 "$PPID" 2>&1 | grep -q 'No such process' && exit 1; `;
+	return `while ${condition}; do ${parentGone}sleep ${seconds}; done`;
+}
+
 const GH_STUB = `#!/bin/sh
+printf '%s\\n' "$*" >> "$HOME/${GH_CALLS_FIXTURE}"
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
 CREATED_GITHUB_REPOSITORY="$HOME/${CREATED_GITHUB_REPOSITORY_FIXTURE}"
@@ -184,7 +197,7 @@ APPROVED="$HOME/${GITHUB_DEVICE_APPROVED}"
 if [ "$1 $2" = "auth login" ]; then
   echo "! First copy your one-time code: E2E0-C0DE" 1>&2
   echo "Open this URL to continue in your web browser: https://github.com/login/device" 1>&2
-  while [ ! -f "$APPROVED" ]; do sleep 0.1; done
+  ${waitWhile('[ ! -f "$APPROVED" ]')}
   exit 0
 fi
 if [ -n "$E2E_GITHUB_SIGNED_OUT" ] && [ ! -f "$APPROVED" ]; then
@@ -291,6 +304,16 @@ export interface LaunchOptions {
 	readonly soundsNote?: boolean;
 }
 
+export interface PreparedProfile {
+	readonly root: string;
+	readonly home: string;
+	readonly bin: string;
+	readonly userDataDir: string;
+	readonly bridgeScript: string;
+	readonly env: Record<string, string>;
+	readonly args: readonly string[];
+}
+
 export interface LaunchedApp {
 	readonly electronApp: ElectronApplication;
 	readonly page: Page;
@@ -336,7 +359,7 @@ function userColorScheme(): 'light' | 'dark' | null {
 	return theme === 'light' || theme === 'dark' ? theme : null;
 }
 
-export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
+export function prepareProfile(options: LaunchOptions = {}): PreparedProfile {
 	const root = options.profile ?? temporaryRoot();
 	const home = join(root, 'home');
 	const bin = join(root, 'bin');
@@ -392,15 +415,21 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	env['MALINI_STREAMING_APPS'] = STREAMING_STAND_IN;
 	Object.assign(env, options.env);
 
+	const args = [
+		'.',
+		`--user-data-dir=${userDataDir}`,
+		'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
+		'--use-mock-keychain',
+		'--use-fake-device-for-media-stream',
+		...(process.env['MALINI_E2E_KEYRING'] ? ['--password-store=gnome-libsecret'] : []),
+	];
+	return { root, home, bin, userDataDir, bridgeScript, env, args };
+}
+
+export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
+	const { root, home, bin, userDataDir, bridgeScript, env, args } = prepareProfile(options);
 	const electronApp = await electron.launch({
-		args: [
-			'.',
-			`--user-data-dir=${userDataDir}`,
-			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
-			'--use-mock-keychain',
-			'--use-fake-device-for-media-stream',
-			...(process.env['MALINI_E2E_KEYRING'] ? ['--password-store=gnome-libsecret'] : []),
-		],
+		args: [...args],
 		cwd: APP_ROOT,
 		env,
 		colorScheme: userColorScheme(),
@@ -440,7 +469,17 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		quit() {
 			quitting ??= (async () => {
 				await waitForQuietDiagnostics(userDataDir);
+				const started = processTree(await processTable(), [
+					electronApp.process().pid ?? -1,
+					mainPid,
+				]);
 				await closeOrExplain(electronApp, { mainPid, root, userDataDir }, output);
+				expect
+					.soft(
+						(await outlived(started)).map((entry) => entry.line.trim()),
+						'processes the app started kept running after it quit; make each one end with the app',
+					)
+					.toEqual([]);
 				const unexpected = unexpectedDiagnostics(userDataDir, handle.allowedDiagnostics);
 				expect
 					.soft(
@@ -495,7 +534,7 @@ async function closeOrExplain(
 	const child = electronApp.process();
 	const roots = [child.pid ?? -1, places.mainPid];
 	const tree = processTree(await processTable(), roots, basename(places.root));
-	const pids = treePids(tree);
+	const pids = tree.map((entry) => entry.pid);
 	const samples = await sampleStall(
 		places.mainPid,
 		pids.filter((pid) => !roots.includes(pid)),
@@ -516,7 +555,7 @@ async function closeOrExplain(
 		[
 			`the app did not quit within ${QUIT_BUDGET_MS} ms (exit code ${String(child.exitCode)}, signal ${String(child.signalCode)}, main process ${places.mainPid} ${pids.includes(places.mainPid) ? 'still running' : 'gone'})`,
 			'process tree, and every process naming the test profile:',
-			...tree,
+			...tree.map((entry) => entry.line),
 			...samples,
 			'last output:',
 			output.join('').split('\n').slice(-60).join('\n'),
@@ -539,12 +578,6 @@ async function sampleStall(mainPid: number, helpers: readonly number[]): Promise
 	];
 }
 
-function treePids(tree: readonly string[]): number[] {
-	return tree
-		.map((line) => Number(line.trim().split(/\s+/u)[0]))
-		.filter((pid) => Number.isSafeInteger(pid) && pid > 0);
-}
-
 async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
 	mkdirSync(test.info().outputPath(), { recursive: true });
 	return Promise.all(
@@ -562,24 +595,66 @@ async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
 
 const WINDOWS_PROCESS_TABLE = [
 	'Get-CimInstance Win32_Process | ForEach-Object {',
-	"'{0} {1} - {2}' -f $_.ProcessId, $_.ParentProcessId,",
+	"'{0} {1} - {2} {3}' -f $_.ProcessId, $_.ParentProcessId,",
+	'$(if ($_.CreationDate) { $_.CreationDate.Ticks } else { 0 }),',
 	'$(if ($_.CommandLine) { $_.CommandLine } else { $_.Name })',
 	'}',
 ].join(' ');
+const STARTED_FIELDS = WINDOWS ? 1 : 5;
 
-async function processTable(): Promise<string> {
+export interface ProcessEntry {
+	readonly pid: number;
+	readonly ppid: number;
+	readonly started: string;
+	readonly line: string;
+}
+
+export async function processTable(): Promise<ProcessEntry[]> {
 	const options = { maxBuffer: 64 * 1024 * 1024, windowsHide: true };
+	const { stdout } = WINDOWS
+		? await execFileAsync(
+				'powershell.exe',
+				['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PROCESS_TABLE],
+				options,
+			)
+		: await execFileAsync('ps', ['-A', '-o', 'pid=,ppid=,stat=,lstart=,command='], options);
+	return stdout.split(/\r?\n/u).flatMap((line) => {
+		const [pid, ppid, , ...rest] = line.trim().split(/\s+/u);
+		if (!pid || !ppid) return [];
+		const started = rest.slice(0, STARTED_FIELDS).join(' ');
+		return [{ pid: Number(pid), ppid: Number(ppid), started, line }];
+	});
+}
+export async function stillRunning(
+	entries: readonly ProcessEntry[],
+	table?: readonly ProcessEntry[],
+): Promise<ProcessEntry[]> {
+	const now = table ?? (await processTable());
+	return entries.filter((entry) =>
+		now.some((current) => current.pid === entry.pid && current.started === entry.started),
+	);
+}
+
+export function stopProcess(pid: number): void {
 	try {
-		const { stdout } = WINDOWS
-			? await execFileAsync(
-					'powershell.exe',
-					['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PROCESS_TABLE],
-					options,
-				)
-			: await execFileAsync('ps', ['-A', '-o', 'pid=,ppid=,stat=,command='], options);
-		return stdout;
-	} catch (error) {
-		return String(error);
+		process.kill(pid, 'SIGKILL');
+	} catch {
+		return;
+	}
+}
+
+const OUTLIVE_BUDGET_MS = 5_000;
+
+async function outlived(started: readonly ProcessEntry[]): Promise<ProcessEntry[]> {
+	const deadline = Date.now() + OUTLIVE_BUDGET_MS;
+	for (;;) {
+		const left = await stillRunning(started);
+		if (left.length === 0) return [];
+		if (Date.now() > deadline) {
+			for (const entry of left) stopProcess(entry.pid);
+			return left;
+		}
+		await sleep(100);
 	}
 }
 
@@ -606,28 +681,27 @@ async function sampleThreads(pid: number): Promise<{ mainThread: string[]; every
 	}
 }
 
-function processTree(table: string, roots: readonly number[], marker: string): string[] {
-	const rows = table
-		.split(/\r?\n/u)
-		.filter(Boolean)
-		.map((line) => {
-			const [pid = '', ppid = ''] = line.trim().split(/\s+/u);
-			return { pid: Number(pid), ppid: Number(ppid), line };
-		});
+export function processTree(
+	table: readonly ProcessEntry[],
+	roots: readonly number[],
+	marker?: string,
+): ProcessEntry[] {
 	const members = new Set([
 		...roots,
-		...rows.filter((row) => row.line.includes(marker)).map((row) => row.pid),
+		...(marker === undefined ? [] : table.filter((row) => row.line.includes(marker))).map(
+			(row) => row.pid,
+		),
 	]);
 	for (let grew = true; grew;) {
 		grew = false;
-		for (const row of rows) {
+		for (const row of table) {
 			if (members.has(row.ppid) && !members.has(row.pid)) {
 				members.add(row.pid);
 				grew = true;
 			}
 		}
 	}
-	return rows.filter((row) => members.has(row.pid)).map((row) => row.line);
+	return table.filter((row) => members.has(row.pid));
 }
 
 export async function invoke<T = unknown>(page: Page, command: string, args?: unknown): Promise<T>;
@@ -945,7 +1019,7 @@ function holdRunSnapshots(app: LaunchedApp): () => void {
 	writeExecutable(
 		stub,
 		`#!/bin/sh
-case "$*" in *commit-tree*"malini run snapshot"*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac
+case "$*" in *commit-tree*"malini run snapshot"*) ${waitWhile(`[ -e '${gate}' ]`, 0.05)} ;; esac
 exec '${REAL_GIT}' "$@"
 `,
 	);

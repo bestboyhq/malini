@@ -17,6 +17,7 @@ import { describeError } from '$main/errors';
 import { environmentVariable, findExecutable } from '$main/process/command';
 import { gitBash, preferredShell } from '$main/process/environment';
 import { killProcessGroup } from '$main/process/process-group';
+import { endWithMalini } from '$main/process/reaper';
 import {
 	deleteShellRun,
 	markShellRunReported,
@@ -104,13 +105,15 @@ export class ShellRuns {
 		try {
 			const shell = shellLaunch(args.language, command, env);
 			entry.folder = shell.folder;
-			pty = spawn(shell.file, shell.args, {
-				name: 'xterm-256color',
-				cols: COLUMNS,
-				rows: ROWS,
-				cwd,
-				env,
-			});
+			pty = endWithMalini(
+				spawn(shell.file, shell.args, {
+					name: 'xterm-256color',
+					cols: COLUMNS,
+					rows: ROWS,
+					cwd,
+					env,
+				}),
+			);
 		} catch (error) {
 			this.#fail(entry, error);
 			return entry.run;

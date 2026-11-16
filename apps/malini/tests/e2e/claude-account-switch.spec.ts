@@ -13,6 +13,7 @@ import {
 	sendPrompt,
 	temporaryRoot,
 	writeExecutable,
+	waitWhile,
 } from './harness';
 
 const PRIVATE_ACCOUNT = 'me@private.example';
@@ -209,7 +210,7 @@ function claudeLoginStub(paths: {
 		`  email='${paths.newAccount}'`,
 		'  case "$3" in --email=*) email="${3#--email=}" ;; esac',
 		'  echo "Opening browser to sign in…"',
-		`  while [ ! -f '${paths.browserDone}' ]; do sleep 0.1; done`,
+		`  ${waitWhile(`[ ! -f '${paths.browserDone}' ]`)}`,
 		'fi',
 		`printf '%s\\n' "$email" > '${paths.accountFile}'`,
 		`printf '{"claudeAiOauth":{"refreshToken":"refresh-%s","scopes":["user:inference","user:profile"]}}' "$email" > ${storedLogin}`,

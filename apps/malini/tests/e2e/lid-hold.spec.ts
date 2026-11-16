@@ -125,7 +125,7 @@ function runLaunchAgent(tools: string): void {
 		),
 	) as { ProgramArguments: string[] };
 	const [program = '', ...args] = agent.ProgramArguments;
-	execFileSync(program, args);
+	execFileSync(program, args, { encoding: 'utf8' });
 }
 
 async function openPowerSettings(page: Page) {

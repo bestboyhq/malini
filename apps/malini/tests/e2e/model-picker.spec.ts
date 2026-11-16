@@ -14,6 +14,7 @@ import {
 	startFreshChat,
 	temporaryRoot,
 	writeExecutable,
+	waitWhile,
 } from './harness';
 import { osFor } from '../../src/lib/shared/os/domain/os';
 
@@ -192,7 +193,7 @@ test('the picker lists a model that a Claude Code update brings while it is open
 		[
 			'#!/bin/sh',
 			'[ "$1" = update ] || exit 0',
-			`while [ ! -f '${release}' ]; do sleep 0.05; done`,
+			waitWhile(`[ ! -f '${release}' ]`, 0.05),
 			`cp "$0" "$0.next" && echo '# 2.0.0' >> "$0.next" && mv "$0.next" "$0"`,
 			'[ ! -f "$0.exe" ] || touch "$0.exe"',
 			`cp '${release}' '${models}'`,

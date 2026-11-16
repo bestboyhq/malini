@@ -121,19 +121,24 @@ export function visibilityOf(lookup: RepositoryLookup): RepositoryVisibility {
 }
 
 export function createGitHubIdentity(run: GhRun = runGh): () => Promise<GitHubIdentity | null> {
-	let known: GitHubIdentity | null = null;
-	return async () => {
-		if (known) return known;
-		try {
-			const result = await run(['api', 'user', '--jq', '.login + "\\t" + (.name // "")']);
-			const [login = '', name = ''] = result.stdout.trim().split('\t');
-			if (result.code !== 0 || !/^[A-Za-z0-9-]{1,39}$/u.test(login)) return null;
-			known = { login, name: name.trim() || null };
-			return known;
-		} catch {
-			return null;
-		}
+	let known: Promise<GitHubIdentity | null> | null = null;
+	const remember = async (): Promise<GitHubIdentity | null> => {
+		const identity = await readGitHubIdentity(run);
+		if (identity === null) known = null;
+		return identity;
 	};
+	return () => (known ??= remember());
+}
+
+async function readGitHubIdentity(run: GhRun): Promise<GitHubIdentity | null> {
+	try {
+		const result = await run(['api', 'user', '--jq', '.login + "\\t" + (.name // "")']);
+		const [login = '', name = ''] = result.stdout.trim().split('\t');
+		if (result.code !== 0 || !/^[A-Za-z0-9-]{1,39}$/u.test(login)) return null;
+		return { login, name: name.trim() || null };
+	} catch {
+		return null;
+	}
 }
 
 async function repositoryVisibility(

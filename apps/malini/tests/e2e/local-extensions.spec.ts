@@ -310,7 +310,7 @@ test('the inspector says it did not start when the warm-up ahead of it hangs', a
 	const home = join(root, 'extension-home');
 	mkdirSync(home, { recursive: true });
 	const registry = join(home, 'local.json');
-	execFileSync('mkfifo', [registry]);
+	execFileSync('mkfifo', [registry], { encoding: 'utf8' });
 	const held: { writer: number | null } = { writer: null };
 	const app = await launchMalini({
 		profile: root,

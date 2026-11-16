@@ -18,13 +18,13 @@
 		connectedRepositoriesQuery,
 		createGithubRepositoryCommand,
 		githubAuthQuery,
-		githubOwnersQuery,
+		githubOrganizationsQuery,
 		githubRepositoriesQuery,
 		githubRepositoryName,
 		githubRepositoryState,
 		isCloneUrl,
 		loadGithubAuthCommand,
-		loadGithubOwnersCommand,
+		loadGithubOrganizationsCommand,
 		loadGithubRepositoriesCommand,
 		pickGithubRepositoryCommand,
 		reloadGithubRepositoriesOnSignInHook,
@@ -108,7 +108,7 @@
 
 	const listing = $derived(githubRepositoriesQuery.data);
 	const auth = $derived(githubAuthQuery.data);
-	const ownerLogins = $derived(githubOwnersQuery.data);
+	const organizations = $derived(githubOrganizationsQuery.data);
 	const connected = $derived(connectedRepositoriesQuery.data);
 	const preparationOf = $derived(repositoryPreparationQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
@@ -145,10 +145,7 @@
 		auth?.authenticated === false &&
 			(mode === 'new-repository' || (mode === 'find' && !isCloneUrl(query))),
 	);
-	const owners = $derived.by((): readonly string[] => {
-		if (ownerLogins.length > 0) return ownerLogins;
-		return auth?.login ? [auth.login] : [];
-	});
+	const owners = $derived(auth?.login ? [auth.login, ...organizations] : organizations);
 	let owner: string = $derived(owners[0] ?? '');
 	const newName = $derived(githubRepositoryName(query));
 	const placeholder = $derived.by((): string => {
@@ -163,7 +160,7 @@
 		clearRepositoryConnectErrorCommand();
 		loadGithubAuthCommand();
 		loadGithubRepositoriesCommand();
-		loadGithubOwnersCommand();
+		loadGithubOrganizationsCommand();
 		void focusInput();
 		const clock = setInterval(() => (nowMs = Date.now()), CLOCK_MS);
 		const stopReloading = reloadGithubRepositoriesOnSignInHook();

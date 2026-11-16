@@ -116,17 +116,14 @@ function githubRepositoryDto(raw: unknown): GithubRepositoryDto[] {
 	];
 }
 
-export async function listGithubOwners(run: GhRunner): Promise<string[]> {
-	const [login, orgs] = await Promise.all([
-		signedInLogin(run),
-		run(['api', 'user/orgs?per_page=100']),
-	]);
+export async function listGithubOrganizations(run: GhRunner): Promise<string[]> {
+	const orgs = await run(['api', 'user/orgs?per_page=100']);
 	if (orgs.code !== 0) throw GhError.fromStderr(orgs.stderr, orgs.code);
 	const parsed = parseGhJson<unknown>(orgs, 'list GitHub organizations');
 	if (!Array.isArray(parsed)) {
 		throw new GhError('failed', 'list GitHub organizations: gh returned a body that is not a list');
 	}
-	return [login, ...parsed.flatMap(organizationLogin)];
+	return parsed.flatMap(organizationLogin);
 }
 
 function organizationLogin(raw: unknown): string[] {

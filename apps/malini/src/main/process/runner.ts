@@ -8,6 +8,7 @@ import {
 	processGroupIsAlive,
 	processIsAlive,
 } from './process-group';
+import { endWithMalini } from './reaper';
 
 export { processGroupIsAlive, processIsAlive } from './process-group';
 
@@ -41,13 +42,15 @@ export function createNodeProcessRunner(): ProcessRunner {
 	return {
 		spawn(file, args, options = {}) {
 			const command = spawnable(file, args, options.env);
-			const child = spawn(command.file, command.args, {
-				cwd: options.cwd,
-				env: options.env,
-				stdio: ['ignore', 'pipe', 'pipe'],
-				...OWN_PROCESS_GROUP,
-				...command.options,
-			});
+			const child = endWithMalini(
+				spawn(command.file, command.args, {
+					cwd: options.cwd,
+					env: options.env,
+					stdio: ['ignore', 'pipe', 'pipe'],
+					...OWN_PROCESS_GROUP,
+					...command.options,
+				}),
+			);
 			const exit = new Promise<ProcessExit>((resolve) => {
 				let settled = false;
 				const settle = (outcome: ProcessExit): void => {

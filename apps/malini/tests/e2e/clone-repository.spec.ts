@@ -9,6 +9,7 @@ import {
 	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
+	ghCalls,
 	git,
 	invoke,
 	launchMalini,
@@ -18,7 +19,7 @@ import {
 	type WorkstreamRow,
 } from './harness';
 
-test('cloning searches your GitHub repositories in the command center and opens the scratchpad of the pick', async () => {
+test('cloning searches your GitHub repositories in the command center, reading your login once, and opens the scratchpad of the pick', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -43,6 +44,8 @@ test('cloning searches your GitHub repositories in the command center and opens 
 		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
+		await expect.poll(() => signInReadDone(ghCalls(app.home))).toBe(true);
+		const opened = ghCalls(app.home).length;
 		await page.getByRole('button', { name: 'Find a repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Command center' });
 		const search = dialog.getByRole('combobox', { name: 'Search repositories' });
@@ -51,6 +54,13 @@ test('cloning searches your GitHub repositories in the command center and opens 
 
 		const found = dialog.getByRole('listbox', { name: 'Your repositories' });
 		await expect(found.getByRole('option')).toHaveCount(3);
+		await expect.poll(() => signInReadDone(ghCalls(app.home).slice(opened))).toBe(true);
+		await page.waitForTimeout(1_000);
+		expect(
+			ghCalls(app.home)
+				.slice(opened)
+				.filter((call) => call === LOGIN),
+		).toHaveLength(1);
 		await page.keyboard.type('rabbit');
 		await expect(found.getByRole('option')).toHaveCount(1);
 		const hutch = found.getByRole('option', { name: /e2e\/hutch/ });
@@ -71,7 +81,7 @@ test('cloning searches your GitHub repositories in the command center and opens 
 	}
 });
 
-test('a cloned repository lists your open pull requests beside its scratchpad without opening any, and Continue here opens one on its own branch', async () => {
+test('a cloned repository lists your open pull requests beside its scratchpad without opening any, reads them once while it stays open, and Continue here opens one on its own branch', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'OAuth sign-in' } });
 	try {
@@ -120,6 +130,10 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		const gutter = page.getByRole('complementary', { name: 'Your open pull requests' });
 		const continueHere = gutter.getByRole('button', { name: `Continue ${title} here` });
 		await expect(continueHere).toBeVisible({ timeout: 30_000 });
+		await page.waitForTimeout(2_000);
+		expect(
+			ghCalls(app.home).filter((call) => call.startsWith('pr list --author @me')),
+		).toHaveLength(1);
 		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
 		expect(await repositoryWorkstreams(page)).toEqual([]);
 		await continueHere.hover();
@@ -143,6 +157,13 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		await app.close();
 	}
 });
+
+const LOGIN = 'api user --jq .login';
+
+function signInReadDone(calls: readonly string[]): boolean {
+	const asked = calls.lastIndexOf('auth status');
+	return asked !== -1 && calls.lastIndexOf(LOGIN) > asked;
+}
 
 function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
 	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);

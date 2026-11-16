@@ -25,7 +25,7 @@ function signInToGithubCommand(flow: GitHubDeviceFlow = 'sign-in'): void {
 			const outcome = await githubService.finishSignIn();
 			if (outcome === 'cancelled' || !current()) return;
 			githubSignInStore.state = { kind: 'confirming', flow };
-			await githubAuthAggregate.load();
+			await githubAuthAggregate.reload();
 			publishGithubCredentialStored();
 		} catch (error: unknown) {
 			if (current()) toast.error(error instanceof Error ? error.message : String(error));
