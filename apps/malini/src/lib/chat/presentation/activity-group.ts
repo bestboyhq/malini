@@ -1,3 +1,4 @@
+import { isMaliniAction } from '$lib/chat/domain/approval-request';
 import { canonicalChangedPath } from '$shared/markdown/workstream-path';
 import type { RunTimelineItem, SubagentTimelineItem } from './run-timeline';
 import {
@@ -102,7 +103,7 @@ export function groupRunTimeline(
 		burst = [];
 	}
 
-	for (const item of foldStartedWorkstreams(items)) {
+	for (const item of withoutAskedActions(foldStartedWorkstreams(items))) {
 		if (item.kind !== 'workstreams' && isBurstItem(item)) {
 			burst.push(item);
 			continue;
@@ -150,7 +151,8 @@ export function foldRunWork(
 			row !== answer &&
 			row.kind !== 'user' &&
 			row.kind !== 'workstreams' &&
-			row.kind !== 'work-fold',
+			row.kind !== 'work-fold' &&
+			!namesMaliniAction(row),
 	);
 	const [first] = work;
 	if (!first || work.length < ACTIVITY_GROUP_MIN_ITEMS) return rows;
@@ -200,6 +202,29 @@ export function foldStartedWorkstreams(
 	});
 }
 
+function withoutAskedActions<Row extends RunTimelineItem | StartedWorkstreams>(
+	rows: readonly Row[],
+): readonly Row[] {
+	const asked = new Set(
+		rows.flatMap((row) =>
+			row.kind === 'approval' && isMaliniAction(row.toolName)
+				? [callKey(row.toolName, row.input)]
+				: [],
+		),
+	);
+	if (asked.size === 0) return rows;
+	return rows.filter(
+		(row) =>
+			row.kind !== 'tool' ||
+			row.tool.status === 'failed' ||
+			!asked.has(callKey(row.tool.name, row.tool.input)),
+	);
+}
+
+function callKey(toolName: string | undefined, input: unknown): string {
+	return JSON.stringify([toolName, input]);
+}
+
 function startedWorkstreamId(item: RunTimelineItem): string | null {
 	if (item.kind !== 'tool' || item.tool.name !== START_WORKSTREAM_TOOL) return null;
 	if (item.tool.status !== 'completed' || typeof item.tool.output !== 'string') return null;
@@ -212,9 +237,15 @@ function startedWorkstreamId(item: RunTimelineItem): string | null {
 	}
 }
 
+function namesMaliniAction(row: GroupedRunTimelineItem): boolean {
+	if (row.kind === 'tool') return isMaliniAction(row.tool.name);
+	return row.kind === 'approval' && isMaliniAction(row.toolName);
+}
+
 function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 	return (
 		(item.kind === 'tool' &&
+			!isMaliniAction(item.tool.name) &&
 			!isBackgroundAgent(item.tool.name, item.tool.input) &&
 			!isCompaction(item.tool.name)) ||
 		item.kind === 'command' ||

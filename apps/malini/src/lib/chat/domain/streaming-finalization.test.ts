@@ -170,6 +170,22 @@ describe('publishing a finished thought', () => {
 		expect(projector.thoughts[0]).toMatchObject({ text: 'from disk', durationSeconds: null });
 	});
 
+	it('takes the time the bridge measured, so a reload keeps it', () => {
+		const projector = fakeProjector();
+		const thought = {
+			type: 'thinking.message',
+			runId: 'run-1',
+			contentId: 'c1',
+			text: 'x',
+		} as const;
+		processStreamingEnvelopes(
+			[envelope({ ...thought, durationMs: 2_400 })],
+			projector,
+			fakeRegistry({ c1: { text: 'x', durationMs: 4_200 } }),
+		);
+		expect(projector.thoughts[0]?.durationSeconds).toBe(2);
+	});
+
 	it('reports no change when the batch held no thoughts', () => {
 		expect(
 			processStreamingEnvelopes(

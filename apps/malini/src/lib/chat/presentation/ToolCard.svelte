@@ -14,6 +14,7 @@
 	import ToolOutputText from './ToolOutputText.svelte';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
 	import { toolImageRead } from './tool-image-read';
+	import { MALINI_NAMES } from './malini-names';
 	import { toolInputBlocks, toolOutputBlock } from './tool-payload';
 	import { editDiffstat, editHunks } from './edit-diffstat';
 	import { formatToolDuration } from './render-state';
@@ -68,7 +69,7 @@
 		status === 'running' && input === undefined && liveInputJson !== null,
 	);
 	const labelInput = $derived(input === undefined ? summarizeLiveToolInput(liveInputJson) : input);
-	const displayName = $derived(toolDisplayName(name, labelInput));
+	const displayName = $derived(toolDisplayName(name, labelInput, MALINI_NAMES));
 	const durationLabel = $derived(
 		waiting
 			? 'waiting'
@@ -77,7 +78,8 @@
 				: formatToolDuration(durationMs),
 	);
 	const label = $derived(
-		backgroundAgentSummary(name, labelInput, output) ?? toolActivityLabel(name, labelInput),
+		backgroundAgentSummary(name, labelInput, output) ??
+			toolActivityLabel(name, labelInput, MALINI_NAMES),
 	);
 	const actionKind = $derived(toolActionKind(name, labelInput));
 	const description = $derived(toolDescriptionLabel(name, labelInput));

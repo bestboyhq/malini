@@ -1526,6 +1526,7 @@ describe("a draft's checks", () => {
 
 		finishUserRun('ws-1', 'Commit: Rank exact matches first', ['src/rank.ts']);
 		await until(() => expect(pushes).toHaveLength(3));
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
 		await settle();
 
 		expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null, needsYou: null });
