@@ -297,6 +297,7 @@ test('with the lid switch on, logind holds the lid while an agent works and lets
 		rmSync(join(tools, 'denied'));
 		await lid.click();
 		await expect(lid).toBeChecked();
+		await expect(lid).toBeEnabled();
 		await expect(settings.getByRole('alert')).toBeHidden();
 		expect(inhibits(tools)).toEqual(['--what=handle-lid-switch', '--what=handle-lid-switch']);
 		expect(held(tools)).toBe('0');
