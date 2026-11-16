@@ -3,10 +3,28 @@ import { ORPHAN_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
-import { readPublishedStats } from './published-stats';
+import { createGitHubIdentity, readPublishedStats } from './published-stats';
 
 const NOW = new Date(2026, 9, 15, 10);
 const PUBLIC = ['bestboyhq/malini', 'bestboyhq/grip'];
+
+describe('createGitHubIdentity', () => {
+	it('reads the login once for callers at the same time, and again after a failed read', async () => {
+		let calls = 0;
+		const identity = createGitHubIdentity(async () =>
+			++calls === 1
+				? { stdout: '', stderr: 'HTTP 502\n', code: 1 }
+				: { stdout: 'szymeo\tSimon\n', stderr: '', code: 0 },
+		);
+
+		expect(await Promise.all([identity(), identity()])).toEqual([null, null]);
+		expect(calls).toBe(1);
+		const found = { login: 'szymeo', name: 'Simon' };
+		expect(await Promise.all([identity(), identity()])).toEqual([found, found]);
+		expect(await identity()).toEqual(found);
+		expect(calls).toBe(2);
+	});
+});
 
 describe('readPublishedStats', () => {
 	it('counts complete local days only, splits runs at midnight, weighs agents at once by time, and counts tokens and the runs you did not prompt', async () => {

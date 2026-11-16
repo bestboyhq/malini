@@ -6,9 +6,21 @@ class GitHubAuthAggregate {
 	error: string | null = $state.raw(null);
 
 	#revision = 0;
+	#reading: Promise<void> | null = null;
 
-	async load(): Promise<void> {
-		const revision = ++this.#revision;
+	load(): Promise<void> {
+		return this.#reading ?? this.reload();
+	}
+
+	reload(): Promise<void> {
+		const reading = this.#read(++this.#revision).finally(() => {
+			if (this.#reading === reading) this.#reading = null;
+		});
+		this.#reading = reading;
+		return reading;
+	}
+
+	async #read(revision: number): Promise<void> {
 		try {
 			const status = await githubService.authStatus();
 			if (revision !== this.#revision) return;
@@ -19,12 +31,6 @@ class GitHubAuthAggregate {
 			this.status = null;
 			this.error = error instanceof Error ? error.message : String(error);
 		}
-	}
-
-	reset(): void {
-		this.#revision += 1;
-		this.status = null;
-		this.error = null;
 	}
 }
 

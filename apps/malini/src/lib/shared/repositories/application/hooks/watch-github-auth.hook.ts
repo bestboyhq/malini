@@ -5,7 +5,7 @@ export function watchGithubAuthHook(): () => void {
 		if (githubAuthAggregate.status?.authenticated) return;
 		void githubAuthAggregate.load();
 	};
-	void githubAuthAggregate.load();
+	recheck();
 	window.addEventListener('focus', recheck);
 	return () => window.removeEventListener('focus', recheck);
 }

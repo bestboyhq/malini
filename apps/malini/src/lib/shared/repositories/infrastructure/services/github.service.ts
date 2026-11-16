@@ -73,8 +73,8 @@ class GithubService {
 		return withGitHubAuth(() => invoke('repositories.list-github-repositories', undefined));
 	}
 
-	listGithubOwners(): Promise<string[]> {
-		return withGitHubAuth(() => invoke('repositories.list-github-owners', undefined));
+	listGithubOrganizations(): Promise<string[]> {
+		return withGitHubAuth(() => invoke('repositories.list-github-organizations', undefined));
 	}
 
 	createGithubRepository(request: NewGithubRepository): Promise<GithubRepository> {
