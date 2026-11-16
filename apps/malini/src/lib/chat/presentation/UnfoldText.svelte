@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { Sensitive, sensitiveSegmentsAcross } from '$hyper-ui/components/sensitive';
-	import { revealFade } from './arrival-motion';
+	import { revealFade } from '$shared/motion/arrival-motion';
 
 	interface Props {
 		text: string;

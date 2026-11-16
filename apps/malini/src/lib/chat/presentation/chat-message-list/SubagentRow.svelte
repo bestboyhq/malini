@@ -11,7 +11,7 @@
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import { motionMs, revealFade } from '../arrival-motion';
+	import { motionMs, revealFade } from '$shared/motion/arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import ToolLabel from '../ToolLabel.svelte';

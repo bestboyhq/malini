@@ -6,6 +6,11 @@ export { seedWorkstreamDependenciesCommand };
 
 function seedWorkstreamDependenciesCommand(workstreamId: string): void {
 	if (!workstreamDependencyInstall.claimInstall(workstreamId)) return;
+	workstreamDependencyInstall.report({
+		workstreamId,
+		status: 'running',
+		command: workstreamDependencyInstall.get(workstreamId)?.command ?? null,
+	});
 	void (async () => {
 		try {
 			const outcome = await workstreamsService.provisionDependencies(workstreamId);

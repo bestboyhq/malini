@@ -3,7 +3,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
-	import { arrivalMotion, swapFly } from '../arrival-motion';
+	import { arrivalMotion, swapFly } from '$shared/motion/arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '$shared/markdown/MarkdownText.svelte';
 	import UnfoldText from '../UnfoldText.svelte';

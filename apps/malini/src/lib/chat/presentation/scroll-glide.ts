@@ -1,4 +1,4 @@
-export const SCROLL_SPRING_STIFFNESS = 420;
+import { SCROLL_SPRING_STIFFNESS } from '$shared/motion/arrival-motion';
 
 export const SCROLL_GLIDE_SETTLE_PX = 0.5;
 
