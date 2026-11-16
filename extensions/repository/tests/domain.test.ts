@@ -444,6 +444,7 @@ test('parses workstream and pull request context without accepting partial recor
 			repositoryPath: '/tmp/repository',
 			branch: 'feature/repository',
 			baseBranch: 'main',
+			headSha: 'head-42',
 			pullRequest: {
 				number: 42,
 				title: 'Repository panels',
@@ -484,6 +485,7 @@ test('parses workstream and pull request context without accepting partial recor
 				hasUpstream: true,
 				mergeInProgress: false,
 				operationInProgress: null,
+				headSha: 'head-42',
 				pullRequest: {
 					number: 42,
 					title: 'Repository panels',

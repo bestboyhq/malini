@@ -588,14 +588,18 @@ describe('pull request commands', () => {
 			return status.checksState;
 		};
 		const failed = { ...actionsPassed, conclusion: 'FAILURE' };
+		const buildPassed = { ...actionsPassed, name: 'Workers Builds' };
+		const actionsSuite = suite(15368, 'completed', 1, 90_000, 60_000);
+		const buildJustPosted = suite(workersBuilds, 'completed', 1, 90_000, 5_000);
 
 		expect(await checksWith([], [suite(workersBuilds, 'queued', 0, 9_000)])).toBe('pending');
 		expect(await checksWith([actionsPassed], [suite(workersBuilds, 'queued', 0, 9_000)])).toBe(
 			'pending',
 		);
-		expect(
-			await checksWith([actionsPassed], [suite(workersBuilds, 'completed', 1, 90_000, 5_000)]),
-		).toBe('pending');
+		expect(await checksWith([actionsPassed], [actionsSuite, buildJustPosted])).toBe('pending');
+		expect(await checksWith([actionsPassed, buildPassed], [actionsSuite, buildJustPosted])).toBe(
+			'success',
+		);
 		expect(await checksWith([failed], [suite(workersBuilds, 'queued', 0, 9_000)])).toBe('failed');
 		expect(await checksWith([actionsPassed], [suite(neverReports, 'queued', 0, 9_000)])).toBe(
 			'success',

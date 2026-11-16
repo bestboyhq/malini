@@ -79,6 +79,7 @@ export function createTranscriptScroll(
 	let opening = true;
 	let openedAt = 0;
 	let newContentAt = Number.NEGATIVE_INFINITY;
+	let clickedAt = Number.NEGATIVE_INFINITY;
 	let heldTop = 0;
 	let shownTop = 0;
 	let holdSpacePx = 0;
@@ -452,6 +453,16 @@ export function createTranscriptScroll(
 		if (event.relatedTarget === null) releaseHoverSoon();
 	}
 
+	function onDocumentClick(): void {
+		clickedAt = performance.now();
+	}
+
+	function trayJoinsFollow(trayGrew: boolean): boolean {
+		if (!trayGrew) return false;
+		if (scrollGlide.isGliding) return true;
+		return clickedAt < newContentAt && performance.now() - newContentAt < TRAY_JOINS_CONTENT_MS;
+	}
+
 	function onListClick(event: MouseEvent): void {
 		if (event.target instanceof Element && event.target.closest(DISCLOSURE_OPENERS)) becomeReader();
 	}
@@ -538,6 +549,7 @@ export function createTranscriptScroll(
 				passive: true,
 			});
 			document.addEventListener('pointerout', onDocumentPointerOut, true);
+			document.addEventListener('click', onDocumentClick, true);
 			viewport.addEventListener('pointerdown', onViewportPointerDown);
 			messageList.addEventListener('click', onListClick, true);
 			window.addEventListener('pagehide', rememberNow);
@@ -548,6 +560,7 @@ export function createTranscriptScroll(
 				document.removeEventListener('pointermove', onDocumentPointerMove, true);
 				cancelPointerFrame();
 				document.removeEventListener('pointerout', onDocumentPointerOut, true);
+				document.removeEventListener('click', onDocumentClick, true);
 				viewport.removeEventListener('pointerdown', onViewportPointerDown);
 				window.removeEventListener('pagehide', rememberNow);
 				sizeObserver.disconnect();
@@ -582,9 +595,7 @@ export function createTranscriptScroll(
 		releaseScrollPin: becomeReader,
 
 		followSpaceBelowChange(px: number, overlayPx: number): void {
-			const joinsFollow =
-				overlayPx > overlayBelowPx &&
-				(scrollGlide.isGliding || performance.now() - newContentAt < TRAY_JOINS_CONTENT_MS);
+			const joinsFollow = trayJoinsFollow(overlayPx > overlayBelowPx);
 			const covered = coversWithOverlay()
 				? coveredPx + (joinsFollow ? 0 : overlayPx - overlayBelowPx)
 				: 0;

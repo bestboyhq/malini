@@ -1116,6 +1116,10 @@
 		color: color-mix(in srgb, var(--zone-ink) 64%, transparent);
 	}
 
+	.topbar-git[data-zone='idle'] .topbar-git__meta {
+		color: var(--color-fg-tertiary);
+	}
+
 	.topbar-git[data-zone='asks'] .topbar-git__meta {
 		color: var(--color-brand-foreground);
 	}

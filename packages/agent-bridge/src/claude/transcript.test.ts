@@ -167,6 +167,21 @@ describe('ClaudeTranscript', () => {
 		expect([...opened.values()]).toEqual(['', '']);
 	});
 
+	it('times each streamed thought from its start, so the transcript keeps how long it took', () => {
+		let now = 0;
+		const clock = vi.spyOn(Date, 'now').mockImplementation(() => (now += 1_000));
+		try {
+			const thoughts = ofType(replayRecorded('readAndBash').events, 'thinking.message');
+			expect(thoughts.map(({ durationMs }) => durationMs)).toEqual([
+				expect.any(Number),
+				expect.any(Number),
+			]);
+			expect(thoughts.every(({ durationMs = 0 }) => durationMs > 0)).toBe(true);
+		} finally {
+			clock.mockRestore();
+		}
+	});
+
 	it('closes a thought that carries no summary, so no live thought outlives it', () => {
 		const blanked = recordedMessages('readAndBash').flatMap((message) => {
 			if (

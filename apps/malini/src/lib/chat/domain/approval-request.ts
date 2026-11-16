@@ -222,6 +222,10 @@ export function maliniToolApproval(
 	}
 }
 
+export function isMaliniAction(toolName: string | undefined): boolean {
+	return maliniToolApproval(toolName, {}) !== null;
+}
+
 function named(action: string, name: string | undefined): string {
 	return name ? `${action} ‘${name}’` : action;
 }

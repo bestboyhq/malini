@@ -96,6 +96,7 @@ export type RepositorySurface = Readonly<{
 	hasUpstream: boolean;
 	mergeInProgress: boolean;
 	operationInProgress: WorktreeOperation | null;
+	headSha: string | null;
 	pullRequest: SurfacePullRequest | null;
 	pullRequestRefreshStatus: RepositorySurfaceRefreshStatus;
 	pullRequestRefreshedAt: number | null;

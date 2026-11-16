@@ -73,6 +73,17 @@ describe('tool transcript labels', () => {
 		);
 	});
 
+	it('names an action Malini takes the way its approval card does', () => {
+		const names = { automation: (id: string) => `#${id}`, workstream: (id: string) => `@${id}` };
+		expect(toolActivityLabel('mcp__malini__automations_run', { automation: 'Open draft' })).toBe(
+			'Run automation ‘Open draft’',
+		);
+		expect(toolActivityLabel('mcp__malini__workstreams_send', { workstream: 'ws-1' }, names)).toBe(
+			'Send a prompt to ‘@ws-1’',
+		);
+		expect(toolActivityLabel('mcp__malini__automations_run', undefined)).toBe('Run automation');
+	});
+
 	it('reads the action kind from the tool identity', () => {
 		expect(toolActionKind('Bash', { command: 'git status' })).toBe('command');
 		expect(toolActionKind('mcp__malini__browser_open')).toBe('read');
