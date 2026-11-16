@@ -1,15 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
-	GH_CALLS_FIXTURE,
 	GITHUB_REPOSITORIES_FIXTURE,
 	PULL_REQUEST_FIXTURE,
 	captureFlow,
 	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
+	ghCalls,
 	git,
 	invoke,
 	launchMalini,
@@ -121,9 +121,10 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		const gutter = page.getByRole('complementary', { name: 'Your open pull requests' });
 		const continueHere = gutter.getByRole('button', { name: `Continue ${title} here` });
 		await expect(continueHere).toBeVisible({ timeout: 30_000 });
-		const reads = ownPullRequestReads(app.home);
 		await page.waitForTimeout(2_000);
-		expect(ownPullRequestReads(app.home)).toBe(reads);
+		expect(
+			ghCalls(app.home).filter((call) => call.startsWith('pr list --author @me')),
+		).toHaveLength(1);
 		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
 		expect(await repositoryWorkstreams(page)).toEqual([]);
 		await continueHere.hover();
@@ -147,12 +148,6 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		await app.close();
 	}
 });
-
-function ownPullRequestReads(home: string): number {
-	return readFileSync(join(home, GH_CALLS_FIXTURE), 'utf8')
-		.split('\n')
-		.filter((call) => call.startsWith('pr list --author @me')).length;
-}
 
 function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
 	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);

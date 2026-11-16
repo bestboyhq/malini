@@ -13,7 +13,7 @@ function installGithubCliCommand(): void {
 	void (async () => {
 		try {
 			await githubService.installCli();
-			await githubAuthAggregate.load();
+			await githubAuthAggregate.reload();
 			githubCliInstallStore.state = { kind: 'idle' };
 		} catch (error: unknown) {
 			const message = error instanceof Error ? error.message : String(error);

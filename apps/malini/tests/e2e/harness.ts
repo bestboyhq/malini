@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import {
 	accessSync,
 	chmodSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -66,7 +67,12 @@ export const GITHUB_REPOSITORIES_FIXTURE = '.e2e-github-repositories.json';
 export const CREATED_GITHUB_REPOSITORY_FIXTURE = '.e2e-created-github-repository.json';
 export const DOCKER_CONTAINERS_FIXTURE = '.e2e-docker-containers';
 
-export const GH_CALLS_FIXTURE = '.e2e-gh-calls';
+const GH_CALLS_FIXTURE = '.e2e-gh-calls';
+
+export function ghCalls(home: string): string[] {
+	const log = join(home, GH_CALLS_FIXTURE);
+	return existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
+}
 
 export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
@@ -79,7 +85,7 @@ export function waitWhile(condition: string, seconds = 0.1): string {
 }
 
 const GH_STUB = `#!/bin/sh
-echo "$*" >> "$HOME/${GH_CALLS_FIXTURE}"
+printf '%s\\n' "$*" >> "$HOME/${GH_CALLS_FIXTURE}"
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
 CREATED_GITHUB_REPOSITORY="$HOME/${CREATED_GITHUB_REPOSITORY_FIXTURE}"

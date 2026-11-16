@@ -11,6 +11,7 @@ import {
 	expectAssistantReply,
 	expectCleanConsole,
 	expectPicker,
+	ghCalls,
 	invoke,
 	launchMalini,
 	openWorkstream,
@@ -176,6 +177,27 @@ test('a signed-out Claude Code opens on the picker, and only a Claude send asks 
 			/^Needs you/u,
 		);
 		await captureFlow(app, 'composer-sign-in-claude');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a new install asks GitHub each question once while it opens', async () => {
+	const app = await launchMalini();
+	try {
+		await expectPicker(app.page);
+		await expect
+			.poll(() => new Set(ghCalls(app.home)), { timeout: 20_000 })
+			.toEqual(
+				new Set([
+					'auth status',
+					'api user --jq .login',
+					'api user --jq .login + "\\t" + (.name // "")',
+					'api user/repos?sort=pushed&per_page=100&affiliation=owner,collaborator,organization_member',
+				]),
+			);
+		expect(ghCalls(app.home)).toHaveLength(4);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
