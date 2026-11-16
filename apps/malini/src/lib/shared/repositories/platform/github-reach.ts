@@ -37,9 +37,9 @@ export class GithubReachWatch {
 		this.#probe = null;
 	}
 
-	#observe(result: GhResult): void {
+	#observe(result: GhResult, probed = false): void {
 		if (result.code === 0) {
-			this.#set('ok');
+			if (probed || this.#reach !== 'rate-limited') this.#set('ok');
 			return;
 		}
 		const failure = githubFailure(result.stderr);
@@ -69,7 +69,7 @@ export class GithubReachWatch {
 		const result = this.#options.isOnline()
 			? await this.#options.run(PROBE).catch(() => null)
 			: null;
-		if (result !== null) this.#observe(result);
+		if (result !== null) this.#observe(result, true);
 		if (this.reach !== 'ok') this.#scheduleProbe();
 	}
 }

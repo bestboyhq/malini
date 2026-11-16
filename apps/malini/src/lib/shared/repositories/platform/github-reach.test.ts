@@ -69,4 +69,28 @@ describe('GithubReachWatch', () => {
 		await vi.advanceTimersByTimeAsync(5_000);
 		expect(calls).toHaveLength(3);
 	});
+
+	it('keeps a rate limit until the probe gets through, whatever other calls answer', async () => {
+		vi.useFakeTimers();
+		const limited: GhResult = {
+			stdout: '',
+			stderr: 'GraphQL: API rate limit already exceeded for user ID 1.\n',
+			code: 1,
+		};
+		const { reach, changes } = watch([limited, OK, limited, OK, limited, OK]);
+
+		await reach.run(['pr', 'list']);
+		await reach.run(['api', 'repos/e2e/hutch/compare/main...head']);
+		await reach.run(['pr', 'list']);
+		await reach.run(['api', 'repos/e2e/hutch/compare/main...head']);
+		expect(changes).toEqual(['rate-limited']);
+
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(reach.reach).toBe('rate-limited');
+		await vi.advanceTimersByTimeAsync(1_000);
+
+		expect(reach.reach).toBe('ok');
+		expect(changes).toEqual(['rate-limited', 'ok']);
+		reach.dispose();
+	});
 });
