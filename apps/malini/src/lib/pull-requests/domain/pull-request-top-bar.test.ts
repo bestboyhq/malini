@@ -994,6 +994,19 @@ describe('the workstream status', () => {
 		).toMatchObject({ label: 'Checks failed' });
 	});
 
+	it('shows checks starting on a draft that waits for checks once Malini read a newer head than the top bar and the worktree did', () => {
+		const waiting = ship({ step: 'waiting-for-checks' });
+		const stale = open({ state: 'draft', checks: 'failed', checkItems: [failing] });
+		const shown = (read: string | null) =>
+			pullRequestTopBar(waiting, stale, 'ready', null, read).status;
+		expect(shown('head-43')).toMatchObject({ label: 'Checks starting', busy: true });
+		expect(shown('head-42')).toMatchObject({ label: 'Checks failed', detail: 'lint' });
+		expect(shown(null)).toMatchObject({ label: 'Checks failed', detail: 'lint' });
+		expect(pullRequestTopBar(ship(), stale, 'ready', null, 'head-43').status).toMatchObject({
+			label: 'Checks failed',
+		});
+	});
+
 	it('never shows a workstream kept only locally as opening a draft', () => {
 		const committed = status(
 			ship({

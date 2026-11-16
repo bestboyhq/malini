@@ -38,11 +38,13 @@ export function pullRequestTopBar(
 	surface: RepositorySurface | null,
 	availability: PullRequestAvailability,
 	agentStatus: SessionStatus | null = null,
+	maliniReadHeadSha: string | null = null,
 ): PullRequestTopBar {
 	const read = surface !== null && repositorySurfaceHasBeenRead(surface) ? surface : null;
 	const remoteFailure = surface === null ? null : surfaceFailure(surface);
 	const url = read?.pullRequest?.url ?? ship?.pullRequestUrl ?? null;
-	const status = workstreamStatus(ship, read, availability, surface, url, agentStatus);
+	const heads = [read?.headSha ?? null, maliniReadHeadSha];
+	const status = workstreamStatus(ship, read, availability, surface, url, agentStatus, heads);
 	return {
 		status,
 		menu: topBarMenu(ship, surface, remoteFailure).filter(
@@ -61,6 +63,7 @@ function workstreamStatus(
 	surface: RepositorySurface | null,
 	url: string | null,
 	agentStatus: SessionStatus | null,
+	newerHeads: readonly (string | null)[],
 ): WorkstreamStatus | null {
 	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null => {
 		if (!isAgentWorking(agentStatus) || (settled === null && read === null)) return settled;
@@ -78,7 +81,7 @@ function workstreamStatus(
 		return workingOnDraft(ship, ship.step);
 	}
 	if (ship?.step && CLEARING_BLOCKERS_STEPS.has(ship.step)) {
-		return clearingBlockers(availability === 'ready' ? shipStatus(ship, read) : null);
+		return clearingBlockers(availability === 'ready' ? shipStatus(ship, read, newerHeads) : null);
 	}
 	if (availability === 'extension-unavailable') return settle(EXTENSION_OFF);
 	if (availability === 'github-unavailable') return read ? settle(withoutGithub(read)) : null;
@@ -87,7 +90,7 @@ function workstreamStatus(
 	if (blocker) return blocker;
 	const operation = read && blockingOperation(read);
 	if (operation) return operation;
-	return settle(shipStatus(ship, read));
+	return settle(shipStatus(ship, read, newerHeads));
 }
 
 const CLEARING_BLOCKERS_STEPS: ReadonlySet<ShipStep> = new Set([
@@ -107,13 +110,16 @@ const DRAFT_WORK_STEPS: ReadonlySet<ShipStep> = new Set([
 function shipStatus(
 	ship: PullRequestShip | null,
 	read: RepositorySurface | null,
+	newerHeads: readonly (string | null)[],
 ): WorkstreamStatus | null {
 	if (!read) return ship?.pullRequestNumber ? openBeforeRead(ship.pullRequestNumber, ship) : null;
 	const pullRequest = read.pullRequest;
 	if (pullRequest?.state === 'merged') return merged(read);
 	if (pullRequest && publishedPullRequest(pullRequest)) {
 		return {
-			...(readPredatesPush(ship, read, pullRequest) ? CHECKS_STARTING : openStatus(pullRequest)),
+			...(readPredatesPush(ship, newerHeads, pullRequest)
+				? CHECKS_STARTING
+				: openStatus(pullRequest)),
 			tooltip: ship?.lastError ?? null,
 			action: queueMerge(pullRequest.number),
 		};
@@ -588,14 +594,13 @@ function surfaceBlockingChecks(
 
 function readPredatesPush(
 	ship: PullRequestShip | null,
-	read: RepositorySurface,
+	newerHeads: readonly (string | null)[],
 	pullRequest: SurfacePullRequest,
 ): boolean {
 	return (
 		ship?.phase === 'draft' &&
 		ship.step === 'waiting-for-checks' &&
-		read.headSha !== null &&
-		pullRequest.headSha !== read.headSha
+		newerHeads.some((head) => head !== null && head !== pullRequest.headSha)
 	);
 }
 
