@@ -234,18 +234,17 @@ describe('repositories.list-github-repositories', () => {
 	});
 });
 
-describe('repositories.list-github-owners', () => {
-	it('lists your login first, then every organization you belong to', async () => {
-		const { run } = fakeRunner((args) => {
-			if (args[1] === 'user') return ok('szymeo\n');
-			return ok(JSON.stringify([{ login: 'bestboyhq' }, { login: 'logdash-io' }, {}]));
-		});
+describe('repositories.list-github-organizations', () => {
+	it('lists every organization you belong to, without reading your login again', async () => {
+		const { run, calls } = fakeRunner(() =>
+			ok(JSON.stringify([{ login: 'bestboyhq' }, { login: 'logdash-io' }, {}])),
+		);
 		boot({ ghRunner: run });
-		expect(await invoke('repositories.list-github-owners')).toEqual([
-			'szymeo',
+		expect(await invoke('repositories.list-github-organizations')).toEqual([
 			'bestboyhq',
 			'logdash-io',
 		]);
+		expect(calls).toEqual([{ args: ['api', 'user/orgs?per_page=100'] }]);
 	});
 });
 

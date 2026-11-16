@@ -71,7 +71,7 @@ import {
 	githubAuthStatus,
 	githubRepositorySize,
 	listClones,
-	listGithubOwners,
+	listGithubOrganizations,
 	listGithubRepositories,
 	parseCreateGithubRepositoryArgs,
 	parseImportSource,
@@ -572,7 +572,7 @@ export function registerRepositories(
 
 	commands.define('repositories.list-github-repositories', () => listGithubRepositories(gh));
 
-	commands.define('repositories.list-github-owners', () => listGithubOwners(gh));
+	commands.define('repositories.list-github-organizations', () => listGithubOrganizations(gh));
 
 	commands.define('repositories.create-github-repository', (args: unknown) =>
 		createGithubRepository(gh, parseCreateGithubRepositoryArgs(args)),

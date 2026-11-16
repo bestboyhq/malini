@@ -341,7 +341,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.list-repositories': () => PROJECTS,
 	'repositories.list-workstreams': () => workstreams(),
 	'repositories.list-github-repositories': () => GITHUB_REPOSITORIES,
-	'repositories.list-github-owners': () => [OWNER],
+	'repositories.list-github-organizations': () => [OWNER],
 	'repositories.create-repository': ({ repoUrl }) =>
 		PROJECTS.find((project) => project.remoteUrl === repoUrl)?.id ?? '',
 	'repositories.read-base-branch': () => 'main',

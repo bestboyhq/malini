@@ -7,7 +7,7 @@ import { githubService } from '$shared/repositories/infrastructure/services/gith
 
 class GithubRepositoriesAggregate {
 	listing: GithubRepositoryListing = $state.raw({ kind: 'loading' });
-	owners: readonly string[] = $state.raw([]);
+	organizations: readonly string[] = $state.raw([]);
 
 	#revision = 0;
 
@@ -26,11 +26,11 @@ class GithubRepositoriesAggregate {
 		}
 	}
 
-	async loadOwners(): Promise<void> {
+	async loadOrganizations(): Promise<void> {
 		try {
-			this.owners = await githubService.listGithubOwners();
+			this.organizations = await githubService.listGithubOrganizations();
 		} catch {
-			this.owners = [];
+			this.organizations = [];
 		}
 	}
 
