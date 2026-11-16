@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	GH_CALLS_FIXTURE,
 	GITHUB_REPOSITORIES_FIXTURE,
 	PULL_REQUEST_FIXTURE,
 	captureFlow,
@@ -71,7 +72,7 @@ test('cloning searches your GitHub repositories in the command center and opens 
 	}
 });
 
-test('a cloned repository lists your open pull requests beside its scratchpad without opening any, and Continue here opens one on its own branch', async () => {
+test('a cloned repository lists your open pull requests beside its scratchpad without opening any, reads them once while it stays open, and Continue here opens one on its own branch', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'OAuth sign-in' } });
 	try {
@@ -120,6 +121,9 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		const gutter = page.getByRole('complementary', { name: 'Your open pull requests' });
 		const continueHere = gutter.getByRole('button', { name: `Continue ${title} here` });
 		await expect(continueHere).toBeVisible({ timeout: 30_000 });
+		const reads = ownPullRequestReads(app.home);
+		await page.waitForTimeout(2_000);
+		expect(ownPullRequestReads(app.home)).toBe(reads);
 		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
 		expect(await repositoryWorkstreams(page)).toEqual([]);
 		await continueHere.hover();
@@ -143,6 +147,12 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 		await app.close();
 	}
 });
+
+function ownPullRequestReads(home: string): number {
+	return readFileSync(join(home, GH_CALLS_FIXTURE), 'utf8')
+		.split('\n')
+		.filter((call) => call.startsWith('pr list --author @me')).length;
+}
 
 function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
 	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);

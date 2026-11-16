@@ -66,6 +66,8 @@ export const GITHUB_REPOSITORIES_FIXTURE = '.e2e-github-repositories.json';
 export const CREATED_GITHUB_REPOSITORY_FIXTURE = '.e2e-created-github-repository.json';
 export const DOCKER_CONTAINERS_FIXTURE = '.e2e-docker-containers';
 
+export const GH_CALLS_FIXTURE = '.e2e-gh-calls';
+
 export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
 export const KEYCHAIN_FIXTURE = '.e2e-keychain';
@@ -77,6 +79,7 @@ export function waitWhile(condition: string, seconds = 0.1): string {
 }
 
 const GH_STUB = `#!/bin/sh
+echo "$*" >> "$HOME/${GH_CALLS_FIXTURE}"
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
 CREATED_GITHUB_REPOSITORY="$HOME/${CREATED_GITHUB_REPOSITORY_FIXTURE}"
