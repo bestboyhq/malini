@@ -61,20 +61,18 @@ uniform vec4 uLens;
 uniform vec4 uBox;
 uniform vec3 uView;
 uniform float uPop;
+uniform float uGrain;
 out vec4 color;
 
 const float BEVEL = 0.15;
 const float FOLD = 0.6;
-const float DISPERSION = 0.06;
-const float DEFOCUS = 0.008;
-const float FROST = 0.7;
-const float FROST_R = 0.1;
-const int FROST_TAPS = 8;
+const float CURL = 0.72;
+const float CURL_K = 6.76;
+const float DISPERSION = 0.12;
 const vec3 KEY = vec3(0.0, -0.9, 0.43);
-const float DIM = 0.08;
-const float SHADOW = 0.11;
-const float SHADOW_SHIFT = 0.1;
-const float SHADOW_BLUR = 0.15;
+const float SHADOW = 0.55;
+const float SHADOW_SHIFT = 0.32;
+const float SHADOW_BLUR = 0.65;
 
 vec2 hermite(float s, float p0, float m0, float p1, float m1) {
 	float s2 = s * s;
@@ -90,7 +88,10 @@ vec2 lensMap(float rho, float mag) {
 	float s = min((rho - e) / BEVEL, 1.0);
 	float p0 = e / mag;
 	float m0 = BEVEL / mag;
-	vec2 fold = vec2(p0 + m0 * (s - 0.5 * s * s / FOLD), m0 * (1.0 - s / FOLD));
+	float curl = max(s - CURL, 0.0);
+	vec2 fold = vec2(
+		p0 + m0 * (s - 0.5 * s * s / FOLD - CURL_K * curl * curl),
+		m0 * (1.0 - s / FOLD - 2.0 * CURL_K * curl));
 	vec2 meet = hermite(s, p0, m0, 1.0, (1.0 - p0) * (1.0 + 1.8 * clamp(mag - 1.0, 0.0, 1.0)));
 	vec2 h = mix(meet, fold, clamp(2.0 * (mag - 1.0), 0.0, 1.0));
 	return vec2(h.x, h.y / BEVEL);
@@ -98,6 +99,10 @@ vec2 lensMap(float rho, float mag) {
 
 vec3 under(vec2 p, float foot) {
 	return textureLod(uTex, (p - uBox.xy) / uBox.zw, log2(max(foot * uView.z, 1.0))).rgb;
+}
+
+float ign(vec2 p) {
+	return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
 }
 
 float erfApprox(float x) {
@@ -120,9 +125,10 @@ void main() {
 
 	float x = length(q + light * SHADOW_SHIFT * R) - R;
 	float sh = SHADOW * op * (0.5 - 0.5 * erfApprox(x * 0.70710678 / (SHADOW_BLUR * R)));
-	vec4 frame = vec4(0.0, 0.0, 0.0, 1.0 - (1.0 - DIM * op) * (1.0 - sh));
+	sh += (ign(gl_FragCoord.xy) + ign(gl_FragCoord.yx + 7.0) - 1.0) * min(uGrain, sh);
+	vec4 frame = vec4(0.0, 0.0, 0.0, sh);
 
-	float cv = clamp(0.5 - (d - R) / (4.0 * aa), 0.0, 1.0);
+	float cv = clamp(0.5 - (d - R) / (2.0 * aa), 0.0, 1.0);
 	if (cv <= 0.0) {
 		color = frame;
 		return;
@@ -133,24 +139,13 @@ void main() {
 	float shown = m.x / max(rho, 1e-4);
 	float s = clamp((rho - (1.0 - BEVEL)) / BEVEL, 0.0, 1.0);
 	float glass = clamp(mag - 1.0, 0.0, 1.0);
-	float foot = max(aa * max(abs(m.y), shown), DEFOCUS * R * s * s * glass);
-	vec2 at = c + q * shown;
-	vec3 col = under(at, foot);
+	float foot = aa * max(abs(m.y), shown);
+	vec3 col = under(c + q * shown, foot);
 	if (s > 0.0) {
 		float sp = DISPERSION * (rho / mag - m.x) * glass;
 		float r = (m.x + sp) / max(rho, 1e-4);
 		float b = (m.x - sp) / max(rho, 1e-4);
 		col = vec3(under(c + q * r, foot).r, col.g, under(c + q * b, foot).b);
-	}
-	float frosted = FROST * pow(smoothstep(0.3, 1.0, s), 1.3) * glass;
-	if (frosted > 0.0) {
-		float r = FROST_R * R / mag;
-		vec3 e = vec3(0.0);
-		for (int k = 0; k < FROST_TAPS; k++) {
-			float a = float(k) * 2.39996323;
-			e += under(at + vec2(cos(a), sin(a)) * sqrt((float(k) + 0.5) / float(FROST_TAPS)) * r, 0.6 * r);
-		}
-		col = mix(col, e / float(FROST_TAPS), frosted);
 	}
 
 	float tilt = 1.5 * pow(s, 2.4);
@@ -160,12 +155,13 @@ void main() {
 	float toward = dot(dir, light);
 	float rim = smoothstep(1.0 - 1.2 * BEVEL, 1.0, rho);
 	float px = (R - d) / aa;
-	vec3 g = col * (1.0 - rim * mix(0.06, 0.02, 0.5 + 0.5 * toward));
-	g = mix(g, env, fres * 0.15);
-	g += vec3(0.22 * max(toward, 0.0)) * (1.0 - smoothstep(0.0, 1.5, px));
+	vec3 g = col * (1.0 - rim * mix(0.14, 0.047, 0.5 + 0.5 * toward));
+	g *= 1.0 - 0.065 * smoothstep(0.4, 0.9, rho) * smoothstep(0.0, 0.8, -toward) * vec3(0.0, 0.3, 1.0);
+	g = mix(g, env, fres * 0.05);
+	float edge = max(0.0105 * R / aa, 1.5);
+	g += vec3(0.07 * pow(clamp((toward - 0.788) / 0.212, 0.0, 1.0), 0.178)) * (1.0 - smoothstep(0.5 * edge, edge, px));
 	col = mix(col, g, op);
-	float k = cv * (1.0 - 0.25 * smoothstep(0.985 * R, R, d) * glass * op);
-	color = vec4(col * k, k) + frame * (1.0 - k);
+	color = vec4(col * cv, cv) + frame * (1.0 - cv);
 }`;
 
 const heat = new WeakMap<Element, { color: string; born: number; shift: number }>();
@@ -277,11 +273,12 @@ export function playLoupe(parts: LoupeParts): () => void {
 		premultipliedAlpha: true,
 	});
 	const linked = gl ? program(gl) : null;
-	const slot: Partial<Record<'uLens' | 'uBox' | 'uView' | 'uPop', WebGLUniformLocation | null>> =
-		{};
+	const slot: Partial<
+		Record<'uLens' | 'uBox' | 'uView' | 'uPop' | 'uGrain', WebGLUniformLocation | null>
+	> = {};
 	if (gl && linked && ctx) {
 		gl.useProgram(linked);
-		for (const name of ['uLens', 'uBox', 'uView', 'uPop'] as const) {
+		for (const name of ['uLens', 'uBox', 'uView', 'uPop', 'uGrain'] as const) {
 			slot[name] = gl.getUniformLocation(linked, name);
 		}
 		gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
@@ -363,10 +360,13 @@ export function playLoupe(parts: LoupeParts): () => void {
 
 	let base = 0;
 	let ground = '';
+	let grain = 0;
 	const restyle = (): void => {
 		looks.clear();
 		runs = new WeakMap();
 		ground = getComputedStyle(stage).backgroundColor;
+		const [r = 0, g = 0, b = 0] = (ground.match(/[\d.]+/gu) ?? []).map(Number);
+		grain = Math.min(2 / (r + g + b), 0.06);
 		if (!ctx) return;
 		ctx.font = `400 11px ${getComputedStyle(cols[0]?.box ?? stage).fontFamily}`;
 		const metrics = ctx.measureText('M');
@@ -452,6 +452,7 @@ export function playLoupe(parts: LoupeParts): () => void {
 		gl.uniform4f(slot.uBox ?? null, ox, oy, size, size);
 		gl.uniform3f(slot.uView ?? null, canvas.height, canvas.width / w, scale);
 		gl.uniform1f(slot.uPop ?? null, op);
+		gl.uniform1f(slot.uGrain ?? null, grain);
 		gl.drawArrays(gl.TRIANGLES, 0, 3);
 	};
 

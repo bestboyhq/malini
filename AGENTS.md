@@ -123,6 +123,7 @@ pnpm --filter malini test:update   # signed builds update themselves from a loca
 pnpm --filter @malini/site build   # the static site under apps/site/build/malini
 pnpm --filter malini dev:demo   # the renderer in a browser on demo data, as the landing page embeds it
 pnpm --filter @malini/site generate:og-image   # re-renders the site's Open Graph image from its hero
+pnpm --filter malini generate:readme-hero   # retakes .github/readme/hero.webp from the demo renderer, its tool group opened
 ```
 
 Commit subjects and PR titles are Conventional Commits.
