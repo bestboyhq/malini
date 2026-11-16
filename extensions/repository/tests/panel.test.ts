@@ -30,6 +30,7 @@ const repositoryContext = {
 	hasUpstream: true,
 	mergeInProgress: false,
 	operationInProgress: null,
+	headSha: null,
 	pullRequest: null,
 };
 

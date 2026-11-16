@@ -9,7 +9,6 @@ import {
 	invoke,
 	launchMalini,
 	listEvents,
-	openActivityGroups,
 	openAutomations,
 	openWorkstream,
 	seedWorkstream,
@@ -46,6 +45,8 @@ test('an agent runs the Open draft automation once the user allows it, the draft
 		await expect(page.getByRole('heading', { name: 'Run automation ‘Open draft’' })).toBeVisible({
 			timeout: 20_000,
 		});
+		const chatSessionId = currentSessionId(page);
+		expect(chatSessionId).not.toBeNull();
 		await expect(decision(page).getByRole('button', { name: 'Always allow' })).toBeVisible();
 		await captureFlow(app, 'agent-open-draft-asks');
 		await decision(page).getByRole('button', { name: 'Allow once' }).click();
@@ -66,14 +67,18 @@ test('an agent runs the Open draft automation once the user allows it, the draft
 		await expect(decision(page)).toHaveCount(0);
 		await expect(settled(page, 'Allowed once')).toHaveCount(1);
 		expect(github.pullRequest()).toMatchObject({ isDraft: true });
-		await expect(page.getByLabel('Edited alpha.txt', { exact: true })).toBeVisible();
-		await expect(page.getByLabel('Edited beta.txt', { exact: true })).toBeVisible();
-		await captureFlow(app, 'agent-open-draft-pushes-unasked');
-		await openActivityGroups(page);
+		const transcript = page.getByTestId('transcript-pane');
+		for (const file of ['alpha.txt', 'beta.txt']) {
+			await expect(
+				transcript.getByRole('button', { name: `Show current changes to ${file}`, exact: true }),
+			).toBeVisible();
+		}
 		await expect(
-			page.getByLabel('Show input and output for Malini · Automations Run', { exact: true }),
-		).toHaveCount(2);
-		await captureFlow(app, 'agent-open-draft-calls-shown');
+			transcript.getByLabel('Show input and output for Run automation ‘Open draft’', {
+				exact: true,
+			}),
+		).toHaveCount(1);
+		await captureFlow(app, 'agent-open-draft-pushes-unasked');
 
 		await openAutomations(page, '#/automations/activity');
 		const activity = page.getByTestId('automations-activity');
@@ -92,6 +97,14 @@ test('an agent runs the Open draft automation once the user allows it, the draft
 		await expect(calls.nth(0)).not.toContainText('You ');
 		await expect(calls.nth(1)).toContainText('Run automation ‘Open draft’');
 		await expect(calls.nth(1)).toContainText('You allowed it');
+		await expect(activity.getByRole('button', { name: /transcript opens/u })).toHaveCount(0);
+		await captureFlow(app, 'agent-open-draft-activity');
+		await draftRuns
+			.first()
+			.getByRole('link', { name: /^Open chat: Open draft · .+ · Started by an agent, Done$/u })
+			.click();
+		await expect.poll(() => currentSessionId(page)).toBe(chatSessionId);
+		await expect(transcript).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

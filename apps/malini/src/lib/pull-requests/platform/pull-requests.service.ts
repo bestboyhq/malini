@@ -433,26 +433,38 @@ export async function checkSuitesStillToReport(
 	repository: ConnectedRepository,
 	headSha: string,
 	base: string,
+	listedRuns: number,
 ): Promise<boolean> {
 	const suites = await readJson(run, checkout, [
 		'api',
 		`repos/${repository.fullName}/commits/${headSha}/check-suites?per_page=100`,
 	]);
-	const apps = unsettledCheckSuiteApps(suites, Date.now());
+	const apps = unsettledCheckSuiteApps(suites, Date.now(), listedRuns);
 	if (apps.length === 0) return false;
 	const reporting = await appsReportingOn(run, checkout, repository, base);
 	return apps.some((app) => reporting.has(app));
 }
 
-function unsettledCheckSuiteApps(body: unknown, now: number): number[] {
-	return arrayOf(nested(body, ['check_suites'])).flatMap((suite) => {
+export function listedCheckRuns(rollup: unknown): number {
+	return arrayOf(rollup).filter((entry) => typeof nested(entry, ['name']) === 'string').length;
+}
+
+// ponytail: the rollup names no app, so posted and listed runs are compared in total; match runs per suite if one app's listed run ever stands in for another's missing one
+function unsettledCheckSuiteApps(body: unknown, now: number, listedRuns: number): number[] {
+	const suites = arrayOf(nested(body, ['check_suites']));
+	const posted = suites.reduce<number>(
+		(total, suite) => total + (numberOrNull(nested(suite, ['latest_check_runs_count'])) ?? 0),
+		0,
+	);
+	const unlisted = posted > listedRuns;
+	return suites.flatMap((suite) => {
 		const app = numberOrNull(nested(suite, ['app', 'id']));
 		const age = now - Date.parse(textOrNull(nested(suite, ['created_at'])) ?? '');
 		if (app === null || !(age < CHECK_SUITE_REPORT_LIMIT_MS)) return [];
 		const unposted =
 			nested(suite, ['status']) !== 'completed' && nested(suite, ['latest_check_runs_count']) === 0;
 		const changedAt = Date.parse(textOrNull(nested(suite, ['updated_at'])) ?? '');
-		return unposted || now - changedAt < CHECK_SUITE_SETTLE_MS ? [app] : [];
+		return unposted || (unlisted && now - changedAt < CHECK_SUITE_SETTLE_MS) ? [app] : [];
 	});
 }
 

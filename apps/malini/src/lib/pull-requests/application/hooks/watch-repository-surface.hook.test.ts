@@ -48,6 +48,7 @@ function readSurface(workstreamId: string): RepositorySurfaceState {
 		hasUpstream: true,
 		mergeInProgress: false,
 		operationInProgress: null,
+		headSha: null,
 		changedFiles: 0,
 		pullRequest: null,
 		pullRequestRefreshStatus: 'ready',

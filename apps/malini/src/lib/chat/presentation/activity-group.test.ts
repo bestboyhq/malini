@@ -606,13 +606,82 @@ describe('groupRunTimeline started workstreams', () => {
 			startWorkstream('pending', 'running'),
 			assistant('Both are running.'),
 		]);
-		expect(kinds(grouped)).toEqual(['assistant', 'workstreams', 'activity-group', 'assistant']);
+		expect(kinds(grouped)).toEqual([
+			'assistant',
+			'workstreams',
+			'command',
+			'tool',
+			'tool',
+			'assistant',
+		]);
 		expect(grouped[1]).toMatchObject({ kind: 'workstreams', workstreamIds: ['api', 'site'] });
 	});
 
 	it('keeps a call whose answer names no workstream as a tool row', () => {
 		const unnamed = tool('mcp__malini__workstreams_create', {}, { output: 'not json' });
 		expect(kinds(groupRunTimeline([unnamed]))).toEqual(['tool']);
+	});
+});
+
+describe('groupRunTimeline Malini actions', () => {
+	const openDraft = { automation: 'Open draft' };
+	const asked = (input: unknown): RunTimelineItem => ({
+		kind: 'approval',
+		key: `approval-${seq()}`,
+		seq: nextSeq,
+		sessionId: 's',
+		runId: 'r',
+		approvalId: 'a',
+		reason: 'Runs Open draft',
+		toolName: 'mcp__malini__automations_run',
+		input,
+	});
+
+	it('keeps an action Malini takes out of the burst around it', () => {
+		const grouped = groupRunTimeline([
+			tool('Edit', { file_path: 'src/a.ts' }),
+			command(),
+			tool('mcp__malini__automations_run', openDraft),
+			tool('mcp__malini__browser_open', { url: 'http://localhost:5173' }),
+			command(),
+		]);
+		expect(kinds(grouped)).toEqual(['activity-group', 'tool', 'activity-group']);
+	});
+
+	it('draws an asked action once, as its approval, unless the call failed', () => {
+		const approval = asked(openDraft);
+		expect(groupRunTimeline([approval, tool('mcp__malini__automations_run', openDraft)])).toEqual([
+			approval,
+		]);
+		expect(
+			kinds(
+				groupRunTimeline([
+					approval,
+					tool('mcp__malini__automations_run', openDraft, { status: 'failed' }),
+					tool('mcp__malini__automations_run', { automation: 'Merge' }),
+				]),
+			),
+		).toEqual(['approval', 'tool', 'tool']);
+	});
+
+	it('leaves an action and its approval out of the fold after the turn', () => {
+		const approval = asked(openDraft);
+		const unasked = tool('mcp__malini__automations_run', { automation: 'Merge' });
+		const folded = foldRunWork(
+			groupRunTimeline([
+				{ kind: 'user', key: 'prompt', seq: 0, text: 'Ship it' },
+				thought(2),
+				assistant('Editing first.'),
+				tool('Edit', { file_path: 'src/a.ts' }),
+				command(),
+				approval,
+				tool('mcp__malini__automations_run', openDraft),
+				unasked,
+				assistant(),
+			]),
+		);
+		expect(kinds(folded)).toEqual(['user', 'work-fold', 'approval', 'tool', 'assistant']);
+		expect(folded[3]).toBe(unasked);
 	});
 });
 
