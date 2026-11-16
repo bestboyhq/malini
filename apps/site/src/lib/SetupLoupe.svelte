@@ -6,6 +6,7 @@
 	const ROWS_MESSAGE = 'malini-demo:rows';
 
 	const APP_WIDTH = 1200;
+	const SIDEBAR_WIDTH = 320;
 	const NARROW = 860;
 	const NARROW_AT = 0.8;
 
@@ -77,19 +78,19 @@
 		{
 			col: 2,
 			color: '#5fb3a1',
-			at: 0.34,
+			at: 0.4,
 			lines: ['"enabledPlugins": {', '  "svelte@svelte": true'],
 		},
 		{
 			col: 2,
 			color: '#82aef7',
-			at: 0.7,
+			at: 0.78,
 			lines: ['"PreToolUse": [', '  "protect-main.sh"'],
 		},
 		{
 			col: 2,
 			color: '#62c073',
-			at: 0.34,
+			at: 0.4,
 			lines: ['"allow": [', '  "Bash(pnpm check:*)"'],
 		},
 		{
@@ -166,6 +167,7 @@
 	class={['stage', { narrow }]}
 	role="img"
 	aria-busy={!ready}
+	style:--sidebar={SIDEBAR_WIDTH / APP_WIDTH}
 	aria-label="A Malini chat adds Duplicate to a chat tab’s menu. It loads a skill from the repository, calls a plugin’s tool, passes a hook, runs a command a permission rule allows, and checks its work in the app because CLAUDE.md says so. A loupe moves over the window and magnifies the line of your own Claude Code setup each step came from: CLAUDE.md, settings.json and the skills folder."
 	bind:this={stage}
 	bind:clientWidth={width}
@@ -234,22 +236,23 @@
 	}
 
 	.col:nth-child(1) {
-		width: 27%;
+		width: calc(200% * var(--sidebar));
+		padding-left: 18%;
 	}
 
 	.col:nth-child(2) {
 		flex: 1 0 0;
-		box-shadow: inset 1px 0 light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.06));
 	}
 
 	.col:nth-child(3) {
-		width: 31%;
+		width: 28%;
 		mask-image: none;
 		box-shadow: inset 1px 0 light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.06));
 	}
 
 	.narrow .col:nth-child(1) {
 		width: 100%;
+		padding-left: 24px;
 		mask-image: none;
 	}
 

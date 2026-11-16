@@ -14,7 +14,7 @@ const PAGE_CSS = `
 :host { all: initial; position: fixed; z-index: 2147483000; }
 [hidden] { display: none !important; }
 .frame {
-	position: fixed; overflow: hidden; border-radius: 16px; background: #161616;
+	position: fixed; overflow: hidden; border-radius: 8px; background: #161616;
 	font: 13px/20px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 	color: #ece9e6; -webkit-font-smoothing: antialiased;
 }
