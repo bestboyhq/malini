@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
+import { endWithMalini } from '$main/process/reaper';
 
 export interface BridgeSpawnSpec {
 	readonly scriptPath: string;
@@ -36,12 +37,14 @@ export function createNodeProcessFactory(
 	return {
 		spawn(spec) {
 			return new Promise((resolve, reject) => {
-				const child = spawn(binary, [spec.scriptPath, ...spec.args], {
-					env: { ...spec.env, ...extraEnv },
-					...(spec.cwd === undefined ? {} : { cwd: spec.cwd }),
-					stdio: ['pipe', 'pipe', 'pipe'],
-					detached: true,
-				});
+				const child = endWithMalini(
+					spawn(binary, [spec.scriptPath, ...spec.args], {
+						env: { ...spec.env, ...extraEnv },
+						...(spec.cwd === undefined ? {} : { cwd: spec.cwd }),
+						stdio: ['pipe', 'pipe', 'pipe'],
+						detached: true,
+					}),
+				);
 				let exited = false;
 				let exitCode: number | null = null;
 				const exitListeners: Array<(code: number | null) => void> = [];

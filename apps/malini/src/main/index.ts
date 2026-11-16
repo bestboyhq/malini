@@ -20,6 +20,7 @@ import { openMigratedDatabase } from './db/open';
 import { DbInvariantError } from './errors';
 import { removeStaleTemporaryIndexes } from './git/diff';
 import { withBundledGh } from './process/gh';
+import { startReaper } from './process/reaper';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
@@ -34,6 +35,7 @@ import { BACKGROUND_WINDOW, createMainWindow } from './window';
 const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DIPS'];
 
 const productName = pinStorageName(app);
+startReaper(app, { watchLauncher: BACKGROUND_WINDOW });
 app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));
 blockPreloadCodeCache(app.getPath('sessionData'));
 if (BACKGROUND_WINDOW) {

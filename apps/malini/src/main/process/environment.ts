@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { killProcessGroup } from './process-group';
+import { endWithMalini } from './reaper';
 import { StringDecoder } from 'node:string_decoder';
 
 export const TOOLCHAIN_ALLOWLIST = [
@@ -231,12 +232,14 @@ export function runWithTimeout(
 	options: RunOptions,
 ): Promise<RunResult> {
 	return new Promise((resolve, reject) => {
-		const child = spawn(file, [...args], {
-			cwd: options.cwd,
-			env: options.env,
-			stdio: ['ignore', 'pipe', 'pipe'],
-			detached: true,
-		});
+		const child = endWithMalini(
+			spawn(file, [...args], {
+				cwd: options.cwd,
+				env: options.env,
+				stdio: ['ignore', 'pipe', 'pipe'],
+				detached: true,
+			}),
+		);
 		const stdout = new PipeCollector(options.onStdout);
 		const stderr = new PipeCollector(options.onStderr);
 		let settled = false;

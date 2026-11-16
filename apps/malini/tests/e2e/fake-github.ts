@@ -242,15 +242,11 @@ async function fakeGithubFor(
 	}
 
 	const mergeOnGithub = (pullRequest: FakePullRequest, head: string): void => {
-		execFileSync('git', [
-			'-C',
-			seeded.worktree,
-			'push',
-			'-q',
-			'-f',
-			remote,
-			`${head}:refs/heads/${branch}`,
-		]);
+		execFileSync(
+			'git',
+			['-C', seeded.worktree, 'push', '-q', '-f', remote, `${head}:refs/heads/${branch}`],
+			{ encoding: 'utf8' },
+		);
 		const squash = execFileSync(
 			'git',
 			[
@@ -270,7 +266,9 @@ async function fakeGithubFor(
 			pullRequestFile,
 			JSON.stringify({ ...pullRequest, headRefOid: head, mergeCommit: { oid: squash } }),
 		);
-		execFileSync('git', ['-C', remote, 'update-ref', 'refs/heads/main', squash]);
+		execFileSync('git', ['-C', remote, 'update-ref', 'refs/heads/main', squash], {
+			encoding: 'utf8',
+		});
 	};
 	const read = (): FakePullRequest | null => {
 		const parsed: unknown = JSON.parse(readFileSync(pullRequestFile, 'utf8'));
@@ -400,8 +398,12 @@ if (command === 'auth' && sub === 'status') {
 	process.stderr.write('! First copy your one-time code: E2E0-C0DE\\n');
 	process.stderr.write('Open this URL to continue in your web browser: https://github.com/login/device\\n');
 	const approved = path.join(state, 'device-approved');
-	const waitForApproval = () =>
-		fs.existsSync(approved) ? process.exit(0) : setTimeout(waitForApproval, 100);
+	const parent = process.ppid;
+	const waitForApproval = () => {
+		if (fs.existsSync(approved)) process.exit(0);
+		if (process.ppid !== parent) process.exit(1);
+		setTimeout(waitForApproval, 100);
+	};
 	waitForApproval();
 } else if (command === 'api' && sub === 'user') {
 	out('e2e-user\\n');
