@@ -1,11 +1,17 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
+	import { quintOut } from 'svelte/easing';
+	import { prefersReducedMotion, Tween } from 'svelte/motion';
+	import type { TransitionConfig } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
+	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { motionOff } from '$hyper-ui/motion/motion-off';
+	import { arrivalMotion, swapFly } from '$shared/motion/arrival-motion';
 	import { removeFailedWorkstreamCommand } from '$shared/repositories/application/commands/remove-failed-workstream.command';
-	import { retryDependencyInstallCommand } from '$shared/repositories/application/commands/retry-dependency-install.command';
 	import { retryProvisioningCommand } from '$shared/repositories/application/commands/retry-provisioning.command';
+	import { seedWorkstreamDependenciesCommand } from '$shared/repositories/application/commands/seed-workstream-dependencies.command';
 	import { provisioningRecordQuery } from '$shared/repositories/application/queries/provisioning-record.query.svelte';
 	import { provisioningRetryingQuery } from '$shared/repositories/application/queries/provisioning-retrying.query.svelte';
 	import { workstreamByIdQuery } from '$shared/repositories/application/queries/workstream-by-id.query.svelte';
@@ -16,16 +22,51 @@
 		children: Snippet;
 	}
 
+	type Arrival = Readonly<{ live?: boolean; unfold?: boolean; delay?: number }>;
+
+	const SWAP_IN_MS = 260;
+	const SWAP_OUT_MS = 200;
+	const RAIL_INSET_PX = 16;
+	const SUGGESTIONS_REACH_PX = 38;
+
 	let { workstreamId, children }: Props = $props();
 
 	const steps = $derived(workstreamSetupStepsQuery.data(workstreamId));
 	const settled = $derived(provisioningRecordQuery.data(workstreamId) === null);
+	const setupBusy = $derived(steps.some((step) => step.state === 'busy'));
 	const startedBy = $derived(workstreamByIdQuery.data(workstreamId)?.startedBy ?? null);
 	const starterName = $derived(
 		startedBy ? (workstreamByIdQuery.data(startedBy)?.name ?? null) : null,
 	);
-	const suggesting = $derived(settled && !startedBy);
+	const suggesting = $derived(settled && !setupBusy && !startedBy);
 	const retrying = $derived(provisioningRetryingQuery.data(workstreamId));
+	const flip = $derived(prefersReducedMotion.current ? 0 : 10);
+	const reach = new Tween(untrack(() => (suggesting ? SUGGESTIONS_REACH_PX : 0)));
+
+	$effect(() => {
+		const still = motionOff();
+		void reach.set(suggesting ? SUGGESTIONS_REACH_PX : 0, {
+			delay: still ? 0 : SWAP_IN_MS,
+			duration: still ? 0 : arrivalMotion().durationMs,
+			easing: quintOut,
+		});
+	});
+
+	function arrive(
+		node: Element,
+		{ live = true, unfold = false, delay = 0 }: Arrival,
+	): TransitionConfig {
+		const moving = live && !motionOff();
+		const { durationMs, travelPx } = arrivalMotion();
+		const height = node.getBoundingClientRect().height;
+		const fold = (t: number) => (unfold ? `; height: ${t * height}px; overflow: hidden` : '');
+		return {
+			delay: moving ? delay : 0,
+			duration: moving ? durationMs : 0,
+			easing: quintOut,
+			css: (t, u) => `opacity: ${t}; transform: translateY(${u * travelPx}px)${fold(t)}`,
+		};
+	}
 </script>
 
 {#snippet stepAction(label: string, ariaLabel: string, onclick: () => void, disabled = false)}
@@ -43,10 +84,8 @@
 
 <ol class="relative pl-4.5" aria-label="Workstream setup" data-testid="workstream-setup-steps">
 	<span
-		class={[
-			'border-surface-100-border absolute top-4 left-7 w-px -translate-x-1/2 border-l-[1px]',
-			suggesting ? '-bottom-5.5' : 'bottom-4',
-		]}
+		class="border-surface-100-border absolute top-4 left-7 w-px -translate-x-1/2 border-l-[1px]"
+		style:bottom="{RAIL_INSET_PX - reach.current}px"
 		aria-hidden="true"
 	></span>
 	{#each steps as step (step.key)}
@@ -54,32 +93,64 @@
 			class="text-fg-secondary relative flex h-8 items-center gap-2.5 text-sm"
 			data-step={step.key}
 			data-state={step.state}
+			in:arrive|global={{ live: setupBusy, unfold: true }}
 		>
 			<span
-				class="bg-surface-root grid size-5 shrink-0 place-items-center rounded-full"
+				class="bg-surface-root grid size-5 shrink-0 place-items-center overflow-hidden rounded-full"
 				aria-hidden="true"
 			>
-				{#if step.state === 'busy'}
-					<BusyIcon size={12} />
-				{:else if step.state === 'failed'}
-					<span class="text-error-content"><Icon name="alert" size={12} /></span>
-				{:else if step.state === 'skipped'}
-					<span class="text-fg-tertiary"><Icon name="minus" size={12} /></span>
-				{:else}
-					<span class="text-success-content"><Icon name="check" size={12} /></span>
-				{/if}
+				{#key step.state}
+					<span
+						class={[
+							'grid place-items-center [grid-area:1/1]',
+							step.state === 'failed' && 'text-error-content',
+							step.state === 'skipped' && 'text-fg-tertiary',
+							step.state === 'done' && 'text-success-content',
+						]}
+						in:swapFly={{ y: flip, durationMs: SWAP_IN_MS }}
+						out:swapFly={{ y: -flip, durationMs: SWAP_OUT_MS }}
+					>
+						{#if step.state === 'busy'}
+							<BusyIcon size={12} />
+						{:else if step.state === 'failed'}
+							<Icon name="alert" size={12} />
+						{:else if step.state === 'skipped'}
+							<Icon name="minus" size={12} />
+						{:else}
+							<Icon name="check" size={12} />
+						{/if}
+					</span>
+				{/key}
 			</span>
-			<span class="shrink-0">{step.label}</span>
-			<Tooltip
-				content={step.detail ?? ''}
-				placement="bottom"
-				onlyWhenTruncated
-				class="min-w-0 flex-1"
-			>
-				<span class="text-fg-tertiary block truncate">{step.detail ?? ''}</span>
-			</Tooltip>
+			<span class="grid min-w-0 flex-1 overflow-hidden">
+				{#key step.state}
+					<span
+						class="flex min-w-0 items-center gap-2.5 [grid-area:1/1]"
+						in:swapFly={{ y: flip, durationMs: SWAP_IN_MS }}
+						out:swapFly={{ y: -flip, durationMs: SWAP_OUT_MS }}
+					>
+						<span class="shrink-0">
+							{#if step.state === 'busy'}
+								<ShimmerText text={step.label} />
+							{:else}
+								{step.label}
+							{/if}
+						</span>
+						<Tooltip
+							content={step.detail ?? ''}
+							placement="bottom"
+							onlyWhenTruncated
+							class="min-w-0 flex-1"
+						>
+							<span class="text-fg-tertiary block truncate tabular-nums">{step.detail ?? ''}</span>
+						</Tooltip>
+					</span>
+				{/key}
+			</span>
 			{#if step.state === 'failed' && step.key === 'install'}
-				{@render stepAction('Retry', 'Retry', () => retryDependencyInstallCommand(workstreamId))}
+				{@render stepAction('Retry', 'Retry', () =>
+					seedWorkstreamDependenciesCommand(workstreamId),
+				)}
 			{:else if step.state === 'failed'}
 				{@render stepAction(
 					retrying ? 'Retrying…' : 'Retry',
@@ -97,7 +168,11 @@
 		</li>
 	{/each}
 	{#if startedBy}
-		<li class="text-fg-default relative flex h-8 items-center gap-2.5 text-sm" data-step="handoff">
+		<li
+			class="text-fg-default relative flex h-8 items-center gap-2.5 text-sm"
+			data-step="handoff"
+			in:arrive|global={{ live: setupBusy, unfold: true }}
+		>
 			<span
 				class="bg-surface-root text-fg-secondary grid size-5 shrink-0 place-items-center rounded-full"
 				aria-hidden="true"
@@ -113,6 +188,7 @@
 	<fieldset
 		class="border-surface-100-border mt-3 min-w-0 rounded-xl border-[1px] border-dashed px-1.5 pt-0.5 pb-1.5"
 		data-testid="workstream-suggestions"
+		in:arrive={{ delay: SWAP_IN_MS }}
 	>
 		<legend class="text-fg-tertiary ml-1.75 flex items-center gap-2.5 px-1 text-sm">
 			<span

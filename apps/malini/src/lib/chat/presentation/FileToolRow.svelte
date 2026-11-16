@@ -5,7 +5,7 @@
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
-	import { revealFade } from './arrival-motion';
+	import { revealFade } from '$shared/motion/arrival-motion';
 	import type { EditDiffstat } from './edit-diffstat';
 	import ExpandMark from './ExpandMark.svelte';
 	import { CHIP_CLASS } from './inline-prompt-chips';

@@ -30,6 +30,7 @@ import { registerModules, type Modules } from './modules';
 import { linuxPasswordStore } from './password-store';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
+import { blockPreloadCodeCache } from './preload-code-cache';
 import {
 	claimLinuxUrlScheme,
 	claimsUrlScheme,
@@ -44,6 +45,7 @@ const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DI
 
 const productName = pinStorageName(app);
 app.commandLine.appendSwitch('disable-features', CHROMIUM_FEATURES_THAT_STALL_QUIT.join(','));
+blockPreloadCodeCache(app.getPath('sessionData'));
 if (BACKGROUND_WINDOW) {
 	app.dock?.hide();
 	app.disableHardwareAcceleration();

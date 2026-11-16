@@ -2,6 +2,7 @@ import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 import type { GroupedRunTimelineItem } from '../activity-group';
 import type { RunGroup } from '../render-state';
 import { foldsWork } from './timeline-derivations.svelte';
+import { transcriptTurns, turnRuns, type TranscriptTurn, type TurnRun } from './transcript-turns';
 import { rowWindowKey, runWindowKey, type TranscriptWindow } from './transcript-window.svelte';
 
 const LINE_PX = 22.75;
@@ -77,21 +78,34 @@ export function rowsFillingDown(
 	return { keys, heightPx };
 }
 
+export function estimateTurnHeight(
+	runs: readonly RunGroup[],
+	turn: TranscriptTurn,
+	textWidth: number,
+): number {
+	return turnRuns(turn).reduce((sum, turnRun) => sum + estimateOf(runs, turnRun, textWidth), 0);
+}
+
 export function openingBudgets(
 	runs: readonly RunGroup[],
 	measure: TranscriptMeasure,
 	budgetPx: number,
 ): ReadonlyMap<string, number> {
 	const budgets = new Map<string, number>();
+	const turns = transcriptTurns(runs);
 	let budget = budgetPx;
-	for (let index = runs.length - 1; index >= 0 && budget > 0; index -= 1) {
-		const run = runs[index];
-		if (!run) continue;
-		budgets.set(run.runId, budget);
-		const folded = foldsWork(runs, index);
-		budget -=
-			measure.heightOf(runWindowKey(run.runId, folded)) ??
-			estimateRunHeight(run, measure.textWidth, folded);
+	for (let turnIndex = turns.length - 1; turnIndex >= 0 && budget > 0; turnIndex -= 1) {
+		const turn = turns[turnIndex];
+		if (!turn) continue;
+		budgets.set(turn.lead.run.runId, budget);
+		const measured = measuredTurnHeight(runs, turn, measure);
+		for (let index = turn.continuations.length - 1; index >= 0; index -= 1) {
+			const continuation = turn.continuations[index];
+			if (!continuation) continue;
+			budgets.set(continuation.run.runId, budget);
+			if (measured === undefined) budget -= estimateOf(runs, continuation, measure.textWidth);
+		}
+		budget -= measured ?? estimateOf(runs, turn.lead, measure.textWidth);
 	}
 	return budgets;
 }
@@ -104,24 +118,49 @@ export function anchoredOpeningBudgets(
 	budgetPx: number,
 ): ReadonlyMap<string, number> {
 	const budgets = new Map<string, number>();
-	const start = runs.findIndex((run) => run.runId === anchor.runId);
-	const anchorRun = runs[start];
-	if (!anchorRun) return budgets;
-	budgets.set(anchorRun.runId, budgetPx);
-	const from = anchoredRowStart(anchor);
-	let budget =
-		budgetPx -
-		rowsFillingDown(anchorRun.runId, rowsOf(anchorRun), from, budgetPx, measure).heightPx;
-	for (let index = start + 1; index < runs.length && budget > 0; index += 1) {
-		const run = runs[index];
-		if (!run) continue;
-		budgets.set(run.runId, budget);
-		const folded = foldsWork(runs, index);
+	const turns = transcriptTurns(runs);
+	const start = turns.findIndex((turn) =>
+		turnRuns(turn).some(({ run }) => run.runId === anchor.runId),
+	);
+	const anchorTurn = turns[start];
+	if (!anchorTurn) return budgets;
+	let budget = budgetPx;
+	let belowAnchor = false;
+	for (const turnRun of turnRuns(anchorTurn)) {
+		budgets.set(turnRun.run.runId, budget);
+		if (belowAnchor) budget -= estimateOf(runs, turnRun, measure.textWidth);
+		if (turnRun.run.runId !== anchor.runId) continue;
+		const rows = rowsOf(turnRun.run);
+		budget -= rowsFillingDown(
+			anchor.runId,
+			rows,
+			anchoredRowStart(anchor),
+			budget,
+			measure,
+		).heightPx;
+		belowAnchor = true;
+	}
+	for (let turnIndex = start + 1; turnIndex < turns.length && budget > 0; turnIndex += 1) {
+		const turn = turns[turnIndex];
+		if (!turn) continue;
+		for (const { run } of turnRuns(turn)) budgets.set(run.runId, budget);
 		budget -=
-			measure.heightOf(runWindowKey(run.runId, folded)) ??
-			estimateRunHeight(run, measure.textWidth, folded);
+			measuredTurnHeight(runs, turn, measure) ?? estimateTurnHeight(runs, turn, measure.textWidth);
 	}
 	return budgets;
+}
+
+function measuredTurnHeight(
+	runs: readonly RunGroup[],
+	turn: TranscriptTurn,
+	measure: TranscriptMeasure,
+): number | undefined {
+	const { run, index } = turn.lead;
+	return measure.heightOf(runWindowKey(run.runId, foldsWork(runs, index)));
+}
+
+function estimateOf(runs: readonly RunGroup[], { run, index }: TurnRun, textWidth: number): number {
+	return estimateRunHeight(run, textWidth, foldsWork(runs, index));
 }
 
 // ponytail: turn report cards are estimated as markdown, ~2x tall; size the card if budgets skew

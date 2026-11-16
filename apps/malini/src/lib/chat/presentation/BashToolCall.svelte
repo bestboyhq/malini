@@ -7,7 +7,7 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
-	import { revealFade } from './arrival-motion';
+	import { revealFade } from '$shared/motion/arrival-motion';
 	import ExpandMark from './ExpandMark.svelte';
 	import ToolFailureNote from './ToolFailureNote.svelte';
 	import ToolLabel from './ToolLabel.svelte';

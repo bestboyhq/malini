@@ -74,7 +74,7 @@
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import { attachmentGalleryImage, isGalleryAttachment } from './transcript-gallery';
-	import { arrivalMotion } from './arrival-motion';
+	import { arrivalMotion } from '$shared/motion/arrival-motion';
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
@@ -183,7 +183,19 @@
 	const MAX_CONTEXT_FILES = 20;
 	const submitting = $derived(pendingSubmissionCount > 0);
 
-	const canSend = $derived(prompt.trim() !== '' && !disabled && !todoContextResolving);
+	const stagingAttachments = $derived(
+		attachmentRequests
+			.filter((request) => request.adopting.length === 0)
+			.map((request) => request.requestId),
+	);
+	const attachmentsStaging = $derived(
+		attachmentRequests.some(
+			(request) => request.draftScope === draftScope && request.adopting.length === 0,
+		),
+	);
+	const canSend = $derived(
+		prompt.trim() !== '' && !disabled && !todoContextResolving && !attachmentsStaging,
+	);
 	const transcriptFactsProjector = new TranscriptFactsProjector();
 	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
 
@@ -284,8 +296,10 @@
 		});
 	});
 
-	function attachClipboardFiles(candidates: readonly ClipboardAttachmentCandidate[]): void {
-		if (!workstreamId) return;
+	function attachClipboardFiles(
+		candidates: readonly ClipboardAttachmentCandidate[],
+	): ChatRequestId | null {
+		if (!workstreamId) return null;
 		const requestId = newChatRequestId();
 		trackAttachmentRequest({ requestId, draftScope, adopting: [] });
 		stageClipboardAttachmentsCommand({
@@ -294,6 +308,7 @@
 			draftScope,
 			files: candidates.map(({ fileName, file }) => ({ fileName, file })),
 		});
+		return requestId;
 	}
 
 	function onChipRemove(ref: PromptChipRef): void | Promise<void> {
@@ -1192,6 +1207,7 @@
 				{chipOpener}
 				onvaluechange={onPromptValueChange}
 				onchipremove={onChipRemove}
+				staging={stagingAttachments}
 				onattachfiles={attachClipboardFiles}
 				ariaActiveDescendant={automationQuery === null
 					? undefined

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Icon } from '$hyper-ui/icons';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import { revealFade } from './arrival-motion';
+	import { revealFade } from '$shared/motion/arrival-motion';
 	import DiffViewer from './DiffViewer.svelte';
 	import EditDiffPreview from './EditDiffPreview.svelte';
 	import FilePreviewHeader from './FilePreviewHeader.svelte';

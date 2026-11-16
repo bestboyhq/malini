@@ -191,7 +191,6 @@ export type { OwnPullRequest } from './domain/own-pull-requests';
 export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
 export { signInToGithubCommand } from './application/commands/sign-in-to-github.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
-export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';
 export { retryProvisioningCommand } from './application/commands/retry-provisioning.command';
 export { retryRepositoriesScopeCommand } from './application/commands/retry-repositories-scope.command';
 export { revealWorkstreamInFinderCommand } from './application/commands/reveal-workstream-in-finder.command';

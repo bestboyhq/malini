@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Editor } from '@tiptap/core';
 	import { closeHistory } from '@tiptap/pm/history';
+	import { Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 	import type { EditorState, Transaction } from '@tiptap/pm/state';
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import { isPromptChipKind, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
@@ -8,6 +9,13 @@
 	import { sensitiveMasking } from '$hyper-ui/components/sensitive';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { promptEditorExtensions } from './prompt-editor/minimal-extensions';
+	import {
+		addPendingChip,
+		dropPendingChips,
+		landPendingChip,
+		pendingChipsOf,
+		type PendingChip,
+	} from './prompt-editor/pending-chips';
 	import { PROMPT_CHIP_NODE_NAME, type PromptChipOpener } from './prompt-editor/prompt-chip-node';
 	import type { PromptChipPreview } from './prompt-editor/prompt-chip-preview';
 	import PromptChipPreviewCard from './prompt-editor/PromptChipPreviewCard.svelte';
@@ -38,7 +46,8 @@
 		chipOpener?: PromptChipOpener;
 		onvaluechange: (value: string) => void;
 		onchipremove: (ref: PromptChipRef) => void | Promise<void>;
-		onattachfiles: (candidates: readonly ClipboardAttachmentCandidate[]) => void | Promise<void>;
+		staging?: readonly string[];
+		onattachfiles: (candidates: readonly ClipboardAttachmentCandidate[]) => string | null;
 		onkeydown: (event: KeyboardEvent) => void;
 		ontriggerquery?: (query: string | null) => void;
 	}
@@ -57,6 +66,7 @@
 		chipOpener,
 		onvaluechange,
 		onchipremove,
+		staging = [],
 		onattachfiles,
 		onkeydown,
 		ontriggerquery,
@@ -77,8 +87,6 @@
 
 	let knownRefKeys = new Set<string>();
 	let pendingRemovalKeys = $state<Set<string>>(new Set());
-
-	let pendingInsertPos: number | null = null;
 
 	let trigger: Readonly<{ at: number; char: string }> | null = null;
 
@@ -134,11 +142,10 @@
 		});
 		if (missing.length === 0) return;
 
-		if (pendingInsertPos !== null) {
-			editor.commands.setTextSelection(
-				Math.min(Math.max(pendingInsertPos, 0), editor.state.doc.content.size),
-			);
-			pendingInsertPos = null;
+		const landing = pendingChipsOf(editor.state).find((pending) => !staging.includes(pending.key));
+		if (landing) {
+			landChips(landing, missing);
+			return;
 		}
 
 		editor.view.dispatch(closeHistory(editor.state.tr));
@@ -151,6 +158,49 @@
 		}
 		editor.view.dispatch(closeHistory(editor.state.tr));
 		editor.commands.focus();
+	}
+
+	function landChips(landing: PendingChip, missing: readonly PromptChipDescriptor[]): void {
+		if (!editor) return;
+		const { doc, schema } = editor.state;
+		const chipType = schema.nodes[PROMPT_CHIP_NODE_NAME];
+		if (!chipType) return;
+		const at = landing.pos;
+		const before = doc.textBetween(Math.max(0, at - 1), at, '', '');
+		const after = doc.textBetween(at, Math.min(doc.content.size, at + 1), '', '');
+		const nodes: ProseMirrorNode[] = before && !/\s/u.test(before) ? [schema.text(' ')] : [];
+		missing.forEach((chip, index) => {
+			nodes.push(chipType.create({ kind: chip.kind, id: chip.id, label: chip.label }));
+			if (index < missing.length - 1 || !/^\s/u.test(after)) nodes.push(schema.text(' '));
+			knownRefKeys.add(refKey(chip));
+		});
+		const content = Fragment.fromArray(nodes);
+		const transaction = editor.state.tr.insert(at, content);
+		editor.view.dispatch(
+			closeHistory(landPendingChip(transaction, landing.key, at + content.size)),
+		);
+		editor.view.dispatch(closeHistory(editor.state.tr));
+	}
+
+	function dropSettledPendingChips(): void {
+		if (!editor) return;
+		const settled = pendingChipsOf(editor.state)
+			.filter((pending) => !staging.includes(pending.key))
+			.map((pending) => pending.key);
+		if (settled.length === 0) return;
+		editor.view.dispatch(dropPendingChips(editor.state.tr, settled).setMeta('addToHistory', false));
+	}
+
+	function showPendingChips(
+		pos: number,
+		candidates: readonly ClipboardAttachmentCandidate[],
+	): void {
+		const key = onattachfiles(candidates);
+		if (!editor || key === null) return;
+		const labels = candidates.map((candidate) => candidate.fileName);
+		editor.view.dispatch(
+			addPendingChip(editor.state.tr, { key, pos, labels }).setMeta('addToHistory', false),
+		);
 	}
 
 	function syncLabels(): void {
@@ -344,8 +394,7 @@
 					);
 					if (candidates.length === 0) return false;
 					event.preventDefault();
-					pendingInsertPos = view.state.selection.from;
-					void onattachfiles(candidates);
+					showPendingChips(view.state.selection.from, candidates);
 					return true;
 				},
 				handleDrop: (view, event, _slice, _moved) => {
@@ -356,11 +405,11 @@
 					);
 					if (candidates.length === 0) return false;
 					event.preventDefault();
-
-					pendingInsertPos =
+					showPendingChips(
 						view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
-						view.state.selection.from;
-					void onattachfiles(candidates);
+							view.state.selection.from,
+						candidates,
+					);
 					return true;
 				},
 				handleTextInput: (view, _from, _to, text, insert) => {
@@ -407,9 +456,11 @@
 
 	$effect(() => {
 		void chips;
+		void staging;
 		if (!editor) return;
 		syncLabels();
 		insertNewChips();
+		dropSettledPendingChips();
 	});
 
 	$effect(() => {
@@ -496,7 +547,9 @@
 	}
 
 	.prompt-editor-host[data-placeholder-hidden]
-		:global(.ProseMirror p.is-editor-empty:first-child::before) {
+		:global(.ProseMirror p.is-editor-empty:first-child::before),
+	.prompt-editor-host
+		:global(.ProseMirror[data-pending-chips] p.is-editor-empty:first-child::before) {
 		opacity: 0;
 	}
 

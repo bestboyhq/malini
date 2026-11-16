@@ -9,10 +9,10 @@ import {
 	glideSampleAt,
 	glideSamples,
 	SCROLL_GLIDE_SETTLE_PX,
-	SCROLL_SPRING_STIFFNESS,
 	stepGlideSpring,
 	type GlideState,
 } from './scroll-glide';
+import { SCROLL_SPRING_STIFFNESS } from '$shared/motion/arrival-motion';
 
 const FRAME_MS = 1000 / 60;
 const AT_REST: GlideState = { position: 0, velocity: 0 };

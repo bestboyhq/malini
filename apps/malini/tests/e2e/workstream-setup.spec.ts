@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
@@ -189,14 +189,15 @@ function slowMerge(app: LaunchedApp): void {
 	);
 }
 
-function installNpmStub(app: LaunchedApp): string {
+function installNpmStub(app: LaunchedApp): { succeeds: string; held: string } {
 	const succeeds = join(app.home, 'npm-succeeds');
+	const held = join(app.home, 'npm-held');
 	const stub = join(app.bin, 'npm');
 	writeExecutable(
 		stub,
-		`#!/bin/sh\nif [ -f "${succeeds}" ]; then exit 0; fi\necho "e2e install failure" 1>&2\nexit 1\n`,
+		`#!/bin/sh\nwhile [ -f "${held}" ]; do sleep 0.1; done\nif [ -f "${succeeds}" ]; then exit 0; fi\necho "e2e install failure" 1>&2\nexit 1\n`,
 	);
-	return succeeds;
+	return { succeeds, held };
 }
 
 test('a new workstream opens at once, sets itself up, and every new workstream joins the sidebar', async () => {
@@ -224,7 +225,7 @@ test('a new workstream opens at once, sets itself up, and every new workstream j
 	}
 });
 
-test('a file pasted into a new workstream before its worktree exists attaches once it does', async () => {
+test('a file pasted into a new workstream before its worktree exists shows at once and attaches once it does', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -246,7 +247,9 @@ test('a file pasted into a new workstream before its worktree exists attaches on
 				.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
 		})()`);
 
+		await expect(input.getByLabel('Attaching early.txt')).toBeVisible({ timeout: 1_000 });
 		await expect(input.getByLabel('Attached file: early.txt')).toBeVisible({ timeout: 30_000 });
+		await expect(input.getByLabel('Attaching early.txt')).toHaveCount(0);
 		await expect(page.getByTestId('chat-attachment-error')).toHaveCount(0);
 		await captureFlow(app, 'workstream-setup-early-paste');
 		expectCleanConsole(app);
@@ -464,7 +467,7 @@ test('a dependency install that fails says why and retries, and an unknown proje
 	const app = await launchMalini({ allowedDiagnostics: [/e2e install failure/u] });
 	try {
 		const { page } = app;
-		const succeeds = installNpmStub(app);
+		const { succeeds, held } = installNpmStub(app);
 		const locked = await createSourceRepo(app.root, 'locked');
 		await commitFiles(locked, {
 			'package.json': '{ "name": "locked", "version": "1.0.0" }\n',
@@ -484,12 +487,19 @@ test('a dependency install that fails says why and retries, and an unknown proje
 		await expect(page.getByTestId('workstream-dependency-install')).toHaveCount(0);
 		await captureFlow(app, 'workstream-dependency-install-failed');
 
+		const suggestions = page.getByRole('group', { name: 'Quick suggestions' });
+		await expect(suggestions).toBeVisible();
 		writeFileSync(succeeds, '');
+		writeFileSync(held, '');
 		await failed.getByRole('button', { name: 'Retry' }).click();
+		await expect(steps.filter({ hasText: 'Checking dependencies' })).toBeVisible();
+		await expect(suggestions).toHaveCount(0);
+		rmSync(held);
 		await expect(steps.filter({ hasText: 'Checked dependencies' })).toContainText('All in place', {
 			timeout: 30_000,
 		});
 		await expect(failed).toHaveCount(0);
+		await expect(suggestions).toBeVisible();
 		await expect(workstreamRow(page, installing)).toHaveAttribute('aria-current', 'page');
 
 		await newWorkstream(page, 'unknown');
