@@ -224,6 +224,7 @@ export function archiveWorkstreamRecord(
 			archived.savedForLater ? 1 : 0,
 			workstreamId,
 		);
+		run(db, 'DELETE FROM workstream_ports WHERE workstream_id = ?', workstreamId);
 	});
 }
 
@@ -339,6 +340,7 @@ export function deleteWorkstream(db: MaliniDatabase, workstreamId: string): void
 			workstreamId,
 		);
 		run(db, 'DELETE FROM agent_sessions WHERE workstream_id = ?', workstreamId);
+		run(db, 'DELETE FROM workstream_ports WHERE workstream_id = ?', workstreamId);
 		run(db, 'DELETE FROM workstreams WHERE id = ?', workstreamId);
 	});
 }

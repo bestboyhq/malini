@@ -22,7 +22,7 @@
 		"generate:contract-reference": "node scripts/generate-contract-reference.mjs",
 		"generate:dmg-background": "electron scripts/generate-dmg-background.mjs",
 		"diagnostics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/diagnostics.mjs",
-		"test:e2e": "install-electron && electron-vite build && playwright test",
+		"test:e2e": "install-electron && pnpm --filter 'malini^...' build && electron-vite build && playwright test",
 		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-rtk.mjs && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
 		"release": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-rtk.mjs && electron-builder --mac --publish never",
 		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-gh.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-rtk.mjs && node scripts/update-e2e.mjs"

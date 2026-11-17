@@ -210,6 +210,10 @@ export interface SendPromptHooks {
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 	readonly secrets?: (workstreamId: string) => Promise<Readonly<Record<string, string>>>;
+	readonly environment?: (
+		workstreamId: string,
+		worktree: string,
+	) => Promise<Readonly<Record<string, string>>>;
 	readonly plugins?: () => readonly string[];
 	readonly boundary: (automation: AutomationBoundary) => AgentBoundary | null;
 }
@@ -820,7 +824,18 @@ async function sendAgentPromptLeased(
 		throw new LifecycleError('db', errorMessage);
 	}
 	lease.release();
-	const secrets = await secretsForRun(hooks, workstreamId, log);
+	const secrets = await valuesForRun(
+		'secrets',
+		() => hooks.secrets?.(workstreamId),
+		workstreamId,
+		log,
+	);
+	const environment = await valuesForRun(
+		'environment',
+		() => hooks.environment?.(workstreamId, worktree),
+		workstreamId,
+		log,
+	);
 	const sandboxGrants = sandboxGrantsFor(db, workstreamId, sessionId);
 	const outsideAllowed = outsideAllowedFor(db, workstreamId, sessionId);
 	const { compactWindow, steReplies, compactOutput } = (await hooks.turnSettings?.()) ?? {
@@ -841,6 +856,7 @@ async function sendAgentPromptLeased(
 		...(hooks.theme ? { theme: hooks.theme() } : {}),
 		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
 		...(secrets === null ? {} : { secrets }),
+		...(environment === null ? {} : { environment }),
 		...(turn.plugins === null ? {} : { plugins: turn.plugins }),
 		...(compactWindow === null ? {} : { compactWindow }),
 		...(turn.boundary === null ? {} : { boundary: turn.boundary }),
@@ -912,16 +928,16 @@ async function handPromptToBridge(
 	}
 }
 
-async function secretsForRun(
-	hooks: SendPromptHooks,
+async function valuesForRun(
+	what: 'secrets' | 'environment',
+	read: () => Promise<Readonly<Record<string, string>>> | undefined,
 	workstreamId: string,
 	log: (line: string) => void,
 ): Promise<Readonly<Record<string, string>> | null> {
-	if (!hooks.secrets) return null;
 	try {
-		return await hooks.secrets(workstreamId);
+		return (await read()) ?? null;
 	} catch (error) {
-		log(`agent: could not read the secrets of \`${workstreamId}\`: ${describe(error)}`);
+		log(`agent: could not read the ${what} of \`${workstreamId}\`: ${describe(error)}`);
 		return null;
 	}
 }

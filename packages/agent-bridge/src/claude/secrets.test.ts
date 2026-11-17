@@ -179,6 +179,97 @@ describe('SessionSecrets', () => {
 	});
 });
 
+describe('SessionSecrets environment', () => {
+	it('exports the environment Malini sets into every command, without masking it', async () => {
+		const secrets = session();
+		await secrets.setEnvironment({
+			MALINI_WORKSTREAM_ID: 'workstream-one-id',
+			MALINI_PORT_WEB: '40001',
+		});
+		await secrets.set({ TOKEN: 'secret-token-value' });
+
+		const ran = await run(secrets, 'echo "$MALINI_WORKSTREAM_ID $MALINI_PORT_WEB $TOKEN"');
+
+		expect(ran.stdout).toBe('workstream-one-id 40001 [secret]\n');
+	});
+});
+
+describe('SessionSecrets leftovers', () => {
+	function runLeading(secrets: SessionSecrets, command: string): Promise<Ran & { pid: number }> {
+		return new Promise((resolve) => {
+			const child = spawn(secrets.runScript, [command], {
+				env: { PATH: process.env['PATH'], CLAUDE_CODE_SHELL: '/bin/bash' },
+				detached: true,
+				stdio: ['ignore', 'pipe', 'pipe'],
+			});
+			let stdout = '';
+			let stderr = '';
+			child.stdout.setEncoding('utf8').on('data', (text: string) => (stdout += text));
+			child.stderr.setEncoding('utf8').on('data', (text: string) => (stderr += text));
+			child.on('close', (code) =>
+				resolve({ status: code ?? -1, stdout, stderr, pid: Number(stdout.trim()) }),
+			);
+		});
+	}
+
+	function alive(pid: number): boolean {
+		try {
+			process.kill(pid, 0);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function stopAfterTest(pid: number): void {
+		onTestFinished(() => {
+			if (alive(pid)) process.kill(pid, 'SIGKILL');
+		});
+	}
+
+	it('stops what a command left running in its group once it ends, keeping its exit code', async () => {
+		const ran = await runLeading(
+			session(),
+			'nohup /bin/sleep 300 >/dev/null 2>&1 & disown; echo $!; exit 4',
+		);
+		stopAfterTest(ran.pid);
+
+		expect(ran.status).toBe(4);
+		expect(alive(ran.pid)).toBe(false);
+	});
+
+	it('kills a leftover that ignores SIGTERM after three seconds', async () => {
+		const started = Date.now();
+		const ran = await runLeading(
+			session(),
+			'(trap "" TERM; exec /bin/sleep 300) >/dev/null 2>&1 & echo $!',
+		);
+		stopAfterTest(ran.pid);
+
+		expect(alive(ran.pid)).toBe(false);
+		expect(Date.now() - started).toBeGreaterThanOrEqual(2_900);
+	});
+
+	it('stops leftovers when the command output is masked too', async () => {
+		const secrets = session();
+		await secrets.set({ TOKEN: 'secret-token-value' });
+
+		const ran = await runLeading(secrets, '/bin/sleep 300 >/dev/null 2>&1 & echo $!');
+		stopAfterTest(ran.pid);
+
+		expect(alive(ran.pid)).toBe(false);
+	});
+
+	it('never signals a group it does not lead', async () => {
+		const ran = await run(session(), '/bin/sleep 300 >/dev/null 2>&1 & echo $!');
+		const leftover = Number(ran.stdout.trim());
+		stopAfterTest(leftover);
+
+		expect(leftover).toBeGreaterThan(1);
+		expect(alive(leftover)).toBe(true);
+	});
+});
+
 describe('SessionSecrets compact output', () => {
 	const quoted = claudeCommand(`printf '%s\\n' "it's"`);
 

@@ -14,7 +14,10 @@ import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
-import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
+import {
+	workstreamEnvironment,
+	type CheckoutResolver,
+} from '$shared/repositories/repositories.platform';
 import {
 	runOneShotAutomation,
 	type AnswerWithAutomation,
@@ -96,7 +99,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 	const deliveries = new ChatDeliveries(context, deps.log ?? ((line) => console.error(line)));
 	const shellRuns = installShellRuns(context, {
 		checkout: deps.resolveWorkstreamCheckout,
-		environment: deps.spawnEnvironment,
+		environment: async (workstreamId, checkout) => ({
+			...deps.spawnEnvironment(),
+			...(await workstreamEnvironment(context.db, workstreamId, checkout)),
+		}),
 	});
 	const packing = packArchivedChats(context);
 	const plugins = (): readonly string[] => deps.extensions.pluginFolders();

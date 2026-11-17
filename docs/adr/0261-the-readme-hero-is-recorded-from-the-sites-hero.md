@@ -1,4 +1,4 @@
-# 0260 - The README hero is recorded from the site's hero
+# 0261 - The README hero is recorded from the site's hero
 
 Status: accepted
 
