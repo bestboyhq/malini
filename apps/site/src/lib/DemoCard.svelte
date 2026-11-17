@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { loadWhenIdle } from './idle';
 	import { demoHref, type DemoPlay } from './urls';
 
 	let { workstream, title, play }: { workstream: string; title: string; play?: DemoPlay } =
@@ -8,11 +9,10 @@
 </script>
 
 <iframe
-	src={demoHref('card', workstream, play)}
+	data-src={demoHref('card', workstream, play)}
 	{title}
-	loading="lazy"
 	class:ready
-	onload={() => (ready = true)}
+	{@attach loadWhenIdle(() => (ready = true))}
 ></iframe>
 
 <style>

@@ -139,6 +139,7 @@
 
 	body {
 		margin: 0;
+		overflow-x: clip;
 		background: var(--surface-root);
 		color: var(--fg-default);
 		font-family: var(--sans);
@@ -199,7 +200,6 @@
 	display: flex;
 	flex-direction: column;
 	min-height: 100dvh;
-	overflow-x: clip;
 }
 
 .site::before,
@@ -298,6 +298,12 @@
 	--blur: 6px;
 	--duration: 500ms;
 	--delay: calc(var(--i) * 80ms);
+}
+
+[data-away] *,
+[data-away] *::before,
+[data-away] *::after {
+	animation-play-state: paused !important;
 }
 
 @media (prefers-reduced-motion: no-preference) {

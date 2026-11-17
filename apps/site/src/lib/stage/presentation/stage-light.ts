@@ -1,4 +1,5 @@
 import type { Attachment } from 'svelte/attachments';
+import { idle } from '$lib/idle';
 import { CAST_SHADOW, type StageLighting } from '../domain/stage-lighting';
 
 type Rgba = readonly [number, number, number, number];
@@ -30,6 +31,7 @@ const NO_SHADOW: CastShadow = { rect: [0, 0, 0, 0], radius: 0, sigma: 1, offset:
 const repaints = new Set<() => void>();
 let renderer: Renderer | null = null;
 let unavailable = false;
+let warming: Promise<void> | undefined;
 
 export function stageLight(
 	lighting: StageLighting,
@@ -84,6 +86,7 @@ export function stageLight(
 		}
 		if (caster) resizer.observe(caster);
 		viewport.observe(canvas);
+		warming ??= warm();
 		scheme.addEventListener('change', paint);
 		theme.observe(document.documentElement, { attributeFilter: ['data-theme'] });
 		repaints.add(paint);
@@ -123,6 +126,11 @@ function deviceSize(entry: ResizeObserverEntry, ratio: number): [number, number]
 	return exact && Math.abs(exact.inlineSize - width) <= 2 && Math.abs(exact.blockSize - height) <= 2
 		? [exact.inlineSize, exact.blockSize]
 		: [width, height];
+}
+
+async function warm(): Promise<void> {
+	await idle();
+	sharedRenderer();
 }
 
 function sharedRenderer(): Renderer | null {

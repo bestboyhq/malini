@@ -22,7 +22,10 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: the sidebar lists the repositories malini, grip and tony. The malini chat Changelog in every footer started three workstreams, one in each, all named Changelog link in the footer. The tony one is open: its prompt is from Changelog in every footer, its report says Tony's footer links its changelog, a browser tab beside it shows the site with the new Changelog link, and Draft and Merge sit above 1 changed file.">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset=".github/readme/hero-light.webp">
+    <img src=".github/readme/hero.webp" width="100%" alt="The Malini window: the sidebar lists the repositories malini, grip and tony, and the malini chat Duplicate a chat from its tab is open, its report A chat duplicates from its tab above the composer, with Draft and Merge over 2 files changed. A glass loupe glides over the window and magnifies the Claude Code setup underneath it, lighting ~/.claude/CLAUDE.md, then the test-malini-app skill, then the draw-icon skill, and comes back to CLAUDE.md. The caption reads On top: Malini. Underneath: your Claude Code, as you left it.">
+  </picture>
 </p>
 
 ---
