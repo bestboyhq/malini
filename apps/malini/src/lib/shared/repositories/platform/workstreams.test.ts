@@ -121,7 +121,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		if (!response.ok) throw new Error(response.error);
 		return response.value;
 	}
-	return { commands, events, invoke, db: context.db, context };
+	return { commands, events, invoke, db: context.db, context, platform };
 }
 
 function seed(
@@ -227,7 +227,7 @@ describe('retired chats', () => {
 		cleanups.push(() => removeDir(dir));
 		const appDataRoot = join(dir, 'app');
 		await mkdir(appDataRoot);
-		const { invoke, db, context } = harness(appDataRoot);
+		const { invoke, db, context, platform } = harness(appDataRoot);
 		const projectRepoPath = await cloneAcmeApi(dir, invoke);
 		await startWorkstream(invoke, projectRepoPath, 'work');
 		for (const [workstreamId, scope] of [
@@ -245,6 +245,7 @@ describe('retired chats', () => {
 			'acme/api',
 		]);
 
+		platform.watchers.dispose();
 		const restarted = registerRepositories(
 			{ ...context, commands: new CommandRegistry() },
 			{ shell: silentShell, startupReclaim: false },
