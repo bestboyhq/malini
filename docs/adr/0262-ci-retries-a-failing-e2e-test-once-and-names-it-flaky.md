@@ -1,4 +1,4 @@
-# 0261 - CI retries a failing e2e test once and names it flaky
+# 0262 - CI retries a failing e2e test once and names it flaky
 
 Status: accepted
 

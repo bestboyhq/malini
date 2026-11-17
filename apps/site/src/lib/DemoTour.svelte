@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cameraFor, messageType, shotOf, TOUR_MESSAGE, type Shot } from './camera';
+	import { loadWhenIdle } from './idle';
 	import { demoHref } from './urls';
 
 	let { workstream, title }: { workstream: string; title: string } = $props();
@@ -59,14 +60,13 @@
 <div class="tour" bind:this={stage} bind:clientWidth={width} bind:clientHeight={height}>
 	<iframe
 		bind:this={frame}
-		src={demoHref('app', `/workstreams/${workstream}`, 'tour')}
+		data-src={demoHref('app', `/workstreams/${workstream}`, 'tour')}
 		{title}
 		width={APP.width}
 		height={APP.height}
-		loading="lazy"
 		class:ready
 		style:transform="translate({camera.x}px, {camera.y}px) scale({camera.scale})"
-		onload={() => (ready = true)}
+		{@attach loadWhenIdle(() => (ready = true))}
 	></iframe>
 </div>
 
