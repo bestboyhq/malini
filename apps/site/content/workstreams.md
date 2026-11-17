@@ -243,6 +243,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
+  To ask now, press **Refresh** in the pull request detail.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, your GitHub sign-in expired, or a git operation stopped part-way.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own: when GitHub shows a change, its branch moves, a turn in the chat ends, a git operation you aborted or finished leaves the checkout, or a retry comes due.
   There is no **Retry** in the top bar for these, because a retry without the details does nothing new; **Retry** shows only beside a failure whose reason is on screen.

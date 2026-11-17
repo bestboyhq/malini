@@ -1147,6 +1147,17 @@ describe('the pull request detail menu', () => {
 		expect(menu(topBar(null, surface({ pullRequestError: 'HTTP 502' })))).toEqual([]);
 	});
 
+	it('keeps Refresh while a connection problem hides the bar button', () => {
+		const bar = pullRequestTopBar(
+			null,
+			surface({ pullRequestError: 'HTTP 503' }),
+			'ready',
+			null,
+			false,
+		);
+		expect(menu(bar)).toEqual(['refresh']);
+	});
+
 	it('offers Refresh once the workstream was read and has a pull request', () => {
 		expect(menu(topBar(null, surface({ pullRequest: pullRequest({ state: 'merged' }) })))).toEqual([
 			'refresh',
