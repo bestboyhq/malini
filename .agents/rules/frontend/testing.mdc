@@ -39,5 +39,6 @@ Unit tests exist only where e2e cannot enumerate the cases.
 - Builds share `apps/malini/out`: run one build and one Playwright process at a time.
 - Specs run in parallel, beside other apps: a timeout covers the product's slowest refresh under load, not the typical case.
 - Never assert on elapsed time: the machines that run e2e have no consistent resources (0046).
+- CI retries a failing test once and a local run never does; a pass on retry is flaky, and a flake is a bug to fix at its root, never to retry away (0262).
 - Wait for the transcript to settle with `untilStill(page)`, never a fixed `waitForTimeout`; a sleep stays only to prove something does not happen for a while.
 - The harness runs the merge queue's delays ten times faster with `MALINI_SHIP_DELAY_SCALE=0.1`; a spec that needs the real delays passes its own through `launchMalini({ env })`.

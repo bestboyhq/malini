@@ -92,10 +92,11 @@ jobs:
           }
       - run: pnpm --filter malini exec playwright test --test-list "$RUNNER_TEMP/tests.txt"
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: playwright-report-${{ strategy.job-index }}
           path: apps/malini/test-results
+          if-no-files-found: ignore
 
   proof:
     name: remember the tree e2e passed on
