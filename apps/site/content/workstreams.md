@@ -76,6 +76,23 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 It commits as you, with the name and email in your git config, or your GitHub name and noreply address when git has none.
 While Settings, Privacy, **Sign contributions** is on, as it is unless you turn it off, each commit ends with `Co-authored-by: malini-agent[bot]`; turned off, nothing names Malini.
 
+## Ports
+
+Two workstreams that both serve on 5173 fight over it.
+List the ports your workstreams serve on by name in `.malini/workspace.json`, and each workstream gets its own:
+
+```json
+{ "schemaVersion": 1, "ports": ["web", "api", "db"] }
+```
+
+- Each name gets a free port from 40000 to 48999 in each workstream, the same one every turn, until you archive, save for later or delete the workstream.
+- Every command an agent runs, and every command you run from the chat, reads it as `MALINI_PORT_WEB`, `MALINI_PORT_API` and `MALINI_PORT_DB`: the name in capitals, with `-` as `_`.
+  `MALINI_WORKSTREAM_ID` holds the workstream's id, for a database or a Compose project that needs its own name.
+- Keep the usual port as the fallback, so the base checkout and your own terminal still get it: `vite --port ${MALINI_PORT_WEB:-5173}`, or `"${MALINI_PORT_DB:-5432}:5432"` in a Compose file.
+- A name is lowercase letters, digits and single dashes, up to 32 of them.
+  A name you add counts from the next turn, and agents add one when they need a port the file does not list.
+- What keeps running shows a leased port with its name, such as `web :40000`.
+
 ## The sidebar
 
 - The focus strip at the top narrows the sidebar.
@@ -122,8 +139,8 @@ While Settings, Privacy, **Sign contributions** is on, as it is unless you turn 
 - **Recently archived**, at the bottom of the sidebar, lists archived workstreams, newest first.
   Drag its top edge to make it taller, or click **Show all**.
   Click one to restore it, or open the pull request it merged.
-  Archiving stops everything still running from its folder: the commands its agents left in the background, what those commands started and let go, and its Docker Compose containers.
-  A command you run in your own terminal keeps running.
+  Archiving stops everything still running from its folder: the commands its agents left in the background, what those commands started and let go, its Docker Compose containers, and every container that mounts a folder inside it.
+  A command you run in your own terminal keeps running, and so does a service you start from the repository's base checkout, which every workstream shares.
   When Malini starts, it stops whatever is still running from the folder of a workstream that is no longer live.
 - Chats at Home and in an organization no longer exist.
   Malini archives the ones you had on its next launch, and they neither show in **Recently archived** nor come back.
@@ -226,6 +243,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
+  To ask now, press **Refresh** in the pull request detail.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, your GitHub sign-in expired, or a git operation stopped part-way.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own: when GitHub shows a change, its branch moves, a turn in the chat ends, a git operation you aborted or finished leaves the checkout, or a retry comes due.
   There is no **Retry** in the top bar for these, because a retry without the details does nothing new; **Retry** shows only beside a failure whose reason is on screen.

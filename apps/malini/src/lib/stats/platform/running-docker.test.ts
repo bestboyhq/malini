@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { containerWorkstream, dockerRunning, parseDockerInspect } from './running-docker';
 
+const SHOP = '/Users/me/malini/workstreams/ws-shop';
+const BLOG = '/Users/me/malini/workstreams/ws-blog';
 const WORKSTREAMS = [
-	{ id: 'ws-shop', path: '/Users/me/malini/workstreams/ws-shop' },
-	{ id: 'ws-blog', path: '/Users/me/malini/workstreams/ws-blog' },
+	{ id: 'ws-shop', path: SHOP },
+	{ id: 'ws-blog', path: BLOG },
 ];
 
 function container(
@@ -73,6 +75,7 @@ describe('running docker', () => {
 			startedAt: Date.parse('2026-10-19T09:15:30.123Z'),
 			ports: [3000],
 			labels: compose('api', 'db:service_healthy:false,cache:service_started:true'),
+			bindSources: [],
 		});
 		expect(parseDockerInspect('not json')).toEqual([]);
 		expect(parseDockerInspect('{"Id":"a1"}')).toEqual([]);
@@ -85,6 +88,69 @@ describe('running docker', () => {
 		expect(containerWorkstream(api, WORKSTREAMS)).toBe('ws-shop');
 		expect(containerWorkstream(labelled, WORKSTREAMS)).toBe('ws-blog');
 		expect(containerWorkstream(sibling, WORKSTREAMS)).toBeNull();
+	});
+
+	it('reads the sources of bind mounts only', () => {
+		const [mounted] = parseDockerInspect(
+			JSON.stringify([
+				container(
+					'b1',
+					{},
+					{
+						Mounts: [
+							{ Type: 'bind', Source: `${SHOP}/apps/backend/migrations`, Destination: '/init' },
+							{ Type: 'volume', Name: 'data', Source: '/var/lib/docker/volumes/data/_data' },
+							{ Type: 'bind' },
+							'not a mount',
+						],
+					},
+				),
+			]),
+		);
+
+		expect(mounted?.bindSources).toEqual([`${SHOP}/apps/backend/migrations`]);
+	});
+
+	it('matches a plain container to the one workstream its bind mounts are inside', () => {
+		const match = (labels: Record<string, string>, mounts: Record<string, string>[]) => {
+			const [parsed] = parseDockerInspect(
+				JSON.stringify([container('b1', labels, { Mounts: mounts })]),
+			);
+			if (!parsed) throw new Error('the fixture lost a container');
+			return containerWorkstream(parsed, WORKSTREAMS);
+		};
+		const bind = (source: string) => ({ Type: 'bind', Source: source });
+
+		expect(match({}, [bind(`${SHOP}/apps/backend/migrations`), bind(`${SHOP}/logs`)])).toBe(
+			'ws-shop',
+		);
+		expect(match({}, [bind(SHOP)])).toBe('ws-shop');
+		expect(match({}, [bind('/Users/me/malini/repositories/shop/base/infra')])).toBeNull();
+		expect(match({}, [bind('/Users/me/malini')])).toBeNull();
+		expect(match({}, [bind('/Users/me/malini/workstreams/ws-shopping')])).toBeNull();
+		expect(match({}, [{ Type: 'volume', Source: `${SHOP}/data` }])).toBeNull();
+		expect(match({}, [bind(SHOP), bind(BLOG)])).toBeNull();
+		expect(match({ 'app.malini.workstream': 'ws-blog' }, [bind(SHOP)])).toBe('ws-blog');
+		expect(match({ 'com.docker.compose.project.working_dir': BLOG }, [bind(SHOP)])).toBe('ws-blog');
+		expect(
+			match({ 'com.docker.compose.project.working_dir': '/Users/me/dev/shop' }, [bind(SHOP)]),
+		).toBe('ws-shop');
+	});
+
+	it('lists a container under the workstream its bind mounts are inside', () => {
+		const running = dockerRunning(
+			parseDockerInspect(
+				JSON.stringify([
+					container('b1', {}, { Mounts: [{ Type: 'bind', Source: `${BLOG}/clickhouse` }] }),
+				]),
+			),
+			WORKSTREAMS,
+		);
+
+		expect([...running.keys()]).toEqual(['ws-blog']);
+		expect(running.get('ws-blog')?.items).toEqual([
+			expect.objectContaining({ id: 'docker:b1', name: 'plain-b1-1', group: null }),
+		]);
 	});
 
 	it('folds the services others depend on behind the ones that use them', () => {

@@ -90,7 +90,7 @@ Send prompts and commit only in workstreams created inside the sandbox; a flow t
 
 ## Drive and capture
 
-`scripts/malini.mjs` exports `launch(topic, { foreground, executablePath })`.
+`scripts/malini.mjs` exports `launch(topic, { foreground, executablePath, temp })`.
 It returns the Playwright `page`, the Electron `app`, `errors` (console and page errors), `shot(name)`, and `close()`.
 `shot` waits for transitions to settle, then captures Malini's own window with Electron's `capturePage()` into `.context/<name>.png`.
 It needs no screen recording permission, so it runs inside Malini's sandbox, where `screencapture` cannot.
@@ -111,6 +111,9 @@ try {
 ```
 
 The window shows the theme the user is in: `launch` reads `MALINI_THEME`, which Malini sets for its agents, and follows the system without it.
+
+`launch` sets `TMPDIR` to `$P/tmp`, and the model that names chats and services reads that folder as its working directory, so a name can borrow "malini profile" from the path.
+To judge a name the way a user's Mac makes it, pass `{ temp: mkdtempSync(join(tmpdir(), 'tmp.')) }`, a folder whose path carries no words, like `/var/folders/…/T`, and remove it after `close()`.
 
 Locate by role and accessible name, and wait on the state the user would see, never on a timeout.
 Playwright's `click()` may scroll the transcript to reach its target, which unpins it the way a user scrolling up would; when the flow depends on scroll position, click at the target's box with `page.mouse.click`.

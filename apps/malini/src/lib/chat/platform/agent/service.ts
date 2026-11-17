@@ -26,6 +26,7 @@ import { BrowserDialogOpen, type BrowserDialogAnswer } from '$lib/browser/browse
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	listWorkstreams,
+	workstreamEnvironment,
 	workstreamRepositoryName,
 } from '$shared/repositories/repositories.platform';
 import { IdSequence } from '../id-sequence';
@@ -581,6 +582,7 @@ export async function startAgentService(
 			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			...(deps.secrets ? { secrets: secretsReaching(db, deps.secrets) } : {}),
 			...(deps.plugins ? { plugins: deps.plugins } : {}),
+			environment: (workstreamId, worktree) => workstreamEnvironment(db, workstreamId, worktree),
 			boundary: (automation) =>
 				agentBoundary(automation, {
 					appDataRoot: context.appDataRoot,

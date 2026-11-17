@@ -222,6 +222,7 @@ In the sandbox, a command:
 Electron, Playwright with its Chromium, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
 Electron and Chrome keep their own sandbox off there, since the two cannot nest.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
+What a command leaves running, with `&`, `nohup` or `disown`, stops when that command ends, so a server that should outlive it starts in the background.
 
 Tools keep state of their own outside your files, and the sandbox opens general tool state by folder without a card: `~/Library/Logs/<tool>`, `~/.local/state/<tool>`, the caches, the temporary folders, a dot folder at the top of your home, and `~/Library/Application Support/<tool>` when the folder matches the program's name.
 Malini records each one in Settings, Agent access, and every later command keeps it.

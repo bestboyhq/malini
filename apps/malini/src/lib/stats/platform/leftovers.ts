@@ -1,7 +1,7 @@
 import { sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { childrenByParent } from './process-tree';
-import { containerWorkstream, type DockerContainer, type WorkstreamFolder } from './running-docker';
+import { linkedWorkstreams, type DockerContainer, type WorkstreamFolder } from './running-docker';
 import { withDescendants } from './running-ports';
 
 export const PROCESS_LIST_ARGS = ['-A', '-ww', '-o', 'pid=,ppid=,tty=,args='] as const;
@@ -67,8 +67,8 @@ export function leftoverContainers(
 	return containers
 		.filter(
 			(container) =>
-				containerWorkstream(container, place.folders) !== null &&
-				containerWorkstream(container, place.live) === null,
+				linkedWorkstreams(container, place.folders).length > 0 &&
+				linkedWorkstreams(container, place.live).length === 0,
 		)
 		.map(({ id }) => id);
 }

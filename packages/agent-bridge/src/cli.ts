@@ -592,6 +592,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		activeRunIds.add(cmd.runId);
 		activeRunIdsBySession.set(cmd.sessionId, activeRunIds);
 		try {
+			if (cmd.environment) await handle.setEnvironment?.(cmd.environment);
 			if (cmd.secrets) await handle.setSecrets?.(cmd.secrets);
 			if (!unsentRuns.delete(cmd.runId)) return;
 			await handle.sendPrompt(

@@ -66,6 +66,7 @@ const ALL_TABLES = [
 	'skill_choices',
 	'workstream_commit_runs',
 	'workstream_opened_files',
+	'workstream_ports',
 	'workstream_ship',
 	'workstreams',
 ];

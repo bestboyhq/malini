@@ -7,6 +7,7 @@ import { pullRequestTopBar } from '$lib/pull-requests/domain/pull-request-top-ba
 import { pullRequestShipAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-ship.aggregate.svelte';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/pull-request-scope.store.svelte';
+import { connectionProblemQuery } from '$shared/repositories/repositories.api';
 
 export { pullRequestTopBarQuery };
 
@@ -18,6 +19,7 @@ class PullRequestTopBarQuery {
 				repositorySurfaceAggregate.presentedSurfaceFor(pullRequestScopeStore.workstreamId),
 				pullRequestAvailabilityOf(pullRequestScopeStore),
 				agentStatus,
+				connectionProblemQuery.data === null,
 			),
 	);
 }

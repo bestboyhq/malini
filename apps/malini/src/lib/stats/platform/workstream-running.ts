@@ -23,7 +23,11 @@ import {
 	listOpenBackgroundCommands,
 	type OpenBackgroundCommand,
 } from '$lib/chat/chat.platform';
-import { listWorkstreams } from '$shared/repositories/repositories.platform';
+import {
+	leasedEnvironment,
+	listLeasedPorts,
+	listWorkstreams,
+} from '$shared/repositories/repositories.platform';
 import {
 	leftoverContainers,
 	leftoverProcesses,
@@ -36,6 +40,7 @@ import { dockerRunning, parseDockerInspect, type DockerContainer } from './runni
 import {
 	commandDetail,
 	commandDirectory,
+	expandVariables,
 	fallbackServiceName,
 	folderName,
 	namingTask,
@@ -290,6 +295,7 @@ export class WorkstreamRunningMonitor {
 			}
 		}
 
+		const leases = listLeasedPorts(db);
 		const snapshot = [...new Set([...agentItems.keys(), ...docker.keys()])]
 			.sort()
 			.flatMap((workstreamId): WorkstreamRunning[] => {
@@ -301,7 +307,11 @@ export class WorkstreamRunningMonitor {
 				];
 				if (items.length === 0) return [];
 				const turn = latestWorkstreamTurn(db, workstreamId);
-				return [{ workstreamId, items, behind: docker.get(workstreamId)?.behind ?? [], turn }];
+				const namedPorts = leases
+					.filter((lease) => lease.workstreamId === workstreamId)
+					.map(({ name, port }) => ({ name, port }));
+				const behind = docker.get(workstreamId)?.behind ?? [];
+				return [{ workstreamId, items, namedPorts, behind, turn }];
 			});
 		for (const id of this.#commands.keys()) if (!targets.has(id)) this.#commands.delete(id);
 		this.#targets = targets;
@@ -326,7 +336,14 @@ export class WorkstreamRunningMonitor {
 			detail: commandDetail(text) || command.description,
 			outputFile: source?.outputFile ?? null,
 			fallbackName: fallbackServiceName(text, folderName(directory, workstreamPath)),
-			namingTask: source === null ? null : namingTask(command.description, text, packageName),
+			namingTask:
+				source === null
+					? null
+					: namingTask(
+							command.description,
+							expandVariables(text, leasedEnvironment(this.#deps.db, command.workstreamId)),
+							packageName,
+						),
 		};
 		if (resolved.outputFile !== null) this.#commands.set(id, resolved);
 		return resolved;

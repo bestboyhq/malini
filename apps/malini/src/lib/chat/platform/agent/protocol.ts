@@ -116,6 +116,7 @@ export type BridgeCommand =
 			theme?: AgentTheme;
 			lineage?: AgentLineage;
 			secrets?: Readonly<Record<string, string>>;
+			environment?: Readonly<Record<string, string>>;
 			plugins?: readonly string[];
 			compactWindow?: number;
 			boundary?: AgentBoundary;

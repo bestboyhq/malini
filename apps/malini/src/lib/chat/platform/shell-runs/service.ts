@@ -46,7 +46,10 @@ export type ReportedShellRun = Readonly<
 export interface ShellRunsDeps {
 	readonly db: MaliniDatabase;
 	readonly checkout: (workstreamId: string) => Promise<string> | string;
-	readonly environment: () => Readonly<Record<string, string>>;
+	readonly environment: (
+		workstreamId: string,
+		checkout: string,
+	) => Promise<Readonly<Record<string, string>>> | Readonly<Record<string, string>>;
 	readonly changed: (run: ShellRun) => void;
 }
 
@@ -92,7 +95,7 @@ export class ShellRuns {
 		const previous = this.#anchoredAt(args.anchor);
 		if (previous?.child) return previous.run;
 		if (previous) this.#entries.delete(previous.run.id);
-		const env = { ...this.#deps.environment(), TERM: 'xterm-256color' };
+		const env = { ...(await this.#deps.environment(workstreamId, cwd)), TERM: 'xterm-256color' };
 		const entry = this.#register(args);
 		let child: ChildProcessWithoutNullStreams;
 		try {
