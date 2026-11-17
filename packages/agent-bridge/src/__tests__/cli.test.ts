@@ -296,7 +296,7 @@ describe('cli: JSONL over stdio (subprocess)', () => {
 		SPI_TIMEOUT_MS + 5_000,
 	);
 
-	it(
+	it.skipIf(process.platform === 'win32')(
 		'ends the process group it leads once its stdin closes',
 		async () => {
 			const cliPath = resolve(__dirname, '..', '..', 'dist', 'cli.js');
