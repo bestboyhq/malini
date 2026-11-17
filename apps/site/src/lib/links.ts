@@ -3,7 +3,7 @@ import { GITHUB_URL } from './urls';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
-	'Malini is a free, open source agentic development environment for builders moving fast. Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.';
+	'Malini is the missing abstraction layer for building with agents, free and open source. Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.';
 
 export const DOWNLOAD_URL =
 	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
