@@ -120,7 +120,7 @@
 	onMount(() => {
 		loadOnboardingCommand();
 		clearRepositoryConnectErrorCommand();
-		loadGithubAuthCommand();
+		if (!githubAuth) loadGithubAuthCommand();
 	});
 
 	$effect(() => {
