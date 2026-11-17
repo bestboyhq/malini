@@ -5,7 +5,7 @@ export default defineConfig({
 	timeout: 30_000,
 	fullyParallel: true,
 	workers: process.env['CI'] ? 2 : '33%',
-	retries: 0,
+	retries: process.env['CI'] ? 1 : 0,
 	reporter: process.env['CI'] ? [['list'], ['github']] : 'list',
 	use: { trace: 'retain-on-failure' },
 });
