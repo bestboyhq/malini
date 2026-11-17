@@ -1970,6 +1970,14 @@ UPDATE automation_definitions
   WHERE builtin = 'fix-checks' AND trigger_when IS NULL;
 `,
 	`ALTER TABLE workstreams ADD COLUMN started_on_base TEXT;`,
+	`
+CREATE TABLE workstream_ports (
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  port INTEGER NOT NULL UNIQUE CHECK (port BETWEEN 1024 AND 65535),
+  PRIMARY KEY (workstream_id, name)
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

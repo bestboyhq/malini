@@ -7,6 +7,7 @@ export type ServiceName = Readonly<{ name: string; kind: RunningItemKind }>;
 
 const LEADING_CD = /^\s*cd\s+(?:"([^"]*)"|'([^']*)'|([^\s;&|]+))\s*&&\s*/u;
 const TASK_REPLY = /^task\s*:\s*/iu;
+const VARIABLE = /\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(?::?[-=?][^}]*)?\}|([A-Za-z_][A-Za-z0-9_]*))/gu;
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
 const RUNNERS = new Set(['npx', 'pnpm', 'npm', 'bun', 'bunx', 'yarn']);
 const RUNNER_VERBS = new Set(['run', 'exec', 'x', 'dlx']);
@@ -24,6 +25,14 @@ export function namingTask(
 		`Command: ${command}`,
 		...(packageName === null ? [] : [`Package: ${packageName}`]),
 	].join('\n');
+}
+
+export function expandVariables(command: string, values: Readonly<Record<string, string>>): string {
+	return command.replace(
+		VARIABLE,
+		(reference, braced: string | undefined, bare: string | undefined) =>
+			values[braced ?? bare ?? ''] ?? reference,
+	);
 }
 
 export function parseServiceName(reply: string): ServiceName | null {
