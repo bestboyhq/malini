@@ -50,12 +50,22 @@ export function drawnCursor(start: Point): Cursor | null {
 	};
 	addEventListener('pointerdown', stop, { capture: true });
 	addEventListener('keydown', stop, { capture: true });
+	let shown = true;
+	let resume = (): void => {};
+	new IntersectionObserver(([entry]) => {
+		shown = entry?.isIntersecting ?? true;
+		if (shown) resume();
+	}).observe(document.documentElement);
+	const onScreen = (): Promise<void> =>
+		shown ? Promise.resolve() : new Promise((resolve) => (resume = resolve));
 
 	const wait = async (ms: number): Promise<void> => {
 		await new Promise((resolve) => setTimeout(resolve, ms));
+		await onScreen();
 		if (stopped) throw new Stopped();
 	};
 	const frame = async (): Promise<number> => {
+		await onScreen();
 		const now = await new Promise<number>((resolve) => requestAnimationFrame(resolve));
 		if (stopped) throw new Stopped();
 		return now;
