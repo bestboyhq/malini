@@ -19,7 +19,6 @@
 		GitInstallStatus,
 		githubAuthQuery,
 		hiddenRepositoriesQuery,
-		loadGithubAuthCommand,
 		openRepositoryFolderCommand,
 		RemoveRepositoryButton,
 		removeRepositoryCommand,
@@ -122,7 +121,6 @@
 	onMount(() => {
 		loadOnboardingCommand();
 		clearRepositoryConnectErrorCommand();
-		loadGithubAuthCommand();
 	});
 
 	$effect(() => {
