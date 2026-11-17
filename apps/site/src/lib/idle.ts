@@ -2,7 +2,7 @@ import type { Attachment } from 'svelte/attachments';
 
 let frames: Promise<void> = Promise.resolve();
 
-export function idle(): Promise<void> {
+function idle(): Promise<void> {
 	return new Promise((resolve) => {
 		const wait = (): void => {
 			if (typeof requestIdleCallback === 'function')

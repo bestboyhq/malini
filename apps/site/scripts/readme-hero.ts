@@ -286,6 +286,7 @@ async function render(): Promise<void> {
 	const { app, BrowserWindow, nativeTheme, net, session } = await import('electron');
 	const still = process.argv.includes('--still');
 	app.dock?.hide();
+	app.on('window-all-closed', () => {});
 	if (still) app.commandLine.appendSwitch('force-prefers-reduced-motion');
 	try {
 		await app.whenReady();
