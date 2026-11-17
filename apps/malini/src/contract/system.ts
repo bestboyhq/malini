@@ -77,6 +77,7 @@ export const USAGE_STEPS = {
 		'none',
 		'setup',
 		'claude_code',
+		'git',
 		'claude_sign_in',
 		'chatgpt_sign_in',
 		'chatgpt_model',

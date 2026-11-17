@@ -150,7 +150,7 @@ async function worktreeContentPathspecs(worktreePath: string): Promise<string[]>
 }
 
 export async function diffCollector(worktreePath: string, path: string): Promise<string> {
-	if (path.includes('..') || path.startsWith('/')) {
+	if (path.includes('..') || isAbsolute(path)) {
 		throw GitError.unsafePath(`diff path \`${path}\` rejected by delete-guard`);
 	}
 	if (isAppManagedGitPath(path)) return '';

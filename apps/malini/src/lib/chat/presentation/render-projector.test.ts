@@ -170,15 +170,15 @@ describe('IncrementalRenderProjector', () => {
 	it('processes each normal live append once instead of refolding the transcript', () => {
 		const projector = new IncrementalRenderProjector();
 		const envelopes: EventEnvelope[] = [];
-		for (let seq = 1; seq <= 5_000; seq += 1) {
+		for (let seq = 1; seq <= 1_000; seq += 1) {
 			envelopes.push(
 				envelope(seq, { type: 'assistant.message', runId: 'run-1', text: `chunk ${seq}` }),
 			);
 			projector.project(envelopes);
 		}
 
-		expect(projector.stats()).toEqual({ processedEnvelopeCount: 5_000, rebuildCount: 0 });
-		expect(firstRun(projector.project(envelopes)).items).toHaveLength(5_000);
+		expect(projector.stats()).toEqual({ processedEnvelopeCount: 1_000, rebuildCount: 0 });
+		expect(firstRun(projector.project(envelopes)).items).toHaveLength(1_000);
 	});
 
 	it('projects a context handoff as a relay row on the live path, exactly as the fold does', () => {

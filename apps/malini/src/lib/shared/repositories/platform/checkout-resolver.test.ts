@@ -62,7 +62,7 @@ function seedWorkstream(id: string, projectId: string, path: string): void {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-checkouts-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-checkouts-')));
 	db = openMigratedDatabase(':memory:');
 	resolver = createCheckoutResolver({ db, checkoutsRoot: root });
 });

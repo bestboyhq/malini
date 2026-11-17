@@ -10,6 +10,8 @@ import {
 	launchMalini,
 	openActivityGroups,
 	openWorkstream,
+	openedUrls,
+	recordBrowser,
 	seedWorkstream,
 	sendPrompt,
 	untilStill,
@@ -176,6 +178,31 @@ test('a prompt shows back exactly what was typed, markup and markdown included, 
 		const bubble = page.getByTestId('chat-message-bubble-user');
 		await expect(bubble).toHaveText(written);
 		await expect(bubble.getByRole('img')).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a link in a reply opens only a web page outside Malini, however it is clicked', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await recordBrowser(app);
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-reply-links-ws', 'Reply links');
+		await openWorkstream(page, seeded.workstreamId);
+		const web = 'https://example.com/docs';
+		const links = ['/System/Applications/Calculator.app', 'C:/Windows/System32/calc.exe', web];
+
+		await sendPrompt(page, links.map((href) => `LINK:${href}`).join(' '));
+		await expectLatestRunCompleted(page);
+		for (const href of links) {
+			await page.locator(LATEST_RUN).getByRole('link', { name: href }).click({ button: 'middle' });
+		}
+		await expect.poll(() => openedUrls(app)).toContain(web);
+		expect(await openedUrls(app)).toEqual([web]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

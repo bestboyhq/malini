@@ -6,7 +6,7 @@ import type {
 	ExtensionPanelManifest,
 	ExtensionWorkstream,
 } from '@malini/extension-api';
-import { EXTENSION_EVENTS } from '@malini/extension-api';
+import { EXTENSION_EVENTS, isAbsolutePath } from '@malini/extension-api';
 import {
 	RepositoryController,
 	repositorySurfaceState,
@@ -110,7 +110,7 @@ const repositoryExtension: ExtensionModule = {
 					...openFileCommand,
 					handler: async (input) => {
 						const target = parseOpenFileTarget(input);
-						if (target.path.startsWith('/')) {
+						if (isAbsolutePath(target.path)) {
 							fileTabs.open(target);
 							return;
 						}

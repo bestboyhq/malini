@@ -206,6 +206,7 @@ export async function registerModules(
 			await chat.deliver({ ...wake, kind: 'report' });
 		},
 		brainWorkstream: () => brain.workstream(),
+		leases: agentRunLeases,
 	});
 	const brain = registerBrain(context, {
 		gh: repositories.gh,

@@ -20,6 +20,7 @@ import {
 	openSettingsFromMenu,
 } from './harness';
 import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
+import { osFor } from '../../src/lib/shared/os/domain/os';
 
 function settingsSection(page: Page, name: string) {
 	return page
@@ -203,13 +204,19 @@ test('Settings → Privacy shows the numbers usage data sends about yesterday, a
 	}
 });
 
-test('Settings → Privacy shows usage data off while the login shell sets DO_NOT_TRACK', async () => {
+test('Settings → Privacy shows usage data off while the user sets DO_NOT_TRACK', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ shellProfile: 'DO_NOT_TRACK=1\nexport DO_NOT_TRACK\n' });
+	const app = await launchMalini(
+		process.platform === 'win32'
+			? { env: { DO_NOT_TRACK: '1' } }
+			: { shellProfile: 'DO_NOT_TRACK=1\nexport DO_NOT_TRACK\n' },
+	);
 	try {
 		const { page } = app;
 		await openSettings(page, '#/settings/privacy');
-		await expect(page.getByText('is set in your shell, so Malini sends nothing.')).toBeVisible({
+		await expect(
+			page.getByText(`is set in ${osFor(process.platform).environment}, so Malini sends nothing.`),
+		).toBeVisible({
 			timeout: 20_000,
 		});
 		const share = page.getByRole('switch', { name: 'Share usage stats' });

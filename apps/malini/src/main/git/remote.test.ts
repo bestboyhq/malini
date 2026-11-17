@@ -51,7 +51,7 @@ describe('commitWorktreeChanges', () => {
 		expect(existsSync(join(repo, AGENT_ATTACHMENTS_PATH))).toBe(true);
 	});
 
-	it('refuses to sweep a flood of new files into a commit', async () => {
+	it('refuses to sweep a flood of new files into a commit, and commits once they are ignored', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const repo = join(dir, 'repo');
@@ -68,6 +68,12 @@ describe('commitWorktreeChanges', () => {
 			`this commit would add ${MAX_ADDED_FILES_PER_COMMIT + 1} files`,
 		);
 		expect(await realGit(repo, ['rev-parse', 'HEAD'])).toBe(head);
+
+		await writeFile(join(repo, '.gitignore'), '.pnpm-store/\n');
+		await commitWorktreeChanges(repo, 'ignore the package store');
+		expect(await realGit(repo, ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'])).toBe(
+			'.gitignore\n',
+		);
 	}, 30_000);
 });
 

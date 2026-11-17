@@ -11,12 +11,11 @@ import {
 } from 'node:fs';
 import { rename, rm, writeFile } from 'node:fs/promises';
 import { constants as osConstants, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import {
 	INSIDE_THE_SANDBOX,
 	OUTSIDE_THE_SANDBOX,
 	SANDBOX_ENVIRONMENT,
-	SANDBOX_EXEC,
 	SECRETS_FOLDER_PREFIX,
 } from '../sandbox.js';
 import { errnoCode, isRecord } from '../type-guards.js';
@@ -24,6 +23,9 @@ import { errnoCode, isRecord } from '../type-guards.js';
 export const SECRET_MASK = '[secret]';
 export const MASKED_LENGTH = 8;
 
+const DEFAULT_SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
+const SANDBOX_FILE = 'sandbox';
+const SANDBOX_UNREADY = 'malini: the sandbox is not ready, so this command did not run';
 const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
@@ -36,23 +38,25 @@ const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 
 const RUN_SCRIPT = `#!/bin/bash
 folder=\${0%/*}
-shell=\${CLAUDE_CODE_SHELL:-/bin/zsh}
+shell=\${CLAUDE_CODE_SHELL:-$BASH}
 [ -r "$folder/environment.sh" ] && . "$folder/environment.sh"
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
 command=$1
-profile=(-f "$folder/sandbox.sb")
-if [[ $1 =~ ${INSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && once="$folder/passes/\${BASH_REMATCH[1]}.sb" &&
-	granted=$(/bin/cat "$once" 2>/dev/null) && /bin/rm "$once"; then
-	profile=(-p "$granted")
-fi
+words() { local word; words=(); while IFS= read -r -d '' word; do words+=("$word"); done <"$1"; }
 confine=()
-if [ -r "$folder/sandbox.sb" ] && ! {
+if [ -r "$folder/${SANDBOX_FILE}" ] && ! {
 	[[ $1 =~ ${OUTSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] && /bin/rm "$folder/passes/\${BASH_REMATCH[1]}" 2>/dev/null
 }; then
-	confine=(/usr/bin/env ${sandboxEnvironment} ${SANDBOX_EXEC} "\${profile[@]}")
+	words "$folder/${SANDBOX_FILE}"
+	if [[ $1 =~ ${INSIDE_THE_SANDBOX}([0-9a-f]{32}) ]] &&
+		once="$folder/passes/\${BASH_REMATCH[1]}.${SANDBOX_FILE}" && [ -r "$once" ]; then
+		words "$once" && /bin/rm "$once"
+	fi
+	[ \${#words[@]} -gt 0 ] || { echo "${SANDBOX_UNREADY}" >&2; exit 1; }
+	confine=(/usr/bin/env ${sandboxEnvironment} "\${words[@]}")
 fi
 compact() {
-	local quote="'\\"'\\"'" before body tail original rewritten reply
+	local quote="'\\"'\\"'" before body tail original rewritten reply rewriting watchdog code
 	[[ $command == *" && eval '"* && $command != *$'\\1'* ]] || return 0
 	before=\${command%%" && eval '"*}
 	tail=\${command#*" && eval '"}
@@ -63,16 +67,21 @@ compact() {
 	original=\${body//$'\\1'/\\'}
 	rewritten=$original
 	if [[ $original != *rtk* ]]; then
-		IFS= read -r -d '' -t ${REWRITE_SECONDS} reply < <(
-			exec 2>/dev/null
-			reply=$("\${confine[@]}" "$rtk" rewrite "$original")
-			printf '%s %s\\0' $? "$reply"
-		)
-		rewritten=\${reply#* }
-		[[ (\${reply%% *} == 0 || \${reply%% *} == 3) && \${rewritten//rtk /} == "$original" ]] ||
-			rewritten=$original
+		reply=$folder/rewrite.$$
+		"\${confine[@]}" "$rtk" rewrite "$original" </dev/null >"$reply" 2>/dev/null &
+		rewriting=$!
+		{ /bin/sleep ${REWRITE_SECONDS}; kill $rewriting; } </dev/null >/dev/null 2>&1 &
+		watchdog=$!
+		wait $rewriting 2>/dev/null
+		code=$?
+		kill $watchdog 2>/dev/null
+		wait $watchdog 2>/dev/null
+		rewritten=$(<"$reply")
+		/bin/rm -f "$reply"
+		[[ ($code == 0 || $code == 3) && \${rewritten//rtk /} == "$original" ]] || rewritten=$original
 	fi
-	local bin=\${rtk%/*}
+	local bin
+	bin=$(cd -- "\${rtk%[/\\\\]*}" && pwd) || return 0
 	command="$before && PATH='\${bin//\\'/$quote}':\\$PATH && eval '\${rewritten//\\'/$quote}\${tail//$'\\1'/$quote}"
 }
 [ -r "$folder/compact.sh" ] && . "$folder/compact.sh" && [ -x "$rtk" ] && compact
@@ -132,7 +141,7 @@ export class SessionSecrets {
 	constructor(folder: string, rtk: string | null = null) {
 		this.#folder = folder;
 		this.#rtk = rtk;
-		this.runScript = join(folder, 'run');
+		this.runScript = join(folder, 'run').replaceAll(sep, '/');
 		writeFileSync(this.runScript, RUN_SCRIPT, { mode: 0o700 });
 	}
 
@@ -140,9 +149,9 @@ export class SessionSecrets {
 		this.#place('compact.sh', on && this.#rtk !== null ? compactSettings(this.#rtk) : null);
 	}
 
-	confine(profile: string | null): void {
-		this.#confined = profile !== null;
-		this.#place('sandbox.sb', profile);
+	confine(prefix: readonly string[] | null): void {
+		this.#confined = prefix !== null;
+		this.#place(SANDBOX_FILE, prefix === null ? null : words(prefix));
 	}
 
 	#place(name: string, contents: string | null): void {
@@ -161,9 +170,9 @@ export class SessionSecrets {
 		return `: ${OUTSIDE_THE_SANDBOX}${this.#pass('', '')}; ${command}`;
 	}
 
-	passInside(command: string, profile: string): string {
+	passInside(command: string, prefix: readonly string[]): string {
 		if (!this.#confined) return command;
-		return `: ${INSIDE_THE_SANDBOX}${this.#pass('.sb', profile)}; ${command}`;
+		return `: ${INSIDE_THE_SANDBOX}${this.#pass(`.${SANDBOX_FILE}`, words(prefix))}; ${command}`;
 	}
 
 	#pass(extension: string, contents: string): string {
@@ -220,8 +229,12 @@ export function claudeShell(env: NodeJS.ProcessEnv = process.env): string {
 	const candidates = [env['CLAUDE_CODE_SHELL'], env['SHELL']];
 	return (
 		candidates.find((shell) => shell && /bash|zsh/u.test(shell) && isExecutable(shell)) ??
-		'/bin/zsh'
+		DEFAULT_SHELL
 	);
+}
+
+function words(prefix: readonly string[]): string {
+	return prefix.map((word) => `${word}\0`).join('');
 }
 
 function masksOf(values: readonly string[]): string[] {

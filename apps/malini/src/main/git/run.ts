@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { GitError } from '$main/errors';
+import { spawnable } from '$main/process/command';
 
 export const MAX_GIT_STDERR_BYTES = 64 * 1024;
 
@@ -38,6 +39,12 @@ export function runGit(
 	return runner(args, env, onStderr);
 }
 
+let gitInstall: Promise<unknown> = Promise.resolve();
+
+export function holdGitUntil(install: Promise<unknown>): void {
+	gitInstall = install.catch(() => {});
+}
+
 interface SpawnedGit {
 	stdout: Buffer;
 	stderr: Buffer;
@@ -47,7 +54,39 @@ interface SpawnedGit {
 	signal: NodeJS.Signals | null;
 }
 
-function spawnGit(
+function withoutFsmonitor(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	const given = Number.parseInt(environment['GIT_CONFIG_COUNT'] ?? '0', 10);
+	const next = Number.isSafeInteger(given) && given > 0 ? given : 0;
+	return {
+		...environment,
+		GIT_CONFIG_COUNT: String(next + 1),
+		[`GIT_CONFIG_KEY_${next}`]: 'core.fsmonitor',
+		[`GIT_CONFIG_VALUE_${next}`]: 'false',
+	};
+}
+
+const CONFIG_FILE_RACE_ATTEMPTS = 3;
+const CONFIG_FILE_RACE_SETTLE_MS = 50;
+const CONFIG_FILES_UNREADABLE = /unknown error occurred while reading the configuration files/u;
+
+function lostTheConfigFileRace(result: SpawnedGit): boolean {
+	return result.exitCode !== 0 && CONFIG_FILES_UNREADABLE.test(result.stderr.toString('utf8'));
+}
+
+async function spawnGit(
+	args: readonly string[],
+	env: GitEnv,
+	limits: { maxStdoutBytes?: number; input?: string },
+): Promise<SpawnedGit> {
+	await gitInstall;
+	for (let attempt = 1; ; attempt += 1) {
+		const result = await spawnGitOnce(args, env, limits);
+		if (attempt >= CONFIG_FILE_RACE_ATTEMPTS || !lostTheConfigFileRace(result)) return result;
+		await new Promise((settled) => setTimeout(settled, CONFIG_FILE_RACE_SETTLE_MS * attempt));
+	}
+}
+
+function spawnGitOnce(
 	args: readonly string[],
 	env: GitEnv,
 	limits: { maxStdoutBytes?: number; input?: string; onStderr?: GitStderrListener },
@@ -55,9 +94,16 @@ function spawnGit(
 	return new Promise((resolve, reject) => {
 		let child;
 		try {
-			child = spawn('git', [...args], {
-				env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...env },
+			const environment = withoutFsmonitor({
+				...process.env,
+				GIT_OPTIONAL_LOCKS: '0',
+				...env,
+			});
+			const command = spawnable('git', args, environment);
+			child = spawn(command.file, command.args, {
+				env: environment,
 				stdio: ['pipe', 'pipe', 'pipe'],
+				...command.options,
 			});
 		} catch (error) {
 			reject(GitError.fromNodeError(error));
@@ -226,6 +272,7 @@ export async function runGitBoundedStdout(
 }
 
 export const DISABLED_GIT_HOOKS_CONFIG = 'core.hooksPath=/dev/null';
+export const EXACT_CONTENT_CONFIG = 'core.autocrlf=false';
 export const DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG = 'protocol.allow=never';
 export const ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG = 'protocol.https.allow=always';
 export const REQUIRE_TLS_VERIFICATION_CONFIG = 'http.sslVerify=true';

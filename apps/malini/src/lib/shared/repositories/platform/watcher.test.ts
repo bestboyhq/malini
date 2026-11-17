@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -148,7 +148,7 @@ function startWatchers(debounceMs = DEBOUNCE_MS, maxWaitMs = MAX_WAIT_MS): Works
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-watcher-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-watcher-')));
 	db = openMigratedDatabase(':memory:');
 	events = createEventBus({ forwardToWindows: false });
 	emitted = [];
@@ -267,6 +267,21 @@ describe('createWorkstreamWatchers', () => {
 			['.context/take.mp4'],
 			['.context/take.mp4'],
 		]);
+	});
+
+	it('names the file that changed, not the directory that holds it', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		mkdirSync(join(path, '.context'), { recursive: true });
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		writeFileSync(join(path, '.context', 'take.mp4'), 'take\n');
+		utimesSync(join(path, '.context'), new Date(), new Date());
+		await waitFor(() => emitted.length === 1);
+		await sleep(SETTLE_MS);
+
+		expect(emitted.map((frame) => frame.paths)).toEqual([['.context/take.mp4']]);
 	});
 
 	it('keeps flushing at the max wait while a burst never goes quiet', async () => {

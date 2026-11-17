@@ -37,6 +37,10 @@ async function visit(page: Page, workstreamId: string): Promise<void> {
 }
 
 test('Changes clicked before the extensions start still opens Files on the changed files', async () => {
+	test.skip(
+		process.platform === 'win32',
+		'Windows has no FIFO to hold the extension registry read',
+	);
 	test.setTimeout(120_000);
 	const root = temporaryRoot();
 	const home = join(root, 'extension-home');

@@ -113,7 +113,7 @@ test('Settings, Extensions installs an extension into the next prompt of every c
 		await expectAssistantReply(page);
 		await expect.poll(() => pluginsOfEachPrompt(app).at(-1)?.length ?? 0).toBe(1);
 		const [folder] = pluginsOfEachPrompt(app).at(-1) ?? [];
-		expect(folder).toMatch(/extensions\/installed\/svelte@1\.0\.4$/u);
+		expect(folder).toMatch(/extensions[\\/]installed[\\/]svelte@1\.0\.4$/u);
 		expect(readFileSync(join(folder ?? '', '.mcp.json'), 'utf8')).toContain('mcp.svelte.dev');
 		expect(readFileSync(join(folder ?? '', 'skills/runes/SKILL.md'), 'utf8')).toContain(
 			'Use runes.',

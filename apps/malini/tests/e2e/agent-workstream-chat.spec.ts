@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { holdAgentRuns, seedWorkstreamOnFakeGithub } from './fake-github';
@@ -15,6 +15,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	writeExecutable,
 	waitWhile,
 } from './harness';
 
@@ -69,11 +70,10 @@ async function otherWorkstream(page: Page, workstreamId: string): Promise<string
 function holdNpmInstall(app: LaunchedApp): string {
 	const release = join(app.home, 'npm-release');
 	const stub = join(app.bin, 'npm');
-	writeFileSync(
+	writeExecutable(
 		stub,
 		`#!/bin/sh\n${waitWhile(`[ ! -f "${release}" ] && [ -d "${app.home}" ]`)}\nmkdir -p node_modules\n`,
 	);
-	chmodSync(stub, 0o755);
 	return release;
 }
 

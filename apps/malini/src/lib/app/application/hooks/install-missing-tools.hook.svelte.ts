@@ -9,15 +9,20 @@ import {
 	githubAuthQuery,
 	githubCliInstallQuery,
 	githubSetupStatus,
+	gitSetupQuery,
+	installGitCommand,
 	installGithubCliCommand,
+	loadGitSetupCommand,
 	loadGithubAuthCommand,
 } from '$shared/repositories/repositories.api';
 
 export function installMissingToolsHook(): () => void {
 	let claudeCodeTried = false;
 	let githubCliTried = false;
+	let gitTried = false;
 	loadProviderCapabilitiesCommand();
 	loadGithubAuthCommand();
+	loadGitSetupCommand();
 	return $effect.root(() => {
 		$effect(() => {
 			if (claudeCodeTried || claudeCodeStatusQuery.data.kind !== 'missing') return;
@@ -31,6 +36,11 @@ export function installMissingToolsHook(): () => void {
 			if (githubCliInstallQuery.data.kind !== 'idle') return;
 			githubCliTried = true;
 			installGithubCliCommand();
+		});
+		$effect(() => {
+			if (gitTried || gitSetupQuery.data.kind !== 'missing') return;
+			gitTried = true;
+			installGitCommand();
 		});
 	});
 }

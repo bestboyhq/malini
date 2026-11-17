@@ -321,6 +321,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 		rotated: false,
 	}),
 	'app.list-settings': () => ({ 'sounds.finished': 'none', 'sounds.needs-you': 'none' }),
+	'app.lid-hold': () => ({ on: false, available: true }),
 	'app.count-usage-step': () => undefined,
 	'app.set-setting': () => undefined,
 	'app.problem-report': () => ({

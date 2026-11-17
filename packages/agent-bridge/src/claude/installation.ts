@@ -8,8 +8,9 @@ import { isRecord } from '../type-guards.js';
 const execFileAsync = promisify(execFile);
 const PROBE_TIMEOUT_MS = 10_000;
 
-export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh | bash';
 export const CLAUDE_LOGIN_COMMAND = 'claude auth login';
+const WINDOWS = process.platform === 'win32';
+const CLAUDE = WINDOWS ? 'claude.exe' : 'claude';
 
 export interface ClaudeAccount {
 	readonly email?: string;
@@ -20,16 +21,20 @@ export type ClaudeAuthStatus =
 	{ readonly signedIn: true; readonly account: ClaudeAccount } | { readonly signedIn: false };
 
 export function findClaudeExecutable(env: NodeJS.ProcessEnv = process.env): string | null {
-	const pathEntries = (env['PATH'] ?? '').split(delimiter).filter(Boolean);
-	const home = env['HOME'] ?? homedir();
+	const pathEntries = (searchPath(env) ?? '').split(delimiter).filter(Boolean);
+	const home = env[WINDOWS ? 'USERPROFILE' : 'HOME'] ?? homedir();
 	const candidates = [
-		join(home, '.local', 'bin', 'claude'),
-		...pathEntries.map((entry) => join(entry, 'claude')),
-		join(home, '.claude', 'local', 'claude'),
-		'/opt/homebrew/bin/claude',
-		'/usr/local/bin/claude',
+		join(home, '.local', 'bin', CLAUDE),
+		...pathEntries.map((entry) => join(entry, CLAUDE)),
+		join(home, '.claude', 'local', CLAUDE),
+		...(WINDOWS ? [] : ['/opt/homebrew/bin/claude', '/usr/local/bin/claude']),
 	];
 	return candidates.find(isExecutable) ?? null;
+}
+
+function searchPath(env: NodeJS.ProcessEnv): string | undefined {
+	if (!WINDOWS) return env['PATH'];
+	return Object.entries(env).find(([name]) => name.toUpperCase() === 'PATH')?.[1];
 }
 
 function isExecutable(path: string): boolean {

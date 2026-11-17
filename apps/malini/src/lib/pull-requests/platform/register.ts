@@ -521,10 +521,10 @@ async function pullRequestLagsPush(
 ): Promise<boolean> {
 	try {
 		const [local, pushed] = await Promise.all([
-			branchHead(checkout, `refs/heads/${branch}`),
-			branchHead(checkout, `refs/remotes/origin/${branch}`),
+			branchHead(checkout, `refs/heads/${branch}`).catch(() => null),
+			branchHead(checkout, `refs/remotes/origin/${branch}`).catch(() => null),
 		]);
-		if (local !== pushed || local === pullRequestHead) return false;
+		if (local === null || local !== pushed || local === pullRequestHead) return false;
 		await runGit(['-C', checkout, 'merge-base', '--is-ancestor', pullRequestHead, local]);
 		return true;
 	} catch {

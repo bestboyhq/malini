@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { app, BrowserWindow, dialog } from 'electron';
-import { bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
+import { BUNDLE_IDENTIFIER, bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
 import { declareWorktreeScheme } from '$lib/browser/platform/worktree-files';
 import {
 	checkoutsHome,
@@ -19,17 +19,27 @@ import type { MaliniDatabase } from './db/driver';
 import { openMigratedDatabase } from './db/open';
 import { DbInvariantError } from './errors';
 import { removeStaleTemporaryIndexes } from './git/diff';
+import { useGitForWindows } from './process/environment';
 import { withBundledGh } from './process/gh';
+import { gitVendor } from './process/git-install';
 import { startReaper } from './process/reaper';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
 import { CommandRegistry } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
+import { linuxPasswordStore } from './password-store';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
 import { blockPreloadCodeCache } from './preload-code-cache';
-import { claimsUrlScheme, URL_SCHEME, urlInbox } from './url-scheme';
+import {
+	claimLinuxUrlScheme,
+	claimsUrlScheme,
+	linuxUrlHandler,
+	URL_SCHEME,
+	urlInbox,
+	urlsIn,
+} from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
 const CHROMIUM_FEATURES_THAT_STALL_QUIT = ['DeclarativePerformanceObserver', 'DIPS'];
@@ -42,6 +52,12 @@ if (BACKGROUND_WINDOW) {
 	app.dock?.hide();
 	app.disableHardwareAcceleration();
 }
+if (process.platform === 'win32') {
+	app.setAppUserModelId(app.isPackaged ? BUNDLE_IDENTIFIER : process.execPath);
+}
+const passwordStore =
+	process.platform === 'linux' ? linuxPasswordStore(process.argv, process.env) : null;
+if (passwordStore) app.commandLine.appendSwitch('password-store', passwordStore);
 declareWorktreeScheme([WORKSTREAM_IMAGE_SCHEME_PRIVILEGES]);
 
 const diagnostics = new MainDiagnosticsLog({
@@ -65,6 +81,8 @@ const COMMANDS_CLOSE_BUDGET_MS = 5_000;
 let db: MaliniDatabase | undefined;
 let modules: Modules | undefined;
 const urls = urlInbox();
+const launchUrls = urlsIn(process.argv);
+for (const url of launchUrls) urls.receive(url);
 
 app.on('open-url', (event, url) => {
 	event.preventDefault();
@@ -72,23 +90,26 @@ app.on('open-url', (event, url) => {
 });
 
 app.on('second-instance', (_event, argv) => {
-	for (const url of argv.filter((argument) => argument.startsWith(`${URL_SCHEME}://`))) {
-		urls.receive(url);
-	}
+	for (const url of urlsIn(argv)) urls.receive(url);
 	const [window] = BrowserWindow.getAllWindows();
-	if (!window) return;
+	if (!window) {
+		if (modules) createMainWindow();
+		return;
+	}
 	if (window.isMinimized()) window.restore();
 	window.focus();
 });
 
 async function boot(): Promise<void> {
-	if (!app.isPackaged) await waitForPreviousInstanceToExit(app.getPath('userData'));
+	if (!app.isPackaged && launchUrls.length === 0) {
+		await waitForPreviousInstanceToExit(app.getPath('userData'));
+	}
 	if (!app.requestSingleInstanceLock()) {
 		app.quit();
 		return;
 	}
 	await app.whenReady();
-	if (claimsUrlScheme(app.isPackaged, process.env)) app.setAsDefaultProtocolClient(URL_SCHEME);
+	if (claimsUrlScheme(app.isPackaged, process.env)) claimUrlScheme();
 	void removeStaleTemporaryIndexes();
 	const appDataRoot = app.getPath('userData');
 	const databasePath = join(appDataRoot, 'malini.sqlite');
@@ -119,6 +140,7 @@ async function boot(): Promise<void> {
 		appVersion: app.getVersion(),
 	};
 	process.env.PATH = withBundledGh(process.env.PATH, context.resourcesRoot, context.appDataRoot);
+	if (process.platform === 'win32') useGitForWindows(gitVendor(appDataRoot));
 	const bridgeScriptPath = testBridgeScript();
 	modules = await registerModules(context, {
 		getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
@@ -148,15 +170,33 @@ function assertContractIsRegistered(registered: readonly CommandName[]): void {
 	);
 }
 
+function claimUrlScheme(): void {
+	if (process.platform === 'linux') {
+		const handler = linuxUrlHandler(
+			app.isPackaged,
+			process.env,
+			process.execPath,
+			app.getAppPath(),
+		);
+		if (!handler) return;
+		claimLinuxUrlScheme(handler, process.env).catch((error: unknown) => {
+			console.error('malini: could not claim malini:// links', error);
+		});
+	} else if (process.platform === 'win32' && !app.isPackaged) {
+		app.setAsDefaultProtocolClient(URL_SCHEME, process.execPath, [app.getAppPath()]);
+	} else {
+		app.setAsDefaultProtocolClient(URL_SCHEME);
+	}
+}
+
 function testBridgeScript(): string | undefined {
 	return app.isPackaged ? undefined : process.env['MALINI_BRIDGE_SCRIPT'];
 }
 
 void boot();
 
-app.on('window-all-closed', () => {
-	if (process.platform !== 'darwin') app.quit();
-});
+const keepRunningWithoutWindows = (): void => undefined;
+app.on('window-all-closed', keepRunningWithoutWindows);
 
 app.on('will-quit', (event) => {
 	if (shuttingDown || !modules) {

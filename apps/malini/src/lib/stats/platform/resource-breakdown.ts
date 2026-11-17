@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import type { ResourceItem, ResourceKind, ResourceKindBreakdown } from '$contract/stats';
+import { isAtOrInsideDirectory } from '$main/fs/paths';
 import type { ProcessRoots, ProcessRow, ProcessUnit } from './process-tree';
 
 export const LISTED_PER_KIND = 5;
@@ -55,7 +56,7 @@ export function describeBreakdown(
 
 export function parseCommandLines(output: string): Map<number, string> {
 	const commandLines = new Map<number, string>();
-	for (const line of output.split('\n')) {
+	for (const line of output.split(/\r?\n/u)) {
 		const [, pid, commandLine] = /^\s*(\d+) (.+)$/u.exec(line) ?? [];
 		if (pid && commandLine) commandLines.set(Number(pid), commandLine.trim());
 	}
@@ -108,15 +109,13 @@ export function commandLabel(row: ProcessRow, commandLine: string | undefined): 
 	if (!commandLine) return program;
 	const rest = commandLine.startsWith(row.command)
 		? commandLine.slice(row.command.length)
-		: commandLine.replace(/^\S+/u, '');
+		: commandLine.replace(/^(?:"[^"]*"|\S+)/u, '');
 	return `${program}${rest}`.slice(0, LABEL_LENGTH);
 }
 
 function agentWorkstream(agent: number | null, names: BreakdownNames): string | null {
 	const directory = agent === null ? undefined : names.workingDirectories.get(agent);
 	if (!directory) return null;
-	const place = names.workstreams.find(
-		({ path }) => directory === path || directory.startsWith(`${path}/`),
-	);
+	const place = names.workstreams.find(({ path }) => isAtOrInsideDirectory(path, directory));
 	return place?.name ?? null;
 }

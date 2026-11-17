@@ -14,6 +14,7 @@ import {
 	repositoryWebUrl,
 	supportsRemotePullRequests,
 } from '$shared/repositories/domain/repository-context';
+import { projectIdentityForRepoUrl } from './project-identity';
 
 const repo = (overrides: Partial<Repository> = {}): Repository => ({
 	id: 'repo-rabbits-hutch',
@@ -119,6 +120,16 @@ describe('repository context', () => {
 		expect(repositoryFullNameFromRemoteUrl('https://github.com/szymeo/dotfiles.git')).toBe(
 			'szymeo/dotfiles',
 		);
+	});
+
+	it('names a local project by its folder on every OS', () => {
+		for (const source of ['C:\\Users\\me\\beta\\', '/Users/me/beta/']) {
+			expect(projectIdentityForRepoUrl(source)).toEqual({ id: 'local__beta', name: 'beta' });
+		}
+		expect(projectIdentityForRepoUrl('file:///C:/Users/me/acme/api.git')).toEqual({
+			id: 'local__acme__api',
+			name: 'acme__api',
+		});
 	});
 
 	it('derives backend-independent repository rows from local projects', () => {

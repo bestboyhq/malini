@@ -9,6 +9,7 @@ import {
 } from '$contract/automations';
 import { all, run } from '$main/db/rows';
 import { BrowserDialogOpen, type BrowserDialog } from '$lib/browser/browser.platform';
+import { osFor } from '$shared/os/os.platform';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
 import {
@@ -303,7 +304,7 @@ describe('browser requests from the agent', () => {
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
-		const worktree = realpathSync(checkout);
+		const worktree = realpathSync.native(checkout);
 		expect(calls).toEqual([
 			'open ws-1 chat-sess-1 localhost:5173',
 			`screenshot ws-1 ${worktree} {"fullPage":false}`,
@@ -761,6 +762,12 @@ describe('platform requests from the agent', () => {
 		expect(answer('p-8')).toContainEqual(
 			expect.objectContaining({ channel: 'chat:session-renamed', description: expect.any(String) }),
 		);
+		expect(answer('p-8')).toContainEqual(
+			expect.objectContaining({
+				channel: 'automations:time-reached',
+				description: expect.stringContaining(`while the ${osFor(process.platform).machine} slept`),
+			}),
+		);
 		expect(answer('p-9')).toMatchObject({
 			ok: false,
 			error:
@@ -960,7 +967,7 @@ describe('platform requests from the agent', () => {
 		const worktree = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		writeFileSync(join(worktree, 'notes.md'), 'the plan\n');
-		const outside = join(realpathSync(test.appDataRoot), 'secrets', 'malini.keys');
+		const outside = join(realpathSync.native(test.appDataRoot), 'secrets', 'malini.keys');
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
 			processFactory: bridge.factory,
@@ -989,7 +996,7 @@ describe('platform requests from the agent', () => {
 		bridge.send(platformRequest('p-3', 'files_open', { path: 'notes.md', line: 0 }));
 		expect(await answer('p-3')).toBe('`line` must be a line number from 1.');
 
-		expect(statSync(outside).mode & 0o777).toBe(0o600);
+		expect(statSync(outside).mode & 0o777).toBe(process.platform === 'win32' ? 0o666 : 0o600);
 		expect(JSON.stringify(results())).not.toContain('the plan');
 		expect(
 			test.events.frames

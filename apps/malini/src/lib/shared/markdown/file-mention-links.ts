@@ -126,7 +126,7 @@ const EXTENSIONLESS_FILE_NAMES: ReadonlySet<string> = new Set([
 
 const LINE_SUFFIX = /:(\d{1,7})(?::\d{1,7})?$/u;
 
-const PATH_SHAPE = /^\/?[A-Za-z0-9._~@+-]+(?:\/[A-Za-z0-9._~@+-]+)*$/u;
+const PATH_SHAPE = /^(?:[A-Za-z]:\/|\/)?[A-Za-z0-9._~@+-]+(?:\/[A-Za-z0-9._~@+-]+)*$/u;
 const RELATIVE_PREFIX = /^\.{1,2}\//u;
 const WEB_HOST_PREFIX = /^www\./iu;
 const LEADING_NOISE = /^[([{<"'`«]+/u;
@@ -169,7 +169,7 @@ export function parseFileMention(
 	if (WEB_HOST_PREFIX.test(trimmed)) return null;
 
 	const suffix = LINE_SUFFIX.exec(trimmed);
-	const rawPath = suffix ? trimmed.slice(0, suffix.index) : trimmed;
+	const rawPath = (suffix ? trimmed.slice(0, suffix.index) : trimmed).replaceAll('\\', '/');
 	if (!isPathShaped(rawPath, options.requireSlash)) return null;
 
 	const path = canonicalChangedPath(rawPath);
@@ -260,7 +260,7 @@ function linkifyCodeSpans(root: DocumentFragment): boolean {
 
 function linkifyTextNode(node: Text): boolean {
 	const data = node.data;
-	if (!data.includes('/')) return false;
+	if (!/[\\/]/u.test(data)) return false;
 
 	const fragment = document.createDocumentFragment();
 	let cursor = 0;

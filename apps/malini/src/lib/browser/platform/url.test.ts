@@ -1,3 +1,5 @@
+import { join, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
 	isAllowedNavigation,
@@ -45,10 +47,18 @@ describe('normalizeBrowserUrl', () => {
 });
 
 describe('worktree files', () => {
-	const worktree = '/work/ws';
+	const worktree = resolve('/work/ws');
+	const fileUrl = (...path: string[]): string => pathToFileURL(join(...path)).href;
 
 	it('treats paths and file URLs as files, and everything else as web addresses', () => {
-		for (const input of ['/work/ws/a.html', './a.html', '../a.html', ' file:///a.html']) {
+		for (const input of [
+			join(worktree, 'a.html'),
+			'./a.html',
+			'../a.html',
+			`.${sep}a.html`,
+			`..${sep}a.html`,
+			' file:///a.html',
+		]) {
 			expect(isFileAddress(input)).toBe(true);
 		}
 		for (const input of ['localhost:5173', 'example.com/a.html', 'a.html', 'about:blank']) {
@@ -57,17 +67,20 @@ describe('worktree files', () => {
 	});
 
 	it.each([
-		['/work/ws/docs/report.html', 'malini-worktree://ws-1/docs/report.html'],
+		[join(worktree, 'docs', 'report.html'), 'malini-worktree://ws-1/docs/report.html'],
 		['./docs/a b.html', 'malini-worktree://ws-1/docs/a%20b.html'],
-		['file:///work/ws/index.html?q=1#top', 'malini-worktree://ws-1/index.html?q=1#top'],
+		[`${fileUrl(worktree, 'index.html')}?q=1#top`, 'malini-worktree://ws-1/index.html?q=1#top'],
 		['./report.html?v=A#top', 'malini-worktree://ws-1/report.html?v=A#top'],
-		['/work/ws/docs/a b.html#current', 'malini-worktree://ws-1/docs/a%20b.html#current'],
+		[
+			`${join(worktree, 'docs', 'a b.html')}#current`,
+			'malini-worktree://ws-1/docs/a%20b.html#current',
+		],
 		['./', 'malini-worktree://ws-1/'],
 	])('opens `%s` as %s, on a host of its own workstream', (input, expected) => {
 		expect(worktreeFileUrl(input, 'WS-1', worktree)).toBe(expected);
 	});
 
-	it.each([['/etc/passwd'], ['../other/a.html'], ['file:///work/ws-other/a.html']])(
+	it.each([['/etc/passwd'], ['../other/a.html'], [fileUrl(worktree, '..', 'ws-other', 'a.html')]])(
 		'refuses `%s`, which is outside the worktree',
 		(input) => {
 			expect(() => worktreeFileUrl(input, 'ws-1', worktree)).toThrow('is outside the worktree');

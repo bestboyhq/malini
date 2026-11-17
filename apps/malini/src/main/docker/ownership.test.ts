@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { durableContainerRecords, recordStartedContainers } from './records';
 import { openMigratedDatabase } from '../db/open';
@@ -106,7 +106,7 @@ describe('compose file resolution', () => {
 		write(root, 'docker-compose.yml');
 		write(root, 'docker-compose.override.yml');
 		const files = resolveComposeFiles(root);
-		expect(files.map((file) => file.split('/').at(-1))).toEqual([
+		expect(files.map((file) => basename(file))).toEqual([
 			'docker-compose.yml',
 			'docker-compose.override.yml',
 		]);
@@ -208,9 +208,11 @@ describe('project names and labels', () => {
 		const root = tempDir();
 		const overlay = writeComposeLabelOverlay(root, labels());
 		expect(existsSync(overlay.path)).toBe(true);
-		expect(overlay.path.endsWith('docker-ownership/malini-ws-alpha/mongo/compose-labels.yml')).toBe(
-			true,
-		);
+		expect(
+			overlay.path.endsWith(
+				join('docker-ownership', 'malini-ws-alpha', 'mongo', 'compose-labels.yml'),
+			),
+		).toBe(true);
 		expect(overlay.labels[LABEL_APP]).toBe(BUNDLE);
 		expect(Object.keys(overlay.labels)).toHaveLength(OWNERSHIP_LABEL_KEYS.length);
 		expect(readFileSync(overlay.path, 'utf8')).toBe(composeLabelOverlayYaml(labels()));

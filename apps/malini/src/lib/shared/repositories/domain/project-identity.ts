@@ -36,7 +36,7 @@ export function projectIdentityCandidatesForRepoUrl(repoUrl: string): ProjectIde
 function deriveProjectName(repoUrl: string): string {
 	const pathish = normalizeRemotePath(repoUrl);
 	if (pathish) {
-		const parts = pathish.split('/').filter(Boolean);
+		const parts = pathish.split(/[\\/]/u).filter(Boolean);
 		if (parts.length >= 2) {
 			const owner = parts[parts.length - 2] ?? 'owner';
 			const repo = parts[parts.length - 1] ?? 'repo';
@@ -48,16 +48,16 @@ function deriveProjectName(repoUrl: string): string {
 }
 
 function deriveLegacyProjectName(repoUrl: string): string {
-	const withoutTrailingSlash = repoUrl.trimEnd().replace(/\/+$/u, '');
+	const withoutTrailingSlash = repoUrl.trimEnd().replace(/[\\/]+$/u, '');
 	const withoutGitSuffix = withoutTrailingSlash.endsWith('.git')
 		? withoutTrailingSlash.slice(0, -4)
 		: withoutTrailingSlash;
-	const rawName = withoutGitSuffix.split('/').filter(Boolean).at(-1) ?? 'repo';
+	const rawName = withoutGitSuffix.split(/[\\/]/u).filter(Boolean).at(-1) ?? 'repo';
 	return sanitizeProjectSegment(rawName);
 }
 
 function normalizeRemotePath(repoUrl: string): string | null {
-	const withoutTrailingSlash = repoUrl.trimEnd().replace(/\/+$/u, '');
+	const withoutTrailingSlash = repoUrl.trimEnd().replace(/[\\/]+$/u, '');
 	const withoutGitSuffix = withoutTrailingSlash.endsWith('.git')
 		? withoutTrailingSlash.slice(0, -4)
 		: withoutTrailingSlash;

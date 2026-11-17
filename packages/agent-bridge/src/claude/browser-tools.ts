@@ -92,7 +92,7 @@ export function maliniTools(
 					.string()
 					.min(1)
 					.describe(
-						'A key name or a single character, with modifiers joined by +, for example Escape, Enter, Tab, Shift+Tab, ArrowDown, Meta+K or a',
+						`A key name or a single character, with modifiers joined by +, for example Escape, Enter, Tab, Shift+Tab, ArrowDown, ${process.platform === 'darwin' ? 'Meta' : 'Control'}+K or a`,
 					),
 			},
 			({ key }) => run({ action: 'press', key }),

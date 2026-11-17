@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { InstallProgressPayload } from '$contract/events';
-import { GH_DOWNLOAD_URL, GH_VERSION, installGh } from './gh-install';
+import { GH_VERSION, ghBuild, installGh, SYSTEM_TAR } from './gh-install';
 
 const roots: string[] = [];
 
@@ -28,14 +28,18 @@ function scratch(): string {
 	return root;
 }
 
+const BUILD = ghBuild();
+
 function releaseZip(): Uint8Array {
 	const root = scratch();
-	const asset = join(root, `gh_${GH_VERSION}_macOS_arm64`);
+	const release = join(root, 'release');
+	const asset = join(release, BUILD.root);
 	mkdirSync(join(asset, 'bin'), { recursive: true });
-	writeFileSync(join(asset, 'bin', 'gh'), '#!/bin/sh\necho gh\n');
+	writeFileSync(join(asset, 'bin', BUILD.executable), '#!/bin/sh\necho gh\n');
 	writeFileSync(join(asset, 'LICENSE'), 'MIT');
-	execFileSync('zip', ['-qr', 'gh.zip', basename(asset)], { cwd: root });
-	return new Uint8Array(readFileSync(join(root, 'gh.zip')));
+	const archive = join(root, basename(new URL(BUILD.url).pathname));
+	execFileSync(SYSTEM_TAR, ['-a', '-cf', archive, '-C', release, ...readdirSync(release)]);
+	return new Uint8Array(readFileSync(archive));
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -62,10 +66,10 @@ describe('installGh', () => {
 		await installGh(vendor, download, options);
 		await installGh(vendor, download, options);
 
-		expect(asked).toEqual([GH_DOWNLOAD_URL]);
+		expect(asked).toEqual([BUILD.url]);
 		expect(progress.at(0)).toEqual({ received: 0, total: zip.byteLength });
 		expect(progress.at(-1)).toEqual({ received: zip.byteLength, total: zip.byteLength });
-		expect(() => accessSync(join(vendor, 'bin', 'gh'), constants.X_OK)).not.toThrow();
+		expect(() => accessSync(join(vendor, 'bin', BUILD.executable), constants.X_OK)).not.toThrow();
 		expect(readFileSync(join(vendor, 'VERSION'), 'utf8')).toBe(`${GH_VERSION}\n`);
 	});
 

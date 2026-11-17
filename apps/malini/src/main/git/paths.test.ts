@@ -1,5 +1,5 @@
 import { mkdir, realpath, symlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { initRealRepo, removeDir, tempDir } from './fixtures.test-support';
 import {
@@ -38,6 +38,7 @@ describe('deriveProjectId', () => {
 		expect(deriveProjectId('https://github.com/foo/bar.git')).toBe('foo__bar');
 		expect(deriveProjectId('git@github.com:foo/bar.git/')).toBe('foo__bar');
 		expect(deriveProjectId('/local/path/to/repo')).toBe('repo');
+		expect(deriveProjectId(resolve('local', 'repo.git'))).toBe('repo');
 		expect(deriveProjectId('https://example.com/repo-progress.git')).toBe('repo-progress');
 	});
 

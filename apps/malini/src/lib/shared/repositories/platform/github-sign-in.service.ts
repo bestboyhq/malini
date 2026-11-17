@@ -1,7 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { GitHubDeviceCodeDto, GitHubSignInOutcome } from '$contract/repositories';
 import { GhError } from '$main/errors';
+import { spawnable } from '$main/process/command';
 import { ghEnvironment } from '$main/process/gh';
+import { stopProcess } from '$main/process/process-group';
 
 export type GitHubDeviceFlow = 'sign-in' | 'workflow-access';
 
@@ -52,9 +54,12 @@ export class GitHubSignIn {
 
 	start(flow: GitHubDeviceFlow = 'sign-in'): Promise<GitHubDeviceCodeDto> {
 		this.cancel();
-		const child = spawn(this.#command, [...FLOW_ARGS[flow]], {
-			env: this.#environment(),
+		const env = this.#environment();
+		const command = spawnable(this.#command, FLOW_ARGS[flow], env);
+		const child = spawn(command.file, command.args, {
+			env,
 			stdio: ['ignore', 'pipe', 'pipe'],
+			...command.options,
 		});
 		let output = '';
 		let timer: ReturnType<typeof setTimeout> | undefined;
@@ -108,7 +113,7 @@ export class GitHubSignIn {
 		const session = this.#session;
 		if (!session || session.child.exitCode !== null || session.child.signalCode !== null) return;
 		session.cancelled = true;
-		session.child.kill('SIGTERM');
+		stopProcess(session.child);
 	}
 }
 

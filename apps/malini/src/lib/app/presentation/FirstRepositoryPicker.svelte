@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { onMount, untrack } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import type { UsageStepValue } from '$contract/system';
@@ -11,6 +12,7 @@
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
 		GitHubDeviceCode,
+		GitInstallStatus,
 		cancelGithubSignInCommand,
 		connectedRepositoriesQuery,
 		githubAuthErrorQuery,
@@ -235,7 +237,7 @@
 		<Button
 			bare
 			ariaHasPopup="dialog"
-			ariaKeyshortcuts="Meta+K"
+			ariaKeyshortcuts={osQuery.data.ariaShortcut('K')}
 			class={[ROW, 'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default text-sm']}
 			onclick={() => pick('more', () => openCommandCenterCommand('find'))}
 		>
@@ -243,7 +245,7 @@
 				<Icon name="search" size={14} />
 			</span>
 			<span class="flex-1">More repositories</span>
-			<kbd class={KEY} aria-hidden="true">⌘K</kbd>
+			<kbd class={KEY} aria-hidden="true">{osQuery.data.shortcut('K')}</kbd>
 		</Button>
 	</div>
 {/snippet}
@@ -364,7 +366,7 @@
 					</Button>
 					<Button
 						bare
-						ariaKeyshortcuts="Meta+O"
+						ariaKeyshortcuts={osQuery.data.ariaShortcut('O')}
 						disabled={connecting !== null}
 						ariaBusy={connecting === 'folder'}
 						class={DOOR}
@@ -375,9 +377,9 @@
 							<Icon name="folder-open" size={15} />
 						</span>
 						<span class="flex-1">
-							{connecting === 'folder' ? 'Opening…' : 'A folder on this Mac'}
+							{connecting === 'folder' ? 'Opening…' : `A folder on this ${osQuery.data.machine}`}
 						</span>
-						<kbd class={KEY} aria-hidden="true">⌘O</kbd>
+						<kbd class={KEY} aria-hidden="true">{osQuery.data.shortcut('O')}</kbd>
 					</Button>
 					<Button
 						bare
@@ -393,6 +395,7 @@
 				</div>
 			</ComposerShell>
 		{/if}
+		<GitInstallStatus class="px-[15px]" />
 		{#if connectError}
 			<ComposerShell class="px-2" testId="repository-connect-error">
 				<StateBlock

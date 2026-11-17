@@ -1,5 +1,10 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Terminal } from '@xterm/headless';
+import { spawn, type IPty } from 'node-pty';
 import type {
 	RunShellCommandArgs,
 	ShellRun,
@@ -9,10 +14,10 @@ import type {
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
-import { preferredShell } from '$main/process/environment';
+import { environmentVariable, findExecutable } from '$main/process/command';
+import { gitBash, preferredShell } from '$main/process/environment';
 import { killProcessGroup } from '$main/process/process-group';
 import { endWithMalini } from '$main/process/reaper';
-import { terminalText } from '$lib/chat/domain/terminal-text';
 import {
 	deleteShellRun,
 	markShellRunReported,
@@ -20,24 +25,24 @@ import {
 	storedShellRuns,
 } from './shell-runs.repository';
 
+const WINDOWS = process.platform === 'win32';
 const COLUMNS = 100;
 const ROWS = 30;
-const STDIN_AS_PIPE = '< <(exec /bin/cat)';
-const SIZE_TERMINAL = `stty cols ${COLUMNS} rows ${ROWS} 2>/dev/null`;
-const MACOS_PSEUDO_TERMINAL = `exec /usr/bin/script -q /dev/null /bin/sh -c '${SIZE_TERMINAL}; exec "$0" -c "$1"' "$0" "$1" ${STDIN_AS_PIPE}`;
-const LINUX_PTY_COMMAND = `trap : INT; f=$MALINI_PTY_FEEDER s=$MALINI_PTY_SHELL c=$MALINI_PTY_COMMAND; unset MALINI_PTY_FEEDER MALINI_PTY_SHELL MALINI_PTY_COMMAND; SHELL=$s; ${SIZE_TERMINAL}; "$s" -c "$c"; e=$?; kill "$f"; exit "$e"`;
-const LINUX_PSEUDO_TERMINAL = `exec 3${STDIN_AS_PIPE}; MALINI_PTY_FEEDER=$! MALINI_PTY_SHELL="$0" MALINI_PTY_COMMAND="$1" SHELL=/bin/sh /usr/bin/script -qec '${LINUX_PTY_COMMAND}' /dev/null <&3 3<&-`;
-// ponytail: script(1) is the pty, so no native addon; no resize or full-screen programs, node-pty and xterm.js when those matter
-const PSEUDO_TERMINAL =
-	process.platform === 'darwin' ? MACOS_PSEUDO_TERMINAL : LINUX_PSEUDO_TERMINAL;
+const SCROLLBACK = 2_500;
 const INTERRUPT = '\u0003';
 const MAX_COMMAND_LENGTH = 64 * 1024;
 const MAX_INPUT_LENGTH = 64 * 1024;
-const MAX_OUTPUT_LENGTH = 256 * 1024;
 const REPORTED_OUTPUT_LENGTH = 4_000;
 const PUBLISH_EVERY_MS = 100;
 const INTERRUPT_GRACE_MS = 2_000;
 const TERMINATE_GRACE_MS = 2_000;
+const EXIT_GRACE_MS = 2_000;
+const POWERSHELL_FENCES = new Set(['powershell', 'pwsh', 'ps1', 'psm1']);
+const COMMAND_PROMPT_FENCES = new Set(['cmd', 'bat', 'batch']);
+const POWERSHELL_EXIT_ON_FAILURE = '\r\nif (-not $?) { exit 1 }\r\n';
+const POWERSHELL_QUOTES = /['\u2018-\u201b]/gu;
+const GIT_BASH_MISSING =
+	'Run needs Git Bash. Malini installs Git for Windows, and the line above the composer says where that stands.';
 
 export type ReportedShellRun = Readonly<
 	Pick<ShellRun, 'command' | 'state' | 'exitCode' | 'output'>
@@ -55,9 +60,10 @@ export interface ShellRunsDeps {
 
 interface Entry {
 	run: ShellRun;
-	child: ChildProcessWithoutNullStreams | null;
-	raw: string;
-	clipped: boolean;
+	pty: IPty | null;
+	terminal: Terminal | null;
+	failure: string;
+	folder: string | null;
 	stopping: boolean;
 	reported: boolean;
 	publish: NodeJS.Timeout | null;
@@ -74,9 +80,10 @@ export class ShellRuns {
 		for (const { run, reported } of storedShellRuns(deps.db)) {
 			this.#entries.set(run.id, {
 				run,
-				child: null,
-				raw: '',
-				clipped: false,
+				pty: null,
+				terminal: null,
+				failure: '',
+				folder: null,
 				stopping: false,
 				reported,
 				publish: null,
@@ -93,31 +100,44 @@ export class ShellRuns {
 		}
 		const cwd = await this.#deps.checkout(workstreamId);
 		const previous = this.#anchoredAt(args.anchor);
-		if (previous?.child) return previous.run;
+		if (previous?.pty) return previous.run;
 		if (previous) this.#entries.delete(previous.run.id);
 		const env = { ...(await this.#deps.environment(workstreamId, cwd)), TERM: 'xterm-256color' };
 		const entry = this.#register(args);
-		let child: ChildProcessWithoutNullStreams;
+		let pty: IPty;
 		try {
-			child = endWithMalini(
-				spawn('/bin/bash', ['-c', PSEUDO_TERMINAL, preferredShell(env) ?? '/bin/sh', command], {
+			const shell = shellLaunch(args.language, command, env);
+			entry.folder = shell.folder;
+			pty = endWithMalini(
+				spawn(shell.file, shell.args, {
+					name: 'xterm-256color',
+					cols: COLUMNS,
+					rows: ROWS,
 					cwd,
 					env,
-					stdio: 'pipe',
-					detached: true,
 				}),
 			);
 		} catch (error) {
 			this.#fail(entry, error);
 			return entry.run;
 		}
-		entry.child = child;
-		child.stdout.setEncoding('utf8').on('data', (text: string) => this.#append(entry, text));
-		child.stderr.setEncoding('utf8').on('data', (text: string) => this.#append(entry, text));
-		child.stdin.on('error', () => undefined);
-		child.once('error', (error) => this.#fail(entry, error));
-		child.once('exit', () => child.stdin.end());
-		child.once('close', (code) => this.#finish(entry, entry.stopping ? 'stopped' : 'exited', code));
+		const terminal = new Terminal({
+			cols: COLUMNS,
+			rows: ROWS,
+			scrollback: SCROLLBACK,
+			logLevel: 'off',
+			allowProposedApi: true,
+		});
+		entry.pty = pty;
+		entry.terminal = terminal;
+		pty.onData((text) => {
+			if (entry.terminal === terminal) terminal.write(text, () => this.#schedulePublish(entry));
+		});
+		pty.onExit(({ exitCode, signal }) => {
+			if (entry.terminal !== terminal) return;
+			const state = entry.stopping ? 'stopped' : 'exited';
+			terminal.write('', () => this.#finish(entry, state, signal ? null : exitCode));
+		});
 		return entry.run;
 	}
 
@@ -129,14 +149,14 @@ export class ShellRuns {
 		if (text.length > MAX_INPUT_LENGTH) {
 			throw new Error(`invalid args: \`text\` must hold at most ${MAX_INPUT_LENGTH} characters`);
 		}
-		this.#entry(runId).child?.stdin.write(text);
+		this.#entry(runId).pty?.write(text);
 	}
 
 	stop(runId: string): void {
 		const entry = this.#entry(runId);
-		if (entry.child === null) return;
+		if (entry.pty === null) return;
 		entry.stopping = true;
-		entry.child.stdin.write(INTERRUPT);
+		entry.pty.write(INTERRUPT);
 		setTimeout(() => this.#signal(entry, 'SIGTERM'), INTERRUPT_GRACE_MS).unref();
 		setTimeout(
 			() => this.#signal(entry, 'SIGKILL'),
@@ -145,8 +165,7 @@ export class ShellRuns {
 	}
 
 	dismiss(runId: string): void {
-		if (this.#entry(runId).child !== null)
-			throw new Error('Stop the command before you dismiss it');
+		if (this.#entry(runId).pty !== null) throw new Error('Stop the command before you dismiss it');
 		this.#entries.delete(runId);
 		this.#write('forget the command', (db) => deleteShellRun(db, runId));
 	}
@@ -156,7 +175,7 @@ export class ShellRuns {
 		for (const entry of this.#entries.values()) {
 			if (entry.run.sessionId !== sessionId || entry.reported) continue;
 			const { id, command, state, exitCode, output } = entry.run;
-			if (entry.child === null) {
+			if (entry.pty === null) {
 				entry.reported = true;
 				this.#write('note that the agent read the command', (db) => markShellRunReported(db, id));
 			}
@@ -164,7 +183,7 @@ export class ShellRuns {
 				command,
 				state,
 				exitCode,
-				output: tail(entry.child === null ? output : rendered(entry)),
+				output: tail(entry.pty === null ? output : rendered(entry)),
 			});
 		}
 		return reported;
@@ -178,7 +197,7 @@ export class ShellRuns {
 		return this.#terminate(() => true);
 	}
 
-	#register(args: RunShellCommandArgs): Entry {
+	#register({ workstreamId, sessionId, anchor, command }: RunShellCommandArgs): Entry {
 		let end: () => void = () => undefined;
 		const ended = new Promise<void>((resolve) => {
 			end = resolve;
@@ -186,16 +205,20 @@ export class ShellRuns {
 		const entry: Entry = {
 			run: {
 				id: randomUUID(),
-				...args,
+				workstreamId,
+				sessionId,
+				anchor,
+				command,
 				state: 'running',
 				exitCode: null,
 				output: '',
 				startedAt: nowIso8601(),
 				finishedAt: null,
 			},
-			child: null,
-			raw: '',
-			clipped: false,
+			pty: null,
+			terminal: null,
+			failure: '',
+			folder: null,
 			stopping: false,
 			reported: false,
 			publish: null,
@@ -220,12 +243,8 @@ export class ShellRuns {
 		return entry;
 	}
 
-	#append(entry: Entry, text: string): void {
-		entry.raw += text;
-		if (entry.raw.length > MAX_OUTPUT_LENGTH) {
-			entry.raw = entry.raw.slice(-MAX_OUTPUT_LENGTH);
-			entry.clipped = true;
-		}
+	#schedulePublish(entry: Entry): void {
+		if (entry.run.state !== 'running') return;
 		entry.publish ??= setTimeout(() => {
 			entry.publish = null;
 			this.#publish(entry, {});
@@ -241,7 +260,7 @@ export class ShellRuns {
 	}
 
 	#fail(entry: Entry, error: unknown): void {
-		entry.raw += describeError(error);
+		entry.failure = describeError(error);
 		this.#finish(entry, 'failed', null);
 	}
 
@@ -249,8 +268,13 @@ export class ShellRuns {
 		if (entry.run.state !== 'running') return;
 		if (entry.publish) clearTimeout(entry.publish);
 		entry.publish = null;
-		entry.child = null;
 		this.#publish(entry, { state, exitCode, finishedAt: nowIso8601() });
+		entry.pty = null;
+		entry.terminal?.dispose();
+		entry.terminal = null;
+		if (entry.folder) {
+			void rm(entry.folder, { recursive: true, force: true, maxRetries: 5 }).catch(() => undefined);
+		}
 		if (this.#entries.has(entry.run.id)) {
 			const stored = { run: entry.run, reported: entry.reported };
 			this.#write('keep the command output', (db) => storeShellRun(db, stored));
@@ -267,10 +291,14 @@ export class ShellRuns {
 	}
 
 	#signal(entry: Entry, signal: NodeJS.Signals): void {
-		const pid = entry.child?.pid;
-		if (pid === undefined) return;
+		const pty = entry.pty;
+		if (pty === null) return;
+		if (signal === 'SIGKILL') {
+			setTimeout(() => this.#finish(entry, 'stopped', null), EXIT_GRACE_MS).unref();
+		}
 		try {
-			killProcessGroup(pid, signal);
+			if (WINDOWS) pty.kill();
+			else killProcessGroup(pty.pid, signal);
 		} catch {
 			return;
 		}
@@ -278,7 +306,7 @@ export class ShellRuns {
 
 	async #terminate(matches: (run: ShellRun) => boolean): Promise<void> {
 		const running = [...this.#entries.values()].filter(
-			(entry) => entry.child !== null && matches(entry.run),
+			(entry) => entry.pty !== null && matches(entry.run),
 		);
 		for (const entry of running) {
 			entry.stopping = true;
@@ -293,8 +321,86 @@ export class ShellRuns {
 }
 
 function rendered(entry: Entry): string {
-	const text = terminalText(entry.raw);
-	return entry.clipped ? `…${text}` : text;
+	return `${entry.terminal ? screenText(entry.terminal) : ''}${entry.failure}`;
+}
+
+function screenText({ buffer: { active: buffer } }: Terminal): string {
+	const cursor = buffer.baseY + buffer.cursorY;
+	let last = cursor;
+	for (let y = buffer.length - 1; y > cursor; y -= 1) {
+		if (buffer.getLine(y)?.translateToString(true)) {
+			last = y;
+			break;
+		}
+	}
+	let text = buffer.length >= ROWS + SCROLLBACK ? '…' : '';
+	for (let y = 0; y <= last; y += 1) {
+		const line = buffer.getLine(y);
+		if (!line) continue;
+		const wraps = buffer.getLine(y + 1)?.isWrapped === true;
+		const trimmed = line.translateToString(true);
+		if (wraps) text += line.translateToString(false);
+		else if (y === cursor)
+			text += line.translateToString(false, 0, Math.max(buffer.cursorX, trimmed.length));
+		else text += trimmed;
+		if (y < last && !wraps) text += '\n';
+	}
+	return text;
+}
+
+type ShellLaunch = Readonly<{ file: string; args: string[] | string; folder: string | null }>;
+
+type WindowsShell = Readonly<{
+	file: string;
+	extension: string;
+	script: (command: string) => string;
+	commandLine: (script: string) => string;
+}>;
+
+function shellLaunch(
+	language: string | null,
+	command: string,
+	env: Readonly<Record<string, string>>,
+): ShellLaunch {
+	if (!WINDOWS)
+		return { file: preferredShell(env) ?? '/bin/sh', args: ['-c', command], folder: null };
+	const shell = windowsShell(language?.toLowerCase() ?? '', env);
+	const folder = mkdtempSync(join(tmpdir(), 'malini-run-'));
+	const script = join(folder, `command${shell.extension}`);
+	writeFileSync(script, shell.script(command));
+	return { file: shell.file, args: shell.commandLine(script), folder };
+}
+
+function windowsShell(fence: string, env: Readonly<Record<string, string>>): WindowsShell {
+	const system = join(environmentVariable(env, 'SystemRoot') ?? 'C:\\Windows', 'System32');
+	if (POWERSHELL_FENCES.has(fence)) {
+		return {
+			file:
+				findExecutable('pwsh', environmentVariable(env, 'PATH') ?? '') ??
+				join(system, 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+			extension: '.ps1',
+			script: (command) => `${command}${POWERSHELL_EXIT_ON_FAILURE}`,
+			commandLine: (script) =>
+				`-NoLogo -NoProfile -Command "Invoke-Expression (Get-Content -LiteralPath '${script.replace(POWERSHELL_QUOTES, '$&$&')}' -Raw -Encoding UTF8)"`,
+		};
+	}
+	if (COMMAND_PROMPT_FENCES.has(fence)) {
+		return {
+			file: environmentVariable(env, 'ComSpec') ?? join(system, 'cmd.exe'),
+			extension: '.cmd',
+			script: (command) =>
+				['@echo off', 'chcp 65001 >nul', ...command.split(/\r?\n/u)].join('\r\n'),
+			commandLine: (script) => `/d /s /c ""${script}""`,
+		};
+	}
+	const bash = gitBash(env);
+	if (bash === null) throw new Error(GIT_BASH_MISSING);
+	return {
+		file: bash,
+		extension: '.sh',
+		script: (command) => command.replaceAll('\r\n', '\n'),
+		commandLine: (script) => `"${script}"`,
+	};
 }
 
 function tail(text: string): string {

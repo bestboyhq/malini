@@ -1,10 +1,10 @@
-# 0260 - A workstream leases named ports, and a command takes its leftovers with it
+# 0269 - A workstream leases named ports, and a command takes its leftovers with it
 
 Status: accepted
 
 ## Context
 
-After ADR 0259 the user's Mac still spent about 60% of a core and 4 GB on services agents had started and nobody stopped.
+After ADR 0268 the user's Mac still spent about 60% of a core and 4 GB on services agents had started and nobody stopped.
 A chat ran `docker compose up -d` and `nohup … & disown` from a folder in `/private/tmp`, so ADR 0082's sweep, which looks for paths inside the workstreams folder, never saw them; a `docker run` ClickHouse that bind-mounted an archived checkout had no Compose label, so it ran for ten days.
 The user picked stopping a command's process group when it ends, and pointed out that two workstreams fight over the same fixed ports, so what each workstream serves on needs one owner: "if you had one process ... responsible only for ports management there would be no conflicts".
 A shared database must stay up across workstreams, and a backend on a branch must not.

@@ -1,10 +1,9 @@
+import type { LidHoldState } from '$contract/commands';
 import { invoke } from '$shared/port/invoke';
-import { holdsLid, LID_HOLD_SETTING } from '$lib/app/domain/lid-hold';
 
 class LidHoldService {
-	async read(): Promise<boolean> {
-		const settings = await invoke('app.list-settings', undefined);
-		return holdsLid(settings[LID_HOLD_SETTING]);
+	read(): Promise<LidHoldState> {
+		return invoke('app.lid-hold', undefined);
 	}
 
 	write(on: boolean): Promise<boolean> {

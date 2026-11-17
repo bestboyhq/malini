@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubHome } from '$main/process/test-support';
 
 vi.mock('electron', () => ({
 	ipcMain: { handle: vi.fn() },
@@ -23,7 +24,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
-import { GH_DOWNLOAD_URL } from '$main/process/gh-install';
+import { ghBuild } from '$main/process/gh-install';
 import {
 	defaultGhRunner,
 	GH_ANSWER_TIMEOUT_MS,
@@ -82,7 +83,7 @@ function gitRepoWithRemote(path: string, remote: string): void {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-github-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-github-')));
 	db = openMigratedDatabase(':memory:');
 	context = {
 		db,
@@ -180,7 +181,7 @@ describe('repositories.install-github-cli', () => {
 		await expect(invoke('repositories.install-github-cli')).rejects.toThrow(
 			'Could not download the GitHub CLI: HTTP 503',
 		);
-		expect(asked).toEqual([GH_DOWNLOAD_URL]);
+		expect(asked).toEqual([ghBuild().url]);
 		expect(existsSync(join(context.appDataRoot, 'vendor', 'gh'))).toBe(false);
 	});
 });
@@ -497,30 +498,33 @@ describe('githubAuthStatus', () => {
 		vi.unstubAllEnvs();
 	});
 
-	it('gives up on a gh that never answers and kills it, so setup stops checking', async () => {
-		const home = mkdtempSync(join(tmpdir(), 'malini-gh-hangs-'));
-		mkdirSync(join(home, '.local', 'bin'), { recursive: true });
-		writeFileSync(
-			join(home, '.local', 'bin', 'gh'),
-			'#!/bin/sh\necho $$ > "$HOME/gh.pid"\nexec sleep 60\n',
-			{ mode: 0o755 },
-		);
-		vi.stubEnv('HOME', home);
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	it.skipIf(process.platform === 'win32')(
+		'gives up on a gh that never answers and kills it, so setup stops checking',
+		async () => {
+			const home = mkdtempSync(join(tmpdir(), 'malini-gh-hangs-'));
+			mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+			writeFileSync(
+				join(home, '.local', 'bin', 'gh'),
+				'#!/bin/sh\necho $$ > "$HOME/gh.pid"\nexec sleep 60\n',
+				{ mode: 0o755 },
+			);
+			stubHome(home);
+			vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
-		const status = expect(githubAuthStatus(defaultGhRunner)).rejects.toThrow(
-			'GitHub did not answer in 15 seconds.',
-		);
-		const pid = await vi.waitFor(() => {
-			const started = Number(readFileSync(join(home, 'gh.pid'), 'utf8'));
-			expect(started).toBeGreaterThan(0);
-			return started;
-		});
-		await vi.advanceTimersByTimeAsync(GH_ANSWER_TIMEOUT_MS);
-		await status;
+			const status = expect(githubAuthStatus(defaultGhRunner)).rejects.toThrow(
+				'GitHub did not answer in 15 seconds.',
+			);
+			const pid = await vi.waitFor(() => {
+				const started = Number(readFileSync(join(home, 'gh.pid'), 'utf8'));
+				expect(started).toBeGreaterThan(0);
+				return started;
+			});
+			await vi.advanceTimersByTimeAsync(GH_ANSWER_TIMEOUT_MS);
+			await status;
 
-		vi.useRealTimers();
-		await vi.waitFor(() => expect(processIsAlive(pid)).toBe(false));
-		rmSync(home, { recursive: true, force: true });
-	});
+			vi.useRealTimers();
+			await vi.waitFor(() => expect(processIsAlive(pid)).toBe(false));
+			rmSync(home, { recursive: true, force: true });
+		},
+	);
 });

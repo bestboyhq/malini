@@ -143,6 +143,7 @@ export type ModelAccess =
 	| { readonly kind: 'ready' }
 	| { readonly kind: 'checking' }
 	| { readonly kind: 'claude-code-missing' }
+	| { readonly kind: 'git-missing' }
 	| { readonly kind: 'claude-signed-out' }
 	| { readonly kind: 'chatgpt-signed-out' }
 	| { readonly kind: 'chatgpt-model-missing' }

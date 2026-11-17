@@ -21,6 +21,7 @@ export function installShellRuns(
 			sessionId: requireId(args, 'sessionId'),
 			anchor: requireAnchor(args),
 			command: requireString(args, 'command'),
+			language: optionalString(args, 'language'),
 		}),
 	);
 	commands.define('chat.shell-runs', () => shellRuns.list());
@@ -39,6 +40,15 @@ export function installShellRuns(
 function requireString(args: unknown, key: string): string {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	return value;
+}
+
+function optionalString(args: unknown, key: string): string | null {
+	const value = isRecord(args) ? args[key] : undefined;
+	if (value === undefined || value === null) return null;
+	if (typeof value !== 'string') {
+		throw new Error(`invalid args: \`${key}\` must be a string when present`);
+	}
 	return value;
 }
 

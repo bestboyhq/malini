@@ -3,7 +3,7 @@ title: What Malini is
 description: Malini is a free, open source agentic development environment for builders moving fast. Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.
 ---
 
-Malini is agentic development environment for builders moving fast, as a Mac app.
+Malini is an agentic development environment for builders moving fast, on macOS, Windows and Linux.
 Each task you start is a **workstream**: its own git worktree, its own branch, and its own agent chats.
 Agents write the code, and Malini owns git: it commits, opens the pull request, fixes red checks, answers reviews, and merges.
 It runs on Claude Code today.
@@ -36,10 +36,15 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 - [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your automations working.
 - [Public profile](/malini/docs/profile.md): publish your stats to a profile at bestboy.dev, and share cards of it.
 
+Shortcuts in these docs are the Mac's; on Windows and Linux, **Ctrl** takes the place of **⌘**.
+
 ## Where your code goes
 
-Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
-Malini makes twelve calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, [the GitHub CLI from GitHub and Claude Code from Anthropic](/malini/docs/install.md) when this Mac lacks a working one, each checked against its published checksum, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it or point at the composer's gauge, the chats you run on a DeepSeek or OpenCode key, which Malini passes to that provider with your key, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, [the projects you turn on](/malini/docs/profile.md#projects-on-bestboy) in Settings, Profile, to bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
+Your code leaves your computer only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
+Malini makes thirteen calls of its own.
+Nine reach a service: update checks to GitHub Releases, usage data to Logdash, stored in the EU, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it or point at the composer's gauge, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, [a project you turn on](/malini/docs/profile.md#projects-on-bestboy) at bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
+One carries a DeepSeek or OpenCode chat to that provider, with your key added on the way, so Claude Code never holds it.
+Three download a tool you do not have: the GitHub CLI from GitHub, Claude Code from Anthropic, and, on Windows, Git from the Git for Windows releases, each checked against a pinned checksum.
 Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits, such as which command failed on which version.
 For a new install, it marks each first step once: the first open, the first way in you pick, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt sent, prompt run, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
@@ -49,9 +54,9 @@ Until your first prompt runs, it counts each step on the way: the way in you pic
 After that, it counts only the steps that fail.
 For every agent run it counts whether it finished, failed, was cancelled or was cut short, and for a failure the kind, such as a usage limit.
 It marks the first run that changed a file, your first **Draft** or **Merge** press and your first pull request, and counts each press and each time a ship stops on something, such as a missing GitHub permission.
-While you are signed in to Bestboy, each count carries your Bestboy account, as a hash Malini makes on your Mac, so we see which accounts use Malini on which days.
+While you are signed in to Bestboy, each count carries your Bestboy account, as a hash Malini makes on your computer, so we see which accounts use Malini on which days.
 Signed out, each count carries a random ID made for this install instead, also as a hash, so we can count the days Malini is used.
-That ID is not linked to you, your Mac or your account, and turning the switch off deletes it, so turning it back on starts a new one.
+That ID is not linked to you, your computer or your account, and turning the switch off deletes it, so turning it back on starts a new one.
 Once you answer where you heard about Malini, after your first merge, each count carries the option you picked, never the words you typed for somewhere else.
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
 Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
@@ -62,7 +67,7 @@ Turning the switch off sends one last count that says so, with no account, no ID
 
 **Help and feedback** at the bottom of the sidebar holds **Report a problem**, which files an issue on [bestboyhq/malini](https://github.com/bestboyhq/malini/issues) through your GitHub CLI, under your own GitHub account.
 The issue is public, so anyone can read it, and you can follow up on it on GitHub.
-It holds what you write and the facts you leave on below it: the Malini and macOS versions, how many repositories, prompts and merges you have, and the last command that failed in the past day, with the name and kind of its error.
+It holds what you write and the facts you leave on below it: the Malini and OS versions, how many repositories, prompts and merges you have, and the last command that failed in the past day, with the name and kind of its error.
 It never holds error messages, paths, code or chats.
 You can switch off any fact, and nothing goes until you press **File issue**.
 **Join the Discord** only opens bestboy.dev/malini/discord in your browser, which sends you on to the Bestboy Discord.

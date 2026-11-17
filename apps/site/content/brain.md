@@ -1,6 +1,6 @@
 ---
 title: Second brain
-description: Malini keeps a second brain - a private GitHub repository, or a folder on this Mac, where what you typed in your chats lands in a log, and a weekly automation turns the log into notes by topic that you read on the Brain page or in Obsidian.
+description: Malini keeps a second brain - a private GitHub repository, or a folder on this computer, where what you typed in your chats lands in a log, and a weekly automation turns the log into notes by topic that you read on the Brain page or in Obsidian.
 ---
 
 Your chats teach you things: what a product needs, which bet paid off, who knows what.
@@ -31,7 +31,7 @@ Turn it on under Settings, Brain, **Second brain**, or Settings, Automations, or
 
 Signed in to GitHub, Malini creates the private repository `<you>/brain` through the GitHub CLI, the way **New repository** does, or uses yours when it already exists and is private.
 It refuses a `brain` repository that is public.
-Without GitHub, the brain is a git repository in `~/malini/brain` on this Mac only, and stays there: it can't sync with GitHub later.
+Without GitHub, the brain is a git repository in `~/malini/brain` on this computer only, and stays there: it can't sync with GitHub later.
 
 Turning it on also turns on its two automations.
 Turning it off turns them off and keeps the brain.
@@ -66,12 +66,12 @@ A GTM engineer might ask for accounts, campaigns and objections instead.
 
 Malini commits each capture and each rewrite itself, and pushes them straight to `main` of your private repository, with no pull request.
 Before every push it checks again that the repository is private, and pushes nothing to a public one.
-Offline, the commits wait on this Mac, and Malini tries again every five minutes.
-When GitHub has changes this Mac lacks, Malini rebases onto them and pushes again, at most twice; if that fails, the Brain page and Settings, Brain say so, with **Retry**.
-Two Macs that capture to the same log day both keep their lines.
+Offline, the commits wait on this computer, and Malini tries again every five minutes.
+When GitHub has changes this computer lacks, Malini rebases onto them and pushes again, at most twice; if that fails, the Brain page and Settings, Brain say so, with **Retry**.
+Two computers that capture to the same log day both keep their lines.
 A push GitHub denies names the account and the repository, as a pull request does.
 
-Turn off **Sync with GitHub** under Settings, Brain to keep new commits on this Mac; turning it back on pushes what waits.
+Turn off **Sync with GitHub** under Settings, Brain to keep new commits on this computer; turning it back on pushes what waits.
 Your private repository is the only place the brain goes.
 Malini sends no chat anywhere else, and the brain reaches GitHub through the GitHub CLI, so Malini makes no new outbound call.
 
@@ -80,4 +80,4 @@ Malini sends no chat anywhere else, and the brain reaches GitHub through the Git
 **Brain** in your profile menu, at the bottom of the sidebar, opens it, and so does **Open the brain** in Settings, Brain.
 Its sidebar lists the notes by topic and the log by day, and **Workstreams** takes you back.
 A note shows when it was last rewritten, its links to log days open them, and **Linked from** lists the notes that link to the page you read.
-The line on top says where the brain is: synced to your repository and when, waiting to push, or on this Mac.
+The line on top says where the brain is: synced to your repository and when, waiting to push, or on this computer.

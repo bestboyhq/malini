@@ -1,17 +1,18 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
+	CLAUDE_CREDENTIALS,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
-	KEYCHAIN_FIXTURE,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
 	temporaryRoot,
+	writeExecutable,
 	waitWhile,
 } from './harness';
 
@@ -48,16 +49,13 @@ test('a Claude account added from the context card signs in through the browser 
 		},
 	});
 	try {
-		writeFileSync(
+		writeExecutable(
 			join(app.bin, 'claude'),
 			claudeLoginStub({ accountFile, argsFile, browserDone, newAccount: WORK_ACCOUNT }),
 		);
-		chmodSync(join(app.bin, 'claude'), 0o755);
-		mkdirSync(join(app.home, KEYCHAIN_FIXTURE));
-		writeFileSync(
-			join(app.home, KEYCHAIN_FIXTURE, 'Claude Code-credentials'),
-			login(PRIVATE_ACCOUNT),
-		);
+		const credentials = join(app.home, CLAUDE_CREDENTIALS);
+		mkdirSync(dirname(credentials), { recursive: true });
+		writeFileSync(credentials, login(PRIVATE_ACCOUNT));
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(
@@ -196,7 +194,7 @@ function claudeLoginStub(paths: {
 	browserDone: string;
 	newAccount: string;
 }): string {
-	const keychainItem = `"$HOME/${KEYCHAIN_FIXTURE}/Claude Code-credentials"`;
+	const storedLogin = `"$HOME/${CLAUDE_CREDENTIALS}"`;
 	return [
 		'#!/bin/sh',
 		'if [ "$1" = auth ] && [ "$2" = status ]; then',
@@ -215,7 +213,7 @@ function claudeLoginStub(paths: {
 		`  ${waitWhile(`[ ! -f '${paths.browserDone}' ]`)}`,
 		'fi',
 		`printf '%s\\n' "$email" > '${paths.accountFile}'`,
-		`printf '{"claudeAiOauth":{"refreshToken":"refresh-%s","scopes":["user:inference","user:profile"]}}' "$email" > ${keychainItem}`,
+		`printf '{"claudeAiOauth":{"refreshToken":"refresh-%s","scopes":["user:inference","user:profile"]}}' "$email" > ${storedLogin}`,
 		'echo "Login successful."',
 		'',
 	].join('\n');

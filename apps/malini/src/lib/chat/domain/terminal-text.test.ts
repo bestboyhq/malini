@@ -1,26 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { terminalKeySequence, terminalText } from './terminal-text';
-
-describe('terminalText', () => {
-	it('drops colors, titles and line endings a terminal hides', () => {
-		expect(terminalText('\u001b[31mred\u001b[0m\r\n\u001b]0;title\u0007plain\r\n')).toBe(
-			'red\nplain\n',
-		);
-	});
-
-	it('keeps what a carriage return wrote last on a line', () => {
-		expect(terminalText('10%\r50%\r100%\r\ndone')).toBe('100%\ndone');
-		expect(terminalText('Downloading\r')).toBe('Downloading');
-	});
-
-	it('applies backspaces the terminal echoed', () => {
-		expect(terminalText('pasx\b \bs')).toBe('pass');
-	});
-
-	it('removes other control characters', () => {
-		expect(terminalText('a\u0007b\u0000c\td')).toBe('abc\td');
-	});
-});
+import { terminalKeySequence } from './terminal-text';
 
 describe('terminalKeySequence', () => {
 	const key = (name: string, ctrlKey = false, metaKey = false) =>

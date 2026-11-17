@@ -8,6 +8,7 @@ import {
 	type PlatformTool,
 	type PlatformToolCall,
 } from '../protocol.js';
+import { MACHINE } from './machine.js';
 
 type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 
@@ -36,8 +37,7 @@ const WAKE = z
 		"Set true only when your next step needs this turn's result: Malini sends this chat that chat's report once the turn this prompt starts ends. Leave it out to let the work run on its own.",
 	);
 
-const AUTOMATION_TRIGGER_GRAMMAR =
-	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>/<repository>` for a repository, and every schedule names one, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
+const AUTOMATION_TRIGGER_GRAMMAR = `An event trigger: \`on <channel>\` for any Malini event from events_list, optionally narrowed with \`where <path> is <value>\` or \`where <path> is set\`, several joined with \`and\`, for example \`on pull-requests:ship-changed where merged is set\`. Or a schedule on this ${MACHINE}'s clock: \`every day\`, \`every weekday\` or \`every <day of the week>\` \`at <HH:MM>\`, then \`in <owner>/<repository>\` for a repository, and every schedule names one, for example \`every weekday at 09:00 in bestboyhq/malini\`. A scheduled automation keeps its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the ${MACHINE} slept or Malini was closed once when it is back.`;
 
 export function platformTools(request: PlatformToolRequester) {
 	const call = (tool: PlatformTool, input: Record<string, unknown>): Promise<ToolResult> =>

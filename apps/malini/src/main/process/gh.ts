@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { GhError } from '$main/errors';
+import { environmentVariable, spawnable } from './command';
+import { setVariable } from './environment';
+import { stopProcess } from './process-group';
 
 export interface GhResult {
 	stdout: string;
@@ -22,23 +25,28 @@ export function ghVendor(root: string): string {
 }
 
 export function withBundledGh(path: string | undefined, ...roots: readonly string[]): string {
-	return [path, ...roots.map((root) => join(ghVendor(root), 'bin'))].filter(Boolean).join(':');
+	return [path, ...roots.map((root) => join(ghVendor(root), 'bin'))]
+		.filter(Boolean)
+		.join(delimiter);
 }
 
 export function ghEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-	const home = base.HOME ?? '';
-	const inherited = base.PATH ?? '';
-	const augmented = `${home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${inherited}`;
-	return { ...base, PATH: base['MALINI_GH_PATH'] ?? augmented };
+	const inherited = environmentVariable(base, 'PATH') ?? '';
+	const augmented =
+		process.platform === 'win32'
+			? inherited
+			: `${base.HOME ?? ''}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${inherited}`;
+	const env = { ...base };
+	setVariable(env, 'PATH', base['MALINI_GH_PATH'] ?? augmented);
+	return env;
 }
 
 export function runGh(args: readonly string[], options: RunGhOptions = {}): Promise<GhResult> {
 	const maxBytes = options.maxBytes ?? MAX_GH_OUTPUT_BYTES;
 	return new Promise<GhResult>((resolve, reject) => {
-		const child = spawn('gh', [...args], {
-			cwd: options.cwd,
-			env: options.env ?? ghEnvironment(),
-		});
+		const env = options.env ?? ghEnvironment();
+		const command = spawnable('gh', args, env);
+		const child = spawn(command.file, command.args, { cwd: options.cwd, env, ...command.options });
 		let stdout = '';
 		let stderr = '';
 		let stdoutBytes = 0;
@@ -49,7 +57,7 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 			timeoutMs === undefined
 				? undefined
 				: setTimeout(() => {
-						child.kill('SIGKILL');
+						stopProcess(child, 'SIGKILL');
 						reject(GhError.timedOut(timeoutMs));
 					}, timeoutMs);
 

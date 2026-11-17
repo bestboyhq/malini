@@ -2,6 +2,7 @@ import { lidHoldStore } from '$lib/app/infrastructure/stores/lid-hold.store.svel
 
 class LidHoldQuery {
 	public readonly on: boolean | null = $derived(lidHoldStore.on);
+	public readonly available: boolean = $derived(lidHoldStore.available);
 	public readonly asking: boolean = $derived(lidHoldStore.asking);
 	public readonly refused: boolean = $derived(lidHoldStore.refused);
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { repositoryHref } from '$shared/router/routes-hrefs';
 	import { navigating } from '$shared/router/state';
@@ -15,6 +16,7 @@
 		clearRepositoryConnectErrorCommand,
 		connectedRepositoriesQuery,
 		GitHubSetup,
+		GitInstallStatus,
 		githubAuthQuery,
 		hiddenRepositoriesQuery,
 		loadGithubAuthCommand,
@@ -279,6 +281,7 @@
 				{#if githubSignedOut}
 					<GitHubSetup nested />
 				{/if}
+				<GitInstallStatus class="px-3.5" />
 
 				<ComposerShell>
 					<div class="flex h-10 items-center gap-3 pr-1.5 pl-3.5">
@@ -298,7 +301,7 @@
 							/>
 						</label>
 						<span class="flex shrink-0 items-center gap-0.5">
-							<Tooltip content="Find a repository ⌘K" placement="top">
+							<Tooltip content={`Find a repository ${osQuery.data.shortcut('K')}`} placement="top">
 								<Button
 									variant="ghost"
 									size="md"
@@ -307,7 +310,7 @@
 									loading={connecting === 'clone'}
 									ariaLabel="Find a repository"
 									ariaHasPopup="dialog"
-									ariaKeyshortcuts="Meta+K"
+									ariaKeyshortcuts={osQuery.data.ariaShortcut('K')}
 									data-testid="repository-clone-open"
 									onclick={() => openCommandCenterCommand('find')}
 								>
@@ -316,7 +319,7 @@
 									{/snippet}
 								</Button>
 							</Tooltip>
-							<Tooltip content="Open a folder ⌘O" placement="top">
+							<Tooltip content={`Open a folder ${osQuery.data.shortcut('O')}`} placement="top">
 								<Button
 									variant="ghost"
 									size="md"
@@ -324,7 +327,7 @@
 									disabled={connecting === 'clone'}
 									loading={connecting === 'folder'}
 									ariaLabel="Open a local repository folder"
-									ariaKeyshortcuts="Meta+O"
+									ariaKeyshortcuts={osQuery.data.ariaShortcut('O')}
 									data-testid="repository-open-folder"
 									onclick={() => openRepositoryFolderCommand()}
 								>

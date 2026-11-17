@@ -186,8 +186,11 @@
 		return marked.parse(source, { async: false, breaks: renderMode !== 'prose', gfm: true });
 	}
 
+	const ALLOWED_URI_REGEXP =
+		/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[a-z]:(?:[\\/]|%5c)|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/iu;
+
 	export function renderSanitizedHtml(source: string, renderMode: MarkdownRenderMode): string {
-		return DOMPurify.sanitize(unsanitizedHtml(source, renderMode));
+		return DOMPurify.sanitize(unsanitizedHtml(source, renderMode), { ALLOWED_URI_REGEXP });
 	}
 
 	type CodeBlockButtons = Readonly<{ copy: string; run: string }>;
@@ -201,6 +204,7 @@
 		buttons: SegmentOptions,
 	): DocumentFragment {
 		const fragment = DOMPurify.sanitize(unsanitizedHtml(source, mode), {
+			ALLOWED_URI_REGEXP,
 			RETURN_DOM_FRAGMENT: true,
 		});
 		holdWorkstreamImagesIn(fragment);
@@ -768,7 +772,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string, block: number) => void) | undefined;
+		onruncommand?: ((command: string, block: number, language: string | null) => void) | undefined;
 		coderuns?: ReadonlyMap<number, ShellRun> | undefined;
 		coderuncard?: Component<{ run: ShellRun }> | undefined;
 		onopenwikilink?: ((target: string) => void) | undefined;
@@ -861,7 +865,7 @@
 		const code = block?.querySelector(CODE_BLOCK_SELECTOR);
 		if (!block || !code) return false;
 		const index = [...container.querySelectorAll(CODE_BLOCK_ROOT_SELECTOR)].indexOf(block);
-		onruncommand?.(code.textContent ?? '', index);
+		onruncommand?.(code.textContent ?? '', index, codeLanguage(code));
 		return true;
 	}
 

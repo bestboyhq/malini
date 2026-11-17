@@ -17,6 +17,7 @@ import { claudeChatRecords, type SandboxDenial, type SandboxGrant } from '../san
 import { isRecord } from '../type-guards.js';
 import { BROWSER_TOOL_HINT } from './browser-mcp.js';
 import { MALINI_MCP_SERVER } from './browser-tools.js';
+import { MACHINE } from './machine.js';
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS']);
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -73,6 +74,7 @@ const PLAYWRIGHT_BROWSER_COMMANDS = new Set([
 	'wk',
 ]);
 const PAGE_ARGUMENT = /^(?:https?|file):|\.html?$/iu;
+const PAGE_OPENERS: ReadonlySet<string> = new Set(['open', 'xdg-open', 'start']);
 
 const START_A_WORKSTREAM =
 	'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit to start there, and hand its chat the task in `prompt`';
@@ -107,10 +109,9 @@ function refusal(owned: string): string {
 }
 
 function browserRefusal(launch: string): string {
-	const why =
-		launch === 'open'
-			? '`open` hands the page to another app on the Mac.'
-			: `\`${launch}\` drives a browser of its own.`;
+	const why = PAGE_OPENERS.has(launch)
+		? `\`${launch}\` hands the page to another app on the ${MACHINE}.`
+		: `\`${launch}\` drives a browser of its own.`;
 	return `${why} Malini's browser replaces it in Malini chats, even where other instructions name it: the page opens in a tab the user sees, with no sandbox exception and no approval. ${BROWSER_TOOL_HINT}`;
 }
 
@@ -121,7 +122,7 @@ export function otherBrowser(command: string): string | null {
 		if (name === 'playwright' && PLAYWRIGHT_BROWSER_COMMANDS.has(rest[0] ?? '')) {
 			return `playwright ${rest[0]}`;
 		}
-		if (name === 'open' && rest.some((arg) => PAGE_ARGUMENT.test(arg))) return 'open';
+		if (PAGE_OPENERS.has(name) && rest.some((arg) => PAGE_ARGUMENT.test(arg))) return name;
 	}
 	return null;
 }
@@ -247,8 +248,7 @@ export function permissionModeFor(profile: AgentRunProfile | undefined): Permiss
 	}
 }
 
-const LEAVES_THE_SANDBOX =
-	"This command asks to run outside Malini's sandbox, where it can read and change anything on your Mac and reach any site.";
+const LEAVES_THE_SANDBOX = `This command asks to run outside Malini's sandbox, where it can read and change anything on your ${MACHINE} and reach any site.`;
 const RUNS_IN_THE_SANDBOX = "Sandboxed access runs every command in Malini's sandbox.";
 const FULL_RUNS_OUTSIDE = 'Full access runs commands outside the sandbox without asking.';
 const CHAT_RUNS_OUTSIDE = 'The user allowed commands outside the sandbox for this chat.';
@@ -441,7 +441,7 @@ function pathResource(path: string, cwd: string): PermissionResourceDescriptor {
 
 function canonicalPath(path: string): string {
 	try {
-		return realpathSync(path);
+		return realpathSync.native(path);
 	} catch {
 		const parent = dirname(path);
 		return parent === path ? path : join(canonicalPath(parent), basename(path));

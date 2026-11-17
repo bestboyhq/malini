@@ -491,7 +491,7 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 
 test('a thread pin stays on its element when a Vite dev server hot-updates the page, changes its classes, or reloads it', async () => {
 	test.setTimeout(180_000);
-	const site = realpathSync(temporaryRoot('malini-hmr-site-'));
+	const site = realpathSync.native(temporaryRoot('malini-hmr-site-'));
 	const writeIndex = (title: string): void =>
 		writeFileSync(
 			join(site, 'index.html'),

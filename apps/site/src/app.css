@@ -584,6 +584,14 @@
 	margin: calc(var(--s) * -100 / 824);
 }
 
+:root:not([data-os='win32'], [data-os='linux']) [data-for]:not([data-for~='darwin']),
+:root[data-os='win32'] [data-for]:not([data-for~='win32']),
+:root[data-os='linux'] [data-for]:not([data-for~='linux']),
+:root:not([data-arch='arm64']) [data-for~='arm64'],
+:root[data-arch='arm64'] [data-for~='x64'] {
+	display: none;
+}
+
 .sr-only {
 	position: absolute;
 	width: 1px;

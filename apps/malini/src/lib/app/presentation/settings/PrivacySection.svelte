@@ -1,12 +1,16 @@
 <script lang="ts">
 	import { Well } from '$hyper-ui/components/well';
+	import { osQuery } from '$shared/os/os.api';
 	import SignContributionsSettings from '../SignContributionsSettings.svelte';
 	import StreamerModeSettings from '../StreamerModeSettings.svelte';
 	import UsageDataSettings from '../UsageDataSettings.svelte';
 	import SettingsSection from './SettingsSection.svelte';
 </script>
 
-<SettingsSection title="Privacy" description="What Malini sends off this Mac and shows on screen.">
+<SettingsSection
+	title="Privacy"
+	description="What Malini sends off this {osQuery.data.machine} and shows on screen."
+>
 	<Well title="Privacy" headed={false}>
 		<div
 			class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]"

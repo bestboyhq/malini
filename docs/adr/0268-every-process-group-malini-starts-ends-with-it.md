@@ -1,10 +1,10 @@
-# 0259 - Every process group Malini starts ends with it
+# 0268 - Every process group Malini starts ends with it
 
 Status: accepted
 
 ## Context
 
-ADR 0258 quits a background app through its normal quit once its launcher is gone, so a main thread that hangs or a quit that never ends still leaves the app running.
+ADR 0267 quits a background app through its normal quit once its launcher is gone, so a main thread that hangs or a quit that never ends still leaves the app running.
 Malini starts the agent bridge, shell runs, `runWithTimeout` commands and installs in process groups of their own, so a group kill of a crashed or killed Malini never reaches them, and the user's own app leaves them behind too.
 On a closed stdin the bridge waited for its in-flight turn, so it kept running a turn that nobody read, and resuming that session after a restart could start a second agent on it.
 macOS has no parent-death signal, and its `/bin/bash` 3.2 returns 1 from a `read -t` that times out, the same status as at end of file.
@@ -22,7 +22,7 @@ The e2e harness checked nothing about the processes an app started, so a stub th
   Every 5 seconds it drops the groups that no longer exist, so it never signals a pid that was reused.
 - With `MALINI_BACKGROUND_WINDOW=1` it also gets the launcher's pid.
   Once Malini's parent is no longer the launcher and Malini is still the reaper's parent 15 seconds later, the reaper sends SIGKILL to Malini and its group.
-  The `process.ppid` check of ADR 0258 still runs first and quits cleanly within a second.
+  The `process.ppid` check of ADR 0267 still runs first and quits cleanly within a second.
   A background app that leads its process group also has that group on the list, so its helpers and plain children end with it.
   The user's own app leaves its group alone, because the helper that `app.relaunch()` starts at exit lives there.
 - The bridge, `packages/agent-bridge/src/cli.ts`, sends SIGTERM to the process group it leads once its stdin closes, so `claude` and its tools stop with it.
@@ -35,6 +35,7 @@ The e2e harness checked nothing about the processes an app started, so a stub th
 - A crashed, killed or hung Malini, background or not, no longer leaves a bridge, a turn, a shell run or an install running.
 - Quitting Malini now also stops a `claude update` or an install that is still running.
 - Each Malini runs one more process, an idle reaper; only in background mode does it start `ps` every 5 seconds.
+- On Windows, where ADR 0258 has no process groups and no `/bin/bash`, the reaper does not start, `endWithMalini` registers nothing, and `killed-run.spec.ts` is skipped.
 - A reaper that dies is not started again: Malini logs `the reaper stopped`, and the groups it starts after that end with nothing.
 - A new process group must go through `endWithMalini`: `no-restricted-syntax` in `apps/malini/eslint.config.mjs` fails on `detached: true` outside an `endWithMalini(...)` call, except in `detached.ts` and `reaper.ts`.
 - `apps/malini/tests/e2e/killed-run.spec.ts` launches the app under a plain `sh` runner with no inspector.

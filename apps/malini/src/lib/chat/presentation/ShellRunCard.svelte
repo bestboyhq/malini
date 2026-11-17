@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { onMount } from 'svelte';
 	import type { ShellRun } from '$contract/shell-runs';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -85,7 +86,7 @@
 			{#if !running}
 				Output
 			{:else if typing}
-				Typing into the command · Control-C stops it
+				Typing into the command · {osQuery.data.interrupt} stops it
 			{:else}
 				Click the output to type into it
 			{/if}
@@ -100,7 +101,7 @@
 			{status}
 		</span>
 		{#if running}
-			<Tooltip content="Stop · sends Control-C" placement="top">
+			<Tooltip content={`Stop · sends ${osQuery.data.interrupt}`} placement="top">
 				<IconButton
 					variant="ghost"
 					size="xs"

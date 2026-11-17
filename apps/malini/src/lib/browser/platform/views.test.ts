@@ -318,7 +318,7 @@ function inputs(contents: FakeContents): ReadonlyArray<readonly [string, object 
 	return contents.devtoolsCommands.filter(([method]) => method.startsWith('Input.'));
 }
 
-function setup(zoom = 1) {
+function setup(zoom = 1, detachedViewsPaint = true) {
 	let window: FakeWindow | null = new FakeWindow(zoom);
 	const views: FakeView[] = [];
 	const states: BrowserState[] = [];
@@ -331,6 +331,7 @@ function setup(zoom = 1) {
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
 		onScreen: (shown) => shown.onScreen,
+		detachedViewsPaint,
 		createView: (events) => {
 			const view = new FakeView(events);
 			views.push(view);
@@ -759,6 +760,26 @@ describe('BrowserViews', () => {
 		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 40, y: 50, width: 300, height: 200 });
 	});
 
+	it('keeps a hidden view in the window with only its rounded-off corner pixel inside while it captures it, where views out of a window stop painting', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-corner-'));
+		roots.push(worktree);
+		const { browser, viewAt, window } = setup(1, false);
+		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
+		browser.hide(TAB);
+		await browser.open(TAB, 'https://example.com');
+		viewAt(0).bounds.splice(0);
+
+		await browser.screenshot(TAB, worktree, VISIBLE);
+
+		expect(viewAt(0).removedFrom).toEqual([]);
+		expect(viewAt(0).visibility).toEqual([true]);
+		expect(viewAt(0).bounds).toEqual([
+			{ x: -299, y: -199, width: 300, height: 200 },
+			{ x: 40, y: 50, width: 300, height: 200 },
+		]);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+	});
+
 	it('captures a shown view in place, and out of the window while malini is hidden', async () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-shown-'));
 		roots.push(worktree);
@@ -1167,8 +1188,8 @@ describe('BrowserViews', () => {
 		roots.push(worktree);
 		writeFileSync(join(worktree, 'cv.pdf'), 'pdf');
 		writeFileSync(join(worktree, 'photo.png'), 'png');
-		const cv = realpathSync(join(worktree, 'cv.pdf'));
-		const photo = realpathSync(join(worktree, 'photo.png'));
+		const cv = realpathSync.native(join(worktree, 'cv.pdf'));
+		const photo = realpathSync.native(join(worktree, 'photo.png'));
 		const { browser, viewAt } = setup();
 		await browser.open(TAB, 'https://example.com');
 		const { contents } = viewAt(0);

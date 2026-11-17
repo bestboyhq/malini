@@ -6,7 +6,7 @@ export type CommandCenterMode = 'commands' | 'find' | 'new-repository' | 'start'
 export type CommandCenterCommand = Readonly<{
 	id: 'find' | 'new-repository' | 'open-folder' | 'new-chat' | 'settings';
 	label: string;
-	keys: readonly string[];
+	shortcut: string | null;
 }>;
 
 export type CommandCenterEntry =
@@ -28,17 +28,17 @@ export type CommandCenterSearch = Readonly<{
 }>;
 
 export const COMMAND_CENTER_COMMANDS: readonly CommandCenterCommand[] = [
-	{ id: 'find', label: 'Find a repository', keys: [] },
-	{ id: 'new-repository', label: 'New repository', keys: [] },
-	{ id: 'open-folder', label: 'Open a folder', keys: ['⌘', 'O'] },
-	{ id: 'new-chat', label: 'New chat', keys: ['⌘', 'T'] },
-	{ id: 'settings', label: 'Settings', keys: ['⌘', ','] },
+	{ id: 'find', label: 'Find a repository', shortcut: null },
+	{ id: 'new-repository', label: 'New repository', shortcut: null },
+	{ id: 'open-folder', label: 'Open a folder', shortcut: 'O' },
+	{ id: 'new-chat', label: 'New chat', shortcut: 'T' },
+	{ id: 'settings', label: 'Settings', shortcut: ',' },
 ];
 
 export const START_CHAT_CHIP: CommandCenterCommand = {
 	id: 'new-chat',
 	label: 'New chat',
-	keys: [],
+	shortcut: null,
 };
 
 const REPOSITORIES_BESIDE_COMMANDS = 5;

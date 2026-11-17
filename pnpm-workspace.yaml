@@ -9,7 +9,7 @@ minimumReleaseAge: 2880
 
 catalog:
   svelte: ^5.57.0
-  electron: ^44.4.0
+  electron: ^44.11.3
   # Held at 6.x: 7.x requires vite 8, and electron-vite 5 (latest stable)
   # supports vite 5 to 7. Move both together when electron-vite 6 ships.
   '@sveltejs/vite-plugin-svelte': ^6.2.4
@@ -41,6 +41,7 @@ allowBuilds:
   electron: true
   esbuild: true
   electron-winstaller: false
+  node-pty: true
 
 # The bridge always hands the SDK the user's own `claude`, so its bundled binaries are unused.
 overrides:

@@ -20,6 +20,7 @@ export type RunShellCommandArgs = Readonly<{
 	sessionId: string;
 	anchor: ShellRunAnchor;
 	command: string;
+	language: string | null;
 }>;
 
 export type ShellRunArgs = Readonly<{ runId: string }>;

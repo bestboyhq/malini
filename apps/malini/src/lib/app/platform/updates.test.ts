@@ -135,6 +135,32 @@ describe('updates', () => {
 		await vi.waitFor(() => expect(downloads).toHaveBeenCalledTimes(2));
 	});
 
+	it.each(['win32', 'linux'] as const)(
+		'on %s stages the update electron-updater downloaded, never asking for the Applications folder',
+		async (platform) => {
+			const resources = mkdtempSync(join(tmpdir(), 'malini-updates-'));
+			writeFileSync(join(resources, 'app-update.yml'), 'provider: github\n');
+			Object.defineProperty(process, 'resourcesPath', { value: resources, configurable: true });
+			const { app } = await import('electron');
+			vi.spyOn(app, 'isInApplicationsFolder').mockImplementation(() => {
+				throw new TypeError('app.isInApplicationsFolder is not a function');
+			});
+			releases.latest = () => release('2.0.0');
+			const downloads = vi.spyOn(autoUpdater, 'downloadUpdate').mockResolvedValue([]);
+			const commands = new CommandRegistry();
+			const events = createEventBus({ forwardToWindows: false });
+			startUpdates({ commands, events }, () => undefined, platform);
+
+			await vi.waitFor(() => expect(downloads).toHaveBeenCalledTimes(1));
+			autoUpdater.emit('update-downloaded', { ...(await release('2.0.0')), downloadedFile: '' });
+
+			expect(await commands.call('app.update-status', undefined)).toEqual({
+				state: 'ready',
+				version: '2.0.0',
+			});
+		},
+	);
+
 	it('checks again after a check that never answers', async () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 		const resources = mkdtempSync(join(tmpdir(), 'malini-updates-'));

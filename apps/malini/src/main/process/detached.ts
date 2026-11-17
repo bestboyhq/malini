@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { describeError } from '$main/errors';
+import { spawnable } from './command';
 
 export type DetachedSpawnEnv = Readonly<Record<string, string>>;
 
@@ -16,10 +17,13 @@ export function trySpawnDetached(
 	return new Promise((resolve) => {
 		let child;
 		try {
-			child = spawn(command, [...args], {
-				env: { ...process.env, ...env },
+			const environment = { ...process.env, ...env };
+			const spawned = spawnable(command, args, environment);
+			child = spawn(spawned.file, spawned.args, {
+				env: environment,
 				detached: true,
 				stdio: 'ignore',
+				...spawned.options,
 			});
 		} catch (error) {
 			resolve({ launched: false, error: describeError(error) });

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { onDestroy, tick } from 'svelte';
 	import { beginPromptEditCommand } from '$lib/chat/application/commands/begin-prompt-edit.command';
 	import { endPromptEditCommand } from '$lib/chat/application/commands/end-prompt-edit.command';
@@ -261,5 +262,5 @@
 </section>
 
 {#snippet saveHint()}
-	Save queued prompt · <EnterShortcut />
+	Save queued prompt · <EnterShortcut label={osQuery.data.returnKey} />
 {/snippet}

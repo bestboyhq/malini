@@ -103,7 +103,7 @@ export async function statusCollector(worktreePath: string): Promise<WorktreeSta
 	return status;
 }
 
-const CONFLICT_MARKER_LINE = /^(?:<{7}|>{7})(?: |\r?$)/mu;
+const CONFLICT_MARKER_LINE = /^(?:<{7,}|>{7,})(?: |\r*$)/mu;
 const BINARY_SNIFF_BYTES = 8_000;
 
 export async function conflictMarkerPaths(

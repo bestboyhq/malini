@@ -7,6 +7,7 @@ import { realGit, removeDir, tempDir, workstreamFixture } from './fixtures.test-
 import { installGitRunnerForTests } from './run';
 import { worktreeSnapshotTree } from './snapshots';
 
+const VANISHED = /unable to (?:stat|index file) 'vanishing\.txt'/u;
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
 	while (cleanups.length > 0) await cleanups.pop()?.();
@@ -98,7 +99,7 @@ describe('a read that races a file deleted underneath it', () => {
 	it('gives a churning checkout longer to settle before each new read', async () => {
 		const race = await checkoutWhereAFileVanishesMidRead({ vanishEveryTime: true });
 
-		await expect(workstreamSnapshot(race.checkout, 'main')).rejects.toThrow(/unable to stat/u);
+		await expect(workstreamSnapshot(race.checkout, 'main')).rejects.toThrow(VANISHED);
 
 		const gaps = race.attemptGaps();
 		expect(gaps).toHaveLength(2);
@@ -109,9 +110,7 @@ describe('a read that races a file deleted underneath it', () => {
 	it('reports a real error when the file keeps vanishing', async () => {
 		const race = await checkoutWhereAFileVanishesMidRead({ vanishEveryTime: true });
 
-		await expect(workstreamSnapshot(race.checkout, 'main')).rejects.toThrow(
-			/unable to stat 'vanishing\.txt': No such file or directory/u,
-		);
+		await expect(workstreamSnapshot(race.checkout, 'main')).rejects.toThrow(VANISHED);
 		expect(race.stagingCalls()).toBe(3);
 	});
 

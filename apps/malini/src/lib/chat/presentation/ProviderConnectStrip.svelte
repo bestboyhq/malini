@@ -5,6 +5,7 @@
 	import { Strip } from '$hyper-ui/components/strip';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
 	import { withdrawHeldPromptCommand } from '$lib/chat/application/commands/withdraw-held-prompt.command';
 	import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
@@ -21,6 +22,7 @@
 		signInToChatGptCommand,
 		signInToClaudeCommand,
 	} from '$shared/providers/providers.api';
+	import { gitSetupQuery, installGitCommand } from '$shared/repositories/repositories.api';
 	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 
 	interface Props {
@@ -45,8 +47,19 @@
 		(access.kind === 'claude-signed-out' && (waitingForClaude || busy)) ||
 			(access.kind === 'chatgpt-signed-out' && waitingForChatGpt),
 	);
+	const missingTool = $derived(
+		access.kind === 'claude-code-missing'
+			? 'Claude Code'
+			: access.kind === 'git-missing'
+				? 'Git for Windows'
+				: null,
+	);
 	const install = $derived(
-		access.kind === 'claude-code-missing' ? claudeCodeInstallQuery.data : null,
+		access.kind === 'claude-code-missing'
+			? claudeCodeInstallQuery.data
+			: access.kind === 'git-missing'
+				? gitSetupQuery.data
+				: null,
 	);
 	const hasDraft = $derived(draft.trim().length > 0);
 	const keyUrl = $derived(access.kind === 'needs-key' ? providerKeyUrl(access.providerId) : null);
@@ -155,9 +168,8 @@
 			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5" role="status">
 				<BusyIcon size={12} />
 				<span class="truncate">
-					Installing Claude Code. <span class="text-fg-tertiary">
-						Your prompt sends once it is in
-					</span>
+					Installing {missingTool}.
+					<span class="text-fg-tertiary">Your prompt sends once it is in</span>
 				</span>
 			</span>
 			{#if install.progress}
@@ -165,7 +177,7 @@
 					class="min-w-32 flex-1"
 					received={install.progress.received}
 					total={install.progress.total}
-					ariaLabel="Claude Code download"
+					ariaLabel={`${missingTool} download`}
 				/>
 			{/if}
 		{:else if install?.kind === 'failed'}
@@ -175,7 +187,7 @@
 			</span>
 		{:else}
 			<span class="text-fg-secondary flex min-w-0 items-center gap-1.5">
-				<Icon name={access.kind === 'claude-code-missing' ? 'warning' : 'lock'} size={12} />
+				<Icon name={missingTool ? 'warning' : 'lock'} size={12} />
 				<span class="truncate">
 					{#if access.kind === 'claude-signed-out'}
 						Sign in to Claude Code to run this
@@ -183,8 +195,8 @@
 						Sign in to ChatGPT to run this
 					{:else if access.kind === 'chatgpt-model-missing'}
 						Not on your ChatGPT plan
-					{:else if access.kind === 'claude-code-missing'}
-						Claude Code is not on this Mac
+					{:else if missingTool}
+						{missingTool} is not on this {osQuery.data.machine}
 					{/if}
 				</span>
 			</span>
@@ -229,12 +241,12 @@
 					>
 						Continue with ChatGPT
 					</Button>
-				{:else if access.kind === 'claude-code-missing' && install?.kind !== 'installing'}
+				{:else if missingTool && install?.kind !== 'installing'}
 					<Button
 						variant="primary"
 						size="sm"
 						bind:element={primary}
-						onclick={installClaudeCodeCommand}
+						onclick={access.kind === 'git-missing' ? installGitCommand : installClaudeCodeCommand}
 						data-testid="provider-connect-install"
 					>
 						{install?.kind === 'failed' ? 'Try again' : 'Install'}

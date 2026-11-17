@@ -2,14 +2,15 @@ import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { chmod, copyFile, mkdir, rename, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { InstallProgressPayload } from '$contract/events';
 import { isRecord } from '$main/db/rows';
 import { saveDownload, type Fetch } from '$main/fs/download';
 
 export const CLAUDE_RELEASES_URL = 'https://downloads.claude.ai/claude-code-releases';
-const PLATFORM = 'darwin-arm64';
+const PLATFORM = `${process.platform}-${process.arch}`;
+const BINARY = /^claude(?:\.exe)?$/u;
 const REQUEST_TIMEOUT_MS = 30_000;
 const SETUP_TIMEOUT_MS = 300_000;
 const VERSION = /^\d+\.\d+\.\d+(?:-[\w.+-]+)?$/u;
@@ -35,7 +36,7 @@ export type ClaudeInstallOptions = Readonly<{
 	stallMs?: number;
 }>;
 
-type Release = Readonly<{ version: string; checksum: string; size: number | null }>;
+type Release = Readonly<{ version: string; checksum: string; size: number | null; name: string }>;
 
 const execFileAsync = promisify(execFile);
 
@@ -47,12 +48,12 @@ export async function installClaudeCode({
 	releases = CLAUDE_RELEASES_URL,
 	stallMs,
 }: ClaudeInstallOptions): Promise<void> {
-	const { version, checksum, size } = await latestRelease(fetch, releases);
+	const { version, checksum, size, name } = await latestRelease(fetch, releases);
 	await mkdir(directory, { recursive: true, mode: 0o700 });
-	const binary = join(directory, `claude-${version}-${PLATFORM}`);
+	const binary = join(directory, `claude-${version}-${PLATFORM}${extname(name)}`);
 	try {
 		const actual = await downloaded(() =>
-			saveDownload(fetch, `${releases}/${version}/${PLATFORM}/claude`, binary, {
+			saveDownload(fetch, `${releases}/${version}/${PLATFORM}/${name}`, binary, {
 				onProgress,
 				total: size,
 				...(stallMs === undefined ? {} : { stallMs }),
@@ -68,7 +69,7 @@ export async function installClaudeCode({
 		await keep(binary, versionPath(environment, version));
 		await setUp(binary, version, environment);
 	} finally {
-		await rm(binary, { force: true });
+		await rm(binary, { force: true, maxRetries: 5 });
 	}
 }
 
@@ -84,11 +85,17 @@ function latestRelease(fetch: Fetch, releases: string): Promise<Release> {
 				? manifest['platforms'][PLATFORM]
 				: undefined;
 		const checksum = isRecord(build) ? build['checksum'] : undefined;
-		if (typeof checksum !== 'string' || !/^[a-f0-9]{64}$/u.test(checksum)) {
+		const name = isRecord(build) ? build['binary'] : undefined;
+		if (
+			typeof checksum !== 'string' ||
+			!/^[a-f0-9]{64}$/u.test(checksum) ||
+			typeof name !== 'string' ||
+			!BINARY.test(name)
+		) {
 			throw new Error(`Claude Code ${version} has no ${PLATFORM} build`);
 		}
 		const size = isRecord(build) && typeof build['size'] === 'number' ? build['size'] : null;
-		return { version, checksum, size };
+		return { version, checksum, size, name };
 	});
 }
 
@@ -135,6 +142,7 @@ async function setUp(
 	const run = execFileAsync(binary, ['install', version], {
 		env: environment,
 		timeout: SETUP_TIMEOUT_MS,
+		windowsHide: true,
 	});
 	run.child.stdin?.end();
 	try {

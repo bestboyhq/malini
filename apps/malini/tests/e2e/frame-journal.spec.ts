@@ -6,7 +6,7 @@ import {
 	diagnosticsDirectory,
 	FRAMES_LOG_STEM,
 } from '../../src/main/diagnostics/diagnostics-files';
-import { expectCleanConsole, launchMalini } from './harness';
+import { expectCleanConsole, launchMalini, suspendWindowsProcess } from './harness';
 
 type Entry = Record<string, unknown>;
 
@@ -56,6 +56,7 @@ test('slow frames on the page, main-thread stalls and a GPU stall land in the fr
 	const app = await launchMalini();
 	let stopped: number | null = null;
 	const pause = async (pid: number, ms: number): Promise<void> => {
+		if (process.platform === 'win32') return suspendWindowsProcess(pid, ms);
 		process.kill(pid, 'SIGSTOP');
 		stopped = pid;
 		await sleep(ms);
@@ -90,9 +91,7 @@ test('slow frames on the page, main-thread stalls and a GPU stall land in the fr
 		await expect
 			.poll(() => causesCaught(journaled(app.userDataDir))['mainThreadWork'], { timeout: 10_000 })
 			.toBe(true);
-		const main = electronApp.process().pid;
-		expect(main).toEqual(expect.any(Number));
-		if (main !== undefined) await pause(main, 300);
+		await pause(await electronApp.evaluate(() => process.pid), 300);
 
 		const gpu = await electronApp.evaluate(
 			({ app: electron }) => electron.getAppMetrics().find((metric) => metric.type === 'GPU')?.pid,

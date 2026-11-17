@@ -1,27 +1,32 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import {
-	CREATED_GITHUB_REPOSITORY_FIXTURE,
-	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
+	CREATED_GITHUB_REPOSITORY_FIXTURE,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
 	expectPicker,
+	GITHUB_REPOSITORIES_FIXTURE,
 	ghCalls,
 	invoke,
 	launchMalini,
 	openWorkstream,
+	REAL_GIT,
 	seedWorkstream,
 	sendPrompt,
-	type WorkstreamRow,
 	withoutConsoleErrors,
+	writeExecutable,
+	type LaunchedApp,
+	type WorkstreamRow,
 } from './harness';
+import { osFor } from '../../src/lib/shared/os/domain/os';
 
-test('a new Mac without Claude Code installs it quietly, holds the first prompt, and says why the install failed', async () => {
+const FOLDER_DOOR = `A folder on this ${osFor(process.platform).machine}`;
+
+test('a new computer without Claude Code installs it quietly, holds the first prompt, and says why the install failed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({
 		env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' },
@@ -238,7 +243,7 @@ test('a new install opens on a picker with no chat, GitHub lists your repositori
 		const tabs = page.getByRole('tablist', { name: 'Chats and files' });
 		const prompt = page.getByRole('textbox', { name: 'Chat prompt' });
 		const github = chooser.getByRole('button', { name: 'GitHub', exact: true });
-		await expect(chooser.getByRole('button', { name: 'A folder on this Mac' })).toBeVisible();
+		await expect(chooser.getByRole('button', { name: FOLDER_DOOR })).toBeVisible();
 		await expect(chooser.getByRole('button', { name: 'New repository' })).toBeVisible();
 		await expect(repositories).toHaveCount(0);
 		await captureFlow(app, 'first-repository-doors');
@@ -401,7 +406,7 @@ test('quitting while the first pick clones reopens on Repositories with the repo
 		);
 		await page.reload();
 		await expectPicker(page);
-		slowClone(join(first.home, '.local/bin'));
+		slowClone(first);
 		await page.getByRole('button', { name: 'GitHub', exact: true }).click();
 		await page
 			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
@@ -442,7 +447,7 @@ test('a message sent while the first pick copies waits for the copy, then runs',
 		);
 		await page.reload();
 		await expectPicker(page);
-		slowClone(join(app.home, '.local/bin'));
+		slowClone(app);
 		await page.getByRole('button', { name: 'GitHub', exact: true }).click();
 		await page
 			.getByRole('list', { name: 'Your GitHub repositories', exact: true })
@@ -498,14 +503,13 @@ test('settings that cannot be read still open the repository picker', async () =
 	}
 });
 
-function slowClone(binFolder: string): void {
-	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-	const stub = join(binFolder, 'git');
-	writeFileSync(
-		stub,
-		`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${git}" "$@"\n`,
-	);
-	chmodSync(stub, 0o755);
+function slowClone(app: LaunchedApp): void {
+	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
+		writeExecutable(
+			join(dir, 'git'),
+			`#!/bin/sh\ncase " $* " in *" clone "*) sleep 6 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
+		);
+	}
 }
 
 async function workstreams(page: Page): Promise<WorkstreamRow[]> {

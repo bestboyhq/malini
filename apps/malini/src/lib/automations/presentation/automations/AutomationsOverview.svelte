@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import type {
 		AutomationDefinitionRecord,
@@ -149,7 +150,11 @@
 				>
 					Draft it
 					{#snippet trailing()}
-						<EnterShortcut mod size={11} />
+						<EnterShortcut
+							mod={osQuery.data.shortcut('')}
+							label={osQuery.data.primaryReturn}
+							size={11}
+						/>
 					{/snippet}
 				</Button>
 			{/snippet}

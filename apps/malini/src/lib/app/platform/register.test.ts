@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -58,6 +59,7 @@ const KEPT_COMMANDS = [
 	'app.list-settings',
 	'app.usage-data',
 	'app.share-usage-data',
+	'app.lid-hold',
 	'app.count-usage-step',
 	'app.hold-lid',
 	'app.set-setting',
@@ -417,7 +419,7 @@ describe('registerApp', () => {
 	});
 
 	it('puts Open Folder, Find Repository, Accounts and Settings in the menu bar icon, each handed to the window once', async () => {
-		boot(context);
+		boot(context, { platform: 'darwin' });
 		expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'));
 		const items = host.tray?.items ?? [];
 		expect(items.map((item) => ('label' in item ? item.label : item.type))).toEqual([
@@ -438,6 +440,45 @@ describe('registerApp', () => {
 			expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: null });
 		}
 		expect(host.openedWindows).toBe(2);
+	});
+
+	it.each([
+		['win32', 'tray.ico', 'Exit Malini'],
+		['linux', 'tray.png', 'Quit Malini'],
+	] as const)(
+		'keeps Malini a click away in the %s tray once its window closes, and quits from there',
+		(platform, icon, quit) => {
+			boot(context, { platform });
+			expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', icon));
+			const items = host.tray?.items ?? [];
+			expect(items.map((item) => ('label' in item ? item.label : item.type))).toEqual([
+				'Open Malini',
+				'separator',
+				'Open Folder…',
+				'Find Repository…',
+				'separator',
+				'Accounts…',
+				'Settings…',
+				'separator',
+				quit,
+			]);
+			expect(items.at(-1)).toEqual({ label: quit, role: 'quit' });
+
+			host.tray?.open();
+			const first = items[0];
+			if (first && 'click' in first) first.click();
+			expect(host.openedWindows).toBe(2);
+		},
+	);
+
+	it.each([
+		'trayTemplate.png',
+		'trayTemplate@2x.png',
+		'tray.png',
+		'tray@2x.png',
+		'tray.ico',
+	] as const)('ships %s, so the tray never stops a launch', (icon) => {
+		expect(existsSync(join(import.meta.dirname, '../../../../build/tray', icon))).toBe(true);
 	});
 
 	it('focuses the window on a click of the menu bar icon and shows how many chats are unread beside it', async () => {
@@ -466,13 +507,16 @@ describe('registerApp', () => {
 		const items = Array.isArray(file?.submenu) ? file.submenu : [];
 
 		expect(
-			items.filter((item) => item.label).map(({ label, accelerator }) => [label, accelerator]),
+			items
+				.filter((item) => item.id)
+				.slice(0, 4)
+				.map(({ label, accelerator }) => [label, accelerator]),
 		).toEqual([
 			['New Workstream', 'CommandOrControl+N'],
 			['New Chat', 'CommandOrControl+T'],
 			['Open Folder…', 'CommandOrControl+O'],
 			['Find Repository…', undefined],
 		]);
-		expect(items.at(-1)?.role).toBe('close');
+		expect(items.map((item) => item.role)).toContain('close');
 	});
 });

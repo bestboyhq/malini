@@ -15,6 +15,7 @@ import {
 } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { rmSync } from 'original-fs';
+import { syncDirectory } from '$main/fs/atomic';
 import { isInsideDirectory } from '$main/fs/paths';
 import {
 	attachmentIdIsSafe,
@@ -92,7 +93,7 @@ function canonicalAttachmentDirectory(
 	const path = join(worktree, expected);
 	let parent: string;
 	try {
-		parent = realpathSync(dirname(path));
+		parent = realpathSync.native(dirname(path));
 	} catch (error) {
 		throw new Error(`canonicalize attachment directory: ${describe(error)}`);
 	}
@@ -301,25 +302,17 @@ function publishStagedFile(directory: string, temporary: string, destination: st
 	} catch (error) {
 		throw new Error(`publish staged attachment: ${describe(error)}`);
 	}
-	let fd: number;
 	try {
-		fd = openSync(directory, fsConstants.O_RDONLY);
+		syncDirectory(directory);
 	} catch (error) {
 		throw new Error(`sync attachment directory: ${describe(error)}`);
-	}
-	try {
-		fsyncSync(fd);
-	} catch (error) {
-		throw new Error(`sync attachment directory: ${describe(error)}`);
-	} finally {
-		closeSync(fd);
 	}
 }
 
 function relativeToWorktree(worktree: string, destination: string): string {
 	let canonicalWorktree: string;
 	try {
-		canonicalWorktree = realpathSync(worktree);
+		canonicalWorktree = realpathSync.native(worktree);
 	} catch (error) {
 		throw new Error(describe(error));
 	}

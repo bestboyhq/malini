@@ -1,9 +1,9 @@
 ---
 title: Public profile
-description: Publish your Malini stats to a public profile at bestboy.dev, share cards of it, and put the projects you build on bestboy.dev. Everything Malini sends, in plain words, and what never leaves your Mac.
+description: Publish your Malini stats to a public profile at bestboy.dev, share cards of it, and put the projects you build on bestboy.dev. Everything Malini sends, in plain words, and what never leaves your computer.
 ---
 
-Malini counts how you work with agents on your Mac, in the Stats panel.
+Malini counts how you work with agents on your computer, in the Stats panel.
 You can publish those stats to a public profile at `bestboy.dev/@handle`, and then share cards of them.
 Your profile lives in your Bestboy account, and publishing is off until you turn it on.
 The same account puts the projects you build with Malini on bestboy.dev; see [Projects on Bestboy](#projects-on-bestboy).
@@ -13,14 +13,14 @@ The same account puts the projects you build with Malini on bestboy.dev; see [Pr
 Settings, Profile shows your Bestboy account.
 Signed out, it says **Not signed in to Bestboy**, and **Sign in** opens your browser to sign in with Google or an email code.
 Signing in publishes nothing; it only tells Malini who you are on bestboy.dev.
-While you are signed in, Malini's usage stats carry your account, as a hash made on your Mac; signed out, they carry a random ID made for this install, linked to nothing else.
+While you are signed in, Malini's usage stats carry your account, as a hash made on your computer; signed out, they carry a random ID made for this install, linked to nothing else.
 You turn them off in Settings, Privacy, **Share usage stats**.
 Signed in, it shows your name and email, and **Sign out**.
 
 Your picture and handle sit at the bottom of the sidebar, or a plain figure while Malini knows neither.
 Click them for **Stats**, **Brain** and **Settings**; **⌘,** opens Settings too.
 Signed in, the menu adds your name and a line about your week: a flame and a cheer such as **Crushing it as always** while you keep up your pace, or a sun and one such as **Warming up before taking over the world** while it is quieter.
-You keep up your pace when the last 7 days hold at least three quarters of your average week over the 4 weeks before them, counted on your Mac.
+You keep up your pace when the last 7 days hold at least three quarters of your average week over the 4 weeks before them, counted on your computer.
 Signed in, **Open profile** opens your public profile once you publish, and **Sign out** signs you out.
 The same account publishes your extensions, from **Extensions you publish** lower on Profile; see [Publish an extension](/malini/docs/extensions.md#publish-an-extension).
 
@@ -51,8 +51,8 @@ A link meant for another sign-in, or one that reaches a Malini that never asked 
 ### Your profile only grows
 
 Your first upload seeds your profile with everything Malini counted until then.
-After that, bestboy.dev only adds the days that follow: a day already on your profile keeps its numbers, and your totals never go down, even when you delete a chat or a repository on your Mac.
-So your profile can count more than the Stats panel, which counts what your Mac still holds.
+After that, bestboy.dev only adds the days that follow: a day already on your profile keeps its numbers, and your totals never go down, even when you delete a chat or a repository on your computer.
+So your profile can count more than the Stats panel, which counts what your computer still holds.
 Agents at once, run lengths, steps and your picked repositories follow your latest upload.
 
 bestboy.dev caps every number far above what anyone reaches, such as 100 agents at once or 3,000 runs a day, and refuses numbers that contradict each other.
@@ -93,7 +93,7 @@ Once your profile is public, only the line shows, with **Share** beside it: it o
 The × closes the card and brings **Recently archived** back, and no card shows for a week after.
 After that week, only a milestone reached since you closed the last card shows, so a card stays rare.
 **Milestone cards** in Settings, Profile turns them off.
-Milestones are worked out on your Mac and nothing about them leaves it until you publish.
+Milestones are worked out on your computer and nothing about them leaves it until you publish.
 
 ## Every number Malini sends
 
@@ -123,7 +123,7 @@ Every number counts complete days in your time zone, through yesterday; today is
 The only names Malini sends are the public repositories you picked.
 It sends no tool, skill, MCP server, model or language name.
 
-## What never leaves your Mac
+## What never leaves your computer
 
 - Your prompts, code, file names, and paths.
 - The name of any repository you did not pick.
@@ -171,5 +171,5 @@ When bestboy.dev cannot be reached, Malini keeps trying until it can.
 - **Changelog**: the start of `CHANGELOG.md` on the repository's default branch, up to 32 KB, cut at the end of a line, and nothing when there is none.
   The **Changelog on merge** recipe on the Automations page keeps it for you, written for the people who use the project.
 
-Nothing else about a project leaves your Mac: never the repository's name, its files or code, your prompts, or its pull requests.
+Nothing else about a project leaves your computer: never the repository's name, its files or code, your prompts, or its pull requests.
 A private repository is a project like any other, since its link is all that names it.

@@ -8,6 +8,7 @@
 	} from '$shared/providers/domain/model-catalog';
 	import { providerGroupsQuery } from '$shared/providers/application/queries/provider-groups.query.svelte';
 	import { agentAccessDefaultQuery } from '$shared/providers/application/queries/agent-access-default.query.svelte';
+	import { sandboxProblemQuery } from '$shared/providers/application/queries/sandbox-problem.query.svelte';
 	import {
 		AGENT_ACCESS_DETAILS,
 		AGENT_ACCESS_LEVELS,
@@ -15,6 +16,7 @@
 		AGENT_REPORTS,
 		DEFAULT_AGENT_REPORT,
 		reasoningEffortLabel,
+		sandboxProblemLine,
 		type AgentAccess,
 		type AgentReasoningEffort,
 		type AgentReport,
@@ -27,6 +29,7 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { getOverlayFocusReturn } from '$hyper-ui/overlay';
+	import { osQuery } from '$shared/os/os.api';
 	import { goto } from '$shared/router/navigation';
 	import { MODEL_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 
@@ -87,6 +90,16 @@
 	function toggleEffort(): void {
 		if (disabled || !effortSupported) return;
 		effortOpen = !effortOpen;
+	}
+
+	const sandboxProblem = $derived(sandboxProblemQuery.data);
+
+	$effect(() => void sandboxProblemQuery.load());
+
+	function accessDescription(access: AgentAccess): string {
+		const problem =
+			access === 'sandboxed' ? sandboxProblemLine(sandboxProblem, osQuery.data.platform) : null;
+		return problem ?? AGENT_ACCESS_DETAILS[access].description;
 	}
 
 	function selectAccess(access: AgentAccess): void {
@@ -208,11 +221,7 @@
 		</Tooltip>
 	{/if}
 	{#if profile.access !== defaultAccess}
-		<Tooltip
-			content={AGENT_ACCESS_DETAILS[profile.access].description}
-			placement="top"
-			suppressed={optionsOpen}
-		>
+		<Tooltip content={accessDescription(profile.access)} placement="top" suppressed={optionsOpen}>
 			<Button
 				bind:element={accessChip}
 				variant="ghost"
@@ -335,7 +344,7 @@
 						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
 							<span>{AGENT_ACCESS_DETAILS[access].label}</span>
 							<span class="text-fg-tertiary text-xs whitespace-normal">
-								{AGENT_ACCESS_DETAILS[access].description}
+								{accessDescription(access)}
 							</span>
 						</span>
 						{#if profile.access === access}

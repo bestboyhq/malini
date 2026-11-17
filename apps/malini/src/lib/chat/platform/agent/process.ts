@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
+import { OWN_PROCESS_GROUP } from '$main/process/process-group';
 import { endWithMalini } from '$main/process/reaper';
 
 export interface BridgeSpawnSpec {
@@ -42,7 +43,7 @@ export function createNodeProcessFactory(
 						env: { ...spec.env, ...extraEnv },
 						...(spec.cwd === undefined ? {} : { cwd: spec.cwd }),
 						stdio: ['pipe', 'pipe', 'pipe'],
-						detached: true,
+						...OWN_PROCESS_GROUP,
 					}),
 				);
 				let exited = false;

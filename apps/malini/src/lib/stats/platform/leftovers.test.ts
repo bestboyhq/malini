@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { leftoverContainers, leftoverProcesses, parseProcessList } from './leftovers';
+import type { ProcessExit, ProcessRunner } from '$main/process/runner';
+import {
+	leftoverContainers,
+	leftoverProcesses,
+	parseProcessList,
+	windowsTerminalProcesses,
+} from './leftovers';
 import type { DockerContainer } from './running-docker';
 
 const ROOT = '/Users/me/Library/Application Support/malini/workstreams';
@@ -43,6 +49,52 @@ describe('leftoverProcesses', () => {
 			].join('\n'),
 		);
 		expect(leftoverProcesses(dogfood, { folders: [ARCHIVED], live: [] }, 200)).toEqual([]);
+	});
+
+	it('reads the Windows list and finds the checkout whatever the case and slashes of its path', () => {
+		const root = 'C:\\Users\\Me\\AppData\\Roaming\\malini\\workstreams';
+		const place = {
+			folders: [{ id: 'ws-1', path: `${root}\\ws-1` }],
+			live: [{ id: 'ws-10', path: `${root}\\ws-10` }],
+		};
+		const windows = parseProcessList(
+			[
+				'4 0 ? System',
+				'200 100 ? "C:\\Program Files\\Malini\\Malini.exe"',
+				'300 0 ? node.exe c:/users/me/appdata/roaming/malini/workstreams/ws-1/server.js',
+				'310 300 ? C:\\Windows\\System32\\conhost.exe 0xffffffff -ForceV1',
+				`500 0 ? node.exe ${root}\\ws-10\\server.js`,
+			].join('\r\n'),
+		);
+		expect(leftoverProcesses(windows, place, 200, 'win32').sort()).toEqual([300, 310]);
+	});
+});
+
+describe('windowsTerminalProcesses', () => {
+	function probe(stdout: string, code = 0): ProcessRunner {
+		return {
+			spawn: (_file, _args, options = {}) => {
+				options.onStdout?.(stdout);
+				return { pid: 1, exit: Promise.resolve<ProcessExit>({ kind: 'exited', code }) };
+			},
+			signalProcessGroup: () => {},
+			processGroupIsAlive: () => false,
+			processIsAlive: () => false,
+		};
+	}
+
+	it('keeps only the pids the console probe saw', async () => {
+		const seen = await windowsTerminalProcesses(probe('terminals:220 400\n'), [220, 300, 400]);
+		const none = await windowsTerminalProcesses(probe('terminals:\n'), [220, 300]);
+
+		expect([...seen]).toEqual([220, 400]);
+		expect([...none]).toEqual([]);
+	});
+
+	it('leaves every pid alone when the probe cannot answer', async () => {
+		const seen = await windowsTerminalProcesses(probe('', 1), [220, 300]);
+
+		expect([...seen]).toEqual([220, 300]);
 	});
 });
 

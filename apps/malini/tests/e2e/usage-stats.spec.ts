@@ -34,9 +34,13 @@ test('the first-run picker says in its description that Malini shares usage stat
 	}
 });
 
-test('the first-run picker says nothing about usage stats while the login shell sets DO_NOT_TRACK', async () => {
+test('the first-run picker says nothing about usage stats while the user sets DO_NOT_TRACK', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ shellProfile: 'DO_NOT_TRACK=1\nexport DO_NOT_TRACK\n' });
+	const app = await launchMalini(
+		process.platform === 'win32'
+			? { env: { DO_NOT_TRACK: '1' } }
+			: { shellProfile: 'DO_NOT_TRACK=1\nexport DO_NOT_TRACK\n' },
+	);
 	try {
 		await expectPicker(app.page);
 		const description = app.page.getByRole('paragraph').filter({ hasText: RUNS_CLAUDE_CODE });

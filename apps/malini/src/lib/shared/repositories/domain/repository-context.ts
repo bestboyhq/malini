@@ -263,7 +263,7 @@ export function repositoryFullNameFromRemoteUrl(remoteUrl: string): string | nul
 		return null;
 	}
 
-	const parts = path.split('/').filter(Boolean);
+	const parts = path.split(/[\\/]/u).filter(Boolean);
 	if (parts.length < 2) {
 		return null;
 	}

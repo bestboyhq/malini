@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { onMount, tick } from 'svelte';
 	import { Checkbox } from '$hyper-ui/components/checkbox';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
@@ -76,24 +77,26 @@
 		'new-repository': 'Repository name',
 		start: 'Repository',
 	};
-	const HINTS: Readonly<Record<CommandCenterMode, readonly (readonly [string, string])[]>> = {
-		commands: [
-			['↵', 'Open'],
-			['↑↓', 'Move'],
-		],
-		find: [
-			['↵', 'Open'],
-			['⌫', 'All commands'],
-		],
-		'new-repository': [
-			['↵', 'Create'],
-			['⌫', 'All commands'],
-		],
-		start: [
-			['↵', 'Start'],
-			['⌫', 'All commands'],
-		],
-	};
+	const back = $derived(osQuery.data.backspaceKey);
+	const hints: Readonly<Record<CommandCenterMode, readonly (readonly [string, string])[]>> =
+		$derived({
+			commands: [
+				['↵', 'Open'],
+				['↑↓', 'Move'],
+			],
+			find: [
+				['↵', 'Open'],
+				[back, 'All commands'],
+			],
+			'new-repository': [
+				['↵', 'Create'],
+				[back, 'All commands'],
+			],
+			start: [
+				['↵', 'Start'],
+				[back, 'All commands'],
+			],
+		});
 
 	const uid = $props.id();
 	const listId = `${uid}-list`;
@@ -351,8 +354,8 @@
 									<Icon name={COMMAND_ICONS[entry.command.id]} size={16} />
 								</span>
 								<span class="text-fg-default flex-1">{entry.command.label}</span>
-								{#if entry.command.keys.length > 0}
-									<kbd class={KEY}>{entry.command.keys.join('')}</kbd>
+								{#if entry.command.shortcut}
+									<kbd class={KEY}>{osQuery.data.shortcut(entry.command.shortcut)}</kbd>
 								{/if}
 							{:else if entry.kind === 'repository'}
 								<GithubRepositoryLabel
@@ -441,7 +444,7 @@
 		class="border-surface-elevated-border text-fg-tertiary flex h-9 items-center gap-4 border-t-[0.5px] px-3.5 text-xs"
 		aria-hidden="true"
 	>
-		{#each HINTS[mode] as [keys, label] (label)}
+		{#each hints[mode] as [keys, label] (label)}
 			<span class="flex items-center gap-1.5">
 				<kbd class={KEY}>{keys}</kbd>
 				{label}

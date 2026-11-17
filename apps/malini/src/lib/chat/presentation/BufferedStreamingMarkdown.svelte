@@ -39,7 +39,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string, block: number) => void) | undefined;
+		onruncommand?: ((command: string, block: number, language: string | null) => void) | undefined;
 		coderuns?: ReadonlyMap<number, ShellRun> | undefined;
 	}
 

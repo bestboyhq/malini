@@ -1,5 +1,7 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { SECRETS_FOLDER_PREFIX } from '@malini/agent-bridge/sandbox';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createNodeProcessFactory } from './process';
 import {
@@ -237,6 +239,21 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		await expect(supervisor.sendCommand(startSession('after-kill'))).rejects.toThrow(
 			'bridge protocol error',
 		);
+	});
+
+	it('removes the secrets a stopped bridge leaves in the temp folder, and only its own', async () => {
+		const supervisor = await spawn();
+		const pid = supervisor.pid() ?? 0;
+		const left = join(tmpdir(), `${SECRETS_FOLDER_PREFIX}${pid}-left`);
+		const other = join(tmpdir(), `${SECRETS_FOLDER_PREFIX}${pid}0-other`);
+		for (const folder of [left, other]) {
+			cleanups.push(() => rmSync(folder, { recursive: true, force: true }));
+			mkdirSync(folder, { recursive: true });
+			writeFileSync(join(folder, 'secrets.sh'), "export STRIPE_KEY='sk-live-1234567890'\n");
+		}
+		await supervisor.kill();
+		await waitFor(() => !existsSync(left));
+		expect(existsSync(other)).toBe(true);
 	});
 
 	it('restarts with backoff into a live replacement child', async () => {

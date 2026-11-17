@@ -41,7 +41,10 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	askBeforeMediaAccess(deps.getMainWindow);
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
-		onScreen: (window) => !app.isHidden() && !window.isMinimized(),
+		onScreen: (window) =>
+			(process.platform === 'darwin' ? !app.isHidden() : window.isVisible()) &&
+			!window.isMinimized(),
+		detachedViewsPaint: process.platform === 'darwin',
 		createView: createElectronView,
 		imageFromPng: (png) => nativeImage.createFromBuffer(png),
 		watchRendererReset,

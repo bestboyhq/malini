@@ -8,6 +8,7 @@
 	import { loadCheckoutsFolderCommand } from '$lib/app/application/commands/load-checkouts-folder.command';
 	import { restartMaliniCommand } from '$lib/app/application/commands/restart-malini.command';
 	import { checkoutsFolderQuery } from '$lib/app/application/queries/checkouts-folder.query.svelte';
+	import { osQuery } from '$shared/os/os.api';
 	import SettingsSection from './SettingsSection.svelte';
 
 	const PROBLEMS: Readonly<Record<CheckoutsFolderProblem, (folder: string) => string>> = {
@@ -26,7 +27,10 @@
 	onMount(loadCheckoutsFolderCommand);
 </script>
 
-<SettingsSection title="Storage" description="Where your clones and workstreams live on this Mac.">
+<SettingsSection
+	title="Storage"
+	description="Where your clones and workstreams live on this {osQuery.data.machine}."
+>
 	<Well title="Storage" headed={false}>
 		<div
 			class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]"

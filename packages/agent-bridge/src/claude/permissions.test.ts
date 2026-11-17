@@ -18,8 +18,9 @@ import {
 	rememberedPermissions,
 	steerToMalini,
 } from './permissions.js';
+import { machineWord } from './machine.js';
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-permissions-')));
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-permissions-')));
 const worktree = join(root, 'worktree');
 const linkedWorktree = join(root, 'linked-worktree');
 mkdirSync(join(worktree, 'src'), { recursive: true });
@@ -496,6 +497,8 @@ describe('steerToMalini', () => {
 			'"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --screenshot',
 			'pnpm exec playwright screenshot http://localhost:5173 shot.png',
 			'cd site && open http://localhost:4321',
+			'xdg-open http://localhost:5173',
+			'start http://localhost:3000',
 		]) {
 			expect(await steer(command)).toMatchObject({
 				permissionDecision: 'deny',
@@ -510,5 +513,19 @@ describe('steerToMalini', () => {
 		]) {
 			expect(await steer(command)).toBeUndefined();
 		}
+	});
+
+	it('names the machine a page leaves for another app on', async () => {
+		expect((['darwin', 'win32', 'linux', 'freebsd'] as const).map(machineWord)).toEqual([
+			'Mac',
+			'PC',
+			'computer',
+			'computer',
+		]);
+		expect(await steer('xdg-open http://localhost:5173')).toMatchObject({
+			permissionDecisionReason: expect.stringContaining(
+				`\`xdg-open\` hands the page to another app on the ${machineWord(process.platform)}. `,
+			),
+		});
 	});
 });

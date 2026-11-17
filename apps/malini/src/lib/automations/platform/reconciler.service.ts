@@ -146,7 +146,7 @@ export class Reconciler {
 		for (const decision of listPendingDecisions(this.#context.db)) {
 			const chosen = decision.candidates[decision.chosen];
 			if (chosen?.kind === 'wake-chat') {
-				this.#background(this.#wake(decision, chosen));
+				this.#background(this.#wake(decision, chosen), `waking the chat for ${decision.id}`);
 				continue;
 			}
 			this.#save({
@@ -300,7 +300,7 @@ export class Reconciler {
 			this.#working = null;
 			if (this.#queue.size > 0 && !this.#stopped) this.#drain();
 		});
-		this.#work.add(this.#working);
+		this.#work.add(this.#working, 'reconciling events');
 	}
 
 	async #reconcile(event: DispatchedEvent): Promise<void> {
@@ -404,7 +404,7 @@ export class Reconciler {
 			if (this.#closed(decision.workstreamId)) return this.#dismiss(decision, WORKSTREAM_CLOSED);
 			const asking = this.#save({ ...decision, status: 'asking', finishedAt: null });
 			this.#replaceAsks(this.#subject(asking), (other) => other.id === asking.id, ASKED_AGAIN);
-			this.#background(this.#notify(asking, candidate.reason));
+			this.#background(this.#notify(asking, candidate.reason), `asking you about ${asking.id}`);
 			return asking;
 		}
 		if (candidate.kind === 'run-automation') return this.#runAutomation(decision, candidate);
@@ -671,8 +671,8 @@ export class Reconciler {
 		this.#context.events.emit(AUTOMATIONS_DECISION_CHANGED_CHANNEL, { decision });
 	}
 
-	#background(work: Promise<unknown>): void {
-		this.#work.add(work);
+	#background(work: Promise<unknown>, label: string): void {
+		this.#work.add(work, label);
 	}
 }
 

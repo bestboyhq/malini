@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { contextMediaCategory, mediaKind } from './workstream-images';
+import {
+	contextMediaCategory,
+	mediaKind,
+	workstreamFilePath,
+	workstreamImagePath,
+} from './workstream-images';
 
 describe('contextMediaCategory', () => {
 	it.each([
@@ -44,5 +49,35 @@ describe('contextMediaCategory', () => {
 
 	it('keeps an svg a page for report media, which frames it', () => {
 		expect(mediaKind('.context/logo.svg')).toBe('page');
+	});
+});
+
+describe('workstreamImagePath', () => {
+	it.each(['C:\\work\\.context\\shot.png', 'D:/work/.context/shot.png', '/work/.context/shot.png'])(
+		'takes %s for a file',
+		(path) => {
+			expect(workstreamImagePath(path)).toBe(path);
+		},
+	);
+
+	it.each(['https://example.com/shot.png', 'data:image/png;base64,AA', '//example.com/shot.png'])(
+		'leaves %s to the web',
+		(src) => {
+			expect(workstreamImagePath(src)).toBeNull();
+		},
+	);
+});
+
+describe('workstreamFilePath', () => {
+	it.each([
+		['/ws/root/', './.context/shot.png', '/ws/root/.context/shot.png'],
+		['/ws/root', '/elsewhere/shot.png', '/elsewhere/shot.png'],
+		[null, '.context/shot.png', '.context/shot.png'],
+		['C:\\ws\\root\\', './.context/shot.png', 'C:\\ws\\root\\.context\\shot.png'],
+		['C:\\ws\\root', '.\\.context\\shot.png', 'C:\\ws\\root\\.context\\shot.png'],
+		['C:\\ws\\root', 'D:/elsewhere/shot.png', 'D:\\elsewhere\\shot.png'],
+		['\\\\server\\share\\root', '.context/shot.png', '\\\\server\\share\\root\\.context\\shot.png'],
+	] as const)('puts %s and %s together as %s', (root, path, file) => {
+		expect(workstreamFilePath(root, path)).toBe(file);
 	});
 });

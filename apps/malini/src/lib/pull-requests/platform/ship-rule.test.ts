@@ -813,6 +813,21 @@ function readsLogged(): { id: number; payload: Record<string, unknown> }[] {
 	).map((row) => ({ id: row.id, payload: JSON.parse(row.payload) }));
 }
 
+async function readPullRequestHandled(): Promise<void> {
+	const before = readsLogged().at(-1)?.id ?? 0;
+	await readPullRequest();
+	await until(() =>
+		expect(
+			get<{ handled_at: string | null }>(
+				db,
+				'SELECT handled_at FROM event_log WHERE channel = ? AND id > ? ORDER BY id DESC LIMIT 1',
+				PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+				before,
+			)?.handled_at,
+		).toEqual(expect.any(String)),
+	);
+}
+
 function latestLogged(channel: string): {
 	id: number;
 	cause_kind: string | null;
@@ -836,7 +851,7 @@ function activeAutomation(): AutomationRunRecord {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-merge-queue-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-merge-queue-')));
 	db = openMigratedDatabase(':memory:');
 	context = {
 		db,
@@ -890,7 +905,7 @@ afterEach(() => {
 	reconciler?.dispose();
 	platform?.dispose();
 	db.close();
-	rmSync(root, { recursive: true, force: true });
+	rmSync(root, { recursive: true, force: true, maxRetries: 10 });
 });
 
 describe('opening a draft', () => {
@@ -1385,8 +1400,7 @@ describe('before you merge', () => {
 		openRuns.add('ws-1');
 		requestChanges('PRR_1');
 
-		await readPullRequest();
-		await settle();
+		await readPullRequestHandled();
 		expect(reviewRuns()).toHaveLength(0);
 		finishUserRun('ws-1', 'Looked around.', []);
 

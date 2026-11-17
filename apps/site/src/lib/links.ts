@@ -5,9 +5,57 @@ export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
 	'Malini is a free, open source agentic development environment for builders moving fast. Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.';
 
-export const DOWNLOAD_URL =
-	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
+export const DOWNLOADS_URL = `${GITHUB_URL}/releases/latest/download/`;
 export const BESTBOY_URL = 'https://bestboy.dev';
+
+export type Os = 'darwin' | 'win32' | 'linux';
+
+const MAC = `${DOWNLOADS_URL}malini-universal.dmg`;
+const WINDOWS = `${DOWNLOADS_URL}malini-setup.exe`;
+const LINUX = {
+	x64: { deb: 'malini-amd64.deb', rpm: 'malini-x86_64.rpm', AppImage: 'malini-x86_64.AppImage' },
+	arm64: { deb: 'malini-arm64.deb', rpm: 'malini-aarch64.rpm', AppImage: 'malini-arm64.AppImage' },
+} as const;
+const linux = (arch: keyof typeof LINUX, format: keyof (typeof LINUX)['x64']): string =>
+	`${DOWNLOADS_URL}${LINUX[arch][format]}`;
+
+export const DOWNLOADS: readonly Readonly<{
+	os: Os;
+	for: string;
+	name: string;
+	note: string;
+	href: string;
+}>[] = [
+	{ os: 'darwin', for: 'darwin', name: 'macOS', note: 'macOS 13 or later', href: MAC },
+	{ os: 'win32', for: 'win32', name: 'Windows', note: 'Windows 10 or later', href: WINDOWS },
+	{ os: 'linux', for: 'linux x64', name: 'Linux', note: '.deb for x64', href: linux('x64', 'deb') },
+	{
+		os: 'linux',
+		for: 'linux arm64',
+		name: 'Linux',
+		note: '.deb for Arm64',
+		href: linux('arm64', 'deb'),
+	},
+];
+
+const linuxFiles = (arch: keyof typeof LINUX): readonly Link[] => [
+	{ title: '.deb', href: linux(arch, 'deb') },
+	{ title: '.rpm', href: linux(arch, 'rpm') },
+	{ title: 'AppImage', href: linux(arch, 'AppImage') },
+];
+
+export const OTHER_DOWNLOADS: readonly Readonly<{ label: string; links: readonly Link[] }>[] = [
+	{
+		label: 'macOS',
+		links: [
+			{ title: 'Apple silicon and Intel', href: MAC },
+			{ title: 'Apple silicon', href: `${DOWNLOADS_URL}malini-arm64.dmg` },
+		],
+	},
+	{ label: 'Windows', links: [{ title: 'x64 and Arm64', href: WINDOWS }] },
+	{ label: 'Linux x64', links: linuxFiles('x64') },
+	{ label: 'Linux Arm64', links: linuxFiles('arm64') },
+];
 
 export const HOME = resolve('/').replace(/\/$/u, '');
 
@@ -23,6 +71,7 @@ export type Link = Readonly<{
 	tag?: string;
 	reload?: boolean;
 	current?: boolean;
+	for?: string;
 }>;
 
 export type Menu = Readonly<{
@@ -160,7 +209,11 @@ export const SITEMAP: readonly Readonly<{ label: string; links: readonly Link[] 
 			{ title: 'Workstreams', href: docHref('/docs/workstreams') },
 			{ title: 'Chat', href: docHref('/docs/chat') },
 			{ title: 'Automations', href: docHref('/docs/automations') },
-			{ title: 'Download', href: DOWNLOAD_URL },
+			...DOWNLOADS.map((download) => ({
+				title: 'Download',
+				href: download.href,
+				for: download.for,
+			})),
 		],
 	},
 	{

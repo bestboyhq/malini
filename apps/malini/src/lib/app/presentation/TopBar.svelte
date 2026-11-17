@@ -12,6 +12,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Popover } from '$hyper-ui/components/popover';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
+	import AppMenuButton from './AppMenuButton.svelte';
 	import ForegroundActivityIndicator from './ForegroundActivityIndicator.svelte';
 	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import { hydrateSidebarCommand } from '$lib/app/application/commands/hydrate-sidebar.command';
@@ -41,6 +42,7 @@
 	import { loadAutomationsCommand } from '$lib/automations/application/commands/load-automations.command';
 	import { watchAutomationsHook } from '$lib/automations/application/hooks/watch-automations.hook';
 	import { liveAutomationsStatus } from '$lib/automations/automations.api';
+	import { osQuery } from '$shared/os/os.api';
 
 	interface Props {
 		actions?: readonly GlobalTopBarAction[];
@@ -80,7 +82,7 @@
 	const visibleActions = $derived(
 		actions.filter((action) => globalTopBarActionMatchesPathname(action, targetPathname)),
 	);
-	const dockWidth = $derived(inspectorDock.width);
+	const dockWidth = $derived(osQuery.data.platform === 'darwin' ? inspectorDock.width : null);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubOwner = $derived(globalTopBarGithubStatus.owner);
 	const githubPanelHeadline = $derived(
@@ -327,6 +329,9 @@
 		class:topbar-left--collapsed={leftClusterTucked}
 		data-testid="global-topbar-left"
 	>
+		{#if osQuery.data.platform !== 'darwin'}
+			<AppMenuButton />
+		{/if}
 		{#if sidebarMounted}
 			<Tooltip content={sidebarShown ? 'Hide sidebar' : 'Show sidebar'} placement="bottom">
 				<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
@@ -665,6 +670,10 @@
 		padding-right: 12px;
 
 		pointer-events: none;
+	}
+
+	:global(html[data-native-shell='true']:not([data-platform='darwin'])) .global-topbar {
+		padding-right: calc(12px + var(--native-caption-clearance));
 	}
 
 	:global(html[data-native-shell='true']) .global-topbar > * {

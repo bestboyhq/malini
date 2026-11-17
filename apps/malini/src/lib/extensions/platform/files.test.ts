@@ -153,10 +153,13 @@ describe('workstream files', () => {
 	it('keeps the mode of a replaced file and gives a new one 0644', async () => {
 		const root = await tempdir('ws');
 		await writeBytes(join(root, 'run.sh'), '#!/bin/sh\n', { mode: 0o755 });
+		const before = (await stat(join(root, 'run.sh'))).mode;
 		await writeFile(root, 'run.sh', '#!/bin/sh\necho hi\n');
-		expect((await stat(join(root, 'run.sh'))).mode & 0o777).toBe(0o755);
+		expect((await stat(join(root, 'run.sh'))).mode).toBe(before);
 		await writeFile(root, 'plain.txt', 'x');
-		expect((await stat(join(root, 'plain.txt'))).mode & 0o777).toBe(0o644);
+		expect((await stat(join(root, 'plain.txt'))).mode & 0o777).toBe(
+			process.platform === 'win32' ? 0o666 : 0o644,
+		);
 	});
 
 	it('listing skips generated, dependency, build, ignored and agent scratch trees', async () => {
@@ -203,6 +206,31 @@ describe('workstream files', () => {
 			'Extension workstream path contains a null byte',
 		);
 	});
+
+	it.runIf(process.platform === 'win32')(
+		'rejects Windows separators, drives and streams that would leave the workstream',
+		async () => {
+			const parent = await tempdir('parent');
+			const root = join(parent, 'ws');
+			await mkdir(root);
+			for (const path of [
+				'..\\escaped.txt',
+				'a\\..\\..\\escaped.txt',
+				'C:\\escaped.txt',
+				'C:escaped.txt',
+				'\\\\server\\share\\escaped.txt',
+				'notes.txt:hidden',
+			]) {
+				await expect(writeFile(root, path, 'nope')).rejects.toThrow(
+					`Extension workstream path must stay relative to its workstream: ${path}`,
+				);
+			}
+			await writeFile(root, 'docs\\notes.md', 'kept');
+
+			expect(await readdir(parent)).toEqual(['ws']);
+			expect(await readBytes(join(root, 'docs', 'notes.md'), 'utf8')).toBe('kept');
+		},
+	);
 
 	it('rejects symlink escapes for reads, stats and writes', async () => {
 		const root = await workstreamRoot();

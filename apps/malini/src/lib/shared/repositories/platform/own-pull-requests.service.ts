@@ -7,6 +7,7 @@ import { runGit } from '$main/git/run';
 import type { MaliniDatabase } from '$main/db/driver';
 import { GhError } from '$main/errors';
 import { parseGhJson } from '$main/process/gh';
+import { osFor } from '$shared/os/os.platform';
 import {
 	localRepositoriesFromProjects,
 	mergeRepositories,
@@ -78,7 +79,10 @@ export async function continueOwnPullRequest(
 	head: string,
 ): Promise<string> {
 	const project = await repositoryProject(deps.workstreams.db, repoId);
-	if (project === null) throw new Error('This repository has no checkout on this Mac yet.');
+	if (project === null)
+		throw new Error(
+			`This repository has no checkout on this ${osFor(process.platform).machine} yet.`,
+		);
 	const pullRequest = (await openPullRequests(deps.gh, project.repoPath)).find(
 		(open) => open.head === head,
 	);

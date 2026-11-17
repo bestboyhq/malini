@@ -5,6 +5,7 @@ import {
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
+	finishTurnWithHeldSnapshot,
 	launchMalini,
 	listEvents,
 	openWorkstream,
@@ -12,7 +13,7 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('a prompt in plan mode starts its own chat, and Implement hands the plan to a fresh agent chat', async () => {
+test('a prompt in plan mode starts its own chat, and Implement hands the plan to a fresh agent chat, even while the plan turn still saves its changes', async () => {
 	test.setTimeout(150_000);
 	const app = await launchMalini();
 	try {
@@ -33,7 +34,10 @@ test('a prompt in plan mode starts its own chat, and Implement hands the plan to
 		const planMode = page.getByRole('button', { name: 'Plan mode' });
 		await expect(planMode).toHaveAttribute('aria-pressed', 'true');
 
-		await sendPrompt(page, 'IMPLEMENTABLE_PLAN Add a health endpoint');
+		const releaseSnapshots = await finishTurnWithHeldSnapshot(
+			app,
+			'IMPLEMENTABLE_PLAN Add a health endpoint',
+		);
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(agentChat);
 		const planChat = currentSessionId(page) ?? '';
 		await expect
@@ -49,6 +53,8 @@ test('a prompt in plan mode starts its own chat, and Implement hands the plan to
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(planChat);
 		const implementationChat = currentSessionId(page) ?? '';
 		expect(implementationChat).not.toBe(agentChat);
+		expect(await userMessages(page, implementationChat)).toEqual([]);
+		releaseSnapshots();
 		await expect
 			.poll(() => userMessages(page, implementationChat), { timeout: 20_000 })
 			.toEqual([expect.stringContaining('Add a health endpoint')]);

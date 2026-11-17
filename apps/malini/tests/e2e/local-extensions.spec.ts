@@ -301,6 +301,10 @@ test('a local extension that fails while Malini warms the last workstream says s
 });
 
 test('the inspector says it did not start when the warm-up ahead of it hangs', async () => {
+	test.skip(
+		process.platform === 'win32',
+		'Windows has no FIFO to hold the extension registry read',
+	);
 	test.setTimeout(120_000);
 	const root = temporaryRoot();
 	const home = join(root, 'extension-home');

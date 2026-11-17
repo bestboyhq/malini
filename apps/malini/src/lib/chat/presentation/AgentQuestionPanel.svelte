@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { tick, type Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fly } from 'svelte/transition';
@@ -175,14 +176,17 @@
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
-		if (event.defaultPrevented || event.altKey || event.ctrlKey) return;
+		const primary = osQuery.data.primaryHeld(event);
+		if (event.defaultPrevented || event.altKey || ((event.ctrlKey || event.metaKey) && !primary)) {
+			return;
+		}
 		const typing = event.target instanceof HTMLInputElement;
-		if (event.key === 'Enter' && (event.metaKey || typing)) {
+		if (event.key === 'Enter' && (primary || typing)) {
 			event.preventDefault();
 			proceed();
 			return;
 		}
-		if (typing || event.metaKey || event.shiftKey) return;
+		if (typing || primary || event.shiftKey) return;
 		const digit = /^[1-9]$/u.test(event.key) ? Number(event.key) : 0;
 		if (digit > 0 && digit <= shortcutCount) {
 			event.preventDefault();
@@ -407,7 +411,7 @@
 					class="text-xs"
 					disabled={!canProceed}
 					loading={submitting}
-					ariaKeyshortcuts="Meta+Enter"
+					ariaKeyshortcuts={osQuery.data.ariaShortcut('Enter')}
 					onclick={proceed}
 				>
 					{lastStep ? (steps.length > 1 ? 'Send answers' : 'Send answer') : 'Next'}
@@ -424,7 +428,7 @@
 			</span>
 		{/if}
 		<span class="flex items-center gap-1">
-			<EnterShortcut mod size={11} />
+			<EnterShortcut mod={osQuery.data.shortcut('')} label={osQuery.data.primaryReturn} size={11} />
 			{lastStep ? 'to send' : 'for next'}
 		</span>
 	</p>

@@ -74,12 +74,14 @@ describe('brain', () => {
 			problem: null,
 		};
 		const now = Date.parse('2026-11-07T12:00:00.000Z');
-		expect(brainSyncLine(brainSync(status), now)).toBe('Synced to szymeo/brain, 2 minutes ago');
-		expect(brainSyncLine(brainSync({ ...status, unpushed: 3 }), now)).toBe(
+		expect(brainSyncLine(brainSync(status), now, 'PC')).toBe(
+			'Synced to szymeo/brain, 2 minutes ago',
+		);
+		expect(brainSyncLine(brainSync({ ...status, unpushed: 3 }), now, 'PC')).toBe(
 			'3 changes wait to push',
 		);
-		expect(brainSyncLine(brainSync({ ...status, sync: false }), now)).toBe('On this Mac');
-		expect(brainSyncLine(brainSync({ ...status, problem: 'Push denied' }), now)).toBe(
+		expect(brainSyncLine(brainSync({ ...status, sync: false }), now, 'PC')).toBe('On this PC');
+		expect(brainSyncLine(brainSync({ ...status, problem: 'Push denied' }), now, 'PC')).toBe(
 			'Push denied',
 		);
 	});

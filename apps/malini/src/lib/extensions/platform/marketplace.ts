@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promises as originalFs } from 'original-fs';
 import type {
@@ -17,6 +17,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import type { EventBus } from '$main/events';
 import { describeError } from '$main/errors';
+import { renameWhenFree } from '$main/fs/atomic';
 import { runGit } from '$main/git/run';
 import { BestboyError, type BestboyAccess } from '$lib/stats/stats.platform';
 import { isExtensionOn } from '../domain/extension-entry';
@@ -237,8 +238,8 @@ export class Marketplace {
 				await mkdir(dirname(path), { recursive: true });
 				await writeFile(path, file.bytes);
 			}
-			if (existsSync(target)) await rename(target, trash);
-			await rename(staging, target);
+			if (existsSync(target)) await renameWhenFree(target, trash);
+			await renameWhenFree(staging, target);
 		} finally {
 			await originalFs.rm(staging, { recursive: true, force: true });
 			await originalFs.rm(trash, { recursive: true, force: true });
@@ -346,7 +347,7 @@ export class Marketplace {
 		await mkdir(this.#deps.root, { recursive: true });
 		const temporary = `${this.#indexFile()}.${randomUUID()}.tmp`;
 		await writeFile(temporary, JSON.stringify({ listings: index.listings, yanked: index.yanked }));
-		await rename(temporary, this.#indexFile());
+		await renameWhenFree(temporary, this.#indexFile());
 	}
 
 	#requireInstalled(name: string): InstalledExtensionRecord {

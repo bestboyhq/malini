@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 function worktreeBesideASecret(): { worktree: string; secret: string } {
-	const root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-worktree-files-')));
+	const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-worktree-files-')));
 	roots.push(root);
 	const worktree = join(root, 'worktree');
 	mkdirSync(join(worktree, 'docs'), { recursive: true });

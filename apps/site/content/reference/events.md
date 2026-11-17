@@ -424,6 +424,21 @@ interface InstallProgressPayload {
 }
 ```
 
+## `repositories:git-install-progress`
+
+Fires repeatedly while Malini downloads Git for Windows, at launch on a PC where git or Git Bash is missing or its own copy is out of date, or after you press Try again, with the bytes received and the size when known, and once more when the download ends. Malini does not keep it in its event log.
+
+An automation sees: `received`, `total`
+
+Payload: `InstallProgressPayload`
+
+```ts
+interface InstallProgressPayload {
+	received: number;
+	total: number | null;
+}
+```
+
 ## `repositories:changed`
 
 Fires when a repository is added, cloned, hidden or shown again, or origin renames its default branch, so every list of repositories and workstreams reloads.
@@ -455,6 +470,21 @@ type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
 ## `providers:claude-code-install-progress`
 
 Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.
+
+An automation sees: `received`, `total`
+
+Payload: `InstallProgressPayload`
+
+```ts
+interface InstallProgressPayload {
+	received: number;
+	total: number | null;
+}
+```
+
+## `providers:sandbox-setup-progress`
+
+Fires repeatedly while Malini sets up its sandbox on Windows after you press Set up, with how many tool folders in your profile it has made readable and how many there are. Malini does not keep it in its event log.
 
 An automation sees: `received`, `total`
 

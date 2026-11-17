@@ -25,7 +25,7 @@ async function openStorageSettings(page: Page) {
 test('a checkouts folder chosen in Settings takes every checkout along at the next launch', async () => {
 	test.setTimeout(180_000);
 	const first = await launchMalini();
-	const chosen = join(realpathSync(first.root), 'chosen-checkouts');
+	const chosen = join(realpathSync.native(first.root), 'chosen-checkouts');
 	mkdirSync(chosen);
 	let worktree = '';
 	try {

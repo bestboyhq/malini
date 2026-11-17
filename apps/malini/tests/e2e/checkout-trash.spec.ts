@@ -1,17 +1,14 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
+	ELECTRON_DEFAULT_APP,
 	expectCleanConsole,
 	fileExists,
 	launchMalini,
 	temporaryRoot,
 } from './harness';
-
-const electronBinary = createRequire(__filename)('electron') as string;
-const asarArchive = join(dirname(electronBinary), '..', 'Resources', 'default_app.asar');
 
 test('boot empties a trashed checkout whose node_modules holds an asar archive', async () => {
 	const root = temporaryRoot();
@@ -25,7 +22,7 @@ test('boot empties a trashed checkout whose node_modules holds an asar archive',
 	);
 	const resources = join(trashed, 'node_modules', 'electron', 'dist', 'Resources');
 	mkdirSync(resources, { recursive: true });
-	copyFileSync(asarArchive, join(resources, 'default_app.asar'));
+	copyFileSync(ELECTRON_DEFAULT_APP, join(resources, 'default_app.asar'));
 
 	const app = await launchMalini({ profile: root });
 	try {

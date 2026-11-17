@@ -1,6 +1,6 @@
 # 0105 - Run executes a code block in a terminal Malini owns
 
-Status: accepted
+Status: superseded by 0257
 
 ## Context
 

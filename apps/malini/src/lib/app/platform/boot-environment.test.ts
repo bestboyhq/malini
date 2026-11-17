@@ -11,6 +11,7 @@ vi.mock('electron', () => ({
 import { resolveBootEnvironment } from './boot-environment';
 import { createTestContext } from './test-support';
 
+const SYSTEM_TOOLS = process.platform === 'win32' ? /\\windows\\system32/iu : /\/usr\/bin/u;
 const cleanups: Array<() => void> = [];
 
 afterEach(() => {
@@ -27,13 +28,13 @@ describe('resolveBootEnvironment', () => {
 		const environment = await resolveBootEnvironment(context);
 
 		expect(context.commands.names()).toEqual([]);
-		expect(environment.path).toContain('/usr/bin');
+		expect(environment.path).toMatch(SYSTEM_TOOLS);
 		const diagnostics: unknown = JSON.parse(
 			readFileSync(join(appDataRoot, 'diagnostics', 'environment.json'), 'utf8'),
 		);
 		expect(diagnostics).toMatchObject({
 			schemaVersion: 1,
-			path: expect.stringContaining('/usr/bin'),
+			path: expect.stringMatching(SYSTEM_TOOLS),
 		});
 	});
 });

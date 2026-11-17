@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type { Writable } from 'node:stream';
 import type { App } from 'electron';
 
@@ -54,6 +54,7 @@ let reaper: Writable | null = null;
 export function startReaper(app: App, options: { readonly watchLauncher: boolean }): void {
 	const launcher = process.ppid;
 	if (options.watchLauncher) quitOnceTheLauncherIsGone(app, launcher);
+	if (process.platform === 'win32') return;
 	const child = spawn(
 		'/bin/bash',
 		[
@@ -83,7 +84,9 @@ export function startReaper(app: App, options: { readonly watchLauncher: boolean
 	reaper = child.stdin;
 }
 
-export function endWithMalini<Child extends ChildProcess>(child: Child): Child {
+export function endWithMalini<Child extends { readonly pid?: number | undefined }>(
+	child: Child,
+): Child {
 	if (child.pid !== undefined) reaper?.write(`${child.pid}\n`);
 	return child;
 }

@@ -41,6 +41,7 @@ const ACCESS_WAITS = {
 	ready: null,
 	checking: null,
 	'claude-code-missing': 'claude_code',
+	'git-missing': 'git',
 	'claude-signed-out': 'claude_sign_in',
 	'chatgpt-signed-out': 'chatgpt_sign_in',
 	'chatgpt-model-missing': 'chatgpt_model',

@@ -328,7 +328,7 @@ test('removing a chip between two words sends the prompt with one space between 
 		await expect(chip).toBeVisible({ timeout: 20_000 });
 		await expect(composer).toBeFocused();
 		await page.keyboard.type('and this end.');
-		await page.keyboard.press('Control+a');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Control+a' : 'Home');
 		await page.keyboard.type('Keep this sentence intact ');
 
 		await chip.hover();

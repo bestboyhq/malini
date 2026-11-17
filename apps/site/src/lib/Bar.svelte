@@ -7,7 +7,7 @@
 		APPS,
 		BESTBOY_URL,
 		docHref,
-		DOWNLOAD_URL,
+		DOWNLOADS,
 		isExternal,
 		MENUS,
 		type Link,
@@ -336,7 +336,9 @@
 				{/if}
 			</div>
 			<span class="divider" aria-hidden="true"></span>
-			<a class="button primary small" href={DOWNLOAD_URL}>Download</a>
+			{#each DOWNLOADS as download (download.href)}
+				<a class="button primary small" href={download.href} data-for={download.for}>Download</a>
+			{/each}
 			<button class="burger" type="button" popovertarget="bar-sheet" aria-label="Menu">
 				<i></i>
 				<i></i>

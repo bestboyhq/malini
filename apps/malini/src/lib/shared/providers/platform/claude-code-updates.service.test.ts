@@ -10,12 +10,15 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { fakeTool } from '$main/process/test-support';
 import { blockedUpdate, ClaudeCodeUpdates, fixCommand } from './claude-code-updates.service';
 
+const WINDOWS = process.platform === 'win32';
 const roots: string[] = [];
 
 afterEach(() => {
-	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+	for (const root of roots.splice(0))
+		rmSync(root, { recursive: true, force: true, maxRetries: 10 });
 });
 
 function fakeClaude(
@@ -26,11 +29,10 @@ function fakeClaude(
 	roots.push(root);
 	const executable = join(root, 'claude');
 	const log = join(root, 'calls.log');
-	writeFileSync(
+	fakeTool(
 		executable,
 		`#!/bin/sh\nsleep 0.1\necho "$CLAUDE_UPDATE_MARK $*" >> "${log}"\n${onUpdate}\nexit ${exitCode}\n`,
 	);
-	chmodSync(executable, 0o755);
 	return {
 		executable,
 		calls: () => {
@@ -136,45 +138,48 @@ describe('ClaudeCodeUpdates', () => {
 		expect(claude.calls()).toEqual(['mark update', 'mark update']);
 	});
 
-	it('runs the upgrade Homebrew asks for, and keeps the version only while it fails', async () => {
-		const root = mkdtempSync(join(tmpdir(), 'malini-claude-homebrew-'));
-		roots.push(root);
-		const bin = join(root, 'bin');
-		const claude = join(bin, 'claude');
-		const brewLog = join(root, 'brew.log');
-		const brewFails = join(root, 'brew-fails');
-		mkdirSync(bin);
-		writeFileSync(join(root, 'update.txt'), HOMEBREW_UPDATE_AVAILABLE);
-		writeFileSync(claude, `#!/bin/sh\ncat "${join(root, 'update.txt')}"\n`);
-		writeFileSync(
-			join(bin, 'brew'),
-			[
-				'#!/bin/sh',
-				`echo "$*" >> "${brewLog}"`,
-				`[ -f "${brewFails}" ] && { echo "Error: Download failed" >&2; exit 1; }`,
-				`printf '#!/bin/sh\\necho "Claude is up to date!"\\n' > "${claude}.next" && chmod +x "${claude}.next" && mv "${claude}.next" "${claude}"`,
-			].join('\n'),
-		);
-		chmodSync(claude, 0o755);
-		chmodSync(join(bin, 'brew'), 0o755);
-		writeFileSync(brewFails, '');
-		const updates = new ClaudeCodeUpdates({
-			executable: () => claude,
-			environment: () => ({ PATH: `${bin}:/usr/bin:/bin` }),
-		});
+	it.skipIf(WINDOWS)(
+		'runs the upgrade Homebrew asks for, and keeps the version only while it fails',
+		async () => {
+			const root = mkdtempSync(join(tmpdir(), 'malini-claude-homebrew-'));
+			roots.push(root);
+			const bin = join(root, 'bin');
+			const claude = join(bin, 'claude');
+			const brewLog = join(root, 'brew.log');
+			const brewFails = join(root, 'brew-fails');
+			mkdirSync(bin);
+			writeFileSync(join(root, 'update.txt'), HOMEBREW_UPDATE_AVAILABLE);
+			writeFileSync(claude, `#!/bin/sh\ncat "${join(root, 'update.txt')}"\n`);
+			writeFileSync(
+				join(bin, 'brew'),
+				[
+					'#!/bin/sh',
+					`echo "$*" >> "${brewLog}"`,
+					`[ -f "${brewFails}" ] && { echo "Error: Download failed" >&2; exit 1; }`,
+					`printf '#!/bin/sh\\necho "Claude is up to date!"\\n' > "${claude}.next" && chmod +x "${claude}.next" && mv "${claude}.next" "${claude}"`,
+				].join('\n'),
+			);
+			chmodSync(claude, 0o755);
+			chmodSync(join(bin, 'brew'), 0o755);
+			writeFileSync(brewFails, '');
+			const updates = new ClaudeCodeUpdates({
+				executable: () => claude,
+				environment: () => ({ PATH: `${bin}:/usr/bin:/bin` }),
+			});
 
-		expect(await updates.checkIfStale()).toEqual({
-			updated: false,
-			failed: { version: '2.1.311' },
-		});
+			expect(await updates.checkIfStale()).toEqual({
+				updated: false,
+				failed: { version: '2.1.311' },
+			});
 
-		rmSync(brewFails);
-		expect(await updates.checkIfStale(true)).toEqual({ updated: true, failed: null });
-		expect(readFileSync(brewLog, 'utf8')).toBe('upgrade claude-code\nupgrade claude-code\n');
-		expect(await updates.checkIfStale(true)).toEqual({ updated: false, failed: null });
-	});
+			rmSync(brewFails);
+			expect(await updates.checkIfStale(true)).toEqual({ updated: true, failed: null });
+			expect(readFileSync(brewLog, 'utf8')).toBe('upgrade claude-code\nupgrade claude-code\n');
+			expect(await updates.checkIfStale(true)).toEqual({ updated: false, failed: null });
+		},
+	);
 
-	it('moves a read-only npm install to the native one', async () => {
+	it.skipIf(WINDOWS)('moves a read-only npm install to the native one', async () => {
 		const root = mkdtempSync(join(tmpdir(), 'malini-claude-npm-'));
 		roots.push(root);
 		const npm = join(root, 'npm', 'claude');
@@ -214,8 +219,10 @@ describe('ClaudeCodeUpdates', () => {
 		updates.start();
 		await waitFor(() => claude.calls().length >= 2);
 		updates.stop();
+		await updates.checkIfStale();
 		const stopped = claude.calls().length;
 		await new Promise((resolve) => setTimeout(resolve, 500));
+		await updates.checkIfStale();
 
 		expect(claude.calls().length).toBe(stopped);
 	});

@@ -34,6 +34,7 @@ import {
 	extensionPanelInstanceId,
 	highlightCodeLines,
 	installExtensionPanelStyles,
+	isAbsolutePath,
 	languageForPath,
 	markLineChanges,
 	resolveLanguage,
@@ -212,6 +213,12 @@ function fileTabOptions(path: string, pinned: boolean): ExtensionPanelOpenOption
 
 const fromDisk = Annotation.define<true>();
 
+function lineBreakOf(text: string): string {
+	const windowsBreaks = text.split('\r\n').length - 1;
+	const breaks = text.split(/\r\n?|\n/u).length - 1;
+	return windowsBreaks * 2 > breaks ? '\r\n' : '\n';
+}
+
 class RepositoryFileTabView {
 	readonly #api: RepositoryPanelHost;
 	readonly #controller: RepositoryPanelController;
@@ -233,6 +240,7 @@ class RepositoryFileTabView {
 	#editor: EditorView | null = null;
 	#language = 'text';
 	#saved = '';
+	#lineBreak = '\n';
 	#requestedLine: number | null = null;
 	#pinned = false;
 	#revealed = false;
@@ -352,14 +360,16 @@ class RepositoryFileTabView {
 		}
 		const shown = editor.state.doc.toString();
 		if (shown !== this.#saved) return;
-		if (contents !== shown) editor.dispatch(replacementFromDisk(shown, contents));
-		this.#saved = contents;
+		const onDisk = editor.state.toText(contents).toString();
+		if (onDisk !== shown) editor.dispatch(replacementFromDisk(shown, onDisk));
+		this.#saved = onDisk;
+		this.#lineBreak = lineBreakOf(contents);
 		editor.dispatch({ effects: showBranchChanges.of({ diff, language: this.#language }) });
 	}
 
 	#mount(contents: string, diff: RepositoryDiff | null): void {
 		this.#language = resolveLanguage(languageForPath(this.#path), contents);
-		this.#saved = contents;
+		this.#lineBreak = lineBreakOf(contents);
 		const editor = new EditorView({
 			state: EditorState.create({
 				doc: contents,
@@ -388,6 +398,7 @@ class RepositoryFileTabView {
 				],
 			}),
 		});
+		this.#saved = editor.state.doc.toString();
 		editor.scrollDOM.classList.add('styled-scrollbar');
 		this.#source.replaceChildren(editor.dom);
 		this.#editor = editor;
@@ -573,10 +584,15 @@ class RepositoryFileTabView {
 
 	async #saveAfter(previous: Promise<void>, editor: EditorView): Promise<void> {
 		await previous;
-		const contents = editor.state.doc.toString();
+		const doc = editor.state.doc;
+		const contents = doc.toString();
 		if (contents === this.#saved) return;
 		try {
-			await this.#api.workstream.writeFile(this.#path, contents, this.#workstreamId ?? undefined);
+			await this.#api.workstream.writeFile(
+				this.#path,
+				doc.sliceString(0, doc.length, this.#lineBreak),
+				this.#workstreamId ?? undefined,
+			);
 			this.#saved = contents;
 			this.#problem.hidden = true;
 		} catch (error) {
@@ -624,8 +640,8 @@ const PRIVATE_FILE_NAME = /^(?:\.env(?:\..+)?|.+\.env|\.envrc|.+\.(?:pem|key|p12
 
 export function isPrivateFile(path: string): boolean {
 	return (
-		path.startsWith('/') ||
-		path.split('/').includes('.secrets') ||
+		isAbsolutePath(path) ||
+		path.split(/[\\/]/u).includes('.secrets') ||
 		PRIVATE_FILE_NAME.test(basename(path))
 	);
 }

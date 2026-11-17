@@ -16,6 +16,7 @@ import {
 } from './paths';
 import { attributeCredentials, failureOutput, GitError } from '$main/errors';
 import { runGh } from '$main/process/gh';
+import { osFor } from '$shared/os/os.platform';
 import {
 	ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG,
 	DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG,
@@ -74,13 +75,13 @@ export async function commitWorktreeChanges(
 	}
 	await refuseConflictMarkers(worktree);
 	const merging = operation === 'merge';
-	await runGit(['-C', worktree, 'add', '-A', '--', WORKTREE_CONTENT_PATHSPEC]);
 	const added = await addedFileCount(worktree, merging);
 	if (added > MAX_ADDED_FILES_PER_COMMIT) {
 		throw GitError.git(
 			`this commit would add ${added} files, which looks like generated or downloaded output (a package store, node_modules, a build); add it to .gitignore, or commit it yourself if you mean it`,
 		);
 	}
+	await runGit(['-C', worktree, 'add', '-A', '--', WORKTREE_CONTENT_PATHSPEC]);
 	await runGit([
 		'-C',
 		worktree,
@@ -109,25 +110,22 @@ async function unmergedPaths(worktree: string): Promise<string[]> {
 }
 
 async function addedFileCount(worktree: string, merging: boolean): Promise<number> {
-	const addedAgainst = async (commit: readonly string[]): Promise<string[]> =>
-		(
-			await runGit([
-				'-C',
-				worktree,
-				'diff',
-				'--cached',
-				'--name-only',
-				'--diff-filter=A',
-				'-z',
-				...commit,
-			])
-		)
-			.split('\0')
-			.filter(Boolean);
-	const added = await addedAgainst([]);
-	if (!merging) return added.length;
-	const newToBase = new Set(await addedAgainst(['MERGE_HEAD']));
-	return added.filter((path) => newToBase.has(path)).length;
+	const listed = async (args: readonly string[]): Promise<string[]> =>
+		(await runGit(['-C', worktree, ...args])).split('\0').filter(Boolean);
+	const stagedAgainst = (commit: readonly string[]): Promise<string[]> =>
+		listed(['diff', '--cached', '--name-only', '--diff-filter=A', '-z', ...commit]);
+	const untracked = await listed([
+		'ls-files',
+		'--others',
+		'--exclude-standard',
+		'-z',
+		'--',
+		WORKTREE_CONTENT_PATHSPEC,
+	]);
+	const staged = await stagedAgainst([]);
+	if (!merging) return untracked.length + staged.length;
+	const newToBase = new Set(await stagedAgainst(['MERGE_HEAD']));
+	return untracked.length + staged.filter((path) => newToBase.has(path)).length;
 }
 
 async function currentBranch(worktreePath: string): Promise<string> {
@@ -254,8 +252,7 @@ export async function commitPaths(
 	return true;
 }
 
-export const MAIN_DIVERGED =
-	'GitHub has brain changes this Mac lacks, and they clash with its own. Pull them into the Brain workstream, then retry.';
+export const MAIN_DIVERGED = `GitHub has brain changes this ${osFor(process.platform).machine} lacks, and they clash with its own. Pull them into the Brain workstream, then retry.`;
 
 const MAIN_PUSH_ROUNDS = 3;
 

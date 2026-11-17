@@ -34,6 +34,7 @@
 		"scripts/dogfood*.mjs",
 		"scripts/dev-bundle*.mjs",
 		"scripts/fetch-gh*.mjs",
+		"scripts/fetch-portable-git*.mjs",
 		"scripts/fetch-rtk*.mjs"
 	],
 	"exclude": ["src/lib/**/domain/**/*.test.ts"]

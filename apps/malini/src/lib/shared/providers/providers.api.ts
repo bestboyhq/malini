@@ -9,6 +9,7 @@ export {
 	isValidAgentRunProfile,
 	normalizeAgentRunProfile,
 	reasoningEffortLabel,
+	sandboxProblemLine,
 	type AgentAccess,
 	type AgentReasoningEffort,
 	type AgentRunMode,
@@ -120,3 +121,4 @@ export { default as ProviderIcon } from './presentation/ProviderIcon.svelte';
 export { default as ProviderKeyCard } from './presentation/ProviderKeyCard.svelte';
 export { providerSelectOptions } from './presentation/provider-select-options';
 export { default as RunProfileControls } from './presentation/RunProfileControls.svelte';
+export { default as WindowsSandboxSetup } from './presentation/WindowsSandboxSetup.svelte';

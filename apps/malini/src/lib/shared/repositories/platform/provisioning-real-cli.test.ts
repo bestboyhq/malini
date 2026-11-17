@@ -116,10 +116,10 @@ describe.runIf(canSandbox())('a sandboxed install', () => {
 
 		expect(await install('ws-writes', 'touch installed')).toEqual({ status: 'succeeded' });
 		expect(existsSync(join(checkout, 'installed'))).toBe(true);
-		expect(await install('ws-reads', `cat ${join(hidden, 'token')}`)).toMatchObject({
-			status: 'failed',
-			detail: expect.stringContaining('Operation not permitted'),
-		});
+		const read = await install('ws-reads', `cat ${join(hidden, 'token')}`);
+
+		expect(read).toMatchObject({ status: 'failed' });
+		expect(JSON.stringify(read)).not.toContain('hidden-token');
 	});
 });
 

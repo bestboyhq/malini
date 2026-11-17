@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { removeAll } from '$main/fs/test-support';
 import { upsertProject } from '$shared/repositories/repositories.platform';
 import { insertSession } from '../sessions.repository';
 import { upsertWorkstream } from '$shared/repositories/repositories.platform';
@@ -97,7 +98,7 @@ export function createAttachmentsTestContext(): AttachmentsTestContext {
 		},
 		cleanup() {
 			db.close();
-			rmSync(appDataRoot, { recursive: true, force: true });
+			removeAll([appDataRoot]);
 		},
 	};
 }

@@ -1,4 +1,4 @@
-# 0258 - Apps that agents launch quit once their launcher is gone
+# 0267 - Apps that agents launch quit once their launcher is gone
 
 Status: accepted
 

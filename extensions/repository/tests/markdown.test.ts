@@ -29,11 +29,41 @@ test('a link in a markdown file resolves against the file it sits in', () => {
 		url: 'https://bestboy.dev/malini',
 	});
 	assert.deepEqual(
-		['mailto:ada@example.com', 'javascript:alert(1)', '//example.com/a.md', 'adr/', ''].map(
+		[
+			'mailto:ada@example.com',
+			'javascript:alert(1)',
+			'//example.com/a.md',
+			'x:a.md',
+			'adr/',
+			'',
+		].map((href) => markdownLink(href, from)),
+		[null, null, null, null, null, null],
+	);
+});
+
+test('a link in a Windows file resolves against its folder and keeps its drive', () => {
+	const from = 'C:\\Users\\someone\\plans\\notes.md';
+
+	assert.deepEqual(
+		['today.md', 'sub\\photo.png', '../../../../../x.md', '\\README.md', 'D:\\notes\\todo.md'].map(
 			(href) => markdownLink(href, from),
 		),
-		[null, null, null, null, null],
+		[
+			{ kind: 'file', path: 'C:\\Users\\someone\\plans\\today.md' },
+			{ kind: 'file', path: 'C:\\Users\\someone\\plans\\sub\\photo.png' },
+			{ kind: 'file', path: 'C:\\x.md' },
+			{ kind: 'file', path: 'C:\\README.md' },
+			{ kind: 'file', path: 'D:\\notes\\todo.md' },
+		],
 	);
+	assert.deepEqual(markdownLink('shared.md', '\\\\server\\team\\notes.md'), {
+		kind: 'file',
+		path: '\\\\server\\team\\shared.md',
+	});
+	assert.deepEqual(markdownLink('C:/notes/todo.md', 'docs/README.md'), {
+		kind: 'file',
+		path: 'C:\\notes\\todo.md',
+	});
 });
 
 test('a heading link finds the heading GitHub anchors it to', async () => {

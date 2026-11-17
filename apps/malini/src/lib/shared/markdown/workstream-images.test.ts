@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderSanitizedHtml } from './MarkdownText.svelte';
-import {
-	holdWorkstreamImages,
-	showWorkstreamImages,
-	workstreamImageFilePath,
-} from './workstream-images';
+import { holdWorkstreamImages, markdownImageName, showWorkstreamImages } from './workstream-images';
 
 function render(markdown: string): HTMLElement {
 	const host = document.createElement('div');
@@ -45,6 +41,13 @@ describe('workstream images in transcript markdown', () => {
 		}
 	});
 
+	it('names an image without alt text by its file name, whichever separator its path uses', () => {
+		for (const path of ['shots/a.png', 'C:\\Users\\me\\shots\\a.png']) {
+			const held = image(render(`![](${path})`));
+			expect(markdownImageName(held, held.dataset.workstreamImage ?? '')).toBe('a.png');
+		}
+	});
+
 	it('shows each held image once its workstream file is loaded', () => {
 		const host = render('![a](shots/a.png) ![b](shots/b.png)');
 		const loaded: Record<string, string> = { 'shots/a.png': 'blob:a' };
@@ -52,15 +55,5 @@ describe('workstream images in transcript markdown', () => {
 		const [first, second] = host.querySelectorAll('img');
 		expect(first?.getAttribute('src')).toBe('blob:a');
 		expect(second?.getAttribute('src')).toBeNull();
-	});
-});
-
-describe('workstream image file path', () => {
-	it('resolves a workstream image against the checkout and keeps absolute paths', () => {
-		expect(workstreamImageFilePath('/ws/root/', './.context/shot.png')).toBe(
-			'/ws/root/.context/shot.png',
-		);
-		expect(workstreamImageFilePath('/ws/root', '/elsewhere/shot.png')).toBe('/elsewhere/shot.png');
-		expect(workstreamImageFilePath(null, '.context/shot.png')).toBe('.context/shot.png');
 	});
 });

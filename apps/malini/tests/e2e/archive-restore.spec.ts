@@ -11,10 +11,10 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { ArchivedWorkstreamDto } from '../../src/contract/repositories';
 import {
-	APP_ROOT,
 	captureFlow,
 	clickRevealedOnHover,
 	createSourceRepo,
+	ELECTRON_DEFAULT_APP,
 	expectAssistantReply,
 	expectCleanConsole,
 	git,
@@ -24,11 +24,6 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
-
-const ELECTRON_DEFAULT_APP = join(
-	APP_ROOT,
-	'node_modules/electron/dist/Electron.app/Contents/Resources/default_app.asar',
-);
 
 test('an archived workstream comes back from its repository in the sidebar with its chat, commits and uncommitted work', async () => {
 	test.setTimeout(180_000);
@@ -53,6 +48,7 @@ test('an archived workstream comes back from its repository in the sidebar with 
 			'work',
 		]);
 		appendFileSync(join(seeded.worktree, 'seed.txt'), 'unsaved edit\n');
+		const seed = readFileSync(join(seeded.worktree, 'seed.txt'), 'utf8');
 		const notes = readFileSync(join(seeded.worktree, 'notes.txt'), 'utf8');
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -94,8 +90,10 @@ test('an archived workstream comes back from its repository in the sidebar with 
 
 		await expect(row).toHaveAttribute('aria-current', 'page', { timeout: 30_000 });
 		await expectAssistantReply(page);
-		expect(readFileSync(join(seeded.worktree, 'seed.txt'), 'utf8')).toBe('seed\nunsaved edit\n');
-		expect(readFileSync(join(seeded.worktree, 'committed.txt'), 'utf8')).toBe('committed\n');
+		expect(readFileSync(join(seeded.worktree, 'seed.txt'), 'utf8')).toBe(seed);
+		expect(readFileSync(join(seeded.worktree, 'committed.txt'), 'utf8')).toMatch(
+			/^committed\r?\n$/u,
+		);
 		expect(readFileSync(join(seeded.worktree, 'notes.txt'), 'utf8')).toBe(notes);
 		await expect(page.getByTestId('toast')).toHaveCount(0);
 
@@ -220,7 +218,9 @@ test('archiving a workstream stops what was left running detached from its folde
 		await clickRevealedOnHover(row, archive);
 
 		await expect.poll(() => existsSync(seeded.worktree), { timeout: 30_000 }).toBe(false);
-		await expect.poll(() => detached.signalCode, { timeout: 15_000 }).toBe('SIGTERM');
+		await expect
+			.poll(() => detached.signalCode ?? detached.exitCode, { timeout: 15_000 })
+			.toBe(process.platform === 'win32' ? 1 : 'SIGTERM');
 		await expect(page.getByTestId('toast')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {

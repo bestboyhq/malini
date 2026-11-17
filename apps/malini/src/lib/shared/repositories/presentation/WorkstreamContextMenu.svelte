@@ -9,6 +9,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { deleteWorkstreamCommand } from '$shared/repositories/application/commands/delete-workstream.command';
@@ -123,15 +124,9 @@
 			<Icon name="external-link" class="shrink-0" size={15} />
 			Open in editor
 		</DropdownItem>
-		<DropdownItem
-			role="menuitem"
-			focusOnHover={false}
-			class="gap-2.5"
-			aria-label="Reveal workstream in Finder"
-			onclick={onReveal}
-		>
+		<DropdownItem role="menuitem" focusOnHover={false} class="gap-2.5" onclick={onReveal}>
 			<Icon name="folder-open" class="shrink-0" size={15} />
-			Reveal in Finder
+			{osQuery.data.reveal}
 		</DropdownItem>
 
 		<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
