@@ -20,12 +20,13 @@
 	const TITLE_ID = 'own-pull-requests-title';
 	const CLOCK_MS = 30_000;
 
-	const own = $derived(ownPullRequestsQuery.data(repositoryId));
+	const loadedId = $derived(repositoryId);
+	const own = $derived(ownPullRequestsQuery.data(loadedId));
 	const continuing = $derived(ownPullRequestsQuery.continuing);
 	let nowMs = $state(Date.now());
 
 	$effect(() => {
-		loadOwnPullRequestsCommand(repositoryId);
+		loadOwnPullRequestsCommand(loadedId);
 	});
 
 	$effect(() => {
