@@ -30,6 +30,7 @@ const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
 const REWRITE_SECONDS = 2;
+const LEFTOVER_GRACE_TENTHS = 30;
 const COMPACT_OUTPUT_DATA = join(tmpdir(), 'malini-rtk');
 const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 	.map(([name, value]) => `${name}=${value}`)
@@ -38,6 +39,7 @@ const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 const RUN_SCRIPT = `#!/bin/bash
 folder=\${0%/*}
 shell=\${CLAUDE_CODE_SHELL:-$BASH}
+[ -r "$folder/environment.sh" ] && . "$folder/environment.sh"
 [ -r "$folder/secrets.sh" ] && . "$folder/secrets.sh"
 command=$1
 words() { local word; words=(); while IFS= read -r -d '' word; do words+=("$word"); done <"$1"; }
@@ -84,7 +86,21 @@ compact() {
 }
 [ -r "$folder/compact.sh" ] && . "$folder/compact.sh" && [ -x "$rtk" ] && compact
 run=("\${confine[@]}" "$shell" -c "$command")
-[ -s "$folder/masks" ] || exec "\${run[@]}"
+stop_leftovers() {
+	local pid left tenths=0
+	while :; do
+		left=
+		for pid in $(/usr/bin/pgrep -g $$ 2>/dev/null); do [ "$pid" = $$ ] || left="$left $pid"; done
+		[ -n "$left" ] || return 0
+		if [ "$tenths" -ge ${LEFTOVER_GRACE_TENTHS} ]; then
+			/bin/kill -KILL $left 2>/dev/null
+			return 0
+		fi
+		[ "$tenths" -gt 0 ] || /bin/kill -TERM $left 2>/dev/null
+		/bin/sleep 0.1
+		tenths=$((tenths + 1))
+	done
+}
 mask() {
 	/usr/bin/awk -v masks="$folder/masks" '
 		BEGIN { while ((getline line < masks) > 0) if (line != "") secret[++count] = line }
@@ -103,11 +119,16 @@ mask() {
 		}'
 }
 set -o pipefail
-if [ /dev/fd/1 -ef /dev/fd/2 ]; then
+if [ ! -s "$folder/masks" ]; then
+	"\${run[@]}"
+elif [ /dev/fd/1 -ef /dev/fd/2 ]; then
 	"\${run[@]}" 2>&1 | mask
 else
 	{ "\${run[@]}" 2>&1 1>&3 3>&- | mask >&2; } 3>&1 | mask
 fi
+status=$?
+stop_leftovers
+exit "$status"
 `;
 
 export class SessionSecrets {
@@ -160,6 +181,10 @@ export class SessionSecrets {
 		mkdirSync(passes, { recursive: true, mode: 0o700 });
 		writeFileSync(join(passes, `${pass}${extension}`), contents, { mode: 0o600 });
 		return pass;
+	}
+
+	setEnvironment(environment: Readonly<Record<string, string>>): Promise<void> {
+		return replaceFile(join(this.#folder, 'environment.sh'), exportLines(environment));
 	}
 
 	async set(secrets: Readonly<Record<string, string>>): Promise<void> {

@@ -16,6 +16,7 @@ export interface DockerContainer {
 	readonly startedAt: number;
 	readonly ports: readonly number[];
 	readonly labels: Readonly<Record<string, string>>;
+	readonly bindSources: readonly string[];
 }
 
 export interface WorkstreamFolder {
@@ -55,7 +56,17 @@ function dockerContainer(entry: unknown): DockerContainer | null {
 		startedAt: Number.isFinite(startedAt) ? startedAt : 0,
 		ports: hostPorts(record(container['NetworkSettings'])['Ports']),
 		labels: stringValues(config['Labels']),
+		bindSources: bindSources(container['Mounts']),
 	};
+}
+
+function bindSources(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value.flatMap((entry: unknown) => {
+		const mount = record(entry);
+		const source = mount['Source'];
+		return mount['Type'] === 'bind' && typeof source === 'string' ? [source] : [];
+	});
 }
 
 function hostPorts(value: unknown): number[] {
@@ -86,15 +97,28 @@ export function containerWorkstream(
 	container: DockerContainer,
 	workstreams: readonly WorkstreamFolder[],
 ): string | null {
+	const [linked, ...others] = linkedWorkstreams(container, workstreams);
+	return others.length === 0 ? (linked ?? null) : null;
+}
+
+export function linkedWorkstreams(
+	container: DockerContainer,
+	workstreams: readonly WorkstreamFolder[],
+): string[] {
 	const labelled = container.labels[LABEL_WORKSTREAM];
 	if (labelled !== undefined && workstreams.some((workstream) => workstream.id === labelled)) {
-		return labelled;
+		return [labelled];
 	}
 	const directory = container.labels[COMPOSE_WORKING_DIR];
-	if (directory === undefined) return null;
-	return (
-		workstreams.find((workstream) => isAtOrInsideDirectory(workstream.path, directory))?.id ?? null
-	);
+	const composed = directory === undefined ? undefined : folderOf(directory, workstreams);
+	if (composed !== undefined) return [composed];
+	return [
+		...new Set(container.bindSources.flatMap((source) => folderOf(source, workstreams) ?? [])),
+	];
+}
+
+function folderOf(path: string, workstreams: readonly WorkstreamFolder[]): string | undefined {
+	return workstreams.find((workstream) => isAtOrInsideDirectory(workstream.path, path))?.id;
 }
 
 export function dockerRunning(

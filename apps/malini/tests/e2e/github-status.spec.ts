@@ -14,7 +14,7 @@ const SOONER_THAN_THE_IDLE_POLL_BACKOFF_MS = 15_000;
 const SERVICE_UNAVAILABLE =
 	'HTTP 503: No server is currently available to service your request. Sorry about that. (https://api.github.com/graphql)\n';
 
-test('the top bar says GitHub is down on every page while GitHub answers 503, links its status page, and clears once GitHub answers', async () => {
+test('the top bar says GitHub is down on every page while GitHub answers 503, links its status page, and Refresh clears it once GitHub answers', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -27,14 +27,20 @@ test('the top bar says GitHub is down on every page while GitHub answers 503, li
 		await (await openPullRequestDetail(page)).getByRole('button', { name: 'Refresh' }).click();
 
 		await expect(topBarStatus(page, 'GitHub is down')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByRole('button', { name: /remote status is stale/ })).toBeVisible();
+		const detail = await openPullRequestDetail(page);
+		await expect(detail.getByRole('button', { name: 'Refresh' })).toBeVisible();
 		await captureFlow(app, 'github-down');
+		await page.keyboard.press('Escape');
 		await page.evaluate(() => (globalThis.location.hash = '#/'));
 		await expect(topBarStatus(page, 'GitHub is down')).toBeVisible();
 		await page.getByRole('button', { name: 'Open GitHub Status' }).click();
 		await expect.poll(() => openedUrls(app)).toEqual(['https://www.githubstatus.com']);
+		await page.evaluate(() => (globalThis.location.hash = '#/workstreams/e2e-github-down'));
+		await expect(topBarStatus(page, 'GitHub is down')).toBeVisible();
 
 		github.answerWith(null);
-		await openWorkstream(page, 'e2e-github-down');
+		await (await openPullRequestDetail(page)).getByRole('button', { name: 'Refresh' }).click();
 		await expect(topBarStatus(page, OPEN)).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {

@@ -59,6 +59,7 @@ export interface ProviderHandle {
 	switchMcpServer?(serverName: string, on: boolean): Promise<boolean>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
 	setSecrets?(secrets: Secrets): Promise<void>;
+	setEnvironment?(environment: Secrets): Promise<void>;
 	close(): Promise<void>;
 }
 

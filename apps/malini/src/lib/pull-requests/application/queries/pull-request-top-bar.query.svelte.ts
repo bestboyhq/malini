@@ -8,6 +8,7 @@ import { pullRequestShipAggregate } from '$lib/pull-requests/infrastructure/aggr
 import { pullRequestStateAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-state.aggregate.svelte';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/pull-request-scope.store.svelte';
+import { connectionProblemQuery } from '$shared/repositories/repositories.api';
 
 export { pullRequestTopBarQuery };
 
@@ -20,6 +21,7 @@ class PullRequestTopBarQuery {
 				pullRequestAvailabilityOf(pullRequestScopeStore),
 				agentStatus,
 				pullRequestStateAggregate.readHeadFor(pullRequestScopeStore.workstreamId),
+				connectionProblemQuery.data === null,
 			),
 	);
 }

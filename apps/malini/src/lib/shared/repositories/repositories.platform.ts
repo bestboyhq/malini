@@ -94,6 +94,12 @@ export {
 } from './platform/repository-catalog';
 export { workstreamLineage } from './platform/lineage.service';
 export {
+	leasedEnvironment,
+	listLeasedPorts,
+	workstreamEnvironment,
+	type LeasedPort,
+} from './platform/ports';
+export {
 	clonePlannedRepository,
 	createPlannedWorkstream,
 	planRepositoryWorkstream,

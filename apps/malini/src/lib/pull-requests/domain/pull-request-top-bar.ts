@@ -39,6 +39,7 @@ export function pullRequestTopBar(
 	availability: PullRequestAvailability,
 	agentStatus: SessionStatus | null = null,
 	maliniReadHeadSha: string | null = null,
+	barShowsAction = true,
 ): PullRequestTopBar {
 	const read = surface !== null && repositorySurfaceHasBeenRead(surface) ? surface : null;
 	const remoteFailure = surface === null ? null : surfaceFailure(surface);
@@ -48,7 +49,7 @@ export function pullRequestTopBar(
 	return {
 		status,
 		menu: topBarMenu(ship, surface, remoteFailure).filter(
-			(item) => item.id !== status?.action?.kind,
+			(item) => !barShowsAction || item.id !== status?.action?.kind,
 		),
 		remoteFailure,
 		pullRequestNumber: read?.pullRequest?.number ?? ship?.pullRequestNumber ?? null,

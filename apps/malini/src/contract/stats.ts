@@ -68,9 +68,12 @@ export type WorkstreamTurn = Readonly<{
 	need: string | null;
 }>;
 
+export type NamedPort = Readonly<{ name: string; port: number }>;
+
 export type WorkstreamRunning = Readonly<{
 	workstreamId: string;
 	items: readonly RunningItem[];
+	namedPorts: readonly NamedPort[];
 	behind: readonly string[];
 	turn: WorkstreamTurn | null;
 }>;

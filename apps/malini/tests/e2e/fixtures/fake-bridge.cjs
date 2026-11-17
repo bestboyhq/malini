@@ -1033,6 +1033,11 @@ const recordSecrets = (entry) =>
 		nodePath.join(env.HOME || '/tmp', 'malini-secrets.jsonl'),
 		JSON.stringify(entry) + '\n',
 	);
+const recordEnvironment = (entry) =>
+	fs.appendFileSync(
+		nodePath.join(env.HOME || '/tmp', 'malini-environments.jsonl'),
+		JSON.stringify(entry) + '\n',
+	);
 const recordPlugins = (entry) =>
 	fs.appendFileSync(
 		nodePath.join(env.HOME || '/tmp', 'malini-plugins.jsonl'),
@@ -1709,6 +1714,16 @@ const respond = async (sessionId, runId, prompt) => {
 				'\n\n```sh\necho serving; sleep 300\n```',
 		);
 	}
+	if (prompt.includes('PORT_BLOCK')) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n```sh\necho "web on $MALINI_PORT_WEB in $MALINI_WORKSTREAM_ID"\n```',
+		);
+	}
 	if (prompt.includes('ECHO_SHELL_RUNS')) {
 		const block = /<user_shell_commands>(.*)<\/user_shell_commands>/.exec(prompt);
 		const runs = block ? JSON.parse(block[1]) : [];
@@ -1884,6 +1899,8 @@ const handle = (command) => {
 			const { sessionId, runId } = command;
 			if (command.secrets)
 				recordSecrets({ cmd: 'send_prompt', sessionId, runId, secrets: command.secrets });
+			if (command.environment)
+				recordEnvironment({ sessionId, runId, environment: command.environment });
 			recordPlugins({ sessionId, runId, plugins: command.plugins ?? [] });
 			const { prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);

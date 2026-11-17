@@ -1,3 +1,5 @@
+import { parsePortNames } from '$shared/repositories/domain/port-names';
+
 export const WORKSTREAM_EXTENSION_CONFIGURATION_PATH = '.malini/workspace.json' as const;
 export const WORKSTREAM_EXTENSION_CONFIGURATION_SCHEMA_VERSION = 1 as const;
 
@@ -83,21 +85,28 @@ export function parseWorkstreamExtensionConfiguration(
 		throw configurationError(errorMessage(error));
 	}
 	if (!isRecord(input)) throw configurationError('must contain a JSON object');
-	assertKeys(input, ['schemaVersion', 'applications', 'names', 'extensions'], '$');
+	assertKeys(input, ['schemaVersion', 'applications', 'names', 'ports', 'extensions'], '$');
 	assertRequired(input, 'schemaVersion', '$');
-	assertRequired(input, 'extensions', '$');
 	if (input.schemaVersion !== WORKSTREAM_EXTENSION_CONFIGURATION_SCHEMA_VERSION) {
 		throw configurationError(
 			`schemaVersion must equal ${WORKSTREAM_EXTENSION_CONFIGURATION_SCHEMA_VERSION}`,
 		);
 	}
-	if (!isRecord(input.extensions)) {
+	if (input.ports !== undefined) {
+		try {
+			parsePortNames(input.ports, '$.ports');
+		} catch (error) {
+			throw configurationError(errorMessage(error));
+		}
+	}
+	const authored = input.extensions ?? {};
+	if (!isRecord(authored)) {
 		throw configurationError('$.extensions must be an object keyed by extension id');
 	}
 
 	const extensions = Object.freeze(
 		Object.fromEntries(
-			Object.entries(input.extensions).map(([extensionId, value]) => {
+			Object.entries(authored).map(([extensionId, value]) => {
 				if (!EXTENSION_ID.test(extensionId)) {
 					throw configurationError(
 						`$.extensions key ${JSON.stringify(extensionId)} must be a namespaced lowercase extension id`,

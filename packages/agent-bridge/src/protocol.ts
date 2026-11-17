@@ -80,6 +80,7 @@ export interface SendPromptCommand {
 	readonly theme?: AgentTheme;
 	readonly lineage?: AgentLineage;
 	readonly secrets?: Secrets;
+	readonly environment?: Secrets;
 	readonly plugins?: readonly string[];
 	readonly compactWindow?: number;
 	readonly boundary?: AgentBoundary;
@@ -921,6 +922,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const theme = obj.theme;
 	const lineage = obj.lineage;
 	const secrets = obj.secrets;
+	const environment = obj.environment;
 	const plugins = obj.plugins;
 	const compactWindow = obj.compactWindow;
 	const boundary = obj.boundary;
@@ -976,6 +978,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (secrets !== undefined && !isSecrets(secrets)) {
 		return err('INVALID_PAYLOAD', `send_prompt: ${SECRETS_SHAPE}`, obj);
 	}
+	if (environment !== undefined && !isSecrets(environment)) {
+		return err('INVALID_PAYLOAD', `send_prompt: ${ENVIRONMENT_SHAPE}`, obj);
+	}
 	if (plugins !== undefined && !isPluginList(plugins)) {
 		return err('INVALID_PAYLOAD', `send_prompt: ${PLUGINS_SHAPE}`, obj);
 	}
@@ -1018,6 +1023,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(theme !== undefined ? { theme } : {}),
 			...(lineage !== undefined ? { lineage } : {}),
 			...(secrets !== undefined ? { secrets } : {}),
+			...(environment !== undefined ? { environment } : {}),
 			...(plugins !== undefined ? { plugins } : {}),
 			...(compactWindow !== undefined ? { compactWindow } : {}),
 			...(boundary !== undefined ? { boundary } : {}),
@@ -1061,6 +1067,7 @@ function isPluginList(value: unknown): value is string[] {
 }
 
 const SECRETS_SHAPE = `secrets, when present, must map at most ${MAX_SECRETS} names such as API_TOKEN to string values`;
+const ENVIRONMENT_SHAPE = `environment, when present, must map at most ${MAX_SECRETS} names such as MALINI_PORT_WEB to string values`;
 
 function isSecrets(value: unknown): value is Secrets {
 	if (!isRecord(value)) return false;

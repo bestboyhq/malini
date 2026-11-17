@@ -19,6 +19,7 @@
 
 	const stopping = $derived(stoppingRunningItemsQuery.data(running.workstreamId));
 	const groups = $derived(runningGroups(running.items));
+	const portNames = $derived(new Map(running.namedPorts.map(({ name, port }) => [port, name])));
 	const everyItemStopping = $derived(running.items.every((item) => stopping.has(item.id)));
 
 	let now = $state(Date.now());
@@ -64,18 +65,22 @@
 						{item.detail}
 					</span>
 					{#each item.ports as port (port)}
+						{@const portName = portNames.get(port)}
 						<Button
 							bare
 							class="bg-chip hover:bg-chip-hover text-2xs text-fg-secondary hover:text-fg-default focus-visible:ring-button-primary/40 inline-flex h-4.5 shrink-0 cursor-pointer items-center gap-0.75 rounded-md px-1.5 font-mono tabular-nums outline-none focus-visible:ring-2"
-							ariaLabel={`Open localhost:${port}`}
+							ariaLabel={portName === undefined
+								? `Open localhost:${port}`
+								: `Open ${portName} on localhost:${port}`}
 							onclick={() => onopenport(port)}
 						>
+							{#if portName !== undefined}<span class="font-sans">{portName}</span>{/if}
 							:{port}
 							<Icon name="external-link" size={10} />
 						</Button>
 					{/each}
 					<span
-						class="text-2xs text-fg-tertiary w-12 shrink-0 text-right tabular-nums"
+						class="text-2xs text-fg-tertiary w-14 shrink-0 text-right tabular-nums"
 						data-testid="running-item-elapsed"
 					>
 						{formatElapsed(now - item.startedAt)}

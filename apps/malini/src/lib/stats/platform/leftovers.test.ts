@@ -99,13 +99,18 @@ describe('windowsTerminalProcesses', () => {
 });
 
 describe('leftoverContainers', () => {
-	const container = (id: string, workingDir: string): DockerContainer => ({
+	const container = (
+		id: string,
+		workingDir: string | null,
+		bindSources: string[] = [],
+	): DockerContainer => ({
 		id,
 		name: id,
 		image: 'mongo:7',
 		startedAt: 0,
 		ports: [],
-		labels: { 'com.docker.compose.project.working_dir': workingDir },
+		labels: workingDir === null ? {} : { 'com.docker.compose.project.working_dir': workingDir },
+		bindSources,
 	});
 
 	it('stops the compose projects of the swept folder, never a live one', () => {
@@ -116,6 +121,30 @@ describe('leftoverContainers', () => {
 		];
 		expect(leftoverContainers(containers, { folders: [ARCHIVED], live: [LIVE] })).toEqual([
 			'archived',
+		]);
+	});
+
+	it('stops a container that bind-mounts the swept folder, never one that mounts a live one', () => {
+		const containers = [
+			container('mounted', null, [`${ARCHIVED.path}/apps/backend/clickhouse-migrations`]),
+			container('mounts-two-archived', null, [ARCHIVED.path, `${ROOT}/ws-7/logs`]),
+			container('also-mounts-live', null, [ARCHIVED.path, `${LIVE.path}/data`]),
+			container('composed-mounts-live', `${ARCHIVED.path}/infra`, [LIVE.path]),
+			container('composed-elsewhere', '/Users/me/dev/shop', [ARCHIVED.path]),
+			container('base-checkout', null, ['/Users/me/malini/repositories/shop/base/infra']),
+			container('ancestor', null, ['/Users/me/Library/Application Support/malini']),
+		];
+		const swept = { folders: [{ id: 'workstreams', path: ROOT }], live: [LIVE] };
+
+		expect(leftoverContainers(containers, { folders: [ARCHIVED], live: [LIVE] })).toEqual([
+			'mounted',
+			'mounts-two-archived',
+			'composed-elsewhere',
+		]);
+		expect(leftoverContainers(containers, swept)).toEqual([
+			'mounted',
+			'mounts-two-archived',
+			'composed-elsewhere',
 		]);
 	});
 });

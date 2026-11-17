@@ -140,6 +140,14 @@ describe('workstream extension configuration', () => {
 		expect(Object.isFrozen(EMPTY_WORKSTREAM_EXTENSION_CONFIGURATION.extensions)).toBe(true);
 	});
 
+	it('reads a file that lists only the ports its workstreams serve on', () => {
+		expect(
+			parseWorkstreamExtensionConfiguration(
+				JSON.stringify({ schemaVersion: 1, ports: ['web', 'admin-api'] }),
+			).extensions,
+		).toEqual({});
+	});
+
 	it.each([
 		['malformed JSON', '{', /Invalid \.malini\/workspace\.json:/u],
 		['non-object root', '[]', /must contain a JSON object/u],
@@ -148,7 +156,16 @@ describe('workstream extension configuration', () => {
 			JSON.stringify({ schemaVersion: 2, extensions: {} }),
 			/schemaVersion must equal 1/u,
 		],
-		['missing extension map', JSON.stringify({ schemaVersion: 1 }), /\$\.extensions is required/u],
+		[
+			'port name a shell could not export',
+			JSON.stringify({ schemaVersion: 1, ports: ['web', 'Admin API'] }),
+			/\$\.ports\[1\] must be a port name/u,
+		],
+		[
+			'port named twice',
+			JSON.stringify({ schemaVersion: 1, ports: ['web', 'web'] }),
+			/\$\.ports lists web twice/u,
+		],
 		[
 			'unnamespaced extension id',
 			JSON.stringify({ schemaVersion: 1, extensions: { preview: { enabled: true } } }),

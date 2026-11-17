@@ -249,6 +249,23 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it("parses the environment Malini sets for a turn's commands, and refuses a name a shell could not export", () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"send_prompt","id":"e1","sessionId":"s1","runId":"r1","prompt":"serve","environment":{"MALINI_WORKSTREAM_ID":"w1","MALINI_PORT_WEB":"40000"}}',
+				),
+			).toMatchObject({
+				ok: true,
+				command: { environment: { MALINI_WORKSTREAM_ID: 'w1', MALINI_PORT_WEB: '40000' } },
+			});
+			for (const invalid of [
+				'{"cmd":"send_prompt","id":"e2","sessionId":"s1","runId":"r1","prompt":"x","environment":{"MALINI-PORT":"1"}}',
+				'{"cmd":"send_prompt","id":"e3","sessionId":"s1","runId":"r1","prompt":"x","environment":{"MALINI_PORT_WEB":40000}}',
+			]) {
+				expect(parseCommandLine(invalid)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('parses the record main hands back and rejects one it could not have sent', () => {
 			expect(
 				parseCommandLine(

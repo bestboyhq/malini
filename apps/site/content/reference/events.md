@@ -1475,6 +1475,8 @@ type RunningItem = Readonly<{
 	ports: readonly number[];
 }>;
 
+type NamedPort = Readonly<{ name: string; port: number }>;
+
 type WorkstreamTurn = Readonly<{
 	endedAt: number;
 	outcome: string | null;
@@ -1484,6 +1486,7 @@ type WorkstreamTurn = Readonly<{
 type WorkstreamRunning = Readonly<{
 	workstreamId: string;
 	items: readonly RunningItem[];
+	namedPorts: readonly NamedPort[];
 	behind: readonly string[];
 	turn: WorkstreamTurn | null;
 }>;

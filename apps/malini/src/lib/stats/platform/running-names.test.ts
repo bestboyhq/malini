@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
 	commandDetail,
 	commandDirectory,
+	expandVariables,
 	fallbackServiceName,
 	folderName,
 	namingTask,
@@ -29,6 +30,19 @@ describe('running names', () => {
 		expect(namingTask('Run the e2e suite', 'pnpm test:e2e', null)).toBe(
 			'Description: Run the e2e suite\nCommand: pnpm test:e2e',
 		);
+	});
+
+	it('names a service by the values Malini leased, never by their variables', () => {
+		const leased = { MALINI_PORT_WEB: '40000', MALINI_WORKSTREAM_ID: 'ws-site' };
+		expect(
+			expandVariables(
+				'python3 -m http.server "$MALINI_PORT_WEB" & vite --port ${MALINI_PORT_WEB:-5173} -p $MALINI_WORKSTREAM_ID',
+				leased,
+			),
+		).toBe('python3 -m http.server "40000" & vite --port 40000 -p ws-site');
+		expect(
+			expandVariables('serve $PORT ${MALINI_PORT_API:-3000} ${MALINI_PORT_WEB:+x}', leased),
+		).toBe('serve $PORT ${MALINI_PORT_API:-3000} ${MALINI_PORT_WEB:+x}');
 	});
 
 	it('reads a service or a task from the reply', () => {

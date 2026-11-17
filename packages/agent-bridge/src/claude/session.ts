@@ -1396,6 +1396,10 @@ export class ClaudeSession implements ProviderHandle {
 		return this.#secrets.set(secrets);
 	}
 
+	setEnvironment(environment: Secrets): Promise<void> {
+		return this.#secrets.setEnvironment(environment);
+	}
+
 	async close(): Promise<void> {
 		this.#interactions.close();
 		const active = this.#active;
