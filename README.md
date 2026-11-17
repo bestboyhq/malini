@@ -5,7 +5,7 @@
 <h1 align="center">Malini</h1>
 
 <p align="center">
-  <b>Agentic development environment for builders moving fast.</b><br>
+  <b>Missing abstraction layer for building with agents.</b><br>
   Run as many Claude Code agents as you want, each in its own worktree.<br>
   Malini does the git, the pull requests and the red checks. You read reports and press Merge.<br>
   Free and open source macOS app.
