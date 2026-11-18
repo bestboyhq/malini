@@ -680,10 +680,25 @@ export async function fastForwardCheckout(
 	worktreePath: string,
 	targetRef: string,
 ): Promise<CheckoutFastForward> {
-	const head = (await runGit(['-C', worktreePath, 'rev-parse', '--verify', 'HEAD'])).trim();
+	const head = await headCommit(worktreePath);
 	const target = (
 		await runGit(['-C', worktreePath, 'rev-parse', '--verify', `${targetRef}^{commit}`])
 	).trim();
+	if (head === null) {
+		const branch = (await runGit(['-C', worktreePath, 'symbolic-ref', '--short', 'HEAD'])).trim();
+		await runGit([
+			'-C',
+			worktreePath,
+			'-c',
+			DISABLED_GIT_HOOKS_CONFIG,
+			'checkout',
+			'-q',
+			'-B',
+			branch,
+			target,
+		]);
+		return 'advanced';
+	}
 	if (head === target) return 'current';
 	if (!(await isAncestor(worktreePath, head, target))) return 'diverged';
 	await runGit([
@@ -697,6 +712,15 @@ export async function fastForwardCheckout(
 		target,
 	]);
 	return 'advanced';
+}
+
+async function headCommit(worktreePath: string): Promise<string | null> {
+	try {
+		return (await runGit(['-C', worktreePath, 'rev-parse', '--verify', '--quiet', 'HEAD'])).trim();
+	} catch (error) {
+		if (error instanceof GitError && error.exitCode === 1) return null;
+		throw error;
+	}
 }
 
 async function isAncestor(worktreePath: string, commit: string, of: string): Promise<boolean> {
