@@ -167,7 +167,6 @@
 	<MediaGallery
 		{workstreamId}
 		onclose={() => (mediaOpen = false)}
-		onopendocument={(path) =>
-			openBrowserUrlCommand(workstreamId, worktreePageUrl(workstreamId, path))}
+		onopenfile={(path) => openBrowserUrlCommand(workstreamId, worktreePageUrl(workstreamId, path))}
 	/>
 {/if}

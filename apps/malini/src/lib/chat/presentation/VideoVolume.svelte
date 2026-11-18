@@ -6,20 +6,19 @@
 	interface Props {
 		muted: boolean;
 		volume: number;
+		onchange: (sound: Readonly<{ muted: boolean; volume: number }>) => void;
 	}
 
-	let { muted = $bindable(), volume = $bindable() }: Props = $props();
+	let { muted, volume, onchange }: Props = $props();
 
 	const level = $derived(muted ? 0 : volume);
 
 	function onInput(next: number): void {
-		volume = next;
-		muted = next === 0;
+		onchange({ muted: next === 0, volume: next });
 	}
 
 	function toggleMute(): void {
-		if (muted && volume === 0) volume = 1;
-		muted = !muted;
+		onchange({ muted: !muted, volume: muted && volume === 0 ? 1 : volume });
 	}
 </script>
 

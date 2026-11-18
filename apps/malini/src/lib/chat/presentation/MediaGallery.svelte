@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageStillUrl } from '$contract/browser';
 	import { BRIDGE_AGENT_CONTEXT_PATH } from '$contract/protocol-contract.generated';
 	import {
 		workstreamImageUrl,
@@ -17,16 +18,16 @@
 		contextMediaTabs,
 		type ContextMediaTab,
 	} from '$lib/chat/domain/context-media';
-	import MediaViewer, { type ViewerItem } from './MediaViewer.svelte';
-	import WorkstreamMedia from './WorkstreamMedia.svelte';
+	import ImageGallery from './ImageGallery.svelte';
+	import type { GalleryImage } from './transcript-gallery';
 
 	interface Props {
 		workstreamId: string;
 		onclose: () => void;
-		onopendocument: (path: string) => void;
+		onopenfile: (path: string) => void;
 	}
 
-	let { workstreamId, onclose, onopendocument }: Props = $props();
+	let { workstreamId, onclose, onopenfile }: Props = $props();
 
 	const TAB_LABELS: Readonly<Record<ContextMediaTab['category'], string>> = {
 		all: 'All',
@@ -36,12 +37,14 @@
 		pages: 'Pages',
 		documents: 'Documents',
 	};
-	const VIEWABLE: ReadonlySet<ContextMediaCategory> = new Set(['images', 'videos', 'pages']);
+	const IN_GALLERY: ReadonlySet<ContextMediaCategory> = new Set(['images', 'videos']);
 	const now = Date.now();
 	const uid = $props.id();
 
 	let chosen = $state<ContextMediaTab['category']>('all');
-	let viewing = $state.raw<Readonly<{ items: readonly ViewerItem[]; start: number }> | null>(null);
+	let viewing = $state.raw<Readonly<{ images: readonly GalleryImage[]; startId: string }> | null>(
+		null,
+	);
 
 	const listing = $derived(contextMediaListingQuery.data(workstreamId));
 	const media = $derived(listing?.status === 'ready' ? listing.media : []);
@@ -50,7 +53,6 @@
 	const shown = $derived(
 		category === 'all' ? media : media.filter((item) => item.category === category),
 	);
-	const viewable = $derived(shown.filter((item) => VIEWABLE.has(item.category)));
 
 	function fileName(path: string): string {
 		return path.slice(path.lastIndexOf('/') + 1);
@@ -61,19 +63,20 @@
 	}
 
 	function source(item: ContextMedia): string {
-		return item.category === 'audio' || /\.svg$/iu.test(item.path)
-			? workstreamImageUrl(workstreamId, item.path, Date.parse(item.modifiedAt))
-			: item.path;
+		return workstreamImageUrl(workstreamId, item.path, Date.parse(item.modifiedAt));
 	}
 
 	function view(item: ContextMedia): void {
 		viewing = {
-			items: viewable.map((each) => ({
-				workstreamId,
-				src: source(each),
-				label: fileName(each.path),
-			})),
-			start: viewable.indexOf(item),
+			images: shown
+				.filter((each) => IN_GALLERY.has(each.category))
+				.map((each) => ({
+					id: each.path,
+					name: each.path.slice(`${BRIDGE_AGENT_CONTEXT_PATH}/`.length),
+					kind: 'workstream',
+					media: each.category === 'videos' ? 'video' : 'image',
+				})),
+			startId: item.path,
 		};
 	}
 
@@ -102,6 +105,7 @@
 {#snippet tile(item: ContextMedia, dismiss: () => void)}
 	{@const thumb =
 		'bg-surface-root outline-border-subtle relative block aspect-[4/3] w-full overflow-hidden rounded-lg outline-[0.5px] -outline-offset-[0.5px]'}
+	{@const picture = 'size-full object-cover object-top-left'}
 	{#if item.category === 'audio'}
 		<div class="flex min-w-0 flex-col gap-1.5">
 			<span class={[thumb, 'grid place-items-center pb-9']}>
@@ -121,12 +125,12 @@
 			bare
 			class="group/tile flex min-w-0 cursor-pointer flex-col gap-1.5 rounded-lg outline-none"
 			onclick={() => {
-				if (VIEWABLE.has(item.category)) {
+				if (IN_GALLERY.has(item.category)) {
 					view(item);
 					return;
 				}
 				dismiss();
-				onopendocument(item.path);
+				onopenfile(item.path);
 			}}
 		>
 			<span
@@ -135,12 +139,29 @@
 					'group-hover/tile:outline-border-default group-focus-visible/tile:ring-button-primary/40 transition-[outline-color] group-focus-visible/tile:ring-2',
 				]}
 			>
-				{#if item.category === 'images' || item.category === 'videos'}
-					<WorkstreamMedia
-						{workstreamId}
+				{#if item.category === 'images'}
+					<img src={source(item)} alt="" loading="lazy" decoding="async" class={picture} />
+				{:else if item.category === 'videos'}
+					<video
 						src={source(item)}
-						label={fileName(item.path)}
-						size="tile"
+						muted
+						playsinline
+						preload="metadata"
+						aria-hidden="true"
+						class={picture}
+					></video>
+					<span
+						class="border-surface-elevated-border bg-surface-elevated/80 text-fg-default absolute inset-0 m-auto grid size-8 place-items-center rounded-full border-[0.5px]"
+					>
+						<Icon name="play" size={14} />
+					</span>
+				{:else if item.category === 'pages'}
+					<img
+						src={pageStillUrl(workstreamId, item.path)}
+						alt=""
+						loading="lazy"
+						decoding="async"
+						class={picture}
 					/>
 				{:else}
 					<span class="grid size-full place-items-center">
@@ -232,10 +253,10 @@
 </Modal>
 
 {#if viewing}
-	<MediaViewer
-		items={viewing.items}
-		start={viewing.start}
-		title="Media"
+	<ImageGallery
+		{workstreamId}
+		images={viewing.images}
+		startId={viewing.startId}
 		onclose={() => (viewing = null)}
 	/>
 {/if}

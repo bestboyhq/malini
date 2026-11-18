@@ -76,14 +76,7 @@
 	{#if !source}
 		<span class={hero ? 'absolute inset-0' : 'block size-full'}></span>
 	{:else if kind === 'video' && hero}
-		<VideoPlayer
-			src={source}
-			{label}
-			autoplay={moving}
-			openLabel={galleryImageLabel(label, kind)}
-			{caption}
-			{onopen}
-		/>
+		<VideoPlayer src={source} {label} autoplay={moving} {caption} {onopen} />
 	{:else if kind === 'video'}
 		<video
 			bind:this={video}

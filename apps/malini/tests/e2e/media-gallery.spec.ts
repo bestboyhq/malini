@@ -125,7 +125,7 @@ test('the gutter counts the media in .context, and its gallery sorts, filters, p
 			.toBe(40);
 
 		await grid.getByRole('button', { name: /^after\.png/u }).click();
-		const viewer = page.getByRole('dialog', { name: 'Media, full size' });
+		const viewer = page.getByRole('dialog', { name: 'Image gallery' });
 		await expect(viewer).toBeVisible();
 		await expect(viewer.getByRole('status')).toHaveText('1 of 2');
 		await expect(viewer.getByRole('img', { name: 'after.png' })).toBeVisible();
@@ -135,23 +135,23 @@ test('the gutter counts the media in .context, and its gallery sorts, filters, p
 		await expect(gallery).toBeVisible();
 
 		await tabs.first().click();
-		await grid.getByRole('button', { name: /^proto\.html/u }).click();
-		await expect(viewer.getByRole('status')).toHaveText('4 of 4');
-		await expect(
-			viewer
-				.getByTestId('media-viewer-stage')
-				.frameLocator('iframe[title="proto.html"]')
-				.getByRole('heading', { name: 'Prototype' }),
-		).toBeVisible();
+		await grid.getByRole('button', { name: /^clip\.mp4/u }).click();
+		await expect(viewer.getByRole('status')).toHaveText('3 of 3');
+		await expect(viewer.getByLabel('clip.mp4', { exact: true })).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(viewer).toHaveCount(0);
 
+		await grid.getByRole('button', { name: /^proto\.html/u }).click();
+		await expect(gallery).toHaveCount(0);
+		const address = page.getByRole('textbox', { name: 'Page address' });
+		await expect(address).toHaveValue('./.context/proto.html');
+
+		await page.getByRole('button', { name: 'Hide inspector' }).click();
+		await media.click();
 		await tabs.filter({ hasText: 'Documents' }).click();
 		await grid.getByRole('button', { name: /^notes\.md/u }).click();
 		await expect(gallery).toHaveCount(0);
-		await expect(page.getByRole('textbox', { name: 'Page address' })).toHaveValue(
-			'./.context/notes.md',
-		);
+		await expect(address).toHaveValue('./.context/notes.md');
 
 		placeInContext(worktree, 'review/later.png', readFixture('before.png'), 0);
 		await page.getByRole('button', { name: 'Hide inspector' }).click();
