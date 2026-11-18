@@ -71,7 +71,7 @@ Closed, it is a short list: **Changes** with the lines the workstream added and 
 **Changes** opens **Files** on the changed files only, and **Browser** opens a new tab with the address field waiting for a URL.
 Under the inspector, closed or open, each automation that runs, waits or asks you in the workstream gets a line that opens it.
 **Media** shows once an agent saves a screenshot, recording or prototype, and opens them as a grid sorted into images, videos, audio, pages and documents, newest first.
-Pictures, recordings and pages open full size, audio plays in place, and documents open in a browser tab.
+Pictures and recordings open in the same gallery as a chat's images, audio plays in place, and pages and documents open in a browser tab.
 An agent that opens a page opens the inspector for that page, and the inspector closes again when the agent closes the page, unless you opened it yourself.
 Malini keeps open or closed per workstream.
 

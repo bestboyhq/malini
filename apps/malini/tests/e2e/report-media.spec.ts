@@ -223,7 +223,9 @@ test('two recordings play on one timeline, step a frame at a time and jump to th
 				]),
 			)
 			.toEqual([false, 0.5]);
-		await player.getByRole('button', { name: 'Pause' }).click();
+		await player.getByRole('button', { name: 'Pause the recordings' }).click();
+		await expect(player.getByRole('button', { name: 'Play both' })).toBeVisible();
+		await expect(page.getByRole('dialog', { name: 'Image gallery' })).toHaveCount(0);
 		await captureFlow(app, 'report-motion-compare');
 		expectCleanConsole(app);
 	} finally {
@@ -384,7 +386,7 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 			.toBeGreaterThan(0);
 		const controls = offer.getByRole('group', { name: 'Video controls' });
 		const slider = controls.getByRole('slider', { name: 'Scrub the recording' });
-		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).hover();
+		await offer.getByRole('button', { name: 'Pause Variant B · Motion' }).hover();
 		const scrubber = await slider.boundingBox();
 		if (!scrubber) throw new Error('the scrubber is not on screen');
 		await page.mouse.move(scrubber.x + scrubber.width / 2, scrubber.y + scrubber.height / 2);
@@ -402,8 +404,11 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 		await page.mouse.up();
 		await controls.getByRole('button', { name: 'Pause', exact: true }).click();
 		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).click();
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await offer.getByRole('button', { name: 'Play Variant B · Motion' }).click();
+		await expect(controls.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+		await expect(gallery, 'a click on the picture plays it').toHaveCount(0);
+		await controls.getByRole('button', { name: 'Maximize' }).click();
 		await expect(
 			gallery.getByLabel('Variant B: Motion - the toast entrance', { exact: true }),
 		).toBeVisible();
@@ -673,7 +678,7 @@ test('a recording hands its moment, sound and speed to the gallery and takes the
 
 		await controls.getByRole('button', { name: 'Unmute' }).click();
 		await controls.getByRole('button', { name: /^Playback speed/u }).click();
-		await offer.getByRole('button', { name: 'Open video The toast entrance in gallery' }).click();
+		await controls.getByRole('button', { name: 'Maximize' }).click();
 		await expect(enlarged).toBeVisible({ timeout: 20_000 });
 		await expect.poll(() => stateOf(enlarged)).toEqual({ paused: false, muted: false, speed: 0.5 });
 		await expect.poll(async () => (await stateOf(recording)).paused).toBe(true);
@@ -695,6 +700,69 @@ test('a recording hands its moment, sound and speed to the gallery and takes the
 		await galleryControls.getByRole('button', { name: 'Minimize' }).click();
 		await expect(gallery).toBeHidden();
 		await expect.poll(async () => (await stateOf(recording)).paused).toBe(false);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('sound and speed set on one recording carry to every recording, and stay after a reload', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-shared-sound',
+			[
+				'![Variant A: Quick - the fast entrance](.context/after.mp4)',
+				'![Variant B: Gentle - the slow entrance](.context/before.mp4)',
+				'',
+				'Outcome: Two toast entrances.',
+				'Needs: Pick a direction',
+			].join('\n'),
+			['after.mp4', 'before.mp4'],
+		);
+		const offer = page.getByRole('article', { name: 'Turn result' }).first();
+		const controls = offer.getByRole('group', { name: 'Video controls' });
+		const soundOf = (video: Locator) =>
+			video.evaluate((element) => ({
+				muted: Boolean(Reflect.get(element, 'muted')),
+				volume: Number(Reflect.get(element, 'volume')),
+				speed: Number(Reflect.get(element, 'playbackRate')),
+			}));
+		const quick = offer.getByLabel('Variant A · Quick', { exact: true });
+		await expect
+			.poll(async () => (await playbackOf(quick)).at, { timeout: 30_000 })
+			.toBeGreaterThan(0);
+		await controls.getByRole('button', { name: 'Unmute' }).click();
+		await controls.getByRole('slider', { name: 'Volume' }).fill('0.4');
+		await controls.getByRole('button', { name: /^Playback speed/u }).click();
+		await expect.poll(() => soundOf(quick)).toEqual({ muted: false, volume: 0.4, speed: 0.5 });
+
+		await offer.getByRole('tab', { name: /^Variant B · Gentle/u }).click();
+		const gentle = offer.getByLabel('Variant B · Gentle', { exact: true });
+		await expect
+			.poll(async () => (await playbackOf(gentle)).at, { timeout: 20_000 })
+			.toBeGreaterThan(0);
+		await expect
+			.poll(() => soundOf(gentle), { message: 'a recording plays silently until touched' })
+			.toEqual({ muted: true, volume: 0.4, speed: 0.5 });
+		await offer.getByRole('button', { name: 'Pause Variant B · Gentle' }).click();
+		await expect.poll(() => soundOf(gentle)).toEqual({ muted: false, volume: 0.4, speed: 0.5 });
+		await expect(controls.getByRole('button', { name: 'Mute' })).toBeVisible();
+		await expect(controls.getByRole('button', { name: /^Playback speed/u })).toHaveText('0.5×');
+
+		await page.reload();
+		const again = page
+			.getByRole('article', { name: 'Turn result' })
+			.first()
+			.getByLabel('Variant A · Quick', { exact: true });
+		await expect
+			.poll(async () => (await playbackOf(again)).at, { timeout: 30_000 })
+			.toBeGreaterThan(0);
+		await expect.poll(() => soundOf(again)).toEqual({ muted: true, volume: 0.4, speed: 0.5 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

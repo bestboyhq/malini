@@ -276,7 +276,7 @@ When the agent changes something you can see, it captures it before and after, a
 **Wipe** drags a divider across it, **Flip** switches between the two with a click, and **Diff** paints every changed pixel pink.
 Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, or pinch or Ctrl-scroll to zoom anywhere and scroll to pan, and press Escape to zoom back out.
 The expand button opens the picture you see in the gallery.
-Recordings play side by side on one timeline: step a frame at a time, slow them to 0.5× or 0.25×, and jump to the moment the agent marked.
+Recordings play side by side on one timeline: click either one to play or pause both, step a frame at a time, slow them to 0.5× or 0.25×, and jump to the moment the agent marked.
 
 ### Variants
 
@@ -284,9 +284,10 @@ When you ask for options, or the direction is open, the agent makes two to four 
 It does not wait to be asked: when its answer proposes something you will see, even an answer to a question, it builds the prototype in the same turn instead of offering to.
 Each one copies your product's look, sits in the screen around it and shows your real content.
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
-Click a picture or recording in the frame, or a recording's maximize button, to open it in the gallery.
+Click a picture in the frame, or a recording's maximize button, to open it in the gallery; click a recording to play or pause it.
 A recording carries on there from the same moment, with its sound and speed, and pauses in the frame; its minimize button, or closing the gallery, hands it back where you left it.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
+Sound and speed are one setting for every recording in Malini, and they stay after a restart; a recording in a report plays silently until you touch it.
 A variant's name rises above the controls while they show, so it never covers them.
 While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.

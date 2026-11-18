@@ -23,13 +23,7 @@ export type GalleryImage = Readonly<{
 	media: GalleryMedia;
 }>;
 
-export type Playback = Readonly<{
-	at: number;
-	playing: boolean;
-	muted: boolean;
-	volume: number;
-	speed: number;
-}>;
+export type Playback = Readonly<{ at: number; playing: boolean }>;
 
 export type VideoHandoff = Readonly<{ playback: Playback; resume: (playback: Playback) => void }>;
 

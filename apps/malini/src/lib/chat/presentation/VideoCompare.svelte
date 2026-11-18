@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Playhead } from '$hyper-ui/components/playhead';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { mediaPath } from '$contract/workstream-images';
+	import { chooseVideoPreferencesCommand } from '$lib/chat/application/commands/choose-video-preferences.command';
+	import { videoPreferencesQuery } from '$lib/chat/application/queries/video-preferences.query.svelte';
 	import { mediaMarker, type TurnComparison } from '$lib/chat/domain/turn-report';
+	import { nextVideoSpeed } from '$lib/chat/domain/video-preferences';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
 	import { reportMediaSource } from '$shared/markdown/workstream-images';
 
@@ -16,7 +20,6 @@
 	let { comparison, imagesrc }: Props = $props();
 
 	const FPS = 60;
-	const SPEEDS = [1, 0.5, 0.25] as const;
 
 	const marker = $derived(mediaMarker(comparison.after.src));
 	const beforeSrc = $derived(reportMediaSource(mediaPath(comparison.before.src), imagesrc));
@@ -28,12 +31,16 @@
 	let duration = $state(0);
 	let playing = $state(false);
 	let aspect = $state('16 / 9');
-	let speed = $state<(typeof SPEEDS)[number]>(1);
+	const speed = $derived(videoPreferencesQuery.data.speed);
 	const frame = $derived(Math.round(time * FPS));
 	const onMarker = $derived(marker !== null && Math.round(marker * FPS) === frame);
 
 	$effect(() => {
-		for (const video of [before, after]) if (video) video.playbackRate = speed;
+		const rate = speed;
+		both((video) => {
+			video.defaultPlaybackRate = rate;
+			video.playbackRate = rate;
+		});
 	});
 
 	function both(apply: (video: HTMLVideoElement) => void): void {
@@ -79,7 +86,7 @@
 	}
 
 	function cycleSpeed(): void {
-		speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length] ?? 1;
+		chooseVideoPreferencesCommand({ speed: nextVideoSpeed(speed) });
 	}
 
 	function onloadedmetadata(event: Event & { currentTarget: HTMLVideoElement }): void {
@@ -90,7 +97,6 @@
 		}
 		if (marker !== null && time === 0) time = Math.min(marker, duration);
 		video.currentTime = time;
-		video.playbackRate = speed;
 		if (playing) void video.play();
 	}
 
@@ -152,9 +158,16 @@
 	data-testid="report-video-compare"
 	{onkeydown}
 >
-	<div class="grid grid-cols-2 gap-1.5">
+	<div class="relative grid grid-cols-2 gap-1.5">
 		{@render player(beforeSrc, 'Before')}
 		{@render player(afterSrc, 'After')}
+		<Button
+			bare
+			ariaLabel={playing ? 'Pause the recordings' : 'Play the recordings'}
+			tabindex={-1}
+			class="absolute inset-0 cursor-default"
+			onclick={toggle}
+		/>
 	</div>
 	<div class="flex items-center gap-0.5">
 		<Tooltip content={playing ? 'Pause · Space' : 'Play both · Space'} placement="top">
