@@ -3,6 +3,7 @@ import { requestCloseCommand } from '$lib/app/application/commands/request-close
 import { runMenuChoiceCommand } from '$lib/app/application/commands/run-menu-choice.command';
 import { showUpdateStatusCommand } from '$lib/app/application/commands/show-update-status.command';
 import { syncNativeThemeCommand } from '$lib/app/application/commands/sync-native-theme.command';
+import { greyStylesheet } from '$lib/app/domain/grey-ramp';
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
 import { menuCommandsService } from '$lib/app/infrastructure/services/menu-commands.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
@@ -10,6 +11,7 @@ import { watchNativeFullScreen } from '$lib/app/infrastructure/services/native-f
 import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
 import { updatesService } from '$lib/app/infrastructure/services/updates.service';
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
+import { appearanceStore } from '$lib/app/infrastructure/stores/appearance.store.svelte';
 import { streamerModeStore } from '$lib/app/infrastructure/stores/streamer-mode.store.svelte';
 import { updateStatusStore } from '$lib/app/infrastructure/stores/update-status.store.svelte';
 import { watchFramesHook } from '$lib/stats/application/hooks/watch-frames.hook';
@@ -19,6 +21,7 @@ export function bootAppHook(): () => void {
 	const stopWatchingFullScreen = watchNativeFullScreen();
 	const stopFollowingSystemTheme =
 		appearanceDocumentService.watchSystemTheme(followSystemThemeCommand);
+	appearanceDocumentService.applyGreys(greyStylesheet(appearanceStore.appearance));
 	syncNativeThemeCommand();
 	const stopWatchingStreaming = watchStreaming();
 	const stopWatchingUpdates = watchUpdateStatus();
