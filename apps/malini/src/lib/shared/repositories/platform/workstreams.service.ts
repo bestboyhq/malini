@@ -63,7 +63,7 @@ import {
 	listProjects,
 	upsertProject,
 } from './projects.repository';
-import { recordedBaseRepository } from './checkout-resolver';
+import { recordedBaseRepository, UNKNOWN_WORKSTREAM, WorkstreamError } from './checkout-resolver';
 import { restoreKeptFolders } from './kept-folders';
 import { managedProjectIdForRepository, readDefaultBranch } from './repository.service';
 import {
@@ -342,12 +342,16 @@ export async function restoreWorkstream(
 ): Promise<void> {
 	const { db, events, checkoutsRoot, baseSync } = deps;
 	const archived = getArchivedWorkstream(db, workstreamId);
-	if (archived === null) throw new Error(`Not an archived workstream: ${workstreamId}`);
-	if (isRetiredChat(archived)) throw new Error('This chat is gone, so it stays archived');
+	if (archived === null) {
+		throw new WorkstreamError('not-archived', `Not an archived workstream: ${workstreamId}`);
+	}
+	if (isRetiredChat(archived)) {
+		throw new WorkstreamError('chat-gone', 'This chat is gone, so it stays archived');
+	}
 	const project = getProject(db, archived.projectId);
 	const repository = recordedBaseRepository(db, checkoutsRoot, workstreamId);
 	if (project === null || repository === null) {
-		throw new Error('Its repository is no longer on this Mac');
+		throw new WorkstreamError('repository-gone', 'Its repository is no longer on this Mac');
 	}
 	const checkout = workstreamPath(checkoutsRoot, workstreamId);
 	const branch = archived.branch;
@@ -374,9 +378,11 @@ export async function restoreWorkstream(
 			checkoutExisted,
 			branchExisted,
 		);
-		const message = describeError(error);
-		throw new Error(
-			cleanup === null ? message : `${message}; the checkout could not be rolled back: ${cleanup}`,
+		if (cleanup === null) throw error;
+		throw new WorkstreamError(
+			'rollback-failed',
+			`${describeError(error)}; the checkout could not be rolled back: ${cleanup}`,
+			error,
 		);
 	}
 	unpackRestoredChats(db);
@@ -388,7 +394,9 @@ export async function restoreWorkstream(
 	);
 	renameWorkstream(db, workstreamId, archived.name);
 	const workstream = getWorkstream(db, workstreamId);
-	if (workstream === null) throw new Error(`Unknown workstream: ${workstreamId}`);
+	if (workstream === null) {
+		throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
+	}
 	const payload: WorktreeAddedPayload = { workstreamId, project, workstream };
 	events.emit(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, payload);
 }

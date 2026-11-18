@@ -91,7 +91,7 @@ describe('gitFailureVerdict', () => {
 		['an ssh DNS failure', SSH_DNS_FAILURE],
 	])('names the host it could not reach for %s', (_, stderr) => {
 		expect(gitFailureVerdict(stderr)).toEqual({
-			kind: 'git',
+			kind: 'network',
 			message: "Couldn't reach github.com. Check your connection and try again.",
 		});
 	});
@@ -137,15 +137,16 @@ describe('gitFailureVerdict', () => {
 		['non-fast-forward', NON_FAST_FORWARD],
 	])('says the remote branch moved on a %s rejection', (_, stderr) => {
 		expect(gitFailureVerdict(stderr)).toEqual({
-			kind: 'git',
+			kind: 'remote-ahead',
 			message: 'The remote branch has new commits. Update this branch and try again.',
 		});
 	});
 
 	it('lists the conflicted files git reported', () => {
-		expect(gitFailureVerdict(MERGE_CONFLICT).message).toBe(
-			'Merge conflict in src/app.ts, README.md. Resolve the conflicts and try again.',
-		);
+		expect(gitFailureVerdict(MERGE_CONFLICT)).toEqual({
+			kind: 'merge-conflict',
+			message: 'Merge conflict in src/app.ts, README.md. Resolve the conflicts and try again.',
+		});
 		const many = ['a', 'b', 'c', 'd', 'e']
 			.map((name) => `CONFLICT (content): Merge conflict in ${name}.txt`)
 			.join('\n');
@@ -197,7 +198,7 @@ describe('gitFailureVerdict', () => {
 		],
 	])('says how to let a %s push a workflow GitHub refused', (actor, message) => {
 		expect(gitFailureVerdict(workflowRefusal(actor, 'workflow` scope'))).toEqual({
-			kind: 'git',
+			kind: 'remote-rejected',
 			message,
 		});
 	});
@@ -301,7 +302,7 @@ describe('GitError.commandFailed', () => {
 		for (const leak of ['git -C', '-c credential.helper', 'Some(', 'exit=', '/private/var']) {
 			expect(error.message).not.toContain(leak);
 		}
-		expect(error).toMatchObject({ kind: 'git', exitCode: 128, detail: PROXY_UNREACHABLE });
+		expect(error).toMatchObject({ kind: 'network', exitCode: 128, detail: PROXY_UNREACHABLE });
 		const technical = technicalDetail(error);
 		expect(technical).toContain(
 			'-c credential.helper= -c credential.helper=[redacted] -c core.hooksPath=/dev/null push',

@@ -207,6 +207,7 @@ class FakeContents implements PageContents {
 	}
 
 	capturePage(): Promise<PageImage> {
+		if (this.destroyed) throw new TypeError('Object has been destroyed');
 		this.captured.push(this.url);
 		const unpainted = this.unpainted.shift();
 		if (unpainted instanceof Error) return Promise.reject(unpainted);
@@ -553,7 +554,7 @@ describe('BrowserViews', () => {
 		const { browser } = setup();
 		expect(() =>
 			browser.show({ workstreamId: 'nope', tabId: 'tab-1' }, { x: 0, y: 0, width: 1, height: 1 }),
-		).toThrow('unknown workstream `nope`');
+		).toThrow('Unknown workstream: nope');
 	});
 
 	it('opens a typed address for the agent, waits for the page, then says a page is open', async () => {
@@ -847,6 +848,24 @@ describe('BrowserViews', () => {
 			viewAt(0).contents.captureFailure = new Error('UnknownVizError');
 
 			const snapshot = browser.snapshot(TAB);
+			await vi.advanceTimersByTimeAsync(3_100);
+			expect(await snapshot).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('has no snapshot when the tab closes while it waits for a painted frame', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			await browser.open(TAB, 'https://example.com');
+			const { contents } = viewAt(0);
+			contents.unpainted.push(new FakeImage(0, 0));
+
+			const snapshot = browser.snapshot(TAB);
+			await vi.advanceTimersByTimeAsync(10);
+			contents.destroyed = true;
 			await vi.advanceTimersByTimeAsync(3_100);
 			expect(await snapshot).toBeNull();
 		} finally {

@@ -20,6 +20,7 @@ import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/captu
 import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
+import { throwSite } from '$main/diagnostics/throw-site';
 import { currentEnvironment } from '$main/process/environment';
 import { isDogfoodWindow } from '$main/url-scheme';
 import { localDate, shiftDate } from '$lib/stats/stats.platform';
@@ -264,26 +265,40 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const system =
 		deps.system ??
 		`malini ${context.appVersion} · macOS ${process.getSystemVersion()} ${process.arch}`;
-	// ponytail: each distinct error is logged once per launch; add a count when frequency matters.
-	const reported = new Set<string>();
+	const unsentRepeats = new Map<string, number>();
 	const report = (what: string): void => {
-		if (!shared() || reported.has(what)) return;
-		reported.add(what);
+		if (!shared()) return;
+		const repeats = unsentRepeats.get(what);
+		if (repeats !== undefined) {
+			unsentRepeats.set(what, repeats + 1);
+			return;
+		}
+		unsentRepeats.set(what, 0);
 		void (async () => {
-			if (!(await send(() => sink.error(`${what} · ${system}`)))) reported.delete(what);
+			if (!(await send(() => sink.error(`${what} · ${system}`)))) unsentRepeats.delete(what);
 		})();
+	};
+	const reportRepeats = (): void => {
+		for (const [what, repeats] of unsentRepeats) {
+			if (repeats === 0) continue;
+			unsentRepeats.set(what, 0);
+			void (async () => {
+				if (!(await send(() => sink.error(`${what} · ${repeats} more · ${system}`))))
+					unsentRepeats.set(what, (unsentRepeats.get(what) ?? 0) + repeats);
+			})();
+		}
 	};
 
 	const stopFailures = context.commands.observeFailures((failed) => {
 		if (commandFailureLevel(failed.failure) === 'error')
-			report(`${failed.command} failed: ${described(failed.failure)}`);
+			report(`${failed.command} failed: ${located(described(failed.failure), failed.error)}`);
 	});
 	const hooks = deps.hooks ?? nodeProcessHooks();
 	const stopExceptions = hooks.onUncaughtException((error) =>
-		report(`uncaught exception: ${described(thrownDetail(error))}`),
+		report(`uncaught exception: ${located(described(thrownDetail(error)), error)}`),
 	);
 	const stopRejections = hooks.onUnhandledRejection((reason) =>
-		report(`unhandled rejection: ${described(thrownDetail(reason))}`),
+		report(`unhandled rejection: ${located(described(thrownDetail(reason)), reason)}`),
 	);
 	(deps.processGone ?? electronProcessGone)((kind, reason, exitCode) =>
 		report(`${kind} process gone: ${reason}, exit ${exitCode}`),
@@ -371,7 +386,10 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 		sendOnce(`loop:${day}`, reported, (userId) => sink.report(report, userId), record);
 	};
 	const stopStarted = context.events.subscribe(APP_STARTED_CHANNEL, reportYesterday);
-	const reportTimer = setInterval(reportYesterday, REPORT_CHECK_MS);
+	const reportTimer = setInterval(() => {
+		reportYesterday();
+		reportRepeats();
+	}, REPORT_CHECK_MS);
 	reportTimer.unref();
 
 	const step = ({ step, value }: UsageStep): void => {
@@ -408,6 +426,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopButtons();
 			stopToolStarts();
 			stopTools();
+			reportRepeats();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};
@@ -474,6 +493,11 @@ function earliestActivity(db: MaliniDatabase): string | null {
 
 function described(error: ErrorShape): string {
 	return [error.name, error.code, error.kind && `(${error.kind})`].filter(Boolean).join(' ');
+}
+
+function located(summary: string, error: unknown): string {
+	const site = throwSite(error);
+	return site === null ? summary : `${summary} at ${site}`;
 }
 
 function electronProcessGone(

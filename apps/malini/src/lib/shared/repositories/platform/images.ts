@@ -4,6 +4,7 @@ import { dirname, basename, isAbsolute, join, relative } from 'node:path';
 import { describeError, isErrnoException } from '$main/errors';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import type { WorkstreamImageRead } from '$contract/repositories';
+import { WorkstreamError } from './checkout-resolver';
 
 export const MAX_PREVIEW_BYTES = 32 * 1024 * 1024;
 
@@ -61,15 +62,16 @@ export function svgMediaType(header: Uint8Array): string | null {
 
 export function safeRelativePath(path: string): string {
 	if (path.length === 0 || isAbsolute(path)) {
-		throw new Error('image path must be relative to the workstream');
+		throw new WorkstreamError('image-path', 'image path must be relative to the workstream');
 	}
 	const segments: string[] = [];
 	for (const segment of path.split('/')) {
 		if (segment === '' || segment === '.') continue;
-		if (segment === '..') throw new Error('image path escapes the workstream');
+		if (segment === '..')
+			throw new WorkstreamError('image-path', 'image path escapes the workstream');
 		segments.push(segment);
 	}
-	if (segments.length === 0) throw new Error('image path must name a file');
+	if (segments.length === 0) throw new WorkstreamError('image-path', 'image path must name a file');
 	return segments.join('/');
 }
 
@@ -84,7 +86,11 @@ async function openNoFollow(path: string): Promise<FileHandle | null> {
 		return await open(path, flags);
 	} catch (error) {
 		if (isMissingPath(error)) return null;
-		throw new Error(`open workstream image without following links: ${describeError(error)}`);
+		throw new WorkstreamError(
+			'image-unreadable',
+			`open workstream image without following links: ${describeError(error)}`,
+			error,
+		);
 	}
 }
 
@@ -119,7 +125,11 @@ export async function workstreamFile(
 	try {
 		root = await realpath(worktree);
 	} catch (error) {
-		throw new Error(`canonicalize worktree: ${describeError(error)}`);
+		throw new WorkstreamError(
+			'image-unreadable',
+			`canonicalize worktree: ${describeError(error)}`,
+			error,
+		);
 	}
 	const target = join(root, inside);
 
@@ -128,11 +138,17 @@ export async function workstreamFile(
 		parent = await realpath(dirname(target));
 	} catch (error) {
 		if (isMissingPath(error)) return null;
-		throw new Error(`canonicalize image directory: ${describeError(error)}`);
+		throw new WorkstreamError(
+			'image-unreadable',
+			`canonicalize image directory: ${describeError(error)}`,
+			error,
+		);
 	}
-	if (!isAtOrInsideDirectory(root, parent)) throw new Error('image path escapes the workstream');
+	if (!isAtOrInsideDirectory(root, parent)) {
+		throw new WorkstreamError('image-path', 'image path escapes the workstream');
+	}
 	const name = basename(target);
-	if (name.length === 0) throw new Error('image path must name a file');
+	if (name.length === 0) throw new WorkstreamError('image-path', 'image path must name a file');
 	return join(parent, name);
 }
 
@@ -151,9 +167,13 @@ async function fileSize(file: FileHandle): Promise<number> {
 	try {
 		metadata = await file.stat();
 	} catch (error) {
-		throw new Error(`inspect workstream image: ${describeError(error)}`);
+		throw new WorkstreamError(
+			'image-unreadable',
+			`inspect workstream image: ${describeError(error)}`,
+			error,
+		);
 	}
-	if (!metadata.isFile()) throw new Error('image path is not a file');
+	if (!metadata.isFile()) throw new WorkstreamError('image-path', 'image path is not a file');
 	return metadata.size;
 }
 
@@ -170,7 +190,11 @@ async function readOpenImage(
 		try {
 			({ bytesRead: read } = await file.read(buffer, filled, buffer.length - filled, filled));
 		} catch (error) {
-			throw new Error(`read workstream image: ${describeError(error)}`);
+			throw new WorkstreamError(
+				'image-unreadable',
+				`read workstream image: ${describeError(error)}`,
+				error,
+			);
 		}
 		if (read === 0) break;
 		filled += read;

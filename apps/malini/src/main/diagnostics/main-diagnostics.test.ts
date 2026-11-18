@@ -230,6 +230,42 @@ describe('the main-process diagnostics log', () => {
 		]);
 	});
 
+	it('logs what the user or the Mac must fix as a warning, and what Malini must fix as an error', async () => {
+		const diagnostics = log();
+		const registry = new CommandRegistry();
+		registry.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+		const failure = (name: string, kind: string | null, code: string | null): Error =>
+			Object.assign(new Error(`${name} ${kind} ${code}`), { name, kind, code });
+		const thrown = [
+			failure('GitError', 'network', null),
+			failure('GitError', 'merge-conflict', null),
+			failure('WorkstreamRemovalError', 'run-active', null),
+			failure('GitError', 'io', 'ENOSPC'),
+			failure('Error', null, 'EDQUOT'),
+			failure('GitError', 'git', null),
+			failure('GitError', 'io', 'ENOENT'),
+			failure('WorkstreamRemovalError', 'failed', null),
+		];
+		registry.define('repositories.workstream-diff', (args) => {
+			throw thrown[Number(args)];
+		});
+
+		for (const index of thrown.keys()) {
+			await registry.invoke({ command: 'repositories.workstream-diff', args: index });
+		}
+
+		expect(records().map((record) => record.level)).toEqual([
+			'warn',
+			'warn',
+			'warn',
+			'warn',
+			'warn',
+			'error',
+			'error',
+			'error',
+		]);
+	});
+
 	it('gives routine info lines their own budget so they never crowd out a failure', () => {
 		const diagnostics = log();
 		for (let index = 0; index < MAX_RECORDS_PER_WINDOW + 20; index += 1) {

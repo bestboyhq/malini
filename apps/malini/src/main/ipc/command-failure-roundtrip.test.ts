@@ -136,7 +136,7 @@ describe('a command failure seen from the renderer', () => {
 		expect(error).toBeInstanceOf(CommandError);
 		expect(error).toMatchObject({
 			name: 'GitError',
-			kind: 'git',
+			kind: 'network',
 			message: "Couldn't reach github.com. Check your connection and try again.",
 			command: 'repositories.push-workstream',
 		});

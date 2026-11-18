@@ -1,4 +1,9 @@
 import { trySpawnDetached } from '$main/process/detached';
+import { WorkstreamError } from './checkout-resolver';
+
+function openFailed(error: string | undefined): WorkstreamError {
+	return new WorkstreamError('open-failed', `open failed: ${error ?? 'unknown error'}`);
+}
 
 export interface CheckoutShell {
 	reveal(path: string): Promise<void>;
@@ -8,7 +13,7 @@ export interface CheckoutShell {
 export const defaultCheckoutShell: CheckoutShell = {
 	async reveal(path) {
 		const result = await trySpawnDetached('open', [path]);
-		if (!result.launched) throw new Error(`open failed: ${result.error ?? 'unknown error'}`);
+		if (!result.launched) throw openFailed(result.error);
 	},
 	async openInEditor(path) {
 		const home = process.env.HOME ?? '';
@@ -17,6 +22,6 @@ export const defaultCheckoutShell: CheckoutShell = {
 		const code = await trySpawnDetached('code', [path], { PATH: augmented });
 		if (code.launched) return;
 		const result = await trySpawnDetached('open', [path]);
-		if (!result.launched) throw new Error(`open failed: ${result.error ?? 'unknown error'}`);
+		if (!result.launched) throw openFailed(result.error);
 	},
 };

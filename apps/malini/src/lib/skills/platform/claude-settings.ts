@@ -120,6 +120,16 @@ function claudePlugins(settings: JsonObject): ClaudePlugin[] {
 	});
 }
 
+class ClaudeSettingsError extends Error {
+	override readonly name = 'ClaudeSettingsError';
+	readonly kind: 'invalid-json' | 'not-an-object';
+
+	constructor(kind: ClaudeSettingsError['kind'], message: string) {
+		super(message);
+		this.kind = kind;
+	}
+}
+
 export async function readJsonObject(path: string): Promise<JsonObject> {
 	let text: string;
 	try {
@@ -132,8 +142,13 @@ export async function readJsonObject(path: string): Promise<JsonObject> {
 	try {
 		parsed = JSON.parse(text);
 	} catch {
-		throw new Error(`${path} is not valid JSON, so Malini leaves it alone.`);
+		throw new ClaudeSettingsError(
+			'invalid-json',
+			`${path} is not valid JSON, so Malini leaves it alone.`,
+		);
 	}
-	if (!isRecord(parsed)) throw new Error(`${path} does not hold a JSON object.`);
+	if (!isRecord(parsed)) {
+		throw new ClaudeSettingsError('not-an-object', `${path} does not hold a JSON object.`);
+	}
 	return parsed;
 }
