@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
-import { describeError } from '$main/errors';
+import { describeError, errorCode } from '$main/errors';
 import {
 	legacyProjectBaseDir,
 	repositoryBaseDir,
@@ -15,6 +15,29 @@ export const UNKNOWN_WORKSTREAM = 'Unknown workstream';
 export const UNKNOWN_WORKSTREAM_REPOSITORY = 'Unknown workstream repository';
 export const UNRESOLVABLE_WORKSTREAM_CHECKOUT = 'Could not resolve workstream checkout';
 export const WORKSTREAM_CHECKOUT_NOT_A_DIRECTORY = 'Workstream checkout is not a directory';
+
+export type WorkstreamErrorKind =
+	| 'unknown'
+	| 'unresolvable'
+	| 'not-archived'
+	| 'chat-gone'
+	| 'repository-gone'
+	| 'rollback-failed'
+	| 'image-path'
+	| 'image-unreadable'
+	| 'open-failed';
+
+export class WorkstreamError extends Error {
+	override readonly name = 'WorkstreamError';
+	readonly kind: WorkstreamErrorKind;
+	readonly code: string | null;
+
+	constructor(kind: WorkstreamErrorKind, message: string, cause?: unknown) {
+		super(message, cause === undefined ? undefined : { cause });
+		this.kind = kind;
+		this.code = errorCode(cause) ?? null;
+	}
+}
 
 export interface CheckoutResolver {
 	resolveCheckout(workstreamId: string): Promise<string>;
@@ -59,10 +82,14 @@ async function canonicalDirectory(path: string): Promise<string> {
 	try {
 		canonical = await realpath(path);
 	} catch (error) {
-		throw new Error(`${UNRESOLVABLE_WORKSTREAM_CHECKOUT}: ${describeError(error)}`);
+		throw new WorkstreamError(
+			'unresolvable',
+			`${UNRESOLVABLE_WORKSTREAM_CHECKOUT}: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!(await stat(canonical)).isDirectory()) {
-		throw new Error(WORKSTREAM_CHECKOUT_NOT_A_DIRECTORY);
+		throw new WorkstreamError('unresolvable', WORKSTREAM_CHECKOUT_NOT_A_DIRECTORY);
 	}
 	return canonical;
 }
@@ -72,14 +99,14 @@ export function createCheckoutResolver(deps: CheckoutResolverDeps): CheckoutReso
 	return {
 		async resolveCheckout(workstreamId) {
 			if (getWorkstream(db, workstreamId) === null) {
-				throw new Error(`${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
+				throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
 			}
 			return recordedCheckoutPath(db, checkoutsRoot, workstreamId);
 		},
 		async resolveRepositoryRoot(workstreamId) {
 			const workstream = getWorkstream(db, workstreamId);
 			if (workstream === null) {
-				throw new Error(`${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
+				throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
 			}
 			const project = getProject(db, workstream.projectId);
 			if (project === null) {

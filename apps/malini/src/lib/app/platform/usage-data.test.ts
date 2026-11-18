@@ -105,6 +105,7 @@ function harness(
 		start: () => context.events.emit(APP_STARTED_CHANNEL, { version: '1.0.0' }),
 		throwUncaught: (error: unknown) => throwUncaught(error),
 		goneProcess: (process: string, reason: string) => goneProcess(process, reason, 9),
+		shutdown: () => usageData.shutdown(),
 	};
 }
 
@@ -205,15 +206,35 @@ describe('usage data', () => {
 		]);
 	});
 
-	it('logs a failed command by its error name, never its message, once per launch', async () => {
+	it('logs a failed command by its error name and where it was thrown, never its message', async () => {
 		const { context, errors } = harness();
 		const error = Object.assign(new Error('cannot read /Users/me/secret-client'), {
 			code: 'ENOENT',
 		});
 		await failCommand(context, error);
-		await context.commands.handle({ command: 'repositories.list-workstreams', args: undefined });
 		await settled();
-		expect(errors).toEqual(['repositories.list-workstreams failed: Error ENOENT · malini 1.0.0']);
+		expect(errors).toEqual([
+			expect.stringMatching(
+				/^repositories\.list-workstreams failed: Error ENOENT at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+			),
+		]);
+	});
+
+	it('logs a failure once at once, then how many more times it failed this launch', async () => {
+		const { context, errors, shutdown } = harness();
+		const error = Object.assign(new Error('nope'), { code: 'ENOENT' });
+		await failCommand(context, error);
+		await settled();
+		for (let repeat = 0; repeat < 3; repeat += 1) {
+			await context.commands.handle({ command: 'repositories.list-workstreams', args: undefined });
+		}
+		await settled();
+		expect(errors).toHaveLength(1);
+		await shutdown();
+		await shutdown();
+		const [first, repeats] = errors;
+		expect(errors).toHaveLength(2);
+		expect(repeats).toBe(first?.replace(' · malini 1.0.0', ' · 3 more · malini 1.0.0'));
 	});
 
 	it('leaves out failures Malini expects, like a signed-out GitHub', async () => {
@@ -232,7 +253,9 @@ describe('usage data', () => {
 		goneProcess('renderer', 'oom');
 		await settled();
 		expect(errors).toEqual([
-			'uncaught exception: TypeError · malini 1.0.0',
+			expect.stringMatching(
+				/^uncaught exception: TypeError at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+			),
 			'renderer process gone: oom, exit 9 · malini 1.0.0',
 		]);
 	});

@@ -4,6 +4,7 @@ import { workstreamIdOf } from '../ipc/command-failure';
 import { MAIN_LOG_STEM } from './diagnostics-files';
 import { appendNdjsonRecord } from './ndjson-log';
 import { redactSensitiveText, sanitizeDiagnosticText } from './redaction';
+import { throwSite } from './throw-site';
 import { thrownDetail } from './thrown';
 
 export const MAIN_DIAGNOSTICS_SCHEMA_VERSION = 1;
@@ -60,6 +61,7 @@ interface MainErrorDetail {
 	readonly message: string;
 	readonly detail: string | null;
 	readonly stack: string | null;
+	readonly site: string | null;
 }
 
 export class MainDiagnosticsLog {
@@ -202,6 +204,19 @@ function budgetOf(level: MainDiagnosticLevel): RecordBudget {
 
 const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
 	GhError: new Set(['auth-required', 'not-installed', 'unreachable', 'down', 'rate-limited']),
+	GitError: new Set([
+		'auth-failed',
+		'push-denied',
+		'repository-not-found',
+		'network',
+		'remote-ahead',
+		'remote-rejected',
+		'merge-conflict',
+		'worktree-busy',
+		'output-too-large',
+	]),
+	WorkstreamRemovalError: new Set(['run-active', 'busy']),
+	WorkstreamError: new Set(['chat-gone', 'repository-gone', 'image-path']),
 	AutomationError: new Set(['busy', 'loop']),
 	LifecycleError: new Set(['already_running', 'checkout_busy', 'cancel_race', 'run_ended']),
 	ReconcilerError: new Set(['decided']),
@@ -210,10 +225,13 @@ const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
 	WorkstreamRetiredError: new Set(['retired']),
 };
 
+const EXPECTED_FAILURE_CODES: ReadonlySet<string> = new Set(['ENOSPC', 'EDQUOT']);
+
 export function commandFailureLevel(failure: CommandFailure): MainDiagnosticLevel {
-	return failure.kind !== null && EXPECTED_FAILURE_KINDS[failure.name]?.has(failure.kind)
-		? 'warn'
-		: 'error';
+	const expected =
+		(failure.kind !== null && EXPECTED_FAILURE_KINDS[failure.name]?.has(failure.kind)) ||
+		(failure.code !== null && EXPECTED_FAILURE_CODES.has(failure.code));
+	return expected ? 'warn' : 'error';
 }
 
 function errorDetail(error: unknown, home: string | undefined): MainErrorDetail {
@@ -237,6 +255,7 @@ function errorDetail(error: unknown, home: string | undefined): MainErrorDetail 
 			detail.stack === null
 				? null
 				: sanitizeDiagnosticText(detail.stack, MAX_STACK_CHARS, true, '', home) || null,
+		site: throwSite(error),
 	};
 }
 

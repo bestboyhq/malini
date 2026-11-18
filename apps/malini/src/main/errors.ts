@@ -22,6 +22,10 @@ export type GitErrorKind =
 	| 'auth-failed'
 	| 'push-denied'
 	| 'repository-not-found'
+	| 'network'
+	| 'remote-ahead'
+	| 'remote-rejected'
+	| 'merge-conflict'
 	| 'unsafe-path'
 	| 'not-a-repo'
 	| 'branch-exists'
@@ -258,21 +262,21 @@ export function gitFailureVerdict(output: string): GitFailureVerdict {
 	}
 	if (isNetworkFailure(output)) {
 		return {
-			kind: 'git',
+			kind: 'network',
 			message: `Couldn't reach ${remoteHost(output)}. Check your connection and try again.`,
 		};
 	}
 	if (REMOTE_HAS_NEW_COMMITS.test(output)) {
 		return {
-			kind: 'git',
+			kind: 'remote-ahead',
 			message: 'The remote branch has new commits. Update this branch and try again.',
 		};
 	}
 	const refusal = REMOTE_REJECTED.exec(output)?.[1]?.trim();
-	if (refusal) return { kind: 'git', message: refusedPush(output, refusal) };
+	if (refusal) return { kind: 'remote-rejected', message: refusedPush(output, refusal) };
 	if (MERGE_CONFLICT.test(output)) {
 		return {
-			kind: 'git',
+			kind: 'merge-conflict',
 			message: `${mergeConflictSubject(output)}. Resolve the conflicts and try again.`,
 		};
 	}

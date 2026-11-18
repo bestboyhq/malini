@@ -252,12 +252,25 @@ export function turnedOffMcpServers(settings: JsonObject): string[] {
 	);
 }
 
+const BRIDGE_ERROR_CODE = /^([A-Z_]+): /u;
+
+class McpServerError extends Error {
+	override readonly name = 'McpServerError';
+	readonly kind = 'protocol';
+	readonly code: string | null;
+
+	constructor(cause: SupervisorError) {
+		super(cause.detail.replace(BRIDGE_ERROR_CODE, ''), { cause });
+		this.code = BRIDGE_ERROR_CODE.exec(cause.detail)?.[1] ?? null;
+	}
+}
+
 async function plainly<T>(work: () => Promise<T>): Promise<T> {
 	try {
 		return await work();
 	} catch (error) {
 		if (!(error instanceof SupervisorError) || error.kind !== 'protocol') throw error;
-		throw new Error(error.detail.replace(/^[A-Z_]+: /u, ''), { cause: error });
+		throw new McpServerError(error);
 	}
 }
 

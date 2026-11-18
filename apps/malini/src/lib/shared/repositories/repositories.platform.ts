@@ -40,6 +40,7 @@ export {
 	UNKNOWN_WORKSTREAM_REPOSITORY,
 	UNRESOLVABLE_WORKSTREAM_CHECKOUT,
 	WORKSTREAM_CHECKOUT_NOT_A_DIRECTORY,
+	WorkstreamError,
 	createCheckoutResolver,
 } from './platform/checkout-resolver';
 export {
