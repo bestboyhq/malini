@@ -97,7 +97,7 @@
 
 {#snippet promptBody()}
 	{#if pick}
-		<span class="flex items-center gap-3" data-prompt-body data-testid="chat-prompt-pick">
+		<span class="flex items-center gap-3" data-testid="chat-prompt-pick">
 			<span
 				class="outline-border-subtle bg-surface-root block h-9 w-16 shrink-0 overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]"
 				aria-hidden="true"
@@ -110,7 +110,7 @@
 					imagesrc={transcript.markdownImageSource}
 				/>
 			</span>
-			<span class="min-w-0">
+			<span class="prompt-clamp-body min-w-0" data-prompt-body>
 				<span class="block">
 					Go with <span class="font-medium">{variantLabel(pick.picked)}</span>
 				</span>

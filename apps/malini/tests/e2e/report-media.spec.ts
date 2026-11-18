@@ -256,13 +256,20 @@ test('the user picks a variant with a reason, sees the pick in the chat, and the
 		await expect(variants.getByRole('tab')).toHaveCount(3, { timeout: 30_000 });
 		await expect(offer.getByText('Pick a direction')).toBeVisible();
 		await variants.getByRole('tab', { name: /^Variant B · Bold/u }).click();
-		await offer.getByRole('textbox', { name: 'Why this variant' }).fill('darker reads better');
+		const reason = `darker reads better. ${'The headline needs more weight on a phone. '.repeat(30)}`;
+		await offer.getByRole('textbox', { name: 'Why this variant' }).fill(reason);
 		await captureFlow(app, 'report-variants-offer');
 		await offer.getByRole('button', { name: 'Go with B' }).click();
 
 		const pick = page.getByTestId('chat-prompt-pick');
 		await expect(pick).toContainText('Go with B · Bold', { timeout: 30_000 });
 		await expect(pick).toContainText('darker reads better');
+		await untilStill(page);
+		await captureFlow(app, 'report-variants-pick');
+		const pickBubble = page.getByTestId('chat-message-bubble-user').filter({ has: pick });
+		await expect
+			.poll(async () => (await pickBubble.boundingBox())?.height)
+			.toBeLessThanOrEqual(160);
 		await expect(cards).toHaveCount(2, { timeout: 30_000 });
 		await expect(cards.last().getByTestId('turn-report-outcome')).toHaveText('Variant B is built.');
 		await expect(cards.last().getByTestId('turn-pick-step')).toContainText(
