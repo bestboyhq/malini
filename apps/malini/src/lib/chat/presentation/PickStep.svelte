@@ -26,7 +26,7 @@
 			<span class="text-brand-foreground grid h-5 shrink-0 place-items-center">
 				<Icon name="arrow-right" size={14} ariaLabel="You picked" />
 			</span>
-			<span class="min-w-0 flex-1">
+			<span class="line-clamp-2 min-w-0 flex-1 group-open/pick:line-clamp-none">
 				You picked
 				<span class="text-fg-secondary font-medium">{variantLabel(pick.picked)}</span>
 				{#if others.length > 0}over {others
