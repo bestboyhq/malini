@@ -50,7 +50,7 @@ GPU process gone: crashed, SIGABRT {
     "running_for": "42m",
     "memory_used": "1.3 GB",
     "rendering": "gpu",
-    "screen": "workstreams",
+    "route": "workstreams",
     "agent_runs": 2
   },
   "device": { "chip": "Apple M3 Pro", "memory": "18 GB", "arch": "arm64" },

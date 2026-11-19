@@ -20,13 +20,13 @@ The user also did not want an error line to carry any account or install id, and
 - An error line is a short headline, then one JSON object, written by `errorLine` in `src/lib/app/platform/usage-data.ts` for the Logdash sink and the tests alike:
 
   ```
-  GPU process gone: crashed, SIGABRT {"app":{"version":"0.125.0 release a1b2c3d","running_for":"42m","memory_used":"1.3 GB","rendering":"gpu","screen":"workstreams","agent_runs":2},"device":{"chip":"Apple M3 Pro","memory":"18 GB","arch":"arm64"},"os":"macOS 27.0.1","last_commands":["chat.send-prompt","browser.show"],"stack":["lib/app/platform/register.ts:78"]}
+  GPU process gone: crashed, SIGABRT {"app":{"version":"0.125.0 release a1b2c3d","running_for":"42m","memory_used":"1.3 GB","rendering":"gpu","route":"workstreams","agent_runs":2},"device":{"chip":"Apple M3 Pro","memory":"18 GB","arch":"arm64"},"os":"macOS 27.0.1","last_commands":["chat.send-prompt","browser.show"],"stack":["lib/app/platform/register.ts:78"]}
   ```
 
 - Keys are snake_case and grouped by owner, as Sentry's contexts are; values carry their unit as text, since Logdash only searches text.
 - `app`:
   - `version` is the package version, the build and the commit: `release` for a packaged app, `dogfood` for the `pnpm dogfood` window, `dev` otherwise, then `git rev-parse --short=7 HEAD` at build time, defined as `import.meta.env.MAIN_VITE_COMMIT` in `electron.vite.config.ts` and left out outside git;
-  - `running_for`, `memory_used`, `rendering`, `screen` and `agent_runs` come from `electronErrorMoment` in `src/lib/app/platform/error-context.ts`, read the moment the error happens: `process.uptime()`, the working set of every Malini process from `app.getAppMetrics()`, `gpu` or `software` from `app.getGPUFeatureStatus().gpu_compositing`, the first segment of the main window's hash route when it is a screen Malini has (`home`, `workstreams`, `repositories`, `automations`, `brain`, `dev`) or `other`, and the open runs from `listOpenRuns`.
+  - `running_for`, `memory_used`, `rendering`, `route` and `agent_runs` come from `electronErrorMoment` in `src/lib/app/platform/error-context.ts`, read the moment the error happens: `process.uptime()`, the working set of every Malini process from `app.getAppMetrics()`, `gpu` or `software` from `app.getGPUFeatureStatus().gpu_compositing`, the first segment of the main window's hash route when it is one Malini has (`home`, `workstreams`, `repositories`, `automations`, `brain`, `dev`) or `other`, and the open runs from `listOpenRuns`.
 - `device` holds `chip` from `os.cpus()`, `memory` from `os.totalmem()` and `arch` from `process.arch`; `os` is `macOS <version>`.
 - `last_commands` holds the last six distinct command names started, newest first, from `commands.observeStarts`, so a command that polls takes one slot.
 - `stack` holds up to five sites in Malini's source, thrower first, from `throwSites` in `src/main/diagnostics/throw-site.ts`, a site repeated in a row written once.
@@ -36,7 +36,7 @@ The user also did not want an error line to carry any account or install id, and
 
 ## Consequences
 
-- A line now says which build and commit, which Mac, how long Malini ran, how much memory it used, which screen was open, what the user did and which calls led to the throw.
+- A line now says which build and commit, which Mac, how long Malini ran, how much memory it used, which route was open, what the user did and which calls led to the throw.
 - A person or an agent reads each value by its group and name, and Logdash search finds a key and its value, such as `"rendering":"software"`.
 - Errors from one Mac across launches cannot be told from errors on many Macs; within one launch, `repeats_since_last_line` still counts them.
 - Dogfood and dev lines point at a commit, so their sites can be read.

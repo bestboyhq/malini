@@ -7,7 +7,7 @@ export interface ErrorMoment {
 	readonly running_for: string;
 	readonly memory_used: string;
 	readonly rendering: 'gpu' | 'software';
-	readonly screen: string | null;
+	readonly route: string | null;
 	readonly agent_runs: number | null;
 }
 
@@ -17,7 +17,7 @@ export interface CommandTrail {
 }
 
 const TRAIL_LENGTH = 6;
-const SCREENS: ReadonlySet<string> = new Set([
+const ROUTES: ReadonlySet<string> = new Set([
 	'workstreams',
 	'repositories',
 	'automations',
@@ -46,7 +46,7 @@ export function electronErrorMoment(
 			1,
 		),
 		rendering: app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled') ? 'gpu' : 'software',
-		screen: screenShown(mainWindow()),
+		route: routeShown(mainWindow()),
 		agent_runs: openRuns(context),
 	});
 }
@@ -72,11 +72,11 @@ function openRuns(context: Pick<MainContext, 'db'>): number | null {
 	}
 }
 
-function screenShown(window: BrowserWindow | null): string | null {
+function routeShown(window: BrowserWindow | null): string | null {
 	if (!window || window.isDestroyed()) return null;
 	const url = URL.parse(window.webContents.getURL());
 	if (url === null) return null;
 	const segment = url.hash.split('/')[1] ?? '';
 	if (segment === '') return 'home';
-	return SCREENS.has(segment) ? segment : 'other';
+	return ROUTES.has(segment) ? segment : 'other';
 }

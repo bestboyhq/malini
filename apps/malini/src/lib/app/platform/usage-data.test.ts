@@ -279,7 +279,7 @@ describe('usage data', () => {
 			running_for: '42m',
 			memory_used: '1.3 GB',
 			rendering: 'gpu',
-			screen: null,
+			route: null,
 			agent_runs: 2,
 		};
 		const { context, errors, goneProcess } = harness(undefined, () => null, {
