@@ -290,7 +290,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			return;
 		}
 		unsent.set(key, { headline, stack, repeats: 0 });
-		const details = { stack, lastCommands: trail.names(), ...momentNow(), ...system };
+		const details = { stack, last_commands: trail.names(), ...momentNow(), ...system };
 		void (async () => {
 			if (!(await send((userId) => sink.error(headline, details, userId)))) unsent.delete(key);
 		})();
@@ -300,7 +300,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			const { headline, stack, repeats } = entry;
 			if (repeats === 0) continue;
 			entry.repeats = 0;
-			const details = { stack, repeatsSinceLastLine: repeats, ...system };
+			const details = { stack, repeats_since_last_line: repeats, ...system };
 			void (async () => {
 				if (!(await send((userId) => sink.error(headline, details, userId))))
 					entry.repeats += repeats;
@@ -521,13 +521,13 @@ function stackOf(error: unknown): string[] {
 
 function systemDetails(context: MainContext): ErrorDetails {
 	return {
-		maliniVersion: context.appVersion,
-		maliniBuild: !context.isDev ? 'release' : isDogfoodWindow(process.env) ? 'dogfood' : 'dev',
-		maliniCommit: import.meta.env.MAIN_VITE_COMMIT || null,
-		maliniArch: process.arch,
-		macosVersion: process.getSystemVersion(),
-		macChip: cpus()[0]?.model.trim() || null,
-		macMemoryGb: Math.round(totalmem() / 2 ** 30),
+		malini_version: context.appVersion,
+		malini_build: !context.isDev ? 'release' : isDogfoodWindow(process.env) ? 'dogfood' : 'dev',
+		malini_commit: import.meta.env.MAIN_VITE_COMMIT || null,
+		malini_arch: process.arch,
+		macos_version: process.getSystemVersion(),
+		mac_chip: cpus()[0]?.model.trim() || null,
+		mac_memory_gb: Math.round(totalmem() / 2 ** 30),
 	};
 }
 
@@ -626,7 +626,7 @@ function logdashSink(appVersion: string, packaged: boolean): UsageSink | null {
 					level: 'error',
 					message: errorLine(headline, {
 						...details,
-						reporterId: logdashUserId(site, userId).slice(0, ERROR_ID_LENGTH),
+						reporter_id: logdashUserId(site, userId).slice(0, ERROR_ID_LENGTH),
 					}),
 					namespace: `malini@${appVersion}`,
 				},

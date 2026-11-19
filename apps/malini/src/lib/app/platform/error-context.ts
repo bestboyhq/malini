@@ -4,12 +4,12 @@ import type { CommandRegistry } from '$main/ipc/registry';
 import { listOpenRuns } from '$lib/chat/chat.platform';
 
 export interface ErrorMoment {
-	readonly openScreen: string | null;
-	readonly openAgentRuns: number | null;
-	readonly maliniRendering: 'gpu' | 'software';
-	readonly maliniMemoryUsedMb: number;
-	readonly secondsSinceMaliniStarted: number;
-	readonly secondsSinceMacWoke: number | null;
+	readonly open_screen: string | null;
+	readonly open_agent_runs: number | null;
+	readonly malini_rendering: 'gpu' | 'software';
+	readonly malini_memory_used_mb: number;
+	readonly seconds_since_malini_started: number;
+	readonly seconds_since_mac_woke: number | null;
 }
 
 export interface CommandTrail {
@@ -45,16 +45,16 @@ export function electronErrorMoment(
 		wokeAt = Date.now();
 	});
 	return () => ({
-		openScreen: screenShown(mainWindow()),
-		openAgentRuns: openRuns(context),
-		maliniRendering: app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled')
+		open_screen: screenShown(mainWindow()),
+		open_agent_runs: openRuns(context),
+		malini_rendering: app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled')
 			? 'gpu'
 			: 'software',
-		maliniMemoryUsedMb: Math.round(
+		malini_memory_used_mb: Math.round(
 			app.getAppMetrics().reduce((sum, metric) => sum + metric.memory.workingSetSize, 0) / 1024,
 		),
-		secondsSinceMaliniStarted: Math.round(process.uptime()),
-		secondsSinceMacWoke: wokeAt === null ? null : Math.round((Date.now() - wokeAt) / 1000),
+		seconds_since_malini_started: Math.round(process.uptime()),
+		seconds_since_mac_woke: wokeAt === null ? null : Math.round((Date.now() - wokeAt) / 1000),
 	});
 }
 
