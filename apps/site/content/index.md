@@ -44,13 +44,26 @@ Usage data counts the days Malini runs, the agent runs it finishes and the profi
 Each error also says what was going on, and a real one reads:
 
 ```
-GPU process gone: crashed, SIGABRT · malini 0.125.0 release a1b2c3d ·
-macOS 27.0.1 arm64 · Apple M3 Pro 18 GB · gpu hardware · up 42m ·
-wake 61s · uses 1.3 GB · runs 2 · on workstreams ·
-after chat.send-prompt, browser.show · id 3f9c1a2e
+GPU process gone: crashed, SIGABRT {
+  "lastCommands": ["chat.send-prompt", "browser.show"],
+  "openScreen": "workstreams",
+  "openAgentRuns": 2,
+  "maliniRendering": "gpu",
+  "maliniMemoryUsedMb": 1280,
+  "secondsSinceMaliniStarted": 2520,
+  "secondsSinceMacWoke": 61,
+  "maliniVersion": "0.125.0",
+  "maliniBuild": "release",
+  "maliniCommit": "a1b2c3d",
+  "maliniArch": "arm64",
+  "macosVersion": "27.0.1",
+  "macChip": "Apple M3 Pro",
+  "macMemoryGb": 18,
+  "reporterId": "3f9c1a2e"
+}
 ```
 
-The `after` part names the last commands Malini ran, never what they were given, and `id` is the first eight characters of the hash your counts carry.
+`lastCommands` names the last commands Malini ran, never what they were given, and `reporterId` is the first eight characters of the hash your counts carry.
 For a new install, it marks each first step once: the first open, the first way in you pick, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt sent, prompt run, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
 When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.

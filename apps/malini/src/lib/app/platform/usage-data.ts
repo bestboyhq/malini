@@ -1,6 +1,6 @@
 import { app, net, type BrowserWindow } from 'electron';
 import { createHash, randomUUID } from 'node:crypto';
-import { constants } from 'node:os';
+import { constants, cpus, totalmem } from 'node:os';
 import type { ImportSource } from '$contract/repositories';
 import { RUN_FAILURE_KINDS } from '$contract/agent';
 import { isPausedRunEvent, runEnding } from '$contract/agent-state-machine';
@@ -26,12 +26,7 @@ import { currentEnvironment } from '$main/process/environment';
 import { isDogfoodWindow } from '$main/url-scheme';
 import { localDate, shiftDate } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
-import {
-	commandTrail,
-	electronErrorMoment,
-	errorContextLine,
-	type ErrorMoment,
-} from './error-context';
+import { commandTrail, electronErrorMoment, type ErrorMoment } from './error-context';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
@@ -83,9 +78,11 @@ export interface UsageSink {
 		userId: string | null,
 	): Promise<boolean>;
 	report(report: UsageReport, userId: string | null): Promise<boolean>;
-	error(message: string, userId: string): Promise<boolean>;
+	error(headline: string, details: ErrorDetails, userId: string): Promise<boolean>;
 	shutdown(timeoutMs: number): Promise<void>;
 }
+
+export type ErrorDetails = Readonly<Record<string, string | number | readonly string[] | null>>;
 
 export interface UsageData {
 	share(shared: boolean): void;
@@ -111,7 +108,7 @@ export interface UsageDataDeps {
 	readonly processGone?: (
 		listener: (process: string, reason: string, status: number) => void,
 	) => void;
-	readonly system?: string;
+	readonly system?: ErrorDetails;
 	readonly moment?: () => ErrorMoment | null;
 	readonly mainWindow?: () => BrowserWindow | null;
 	readonly now?: () => Date;
@@ -273,54 +270,54 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			return;
 		}
 	};
-	const system =
-		deps.system ??
-		`malini ${context.appVersion} ${buildOf(context.isDev)} · macOS ${process.getSystemVersion()} ${process.arch}`;
+	const system = deps.system ?? systemDetails(context);
 	const moment = deps.moment ?? electronErrorMoment(context, deps.mainWindow ?? (() => null));
 	const trail = commandTrail(context.commands);
-	const situation = (): string => {
+	const momentNow = (): ErrorMoment | null => {
 		try {
-			const at = moment();
-			return at === null ? system : `${system} · ${errorContextLine(at, trail.names())}`;
+			return moment();
 		} catch {
-			return system;
+			return null;
 		}
 	};
-	const unsentRepeats = new Map<string, number>();
-	const report = (what: string): void => {
+	const unsent = new Map<string, { headline: string; stack: string[]; repeats: number }>();
+	const report = (headline: string, stack: string[] = []): void => {
 		if (!shared()) return;
-		const repeats = unsentRepeats.get(what);
-		if (repeats !== undefined) {
-			unsentRepeats.set(what, repeats + 1);
+		const key = [headline, ...stack].join('\n');
+		const known = unsent.get(key);
+		if (known) {
+			known.repeats += 1;
 			return;
 		}
-		unsentRepeats.set(what, 0);
-		const line = `${what} · ${situation()}`;
+		unsent.set(key, { headline, stack, repeats: 0 });
+		const details = { stack, lastCommands: trail.names(), ...momentNow(), ...system };
 		void (async () => {
-			if (!(await send((userId) => sink.error(line, userId)))) unsentRepeats.delete(what);
+			if (!(await send((userId) => sink.error(headline, details, userId)))) unsent.delete(key);
 		})();
 	};
 	const reportRepeats = (): void => {
-		for (const [what, repeats] of unsentRepeats) {
+		for (const entry of unsent.values()) {
+			const { headline, stack, repeats } = entry;
 			if (repeats === 0) continue;
-			unsentRepeats.set(what, 0);
+			entry.repeats = 0;
+			const details = { stack, repeatsSinceLastLine: repeats, ...system };
 			void (async () => {
-				if (!(await send((userId) => sink.error(`${what} · ${repeats} more · ${system}`, userId))))
-					unsentRepeats.set(what, (unsentRepeats.get(what) ?? 0) + repeats);
+				if (!(await send((userId) => sink.error(headline, details, userId))))
+					entry.repeats += repeats;
 			})();
 		}
 	};
 
 	const stopFailures = context.commands.observeFailures((failed) => {
 		if (commandFailureLevel(failed.failure) === 'error')
-			report(`${failed.command} failed: ${located(described(failed.failure), failed.error)}`);
+			report(`${failed.command} failed: ${described(failed.failure)}`, stackOf(failed.error));
 	});
 	const hooks = deps.hooks ?? nodeProcessHooks();
 	const stopExceptions = hooks.onUncaughtException((error) =>
-		report(`uncaught exception: ${located(described(thrownDetail(error)), error)}`),
+		report(`uncaught exception: ${described(thrownDetail(error))}`, stackOf(error)),
 	);
 	const stopRejections = hooks.onUnhandledRejection((reason) =>
-		report(`unhandled rejection: ${located(described(thrownDetail(reason)), reason)}`),
+		report(`unhandled rejection: ${described(thrownDetail(reason))}`, stackOf(reason)),
 	);
 	(deps.processGone ?? electronProcessGone)((kind, reason, status) =>
 		report(`${kind} process gone: ${reason}, ${processEnding(reason, status)}`),
@@ -518,15 +515,26 @@ function described(error: ErrorShape): string {
 	return [error.name, error.code, error.kind && `(${error.kind})`].filter(Boolean).join(' ');
 }
 
-function located(summary: string, error: unknown): string {
-	const sites = throwSites(error, ERROR_SITES);
-	return sites.length === 0 ? summary : `${summary} at ${sites.join(' < ')}`;
+function stackOf(error: unknown): string[] {
+	return throwSites(error, ERROR_SITES);
 }
 
-function buildOf(isDev: boolean): string {
-	const channel = !isDev ? 'release' : isDogfoodWindow(process.env) ? 'dogfood' : 'dev';
-	const commit = import.meta.env.MAIN_VITE_COMMIT;
-	return commit ? `${channel} ${commit}` : channel;
+function systemDetails(context: MainContext): ErrorDetails {
+	return {
+		maliniVersion: context.appVersion,
+		maliniBuild: !context.isDev ? 'release' : isDogfoodWindow(process.env) ? 'dogfood' : 'dev',
+		maliniCommit: import.meta.env.MAIN_VITE_COMMIT || null,
+		maliniArch: process.arch,
+		macosVersion: process.getSystemVersion(),
+		macChip: cpus()[0]?.model.trim() || null,
+		macMemoryGb: Math.round(totalmem() / 2 ** 30),
+	};
+}
+
+export function errorLine(headline: string, details: ErrorDetails): string {
+	return `${headline} ${JSON.stringify(details, (_key, value: unknown) =>
+		value === null || (Array.isArray(value) && value.length === 0) ? undefined : value,
+	)}`;
 }
 
 function processEnding(reason: string, status: number): string {
@@ -608,7 +616,7 @@ function logdashSink(appVersion: string, packaged: boolean): UsageSink | null {
 	return {
 		activity: (name, props, userId) => webEvent(name, props, userId),
 		report: (report, userId) => webEvent('loop', reportProps(report), userId),
-		error: (message, userId) => {
+		error: (headline, details, userId) => {
 			if (!key) return Promise.resolve(false);
 			return post(
 				'/logs',
@@ -616,7 +624,10 @@ function logdashSink(appVersion: string, packaged: boolean): UsageSink | null {
 				{
 					createdAt: new Date().toISOString(),
 					level: 'error',
-					message: `${message} · id ${logdashUserId(site, userId).slice(0, ERROR_ID_LENGTH)}`,
+					message: errorLine(headline, {
+						...details,
+						reporterId: logdashUserId(site, userId).slice(0, ERROR_ID_LENGTH),
+					}),
 					namespace: `malini@${appVersion}`,
 				},
 			);

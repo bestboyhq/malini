@@ -28,7 +28,7 @@ import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
 import type { ErrorMoment } from './error-context';
 import { createTestContext } from './test-support';
-import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
+import { errorLine, logdashUserId, startUsageData, type UsageActivity } from './usage-data';
 import { isUsageStep } from './usage-steps';
 
 const NOW = new Date(2026, 9, 15, 10);
@@ -74,8 +74,8 @@ function harness(
 				accounts.push(carried);
 				return Promise.resolve(delivered('loop'));
 			},
-			error: (message) => {
-				errors.push(message);
+			error: (headline, details) => {
+				errors.push(errorLine(headline, details));
 				return Promise.resolve(true);
 			},
 			shutdown: () => Promise.resolve(),
@@ -90,7 +90,7 @@ function harness(
 		processGone: (listener) => {
 			goneProcess = listener;
 		},
-		system: 'malini 1.0.0',
+		system: { maliniVersion: '1.0.0' },
 		moment: options.moment ?? (() => null),
 		now: options.now ?? (() => NOW),
 		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
@@ -111,6 +111,11 @@ function harness(
 			goneProcess(process, reason, status),
 		shutdown: () => usageData.shutdown(),
 	};
+}
+
+function splitLine(line: string): { headline: string; details: unknown } {
+	const at = line.indexOf(' {');
+	return { headline: line.slice(0, at), details: JSON.parse(line.slice(at + 1)) };
 }
 
 function settled(): Promise<void> {
@@ -219,7 +224,7 @@ describe('usage data', () => {
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
-				/^repositories\.list-workstreams failed: Error ENOENT at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+				/^repositories\.list-workstreams failed: Error ENOENT \{"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\],"lastCommands":\["repositories\.list-workstreams"\],"maliniVersion":"1\.0\.0"\}$/u,
 			),
 		]);
 	});
@@ -236,9 +241,14 @@ describe('usage data', () => {
 		expect(errors).toHaveLength(1);
 		await shutdown();
 		await shutdown();
-		const [first, repeats] = errors;
+		const [first, repeats] = errors.map(splitLine);
 		expect(errors).toHaveLength(2);
-		expect(repeats).toBe(first?.replace(' · malini 1.0.0', ' · 3 more · malini 1.0.0'));
+		expect(repeats?.headline).toBe(first?.headline);
+		expect(repeats?.details).toEqual({
+			stack: [expect.stringMatching(/^lib\/app\/platform\/usage-data\.test\.ts:\d+$/u)],
+			repeatsSinceLastLine: 3,
+			maliniVersion: '1.0.0',
+		});
 	});
 
 	it('leaves out failures Malini expects, like a signed-out GitHub', async () => {
@@ -258,22 +268,20 @@ describe('usage data', () => {
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
-				/^uncaught exception: TypeError at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+				/^uncaught exception: TypeError \{"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\],"maliniVersion":"1\.0\.0"\}$/u,
 			),
-			'renderer process gone: killed, SIGKILL · malini 1.0.0',
+			'renderer process gone: killed, SIGKILL {"maliniVersion":"1.0.0"}',
 		]);
 	});
 
-	it('adds the Mac, the moment and the latest distinct commands before it, never their arguments', async () => {
+	it('adds the moment and the latest distinct commands before it, never their arguments or what it does not know', async () => {
 		const moment: ErrorMoment = {
-			chip: 'Apple M3 Pro',
-			memoryBytes: 18 * 2 ** 30,
-			gpu: 'hardware',
-			upMs: 42 * 60_000,
-			sinceWakeMs: 61_000,
-			usedBytes: 1.25 * 2 ** 30,
-			runs: 2,
-			screen: 'workstreams',
+			openScreen: 'workstreams',
+			openAgentRuns: 2,
+			maliniRendering: 'gpu',
+			maliniMemoryUsedMb: 1280,
+			secondsSinceMaliniStarted: 2520,
+			secondsSinceMacWoke: null,
 		};
 		const { context, errors, goneProcess } = harness(undefined, () => null, {
 			moment: () => moment,
@@ -285,7 +293,7 @@ describe('usage data', () => {
 		goneProcess('GPU', 'abnormal-exit', 512);
 		await settled();
 		expect(errors).toEqual([
-			'GPU process gone: abnormal-exit, exit 2 · malini 1.0.0 · Apple M3 Pro 18 GB · gpu hardware · up 42m · wake 61s · uses 1.3 GB · runs 2 · on workstreams · after browser.hide, browser.show',
+			'GPU process gone: abnormal-exit, exit 2 {"lastCommands":["browser.hide","browser.show"],"openScreen":"workstreams","openAgentRuns":2,"maliniRendering":"gpu","maliniMemoryUsedMb":1280,"secondsSinceMaliniStarted":2520,"maliniVersion":"1.0.0"}',
 		]);
 	});
 
@@ -300,7 +308,7 @@ describe('usage data', () => {
 		await failCommand(context, error);
 		await settled();
 		expect(errors).toEqual([
-			'repositories.list-workstreams failed: GitError (git) at main/git/run.ts:12 < main/git/remote.ts:40 · malini 1.0.0',
+			'repositories.list-workstreams failed: GitError (git) {"stack":["main/git/run.ts:12","main/git/remote.ts:40"],"lastCommands":["repositories.list-workstreams"],"maliniVersion":"1.0.0"}',
 		]);
 	});
 
@@ -311,9 +319,9 @@ describe('usage data', () => {
 		goneProcess('Utility', 'launch-failed', 1003);
 		await settled();
 		expect(errors).toEqual([
-			'GPU process gone: crashed, SIGABRT · malini 1.0.0',
-			'GPU process gone: abnormal-exit, exit 2 · malini 1.0.0',
-			'Utility process gone: launch-failed, code 1003 · malini 1.0.0',
+			'GPU process gone: crashed, SIGABRT {"maliniVersion":"1.0.0"}',
+			'GPU process gone: abnormal-exit, exit 2 {"maliniVersion":"1.0.0"}',
+			'Utility process gone: launch-failed, code 1003 {"maliniVersion":"1.0.0"}',
 		]);
 	});
 
@@ -817,7 +825,7 @@ describe('the Logdash sink', () => {
 			processGone: () => undefined,
 			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { maliniVersion: '1.0.0' },
 			freshInstall: true,
 		});
 		await settled();
@@ -872,7 +880,7 @@ describe('the Logdash sink', () => {
 				processGone: () => undefined,
 				moment: () => null,
 				now: () => NOW,
-				system: 'malini 1.0.0',
+				system: { maliniVersion: '1.0.0' },
 				freshInstall: true,
 			});
 			await settled();
@@ -897,7 +905,7 @@ describe('the Logdash sink', () => {
 		context.db.close();
 	});
 
-	it('ends an error line with the start of the hash its counts carry', async () => {
+	it('ends an error line with the start of the hash its counts carry as its reporter', async () => {
 		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
 		vi.stubEnv('MAIN_VITE_LOGDASH_API_KEY', 'key');
 		fetchMock.mockClear();
@@ -909,7 +917,7 @@ describe('the Logdash sink', () => {
 			processGone: (listener) => listener('GPU', 'crashed', 6),
 			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { maliniVersion: '1.0.0' },
 		});
 		await settled();
 		await usageData.shutdown();
@@ -917,7 +925,7 @@ describe('the Logdash sink', () => {
 			.filter(([url]) => String(url).endsWith('/logs'))
 			.map(([, init]) => (JSON.parse(String(init.body)) as { message: string }).message);
 		expect(logged).toEqual([
-			`GPU process gone: crashed, SIGABRT · malini 1.0.0 · id ${logdashUserId('malini-site', 'u1').slice(0, 8)}`,
+			`GPU process gone: crashed, SIGABRT {"maliniVersion":"1.0.0","reporterId":"${logdashUserId('malini-site', 'u1').slice(0, 8)}"}`,
 		]);
 		context.db.close();
 	});
@@ -932,7 +940,7 @@ describe('the Logdash sink', () => {
 			processGone: () => undefined,
 			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { maliniVersion: '1.0.0' },
 		});
 		await settled();
 		const install = `install:${getSetting(context.db, INSTALL_ID)}`;
@@ -962,7 +970,7 @@ describe('the Logdash sink', () => {
 				processGone: () => undefined,
 				moment: () => null,
 				now: () => NOW,
-				system: 'malini 1.0.0',
+				system: { maliniVersion: '1.0.0' },
 			});
 			await settled();
 			await usageData.shutdown();
@@ -988,7 +996,7 @@ describe('the Logdash sink', () => {
 			processGone: () => undefined,
 			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { maliniVersion: '1.0.0' },
 			freshInstall: true,
 		});
 		await settled();
@@ -1008,7 +1016,7 @@ describe('the Logdash sink', () => {
 			processGone: () => undefined,
 			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { maliniVersion: '1.0.0' },
 			freshInstall: true,
 		});
 		await settled();
