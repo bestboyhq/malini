@@ -44,7 +44,7 @@ import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { chatTurnChainId, storedRunProfile } from '../runs.repository';
 import { latestSessionForWorkstream } from '../sessions.repository';
 import { parseRunProfile, type PromptsInFlight } from './commands';
-import { automationsNamed } from './malini-approvals.service';
+import { answeredApproval, automationsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, worktreePath, type PersistedBridgeSession } from './sessions';
 
@@ -112,13 +112,8 @@ function approvalOf(
 			(isRecord(requestPayload) && jsonEqual(requestPayload['input'], request.input)) ||
 			(isRecord(response) && jsonEqual(response['updatedInput'], request.input)),
 	);
-	const answer = exact.at(-1) ?? answers.at(-1);
-	if (!answer || (isRecord(answer.response) && answer.response['tree'] === true)) {
-		return 'not-needed';
-	}
-	return isRecord(answer.response) && answer.response['scope'] === 'once'
-		? 'allowed'
-		: 'always-allowed';
+	const response = (exact.at(-1) ?? answers.at(-1))?.response;
+	return isRecord(response) ? answeredApproval(response) : 'not-needed';
 }
 
 async function runPlatformTool(

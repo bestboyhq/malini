@@ -399,6 +399,8 @@ When two servers share a name, each shows where it comes from, such as claude.ai
 - **Turn off** adds the server to `deniedMcpServers` in your Claude Code settings, so it leaves every chat, here and in the terminal.
   A chat that is open drops it at once, without a restart, and **Turn on** brings it back the same way.
 
+Ask the agent to add a server and it does, with [`mcp_servers_add`](/malini/docs/agent-tools.md#mcp-servers): it connects in the chat at once and is saved for every chat and the terminal.
+
 Settings, MCP servers lists every server a chat in the open workstream connects, grouped by where it comes from: claude.ai connectors, each plugin, your own servers, and the repository's `.mcp.json`.
 It opens with what it found last time and updates each row live while its server connects, signs in or fails.
 Filter it to the servers that need you or the ones that are off, sign in or retry from there, and switch any server on or off.

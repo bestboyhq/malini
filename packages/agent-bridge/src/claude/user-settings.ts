@@ -14,8 +14,10 @@ export function userSettingsFile(): string {
 	return join(claudeUserDirectory(), 'settings.json');
 }
 
-export function claudeStateFile(): string {
-	const directory = process.env['CLAUDE_CONFIG_DIR'];
+export function claudeStateFile(
+	env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+	const directory = env['CLAUDE_CONFIG_DIR'];
 	return directory ? join(directory, '.claude.json') : join(homedir(), '.claude.json');
 }
 

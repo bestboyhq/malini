@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import type {
 	HookInput,
 	HookJSONOutput,
+	McpServerConfig,
+	McpServerStatus,
 	ModelInfo,
 	Options,
 	PermissionMode,
@@ -83,6 +85,7 @@ export interface FakeRun {
 	readonly efforts: unknown[];
 	readonly reconnectedMcpServers: string[];
 	readonly switchedMcpServers: string[];
+	readonly mcpServerSets: string[][];
 	interrupted: boolean;
 	closed: boolean;
 }
@@ -177,12 +180,14 @@ export function fakeClaude(
 			efforts: [],
 			reconnectedMcpServers: [],
 			switchedMcpServers: [],
+			mcpServerSets: [],
 			interrupted: false,
 			closed: false,
 		};
 		runs.push(run);
 		let iterating = true;
 		const disabled = new Set<string>();
+		const dynamic = new Map<string, McpServerConfig>();
 		const whileIterating = async <T>(answer: T): Promise<T> => {
 			if (!iterating) throw new Error('Claude Code closed when the session stopped reading');
 			return answer;
@@ -238,11 +243,31 @@ export function fakeClaude(
 				run.mcpPermissionModes[server] = mode;
 				return {};
 			},
-			async mcpServerStatus() {
-				return initServers(script).map(({ name }) => ({
-					name,
-					status: disabled.has(name) ? ('disabled' as const) : ('connected' as const),
-				}));
+			async mcpServerStatus(): Promise<McpServerStatus[]> {
+				return [
+					...initServers(script).map(({ name }) => ({
+						name,
+						status: disabled.has(name) ? ('disabled' as const) : ('connected' as const),
+					})),
+					...[...dynamic].map(([name, config]) => {
+						const error = failure(config);
+						return error
+							? { name, status: 'failed' as const, error }
+							: { name, status: 'connected' as const, tools: [{ name: 'ping' }] };
+					}),
+				];
+			},
+			async setMcpServers(servers) {
+				run.mcpServerSets.push(Object.keys(servers));
+				dynamic.clear();
+				for (const [name, config] of Object.entries(servers)) {
+					if (config.type !== 'sdk') dynamic.set(name, config);
+				}
+				const errors = [...dynamic].flatMap(([name, config]) => {
+					const error = failure(config);
+					return error ? [[name, error] as const] : [];
+				});
+				return { added: [...dynamic.keys()], removed: [], errors: Object.fromEntries(errors) };
 			},
 			async reconnectMcpServer(name) {
 				run.reconnectedMcpServers.push(name);
@@ -318,6 +343,12 @@ async function promptText(sent: Promise<SDKUserMessage | undefined>): Promise<st
 function echoPrompt(result: SDKResultMessage, promptId: string | undefined): SDKResultMessage {
 	if (!promptId || !result.user_message_uuids) return result;
 	return { ...result, user_message_uuid: promptId, user_message_uuids: [promptId] };
+}
+
+function failure(config: McpServerConfig): string | null {
+	if (!('command' in config)) return null;
+	if (!config.args) return 'Spread syntax requires ...iterable[Symbol.iterator] to be a function';
+	return config.command.startsWith('/missing/') ? 'Connection closed' : null;
 }
 
 function initServers(script: readonly ScriptStep[]): readonly { readonly name: string }[] {

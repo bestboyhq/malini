@@ -44,7 +44,7 @@ interface PermissionWire {
 export const MALINI_TOOL_PREFIX = 'mcp__malini__';
 
 const MALINI_ACTION =
-	/^(?:automations\.save|automations\.run:[^\s:]{1,256}|repositories\.(?:clone|hide)|workstreams\.(?:create|send|archive))$/u;
+	/^(?:automations\.save|automations\.run:[^\s:]{1,256}|repositories\.(?:clone|hide)|mcp-servers\.add|workstreams\.(?:create|send|archive))$/u;
 
 export type MaliniActionPermission = Readonly<{
 	capability: 'execute';
