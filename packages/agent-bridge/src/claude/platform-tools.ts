@@ -8,6 +8,7 @@ import {
 	type PlatformTool,
 	type PlatformToolCall,
 } from '../protocol.js';
+import type { AddedMcpServer, McpServerAdder } from './mcp-servers.js';
 
 type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 
@@ -39,7 +40,7 @@ const WAKE = z
 const AUTOMATION_TRIGGER_GRAMMAR =
 	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>/<repository>` for a repository, and every schedule names one, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
-export function platformTools(request: PlatformToolRequester) {
+export function platformTools(request: PlatformToolRequester, addMcpServer: McpServerAdder) {
 	const call = (tool: PlatformTool, input: Record<string, unknown>): Promise<ToolResult> =>
 		platformToolResult(request, { tool, input });
 	return [
@@ -281,7 +282,77 @@ export function platformTools(request: PlatformToolRequester) {
 			},
 			(input) => call('secrets_request', input),
 		),
+		tool(
+			'mcp_servers_add',
+			`Add an MCP server to Claude Code's user config, as \`claude mcp add --scope user\` does, which the sandbox refuses. Use it instead of that command or an edit of ~/.claude.json. Malini connects it in this chat first, so its tools work in this turn, and saves it only once it connects or waits for a sign-in; every other chat loads it on its next prompt, and so does claude in a terminal. A saved server of the same name is replaced. env and headers are saved as plain text, so put no secret in them. ${ASKS} Returns whether it connected and how many tools it has.`,
+			{
+				name: z
+					.string()
+					.regex(MCP_SERVER_NAME)
+					.max(64)
+					.describe('The server name: letters, digits, - and _, for example grip'),
+				command: z
+					.string()
+					.min(1)
+					.optional()
+					.describe(
+						'The program a stdio server runs, for example /Applications/Grip.app/Contents/Resources/grip-mcp or npx. Leave out for a remote server.',
+					),
+				args: z.array(z.string()).optional().describe('The arguments of command'),
+				env: z
+					.record(z.string(), z.string())
+					.optional()
+					.describe('Environment variables command gets'),
+				url: z
+					.url()
+					.optional()
+					.describe('The URL of a remote server. Leave out for a stdio server.'),
+				transport: z
+					.enum(['http', 'sse'])
+					.optional()
+					.describe('How the remote server at url talks: http, the default, or sse'),
+				headers: z
+					.record(z.string(), z.string())
+					.optional()
+					.describe('HTTP headers sent to the remote server at url'),
+			},
+			async (input) => {
+				const config = mcpServerConfig(input);
+				if (typeof config === 'string') return failure(config);
+				try {
+					return { content: [{ type: 'text', text: await addMcpServer(input.name, config) }] };
+				} catch (error) {
+					return failure(error instanceof Error ? error.message : String(error));
+				}
+			},
+		),
 	];
+}
+
+const MCP_SERVER_NAME = /^[\w-]+$/u;
+
+function mcpServerConfig({
+	command,
+	args,
+	env,
+	url,
+	transport,
+	headers,
+}: {
+	readonly command?: string | undefined;
+	readonly args?: string[] | undefined;
+	readonly env?: Record<string, string> | undefined;
+	readonly url?: string | undefined;
+	readonly transport?: 'http' | 'sse' | undefined;
+	readonly headers?: Record<string, string> | undefined;
+}): AddedMcpServer | string {
+	if (command !== undefined && url === undefined && transport === undefined && !headers) {
+		return { type: 'stdio', command, args: args ?? [], ...(env ? { env } : {}) };
+	}
+	if (url !== undefined && command === undefined && !args && !env) {
+		return { type: transport ?? 'http', url, ...(headers ? { headers } : {}) };
+	}
+	return 'Pass command, with args and env, for a stdio server, or url, with transport and headers, for a remote one.';
 }
 
 async function platformToolResult(

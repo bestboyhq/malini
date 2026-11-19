@@ -166,6 +166,85 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 	}
 });
 
+test('an agent adds an MCP server once the user always allows it, shows env names but not values, and adds the next one without asking', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-agent-mcp-servers',
+			'MCP chores',
+		);
+		await openWorkstream(page, workstreamId);
+		const grip = '/Applications/Grip.app/Contents/Resources/grip-mcp';
+		agentCalls(app, {
+			tool: 'mcp_servers_add',
+			input: { name: 'grip', command: grip, args: ['--stdio'], env: { GRIP_TOKEN: 'grip-1234' } },
+		});
+
+		await sendPrompt(page, 'MALINI_TOOL');
+		await expect(page.getByRole('heading', { name: 'Add MCP server ‘grip’' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(page.getByText(`${grip} --stdio`, { exact: true })).toBeVisible();
+		await expect(page.getByText('GRIP_TOKEN', { exact: true })).toBeVisible();
+		await expect(page.getByText('Every chat and claude in your terminal')).toBeVisible();
+		await expect(page.getByText('grip-1234')).toHaveCount(0);
+		await captureFlow(app, 'agent-mcp-server-asks');
+		await decision(page).getByRole('button', { name: 'Always allow' }).click();
+		await page
+			.getByRole('menu', { name: 'Always allow' })
+			.getByRole('menuitem', { name: 'Allow everywhere' })
+			.click();
+		await expect(settled(page, 'Allowed everywhere')).toBeVisible({ timeout: 20_000 });
+
+		agentCalls(app, {
+			tool: 'mcp_servers_add',
+			input: { name: 'linear', url: 'https://mcp.linear.app/mcp' },
+		});
+		await sendPrompt(page, 'MALINI_TOOL');
+		await expect
+			.poll(
+				async () =>
+					(await listEvents(page, currentSessionId(page) ?? '')).filter(
+						({ event }) =>
+							event.type === 'tool.completed' && event.name === 'mcp__malini__mcp_servers_add',
+					).length,
+				{ timeout: 20_000 },
+			)
+			.toBe(2);
+		await expect(decision(page)).toHaveCount(0);
+
+		await openAutomations(page, '#/automations/activity');
+		const activity = page.getByTestId('automations-activity');
+		const turns = activity.getByTestId('chat-turn-row');
+		await expect(turns).toHaveCount(2, { timeout: 20_000 });
+		for (const turn of await turns.all()) {
+			await turn.getByRole('button', { name: /^Show 1 call in / }).click();
+		}
+		const calls = activity.getByTestId('agent-action-row');
+		await expect(calls).toHaveCount(2);
+		await expect(calls.nth(0)).toContainText('Add MCP server ‘linear’');
+		await expect(calls.nth(1)).toContainText('Add MCP server ‘grip’');
+		for (const call of await calls.all()) await expect(call).toContainText('Always allowed');
+
+		await openSettingsFromMenu(page);
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Agent access', exact: true })
+			.click();
+		const grants = page.getByRole('list', { name: 'Always allowed' });
+		await expect(grants.getByRole('listitem')).toHaveCount(1);
+		await expect(grants.getByRole('listitem')).toContainText('Add MCP servers');
+		await captureFlow(app, 'agent-mcp-server-always-allowed');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('an agent edit to an automation that runs on its own waits for a review of each change, and Save keeps exactly what the user kept', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

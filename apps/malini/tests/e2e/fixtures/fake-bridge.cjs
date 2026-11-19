@@ -1297,7 +1297,7 @@ const respond = async (sessionId, runId, prompt) => {
 			type: 'approval.requested',
 			sessionId,
 			runId,
-			approvalId: 'approval-' + runId,
+			approvalId: 'approval-malini-call-' + runId,
 			reason: 'Claude wants to use a Malini tool',
 			toolName: 'mcp__malini__' + call.tool,
 			input: call.input,
@@ -2035,6 +2035,19 @@ const handle = (command) => {
 						error: 'The user denied this action.',
 					});
 					return completeRun(command.sessionId, command.runId, 'malini:denied');
+				}
+				if (malini.tool === 'mcp_servers_add') {
+					maliniCalls.delete(command.runId);
+					pendingRuns.delete(command.runId);
+					const text = malini.input.name + " is saved in Claude Code's user config.";
+					event({
+						type: 'tool.completed',
+						runId: command.runId,
+						name: 'mcp__malini__mcp_servers_add',
+						output: text,
+						toolCallId: malini.toolCallId,
+					});
+					return completeRun(command.sessionId, command.runId, 'malini:' + text);
 				}
 				write({
 					type: 'bridge.platform_request',

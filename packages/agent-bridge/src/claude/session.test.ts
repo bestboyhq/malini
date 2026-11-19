@@ -4,7 +4,9 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type {
 	HookJSONOutput,
+	McpSdkServerConfigWithInstance,
 	McpServerStatus,
+	Options,
 	SDKMessage,
 	SDKResultSuccess,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -247,6 +249,49 @@ function rejected(toolUseId: string): SDKMessage {
 		parent_tool_use_id: null,
 		uuid: '4e2d1c0b-8a7f-4e6d-9c5b-3a2f1e0d9c8b',
 	};
+}
+
+const FAKE_CLAUDE_MCP_CLI = `#!/usr/bin/env node
+const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
+const home = process.env.CLAUDE_CONFIG_DIR;
+const [verb, , , name, json] = process.argv.slice(3);
+appendFileSync(home + '/calls.log', process.argv.slice(2).join(' ') + '\\n');
+if (json && json.includes('unsavable')) {
+	process.stderr.write('MCP server "' + name + '" was not saved.\\n');
+	process.exit(1);
+}
+const state = JSON.parse(readFileSync(home + '/.claude.json', 'utf8'));
+if (verb === 'remove') delete state.mcpServers[name];
+else state.mcpServers[name] = JSON.parse(json);
+writeFileSync(home + '/.claude.json', JSON.stringify(state));
+`;
+
+type McpTransport = Parameters<McpSdkServerConfigWithInstance['instance']['connect']>[0];
+
+async function callMaliniTool(
+	options: Options | undefined,
+	name: string,
+	args: Record<string, unknown>,
+): Promise<unknown> {
+	const server = options?.mcpServers?.['malini'];
+	if (server?.type !== 'sdk') throw new Error('malini is not an in-process MCP server');
+	let answer!: (result: unknown) => void;
+	const answered = new Promise((resolve) => (answer = resolve));
+	const transport: McpTransport = {
+		async start() {},
+		async close() {},
+		async send(message) {
+			if ('result' in message) answer(message.result);
+		},
+	};
+	await server.instance.connect(transport);
+	transport.onmessage?.({
+		jsonrpc: '2.0',
+		id: 1,
+		method: 'tools/call',
+		params: { name, arguments: args },
+	});
+	return answered;
 }
 
 describe('ClaudeSession', () => {
@@ -1173,6 +1218,102 @@ describe('ClaudeSession', () => {
 				{ name: 'plugin:svelte:svelte', status: 'connected', source: 'plugin', toolCount: 2 },
 				{ name: 'codebase-memory-mcp', status: 'connected', source: 'user', toolCount: 0 },
 			],
+		});
+	});
+
+	describe('mcp_servers_add', () => {
+		const GRIP = '/Applications/Grip.app/Contents/Resources/grip-mcp';
+
+		async function addingChat(saved: Record<string, unknown>) {
+			const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
+			vi.stubEnv('CLAUDE_CONFIG_DIR', home);
+			await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: saved }));
+			const executable = join(home, 'claude');
+			await writeFile(executable, FAKE_CLAUDE_MCP_CLI, { mode: 0o755 });
+			const script = recordedScript('readAndBash');
+			const chat = harness([[...script, 'wait-for-prompt', ...script]], { executable });
+			await chat.session.sendPrompt('Install grip', 'run-1', profile());
+			return {
+				...chat,
+				add: (args: Record<string, unknown>) =>
+					callMaliniTool(chat.claude.runs[0]?.options, 'mcp_servers_add', args),
+				saved: async () =>
+					JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers,
+				calls: () => readFile(join(home, 'calls.log'), 'utf8').catch(() => ''),
+				done: async () => {
+					vi.unstubAllEnvs();
+					await rm(home, { recursive: true, force: true });
+				},
+			};
+		}
+
+		it('connects a server in the running chat, saves it for every chat and keeps Claude Code warm', async () => {
+			const chat = await addingChat({ grip: { type: 'stdio', command: '/old/grip-mcp' } });
+
+			const answer = await chat.add({ name: 'grip', command: GRIP });
+			const reported = ofType(chat.events, 'mcp.status').at(-1);
+			await chat.session.sendPrompt('List my projects', 'run-2', profile(), READ_AND_BASH_CURSOR);
+
+			expect(answer).toEqual({
+				content: [
+					{
+						type: 'text',
+						text: "grip is saved in Claude Code's user config, and every other chat loads it on its next prompt. It is connected in this chat, and its tools work now: 1 tool.",
+					},
+				],
+			});
+			expect(chat.claude.runs[0]?.mcpServerSets).toEqual([['malini', 'grip']]);
+			expect(await chat.saved()).toEqual({ grip: { type: 'stdio', command: GRIP, args: [] } });
+			expect(reported?.servers).toContainEqual({
+				name: 'grip',
+				status: 'connected',
+				toolCount: 1,
+			});
+			expect(chat.claude.runs).toHaveLength(1);
+			expect(chat.claude.runs[0]?.followUps).toEqual(['List my projects']);
+			await chat.done();
+		});
+
+		it('saves nothing when the server does not connect', async () => {
+			const chat = await addingChat({});
+
+			const answer = await chat.add({ name: 'grip', command: '/missing/grip-mcp' });
+
+			expect(answer).toEqual({
+				isError: true,
+				content: [
+					{
+						type: 'text',
+						text: 'grip did not connect, so Malini did not save it: Connection closed',
+					},
+				],
+			});
+			expect(chat.claude.runs[0]?.mcpServerSets).toEqual([['malini', 'grip'], ['malini']]);
+			expect(await chat.calls()).toBe('');
+			expect(await chat.saved()).toEqual({});
+			await chat.done();
+		});
+
+		it('puts the saved server back and drops the live one when Claude Code cannot save it', async () => {
+			const old = { type: 'stdio', command: '/old/grip-mcp' };
+			const chat = await addingChat({ grip: old });
+
+			const answer = await chat.add({
+				name: 'grip',
+				command: GRIP,
+				args: ['unsavable'],
+				env: { GRIP_TOKEN: 'grip-1234' },
+			});
+
+			expect(answer).toEqual({
+				isError: true,
+				content: [
+					{ type: 'text', text: 'Claude Code did not save grip: MCP server "grip" was not saved.' },
+				],
+			});
+			expect(chat.claude.runs[0]?.mcpServerSets).toEqual([['malini', 'grip'], ['malini']]);
+			expect(await chat.saved()).toEqual({ grip: old });
+			await chat.done();
 		});
 	});
 

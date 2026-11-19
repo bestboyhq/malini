@@ -62,6 +62,9 @@ describe('assessMaliniApproval', () => {
 			'repositories.clone',
 		);
 		expect(action(db, 'repositories_hide', { repository: 'acme/site' })).toBe('repositories.hide');
+		expect(action(db, 'mcp_servers_add', { name: 'grip', command: 'grip-mcp' })).toBe(
+			'mcp-servers.add',
+		);
 		expect(action(db, 'workstreams_create', { repository: 'acme/site' })).toBe(
 			'workstreams.create',
 		);

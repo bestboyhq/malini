@@ -162,6 +162,15 @@ export function maliniToolApproval(
 	const when = field('when');
 	const then = field('then');
 	const cleared = (key: string): boolean => Reflect.get(input, key) === null;
+	const list = (key: string): string[] => {
+		const value: unknown = Reflect.get(input, key);
+		return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+	};
+	const keysOf = (key: string): string | undefined => {
+		const value: unknown = Reflect.get(input, key);
+		const keys = typeof value === 'object' && value ? Object.keys(value) : [];
+		return keys.length > 0 ? keys.join(', ') : undefined;
+	};
 	const { automation: automationName } = names;
 	const repository = field('repository');
 	const workstream = field('workstream');
@@ -199,6 +208,19 @@ export function maliniToolApproval(
 				headline: named('Hide', repository),
 				details: [{ label: 'Keeps', value: 'Its clone and workstreams, under Hidden' }],
 			};
+		case 'mcp__malini__mcp_servers_add': {
+			const command = field('command');
+			return {
+				headline: named('Add MCP server', field('name')),
+				details: present([
+					['Runs', command && [command, ...list('args')].join(' ')],
+					['Reaches', field('url')],
+					['Env', keysOf('env')],
+					['Headers', keysOf('headers')],
+					['For', 'Every chat and claude in your terminal'],
+				]),
+			};
+		}
 		case 'mcp__malini__workstreams_create':
 			return {
 				headline: named('Start a workstream in', repository),
