@@ -1,15 +1,14 @@
-import { app, powerMonitor, type BrowserWindow } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 import type { MainContext } from '$main/context';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { listOpenRuns } from '$lib/chat/chat.platform';
 
 export interface ErrorMoment {
-	readonly open_screen: string | null;
-	readonly open_agent_runs: number | null;
-	readonly malini_rendering: 'gpu' | 'software';
-	readonly malini_memory_used_mb: number;
-	readonly seconds_since_malini_started: number;
-	readonly seconds_since_mac_woke: number | null;
+	readonly running_for: string;
+	readonly memory_used: string;
+	readonly rendering: 'gpu' | 'software';
+	readonly screen: string | null;
+	readonly agent_runs: number | null;
 }
 
 export interface CommandTrail {
@@ -40,22 +39,29 @@ export function electronErrorMoment(
 	context: Pick<MainContext, 'db'>,
 	mainWindow: () => BrowserWindow | null,
 ): () => ErrorMoment {
-	let wokeAt: number | null = null;
-	powerMonitor.on('resume', () => {
-		wokeAt = Date.now();
-	});
 	return () => ({
-		open_screen: screenShown(mainWindow()),
-		open_agent_runs: openRuns(context),
-		malini_rendering: app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled')
-			? 'gpu'
-			: 'software',
-		malini_memory_used_mb: Math.round(
-			app.getAppMetrics().reduce((sum, metric) => sum + metric.memory.workingSetSize, 0) / 1024,
+		running_for: elapsed(process.uptime()),
+		memory_used: gigabytes(
+			app.getAppMetrics().reduce((sum, metric) => sum + metric.memory.workingSetSize, 0) * 1024,
+			1,
 		),
-		seconds_since_malini_started: Math.round(process.uptime()),
-		seconds_since_mac_woke: wokeAt === null ? null : Math.round((Date.now() - wokeAt) / 1000),
+		rendering: app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled') ? 'gpu' : 'software',
+		screen: screenShown(mainWindow()),
+		agent_runs: openRuns(context),
 	});
+}
+
+export function gigabytes(bytes: number, digits: number): string {
+	return `${(bytes / 2 ** 30).toFixed(digits)} GB`;
+}
+
+export function elapsed(seconds: number): string {
+	const whole = Math.floor(seconds);
+	if (whole < 120) return `${whole}s`;
+	const minutes = Math.floor(whole / 60);
+	if (minutes < 120) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
 function openRuns(context: Pick<MainContext, 'db'>): number | null {
