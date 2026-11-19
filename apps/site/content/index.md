@@ -40,7 +40,17 @@ A Bestboy account comes in only if you publish your stats to a [public profile](
 
 Your code leaves your Mac only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
 Malini makes twelve calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, [the GitHub CLI from GitHub and Claude Code from Anthropic](/malini/docs/install.md) when this Mac lacks a working one, each checked against its published checksum, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it or point at the composer's gauge, the chats you run on a DeepSeek or OpenCode key, which Malini passes to that provider with your key, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, [the projects you turn on](/malini/docs/profile.md#projects-on-bestboy) in Settings, Profile, to bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
-Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits: which command failed on which version, the kind of failure, such as `network`, the file and line in Malini's own code that threw it, and how many times it repeated.
+Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits: which command failed on which version and commit, the kind of failure, such as `network`, the files and lines in Malini's own code it passed through, and how many times it repeated.
+Each error also says what was going on, and a real one reads:
+
+```
+GPU process gone: crashed, SIGABRT · malini 0.125.0 release a1b2c3d ·
+macOS 27.0.1 arm64 · Apple M3 Pro 18 GB · gpu hardware · up 42m ·
+wake 61s · uses 1.3 GB · runs 2 · on workstreams ·
+after chat.send-prompt, browser.show · id 3f9c1a2e
+```
+
+The `after` part names the last commands Malini ran, never what they were given, and `id` is the first eight characters of the hash your counts carry.
 For a new install, it marks each first step once: the first open, the first way in you pick, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt sent, prompt run, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
 When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.
