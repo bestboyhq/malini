@@ -65,6 +65,7 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	const host = deps.host ?? createElectronShellHost();
 	const window = defineShellCommands(context, deps, host);
 	const usageData = startUsageData(context, {
+		mainWindow: deps.getMainWindow,
 		...(deps.usageAccount ? { account: deps.usageAccount } : {}),
 		...(deps.profilePublished ? { published: deps.profilePublished } : {}),
 		...(deps.freshInstall === undefined ? {} : { freshInstall: deps.freshInstall }),

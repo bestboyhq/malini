@@ -26,8 +26,9 @@ import { run } from '$main/db/rows';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
+import { elapsed, gigabytes, type ErrorMoment } from './error-context';
 import { createTestContext } from './test-support';
-import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
+import { errorLine, logdashUserId, startUsageData, type UsageActivity } from './usage-data';
 import { isUsageStep } from './usage-steps';
 
 const NOW = new Date(2026, 9, 15, 10);
@@ -43,6 +44,7 @@ interface HarnessOptions {
 	readonly freshInstall?: boolean;
 	readonly delivered?: (name: UsageActivity | 'loop') => boolean;
 	readonly published?: () => boolean;
+	readonly moment?: () => ErrorMoment | null;
 }
 
 function harness(
@@ -56,7 +58,7 @@ function harness(
 	const accounts: (string | null)[] = [];
 	const errors: string[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
-	let goneProcess: (process: string, reason: string, exitCode: number) => void = () => undefined;
+	let goneProcess: (process: string, reason: string, status: number) => void = () => undefined;
 	const delivered = options.delivered ?? (() => true);
 	const usageData = startUsageData(context, {
 		account: () => Promise.resolve(account()),
@@ -72,8 +74,8 @@ function harness(
 				accounts.push(carried);
 				return Promise.resolve(delivered('loop'));
 			},
-			error: (message) => {
-				errors.push(message);
+			error: (headline, details) => {
+				errors.push(errorLine(headline, details));
 				return Promise.resolve(true);
 			},
 			shutdown: () => Promise.resolve(),
@@ -88,7 +90,8 @@ function harness(
 		processGone: (listener) => {
 			goneProcess = listener;
 		},
-		system: 'malini 1.0.0',
+		system: { app: { version: '1.0.0' } },
+		moment: options.moment ?? (() => null),
 		now: options.now ?? (() => NOW),
 		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
 		...(options.published ? { published: options.published } : {}),
@@ -104,9 +107,15 @@ function harness(
 		errors,
 		start: () => context.events.emit(APP_STARTED_CHANNEL, { version: '1.0.0' }),
 		throwUncaught: (error: unknown) => throwUncaught(error),
-		goneProcess: (process: string, reason: string) => goneProcess(process, reason, 9),
+		goneProcess: (process: string, reason: string, status: number) =>
+			goneProcess(process, reason, status),
 		shutdown: () => usageData.shutdown(),
 	};
+}
+
+function splitLine(line: string): { headline: string; details: unknown } {
+	const at = line.indexOf(' {');
+	return { headline: line.slice(0, at), details: JSON.parse(line.slice(at + 1)) };
 }
 
 function settled(): Promise<void> {
@@ -215,7 +224,7 @@ describe('usage data', () => {
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
-				/^repositories\.list-workstreams failed: Error ENOENT at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+				/^repositories\.list-workstreams failed: Error ENOENT \{"app":\{"version":"1\.0\.0"\},"last_commands":\["repositories\.list-workstreams"\],"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\]\}$/u,
 			),
 		]);
 	});
@@ -232,9 +241,14 @@ describe('usage data', () => {
 		expect(errors).toHaveLength(1);
 		await shutdown();
 		await shutdown();
-		const [first, repeats] = errors;
+		const [first, repeats] = errors.map(splitLine);
 		expect(errors).toHaveLength(2);
-		expect(repeats).toBe(first?.replace(' · malini 1.0.0', ' · 3 more · malini 1.0.0'));
+		expect(repeats?.headline).toBe(first?.headline);
+		expect(repeats?.details).toEqual({
+			app: { version: '1.0.0' },
+			stack: [expect.stringMatching(/^lib\/app\/platform\/usage-data\.test\.ts:\d+$/u)],
+			repeats_since_last_line: 3,
+		});
 	});
 
 	it('leaves out failures Malini expects, like a signed-out GitHub', async () => {
@@ -250,13 +264,68 @@ describe('usage data', () => {
 	it('logs crashes and uncaught exceptions', async () => {
 		const { errors, throwUncaught, goneProcess } = harness();
 		throwUncaught(new TypeError('x is undefined in /Users/me'));
-		goneProcess('renderer', 'oom');
+		goneProcess('renderer', 'killed', 9);
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
-				/^uncaught exception: TypeError at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+				/^uncaught exception: TypeError \{"app":\{"version":"1\.0\.0"\},"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\]\}$/u,
 			),
-			'renderer process gone: oom, exit 9 · malini 1.0.0',
+			'renderer process gone: killed, SIGKILL {"app":{"version":"1.0.0"}}',
+		]);
+	});
+
+	it('adds the moment and the latest distinct commands before it, never their arguments or what it does not know', async () => {
+		const moment: ErrorMoment = {
+			running_for: '42m',
+			memory_used: '1.3 GB',
+			rendering: 'gpu',
+			route: null,
+			agent_runs: 2,
+		};
+		const { context, errors, goneProcess } = harness(undefined, () => null, {
+			moment: () => moment,
+		});
+		context.commands.define('browser.hide', () => undefined);
+		context.commands.define('browser.show', () => undefined);
+		for (const command of ['browser.hide', 'browser.show', 'browser.hide'] as const)
+			await context.commands.handle({ command, args: { path: '/Users/me/secret' } });
+		goneProcess('GPU', 'abnormal-exit', 512);
+		await settled();
+		expect(errors).toEqual([
+			'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0","running_for":"42m","memory_used":"1.3 GB","rendering":"gpu","agent_runs":2},"last_commands":["browser.hide","browser.show"]}',
+		]);
+	});
+
+	it('names the app lines a failure passed through, thrower first', async () => {
+		const { context, errors } = harness();
+		const error = Object.assign(new Error('/Users/me/acme'), { name: 'GitError', kind: 'git' });
+		error.stack = [
+			'GitError: /Users/me/acme',
+			'    at run (/a/apps/malini/src/main/git/run.ts:12:3)',
+			'    at fetch (/a/apps/malini/src/main/git/remote.ts:40:1)',
+		].join('\n');
+		await failCommand(context, error);
+		await settled();
+		expect(errors).toEqual([
+			'repositories.list-workstreams failed: GitError (git) {"app":{"version":"1.0.0"},"last_commands":["repositories.list-workstreams"],"stack":["main/git/run.ts:12","main/git/remote.ts:40"]}',
+		]);
+	});
+
+	it('writes running time and memory the way a person reads them', () => {
+		expect([61, 42 * 60, 5 * 3600, 3 * 86_400].map(elapsed)).toEqual(['61s', '42m', '5h', '3d']);
+		expect([gigabytes(18 * 2 ** 30, 0), gigabytes(1.25 * 2 ** 30, 1)]).toEqual(['18 GB', '1.3 GB']);
+	});
+
+	it('names the signal or the exit code of a gone process, not its wait status', async () => {
+		const { errors, goneProcess } = harness();
+		goneProcess('GPU', 'crashed', 6);
+		goneProcess('GPU', 'abnormal-exit', 512);
+		goneProcess('Utility', 'launch-failed', 1003);
+		await settled();
+		expect(errors).toEqual([
+			'GPU process gone: crashed, SIGABRT {"app":{"version":"1.0.0"}}',
+			'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0"}}',
+			'Utility process gone: launch-failed, code 1003 {"app":{"version":"1.0.0"}}',
 		]);
 	});
 
@@ -758,8 +827,9 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve('u1'),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 			freshInstall: true,
 		});
 		await settled();
@@ -812,8 +882,9 @@ describe('the Logdash sink', () => {
 			const usageData = startUsageData(context, {
 				hooks: noHooks,
 				processGone: () => undefined,
+				moment: () => null,
 				now: () => NOW,
-				system: 'malini 1.0.0',
+				system: { app: { version: '1.0.0' } },
 				freshInstall: true,
 			});
 			await settled();
@@ -838,6 +909,29 @@ describe('the Logdash sink', () => {
 		context.db.close();
 	});
 
+	it('sends an error line with no account or install id', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		vi.stubEnv('MAIN_VITE_LOGDASH_API_KEY', 'key');
+		fetchMock.mockClear();
+		fetchMock.mockImplementation(() => Promise.resolve(new Response('{}')));
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			account: () => Promise.resolve('u1'),
+			hooks: noHooks,
+			processGone: (listener) => listener('GPU', 'crashed', 6),
+			moment: () => null,
+			now: () => NOW,
+			system: { app: { version: '1.0.0' } },
+		});
+		await settled();
+		await usageData.shutdown();
+		const logged = fetchMock.mock.calls
+			.filter(([url]) => String(url).endsWith('/logs'))
+			.map(([, init]) => (JSON.parse(String(init.body)) as { message: string }).message);
+		expect(logged).toEqual(['GPU process gone: crashed, SIGABRT {"app":{"version":"1.0.0"}}']);
+		context.db.close();
+	});
+
 	it('posts signed-out counts with the hash of this install id, and stats_off with none', async () => {
 		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
 		fetchMock.mockClear();
@@ -846,8 +940,9 @@ describe('the Logdash sink', () => {
 		const usageData = startUsageData(context, {
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 		});
 		await settled();
 		const install = `install:${getSetting(context.db, INSTALL_ID)}`;
@@ -875,8 +970,9 @@ describe('the Logdash sink', () => {
 			const usageData = startUsageData(context, {
 				hooks: noHooks,
 				processGone: () => undefined,
+				moment: () => null,
 				now: () => NOW,
-				system: 'malini 1.0.0',
+				system: { app: { version: '1.0.0' } },
 			});
 			await settled();
 			await usageData.shutdown();
@@ -900,8 +996,9 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 			freshInstall: true,
 		});
 		await settled();
@@ -919,8 +1016,9 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 			freshInstall: true,
 		});
 		await settled();

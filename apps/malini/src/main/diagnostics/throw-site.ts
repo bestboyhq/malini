@@ -12,13 +12,21 @@ type Origin = Readonly<{ file: string; line: number }>;
 const sourceMaps = new Map<string, SourceMap | null>();
 
 export function throwSite(error: unknown): string | null {
-	if (!(error instanceof Error) || typeof error.stack !== 'string') return null;
+	return throwSites(error, 1)[0] ?? null;
+}
+
+export function throwSites(error: unknown, limit: number): string[] {
+	if (!(error instanceof Error) || typeof error.stack !== 'string') return [];
+	const sites: string[] = [];
 	for (const frame of error.stack.split('\n')) {
+		if (sites.length === limit) break;
 		const origin = frameOrigin(frame);
 		const source = origin && appSource(origin.file);
-		if (source && !ERROR_FACTORIES.has(source)) return `${source}:${origin.line}`;
+		if (!source || ERROR_FACTORIES.has(source)) continue;
+		const site = `${source}:${origin.line}`;
+		if (sites.at(-1) !== site) sites.push(site);
 	}
-	return null;
+	return sites;
 }
 
 function frameOrigin(frame: string): Origin | null {
