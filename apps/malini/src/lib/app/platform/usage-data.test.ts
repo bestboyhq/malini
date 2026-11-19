@@ -26,6 +26,7 @@ import { run } from '$main/db/rows';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
+import type { ErrorMoment } from './error-context';
 import { createTestContext } from './test-support';
 import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
 import { isUsageStep } from './usage-steps';
@@ -43,6 +44,7 @@ interface HarnessOptions {
 	readonly freshInstall?: boolean;
 	readonly delivered?: (name: UsageActivity | 'loop') => boolean;
 	readonly published?: () => boolean;
+	readonly moment?: () => ErrorMoment | null;
 }
 
 function harness(
@@ -89,6 +91,7 @@ function harness(
 			goneProcess = listener;
 		},
 		system: 'malini 1.0.0',
+		moment: options.moment ?? (() => null),
 		now: options.now ?? (() => NOW),
 		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
 		...(options.published ? { published: options.published } : {}),
@@ -258,6 +261,46 @@ describe('usage data', () => {
 				/^uncaught exception: TypeError at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
 			),
 			'renderer process gone: killed, SIGKILL · malini 1.0.0',
+		]);
+	});
+
+	it('adds the Mac, the moment and the latest distinct commands before it, never their arguments', async () => {
+		const moment: ErrorMoment = {
+			chip: 'Apple M3 Pro',
+			memoryBytes: 18 * 2 ** 30,
+			gpu: 'hardware',
+			upMs: 42 * 60_000,
+			sinceWakeMs: 61_000,
+			usedBytes: 1.25 * 2 ** 30,
+			runs: 2,
+			screen: 'workstreams',
+		};
+		const { context, errors, goneProcess } = harness(undefined, () => null, {
+			moment: () => moment,
+		});
+		context.commands.define('browser.hide', () => undefined);
+		context.commands.define('browser.show', () => undefined);
+		for (const command of ['browser.hide', 'browser.show', 'browser.hide'] as const)
+			await context.commands.handle({ command, args: { path: '/Users/me/secret' } });
+		goneProcess('GPU', 'abnormal-exit', 512);
+		await settled();
+		expect(errors).toEqual([
+			'GPU process gone: abnormal-exit, exit 2 · malini 1.0.0 · Apple M3 Pro 18 GB · gpu hardware · up 42m · wake 61s · uses 1.3 GB · runs 2 · on workstreams · after browser.hide, browser.show',
+		]);
+	});
+
+	it('names the app lines a failure passed through, thrower first', async () => {
+		const { context, errors } = harness();
+		const error = Object.assign(new Error('/Users/me/acme'), { name: 'GitError', kind: 'git' });
+		error.stack = [
+			'GitError: /Users/me/acme',
+			'    at run (/a/apps/malini/src/main/git/run.ts:12:3)',
+			'    at fetch (/a/apps/malini/src/main/git/remote.ts:40:1)',
+		].join('\n');
+		await failCommand(context, error);
+		await settled();
+		expect(errors).toEqual([
+			'repositories.list-workstreams failed: GitError (git) at main/git/run.ts:12 < main/git/remote.ts:40 · malini 1.0.0',
 		]);
 	});
 
@@ -772,6 +815,7 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve('u1'),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
 			system: 'malini 1.0.0',
 			freshInstall: true,
@@ -826,6 +870,7 @@ describe('the Logdash sink', () => {
 			const usageData = startUsageData(context, {
 				hooks: noHooks,
 				processGone: () => undefined,
+				moment: () => null,
 				now: () => NOW,
 				system: 'malini 1.0.0',
 				freshInstall: true,
@@ -852,6 +897,31 @@ describe('the Logdash sink', () => {
 		context.db.close();
 	});
 
+	it('ends an error line with the start of the hash its counts carry', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		vi.stubEnv('MAIN_VITE_LOGDASH_API_KEY', 'key');
+		fetchMock.mockClear();
+		fetchMock.mockImplementation(() => Promise.resolve(new Response('{}')));
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			account: () => Promise.resolve('u1'),
+			hooks: noHooks,
+			processGone: (listener) => listener('GPU', 'crashed', 6),
+			moment: () => null,
+			now: () => NOW,
+			system: 'malini 1.0.0',
+		});
+		await settled();
+		await usageData.shutdown();
+		const logged = fetchMock.mock.calls
+			.filter(([url]) => String(url).endsWith('/logs'))
+			.map(([, init]) => (JSON.parse(String(init.body)) as { message: string }).message);
+		expect(logged).toEqual([
+			`GPU process gone: crashed, SIGABRT · malini 1.0.0 · id ${logdashUserId('malini-site', 'u1').slice(0, 8)}`,
+		]);
+		context.db.close();
+	});
+
 	it('posts signed-out counts with the hash of this install id, and stats_off with none', async () => {
 		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
 		fetchMock.mockClear();
@@ -860,6 +930,7 @@ describe('the Logdash sink', () => {
 		const usageData = startUsageData(context, {
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
 			system: 'malini 1.0.0',
 		});
@@ -889,6 +960,7 @@ describe('the Logdash sink', () => {
 			const usageData = startUsageData(context, {
 				hooks: noHooks,
 				processGone: () => undefined,
+				moment: () => null,
 				now: () => NOW,
 				system: 'malini 1.0.0',
 			});
@@ -914,6 +986,7 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
 			system: 'malini 1.0.0',
 			freshInstall: true,
@@ -933,6 +1006,7 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
 			system: 'malini 1.0.0',
 			freshInstall: true,

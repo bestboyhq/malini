@@ -1,4 +1,4 @@
-import { app, net } from 'electron';
+import { app, net, type BrowserWindow } from 'electron';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:os';
 import type { ImportSource } from '$contract/repositories';
@@ -21,11 +21,17 @@ import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/captu
 import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
 import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
-import { throwSite } from '$main/diagnostics/throw-site';
+import { throwSites } from '$main/diagnostics/throw-site';
 import { currentEnvironment } from '$main/process/environment';
 import { isDogfoodWindow } from '$main/url-scheme';
 import { localDate, shiftDate } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
+import {
+	commandTrail,
+	electronErrorMoment,
+	errorContextLine,
+	type ErrorMoment,
+} from './error-context';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
@@ -77,7 +83,7 @@ export interface UsageSink {
 		userId: string | null,
 	): Promise<boolean>;
 	report(report: UsageReport, userId: string | null): Promise<boolean>;
-	error(message: string): Promise<boolean>;
+	error(message: string, userId: string): Promise<boolean>;
 	shutdown(timeoutMs: number): Promise<void>;
 }
 
@@ -106,6 +112,8 @@ export interface UsageDataDeps {
 		listener: (process: string, reason: string, status: number) => void,
 	) => void;
 	readonly system?: string;
+	readonly moment?: () => ErrorMoment | null;
+	readonly mainWindow?: () => BrowserWindow | null;
 	readonly now?: () => Date;
 	readonly freshInstall?: boolean;
 }
@@ -124,6 +132,8 @@ const INSTALL_ID_SETTING = 'usage-data.install-id';
 const FIRST_REPOSITORY_SOURCE_SETTING = 'usage-data.first-repository-source';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
+const ERROR_SITES = 5;
+const ERROR_ID_LENGTH = 8;
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
 	const now = deps.now ?? ((): Date => new Date());
@@ -265,7 +275,17 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	};
 	const system =
 		deps.system ??
-		`malini ${context.appVersion} · macOS ${process.getSystemVersion()} ${process.arch}`;
+		`malini ${context.appVersion} ${buildOf(context.isDev)} · macOS ${process.getSystemVersion()} ${process.arch}`;
+	const moment = deps.moment ?? electronErrorMoment(context, deps.mainWindow ?? (() => null));
+	const trail = commandTrail(context.commands);
+	const situation = (): string => {
+		try {
+			const at = moment();
+			return at === null ? system : `${system} · ${errorContextLine(at, trail.names())}`;
+		} catch {
+			return system;
+		}
+	};
 	const unsentRepeats = new Map<string, number>();
 	const report = (what: string): void => {
 		if (!shared()) return;
@@ -275,8 +295,9 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			return;
 		}
 		unsentRepeats.set(what, 0);
+		const line = `${what} · ${situation()}`;
 		void (async () => {
-			if (!(await send(() => sink.error(`${what} · ${system}`)))) unsentRepeats.delete(what);
+			if (!(await send((userId) => sink.error(line, userId)))) unsentRepeats.delete(what);
 		})();
 	};
 	const reportRepeats = (): void => {
@@ -284,7 +305,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			if (repeats === 0) continue;
 			unsentRepeats.set(what, 0);
 			void (async () => {
-				if (!(await send(() => sink.error(`${what} · ${repeats} more · ${system}`))))
+				if (!(await send((userId) => sink.error(`${what} · ${repeats} more · ${system}`, userId))))
 					unsentRepeats.set(what, (unsentRepeats.get(what) ?? 0) + repeats);
 			})();
 		}
@@ -427,6 +448,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			stopButtons();
 			stopToolStarts();
 			stopTools();
+			trail.stop();
 			reportRepeats();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
@@ -497,8 +519,14 @@ function described(error: ErrorShape): string {
 }
 
 function located(summary: string, error: unknown): string {
-	const site = throwSite(error);
-	return site === null ? summary : `${summary} at ${site}`;
+	const sites = throwSites(error, ERROR_SITES);
+	return sites.length === 0 ? summary : `${summary} at ${sites.join(' < ')}`;
+}
+
+function buildOf(isDev: boolean): string {
+	const channel = !isDev ? 'release' : isDogfoodWindow(process.env) ? 'dogfood' : 'dev';
+	const commit = import.meta.env.MAIN_VITE_COMMIT;
+	return commit ? `${channel} ${commit}` : channel;
 }
 
 function processEnding(reason: string, status: number): string {
@@ -580,7 +608,7 @@ function logdashSink(appVersion: string, packaged: boolean): UsageSink | null {
 	return {
 		activity: (name, props, userId) => webEvent(name, props, userId),
 		report: (report, userId) => webEvent('loop', reportProps(report), userId),
-		error: (message) => {
+		error: (message, userId) => {
 			if (!key) return Promise.resolve(false);
 			return post(
 				'/logs',
@@ -588,7 +616,7 @@ function logdashSink(appVersion: string, packaged: boolean): UsageSink | null {
 				{
 					createdAt: new Date().toISOString(),
 					level: 'error',
-					message,
+					message: `${message} · id ${logdashUserId(site, userId).slice(0, ERROR_ID_LENGTH)}`,
 					namespace: `malini@${appVersion}`,
 				},
 			);

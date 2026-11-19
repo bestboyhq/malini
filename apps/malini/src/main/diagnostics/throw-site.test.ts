@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { throwSite } from './throw-site';
+import { throwSite, throwSites } from './throw-site';
 
 const app = mkdtempSync(join(tmpdir(), 'malini-throw-site-'));
 const bundle = join(app, 'out', 'main', 'index.js');
@@ -45,6 +45,22 @@ describe('throw site', () => {
 	it('names a source frame by its path inside the app, never the folder around it', () => {
 		const error = thrownAt('read (/Users/me/clients/acme/apps/malini/src/main/git/run.ts:12:3)');
 		expect(throwSite(error)).toBe('main/git/run.ts:12');
+	});
+
+	it('lists the app lines a throw passed through, callers after the thrower, each once in a row', () => {
+		const error = thrownAt(
+			'run (/a/apps/malini/src/main/git/run.ts:12:3)',
+			'run (/a/apps/malini/src/main/git/run.ts:12:9)',
+			`dep (${bundle}:3:1)`,
+			'fetch (/a/apps/malini/src/main/git/remote.ts:40:1)',
+			'sync (/a/apps/malini/src/lib/pull-requests/platform/ship.ts:88:1)',
+			'tick (/a/apps/malini/src/lib/automations/platform/runner.ts:7:1)',
+		);
+		expect(throwSites(error, 3)).toEqual([
+			'main/git/run.ts:12',
+			'main/git/remote.ts:40',
+			'lib/pull-requests/platform/ship.ts:88',
+		]);
 	});
 
 	it('has no site for a throw that never passed through app code', () => {
