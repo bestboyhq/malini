@@ -1,5 +1,6 @@
 import { app, net } from 'electron';
 import { createHash, randomUUID } from 'node:crypto';
+import { constants } from 'node:os';
 import type { ImportSource } from '$contract/repositories';
 import { RUN_FAILURE_KINDS } from '$contract/agent';
 import { isPausedRunEvent, runEnding } from '$contract/agent-state-machine';
@@ -102,7 +103,7 @@ export interface UsageDataDeps {
 	readonly published?: () => boolean;
 	readonly hooks?: Pick<MainProcessHooks, 'onUncaughtException' | 'onUnhandledRejection'>;
 	readonly processGone?: (
-		listener: (process: string, reason: string, exitCode: number) => void,
+		listener: (process: string, reason: string, status: number) => void,
 	) => void;
 	readonly system?: string;
 	readonly now?: () => Date;
@@ -300,8 +301,8 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	const stopRejections = hooks.onUnhandledRejection((reason) =>
 		report(`unhandled rejection: ${located(described(thrownDetail(reason)), reason)}`),
 	);
-	(deps.processGone ?? electronProcessGone)((kind, reason, exitCode) =>
-		report(`${kind} process gone: ${reason}, exit ${exitCode}`),
+	(deps.processGone ?? electronProcessGone)((kind, reason, status) =>
+		report(`${kind} process gone: ${reason}, ${processEnding(reason, status)}`),
 	);
 
 	const stopRuns = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => {
@@ -500,8 +501,16 @@ function located(summary: string, error: unknown): string {
 	return site === null ? summary : `${summary} at ${site}`;
 }
 
+function processEnding(reason: string, status: number): string {
+	if (reason === 'launch-failed') return `code ${status}`;
+	const signal = status & 0x7f;
+	if (signal === 0) return `exit ${status >> 8}`;
+	const name = Object.entries(constants.signals).find(([, number]) => number === signal)?.[0];
+	return name ?? `signal ${signal}`;
+}
+
 function electronProcessGone(
-	listener: (process: string, reason: string, exitCode: number) => void,
+	listener: (process: string, reason: string, status: number) => void,
 ): void {
 	app.on('render-process-gone', (_event, _contents, details) => {
 		if (details.reason !== 'clean-exit') listener('renderer', details.reason, details.exitCode);

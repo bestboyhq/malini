@@ -56,7 +56,7 @@ function harness(
 	const accounts: (string | null)[] = [];
 	const errors: string[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
-	let goneProcess: (process: string, reason: string, exitCode: number) => void = () => undefined;
+	let goneProcess: (process: string, reason: string, status: number) => void = () => undefined;
 	const delivered = options.delivered ?? (() => true);
 	const usageData = startUsageData(context, {
 		account: () => Promise.resolve(account()),
@@ -104,7 +104,8 @@ function harness(
 		errors,
 		start: () => context.events.emit(APP_STARTED_CHANNEL, { version: '1.0.0' }),
 		throwUncaught: (error: unknown) => throwUncaught(error),
-		goneProcess: (process: string, reason: string) => goneProcess(process, reason, 9),
+		goneProcess: (process: string, reason: string, status: number) =>
+			goneProcess(process, reason, status),
 		shutdown: () => usageData.shutdown(),
 	};
 }
@@ -250,13 +251,26 @@ describe('usage data', () => {
 	it('logs crashes and uncaught exceptions', async () => {
 		const { errors, throwUncaught, goneProcess } = harness();
 		throwUncaught(new TypeError('x is undefined in /Users/me'));
-		goneProcess('renderer', 'oom');
+		goneProcess('renderer', 'killed', 9);
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
 				/^uncaught exception: TypeError at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
 			),
-			'renderer process gone: oom, exit 9 · malini 1.0.0',
+			'renderer process gone: killed, SIGKILL · malini 1.0.0',
+		]);
+	});
+
+	it('names the signal or the exit code of a gone process, not its wait status', async () => {
+		const { errors, goneProcess } = harness();
+		goneProcess('GPU', 'crashed', 6);
+		goneProcess('GPU', 'abnormal-exit', 512);
+		goneProcess('Utility', 'launch-failed', 1003);
+		await settled();
+		expect(errors).toEqual([
+			'GPU process gone: crashed, SIGABRT · malini 1.0.0',
+			'GPU process gone: abnormal-exit, exit 2 · malini 1.0.0',
+			'Utility process gone: launch-failed, code 1003 · malini 1.0.0',
 		]);
 	});
 
