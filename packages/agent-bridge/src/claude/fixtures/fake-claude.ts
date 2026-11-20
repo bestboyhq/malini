@@ -86,6 +86,7 @@ export interface FakeRun {
 	readonly reconnectedMcpServers: string[];
 	readonly switchedMcpServers: string[];
 	readonly mcpServerSets: string[][];
+	readonly signedInMcpServers: Set<string>;
 	interrupted: boolean;
 	closed: boolean;
 }
@@ -181,6 +182,7 @@ export function fakeClaude(
 			reconnectedMcpServers: [],
 			switchedMcpServers: [],
 			mcpServerSets: [],
+			signedInMcpServers: new Set(),
 			interrupted: false,
 			closed: false,
 		};
@@ -251,6 +253,9 @@ export function fakeClaude(
 					})),
 					...[...dynamic].map(([name, config]) => {
 						const error = failure(config);
+						if ('url' in config && !run.signedInMcpServers.has(name)) {
+							return { name, status: 'needs-auth' as const };
+						}
 						return error
 							? { name, status: 'failed' as const, error }
 							: { name, status: 'connected' as const, tools: [{ name: 'ping' }] };
@@ -271,6 +276,12 @@ export function fakeClaude(
 			},
 			async reconnectMcpServer(name) {
 				run.reconnectedMcpServers.push(name);
+			},
+			async mcpAuthenticate(name: string) {
+				return {
+					authUrl: `https://sign-in.example/authorize?server=${name}`,
+					callbackExpected: true,
+				};
 			},
 			async toggleMcpServer(name, enabled) {
 				if (!initServers(script).some((server) => server.name === name)) {

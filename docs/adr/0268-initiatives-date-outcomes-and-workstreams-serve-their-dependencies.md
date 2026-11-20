@@ -1,4 +1,4 @@
-# 0267 - Initiatives date outcomes, and workstreams serve their dependencies
+# 0268 - Initiatives date outcomes, and workstreams serve their dependencies
 
 Status: accepted
 

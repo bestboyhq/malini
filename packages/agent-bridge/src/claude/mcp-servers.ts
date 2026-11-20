@@ -136,27 +136,38 @@ export async function startMcpAuthorization(
 		if (!(await settle(probe.query, serverName, () => true, LISTED_WITHIN_MS))) {
 			throw new Error(`Claude Code has no MCP server named ${serverName}`);
 		}
-		const authenticate = probe.query.mcpAuthenticate;
-		if (!authenticate) {
-			throw new Error('This Claude Code cannot authorize MCP servers. Update Claude Code first.');
-		}
-		const { authUrl, callbackExpected } = authentication(
-			await authenticate.call(probe.query, serverName),
-		);
 		const cancelled = new AbortController();
-		const settled = settle(
-			probe.query,
-			serverName,
-			(server) => server.status === 'connected',
-			authUrl ? AUTHORIZATION_WINDOW_MS : SETTLE_WINDOW_MS,
-			authUrl !== null && !callbackExpected,
-			cancelled.signal,
-		).finally(probe.close);
-		return { authUrl, settled, cancel: () => cancelled.abort() };
+		const { authUrl, settled } = await signInMcpServer(probe.query, serverName, cancelled.signal);
+		return { authUrl, settled: settled.finally(probe.close), cancel: () => cancelled.abort() };
 	} catch (error) {
 		probe.close();
 		throw error;
 	}
+}
+
+export async function signInMcpServer(
+	query: McpProbeQuery,
+	serverName: string,
+	cancelled: AbortSignal,
+): Promise<Omit<McpAuthorization, 'cancel'>> {
+	const authenticate = query.mcpAuthenticate;
+	if (!authenticate) {
+		throw new Error('This Claude Code cannot authorize MCP servers. Update Claude Code first.');
+	}
+	const { authUrl, callbackExpected } = authentication(await authenticate.call(query, serverName));
+	const settled = settle(
+		query,
+		serverName,
+		(server) => server.status === 'connected',
+		authUrl ? AUTHORIZATION_WINDOW_MS : SETTLE_WINDOW_MS,
+		authUrl !== null && !callbackExpected,
+		cancelled,
+	);
+	return { authUrl, settled };
+}
+
+export async function openInBrowser(url: string): Promise<void> {
+	await execFileAsync('/usr/bin/open', [url], { timeout: SAVE_TIMEOUT_MS });
 }
 
 export async function probeMcpServer(
