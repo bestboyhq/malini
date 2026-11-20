@@ -77,6 +77,7 @@ function harness(
 		readonly outage?: AutoModeOutage;
 		readonly checkReply?: ReplyChecker;
 		readonly denials?: SandboxDenialSource;
+		readonly openUrl?: (url: string) => Promise<void>;
 	} = {},
 ) {
 	const claude = fakeClaude(scripts);
@@ -100,6 +101,7 @@ function harness(
 			: claude.query,
 		...(options.outage ? { outage: options.outage } : {}),
 		...(options.checkReply ? { checkReply: options.checkReply } : {}),
+		openUrl: options.openUrl ?? (async () => undefined),
 	});
 	return { session, claude, events };
 }
@@ -1224,14 +1226,20 @@ describe('ClaudeSession', () => {
 	describe('mcp_servers_add', () => {
 		const GRIP = '/Applications/Grip.app/Contents/Resources/grip-mcp';
 
-		async function addingChat(saved: Record<string, unknown>) {
+		async function addingChat(
+			saved: Record<string, unknown>,
+			openUrl?: (url: string) => Promise<void>,
+		) {
 			const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
 			vi.stubEnv('CLAUDE_CONFIG_DIR', home);
 			await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: saved }));
 			const executable = join(home, 'claude');
 			await writeFile(executable, FAKE_CLAUDE_MCP_CLI, { mode: 0o755 });
 			const script = recordedScript('readAndBash');
-			const chat = harness([[...script, 'wait-for-prompt', ...script]], { executable });
+			const chat = harness([[...script, 'wait-for-prompt', ...script]], {
+				executable,
+				...(openUrl ? { openUrl } : {}),
+			});
 			await chat.session.sendPrompt('Install grip', 'run-1', profile());
 			return {
 				...chat,
@@ -1271,6 +1279,34 @@ describe('ClaudeSession', () => {
 			});
 			expect(chat.claude.runs).toHaveLength(1);
 			expect(chat.claude.runs[0]?.followUps).toEqual(['List my projects']);
+			await chat.done();
+		});
+
+		it('opens the sign-in of a server that needs one and connects it in the same call', async () => {
+			const opened: string[] = [];
+			const chat = await addingChat({}, async (url) => {
+				opened.push(url);
+				chat.claude.runs[0]?.signedInMcpServers.add('producthunt');
+			});
+			const url = 'https://mcp.producthunt.example/mcp';
+
+			const answer = await chat.add({ name: 'producthunt', url });
+
+			expect(opened).toEqual(['https://sign-in.example/authorize?server=producthunt']);
+			expect(answer).toEqual({
+				content: [
+					{
+						type: 'text',
+						text: "producthunt is saved in Claude Code's user config, and every other chat loads it on its next prompt. It is connected in this chat, and its tools work now: 1 tool.",
+					},
+				],
+			});
+			expect(await chat.saved()).toEqual({ producthunt: { type: 'http', url } });
+			expect(ofType(chat.events, 'mcp.status').at(-1)?.servers).toContainEqual({
+				name: 'producthunt',
+				status: 'connected',
+				toolCount: 1,
+			});
 			await chat.done();
 		});
 

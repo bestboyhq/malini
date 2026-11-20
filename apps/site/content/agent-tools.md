@@ -135,7 +135,8 @@ The agent adds a server with Malini's tool instead.
 - Malini saves it with `claude mcp add-json --scope user` only once it connects or waits for a sign-in; a server that fails is neither saved nor kept, and the agent gets its error.
 - A saved server of the same name is replaced, and put back when Claude Code cannot save the new one.
 - Every other open chat loads it on its next prompt, and so does `claude` in your terminal.
-- A server that needs a sign-in shows under **Sign in** in the [MCP panel](/malini/docs/chat.md#mcp-servers).
+- A server that needs a sign-in opens its sign-in page in your browser, and the call waits up to 5 minutes for you to finish, so the agent uses its tools in the same turn.
+  Closed the page? **Sign in** in the [MCP panel](/malini/docs/chat.md#mcp-servers) opens it again.
 - The card shows what the server runs or reaches and the names in `env` and `headers`, never their values.
 - An automation that cannot reach the internet cannot add one.
 

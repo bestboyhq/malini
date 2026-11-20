@@ -284,7 +284,7 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 		),
 		tool(
 			'mcp_servers_add',
-			`Add an MCP server to Claude Code's user config, as \`claude mcp add --scope user\` does, which the sandbox refuses. Use it instead of that command or an edit of ~/.claude.json. Malini connects it in this chat first, so its tools work in this turn, and saves it only once it connects or waits for a sign-in; every other chat loads it on its next prompt, and so does claude in a terminal. A saved server of the same name is replaced. env and headers are saved as plain text, so put no secret in them. ${ASKS} Returns whether it connected and how many tools it has.`,
+			`Add an MCP server to Claude Code's user config, as \`claude mcp add --scope user\` does, which the sandbox refuses. Use it instead of that command or an edit of ~/.claude.json. Malini connects it in this chat first, so its tools work in this turn, and saves it only once it connects or waits for a sign-in; every other chat loads it on its next prompt, and so does claude in a terminal. A server that needs a sign-in, such as OAuth, opens its sign-in page in the user's browser, and the call waits up to 5 minutes until the user finishes it. A saved server of the same name is replaced. env and headers are saved as plain text, so put no secret in them. ${ASKS} Returns whether it connected and how many tools it has.`,
 			{
 				name: z
 					.string()
