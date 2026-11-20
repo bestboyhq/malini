@@ -49,7 +49,7 @@
 				ariaHasPopup="menu"
 				ariaExpanded={open}
 				class={[
-					'hover:bg-tab-hover hover:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[""] focus-visible:ring-2 focus-visible:ring-inset',
+					'hover:bg-tab-hover hover:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-full outline-none before:absolute before:-inset-1 before:content-[""] focus-visible:ring-2 focus-visible:ring-inset',
 					open ? 'bg-tab-hover text-fg-default' : 'text-fg-tertiary',
 				]}
 				data-testid="chat-closed-trigger"
