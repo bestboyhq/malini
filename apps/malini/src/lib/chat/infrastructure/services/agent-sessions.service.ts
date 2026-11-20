@@ -1,9 +1,11 @@
 import type { SendAgentPromptArgs, StartAgentSessionArgs } from '$contract/commands';
 import { CHAT_SESSION_RENAMED_CHANNEL } from '$contract/events';
 import type { ChatSessionSummary } from '$lib/chat/domain/chat-session-summary';
+import type { ClosedChat } from '$lib/chat/domain/closed-chat';
 import type { EventPage } from '$lib/chat/domain/event-page';
 import type { SessionId } from '$lib/chat/domain/session';
 import { AgentEventMapper } from '$lib/chat/infrastructure/mappers/agent-event.mapper';
+import { ClosedChatMapper } from '$lib/chat/infrastructure/mappers/closed-chat.mapper';
 import { SessionSummaryMapper } from '$lib/chat/infrastructure/mappers/session-summary.mapper';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
@@ -26,6 +28,15 @@ class AgentSessionsService {
 
 	archive(sessionId: SessionId): Promise<void> {
 		return invoke('chat.archive-session', { sessionId });
+	}
+
+	async listClosed(workstreamId: string): Promise<ClosedChat[]> {
+		const raws = await invoke('chat.list-closed-sessions', { workstreamId });
+		return ClosedChatMapper.fromRawList(raws);
+	}
+
+	reopen(sessionId: SessionId): Promise<void> {
+		return invoke('chat.reopen-session', { sessionId });
 	}
 
 	start(input: StartAgentSessionArgs): Promise<SessionId> {

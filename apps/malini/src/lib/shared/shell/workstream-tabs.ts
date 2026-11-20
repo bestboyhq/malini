@@ -17,12 +17,17 @@ export type WorkstreamDocumentTab = WorkstreamDocument & Readonly<{ kind: 'docum
 
 export type WorkstreamTab = WorkstreamChatTab | WorkstreamDocumentTab;
 
+type ClosedChatSpot = Readonly<{ id: string; afterKey: string | null }>;
+
+const CLOSED_CHAT_SPOTS_KEPT = 10;
+
 export type WorkstreamTabs = Readonly<{
 	tabs: readonly WorkstreamTab[];
 	activeDocumentId: string | null;
 	routedChatId: string | null;
 	anchorKey: string | null;
 	fresh: boolean;
+	closedChats: readonly ClosedChatSpot[];
 }>;
 
 export const NO_WORKSTREAM_TABS: WorkstreamTabs = {
@@ -31,6 +36,7 @@ export const NO_WORKSTREAM_TABS: WorkstreamTabs = {
 	routedChatId: null,
 	anchorKey: null,
 	fresh: false,
+	closedChats: [],
 };
 
 export function workstreamTabKey(tab: WorkstreamTab): string {
@@ -126,6 +132,10 @@ export function syncWorkstreamChats(
 	const added = chatIds
 		.filter((id) => !known.has(id))
 		.map((id): WorkstreamChatTab => ({ kind: 'chat', id }));
+	const addedIds = new Set(added.map(({ id }) => id));
+	const reopened = state.closedChats.filter(({ id }) => addedIds.has(id));
+	const reopenedIds = new Set(reopened.map(({ id }) => id));
+	const anchorKey = state.fresh ? null : state.anchorKey;
 	const fresh =
 		routedChatId === null ||
 		(state.fresh &&
@@ -135,20 +145,52 @@ export function syncWorkstreamChats(
 	if (added.length === 0 && routedChatId === state.routedChatId && fresh === state.fresh) {
 		return state;
 	}
+	const opened = insertAfter(
+		state.tabs,
+		anchorKey,
+		added.filter(({ id }) => !reopenedIds.has(id)),
+	);
 	return settle({
 		...state,
-		tabs: insertAfter(state.tabs, state.fresh ? null : state.anchorKey, added),
+		tabs: reopened.reduce((tabs, spot) => returnToSpot(tabs, spot, anchorKey), opened),
 		routedChatId,
 		fresh,
+		closedChats: state.closedChats.filter(({ id }) => !reopenedIds.has(id)),
 	});
 }
 
 export function closeWorkstreamChat(state: WorkstreamTabs, id: string): WorkstreamTabs {
-	if (!state.tabs.some((tab) => tab.kind === 'chat' && tab.id === id)) return state;
+	const index = state.tabs.findIndex((tab) => tab.kind === 'chat' && tab.id === id);
+	if (index === -1) return state;
+	const before = state.tabs[index - 1];
+	const spot: ClosedChatSpot = { id, afterKey: before ? workstreamTabKey(before) : null };
 	return settle({
 		...state,
-		tabs: state.tabs.filter((tab) => tab.kind !== 'chat' || tab.id !== id),
+		tabs: state.tabs.filter((_, tabIndex) => tabIndex !== index),
+		closedChats: [spot, ...state.closedChats.filter((closed) => closed.id !== id)].slice(
+			0,
+			CLOSED_CHAT_SPOTS_KEPT,
+		),
 	});
+}
+
+export type WorkstreamTabPlacement = 'before' | 'after';
+
+export function moveWorkstreamTab(
+	state: WorkstreamTabs,
+	movedKey: string,
+	targetKey: string,
+	placement: WorkstreamTabPlacement,
+): WorkstreamTabs {
+	const moved = state.tabs.find((tab) => workstreamTabKey(tab) === movedKey);
+	const others = state.tabs.filter((tab) => tab !== moved);
+	const targetIndex = others.findIndex((tab) => workstreamTabKey(tab) === targetKey);
+	if (!moved || targetIndex < 0) return state;
+	const at = placement === 'before' ? targetIndex : targetIndex + 1;
+	const placed = moved.kind === 'document' ? { ...moved, preview: false } : moved;
+	const tabs = [...others.slice(0, at), placed, ...others.slice(at)];
+	if (tabs.every((tab, index) => tab === state.tabs[index])) return state;
+	return { ...state, tabs };
 }
 
 export function readWorkstreamTabs(value: unknown): WorkstreamTabs {
@@ -160,6 +202,9 @@ export function readWorkstreamTabs(value: unknown): WorkstreamTabs {
 		routedChatId: typeof value.routedChatId === 'string' ? value.routedChatId : null,
 		anchorKey: typeof value.anchorKey === 'string' ? value.anchorKey : null,
 		fresh: value.fresh === true,
+		closedChats: Array.isArray(value.closedChats)
+			? value.closedChats.filter(isClosedChatSpot).slice(0, CLOSED_CHAT_SPOTS_KEPT)
+			: [],
 	};
 	return settle({
 		...state,
@@ -197,6 +242,16 @@ function insertAfter(
 	return [...tabs.slice(0, at), ...inserted, ...tabs.slice(at)];
 }
 
+function returnToSpot(
+	tabs: readonly WorkstreamTab[],
+	spot: ClosedChatSpot,
+	fallbackKey: string | null,
+): readonly WorkstreamTab[] {
+	const chat: WorkstreamChatTab = { kind: 'chat', id: spot.id };
+	if (spot.afterKey === null) return [chat, ...tabs];
+	return insertAfter(tabs, hasTab(tabs, spot.afterKey) ? spot.afterKey : fallbackKey, [chat]);
+}
+
 function replaceTab(
 	tabs: readonly WorkstreamTab[],
 	replaced: WorkstreamTab,
@@ -222,6 +277,14 @@ function isWorkstreamTab(value: unknown): value is WorkstreamTab {
 		typeof value.icon === 'string' &&
 		typeof value.tooltip === 'string' &&
 		typeof value.preview === 'boolean'
+	);
+}
+
+function isClosedChatSpot(value: unknown): value is ClosedChatSpot {
+	return (
+		isRecord(value) &&
+		typeof value.id === 'string' &&
+		(typeof value.afterKey === 'string' || value.afterKey === null)
 	);
 }
 

@@ -210,7 +210,7 @@
 			content={tooltip}
 			placement={tooltipPlacement}
 			onlyWhenTruncated={tooltip === label}
-			class="h-full min-w-0"
+			class="h-full min-w-0 grow"
 		>
 			{@render tab()}
 		</Tooltip>
@@ -251,7 +251,7 @@
 		ariaSelected={selected}
 		{disabled}
 		class={[
-			'flex h-full min-w-0 cursor-pointer items-center px-2 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
+			'flex h-full min-w-0 grow cursor-pointer items-center px-2 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
 		]}
 		{...tabLink}
 		{...tabAttributes}
@@ -276,7 +276,7 @@
 			text={label}
 			shimmer={shimmerRename}
 			class={[
-				'tab-label min-w-0',
+				'tab-label min-w-0 grow',
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
@@ -320,6 +320,22 @@
 		opacity: 0;
 	}
 
+	.browser-tab[data-reorder='sliding'] {
+		transition-property: color, border-color, transform;
+		transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+	}
+
+	.browser-tab[data-reorder='dragged'] {
+		z-index: 10;
+		cursor: grabbing;
+		background-color: var(--color-tab-hover);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.browser-tab[data-reorder]::before {
+		opacity: 0;
+	}
+
 	.browser-tab :global(.tab-label-text) {
 		display: inline-block;
 		vertical-align: top;
@@ -349,6 +365,10 @@
 	@media (prefers-reduced-motion: reduce) {
 		.browser-tab:is(:hover, [inert]) :global(.tab-label[data-overflowing] > .tab-label-text) {
 			transition-duration: 0s;
+		}
+
+		.browser-tab[data-reorder='sliding'] {
+			transition-property: color, border-color;
 		}
 	}
 </style>

@@ -17,6 +17,7 @@ import {
 	type AgentRunProfile,
 	type AgentSessionOrigin,
 	type AgentSessionSummary,
+	type ClosedAgentSessionSummary,
 } from '$contract/agent';
 import { deriveAgentChatDisplayName } from '$contract/chat-identity';
 
@@ -208,6 +209,45 @@ export function archiveSession(db: MaliniDatabase, sessionId: string, archivedAt
 			sessionId,
 		);
 	});
+}
+
+export function reopenSession(db: MaliniDatabase, sessionId: string): void {
+	db.transaction(() => {
+		const closed = get<{ workstream_id: string; display_name: string }>(
+			db,
+			`SELECT workstream_id, display_name FROM agent_sessions
+			 WHERE id = ? AND origin = 'user' AND archived_at IS NOT NULL`,
+			sessionId,
+		);
+		if (!closed) return;
+		run(
+			db,
+			'UPDATE agent_sessions SET archived_at = NULL, display_name = ? WHERE id = ?',
+			uniqueSessionDisplayName(db, closed.workstream_id, closed.display_name, sessionId),
+			sessionId,
+		);
+	});
+}
+
+export function listClosedSessions(
+	db: MaliniDatabase,
+	workstreamId: string,
+	limit: number,
+): ClosedAgentSessionSummary[] {
+	return all<{ id: string; display_name: string; model: string | null; archived_at: string }>(
+		db,
+		`SELECT s.id, s.display_name, s.model, s.archived_at FROM agent_sessions s
+		 WHERE s.workstream_id = ? AND s.origin = 'user' AND s.archived_at IS NOT NULL
+		   AND EXISTS (SELECT 1 FROM agent_runs r WHERE r.session_id = s.id AND r.automated = 0)
+		 ORDER BY s.archived_at DESC, s.rowid DESC LIMIT ?`,
+		workstreamId,
+		limit,
+	).map((row) => ({
+		id: row.id,
+		displayName: row.display_name,
+		model: row.model,
+		closedAt: row.archived_at,
+	}));
 }
 
 export function ensureSessionDisplayNames(db: MaliniDatabase, workstreamId: string): void {

@@ -18,7 +18,7 @@ import {
 	type StoredAttachment,
 } from '../attachments.repository';
 import { bindCheckpointToUserMessage } from '../checkpoints.repository';
-import { packSessionEvents } from '../event-packs.repository';
+import { packSessionEvents, unpackSessionEvents } from '../event-packs.repository';
 import {
 	appendEvent,
 	envelopeJson,
@@ -60,8 +60,10 @@ import {
 	ensureSessionDisplayNames,
 	insertSession,
 	latestSessionForWorkstream,
+	listClosedSessions,
 	listSessionSummaries,
 	moveSessionStatus,
+	reopenSession,
 	repairSessionStatusesWithoutOpenRuns,
 	sessionContextIdentity,
 	userSessionWorkstreamId,
@@ -1600,6 +1602,8 @@ function promptToResend(message: Record<string, unknown>): Record<string, unknow
 
 export type SendPrompt = (args: unknown) => Promise<string>;
 
+const CLOSED_CHATS_LISTED = 10;
+
 export const BRIDGE_COMMAND_NAMES = [
 	'chat.activate-session',
 	'chat.agent-health',
@@ -1616,7 +1620,9 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.list-claude-plan-usage',
 	'chat.list-event-page',
 	'chat.list-sessions',
+	'chat.list-closed-sessions',
 	'chat.refresh-session-status',
+	'chat.reopen-session',
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.send-prompt',
@@ -1742,6 +1748,16 @@ export function defineBridgeCommands(
 				`agent: could not pack closed chat \`${sessionId}\`; the next start retries: ${describe(error)}`,
 			);
 		}
+	});
+
+	commands.define('chat.list-closed-sessions', (args: unknown) =>
+		listClosedSessions(db, requireString(args, 'workstreamId'), CLOSED_CHATS_LISTED),
+	);
+
+	commands.define('chat.reopen-session', (args: unknown) => {
+		const sessionId = requireString(args, 'sessionId');
+		reopenSession(db, sessionId);
+		unpackSessionEvents(db, sessionId);
 	});
 
 	commands.define('chat.activate-session', (args: unknown) =>

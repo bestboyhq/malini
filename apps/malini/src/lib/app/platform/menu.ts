@@ -61,6 +61,7 @@ export function applicationMenu(
 			submenu: [
 				command(choose, 'new-workstream', 'New Workstream', 'CommandOrControl+N'),
 				command(choose, 'new-chat', 'New Chat', 'CommandOrControl+T'),
+				command(choose, 'reopen-chat', 'Reopen Closed Chat', 'CommandOrControl+Shift+T'),
 				SEPARATOR,
 				command(choose, 'open-folder', 'Open Folder…', 'CommandOrControl+O'),
 				command(choose, 'find-repository', 'Find Repository…'),

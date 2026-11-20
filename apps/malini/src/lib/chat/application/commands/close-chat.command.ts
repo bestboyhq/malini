@@ -1,4 +1,5 @@
 import { forgetChatCommand } from '$lib/chat/application/commands/forget-chat.command';
+import { loadClosedChatsCommand } from '$lib/chat/application/commands/load-closed-chats.command';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import type { SessionId } from '$lib/chat/domain/session';
 import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.service';
@@ -15,6 +16,7 @@ function closeChatCommand(workstreamId: string, sessionId: SessionId): void {
 			await agentSessions.archive(sessionId);
 			closingChatsStore.remove(sessionId);
 			forgetChatCommand(workstreamId, sessionId);
+			loadClosedChatsCommand(workstreamId);
 		} catch (cause) {
 			closingChatsStore.remove(sessionId);
 			toast.error(

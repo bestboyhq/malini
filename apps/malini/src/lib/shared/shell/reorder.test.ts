@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { reorderIndex, reorderShift, settledOffset } from './sidebar-reorder';
+import { reorderIndex, reorderShift, settledOffset } from './reorder';
 
 const rows = [
-	{ top: 0, bottom: 30 },
-	{ top: 32, bottom: 62 },
-	{ top: 64, bottom: 94 },
+	{ start: 0, end: 30 },
+	{ start: 32, end: 62 },
+	{ start: 64, end: 94 },
 ];
 
-describe('sidebar reorder geometry', () => {
+describe('reorder geometry', () => {
 	it('takes a slot once the dragged edge passes the neighbor middle', () => {
 		expect(reorderIndex(rows, 0, 16)).toBe(0);
 		expect(reorderIndex(rows, 0, 18)).toBe(1);
@@ -23,8 +23,8 @@ describe('sidebar reorder geometry', () => {
 
 	it('settles a tall row flush with the slot it takes', () => {
 		const groups = [
-			{ top: 0, bottom: 100 },
-			{ top: 112, bottom: 142 },
+			{ start: 0, end: 100 },
+			{ start: 112, end: 142 },
 		];
 		expect(settledOffset(groups, 0, 1)).toBe(42);
 		expect(settledOffset(groups, 1, 0)).toBe(-112);
@@ -33,8 +33,8 @@ describe('sidebar reorder geometry', () => {
 
 	it('passes a tall group once half of the shorter row overlaps it', () => {
 		const groups = [
-			{ top: 0, bottom: 30 },
-			{ top: 42, bottom: 242 },
+			{ start: 0, end: 30 },
+			{ start: 42, end: 242 },
 		];
 		expect(reorderIndex(groups, 0, 26)).toBe(0);
 		expect(reorderIndex(groups, 0, 28)).toBe(1);
