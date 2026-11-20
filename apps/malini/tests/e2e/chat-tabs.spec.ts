@@ -143,7 +143,7 @@ test('a closed chat waits under the clock, reopens from there or with Cmd+Shift+
 		const closed = menu.getByRole('menuitem');
 
 		await history.click();
-		await expect(menu).toContainText('Closed chats wait here');
+		await expect(menu).toContainText('Closed chats will be there in case you need them');
 		await expect(closed).toHaveCount(0);
 		await page.keyboard.press('Escape');
 

@@ -77,7 +77,9 @@
 					</span>
 				</DropdownItem>
 			{:else}
-				<p class="text-fg-tertiary px-2 pt-1 pb-2 text-xs">Closed chats wait here</p>
+				<p class="text-fg-tertiary px-2 pt-1 pb-2 text-xs text-balance">
+					Go ship something cool. Closed chats will be there in case you need them.
+				</p>
 			{/each}
 		</div>
 	{/snippet}
