@@ -460,7 +460,7 @@ describe('registerApp', () => {
 		expect(host.tray?.count).toBe(0);
 	});
 
-	it('shows a File menu that starts workstreams and chats and adds repositories, outside a packaged build too', () => {
+	it('shows a File menu that starts workstreams and chats, reopens closed chats and adds repositories, outside a packaged build too', () => {
 		boot(context);
 		const file = host.applicationMenu.find((menu) => menu.label === 'File');
 		const items = Array.isArray(file?.submenu) ? file.submenu : [];
@@ -470,6 +470,7 @@ describe('registerApp', () => {
 		).toEqual([
 			['New Workstream', 'CommandOrControl+N'],
 			['New Chat', 'CommandOrControl+T'],
+			['Reopen Closed Chat', 'CommandOrControl+Shift+T'],
 			['Open Folder…', 'CommandOrControl+O'],
 			['Find Repository…', undefined],
 		]);
