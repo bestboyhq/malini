@@ -146,7 +146,7 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Malini archives the ones you had on its next launch, and they neither show in **Recently archived** nor come back.
 - The clock beside a workstream's archive button saves it for later.
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
-  It waits in its repository's scratchpad instead of **Recently archived**.
+  It waits on its repository's page instead of **Recently archived**.
 - Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
   **Open folder…** connects a folder on your Mac, and **Find repository…** finds any repository you work on, on GitHub or already here, and opens it.
   Or press **⌘K** and type its name.
@@ -169,15 +169,18 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Switching keeps your place, the tab remembers which one you picked, and a file opened at a line opens **Raw**.
   Its links open their files in tabs, and its images show from the worktree.
 
-A repository opens on its **scratchpad**, where you keep ideas.
+A repository opens on its plan: the [initiatives](/malini/docs/initiatives.md) you want from it, by day.
+The bar at the top of its page names it as owner / name, and the name opens the repository on GitHub.
+Its scratchpad sits on the right of the plan, where you keep ideas, and the handle between them drags to resize both.
 Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
-Workstreams you saved for later wait above the ideas, newest first.
+**Saved for later**, in the bar, counts the workstreams you saved for later, and hovering it lists them, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 
 ## Your open pull requests
 
-A repository's page lists the pull requests you have open in it, in a gutter on its right, each with its number, whether it is a draft, and when it last changed.
-Malini reads them from GitHub each time you open the page, and leaves out pull requests from forks.
+Hover **Pull requests**, in the bar of a repository's page, to list the pull requests you have open in it, each with its number, whether it is a draft, and when it last changed.
+It shows once the repository has a GitHub owner and its clone is ready.
+Malini reads them from GitHub each time the list opens, and leaves out pull requests from forks.
 Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another Mac.
 Claude names it from its title.
 One you already work on here says **Open**, catches up with what you pushed elsewhere, and takes you to it, and one you archived comes back from **Recently archived**.
@@ -251,5 +254,3 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **A limit doesn't stop it.** A fix automation whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
-
-Your open `malini/*` pull requests open as workstreams on every Mac you use Malini on.

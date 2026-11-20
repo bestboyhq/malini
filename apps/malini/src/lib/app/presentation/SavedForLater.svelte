@@ -12,6 +12,7 @@
 		workstreamBusyActionQuery,
 	} from '$shared/repositories/repositories.api';
 	import { formatTimeAgo } from '$lib/stats/stats.api';
+	import RepositoryBarCard from './RepositoryBarCard.svelte';
 
 	interface Props {
 		repositoryId: string;
@@ -19,7 +20,6 @@
 
 	let { repositoryId }: Props = $props();
 
-	const TITLE_ID = 'saved-for-later-title';
 	const CLOCK_MS = 30_000;
 
 	const saved = $derived(
@@ -42,17 +42,19 @@
 </script>
 
 {#if saved.length > 0}
-	<section class="mb-8" aria-labelledby={TITLE_ID} data-testid="saved-for-later">
-		<h2 id={TITLE_ID} class="text-fg-tertiary mb-1.5 flex items-center gap-1.5 text-xs font-medium">
-			<Icon name="clock" size={12} />
-			Saved for later
-		</h2>
-		<ul class="-mx-2 flex flex-col" aria-labelledby={TITLE_ID}>
+	<RepositoryBarCard
+		label="Saved for later"
+		heading="Saved for later"
+		icon="clock"
+		count={saved.length}
+		testId="saved-for-later"
+	>
+		<ul class="flex flex-col" aria-label="Saved for later">
 			{#each saved as workstream (workstream.id)}
 				{@const name = displayWorkstreamName(workstream, workstream.repositoryFullName)}
 				{@const busy = busyActionFor(workstream.id)}
 				<li
-					class="group/saved hover:bg-surface-50-hover focus-within:bg-surface-50-hover flex items-center rounded-lg"
+					class="group/saved hover:bg-surface-elevated-hover focus-within:bg-surface-elevated-hover flex items-center rounded-lg"
 					data-testid="saved-workstream"
 					data-workstream-id={workstream.id}
 				>
@@ -110,5 +112,5 @@
 				</li>
 			{/each}
 		</ul>
-	</section>
+	</RepositoryBarCard>
 {/if}

@@ -97,6 +97,15 @@ import type {
 	SwitchExtensionArgs,
 	UninstallExtensionArgs,
 } from './marketplace';
+import type {
+	AddInitiativeDependencyArgs,
+	CreateInitiativeArgs,
+	Initiative,
+	InitiativeIdArgs,
+	LinkInitiativeWorkstreamArgs,
+	UpdateInitiativeArgs,
+	UpdateInitiativeDependencyArgs,
+} from './initiatives';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
 	BrainCapture,
@@ -672,6 +681,14 @@ export interface ContractCommands {
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
 	'scratchpad.save': { args: SaveScratchpadArgs; result: void };
+	'initiatives.list': { args: undefined; result: Initiative[] };
+	'initiatives.create': { args: CreateInitiativeArgs; result: Initiative[] };
+	'initiatives.update': { args: UpdateInitiativeArgs; result: Initiative[] };
+	'initiatives.delete': { args: InitiativeIdArgs; result: Initiative[] };
+	'initiatives.add-dependency': { args: AddInitiativeDependencyArgs; result: Initiative[] };
+	'initiatives.update-dependency': { args: UpdateInitiativeDependencyArgs; result: Initiative[] };
+	'initiatives.delete-dependency': { args: InitiativeIdArgs; result: Initiative[] };
+	'initiatives.link-workstream': { args: LinkInitiativeWorkstreamArgs; result: Initiative[] };
 	'brain.status': { args: undefined; result: BrainStatus };
 	'brain.set-up': { args: SetUpBrainArgs; result: BrainStatus };
 	'brain.set-sync': { args: SetBrainSyncArgs; result: BrainStatus };
@@ -1000,6 +1017,14 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'skills.switch',
 	'scratchpad.load',
 	'scratchpad.save',
+	'initiatives.list',
+	'initiatives.create',
+	'initiatives.update',
+	'initiatives.delete',
+	'initiatives.add-dependency',
+	'initiatives.update-dependency',
+	'initiatives.delete-dependency',
+	'initiatives.link-workstream',
 	'brain.status',
 	'brain.set-up',
 	'brain.set-sync',

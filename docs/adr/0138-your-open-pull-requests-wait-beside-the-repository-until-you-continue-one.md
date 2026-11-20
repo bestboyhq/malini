@@ -1,6 +1,6 @@
 # 0138 - Your open pull requests wait beside the repository until you continue one
 
-Status: accepted
+Status: superseded by 0268
 
 ## Context
 

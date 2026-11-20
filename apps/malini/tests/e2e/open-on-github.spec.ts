@@ -41,7 +41,10 @@ test('a GitHub repository opens its home page from its sidebar menu, the list an
 		await expect.poll(() => openedUrls(app)).toEqual([HOME_PAGE, HOME_PAGE]);
 
 		await repositoryLink.click();
-		await page.getByTestId('repository-page').getByRole('link', { name: 'Open on GitHub' }).click();
+		await page
+			.getByTestId('repository-bar')
+			.getByRole('link', { name: 'hutch', exact: true })
+			.click();
 		await expect.poll(() => openedUrls(app)).toEqual([HOME_PAGE, HOME_PAGE, HOME_PAGE]);
 		await captureFlow(app, 'open-on-github-repository-page');
 		expectCleanConsole(app);
