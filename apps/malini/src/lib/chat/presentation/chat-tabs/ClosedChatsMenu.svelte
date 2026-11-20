@@ -60,7 +60,6 @@
 	{/snippet}
 	{#snippet content()}
 		<div role="menu" aria-label="Recently closed chats">
-			<p class="text-fg-tertiary px-2 pt-1 pb-1.5 text-xs">Recently closed</p>
 			{#each chats as chat (chat.id)}
 				<DropdownItem
 					role="menuitem"
@@ -77,7 +76,7 @@
 					</span>
 				</DropdownItem>
 			{:else}
-				<p class="text-fg-tertiary px-2 pt-1 pb-2 text-xs text-balance">
+				<p class="text-fg-tertiary px-2.5 py-1.5 text-xs text-balance">
 					Go ship something cool. Closed chats will be there in case you need them.
 				</p>
 			{/each}
