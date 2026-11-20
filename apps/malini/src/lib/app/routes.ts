@@ -50,10 +50,6 @@ export const routes: RouteNode = {
 					page: brainPage,
 					children: [{ segment: ':path', page: brainPage }],
 				},
-				{
-					segment: 'initiatives',
-					page: () => import('./presentation/pages/InitiativesPage.svelte'),
-				},
 			],
 		},
 		{

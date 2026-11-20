@@ -6,12 +6,13 @@ import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 export { createInitiativeCommand };
 
 async function createInitiativeCommand(
+	repositoryFullName: string,
 	title: string,
 	dueOn: string | null,
 ): Promise<string | null> {
 	const known = new Set(initiativesAggregate.list.map(({ id }) => id));
 	try {
-		const list = await initiativesService.create({ title, dueOn });
+		const list = await initiativesService.create({ repositoryFullName, title, dueOn });
 		initiativesAggregate.set(list);
 		return (
 			list.find((initiative) => !known.has(initiative.id) && initiative.dueOn === dueOn)?.id ?? null

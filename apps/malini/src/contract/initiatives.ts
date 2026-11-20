@@ -9,12 +9,17 @@ export type InitiativeDependency = Readonly<{
 
 export type Initiative = Readonly<{
 	id: string;
+	repositoryFullName: string;
 	title: string;
 	dueOn: string | null;
 	dependencies: readonly InitiativeDependency[];
 }>;
 
-export type CreateInitiativeArgs = Readonly<{ title: string; dueOn: string | null }>;
+export type CreateInitiativeArgs = Readonly<{
+	repositoryFullName: string;
+	title: string;
+	dueOn: string | null;
+}>;
 
 export type UpdateInitiativeArgs = Readonly<{ id: string; title?: string; dueOn?: string | null }>;
 

@@ -4,7 +4,6 @@ import {
 	dependencyState,
 	initiativeProgress,
 	isDay,
-	needsYouCount,
 	rail,
 	type Initiative,
 	type InitiativeDependency,
@@ -46,7 +45,13 @@ function initiative(
 	dueOn: string | null,
 	dependencies: readonly InitiativeDependency[],
 ): Initiative {
-	return { id: `i-${dueOn}`, title: 'Outcome', dueOn, dependencies };
+	return {
+		id: `i-${dueOn}`,
+		repositoryFullName: 'bestboyhq/grip',
+		title: 'Outcome',
+		dueOn,
+		dependencies,
+	};
 }
 
 describe('dependencyState', () => {
@@ -70,13 +75,11 @@ describe('progress', () => {
 			dependency(['needs']),
 			dependency([], true),
 		]);
-		const plan = [launch, initiative(null, [dependency(['needs'])])];
 		expect(initiativeProgress(launch, standingOf)).toEqual({
 			done: 2,
 			total: 3,
 			needsYou: 1,
 		});
-		expect(needsYouCount(plan, standingOf)).toBe(2);
 	});
 });
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -12,9 +13,7 @@
 		type StandingOf,
 		type WorkstreamStanding,
 	} from '$lib/initiatives/domain/initiative';
-	import type { Repository } from '$shared/repositories/repositories.api';
 	import RowMenu from './RowMenu.svelte';
-	import StartWorkstream from './StartWorkstream.svelte';
 	import StatusIcon from './StatusIcon.svelte';
 	import TitleEditor from './TitleEditor.svelte';
 	import WorkstreamLine from './WorkstreamLine.svelte';
@@ -22,11 +21,10 @@
 	interface Props {
 		dependency: InitiativeDependency;
 		standingOf: StandingOf;
-		repositories: readonly Repository[];
-		onstart: (repository: Repository) => void;
+		onstart: () => void;
 	}
 
-	let { dependency, standingOf, repositories, onstart }: Props = $props();
+	let { dependency, standingOf, onstart }: Props = $props();
 
 	type Line = Readonly<{
 		workstreamId: string;
@@ -105,7 +103,15 @@
 					</Tooltip>
 				{/each}
 				{#if status === 'todo'}
-					<StartWorkstream {repositories} {onstart} />
+					<Button
+						variant="secondary"
+						size="sm"
+						bordered
+						class="group-hover/row:bg-button-secondary-hover group-hover/row:text-fg-default"
+						onclick={onstart}
+					>
+						Start workstream
+					</Button>
 				{/if}
 				<RowMenu
 					name={dependency.title}

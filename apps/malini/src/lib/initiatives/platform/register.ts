@@ -1,4 +1,5 @@
 import { INITIATIVE_TITLE_MAX_LENGTH, type Initiative } from '$contract/initiatives';
+import { REPOSITORY_FULL_NAME_MAX_LENGTH } from '$contract/scratchpad';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import { isDay } from '../domain/initiative';
@@ -25,9 +26,12 @@ export function registerInitiatives(context: MainContext): void {
 	commands.define('initiatives.list', () => listInitiatives(db));
 
 	commands.define('initiatives.create', (args: unknown) => {
-		const newTitle = title(field(args, 'title'));
-		const newDueOn = dueOn(field(args, 'dueOn'));
-		return after(() => createInitiative(db, newTitle, newDueOn));
+		const initiative = {
+			repositoryFullName: repositoryFullName(field(args, 'repositoryFullName')),
+			title: title(field(args, 'title')),
+			dueOn: dueOn(field(args, 'dueOn')),
+		};
+		return after(() => createInitiative(db, initiative));
 	});
 
 	commands.define('initiatives.update', (args: unknown) => {
@@ -75,6 +79,17 @@ function id(args: unknown, key: string): string {
 		throw new Error(`invalid args: \`${key}\` must be an id`);
 	}
 	return value;
+}
+
+function repositoryFullName(value: unknown): string {
+	if (
+		typeof value !== 'string' ||
+		value.trim().length === 0 ||
+		value.length > REPOSITORY_FULL_NAME_MAX_LENGTH
+	) {
+		throw new Error('invalid args: `repositoryFullName` must be a repository name');
+	}
+	return value.trim();
 }
 
 function title(value: unknown): string {

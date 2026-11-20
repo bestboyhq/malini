@@ -19,40 +19,28 @@
 	} from '$lib/initiatives/domain/initiative';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure } from '$shared/errors/failure-copy';
-	import {
-		connectedRepositoriesQuery,
-		hiddenRepositoriesQuery,
-		type Repository,
-	} from '$shared/repositories/repositories.api';
+	import type { Repository } from '$shared/repositories/repositories.api';
 	import InitiativeItem from './InitiativeItem.svelte';
 	import QuietField from './QuietField.svelte';
 	import RailDay from './RailDay.svelte';
 	import { dayName } from './rail-labels';
 
 	interface Props {
+		repository: Repository;
 		standingOf: StandingOf;
-		onstart: (
-			initiative: Initiative,
-			dependency: InitiativeDependency,
-			repository: Repository,
-		) => void;
+		onstart: (initiative: Initiative, dependency: InitiativeDependency) => void;
 	}
 
-	let { standingOf, onstart }: Props = $props();
+	let { repository, standingOf, onstart }: Props = $props();
 
 	type FocusRequest = Readonly<{ id: string; dueOn: string | null; target: 'row' | 'field' }>;
 
 	const SECTION_LABEL =
 		'text-3xs text-fg-quaternary border-border-subtle mt-3.5 border-t pt-4 pb-2 font-medium tracking-wider uppercase first:mt-0 first:border-t-0 first:pt-0';
 
-	const initiatives = $derived(initiativesQuery.data);
+	const initiatives = $derived(initiativesQuery.inRepository(repository.fullName));
 	const loaded = $derived(initiativesQuery.loaded);
 	const error = $derived(initiativesQuery.error);
-	const repositories = $derived(
-		connectedRepositoriesQuery.data.filter(
-			(repository) => !hiddenRepositoriesQuery.data.has(repository.id),
-		),
-	);
 
 	let today: string = $state(localDay(new Date()));
 	let focus: FocusRequest | null = $state(null);
@@ -63,8 +51,25 @@
 	const failure = $derived(
 		error === null ? null : describeFailure(error, { subject: 'Initiatives' }),
 	);
+	const linkedDots = $derived(
+		loaded
+			? initiatives
+					.flatMap(({ dependencies }) => dependencies)
+					.flatMap(({ workstreams }) => workstreams)
+					.map(({ workstreamId }) => standingOf(workstreamId)?.dot ?? 'gone')
+					.join(' ')
+			: null,
+	);
+
+	let seenDots: string | null = null;
 
 	onMount(() => loadInitiativesCommand());
+
+	$effect(() => {
+		if (linkedDots === null) return;
+		if (seenDots !== null && seenDots !== linkedDots) loadInitiativesCommand();
+		seenDots = linkedDots;
+	});
 
 	function refreshToday(): void {
 		today = localDay(new Date());
@@ -90,7 +95,7 @@
 	}
 
 	async function name(dueOn: string | null, title: string): Promise<boolean> {
-		const id = await createInitiativeCommand(title, dueOn);
+		const id = await createInitiativeCommand(repository.fullName, title, dueOn);
 		if (id === null) return false;
 		opened.add(id);
 		focus = { id, dueOn, target: 'field' };
@@ -110,7 +115,6 @@
 	<InitiativeItem
 		{initiative}
 		{standingOf}
-		{repositories}
 		open={opened.has(initiative.id)}
 		focus={focusOf(initiative)}
 		ontoggle={() => toggle(initiative.id)}
@@ -118,11 +122,11 @@
 		ondragstart={() => (dragged = initiative.id)}
 		ondragend={() => (dragged = null)}
 		onfocused={() => (focus = null)}
-		onstart={(dependency, repository) => onstart(initiative, dependency, repository)}
+		onstart={(dependency) => onstart(initiative, dependency)}
 	/>
 {/snippet}
 
-<section aria-label="Initiatives" class="mx-auto w-full max-w-[760px] px-8 pt-7 pb-20">
+<section aria-label="Initiatives" class="pb-20">
 	{#if failure}
 		<StateBlock
 			live="alert"

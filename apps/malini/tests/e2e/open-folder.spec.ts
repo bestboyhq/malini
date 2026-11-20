@@ -21,7 +21,7 @@ declare global {
 	var openFolderBusyLabels: string[];
 }
 
-test('the first folder you open starts a workstream in it, and a later one lands on its scratchpad and clones it in the background', async () => {
+test('the first folder you open starts a workstream in it, and a later one lands on its page and clones it in the background', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -47,7 +47,7 @@ test('the first folder you open starts a workstream in it, and a later one lands
 		await pickFolder(app, await createSourceRepo(app.root, 'orchard'));
 		await recordBusyLabels(page);
 		await page.getByRole('button', { name: OPEN_FOLDER }).click();
-		await expectScratchpadOf(page, 'orchard');
+		await expectRepositoryPageOf(page, 'orchard');
 		expect(await busyLabels(page)).toContainEqual(OPEN_FOLDER);
 		await expect
 			.poll(async () => (await repositoryIds(page)).sort())
@@ -75,7 +75,7 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 		await git(thicket, ['remote', 'add', 'origin', upstream]);
 		await pickFolder(app, thicket);
 		await page.getByRole('button', { name: OPEN_FOLDER }).click();
-		await expectScratchpadOf(page, 'thicket');
+		await expectRepositoryPageOf(page, 'thicket');
 
 		const failure = page.getByRole('alert').filter({ hasText: 'Could not clone this repository' });
 		await expect(failure).toBeVisible({ timeout: 30_000 });
@@ -106,7 +106,7 @@ test('a repository cannot be removed while it clones, and can once the clone fai
 		await git(grove, ['remote', 'add', 'origin', `${silent.url}/e2e/grove.git`]);
 		await pickFolder(app, grove);
 		await page.getByRole('button', { name: OPEN_FOLDER }).click();
-		await expectScratchpadOf(page, 'grove');
+		await expectRepositoryPageOf(page, 'grove');
 		await expect.poll(() => silent.sockets.size).toBeGreaterThan(0);
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -167,11 +167,12 @@ function busyLabels(page: Page): Promise<string[]> {
 	return page.evaluate(() => globalThis.openFolderBusyLabels);
 }
 
-async function expectScratchpadOf(page: Page, repository: string): Promise<void> {
-	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });
+async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
 	await expect(
-		page.getByRole('textbox', { name: new RegExp(`^Scratchpad for .*${repository}$`, 'u') }),
-	).toBeVisible();
+		page
+			.getByTestId('repository-page')
+			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
+	).toBeVisible({ timeout: 30_000 });
 }
 
 async function repositoryIds(page: Page): Promise<string[]> {

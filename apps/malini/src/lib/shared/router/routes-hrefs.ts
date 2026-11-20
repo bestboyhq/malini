@@ -14,8 +14,6 @@ export const AUTOMATIONS_EXPLORER_HREF = '/automations/explorer';
 
 export const BRAIN_HREF = '/brain';
 
-export const INITIATIVES_HREF = '/initiatives';
-
 export const SETTINGS_HREF = '/settings';
 
 export const ACCOUNT_SETTINGS_HREF = '/settings/accounts';

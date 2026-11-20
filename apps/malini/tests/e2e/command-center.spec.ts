@@ -74,7 +74,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 		await commands.fill('folder');
 		await page.keyboard.press('Enter');
 		await expect(center).toHaveCount(0);
-		await expectScratchpadOf(page, 'alpha');
+		await expectRepositoryPageOf(page, 'alpha');
 
 		await page.keyboard.press('ControlOrMeta+k');
 		await commands.fill('rabbits');
@@ -82,7 +82,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 			'e2e/hutch',
 		);
 		await page.keyboard.press('Enter');
-		await expectScratchpadOf(page, 'hutch');
+		await expectRepositoryPageOf(page, 'hutch');
 		await expect(center).toHaveCount(0);
 
 		await page.keyboard.press('ControlOrMeta+k');
@@ -90,17 +90,20 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 		await search.fill('alpha');
 		await expect(options).toHaveCount(1);
 		await page.keyboard.press('Enter');
-		await expectScratchpadOf(page, 'alpha');
+		await expectRepositoryPageOf(page, 'alpha');
 		await expect(center).toHaveCount(0);
 
 		await page.keyboard.press('ControlOrMeta+k');
 		await expect(commands).toBeFocused();
-		await page.getByRole('textbox', { name: 'Scratchpad for alpha' }).focus();
+		await page
+			.getByRole('textbox', { name: /^Name an outcome/u })
+			.first()
+			.focus();
 		await expect(commands).toBeFocused();
 		await commands.fill(`file://${burrow}`);
 		await expect(options).toHaveText([`Open file://${burrow}`]);
 		await page.keyboard.press('Enter');
-		await expectScratchpadOf(page, 'burrow');
+		await expectRepositoryPageOf(page, 'burrow');
 		await expect(center).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
@@ -108,9 +111,11 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 	}
 });
 
-async function expectScratchpadOf(page: Page, repository: string): Promise<void> {
+async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
 	await expect(
-		page.getByRole('textbox', { name: new RegExp(`^Scratchpad for .*${repository}$`, 'u') }),
+		page
+			.getByTestId('repository-page')
+			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
 	).toBeVisible({ timeout: 30_000 });
 }
 

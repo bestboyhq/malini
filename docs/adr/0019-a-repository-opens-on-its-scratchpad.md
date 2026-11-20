@@ -1,6 +1,6 @@
 # 0019 - A repository opens on its scratchpad
 
-Status: accepted
+Status: superseded by 0267
 
 ## Context
 

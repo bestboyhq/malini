@@ -11,7 +11,7 @@ import {
 	seedWorkstream,
 } from './harness';
 
-test('a repository opens on its scratchpad, which keeps every idea and moves one into a new workstream', async () => {
+test('the Scratchpad button opens a repository scratchpad beside its plan, which keeps every idea, moves one into a new workstream and closes on Escape', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -25,6 +25,13 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 		await repository.click({ timeout: 20_000 });
 		await expect(repository).toHaveAttribute('aria-current', 'page');
 		const pad = page.getByRole('textbox', { name: 'Scratchpad for alpha' });
+		const toggle = page
+			.getByTestId('repository-page')
+			.getByRole('button', { name: 'Scratchpad', exact: true });
+		await expect(toggle).toHaveAttribute('aria-expanded', 'false', { timeout: 20_000 });
+		await expect(pad).toHaveCount(0);
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 		await expect(pad).toBeFocused({ timeout: 20_000 });
 		await expect(repository).toHaveAccessibleDescription('');
 
@@ -35,6 +42,7 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 		await page.keyboard.press('Enter');
 		await page.keyboard.type('- Then say goodbye');
 		await page.reload();
+		await toggle.click({ timeout: 20_000 });
 		await expect(pad.getByRole('heading', { name: 'Ideas' })).toBeVisible({ timeout: 20_000 });
 		await expect(pad.getByRole('listitem')).toHaveText('Then say goodbye');
 		await expect(repository).toHaveAccessibleDescription('1 idea in the scratchpad');
@@ -67,6 +75,11 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 		await expect(pad.getByRole('listitem')).toHaveText('Then say goodbye');
 		await expect(workstreams).toHaveCount(3);
 		await captureFlow(app, 'scratchpad-moved');
+		await pad.getByText('Then say goodbye').click();
+		await page.keyboard.press('Escape');
+		await expect(pad).toHaveCount(0);
+		await expect(toggle).toBeFocused();
+		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
 		await workstreams.filter({ hasNotText: 'Alpha work' }).first().click();
 		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
@@ -77,7 +90,7 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 	}
 });
 
-test('removing the repository whose scratchpad is open goes back to the repository list', async () => {
+test('removing the repository whose page is open goes back to the repository list', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -116,6 +129,10 @@ test('an idea written as a heading moves into a new workstream with what sits un
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
 		const repository = sidebar.getByRole('link', { name: 'Open alpha' });
 		await repository.click({ timeout: 20_000 });
+		await page
+			.getByTestId('repository-page')
+			.getByRole('button', { name: 'Scratchpad', exact: true })
+			.click({ timeout: 20_000 });
 		const pad = page.getByRole('textbox', { name: 'Scratchpad for alpha' });
 		await expect(pad).toBeFocused({ timeout: 20_000 });
 
@@ -148,6 +165,10 @@ test('two ideas moved while the first still sets up each start a workstream', as
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
 		const repository = sidebar.getByRole('link', { name: 'Open alpha' });
 		await repository.click({ timeout: 20_000 });
+		await page
+			.getByTestId('repository-page')
+			.getByRole('button', { name: 'Scratchpad', exact: true })
+			.click({ timeout: 20_000 });
 		const pad = page.getByRole('textbox', { name: 'Scratchpad for alpha' });
 		await expect(pad).toBeFocused({ timeout: 20_000 });
 		await page.keyboard.type('Say hello to the fake bridge');

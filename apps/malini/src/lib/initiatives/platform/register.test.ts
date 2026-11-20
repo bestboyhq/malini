@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CommandName } from '$contract/commands';
+import { REPOSITORY_FULL_NAME_MAX_LENGTH } from '$contract/scratchpad';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { scalar } from '$main/db/rows';
@@ -31,15 +32,23 @@ function rows(table: string): number {
 
 describe('initiatives', () => {
 	it('keeps dated outcomes first, steps in order, ticks and one link per workstream', async () => {
-		await context.commands.call('initiatives.create', { title: 'Someday', dueOn: null });
+		await context.commands.call('initiatives.create', {
+			repositoryFullName: 'bestboyhq/grip',
+			title: 'Someday',
+			dueOn: null,
+		});
 		const created = await context.commands.call('initiatives.create', {
+			repositoryFullName: '  bestboyhq/malini  ',
 			title: '  Ship billing  ',
 			dueOn: '2026-12-01',
 		});
-		expect(created.map(({ title, dueOn }) => ({ title, dueOn }))).toEqual([
-			{ title: 'Ship billing', dueOn: '2026-12-01' },
-			{ title: 'Someday', dueOn: null },
+		expect(
+			created.map(({ repositoryFullName, title, dueOn }) => ({ repositoryFullName, title, dueOn })),
+		).toEqual([
+			{ repositoryFullName: 'bestboyhq/malini', title: 'Ship billing', dueOn: '2026-12-01' },
+			{ repositoryFullName: 'bestboyhq/grip', title: 'Someday', dueOn: null },
 		]);
+		expect(await context.commands.call('initiatives.list', undefined)).toEqual(created);
 
 		const initiativeId = created[0]?.id ?? '';
 		await context.commands.call('initiatives.add-dependency', { initiativeId, title: 'Schema' });
@@ -68,7 +77,7 @@ describe('initiatives', () => {
 		expect(rows('initiative_dependency_workstreams')).toBe(0);
 	});
 
-	it('refuses an empty title, a day that does not exist, an unknown id and an empty update', async () => {
+	it('refuses a missing repository, an empty title, a day that does not exist, an unknown id and an empty update', async () => {
 		const send = (command: CommandName, args: unknown): Promise<unknown> =>
 			context.commands.invoke({ command, args });
 		const refused = (field: string) => ({
@@ -76,14 +85,20 @@ describe('initiatives', () => {
 			error: expect.stringContaining(field),
 		});
 
-		await expect(send('initiatives.create', { title: ' ', dueOn: null })).resolves.toMatchObject(
-			refused('title'),
-		);
+		const repositoryFullName = 'bestboyhq/grip';
+		for (const invalid of [undefined, 42, '  ', 'a'.repeat(REPOSITORY_FULL_NAME_MAX_LENGTH + 1)]) {
+			await expect(
+				send('initiatives.create', { repositoryFullName: invalid, title: 'Ship', dueOn: null }),
+			).resolves.toMatchObject(refused('repositoryFullName'));
+		}
 		await expect(
-			send('initiatives.create', { title: 'Line\nbreak', dueOn: null }),
+			send('initiatives.create', { repositoryFullName, title: ' ', dueOn: null }),
 		).resolves.toMatchObject(refused('title'));
 		await expect(
-			send('initiatives.create', { title: 'Leap', dueOn: '2026-02-30' }),
+			send('initiatives.create', { repositoryFullName, title: 'Line\nbreak', dueOn: null }),
+		).resolves.toMatchObject(refused('title'));
+		await expect(
+			send('initiatives.create', { repositoryFullName, title: 'Leap', dueOn: '2026-02-30' }),
 		).resolves.toMatchObject(refused('dueOn'));
 		await expect(
 			send('initiatives.update', { id: 'missing', title: 'Renamed' }),
@@ -93,6 +108,7 @@ describe('initiatives', () => {
 		).resolves.toMatchObject(refused('no initiative dependency missing'));
 
 		const [initiative] = await context.commands.call('initiatives.create', {
+			repositoryFullName,
 			title: 'Ship billing',
 			dueOn: null,
 		});

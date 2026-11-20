@@ -80,7 +80,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `browser`              | browser tabs in the inspector and the agent's browser tools                                     |
 | `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile             |
 | `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                                 |
-| `initiatives`          | outcomes with a date, their dependencies and the workstreams that serve them, Initiatives page  |
+| `initiatives`          | a repository page's plan: dated outcomes, their dependencies, the workstreams serving them      |
 | `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings                 |
 | `brain`                | the second brain: its repository and workstream, capture to the log, landing on main            |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                            |

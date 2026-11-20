@@ -61,13 +61,6 @@ export function initiativeFinished(initiative: Initiative, standingOf: StandingO
 	return total > 0 && done === total;
 }
 
-export function needsYouCount(initiatives: readonly Initiative[], standingOf: StandingOf): number {
-	return initiatives.reduce(
-		(sum, initiative) => sum + initiativeProgress(initiative, standingOf).needsYou,
-		0,
-	);
-}
-
 export function initiativesOn(
 	initiatives: readonly Initiative[],
 	day: string | null,

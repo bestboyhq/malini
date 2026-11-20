@@ -1981,6 +1981,7 @@ CREATE TABLE workstream_ports (
 	`
 CREATE TABLE initiatives (
   id TEXT PRIMARY KEY,
+  repository_full_name TEXT NOT NULL,
   title TEXT NOT NULL,
   due_on TEXT,
   created_at TEXT NOT NULL,

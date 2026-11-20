@@ -15,7 +15,7 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('a workstream saved for later waits in its repository scratchpad, comes back from there, or moves to the archive', async () => {
+test('a workstream saved for later waits on its repository page, comes back from there, or moves to the archive', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {

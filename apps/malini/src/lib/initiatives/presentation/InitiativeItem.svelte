@@ -11,7 +11,6 @@
 		type InitiativeDependency,
 		type StandingOf,
 	} from '$lib/initiatives/domain/initiative';
-	import type { Repository } from '$shared/repositories/repositories.api';
 	import DependencyItem from './DependencyItem.svelte';
 	import ProgressRing from './ProgressRing.svelte';
 	import QuietField from './QuietField.svelte';
@@ -23,7 +22,6 @@
 	interface Props {
 		initiative: Initiative;
 		standingOf: StandingOf;
-		repositories: readonly Repository[];
 		open: boolean;
 		focus: Focus | null;
 		ontoggle: () => void;
@@ -31,13 +29,12 @@
 		ondragstart: () => void;
 		ondragend: () => void;
 		onfocused: () => void;
-		onstart: (dependency: InitiativeDependency, repository: Repository) => void;
+		onstart: (dependency: InitiativeDependency) => void;
 	}
 
 	let {
 		initiative,
 		standingOf,
-		repositories,
 		open,
 		focus,
 		ontoggle,
@@ -69,18 +66,6 @@
 		]
 			.filter(Boolean)
 			.join('. '),
-	);
-	const used = $derived(
-		new Set(
-			initiative.dependencies.flatMap(({ workstreams }) =>
-				workstreams.map(({ workstreamId }) => standingOf(workstreamId)?.repositoryFullName ?? null),
-			),
-		),
-	);
-	const ordered = $derived(
-		[...repositories].sort(
-			(left, right) => Number(used.has(right.fullName)) - Number(used.has(left.fullName)),
-		),
 	);
 
 	function grab(row: HTMLElement): void {
@@ -168,12 +153,7 @@
 {#if open}
 	<div class="pt-0.5 pb-1 pl-[26px]">
 		{#each initiative.dependencies as dependency (dependency.id)}
-			<DependencyItem
-				{dependency}
-				{standingOf}
-				repositories={ordered}
-				onstart={(repository) => onstart(dependency, repository)}
-			/>
+			<DependencyItem {dependency} {standingOf} onstart={() => onstart(dependency)} />
 		{/each}
 		<QuietField
 			label={`Add a dependency to ${initiative.title}`}

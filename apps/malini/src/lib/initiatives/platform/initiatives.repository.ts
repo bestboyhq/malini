@@ -1,10 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import type { Initiative, InitiativeDependency, InitiativeWorkstream } from '$contract/initiatives';
+import type {
+	CreateInitiativeArgs,
+	Initiative,
+	InitiativeDependency,
+	InitiativeWorkstream,
+} from '$contract/initiatives';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, intToBool, nowIso8601, run } from '$main/db/rows';
 import { latestWorkstreamTurn } from '$lib/chat/chat.platform';
 
-type InitiativeRow = { id: string; title: string; due_on: string | null };
+type InitiativeRow = {
+	id: string;
+	repository_full_name: string;
+	title: string;
+	due_on: string | null;
+};
 type DependencyRow = { id: string; initiative_id: string; title: string; done: number };
 type LinkRow = { dependency_id: string; workstream_id: string };
 
@@ -43,24 +53,27 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 	);
 	return all<InitiativeRow>(
 		db,
-		`SELECT id, title, due_on FROM initiatives
+		`SELECT id, repository_full_name, title, due_on FROM initiatives
 		 ORDER BY due_on IS NULL, due_on, created_at, rowid`,
 	).map((row) => ({
 		id: row.id,
+		repositoryFullName: row.repository_full_name,
 		title: row.title,
 		dueOn: row.due_on,
 		dependencies: dependencies.get(row.id) ?? [],
 	}));
 }
 
-export function createInitiative(db: MaliniDatabase, title: string, dueOn: string | null): void {
+export function createInitiative(db: MaliniDatabase, initiative: CreateInitiativeArgs): void {
 	const now = nowIso8601();
 	run(
 		db,
-		`INSERT INTO initiatives (id, title, due_on, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO initiatives (id, repository_full_name, title, due_on, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
 		randomUUID(),
-		title,
-		dueOn,
+		initiative.repositoryFullName,
+		initiative.title,
+		initiative.dueOn,
 		now,
 		now,
 	);
@@ -136,7 +149,11 @@ export function linkWorkstream(
 }
 
 function initiativeRow(db: MaliniDatabase, id: string): InitiativeRow {
-	const row = get<InitiativeRow>(db, 'SELECT id, title, due_on FROM initiatives WHERE id = ?', id);
+	const row = get<InitiativeRow>(
+		db,
+		'SELECT id, repository_full_name, title, due_on FROM initiatives WHERE id = ?',
+		id,
+	);
 	if (!row) throw unknownInitiative(id);
 	return row;
 }
