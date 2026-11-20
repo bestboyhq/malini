@@ -12,6 +12,8 @@ A first build put the initiatives of every repository on one `/initiatives` page
 The user turned it down: "I was expecting to have the regular planning view, but just filtered. And that's it."
 The repository's page was its scratchpad (0019), with your open pull requests in a gutter on its right (0138), so the plan had no room there.
 Of the pull requests they said "you will sometimes want it sometimes not ... it shouldn't be always visible in the UI".
+A second build put **Scratchpad**, **Pull requests** and **Open on GitHub** in a header centered over the plan, with the scratchpad in a panel that opened from it.
+The user asked for "a full-width top bar", the name as a link "with just open external arrow", **Pull requests** and **Saved for later** as hover cards, and the scratchpad "side by side with the list ... and a draggable handle for resizing in the middle between them".
 This supersedes 0019 and 0138, and amends 0052, 0074 and 0198.
 
 ## Decision
@@ -41,23 +43,27 @@ This supersedes 0019 and 0138, and amends 0052, 0074 and 0198.
   Its first prompt is the dependency plus the initiative's name and date, and the dependency links it.
 - Dragging an initiative, or Alt+ArrowUp and Alt+ArrowDown, moves it to another day.
   A row's menu renames it, removes its date or deletes it.
-- The scratchpad moves into a panel on the right of the repository page, closed by default.
-  **Scratchpad** in the page's header opens it, and Escape closes it.
-  `SavedForLater.svelte` stays on the page, above the plan: it holds workstreams, not ideas.
+- The repository's bar sits in the window's title row, in the band the chat tabs use, through `inGlobalTopBarBand` in `$shared/shell/global-topbar-actions.svelte.ts`.
+  It shows the avatar, the owner, and the name as a link to the repository on GitHub with an external arrow, and it drops the **Open on GitHub** button.
+  Outside the native shell the bar stays at the top of the page.
+- The plan and the scratchpad sit side by side, the plan on the left, in a `ResizableSplit` whose handle drags, takes the arrow keys and resets on a double-click, and whose ratio persists under `scratchpad`.
+  `primaryUnderSecondary={false}` puts the plan beside the scratchpad, not under it as the inspector's chat does.
+- `SavedForLater.svelte` becomes a hover card in the bar, **Saved for later** with its count, shown only while a workstream waits there: it holds workstreams, not ideas.
   Everything else in 0019 still holds: one TipTap document per repository in `scratchpads`, keyed by the full name `COLLATE NOCASE`, and any paragraph moves into a new workstream in the background.
-- Your open pull requests move behind **Pull requests** in the page's header, shown when the repository has a GitHub owner and its clone is ready.
+- Your open pull requests move into a hover card behind **Pull requests** in the bar, shown when the repository has a GitHub owner and its clone is ready.
+  Hover opens a card, a click pins it, and Escape closes it, through `RepositoryBarCard.svelte` on hyper-ui's `HoverCard`.
   Everything else in 0138 still holds: Malini opens no workstream for a pull request on its own, the list comes from `repositories.list-own-pull-requests` without forks, and a pick runs `repositories.continue-own-pull-request`, which opens, restores or fast-forwards its workstream.
 - Connecting a repository, and **Find a repository**, still open `/repositories/:repositoryId` before the clone finishes (0052, 0198), and land on its plan.
   The plan, like the scratchpad before it, needs only the connected repository row.
 
 ## Consequences
 
-- A repository's page leads with the outcomes due from it by day, and its ideas and pull requests are one click away.
+- A repository's page leads with the outcomes due from it by day, its ideas beside them, and its saved workstreams and pull requests one hover away.
 - An outcome that needs work in two repositories is an initiative on each page, and no view shows every repository's initiatives at once.
 - Nothing in the sidebar counts the dependencies that wait on you; a linked workstream that waits on you still shows it on its own sidebar row.
-- The scratchpad and your open pull requests no longer take room on the page while you do not need them.
+- Your saved workstreams and open pull requests no longer take room on the page while you do not need them, and the scratchpad trades width with the plan.
 - Progress is only what Malini can see for certain, merges and hand ticks, so the page never claims an outcome moved a metric.
 - Initiatives live only in Malini's database on this Mac: not in git, not synced, gone with the profile, and there is no export.
 - A workstream counts toward a dependency only through an explicit link; Malini never guesses which outcome a workstream serves.
 - The status rule has one home, `domain/initiative.ts`, and the main process stores no derived status that could go stale.
-- Enforced by `apps/malini/src/lib/initiatives/domain/initiative.test.ts` (the done rule, progress, the Rail's days, weeks and **Earlier**), `apps/malini/src/lib/initiatives/platform/register.test.ts` (storage, the repository name, validation and cascade deletes), `apps/malini/tests/e2e/initiatives.spec.ts` (the flow from naming an outcome on a repository's page to a workstream linked in that repository), `apps/malini/tests/e2e/scratchpad.spec.ts` (the scratchpad behind **Scratchpad**), `save-for-later.spec.ts` (saved workstreams above the plan), `apps/malini/tests/e2e/clone-repository.spec.ts` (**Continue here** from **Pull requests**), and `@malini/desktop/domain-boundaries` lint (the slice's imports).
+- Enforced by `apps/malini/src/lib/initiatives/domain/initiative.test.ts` (the done rule, progress, the Rail's days, weeks and **Earlier**), `apps/malini/src/lib/initiatives/platform/register.test.ts` (storage, the repository name, validation and cascade deletes), `apps/malini/tests/e2e/initiatives.spec.ts` (the flow from naming an outcome on a repository's page to a workstream linked in that repository), `apps/malini/tests/e2e/scratchpad.spec.ts` (the scratchpad beside the plan and its handle), `save-for-later.spec.ts` (saved workstreams in the **Saved for later** card), `open-on-github.spec.ts` (the name in the bar), `apps/malini/tests/e2e/clone-repository.spec.ts` (**Continue here** from **Pull requests**), and `@malini/desktop/domain-boundaries` lint (the slice's imports).

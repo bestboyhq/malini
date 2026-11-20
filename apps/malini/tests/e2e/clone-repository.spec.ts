@@ -128,7 +128,7 @@ test('a cloned repository lists your open pull requests only behind its Pull req
 
 		const title = 'feat(auth): add OAuth sign-in with refresh tokens and a remember-me option';
 		const button = page
-			.getByTestId('repository-page')
+			.getByTestId('repository-bar')
 			.getByRole('button', { name: 'Pull requests', exact: true });
 		const list = page.getByRole('dialog', { name: 'Your open pull requests' });
 		const continueHere = list.getByRole('button', { name: `Continue ${title} here` });
@@ -188,7 +188,7 @@ function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
 async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
 	await expect(
 		page
-			.getByTestId('repository-page')
+			.getByTestId('repository-bar')
 			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
 	).toBeVisible({ timeout: 30_000 });
 	await expect(page).toHaveURL(/#\/repositories\//u);

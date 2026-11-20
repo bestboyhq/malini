@@ -114,7 +114,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
 	await expect(
 		page
-			.getByTestId('repository-page')
+			.getByTestId('repository-bar')
 			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
 	).toBeVisible({ timeout: 30_000 });
 }

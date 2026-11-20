@@ -170,7 +170,7 @@ function busyLabels(page: Page): Promise<string[]> {
 async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
 	await expect(
 		page
-			.getByTestId('repository-page')
+			.getByTestId('repository-bar')
 			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
 	).toBeVisible({ timeout: 30_000 });
 }

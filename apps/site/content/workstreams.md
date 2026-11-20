@@ -170,16 +170,17 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Its links open their files in tabs, and its images show from the worktree.
 
 A repository opens on its plan: the [initiatives](/malini/docs/initiatives.md) you want from it, by day.
-**Scratchpad**, in the page's header, opens a panel on the right where you keep ideas, and Escape closes it.
+The bar at the top of its page names it as owner / name, and the name opens the repository on GitHub.
+Its scratchpad sits on the right of the plan, where you keep ideas, and the handle between them drags to resize both.
 Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
-Workstreams you saved for later wait above the plan, newest first.
+**Saved for later**, in the bar, counts the workstreams you saved for later, and hovering it lists them, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 
 ## Your open pull requests
 
-**Pull requests**, in the header of a repository's page, lists the pull requests you have open in it, each with its number, whether it is a draft, and when it last changed.
+Hover **Pull requests**, in the bar of a repository's page, to list the pull requests you have open in it, each with its number, whether it is a draft, and when it last changed.
 It shows once the repository has a GitHub owner and its clone is ready.
-Malini reads them from GitHub each time you open the list, and leaves out pull requests from forks.
+Malini reads them from GitHub each time the list opens, and leaves out pull requests from forks.
 Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another Mac.
 Claude names it from its title.
 One you already work on here says **Open**, catches up with what you pushed elsewhere, and takes you to it, and one you archived comes back from **Recently archived**.
