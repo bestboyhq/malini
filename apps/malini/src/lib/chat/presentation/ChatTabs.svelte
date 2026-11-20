@@ -113,8 +113,10 @@
 	import { Modal } from '$hyper-ui/components/modal';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import ClosedChatsMenu from './chat-tabs/ClosedChatsMenu.svelte';
 	import OverflowTabsMenu from './chat-tabs/OverflowTabsMenu.svelte';
 	import type { OverflowTab } from './chat-tabs/overflow-tabs';
+	import { tabReorder, type TabMove } from './chat-tabs/tab-reorder';
 	import { useOverflowTabs } from './chat-tabs/useOverflowTabs.svelte';
 
 	interface Props {
@@ -297,6 +299,10 @@
 		if (!activatesClientNavigation(event)) return;
 		workstreamTabs.leave(workstreamId);
 		tabSelection.settle();
+	}
+
+	function moveTab({ key, targetKey, placement }: TabMove): void {
+		workstreamTabs.move(workstreamId, key, targetKey, placement);
 	}
 
 	function startFreshChat(): void {
@@ -499,7 +505,12 @@
 	data-band-hosted={hostedInBand ? 'true' : undefined}
 	data-testid="chat-agent-tabs"
 >
-	<div class="relative flex min-w-0 flex-1 items-center gap-px overflow-hidden" use:roveTabFocus>
+	<ClosedChatsMenu {workstreamId} />
+	<div
+		class="relative flex min-w-0 flex-1 items-center gap-px overflow-hidden select-none"
+		use:roveTabFocus
+		{@attach tabReorder(moveTab)}
+	>
 		<div
 			class="pointer-events-none absolute inset-0"
 			role="tablist"
@@ -569,6 +580,7 @@
 					onclose={(event) => closeSessionTab(event, session)}
 					shimmerRename={namedChatsQuery.data(session.id)}
 					isClosing={() => tabIsClosing(item.key)}
+					data-reorder-key={item.key}
 				/>
 			{:else if item.kind === 'document'}
 				<WorkstreamDocumentTab
@@ -577,6 +589,7 @@
 					tabId={stripTabId(item.key)}
 					tabindex={item.key === tabStopKey ? 0 : -1}
 					isClosing={() => tabIsClosing(item.key)}
+					data-reorder-key={item.key}
 				/>
 			{:else}
 				<BrowserTab

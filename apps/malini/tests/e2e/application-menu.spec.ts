@@ -42,6 +42,7 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 		expect(await menuLabels(app, 'File')).toEqual([
 			'New Workstream',
 			'New Chat',
+			'Reopen Closed Chat',
 			'Open Folder…',
 			'Find Repository…',
 			'Close Window',

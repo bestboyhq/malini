@@ -28,6 +28,7 @@ import {
 	listSessionSummaries,
 	nameSession,
 	namedChatName,
+	reopenSession,
 	repairSessionStatusesWithoutOpenRuns,
 	sessionContextIdentity,
 	setProviderSessionId,
@@ -126,6 +127,25 @@ describe('sessions', () => {
 
 		expect(getSession(db, 'session-open')?.displayName).toBe('New chat');
 		expect(getSession(db, 'session-next')?.displayName).toBe('New chat 2');
+		db.close();
+	});
+
+	it('reopens a closed chat under a name no open chat holds', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, 'workstream-reopen');
+		insertSession(db, session('session-closed', 'workstream-reopen'));
+		nameSession(db, 'session-closed', 'workstream-reopen', 'Login flow');
+		archiveSession(db, 'session-closed', '2026-07-10T00:01:00Z');
+		insertSession(db, session('session-open', 'workstream-reopen'));
+		nameSession(db, 'session-open', 'workstream-reopen', 'Login flow');
+
+		reopenSession(db, 'session-closed');
+
+		expect(getSession(db, 'session-closed')).toMatchObject({
+			archivedAt: null,
+			displayName: 'Login flow 2',
+		});
+		expect(getSession(db, 'session-open')?.displayName).toBe('Login flow');
 		db.close();
 	});
 

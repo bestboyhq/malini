@@ -161,7 +161,10 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   A shimmer writes each name in as it arrives: on the chat tab, on the sidebar row, and on the commands an agent leaves running.
   **⌘W** closes one, and the ones that don't fit wait behind the **…** at the end of the tabs.
   A closed tab folds away, and the tabs after it slide into its place.
+  The clock at the start of the tabs lists the last ten chats you closed, and **⌘⇧T** reopens the latest one where it left off.
+  A chat you closed before writing in it is not kept.
 - Files open as tabs beside the chats, from the **Files** tree or a file the chat names, and you edit them right there.
+  Drag a chat or file tab, or press **⌥←** and **⌥→** on it, to put them in any order, and the order stays.
   Malini saves as you type, so there is nothing to press, and only a save that fails says so, under the file.
   The first edit keeps a preview tab, and the tab marks what your branch added and removed.
   A change the agent makes to an open file shows in its tab, unless you have typed something it has not saved yet.

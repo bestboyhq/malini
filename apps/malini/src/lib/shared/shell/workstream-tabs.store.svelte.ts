@@ -2,6 +2,7 @@ import {
 	closeWorkstreamChat,
 	closeWorkstreamDocument,
 	leaveWorkstreamDocuments,
+	moveWorkstreamTab,
 	NO_WORKSTREAM_TABS,
 	openWorkstreamDocument,
 	pinWorkstreamDocument,
@@ -10,6 +11,7 @@ import {
 	startWorkstreamFreshChat,
 	syncWorkstreamChats,
 	type WorkstreamDocumentOpening,
+	type WorkstreamTabPlacement,
 	type WorkstreamTabs,
 } from './workstream-tabs';
 
@@ -55,6 +57,17 @@ class WorkstreamTabsStore {
 
 	startFreshChat(workstreamId: string): void {
 		this.#update(workstreamId, startWorkstreamFreshChat);
+	}
+
+	move(
+		workstreamId: string,
+		movedKey: string,
+		targetKey: string,
+		placement: WorkstreamTabPlacement,
+	): void {
+		this.#update(workstreamId, (current) =>
+			moveWorkstreamTab(current, movedKey, targetKey, placement),
+		);
 	}
 
 	closeChat(workstreamId: string, chatId: string): void {

@@ -13,6 +13,7 @@ import type {
 	AgentSessionChangeScope,
 	AgentSessionOrigin,
 	AgentSessionSummary,
+	ClosedAgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
 	AgentPlanUsage,
@@ -521,6 +522,7 @@ export interface ContractCommands {
 	'app.recent-diagnostics': { args: RecentDiagnosticsArgs; result: DiagnosticEntry[] };
 	'repositories.abort-workstream-operation': { args: WorkstreamIdArgs; result: void };
 	'chat.archive-session': { args: SessionIdArgs; result: void };
+	'chat.reopen-session': { args: SessionIdArgs; result: void };
 	'repositories.archive-workstream': {
 		args: WorkstreamIdArgs;
 		result: WorkstreamRetirementReceipt;
@@ -699,6 +701,7 @@ export interface ContractCommands {
 	'chat.list-claude-plan-usage': { args: undefined; result: Record<string, unknown>[] };
 	'chat.tool-output': { args: ToolOutputArgs; result: string | null };
 	'chat.list-sessions': { args: WorkstreamIdArgs; result: AgentSessionSummary[] };
+	'chat.list-closed-sessions': { args: WorkstreamIdArgs; result: ClosedAgentSessionSummary[] };
 	'extensions.list-sources': { args: undefined; result: ExtensionSourceSnapshot[] };
 	'extensions.list-workstream-files': {
 		args: ListExtensionWorkstreamFilesArgs;
@@ -915,6 +918,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.recent-diagnostics',
 	'repositories.abort-workstream-operation',
 	'chat.archive-session',
+	'chat.reopen-session',
 	'repositories.archive-workstream',
 	'repositories.save-workstream-for-later',
 	'chat.cancel-run',
@@ -1027,6 +1031,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.list-claude-plan-usage',
 	'chat.tool-output',
 	'chat.list-sessions',
+	'chat.list-closed-sessions',
 	'extensions.list-sources',
 	'extensions.list-workstream-files',
 	'repositories.list-owned-docker-containers',

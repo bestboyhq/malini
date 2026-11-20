@@ -581,11 +581,11 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'app:menu-command-chosen',
 			description:
-				"Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+				"Fires when you pick New Workstream, New Chat, Reopen Closed Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
 			facts: ['command'],
 			payloadType: 'MenuCommandChosen',
 			payload:
-				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'find-repository' | 'accounts' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
+				"type MenuCommand =\n\t| 'new-workstream'\n\t| 'new-chat'\n\t| 'reopen-chat'\n\t| 'open-folder'\n\t| 'find-repository'\n\t| 'accounts'\n\t| 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
 		},
 		{
 			channel: 'app:streaming-changed',

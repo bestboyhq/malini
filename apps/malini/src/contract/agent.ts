@@ -243,6 +243,13 @@ export interface AgentSessionSummary {
 	latestProfile: AgentRunProfile | null;
 }
 
+export interface ClosedAgentSessionSummary {
+	id: string;
+	displayName: string;
+	model: string | null;
+	closedAt: string;
+}
+
 export interface AgentTranscriptReference {
 	sessionId: string;
 	label: string;
