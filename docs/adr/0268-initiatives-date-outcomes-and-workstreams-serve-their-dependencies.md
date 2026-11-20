@@ -48,8 +48,8 @@ This supersedes 0019 and 0138, and amends 0052, 0074 and 0198.
   Outside the native shell the bar stays at the top of the page.
 - The plan and the scratchpad sit side by side, the plan on the left, in a `ResizableSplit` whose handle drags, takes the arrow keys and resets on a double-click, and whose ratio persists under `scratchpad`.
   `primaryUnderSecondary={false}` puts the plan beside the scratchpad, not under it as the inspector's chat does.
-- The scratchpad sets its text in readsimon's prose, the values `MARKDOWN_ARTICLE_STYLES` in the repository extension ports (0069): 16/28 px Inter Variable, 26 px under each paragraph, headings at 550 weight near body size, muted bullets and Georgia italics.
-  The user found its 15 px Geist with bold, larger headings "slightly intense".
+- The scratchpad sets its text in readsimon's prose, the values `MARKDOWN_ARTICLE_STYLES` in the repository extension ports (0069), scaled from 16 px to 14 px: 14/24 px Inter Variable, 22 px under each paragraph, headings at 550 weight near body size, muted bullets and Georgia italics.
+  The user found its 15 px Geist with bold, larger headings "slightly intense", and readsimon's own 16 px "enormous" in the pane.
 - `SavedForLater.svelte` becomes a hover card in the bar, **Saved for later** with its count, shown only while a workstream waits there: it holds workstreams, not ideas.
   Everything else in 0019 still holds: one TipTap document per repository in `scratchpads`, keyed by the full name `COLLATE NOCASE`, and any paragraph moves into a new workstream in the background.
 - Your open pull requests move into a hover card behind **Pull requests** in the bar, shown when the repository has a GitHub owner and its clone is ready.

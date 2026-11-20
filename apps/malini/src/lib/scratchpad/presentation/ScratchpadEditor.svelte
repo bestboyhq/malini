@@ -174,7 +174,7 @@
 >
 	{#if empty}
 		<p class="scratchpad-hint pointer-events-none absolute inset-x-0 top-0" aria-hidden="true">
-			Jot down an idea. <EnterShortcut mod size={16} /> turns it into a workstream.
+			Jot down an idea. <EnterShortcut mod size={14} /> turns it into a workstream.
 		</p>
 	{/if}
 	<div bind:this={host} class="scratchpad-host"></div>
@@ -213,8 +213,8 @@
 	.scratchpad-host :global(.scratchpad-editor) {
 		font-family: 'Inter Variable', var(--font-sans);
 		font-optical-sizing: auto;
-		font-size: 1rem;
-		line-height: 1.75rem;
+		font-size: var(--text-sm);
+		line-height: 1.5rem;
 		text-rendering: optimizeLegibility;
 		-webkit-font-smoothing: antialiased;
 	}
@@ -237,41 +237,41 @@
 	}
 
 	.scratchpad-host :global(.scratchpad-editor p) {
-		margin: 0 0 1.625rem;
+		margin: 0 0 1.375rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor :is(h1, h2, h3)) {
 		color: var(--color-fg-agent-message-strong);
 		font-weight: 550;
-		line-height: 1.75rem;
+		line-height: 1.5rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor h1) {
-		font-size: 1.25rem;
+		font-size: 1.0625rem;
 		font-weight: 600;
 		letter-spacing: -0.011em;
-		margin: 3.5rem 0 1.25rem;
+		margin: 3rem 0 1.125rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor h2) {
-		font-size: 1.0625rem;
+		font-size: 0.9375rem;
 		letter-spacing: -0.006em;
-		margin: 3.5rem 0 1.25rem;
+		margin: 3rem 0 1.125rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor h3) {
-		font-size: 1rem;
-		margin: 2.25rem 0 0.75rem;
+		font-size: inherit;
+		margin: 2rem 0 0.625rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor :is(ul, ol)) {
-		margin: 0 0 1.625rem;
-		padding-left: 2.25rem;
+		margin: 0 0 1.375rem;
+		padding-left: 2rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor ul) {
 		list-style: disc;
-		padding-left: 1.5rem;
+		padding-left: 1.3125rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor ol) {
@@ -279,7 +279,7 @@
 	}
 
 	.scratchpad-host :global(.scratchpad-editor li) {
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.4375rem;
 		padding-left: 2px;
 	}
 
@@ -301,7 +301,7 @@
 	}
 
 	.scratchpad-host :global(.scratchpad-editor li > :is(ul, ol)) {
-		margin-top: 0.5rem;
+		margin-top: 0.4375rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor li > :is(ul, ol, pre, blockquote):last-child) {
@@ -313,20 +313,20 @@
 		font-family: 'STIX Two Text Variable', ui-serif, Georgia, serif;
 		font-size: 1.24em;
 		font-style: italic;
-		line-height: 2.125rem;
-		margin: 0 0 1.875rem;
-		padding: 0.625rem 0 0.625rem 1.25rem;
+		line-height: 1.875rem;
+		margin: 0 0 1.625rem;
+		padding: 0.5rem 0 0.5rem 1.125rem;
 		position: relative;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor blockquote::before) {
 		background: var(--color-surface-invert);
 		border-radius: 999px;
-		bottom: 0.375rem;
+		bottom: 0.3125rem;
 		content: '';
 		left: 0;
 		position: absolute;
-		top: 0.375rem;
+		top: 0.3125rem;
 		width: 3px;
 	}
 
@@ -335,7 +335,7 @@
 	}
 
 	.scratchpad-host :global(.scratchpad-editor blockquote p + p) {
-		margin-top: 0.75rem;
+		margin-top: 0.625rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor blockquote em) {
@@ -346,7 +346,7 @@
 	.scratchpad-host :global(.scratchpad-editor hr) {
 		border: 0;
 		border-top: 1px solid var(--color-border-default);
-		margin: 2.5rem 0;
+		margin: 2.25rem 0;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor hr.ProseMirror-selectednode) {
@@ -378,12 +378,12 @@
 		border-radius: 0.5rem;
 		box-shadow: inset 0 0 0 0.5px var(--color-border-default);
 		font-family: var(--font-mono);
-		font-size: 0.84375rem;
+		font-size: 0.75rem;
 		font-variant-ligatures: none;
-		line-height: 1.375rem;
-		margin: 0 0 1.625rem;
+		line-height: 1.25rem;
+		margin: 0 0 1.375rem;
 		overflow-x: auto;
-		padding: 1rem 1.125rem;
+		padding: 0.875rem 1rem;
 		white-space: pre;
 	}
 
