@@ -380,6 +380,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.workstream-diff': () => '',
 	'repositories.base-files': () => [],
 	'scratchpad.load': () => null,
+	'initiatives.list': () => [],
 	'chat.agent-capabilities': () => [CLAUDE],
 	'chat.session-changes': ({ workstreamId, sessionId: id }) => sessionChanges(workstreamId, id),
 	'chat.known-session-changes': ({ workstreamId, sessionId: id }) =>

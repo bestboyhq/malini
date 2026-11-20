@@ -91,6 +91,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { runtimeDiagnostics } from '$shared/performance/runtime-diagnostics.svelte';
 	import SidebarFooter from './SidebarFooter.svelte';
+	import SidebarInitiativesRow from './SidebarInitiativesRow.svelte';
 	import SidebarFrame from './SidebarFrame.svelte';
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
@@ -1743,6 +1744,9 @@
 							)}
 						</li>
 					{/if}
+					<li class="w-full min-w-0">
+						<SidebarInitiativesRow {compact} />
+					</li>
 					{#each tree.blocks as block (block.id)}
 						{#if block.kind === 'owner'}
 							{@render ownerBlock(block, focus.kind === 'owner', '')}

@@ -1,38 +1,15 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
-	type LaunchedApp,
+	holdCheckouts,
 	launchMalini,
 	listProjects,
 	seedWorkstream,
-	waitWhile,
 } from './harness';
-
-function holdCheckouts(app: LaunchedApp): string {
-	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-	const held = join(app.root, 'checkouts-held');
-	const stub = join(app.bin, 'git');
-	writeFileSync(
-		stub,
-		[
-			'#!/bin/sh',
-			'case "$*" in *"worktree add "*)',
-			`\t${waitWhile(`[ -e '${held}' ]`, 0.05)} ;;`,
-			'esac',
-			`exec '${git}' "$@"`,
-			'',
-		].join('\n'),
-	);
-	chmodSync(stub, 0o755);
-	writeFileSync(held, '');
-	return held;
-}
 
 test('a repository opens on its scratchpad, which keeps every idea and moves one into a new workstream', async () => {
 	test.setTimeout(120_000);

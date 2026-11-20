@@ -22,8 +22,7 @@ class StartedProgressQuery {
 				chatTone: tone,
 				busy: starting || tone === 'running' || tone === 'background',
 				broken:
-					provisioning?.failure !== undefined ||
-					(!starting && !isWorkstreamCheckoutUsable(workstream)),
+					Boolean(provisioning?.failure) || (!starting && !isWorkstreamCheckoutUsable(workstream)),
 			});
 		},
 	);
