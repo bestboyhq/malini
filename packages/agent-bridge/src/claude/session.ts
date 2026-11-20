@@ -45,8 +45,10 @@ import { systemPromptAppend } from './instructions.js';
 import { claudeReplyChecker, sentBack, type ReplyChecker } from './reply-check.js';
 import {
 	mcpServerReport,
+	openInBrowser,
 	probeMcpServer,
 	saveUserMcpServer,
+	signInMcpServer,
 	switchMcpServerLive,
 	type AddedMcpServer,
 	type McpProbeOptions,
@@ -170,6 +172,7 @@ export interface ClaudeSessionOptions {
 	readonly sandbox?: boolean;
 	readonly denials?: SandboxDenialSource;
 	readonly checkReply?: ReplyChecker;
+	readonly openUrl?: (url: string) => Promise<void>;
 }
 
 interface Blocked {
@@ -243,6 +246,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #secrets: SessionSecrets;
 	readonly #sandbox: boolean;
 	readonly #checkReply: ReplyChecker;
+	readonly #openUrl: (url: string) => Promise<void>;
 	readonly #blockedCallRules = new Map<string, string>();
 	readonly #denials: SandboxDenialSource;
 	readonly #tag = `${SANDBOX_TAG_PREFIX}${randomBytes(8).toString('hex')}`;
@@ -271,6 +275,7 @@ export class ClaudeSession implements ProviderHandle {
 		this.#secrets = options.secrets;
 		this.#sandbox = options.sandbox ?? canSandbox();
 		this.#denials = options.denials ?? sandboxDenials;
+		this.#openUrl = options.openUrl ?? openInBrowser;
 		this.#checkReply =
 			options.checkReply ??
 			(options.executable
@@ -1296,11 +1301,25 @@ export class ClaudeSession implements ProviderHandle {
 		}
 		active.mcpServers = servers;
 		if (active.config) active.config = restamped(active.config, claudeStateFile());
+		const live =
+			status.status === 'connected'
+				? connectedNow(status.tools?.length ?? 0)
+				: await this.#signIn(active, name);
 		await this.refreshSessionStatus().catch(() => undefined);
-		const saved = `${name} is saved in Claude Code's user config, and every other chat loads it on its next prompt.`;
-		return status.status === 'needs-auth'
-			? `${saved} It needs a sign-in, which the user does in Settings, MCP servers.`
-			: `${saved} It is connected in this chat, and its tools work now: ${toolCount(status.tools?.length ?? 0)}.`;
+		return `${name} is saved in Claude Code's user config, and every other chat loads it on its next prompt. ${live}`;
+	}
+
+	async #signIn(active: ActiveRun, name: string): Promise<string> {
+		await this.refreshSessionStatus().catch(() => undefined);
+		try {
+			const { authUrl, settled } = await signInMcpServer(active.query, name, active.abort.signal);
+			if (authUrl) await this.#openUrl(authUrl);
+			const server = await settled;
+			if (server?.status === 'connected') return connectedNow(server.toolCount ?? 0);
+			return 'It needs a sign-in, and the user did not finish the one Malini opened in their browser within 5 minutes. Call mcp_servers_add again to open the sign-in page again.';
+		} catch (error) {
+			return `It needs a sign-in, which did not start: ${describe(error)}`;
+		}
 	}
 
 	#promptWithSeed(prompt: string): string {
@@ -1556,8 +1575,8 @@ function resultError(result: SDKResultMessage): string {
 	return text || 'Claude Code reported an error.';
 }
 
-function toolCount(count: number): string {
-	return count === 1 ? '1 tool' : `${count} tools`;
+function connectedNow(tools: number): string {
+	return `It is connected in this chat, and its tools work now: ${tools === 1 ? '1 tool' : `${tools} tools`}.`;
 }
 
 export function claudeEnvironment(
