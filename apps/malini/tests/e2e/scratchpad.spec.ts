@@ -1,40 +1,17 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
-	type LaunchedApp,
+	holdCheckouts,
 	launchMalini,
 	listProjects,
 	seedWorkstream,
-	waitWhile,
 } from './harness';
 
-function holdCheckouts(app: LaunchedApp): string {
-	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-	const held = join(app.root, 'checkouts-held');
-	const stub = join(app.bin, 'git');
-	writeFileSync(
-		stub,
-		[
-			'#!/bin/sh',
-			'case "$*" in *"worktree add "*)',
-			`\t${waitWhile(`[ -e '${held}' ]`, 0.05)} ;;`,
-			'esac',
-			`exec '${git}' "$@"`,
-			'',
-		].join('\n'),
-	);
-	chmodSync(stub, 0o755);
-	writeFileSync(held, '');
-	return held;
-}
-
-test('a repository opens on its scratchpad, which keeps every idea and moves one into a new workstream', async () => {
+test('a repository page keeps its scratchpad beside its plan, resizes it with a handle, keeps every idea and moves one into a new workstream', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -49,7 +26,15 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 		await expect(repository).toHaveAttribute('aria-current', 'page');
 		const pad = page.getByRole('textbox', { name: 'Scratchpad for alpha' });
 		await expect(pad).toBeFocused({ timeout: 20_000 });
+		await expect(page.getByRole('region', { name: 'Initiatives' })).toBeVisible();
 		await expect(repository).toHaveAccessibleDescription('');
+		const handle = page.getByRole('separator', { name: 'Resize scratchpad' });
+		const planWidth = Number(await handle.getAttribute('aria-valuenow'));
+		await handle.press('Shift+ArrowLeft');
+		await expect(handle).toHaveAttribute('aria-valuenow', String(planWidth - 16));
+		await handle.dblclick();
+		await expect(handle).toHaveAttribute('aria-valuenow', String(planWidth));
+		await pad.click();
 
 		await page.keyboard.type('# Ideas');
 		await expect(repository).toHaveAccessibleDescription('1 idea in the scratchpad');
@@ -100,7 +85,7 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 	}
 });
 
-test('removing the repository whose scratchpad is open goes back to the repository list', async () => {
+test('removing the repository whose page is open goes back to the repository list', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {

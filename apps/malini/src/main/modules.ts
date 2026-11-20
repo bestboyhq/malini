@@ -28,6 +28,7 @@ import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerAutomations } from '$lib/automations/platform/register';
 import { registerBrain } from '$lib/brain/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
+import { registerInitiatives } from '$lib/initiatives/platform/register';
 import { registerScratchpad } from '$lib/scratchpad/platform/register';
 import { registerSecrets } from '$lib/secrets/platform/register';
 import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
@@ -118,6 +119,7 @@ export async function registerModules(
 	});
 
 	registerScratchpad(context);
+	registerInitiatives(context);
 
 	registerSounds(context, {
 		askForMicrophone,

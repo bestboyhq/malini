@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import {
 	accessSync,
 	chmodSync,
@@ -82,6 +82,26 @@ export const ISSUE_CREATE_FIXTURE = '.e2e-issue-create';
 
 export function waitWhile(condition: string, seconds = 0.1): string {
 	return `while ${condition}; do kill -0 "$PPID" 2>&1 | grep -q 'No such process' && exit 1; sleep ${seconds}; done`;
+}
+
+export function holdCheckouts(app: LaunchedApp): string {
+	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+	const held = join(app.root, 'checkouts-held');
+	const stub = join(app.bin, 'git');
+	writeFileSync(
+		stub,
+		[
+			'#!/bin/sh',
+			'case "$*" in *"worktree add "*)',
+			`\t${waitWhile(`[ -e '${held}' ]`, 0.05)} ;;`,
+			'esac',
+			`exec '${git}' "$@"`,
+			'',
+		].join('\n'),
+	);
+	chmodSync(stub, 0o755);
+	writeFileSync(held, '');
+	return held;
 }
 
 const GH_STUB = `#!/bin/sh

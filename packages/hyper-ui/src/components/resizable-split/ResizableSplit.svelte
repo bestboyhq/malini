@@ -27,6 +27,7 @@
 		maxSize: number;
 		secondaryMinSize?: number;
 		secondaryOpen?: boolean;
+		primaryUnderSecondary?: boolean;
 		axis?: ResizeAxis;
 		storageKey?: string;
 		scope?: string;
@@ -44,6 +45,7 @@
 		maxSize,
 		secondaryMinSize = 0,
 		secondaryOpen = true,
+		primaryUnderSecondary = true,
 		axis = 'horizontal',
 		storageKey,
 		scope,
@@ -81,12 +83,12 @@
 	const placement = $derived(
 		axis === 'horizontal'
 			? {
-					primary: 'col-span-full row-start-1',
+					primary: primaryUnderSecondary ? 'col-span-full row-start-1' : 'col-start-1 row-start-1',
 					handle: 'col-start-2 row-start-1',
 					secondary: '-col-start-2 row-start-1',
 				}
 			: {
-					primary: 'col-start-1 row-span-full',
+					primary: primaryUnderSecondary ? 'col-start-1 row-span-full' : 'col-start-1 row-start-1',
 					handle: 'col-start-1 row-start-2',
 					secondary: 'col-start-1 -row-start-2',
 				},
@@ -108,7 +110,7 @@
 			return containerExtent;
 		},
 		get secondarySize() {
-			return secondarySize;
+			return primaryUnderSecondary ? secondarySize : 0;
 		},
 	});
 	const effectiveMaxSize = $derived.by(() => {
