@@ -57,7 +57,9 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
 		expect(github.pushedHead()).toBe(headOf(worktree));
-		expect(git(worktree, 'log', '-1', '--format=%an <%ae>')).toBe('E2E Chef <chef@example.com>');
+		expect(git(worktree, 'log', '-1', '--format=%an <%ae>')).toBe(
+			'E2E Chef <4242+e2e-user@users.noreply.github.com>',
+		);
 		expect(git(worktree, 'log', '-1', '--format=%(trailers:only,unfold)')).toBe(MALINI_CO_AUTHOR);
 		expect(github.pullRequest()?.body).toMatch(
 			/<summary>🧑‍🍳 <sub>Cooked with <a href="https:\/\/bestboy\.dev\/malini">Malini<\/a><\/sub><\/summary>\n<table>\n<tr><td>Chef<\/td><td><a href="https:\/\/github\.com\/e2e-user">@e2e-user<\/a><\/td><\/tr>\n<tr><td>Kitchen<\/td><td>1 agent<\/td><\/tr>\n<tr><td>Dishes<\/td><td>Agents did em<\/td><\/tr>\n<\/table>\n<\/details>$/u,
@@ -73,6 +75,46 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		expect(github.pushedHead()).toBe(headOf(worktree));
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Open draft puts your noreply address on a commit you made in a terminal with your own email', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-draft-terminal',
+			null,
+		);
+		git(worktree, 'config', 'user.name', 'Chef At Home');
+		git(worktree, 'config', 'user.email', 'chef@example.com');
+		writeFileSync(join(worktree, 'terminal.txt'), 'terminal\n');
+		git(worktree, 'add', 'terminal.txt');
+		git(worktree, 'commit', '-q', '-m', 'fix: from the terminal');
+		const typedAt = git(worktree, 'log', '-1', '--format=%at');
+		await openWorkstream(page, 'e2e-draft-terminal');
+		await showInspector(page);
+
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: OPEN_DRAFT }).click();
+		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled({
+			timeout: 30_000,
+		});
+
+		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'fix: from the terminal', 'seed']);
+		expect(github.pushedHead()).toBe(headOf(worktree));
+		const you = 'E2E Chef <4242+e2e-user@users.noreply.github.com>';
+		expect(git(worktree, 'log', '-2', '--format=%an <%ae>|%cn <%ce>').split('\n')).toEqual([
+			`${you}|${you}`,
+			`${you}|${you}`,
+		]);
+		expect(git(worktree, 'log', '-1', '--format=%at', 'HEAD~1')).toBe(typedAt);
+		await captureFlow(app, 'open-draft-terminal-commit');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { hostname, userInfo } from 'node:os';
 import {
 	GH_CREDENTIAL_HELPER_CONFIG,
 	noPromptCredentialEnv,
@@ -20,39 +21,157 @@ import {
 	ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG,
 	DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG,
 	DISABLED_GIT_HOOKS_CONFIG,
+	MAX_GIT_STDOUT_BYTES,
 	REQUIRE_TLS_VERIFICATION_CONFIG,
 	runGit,
+	runGitBoundedStdout,
+	runGitWithInput,
 } from './run';
 import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 import { conflictMarkerPaths, inProgressOperation, statusCollector } from './status';
 
 type CommitIdentity = Readonly<{ name: string; email: string }>;
 
-async function commitConfig(
-	worktree: string,
-	fallback: CommitIdentity | null = null,
-): Promise<string[]> {
-	return ['-c', 'commit.gpgsign=false', ...(await identityWhenGitHasNone(worktree, fallback))];
+const GITHUB_ACCOUNT_FRESH_MS = 10 * 60_000;
+const GITHUB_ACCOUNT_TIMEOUT_MS = 15_000;
+let knownAccount: Readonly<{ identity: CommitIdentity; readAt: number }> | null = null;
+
+async function commitConfig(fallback: CommitIdentity | null = null): Promise<string[]> {
+	const identity = (await githubCommitIdentity()) ?? fallback;
+	return [
+		'-c',
+		'commit.gpgsign=false',
+		...(identity ? ['-c', `user.name=${identity.name}`, '-c', `user.email=${identity.email}`] : []),
+	];
 }
 
-async function identityWhenGitHasNone(
-	worktree: string,
-	fallback: CommitIdentity | null,
-): Promise<string[]> {
-	const email = await runGit(['-C', worktree, 'config', 'user.email']).catch(() => '');
-	if (email.trim()) return [];
-	const account = (await githubAccount()) ?? fallback;
-	return account ? ['-c', `user.name=${account.name}`, '-c', `user.email=${account.email}`] : [];
+export async function githubCommitIdentity(): Promise<CommitIdentity | null> {
+	if (knownAccount && Date.now() - knownAccount.readAt < GITHUB_ACCOUNT_FRESH_MS) {
+		return knownAccount.identity;
+	}
+	const identity = await githubAccount();
+	if (identity) knownAccount = { identity, readAt: Date.now() };
+	return knownAccount?.identity ?? null;
 }
 
 async function githubAccount(): Promise<CommitIdentity | null> {
-	const result = await runGh(['api', 'user', '--jq', '[.id, .login, .name // ""] | @tsv']).catch(
-		() => null,
-	);
+	const result = await runGh(['api', 'user', '--jq', '[.id, .login, .name // ""] | @tsv'], {
+		timeoutMs: GITHUB_ACCOUNT_TIMEOUT_MS,
+	}).catch(() => null);
 	const [id = '', login = '', name = ''] =
 		result?.code === 0 ? result.stdout.trim().split('\t') : [];
 	if (!/^\d+$/u.test(id) || !/^[A-Za-z0-9-]{1,39}$/u.test(login)) return null;
-	return { name: name.trim() || login, email: `${id}+${login}@users.noreply.github.com` };
+	return {
+		name: name.replace(/[<>]/gu, '').trim() || login,
+		email: `${id}+${login}@users.noreply.github.com`,
+	};
+}
+
+const NOREPLY_ADDRESS = /@users\.noreply\.github\.com$/iu;
+const SIGNATURE_HEADER = /^gpgsig(?:-sha256)? /u;
+const PERSON_HEADER = /^(author|committer) [^<]*<([^>]*)>(.*)$/u;
+
+// ponytail: two git calls per rewritten commit; use `cat-file --batch` and `fast-import` if a push ever rewrites thousands
+async function replaceYourEmailBeforePush(worktree: string): Promise<void> {
+	const yours = await yourEmails(worktree);
+	const unpushed = (
+		await runGit([
+			'-C',
+			worktree,
+			'rev-list',
+			'--reverse',
+			'--topo-order',
+			'--no-commit-header',
+			'--format=%H%x00%ae%x00%ce',
+			'HEAD',
+			'--not',
+			'--remotes',
+		])
+	)
+		.split('\n')
+		.filter(Boolean)
+		.map((line) => line.split('\0'));
+	const first = unpushed.findIndex(([, author = '', committer = '']) =>
+		[author, committer].some((email) => yours.has(email.toLowerCase())),
+	);
+	if (first === -1) return;
+	const identity = await githubCommitIdentity();
+	if (!identity) {
+		throw GitError.git(
+			'Malini could not read your GitHub account, so it did not push commits that carry your email address. Push again once GitHub answers.',
+		);
+	}
+	const rewritten = new Map<string, string>();
+	for (const [sha = ''] of unpushed.slice(first)) {
+		const raw = await runGitBoundedStdout(
+			['-C', worktree, 'cat-file', 'commit', sha],
+			MAX_GIT_STDOUT_BYTES,
+			'a commit that carries your email address',
+		);
+		const commit = withNoreplyAddress(raw, identity, yours, rewritten);
+		if (commit === raw) continue;
+		const written = await runGitWithInput(
+			['-C', worktree, 'hash-object', '-t', 'commit', '-w', '--stdin'],
+			commit,
+		);
+		rewritten.set(sha, written.trim());
+	}
+	const [head = ''] = unpushed.at(-1) ?? [];
+	const replaced = rewritten.get(head);
+	if (!replaced) return;
+	await runGit([
+		'-C',
+		worktree,
+		'update-ref',
+		'-m',
+		'malini: noreply address',
+		'HEAD',
+		replaced,
+		head,
+	]);
+}
+
+async function yourEmails(worktree: string): Promise<Set<string>> {
+	const configured = await runGit([
+		'-C',
+		worktree,
+		'config',
+		'--get-regexp',
+		'^(user|author|committer)\\.email$',
+	]).catch(() => '');
+	return new Set(
+		[
+			...configured.split('\n').map((line) => line.slice(line.indexOf(' ') + 1)),
+			`${userInfo().username}@${hostname()}`,
+		]
+			.map((email) => email.trim().toLowerCase())
+			.filter((email) => email.includes('@') && !NOREPLY_ADDRESS.test(email)),
+	);
+}
+
+function withNoreplyAddress(
+	raw: string,
+	identity: CommitIdentity,
+	yours: ReadonlySet<string>,
+	rewritten: ReadonlyMap<string, string>,
+): string {
+	const split = raw.indexOf('\n\n');
+	const headers = (split === -1 ? raw : raw.slice(0, split)).split('\n');
+	const replaced = headers.map((line) => {
+		const parent = /^parent ([0-9a-f]+)$/u.exec(line)?.[1];
+		if (parent) return `parent ${rewritten.get(parent) ?? parent}`;
+		const [, role, email = '', rest = ''] = PERSON_HEADER.exec(line) ?? [];
+		return role && yours.has(email.toLowerCase())
+			? `${role} ${identity.name} <${identity.email}>${rest}`
+			: line;
+	});
+	if (replaced.every((line, index) => line === headers[index])) return raw;
+	let signature = false;
+	const unsigned = replaced.filter((line) => {
+		if (!line.startsWith(' ')) signature = SIGNATURE_HEADER.test(line);
+		return !signature;
+	});
+	return `${unsigned.join('\n')}${split === -1 ? '' : raw.slice(split)}`;
 }
 
 export const MAX_ADDED_FILES_PER_COMMIT = 2_000;
@@ -84,7 +203,7 @@ export async function commitWorktreeChanges(
 	await runGit([
 		'-C',
 		worktree,
-		...(await commitConfig(worktree)),
+		...(await commitConfig()),
 		'commit',
 		...(merging
 			? ['--no-edit', '--cleanup=strip']
@@ -183,8 +302,13 @@ export async function pushWorkstreamBranch(
 	await verifyOriginMatchesExpectedGithubRepository(worktreePath, canonicalUrl);
 
 	const env = await credentials.prepare(normalizeGithubToken(githubToken));
-	const push = (): Promise<string> =>
-		runGit(githubPushArgs(worktreePath, canonicalUrl, `${branch}:refs/heads/${branch}`), env);
+	const push = async (): Promise<string> => {
+		await replaceYourEmailBeforePush(worktreePath);
+		return runGit(
+			githubPushArgs(worktreePath, canonicalUrl, `${branch}:refs/heads/${branch}`),
+			env,
+		);
+	};
 	try {
 		await push();
 	} catch (error) {
@@ -241,7 +365,7 @@ export async function commitPaths(
 	await runGit([
 		'-C',
 		worktree,
-		...(await commitConfig(worktree, AGENT_IDENTITY)),
+		...(await commitConfig(AGENT_IDENTITY)),
 		'-c',
 		DISABLED_GIT_HOOKS_CONFIG,
 		'commit',
@@ -268,6 +392,7 @@ export async function pushHeadToGithubMain(
 	const env = await credentials.prepare(null);
 	for (let round = 1; ; round += 1) {
 		try {
+			await replaceYourEmailBeforePush(worktreePath);
 			await runGit(githubPushArgs(worktreePath, canonicalUrl, 'HEAD:refs/heads/main'), env);
 			break;
 		} catch (error) {
@@ -280,7 +405,7 @@ export async function pushHeadToGithubMain(
 			await runGit([
 				'-C',
 				worktreePath,
-				...(await commitConfig(worktreePath, AGENT_IDENTITY)),
+				...(await commitConfig(AGENT_IDENTITY)),
 				'-c',
 				DISABLED_GIT_HOOKS_CONFIG,
 				'rebase',
@@ -388,7 +513,7 @@ export async function restartWorkstreamOnBase(
 			await runGit([
 				'-C',
 				worktreePath,
-				...(await commitConfig(worktreePath)),
+				...(await commitConfig()),
 				'-c',
 				DISABLED_GIT_HOOKS_CONFIG,
 				'rebase',
@@ -482,7 +607,7 @@ async function mergeRemoteRef(
 		await runGit([
 			'-C',
 			worktreePath,
-			...(await commitConfig(worktreePath)),
+			...(await commitConfig()),
 			'merge',
 			'--no-edit',
 			'-m',

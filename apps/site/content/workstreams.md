@@ -114,7 +114,10 @@ Workstreams share disk space, so you can keep as many as you like.
 The agent bridge refuses to commit, push, rebase, reset, or run `gh pr create`.
 It refuses `git checkout`, `git switch` and `git worktree` too, and points the agent at a new workstream instead.
 Agents write code, and Malini writes the history: it commits, pushes, and opens the pull request when you ask it to.
-It commits as you, with the name and email in your git config, or your GitHub name and noreply address when git has none.
+It commits as you, with your GitHub name and noreply address, never the email in your git config, so a public repository never shows your private address.
+Each new workstream writes that name and address into its clone's own git config too, so a commit from your terminal, the agent or Xcode carries it as well.
+A commit made before that, or that still carries your email, gets the noreply address when Malini pushes it, with its date, message and files unchanged.
+A commit already on GitHub keeps its address.
 While Settings, Privacy, **Sign contributions** is on, as it is unless you turn it off, each commit ends with `Co-authored-by: malini-agent[bot]`; turned off, nothing names Malini.
 
 ## Ports

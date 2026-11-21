@@ -214,23 +214,24 @@ In the sandbox, a command:
 
 - writes only to the workstream, its git folders, temporary folders, package caches, and the folders you open for it;
 - cannot read or write your files in Documents, Desktop, Downloads, Pictures, Movies, Music, Mail, Messages, iCloud Drive, Photos, Safari, Calendars, Reminders, Contacts and other apps' containers;
-- never writes git hooks, git config, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
+- never writes git hooks, git config, `.claude/settings.json`, `.mcp.json`, Codex, Cursor and Cargo config, or the programs in `~/.local/bin`, `~/.cargo/bin`, `/opt/homebrew/bin` and `/usr/local/bin`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
 - reaches localhost, the sockets you open for it and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
 Electron, Playwright with its Chromium, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
-Electron and Chrome keep their own sandbox off there, since the two cannot nest.
+Electron and Chrome keep their own sandbox off there, since the two cannot nest, and `swift build` and `swift test` run with `--disable-sandbox` for the same reason.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 What a command leaves running, with `&`, `nohup` or `disown`, stops when that command ends, so a server that should outlive it starts in the background.
 
 Tools keep state of their own outside your files, and the sandbox opens general tool state by folder without a card: `~/Library/Logs/<tool>`, `~/.local/state/<tool>`, the caches, the temporary folders, a dot folder at the top of your home, and `~/Library/Application Support/<tool>` when the folder matches the program's name.
 Malini records each one in Settings, Agent access, and every later command keeps it.
 When a command needs anything else the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
+What Chrome and Electron look up and do without stays out of what the agent hears, so a command that worked never sends it to ask you.
 The card lists each folder or socket the sandbox blocked while that command ran, such as Docker's, and what opening it lets a command do; what other commands hit stays off it.
 **Allow once** opens it for that command, and the same card comes back the next time it asks.
 **Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.
-The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json` and `.mcp.json` closed.
+The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json`, `.mcp.json` and program folders such as `~/.cargo/bin` closed, so `brew install` and `cargo install` ask to run outside.
 Malini never offers your files in those folders, your credentials or a folder that holds them, its own data, the workstream or a folder every app shares.
 A Chrome that a command starts in the sandbox needs `--no-sandbox`, and opening folders does not change that, so the agent hears it and uses Malini's browser to look at pages.
 An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
@@ -348,6 +349,7 @@ Old turns fold. Subagents get a line each. Files show their diff
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
+  Malini tells Claude that an attachment only shows the problem, so Claude makes up its own demo and test data and copies nothing from it into your code or a commit.
 - Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
   Pinch or Ctrl-scroll to zoom and drag to pan, and click the picture or press Escape to close it.
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.

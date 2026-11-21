@@ -14,7 +14,7 @@ import {
 import { describeError, GitError } from '$main/errors';
 import { cloneInto } from '$main/fs/copy-on-write';
 import { isInsideDirectory } from '$main/fs/paths';
-import { fastForwardCheckout } from './remote';
+import { fastForwardCheckout, githubCommitIdentity } from './remote';
 import { runGit } from './run';
 
 const projectLocks = new Map<string, Promise<void>>();
@@ -137,6 +137,7 @@ export async function addWorktree(
 	validateBranch(branchName);
 	await withProjectLock(deriveProjectId(basePath), async () => {
 		await advanceBaseCheckout(basePath);
+		await keepCommitEmailPrivate(basePath);
 		try {
 			await runGit([
 				'-C',
@@ -161,6 +162,19 @@ export async function addWorktree(
 		}
 	});
 	await populateCheckout(basePath, worktreePath);
+}
+
+async function keepCommitEmailPrivate(basePath: string): Promise<void> {
+	const identity = await githubCommitIdentity();
+	if (!identity) return;
+	try {
+		await runGit(['-C', basePath, 'config', '--local', 'user.name', identity.name]);
+		await runGit(['-C', basePath, 'config', '--local', 'user.email', identity.email]);
+	} catch (error) {
+		console.warn(
+			`malini: could not set the GitHub noreply address in \`${basePath}\`: ${describeError(error)}`,
+		);
+	}
 }
 
 async function advanceBaseCheckout(basePath: string): Promise<void> {

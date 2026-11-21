@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import {
 	canSandbox,
 	grantProblem,
+	isHarmlessDenial,
 	sandboxDenial,
 	sandboxedCommand,
 	sandboxGrant,
@@ -129,6 +130,20 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		);
 	});
 
+	it('lets a command write to a folder the user allowed, but not the programs in it', async () => {
+		const cargo = join(FAKE_HOME, '.cargo');
+		mkdirSync(join(cargo, 'registry'), { recursive: true });
+		mkdirSync(join(cargo, 'bin'), { recursive: true });
+		const grants = [{ kind: 'path', path: cargo }] as const;
+
+		expect(await runInside(`touch '${cargo}/registry/index'`, FAKE_HOME, { grants })).toBe(0);
+		expect(await runInside(`touch '${cargo}/bin/planted'`, FAKE_HOME, { grants })).not.toBe(0);
+	});
+
+	it('lets a command lower its own priority', async () => {
+		expect(await inside('/usr/sbin/taskpolicy -b /usr/bin/true')).toBe(0);
+	});
+
 	it('lets a command write to a folder the user allowed, but not its git hooks', async () => {
 		const grants = [{ kind: 'path', path: GRANTED }] as const;
 		mkdirSync(join(GRANTED, 'repo/.git/hooks'), { recursive: true });
@@ -199,6 +214,23 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		await blocked;
 
 		expect(seen[0]).toMatchObject({ tag, operation: 'file-write-create', target: IN_HOME });
+	}, 10_000);
+
+	it('reports a write it refuses on purpose, such as a git hook', async () => {
+		const tag = `malini-sandbox-hook${process.pid}`;
+		const denials = new SandboxDenials();
+		const blocked = new Promise<SandboxDenial>((resolve) => {
+			const unwatch = denials.watch(tag, (denial) => {
+				unwatch();
+				resolve(denial);
+			});
+		});
+		const release = await denials.hold();
+		onTestFinished(release);
+
+		await inside('touch .git/hooks/pre-commit', { tag });
+
+		expect((await blocked).target).toMatch(/\.git\/hooks\/pre-commit$/u);
 	}, 10_000);
 
 	it('lets a command read the system log, which refuses to run in a sandbox', async () => {
@@ -295,6 +327,14 @@ describe('sandbox grants', () => {
 			denial('file-write-create', `${home}/malini/workstreams/b/x`),
 		],
 		['a macOS service', denial('mach-lookup', 'com.apple.pasteboard.1')],
+		[
+			"a temporary file of Claude Code's config",
+			denial('file-write-create', `${home}/.claude.json.tmp.4242.9f3a`),
+		],
+		["the lock of Claude Code's config", denial('file-write-create', `${home}/.claude.json.lock`)],
+		['a program folder on the PATH', denial('file-write-create', '/opt/homebrew/bin/planted')],
+		['your own program folder', denial('file-write-create', `${home}/.local/bin/planted`)],
+		["Codex's config", denial('file-write-create', `${home}/.codex/config.toml`)],
 	])('offers nothing for %s', (_place, blocked) => {
 		expect(sandboxGrant(blocked, places, home)).toBeNull();
 	});
@@ -336,6 +376,26 @@ describe('sandbox grants', () => {
 		],
 	])('opens nothing automatic for %s', (_place, blocked) => {
 		expect(toolStateGrant(blocked, places, home)).toBeNull();
+	});
+
+	it('keeps out of the report only what a browser engine looks up and a network call with no address', () => {
+		const from = (process: string, operation: string, target: string): SandboxDenial => ({
+			...denial(operation, target),
+			process,
+		});
+
+		expect(isHarmlessDenial(from('Electron', 'mach-lookup', 'com.apple.storekitagent'))).toBe(true);
+		expect(isHarmlessDenial(from('Google Chrome for Testing', 'file-issue-extension', '/x'))).toBe(
+			true,
+		);
+		expect(isHarmlessDenial(from('node', 'network-outbound', ''))).toBe(true);
+		expect(isHarmlessDenial(from('Electron', 'file-write-create', `${home}/x`))).toBe(false);
+		expect(
+			isHarmlessDenial(from('node', 'network-outbound', `${home}/.docker/run/docker.sock`)),
+		).toBe(false);
+		expect(
+			isHarmlessDenial(from('ffmpeg', 'mach-lookup', 'com.apple.coremedia.videoencoder')),
+		).toBe(false);
 	});
 
 	it('refuses a grant into user data', () => {

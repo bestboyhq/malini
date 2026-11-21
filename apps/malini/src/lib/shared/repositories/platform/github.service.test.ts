@@ -506,6 +506,7 @@ describe('githubAuthStatus', () => {
 			{ mode: 0o755 },
 		);
 		vi.stubEnv('HOME', home);
+		vi.stubEnv('MALINI_GH_PATH', undefined);
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
 		const status = expect(githubAuthStatus(defaultGhRunner)).rejects.toThrow(
