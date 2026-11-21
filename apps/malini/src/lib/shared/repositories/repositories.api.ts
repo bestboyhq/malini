@@ -278,9 +278,12 @@ export {
 	type WorkstreamContextMenuTarget,
 } from './presentation/WorkstreamContextMenu.svelte';
 export { default as WorkstreamPathContextMenu } from './presentation/WorkstreamPathContextMenu.svelte';
-export { default as WorkstreamProvisioningBanner } from './presentation/WorkstreamProvisioningBanner.svelte';
-export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
-export { default as CheckoutHealthBanner } from './presentation/CheckoutHealthBanner.svelte';
 export { default as WorkstreamSetupSteps } from './presentation/WorkstreamSetupSteps.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
-export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';
+export {
+	provisioningTopBarStatus,
+	setupStepTopBarStatus,
+} from './presentation/provisioning-top-bar-status';
+export { workstreamSetupStepsQuery } from './application/queries/workstream-setup-steps.query.svelte';
+export { repairCheckoutCommand } from './application/commands/repair-checkout.command';
+export { seedWorkstreamDependenciesCommand } from './application/commands/seed-workstream-dependencies.command';

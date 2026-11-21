@@ -17,7 +17,7 @@ class PullRequestTopBarQuery {
 		(agentStatus: SessionStatus | null) =>
 			pullRequestTopBar(
 				pullRequestShipAggregate.shipFor(pullRequestScopeStore.workstreamId),
-				surfaceBesideCheckoutBanner(pullRequestScopeStore.workstreamId),
+				surfaceWithoutDiagnosedCheckout(pullRequestScopeStore.workstreamId),
 				pullRequestAvailabilityOf(pullRequestScopeStore),
 				agentStatus,
 				connectionProblemQuery.data === null,
@@ -27,7 +27,7 @@ class PullRequestTopBarQuery {
 
 const pullRequestTopBarQuery = new PullRequestTopBarQuery();
 
-function surfaceBesideCheckoutBanner(workstreamId: string): RepositorySurface | null {
+function surfaceWithoutDiagnosedCheckout(workstreamId: string): RepositorySurface | null {
 	const surface = repositorySurfaceAggregate.presentedSurfaceFor(workstreamId);
 	if (surface === null || checkoutHealthQuery.data(workstreamId).state === 'healthy')
 		return surface;

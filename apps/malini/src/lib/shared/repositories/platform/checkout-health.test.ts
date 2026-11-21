@@ -1,4 +1,4 @@
-import { readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -97,8 +97,8 @@ afterEach(async () => {
 });
 
 describe('checkout health', () => {
-	it('a broken checkout costs one git read, not fifty', async () => {
-		await rm(join(base, '.git', 'worktrees', WORKSTREAM_ID), { recursive: true, force: true });
+	it('a checkout Malini cannot repair costs one git read, not fifty', async () => {
+		await rename(base, `${base}-moved`);
 		const reads = countReads();
 
 		const failures: unknown[] = [];
@@ -109,72 +109,44 @@ describe('checkout health', () => {
 		expect(reads).toHaveLength(1);
 		expect(failures).toHaveLength(50);
 		const [discovery, ...after] = failures;
-		expect(discovery).toMatchObject({
-			name: 'GitError',
-			kind: 'git',
-			facts: { said: 'not-a-work-tree' },
-		});
-		expect(after).toHaveLength(49);
+		expect(discovery).not.toBeInstanceOf(WorkstreamError);
 		for (const failure of after) {
 			expect(failure).toBeInstanceOf(WorkstreamError);
 			expect(failure).toMatchObject({ kind: 'checkout-broken', verdict: 'expected' });
 		}
-		expect(healthEvents).toEqual([
-			{ workstreamId: WORKSTREAM_ID, state: 'broken', finding: 'admin-missing', repairable: true },
-		]);
+		const broken = { state: 'broken', finding: 'base-repository-missing', repairable: false };
+		expect(healthEvents).toEqual([{ workstreamId: WORKSTREAM_ID, ...broken }]);
 		expect(
 			await context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
-		).toEqual({ state: 'broken', finding: 'admin-missing', repairable: true });
+		).toEqual(broken);
 	});
 
-	it('reads that fail together send one git error and wait on one diagnosis', async () => {
-		await rm(join(base, '.git', 'worktrees', WORKSTREAM_ID), { recursive: true, force: true });
-
-		const settled = await Promise.allSettled(Array.from({ length: 5 }, () => readFiles()));
-		const failures = settled.map((result) => (result.status === 'rejected' ? result.reason : null));
-
-		expect(failures.filter((failure) => failure instanceof WorkstreamError)).toHaveLength(4);
-		expect(failures.filter((failure) => !(failure instanceof WorkstreamError))).toEqual([
-			expect.objectContaining({
-				name: 'GitError',
-				facts: expect.objectContaining({ said: 'not-a-work-tree' }),
-			}),
-		]);
-		expect(healthEvents).toHaveLength(1);
-	});
-
-	it('Repair brings the checkout back to healthy without a restart', async () => {
+	it('a checkout Malini can repair repairs itself, and the reads that found it go through', async () => {
 		await writeFile(join(checkout, 'work.txt'), 'uncommitted\n');
 		await rm(join(base, '.git', 'worktrees', WORKSTREAM_ID), { recursive: true, force: true });
-		await expect(readFiles()).rejects.toMatchObject({ name: 'GitError' });
 
-		const repaired = await context.commands.call('repositories.repair-checkout', {
-			workstreamId: WORKSTREAM_ID,
-		});
+		const reads = await Promise.all(Array.from({ length: 5 }, () => readFiles()));
 
-		expect(repaired).toEqual({ state: 'healthy', finding: null, repairable: false });
+		expect(reads).toEqual(Array(5).fill([{ path: 'seed.txt' }, { path: 'work.txt' }]));
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
-			['broken', 'admin-missing'],
 			['repairing', 'admin-missing'],
 			['healthy', null],
 		]);
-		expect(await readFiles()).toEqual([{ path: 'seed.txt' }, { path: 'work.txt' }]);
 	});
 
 	it('a probe that finds the checkout fixed sets it healthy', async () => {
-		const link = await readFile(join(checkout, '.git'), 'utf8');
-		await rm(join(checkout, '.git'));
-		await expect(readFiles()).rejects.toMatchObject({ name: 'GitError', kind: 'io' });
+		await rename(base, `${base}-moved`);
+		await expect(readFiles()).rejects.toThrow();
 		await expect(readFiles()).rejects.toMatchObject({ kind: 'checkout-broken' });
 
-		await writeFile(join(checkout, '.git'), link);
+		await rename(`${base}-moved`, base);
 		platform.checkoutHealth.probeBroken();
 
 		expect(
 			await context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
 		).toEqual({ state: 'healthy', finding: null, repairable: false });
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
-			['broken', 'git-link-missing'],
+			['broken', 'base-repository-missing'],
 			['healthy', null],
 		]);
 		expect(await readFiles()).toEqual([{ path: 'seed.txt' }]);

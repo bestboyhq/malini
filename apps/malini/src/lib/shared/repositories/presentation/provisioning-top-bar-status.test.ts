@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkstreamProvisioningRecord } from '$shared/repositories/domain/provisioning';
-import { provisioningTopBarStatus } from './provisioning-top-bar-status';
+import { provisioningTopBarStatus, setupStepTopBarStatus } from './provisioning-top-bar-status';
 
 function record(failure: string | null): WorkstreamProvisioningRecord {
 	return {
@@ -107,5 +107,49 @@ describe('the provisioning top bar status', () => {
 		expect(provisioningTopBarStatus(record(failure), false, noRetry)?.headline?.tooltip).toBe(
 			`${failure} Then retry this workstream’s setup`,
 		);
+	});
+
+	it('sends a failed setup step to the top bar with the action of that step', () => {
+		const handlers = { onRepair: vi.fn(), onRetryInstall: vi.fn(), onDismissInstall: vi.fn() };
+		const done = {
+			key: 'copy',
+			state: 'done',
+			label: 'Made a fresh copy',
+			detail: null,
+			action: null,
+		} as const;
+		const broken = {
+			key: 'checkout',
+			state: 'failed',
+			label: 'This folder lost its link to git',
+			detail: 'Repair links it again. Your files stay',
+			action: 'repair',
+		} as const;
+		const install = {
+			key: 'install',
+			state: 'failed',
+			label: 'Install failed',
+			detail: 'ENOENT',
+			action: 'retry-install',
+		} as const;
+
+		expect(setupStepTopBarStatus([done], 'malini/ws-a', handlers)).toBeNull();
+		const repair = setupStepTopBarStatus([done, broken, install], 'malini/ws-a', handlers);
+		expect(repair?.headline).toEqual({
+			tone: 'needs-you',
+			busy: false,
+			label: 'Needs you',
+			detail: 'Checkout broken',
+			tooltip: 'This folder lost its link to git. Repair links it again. Your files stay',
+		});
+		void repair?.action?.onInvoke();
+		expect(handlers.onRepair).toHaveBeenCalledOnce();
+
+		const retry = setupStepTopBarStatus([done, install], 'malini/ws-a', handlers);
+		expect(retry?.action?.label).toBe('Retry');
+		void retry?.action?.onInvoke();
+		void retry?.secondaryAction?.onInvoke();
+		expect(handlers.onRetryInstall).toHaveBeenCalledOnce();
+		expect(handlers.onDismissInstall).toHaveBeenCalledOnce();
 	});
 });

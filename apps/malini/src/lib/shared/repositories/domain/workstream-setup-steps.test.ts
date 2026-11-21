@@ -18,6 +18,8 @@ const settled: WorkstreamSetupInput = {
 	branch: plan.branch,
 	provisioning: null,
 	install: null,
+	checkout: { state: 'healthy', finding: null, repairable: false },
+	checkoutIssue: null,
 };
 
 function provisioning(
@@ -54,7 +56,6 @@ describe('workstream setup steps', () => {
 			workstreamId: plan.workstreamId,
 			command: 'npm ci',
 			detail: null,
-			noticeAt: 0,
 		};
 		expect(labels(settled)).toEqual(['done | Made a fresh copy | Main won’t notice']);
 		expect(labels({ ...settled, install: { ...install, status: 'running' } })).toEqual([
@@ -73,6 +74,26 @@ describe('workstream setup steps', () => {
 		expect(
 			labels({ ...settled, install: { ...install, status: 'failed', detail: 'ENOENT' } }),
 		).toContain('failed | Install failed | ENOENT');
+	});
+
+	it('puts a broken checkout in the steps, with Repair only when Malini can repair it', () => {
+		const broken = { state: 'broken', finding: 'git-link-missing', repairable: true } as const;
+		expect(workstreamSetupSteps({ ...settled, checkout: broken })[1]).toEqual({
+			key: 'checkout',
+			state: 'failed',
+			label: 'This folder lost its link to git',
+			detail: 'Repair links it again. Your files stay',
+			action: 'repair',
+		});
+		expect(
+			workstreamSetupSteps({ ...settled, checkout: { ...broken, repairable: false } })[1],
+		).toMatchObject({ detail: 'Run git worktree repair in the repository', action: null });
+		expect(labels({ ...settled, checkout: { ...broken, state: 'repairing' } })).toContain(
+			'busy | Repairing the checkout',
+		);
+		expect(labels({ ...settled, checkoutIssue: 'Its checkout is missing' })).toContain(
+			'failed | No usable checkout | Its checkout is missing',
+		);
 	});
 
 	it('says a branch it did not make was picked up', () => {

@@ -42,7 +42,6 @@
 	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
 	import { queueSendingQuery } from '$lib/chat/application/queries/queue-sending.query.svelte';
 	import { queuedPromptsQuery } from '$lib/chat/application/queries/queued-prompts.query.svelte';
-	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
 	import { requestsElsewhereQuery } from '$lib/chat/application/queries/requests-elsewhere.query.svelte';
 	import { requestedSessionQuery } from '$lib/chat/application/queries/requested-session.query.svelte';
 	import { restoringSessionQuery } from '$lib/chat/application/queries/restoring-session.query.svelte';
@@ -62,12 +61,7 @@
 	import { focusIsUnclaimed, overlayIsOpen } from '$shared/shell/unclaimed-focus';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
-	import {
-		CheckoutHealthBanner,
-		DependencyInstallBanner,
-		WorkstreamProvisioningBanner,
-		type AgentSessionChangedFile,
-	} from '$shared/repositories/repositories.api';
+	import type { AgentSessionChangedFile } from '$shared/repositories/repositories.api';
 	import AgentProcessDiedBanner from './AgentProcessDiedBanner.svelte';
 	import AgentQuestionPanel from './AgentQuestionPanel.svelte';
 	import BackgroundTaskList from './BackgroundTaskList.svelte';
@@ -229,10 +223,6 @@
 	);
 	const stage = $derived(
 		chatStage({ freshChat, presentedSessionId, bootError, presentationPending }),
-	);
-	const setupInView = $derived(
-		(stage === 'fresh' || stage === 'transcript') &&
-			recentChatsQuery.data(workstreamId).length === 0,
 	);
 	const asking = $derived(
 		stage === 'transcript' &&
@@ -417,11 +407,6 @@
 	style:width={splitInset.extent > 0 ? `${splitInset.extent}px` : undefined}
 	style:padding-right="{splitInset.secondarySize}px"
 >
-	<WorkstreamProvisioningBanner {workstreamId} />
-	<CheckoutHealthBanner {workstreamId} />
-	{#if !setupInView}
-		<DependencyInstallBanner {workstreamId} />
-	{/if}
 	<div class="min-h-0 flex-1">
 		<div
 			class="relative h-full min-h-0"

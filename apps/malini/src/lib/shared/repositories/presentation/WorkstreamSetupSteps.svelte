@@ -9,6 +9,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
 	import { arrivalMotion, swapFly } from '$shared/motion/arrival-motion';
+	import { repairCheckoutCommand } from '$shared/repositories/application/commands/repair-checkout.command';
 	import { removeFailedWorkstreamCommand } from '$shared/repositories/application/commands/remove-failed-workstream.command';
 	import { retryProvisioningCommand } from '$shared/repositories/application/commands/retry-provisioning.command';
 	import { seedWorkstreamDependenciesCommand } from '$shared/repositories/application/commands/seed-workstream-dependencies.command';
@@ -147,11 +148,13 @@
 					</span>
 				{/key}
 			</span>
-			{#if step.state === 'failed' && step.key === 'install'}
+			{#if step.action === 'retry-install'}
 				{@render stepAction('Retry', 'Retry', () =>
 					seedWorkstreamDependenciesCommand(workstreamId),
 				)}
-			{:else if step.state === 'failed'}
+			{:else if step.action === 'repair'}
+				{@render stepAction('Repair', 'Repair', () => repairCheckoutCommand(workstreamId))}
+			{:else if step.action === 'retry-setup'}
 				{@render stepAction(
 					retrying ? 'Retrying…' : 'Retry',
 					'Retry setup',

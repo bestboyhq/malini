@@ -28,7 +28,12 @@
 		loadWorkstreamGitStatusCommand,
 		provisioningRecordQuery,
 		provisioningRetryingQuery,
+		dismissDependencyInstallCommand,
 		provisioningTopBarStatus,
+		repairCheckoutCommand,
+		seedWorkstreamDependenciesCommand,
+		setupStepTopBarStatus,
+		workstreamSetupStepsQuery,
 		refreshRepositoriesCommand,
 		refreshWorkstreamsCommand,
 		repositoryContextQuery,
@@ -99,6 +104,18 @@
 			retryProvisioningCommand(workstreamId),
 		),
 	);
+	const setupStatus = $derived(
+		provisioningStatus ??
+			setupStepTopBarStatus(
+				workstreamSetupStepsQuery.data(workstreamId),
+				workstream?.branch ?? null,
+				{
+					onRepair: () => repairCheckoutCommand(workstreamId),
+					onRetryInstall: () => seedWorkstreamDependenciesCommand(workstreamId),
+					onDismissInstall: () => dismissDependencyInstallCommand(workstreamId),
+				},
+			),
+	);
 	const inspectedWorkstream = $derived<ExtensionWorkstream | null>(
 		workstream
 			? {
@@ -139,7 +156,7 @@
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
 			agentStatus={chat.agentStatus}
-			overrideStatus={provisioningStatus}
+			overrideStatus={setupStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
 		/>

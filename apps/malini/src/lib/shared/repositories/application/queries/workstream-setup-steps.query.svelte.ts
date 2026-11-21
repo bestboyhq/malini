@@ -1,7 +1,9 @@
+import { unusableCheckoutIssue } from '$shared/repositories/domain/workstream';
 import {
 	workstreamSetupSteps,
 	type WorkstreamSetupStep,
 } from '$shared/repositories/domain/workstream-setup-steps';
+import { checkoutHealthAggregate } from '$shared/repositories/infrastructure/aggregates/checkout-health.aggregate.svelte';
 import {
 	workstreamDependencyInstall,
 	workstreamProvisioning,
@@ -20,6 +22,8 @@ class WorkstreamSetupStepsQuery {
 				branch: workstream.branch,
 				provisioning: workstreamProvisioning.get(workstreamId),
 				install: workstreamDependencyInstall.get(workstreamId),
+				checkout: checkoutHealthAggregate.healthOf(workstreamId),
+				checkoutIssue: unusableCheckoutIssue(workstream),
 			});
 		},
 	);

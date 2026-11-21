@@ -486,7 +486,7 @@ test('a dependency install that fails says why and retries, and an unknown proje
 		const steps = page.getByRole('list', { name: 'Workstream setup' }).getByRole('listitem');
 		const failed = steps.filter({ hasText: 'Install failed' });
 		await expect(failed).toContainText('e2e install failure', { timeout: 30_000 });
-		await expect(page.getByTestId('workstream-dependency-install')).toHaveCount(0);
+		await expect(page.getByTestId('chat-surface').locator('> *')).toHaveCount(1);
 		await captureFlow(app, 'workstream-dependency-install-failed');
 
 		const suggestions = page.getByRole('group', { name: 'Quick suggestions' });

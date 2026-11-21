@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
@@ -9,10 +9,9 @@ import {
 	sendPrompt,
 } from './harness';
 
-const FOLDER_MISSING = "This chat's workstream folder is missing, so its diffs can't be opened.";
 const INSPECTOR_DID_NOT_START = /\[malini extensions\] runtime activation failed/u;
 
-test('a chat whose workstream folder is gone keeps its change counts and says why a diff cannot open', async () => {
+test('a chat whose workstream folder is gone keeps its change counts, and the folder comes back to open its diff', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini({
 		allowedDiagnostics: [/folder is missing|folder \S+ is missing/u, INSPECTOR_DID_NOT_START],
@@ -42,12 +41,12 @@ test('a chat whose workstream folder is gone keeps its change counts and says wh
 		await changedFiles
 			.getByRole('button', { name: 'Open notes.txt agent chat diff in Files' })
 			.click();
-		await expect(page.getByText(FOLDER_MISSING)).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText(FOLDER_MISSING)).toBeInViewport({ ratio: 1 });
+		await expect(page.getByRole('table', { name: 'Unified diff for notes.txt' })).toBeVisible({
+			timeout: 20_000,
+		});
+		expect(existsSync(worktree)).toBe(true);
 		await expect(page.getByText(/io error|Could not resolve/u)).toHaveCount(0);
-		await expect(
-			page.getByRole('alert', { name: 'The folder of this workstream is gone' }),
-		).toBeVisible();
+		await expect(page.getByText('No usable checkout')).toHaveCount(0);
 		await captureFlow(app, 'missing-checkout-diff');
 		expect(app.pageErrors).toEqual([]);
 		expect(app.consoleErrors.filter((line) => !INSPECTOR_DID_NOT_START.test(line))).toEqual([]);

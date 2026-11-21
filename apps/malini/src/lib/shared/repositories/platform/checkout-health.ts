@@ -93,9 +93,11 @@ export class CheckoutHealthGuard {
 			return value;
 		} catch (error) {
 			if (!isCheckoutFailure(error) || !this.#deps.live(workstreamId)) throw error;
-			if (await this.#discover(workstreamId)) throw error;
-			const found = this.#watches.get(workstreamId)?.health ?? HEALTHY;
-			throw found.state === 'healthy' ? error : checkoutBroken(found);
+			const first = await this.#discover(workstreamId);
+			const found = this.#watches.get(workstreamId)?.health;
+			if (found === undefined) throw error;
+			if (found.state === 'healthy') return read();
+			throw first ? error : checkoutBroken(found);
 		}
 	}
 
@@ -104,19 +106,25 @@ export class CheckoutHealthGuard {
 		await watch.settling;
 		const finding = watch.health.finding ?? (await this.#diagnose(workstreamId));
 		if (finding === null || !REPAIRABLE_FINDINGS.has(finding)) return this.#probe(workstreamId);
-		this.#clearTimer(watch);
-		const repairing = (async () => {
-			this.#set(workstreamId, watch, { state: 'repairing', finding, repairable: true });
-			try {
-				await this.#deps.repair(workstreamId);
-			} finally {
-				watch.settling = null;
-				await this.#probe(workstreamId);
-			}
-			return watch.health;
-		})();
+		const repairing = this.#mend(workstreamId, watch, finding);
 		watch.settling = repairing.catch(() => watch.health);
 		return repairing;
+	}
+
+	async #mend(
+		workstreamId: string,
+		watch: Watch,
+		finding: CheckoutFinding,
+	): Promise<CheckoutHealth> {
+		this.#clearTimer(watch);
+		this.#set(workstreamId, watch, { state: 'repairing', finding, repairable: true });
+		try {
+			await this.#deps.repair(workstreamId);
+		} finally {
+			watch.settling = null;
+			await this.#probe(workstreamId);
+		}
+		return watch.health;
 	}
 
 	probeBroken(): void {
@@ -153,8 +161,11 @@ export class CheckoutHealthGuard {
 		}
 		const discovering = (async () => {
 			const finding = await this.#diagnose(workstreamId);
-			watch.settling = null;
 			if (this.#watches.get(workstreamId) !== watch) return HEALTHY;
+			if (finding !== null && REPAIRABLE_FINDINGS.has(finding)) {
+				return this.#mend(workstreamId, watch, finding).catch(() => watch.health);
+			}
+			watch.settling = null;
 			if (finding === null) {
 				this.forget(workstreamId);
 				return HEALTHY;

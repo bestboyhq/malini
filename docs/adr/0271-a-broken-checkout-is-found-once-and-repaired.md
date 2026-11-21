@@ -26,6 +26,7 @@ The user asked for "no field error is unreadable, silent or repeated".
 - Every change of state emits `repositories:workstream-checkout-health` with `state`, `finding` and `repairable`.
   `repositories.checkout-health` reads the state and `repositories.repair-checkout` runs the repair.
 - The chat shows a banner that names the finding, with **Repair** when the finding is repairable.
+  0273 replaces the banner with a setup step and the top bar status.
 - A `broken` state sends one error line, `checkout broken: <finding>`, with `finding` as its only fact (0270, 0272).
 
 ## Consequences
@@ -38,4 +39,4 @@ The user asked for "no field error is unreadable, silent or repeated".
 - `checkout-doctor.test.ts` fails when a finding is misnamed under real git, or when a repair loses the working files.
 - A write into a checkout's git folder, such as the exclude rule, never recreates a git folder that is gone, or the doctor names the wrong finding.
   `excludes.test.ts` fails when it does.
-- `tests/e2e/checkout-health.spec.ts` fails when the banner or **Repair** stops working.
+- `tests/e2e/checkout-health.spec.ts` fails when the banner or **Repair** stops working (the setup step, since 0273).

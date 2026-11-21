@@ -380,10 +380,13 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			{ name: 'ProcessGone', code: reason, kind: 'process-gone' },
 		),
 	);
+	const brokenCheckouts = new Set<string>();
 	const stopCheckoutHealth = context.events.subscribe(
 		REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
-		({ state, finding }) => {
-			if (state !== 'broken' || finding === null) return;
+		({ workstreamId, state, finding }) => {
+			if (state === 'healthy') brokenCheckouts.delete(workstreamId);
+			if (finding === null || brokenCheckouts.has(workstreamId)) return;
+			brokenCheckouts.add(workstreamId);
 			report(
 				'checkout broken',
 				`checkout broken: ${finding}`,
