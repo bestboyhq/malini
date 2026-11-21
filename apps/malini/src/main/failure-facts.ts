@@ -157,7 +157,7 @@ const GIT_SAID_PATTERNS: readonly (readonly [GitSaid, RegExp])[] = [
 	['shallow-or-partial', /promisor remote|partial clone|shallow (?:update|file)|unshallow/iu],
 	[
 		'not-a-work-tree',
-		/not a git repository|must be run in a work tree|is not a working tree|not a working tree|gitdir file points to non-existent location|gitfile does not point to a valid repository|\.git' does not exist|invalid path '[^']+': no such file or directory/iu,
+		/not a git repository|must be run in a work tree|is not a working tree|not a working tree|gitdir file points to non-existent location|gitfile does not point to a valid repository|invalid gitfile format|\.git' does not exist|invalid path '[^']+': no such file or directory/iu,
 	],
 	[
 		'unknown-revision',

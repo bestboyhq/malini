@@ -4,7 +4,7 @@ import type {
 	CheckoutRestore,
 	WorkstreamCheckoutHealthPayload,
 } from '$contract/repositories';
-import { isGitError, isNotFoundError } from '$main/errors';
+import { errorCode, isGitError, MaliniError } from '$main/errors';
 import { WorkstreamError } from './checkout-resolver';
 
 export const FIRST_PROBE_MS = 5_000;
@@ -57,8 +57,12 @@ const CHECKOUT_SAID: ReadonlySet<string> = new Set([
 	'license-not-accepted',
 ]);
 
+function pathMissing(error: unknown): boolean {
+	return (error instanceof MaliniError ? error.code : errorCode(error)) === 'ENOENT';
+}
+
 export function isCheckoutFailure(error: unknown): boolean {
-	if (isNotFoundError(error) || isGitError(error, 'not-a-repo')) return true;
+	if (pathMissing(error) || isGitError(error, 'not-a-repo')) return true;
 	if (isGitError(error, 'git-unavailable') || isGitError(error, 'worktree-busy')) return true;
 	return isGitError(error, 'git') && CHECKOUT_SAID.has(String(error.facts['said']));
 }

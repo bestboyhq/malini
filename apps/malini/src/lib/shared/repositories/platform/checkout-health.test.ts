@@ -1,4 +1,4 @@
-import { realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -152,6 +152,27 @@ describe('checkout health', () => {
 		expect(reads).toEqual(Array(5).fill([{ path: 'seed.txt' }, { path: 'work.txt' }]));
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
 			['repairing', 'admin-missing'],
+			['healthy', null],
+		]);
+	});
+
+	it('a read that wraps the gone folder in its own error makes the folder again, and goes through', async () => {
+		await rm(checkout, { recursive: true, force: true });
+		let attempts = 0;
+
+		const value = await platform.checkoutHealth.read(WORKSTREAM_ID, async () => {
+			attempts += 1;
+			if (attempts === 1) {
+				await stat(checkout).catch((cause: unknown) => {
+					throw new WorkstreamError('open-failed', 'Could not stat the workstream', cause);
+				});
+			}
+			return 'read';
+		});
+
+		expect(value).toBe('read');
+		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
+			['repairing', 'folder-missing'],
 			['healthy', null],
 		]);
 	});

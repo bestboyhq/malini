@@ -514,6 +514,7 @@ describe('what git said', () => {
 		expect(gitSaid('fatal: gitfile does not point to a valid repository: /r/acme/ws/.git\n')).toBe(
 			'not-a-work-tree',
 		);
+		expect(gitSaid('fatal: invalid gitfile format: /r/acme/ws/.git\n')).toBe('not-a-work-tree');
 		expect(gitSaid('fatal: your current branch appears to be broken\n')).toBe('head-invalid');
 		expect(gitSaid('fatal: index-pack failed\n')).toBe('unrecognized');
 	});

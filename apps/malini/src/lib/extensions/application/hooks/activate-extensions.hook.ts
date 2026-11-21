@@ -4,6 +4,7 @@ import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelt
 import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
+import { loadCheckoutHealthCommand } from '$shared/repositories/repositories.api';
 
 import { failedOnBrokenCheckout } from '../../domain/extension-runtime-failure';
 import { extensionWorkstreamFingerprint } from '../../domain/extension-workstream-fingerprint';
@@ -14,6 +15,7 @@ import {
 } from '../../infrastructure/runtime/extension-readiness-deadline';
 import { extensionRuntimeStore } from '../../infrastructure/stores/extension-runtime.store.svelte';
 import { dismissExtensionReadinessToastCommand } from '../commands/dismiss-extension-readiness-toast.command';
+import { retryExtensionRuntimeCommand } from '../commands/retry-extension-runtime.command';
 
 type ExtensionActivationRequest = Readonly<{
 	workstream: ExtensionWorkstream;
@@ -71,6 +73,7 @@ function requestActivation(request: ExtensionActivationRequest): () => void {
 				if (generation !== extensionRuntimeStore.activationGeneration) return;
 				extensionRuntimeStore.requestedWorkstreamFingerprint = null;
 				failReadiness(workstream.id, error);
+				if (failedOnBrokenCheckout(error)) void retryOnceCheckoutWorks(generation, request);
 			}
 		})();
 	});
@@ -85,6 +88,17 @@ function requestActivation(request: ExtensionActivationRequest): () => void {
 			extensionRuntimeStore.requestedWorkstreamFingerprint = null;
 		}
 	};
+}
+
+async function retryOnceCheckoutWorks(
+	generation: number,
+	request: ExtensionActivationRequest,
+): Promise<void> {
+	const { id } = request.workstream;
+	const health = await loadCheckoutHealthCommand(id);
+	if (health.state === 'healthy' && isCurrent(generation, id, request)) {
+		retryExtensionRuntimeCommand(id);
+	}
 }
 
 function commitActiveWorkstream(): void {
