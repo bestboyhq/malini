@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { readFile, realpath, rename, rm, utimes, writeFile } from 'node:fs/promises';
+import { open, readFile, realpath, rename, rm, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CheckoutFinding } from '$contract/repositories';
@@ -80,6 +80,20 @@ describe('diagnoseCheckout', () => {
 	it('leaves a young lock alone, since git may still hold it', async () => {
 		await writeFile(join(admin, 'index.lock'), '');
 		expect(await diagnoseCheckout(patient())).toBeNull();
+	});
+
+	it('leaves an old lock alone while a process holds it open', async () => {
+		const lock = join(admin, 'index.lock');
+		await writeFile(lock, '');
+		const old = new Date(Date.now() - 2 * STALE_LOCK_MS);
+		await utimes(lock, old, old);
+		const held = await open(lock, 'r');
+		try {
+			expect(await diagnoseCheckout(patient())).toBeNull();
+		} finally {
+			await held.close();
+		}
+		expect(await diagnoseCheckout(patient())).toBe('stale-lock');
 	});
 
 	it('quotes the cause git gives for a lost HEAD commit, not the fetch it tried first', async () => {

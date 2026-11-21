@@ -6,7 +6,7 @@ RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		bubblewrap ca-certificates curl dbus-daemon dbus-x11 fonts-dejavu-core fonts-liberation \
 		fonts-noto-color-emoji g++ git gnome-keyring libasound2t64 libgbm1 libgtk-3-0t64 \
-		libnotify4 libnss3 libsecret-1-0 libxss1 libxtst6 make procps python3 xauth xdg-utils \
+		libnotify4 libnss3 libsecret-1-0 libxss1 libxtst6 lsof make procps python3 xauth xdg-utils \
 		xvfb xz-utils unzip zip \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& corepack enable pnpm \

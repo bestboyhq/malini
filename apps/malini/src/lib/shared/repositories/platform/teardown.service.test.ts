@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -915,7 +915,7 @@ describe('what something writes into an archived checkout once it is gone', () =
 		const entries = await readdir(root, { recursive: true, withFileTypes: true });
 		return entries
 			.filter((entry) => !entry.isDirectory())
-			.map((entry) => relative(root, join(entry.parentPath, entry.name)))
+			.map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join('/'))
 			.sort();
 	}
 

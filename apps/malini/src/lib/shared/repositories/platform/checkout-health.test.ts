@@ -102,6 +102,7 @@ beforeEach(async () => {
 		startedBy: null,
 	});
 	platform = registerRepositories(context, { startupReclaim: false });
+	platform.watchers.unwatch(WORKSTREAM_ID);
 	await archivedLeftoversCleared();
 });
 

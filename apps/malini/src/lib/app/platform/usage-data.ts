@@ -622,6 +622,7 @@ export function errorLine(headline: string, details: ErrorDetails): string {
 
 function processEnding(reason: string, status: number): string {
 	if (reason === 'launch-failed') return `code ${status}`;
+	if (process.platform === 'win32') return `exit ${status}`;
 	const signal = status & 0x7f;
 	if (signal === 0) return `exit ${status >> 8}`;
 	const name = Object.entries(constants.signals).find(([, number]) => number === signal)?.[0];

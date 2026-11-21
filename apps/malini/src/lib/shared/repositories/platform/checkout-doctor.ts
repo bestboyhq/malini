@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { constants, existsSync } from 'node:fs';
 import {
 	lstat,
 	mkdir,
@@ -35,6 +35,7 @@ import { runBounded, type ProcessRunner } from '$main/process/runner';
 export const STALE_LOCK_MS = 2 * 60_000;
 const FULL_DISK_BYTES = 64 * 1024 * 1024;
 const LSOF_BUDGET_MS = 5_000;
+const UV_FS_O_EXLOCK = 0x1000_0000;
 const REPAIRS_DIR_NAME = 'malini-repairs';
 const INDEX_SIGNATURE = 'DIRC';
 const GITDIR_LINE = /^gitdir:\s*(.+)$/mu;
@@ -225,7 +226,17 @@ async function staleLock(c: CheckoutCase, admin: string): Promise<boolean> {
 	const lock = join(admin, 'index.lock');
 	const stats = await lstat(lock).catch(() => null);
 	if (stats === null || Date.now() - stats.mtimeMs < STALE_LOCK_MS) return false;
+	if (process.platform === 'win32') return !(await openElsewhere(lock));
 	return !(await gitHoldsLock(c.runner, lock, [c.checkout, admin]));
+}
+
+async function openElsewhere(path: string): Promise<boolean> {
+	try {
+		await (await open(path, constants.O_RDONLY | UV_FS_O_EXLOCK)).close();
+		return false;
+	} catch {
+		return true;
+	}
 }
 
 async function gitHoldsLock(
@@ -401,6 +412,7 @@ async function relinkCheckout(
 }
 
 async function linkTo(checkout: string, repository: string, admin: string): Promise<void> {
+	await rm(join(checkout, '.git'), { force: true });
 	await writeFile(join(checkout, '.git'), `gitdir: ${admin}\n`);
 	await repairWorktreeLinks(repository, [checkout]);
 }
