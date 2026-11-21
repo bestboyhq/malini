@@ -49,8 +49,10 @@ test('right-clicking the sidebar opens a folder or clones a repository', async (
 		await pickFolderNext(app, beta);
 		await menu.getByRole('menuitem', { name: 'Open folder…' }).click();
 
-		await expect(page).toHaveURL(/#\/repositories\//u, { timeout: 30_000 });
-		await expect(page.getByRole('heading', { level: 1, name: /beta$/u })).toBeVisible();
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
+		await expect(
+			page.getByTestId('sidebar-connected-repository').filter({ hasText: 'beta' }),
+		).toHaveAttribute('data-workstream-count', '1', { timeout: 30_000 });
 		await expect
 			.poll(async () => (await listProjects(page)).map((project) => project.id).sort())
 			.toEqual(['local__alpha', 'local__beta']);

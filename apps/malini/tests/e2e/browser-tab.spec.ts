@@ -671,8 +671,7 @@ test('a page the agent opens shows up as its own tab, named by its title, withou
 		await expect(inspector.getByRole('tab', { name: 'Lobby music', selected: true })).toBeVisible({
 			timeout: 20_000,
 		});
-		await expect(inspector.getByRole('tab', { name: 'Files', selected: false })).toBeVisible();
-		await expect(inspector.getByRole('tab')).toHaveCount(2);
+		await expect(inspector.getByRole('tab')).toHaveCount(1);
 		await expect(page.getByTestId('extension-inspector-gutter')).toHaveCount(0);
 		await expect(page.getByRole('textbox', { name: 'Page address' })).not.toBeFocused();
 		await captureFlow(app, 'browser-tab-agent-opened');
@@ -693,7 +692,7 @@ test('a page the agent opens shows up as its own tab, named by its title, withou
 	}
 });
 
-test('an inspector the agent opened stays open after the agent closes its page once you click its tab', async () => {
+test('an inspector the agent opened stays open after the agent closes its page once you open a panel of your own', async () => {
 	test.setTimeout(120_000);
 	const server = await lobbyServer();
 	const app = await launchMalini();
@@ -713,7 +712,7 @@ test('an inspector the agent opened stays open after the agent closes its page o
 		await expectAssistantReply(page);
 		const lobby = inspector.getByRole('tab', { name: 'Lobby music', selected: true });
 		await expect(lobby).toBeVisible({ timeout: 20_000 });
-		await lobby.click();
+		await openFilesPanel(page);
 
 		await sendPrompt(page, 'Done with the lobby BROWSER_CLOSE');
 		await expect(page.getByText('Closed your browser tab and its page.')).toBeVisible({
@@ -735,7 +734,14 @@ test('an inspector the agent opened stays open after the agent closes its page o
 	}
 });
 
-test('Browser in the closed inspector opens a new tab with the address ready to type', async () => {
+async function openFilesPanel(page: Page): Promise<void> {
+	const inspector = page.getByRole('region', { name: 'Inspector' });
+	await inspector.getByRole('button', { name: 'Open inspector panel' }).click();
+	await page.getByRole('menuitem', { name: 'Open Files' }).click();
+	await expect(inspector.getByRole('tab', { name: 'Files', selected: true })).toBeVisible();
+}
+
+test('Browser in the closed inspector opens a new tab alone, with the address ready to type', async () => {
 	test.setTimeout(120_000);
 	const server = await lobbyServer();
 	const app = await launchMalini();
@@ -757,6 +763,7 @@ test('Browser in the closed inspector opens a new tab with the address ready to 
 			.click();
 		const address = page.getByRole('textbox', { name: 'Page address' });
 		await expect(address).toBeFocused();
+		await expect(inspector.getByRole('tab')).toHaveCount(1);
 		await address.fill(`${server.origin}/lobby`);
 		await address.press('Enter');
 		await expect(inspector.getByRole('tab', { name: 'Lobby music', selected: true })).toBeVisible();
@@ -873,8 +880,7 @@ addEventListener('keydown', (event) => { document.getElementById('pressed').text
 		await expect(inspector.getByRole('tab', { name: 'Sign-up', selected: true })).toBeVisible({
 			timeout: 20_000,
 		});
-		const files = inspector.getByRole('tab', { name: 'Files' });
-		await files.click();
+		await openFilesPanel(page);
 
 		await agentBrowser(page, { action: 'snapshot' }, 'textbox "Email" @e2');
 		await agentBrowser(
@@ -928,7 +934,10 @@ addEventListener('keydown', (event) => { document.getElementById('pressed').text
 			({ screen }) => screen.getPrimaryDisplay().scaleFactor,
 		);
 		expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([390 * scale, 844 * scale]);
-		await expect(files).toHaveAttribute('aria-selected', 'true');
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
 		await expect(inspector.getByRole('tab', { name: 'Sign-up', selected: false })).toBeVisible();
 		await captureFlow(app, 'browser-tools-hidden-tab');
 		expectCleanConsole(app);
@@ -990,8 +999,7 @@ addEventListener('beforeunload', (event) => { event.preventDefault(); event.retu
 		await expect(inspector.getByRole('tab', { name: 'Plan', selected: true })).toBeVisible({
 			timeout: 20_000,
 		});
-		const files = inspector.getByRole('tab', { name: 'Files' });
-		await files.click();
+		await openFilesPanel(page);
 		const status = { action: 'evaluate', script: `document.getElementById('status').textContent` };
 		const picked = { action: 'evaluate', script: `document.getElementById('files').textContent` };
 
@@ -1054,7 +1062,10 @@ addEventListener('beforeunload', (event) => { event.preventDefault(); event.retu
 		);
 
 		await agentBrowser(page, { action: 'open', url: `${origin}/done` }, `Opened ${origin}/done`);
-		await expect(files).toHaveAttribute('aria-selected', 'true');
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
 		await expect(inspector.getByRole('tab', { name: 'Done', selected: false })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
@@ -1118,8 +1129,7 @@ document.getElementById('apply').onclick = () => {
 		await expect(inspector.getByRole('tab', { name: 'Checkout', selected: true })).toBeVisible({
 			timeout: 20_000,
 		});
-		const files = inspector.getByRole('tab', { name: 'Files' });
-		await files.click();
+		await openFilesPanel(page);
 
 		await agentBrowser(page, { action: 'snapshot' }, /textbox "Card number" @f2e\d+/u);
 		const snapshot =
@@ -1172,7 +1182,10 @@ document.getElementById('apply').onclick = () => {
 			{ action: 'screenshot', fullPage: false, selector: ref('button "Pay"') },
 			new RegExp(`^Screenshot of ${origin}/checkout saved to `, 'u'),
 		);
-		await expect(files).toHaveAttribute('aria-selected', 'true');
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
