@@ -55,6 +55,7 @@ import {
 	sweepKeptFolders,
 } from './kept-folders';
 import { listProjects } from './projects.repository';
+import { dropScratchFolder, sweepScratchFolders } from './scratch';
 import {
 	archiveWorkstreamRecord,
 	deleteWorkstream,
@@ -417,6 +418,7 @@ function errorWithStack(error: unknown): string {
 async function clearLeftovers(leftovers: TeardownLeftovers): Promise<void> {
 	const { workstreamId, repository, branch, baseBranch, snapshotRefs, trash, savedWork } =
 		leftovers;
+	await dropScratchFolder(workstreamId);
 	if (leftovers.retirement === 'deleted') {
 		await dropKeptFolders(leftovers.checkoutsRoot, workstreamId).catch((error: unknown) =>
 			console.error(
@@ -564,6 +566,7 @@ async function sweepLeftovers(
 			await slimKeptContext(checkoutsRoot, id);
 		}
 		for (const workstream of archived) await clearArchivedCheckout(db, checkoutsRoot, workstream);
+		await sweepScratchFolders((workstreamId) => archivedWorkstreamIds.has(workstreamId));
 		return remaining;
 	} catch (error) {
 		console.error(`malini: the sweep of archived leftovers stopped: ${errorWithStack(error)}`);

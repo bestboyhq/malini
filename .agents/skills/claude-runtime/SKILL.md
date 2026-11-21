@@ -77,7 +77,7 @@ Map only shapes you have seen the real SDK emit; the `.d.ts` lists what may arri
 Fire a tracer bullet from a scratch directory, since the agent really runs its tools there:
 
 ```sh
-W=$PWD; S=$(mktemp -d); mkdir "$S/cwd" && cd "$S/cwd"
+W=$PWD; S=$(mktemp -d -p "$TMPDIR"); mkdir "$S/cwd" && cd "$S/cwd"
 node "$W/.agents/skills/claude-runtime/scripts/record.mjs" 'Create probe.txt containing x, then run ls.' default > ../write.json
 ```
 
