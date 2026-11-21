@@ -139,6 +139,7 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 			});
 			return;
 		case 'wait':
+			if (state.snapshot.read) shipRecovered(deps, workstreamId);
 			saveShip(deps, workstreamId, { step: move.step });
 			if (move.until !== undefined) setShipAlarm(deps, workstreamId, 'checks', move.until);
 			if (move.step === 'waiting-for-agent') settleAlarm(deps, state);
@@ -620,7 +621,12 @@ async function land(deps: ShipDeps, state: ShipState): Promise<void> {
 	dropShip(deps, workstreamId);
 }
 
-export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown): void {
+export function shipFailed(
+	deps: ShipDeps,
+	workstreamId: string,
+	error: unknown,
+	failed: 'work' | 'read' = 'work',
+): void {
 	if (!deps.running()) return;
 	deps.reader.forget(workstreamId);
 	const row = getShip(deps.context.db, workstreamId);
@@ -631,6 +637,11 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 	const due = now + shipBackoffMs(failures, deps.delays);
 	if (row.phase === 'needs-you') {
 		saveShip(deps, workstreamId, { failures });
+		setShipAlarm(deps, workstreamId, 'retry', due);
+		return;
+	}
+	if (failed === 'read' && openDraft(row) && githubIsOut(error)) {
+		saveShip(deps, workstreamId, { step: 'waiting-for-github', failures });
 		setShipAlarm(deps, workstreamId, 'retry', due);
 		return;
 	}
@@ -741,6 +752,16 @@ function commitMessage(
 	if (settled?.builtin === 'fix-checks') return 'Fix failing checks';
 	if (settled?.builtin === 'address-review') return 'Address review feedback';
 	return metadata.commitMessage;
+}
+
+function openDraft(row: ShipRow): boolean {
+	return row.phase === 'draft' && row.pullRequestNumber !== null;
+}
+
+function githubIsOut(error: unknown): boolean {
+	return (
+		isGhError(error, 'unreachable') || isGhError(error, 'down') || isGhError(error, 'rate-limited')
+	);
 }
 
 function githubAuthRejected(error: unknown): boolean {
