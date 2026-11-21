@@ -38,7 +38,7 @@
 	type FocusRequest = Readonly<{ id: string; dueOn: string | null; target: 'row' | 'field' }>;
 
 	const SECTION_LABEL =
-		'text-3xs text-fg-quaternary border-border-subtle mt-3.5 border-t pt-4 pb-2 font-medium tracking-wider uppercase first:mt-0 first:border-t-0 first:pt-0';
+		'text-3xs text-fg-quaternary border-surface-50-border mt-3.5 border-t-[0.5px] pt-4 pb-2 font-medium tracking-wider uppercase first:mt-0 first:border-t-0 first:pt-0';
 
 	const initiatives = $derived(initiativesQuery.inRepository(repository.fullName));
 	const loaded = $derived(initiativesQuery.loaded);
