@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { openMigratedDatabase } from '$main/db/open';
 import { seedWorkstream } from './test-support';
 import { answersOnLoopback, listLeasedPorts, workstreamEnvironment } from './ports';
+import { scratchFolder } from './scratch';
 import { archiveWorkstreamRecord, deleteWorkstream } from './workstreams.repository';
 
 const folders: string[] = [];
@@ -41,11 +42,13 @@ describe('named ports', () => {
 
 		expect(await workstreamEnvironment(db, 'w-1', checkout, ignore, busy(40_000))).toEqual({
 			MALINI_WORKSTREAM_ID: 'w-1',
+			TMPDIR: scratchFolder('w-1'),
 			MALINI_PORT_WEB: '40001',
 			MALINI_PORT_ADMIN_API: '40002',
 		});
 		expect(await workstreamEnvironment(db, 'w-2', checkout, ignore, busy())).toEqual({
 			MALINI_WORKSTREAM_ID: 'w-2',
+			TMPDIR: scratchFolder('w-2'),
 			MALINI_PORT_WEB: '40000',
 			MALINI_PORT_ADMIN_API: '40003',
 		});
@@ -75,7 +78,7 @@ describe('named ports', () => {
 		expect(listLeasedPorts(db)).toEqual([]);
 	});
 
-	it('sets only the workstream id when the file lists no valid ports', async () => {
+	it('sets only the workstream id and its scratch folder when the file lists no valid ports', async () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, 'w-1', '/tmp/w-1');
 		const lines: string[] = [];
@@ -89,7 +92,7 @@ describe('named ports', () => {
 					(line) => lines.push(line),
 					busy(),
 				),
-			).toEqual({ MALINI_WORKSTREAM_ID: 'w-1' });
+			).toEqual({ MALINI_WORKSTREAM_ID: 'w-1', TMPDIR: scratchFolder('w-1') });
 		}
 		expect(
 			await workstreamEnvironment(
@@ -99,7 +102,7 @@ describe('named ports', () => {
 				(line) => lines.push(line),
 				busy(),
 			),
-		).toEqual({ MALINI_WORKSTREAM_ID: 'w-1' });
+		).toEqual({ MALINI_WORKSTREAM_ID: 'w-1', TMPDIR: scratchFolder('w-1') });
 		expect(lines).toHaveLength(2);
 		expect(listLeasedPorts(db)).toEqual([]);
 	});

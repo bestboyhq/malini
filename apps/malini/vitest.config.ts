@@ -58,6 +58,7 @@ export default defineConfig({
 						MALINI_GH_PATH: '/usr/bin:/bin',
 						MALINI_CLAUDE_UPDATES: 'off',
 						MALINI_USAGE_DATA: 'off',
+						MALINI_SCRATCH_ROOT: join(TEMP, 'scratch'),
 						TMPDIR: TEMP,
 					},
 				},

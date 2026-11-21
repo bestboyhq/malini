@@ -1,4 +1,4 @@
-# 0281 - Anything the user gives the agent can be private
+# 0282 - Anything the user gives the agent can be private
 
 Status: accepted
 
@@ -6,7 +6,7 @@ Status: accepted
 
 The agent's instructions in `packages/agent-bridge/src/claude/instructions.ts` called only an attachment a holder of private data, and told the agent to copy none of it into a tracked file, a test, a fixture, a comment, a commit or a pull request.
 The user pointed out that they give Malini data through every channel: the prompt box, their notes, Malini's browser, an image, a pasted image and a device connected to the Mac.
-0280 swaps a token pasted in the composer for its secret name, but only a token of a known shape, and only in the composer.
+0281 swaps a token pasted in the composer for its secret name, but only a token of a known shape, and only in the composer.
 A token typed or pasted in another shape, and a name, an email or an address in any channel, still reached the agent as text, with no rule on where it may go next.
 
 ## Decision
@@ -20,5 +20,5 @@ A token or a password the user gives as text is a secret: the agent asks for it 
 
 The agent treats each channel the same way, and an uncaught token gets the card of 0141 instead of a command that holds its value.
 The rule is a request to the model, not a guard: the agent still reads what the user gives it, and a model that ignores the rule can still copy it.
-The mechanical guards stay 0141's mask of saved values in tool output and 0280's swap of a pasted token; masking token shapes in tool output and checking a push for private data are separate decisions.
+The mechanical guards stay 0141's mask of saved values in tool output and 0281's swap of a pasted token; masking token shapes in tool output and checking a push for private data are separate decisions.
 `instructions.test.ts` fails when the rule leaves the prompt.

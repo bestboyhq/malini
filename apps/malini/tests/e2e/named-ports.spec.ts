@@ -73,7 +73,7 @@ function sidebarRow(page: Page, workstreamId: string) {
 	return page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`);
 }
 
-test('a workstream serves on the ports its repository names and gives them back at archive', async () => {
+test('a workstream serves on the ports its repository names, keeps scratch in its own folder and gives both back at archive', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -87,6 +87,9 @@ test('a workstream serves on the ports its repository names and gives them back 
 
 		const leased = await environmentOfTurn(app, 'PORT_BLOCK');
 		expect(leased['MALINI_WORKSTREAM_ID']).toBe(ORDERS);
+		const scratch = join(app.root, 'scratch', ORDERS);
+		expect(leased['TMPDIR']).toBe(scratch);
+		expect(existsSync(scratch)).toBe(true);
 		const web = Number(leased['MALINI_PORT_WEB']);
 		const api = Number(leased['MALINI_PORT_API']);
 		expect(web).toBeGreaterThanOrEqual(40_000);
@@ -119,11 +122,13 @@ test('a workstream serves on the ports its repository names and gives them back 
 		await clickRevealedOnHover(row, archive);
 		await expect(row).toHaveCount(0);
 		await expect.poll(() => existsSync(orders.worktree), { timeout: 30_000 }).toBe(false);
+		await expect.poll(() => existsSync(scratch)).toBe(false);
 
 		await openWorkstream(page, QUIET);
 		const reused = await environmentOfTurn(app, 'PORT_BLOCK');
 		expect(reused).toEqual({
 			MALINI_WORKSTREAM_ID: QUIET,
+			TMPDIR: join(app.root, 'scratch', QUIET),
 			MALINI_PORT_WEB: String(web),
 			MALINI_PORT_API: String(api),
 		});

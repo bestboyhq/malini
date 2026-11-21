@@ -94,7 +94,10 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('A prototype never enters tracked source');
 		expect(prompt).not.toContain('delete the prototype');
 		expect(prompt).toContain('never delete, move or overwrite one');
-		expect(prompt).toContain('in a `mktemp -d` folder outside the worktree');
+		expect(prompt).toContain(
+			'in a folder from `mktemp -d -p "$TMPDIR"`: `$TMPDIR` is this workstream\'s own scratch folder',
+		);
+		expect(prompt).toContain('only the one contact sheet you show');
 		expect(prompt).toContain(
 			'Other chats and automations in this workstream can run at the same time',
 		);

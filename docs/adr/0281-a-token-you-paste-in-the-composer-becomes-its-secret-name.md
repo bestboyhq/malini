@@ -1,4 +1,4 @@
-# 0280 - A token you paste in the composer becomes its secret name
+# 0281 - A token you paste in the composer becomes its secret name
 
 Status: accepted
 

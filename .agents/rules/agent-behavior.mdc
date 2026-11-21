@@ -27,7 +27,7 @@ alwaysApply: true
 ## Scratch files
 - `.context/` holds only files you show the user in chat: screenshots, images, SVGs, and prototypes.
 - Give every capture a new name and never delete, move or overwrite a file in `.context/`: the chat keeps showing it.
-- Everything else transient (sandbox profiles, clones, builds, probes, dumps, drafts, notes) goes in a directory from `mktemp -d`, outside the worktree. Remove it when you are done.
+- Everything else transient (sandbox profiles, clones, builds, probes, dumps, drafts, notes) goes in a directory from `mktemp -d -p "$TMPDIR"`, outside the worktree: Malini deletes `$TMPDIR` when the workstream is archived, and a plain `mktemp -d` on macOS ignores it. Remove it when you are done.
 - Never clone, copy, or build a repository inside the worktree: Malini watches every file in it.
 - Do not use the repo root or the home directory.
 

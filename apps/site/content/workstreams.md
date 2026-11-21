@@ -105,6 +105,8 @@ Workstreams share disk space, so you can keep as many as you like.
   A GitHub repository is cloned without the old versions of its files of 1 MB or more, and over 1 GB without the history of any file; git fetches an old version the first time something reads it.
 - **Archives stay small.** Archiving keeps the commits, uncommitted changes, chats, attachments, every image or recording a chat showed, and the text files up to 10 MB in the `.context` folder, so an agent can still learn from the work.
   It drops the rest of `.context`, such as other screenshots, downloads, builds and dependency folders.
+- **Scratch goes with the workstream.** Agents keep builds, logs and video frames in the workstream's own scratch folder, the `$TMPDIR` of every command they run.
+  Archiving, saving for later or deleting the workstream deletes it.
 - **Old chats are packed.** Closing a chat or archiving its workstream compresses the chat's tool calls, their output and the agent's thinking, most of what a chat holds, to about a fifth of their size, and Malini gives the freed space back to the disk.
   The chat reads the same as before, and restoring the workstream unpacks it.
 - **Malini checks first.** It starts no workstream, clone or restore when the disk has less than 2 GB free, and says how much is free.
