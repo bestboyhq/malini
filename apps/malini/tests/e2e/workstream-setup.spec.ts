@@ -277,6 +277,13 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 		const retried = await newWorkstream(page, 'alpha');
 		const failure = setupStep(page, 'Copy failed');
 		await expect(failure).toContainText(/permission denied/iu, { timeout: 30_000 });
+		await expect
+			.poll(() =>
+				failure
+					.getByText(/permission denied/iu)
+					.evaluateAll((nodes) => nodes.every((node) => node.scrollWidth <= node.clientWidth)),
+			)
+			.toBe(true);
 		await expect(page.getByRole('alert')).toHaveCount(0);
 		await expect(
 			workstreamRow(page, retried).getByRole('status', {

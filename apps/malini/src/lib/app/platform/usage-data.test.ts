@@ -308,12 +308,16 @@ describe('usage data', () => {
 				state: 'broken',
 				finding: 'index-corrupt',
 				repairable: true,
+				said: null,
+				restored: null,
 			});
 		context.events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, {
 			workstreamId: 'w1',
 			state: 'healthy',
 			finding: null,
 			repairable: false,
+			said: null,
+			restored: null,
 		});
 		await settled();
 		expect(errors).toEqual([

@@ -1,3 +1,4 @@
+import type { CheckoutActionKind } from '$shared/repositories/domain/checkout-finding-copy';
 import type { WorkstreamProvisioningRecord } from '$shared/repositories/domain/provisioning';
 import type { WorkstreamSetupStep } from '$shared/repositories/domain/workstream-setup-steps';
 import {
@@ -85,7 +86,7 @@ function failedSetupRemedy(failure: string, reconnect: boolean): string {
 }
 
 export type SetupStepHandlers = Readonly<{
-	onRepair: () => void;
+	onCheckoutAction: (kind: CheckoutActionKind) => void;
 	onRetryInstall: () => void;
 	onDismissInstall: () => void;
 }>;
@@ -99,9 +100,7 @@ export function setupStepTopBarStatus(
 		({ key, state }) => state === 'failed' || (key === 'checkout' && state === 'busy'),
 	);
 	if (!step) return null;
-	const action = (label: string, ariaLabel: string, onInvoke: () => void) =>
-		({ label, ariaLabel, tone: 'primary', disabled: false, onInvoke }) as const;
-	return {
+	const status = {
 		reference: null,
 		branch,
 		checks: [],
@@ -109,27 +108,35 @@ export function setupStepTopBarStatus(
 		review: null,
 		todos: null,
 		title: step.label,
-		headline: {
-			tone: 'needs-you',
-			busy: step.state === 'busy',
-			label: 'Needs you',
-			detail:
-				step.action === 'retry-install' || step.state === 'busy' ? step.label : 'Checkout broken',
-			tooltip: [step.label, step.detail].filter(Boolean).join('. '),
-		},
-		action:
-			step.action === 'repair'
-				? action('Repair', 'Repair this workstream’s checkout', handlers.onRepair)
-				: step.action === 'retry-install'
-					? action('Retry', 'Retry the dependency install', handlers.onRetryInstall)
-					: null,
-		...(step.action === 'retry-install'
-			? {
-					secondaryAction: {
-						...action('Dismiss', 'Dismiss the failed install', handlers.onDismissInstall),
-						tone: 'secondary',
-					},
-				}
-			: {}),
+	} as const;
+	const tooltip = [step.label, step.detail].filter(Boolean).join('. ');
+	const action = (label: string, ariaLabel: string, onInvoke: () => void) =>
+		({ label, ariaLabel, tone: 'primary', disabled: false, onInvoke }) as const;
+	if (step.state === 'busy') {
+		const detail =
+			step.clonePercent === undefined ? step.label : `Cloning again. ${step.clonePercent}%`;
+		return {
+			...status,
+			headline: { tone: 'idle', busy: true, label: 'Setting up', detail, tooltip },
+			action: null,
+		};
+	}
+	if (step.action === 'retry-install') {
+		return {
+			...status,
+			headline: { tone: 'needs-you', busy: false, label: 'Needs you', detail: step.label, tooltip },
+			action: action('Retry', 'Retry the dependency install', handlers.onRetryInstall),
+			secondaryAction: {
+				...action('Dismiss', 'Dismiss the failed install', handlers.onDismissInstall),
+				tone: 'secondary',
+			},
+		};
+	}
+	const kind = step.action;
+	if (kind === null || kind === 'retry-setup' || step.actionLabel === undefined) return null;
+	return {
+		...status,
+		headline: { tone: 'needs-you', busy: false, label: 'Needs you', detail: step.label, tooltip },
+		action: action(step.actionLabel, step.actionLabel, () => handlers.onCheckoutAction(kind)),
 	};
 }

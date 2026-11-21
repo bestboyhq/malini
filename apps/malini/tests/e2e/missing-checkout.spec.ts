@@ -46,7 +46,8 @@ test('a chat whose workstream folder is gone keeps its change counts, and the fo
 		});
 		expect(existsSync(worktree)).toBe(true);
 		await expect(page.getByText(/io error|Could not resolve/u)).toHaveCount(0);
-		await expect(page.getByText('No usable checkout')).toHaveCount(0);
+		await expect(page.getByRole('status', { name: /^Needs you/u })).toHaveCount(0);
+		await expect(page.getByTestId('chat-checkout-wait')).toBeHidden();
 		await captureFlow(app, 'missing-checkout-diff');
 		expect(app.pageErrors).toEqual([]);
 		expect(app.consoleErrors.filter((line) => !INSPECTOR_DID_NOT_START.test(line))).toEqual([]);

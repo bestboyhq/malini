@@ -52,11 +52,6 @@ export function isWorkstreamCheckoutUsable(workstream: Workstream): boolean {
 	);
 }
 
-export function unusableCheckoutIssue(workstream: Workstream): string | null {
-	if (isWorkstreamCheckoutUsable(workstream)) return null;
-	return workstream.checkoutIssue ?? `Its checkout is ${workstream.checkoutState}`;
-}
-
 export type CreatedWorkstream = Pick<
 	Workstream,
 	'id' | 'projectId' | 'name' | 'branch' | 'baseBranch' | 'createdAt'

@@ -1,10 +1,18 @@
 import type { CheckoutHealth } from '$contract/repositories';
+import { provisioningClonePercent } from '$shared/repositories/domain/provisioning';
 import { checkoutHealthService } from '$shared/repositories/infrastructure/services/checkout-health.service';
 
-const HEALTHY: CheckoutHealth = { state: 'healthy', finding: null, repairable: false };
+const HEALTHY: CheckoutHealth = {
+	state: 'healthy',
+	finding: null,
+	repairable: false,
+	said: null,
+	restored: null,
+};
 
 class CheckoutHealthAggregate {
 	byWorkstream: Readonly<Record<string, CheckoutHealth>> = $state.raw({});
+	clonePercents: Readonly<Record<string, number>> = $state.raw({});
 
 	#revisions = new Map<string, number>();
 
@@ -12,14 +20,25 @@ class CheckoutHealthAggregate {
 		return this.byWorkstream[workstreamId] ?? HEALTHY;
 	}
 
+	clonePercentOf(workstreamId: string): number | null {
+		return this.clonePercents[workstreamId] ?? null;
+	}
+
+	reportClone(workstreamId: string, fraction: number): void {
+		if (this.healthOf(workstreamId).state !== 'repairing') return;
+		const percent = provisioningClonePercent(fraction);
+		if (this.clonePercents[workstreamId] === percent) return;
+		this.clonePercents = { ...this.clonePercents, [workstreamId]: percent };
+	}
+
 	readable(workstreamId: string): boolean {
 		return this.healthOf(workstreamId).state === 'healthy';
 	}
 
 	follow(healed: (workstreamId: string) => void): () => void {
-		return checkoutHealthService.onChanged(({ workstreamId, state, finding, repairable }) => {
-			this.#store(workstreamId, { state, finding, repairable });
-			if (state === 'healthy') healed(workstreamId);
+		return checkoutHealthService.onChanged(({ workstreamId, ...health }) => {
+			this.#store(workstreamId, health);
+			if (health.state === 'healthy') healed(workstreamId);
 		});
 	}
 
@@ -50,6 +69,11 @@ class CheckoutHealthAggregate {
 	#store(workstreamId: string, health: CheckoutHealth): number {
 		const revision = this.#bump(workstreamId);
 		this.byWorkstream = { ...this.byWorkstream, [workstreamId]: health };
+		if (health.state !== 'repairing' && workstreamId in this.clonePercents) {
+			this.clonePercents = Object.fromEntries(
+				Object.entries(this.clonePercents).filter(([id]) => id !== workstreamId),
+			);
+		}
 		return revision;
 	}
 

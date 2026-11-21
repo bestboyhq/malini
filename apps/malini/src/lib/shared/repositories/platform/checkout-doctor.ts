@@ -9,14 +9,15 @@ import {
 	realpath,
 	rename,
 	rm,
+	stat,
 	statfs,
 	writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import type { CheckoutFinding } from '$contract/repositories';
-import { errorCode, isGitError, isNotFoundError } from '$main/errors';
-import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
+import type { CheckoutFinding, CheckoutRestore } from '$contract/repositories';
+import { errorCode, GitError, isGitError, isNotFoundError } from '$main/errors';
+import { FreeSpaceError, MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import { restoreArchivedWork } from '$main/git/archived-work';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
@@ -44,11 +45,18 @@ const LINK_FINDINGS: ReadonlySet<CheckoutFinding | null> = new Set([
 	'git-link-missing',
 	'admin-missing',
 ]);
+const RECLONED_FINDINGS: ReadonlySet<CheckoutFinding | null> = new Set([
+	'base-repository-missing',
+	'github-signed-out',
+	'remote-missing',
+]);
+const FREED_BYTES = 1024 ** 3;
+const cloneFailures = new Map<string, Readonly<{ finding: CheckoutFinding; free: number }>>();
 
 const SAID_FINDINGS: ReadonlyMap<string, CheckoutFinding> = new Map([
 	['dubious-ownership', 'dubious-ownership'],
 	['developer-tools-missing', 'developer-tools-missing'],
-	['license-not-accepted', 'developer-tools-missing'],
+	['license-not-accepted', 'xcode-license'],
 	['no-space', 'disk-full'],
 	['permission-denied', 'permission-denied'],
 	['index-corrupt', 'index-corrupt'],
@@ -58,46 +66,106 @@ const SAID_FINDINGS: ReadonlyMap<string, CheckoutFinding> = new Map([
 
 export interface CheckoutCase {
 	readonly checkout: string;
+	readonly checkoutsRoot: string;
 	readonly repository: string | null;
+	readonly origin: string | null;
 	readonly branch: string;
 	readonly snapshotRefs: readonly string[];
 	readonly baseStart: (repository: string) => Promise<string>;
+	readonly reclone: (origin: string) => Promise<string>;
 	readonly runner: ProcessRunner;
 }
 
 interface Examination {
 	readonly finding: CheckoutFinding | null;
 	readonly admin: string | null;
+	readonly said?: string | null;
 }
 
 export async function diagnoseCheckout(c: CheckoutCase): Promise<CheckoutFinding | null> {
 	return (await examine(c)).finding;
 }
 
-export async function repairCheckout(c: CheckoutCase): Promise<void> {
-	const { finding, admin } = await examine(c);
+export async function examineCheckout(
+	c: CheckoutCase,
+): Promise<Readonly<{ finding: CheckoutFinding; said: string | null }> | null> {
+	const { finding, said = null } = await examine(c);
+	return finding === null ? null : { finding, said: finding === 'unknown' ? said : null };
+}
+
+export async function repairCheckout(c: CheckoutCase): Promise<CheckoutRestore | null> {
+	if ((await examine(c)).finding === 'checkouts-folder-missing') {
+		await mkdir(c.checkoutsRoot, { recursive: true });
+	}
+	const examination = await examine(c);
+	if (!RECLONED_FINDINGS.has(examination.finding)) {
+		await mend(c, examination);
+		return null;
+	}
+	if (c.origin === null) return null;
+	const fresh = { ...c, repository: await recloned(c, c.origin) };
+	return mend(fresh, await examine(fresh));
+}
+
+async function mend(
+	c: CheckoutCase,
+	{ finding, admin }: Examination,
+): Promise<CheckoutRestore | null> {
 	const { repository } = c;
-	if (repository === null) return;
-	if (finding === 'folder-missing') await recreateCheckout(c, repository);
-	if (LINK_FINDINGS.has(finding)) await relinkCheckout(c, repository);
-	if (admin === null) return;
+	if (repository === null) return null;
+	if (finding === 'folder-missing') return recreateCheckout(c, repository);
+	if (LINK_FINDINGS.has(finding)) return relinkCheckout(c, repository);
+	if (admin === null) return null;
 	if (finding === 'stale-lock') await keep(repository, join(admin, 'index.lock'));
 	if (finding === 'index-corrupt') await rebuildIndex(c.checkout, repository, admin);
 	if (finding === 'head-invalid') await pointHeadAtBranch(c, repository, admin);
+	return null;
+}
+
+async function recloned(c: CheckoutCase, origin: string): Promise<string> {
+	try {
+		const repository = await c.reclone(origin);
+		cloneFailures.delete(origin);
+		return repository;
+	} catch (error) {
+		cloneFailures.set(origin, {
+			finding: cloneFailure(error),
+			free: await freeBytes(c.checkoutsRoot),
+		});
+		throw error;
+	}
+}
+
+function cloneFailure(error: unknown): CheckoutFinding {
+	if (error instanceof FreeSpaceError) return 'disk-full';
+	if (isGitError(error, 'git') && error.facts['said'] === 'no-space') return 'disk-full';
+	if (isGitError(error, 'auth-failed')) return 'github-signed-out';
+	return isGitError(error, 'repository-not-found') ? 'remote-missing' : 'base-repository-missing';
+}
+
+async function missingFinding(c: CheckoutCase, finding: CheckoutFinding): Promise<CheckoutFinding> {
+	const baseMissing = c.repository === null && finding !== 'permission-denied';
+	if (!baseMissing && finding !== 'folder-missing') return finding;
+	if (MISSING.has((await failureCode(stat(c.checkoutsRoot))) ?? '')) {
+		return 'checkouts-folder-missing';
+	}
+	if (!baseMissing) return finding;
+	const failed = c.origin === null ? undefined : cloneFailures.get(c.origin);
+	if (failed?.finding !== 'disk-full') return failed?.finding ?? 'base-repository-missing';
+	// ponytail: retries once 1 GB more is free, not once the clone's own size is; store that size to be exact
+	const freed = (await freeBytes(c.checkoutsRoot)) >= failed.free + FREED_BYTES;
+	return freed ? 'base-repository-missing' : 'disk-full';
 }
 
 async function examine(c: CheckoutCase): Promise<Examination> {
-	const found = (finding: CheckoutFinding): Examination => ({
-		finding:
-			c.repository === null && finding !== 'permission-denied'
-				? 'base-repository-missing'
-				: finding,
+	const found = async (finding: CheckoutFinding): Promise<Examination> => ({
+		finding: await missingFinding(c, finding),
 		admin: null,
 	});
 	const folder = await failureCode(lstat(c.checkout));
 	if (folder !== null) return found(fileFinding(folder, 'folder-missing'));
 	const link = await readText(join(c.checkout, '.git'));
-	if (link.code === 'EISDIR') return { finding: await gitAnswer(c), admin: null };
+	if (link.code === 'EISDIR') return { ...(await gitAnswer(c)), admin: null };
 	if (link.code !== null) return found(fileFinding(link.code, 'git-link-missing'));
 	const gitdir = GITDIR_LINE.exec(link.text)?.[1]?.trim();
 	if (!gitdir) return found('git-link-missing');
@@ -112,7 +180,7 @@ async function examine(c: CheckoutCase): Promise<Examination> {
 	if (head.code !== null) return { finding: fileFinding(head.code, 'head-invalid'), admin };
 	if (!HEAD_CONTENT.test(head.text)) return { finding: 'head-invalid', admin };
 	const answer = await gitAnswer(c);
-	if (answer === null || (await ownedByMe(c))) return { finding: answer, admin };
+	if (answer.finding === null || (await ownedByMe(c))) return { ...answer, admin };
 	return { finding: 'dubious-ownership', admin };
 }
 
@@ -141,11 +209,15 @@ async function readText(
 }
 
 async function diskFull(path: string): Promise<boolean> {
+	return (await freeBytes(path)) < FULL_DISK_BYTES;
+}
+
+async function freeBytes(path: string): Promise<number> {
 	try {
 		const { bavail, bsize } = await statfs(path);
-		return bavail * bsize < FULL_DISK_BYTES;
+		return bavail * bsize;
 	} catch {
-		return false;
+		return Number.POSITIVE_INFINITY;
 	}
 }
 
@@ -199,19 +271,31 @@ async function indexFinding(admin: string): Promise<CheckoutFinding | null> {
 	}
 }
 
-async function gitAnswer(c: CheckoutCase): Promise<CheckoutFinding | null> {
+async function gitAnswer(
+	c: CheckoutCase,
+): Promise<Readonly<{ finding: CheckoutFinding | null; said: string | null }>> {
 	try {
 		await runGitAllowingExit(
 			['-C', c.checkout, 'diff-index', '--cached', '--quiet', 'HEAD', '--'],
 			1,
 		);
-		return null;
+		return { finding: null, said: null };
 	} catch (error) {
-		if (isGitError(error, 'git-unavailable')) return 'git-unavailable';
-		if (isNotFoundError(error)) return 'folder-missing';
-		if (!isGitError(error, 'git')) return 'unknown';
-		return SAID_FINDINGS.get(String(error.facts['said'])) ?? 'unknown';
+		if (isGitError(error, 'git-unavailable')) return { finding: 'git-unavailable', said: null };
+		if (isNotFoundError(error)) return { finding: 'folder-missing', said: null };
+		const said = error instanceof GitError ? lastGitLine(error.detail) : null;
+		if (!isGitError(error, 'git')) return { finding: 'unknown', said };
+		return { finding: SAID_FINDINGS.get(String(error.facts['said'])) ?? 'unknown', said };
 	}
+}
+
+function lastGitLine(output: string | undefined): string | null {
+	const line = output
+		?.split('\n')
+		.map((text) => text.trim())
+		.filter((text) => /^(?:fatal|error):/u.test(text))
+		.at(-1);
+	return line === undefined ? null : line.slice(0, 200);
 }
 
 async function ownedByMe(c: CheckoutCase): Promise<boolean> {
@@ -222,17 +306,21 @@ async function ownedByMe(c: CheckoutCase): Promise<boolean> {
 	return owners.every((owner) => owner === me);
 }
 
-async function recreateCheckout(c: CheckoutCase, repository: string): Promise<void> {
+async function recreateCheckout(
+	c: CheckoutCase,
+	repository: string,
+): Promise<CheckoutRestore | null> {
 	for (const admin of await adminsLinkedTo(repository, c.checkout)) await keep(repository, admin);
 	await requireFreeSpace(c.checkout, MINIMUM_FREE_BYTES, 'repairing this checkout');
 	const branchExisted = await refExists(repository, `refs/heads/${c.branch}`);
+	const start = branchExisted ? null : await branchStart(c, repository);
 	try {
 		await restoreArchivedWork({
 			repository,
 			checkout: c.checkout,
 			branch: c.branch,
 			savedRef: null,
-			baseStart: () => c.baseStart(repository),
+			baseStart: async () => start?.ref ?? c.baseStart(repository),
 		});
 	} catch (error) {
 		await cleanupFailedWorktreeAdd(repository, c.checkout, c.branch, false, branchExisted);
@@ -240,6 +328,16 @@ async function recreateCheckout(c: CheckoutCase, repository: string): Promise<vo
 	}
 	await restoreNewestSnapshot(c, repository);
 	await ensureAppManagedGitExcludes(c.checkout);
+	return start?.restored === 'branch-from-github' ? start.restored : null;
+}
+
+async function branchStart(
+	c: CheckoutCase,
+	repository: string,
+): Promise<Readonly<{ ref: string; restored: CheckoutRestore }>> {
+	const remote = `refs/remotes/origin/${c.branch}`;
+	if (await refExists(repository, remote)) return { ref: remote, restored: 'branch-from-github' };
+	return { ref: await c.baseStart(repository), restored: 'commits-as-edits' };
 }
 
 async function restoreNewestSnapshot(c: CheckoutCase, repository: string): Promise<void> {
@@ -269,21 +367,24 @@ async function restoreNewestSnapshot(c: CheckoutCase, repository: string): Promi
 	]);
 }
 
-async function relinkCheckout(c: CheckoutCase, repository: string): Promise<void> {
+async function relinkCheckout(
+	c: CheckoutCase,
+	repository: string,
+): Promise<CheckoutRestore | null> {
 	await repairWorktreeLinks(repository).catch(() => undefined);
-	if (!LINK_FINDINGS.has((await examine(c)).finding)) return;
+	if (!LINK_FINDINGS.has((await examine(c)).finding)) return null;
 	const [admin] = await adminsLinkedTo(repository, c.checkout);
 	if (admin !== undefined) {
 		await linkTo(c.checkout, repository, admin);
-		return;
+		return null;
 	}
+	const kept = await refExists(repository, `refs/heads/${c.branch}`);
+	const start = kept ? null : await branchStart(c, repository);
 	const scratch = await mkdtemp(join(tmpdir(), 'malini-relink-'));
 	try {
 		const placeholder = join(scratch, basename(c.checkout));
-		const kept = await refExists(repository, `refs/heads/${c.branch}`);
-		const target = kept
-			? [placeholder, c.branch]
-			: ['-b', c.branch, placeholder, await c.baseStart(repository)];
+		const target =
+			start === null ? [placeholder, c.branch] : ['-b', c.branch, placeholder, start.ref];
 		await withProjectLock(deriveProjectId(repository), () =>
 			runGit(['-C', repository, 'worktree', 'add', '--no-checkout', ...target]),
 		);
@@ -293,6 +394,10 @@ async function relinkCheckout(c: CheckoutCase, repository: string): Promise<void
 	}
 	await runGit(['-C', c.checkout, 'read-tree', 'HEAD']);
 	await runGit(['-C', c.checkout, 'update-index', '-q', '--refresh']);
+	await ensureAppManagedGitExcludes(c.checkout);
+	if (start?.restored !== 'commits-as-edits') return start?.restored ?? null;
+	const changed = (await runGit(['-C', c.checkout, 'status', '--porcelain'])).trim() !== '';
+	return changed ? 'commits-as-edits' : 'nothing-lost';
 }
 
 async function linkTo(checkout: string, repository: string, admin: string): Promise<void> {

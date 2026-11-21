@@ -40,7 +40,13 @@ import {
 } from './demo-live';
 
 const NOW = `${DEMO_DAY}T10:45:00.000Z`;
-const HEALTHY_CHECKOUT: CheckoutHealth = { state: 'healthy', finding: null, repairable: false };
+const HEALTHY_CHECKOUT: CheckoutHealth = {
+	state: 'healthy',
+	finding: null,
+	repairable: false,
+	said: null,
+	restored: null,
+};
 
 const DEMO_EXTENSIONS: readonly ExtensionListing[] = [
 	{

@@ -67,7 +67,8 @@ import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './ava
 import { listBaseFiles } from './base-files.service';
 import { BASE_FETCH_EVERY_MS, BASE_QUIET_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
-import { diagnoseCheckout, repairCheckout, type CheckoutCase } from './checkout-doctor';
+import { examineCheckout, repairCheckout, type CheckoutCase } from './checkout-doctor';
+import { fixCheckout } from './checkout-fixes';
 import { CheckoutHealthGuard } from './checkout-health';
 import {
 	createCheckoutResolver,
@@ -79,6 +80,7 @@ import {
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
+import { listConnectedRepositories } from './connected-repositories.repository';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
@@ -103,6 +105,7 @@ import { continueOwnPullRequest, listOwnPullRequests } from './own-pull-requests
 import {
 	cloneSeedFolder,
 	githubFullNameFromRemote,
+	managedProjectIdForRepository,
 	resolveConnectedRepository,
 } from './repository.service';
 import { hiddenFromInstalls, InstallRegistry, installDependencies } from './provisioning.service';
@@ -236,21 +239,40 @@ export function registerRepositories(
 
 	const guardRunLease = deps.guardRunLease;
 	const teardowns = new WorkstreamTeardowns();
+	const cloneOrigin = (projectId: string): string | null => {
+		const connected = listConnectedRepositories(db).find(
+			(repository) => managedProjectIdForRepository(repository) === projectId,
+		);
+		return connected?.remoteUrl ?? connected?.localPath ?? null;
+	};
+	const reclone = async (origin: string): Promise<string> => {
+		const seedFolder = cloneSeedFolder(db, origin);
+		return createRepository(workstreams, {
+			repoUrl: origin,
+			githubToken: null,
+			seedFolder,
+			sizeBytes: seedFolder === null ? await githubRepositorySize(gh, origin) : null,
+		});
+	};
 	const checkoutCase = (workstreamId: string): CheckoutCase => {
-		const { baseBranch } = knownWorkstream(workstreamId);
+		const { baseBranch, projectId } = knownWorkstream(workstreamId);
 		const refs = listWorkstreamSnapshotRefs(db, workstreamId);
 		return {
 			checkout: expectedCheckout(workstreamId),
+			checkoutsRoot,
 			repository: recordedBaseRepository(db, checkoutsRoot, workstreamId),
+			origin: cloneOrigin(projectId),
 			branch: recordedBranch(workstreamId),
 			snapshotRefs: [...refs.checkpointRefs, ...refs.runChangeRefs, ...refs.userBaselineRefs],
 			baseStart: async (repository) => (await baseSync.startRef(repository, baseBranch, null)).ref,
+			reclone,
 			runner,
 		};
 	};
 	const checkoutHealth = new CheckoutHealthGuard({
-		diagnose: (workstreamId) => diagnoseCheckout(checkoutCase(workstreamId)),
+		diagnose: (workstreamId) => examineCheckout(checkoutCase(workstreamId)),
 		repair: (workstreamId) => repairCheckout(checkoutCase(workstreamId)),
+		fix: (workstreamId, finding) => fixCheckout(finding, checkoutCase(workstreamId)),
 		live: (workstreamId) =>
 			getWorkstream(db, workstreamId)?.status === 'active' && !teardowns.watch(workstreamId)(),
 		changed: (payload) => events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, payload),

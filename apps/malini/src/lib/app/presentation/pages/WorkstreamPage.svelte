@@ -8,6 +8,9 @@
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
+	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
+	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
+	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { keepContextMediaFreshHook } from '$lib/chat/application/hooks/keep-context-media-fresh.hook';
@@ -30,7 +33,7 @@
 		provisioningRetryingQuery,
 		dismissDependencyInstallCommand,
 		provisioningTopBarStatus,
-		repairCheckoutCommand,
+		runCheckoutActionCommand,
 		seedWorkstreamDependenciesCommand,
 		setupStepTopBarStatus,
 		workstreamSetupStepsQuery,
@@ -107,10 +110,18 @@
 	const setupStatus = $derived(
 		provisioningStatus ??
 			setupStepTopBarStatus(
-				workstreamSetupStepsQuery.data(workstreamId),
+				workstreamSetupStepsQuery.data(workstreamId, checkoutFixTurnQuery.data(workstreamId)),
 				workstream?.branch ?? null,
 				{
-					onRepair: () => repairCheckoutCommand(workstreamId),
+					onCheckoutAction: (kind) =>
+						runCheckoutActionCommand(workstreamId, kind, {
+							onAskAgent: () => askAgentToFixCheckoutCommand(workstreamId),
+							onReport: () =>
+								reportCheckoutProblemCommand(
+									workstreamId,
+									checkoutHealthQuery.data(workstreamId).said,
+								),
+						}),
 					onRetryInstall: () => seedWorkstreamDependenciesCommand(workstreamId),
 					onDismissInstall: () => dismissDependencyInstallCommand(workstreamId),
 				},

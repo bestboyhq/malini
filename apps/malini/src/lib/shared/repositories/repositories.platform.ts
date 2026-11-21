@@ -51,6 +51,7 @@ export {
 	commitRunConsumed,
 } from './platform/commit-runs.repository';
 export { getProject, listProjects, upsertProject } from './platform/projects.repository';
+export { workstreamsRootAliases, type PathAliases } from './platform/checkouts-home';
 export {
 	deleteWorkstream,
 	getArchivedWorkstream,

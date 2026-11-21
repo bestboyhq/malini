@@ -17,6 +17,7 @@ import { redactSensitiveText } from '$main/diagnostics/redaction';
 import {
 	NestedRepositoryWorkError,
 	branchWorkIsKept,
+	filesSavedOrIgnored,
 	saveLocalOnlyWork,
 	type ArchivedWork,
 	type LocalWorkSource,
@@ -46,6 +47,7 @@ import {
 } from '$main/git/worktrees';
 import { recordedBaseRepository, recordedCheckoutPath } from './checkout-resolver';
 import {
+	clearLeftoverCheckout,
 	dropKeptFolders,
 	keepFolders,
 	keptContextPruned,
@@ -56,9 +58,11 @@ import { listProjects } from './projects.repository';
 import {
 	archiveWorkstreamRecord,
 	deleteWorkstream,
+	getArchivedWorkstream,
 	getWorkstream,
 	listArchivedWorkstreams,
 	listWorkstreams,
+	type ArchivedWorkstreamRecord,
 } from './workstreams.repository';
 
 const leftoversClearing = new Set<Promise<unknown>>();
@@ -157,6 +161,7 @@ function trackLeftovers<T>(work: Promise<T>): Promise<T> {
 }
 
 interface TeardownLeftovers {
+	readonly db: MaliniDatabase;
 	readonly checkoutsRoot: string;
 	readonly retirement: WorkstreamRetirement;
 	readonly workstreamId: string;
@@ -203,6 +208,7 @@ async function retireCheckout(
 		}
 	};
 	const leftovers = {
+		db,
 		checkoutsRoot,
 		retirement,
 		workstreamId,
@@ -433,11 +439,87 @@ async function clearLeftovers(leftovers: TeardownLeftovers): Promise<void> {
 			await deleteBranchIfItsWorkIsKept(repository, branch, baseBranch, savedWork?.ref ?? null);
 		}
 	}
-	if (trash === null) return;
-	const failure = await removeCheckoutDirResilient(trash);
+	const failure = trash === null ? null : await removeCheckoutDirResilient(trash);
 	if (failure !== null) {
 		console.error(
 			`malini: the checkout of archived workstream \`${workstreamId}\` stays in the trash until the next start: ${failure}`,
+		);
+	}
+	await clearRetiredCheckout(leftovers);
+}
+
+interface SavedCheckout {
+	readonly repository: string | null;
+	readonly refs: readonly string[];
+}
+
+function savedRefs(savedRef: string | null, baseBranch: string | null): string[] {
+	return [
+		...(savedRef === null ? [] : [savedRef]),
+		...(baseBranch === null
+			? []
+			: [`refs/remotes/origin/${baseBranch}`, `refs/heads/${baseBranch}`]),
+	];
+}
+
+async function clearRetiredCheckout(leftovers: TeardownLeftovers): Promise<void> {
+	const { db, checkoutsRoot, workstreamId } = leftovers;
+	if (leftovers.retirement !== 'deleted') {
+		const archived = getArchivedWorkstream(db, workstreamId);
+		if (archived !== null) await clearArchivedCheckout(db, checkoutsRoot, archived);
+		return;
+	}
+	await clearCheckoutThatCameBack(
+		checkoutsRoot,
+		workstreamId,
+		() => ({
+			repository: leftovers.repository,
+			refs: savedRefs(leftovers.savedWork?.ref ?? null, leftovers.baseBranch),
+		}),
+		() => dropKeptFolders(checkoutsRoot, workstreamId),
+	);
+}
+
+function clearArchivedCheckout(
+	db: MaliniDatabase,
+	checkoutsRoot: string,
+	archived: ArchivedWorkstreamRecord,
+): Promise<void> {
+	return clearCheckoutThatCameBack(
+		checkoutsRoot,
+		archived.id,
+		() => ({
+			repository: recordedBaseRepository(db, checkoutsRoot, archived.id),
+			refs: savedRefs(archived.archivedRef, archived.baseBranch),
+		}),
+		() =>
+			archived.savedForLater ? Promise.resolve() : slimKeptContext(checkoutsRoot, archived.id),
+	);
+}
+
+async function clearCheckoutThatCameBack(
+	checkoutsRoot: string,
+	workstreamId: string,
+	saved: () => SavedCheckout,
+	settleKeptFolders: () => Promise<void>,
+): Promise<void> {
+	const checkout = workstreamPath(checkoutsRoot, workstreamId);
+	if (!existsSync(checkout)) return;
+	try {
+		const { repository, refs } = saved();
+		const kept = await clearLeftoverCheckout(checkoutsRoot, workstreamId, checkout, (files) =>
+			repository === null
+				? Promise.resolve(new Set<string>())
+				: filesSavedOrIgnored(repository, refs, checkout, files),
+		);
+		await settleKeptFolders();
+		if (kept.length === 0) return;
+		console.warn(
+			`malini: kept ${kept.length} paths in \`${checkout}\` that something wrote after workstream \`${workstreamId}\` was retired, because no saved commit holds them and git does not ignore them`,
+		);
+	} catch (error) {
+		console.error(
+			`malini: could not clear what something wrote after workstream \`${workstreamId}\` was retired: ${errorWithStack(error)}`,
 		);
 	}
 }
@@ -481,6 +563,7 @@ async function sweepLeftovers(
 			if (savedForLater || (await keptContextPruned(checkoutsRoot, id))) continue;
 			await slimKeptContext(checkoutsRoot, id);
 		}
+		for (const workstream of archived) await clearArchivedCheckout(db, checkoutsRoot, workstream);
 		return remaining;
 	} catch (error) {
 		console.error(`malini: the sweep of archived leftovers stopped: ${errorWithStack(error)}`);

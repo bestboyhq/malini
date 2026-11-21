@@ -51,6 +51,7 @@ const request: AgentSessionFileDiffRequest = {
 };
 
 afterEach(() => {
+	vi.useRealTimers();
 	for (const disconnect of disconnects.splice(0)) disconnect();
 	inspectorPanelCommands.reset();
 });
@@ -76,11 +77,29 @@ describe('AgentSessionFileDiffExtensionTarget', () => {
 		const executeCommand = vi.fn(async () => undefined);
 		connect(executeCommand, 'workstream-2');
 		const target = new AgentSessionFileDiffExtensionTarget();
+		vi.useFakeTimers();
 
-		await expect(
+		const refused = expect(
 			target.open('workstream-1', request, new AbortController().signal),
 		).rejects.toThrow('not active for this workstream');
+		await vi.advanceTimersByTimeAsync(15_000);
+		await refused;
 		expect(executeCommand).not.toHaveBeenCalled();
 		expect(inspectorPanelCommands.requestsFor('workstream-1')).toEqual([]);
+	});
+
+	it('waits for the extension that is still starting, then opens the diff', async () => {
+		const executeCommand = vi.fn(async () => undefined);
+		const target = new AgentSessionFileDiffExtensionTarget();
+		vi.useFakeTimers();
+
+		const opening = target.open('workstream-1', request, new AbortController().signal);
+		await vi.advanceTimersByTimeAsync(2_000);
+		connect(executeCommand, 'workstream-1');
+		await vi.advanceTimersByTimeAsync(200);
+		await opening;
+
+		expect(executeCommand).toHaveBeenCalledOnce();
+		expect(inspectorPanelCommands.requestsFor('workstream-1')).toHaveLength(1);
 	});
 });

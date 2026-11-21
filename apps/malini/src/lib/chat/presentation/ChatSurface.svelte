@@ -85,6 +85,7 @@
 		pullRequestShipped?: boolean;
 		automationRuns?: readonly AutomationRunRecord[];
 		oncloseworkstream: () => void;
+		onreportcheckout: () => void;
 		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 		workstreamsCard: Snippet<[readonly string[]]>;
 		afterRun: Snippet<[string]>;
@@ -96,6 +97,7 @@
 		pullRequestShipped = false,
 		automationRuns = [],
 		oncloseworkstream,
+		onreportcheckout,
 		onsavetoscratchpad,
 		workstreamsCard,
 		afterRun,
@@ -449,6 +451,7 @@
 									{workstreamId}
 									{draftScope}
 									footerInset={footerHeight}
+									{onreportcheckout}
 									bind:transcriptReferences
 								/>
 							{:else if stage === 'transcript' && presentedSessionId}
@@ -478,6 +481,7 @@
 												{workstreamId}
 												{draftScope}
 												footerInset={footerHeight}
+												{onreportcheckout}
 												bind:transcriptReferences
 											/>
 										{/snippet}

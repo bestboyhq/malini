@@ -72,6 +72,34 @@ export function checkoutsHome(
 	return ownProfile ? join(appDataRoot, CHECKOUTS_DIR_NAME) : join(home, 'malini');
 }
 
+export interface PathAliases {
+	readonly path: string;
+	readonly aliases: readonly string[];
+}
+
+export async function workstreamsRootAliases(
+	appDataRoot: string,
+	checkoutsRoot: string,
+): Promise<PathAliases> {
+	const path = join(checkoutsRoot, WORKSTREAMS_DIR_NAME);
+	const real = await realpath(path).catch(() => path);
+	// ponytail: knows the links a move from the app data folder or ~/malini leaves; record each move's old folder if a move between two chosen folders needs it
+	const candidates = [
+		real,
+		...[appDataRoot, checkoutsHome(appDataRoot, false)].map((home) =>
+			join(home, WORKSTREAMS_DIR_NAME),
+		),
+	];
+	const aliases = await Promise.all(
+		candidates.map(async (candidate) =>
+			candidate !== path && (await realpath(candidate).catch(() => null)) === real
+				? [candidate]
+				: [],
+		),
+	);
+	return { path, aliases: [...new Set(aliases.flat())] };
+}
+
 export async function moveCheckoutsHome({
 	db,
 	appDataRoot,

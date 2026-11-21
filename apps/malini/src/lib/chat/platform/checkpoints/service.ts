@@ -62,6 +62,7 @@ import {
 	diffComposedSessionSnapshotPatch,
 	diffWorktreeSnapshotPatch,
 	diffWorktreeSnapshots,
+	headTree,
 	pinSnapshotRef,
 	restoreCheckpointSnapshot,
 	RUN_CHANGE_REF_NAMESPACE,
@@ -204,11 +205,9 @@ export function captureUserBaselineForRun(
 		const probeTree = await worktreeSnapshotTree(worktree);
 
 		const previous = latestWorkstreamRunChangeCommit(db, workstreamId);
-		if (previous !== null) {
-			if ((await snapshotCommitTree(worktree, previous)) === probeTree) return null;
-		} else if ((await snapshotCommitTree(worktree, 'HEAD')) === probeTree) {
-			return null;
-		}
+		const reference =
+			previous === null ? await headTree(worktree) : await snapshotCommitTree(worktree, previous);
+		if (reference === null || reference === probeTree) return null;
 
 		const id = userBaselineId(context);
 		const gitRef = `${USER_BASELINE_REF_NAMESPACE}${workstreamId}/${id}`;

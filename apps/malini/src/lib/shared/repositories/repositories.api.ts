@@ -286,4 +286,6 @@ export {
 } from './presentation/provisioning-top-bar-status';
 export { workstreamSetupStepsQuery } from './application/queries/workstream-setup-steps.query.svelte';
 export { repairCheckoutCommand } from './application/commands/repair-checkout.command';
+export { runCheckoutActionCommand } from './application/commands/run-checkout-action.command';
+export { checkoutWaitQuery } from './application/queries/checkout-wait.query.svelte';
 export { seedWorkstreamDependenciesCommand } from './application/commands/seed-workstream-dependencies.command';

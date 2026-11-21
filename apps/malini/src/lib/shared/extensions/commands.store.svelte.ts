@@ -5,6 +5,9 @@ export type ExtensionCommandExecutor = Readonly<{
 	onEvent(channel: string, listener: (payload: unknown) => void): () => void;
 }>;
 
+const READY_WAIT_MS = 15_000;
+const READY_POLL_MS = 100;
+
 class ExtensionCommands {
 	#executor = $state.raw<ExtensionCommandExecutor | null>(null);
 
@@ -18,6 +21,15 @@ class ExtensionCommands {
 	isReadyFor(workstreamId: string): boolean {
 		const executor = this.#executor;
 		return executor !== null && executor.workstreamId() === workstreamId;
+	}
+
+	async whenReadyFor(workstreamId: string, signal?: AbortSignal): Promise<boolean> {
+		const deadline = Date.now() + READY_WAIT_MS;
+		while (!this.isReadyFor(workstreamId)) {
+			if (signal?.aborted || Date.now() >= deadline) return false;
+			await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
+		}
+		return true;
 	}
 
 	async execute<TResult>(

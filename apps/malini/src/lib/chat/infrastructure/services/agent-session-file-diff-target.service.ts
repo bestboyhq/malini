@@ -14,8 +14,8 @@ export class AgentSessionFileDiffExtensionTarget implements AgentSessionFileDiff
 		request: AgentSessionFileDiffRequest,
 		signal: AbortSignal,
 	): Promise<void> {
-		if (signal.aborted) return;
-		if (!extensionCommands.isReadyFor(workstreamId)) {
+		if (!(await extensionCommands.whenReadyFor(workstreamId, signal))) {
+			if (signal.aborted) return;
 			throw new Error('The repository extension is not active for this workstream');
 		}
 		await extensionCommands.execute(workstreamId, OPEN_AGENT_SESSION_DIFF_COMMAND, request);

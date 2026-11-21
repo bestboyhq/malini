@@ -1,6 +1,14 @@
 import type { CheckoutHealth } from '$contract/repositories';
-import { CHECKOUT_FINDING_COPY } from './checkout-finding-copy';
+import {
+	CLONING_FINDINGS,
+	checkoutFindingCopy,
+	checkoutRestoreCopy,
+	type CheckoutAction,
+	type CheckoutActionKind,
+} from './checkout-finding-copy';
 import { workstreamBranch } from './project-identity';
+import type { Project } from './repository';
+import { projectFullName } from './repository-context';
 import {
 	provisioningFailureSentence,
 	provisioningSignInRemedy,
@@ -13,7 +21,10 @@ export type WorkstreamSetupStep = Readonly<{
 	state: 'done' | 'busy' | 'failed' | 'skipped';
 	label: string;
 	detail: string | null;
-	action: 'retry-setup' | 'repair' | 'retry-install' | null;
+	action: 'retry-setup' | 'retry-install' | CheckoutActionKind | null;
+	actionLabel?: string;
+	secondaryAction?: CheckoutAction;
+	clonePercent?: number;
 }>;
 
 export type WorkstreamSetupInput = Readonly<{
@@ -21,13 +32,15 @@ export type WorkstreamSetupInput = Readonly<{
 	branch: string;
 	provisioning: WorkstreamProvisioningRecord | null;
 	install: WorkstreamInstallRecord | null;
+	repository: string;
 	checkout: CheckoutHealth;
-	checkoutIssue: string | null;
+	clonePercent: number | null;
+	agentFixing: boolean;
 }>;
 
 export function workstreamSetupSteps(input: WorkstreamSetupInput): readonly WorkstreamSetupStep[] {
 	if (input.provisioning) return [copyStepInProgress(input.provisioning)];
-	const checkout = checkoutStep(input.checkout, input.checkoutIssue);
+	const checkout = checkoutStep(input);
 	return [
 		copyStep(input),
 		...(checkout ? [checkout] : []),
@@ -35,24 +48,40 @@ export function workstreamSetupSteps(input: WorkstreamSetupInput): readonly Work
 	];
 }
 
-export function checkoutStep(
-	health: CheckoutHealth,
-	issue: string | null,
-): WorkstreamSetupStep | null {
+export function setupRepositoryName(projectId: string, projects: readonly Project[]): string {
+	const project = projects.find(({ id }) => id === projectId);
+	return (project && projectFullName(project)) ?? 'the repository';
+}
+
+function checkoutStep({
+	checkout,
+	repository,
+	clonePercent,
+	agentFixing,
+}: WorkstreamSetupInput): WorkstreamSetupStep | null {
 	const step = { key: 'checkout', action: null } as const;
-	if (health.state === 'repairing')
-		return { ...step, state: 'busy', label: 'Repairing the checkout', detail: null };
-	if (health.state === 'broken') {
-		const copy = CHECKOUT_FINDING_COPY[health.finding ?? 'unknown'];
-		return {
-			...step,
-			state: 'failed',
-			label: copy.headline,
-			detail: health.repairable ? (copy.repair ?? copy.instruction) : copy.instruction,
-			action: health.repairable ? 'repair' : null,
-		};
+	if (checkout.state === 'healthy') {
+		return checkout.restored
+			? { ...step, state: 'done', ...checkoutRestoreCopy(checkout.restored, repository) }
+			: null;
 	}
-	return issue ? { ...step, state: 'failed', label: 'No usable checkout', detail: issue } : null;
+	const finding = checkout.finding ?? 'unknown';
+	const copy = checkoutFindingCopy(finding, repository);
+	if (checkout.state === 'repairing' || agentFixing) {
+		const percent = CLONING_FINDINGS.has(finding) ? clonePercent : null;
+		if (percent === null) return { ...step, state: 'busy', ...copy.busy };
+		const detail = `${copy.busy.detail}. ${percent}%`;
+		return { ...step, state: 'busy', label: copy.busy.label, detail, clonePercent: percent };
+	}
+	return {
+		...step,
+		state: 'failed',
+		label: copy.broken.label,
+		detail: checkout.said ?? copy.broken.detail,
+		action: copy.action.kind,
+		actionLabel: copy.action.label,
+		...(copy.secondaryAction ? { secondaryAction: copy.secondaryAction } : {}),
+	};
 }
 
 function copyStepInProgress(record: WorkstreamProvisioningRecord): WorkstreamSetupStep {

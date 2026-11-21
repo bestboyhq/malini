@@ -18,8 +18,10 @@ const settled: WorkstreamSetupInput = {
 	branch: plan.branch,
 	provisioning: null,
 	install: null,
-	checkout: { state: 'healthy', finding: null, repairable: false },
-	checkoutIssue: null,
+	repository: 'bestboyhq/platform',
+	checkout: { state: 'healthy', finding: null, repairable: false, said: null, restored: null },
+	clonePercent: null,
+	agentFixing: false,
 };
 
 function provisioning(
@@ -76,23 +78,77 @@ describe('workstream setup steps', () => {
 		).toContain('failed | Install failed | ENOENT');
 	});
 
-	it('puts a broken checkout in the steps, with Repair only when Malini can repair it', () => {
-		const broken = { state: 'broken', finding: 'git-link-missing', repairable: true } as const;
+	it('puts a broken checkout in the steps with the one action that fixes it', () => {
+		const broken = {
+			state: 'broken',
+			finding: 'git-link-missing',
+			repairable: true,
+			said: null,
+			restored: null,
+		} as const;
 		expect(workstreamSetupSteps({ ...settled, checkout: broken })[1]).toEqual({
 			key: 'checkout',
 			state: 'failed',
-			label: 'This folder lost its link to git',
-			detail: 'Repair links it again. Your files stay',
+			label: 'The folder lost its git link',
+			detail: 'Linking it again failed',
 			action: 'repair',
+			actionLabel: 'Try again',
 		});
 		expect(
-			workstreamSetupSteps({ ...settled, checkout: { ...broken, repairable: false } })[1],
-		).toMatchObject({ detail: 'Run git worktree repair in the repository', action: null });
+			workstreamSetupSteps({
+				...settled,
+				checkout: { ...broken, finding: 'dubious-ownership', repairable: false },
+			})[1],
+		).toMatchObject({ label: 'Git does not trust this folder', actionLabel: 'Trust this folder' });
 		expect(labels({ ...settled, checkout: { ...broken, state: 'repairing' } })).toContain(
-			'busy | Repairing the checkout',
+			'busy | Linking the folder to git | Your files stay',
 		);
-		expect(labels({ ...settled, checkoutIssue: 'Its checkout is missing' })).toContain(
-			'failed | No usable checkout | Its checkout is missing',
+		const cloning = { ...broken, state: 'repairing', finding: 'base-repository-missing' } as const;
+		expect(labels({ ...settled, checkout: cloning })).toContain(
+			'busy | Cloning bestboyhq/platform again | Its copy on this Mac is gone',
+		);
+		expect(workstreamSetupSteps({ ...settled, checkout: cloning, clonePercent: 38 })[1]).toEqual({
+			key: 'checkout',
+			state: 'busy',
+			label: 'Cloning bestboyhq/platform again',
+			detail: 'Its copy on this Mac is gone. 38%',
+			action: null,
+			clonePercent: 38,
+		});
+		expect(
+			labels({ ...settled, checkout: { ...broken, state: 'repairing' }, clonePercent: 38 }),
+		).toContain('busy | Linking the folder to git | Your files stay');
+		expect(
+			labels({
+				...settled,
+				checkout: { ...broken, state: 'healthy', finding: null, restored: 'commits-as-edits' },
+			}),
+		).toContain('done | Cloned bestboyhq/platform again | Your files stay. Commits are edits now');
+	});
+
+	it('offers the fix the user must run, with its second way out', () => {
+		const broken = {
+			state: 'broken',
+			finding: 'remote-missing',
+			repairable: false,
+			said: null,
+			restored: null,
+		} as const;
+		expect(workstreamSetupSteps({ ...settled, checkout: broken })[1]).toMatchObject({
+			label: 'GitHub has no bestboyhq/platform',
+			action: 'sign-in',
+			actionLabel: 'Use another account',
+			secondaryAction: { kind: 'reveal', label: 'Show in Finder' },
+		});
+		const unknown = { ...broken, finding: 'unknown', said: 'fatal: bad object HEAD' } as const;
+		expect(workstreamSetupSteps({ ...settled, checkout: unknown })[1]).toMatchObject({
+			state: 'failed',
+			detail: 'fatal: bad object HEAD',
+			action: 'ask-agent',
+			secondaryAction: { kind: 'report', label: 'Report' },
+		});
+		expect(labels({ ...settled, checkout: unknown, agentFixing: true })).toContain(
+			'busy | An agent is fixing the checkout | In this folder',
 		);
 	});
 

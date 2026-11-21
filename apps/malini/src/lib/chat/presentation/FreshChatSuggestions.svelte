@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
 	import { fillComposerCommand } from '$lib/chat/application/commands/fill-composer.command';
 	import { selectRunProfileCommand } from '$lib/chat/application/commands/select-run-profile.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
+	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { preparedPlansQuery } from '$lib/chat/application/queries/prepared-plans.query.svelte';
 	import { recentChatsQuery } from '$lib/chat/application/queries/recent-chats.query.svelte';
 	import { runProfileQuery } from '$lib/chat/application/queries/run-profile.query.svelte';
@@ -31,6 +33,7 @@
 		draftScope: string;
 		transcriptReferences: AgentTranscriptReference[];
 		footerInset: number;
+		onreportcheckout: () => void;
 	}
 
 	let {
@@ -38,6 +41,7 @@
 		draftScope,
 		transcriptReferences = $bindable(),
 		footerInset,
+		onreportcheckout,
 	}: Props = $props();
 
 	const recentChats = $derived(recentChatsQuery.data(workstreamId));
@@ -109,7 +113,12 @@
 	<div class="chat-column px-4 text-left">
 		{#if untouched}
 			{#key workstreamId}
-				<WorkstreamSetupSteps {workstreamId}>
+				<WorkstreamSetupSteps
+					{workstreamId}
+					agentFixing={checkoutFixTurnQuery.data(workstreamId)}
+					onaskagent={() => askAgentToFixCheckoutCommand(workstreamId)}
+					onreport={onreportcheckout}
+				>
 					<ul class="flex flex-col" data-testid="chat-starters">
 						{#each starters as starter (starter.title)}
 							<li>

@@ -470,12 +470,16 @@ const CHECKOUT_FINDINGS = [
 	'git-link-missing',
 	'admin-missing',
 	'base-repository-missing',
+	'github-signed-out',
+	'remote-missing',
+	'checkouts-folder-missing',
 	'stale-lock',
 	'index-corrupt',
 	'head-invalid',
 	'dubious-ownership',
 	'git-unavailable',
 	'developer-tools-missing',
+	'xcode-license',
 	'permission-denied',
 	'disk-full',
 	'unknown',
@@ -483,10 +487,16 @@ const CHECKOUT_FINDINGS = [
 
 type CheckoutFinding = (typeof CHECKOUT_FINDINGS)[number];
 
+const CHECKOUT_RESTORES = ['branch-from-github', 'commits-as-edits', 'nothing-lost'] as const;
+
+type CheckoutRestore = (typeof CHECKOUT_RESTORES)[number];
+
 type CheckoutHealth = Readonly<{
 	state: CheckoutHealthState;
 	finding: CheckoutFinding | null;
 	repairable: boolean;
+	said: string | null;
+	restored: CheckoutRestore | null;
 }>;
 
 type WorkstreamCheckoutHealthPayload = CheckoutHealth & Readonly<{ workstreamId: string }>;

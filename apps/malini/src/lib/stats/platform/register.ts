@@ -34,6 +34,7 @@ import {
 	listConnectedRepositories,
 	listWorkstreams,
 	managedProjectIdForRepository,
+	workstreamsRootAliases,
 	type PullRequestChef,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
@@ -124,6 +125,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		db,
 		events,
 		runner: deps.runner,
+		folderAliases: workstreamsRootAliases(context.appDataRoot, context.checkoutsRoot),
 		nameService: (task) => deps.nameService(task),
 		stopBackgroundTask: (sessionId, taskId) => deps.stopBackgroundTask(sessionId, taskId),
 	});

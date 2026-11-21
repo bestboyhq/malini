@@ -1,11 +1,18 @@
 import { existsSync } from 'node:fs';
-import { copyFile, stat } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { MaliniError, type ErrorVerdicts } from '$main/errors';
 import { retryingVanishedFileRace, withTemporaryIndex } from './diff';
 import { ensureStagingPrecondition } from './excludes';
 import { WORKTREE_CONTENT_PATHSPEC, deriveProjectId, validateWorkstreamId } from './paths';
-import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from './run';
+import {
+	DISABLED_GIT_HOOKS_CONFIG,
+	runGit,
+	runGitAllowingExit,
+	runGitWithInput,
+	type GitEnv,
+} from './run';
 import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 import { populateCheckout, withProjectLock } from './worktrees';
 
@@ -19,6 +26,8 @@ const ARCHIVE_COMMIT_IDENTITY: GitEnv = {
 };
 
 const GITLINK_MODE = '160000';
+const BLOB = 'blob';
+const IGNORE_FILE = '.gitignore';
 
 const UNCOMMITTED_WORK_SUBJECT = 'malini: uncommitted work saved when archiving';
 const LOCAL_WORK_SUBJECT = 'malini: local work saved when archiving';
@@ -98,6 +107,106 @@ export async function branchWorkIsKept(
 		keepers.push(savedRef);
 	}
 	return keepers.length > 0 && (await commitCount(repository, [tip], keepers)) === 0;
+}
+
+interface TreeEntry {
+	readonly type: string;
+	readonly object: string;
+}
+
+export async function filesSavedOrIgnored(
+	repository: string,
+	refs: readonly string[],
+	folder: string,
+	files: ReadonlyArray<Readonly<{ path: string; regular: boolean }>>,
+): Promise<ReadonlySet<string>> {
+	const commit = await firstCommit(repository, refs);
+	if (commit === null || files.length === 0) return new Set();
+	const tree = await treeEntries(repository, commit);
+	const paths = files.map(({ path }) => path);
+	const ignored = await ignoredPaths(repository, tree, paths);
+	const unignored = files.flatMap(({ path, regular }) =>
+		regular && !ignored.has(path) && !path.includes('\n') && tree.get(path)?.type === BLOB
+			? [path]
+			: [],
+	);
+	return new Set([...ignored, ...(await savedPaths(repository, folder, tree, unignored))]);
+}
+
+async function firstCommit(repository: string, refs: readonly string[]): Promise<string | null> {
+	for (const ref of refs) {
+		const commit = await verifiedCommit(repository, ref);
+		if (commit !== null) return commit;
+	}
+	return null;
+}
+
+// ponytail: lists the whole tree in one call under git's 32 MB output cap; pass the leftover paths to ls-tree if a repository outgrows it
+async function treeEntries(repository: string, commit: string): Promise<Map<string, TreeEntry>> {
+	const listed = await runGit(['-C', repository, 'ls-tree', '-r', '-z', '--full-tree', commit]);
+	const entries = new Map<string, TreeEntry>();
+	for (const line of listed.split('\0')) {
+		const tab = line.indexOf('\t');
+		if (tab === -1) continue;
+		const [, type, object] = line.slice(0, tab).split(' ');
+		if (type === undefined || object === undefined) continue;
+		entries.set(line.slice(tab + 1), { type, object });
+	}
+	return entries;
+}
+
+async function ignoredPaths(
+	repository: string,
+	tree: ReadonlyMap<string, TreeEntry>,
+	paths: readonly string[],
+): Promise<Set<string>> {
+	const commonDir = (
+		await runGit(['-C', repository, 'rev-parse', '--path-format=absolute', '--git-common-dir'])
+	).trim();
+	const rules = await mkdtemp(join(tmpdir(), 'malini-ignore-rules-'));
+	try {
+		for (const [path, { type, object }] of tree) {
+			if (type !== BLOB || basename(path) !== IGNORE_FILE) continue;
+			await mkdir(dirname(join(rules, path)), { recursive: true });
+			await writeFile(
+				join(rules, path),
+				await runGit(['-C', repository, 'cat-file', 'blob', object]),
+			);
+		}
+		const { stdout } = await runGitAllowingExit(
+			[
+				'-C',
+				rules,
+				`--git-dir=${commonDir}`,
+				`--work-tree=${rules}`,
+				'check-ignore',
+				'--no-index',
+				'-z',
+				'--stdin',
+			],
+			1,
+			paths.join('\0'),
+		);
+		return new Set(stdout.split('\0').filter((path) => path !== ''));
+	} finally {
+		await rm(rules, { recursive: true, force: true });
+	}
+}
+
+async function savedPaths(
+	repository: string,
+	folder: string,
+	tree: ReadonlyMap<string, TreeEntry>,
+	paths: readonly string[],
+): Promise<string[]> {
+	if (paths.length === 0) return [];
+	const hashes = (
+		await runGitWithInput(
+			['-C', repository, 'hash-object', '--no-filters', '--stdin-paths'],
+			paths.map((path) => `${join(folder, path)}\n`).join(''),
+		)
+	).split('\n');
+	return paths.filter((path, index) => hashes[index] === tree.get(path)?.object);
 }
 
 export interface ArchivedWorkRestore {

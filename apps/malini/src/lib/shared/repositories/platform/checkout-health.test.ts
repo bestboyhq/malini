@@ -8,7 +8,11 @@ vi.mock('electron', () => ({
 }));
 
 import type { WorkstreamCheckoutHealthPayload } from '$contract/repositories';
-import { REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL } from '$contract/events';
+import {
+	REPOSITORIES_CLONE_PROGRESS_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
+	type CloneProgressPayload,
+} from '$contract/events';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -17,13 +21,17 @@ import { initRealRepo, realGit, removeDir, tempDir } from '$main/git/fixtures.te
 import { installGitRunnerForTests } from '$main/git/run';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { RepositoriesPlatform } from '../repositories.platform';
+import { HEALTHY } from './checkout-health';
 import { WorkstreamError } from './checkout-resolver';
+import { upsertConnectedRepository } from './connected-repositories.repository';
 import { upsertProject } from './projects.repository';
 import { registerRepositories } from './register';
 import { archivedLeftoversCleared } from './teardown.service';
 import { upsertWorkstream } from './workstreams.repository';
 
 const WORKSTREAM_ID = 'ws1';
+const PROJECT_ID = 'local__p1';
+const CREATED_AT = '2026-11-21T00:00:00.000Z';
 
 let root: string;
 let base: string;
@@ -34,6 +42,7 @@ let platform: RepositoriesPlatform;
 let restoreGit: () => void = () => undefined;
 
 let healthEvents: WorkstreamCheckoutHealthPayload[] = [];
+let cloneEvents: CloneProgressPayload[] = [];
 
 function readFiles(): Promise<unknown> {
 	return context.commands.call('repositories.workstream-files', { workstreamId: WORKSTREAM_ID });
@@ -57,8 +66,12 @@ beforeEach(async () => {
 	db = openMigratedDatabase(':memory:');
 	const events = createEventBus({ forwardToWindows: false });
 	healthEvents = [];
+	cloneEvents = [];
 	events.subscribe(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, (payload) => {
 		healthEvents.push(payload);
+	});
+	events.subscribe(REPOSITORIES_CLONE_PROGRESS_CHANNEL, (payload) => {
+		cloneEvents.push(payload);
 	});
 	context = {
 		db,
@@ -70,17 +83,22 @@ beforeEach(async () => {
 		isDev: true,
 		appVersion: '0.0.0-test',
 	};
-	const createdAt = '2026-11-21T00:00:00.000Z';
-	upsertProject(db, { id: 'p1', name: 'p1', repoPath: base, defaultBranch: 'main', createdAt });
+	upsertProject(db, {
+		id: PROJECT_ID,
+		name: 'p1',
+		repoPath: base,
+		defaultBranch: 'main',
+		createdAt: CREATED_AT,
+	});
 	upsertWorkstream(db, {
 		id: WORKSTREAM_ID,
-		projectId: 'p1',
+		projectId: PROJECT_ID,
 		name: WORKSTREAM_ID,
 		path: checkout,
 		branch: `malini/${WORKSTREAM_ID}`,
 		baseBranch: 'main',
 		status: 'active',
-		createdAt,
+		createdAt: CREATED_AT,
 		startedBy: null,
 	});
 	platform = registerRepositories(context, { startupReclaim: false });
@@ -97,7 +115,7 @@ afterEach(async () => {
 });
 
 describe('checkout health', () => {
-	it('a checkout Malini cannot repair costs one git read, not fifty', async () => {
+	it('a checkout whose repository has no origin to clone costs one git read, not fifty', async () => {
 		await rename(base, `${base}-moved`);
 		const reads = countReads();
 
@@ -114,8 +132,12 @@ describe('checkout health', () => {
 			expect(failure).toBeInstanceOf(WorkstreamError);
 			expect(failure).toMatchObject({ kind: 'checkout-broken', verdict: 'expected' });
 		}
-		const broken = { state: 'broken', finding: 'base-repository-missing', repairable: false };
-		expect(healthEvents).toEqual([{ workstreamId: WORKSTREAM_ID, ...broken }]);
+		const finding = 'base-repository-missing';
+		const broken = { ...HEALTHY, state: 'broken', finding, repairable: true };
+		expect(healthEvents).toEqual([
+			{ workstreamId: WORKSTREAM_ID, ...broken, state: 'repairing' },
+			{ workstreamId: WORKSTREAM_ID, ...broken },
+		]);
 		expect(
 			await context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
 		).toEqual(broken);
@@ -144,11 +166,68 @@ describe('checkout health', () => {
 
 		expect(
 			await context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
-		).toEqual({ state: 'healthy', finding: null, repairable: false });
+		).toEqual(HEALTHY);
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
+			['repairing', 'base-repository-missing'],
 			['broken', 'base-repository-missing'],
 			['healthy', null],
 		]);
 		expect(await readFiles()).toEqual([{ path: 'seed.txt' }]);
+	});
+
+	it('a checkouts folder that comes back with a break Malini can repair repairs itself', async () => {
+		await writeFile(join(checkout, 'work.txt'), 'uncommitted\n');
+		await rename(root, `${root}-unplugged`);
+		await expect(readFiles()).rejects.toThrow();
+
+		await rm(
+			join(`${root}-unplugged`, 'repositories', 'p1', 'base', '.git', 'worktrees', WORKSTREAM_ID),
+			{
+				recursive: true,
+				force: true,
+			},
+		);
+		await rename(`${root}-unplugged`, root);
+		platform.checkoutHealth.probeBroken();
+
+		await expect
+			.poll(() =>
+				context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+			)
+			.toEqual(HEALTHY);
+		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
+			['broken', 'checkouts-folder-missing'],
+			['repairing', 'admin-missing'],
+			['healthy', null],
+		]);
+		expect(await readFiles()).toEqual([{ path: 'seed.txt' }, { path: 'work.txt' }]);
+	});
+
+	it('a base clone that is gone clones again from its origin, and the reads that found it go through', async () => {
+		const origin = join(root, 'github', 'p1.git');
+		await realGit(root, ['clone', '-q', '--bare', '--single-branch', '-b', 'main', base, origin]);
+		upsertConnectedRepository(db, {
+			id: 'r1',
+			fullName: 'acme/p1',
+			defaultBranch: 'main',
+			localPath: null,
+			remoteUrl: origin,
+			createdAt: CREATED_AT,
+		});
+		await writeFile(join(checkout, 'work.txt'), 'uncommitted\n');
+		await rm(base, { recursive: true, force: true });
+
+		const reads = await Promise.all(Array.from({ length: 3 }, () => readFiles()));
+
+		expect(reads).toEqual(Array(3).fill([{ path: 'seed.txt' }, { path: 'work.txt' }]));
+		expect(await realGit(base, ['remote', 'get-url', 'origin'])).toBe(`${origin}\n`);
+		expect(cloneEvents.at(-1)).toEqual({ repo_id: 'p1', stage: 'done', fraction: 1 });
+		expect(healthEvents.map(({ state, finding, restored }) => [state, finding, restored])).toEqual([
+			['repairing', 'base-repository-missing', null],
+			['healthy', null, 'commits-as-edits'],
+		]);
+		expect(
+			await context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+		).toEqual({ ...HEALTHY, restored: 'commits-as-edits' });
 	});
 });
