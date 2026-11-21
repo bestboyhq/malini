@@ -30,8 +30,7 @@ This amends 0268.
   Enter and a click elsewhere save, Escape drops the edit.
 - **Start workstream** is an icon button with that tooltip, shown on hover and focus.
 - A row with a note shows a note glyph named "Has a note".
-- The right pane is a rounded panel on `surface-50`, as the Settings panel is, with no rule on its left.
-  The weeks of the rail lose the rule above their labels.
+- The right pane keeps the rule on its left, and the weeks of the rail keep the rule above their labels.
 
 ## Consequences
 

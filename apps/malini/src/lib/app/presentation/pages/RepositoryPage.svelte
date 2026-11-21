@@ -157,34 +157,32 @@
 				</ScrollableDiv>
 			{/snippet}
 			{#snippet b()}
-				<div class="h-full pt-1 pr-2 pb-2">
-					<ScrollableDiv
-						class="bg-surface-50 border-surface-50-border h-full rounded-3xl border-[0.5px]"
-						ariaLabel={`${title} notes`}
-					>
-						<div class="px-8 pt-7 pb-8">
-							<InitiativeNotes repositoryFullName={repo.fullName} {selected} onselect={select}>
-								{#snippet scratchpad()}
-									{#key repo.fullName}
-										<Scratchpad
-											repositoryFullName={repo.fullName}
-											onstartworkstream={(start) => startWorkstreamFromNoteCommand(repo, start)}
-										/>
-									{/key}
-								{/snippet}
-								{#snippet editor(note)}
-									<ScratchpadEditor
-										content={note.content}
-										label={note.label}
-										placeholder={note.placeholder}
-										onchange={(content, blank) => note.onchange(blank ? null : content)}
-										onstart={null}
+				<ScrollableDiv
+					class="border-surface-50-border h-full border-l-[0.5px]"
+					ariaLabel={`${title} notes`}
+				>
+					<div class="px-8 pt-8 pb-8">
+						<InitiativeNotes repositoryFullName={repo.fullName} {selected} onselect={select}>
+							{#snippet scratchpad()}
+								{#key repo.fullName}
+									<Scratchpad
+										repositoryFullName={repo.fullName}
+										onstartworkstream={(start) => startWorkstreamFromNoteCommand(repo, start)}
 									/>
-								{/snippet}
-							</InitiativeNotes>
-						</div>
-					</ScrollableDiv>
-				</div>
+								{/key}
+							{/snippet}
+							{#snippet editor(note)}
+								<ScratchpadEditor
+									content={note.content}
+									label={note.label}
+									placeholder={note.placeholder}
+									onchange={(content, blank) => note.onchange(blank ? null : content)}
+									onstart={null}
+								/>
+							{/snippet}
+						</InitiativeNotes>
+					</div>
+				</ScrollableDiv>
 			{/snippet}
 		</ResizableSplit>
 	{:else if scopeLoaded}
