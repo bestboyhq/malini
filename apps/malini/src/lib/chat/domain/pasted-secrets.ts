@@ -58,11 +58,11 @@ export function secretsIn(text: string): FoundSecret[] {
 	for (const line of text.split(/\r?\n/u)) {
 		const pair = pastedPair(line);
 		if (pair === null || !holdsSecret(pair) || found.has(pair.value)) continue;
-		found.set(pair.value, { value: pair.value, label: 'secret', name: pair.name.toUpperCase() });
+		found.set(pair.value, { value: pair.value, label: 'secret', name: pastedName(pair.name) });
 	}
 	for (const { label, name, pattern } of SHAPES) {
 		for (const [value] of text.matchAll(pattern)) {
-			if (!found.has(value)) found.set(value, { value, label, name });
+			if (!found.has(value)) found.set(value, { value, label, name: pastedName(name) });
 		}
 	}
 	return [...found.values()];
@@ -97,11 +97,15 @@ function holdsSecret({ name, value }: PastedPair): boolean {
 	return (
 		SECRET_NAME.test(name) &&
 		!PUBLIC_NAME.test(name) &&
-		secretNameProblem(name.toUpperCase()) === null &&
+		secretNameProblem(pastedName(name)) === null &&
 		value.length >= MIN_PAIRED_VALUE_LENGTH &&
 		!/\s/u.test(value) &&
 		!PLACEHOLDER.test(value)
 	);
+}
+
+function pastedName(name: string): string {
+	return `PASTED_${name.toUpperCase()}`;
 }
 
 function nameReference(name: string): RegExp {

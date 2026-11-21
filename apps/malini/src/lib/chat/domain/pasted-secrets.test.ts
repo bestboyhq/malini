@@ -7,7 +7,7 @@ const OTHER_GITHUB = `ghp_${'a'.repeat(36)}`;
 describe('pasted secrets', () => {
 	it('finds a token by its shape in prose and names it for its service', () => {
 		expect(secretsIn(`Here is the deploy token: ${GITHUB}. Commit and deploy.`)).toEqual([
-			{ value: GITHUB, label: 'GitHub token', name: 'GITHUB_TOKEN' },
+			{ value: GITHUB, label: 'GitHub token', name: 'PASTED_GITHUB_TOKEN' },
 		]);
 	});
 
@@ -17,9 +17,15 @@ describe('pasted secrets', () => {
 				`export GITHUB_DISPATCH_TOKEN="${GITHUB}"\nlogdash_api_key: ld_8f3a91c2e7\nTOKEN_AGAIN=${GITHUB}`,
 			),
 		).toEqual([
-			{ value: GITHUB, label: 'secret', name: 'GITHUB_DISPATCH_TOKEN' },
-			{ value: 'ld_8f3a91c2e7', label: 'secret', name: 'LOGDASH_API_KEY' },
+			{ value: GITHUB, label: 'secret', name: 'PASTED_GITHUB_DISPATCH_TOKEN' },
+			{ value: 'ld_8f3a91c2e7', label: 'secret', name: 'PASTED_LOGDASH_API_KEY' },
 		]);
+	});
+
+	it('never names a paste after a variable a tool reads', () => {
+		expect(
+			secretsIn(`GITHUB_TOKEN=${OTHER_GITHUB}\nCLAUDE_API_KEY=abcdefgh123`).map(({ name }) => name),
+		).toEqual(['PASTED_GITHUB_TOKEN', 'PASTED_CLAUDE_API_KEY']);
 	});
 
 	it('leaves placeholders, public keys, short values, prose and longer look-alikes alone', () => {

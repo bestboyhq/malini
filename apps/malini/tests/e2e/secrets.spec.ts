@@ -225,13 +225,13 @@ test('a token pasted into the composer goes to the keychain, the agent gets its 
 		);
 		const row = page.getByTestId('pasted-secret');
 		await expect(row).toHaveText(
-			'GitHub token moved to your keychain. Claude gets $GITHUB_TOKEN Undo',
+			'GitHub token moved to your keychain. Claude gets $PASTED_GITHUB_TOKEN Undo',
 			{ timeout: 20_000 },
 		);
-		await expect(input).toHaveText('Call the API with $GITHUB_TOKEN and report back');
+		await expect(input).toHaveText('Call the API with $PASTED_GITHUB_TOKEN and report back');
 		const names = async (): Promise<string[]> =>
 			(await invoke<SavedSecret[]>(page, 'secrets.list', undefined)).map(({ name }) => name);
-		expect(await names()).toEqual(['GITHUB_TOKEN']);
+		expect(await names()).toEqual(['PASTED_GITHUB_TOKEN']);
 		expect(filesHolding(app.userDataDir, PASTED_TOKEN)).toEqual([]);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'paste-secret-1-kept');
@@ -244,10 +244,10 @@ test('a token pasted into the composer goes to the keychain, the agent gets its 
 		await captureFlow(app, 'paste-secret-2-shown');
 
 		await row.getByRole('button', { name: 'Hide it' }).click();
-		await expect(input).toHaveText('Call the API with $GITHUB_TOKEN and report back', {
+		await expect(input).toHaveText('Call the API with $PASTED_GITHUB_TOKEN and report back', {
 			timeout: 20_000,
 		});
-		expect(await names()).toEqual(['GITHUB_TOKEN']);
+		expect(await names()).toEqual(['PASTED_GITHUB_TOKEN']);
 
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(submit).toBeEnabled();
@@ -262,7 +262,7 @@ test('a token pasted into the composer goes to the keychain, the agent gets its 
 				.join('\n');
 		await expect
 			.poll(sent, { timeout: 20_000 })
-			.toContain('Call the API with $GITHUB_TOKEN and report back');
+			.toContain('Call the API with $PASTED_GITHUB_TOKEN and report back');
 		expect(JSON.stringify(await listEvents(page, sessionId))).not.toContain(PASTED_TOKEN);
 		await expect
 			.poll(() => secretsSeenByTheBridge(app), { timeout: 20_000 })
