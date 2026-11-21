@@ -65,6 +65,9 @@ describe('systemPromptAppend', () => {
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('An attachment shows you a problem; it is never source data.');
+		expect(prompt).toContain(
+			'A token or a password is a secret even when the user gives it to you as text',
+		);
 		expect(prompt).toContain("A sandbox block never makes a command the user's");
 		expect(prompt).toContain('`swift package` need `--disable-sandbox`');
 		expect(prompt).toContain('git commit');

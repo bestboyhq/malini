@@ -349,7 +349,10 @@ Old turns fold. Subagents get a line each. Files show their diff
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
-  Malini tells Claude that an attachment only shows the problem, so Claude makes up its own demo and test data and copies nothing from it into your code or a commit.
+  Malini tells Claude that an attachment only shows the problem, so Claude makes up its own demo and test data.
+- Malini tells Claude that anything you give it can be private: a prompt, a note, an attachment, a page in Malini's browser, and what a command reads from your Mac or a device on it.
+  Claude uses it for the task, and copies none of it into your code, a commit, a pull request or another service unless you ask for exactly that.
+  A token or a password you give as text is a secret to Claude: it asks you to save it on a card, then uses its name.
 - Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
   Pinch or Ctrl-scroll to zoom and drag to pan, and click the picture or press Escape to close it.
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
