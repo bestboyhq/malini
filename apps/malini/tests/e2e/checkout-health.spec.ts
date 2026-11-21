@@ -13,7 +13,7 @@ import {
 } from './harness';
 
 const CHECKOUT_GONE =
-	/not a git repository: \(null\)|io error: ENOENT|Invalid path '[^']+': No such file|current branch appears to be broken|does not exist|could not read from remote|failed to read commondir|is missing\./u;
+	/not a git repository: \(null\)|gitfile does not point to a valid repository|io error: ENOENT|Invalid path '[^']+': No such file|current branch appears to be broken|does not exist|could not read from remote|failed to read commondir|is missing\./u;
 
 async function connectAppWithOrigin(
 	root: string,

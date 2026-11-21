@@ -82,7 +82,7 @@
 
 	$effect(() => {
 		const next = content;
-		if (!editor || next === shown || (next === null && empty)) return;
+		if (!editor || editor.isFocused || next === shown || (next === null && empty)) return;
 		const changed = readScratchpadDocument(next);
 		if (changed.kind === 'unreadable') return;
 		shown = next;
