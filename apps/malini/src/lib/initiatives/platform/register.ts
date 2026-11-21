@@ -1,5 +1,9 @@
 import { INITIATIVE_TITLE_MAX_LENGTH, type Initiative } from '$contract/initiatives';
-import { REPOSITORY_FULL_NAME_MAX_LENGTH } from '$contract/scratchpad';
+import {
+	REPOSITORY_FULL_NAME_MAX_LENGTH,
+	SCRATCHPAD_CONTENT_MAX_LENGTH,
+} from '$contract/scratchpad';
+import { isScratchpadContent } from '$lib/scratchpad/scratchpad.platform';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import { isDay } from '../domain/initiative';
@@ -114,23 +118,38 @@ function dueOn(value: unknown): string | null {
 	return value;
 }
 
+function note(value: unknown): string | null {
+	if (value === null) return null;
+	if (
+		typeof value !== 'string' ||
+		value.length > SCRATCHPAD_CONTENT_MAX_LENGTH ||
+		!isScratchpadContent(value)
+	) {
+		throw new Error('invalid args: `note` must be null or a scratchpad document');
+	}
+	return value;
+}
+
 function initiativeChange(args: unknown): InitiativeChange {
 	const newTitle = field(args, 'title');
 	const newDueOn = field(args, 'dueOn');
-	if (newTitle === undefined && newDueOn === undefined) {
-		throw new Error('invalid args: give a `title` or a `dueOn` to change');
+	const newNote = field(args, 'note');
+	if (newTitle === undefined && newDueOn === undefined && newNote === undefined) {
+		throw new Error('invalid args: give a `title`, a `dueOn` or a `note` to change');
 	}
 	return {
 		...(newTitle === undefined ? {} : { title: title(newTitle) }),
 		...(newDueOn === undefined ? {} : { dueOn: dueOn(newDueOn) }),
+		...(newNote === undefined ? {} : { note: note(newNote) }),
 	};
 }
 
 function dependencyChange(args: unknown): DependencyChange {
 	const newTitle = field(args, 'title');
 	const done = field(args, 'done');
-	if (newTitle === undefined && done === undefined) {
-		throw new Error('invalid args: give a `title` or `done` to change');
+	const newNote = field(args, 'note');
+	if (newTitle === undefined && done === undefined && newNote === undefined) {
+		throw new Error('invalid args: give a `title`, `done` or a `note` to change');
 	}
 	if (done !== undefined && typeof done !== 'boolean') {
 		throw new Error('invalid args: `done` must be true or false');
@@ -138,5 +157,6 @@ function dependencyChange(args: unknown): DependencyChange {
 	return {
 		...(newTitle === undefined ? {} : { title: title(newTitle) }),
 		...(done === undefined ? {} : { done }),
+		...(newNote === undefined ? {} : { note: note(newNote) }),
 	};
 }

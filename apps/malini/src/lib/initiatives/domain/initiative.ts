@@ -19,6 +19,11 @@ export type DependencyState = 'todo' | 'done' | 'merged' | 'needs' | 'failed' | 
 
 export type InitiativeProgress = Readonly<{ done: number; total: number; needsYou: number }>;
 
+export type NoteTarget = Readonly<{
+	initiative: Initiative;
+	dependency: InitiativeDependency | null;
+}>;
+
 export type RailWeek = Readonly<{ label: string | null; days: readonly string[] }>;
 
 export type Rail = Readonly<{ earlier: readonly string[]; weeks: readonly RailWeek[] }>;
@@ -66,6 +71,18 @@ export function initiativesOn(
 	day: string | null,
 ): readonly Initiative[] {
 	return initiatives.filter((initiative) => initiative.dueOn === day);
+}
+
+export function noteTarget(
+	initiatives: readonly Initiative[],
+	id: string | null,
+): NoteTarget | null {
+	for (const initiative of initiatives) {
+		if (initiative.id === id) return { initiative, dependency: null };
+		const dependency = initiative.dependencies.find((candidate) => candidate.id === id);
+		if (dependency) return { initiative, dependency };
+	}
+	return null;
 }
 
 export function localDay(date: Date): string {

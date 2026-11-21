@@ -23,8 +23,9 @@
 	interface Props {
 		content: string | null;
 		label: string;
-		onchange: (content: string) => void;
-		onstart: (start: ScratchpadStart) => void;
+		placeholder?: string;
+		onchange: (content: string, blank: boolean) => void;
+		onstart: ((start: ScratchpadStart) => void) | null;
 	}
 
 	type GutterRow = ScratchpadNote & Readonly<{ top: number; height: number; lineHeight: number }>;
@@ -33,7 +34,7 @@
 	const START_LABEL = 'Move into a new workstream';
 	const HOVER_SLACK_PX = 12;
 
-	let { content, label, onchange, onstart }: Props = $props();
+	let { content, label, placeholder, onchange, onstart }: Props = $props();
 
 	const opened = readScratchpadDocument(untrack(() => content));
 
@@ -51,14 +52,14 @@
 			element: host,
 			extensions: scratchpadExtensions(),
 			content: opened.json,
-			autofocus: opened.json === null ? 'end' : false,
+			autofocus: opened.json === null && untrack(() => onstart) !== null ? 'end' : false,
 			editorProps: {
 				attributes: {
 					class: 'scratchpad-editor text-fg-default outline-none select-text',
 					role: 'textbox',
 					'aria-multiline': 'true',
 					'aria-label': label,
-					'aria-placeholder': PLACEHOLDER,
+					'aria-placeholder': untrack(() => placeholder) ?? PLACEHOLDER,
 					'data-testid': 'scratchpad-editor',
 				},
 				handleKeyDown: (view, event) => isStartShortcut(event) && startAtCaret(view),
@@ -66,7 +67,7 @@
 			onCreate: ({ editor: created }) => (empty = isBlankScratchpad(created.state.doc)),
 			onUpdate: ({ editor: updated }) => {
 				empty = isBlankScratchpad(updated.state.doc);
-				onchange(JSON.stringify(updated.getJSON()));
+				onchange(JSON.stringify(updated.getJSON()), empty);
 			},
 			onTransaction: ({ transaction }) => {
 				if (transaction.docChanged) measure();
@@ -84,7 +85,7 @@
 	});
 
 	function start(pos: number): void {
-		if (!editor) return;
+		if (!editor || !onstart) return;
 		const note = noteAt(editor.state.doc.resolve(pos + 1));
 		if (!note || note.prompt.length === 0) return;
 		onstart({ prompt: note.prompt, onStarted: () => cut(note) });
@@ -96,7 +97,7 @@
 
 	function startAtCaret(view: EditorView): boolean {
 		const note = noteAt(caret(view));
-		if (!note) return false;
+		if (!note || !onstart) return false;
 		start(note.pos);
 		return true;
 	}
@@ -174,13 +175,17 @@
 >
 	{#if empty}
 		<p class="scratchpad-hint pointer-events-none absolute inset-x-0 top-0" aria-hidden="true">
-			Jot down an idea. <EnterShortcut mod size={14} /> turns it into a workstream.
+			{#if placeholder}
+				{placeholder}
+			{:else}
+				Jot down an idea. <EnterShortcut mod size={14} /> turns it into a workstream.
+			{/if}
 		</p>
 	{/if}
 	<div bind:this={host} class="scratchpad-host"></div>
 	<div class="absolute inset-y-0 -left-9 w-9">
 		{#each rows as row (row.pos)}
-			{#if row.pos === hoveredPos && row.prompt.length > 0}
+			{#if onstart && row.pos === hoveredPos && row.prompt.length > 0}
 				<div
 					class="absolute left-0 flex w-7 items-center justify-center"
 					style:top={`${row.top}px`}

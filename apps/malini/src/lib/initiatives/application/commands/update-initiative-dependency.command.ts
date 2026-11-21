@@ -22,7 +22,9 @@ function updateInitiativeDependencyCommand(
 			const what =
 				change.title !== undefined
 					? `"${change.title}" not saved`
-					: `"${title}" not ${change.done === false ? 'unticked' : 'ticked'}`;
+					: change.note !== undefined
+						? `Note on "${title}" not saved`
+						: `"${title}" not ${change.done === false ? 'unticked' : 'ticked'}`;
 			toast.error(`${what}${detail ? ` · ${detail}` : ''}.`);
 		}
 	})();

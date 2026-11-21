@@ -7,8 +7,8 @@
 	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
 	import { startWorkstreamFromNoteCommand } from '$lib/app/application/commands/start-workstream-from-note.command';
 	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
-	import { Initiatives } from '$lib/initiatives/initiatives.api';
-	import { Scratchpad } from '$lib/scratchpad/scratchpad.api';
+	import { InitiativeNotes, Initiatives } from '$lib/initiatives/initiatives.api';
+	import { Scratchpad, ScratchpadEditor } from '$lib/scratchpad/scratchpad.api';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
 		RemoveRepositoryButton,
@@ -35,6 +35,14 @@
 	const repository = $derived(repositories.find(({ id }) => id === repositoryId) ?? null);
 	const title = $derived(repository ? repositoryName(repository.fullName) : 'Repository');
 	const preparation = $derived(repository ? repositoryPreparationQuery.data(repository) : null);
+
+	let noted = $state<Readonly<{ repositoryId: string; id: string }> | null>(null);
+
+	const selected = $derived(noted?.repositoryId === repositoryId ? noted.id : null);
+
+	function select(id: string | null): void {
+		noted = id === null ? null : { repositoryId, id };
+	}
 </script>
 
 <svelte:head>
@@ -140,6 +148,8 @@
 						<Initiatives
 							repository={repo}
 							standingOf={workstreamStandingQuery.of}
+							{selected}
+							onselect={select}
 							onstart={(initiative, dependency) =>
 								startDependencyWorkstreamCommand(initiative, dependency, repo)}
 						/>
@@ -147,19 +157,34 @@
 				</ScrollableDiv>
 			{/snippet}
 			{#snippet b()}
-				<ScrollableDiv
-					class="border-surface-50-border h-full border-l-[0.5px]"
-					ariaLabel={`${title} scratchpad`}
-				>
-					<div class="px-8 pt-8 pb-8">
-						{#key repo.fullName}
-							<Scratchpad
-								repositoryFullName={repo.fullName}
-								onstartworkstream={(start) => startWorkstreamFromNoteCommand(repo, start)}
-							/>
-						{/key}
-					</div>
-				</ScrollableDiv>
+				<div class="h-full pt-1 pr-2 pb-2">
+					<ScrollableDiv
+						class="bg-surface-50 border-surface-50-border h-full rounded-3xl border-[0.5px]"
+						ariaLabel={`${title} notes`}
+					>
+						<div class="px-8 pt-7 pb-8">
+							<InitiativeNotes repositoryFullName={repo.fullName} {selected} onselect={select}>
+								{#snippet scratchpad()}
+									{#key repo.fullName}
+										<Scratchpad
+											repositoryFullName={repo.fullName}
+											onstartworkstream={(start) => startWorkstreamFromNoteCommand(repo, start)}
+										/>
+									{/key}
+								{/snippet}
+								{#snippet editor(note)}
+									<ScratchpadEditor
+										content={note.content}
+										label={note.label}
+										placeholder={note.placeholder}
+										onchange={(content, blank) => note.onchange(blank ? null : content)}
+										onstart={null}
+									/>
+								{/snippet}
+							</InitiativeNotes>
+						</div>
+					</ScrollableDiv>
+				</div>
 			{/snippet}
 		</ResizableSplit>
 	{:else if scopeLoaded}

@@ -68,8 +68,27 @@ describe('initiatives', () => {
 			id: dependencyId,
 			title: 'Checkout page',
 			done: true,
+			note: null,
 			workstreams: [{ workstreamId: 'ws-checkout', needs: null }],
 		});
+
+		const note = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] });
+		await context.commands.call('initiatives.update', { id: initiativeId, note });
+		const noted = await context.commands.call('initiatives.update-dependency', {
+			id: dependencyId,
+			note,
+		});
+		expect([noted[0]?.note, noted[0]?.dependencies[1]?.note]).toEqual([note, note]);
+		const renamed = await context.commands.call('initiatives.update', {
+			id: initiativeId,
+			title: 'Ship billing soon',
+		});
+		expect(renamed[0]?.note).toBe(note);
+		const cleared = await context.commands.call('initiatives.update', {
+			id: initiativeId,
+			note: null,
+		});
+		expect(cleared[0]?.note).toBeNull();
 
 		const left = await context.commands.call('initiatives.delete', { id: initiativeId });
 		expect(left.map(({ title }) => title)).toEqual(['Someday']);
@@ -115,6 +134,9 @@ describe('initiatives', () => {
 		await expect(send('initiatives.update', { id: initiative?.id })).resolves.toMatchObject(
 			refused('to change'),
 		);
+		await expect(
+			send('initiatives.update', { id: initiative?.id, note: 'not a document' }),
+		).resolves.toMatchObject(refused('note'));
 		expect(rows('initiatives')).toBe(1);
 	});
 });

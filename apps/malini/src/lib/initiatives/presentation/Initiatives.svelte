@@ -28,15 +28,17 @@
 	interface Props {
 		repository: Repository;
 		standingOf: StandingOf;
+		selected: string | null;
+		onselect: (id: string) => void;
 		onstart: (initiative: Initiative, dependency: InitiativeDependency) => void;
 	}
 
-	let { repository, standingOf, onstart }: Props = $props();
+	let { repository, standingOf, selected, onselect, onstart }: Props = $props();
 
 	type FocusRequest = Readonly<{ id: string; dueOn: string | null; target: 'row' | 'field' }>;
 
 	const SECTION_LABEL =
-		'text-3xs text-fg-quaternary border-border-subtle mt-3.5 border-t pt-4 pb-2 font-medium tracking-wider uppercase first:mt-0 first:border-t-0 first:pt-0';
+		'text-3xs text-fg-quaternary mt-3.5 pt-4 pb-2 font-medium tracking-wider uppercase first:mt-0 first:pt-0';
 
 	const initiatives = $derived(initiativesQuery.inRepository(repository.fullName));
 	const loaded = $derived(initiativesQuery.loaded);
@@ -45,7 +47,7 @@
 	let today: string = $state(localDay(new Date()));
 	let focus: FocusRequest | null = $state(null);
 	let dragged: string | null = $state(null);
-	const opened = new SvelteSet<string>();
+	const folded = new SvelteSet<string>();
 
 	const plan = $derived(rail(today, initiatives, standingOf));
 	const failure = $derived(
@@ -76,8 +78,8 @@
 	}
 
 	function toggle(id: string): void {
-		if (opened.has(id)) opened.delete(id);
-		else opened.add(id);
+		if (folded.has(id)) folded.delete(id);
+		else folded.add(id);
 	}
 
 	function move(initiative: Initiative, days: -1 | 1): void {
@@ -97,7 +99,6 @@
 	async function name(dueOn: string | null, title: string): Promise<boolean> {
 		const id = await createInitiativeCommand(repository.fullName, title, dueOn);
 		if (id === null) return false;
-		opened.add(id);
 		focus = { id, dueOn, target: 'field' };
 		return true;
 	}
@@ -115,7 +116,9 @@
 	<InitiativeItem
 		{initiative}
 		{standingOf}
-		open={opened.has(initiative.id)}
+		open={!folded.has(initiative.id)}
+		{selected}
+		{onselect}
 		focus={focusOf(initiative)}
 		ontoggle={() => toggle(initiative.id)}
 		onmove={(days) => move(initiative, days)}

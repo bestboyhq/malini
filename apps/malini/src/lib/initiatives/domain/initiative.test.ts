@@ -4,6 +4,7 @@ import {
 	dependencyState,
 	initiativeProgress,
 	isDay,
+	noteTarget,
 	rail,
 	type Initiative,
 	type InitiativeDependency,
@@ -37,6 +38,7 @@ function dependency(workstreamIds: readonly string[], done = false): InitiativeD
 		id: workstreamIds.join('+') || 'none',
 		title: 'Step',
 		done,
+		note: null,
 		workstreams: workstreamIds.map((workstreamId) => ({ workstreamId, needs: null })),
 	};
 }
@@ -50,6 +52,7 @@ function initiative(
 		repositoryFullName: 'bestboyhq/grip',
 		title: 'Outcome',
 		dueOn,
+		note: null,
 		dependencies,
 	};
 }
@@ -104,6 +107,17 @@ describe('rail', () => {
 		);
 		expect(earlier).toEqual(['2026-11-10']);
 		expect(weeks.at(-1)?.days.at(-1)).toBe('2026-12-27');
+	});
+});
+
+describe('noteTarget', () => {
+	it('finds an outcome or a dependency with its outcome, and nothing for an id that is gone', () => {
+		const step = dependency(['running']);
+		const outcome = initiative('2026-11-20', [step]);
+		expect(noteTarget([outcome], outcome.id)).toEqual({ initiative: outcome, dependency: null });
+		expect(noteTarget([outcome], step.id)).toEqual({ initiative: outcome, dependency: step });
+		expect(noteTarget([outcome], 'gone')).toBeNull();
+		expect(noteTarget([outcome], null)).toBeNull();
 	});
 });
 
