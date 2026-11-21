@@ -1,4 +1,4 @@
-# 0270 - Every repository you open starts a workstream
+# 0276 - Every repository you open starts a workstream
 
 Status: accepted
 

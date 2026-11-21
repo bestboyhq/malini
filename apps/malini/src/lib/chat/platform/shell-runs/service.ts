@@ -8,7 +8,12 @@ import type {
 } from '$contract/shell-runs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import {
+	describeError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import { preferredShell } from '$main/process/environment';
 import { killProcessGroup } from '$main/process/process-group';
 import { endWithMalini } from '$main/process/reaper';
@@ -38,6 +43,20 @@ const REPORTED_OUTPUT_LENGTH = 4_000;
 const PUBLISH_EVERY_MS = 100;
 const INTERRUPT_GRACE_MS = 2_000;
 const TERMINATE_GRACE_MS = 2_000;
+
+const SHELL_RUN_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'still-running': 'expected',
+	'unknown-run': 'bug',
+} as const satisfies ErrorVerdicts;
+
+type ShellRunErrorKind = keyof typeof SHELL_RUN_ERROR_VERDICTS;
+
+export class ShellRunError extends MaliniError<ShellRunErrorKind> {
+	constructor(kind: ShellRunErrorKind, message: string) {
+		super('ShellRunError', SHELL_RUN_ERROR_VERDICTS, kind, message);
+	}
+}
 
 export type ReportedShellRun = Readonly<
 	Pick<ShellRun, 'command' | 'state' | 'exitCode' | 'output'>
@@ -89,7 +108,10 @@ export class ShellRuns {
 	async start(args: RunShellCommandArgs): Promise<ShellRun> {
 		const { workstreamId, command } = args;
 		if (command.trim().length === 0 || command.length > MAX_COMMAND_LENGTH) {
-			throw new Error(`invalid args: \`command\` must hold 1 to ${MAX_COMMAND_LENGTH} characters`);
+			throw new ShellRunError(
+				'invalid-argument',
+				`invalid args: \`command\` must hold 1 to ${MAX_COMMAND_LENGTH} characters`,
+			);
 		}
 		const cwd = await this.#deps.checkout(workstreamId);
 		const previous = this.#anchoredAt(args.anchor);
@@ -127,7 +149,10 @@ export class ShellRuns {
 
 	write(runId: string, text: string): void {
 		if (text.length > MAX_INPUT_LENGTH) {
-			throw new Error(`invalid args: \`text\` must hold at most ${MAX_INPUT_LENGTH} characters`);
+			throw new ShellRunError(
+				'invalid-argument',
+				`invalid args: \`text\` must hold at most ${MAX_INPUT_LENGTH} characters`,
+			);
 		}
 		this.#entry(runId).child?.stdin.write(text);
 	}
@@ -146,7 +171,7 @@ export class ShellRuns {
 
 	dismiss(runId: string): void {
 		if (this.#entry(runId).child !== null)
-			throw new Error('Stop the command before you dismiss it');
+			throw new ShellRunError('still-running', 'Stop the command before you dismiss it');
 		this.#entries.delete(runId);
 		this.#write('forget the command', (db) => deleteShellRun(db, runId));
 	}
@@ -216,7 +241,7 @@ export class ShellRuns {
 
 	#entry(runId: string): Entry {
 		const entry = this.#entries.get(runId);
-		if (!entry) throw new Error(`Unknown command run: ${runId}`);
+		if (!entry) throw new ShellRunError('unknown-run', `Unknown command run: ${runId}`);
 		return entry;
 	}
 

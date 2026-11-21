@@ -9,6 +9,7 @@ import {
 const disconnects: Array<() => void> = [];
 
 afterEach(() => {
+	vi.useRealTimers();
 	for (const disconnect of disconnects.splice(0)) disconnect();
 });
 
@@ -44,10 +45,13 @@ describe('AgentFileMentionExtensionTarget', () => {
 		const execute = vi.fn(async () => undefined);
 		connect(execute, 'workstream-2');
 		const target = new AgentFileMentionExtensionTarget();
+		vi.useFakeTimers();
 
-		await expect(target.open('workstream-1', { path: 'src/app.ts', line: null })).rejects.toThrow(
-			RepositoryFileTargetUnavailableError,
-		);
+		const refused = expect(
+			target.open('workstream-1', { path: 'src/app.ts', line: null }),
+		).rejects.toThrow(RepositoryFileTargetUnavailableError);
+		await vi.advanceTimersByTimeAsync(15_000);
+		await refused;
 		expect(execute).not.toHaveBeenCalled();
 	});
 
@@ -64,9 +68,12 @@ describe('AgentFileMentionExtensionTarget', () => {
 
 	it('refuses before the extension runtime has a service at all', async () => {
 		const target = new AgentFileMentionExtensionTarget();
+		vi.useFakeTimers();
 
-		await expect(target.open('workstream-1', { path: 'src/app.ts', line: null })).rejects.toThrow(
-			RepositoryFileTargetUnavailableError,
-		);
+		const refused = expect(
+			target.open('workstream-1', { path: 'src/app.ts', line: null }),
+		).rejects.toThrow(RepositoryFileTargetUnavailableError);
+		await vi.advanceTimersByTimeAsync(15_000);
+		await refused;
 	});
 });

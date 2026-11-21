@@ -1,6 +1,5 @@
 import type { InstallOutcomeResult } from '$contract/system';
 import {
-	installNoticeAt,
 	provisioningClonePercent,
 	visibleInstallStatus,
 	workstreamNativeExistence,
@@ -134,7 +133,6 @@ export class WorkstreamDependencyInstallAggregate {
 				command:
 					typeof event.command === 'string' ? event.command : this.#keptCommand(workstreamId),
 				detail: typeof event.detail === 'string' && event.detail.trim() ? event.detail : null,
-				noticeAt: installNoticeAt(this.get(workstreamId), status, Date.now()),
 			},
 		};
 	}

@@ -7,6 +7,7 @@ import type { CommandRegistry } from '$main/ipc/registry';
 import { camelEnvelopeJson, type EmitEnvelope } from '../agent/lifecycle';
 import { IdSequence } from '../id-sequence';
 import {
+	CheckpointError,
 	createCheckpointService,
 	type CheckpointService,
 	type RunChangeRecoveryLeases,
@@ -108,7 +109,8 @@ function field(args: unknown, key: string): unknown {
 
 function requireString(args: unknown, key: string): string {
 	const value = field(args, key);
-	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	if (typeof value !== 'string')
+		throw new CheckpointError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	return value;
 }
 
@@ -116,14 +118,18 @@ function optionalString(args: unknown, key: string): string | null {
 	const value = field(args, key);
 	if (value === undefined || value === null) return null;
 	if (typeof value !== 'string') {
-		throw new Error(`invalid args: \`${key}\` must be a string when present`);
+		throw new CheckpointError(
+			'invalid-argument',
+			`invalid args: \`${key}\` must be a string when present`,
+		);
 	}
 	return value;
 }
 
 function requireNumber(args: unknown, key: string): number {
 	const value = field(args, key);
-	if (typeof value !== 'number') throw new Error(`invalid args: \`${key}\` must be a number`);
+	if (typeof value !== 'number')
+		throw new CheckpointError('invalid-argument', `invalid args: \`${key}\` must be a number`);
 	return value;
 }
 

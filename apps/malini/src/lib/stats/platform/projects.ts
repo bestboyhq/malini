@@ -31,6 +31,7 @@ import { statsCutoff } from '../domain/published-stats';
 import { BestboyError, type Bestboy, type BestboySession, type ProjectUpload } from './bestboy';
 import { settled } from './profile-store';
 import type { RepositoryLookup } from './published-stats';
+import { StatsError } from './stats-error';
 
 export const PROJECTS_FILE = 'bestboy-projects.json';
 
@@ -128,10 +129,13 @@ export class BestboyProjects {
 	}
 
 	async #set({ repositoryId, on, link: text }: SetProjectArgs): Promise<ProjectsState> {
-		if (!this.#deps.session()) throw new Error('Sign in to Bestboy first.');
+		if (!this.#deps.session()) throw new StatsError('signed-out', 'Sign in to Bestboy first.');
 		this.#sources = await this.#deps.sources();
 		if (!this.#sources.some((source) => source.repositoryId === repositoryId)) {
-			throw new Error('invalid args: `repositoryId` names no repository Malini counts runs for');
+			throw new StatsError(
+				'invalid-argument',
+				'invalid args: `repositoryId` names no repository Malini counts runs for',
+			);
 		}
 		const checked = projectLink(text);
 		const link = checked.link ?? text.trim();

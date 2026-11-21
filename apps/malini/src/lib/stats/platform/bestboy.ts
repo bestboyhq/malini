@@ -7,6 +7,7 @@ import type {
 	PublishedStats,
 } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { PROJECT_STATES } from '../domain/projects';
 
 export const BESTBOY_ORIGIN = 'https://bestboy.dev';
@@ -43,15 +44,33 @@ export type BestboyAccess = Readonly<{
 	signedOut(): Promise<void>;
 }>;
 
-export class BestboyError extends Error {
-	override readonly name = 'BestboyError';
+const BESTBOY_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	unreachable: 'expected',
+	'signed-out': 'expected',
+	unavailable: 'expected',
+	'invalid-input': 'expected',
+	'bad-reply': 'bug',
+	refused: 'bug',
+} as const satisfies ErrorVerdicts;
 
+export type BestboyErrorKind = keyof typeof BESTBOY_ERROR_VERDICTS;
+
+function bestboyErrorKind(status: number | null, field: string | null): BestboyErrorKind {
+	if (status === null) return 'unreachable';
+	if (status === 401) return 'signed-out';
+	if (TRANSIENT_STATUSES.has(status) || status >= 500) return 'unavailable';
+	if (status < 300) return 'bad-reply';
+	return field === null ? 'refused' : 'invalid-input';
+}
+
+export class BestboyError extends MaliniError<BestboyErrorKind> {
 	constructor(
 		message: string,
 		readonly status: number | null,
 		readonly field: string | null = null,
 	) {
-		super(message);
+		super('BestboyError', BESTBOY_ERROR_VERDICTS, bestboyErrorKind(status, field), message);
 	}
 
 	get transient(): boolean {

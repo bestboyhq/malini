@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { ProviderError } from './provider-error';
 
 const MAX_REQUEST_BYTES = 64 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
@@ -57,7 +58,9 @@ export class LocalEndpoint {
 		let port = 0;
 		await new Promise<void>((resolve, reject) => {
 			server.once('error', reject);
-			server.once('close', () => reject(new Error('The local proxy stopped.')));
+			server.once('close', () =>
+				reject(new ProviderError('proxy-stopped', 'The local proxy stopped.')),
+			);
 			server.listen({ port: 0, host: '127.0.0.1' }, () => {
 				server.removeListener('error', reject);
 				const address = server.address();

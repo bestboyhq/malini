@@ -1,4 +1,5 @@
 import type { ModelProviderKind } from '$contract/agent';
+import { ProviderError } from './provider-error';
 
 export interface ProviderEnvironmentInput {
 	readonly name: string;
@@ -9,17 +10,22 @@ export interface ProviderEnvironmentInput {
 	readonly subagentModel: string | null;
 }
 
-export class ProviderNotConnectedError extends Error {}
+export class ProviderNotConnectedError extends ProviderError {
+	constructor(kind: 'key-missing' | 'unsupported', message: string) {
+		super(kind, message);
+	}
+}
 
 export function missingKey(name: string): ProviderNotConnectedError {
 	return new ProviderNotConnectedError(
+		'key-missing',
 		`${name} needs an API key. Add it in Settings, then try again.`,
 	);
 }
 
 export function providerEnvironment(input: ProviderEnvironmentInput): Record<string, string> {
 	if (input.kind === 'claude') return {};
-	if (input.baseUrl === null) throw new Error(`${input.name} has no base URL`);
+	if (input.baseUrl === null) throw new ProviderError('invariant', `${input.name} has no base URL`);
 	if (input.apiKey === null || input.apiKey.length === 0) throw missingKey(input.name);
 	const subagentModel = input.subagentModel ?? input.model;
 	return {

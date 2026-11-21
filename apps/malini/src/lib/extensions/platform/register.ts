@@ -19,6 +19,7 @@ import {
 	validateOwner,
 	writeFile,
 } from './files';
+import { ExtensionError } from './extension-error';
 import { Marketplace, type PublishSource } from './marketplace';
 import { MarketplaceClient } from './marketplace-client';
 import { readOpenedFile, statOpenedFile, writeOpenedFile } from './opened-files';
@@ -111,7 +112,8 @@ function registerMarketplace(context: MainContext, deps: ExtensionsPlatformDeps)
 	);
 	commands.define('extensions.switch', (args: unknown) => {
 		const enabled = field(args, 'enabled');
-		if (typeof enabled !== 'boolean') throw new Error('extensions.switch needs enabled.');
+		if (typeof enabled !== 'boolean')
+			throw new ExtensionError('invalid-argument', 'extensions.switch needs enabled.');
 		return marketplace.switch(slugArg(args, 'name'), enabled);
 	});
 	commands.define('extensions.publishing', () => marketplace.publishing());
@@ -122,14 +124,14 @@ function registerMarketplace(context: MainContext, deps: ExtensionsPlatformDeps)
 			repositoryId.length === 0 ||
 			repositoryId.length > 300
 		) {
-			throw new Error('extensions.publish needs a repositoryId.');
+			throw new ExtensionError('invalid-argument', 'extensions.publish needs a repositoryId.');
 		}
 		return marketplace.publish(repositoryId);
 	});
 	commands.define('extensions.claim-handle', async (args: unknown) => {
 		const handle = field(args, 'handle');
 		if (typeof handle !== 'string' || handle.length > 100) {
-			throw new Error('extensions.claim-handle needs a handle.');
+			throw new ExtensionError('invalid-argument', 'extensions.claim-handle needs a handle.');
 		}
 		return { problem: await deps.bestboy().claimHandle(handle) };
 	});
@@ -157,7 +159,10 @@ function extensionRef(args: unknown): Readonly<{ publisher: string; name: string
 function slugArg(args: unknown, name: string): string {
 	const value = field(args, name);
 	if (typeof value !== 'string' || value.length > 64 || !SLUG.test(value)) {
-		throw new Error(`${name} must be lowercase letters, digits and single hyphens.`);
+		throw new ExtensionError(
+			'invalid-argument',
+			`${name} must be lowercase letters, digits and single hyphens.`,
+		);
 	}
 	return value;
 }
@@ -177,7 +182,11 @@ function registerExtensionPackages(
 	commands.define('extensions.recovery-mode-enabled', () => packages.recoveryModeEnabled());
 	commands.define('extensions.append-development-log', (args: unknown) => {
 		const log = field(args, 'log');
-		if (!isRecord(log)) throw new Error('extensions.append-development-log requires a log');
+		if (!isRecord(log))
+			throw new ExtensionError(
+				'invalid-argument',
+				'extensions.append-development-log requires a log',
+			);
 		return packages.appendDevelopmentLog(parseDevelopmentLog(log));
 	});
 
@@ -193,7 +202,10 @@ function parseDevelopmentLog(log: Record<string, unknown>): ExtensionDevelopment
 		typeof message !== 'string' ||
 		(extensionId != null && typeof extensionId !== 'string')
 	) {
-		throw new Error('extensions.append-development-log received a malformed log');
+		throw new ExtensionError(
+			'invalid-argument',
+			'extensions.append-development-log received a malformed log',
+		);
 	}
 	return { timestamp, level, extensionId: extensionId ?? null, event, message };
 }
@@ -219,7 +231,7 @@ function stringArg<K extends string>(
 ): string {
 	const value = args?.[key];
 	if (typeof value !== 'string') {
-		throw new Error(`Extension host command requires ${key}`);
+		throw new ExtensionError('invalid-argument', `Extension host command requires ${key}`);
 	}
 	return value;
 }

@@ -1,5 +1,6 @@
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from 'node:http';
 import { pipeline } from 'node:stream/promises';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import {
 	anthropicError,
 	LocalEndpoint,
@@ -29,13 +30,22 @@ const DROPPED_RESPONSE_HEADERS: ReadonlySet<string> = new Set([
 	'transfer-encoding',
 ]);
 
-class Refusal extends Error {
+const REFUSAL_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'not-found': 'bug',
+	'no-upstream': 'expected',
+	'too-large': 'expected',
+} as const satisfies ErrorVerdicts;
+
+class Refusal extends MaliniError<keyof typeof REFUSAL_VERDICTS> {
 	constructor(
+		kind: keyof typeof REFUSAL_VERDICTS,
 		readonly status: number,
 		readonly type: string,
 		message: string,
+		cause?: unknown,
 	) {
-		super(message);
+		super('Refusal', REFUSAL_VERDICTS, kind, message, { cause });
 	}
 }
 
@@ -63,15 +73,15 @@ export class KeyProxy {
 		const [, providerId, path] = ROUTE.exec(url.pathname) ?? [];
 		if (request.method !== 'POST' || providerId === undefined || path === undefined) {
 			request.resume();
-			throw new Refusal(404, 'not_found_error', 'Not found.');
+			throw new Refusal('not-found', 404, 'not_found_error', 'Not found.');
 		}
 		const upstream = await this.#deps.upstream(providerId).catch((error: unknown) => {
 			request.resume();
-			throw new Refusal(401, 'authentication_error', messageOf(error));
+			throw new Refusal('no-upstream', 401, 'authentication_error', messageOf(error), error);
 		});
 		const body = await readBody(
 			request,
-			() => new Refusal(413, 'request_too_large', 'Prompt is too long.'),
+			() => new Refusal('too-large', 413, 'request_too_large', 'Prompt is too long.'),
 		);
 		const controller = new AbortController();
 		response.once('close', () => controller.abort());

@@ -156,6 +156,71 @@ async function isSmallText(path: string): Promise<boolean> {
 	}
 }
 
+interface LeftoverFile {
+	readonly path: string;
+	readonly regular: boolean;
+}
+
+interface CheckoutLeftovers {
+	readonly rebuilt: string[];
+	readonly files: LeftoverFile[];
+	readonly nested: string[];
+}
+
+export async function clearLeftoverCheckout(
+	checkoutsRoot: string,
+	workstreamId: string,
+	checkout: string,
+	removable: (files: readonly LeftoverFile[]) => Promise<ReadonlySet<string>>,
+): Promise<readonly string[]> {
+	if (!(await entryAt(checkout))?.isDirectory()) return [];
+	if ((await entryAt(join(checkout, '.git'))) !== null) return ['.git'];
+	await keepFolders(checkoutsRoot, workstreamId, checkout);
+	const leftovers: CheckoutLeftovers = { rebuilt: [], files: [], nested: [] };
+	await collectLeftovers(checkout, '', leftovers);
+	for (const path of leftovers.rebuilt) {
+		await rm(join(checkout, path), { recursive: true, force: true });
+	}
+	const removed = await removable(leftovers.files);
+	for (const { path } of leftovers.files) {
+		if (removed.has(path)) await rm(join(checkout, path), { force: true });
+	}
+	await removeEmptyFolders(checkout);
+	return [
+		...leftovers.nested,
+		...leftovers.files.flatMap(({ path }) => (removed.has(path) ? [] : [path])),
+	];
+}
+
+async function collectLeftovers(
+	checkout: string,
+	folder: string,
+	leftovers: CheckoutLeftovers,
+): Promise<void> {
+	const entries = await readdir(join(checkout, folder), { withFileTypes: true });
+	if (folder !== '' && entries.some(({ name }) => name === '.git')) {
+		leftovers.nested.push(folder);
+		return;
+	}
+	for (const entry of entries) {
+		const path = folder === '' ? entry.name : `${folder}/${entry.name}`;
+		if (KEPT_FOLDERS.some((kept) => kept === path)) continue;
+		if (!entry.isDirectory()) leftovers.files.push({ path, regular: entry.isFile() });
+		else if (REBUILT_DIRECTORIES.has(entry.name) || BUNDLE_DIRECTORY.test(entry.name)) {
+			leftovers.rebuilt.push(path);
+		} else await collectLeftovers(checkout, path, leftovers);
+	}
+}
+
+async function removeEmptyFolders(directory: string): Promise<void> {
+	const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+	if (entries.some(({ name }) => name === '.git')) return;
+	for (const entry of entries) {
+		if (entry.isDirectory()) await removeEmptyFolders(join(directory, entry.name));
+	}
+	await rmdir(directory).catch(() => undefined);
+}
+
 export async function sweepKeptFolders(
 	checkoutsRoot: string,
 	isWorkstream: (workstreamId: string) => boolean,

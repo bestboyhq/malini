@@ -16,6 +16,7 @@ import {
 	type ProfileStore,
 	type SavedProfile,
 } from './profile-store';
+import { StatsError } from './stats-error';
 
 export interface StatsProfileDeps {
 	readonly bestboy: Bestboy;
@@ -430,12 +431,18 @@ function pickedRepositories(names: readonly unknown[]): string[] {
 	const picked = new Map<string, string>();
 	for (const name of names) {
 		if (typeof name !== 'string' || !REPOSITORY_NAME.test(name)) {
-			throw new Error('invalid args: `repositories` must hold GitHub repository names');
+			throw new StatsError(
+				'invalid-argument',
+				'invalid args: `repositories` must hold GitHub repository names',
+			);
 		}
 		picked.set(name.toLowerCase(), name);
 	}
 	if (picked.size > MAX_PICKS) {
-		throw new Error(`invalid args: pick at most ${MAX_PICKS} repositories`);
+		throw new StatsError(
+			'invalid-argument',
+			`invalid args: pick at most ${MAX_PICKS} repositories`,
+		);
 	}
 	return [...picked.values()];
 }

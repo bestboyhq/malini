@@ -6,6 +6,7 @@
 	import { watchShownChatCommand } from '$lib/chat/application/commands/watch-shown-chat.command';
 	import { connectAgentEventsHook } from '$lib/chat/application/hooks/connect-agent-events.hook';
 	import { drivePromptQueueHook } from '$lib/chat/application/hooks/drive-prompt-queue.hook';
+	import { followCheckoutFixTurnsHook } from '$lib/chat/application/hooks/follow-checkout-fix-turns.hook.svelte';
 	import { openNotifiedChatsHook } from '$lib/chat/application/hooks/open-notified-chats.hook';
 	import { releaseWaitingPromptQueuesHook } from '$lib/chat/application/hooks/release-waiting-prompt-queues.hook.svelte';
 	import { showUnreadChatsHook } from '$lib/chat/application/hooks/show-unread-chats.hook.svelte';
@@ -38,6 +39,7 @@
 	const releaseAgentEvents = connectAgentEventsHook();
 	const releasePromptQueue = drivePromptQueueHook();
 	const stopReleasingWaitingQueues = releaseWaitingPromptQueuesHook();
+	const stopFollowingCheckoutFixes = followCheckoutFixTurnsHook();
 	const stopShowingUnreadChats = showUnreadChatsHook();
 	const stopFollowingWorkstreamSetup = followWorkstreamSetupHook(settleWorkstreamSetupQueueCommand);
 	const stopOpeningNotifiedChats = openNotifiedChatsHook(
@@ -50,6 +52,7 @@
 		stopOpeningNotifiedChats();
 		stopShowingUnreadChats();
 		stopFollowingWorkstreamSetup();
+		stopFollowingCheckoutFixes();
 		stopReleasingWaitingQueues();
 		releasePromptQueue();
 		releaseAgentEvents();

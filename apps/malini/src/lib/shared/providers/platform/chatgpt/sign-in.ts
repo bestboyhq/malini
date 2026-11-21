@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, randomBytes, timingSafeEqual, verify } from 'node:crypto';
 import { createServer, type RequestListener } from 'node:http';
 import { z } from 'zod';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 
 export const CHATGPT_ISSUER = 'https://auth.openai.com';
 export const CHATGPT_RESOURCE = 'https://api.openai.com/v1';
@@ -60,17 +61,54 @@ export interface PreviousConnection {
 	readonly email: string | null;
 }
 
-export class ChatGptError extends Error {
-	readonly code: string;
+const CHATGPT_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	cancelled: 'expected',
+	'signed-out': 'expected',
+	'sign-in-expired': 'expected',
+	unreachable: 'expected',
+	'account-mismatch': 'expected',
+	'scope-not-granted': 'expected',
+	'credentials-unreadable': 'expected',
+	'revoke-unconfirmed': 'expected',
+	unverified: 'bug',
+	'callback-failed': 'bug',
+	refused: 'bug',
+} as const satisfies ErrorVerdicts;
 
+export type ChatGptErrorKind = keyof typeof CHATGPT_ERROR_VERDICTS;
+
+const CHATGPT_ERROR_KINDS: Readonly<Record<string, ChatGptErrorKind>> = {
+	cancelled: 'cancelled',
+	signed_out: 'signed-out',
+	network_error: 'unreachable',
+	keys_unavailable: 'unreachable',
+	discovery_failed: 'unreachable',
+	account_mismatch: 'account-mismatch',
+	scope_not_granted: 'scope-not-granted',
+	unreadable_credentials: 'credentials-unreadable',
+	revoke_unconfirmed: 'revoke-unconfirmed',
+	invalid_id_token: 'unverified',
+	invalid_token_response: 'unverified',
+	registration_incomplete: 'unverified',
+	callback_failed: 'callback-failed',
+};
+
+function chatGptErrorKind(code: string): ChatGptErrorKind {
+	if (REAUTHENTICATION_CODES.has(code)) return 'sign-in-expired';
+	return CHATGPT_ERROR_KINDS[code] ?? 'refused';
+}
+
+export class ChatGptError extends MaliniError<ChatGptErrorKind> {
 	constructor(code: string, message: string, cause?: unknown) {
-		super(message, { cause });
-		this.name = 'ChatGptError';
-		this.code = code;
+		super('ChatGptError', CHATGPT_ERROR_VERDICTS, chatGptErrorKind(code), message, {
+			code,
+			cause,
+		});
 	}
 
 	get needsSignIn(): boolean {
-		return REAUTHENTICATION_CODES.has(this.code);
+		return this.kind === 'sign-in-expired';
 	}
 }
 

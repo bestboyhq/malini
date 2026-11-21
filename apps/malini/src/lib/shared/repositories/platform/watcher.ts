@@ -2,6 +2,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { lstat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
+import { WorkstreamError } from './checkout-resolver';
 import { getWorkstream, listWorkstreams } from './workstreams.repository';
 import { GitError } from '$main/errors';
 import type { EventBus } from '$main/events';
@@ -144,7 +145,8 @@ async function unmergedPaths(worktreePath: string): Promise<string[]> {
 async function gitDirectories(worktreePath: string): Promise<GitDirectories> {
 	const output = await runGit(['-C', worktreePath, 'rev-parse', '--git-dir', '--git-common-dir']);
 	const [gitDir, commonDir] = output.split('\n').map((line) => line.trim());
-	if (!gitDir || !commonDir) throw new Error('git rev-parse did not name both directories');
+	if (!gitDir || !commonDir)
+		throw new WorkstreamError('invariant', 'git rev-parse did not name both directories');
 	return { gitDir: resolve(worktreePath, gitDir), commonDir: resolve(worktreePath, commonDir) };
 }
 

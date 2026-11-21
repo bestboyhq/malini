@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
+import { WorkstreamError } from './checkout-resolver';
 import { getProject, type Project } from './projects.repository';
 import {
 	getConnectedRepository,
@@ -155,7 +156,7 @@ async function repositoryFromBaseClone(
 
 export function requireFolder(path: string): string {
 	if (!existsSync(path)) {
-		throw new Error(`folder does not exist: ${path}`);
+		throw new WorkstreamError('invalid-argument', `folder does not exist: ${path}`);
 	}
 	return path;
 }

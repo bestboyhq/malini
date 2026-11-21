@@ -220,6 +220,11 @@ export async function snapshotCommitTree(worktreePath: string, commit: string): 
 	return (await runGit(['-C', worktreePath, 'rev-parse', `${commit}^{tree}`])).trim();
 }
 
+export async function headTree(worktreePath: string): Promise<string | null> {
+	const head = await headCommit(worktreePath);
+	return head === null ? null : snapshotCommitTree(worktreePath, head);
+}
+
 async function validateSnapshotCommits(
 	worktree: string,
 	beforeCommit: string,

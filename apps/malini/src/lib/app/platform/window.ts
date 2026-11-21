@@ -13,6 +13,7 @@ import {
 } from '$contract/events';
 import type { NotificationPermissionResult } from '$contract/system';
 import type { EventBus } from '$main/events';
+import { AppError } from './app-error';
 import type { ShellHost } from './shell-host';
 
 export type { NotificationPermissionResult };
@@ -159,7 +160,7 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 
 	const requireWindow = (): ShellWindow => {
 		const window = deps.getMainWindow();
-		if (!window || window.isDestroyed()) throw new Error(NO_MAIN_WINDOW_ERROR);
+		if (!window || window.isDestroyed()) throw new AppError('no-window', NO_MAIN_WINDOW_ERROR);
 		return window;
 	};
 
@@ -264,7 +265,7 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		setInterfaceScale(args) {
 			const scale = args?.scale;
 			if (!isZoomFactor(scale)) {
-				throw new Error('interface scale must be a positive number');
+				throw new AppError('invalid-argument', 'interface scale must be a positive number');
 			}
 			const window = requireWindow();
 			window.webContents.setZoomFactor(scale);
@@ -279,7 +280,8 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 			return window !== null && !window.isDestroyed() && window.isFullScreen();
 		},
 		setCloseGuard(args) {
-			if (typeof args?.armed !== 'boolean') throw new Error('armed must be a boolean');
+			if (typeof args?.armed !== 'boolean')
+				throw new AppError('invalid-argument', 'armed must be a boolean');
 			const window = deps.getMainWindow();
 			if (window) attach(window);
 			armed = args.armed;
@@ -293,16 +295,17 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		notify(args) {
 			const options = args?.options;
 			if (typeof options?.title !== 'string' || typeof options?.body !== 'string') {
-				throw new Error('notification needs a title and a body');
+				throw new AppError('invalid-argument', 'notification needs a title and a body');
 			}
 			const opens = options.opens;
 			if (
 				opens !== undefined &&
 				(typeof opens?.workstreamId !== 'string' || typeof opens?.sessionId !== 'string')
 			) {
-				throw new Error('a notification opens a workstream chat by its ids');
+				throw new AppError('invalid-argument', 'a notification opens a workstream chat by its ids');
 			}
-			if (!host.notificationsSupported()) throw new Error(NOTIFICATIONS_UNSUPPORTED_ERROR);
+			if (!host.notificationsSupported())
+				throw new AppError('notifications-unsupported', NOTIFICATIONS_UNSUPPORTED_ERROR);
 			host.showNotification({
 				title: options.title,
 				body: options.body,

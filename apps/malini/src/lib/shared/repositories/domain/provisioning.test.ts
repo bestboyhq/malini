@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-	QUIET_INSTALL_START_MS,
 	WORKSTREAM_PROVISIONING_PHASES,
-	installNoticeAt,
 	planWorkstreamProvisioning,
 	provisioningFailureIsAuth,
 	provisioningFailureMessage,
 	provisioningStepLabel,
 	visibleInstallStatus,
 	workstreamNativeExistence,
-	type WorkstreamInstallRecord,
 	type WorkstreamProvisioningRecord,
 } from './provisioning';
 
@@ -69,21 +66,6 @@ describe('workstream provisioning rules', () => {
 		expect(provisioningStepLabel({ ...record(null), phase: 'syncing' })).toBe(
 			'Updating main from origin',
 		);
-	});
-
-	it('announces a fresh install only once it has run for a while, and a retried one at once', () => {
-		const running: WorkstreamInstallRecord = {
-			workstreamId: 'ws-a',
-			status: 'running',
-			command: null,
-			detail: null,
-			noticeAt: 4_000,
-		};
-		expect(installNoticeAt(null, 'running', 1_000)).toBe(1_000 + QUIET_INSTALL_START_MS);
-		expect(installNoticeAt(running, 'running', 2_000)).toBe(4_000);
-		expect(installNoticeAt({ ...running, status: 'failed' }, 'running', 2_000)).toBe(2_000);
-		expect(installNoticeAt(running, 'failed', 2_000)).toBe(2_000);
-		expect(installNoticeAt(null, 'unavailable', 2_000)).toBe(2_000);
 	});
 
 	it('recognizes a failure that waits on a GitHub credential', () => {

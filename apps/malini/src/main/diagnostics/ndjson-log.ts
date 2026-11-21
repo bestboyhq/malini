@@ -13,6 +13,7 @@ import {
 	writeSync,
 	type Stats,
 } from 'node:fs';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '../errors';
 import {
 	MAX_LOG_BYTES,
 	MAX_ROTATED_FILES,
@@ -29,6 +30,23 @@ export interface NdjsonAppendReceipt {
 
 const UNIX = process.platform !== 'win32';
 
+const DIAGNOSTICS_LOG_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	io: 'bug',
+	'unsafe-path': 'bug',
+} as const satisfies ErrorVerdicts;
+
+type DiagnosticsLogErrorKind = keyof typeof DIAGNOSTICS_LOG_ERROR_VERDICTS;
+
+export class DiagnosticsLogError extends MaliniError<DiagnosticsLogErrorKind> {
+	constructor(kind: DiagnosticsLogErrorKind, message: string, cause?: unknown) {
+		super('DiagnosticsLogError', DIAGNOSTICS_LOG_ERROR_VERDICTS, kind, message, {
+			code: errnoCode(cause),
+			cause,
+		});
+	}
+}
+
 export function appendNdjsonRecord(
 	appDataRoot: string,
 	stem: string,
@@ -39,7 +57,11 @@ export function appendNdjsonRecord(
 	try {
 		mkdirSync(appDataRoot, { recursive: true });
 	} catch (error) {
-		throw new Error(`could not create app data root: ${describe(error)}`);
+		throw new DiagnosticsLogError(
+			'io',
+			`could not create app data root: ${describe(error)}`,
+			error,
+		);
 	}
 	const directory = diagnosticsDirectory(appDataRoot);
 	ensurePrivateDirectory(directory);
@@ -50,7 +72,11 @@ export function appendNdjsonRecord(
 	try {
 		writeSync(descriptor, encoded);
 	} catch (error) {
-		throw new Error(`could not append to the diagnostics log ${path}: ${describe(error)}`);
+		throw new DiagnosticsLogError(
+			'io',
+			`could not append to the diagnostics log ${path}: ${describe(error)}`,
+			error,
+		);
 	} finally {
 		closeSync(descriptor);
 	}
@@ -61,18 +87,25 @@ export function appendNdjsonRecord(
 export function regularFileSize(path: string): number | null {
 	const metadata = lstatOrNull(path, `could not inspect diagnostics log ${path}`);
 	if (metadata === null) return null;
-	if (metadata.isSymbolicLink()) throw new Error(`refusing symlink diagnostics log: ${path}`);
-	if (!metadata.isFile()) throw new Error(`diagnostics log is not a file: ${path}`);
+	if (metadata.isSymbolicLink())
+		throw new DiagnosticsLogError('unsafe-path', `refusing symlink diagnostics log: ${path}`);
+	if (!metadata.isFile())
+		throw new DiagnosticsLogError('unsafe-path', `diagnostics log is not a file: ${path}`);
 	if (!UNIX) return metadata.size;
 	let descriptor: number;
 	try {
 		descriptor = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
 	} catch (error) {
-		throw new Error(`could not securely inspect diagnostics log ${path}: ${describe(error)}`);
+		throw new DiagnosticsLogError(
+			'io',
+			`could not securely inspect diagnostics log ${path}: ${describe(error)}`,
+			error,
+		);
 	}
 	try {
 		const opened = fstatSync(descriptor);
-		if (!opened.isFile()) throw new Error(`diagnostics log is not a file: ${path}`);
+		if (!opened.isFile())
+			throw new DiagnosticsLogError('unsafe-path', `diagnostics log is not a file: ${path}`);
 		fchmodSync(descriptor, 0o600);
 		return opened.size;
 	} finally {
@@ -87,21 +120,34 @@ function ensurePrivateDirectory(path: string): void {
 			mkdirSync(path);
 		} catch (error) {
 			if (errnoCode(error) !== 'EEXIST') {
-				throw new Error(`could not create diagnostics directory ${path}: ${describe(error)}`);
+				throw new DiagnosticsLogError(
+					'io',
+					`could not create diagnostics directory ${path}: ${describe(error)}`,
+					error,
+				);
 			}
 		}
 		metadata = lstatOrNull(path, `could not inspect diagnostics directory ${path}`);
 		if (metadata === null) {
-			throw new Error(`could not inspect diagnostics directory ${path}: vanished`);
+			throw new DiagnosticsLogError(
+				'io',
+				`could not inspect diagnostics directory ${path}: vanished`,
+			);
 		}
 	}
-	if (metadata.isSymbolicLink()) throw new Error(`refusing symlink diagnostics directory: ${path}`);
-	if (!metadata.isDirectory()) throw new Error(`diagnostics path is not a directory: ${path}`);
+	if (metadata.isSymbolicLink())
+		throw new DiagnosticsLogError('unsafe-path', `refusing symlink diagnostics directory: ${path}`);
+	if (!metadata.isDirectory())
+		throw new DiagnosticsLogError('unsafe-path', `diagnostics path is not a directory: ${path}`);
 	if (!UNIX) return;
 	try {
 		chmodSync(path, 0o700);
 	} catch (error) {
-		throw new Error(`could not secure diagnostics directory ${path}: ${describe(error)}`);
+		throw new DiagnosticsLogError(
+			'io',
+			`could not secure diagnostics directory ${path}: ${describe(error)}`,
+			error,
+		);
 	}
 }
 
@@ -113,11 +159,15 @@ function openForAppend(path: string): number {
 	try {
 		descriptor = openSync(path, flags, 0o600);
 	} catch (error) {
-		throw new Error(`could not open diagnostics log ${path}: ${describe(error)}`);
+		throw new DiagnosticsLogError(
+			'io',
+			`could not open diagnostics log ${path}: ${describe(error)}`,
+			error,
+		);
 	}
 	try {
 		if (!fstatSync(descriptor).isFile()) {
-			throw new Error(`opened diagnostics log is not a file: ${path}`);
+			throw new DiagnosticsLogError('unsafe-path', `opened diagnostics log is not a file: ${path}`);
 		}
 		if (UNIX) fchmodSync(descriptor, 0o600);
 	} catch (error) {
@@ -143,14 +193,22 @@ function rotateIfNeeded(
 			try {
 				rmSync(destination);
 			} catch (error) {
-				throw new Error(`could not remove rotated log ${destination}: ${describe(error)}`);
+				throw new DiagnosticsLogError(
+					'io',
+					`could not remove rotated log ${destination}: ${describe(error)}`,
+					error,
+				);
 			}
 		}
 		if (regularFileSize(source) === null) continue;
 		try {
 			renameSync(source, destination);
 		} catch (error) {
-			throw new Error(`could not rotate log ${source} to ${destination}: ${describe(error)}`);
+			throw new DiagnosticsLogError(
+				'io',
+				`could not rotate log ${source} to ${destination}: ${describe(error)}`,
+				error,
+			);
 		}
 	}
 	return true;
@@ -166,7 +224,11 @@ function syncDirectory(path: string): void {
 			closeSync(descriptor);
 		}
 	} catch (error) {
-		throw new Error(`could not sync diagnostics directory: ${describe(error)}`);
+		throw new DiagnosticsLogError(
+			'io',
+			`could not sync diagnostics directory: ${describe(error)}`,
+			error,
+		);
 	}
 }
 
@@ -175,7 +237,7 @@ function lstatOrNull(path: string, context: string): Stats | null {
 		return lstatSync(path);
 	} catch (error) {
 		if (errnoCode(error) === 'ENOENT') return null;
-		throw new Error(`${context}: ${describe(error)}`);
+		throw new DiagnosticsLogError('io', `${context}: ${describe(error)}`, error);
 	}
 }
 

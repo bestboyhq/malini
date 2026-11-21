@@ -1,6 +1,6 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
-import { missingKey } from '$shared/providers/domain/provider-env';
+import { missingKey } from './provider-env';
 import { KeyProxy } from './key-proxy';
 
 interface Received {

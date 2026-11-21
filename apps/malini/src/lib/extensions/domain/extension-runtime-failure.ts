@@ -91,9 +91,17 @@ export function unseenWarmFailures(
 }
 
 export function failedOnRetiredWorkstream(error: unknown): boolean {
+	return failedWithKind(error, 'retired');
+}
+
+export function failedOnBrokenCheckout(error: unknown): boolean {
+	return failedWithKind(error, 'checkout-broken');
+}
+
+function failedWithKind(error: unknown, kind: string): boolean {
 	return errorLeaves(error).some(
 		(leaf) =>
-			typeof leaf === 'object' && leaf !== null && (leaf as { kind?: unknown }).kind === 'retired',
+			typeof leaf === 'object' && leaf !== null && (leaf as { kind?: unknown }).kind === kind,
 	);
 }
 

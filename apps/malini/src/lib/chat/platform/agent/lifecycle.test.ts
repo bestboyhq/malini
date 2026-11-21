@@ -93,6 +93,9 @@ describe('leases', () => {
 		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow(
 			'`sess-1` already has an active run',
 		);
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow(
+			expect.objectContaining({ kind: 'already_running', verdict: 'expected' }),
+		);
 		seedSession(test.db, 'sess-2', 'ws-1', 'idle');
 		const sibling = leases.acquireRun(test.db, 'ws-1', 'sess-2');
 		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-2')).toThrow(LifecycleError);

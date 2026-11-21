@@ -45,6 +45,7 @@ import {
 	type AgentInteractionRecord,
 } from '../interactions.repository';
 import { get, isRecord, jsonEqual, nowIso8601, run } from '$main/db/rows';
+import { isMaliniError } from '$main/errors';
 import {
 	activeRunWorkstreamIdentity,
 	continuableRun,
@@ -633,7 +634,7 @@ export async function activateAgentSession(
 		'SELECT workstream_id, provider, model, provider_session_id FROM agent_sessions WHERE id = ?',
 		sessionId,
 	);
-	if (!row) throw new Error('Query returned no rows');
+	if (!row) throw new LifecycleError('session-not-found', 'Query returned no rows');
 	repairSessionStatusesWithoutOpenRuns(db, row.workstream_id);
 	if (!worktreeExists(checkoutsRoot, row.workstream_id)) return;
 	const model = repairPersistedModel(db, sessionId, row.model);
@@ -1140,7 +1141,10 @@ function reviewedInput(
 		typeof requested['id'] !== 'string' ||
 		updatedInput['id'] !== requested['id']
 	) {
-		throw new Error('only a reviewed edit of the same automation can change what is saved');
+		throw new LifecycleError(
+			'invalid-argument',
+			'only a reviewed edit of the same automation can change what is saved',
+		);
 	}
 	return updatedInput;
 }
@@ -1148,7 +1152,8 @@ function reviewedInput(
 function interactionResponseMatches(record: AgentInteractionRecord, response: unknown): boolean {
 	if (record.state !== 'resolved') return false;
 	if (record.response !== null && jsonEqual(record.response, response)) return true;
-	throw new Error(
+	throw new LifecycleError(
+		'interaction-conflict',
 		`interaction \`${record.requestId}\` was already resolved with a different response`,
 	);
 }
@@ -1161,15 +1166,20 @@ function validateQuestionAnswers(
 	const MAX_VALUES = 16;
 	const MAX_VALUE_BYTES = 4096;
 	const payload = record.requestPayload;
-	if (!isRecord(payload)) throw new Error('stored question request is invalid');
+	if (!isRecord(payload))
+		throw new LifecycleError('invariant', 'stored question request is invalid');
 	const questions = payload['questions'];
-	if (!Array.isArray(questions)) throw new Error('stored question request has no questions');
+	if (!Array.isArray(questions))
+		throw new LifecycleError('invariant', 'stored question request has no questions');
 	if (
 		questions.length === 0 ||
 		questions.length > MAX_QUESTIONS ||
 		answers.length !== questions.length
 	) {
-		throw new Error('answers must cover every pending question exactly once');
+		throw new LifecycleError(
+			'invalid-argument',
+			'answers must cover every pending question exactly once',
+		);
 	}
 	const supplied = new Map<string, readonly string[]>();
 	for (const answer of answers) {
@@ -1184,19 +1194,23 @@ function validateQuestionAnswers(
 			) ||
 			supplied.has(answer.questionId)
 		) {
-			throw new Error('question answers are empty, oversized, or duplicated');
+			throw new LifecycleError(
+				'invalid-argument',
+				'question answers are empty, oversized, or duplicated',
+			);
 		}
 		supplied.set(answer.questionId, answer.values);
 	}
 	for (const question of questions) {
 		if (!isRecord(question) || typeof question['id'] !== 'string')
-			throw new Error('stored question has no id');
+			throw new LifecycleError('invariant', 'stored question has no id');
 		const questionId = question['id'];
 		const values = supplied.get(questionId);
-		if (!values) throw new Error(`question \`${questionId}\` was not answered`);
+		if (!values)
+			throw new LifecycleError('invalid-argument', `question \`${questionId}\` was not answered`);
 		const multiSelect = question['multiSelect'] === true;
 		if (!multiSelect && values.length !== 1)
-			throw new Error(`question \`${questionId}\` accepts one answer`);
+			throw new LifecycleError('invalid-argument', `question \`${questionId}\` accepts one answer`);
 		const allowFreeText = question['allowFreeText'] === true;
 		if (!allowFreeText) {
 			const options = Array.isArray(question['options']) ? question['options'] : [];
@@ -1208,7 +1222,10 @@ function validateQuestionAnswers(
 					.filter((label): label is string => label !== null),
 			);
 			if (values.some((value) => !labels.has(value))) {
-				throw new Error(`question \`${questionId}\` contains an answer outside its options`);
+				throw new LifecycleError(
+					'invalid-argument',
+					`question \`${questionId}\` contains an answer outside its options`,
+				);
 			}
 		}
 	}
@@ -1238,12 +1255,16 @@ export async function decideAgentApproval(
 	const alwaysAllow = input.alwaysAllow === true;
 	const record = getInteraction(db, 'approval', sessionId, runId, approvalId);
 	if (!record) {
-		throw new Error(
+		throw new LifecycleError(
+			'interaction-not-found',
 			`pending approval \`${approvalId}\` was not found for session \`${sessionId}\` run \`${runId}\``,
 		);
 	}
 	if (alwaysAllow && (decision !== 'allow' || scope !== 'once' || !blockedByAutoMode(record))) {
-		throw new Error('only an allow-once decision on a call auto mode blocked can always allow it');
+		throw new LifecycleError(
+			'invalid-argument',
+			'only an allow-once decision on a call auto mode blocked can always allow it',
+		);
 	}
 	const updatedInput = reviewedInput(record, decision, input.updatedInput);
 	const response = {
@@ -1288,16 +1309,22 @@ export async function decideAgentApproval(
 		};
 	} else if (decision === 'allow' && scope !== 'once' && !forThisChat) {
 		if (permission === null)
-			throw new Error('remembered approval requires the exact pending permission descriptor');
+			throw new LifecycleError(
+				'invalid-argument',
+				'remembered approval requires the exact pending permission descriptor',
+			);
 		const identity = activeRunWorkstreamIdentity(db, sessionId, runId);
-		if (!identity) throw new Error('approval belongs to a stale run');
+		if (!identity) throw new LifecycleError('invariant', 'approval belongs to a stale run');
 		const normalized = normalizeRememberablePermission(
 			permission,
 			identity.path,
 			requestToolName(record),
 		);
 		if (record.permissionFingerprint !== normalized.fingerprint) {
-			throw new Error('permission fingerprint does not match the pending request');
+			throw new LifecycleError(
+				'invalid-argument',
+				'permission fingerprint does not match the pending request',
+			);
 		}
 		const canonical: unknown = JSON.parse(normalized.canonicalJson);
 		remembered = {
@@ -1319,7 +1346,11 @@ export async function decideAgentApproval(
 	});
 	if (outcome === 'already_resolved') {
 		const current = getInteraction(db, 'approval', sessionId, runId, approvalId);
-		if (!current) throw new Error(`approval \`${approvalId}\` disappeared after resolution`);
+		if (!current)
+			throw new LifecycleError(
+				'invariant',
+				`approval \`${approvalId}\` disappeared after resolution`,
+			);
 		return approvalDecisionResult(
 			decision,
 			scope,
@@ -1399,7 +1430,8 @@ function interactionNotSent(
 	const runGone =
 		(error instanceof SupervisorError && RUN_GONE.test(error.detail)) ||
 		!activeRunWorkstreamIdentity(db, sessionId, runId);
-	return runGone ? new LifecycleError('run_ended', requestId) : new Error(describe(error));
+	if (runGone) return new LifecycleError('run_ended', requestId);
+	return isMaliniError(error) ? error : new LifecycleError('not-sent', describe(error), [], error);
 }
 
 function blockedByAutoMode(record: { readonly requestPayload: unknown }): boolean {
@@ -1420,7 +1452,8 @@ export async function answerAgentQuestion(
 	const response = { answers };
 	const record = getInteraction(db, 'question', sessionId, runId, questionId);
 	if (!record) {
-		throw new Error(
+		throw new LifecycleError(
+			'interaction-not-found',
 			`pending question \`${questionId}\` was not found for session \`${sessionId}\` run \`${runId}\``,
 		);
 	}
@@ -1777,7 +1810,7 @@ export function defineBridgeCommands(
 			'SELECT workstream_id FROM agent_sessions WHERE id = ?',
 			sessionId,
 		);
-		if (!row) throw new Error(`session \`${sessionId}\` not found`);
+		if (!row) throw new LifecycleError('session-not-found', `session \`${sessionId}\` not found`);
 		const workstreamId = row.workstream_id;
 		return sending.during(workstreamId, () => sendPromptCommand(args, sessionId, workstreamId));
 	};
@@ -1849,7 +1882,10 @@ export function defineBridgeCommands(
 		const value = field(args, 'causeEventId');
 		if (value === undefined || value === null) return null;
 		if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
-			throw new Error('invalid args: `causeEventId` must be the id of a logged event');
+			throw new LifecycleError(
+				'invalid-argument',
+				'invalid args: `causeEventId` must be the id of a logged event',
+			);
 		}
 		return value;
 	}
@@ -1858,7 +1894,10 @@ export function defineBridgeCommands(
 		const from = optionalString(args, 'from');
 		if (from === null) return null;
 		if (getWorkstream(db, from) === null) {
-			throw new Error(`invalid args: \`from\` names no workstream: ${from}`);
+			throw new LifecycleError(
+				'invalid-argument',
+				`invalid args: \`from\` names no workstream: ${from}`,
+			);
 		}
 		return from;
 	}
@@ -2023,42 +2062,52 @@ function field(args: unknown, key: string): unknown {
 
 function requireString(args: unknown, key: string): string {
 	const value = field(args, key);
-	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	if (typeof value !== 'string')
+		throw new LifecycleError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	return value;
 }
 
 function optionalString(args: unknown, key: string): string | null {
 	const value = field(args, key);
 	if (value === undefined || value === null) return null;
-	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	if (typeof value !== 'string')
+		throw new LifecycleError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	return value;
 }
 
 function requireNumber(args: unknown, key: string): number {
 	const value = field(args, key);
 	if (typeof value !== 'number' || !Number.isFinite(value)) {
-		throw new Error(`invalid args: \`${key}\` must be a number`);
+		throw new LifecycleError('invalid-argument', `invalid args: \`${key}\` must be a number`);
 	}
 	return value;
 }
 
 function requireReport(value: unknown): WorkstreamReport {
 	const report = parseWorkstreamReport(value);
-	if (report === null) throw new Error('invalid args: `reports` must hold workstream reports');
+	if (report === null)
+		throw new LifecycleError(
+			'invalid-argument',
+			'invalid args: `reports` must hold workstream reports',
+		);
 	return report;
 }
 
 function optionalArray(args: unknown, key: string): unknown[] {
 	const value = field(args, key);
 	if (value === undefined || value === null) return [];
-	if (!Array.isArray(value)) throw new Error(`invalid args: \`${key}\` must be an array`);
+	if (!Array.isArray(value))
+		throw new LifecycleError('invalid-argument', `invalid args: \`${key}\` must be an array`);
 	return value;
 }
 
 function optionalStringArray(args: unknown, key: string): string[] {
 	const values = optionalArray(args, key);
 	if (!values.every((value): value is string => typeof value === 'string')) {
-		throw new Error(`invalid args: \`${key}\` must be an array of strings`);
+		throw new LifecycleError(
+			'invalid-argument',
+			`invalid args: \`${key}\` must be an array of strings`,
+		);
 	}
 	return values;
 }
@@ -2066,14 +2115,18 @@ function optionalStringArray(args: unknown, key: string): string[] {
 function parseSessionIdentity(args: unknown): SessionIdentity {
 	const origin = field(args, 'origin') ?? 'user';
 	if (origin !== 'user' && origin !== 'automation' && origin !== 'thread') {
-		throw new Error("invalid args: `origin` must be 'user', 'automation' or 'thread'");
+		throw new LifecycleError(
+			'invalid-argument',
+			"invalid args: `origin` must be 'user', 'automation' or 'thread'",
+		);
 	}
 	const requestedName = optionalString(args, 'displayName');
 	if (requestedName === null) return { origin, displayName: null };
 	const displayName = requestedName.replace(/\p{Cc}+/gu, ' ').trim();
 	const length = [...displayName].length;
 	if (length === 0 || length > MAX_SESSION_DISPLAY_NAME_CHARS) {
-		throw new Error(
+		throw new LifecycleError(
+			'invalid-argument',
 			`invalid args: \`displayName\` must be 1-${MAX_SESSION_DISPLAY_NAME_CHARS} characters`,
 		);
 	}
@@ -2086,7 +2139,10 @@ function parseTranscriptReference(value: unknown): AgentTranscriptReference {
 		typeof value['sessionId'] !== 'string' ||
 		typeof value['label'] !== 'string'
 	) {
-		throw new Error('invalid args: `transcriptReferences` entries need `sessionId` and `label`');
+		throw new LifecycleError(
+			'invalid-argument',
+			'invalid args: `transcriptReferences` entries need `sessionId` and `label`',
+		);
 	}
 	return { sessionId: value['sessionId'], label: value['label'] };
 }
@@ -2104,7 +2160,8 @@ function parseElementReference(value: unknown): AgentElementReference {
 		typeof rect['width'] !== 'number' ||
 		typeof rect['height'] !== 'number'
 	) {
-		throw new Error(
+		throw new LifecycleError(
+			'invalid-argument',
 			'invalid args: `elementReferences` entries need `url`, `domPath`, `rect`, and `html`',
 		);
 	}
@@ -2126,7 +2183,10 @@ function parseAnswer(value: unknown): AgentQuestionAnswer {
 		!Array.isArray(value['values']) ||
 		!value['values'].every((item): item is string => typeof item === 'string')
 	) {
-		throw new Error('invalid args: `answers` entries need `questionId` and string `values`');
+		throw new LifecycleError(
+			'invalid-argument',
+			'invalid args: `answers` entries need `questionId` and string `values`',
+		);
 	}
 	return { questionId: value['questionId'], values: [...value['values']] };
 }
@@ -2138,8 +2198,9 @@ export function parseRunProfile(value: unknown): AgentRunProfile | null {
 	return profile;
 }
 
-function invalidProfile(): Error {
-	return new Error(
+function invalidProfile(): LifecycleError {
+	return new LifecycleError(
+		'invalid-argument',
 		'invalid args: `profile` must contain effort (low|medium|high|xhigh|max), mode (agent|plan), an optional access (sandboxed|auto|full) and an optional report (low|medium|high)',
 	);
 }
@@ -2150,7 +2211,10 @@ function checkedDecision(
 ): { decision: AgentApprovalDecision; scope: AgentApprovalScope } {
 	validateApprovalDecision(decision, scope);
 	if (!isAgentApprovalScope(scope)) {
-		throw new Error('approval scope must be `once`, `session`, `workstream`, or `everywhere`');
+		throw new LifecycleError(
+			'invalid-argument',
+			'approval scope must be `once`, `session`, `workstream`, or `everywhere`',
+		);
 	}
 	return { decision, scope };
 }

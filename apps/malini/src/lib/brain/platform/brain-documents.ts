@@ -1,7 +1,24 @@
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { join, posix, sep } from 'node:path';
 import type { BrainDocument, BrainEntry, BrainEntryKind } from '$contract/brain';
-import { errorCode } from '$main/errors';
+import { errorCode, MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
+
+const BRAIN_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'not-set-up': 'expected',
+	'mac-only': 'bug',
+	'public-repository': 'expected',
+	unreachable: 'expected',
+	'not-found': 'bug',
+} as const satisfies ErrorVerdicts;
+
+export type BrainErrorKind = keyof typeof BRAIN_ERROR_VERDICTS;
+
+export class BrainError extends MaliniError<BrainErrorKind> {
+	constructor(kind: BrainErrorKind, message: string) {
+		super('BrainError', BRAIN_ERROR_VERDICTS, kind, message);
+	}
+}
 
 const FOLDERS: Readonly<Record<BrainEntryKind, string>> = { note: 'notes', log: 'log' };
 
@@ -24,9 +41,9 @@ export async function listBrainEntries(checkout: string): Promise<BrainEntry[]> 
 
 export async function readBrainDocument(checkout: string, path: string): Promise<BrainDocument> {
 	const kind = documentKind(path);
-	if (kind === null) throw new Error(NOT_A_BRAIN_DOCUMENT);
+	if (kind === null) throw new BrainError('invalid-argument', NOT_A_BRAIN_DOCUMENT);
 	const read = await readEntry(checkout, path, kind);
-	if (read === null) throw new Error(`The brain has no ${path}.`);
+	if (read === null) throw new BrainError('not-found', `The brain has no ${path}.`);
 	const target = path.slice(0, -'.md'.length);
 	const notes = await Promise.all(
 		(await markdownPaths(checkout, 'note')).map((note) => readEntry(checkout, note, 'note')),

@@ -1,4 +1,5 @@
 import type { FiledProblem, ProblemReport } from '$contract/system';
+import type { ProblemDraft } from '$lib/app/domain/problem-report';
 import { problemReportStore } from '$lib/app/infrastructure/stores/problem-report.store.svelte';
 
 type ProblemReportState = Readonly<{
@@ -8,6 +9,7 @@ type ProblemReportState = Readonly<{
 	filing: boolean;
 	filed: FiledProblem | null;
 	failure: string | null;
+	draft: ProblemDraft;
 }>;
 
 class ProblemReportQuery {
@@ -18,6 +20,7 @@ class ProblemReportQuery {
 		filing: problemReportStore.filing,
 		filed: problemReportStore.filed,
 		failure: problemReportStore.failure,
+		draft: problemReportStore.draft,
 	});
 }
 

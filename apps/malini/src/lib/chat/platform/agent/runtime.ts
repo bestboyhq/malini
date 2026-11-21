@@ -46,6 +46,7 @@ import {
 } from '../runs.repository';
 import { moveSessionStatus, setProviderSessionId } from '../sessions.repository';
 import { get, nowIso8601 } from '$main/db/rows';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import {
 	normalizeRequestedPermission,
 	normalizeToolStateGrant,
@@ -122,17 +123,23 @@ interface ResolvedEnvelope {
 	event: BridgeEvent;
 }
 
-type AgentRuntimeErrorKind = 'restart-failed' | 'session-unrecovered' | 'session-not-found';
+const AGENT_RUNTIME_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'restart-failed': 'bug',
+	'session-unrecovered': 'bug',
+	'session-not-found': 'bug',
+	'not-running': 'bug',
+	'stale-run': 'bug',
+} as const satisfies ErrorVerdicts;
 
-class AgentRuntimeError extends Error {
-	override readonly name = 'AgentRuntimeError';
-	readonly kind: AgentRuntimeErrorKind;
-	readonly code: string | null;
+type AgentRuntimeErrorKind = keyof typeof AGENT_RUNTIME_ERROR_VERDICTS;
 
+class AgentRuntimeError extends MaliniError<AgentRuntimeErrorKind> {
 	constructor(kind: AgentRuntimeErrorKind, message: string, cause?: unknown) {
-		super(message, cause === undefined ? undefined : { cause });
-		this.kind = kind;
-		this.code = cause instanceof SupervisorError ? cause.kind : null;
+		super('AgentRuntimeError', AGENT_RUNTIME_ERROR_VERDICTS, kind, message, {
+			code: cause instanceof SupervisorError ? cause.kind : null,
+			cause,
+		});
 	}
 }
 
@@ -208,7 +215,10 @@ export function recordBridgeInteractionRequest(
 	if (permission !== undefined) {
 		const identity = activeRunWorkstreamIdentity(db, sessionId, runId);
 		if (!identity) {
-			throw new Error(`interaction \`${requestId}\` belongs to a stale session/run correlation`);
+			throw new AgentRuntimeError(
+				'stale-run',
+				`interaction \`${requestId}\` belongs to a stale session/run correlation`,
+			);
 		}
 		try {
 			normalizedPermission = normalizeRequestedPermission(
@@ -672,7 +682,8 @@ export class BridgeRuntime {
 
 	current(): BridgeSupervisor {
 		if (this.supervisor === null) {
-			throw new Error(
+			throw new AgentRuntimeError(
+				'not-running',
 				this.startFailure === null
 					? 'agent bridge is not running'
 					: `agent bridge is not running: ${this.startFailure}`,
@@ -927,7 +938,9 @@ export class BridgeRuntime {
 			event,
 			() => {
 				if (interactionSessionId === null) {
-					return Promise.reject(new Error('approval event has no session correlation'));
+					return Promise.reject(
+						new AgentRuntimeError('invariant', 'approval event has no session correlation'),
+					);
 				}
 				return this.ensureSessionReady(interactionSessionId);
 			},

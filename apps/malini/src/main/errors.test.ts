@@ -6,10 +6,21 @@ import {
 	GitError,
 	gitFailureVerdict,
 	isNotFoundError,
+	MaliniError,
 	remoteRefusal,
 	waitsForYou,
 	type GitCommandFailure,
 } from './errors';
+import {
+	GH_SAID,
+	GIT_SAID,
+	ghSaid,
+	gitMessageTemplate,
+	gitSaid,
+	isGitMessageTemplate,
+	type GhSaid,
+	type GitSaid,
+} from './failure-facts';
 
 const PROXY_UNREACHABLE =
 	"fatal: unable to access 'https://github.com/e2e/hutch.git/': Failed to connect to 127.0.0.1 port 9 after 0 ms: Couldn't connect to server\n";
@@ -466,3 +477,136 @@ function refusedPush(output: string): GitCommandFailure {
 		outputTruncated: false,
 	};
 }
+
+describe('what git said', () => {
+	const SAID: Readonly<Record<Exclude<GitSaid, 'unrecognized'>, string>> = {
+		'dubious-ownership':
+			"fatal: detected dubious ownership in repository at '/Users/me/acme'\nTo add an exception for this directory, call:\n\n\tgit config --global --add safe.directory /Users/me/acme\n",
+		'bad-object':
+			'error: object file .git/objects/ab/cdef is empty\nfatal: loose object abcdef (stored in .git/objects/ab/cdef) is corrupt\n',
+		'index-corrupt': 'error: bad signature 0x00000000\nfatal: index file corrupt\n',
+		'head-invalid':
+			"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.\n",
+		'unknown-revision':
+			"fatal: ambiguous argument 'origin/main': unknown revision or path not in the working tree.\n",
+		pathspec: "error: pathspec 'src/x.ts' did not match any file(s) known to git\n",
+		'not-a-work-tree': 'fatal: not a git repository (or any of the parent directories): .git\n',
+		'permission-denied': 'error: unable to create file src/a.ts: Permission denied\n',
+		'no-space': 'fatal: write error: No space left on device\n',
+		'developer-tools-missing':
+			'xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun\n',
+		'license-not-accepted':
+			"You have not agreed to the Xcode license agreements. Please run 'sudo xcodebuild -license' from within a Terminal window.\n",
+		'clone-target-exists':
+			"fatal: destination path 'acme' already exists and is not an empty directory.\n",
+		'shallow-or-partial': 'fatal: could not fetch abc123 from promisor remote\n',
+	};
+
+	it('names every listed git message and never falls back to unrecognized for one', () => {
+		expect(GIT_SAID.filter((said) => said !== 'unrecognized').sort()).toEqual(
+			Object.keys(SAID).sort(),
+		);
+		for (const [said, output] of Object.entries(SAID))
+			expect([said, gitSaid(output)]).toEqual([said, said]);
+		expect(gitSaid("fatal: Invalid path '/r/acme/base': No such file or directory\n")).toBe(
+			'not-a-work-tree',
+		);
+		expect(gitSaid('fatal: gitfile does not point to a valid repository: /r/acme/ws/.git\n')).toBe(
+			'not-a-work-tree',
+		);
+		expect(gitSaid('fatal: invalid gitfile format: /r/acme/ws/.git\n')).toBe('not-a-work-tree');
+		expect(gitSaid('fatal: your current branch appears to be broken\n')).toBe('head-invalid');
+		expect(gitSaid('fatal: index-pack failed\n')).toBe('unrecognized');
+	});
+
+	it('names what gh said', () => {
+		const SAID: Readonly<Partial<Record<GhSaid, string>>> = {
+			'not-found': 'HTTP 404: Not Found (https://api.github.com/repos/me/acme)',
+			forbidden: 'HTTP 403: Resource not accessible by integration',
+			'already-exists': 'a pull request for branch "malini/x" into branch "main" already exists',
+			'no-commits': 'pull request create failed: GraphQL: No commits between main and malini/x',
+			unprocessable: 'HTTP 422: Validation Failed',
+			graphql: 'GraphQL: Something went wrong while executing your query.',
+		};
+		for (const [said, stderr] of Object.entries(SAID))
+			expect([said, ghSaid(stderr)]).toEqual([said, said]);
+		expect(GH_SAID).toContain('unrecognized');
+		expect(ghSaid('something new')).toBe('unrecognized');
+	});
+
+	it('gives a git failure its subcommand and how git ended, and what git said for the catch-all', () => {
+		const failure = GitError.commandFailed({
+			args: ['-C', '/Users/me/acme', '-c', 'core.hooksPath=/dev/null', 'read-tree', 'HEAD'],
+			exitCode: 128,
+			signal: null,
+			output: 'error: bad signature 0x00000000\nfatal: index file corrupt\n',
+		});
+		expect([failure.kind, failure.facts]).toEqual([
+			'git',
+			{ subcommand: 'read-tree', exit: 128, said: 'index-corrupt' },
+		]);
+		const killed = GitError.commandFailed({
+			args: ['status'],
+			exitCode: null,
+			signal: 'SIGKILL',
+			output: '',
+		});
+		expect(killed.facts).toMatchObject({ subcommand: 'status', signal: 'SIGKILL' });
+		const gh = GhError.fromStderr('HTTP 403: Resource not accessible by integration', 1, [
+			'api',
+			'repos/me/acme',
+		]);
+		expect([gh.kind, gh.facts]).toEqual([
+			'failed',
+			{ subcommand: 'api', exit: 1, said: 'forbidden' },
+		]);
+	});
+
+	it('sends an unrecognized git message as a template of git words, never a name, path or number', () => {
+		const output =
+			"error: cannot lock ref 'refs/heads/main': is at 1a2b3c but expected 4d5e6f\nfatal: unable to write new index file in /Users/me/secret-client/.git 42 times\n";
+		const template = gitMessageTemplate(output);
+		expect(template).toBe('unable to write _ index file in _');
+		expect(isGitMessageTemplate(template ?? '')).toBe(true);
+		expect(isGitMessageTemplate('unable to write secret-client')).toBe(false);
+		const failure = GitError.commandFailed({
+			args: ['add', '-A'],
+			exitCode: 128,
+			signal: null,
+			output,
+		});
+		expect(failure.facts).toEqual({
+			subcommand: 'add',
+			exit: 128,
+			said: 'unrecognized',
+			template: 'unable to write _ index file in _',
+		});
+	});
+});
+
+describe('MaliniError', () => {
+	class WrapError extends MaliniError<'wrapped'> {
+		constructor(cause: unknown) {
+			super('WrapError', { wrapped: 'bug' }, 'wrapped', 'wrapped', { cause });
+		}
+	}
+	const failed = (output: string): GitError =>
+		GitError.commandFailed({ args: ['add', '-A'], exitCode: 128, signal: null, output });
+
+	it('keeps what the user must fix, and what git said, through an error that wraps it', () => {
+		const busy = failed("fatal: Unable to create '/Users/me/acme/.git/index.lock': File exists.\n");
+		const corrupt = failed('error: bad signature 0x00000000\nfatal: index file corrupt\n');
+		expect([busy.verdict, new WrapError(busy).verdict]).toEqual(['expected', 'expected']);
+		expect([new WrapError(corrupt).verdict, new WrapError(corrupt).facts]).toEqual([
+			'bug',
+			{ subcommand: 'add', exit: 128, said: 'index-corrupt' },
+		]);
+		expect(new WrapError(new Error('plain')).verdict).toBe('bug');
+	});
+
+	it('starts its stack where it was thrown, not in the error class', () => {
+		const firstFrame = new WrapError(null).stack?.split('\n')[1] ?? '';
+		expect(firstFrame).toContain('errors.test.ts');
+		expect(firstFrame).not.toMatch(/new (?:WrapError|MaliniError)/u);
+	});
+});

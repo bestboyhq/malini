@@ -7,7 +7,21 @@ import type {
 } from '$contract/initiatives';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, intToBool, nowIso8601, run } from '$main/db/rows';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { latestWorkstreamTurn } from '$lib/chat/chat.platform';
+
+const INITIATIVE_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'not-found': 'bug',
+} as const satisfies ErrorVerdicts;
+
+type InitiativeErrorKind = keyof typeof INITIATIVE_ERROR_VERDICTS;
+
+export class InitiativeError extends MaliniError<InitiativeErrorKind> {
+	constructor(kind: InitiativeErrorKind, message: string) {
+		super('InitiativeError', INITIATIVE_ERROR_VERDICTS, kind, message);
+	}
+}
 
 type InitiativeRow = {
 	id: string;
@@ -179,7 +193,7 @@ function dependencyRow(db: MaliniDatabase, id: string): DependencyRow {
 		'SELECT id, initiative_id, title, done, note FROM initiative_dependencies WHERE id = ?',
 		id,
 	);
-	if (!row) throw new Error(`no initiative dependency ${id}`);
+	if (!row) throw new InitiativeError('not-found', `no initiative dependency ${id}`);
 	return row;
 }
 
@@ -187,8 +201,8 @@ function touch(db: MaliniDatabase, initiativeId: string): void {
 	run(db, 'UPDATE initiatives SET updated_at = ? WHERE id = ?', nowIso8601(), initiativeId);
 }
 
-function unknownInitiative(id: string): Error {
-	return new Error(`no initiative ${id}`);
+function unknownInitiative(id: string): InitiativeError {
+	return new InitiativeError('not-found', `no initiative ${id}`);
 }
 
 function groupBy<Row, Key extends keyof Row, Item>(

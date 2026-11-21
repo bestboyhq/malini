@@ -116,6 +116,7 @@ export async function registerModules(
 		deliver: async (wake) => {
 			await chat.deliver({ ...wake, kind: 'report' });
 		},
+		guardCheckout: (workstreamId, read) => repositories.checkoutHealth.read(workstreamId, read),
 	});
 
 	registerScratchpad(context);
@@ -218,6 +219,7 @@ export async function registerModules(
 	automations.start();
 	brain.start();
 	repositories.overlaps.start();
+	repositories.checkoutHealth.start();
 	app.announceUpdate();
 	app.announceStart();
 
@@ -237,6 +239,7 @@ export async function registerModules(
 			automations.dispose();
 			brain.dispose();
 			repositories.watchers.dispose();
+			repositories.checkoutHealth.dispose();
 			const overlapsSettled = repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();
 			await repositories.installs.abortAll();

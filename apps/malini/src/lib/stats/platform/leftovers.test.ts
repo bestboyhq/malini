@@ -1,6 +1,10 @@
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { workstreamsRootAliases } from '$shared/repositories/repositories.platform';
 import { leftoverContainers, leftoverProcesses, parseProcessList } from './leftovers';
-import type { DockerContainer } from './running-docker';
+import { withAliases, type DockerContainer } from './running-docker';
 
 const ROOT = '/Users/me/Library/Application Support/malini/workstreams';
 const ARCHIVED = { id: 'ws-1', path: `${ROOT}/ws-1` };
@@ -46,21 +50,21 @@ describe('leftoverProcesses', () => {
 	});
 });
 
-describe('leftoverContainers', () => {
-	const container = (
-		id: string,
-		workingDir: string | null,
-		bindSources: string[] = [],
-	): DockerContainer => ({
-		id,
-		name: id,
-		image: 'mongo:7',
-		startedAt: 0,
-		ports: [],
-		labels: workingDir === null ? {} : { 'com.docker.compose.project.working_dir': workingDir },
-		bindSources,
-	});
+const container = (
+	id: string,
+	workingDir: string | null,
+	bindSources: string[] = [],
+): DockerContainer => ({
+	id,
+	name: id,
+	image: 'mongo:7',
+	startedAt: 0,
+	ports: [],
+	labels: workingDir === null ? {} : { 'com.docker.compose.project.working_dir': workingDir },
+	bindSources,
+});
 
+describe('leftoverContainers', () => {
 	it('stops the compose projects of the swept folder, never a live one', () => {
 		const containers = [
 			container('archived', `${ARCHIVED.path}/apps/backend`),
@@ -94,5 +98,37 @@ describe('leftoverContainers', () => {
 			'mounts-two-archived',
 			'composed-elsewhere',
 		]);
+	});
+});
+
+describe('a workstream folder reached through the link its old home left', () => {
+	it('stops what mounts or runs from the old path, never a live workstream there', async () => {
+		const appData = await mkdtemp(join(tmpdir(), 'malini-aliases-'));
+		const home = join(appData, 'home');
+		await mkdir(join(home, 'workstreams'), { recursive: true });
+		await symlink(join(home, 'workstreams'), join(appData, 'workstreams'));
+		const aliases = await workstreamsRootAliases(appData, home);
+		const old = join(appData, 'workstreams');
+		const place = {
+			folders: withAliases([{ id: 'ws-1', path: join(home, 'workstreams', 'ws-1') }], aliases),
+			live: withAliases([{ id: 'ws-10', path: join(home, 'workstreams', 'ws-10') }], aliases),
+		};
+		const containers = [
+			container('archived', null, [`${old}/ws-1/apps/backend/logs`]),
+			container('live', null, [`${old}/ws-10/data`]),
+		];
+		const listed = parseProcessList(
+			[
+				`  300     1 ??       node ${old}/ws-1/server.js`,
+				`  310     1 ??       node ${old}/ws-10/x.js`,
+			].join('\n'),
+		);
+
+		try {
+			expect(leftoverContainers(containers, place)).toEqual(['archived']);
+			expect(leftoverProcesses(listed, place, 200)).toEqual([300]);
+		} finally {
+			await rm(appData, { recursive: true, force: true });
+		}
 	});
 });

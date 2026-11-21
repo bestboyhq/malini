@@ -62,7 +62,7 @@ import {
 	watchDraftChecks,
 	type ShipDeps,
 } from './ship-store';
-import type { ShipTarget } from './ship-target';
+import { ShipError, type ShipTarget } from './ship-target';
 
 export type Idleness = Readonly<{ idle: boolean; settlesInMs: number | null }>;
 
@@ -395,7 +395,10 @@ async function openPullRequest(deps: ShipDeps, state: ShipState): Promise<void> 
 		draft: row.phase !== 'queued',
 	});
 	if (created.number === null) {
-		throw new Error('GitHub created the pull request but did not return its number');
+		throw new ShipError(
+			'pull-request-missing',
+			'GitHub created the pull request but did not return its number',
+		);
 	}
 	saveShip(deps, workstreamId, {
 		pullRequestNumber: created.number,
@@ -461,7 +464,8 @@ async function startAutomation(
 	const definition = automationDefinitions(db).find(
 		(candidate) => candidate.builtin === move.builtin,
 	);
-	if (!definition) throw new Error(`The built-in ${move.builtin} automation is missing`);
+	if (!definition)
+		throw new ShipError('invariant', `The built-in ${move.builtin} automation is missing`);
 	const automationContext = await shippingAutomationContext(deps, state, move.builtin);
 	const causeEventId = pullRequestRead(
 		deps,

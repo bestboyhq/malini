@@ -1,6 +1,6 @@
 # 0052 - A repository opens before its clone finishes
 
-Status: superseded by 0270
+Status: superseded by 0276
 
 ## Context
 

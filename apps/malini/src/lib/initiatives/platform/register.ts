@@ -12,6 +12,7 @@ import {
 	createInitiative,
 	deleteDependency,
 	deleteInitiative,
+	InitiativeError,
 	linkWorkstream,
 	listInitiatives,
 	updateDependency,
@@ -80,7 +81,7 @@ function field(args: unknown, key: string): unknown {
 function id(args: unknown, key: string): string {
 	const value = field(args, key);
 	if (typeof value !== 'string' || value.trim().length === 0) {
-		throw new Error(`invalid args: \`${key}\` must be an id`);
+		throw new InitiativeError('invalid-argument', `invalid args: \`${key}\` must be an id`);
 	}
 	return value;
 }
@@ -91,7 +92,10 @@ function repositoryFullName(value: unknown): string {
 		value.trim().length === 0 ||
 		value.length > REPOSITORY_FULL_NAME_MAX_LENGTH
 	) {
-		throw new Error('invalid args: `repositoryFullName` must be a repository name');
+		throw new InitiativeError(
+			'invalid-argument',
+			'invalid args: `repositoryFullName` must be a repository name',
+		);
 	}
 	return value.trim();
 }
@@ -103,7 +107,8 @@ function title(value: unknown): string {
 		trimmed.length > INITIATIVE_TITLE_MAX_LENGTH ||
 		/[\n\r\u2028\u2029]/u.test(trimmed)
 	) {
-		throw new Error(
+		throw new InitiativeError(
+			'invalid-argument',
 			`invalid args: \`title\` must be one line of 1 to ${INITIATIVE_TITLE_MAX_LENGTH} characters`,
 		);
 	}
@@ -113,7 +118,10 @@ function title(value: unknown): string {
 function dueOn(value: unknown): string | null {
 	if (value === null) return null;
 	if (typeof value !== 'string' || !isDay(value)) {
-		throw new Error('invalid args: `dueOn` must be null or a YYYY-MM-DD day');
+		throw new InitiativeError(
+			'invalid-argument',
+			'invalid args: `dueOn` must be null or a YYYY-MM-DD day',
+		);
 	}
 	return value;
 }
@@ -125,7 +133,10 @@ function note(value: unknown): string | null {
 		value.length > SCRATCHPAD_CONTENT_MAX_LENGTH ||
 		!isScratchpadContent(value)
 	) {
-		throw new Error('invalid args: `note` must be null or a scratchpad document');
+		throw new InitiativeError(
+			'invalid-argument',
+			'invalid args: `note` must be null or a scratchpad document',
+		);
 	}
 	return value;
 }
@@ -135,7 +146,10 @@ function initiativeChange(args: unknown): InitiativeChange {
 	const newDueOn = field(args, 'dueOn');
 	const newNote = field(args, 'note');
 	if (newTitle === undefined && newDueOn === undefined && newNote === undefined) {
-		throw new Error('invalid args: give a `title`, a `dueOn` or a `note` to change');
+		throw new InitiativeError(
+			'invalid-argument',
+			'invalid args: give a `title`, a `dueOn` or a `note` to change',
+		);
 	}
 	return {
 		...(newTitle === undefined ? {} : { title: title(newTitle) }),
@@ -149,10 +163,13 @@ function dependencyChange(args: unknown): DependencyChange {
 	const done = field(args, 'done');
 	const newNote = field(args, 'note');
 	if (newTitle === undefined && done === undefined && newNote === undefined) {
-		throw new Error('invalid args: give a `title`, `done` or a `note` to change');
+		throw new InitiativeError(
+			'invalid-argument',
+			'invalid args: give a `title`, `done` or a `note` to change',
+		);
 	}
 	if (done !== undefined && typeof done !== 'boolean') {
-		throw new Error('invalid args: `done` must be true or false');
+		throw new InitiativeError('invalid-argument', 'invalid args: `done` must be true or false');
 	}
 	return {
 		...(newTitle === undefined ? {} : { title: title(newTitle) }),

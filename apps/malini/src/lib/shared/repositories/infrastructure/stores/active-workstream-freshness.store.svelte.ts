@@ -7,6 +7,7 @@ import {
 	type ActiveWorkstreamFreshnessPhase,
 	type ActiveWorkstreamFreshnessRequest,
 } from '$shared/repositories/domain/workstream-freshness';
+import { checkoutHealthAggregate } from '$shared/repositories/infrastructure/aggregates/checkout-health.aggregate.svelte';
 
 type TotalsRequest = 'none' | 'ensure' | 'refresh';
 
@@ -83,6 +84,10 @@ export class ActiveWorkstreamFreshnessStore {
 		if (this.#workstreamId) this.#refreshImmediatelyAndRestartTimers('ensure');
 	}
 
+	get workstreamId(): string | null {
+		return this.#workstreamId;
+	}
+
 	setWorkstream(workstreamId: string | null): void {
 		const nextWorkstreamId = workstreamId?.trim() || null;
 		if (nextWorkstreamId === this.#workstreamId) return;
@@ -107,7 +112,12 @@ export class ActiveWorkstreamFreshnessStore {
 		request: Partial<ActiveWorkstreamFreshnessRequest>,
 		totalsRequest: Exclude<TotalsRequest, 'none'>,
 	): Promise<void> {
-		if (!this.#started || !this.#workstreamId || !this.#isForeground()) {
+		if (
+			!this.#started ||
+			!this.#workstreamId ||
+			!this.#isForeground() ||
+			!checkoutHealthAggregate.readable(this.#workstreamId)
+		) {
 			return Promise.resolve();
 		}
 		const queue = this.#queue;
